@@ -82,7 +82,7 @@ export default async function DashboardPage() {
         </div>
 
         {/* Navigation Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <Link href="/dashboard/members">
             <div className="bg-white dark:bg-slate-900 rounded-lg shadow p-6 hover:shadow-lg transition-shadow cursor-pointer">
               <h2 className="text-xl font-bold mb-2">Member Analytics</h2>
@@ -104,6 +104,19 @@ export default async function DashboardPage() {
               </p>
               <div className="flex items-center text-blue-600 dark:text-blue-400">
                 <span>View Prickles</span>
+                <span className="ml-2">→</span>
+              </div>
+            </div>
+          </Link>
+
+          <Link href="/dashboard/import">
+            <div className="bg-white dark:bg-slate-900 rounded-lg shadow p-6 hover:shadow-lg transition-shadow cursor-pointer">
+              <h2 className="text-xl font-bold mb-2">Import Data</h2>
+              <p className="text-slate-600 dark:text-slate-400 mb-4">
+                Import Zoom meeting attendance data into the system
+              </p>
+              <div className="flex items-center text-blue-600 dark:text-blue-400">
+                <span>Import Zoom Data</span>
                 <span className="ml-2">→</span>
               </div>
             </div>
