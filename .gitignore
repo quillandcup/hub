@@ -43,3 +43,8 @@ next-env.d.ts
 # ide
 .idea
 .vscode
+
+# supabase
+/supabase/.branches
+/supabase/.temp
+/supabase/logs

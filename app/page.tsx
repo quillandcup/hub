@@ -8,9 +8,17 @@ export default function Home() {
             <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
               Quill & Cup Admin Portal
             </h1>
-            <span className="px-3 py-1 bg-amber-100 dark:bg-amber-900 text-amber-800 dark:text-amber-200 text-sm font-medium rounded-full">
-              In Development
-            </span>
+            <div className="flex items-center gap-4">
+              <span className="px-3 py-1 bg-amber-100 dark:bg-amber-900 text-amber-800 dark:text-amber-200 text-sm font-medium rounded-full">
+                In Development
+              </span>
+              <a
+                href="/login"
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg transition-colors"
+              >
+                Sign In
+              </a>
+            </div>
           </div>
         </div>
       </header>

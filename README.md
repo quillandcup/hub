@@ -2,9 +2,43 @@
 
 Internal admin dashboard for Quill & Cup attendance and engagement analytics.
 
+## Quick Start
+
+### Prerequisites
+1. **Docker Desktop** - [Download here](https://docs.docker.com/desktop/)
+2. Node.js (already installed)
+3. Supabase CLI (already installed)
+
+### Start Local Development
+
+```bash
+# 1. Start Docker Desktop (open the app)
+
+# 2. Start Supabase
+supabase start
+
+# 3. Start Next.js
+npm run dev
+```
+
+### Test Auth Flow
+
+1. Visit http://localhost:3000
+2. Click "Sign In"
+3. Enter any email (e.g., `you@example.com`)
+4. Open **Inbucket** at http://127.0.0.1:54324
+5. Click the magic link in the email
+6. You're in! Dashboard shows "Welcome, [name]!"
+
+**Key URLs:**
+- App: http://localhost:3000
+- Supabase Studio: http://127.0.0.1:54323
+- Inbucket (Emails): http://127.0.0.1:54324
+
 ## Documentation
 
 - [Product Requirements Document (PRD)](docs/PRD.md)
+- [Setup Guide](docs/SETUP.md)
 
 ## Overview
 
@@ -24,3 +58,11 @@ The system uses a **medallion architecture** (bronze/silver/gold) for data trans
 - **Gold**: Business analytics and insights
 
 See [PRD](docs/PRD.md) for full details.
+
+## Current Features
+
+✅ Landing page with roadmap  
+✅ Magic link authentication  
+✅ Protected dashboard  
+🚧 Member analytics (coming soon)  
+🚧 Session insights (coming soon)
