@@ -54,8 +54,8 @@ CREATE INDEX IF NOT EXISTS idx_zoom_attendees_email ON zoom_attendees(email);
 CREATE INDEX IF NOT EXISTS idx_zoom_attendees_join_time ON zoom_attendees(join_time);
 CREATE INDEX IF NOT EXISTS idx_zoom_attendees_user_id ON zoom_attendees(user_id);
 
--- Scheduled sessions from calendar/Slack
-CREATE TABLE IF NOT EXISTS sessions (
+-- Scheduled prickles (writing sessions) from calendar/Slack
+CREATE TABLE IF NOT EXISTS prickles (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     title TEXT NOT NULL,
     host TEXT NOT NULL,
@@ -66,8 +66,8 @@ CREATE TABLE IF NOT EXISTS sessions (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
 );
 
-CREATE INDEX IF NOT EXISTS idx_sessions_start_time ON sessions(start_time);
-CREATE INDEX IF NOT EXISTS idx_sessions_type ON sessions(type);
+CREATE INDEX IF NOT EXISTS idx_prickles_start_time ON prickles(start_time);
+CREATE INDEX IF NOT EXISTS idx_prickles_type ON prickles(type);
 
 -- Hedgie Hiatus history (track all hiatus periods)
 CREATE TABLE IF NOT EXISTS member_hiatus_history (
@@ -89,29 +89,29 @@ COMMENT ON TABLE member_hiatus_history IS 'Bronze: Track all member hiatus perio
 -- SILVER LAYER (Inferred/Transformed Data)
 -- =====================================================
 
--- Inferred attendance (joins Zoom data with sessions and members)
+-- Inferred attendance (joins Zoom data with prickles and members)
 CREATE TABLE IF NOT EXISTS attendance (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     member_id UUID NOT NULL REFERENCES members(id) ON DELETE CASCADE,
-    session_id UUID NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+    prickle_id UUID NOT NULL REFERENCES prickles(id) ON DELETE CASCADE,
     join_time TIMESTAMP WITH TIME ZONE NOT NULL,
     leave_time TIMESTAMP WITH TIME ZONE NOT NULL,
     confidence_score TEXT NOT NULL CHECK (confidence_score IN ('high', 'medium', 'low')),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
-    UNIQUE(member_id, session_id)
+    UNIQUE(member_id, prickle_id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_attendance_member_id ON attendance(member_id);
-CREATE INDEX IF NOT EXISTS idx_attendance_session_id ON attendance(session_id);
+CREATE INDEX IF NOT EXISTS idx_attendance_prickle_id ON attendance(prickle_id);
 CREATE INDEX IF NOT EXISTS idx_attendance_join_time ON attendance(join_time);
 
 -- Enriched member metrics (aggregated from attendance)
 CREATE TABLE IF NOT EXISTS member_metrics (
     member_id UUID PRIMARY KEY REFERENCES members(id) ON DELETE CASCADE,
     last_attended_at TIMESTAMP WITH TIME ZONE,
-    sessions_last_7_days INTEGER DEFAULT 0,
-    sessions_last_30_days INTEGER DEFAULT 0,
-    total_sessions INTEGER DEFAULT 0,
+    prickles_last_7_days INTEGER DEFAULT 0,
+    prickles_last_30_days INTEGER DEFAULT 0,
+    total_prickles INTEGER DEFAULT 0,
     engagement_score INTEGER DEFAULT 0,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT now()
 );
@@ -129,9 +129,9 @@ CREATE TABLE IF NOT EXISTS member_engagement (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT now()
 );
 
--- Session popularity and trends
-CREATE TABLE IF NOT EXISTS session_popularity (
-    session_id UUID PRIMARY KEY REFERENCES sessions(id) ON DELETE CASCADE,
+-- Prickle popularity and trends
+CREATE TABLE IF NOT EXISTS prickle_popularity (
+    prickle_id UUID PRIMARY KEY REFERENCES prickles(id) ON DELETE CASCADE,
     avg_attendance FLOAT,
     last_5_attendance INTEGER[],
     trend TEXT CHECK (trend IN ('increasing', 'stable', 'decreasing')),
@@ -160,7 +160,7 @@ CREATE TABLE IF NOT EXISTS member_activities (
     metadata JSONB, -- Flexible storage for activity-specific fields
 
     -- References to related entities (nullable, depends on activity type)
-    session_id UUID REFERENCES sessions(id) ON DELETE SET NULL, -- For prickle attendance
+    prickle_id UUID REFERENCES prickles(id) ON DELETE SET NULL, -- For prickle attendance
     related_id TEXT, -- Generic ID for other resources (whitepaper ID, slack channel, etc.)
 
     -- Metrics
@@ -177,7 +177,7 @@ CREATE INDEX IF NOT EXISTS idx_member_activities_member_id ON member_activities(
 CREATE INDEX IF NOT EXISTS idx_member_activities_type ON member_activities(activity_type);
 CREATE INDEX IF NOT EXISTS idx_member_activities_category ON member_activities(activity_category);
 CREATE INDEX IF NOT EXISTS idx_member_activities_occurred_at ON member_activities(occurred_at);
-CREATE INDEX IF NOT EXISTS idx_member_activities_session_id ON member_activities(session_id);
+CREATE INDEX IF NOT EXISTS idx_member_activities_prickle_id ON member_activities(prickle_id);
 
 -- Activity type definitions (for reference and validation)
 CREATE TABLE IF NOT EXISTS activity_types (
@@ -230,8 +230,8 @@ DROP TRIGGER IF EXISTS update_member_engagement_updated_at ON member_engagement;
 CREATE TRIGGER update_member_engagement_updated_at BEFORE UPDATE ON member_engagement
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
-DROP TRIGGER IF EXISTS update_session_popularity_updated_at ON session_popularity;
-CREATE TRIGGER update_session_popularity_updated_at BEFORE UPDATE ON session_popularity
+DROP TRIGGER IF EXISTS update_prickle_popularity_updated_at ON prickle_popularity;
+CREATE TRIGGER update_prickle_popularity_updated_at BEFORE UPDATE ON prickle_popularity
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- =====================================================
@@ -240,8 +240,8 @@ CREATE TRIGGER update_session_popularity_updated_at BEFORE UPDATE ON session_pop
 
 COMMENT ON TABLE members IS 'Bronze: Raw member data from Kajabi';
 COMMENT ON TABLE zoom_attendees IS 'Bronze: Raw Zoom attendance records';
-COMMENT ON TABLE sessions IS 'Bronze: Scheduled sessions from calendar/Slack';
-COMMENT ON TABLE attendance IS 'Silver: Inferred attendance by matching Zoom data to sessions and members';
+COMMENT ON TABLE prickles IS 'Bronze: Scheduled prickles (writing sessions) from calendar/Slack';
+COMMENT ON TABLE attendance IS 'Silver: Inferred attendance by matching Zoom data to prickles and members';
 COMMENT ON TABLE member_metrics IS 'Silver: Aggregated member engagement metrics';
 COMMENT ON TABLE member_engagement IS 'Gold: Member risk and engagement analysis';
-COMMENT ON TABLE session_popularity IS 'Gold: Session attendance trends and popularity';
+COMMENT ON TABLE prickle_popularity IS 'Gold: Prickle attendance trends and popularity';

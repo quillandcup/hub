@@ -3,12 +3,12 @@
 -- =====================================================
 
 -- Clear existing data (in reverse dependency order)
-TRUNCATE session_popularity CASCADE;
+TRUNCATE prickle_popularity CASCADE;
 TRUNCATE member_engagement CASCADE;
 TRUNCATE member_metrics CASCADE;
 TRUNCATE attendance CASCADE;
 TRUNCATE member_hiatus_history CASCADE;
-TRUNCATE sessions CASCADE;
+TRUNCATE prickles CASCADE;
 TRUNCATE zoom_attendees CASCADE;
 TRUNCATE members CASCADE;
 
@@ -50,7 +50,7 @@ INSERT INTO member_hiatus_history (member_id, start_date, end_date, reason, note
 -- =====================================================
 
 -- Recent sessions (last 30 days)
-INSERT INTO sessions (id, title, host, start_time, end_time, type, source) VALUES
+INSERT INTO prickles (id, title, host, start_time, end_time, type, source) VALUES
 -- Week 1 (March 10-16)
 ('10000001-0000-0000-0000-000000000001', 'Morning Writing Sprint', 'Owner 2', '2026-03-10 09:00:00+00', '2026-03-10 10:30:00+00', 'sprint', 'calendar'),
 ('10000002-0000-0000-0000-000000000002', 'Evening Creative Flow', 'Owner 1 Alt', '2026-03-10 18:00:00+00', '2026-03-10 19:30:00+00', 'flow', 'calendar'),
@@ -107,7 +107,7 @@ INSERT INTO zoom_attendees (meeting_id, meeting_uuid, topic, participant_id, use
 -- =====================================================
 
 -- High confidence matches (email match + time overlap)
-INSERT INTO attendance (member_id, session_id, join_time, leave_time, confidence_score) VALUES
+INSERT INTO attendance (member_id, prickle_id, join_time, leave_time, confidence_score) VALUES
 -- Session 1
 ('11111111-1111-1111-1111-111111111111', '10000001-0000-0000-0000-000000000001', '2026-03-10 09:05:00+00', '2026-03-10 10:25:00+00', 'high'),
 ('33333333-3333-3333-3333-333333333333', '10000001-0000-0000-0000-000000000001', '2026-03-10 09:10:00+00', '2026-03-10 10:30:00+00', 'high'),
@@ -131,7 +131,7 @@ INSERT INTO attendance (member_id, session_id, join_time, leave_time, confidence
 -- MEMBER METRICS (Silver - Aggregated)
 -- =====================================================
 
-INSERT INTO member_metrics (member_id, last_attended_at, sessions_last_7_days, sessions_last_30_days, total_sessions, engagement_score) VALUES
+INSERT INTO member_metrics (member_id, last_attended_at, prickles_last_7_days, prickles_last_30_days, total_prickles, engagement_score) VALUES
 -- Highly engaged members
 ('11111111-1111-1111-1111-111111111111', '2026-03-24 10:28:00+00', 1, 5, 12, 35),
 ('22222222-2222-2222-2222-222222222222', '2026-03-24 10:29:00+00', 1, 4, 10, 30),
@@ -175,7 +175,7 @@ INSERT INTO member_engagement (member_id, risk_level, engagement_tier) VALUES
 -- SESSION POPULARITY (Gold - Analytics)
 -- =====================================================
 
-INSERT INTO session_popularity (session_id, avg_attendance, last_5_attendance, trend) VALUES
+INSERT INTO prickle_popularity (prickle_id, avg_attendance, last_5_attendance, trend) VALUES
 ('10000001-0000-0000-0000-000000000001', 3.5, ARRAY[3, 4, 3], 'stable'),
 ('10000002-0000-0000-0000-000000000002', 2.8, ARRAY[2, 3, 3], 'stable'),
 ('10000003-0000-0000-0000-000000000003', 4.2, ARRAY[4, 5, 4], 'stable'),
@@ -187,7 +187,7 @@ INSERT INTO session_popularity (session_id, avg_attendance, last_5_attendance, t
 -- =====================================================
 
 -- Sample activities showing the comprehensive tracking
-INSERT INTO member_activities (member_id, activity_type, activity_category, title, description, metadata, session_id, occurred_at, engagement_value, duration_minutes, source) VALUES
+INSERT INTO member_activities (member_id, activity_type, activity_category, title, description, metadata, prickle_id, occurred_at, engagement_value, duration_minutes, source) VALUES
 -- Prickle attendance (derived from zoom_attendees and attendance tables)
 ('11111111-1111-1111-1111-111111111111', 'prickle_attendance', 'engagement', 'Attended Morning Writing Sprint', 'Participated in writing session', '{"attentiveness": 95, "arrived_on_time": true}'::jsonb, '10000001-0000-0000-0000-000000000001', '2026-03-10 09:05:00+00', 5, 80, 'zoom'),
 ('33333333-3333-3333-3333-333333333333', 'prickle_attendance', 'engagement', 'Attended Morning Writing Sprint', 'Participated in writing session', '{"attentiveness": 88, "arrived_on_time": false}'::jsonb, '10000001-0000-0000-0000-000000000001', '2026-03-10 09:10:00+00', 5, 80, 'zoom'),
