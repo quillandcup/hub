@@ -1,0 +1,5 @@
+name,email,joined_at,status,plan
+Jane Smith,jane@example.com,2025-01-15,active,Premium
+John Doe,john@example.com,2024-11-20,active,Basic
+Mary Johnson,mary@example.com,2024-08-10,on_hiatus,Premium
+Bob Wilson,bob@example.com,2023-12-01,inactive,Basic

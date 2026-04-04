@@ -1,7 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import ImportForm from "./ImportForm";
+import ZoomImportForm from "./ZoomImportForm";
+import MemberImportForm from "./MemberImportForm";
 
 export default async function ImportPage() {
   const supabase = await createClient();
@@ -21,12 +22,33 @@ export default async function ImportPage() {
           <Link href="/dashboard" className="text-blue-600 hover:text-blue-700 dark:text-blue-400 text-sm mb-2 inline-block">
             ← Back to Dashboard
           </Link>
-          <h1 className="text-2xl font-bold">Import Zoom Data</h1>
+          <h1 className="text-2xl font-bold">Import Data</h1>
         </div>
       </header>
 
       <main className="container mx-auto px-6 py-8">
-        <div className="max-w-2xl mx-auto">
+        <div className="max-w-2xl mx-auto space-y-6">
+          {/* Member CSV Import */}
+          <div className="bg-white dark:bg-slate-900 rounded-lg shadow p-6">
+            <div className="mb-6">
+              <h2 className="text-xl font-bold mb-2">Member Import (CSV)</h2>
+              <p className="text-slate-600 dark:text-slate-400 mb-3">
+                Upload a CSV file with member data exported from Kajabi.
+              </p>
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                Required columns: <code className="bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded">name</code>,{" "}
+                <code className="bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded">email</code>,{" "}
+                <code className="bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded">joined_at</code>,{" "}
+                <code className="bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded">status</code>
+                <br />
+                Optional: <code className="bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded">plan</code>
+              </p>
+            </div>
+
+            <MemberImportForm />
+          </div>
+
+          {/* Zoom Attendance Import */}
           <div className="bg-white dark:bg-slate-900 rounded-lg shadow p-6">
             <div className="mb-6">
               <h2 className="text-xl font-bold mb-2">Zoom Attendance Import</h2>
@@ -36,7 +58,7 @@ export default async function ImportPage() {
               </p>
             </div>
 
-            <ImportForm />
+            <ZoomImportForm />
           </div>
         </div>
       </main>
