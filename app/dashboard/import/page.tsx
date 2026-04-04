@@ -33,16 +33,17 @@ export default async function ImportPage() {
             <div className="mb-6">
               <h2 className="text-xl font-bold mb-2">Member Import (CSV)</h2>
               <p className="text-slate-600 dark:text-slate-400 mb-3">
-                Upload a CSV file with member data exported from Kajabi.
+                Upload a CSV file with member data. Automatically detects Kajabi exports or custom CSV format.
               </p>
-              <p className="text-sm text-slate-500 dark:text-slate-400">
-                Required columns: <code className="bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded">name</code>,{" "}
-                <code className="bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded">email</code>,{" "}
-                <code className="bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded">joined_at</code>,{" "}
-                <code className="bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded">status</code>
-                <br />
-                Optional: <code className="bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded">plan</code>
-              </p>
+              <details className="text-sm text-slate-500 dark:text-slate-400">
+                <summary className="cursor-pointer font-medium hover:text-slate-700 dark:hover:text-slate-300">
+                  CSV Format Details
+                </summary>
+                <div className="mt-2 pl-4 space-y-2">
+                  <p><strong>Kajabi Export:</strong> Go to Contacts → All Contacts → Filter "Customers" → Select All → Bulk Action "Export"</p>
+                  <p><strong>Custom CSV:</strong> Include columns: name, email, joined_at, status (active/inactive/on_hiatus), plan (optional)</p>
+                </div>
+              </details>
             </div>
 
             <MemberImportForm />

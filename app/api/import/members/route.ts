@@ -88,46 +88,129 @@ function parseCSV(text: string): MemberRow[] {
     throw new Error("CSV must have a header row and at least one data row");
   }
 
-  const header = lines[0].split(",").map((h) => h.trim().toLowerCase());
+  const headerLine = lines[0];
+  const headers = parseCSVLine(headerLine);
+
+  // Check if this is a Kajabi export
+  const isKajabi = headers.includes("Name") && headers.includes("Email") && headers.includes("Member Created At");
+
+  if (isKajabi) {
+    return parseKajabiCSV(headers, lines.slice(1));
+  } else {
+    return parseSimpleCSV(headers, lines.slice(1));
+  }
+}
+
+function parseKajabiCSV(headers: string[], dataLines: string[]): MemberRow[] {
+  const nameIdx = headers.indexOf("Name");
+  const emailIdx = headers.indexOf("Email");
+  const createdAtIdx = headers.indexOf("Member Created At");
+  const tagsIdx = headers.indexOf("Tags");
+  const productsIdx = headers.indexOf("Products");
+
+  const members: MemberRow[] = [];
+
+  for (let i = 0; i < dataLines.length; i++) {
+    const line = dataLines[i].trim();
+    if (!line) continue;
+
+    const values = parseCSVLine(line);
+
+    const name = values[nameIdx]?.trim();
+    const email = values[emailIdx]?.trim();
+    const createdAt = values[createdAtIdx]?.trim();
+    const tags = values[tagsIdx]?.trim() || "";
+    const products = values[productsIdx]?.trim() || "";
+
+    // Skip if missing required fields
+    if (!name || !email || !createdAt) {
+      console.warn(`Skipping Kajabi row ${i + 2}: missing name, email, or created_at`);
+      continue;
+    }
+
+    // Validate email
+    if (!email.includes("@")) {
+      console.warn(`Skipping Kajabi row ${i + 2}: invalid email "${email}"`);
+      continue;
+    }
+
+    // Derive status from tags
+    let status: "active" | "inactive" | "on_hiatus";
+    if (tags.includes("Quill & Cup Member")) {
+      status = "active";
+    } else if (tags.includes("Offboarding")) {
+      status = "inactive";
+    } else {
+      status = "inactive"; // Default to inactive if no clear tag
+    }
+
+    // Extract plan from products (look for "Membership" product)
+    let plan: string | undefined;
+    if (products.includes("Quill & Cup Membership")) {
+      plan = "Membership";
+    } else if (products.includes("BFF Program")) {
+      plan = "BFF";
+    } else if (products) {
+      plan = "Other";
+    }
+
+    // Format joined_at (Kajabi format: "2022-09-03 18:49:55 -0600")
+    // Convert to ISO date: "2022-09-03"
+    const joinedAt = createdAt.split(" ")[0];
+
+    members.push({
+      name,
+      email: email.toLowerCase(),
+      joined_at: joinedAt,
+      status,
+      plan,
+    });
+  }
+
+  return members;
+}
+
+function parseSimpleCSV(headers: string[], dataLines: string[]): MemberRow[] {
+  const headerLower = headers.map((h) => h.trim().toLowerCase());
   const requiredColumns = ["name", "email", "joined_at", "status"];
 
   // Validate required columns exist
   for (const col of requiredColumns) {
-    if (!header.includes(col)) {
+    if (!headerLower.includes(col)) {
       throw new Error(`Missing required column: ${col}`);
     }
   }
 
   const members: MemberRow[] = [];
 
-  for (let i = 1; i < lines.length; i++) {
-    const line = lines[i].trim();
-    if (!line) continue; // Skip empty lines
+  for (let i = 0; i < dataLines.length; i++) {
+    const line = dataLines[i].trim();
+    if (!line) continue;
 
     const values = parseCSVLine(line);
     const row: any = {};
 
-    header.forEach((col, index) => {
+    headerLower.forEach((col, index) => {
       row[col] = values[index]?.trim() || "";
     });
 
     // Validate required fields
     if (!row.name || !row.email || !row.joined_at || !row.status) {
-      console.warn(`Skipping row ${i + 1}: missing required fields`);
+      console.warn(`Skipping row ${i + 2}: missing required fields`);
       continue;
     }
 
     // Validate status
     if (!["active", "inactive", "on_hiatus"].includes(row.status)) {
       console.warn(
-        `Skipping row ${i + 1}: invalid status "${row.status}". Must be: active, inactive, or on_hiatus`
+        `Skipping row ${i + 2}: invalid status "${row.status}". Must be: active, inactive, or on_hiatus`
       );
       continue;
     }
 
     // Validate email format (basic)
     if (!row.email.includes("@")) {
-      console.warn(`Skipping row ${i + 1}: invalid email "${row.email}"`);
+      console.warn(`Skipping row ${i + 2}: invalid email "${row.email}"`);
       continue;
     }
 
