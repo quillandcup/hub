@@ -46,6 +46,16 @@ Import Prickles schedule from:
 
 ## Security & Access Control
 
+### User Invitations
+- ✅ **DONE: Disabled public signups**
+  - Set `enable_signup = false` in `supabase/config.toml`
+  - Admins invite users through Supabase Studio
+  - See `docs/INVITING_USERS.md` for instructions
+- **TODO: In-app invite management (future)**
+  - Admin page to send invites with pre-set roles
+  - Email templates for invitations
+  - Track invite status and expiration
+
 ### Row Level Security (RLS)
 - ✅ **DONE: Basic RLS enabled on all tables**
   - All tables have RLS enabled
