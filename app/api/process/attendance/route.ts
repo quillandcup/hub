@@ -337,6 +337,16 @@ export async function POST(request: NextRequest) {
 
           if (!intersection) continue;
 
+          // Calculate intersection duration in minutes
+          const intersectionDurationMs = intersection.end.getTime() - intersection.start.getTime();
+          const intersectionDurationMin = intersectionDurationMs / (60 * 1000);
+
+          // For PUPs: only count attendance if meaningful duration (>15 minutes)
+          // Prevents counting someone who joined 7 min early for next prickle as PUP attendance
+          if (segment.type === "pup" && intersectionDurationMin < 15) {
+            continue;
+          }
+
           const prickleId = prickleIdsBySegment.get(segment);
           if (!prickleId) continue;
 
