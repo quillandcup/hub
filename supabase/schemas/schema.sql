@@ -255,11 +255,14 @@ BEGIN
         RETURN NULL;
     END IF;
 
-    -- Lowercase, trim, collapse multiple spaces, remove common punctuation
+    -- Lowercase, trim all whitespace, collapse multiple spaces, remove common punctuation
     RETURN LOWER(
         REGEXP_REPLACE(
             REGEXP_REPLACE(
-                TRIM(name),
+                REGEXP_REPLACE(
+                    name,
+                    E'^[\\s]+|[\\s]+$', '', 'g'  -- trim leading/trailing whitespace (tabs, newlines, spaces)
+                ),
                 E'[\\s]+', ' ', 'g'  -- collapse multiple spaces
             ),
             E'[.,\'\\-]', '', 'g'  -- remove punctuation: . , ' -
