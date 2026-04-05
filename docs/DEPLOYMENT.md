@@ -54,15 +54,33 @@ supabase migration list
 
 ### 1.4 Disable Public Signups in Production
 
-1. Go to **Authentication → Providers** in Supabase dashboard
-2. Scroll to **Email** provider
-3. Uncheck **"Enable email signups"**
+**Disable Public Signups:**
+
+1. In Supabase Dashboard, go to **Authentication** 
+2. Find the toggle: **"Allow new users to sign up"**
+3. **Disable this toggle**
 4. Click **Save**
 
-Or via SQL in Supabase SQL Editor:
+This prevents anyone from creating accounts directly. 
+
+**Keep Email Provider Enabled:**
+- The email provider toggle should stay **ON**
+- This allows invited users to log in
+- It's separate from the signup toggle
+
+**To Invite Users in Production:**
+
+1. Go to **Authentication → Users** 
+2. Click **"Invite User"**
+3. Enter email → User receives invite link
+4. They set password and can log in
+
+**Verify RLS Protection:**
+
+Run this in SQL Editor to confirm all tables are protected:
 
 ```sql
--- Verify RLS is enabled
+-- Check RLS is enabled
 SELECT tablename, rowsecurity 
 FROM pg_tables 
 WHERE schemaname = 'public' 
