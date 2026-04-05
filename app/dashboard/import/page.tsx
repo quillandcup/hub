@@ -1,10 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import ZoomImportForm from "./ZoomImportForm";
+import ZoomImportAndProcessForm from "./ZoomImportAndProcessForm";
 import MemberImportForm from "./MemberImportForm";
-import ProcessMembersButton from "./ProcessMembersButton";
-import ProcessAttendanceForm from "./ProcessAttendanceForm";
 
 export default async function ImportPage() {
   const supabase = await createClient();
@@ -29,13 +27,13 @@ export default async function ImportPage() {
       </header>
 
       <main className="container mx-auto px-6 py-8">
-        <div className="max-w-2xl mx-auto space-y-6">
-          {/* Member CSV Import */}
+        <div className="max-w-4xl mx-auto space-y-6">
+          {/* Member CSV Import & Process */}
           <div className="bg-white dark:bg-slate-900 rounded-lg shadow p-6">
             <div className="mb-6">
-              <h2 className="text-xl font-bold mb-2">Member Import (CSV)</h2>
+              <h2 className="text-xl font-bold mb-2">Member Import & Processing</h2>
               <p className="text-slate-600 dark:text-slate-400 mb-3">
-                Upload a CSV file with member data. Automatically detects Kajabi subscriptions export, members export, or custom CSV format.
+                Upload a CSV file with member data, then process it to populate the members table.
               </p>
               <details className="text-sm text-slate-500 dark:text-slate-400">
                 <summary className="cursor-pointer font-medium hover:text-slate-700 dark:hover:text-slate-300">
@@ -53,44 +51,16 @@ export default async function ImportPage() {
             <MemberImportForm />
           </div>
 
-          {/* Zoom Attendance Import */}
+          {/* Zoom Attendance Import & Process */}
           <div className="bg-white dark:bg-slate-900 rounded-lg shadow p-6">
             <div className="mb-6">
-              <h2 className="text-xl font-bold mb-2">Zoom Attendance Import</h2>
+              <h2 className="text-xl font-bold mb-2">Zoom Import & Processing</h2>
               <p className="text-slate-600 dark:text-slate-400">
-                Import Zoom meeting attendance data for a specific date range.
-                This will fetch all meetings and participants from Zoom and store them in the database.
+                Import Zoom meeting attendance for a date range, then process it to match attendees to members and create attendance records.
               </p>
             </div>
 
-            <ZoomImportForm />
-          </div>
-
-          {/* Divider */}
-          <div className="border-t-2 border-slate-200 dark:border-slate-700 my-8"></div>
-
-          {/* Process Members */}
-          <div className="bg-white dark:bg-slate-900 rounded-lg shadow p-6">
-            <div className="mb-6">
-              <h2 className="text-xl font-bold mb-2">Process Members</h2>
-              <p className="text-slate-600 dark:text-slate-400">
-                After importing member data, process it to populate the members table with derived status and metadata.
-              </p>
-            </div>
-
-            <ProcessMembersButton />
-          </div>
-
-          {/* Process Attendance */}
-          <div className="bg-white dark:bg-slate-900 rounded-lg shadow p-6">
-            <div className="mb-6">
-              <h2 className="text-xl font-bold mb-2">Process Attendance</h2>
-              <p className="text-slate-600 dark:text-slate-400">
-                After importing Zoom data, process it to match attendees to members and create attendance records.
-              </p>
-            </div>
-
-            <ProcessAttendanceForm />
+            <ZoomImportAndProcessForm />
           </div>
         </div>
       </main>
