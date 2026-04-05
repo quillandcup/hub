@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import CalendarSyncButton from "./CalendarSyncButton";
 
 export default function CalendarImportForm() {
   const [fromDate, setFromDate] = useState("");
@@ -110,11 +111,11 @@ export default function CalendarImportForm() {
             type="text"
             value={calendarId}
             onChange={(e) => setCalendarId(e.target.value)}
-            placeholder="primary"
+            placeholder="Leave empty to use GOOGLE_CALENDAR_ID from .env"
             className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
           />
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-            Default: "primary" (your main calendar)
+            Optional: Leave empty to use GOOGLE_CALENDAR_ID from .env.local
           </p>
         </div>
 
@@ -168,16 +169,20 @@ export default function CalendarImportForm() {
             <p className="text-red-800 dark:text-red-200">{result.error}</p>
           ) : (
             <div className="text-green-800 dark:text-green-200">
-              <p className="font-semibold mb-2">Import Successful!</p>
+              <p className="font-semibold mb-2">Sync Successful!</p>
               <ul className="text-sm space-y-1">
                 <li>Total events found: {result.total || 0}</li>
-                <li>Imported: {result.imported || 0}</li>
-                <li>Skipped (duplicates/invalid): {result.skipped || 0}</li>
+                <li>Imported (new): {result.imported || 0}</li>
+                <li>Updated (changed): {result.updated || 0}</li>
+                <li>Skipped (unchanged/invalid): {result.skipped || 0}</li>
               </ul>
             </div>
           )}
         </div>
       )}
+
+      {/* Quick Sync */}
+      <CalendarSyncButton />
     </div>
   );
 }

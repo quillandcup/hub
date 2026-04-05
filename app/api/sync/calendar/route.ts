@@ -3,7 +3,8 @@ import { GoogleCalendarClient } from "@/lib/google-calendar/client";
 import { NextRequest, NextResponse } from "next/server";
 
 /**
- * Import prickles from Google Calendar
+ * Sync prickles from Google Calendar (idempotent)
+ * Can be called regularly via cron or manually
  */
 export async function POST(request: NextRequest) {
   const supabase = await createClient();
@@ -19,35 +20,34 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { calendarId, fromDate, toDate, refreshToken } = body;
+    const { daysBack = 30, daysForward = 90 } = body;
 
-    if (!fromDate || !toDate) {
+    // Use environment variables for calendar config
+    const refreshToken = process.env.GOOGLE_REFRESH_TOKEN;
+    const calendarId = process.env.GOOGLE_CALENDAR_ID || "primary";
+
+    if (!refreshToken) {
       return NextResponse.json(
-        { error: "fromDate and toDate are required" },
+        { error: "No Google Calendar refresh token configured in .env" },
         { status: 400 }
       );
     }
 
     // Initialize Google Calendar client
     const client = new GoogleCalendarClient();
+    client.setTokens({ refresh_token: refreshToken });
 
-    // Use refresh token if provided, otherwise use env variable
-    const token = refreshToken || process.env.GOOGLE_REFRESH_TOKEN;
-    if (!token) {
-      return NextResponse.json(
-        { error: "No Google Calendar refresh token available. Please authenticate first." },
-        { status: 400 }
-      );
-    }
+    // Calculate date range (default: 30 days back, 90 days forward)
+    const now = new Date();
+    const fromDate = new Date(now);
+    fromDate.setDate(fromDate.getDate() - daysBack);
+    const toDate = new Date(now);
+    toDate.setDate(toDate.getDate() + daysForward);
 
-    client.setTokens({ refresh_token: token });
+    const timeMin = fromDate.toISOString();
+    const timeMax = toDate.toISOString();
 
-    // Fetch events from calendar
-    const timeMin = new Date(fromDate).toISOString();
-    const timeMax = new Date(toDate).toISOString();
-    const useCalendarId = calendarId || process.env.GOOGLE_CALENDAR_ID || "primary";
-
-    const events = await client.listEvents(useCalendarId, timeMin, timeMax);
+    const events = await client.listEvents(calendarId, timeMin, timeMax);
 
     if (!events || events.length === 0) {
       return NextResponse.json({
@@ -55,6 +55,7 @@ export async function POST(request: NextRequest) {
         message: "No calendar events found in date range",
         imported: 0,
         updated: 0,
+        skipped: 0,
       });
     }
 
@@ -91,7 +92,7 @@ export async function POST(request: NextRequest) {
       // Check if prickle already exists
       const { data: existingPrickle } = await supabase
         .from("prickles")
-        .select("id, title, start_time, end_time")
+        .select("id, title, start_time, end_time, host")
         .eq("google_calendar_event_id", event.id)
         .single();
 
@@ -100,7 +101,8 @@ export async function POST(request: NextRequest) {
         const changed =
           existingPrickle.title !== prickleData.title ||
           existingPrickle.start_time !== prickleData.start_time ||
-          existingPrickle.end_time !== prickleData.end_time;
+          existingPrickle.end_time !== prickleData.end_time ||
+          existingPrickle.host !== prickleData.host;
 
         if (changed) {
           const { error: updateError } = await supabase
@@ -140,11 +142,15 @@ export async function POST(request: NextRequest) {
       imported,
       updated,
       skipped,
+      dateRange: {
+        from: fromDate.toISOString(),
+        to: toDate.toISOString(),
+      },
     });
   } catch (error: any) {
-    console.error("Error importing calendar events:", error);
+    console.error("Error syncing calendar:", error);
     return NextResponse.json(
-      { error: error.message || "Failed to import calendar events" },
+      { error: error.message || "Failed to sync calendar" },
       { status: 500 }
     );
   }
