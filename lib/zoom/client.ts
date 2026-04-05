@@ -51,6 +51,47 @@ export class ZoomClient {
     this.userEmail = userEmail;
   }
 
+  private async fetchWithRetry(
+    url: string,
+    options: RequestInit,
+    maxRetries = 5
+  ): Promise<Response> {
+    let lastError: Error | null = null;
+
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        const response = await fetch(url, options);
+
+        // If rate limited, wait and retry
+        if (response.status === 429) {
+          if (attempt === maxRetries) {
+            throw new Error(`Rate limited after ${maxRetries} retries`);
+          }
+
+          // Exponential backoff: 1s, 2s, 4s, 8s, 16s
+          const delayMs = Math.pow(2, attempt) * 1000;
+          console.log(`Rate limited, waiting ${delayMs}ms before retry ${attempt + 1}/${maxRetries}`);
+          await new Promise(resolve => setTimeout(resolve, delayMs));
+          continue;
+        }
+
+        return response;
+      } catch (error) {
+        lastError = error as Error;
+        if (attempt === maxRetries) {
+          throw lastError;
+        }
+
+        // Network errors: shorter backoff
+        const delayMs = 500 * (attempt + 1);
+        console.log(`Network error, waiting ${delayMs}ms before retry ${attempt + 1}/${maxRetries}`);
+        await new Promise(resolve => setTimeout(resolve, delayMs));
+      }
+    }
+
+    throw lastError || new Error('Fetch failed');
+  }
+
   private async getToken(): Promise<string> {
     if (this.token) {
       return this.token;
@@ -58,7 +99,7 @@ export class ZoomClient {
 
     const credentials = Buffer.from(`${this.clientId}:${this.clientSecret}`).toString('base64');
 
-    const response = await fetch(
+    const response = await this.fetchWithRetry(
       `${this.baseUrl}/oauth/token?grant_type=account_credentials&account_id=${this.accountId}`,
       {
         method: 'POST',
@@ -93,7 +134,7 @@ export class ZoomClient {
         params.set('next_page_token', nextPageToken);
       }
 
-      const response = await fetch(
+      const response = await this.fetchWithRetry(
         `${this.baseUrl}/v2/report/users/${this.userEmail}/meetings?${params}`,
         {
           headers: {
@@ -134,7 +175,7 @@ export class ZoomClient {
         params.set('next_page_token', nextPageToken);
       }
 
-      const response = await fetch(
+      const response = await this.fetchWithRetry(
         `${this.baseUrl}/v2/report/meetings/${encodedUuid}/participants?${params}`,
         {
           headers: {
