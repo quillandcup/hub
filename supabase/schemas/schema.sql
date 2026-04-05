@@ -71,7 +71,7 @@ CREATE INDEX IF NOT EXISTS idx_zoom_attendees_email ON zoom_attendees(email);
 CREATE INDEX IF NOT EXISTS idx_zoom_attendees_join_time ON zoom_attendees(join_time);
 CREATE INDEX IF NOT EXISTS idx_zoom_attendees_user_id ON zoom_attendees(user_id);
 
--- Scheduled prickles (writing sessions) from calendar/Slack
+-- Scheduled prickles (writing sessions) from calendar/Slack/Zoom
 CREATE TABLE IF NOT EXISTS prickles (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     title TEXT NOT NULL,
@@ -79,12 +79,14 @@ CREATE TABLE IF NOT EXISTS prickles (
     start_time TIMESTAMP WITH TIME ZONE NOT NULL,
     end_time TIMESTAMP WITH TIME ZONE NOT NULL,
     type TEXT,
-    source TEXT NOT NULL CHECK (source IN ('calendar', 'slack', 'sheets')),
+    source TEXT NOT NULL CHECK (source IN ('calendar', 'slack', 'sheets', 'zoom')),
+    zoom_meeting_uuid TEXT, -- Zoom meeting UUID if created from Zoom meeting
     created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
 );
 
 CREATE INDEX IF NOT EXISTS idx_prickles_start_time ON prickles(start_time);
 CREATE INDEX IF NOT EXISTS idx_prickles_type ON prickles(type);
+CREATE INDEX IF NOT EXISTS idx_prickles_zoom_meeting_uuid ON prickles(zoom_meeting_uuid);
 
 -- Hedgie Hiatus history (track all hiatus periods)
 CREATE TABLE IF NOT EXISTS member_hiatus_history (
