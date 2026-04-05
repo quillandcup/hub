@@ -135,20 +135,10 @@ export async function POST(request: NextRequest) {
     let matchedToCalendar = 0;
     let createdNewPrickles = 0;
 
-    // Cache PUPs by meeting_uuid to avoid creating duplicates for same Zoom meeting
-    const pupByMeetingUuid = new Map<string, string>(); // meeting_uuid -> prickle_id
+    // PASS 1: Match each attendee to calendar or mark for PUP
+    const attendeeMatches = new Map<any, string | null>(); // attendee -> prickle_id or null
+    const pupAttendeesByMeeting = new Map<string, any[]>(); // meeting_uuid -> attendees[]
 
-    // Group attendees by meeting_uuid to calculate meeting windows for PUPs
-    const attendeesByMeeting = new Map<string, any[]>();
-    for (const attendee of zoomAttendees) {
-      const uuid = attendee.meeting_uuid || attendee.meeting_id;
-      if (!attendeesByMeeting.has(uuid)) {
-        attendeesByMeeting.set(uuid, []);
-      }
-      attendeesByMeeting.get(uuid)!.push(attendee);
-    }
-
-    // Process each attendee individually
     for (const attendee of zoomAttendees) {
       // Match attendee to a member first
       const { data: matchResult } = await supabase.rpc("match_member_by_name", {
@@ -160,82 +150,104 @@ export async function POST(request: NextRequest) {
 
       if (!match) {
         skippedUnmatched++;
+        attendeeMatches.set(attendee, null);
         continue;
       }
 
       matchedAttendees++;
 
       // Try to find overlapping calendar prickle using THIS ATTENDEE'S join/leave window
-      const attendeeStart = attendee.join_time;
-      const attendeeEnd = attendee.leave_time;
-
-      let prickleId = await findOverlappingPrickle(
+      const prickleId = await findOverlappingPrickle(
         supabase,
-        attendeeStart,
-        attendeeEnd
+        attendee.join_time,
+        attendee.leave_time
       );
 
       if (prickleId) {
         matchedToCalendar++;
+        attendeeMatches.set(attendee, prickleId);
       } else {
-        // No calendar match - create or find PUP for the MEETING (not individual attendee)
+        // No calendar match - track for PUP creation
         const meetingUuid = attendee.meeting_uuid || attendee.meeting_id;
-
-        if (pupByMeetingUuid.has(meetingUuid)) {
-          // Already created PUP for this meeting
-          prickleId = pupByMeetingUuid.get(meetingUuid)!;
-        } else {
-          // Calculate meeting window from all attendees in this meeting
-          const meetingAttendees = attendeesByMeeting.get(meetingUuid) || [];
-          const joinTimes = meetingAttendees.map(a => new Date(a.join_time).getTime());
-          const leaveTimes = meetingAttendees.map(a => new Date(a.leave_time).getTime());
-          const meetingStart = new Date(Math.min(...joinTimes)).toISOString();
-          const meetingEnd = new Date(Math.max(...leaveTimes)).toISOString();
-
-          // Check if PUP already exists for this meeting
-          const { data: existingPup } = await supabase
-            .from("prickles")
-            .select("id")
-            .eq("source", "zoom")
-            .eq("zoom_meeting_uuid", meetingUuid)
-            .single();
-
-          if (existingPup) {
-            prickleId = existingPup.id;
-            pupByMeetingUuid.set(meetingUuid, prickleId);
-          } else {
-            // Create new PUP for the entire meeting window
-            const { data: newPrickle, error: prickleError } = await supabase
-              .from("prickles")
-              .insert({
-                type_id: pupType.id,
-                host: "Unknown",
-                start_time: meetingStart,
-                end_time: meetingEnd,
-                source: "zoom",
-                zoom_meeting_uuid: meetingUuid,
-              })
-              .select("id")
-              .single();
-
-            if (prickleError || !newPrickle) {
-              console.error("Error creating prickle:", prickleError);
-              continue;
-            }
-
-            prickleId = newPrickle.id;
-            pupByMeetingUuid.set(meetingUuid, prickleId);
-            createdNewPrickles++;
-          }
+        if (!pupAttendeesByMeeting.has(meetingUuid)) {
+          pupAttendeesByMeeting.set(meetingUuid, []);
         }
+        pupAttendeesByMeeting.get(meetingUuid)!.push(attendee);
+        attendeeMatches.set(attendee, "PUP_PENDING");
+      }
+    }
+
+    // PASS 2: Create PUPs with correct windows (only from non-calendar attendees)
+    const pupByMeetingUuid = new Map<string, string>();
+
+    for (const [meetingUuid, pupAttendees] of pupAttendeesByMeeting) {
+      const joinTimes = pupAttendees.map(a => new Date(a.join_time).getTime());
+      const leaveTimes = pupAttendees.map(a => new Date(a.leave_time).getTime());
+      const meetingStart = new Date(Math.min(...joinTimes)).toISOString();
+      const meetingEnd = new Date(Math.max(...leaveTimes)).toISOString();
+
+      // Check if PUP already exists
+      const { data: existingPup } = await supabase
+        .from("prickles")
+        .select("id")
+        .eq("source", "zoom")
+        .eq("zoom_meeting_uuid", meetingUuid)
+        .single();
+
+      let prickleId: string;
+
+      if (existingPup) {
+        prickleId = existingPup.id;
+      } else {
+        // Create new PUP
+        const { data: newPrickle, error: prickleError } = await supabase
+          .from("prickles")
+          .insert({
+            type_id: pupType.id,
+            host: "Unknown",
+            start_time: meetingStart,
+            end_time: meetingEnd,
+            source: "zoom",
+            zoom_meeting_uuid: meetingUuid,
+          })
+          .select("id")
+          .single();
+
+        if (prickleError || !newPrickle) {
+          console.error("Error creating PUP:", prickleError);
+          continue;
+        }
+
+        prickleId = newPrickle.id;
+        createdNewPrickles++;
       }
 
-      if (!prickleId) {
-        console.error(`No prickle found for attendee ${attendee.name}`);
-        continue;
+      pupByMeetingUuid.set(meetingUuid, prickleId);
+
+      // Update attendee matches
+      for (const attendee of pupAttendees) {
+        attendeeMatches.set(attendee, prickleId);
+      }
+    }
+
+    // PASS 3: Create attendance records
+    for (const attendee of zoomAttendees) {
+      const prickleId = attendeeMatches.get(attendee);
+
+      if (!prickleId || prickleId === "PUP_PENDING") {
+        continue; // Skipped unmatched or error
       }
 
-      // Create attendance record (Silver layer - inferred data)
+      // Get member match again
+      const { data: matchResult } = await supabase.rpc("match_member_by_name", {
+        zoom_name: attendee.name,
+        zoom_email: attendee.email,
+      });
+
+      const match = matchResult && matchResult.length > 0 ? matchResult[0] : null;
+      if (!match) continue;
+
+      // Create attendance record
       const { error: attendanceError } = await supabase
         .from("attendance")
         .upsert({
