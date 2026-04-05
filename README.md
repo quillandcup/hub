@@ -39,6 +39,7 @@ npm run dev
 
 - [Product Requirements Document (PRD)](docs/PRD.md)
 - [Setup Guide](docs/SETUP.md)
+- [Database Architecture (Medallion Pattern)](supabase/ARCHITECTURE.md)
 
 ## Overview
 
@@ -53,11 +54,11 @@ This system tracks attendance and engagement for Quill & Cup's weekly writing se
 ## Architecture
 
 The system uses a **medallion architecture** (bronze/silver/gold) for data transformation:
-- **Bronze**: Raw data from Kajabi, Zoom, and Calendar
-- **Silver**: Inferred attendance and enriched metrics
+- **Bronze**: Raw data from Kajabi, Zoom, and Calendar (no inference)
+- **Silver**: Inferred attendance and enriched metrics (business logic applied)
 - **Gold**: Business analytics and insights
 
-See [PRD](docs/PRD.md) for full details.
+See [Database Architecture](supabase/ARCHITECTURE.md) for detailed layer documentation and data flow.
 
 ## Current Features
 
