@@ -50,6 +50,10 @@ CREATE TABLE IF NOT EXISTS zoom_attendees (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
 );
 
+-- Unique constraint for immutability (prevents duplicate imports)
+CREATE UNIQUE INDEX IF NOT EXISTS idx_zoom_attendees_unique ON zoom_attendees(meeting_uuid, name, join_time);
+
+-- Indexes for querying
 CREATE INDEX IF NOT EXISTS idx_zoom_attendees_meeting_id ON zoom_attendees(meeting_id);
 CREATE INDEX IF NOT EXISTS idx_zoom_attendees_email ON zoom_attendees(email);
 CREATE INDEX IF NOT EXISTS idx_zoom_attendees_join_time ON zoom_attendees(join_time);

@@ -59,10 +59,13 @@ export async function POST(request: NextRequest) {
       if (attendeesToInsert.length > 0) {
         const { error } = await supabase
           .from("zoom_attendees")
-          .insert(attendeesToInsert);
+          .upsert(attendeesToInsert, {
+            onConflict: "meeting_uuid,name,join_time",
+            ignoreDuplicates: true,
+          });
 
         if (error) {
-          console.error(`Error inserting attendees for meeting ${meeting.uuid}:`, error);
+          console.error(`Error upserting attendees for meeting ${meeting.uuid}:`, error);
           throw error;
         }
 
