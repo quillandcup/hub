@@ -99,9 +99,9 @@ export default async function MembersPage({
                 {members?.map((member: any) => (
                   <tr key={member.id} className="hover:bg-slate-50 dark:hover:bg-slate-800">
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-slate-900 dark:text-slate-100">
+                      <Link href={`/dashboard/members/${member.id}`} className="text-sm font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 hover:underline">
                         {member.name}
-                      </div>
+                      </Link>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm text-slate-500 dark:text-slate-400">

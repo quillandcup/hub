@@ -63,7 +63,7 @@ CREATE INDEX IF NOT EXISTS idx_zoom_attendees_user_id ON zoom_attendees(user_id)
 CREATE TABLE IF NOT EXISTS prickles (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     title TEXT NOT NULL,
-    host TEXT NOT NULL,
+    host UUID REFERENCES members(id) ON DELETE SET NULL, -- Foreign key to member who hosted
     start_time TIMESTAMP WITH TIME ZONE NOT NULL,
     end_time TIMESTAMP WITH TIME ZONE NOT NULL,
     type TEXT,
@@ -74,6 +74,7 @@ CREATE TABLE IF NOT EXISTS prickles (
 
 CREATE INDEX IF NOT EXISTS idx_prickles_start_time ON prickles(start_time);
 CREATE INDEX IF NOT EXISTS idx_prickles_type ON prickles(type);
+CREATE INDEX IF NOT EXISTS idx_prickles_host ON prickles(host);
 CREATE INDEX IF NOT EXISTS idx_prickles_zoom_meeting_uuid ON prickles(zoom_meeting_uuid);
 
 -- Hedgie Hiatus history (track all hiatus periods)

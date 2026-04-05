@@ -61,12 +61,12 @@ export default async function CalendarPage({
   // Disable next button if it would go into the future (beyond current week)
   const isNextDisabled = nextWeek.getTime() > today.getTime();
 
-  // Fetch prickles for the current week with attendance counts
+  // Fetch prickles for the current week with attendance counts and host
   const { data: prickles } = await supabase
     .from("prickles")
     .select(`
       id,
-      host,
+      host:members(id, name),
       start_time,
       end_time,
       prickle_types!inner(name),
@@ -79,7 +79,7 @@ export default async function CalendarPage({
   // Transform the data to include attendance count
   const pricklesWithCount = prickles?.map((prickle: any) => ({
     id: prickle.id,
-    host: prickle.host,
+    host: prickle.host?.name || null, // Extract name from host member object
     start_time: prickle.start_time,
     end_time: prickle.end_time,
     prickle_type: prickle.prickle_types?.name || "Unknown",

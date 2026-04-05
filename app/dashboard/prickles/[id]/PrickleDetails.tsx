@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 
 const TIMEZONES = [
   { value: "America/New_York", label: "Eastern (ET)" },
@@ -19,6 +20,7 @@ export default function PrickleDetails({ prickle, attendanceRecords }: PrickleDe
   const [timezone, setTimezone] = useState("America/New_York");
 
   const prickleType = prickle.prickle_types as any;
+  const hostMember = prickle.host as any; // { id, name } or null
   const startTime = new Date(prickle.start_time);
   const endTime = new Date(prickle.end_time);
   const durationMinutes = Math.round((endTime.getTime() - startTime.getTime()) / 60000);
@@ -71,7 +73,15 @@ export default function PrickleDetails({ prickle, attendanceRecords }: PrickleDe
           </div>
           <div>
             <span className="text-slate-600 dark:text-slate-400">Host:</span>
-            <p className="font-semibold text-slate-900 dark:text-slate-100">{prickle.host || "None"}</p>
+            <p className="font-semibold">
+              {hostMember ? (
+                <Link href={`/dashboard/members/${hostMember.id}`} className="text-blue-600 hover:text-blue-700 dark:text-blue-400 hover:underline">
+                  {hostMember.name}
+                </Link>
+              ) : (
+                <span className="text-slate-900 dark:text-slate-100">None</span>
+              )}
+            </p>
           </div>
           <div>
             <span className="text-slate-600 dark:text-slate-400">Date:</span>
@@ -139,9 +149,9 @@ export default function PrickleDetails({ prickle, attendanceRecords }: PrickleDe
                   return (
                     <tr key={record.id} className="hover:bg-slate-50 dark:hover:bg-slate-800">
                       <td className="px-6 py-4">
-                        <div className="text-sm font-medium text-slate-900 dark:text-slate-100">
+                        <Link href={`/dashboard/members/${member.id}`} className="text-sm font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 hover:underline">
                           {member.name}
-                        </div>
+                        </Link>
                         <div className="text-xs text-slate-500 dark:text-slate-400">
                           {member.email}
                         </div>

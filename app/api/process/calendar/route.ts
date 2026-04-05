@@ -81,25 +81,28 @@ export async function POST(request: NextRequest) {
       }
 
       // Parse prickle type and host from summary
-      const { type: rawType, host: extractedHost } = parsePrickleFromSummary(event.summary);
+      const { type: rawType, host: extractedHostName } = parsePrickleFromSummary(event.summary);
 
-      let host = extractedHost;
-      let suggestedHost = event.creator_name || event.organizer_name || null;
+      let hostId: string | null = null;
+      let suggestedHostName = event.creator_name || event.organizer_name || null;
 
-      // If no host extracted from summary, try to match organizer/creator to a member
-      if (!host && (event.organizer_name || event.creator_name)) {
-        const nameToMatch = event.organizer_name || event.creator_name;
+      // Try to match host to a member ID
+      const hostNameToMatch = extractedHostName || event.organizer_name || event.creator_name;
+
+      if (hostNameToMatch) {
         const emailToMatch = event.organizer_email || event.creator_email || null;
 
         const { data: matchResult } = await supabase.rpc("match_member_by_name", {
-          zoom_name: nameToMatch,
+          zoom_name: hostNameToMatch,
           zoom_email: emailToMatch,
         });
 
         const match = matchResult && matchResult.length > 0 ? matchResult[0] : null;
 
         if (match) {
-          // Get the canonical member name
+          hostId = match.member_id;
+
+          // Get canonical member name for suggested_host
           const { data: member } = await supabase
             .from("members")
             .select("name")
@@ -107,8 +110,7 @@ export async function POST(request: NextRequest) {
             .single();
 
           if (member) {
-            host = member.name;
-            suggestedHost = member.name;
+            suggestedHostName = member.name;
           }
         }
       }
@@ -122,7 +124,7 @@ export async function POST(request: NextRequest) {
             calendar_event_id: event.id,
             raw_summary: event.summary,
             suggested_type: null,
-            suggested_host: suggestedHost,
+            suggested_host: suggestedHostName,
             status: "pending",
           }, {
             onConflict: "calendar_event_id",
@@ -141,7 +143,7 @@ export async function POST(request: NextRequest) {
             calendar_event_id: event.id,
             raw_summary: event.summary,
             suggested_type: rawType,
-            suggested_host: host,
+            suggested_host: suggestedHostName,
             status: "pending",
           }, {
             onConflict: "calendar_event_id",
@@ -161,10 +163,10 @@ export async function POST(request: NextRequest) {
 
       if (existingPrickle) {
         // Update if host or type changed
-        if (existingPrickle.host !== host || existingPrickle.type_id !== typeId) {
+        if (existingPrickle.host !== hostId || existingPrickle.type_id !== typeId) {
           const { error: updateError } = await supabase
             .from("prickles")
-            .update({ host, type_id: typeId })
+            .update({ host: hostId, type_id: typeId })
             .eq("id", existingPrickle.id);
 
           if (updateError) {
@@ -184,7 +186,7 @@ export async function POST(request: NextRequest) {
         .from("prickles")
         .insert({
           type_id: typeId,
-          host,
+          host: hostId,
           start_time: event.start_time,
           end_time: event.end_time,
           source: "calendar",

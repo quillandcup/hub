@@ -18,12 +18,12 @@ export default async function PrickleDetailPage({
     redirect("/login");
   }
 
-  // Fetch prickle details with type
+  // Fetch prickle details with type and host member
   const { data: prickle } = await supabase
     .from("prickles")
     .select(`
       id,
-      host,
+      host:members(id, name),
       start_time,
       end_time,
       source,
@@ -58,6 +58,7 @@ export default async function PrickleDetailPage({
     `)
     .eq("prickle_id", params.id)
     .order("join_time", { ascending: true });
+
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950">

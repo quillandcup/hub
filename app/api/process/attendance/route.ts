@@ -280,7 +280,7 @@ export async function POST(request: NextRequest) {
             .from("prickles")
             .insert({
               type_id: segment.type_id,
-              host: "Unknown",
+              host: null, // PUPs have no host
               start_time: segment.start_time,
               end_time: segment.end_time,
               source: "zoom",
