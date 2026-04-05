@@ -46,32 +46,44 @@ INSERT INTO member_hiatus_history (member_id, start_date, end_date, reason, note
 ('55555555-5555-5555-5555-555555555555', '2025-11-15', '2025-12-15', 'Work deadline', 'Book manuscript deadline');
 
 -- =====================================================
--- SESSIONS (Bronze)
+-- PRICKLES (Silver)
 -- =====================================================
 
--- Recent sessions (last 30 days)
-INSERT INTO prickles (id, title, host, start_time, end_time, type, source) VALUES
--- Week 1 (March 10-16)
-('10000001-0000-0000-0000-000000000001', 'Morning Writing Sprint', 'Owner 2', '2026-03-10 09:00:00+00', '2026-03-10 10:30:00+00', 'sprint', 'calendar'),
-('10000002-0000-0000-0000-000000000002', 'Evening Creative Flow', 'Owner 1 Alt', '2026-03-10 18:00:00+00', '2026-03-10 19:30:00+00', 'flow', 'calendar'),
-('10000003-0000-0000-0000-000000000003', 'Weekend Deep Work', 'Owner 2', '2026-03-14 14:00:00+00', '2026-03-14 16:00:00+00', 'deep_work', 'calendar'),
+-- Recent prickles (last 30 days)
+-- Get type IDs from prickle_types table
+DO $$
+DECLARE
+  sprint_type_id UUID;
+  heads_down_type_id UUID;
+  progress_type_id UUID;
+BEGIN
+  SELECT id INTO sprint_type_id FROM prickle_types WHERE normalized_name = 'sprint-prickle';
+  SELECT id INTO heads_down_type_id FROM prickle_types WHERE normalized_name = 'heads-down';
+  SELECT id INTO progress_type_id FROM prickle_types WHERE normalized_name = 'progress-prickle';
 
--- Week 2 (March 17-23)
-('10000004-0000-0000-0000-000000000004', 'Morning Writing Sprint', 'Owner 2', '2026-03-17 09:00:00+00', '2026-03-17 10:30:00+00', 'sprint', 'calendar'),
-('10000005-0000-0000-0000-000000000005', 'Evening Creative Flow', 'Owner 1 Alt', '2026-03-17 18:00:00+00', '2026-03-17 19:30:00+00', 'flow', 'calendar'),
-('10000006-0000-0000-0000-000000000006', 'Midweek Focus Session', 'Sarah Johnson', '2026-03-19 12:00:00+00', '2026-03-19 13:30:00+00', 'focus', 'slack'),
-('10000007-0000-0000-0000-000000000007', 'Weekend Deep Work', 'Owner 2', '2026-03-21 14:00:00+00', '2026-03-21 16:00:00+00', 'deep_work', 'calendar'),
+  -- Week 1 (March 10-16)
+  INSERT INTO prickles (id, type_id, host, start_time, end_time, source) VALUES
+  ('10000001-0000-0000-0000-000000000001', sprint_type_id, 'Owner 2', '2026-03-10 09:00:00+00', '2026-03-10 10:30:00+00', 'calendar'),
+  ('10000002-0000-0000-0000-000000000002', progress_type_id, 'Owner 1 Alt', '2026-03-10 18:00:00+00', '2026-03-10 19:30:00+00', 'calendar'),
+  ('10000003-0000-0000-0000-000000000003', heads_down_type_id, 'Owner 2', '2026-03-14 14:00:00+00', '2026-03-14 16:00:00+00', 'calendar'),
 
--- Week 3 (March 24-30)
-('10000008-0000-0000-0000-000000000008', 'Morning Writing Sprint', 'Owner 2', '2026-03-24 09:00:00+00', '2026-03-24 10:30:00+00', 'sprint', 'calendar'),
-('10000009-0000-0000-0000-000000000009', 'Evening Creative Flow', 'Owner 1 Alt', '2026-03-24 18:00:00+00', '2026-03-24 19:30:00+00', 'flow', 'calendar'),
-('1000000a-0000-0000-0000-00000000000a', 'Midweek Focus Session', 'Sarah Johnson', '2026-03-26 12:00:00+00', '2026-03-26 13:30:00+00', 'focus', 'slack'),
-('1000000b-0000-0000-0000-00000000000b', 'Weekend Deep Work', 'Owner 2', '2026-03-28 14:00:00+00', '2026-03-28 16:00:00+00', 'deep_work', 'calendar'),
+  -- Week 2 (March 17-23)
+  ('10000004-0000-0000-0000-000000000004', sprint_type_id, 'Owner 2', '2026-03-17 09:00:00+00', '2026-03-17 10:30:00+00', 'calendar'),
+  ('10000005-0000-0000-0000-000000000005', progress_type_id, 'Owner 1 Alt', '2026-03-17 18:00:00+00', '2026-03-17 19:30:00+00', 'calendar'),
+  ('10000006-0000-0000-0000-000000000006', progress_type_id, 'Sarah Johnson', '2026-03-19 12:00:00+00', '2026-03-19 13:30:00+00', 'slack'),
+  ('10000007-0000-0000-0000-000000000007', heads_down_type_id, 'Owner 2', '2026-03-21 14:00:00+00', '2026-03-21 16:00:00+00', 'calendar'),
 
--- Week 4 (March 31 - April 4) - Current week
-('1000000c-0000-0000-0000-00000000000c', 'Morning Writing Sprint', 'Owner 2', '2026-03-31 09:00:00+00', '2026-03-31 10:30:00+00', 'sprint', 'calendar'),
-('1000000d-0000-0000-0000-00000000000d', 'Evening Creative Flow', 'Owner 1 Alt', '2026-03-31 18:00:00+00', '2026-03-31 19:30:00+00', 'flow', 'calendar'),
-('1000000e-0000-0000-0000-00000000000e', 'Midweek Focus Session', 'Sarah Johnson', '2026-04-02 12:00:00+00', '2026-04-02 13:30:00+00', 'focus', 'slack');
+  -- Week 3 (March 24-30)
+  ('10000008-0000-0000-0000-000000000008', sprint_type_id, 'Owner 2', '2026-03-24 09:00:00+00', '2026-03-24 10:30:00+00', 'calendar'),
+  ('10000009-0000-0000-0000-000000000009', progress_type_id, 'Owner 1 Alt', '2026-03-24 18:00:00+00', '2026-03-24 19:30:00+00', 'calendar'),
+  ('1000000a-0000-0000-0000-00000000000a', progress_type_id, 'Sarah Johnson', '2026-03-26 12:00:00+00', '2026-03-26 13:30:00+00', 'slack'),
+  ('1000000b-0000-0000-0000-00000000000b', heads_down_type_id, 'Owner 2', '2026-03-28 14:00:00+00', '2026-03-28 16:00:00+00', 'calendar'),
+
+  -- Week 4 (March 31 - April 4) - Current week
+  ('1000000c-0000-0000-0000-00000000000c', sprint_type_id, 'Owner 2', '2026-03-31 09:00:00+00', '2026-03-31 10:30:00+00', 'calendar'),
+  ('1000000d-0000-0000-0000-00000000000d', progress_type_id, 'Owner 1 Alt', '2026-03-31 18:00:00+00', '2026-03-31 19:30:00+00', 'calendar'),
+  ('1000000e-0000-0000-0000-00000000000e', progress_type_id, 'Sarah Johnson', '2026-04-02 12:00:00+00', '2026-04-02 13:30:00+00', 'slack');
+END $$;
 
 -- =====================================================
 -- ZOOM ATTENDEES (Bronze)

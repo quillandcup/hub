@@ -17,7 +17,12 @@ export default async function PricklesPage() {
   const { data: prickles } = await supabase
     .from("prickles")
     .select(`
-      *,
+      id,
+      host,
+      start_time,
+      end_time,
+      source,
+      prickle_types!inner(name),
       prickle_popularity(*)
     `)
     .order("start_time", { ascending: false })
@@ -66,7 +71,7 @@ export default async function PricklesPage() {
                   <tr key={prickle.id} className="hover:bg-slate-50 dark:hover:bg-slate-800">
                     <td className="px-6 py-4">
                       <div className="text-sm font-medium text-slate-900 dark:text-slate-100">
-                        {prickle.title}
+                        {prickle.prickle_types?.name || "Unknown"}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -83,7 +88,7 @@ export default async function PricklesPage() {
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <TypeBadge type={prickle.type} />
+                      <TypeBadge type={prickle.prickle_types?.name} />
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-900 dark:text-slate-100">
                       {prickle.prickle_popularity?.avg_attendance?.toFixed(1) || "—"}

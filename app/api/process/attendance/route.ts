@@ -2,13 +2,59 @@ import { createClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 
 /**
+ * Find calendar prickle that overlaps with Zoom meeting (15min threshold)
+ */
+async function findOverlappingPrickle(
+  supabase: any,
+  meetingStart: string,
+  meetingEnd: string
+): Promise<string | null> {
+  const OVERLAP_THRESHOLD_MS = 15 * 60 * 1000; // 15 minutes
+
+  // Query calendar prickles that overlap with this time window
+  // A prickle overlaps if: prickle_start < meeting_end AND prickle_end > meeting_start
+  const { data: potentialMatches } = await supabase
+    .from("prickles")
+    .select("id, start_time, end_time")
+    .eq("source", "calendar")
+    .lte("start_time", meetingEnd)
+    .gte("end_time", meetingStart);
+
+  if (!potentialMatches || potentialMatches.length === 0) {
+    return null;
+  }
+
+  // Calculate overlap duration for each potential match
+  for (const prickle of potentialMatches) {
+    const overlapStart = Math.max(
+      new Date(meetingStart).getTime(),
+      new Date(prickle.start_time).getTime()
+    );
+    const overlapEnd = Math.min(
+      new Date(meetingEnd).getTime(),
+      new Date(prickle.end_time).getTime()
+    );
+
+    const overlapMs = overlapEnd - overlapStart;
+
+    if (overlapMs >= OVERLAP_THRESHOLD_MS) {
+      return prickle.id; // Return first matching prickle
+    }
+  }
+
+  return null;
+}
+
+/**
  * Process Bronze layer data (zoom_attendees + members) into Silver layer (attendance)
  *
  * This endpoint:
  * 1. Reads zoom_attendees (Bronze - raw Zoom data)
- * 2. Matches each attendee to a member using match_member_by_name()
- * 3. Creates prickles from Zoom meetings (simplified - one meeting = one prickle for now)
- * 4. Inserts attendance records (Silver - inferred data)
+ * 2. Groups attendees by meeting_uuid to determine meeting window
+ * 3. Matches Zoom meetings to calendar prickles using time overlap (15min threshold)
+ * 4. Creates new prickles for unmatched Zoom meetings
+ * 5. Matches each attendee to a member using match_member_by_name()
+ * 6. Inserts attendance records (Silver - inferred data)
  */
 export async function POST(request: NextRequest) {
   const supabase = await createClient();
@@ -51,12 +97,93 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    // Step 1: Group attendees by meeting and find/create prickles
+    const meetingsByUuid = new Map<string, any[]>();
+    for (const attendee of zoomAttendees) {
+      const uuid = attendee.meeting_uuid || attendee.meeting_id;
+      if (!meetingsByUuid.has(uuid)) {
+        meetingsByUuid.set(uuid, []);
+      }
+      meetingsByUuid.get(uuid)!.push(attendee);
+    }
+
+    const pricklesByMeetingUuid = new Map<string, string>();
+    let matchedToCalendar = 0;
+    let createdNewPrickles = 0;
+
+    for (const [meetingUuid, attendees] of meetingsByUuid) {
+      // Calculate meeting window from all attendees
+      const joinTimes = attendees.map(a => new Date(a.join_time).getTime());
+      const leaveTimes = attendees.map(a => new Date(a.leave_time).getTime());
+      const meetingStart = new Date(Math.min(...joinTimes)).toISOString();
+      const meetingEnd = new Date(Math.max(...leaveTimes)).toISOString();
+
+      // Check if prickle already exists for this Zoom meeting
+      const { data: existingPrickle } = await supabase
+        .from("prickles")
+        .select("id")
+        .eq("zoom_meeting_uuid", meetingUuid)
+        .single();
+
+      if (existingPrickle) {
+        pricklesByMeetingUuid.set(meetingUuid, existingPrickle.id);
+        continue;
+      }
+
+      // Try to find overlapping calendar prickle (15min threshold)
+      const calendarPrickleId = await findOverlappingPrickle(
+        supabase,
+        meetingStart,
+        meetingEnd
+      );
+
+      if (calendarPrickleId) {
+        // Match found - use calendar prickle
+        pricklesByMeetingUuid.set(meetingUuid, calendarPrickleId);
+        matchedToCalendar++;
+        continue;
+      }
+
+      // No match found - create new Pop-Up Prickle (PUP)
+      // Get Pop-Up Prickle type ID
+      const { data: pupType } = await supabase
+        .from("prickle_types")
+        .select("id")
+        .eq("normalized_name", "pop-up-prickle")
+        .single();
+
+      if (!pupType) {
+        console.error("Pop-Up Prickle type not found in prickle_types");
+        continue;
+      }
+
+      const { data: newPrickle, error: prickleError } = await supabase
+        .from("prickles")
+        .insert({
+          type_id: pupType.id,
+          host: "Unknown",
+          start_time: meetingStart,
+          end_time: meetingEnd,
+          source: "zoom",
+          zoom_meeting_uuid: meetingUuid,
+        })
+        .select("id")
+        .single();
+
+      if (prickleError || !newPrickle) {
+        console.error("Error creating prickle:", prickleError);
+        continue;
+      }
+
+      pricklesByMeetingUuid.set(meetingUuid, newPrickle.id);
+      createdNewPrickles++;
+    }
+
+    // Step 2: Process individual attendees and create attendance records
     let attendanceRecords = 0;
     let matchedAttendees = 0;
     let skippedUnmatched = 0;
-    const pricklesByMeetingUuid = new Map<string, string>(); // meeting_uuid -> prickle_id
 
-    // Process each attendee
     for (const attendee of zoomAttendees) {
       // Match attendee to a member
       const { data: matchResult } = await supabase.rpc("match_member_by_name", {
@@ -73,52 +200,13 @@ export async function POST(request: NextRequest) {
 
       matchedAttendees++;
 
-      // Get or create prickle for this Zoom meeting
-      let prickleId = pricklesByMeetingUuid.get(attendee.meeting_uuid);
+      const meetingUuid = attendee.meeting_uuid || attendee.meeting_id;
+      const prickleId = pricklesByMeetingUuid.get(meetingUuid);
 
       if (!prickleId) {
-        // Check if prickle already exists for this Zoom meeting
-        const { data: existingPrickle } = await supabase
-          .from("prickles")
-          .select("id")
-          .eq("zoom_meeting_uuid", attendee.meeting_uuid)
-          .single();
-
-        if (existingPrickle) {
-          prickleId = existingPrickle.id;
-        } else {
-          // Create prickle from Zoom meeting
-          const { data: newPrickle, error: prickleError } = await supabase
-            .from("prickles")
-            .insert({
-              title: attendee.topic || "Zoom Meeting",
-              host: "Unknown", // TODO: extract from Zoom meeting host
-              start_time: attendee.join_time,
-              end_time: attendee.leave_time,
-              type: "Zoom Meeting",
-              source: "zoom",
-              zoom_meeting_uuid: attendee.meeting_uuid,
-            })
-            .select("id")
-            .single();
-
-          if (prickleError || !newPrickle) {
-            console.error("Error creating prickle:", prickleError);
-            continue;
-          }
-
-          prickleId = newPrickle.id;
-        }
-      }
-
-      // Safety check - prickleId should always be set by now
-      if (!prickleId) {
-        console.error(`No prickle ID for meeting ${attendee.meeting_uuid}`);
+        console.error(`No prickle found for meeting ${meetingUuid}`);
         continue;
       }
-
-      // Cache the prickle ID for this meeting
-      pricklesByMeetingUuid.set(attendee.meeting_uuid, prickleId);
 
       // Create attendance record (Silver layer - inferred data)
       const { error: attendanceError } = await supabase
@@ -146,7 +234,9 @@ export async function POST(request: NextRequest) {
       zoomAttendees: zoomAttendees.length,
       matchedAttendees,
       skippedUnmatched,
-      pricklesCreated: pricklesByMeetingUuid.size,
+      meetingsProcessed: pricklesByMeetingUuid.size,
+      matchedToCalendar,
+      createdNewPrickles,
       attendanceRecords,
       matchRate: zoomAttendees.length > 0
         ? Math.round((matchedAttendees / zoomAttendees.length) * 100)

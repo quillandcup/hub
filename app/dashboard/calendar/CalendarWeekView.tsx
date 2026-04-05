@@ -2,11 +2,10 @@
 
 interface Prickle {
   id: string;
-  title: string;
   host: string;
   start_time: string;
   end_time: string;
-  type: string | null;
+  prickle_type: string; // Prickle type name from prickle_types table
   attendance_count: number;
 }
 
@@ -176,10 +175,10 @@ export default function CalendarWeekView({ prickles, weekStart }: CalendarWeekVi
                               top: `${adjustedTop}px`,
                               height: `${height}px`,
                             }}
-                            title={`${prickle.title}\nHost: ${prickle.host}\nAttendance: ${prickle.attendance_count}`}
+                            title={`${prickle.prickle_type}\nHost: ${prickle.host}\nAttendance: ${prickle.attendance_count}`}
                           >
                             <div className="text-xs font-semibold truncate">
-                              {prickle.title}
+                              {prickle.prickle_type}
                             </div>
                             <div className="text-xs truncate">
                               {new Date(prickle.start_time).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}

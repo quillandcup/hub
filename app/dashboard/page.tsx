@@ -288,6 +288,19 @@ export default async function DashboardPage() {
               </div>
             </div>
           </Link>
+
+          <Link href="/dashboard/prickle-types">
+            <div className="bg-white dark:bg-slate-900 rounded-lg shadow p-6 hover:shadow-lg transition-shadow cursor-pointer">
+              <h2 className="text-xl font-bold mb-2">Prickle Types</h2>
+              <p className="text-slate-600 dark:text-slate-400 mb-4">
+                Manage prickle types and review unmatched calendar events
+              </p>
+              <div className="flex items-center text-blue-600 dark:text-blue-400">
+                <span>Manage Types</span>
+                <span className="ml-2">→</span>
+              </div>
+            </div>
+          </Link>
         </div>
       </main>
     </div>

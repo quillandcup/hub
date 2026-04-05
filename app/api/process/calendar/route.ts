@@ -1,13 +1,15 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
+import { parsePrickleFromSummary, matchPrickleType } from "@/lib/prickle-types";
 
 /**
  * Process Bronze layer (calendar_events) into Silver layer (prickles)
  *
  * This endpoint:
  * 1. Reads calendar_events (Bronze - raw Google Calendar data)
- * 2. Transforms data (extracts host from title, etc.)
- * 3. Upserts into prickles (Silver - canonical events)
+ * 2. Parses prickle type and host from summary
+ * 3. Matches to prickle_types or queues for admin review
+ * 4. Upserts into prickles (Silver - canonical events)
  */
 export async function POST(request: NextRequest) {
   const supabase = await createClient();
@@ -33,7 +35,6 @@ export async function POST(request: NextRequest) {
     }
 
     // Get calendar events from Bronze layer with pagination
-    // Fetch in batches to handle any number of events
     const BATCH_SIZE = 1000;
     let allEvents: any[] = [];
     let offset = 0;
@@ -70,50 +71,70 @@ export async function POST(request: NextRequest) {
     let created = 0;
     let updated = 0;
     let skipped = 0;
-
-    // Extract host from event title (e.g., "Prickle w/Lili" -> "Lili")
-    const extractHostFromTitle = (title: string): string | null => {
-      // Match patterns like "w/Name" or "w/ Name"
-      const match = title.match(/\bw\/\s*([^,\n]+)/i);
-      return match ? match[1].trim() : null;
-    };
+    let queuedForReview = 0;
 
     // Process each calendar event into a prickle
     for (const event of allEvents) {
-      const titleHost = event.summary ? extractHostFromTitle(event.summary) : null;
-      const host = titleHost ||
-        event.creator_name ||
-        event.creator_email ||
-        event.organizer_name ||
-        event.organizer_email ||
-        "Unknown";
+      if (!event.summary) {
+        skipped++;
+        continue;
+      }
 
-      const prickleData = {
-        title: event.summary || "Untitled Event",
-        host,
-        start_time: event.start_time,
-        end_time: event.end_time,
-        type: "Calendar Event",
-        source: "calendar",
-      };
+      // Parse prickle type and host from summary
+      const { type: rawType, host } = parsePrickleFromSummary(event.summary);
 
-      // Check if prickle already exists for this calendar event
-      // Match by start_time, end_time, and source (since we can't use google_event_id anymore)
+      if (!host) {
+        // Can't extract host - queue for admin review
+        await supabase
+          .from("unmatched_calendar_events")
+          .upsert({
+            calendar_event_id: event.id,
+            raw_summary: event.summary,
+            suggested_type: rawType,
+            suggested_host: event.creator_name || event.organizer_name || null,
+            status: "pending",
+          }, {
+            onConflict: "calendar_event_id",
+          });
+        queuedForReview++;
+        continue;
+      }
+
+      // Match to prickle type
+      const typeId = await matchPrickleType(supabase, rawType);
+
+      if (!typeId) {
+        // Type not found - queue for admin review
+        await supabase
+          .from("unmatched_calendar_events")
+          .upsert({
+            calendar_event_id: event.id,
+            raw_summary: event.summary,
+            suggested_type: rawType,
+            suggested_host: host,
+            status: "pending",
+          }, {
+            onConflict: "calendar_event_id",
+          });
+        queuedForReview++;
+        continue;
+      }
+
+      // Check if prickle already exists
       const { data: existingPrickle } = await supabase
         .from("prickles")
-        .select("id, title, host")
+        .select("id, host, type_id")
         .eq("start_time", event.start_time)
         .eq("end_time", event.end_time)
         .eq("source", "calendar")
-        .eq("title", prickleData.title)
         .single();
 
       if (existingPrickle) {
-        // Update if host changed (due to title extraction logic)
-        if (existingPrickle.host !== prickleData.host) {
+        // Update if host or type changed
+        if (existingPrickle.host !== host || existingPrickle.type_id !== typeId) {
           const { error: updateError } = await supabase
             .from("prickles")
-            .update({ host: prickleData.host })
+            .update({ host, type_id: typeId })
             .eq("id", existingPrickle.id);
 
           if (updateError) {
@@ -131,7 +152,13 @@ export async function POST(request: NextRequest) {
       // Create new prickle
       const { error: insertError } = await supabase
         .from("prickles")
-        .insert(prickleData);
+        .insert({
+          type_id: typeId,
+          host,
+          start_time: event.start_time,
+          end_time: event.end_time,
+          source: "calendar",
+        });
 
       if (insertError) {
         console.error("Error creating prickle:", insertError);
@@ -147,6 +174,7 @@ export async function POST(request: NextRequest) {
       calendarEvents: allEvents.length,
       pricklesCreated: created,
       pricklesUpdated: updated,
+      queuedForReview,
       skipped,
     });
   } catch (error: any) {
