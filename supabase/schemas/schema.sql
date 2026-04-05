@@ -2,6 +2,17 @@
 -- BRONZE LAYER (Raw Data)
 -- =====================================================
 
+-- Raw Kajabi member exports (preserve all import data)
+CREATE TABLE IF NOT EXISTS kajabi_members (
+    email TEXT PRIMARY KEY,
+    imported_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+    data JSONB NOT NULL, -- All columns from Kajabi CSV export
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_kajabi_members_imported_at ON kajabi_members(imported_at);
+
 -- Members from Kajabi (source of truth)
 CREATE TABLE IF NOT EXISTS members (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -218,6 +229,10 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Triggers for updated_at
+DROP TRIGGER IF EXISTS update_kajabi_members_updated_at ON kajabi_members;
+CREATE TRIGGER update_kajabi_members_updated_at BEFORE UPDATE ON kajabi_members
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
 DROP TRIGGER IF EXISTS update_members_updated_at ON members;
 CREATE TRIGGER update_members_updated_at BEFORE UPDATE ON members
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
@@ -238,7 +253,8 @@ CREATE TRIGGER update_prickle_popularity_updated_at BEFORE UPDATE ON prickle_pop
 -- COMMENTS
 -- =====================================================
 
-COMMENT ON TABLE members IS 'Bronze: Raw member data from Kajabi';
+COMMENT ON TABLE kajabi_members IS 'Bronze: Raw Kajabi member export data (preserves all import history)';
+COMMENT ON TABLE members IS 'Bronze: Canonical member data (derived from kajabi_members with business logic)';
 COMMENT ON TABLE zoom_attendees IS 'Bronze: Raw Zoom attendance records';
 COMMENT ON TABLE prickles IS 'Bronze: Scheduled prickles (writing sessions) from calendar/Slack';
 COMMENT ON TABLE attendance IS 'Silver: Inferred attendance by matching Zoom data to prickles and members';

@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
     }
 
     const text = await file.text();
-    const members = parseCSV(text);
+    const { rawData, members } = parseCSV(text);
 
     if (members.length === 0) {
       return NextResponse.json(
@@ -46,7 +46,26 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Upsert members (insert or update based on email)
+    // Step 1: Upsert into kajabi_members (raw data)
+    const { error: kajabiError } = await supabase
+      .from("kajabi_members")
+      .upsert(
+        rawData.map((row) => ({
+          email: row.email.toLowerCase(),
+          imported_at: new Date().toISOString(),
+          data: row,
+        })),
+        {
+          onConflict: "email",
+        }
+      );
+
+    if (kajabiError) {
+      console.error("Error upserting to kajabi_members:", kajabiError);
+      throw kajabiError;
+    }
+
+    // Step 2: Sync to members table (canonical data with business logic)
     const { data, error } = await supabase
       .from("members")
       .upsert(
@@ -82,7 +101,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-function parseCSV(text: string): MemberRow[] {
+function parseCSV(text: string): { rawData: any[]; members: MemberRow[] } {
   const lines = text.trim().split("\n");
   if (lines.length < 2) {
     throw new Error("CSV must have a header row and at least one data row");
@@ -101,13 +120,14 @@ function parseCSV(text: string): MemberRow[] {
   }
 }
 
-function parseKajabiCSV(headers: string[], dataLines: string[]): MemberRow[] {
+function parseKajabiCSV(headers: string[], dataLines: string[]): { rawData: any[]; members: MemberRow[] } {
   const nameIdx = headers.indexOf("Name");
   const emailIdx = headers.indexOf("Email");
   const createdAtIdx = headers.indexOf("Member Created At");
   const tagsIdx = headers.indexOf("Tags");
   const productsIdx = headers.indexOf("Products");
 
+  const rawData: any[] = [];
   const members: MemberRow[] = [];
 
   for (let i = 0; i < dataLines.length; i++) {
@@ -133,6 +153,13 @@ function parseKajabiCSV(headers: string[], dataLines: string[]): MemberRow[] {
       console.warn(`Skipping Kajabi row ${i + 2}: invalid email "${email}"`);
       continue;
     }
+
+    // Store raw data (all columns as JSONB)
+    const rawRow: any = { email: email.toLowerCase() };
+    headers.forEach((header, idx) => {
+      rawRow[header] = values[idx]?.trim() || "";
+    });
+    rawData.push(rawRow);
 
     // Derive status from products and tags
     // Active = has membership product
@@ -172,10 +199,10 @@ function parseKajabiCSV(headers: string[], dataLines: string[]): MemberRow[] {
     });
   }
 
-  return members;
+  return { rawData, members };
 }
 
-function parseSimpleCSV(headers: string[], dataLines: string[]): MemberRow[] {
+function parseSimpleCSV(headers: string[], dataLines: string[]): { rawData: any[]; members: MemberRow[] } {
   const headerLower = headers.map((h) => h.trim().toLowerCase());
   const requiredColumns = ["name", "email", "joined_at", "status"];
 
@@ -186,6 +213,7 @@ function parseSimpleCSV(headers: string[], dataLines: string[]): MemberRow[] {
     }
   }
 
+  const rawData: any[] = [];
   const members: MemberRow[] = [];
 
   for (let i = 0; i < dataLines.length; i++) {
@@ -219,6 +247,13 @@ function parseSimpleCSV(headers: string[], dataLines: string[]): MemberRow[] {
       continue;
     }
 
+    // Store raw data (all columns as JSONB)
+    const rawRow: any = { email: row.email.toLowerCase() };
+    headers.forEach((header, idx) => {
+      rawRow[header.trim().toLowerCase()] = values[idx]?.trim() || "";
+    });
+    rawData.push(rawRow);
+
     members.push({
       name: row.name,
       email: row.email.toLowerCase(),
@@ -228,7 +263,7 @@ function parseSimpleCSV(headers: string[], dataLines: string[]): MemberRow[] {
     });
   }
 
-  return members;
+  return { rawData, members };
 }
 
 // Parse a CSV line handling quoted fields with commas
