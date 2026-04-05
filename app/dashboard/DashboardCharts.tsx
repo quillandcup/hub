@@ -1,10 +1,12 @@
 "use client";
 
-import { BarChart, Bar, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { useState } from 'react';
+import { BarChart, Bar, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
 interface WeeklyData {
   week: string;
-  count: number;
+  totalAttendance: number;
+  uniqueAttendees: number;
 }
 
 interface DailyData {
@@ -15,6 +17,30 @@ interface DailyData {
 interface DashboardChartsProps {
   weeklyAttendance: WeeklyData[];
   dailyHours: DailyData[];
+}
+
+function InfoTooltip({ text }: { text: string }) {
+  const [show, setShow] = useState(false);
+
+  return (
+    <div className="relative inline-block ml-2">
+      <button
+        type="button"
+        className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+        onMouseEnter={() => setShow(true)}
+        onMouseLeave={() => setShow(false)}
+      >
+        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+          <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+        </svg>
+      </button>
+      {show && (
+        <div className="absolute z-10 left-6 top-0 w-64 bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 text-xs rounded-lg p-3 shadow-lg">
+          {text}
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function DashboardCharts({ weeklyAttendance, dailyHours }: DashboardChartsProps) {
@@ -34,9 +60,12 @@ export default function DashboardCharts({ weeklyAttendance, dailyHours }: Dashbo
     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
       {/* Weekly Total Attendance */}
       <div className="bg-white dark:bg-slate-900 rounded-lg shadow p-6">
-        <h2 className="text-xl font-bold mb-4">📊 Weekly Attendance</h2>
+        <div className="flex items-center mb-4">
+          <h2 className="text-xl font-bold">📊 Weekly Attendance</h2>
+          <InfoTooltip text="Shows total prickle attendance (blue) and unique members who attended (purple) each week. Same person attending multiple prickles counts once in unique, multiple times in total." />
+        </div>
         <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
-          Total attendees per week (last 8 weeks)
+          Attendance patterns over last 8 weeks
         </p>
         <ResponsiveContainer width="100%" height={250}>
           <BarChart data={weeklyAttendance}>
@@ -56,16 +85,24 @@ export default function DashboardCharts({ weeklyAttendance, dailyHours }: Dashbo
                 color: 'var(--tooltip-text, #fff)',
               }}
             />
-            <Bar dataKey="count" fill="#3b82f6" radius={[8, 8, 0, 0]} />
+            <Legend
+              wrapperStyle={{ fontSize: '12px' }}
+              formatter={(value) => value === 'totalAttendance' ? 'Total Attendance' : 'Unique Attendees'}
+            />
+            <Bar dataKey="totalAttendance" fill="#3b82f6" radius={[8, 8, 0, 0]} name="Total Attendance" />
+            <Bar dataKey="uniqueAttendees" fill="#8b5cf6" radius={[8, 8, 0, 0]} name="Unique Attendees" />
           </BarChart>
         </ResponsiveContainer>
       </div>
 
       {/* Community Writing Hours */}
       <div className="bg-white dark:bg-slate-900 rounded-lg shadow p-6">
-        <h2 className="text-xl font-bold mb-4">✍️ Community Writing Hours</h2>
+        <div className="flex items-center mb-4">
+          <h2 className="text-xl font-bold">✍️ Community Writing Hours</h2>
+          <InfoTooltip text="Daily total of hours all members spent in prickles. Calculated by summing the duration each person attended (join to leave time). Shows collective creative time across the community." />
+        </div>
         <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
-          Total hours spent writing together (last 30 days)
+          Collective writing time per day (last 30 days)
         </p>
         <ResponsiveContainer width="100%" height={250}>
           <AreaChart data={dailyHours}>
@@ -92,6 +129,7 @@ export default function DashboardCharts({ weeklyAttendance, dailyHours }: Dashbo
               stroke="#8b5cf6"
               fill="#8b5cf6"
               fillOpacity={0.6}
+              name="Writing Hours"
             />
           </AreaChart>
         </ResponsiveContainer>

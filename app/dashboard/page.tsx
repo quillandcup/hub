@@ -122,23 +122,37 @@ export default async function DashboardPage() {
   eightWeeksAgo.setDate(eightWeeksAgo.getDate() - 56); // 8 weeks
   const { data: weeklyAttendanceData } = await supabase
     .from("attendance")
-    .select("join_time")
+    .select("join_time, member_id")
     .gte("join_time", eightWeeksAgo.toISOString())
     .lte("join_time", now.toISOString());
 
-  // Group by week
-  const weeklyAttendance = new Map<string, number>();
+  // Group by week - track both total attendance and unique members
+  const weeklyAttendance = new Map<string, { count: number; uniqueMembers: Set<string> }>();
   weeklyAttendanceData?.forEach((record) => {
     const date = new Date(record.join_time);
     const weekStart = new Date(date);
     weekStart.setDate(date.getDate() - date.getDay()); // Sunday
     weekStart.setHours(0, 0, 0, 0);
     const weekKey = weekStart.toISOString().split('T')[0];
-    weeklyAttendance.set(weekKey, (weeklyAttendance.get(weekKey) || 0) + 1);
+
+    const existing = weeklyAttendance.get(weekKey);
+    if (existing) {
+      existing.count++;
+      existing.uniqueMembers.add(record.member_id);
+    } else {
+      weeklyAttendance.set(weekKey, {
+        count: 1,
+        uniqueMembers: new Set([record.member_id])
+      });
+    }
   });
 
   const weeklyAttendanceArray = Array.from(weeklyAttendance.entries())
-    .map(([week, count]) => ({ week, count }))
+    .map(([week, data]) => ({
+      week,
+      totalAttendance: data.count,
+      uniqueAttendees: data.uniqueMembers.size
+    }))
     .sort((a, b) => a.week.localeCompare(b.week));
 
   // Daily Writing Hours (last 30 days)
