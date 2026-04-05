@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterEach } from 'vitest'
+import { describe, it, expect, beforeAll, afterEach, afterAll } from 'vitest'
 import { getTestSupabaseClient } from './helpers/supabase'
 
 interface MatchResult {
@@ -11,14 +11,18 @@ describe('match_member_by_name function', () => {
   const supabase = getTestSupabaseClient()
   let testMemberId: string
   let testMemberEmail: string
+  const testEmail = 'test.member@example.com'
 
   beforeAll(async () => {
+    // Clean up any existing test member from previous runs
+    await supabase.from('members').delete().eq('email', testEmail)
+
     // Create a test member for matching
     const { data, error } = await supabase
       .from('members')
       .insert({
         name: 'Test Member',
-        email: 'test.member@example.com',
+        email: testEmail,
         joined_at: new Date().toISOString(),
         status: 'active',
       })
@@ -36,6 +40,11 @@ describe('match_member_by_name function', () => {
       .from('member_name_aliases')
       .delete()
       .eq('member_id', testMemberId)
+  })
+
+  afterAll(async () => {
+    // Clean up test member
+    await supabase.from('members').delete().eq('id', testMemberId)
   })
 
   async function matchMember(
