@@ -13,17 +13,110 @@ export default async function NameMatchingReportPage() {
     redirect("/login");
   }
 
-  // Fetch the report data
-  const response = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/api/reports/name-matching`, {
-    headers: {
-      cookie: `sb-access-token=${(await supabase.auth.getSession()).data.session?.access_token}`,
-    },
+  // Get active members with their attendance count
+  const { data: activeMembers } = await supabase
+    .from("members")
+    .select(`
+      id,
+      name,
+      email,
+      attendance(id)
+    `)
+    .eq("status", "active")
+    .order("name");
+
+  // Filter for members with zero attendance
+  const membersWithNoAttendance = activeMembers
+    ?.filter(m => !m.attendance || m.attendance.length === 0)
+    .map(m => ({
+      id: m.id,
+      name: m.name,
+      email: m.email,
+    })) || [];
+
+  // Get unmatched Zoom attendees
+  const { data: allZoomNames } = await supabase
+    .from("zoom_attendees")
+    .select("name, email")
+    .order("name");
+
+  const { data: matchedAttendance } = await supabase
+    .from("attendance")
+    .select(`
+      id,
+      member_id
+    `);
+
+  // Count how many times each Zoom name appears
+  const zoomNameCounts = new Map<string, { count: number; emails: Set<string> }>();
+  allZoomNames?.forEach(z => {
+    const existing = zoomNameCounts.get(z.name);
+    if (existing) {
+      existing.count++;
+      if (z.email) existing.emails.add(z.email);
+    } else {
+      zoomNameCounts.set(z.name, {
+        count: 1,
+        emails: new Set(z.email ? [z.email] : []),
+      });
+    }
   });
 
-  let reportData: any = null;
-  if (response.ok) {
-    reportData = await response.json();
+  const matchedMemberIds = new Set(matchedAttendance?.map(a => a.member_id) || []);
+
+  const { data: allMembers } = await supabase
+    .from("members")
+    .select("id, name, email");
+
+  const memberEmailMap = new Map(allMembers?.map(m => [m.email?.toLowerCase(), m]) || []);
+
+  const unmatchedZoomAttendees: Array<{
+    zoomName: string;
+    appearances: number;
+    emails: string[];
+    possibleMatches: Array<{ memberName: string; memberEmail: string }>;
+  }> = [];
+
+  for (const [zoomName, info] of zoomNameCounts) {
+    let hasMatch = false;
+    const possibleMatches: Array<{ memberName: string; memberEmail: string }> = [];
+
+    for (const email of info.emails) {
+      const member = memberEmailMap.get(email.toLowerCase());
+      if (member && matchedMemberIds.has(member.id)) {
+        hasMatch = true;
+        break;
+      } else if (member && !matchedMemberIds.has(member.id)) {
+        possibleMatches.push({
+          memberName: member.name,
+          memberEmail: member.email,
+        });
+      }
+    }
+
+    if (!hasMatch && info.count >= 3) {
+      unmatchedZoomAttendees.push({
+        zoomName,
+        appearances: info.count,
+        emails: Array.from(info.emails),
+        possibleMatches,
+      });
+    }
   }
+
+  unmatchedZoomAttendees.sort((a, b) => b.appearances - a.appearances);
+
+  const reportData = {
+    success: true,
+    membersWithNoAttendance: {
+      count: membersWithNoAttendance.length,
+      members: membersWithNoAttendance,
+    },
+    unmatchedZoomAttendees: {
+      count: unmatchedZoomAttendees.length,
+      attendees: unmatchedZoomAttendees.slice(0, 50),
+    },
+  };
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
@@ -40,12 +133,7 @@ export default async function NameMatchingReportPage() {
       </header>
 
       <main className="container mx-auto px-6 py-8">
-        {!reportData ? (
-          <div className="text-center py-12">
-            <p className="text-slate-600 dark:text-slate-400">Failed to load report</p>
-          </div>
-        ) : (
-          <div className="space-y-6">
+        <div className="space-y-6">
             {/* Active Members with No Attendance */}
             <div className="bg-white dark:bg-slate-900 rounded-lg shadow">
               <div className="p-6 border-b border-slate-200 dark:border-slate-800">
@@ -137,7 +225,7 @@ export default async function NameMatchingReportPage() {
               </div>
             </div>
           </div>
-        )}
+        </div>
       </main>
     </div>
   );
