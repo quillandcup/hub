@@ -19,22 +19,6 @@ CREATE INDEX IF NOT EXISTS idx_kajabi_members_email ON kajabi_members(email);
 -- Index for querying by import time (to get all members at a point in time)
 CREATE INDEX IF NOT EXISTS idx_kajabi_members_imported_at ON kajabi_members(imported_at);
 
--- Members from Kajabi (source of truth)
-CREATE TABLE IF NOT EXISTS members (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    name TEXT NOT NULL,
-    email TEXT NOT NULL UNIQUE,
-    joined_at TIMESTAMP WITH TIME ZONE NOT NULL,
-    status TEXT NOT NULL CHECK (status IN ('active', 'inactive', 'on_hiatus')),
-    plan TEXT,
-    raw_payload JSONB,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT now()
-);
-
-CREATE INDEX IF NOT EXISTS idx_members_email ON members(email);
-CREATE INDEX IF NOT EXISTS idx_members_status ON members(status);
-
 -- Zoom attendance records (raw from Zoom API/Reports)
 -- Schema matches Zoom's actual participant report format
 CREATE TABLE IF NOT EXISTS zoom_attendees (
@@ -121,6 +105,22 @@ COMMENT ON TABLE member_name_aliases IS 'Bronze: Manual name mappings for Zoom a
 -- =====================================================
 -- SILVER LAYER (Inferred/Transformed Data)
 -- =====================================================
+
+-- Canonical members (derived from kajabi_members with business logic)
+CREATE TABLE IF NOT EXISTS members (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name TEXT NOT NULL,
+    email TEXT NOT NULL UNIQUE,
+    joined_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    status TEXT NOT NULL CHECK (status IN ('active', 'inactive', 'on_hiatus')),
+    plan TEXT,
+    raw_payload JSONB,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_members_email ON members(email);
+CREATE INDEX IF NOT EXISTS idx_members_status ON members(status);
 
 -- Inferred attendance (joins Zoom data with prickles and members)
 CREATE TABLE IF NOT EXISTS attendance (
@@ -363,9 +363,9 @@ CREATE TRIGGER update_prickle_popularity_updated_at BEFORE UPDATE ON prickle_pop
 -- =====================================================
 
 COMMENT ON TABLE kajabi_members IS 'Bronze: Temporal history of Kajabi member exports (preserves all import snapshots)';
-COMMENT ON TABLE members IS 'Bronze: Canonical member data (derived from kajabi_members with business logic)';
 COMMENT ON TABLE zoom_attendees IS 'Bronze: Raw Zoom attendance records';
 COMMENT ON TABLE prickles IS 'Bronze: Scheduled prickles (writing sessions) from calendar/Slack';
+COMMENT ON TABLE members IS 'Silver: Canonical member data (derived from kajabi_members with business logic)';
 COMMENT ON TABLE attendance IS 'Silver: Inferred attendance by matching Zoom data to prickles and members';
 COMMENT ON TABLE member_metrics IS 'Silver: Aggregated member engagement metrics';
 COMMENT ON TABLE member_engagement IS 'Gold: Member risk and engagement analysis';
