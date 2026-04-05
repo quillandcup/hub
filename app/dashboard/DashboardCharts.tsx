@@ -62,7 +62,7 @@ export default function DashboardCharts({ weeklyAttendance, dailyHours }: Dashbo
       <div className="bg-white dark:bg-slate-900 rounded-lg shadow p-6">
         <div className="flex items-center mb-4">
           <h2 className="text-xl font-bold">📊 Weekly Attendance</h2>
-          <InfoTooltip text="Stacked bar shows unique members (teal, bottom) and their repeat attendance (orange, top). Height = total attendance. Example: 20 unique members + 30 repeat visits = 50 total." />
+          <InfoTooltip text="Stacked bar shows unique members (blue, bottom) and their repeat attendance (green, top). Height = total attendance. Example: 20 unique members + 30 repeat visits = 50 total." />
         </div>
         <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
           Attendance patterns over last 8 weeks
@@ -86,8 +86,8 @@ export default function DashboardCharts({ weeklyAttendance, dailyHours }: Dashbo
               }}
             />
             <Legend wrapperStyle={{ fontSize: '12px' }} />
-            <Bar dataKey="uniqueAttendees" stackId="a" fill="#14b8a6" name="Unique Attendees" />
-            <Bar dataKey="repeatAttendance" stackId="a" fill="#f59e0b" radius={[8, 8, 0, 0]} name="Repeat Attendance" />
+            <Bar dataKey="uniqueAttendees" stackId="a" fill="#3b82f6" name="Unique Attendees" />
+            <Bar dataKey="repeatAttendance" stackId="a" fill="#10b981" radius={[8, 8, 0, 0]} name="Repeat Attendance" />
           </BarChart>
         </ResponsiveContainer>
       </div>
@@ -123,8 +123,8 @@ export default function DashboardCharts({ weeklyAttendance, dailyHours }: Dashbo
             <Area
               type="monotone"
               dataKey="hours"
-              stroke="#3b82f6"
-              fill="#3b82f6"
+              stroke="#8b5cf6"
+              fill="#8b5cf6"
               fillOpacity={0.6}
               name="Writing Hours"
             />
