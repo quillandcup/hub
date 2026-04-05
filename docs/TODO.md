@@ -47,10 +47,16 @@ Import Prickles schedule from:
 ## Security & Access Control
 
 ### Row Level Security (RLS)
-- **CRITICAL: Setup RLS policies in Supabase**
-  - Currently completely insecure - any authenticated user can access all data
-  - Define policies per table based on user role
-  - Test policies thoroughly before production
+- ✅ **DONE: Basic RLS enabled on all tables**
+  - All tables have RLS enabled
+  - Authenticated users get full access (all are admins for now)
+  - user_profiles table created with role column
+  - Helper functions and auto-profile creation in place
+  - See `docs/RLS_SECURITY.md` for details
+- **TODO: Implement role-based restrictions when needed**
+  - Add assistant/member roles when we have non-admin users
+  - Update policies to restrict based on role
+  - Test thoroughly before granting access to non-admins
 
 ### Role-Based Access Control (RBAC)
 Define user roles and permissions:
