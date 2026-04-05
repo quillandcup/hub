@@ -1,19 +1,9 @@
 import { createClient } from "@/lib/supabase/server";
-import { redirect } from "next/navigation";
 import Link from "next/link";
-import SignOutButton from "./SignOutButton";
 import DashboardCharts from "./DashboardCharts";
 
 export default async function DashboardPage() {
   const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/login");
-  }
 
   // Fetch dashboard metrics
   const { data: memberStats } = await supabase
@@ -219,25 +209,7 @@ export default async function DashboardPage() {
     : 0;
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
-      <header className="border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
-        <div className="container mx-auto px-6 py-4 flex justify-between items-center">
-          <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-            Quill & Cup Admin
-          </h1>
-          <div className="flex items-center gap-4">
-            <Link
-              href="/dashboard/import"
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
-            >
-              Import Data
-            </Link>
-            <SignOutButton />
-          </div>
-        </div>
-      </header>
-
-      <main className="container mx-auto px-6 py-8">
+    <div className="container mx-auto px-6 py-8">
         {/* Top Metrics */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
           <MetricCard
@@ -343,89 +315,6 @@ export default async function DashboardPage() {
           </div>
         </div>
 
-        {/* Navigation Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
-          <Link href="/dashboard/members">
-            <div className="bg-white dark:bg-slate-900 rounded-lg shadow p-6 hover:shadow-lg transition-shadow cursor-pointer">
-              <h2 className="text-xl font-bold mb-2">Member Analytics</h2>
-              <p className="text-slate-600 dark:text-slate-400 mb-4">
-                View member engagement, risk levels, and activity history
-              </p>
-              <div className="flex items-center text-blue-600 dark:text-blue-400">
-                <span>View Members</span>
-                <span className="ml-2">→</span>
-              </div>
-            </div>
-          </Link>
-
-          <Link href="/dashboard/prickles">
-            <div className="bg-white dark:bg-slate-900 rounded-lg shadow p-6 hover:shadow-lg transition-shadow cursor-pointer">
-              <h2 className="text-xl font-bold mb-2">Prickle Insights</h2>
-              <p className="text-slate-600 dark:text-slate-400 mb-4">
-                Analyze Prickle popularity, trends, and attendance patterns
-              </p>
-              <div className="flex items-center text-blue-600 dark:text-blue-400">
-                <span>View Prickles</span>
-                <span className="ml-2">→</span>
-              </div>
-            </div>
-          </Link>
-
-          <Link href="/dashboard/calendar">
-            <div className="bg-white dark:bg-slate-900 rounded-lg shadow p-6 hover:shadow-lg transition-shadow cursor-pointer">
-              <h2 className="text-xl font-bold mb-2">Calendar Heatmap</h2>
-              <p className="text-slate-600 dark:text-slate-400 mb-4">
-                Week view of Prickles color-coded by attendance
-              </p>
-              <div className="flex items-center text-blue-600 dark:text-blue-400">
-                <span>View Calendar</span>
-                <span className="ml-2">→</span>
-              </div>
-            </div>
-          </Link>
-
-          <Link href="/dashboard/import">
-            <div className="bg-white dark:bg-slate-900 rounded-lg shadow p-6 hover:shadow-lg transition-shadow cursor-pointer">
-              <h2 className="text-xl font-bold mb-2">Import Data</h2>
-              <p className="text-slate-600 dark:text-slate-400 mb-4">
-                Import Zoom meeting attendance data into the system
-              </p>
-              <div className="flex items-center text-blue-600 dark:text-blue-400">
-                <span>Import Zoom Data</span>
-                <span className="ml-2">→</span>
-              </div>
-            </div>
-          </Link>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-          <Link href="/dashboard/name-matching">
-            <div className="bg-white dark:bg-slate-900 rounded-lg shadow p-6 hover:shadow-lg transition-shadow cursor-pointer">
-              <h2 className="text-xl font-bold mb-2">Name Matching</h2>
-              <p className="text-slate-600 dark:text-slate-400 mb-4">
-                Find members with no attendance and unmatched Zoom names
-              </p>
-              <div className="flex items-center text-blue-600 dark:text-blue-400">
-                <span>View Report</span>
-                <span className="ml-2">→</span>
-              </div>
-            </div>
-          </Link>
-
-          <Link href="/dashboard/prickle-types">
-            <div className="bg-white dark:bg-slate-900 rounded-lg shadow p-6 hover:shadow-lg transition-shadow cursor-pointer">
-              <h2 className="text-xl font-bold mb-2">Prickle Types</h2>
-              <p className="text-slate-600 dark:text-slate-400 mb-4">
-                Manage prickle types and review unmatched calendar events
-              </p>
-              <div className="flex items-center text-blue-600 dark:text-blue-400">
-                <span>Manage Types</span>
-                <span className="ml-2">→</span>
-              </div>
-            </div>
-          </Link>
-        </div>
-      </main>
     </div>
   );
 }

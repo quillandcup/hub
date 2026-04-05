@@ -1,18 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
-import { redirect } from "next/navigation";
-import Link from "next/link";
 import AliasSearchForm from "./AliasSearchForm";
 
 export default async function AliasSearchPage() {
   const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/login");
-  }
 
   // Get all members for search
   const { data: allMembers } = await supabase
@@ -71,25 +61,19 @@ export default async function AliasSearchPage() {
   unmatchedZoomAttendees.sort((a, b) => b.appearances - a.appearances);
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
-      <header className="border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
-        <div className="container mx-auto px-6 py-4">
-          <Link href="/dashboard" className="text-blue-600 dark:text-blue-400 hover:underline mb-2 inline-block">
-            ← Back to Dashboard
-          </Link>
-          <h1 className="text-2xl font-bold">Create Aliases with Search</h1>
-          <p className="text-slate-600 dark:text-slate-400 mt-1">
-            Match Zoom names to any member using search
-          </p>
-        </div>
-      </header>
+    <div className="container mx-auto px-6 py-8">
+      {/* Page Header */}
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold">Unmatched Zoom Names</h1>
+        <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
+          Create aliases to match Zoom names to members using search
+        </p>
+      </div>
 
-      <main className="container mx-auto px-6 py-8">
-        <AliasSearchForm
-          unmatchedAttendees={unmatchedZoomAttendees}
-          allMembers={allMembers || []}
-        />
-      </main>
+      <AliasSearchForm
+        unmatchedAttendees={unmatchedZoomAttendees}
+        allMembers={allMembers || []}
+      />
     </div>
   );
 }
