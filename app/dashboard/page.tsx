@@ -180,7 +180,14 @@ export default async function DashboardPage() {
 
           {/* At-Risk Members */}
           <div className="bg-white dark:bg-slate-900 rounded-lg shadow p-6">
-            <h2 className="text-xl font-bold mb-4">⚠️ At-Risk Members</h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold">⚠️ At-Risk Members</h2>
+              {atRiskMembersList.length > 0 && (
+                <Link href="/dashboard/at-risk" className="text-sm text-blue-600 dark:text-blue-400 hover:underline">
+                  View All ({atRisk})
+                </Link>
+              )}
+            </div>
             <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
               Active members with no attendance in last 30 days
             </p>
