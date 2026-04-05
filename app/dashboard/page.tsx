@@ -24,13 +24,15 @@ export default async function DashboardPage() {
   const inactive = memberStats?.filter(m => m.status === "inactive").length || 0;
   const totalMembers = activeMembers + onHiatus; // Exclude inactive (cancelled members)
 
-  // Prickles in last 30 days
+  // Prickles in last 30 days (past only, exclude future)
+  const now = new Date();
   const thirtyDaysAgo = new Date();
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
   const { data: recentPrickles } = await supabase
     .from("prickles")
     .select("id")
-    .gte("start_time", thirtyDaysAgo.toISOString());
+    .gte("start_time", thirtyDaysAgo.toISOString())
+    .lte("start_time", now.toISOString());
 
   const pricklesLast30Days = recentPrickles?.length || 0;
 
