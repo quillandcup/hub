@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx create-next-app@latest:*)",
+      "Bash(pnpm install:*)",
+      "Bash(npm install:*)",
+      "Bash(npm run:*)",
+      "Bash(brew install:*)",
+      "Bash(supabase init:*)",
+      "Bash(supabase start:*)",
+      "Bash(supabase status:*)",
+      "Bash(supabase stop:*)",
+      "Bash(supabase migration:*)",
+      "Bash(supabase db:*)",
+      "Bash(pkill:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npm search:*)",
+      "Bash(npx supabase:*)"
+    ]
+  }
+}

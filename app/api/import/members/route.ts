@@ -134,14 +134,19 @@ function parseKajabiCSV(headers: string[], dataLines: string[]): MemberRow[] {
       continue;
     }
 
-    // Derive status from tags
+    // Derive status from products and tags
+    // Active = has membership product
+    // On Hiatus = has member tag but product removed during pause
+    // Inactive = offboarding tag OR neither product nor tag (leads/trials)
     let status: "active" | "inactive" | "on_hiatus";
-    if (tags.includes("Quill & Cup Member")) {
-      status = "active";
+    if (products.includes("Quill & Cup Membership")) {
+      status = "active"; // Has active membership product
     } else if (tags.includes("Offboarding")) {
-      status = "inactive";
+      status = "inactive"; // Officially cancelled
+    } else if (tags.includes("Quill & Cup Member")) {
+      status = "on_hiatus"; // Has member tag but no product = paused
     } else {
-      status = "inactive"; // Default to inactive if no clear tag
+      status = "inactive"; // Default: leads, trials, former members
     }
 
     // Extract plan from products (look for "Membership" product)
