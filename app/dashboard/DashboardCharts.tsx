@@ -5,8 +5,8 @@ import { BarChart, Bar, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, R
 
 interface WeeklyData {
   week: string;
-  totalAttendance: number;
   uniqueAttendees: number;
+  repeatAttendance: number;
 }
 
 interface DailyData {
@@ -62,7 +62,7 @@ export default function DashboardCharts({ weeklyAttendance, dailyHours }: Dashbo
       <div className="bg-white dark:bg-slate-900 rounded-lg shadow p-6">
         <div className="flex items-center mb-4">
           <h2 className="text-xl font-bold">📊 Weekly Attendance</h2>
-          <InfoTooltip text="Shows total prickle attendance (blue) and unique members who attended (purple) each week. Same person attending multiple prickles counts once in unique, multiple times in total." />
+          <InfoTooltip text="Stacked bar shows unique members (purple, bottom) and their repeat attendance (blue, top). Height = total attendance. Example: 20 unique members + 30 repeat visits = 50 total." />
         </div>
         <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
           Attendance patterns over last 8 weeks
@@ -85,12 +85,9 @@ export default function DashboardCharts({ weeklyAttendance, dailyHours }: Dashbo
                 color: 'var(--tooltip-text, #fff)',
               }}
             />
-            <Legend
-              wrapperStyle={{ fontSize: '12px' }}
-              formatter={(value) => value === 'totalAttendance' ? 'Total Attendance' : 'Unique Attendees'}
-            />
-            <Bar dataKey="totalAttendance" fill="#3b82f6" radius={[8, 8, 0, 0]} name="Total Attendance" />
-            <Bar dataKey="uniqueAttendees" fill="#8b5cf6" radius={[8, 8, 0, 0]} name="Unique Attendees" />
+            <Legend wrapperStyle={{ fontSize: '12px' }} />
+            <Bar dataKey="uniqueAttendees" stackId="a" fill="#8b5cf6" name="Unique Attendees" />
+            <Bar dataKey="repeatAttendance" stackId="a" fill="#3b82f6" radius={[8, 8, 0, 0]} name="Repeat Attendance" />
           </BarChart>
         </ResponsiveContainer>
       </div>

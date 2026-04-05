@@ -150,8 +150,8 @@ export default async function DashboardPage() {
   const weeklyAttendanceArray = Array.from(weeklyAttendance.entries())
     .map(([week, data]) => ({
       week,
-      totalAttendance: data.count,
-      uniqueAttendees: data.uniqueMembers.size
+      uniqueAttendees: data.uniqueMembers.size,
+      repeatAttendance: data.count - data.uniqueMembers.size
     }))
     .sort((a, b) => a.week.localeCompare(b.week));
 
