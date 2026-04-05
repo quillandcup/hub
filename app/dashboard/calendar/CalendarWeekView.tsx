@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+
 interface Prickle {
   id: string;
   host: string;
@@ -13,6 +15,15 @@ interface CalendarWeekViewProps {
   prickles: Prickle[];
   weekStart: Date;
 }
+
+// Common timezones for the dropdown
+const TIMEZONES = [
+  { value: "America/New_York", label: "Eastern (ET)" },
+  { value: "America/Chicago", label: "Central (CT)" },
+  { value: "America/Denver", label: "Mountain (MT)" },
+  { value: "America/Los_Angeles", label: "Pacific (PT)" },
+  { value: "UTC", label: "UTC" },
+];
 
 // Define color intensity based on attendance count
 function getAttendanceColor(count: number): string {
@@ -30,14 +41,15 @@ function getAttendanceColor(count: number): string {
 }
 
 // Get the position and height for a prickle block in the calendar
-function getPricklePosition(startTime: string, endTime: string) {
+function getPricklePosition(startTime: string, endTime: string, timezone: string) {
   const start = new Date(startTime);
   const end = new Date(endTime);
 
-  const startHour = start.getHours();
-  const startMinute = start.getMinutes();
-  const endHour = end.getHours();
-  const endMinute = end.getMinutes();
+  // Convert to target timezone
+  const startHour = parseInt(start.toLocaleTimeString("en-US", { timeZone: timezone, hour: "2-digit", hour12: false }));
+  const startMinute = parseInt(start.toLocaleTimeString("en-US", { timeZone: timezone, minute: "2-digit" }));
+  const endHour = parseInt(end.toLocaleTimeString("en-US", { timeZone: timezone, hour: "2-digit", hour12: false }));
+  const endMinute = parseInt(end.toLocaleTimeString("en-US", { timeZone: timezone, minute: "2-digit" }));
 
   // Calculate top position (in pixels from midnight)
   // Each hour is 60px tall
@@ -51,6 +63,9 @@ function getPricklePosition(startTime: string, endTime: string) {
 }
 
 export default function CalendarWeekView({ prickles, weekStart }: CalendarWeekViewProps) {
+  // Default to Eastern Time
+  const [timezone, setTimezone] = useState("America/New_York");
+
   // Generate array of 7 days
   const days = Array.from({ length: 7 }, (_, i) => {
     const date = new Date(weekStart);
@@ -60,45 +75,68 @@ export default function CalendarWeekView({ prickles, weekStart }: CalendarWeekVi
 
   const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
-  // Group prickles by day
+  // Group prickles by day (in the selected timezone)
   const pricklesByDay = days.map(day => {
-    const dayStart = new Date(day);
-    dayStart.setHours(0, 0, 0, 0);
-    const dayEnd = new Date(day);
-    dayEnd.setHours(23, 59, 59, 999);
-
     return prickles.filter(p => {
       const prickleStart = new Date(p.start_time);
-      return prickleStart >= dayStart && prickleStart <= dayEnd;
+      // Get the date in the selected timezone
+      const prickleDateStr = prickleStart.toLocaleDateString("en-US", {
+        timeZone: timezone,
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      });
+      const dayDateStr = day.toLocaleDateString("en-US", {
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      });
+      return prickleDateStr === dayDateStr;
     });
   });
 
-  // Hours to display (6 AM to 11 PM)
-  const hours = Array.from({ length: 18 }, (_, i) => i + 6);
+  // Hours to display (full 24 hours: 12 AM to 11 PM)
+  const hours = Array.from({ length: 24 }, (_, i) => i);
 
   return (
     <div className="bg-white dark:bg-slate-900 rounded-lg shadow overflow-hidden">
       {/* Legend */}
       <div className="p-4 border-b border-slate-200 dark:border-slate-800">
-        <div className="flex items-center gap-6">
-          <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Attendance:</span>
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-4 rounded bg-blue-100 dark:bg-blue-950 border border-blue-300 dark:border-blue-700"></div>
-              <span className="text-xs text-slate-600 dark:text-slate-400">1-3</span>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-6">
+            <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Attendance:</span>
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 rounded bg-blue-100 dark:bg-blue-950 border border-blue-300 dark:border-blue-700"></div>
+                <span className="text-xs text-slate-600 dark:text-slate-400">1-3</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 rounded bg-blue-200 dark:bg-blue-900 border border-blue-400 dark:border-blue-600"></div>
+                <span className="text-xs text-slate-600 dark:text-slate-400">4-6</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 rounded bg-blue-400 dark:bg-blue-700 border border-blue-500"></div>
+                <span className="text-xs text-slate-600 dark:text-slate-400">7-10</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 rounded bg-blue-600 dark:bg-blue-600 border border-blue-700 dark:border-blue-400"></div>
+                <span className="text-xs text-slate-600 dark:text-slate-400">11+</span>
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-4 rounded bg-blue-200 dark:bg-blue-900 border border-blue-400 dark:border-blue-600"></div>
-              <span className="text-xs text-slate-600 dark:text-slate-400">4-6</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-4 rounded bg-blue-400 dark:bg-blue-700 border border-blue-500"></div>
-              <span className="text-xs text-slate-600 dark:text-slate-400">7-10</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-4 rounded bg-blue-600 dark:bg-blue-600 border border-blue-700 dark:border-blue-400"></div>
-              <span className="text-xs text-slate-600 dark:text-slate-400">11+</span>
-            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Timezone:</span>
+            <select
+              value={timezone}
+              onChange={(e) => setTimezone(e.target.value)}
+              className="px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg text-sm text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              {TIMEZONES.map((tz) => (
+                <option key={tz.value} value={tz.value}>
+                  {tz.label}
+                </option>
+              ))}
+            </select>
           </div>
         </div>
       </div>
@@ -119,7 +157,7 @@ export default function CalendarWeekView({ prickles, weekStart }: CalendarWeekVi
                   }`}
                 >
                   <div className={`text-sm font-semibold ${isToday ? "text-blue-600 dark:text-blue-400" : "text-slate-700 dark:text-slate-300"}`}>
-                    {dayNames[i]}
+                    {dayNames[day.getDay()]}
                   </div>
                   <div className={`text-xs ${isToday ? "text-blue-500 dark:text-blue-500" : "text-slate-500 dark:text-slate-400"}`}>
                     {day.getMonth() + 1}/{day.getDate()}
@@ -159,13 +197,14 @@ export default function CalendarWeekView({ prickles, weekStart }: CalendarWeekVi
                     {/* Prickle Blocks */}
                     <div className="absolute inset-0 pointer-events-none">
                       {pricklesByDay[dayIndex].map(prickle => {
-                        const { top, height } = getPricklePosition(prickle.start_time, prickle.end_time);
-                        const adjustedTop = top - (6 * 60); // Adjust for 6 AM start
+                        const { top, height } = getPricklePosition(prickle.start_time, prickle.end_time, timezone);
+                        const adjustedTop = top; // No adjustment needed for full 24-hour view
 
-                        // Skip if outside visible hours
-                        if (adjustedTop < 0 || adjustedTop > (18 * 60)) {
-                          return null;
-                        }
+                        const startTime = new Date(prickle.start_time).toLocaleTimeString("en-US", {
+                          timeZone: timezone,
+                          hour: "numeric",
+                          minute: "2-digit",
+                        });
 
                         return (
                           <div
@@ -181,7 +220,7 @@ export default function CalendarWeekView({ prickles, weekStart }: CalendarWeekVi
                               {prickle.prickle_type}
                             </div>
                             <div className="text-xs truncate">
-                              {new Date(prickle.start_time).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
+                              {startTime}
                             </div>
                             <div className="text-xs font-bold mt-0.5">
                               {prickle.attendance_count} {prickle.attendance_count === 1 ? "attendee" : "attendees"}

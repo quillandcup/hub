@@ -21,11 +21,14 @@ export default async function CalendarPage({
   // Get week from URL param or default to last week
   let weekStart: Date;
   if (searchParams.week) {
-    // Parse week from URL (format: YYYY-MM-DD)
-    weekStart = new Date(searchParams.week);
+    // Parse week from URL (format: YYYY-MM-DD) and normalize to Sunday
+    const paramDate = new Date(searchParams.week);
+    const dayOfWeek = paramDate.getDay(); // 0 = Sunday
+    weekStart = new Date(paramDate);
+    weekStart.setDate(paramDate.getDate() - dayOfWeek); // Adjust to Sunday
     weekStart.setHours(0, 0, 0, 0);
   } else {
-    // Default to last week (7 days ago)
+    // Default to last week (7 days ago, starting on Sunday)
     const now = new Date();
     const dayOfWeek = now.getDay(); // 0 = Sunday
     weekStart = new Date(now);
