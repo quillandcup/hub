@@ -80,8 +80,8 @@ function splitMeetingIntoSegments(
       pupAfter = true;
     }
 
-    // Rule 5: Gap between prickles
-    if (lastEndTime && lastEndTime.getTime() !== segmentStart.getTime()) {
+    // Rule 5: Gap between prickles (only if there's a forward gap)
+    if (lastEndTime && segmentStart.getTime() > lastEndTime.getTime()) {
       segments.push({
         type: "pup",
         type_id: pupTypeId,

@@ -151,6 +151,7 @@ export default function MemberDetails({ member, attendanceRecords }: MemberDetai
                     >
                       <td className="px-6 py-4">
                         <div className="text-sm font-medium text-slate-900 dark:text-slate-100">
+                          {prickle.host?.id === member.id && "⭐ "}
                           {prickle.prickle_types?.name || "Unknown"}
                         </div>
                       </td>
@@ -165,15 +166,9 @@ export default function MemberDetails({ member, attendanceRecords }: MemberDetai
                       </td>
                       <td className="px-6 py-4 text-sm text-slate-700 dark:text-slate-300">
                         {prickle.host ? (
-                          prickle.host.id === member.id ? (
-                            // They hosted this - show name with star, not clickable
-                            <span>{prickle.host.name} ⭐</span>
-                          ) : (
-                            // Someone else hosted - make it clickable
-                            <Link href={`/dashboard/members/${prickle.host.id}`} className="text-blue-600 hover:text-blue-700 dark:text-blue-400 hover:underline">
-                              {prickle.host.name}
-                            </Link>
-                          )
+                          <Link href={`/dashboard/members/${prickle.host.id}`} className="text-blue-600 hover:text-blue-700 dark:text-blue-400 hover:underline">
+                            {prickle.host.name}
+                          </Link>
                         ) : (
                           "None"
                         )}
