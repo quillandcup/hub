@@ -70,10 +70,19 @@ export default function CalendarWeekView({ prickles, weekStart }: CalendarWeekVi
   const [showPups, setShowPups] = useState(true);
   const router = useRouter();
 
-  // Filter prickles based on showPups
-  const filteredPrickles = showPups
-    ? prickles
-    : prickles.filter(p => p.prickle_type !== "Pop-Up Prickle");
+  // Filter prickles based on showPups and remove 0-duration prickles
+  const filteredPrickles = prickles
+    .filter(p => {
+      // Filter out 0-duration prickles (someone joined and immediately left)
+      const start = new Date(p.start_time).getTime();
+      const end = new Date(p.end_time).getTime();
+      if (start === end) return false;
+
+      // Filter PUPs if checkbox is unchecked
+      if (!showPups && p.prickle_type === "Pop-Up Prickle") return false;
+
+      return true;
+    });
 
   // Generate array of 7 days
   const days = Array.from({ length: 7 }, (_, i) => {

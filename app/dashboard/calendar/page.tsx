@@ -53,8 +53,8 @@ export default async function CalendarPage({
   const prevWeekParam = formatWeekParam(prevWeek);
   const nextWeekParam = formatWeekParam(nextWeek);
 
-  // Disable next button if it would go into the future
-  const isNextDisabled = nextWeek > today;
+  // Disable next button if it would go into the future (beyond current week)
+  const isNextDisabled = nextWeek.getTime() > today.getTime();
 
   // Fetch prickles for the current week with attendance counts
   const { data: prickles } = await supabase
