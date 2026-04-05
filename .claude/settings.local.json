@@ -24,7 +24,10 @@
       "Bash(date -u -v-30d +%Y-%m-%dT%H:%M:%S.000Z)",
       "Bash(date -u -v+90d +%Y-%m-%dT%H:%M:%S.000Z)",
       "mcp__plugin_context7_context7__resolve-library-id",
-      "Bash(wc:*)"
+      "Bash(wc:*)",
+      "mcp__plugin_context7_context7__query-docs",
+      "Bash(rm /Users/cody/codyaray/git/quillandcup/admin-portal/app/dashboard/prickle-types/review/\\\\[id\\\\]/page.tsx /Users/cody/codyaray/git/quillandcup/admin-portal/app/dashboard/prickle-types/review/\\\\[id\\\\]/ResolveEventForm.tsx)",
+      "Bash(rmdir /Users/cody/codyaray/git/quillandcup/admin-portal/app/dashboard/prickle-types/review/\\\\[id\\\\])"
     ]
   }
 }

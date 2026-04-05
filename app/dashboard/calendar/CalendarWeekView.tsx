@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 
 interface Prickle {
   id: string;
@@ -65,6 +66,8 @@ function getPricklePosition(startTime: string, endTime: string, timezone: string
 export default function CalendarWeekView({ prickles, weekStart }: CalendarWeekViewProps) {
   // Default to Eastern Time
   const [timezone, setTimezone] = useState("America/New_York");
+  const [hoveredPrickle, setHoveredPrickle] = useState<string | null>(null);
+  const router = useRouter();
 
   // Generate array of 7 days
   const days = Array.from({ length: 7 }, (_, i) => {
@@ -209,12 +212,14 @@ export default function CalendarWeekView({ prickles, weekStart }: CalendarWeekVi
                         return (
                           <div
                             key={prickle.id}
-                            className={`absolute left-1 right-1 rounded border-2 p-1.5 overflow-hidden pointer-events-auto cursor-default ${getAttendanceColor(prickle.attendance_count)}`}
+                            className={`absolute left-1 right-1 rounded border-2 p-1.5 overflow-hidden pointer-events-auto cursor-pointer hover:opacity-90 transition-opacity ${getAttendanceColor(prickle.attendance_count)}`}
                             style={{
                               top: `${adjustedTop}px`,
                               height: `${height}px`,
                             }}
-                            title={`${prickle.prickle_type}\nHost: ${prickle.host}\nAttendance: ${prickle.attendance_count}`}
+                            onClick={() => router.push(`/dashboard/prickles/${prickle.id}`)}
+                            onMouseEnter={() => setHoveredPrickle(prickle.id)}
+                            onMouseLeave={() => setHoveredPrickle(null)}
                           >
                             <div className="text-xs font-semibold truncate">
                               {prickle.prickle_type}
@@ -225,6 +230,15 @@ export default function CalendarWeekView({ prickles, weekStart }: CalendarWeekVi
                             <div className="text-xs font-bold mt-0.5">
                               {prickle.attendance_count} {prickle.attendance_count === 1 ? "attendee" : "attendees"}
                             </div>
+
+                            {/* Styled tooltip */}
+                            {hoveredPrickle === prickle.id && (
+                              <div className="absolute z-50 left-full ml-2 top-0 bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 px-3 py-2 rounded-lg shadow-lg text-xs whitespace-nowrap pointer-events-none">
+                                <div className="font-semibold mb-1">{prickle.prickle_type}</div>
+                                <div>Host: {prickle.host || "none"}</div>
+                                <div>Attendance: {prickle.attendance_count}</div>
+                              </div>
+                            )}
                           </div>
                         );
                       })}
