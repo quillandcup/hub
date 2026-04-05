@@ -175,6 +175,22 @@ export default async function DashboardPage() {
     .map(([date, hours]) => ({ date, hours: Math.round(hours * 10) / 10 }))
     .sort((a, b) => a.date.localeCompare(b.date));
 
+  // Weekly Engagement Rate: % of active members who attended this week
+  const startOfWeek = new Date(now);
+  startOfWeek.setDate(now.getDate() - now.getDay()); // Sunday
+  startOfWeek.setHours(0, 0, 0, 0);
+
+  const { data: weeklyAttendees } = await supabase
+    .from("attendance")
+    .select("member_id")
+    .gte("join_time", startOfWeek.toISOString())
+    .lte("join_time", now.toISOString());
+
+  const uniqueWeeklyAttendees = new Set(weeklyAttendees?.map(a => a.member_id) || []).size;
+  const weeklyEngagementRate = activeMembers > 0
+    ? Math.round((uniqueWeeklyAttendees / activeMembers) * 100)
+    : 0;
+
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
       <header className="border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
@@ -203,6 +219,11 @@ export default async function DashboardPage() {
             description={`${activeMembers} active, ${onHiatus} on hiatus`}
           />
           <MetricCard
+            label="Weekly Engagement"
+            value={`${weeklyEngagementRate}%`}
+            description={`${uniqueWeeklyAttendees} of ${activeMembers} active members`}
+          />
+          <MetricCard
             label="Prickles (30d)"
             value={pricklesLast30Days}
             description="Sessions this month"
@@ -211,11 +232,6 @@ export default async function DashboardPage() {
             label="Writing Hours"
             value={Math.round(totalHoursThisMonth)}
             description="This month"
-          />
-          <MetricCard
-            label="Total Attendance"
-            value={totalAttendance || 0}
-            description="All-time records"
           />
           <MetricCard
             label="At Risk"
