@@ -134,6 +134,209 @@ This database follows a **medallion architecture** with three distinct layers: B
 - Attendance trends (increasing/stable/decreasing)
 - Historical attendance tracking
 
+## Data Flow: Dependencies & Safe Processing
+
+### Dependency Graph
+
+```
+kajabi_members (Bronze)
+    ↓ (required)
+members (Silver) ──────┐
+                       ↓ (required)
+zoom_attendees (Bronze)──→ attendance (Silver)
+    ↓ (optional)       ↑
+prickles (Bronze) ─────┘
+```
+
+**Key Dependencies:**
+1. `members` requires `kajabi_members` (must import Kajabi first)
+2. `attendance` requires `members` + `zoom_attendees` (both must exist)
+3. `prickles` can exist independently OR be created during attendance processing
+
+### Safe Processing Order
+
+**✅ Recommended Flow:**
+```bash
+# 1. Import Kajabi data (Bronze)
+POST /api/import/members
+
+# 2. Process members (Silver)
+POST /api/process/members
+
+# 3. Import Zoom data (Bronze)
+POST /api/import/zoom
+
+# 4. Process attendance (Silver)
+POST /api/process/attendance
+```
+
+**⚠️ What Happens If You Skip Steps?**
+
+| Scenario | Result | Can Recover? |
+|----------|--------|--------------|
+| Process members before importing Kajabi | No data to process (returns 0 processed) | ✅ Yes - just import Kajabi then reprocess |
+| Process attendance before importing Zoom | No data to process (returns 0 processed) | ✅ Yes - just import Zoom then reprocess |
+| Process attendance before processing members | Attendees skipped (can't match to members) | ✅ Yes - process members then reprocess attendance |
+| Re-import Kajabi data | Creates new temporal snapshots | ✅ Yes - safe, builds history |
+| Re-import Zoom data | Creates duplicate attendees | ⚠️ Maybe - duplicates Bronze but reprocessing Silver is safe |
+
+### Idempotency: What's Safe to Re-run?
+
+#### ✅ SAFE (Idempotent)
+These operations use UPSERT or are additive:
+
+**`POST /api/process/members`**
+- Uses `UPSERT` with `onConflict: "email"`
+- Updates existing members if they exist
+- Safe to run multiple times
+- **Use case:** Fix bugs in status logic, re-derive from latest kajabi_members
+
+**`POST /api/process/attendance`**
+- Uses `UPSERT` with `onConflict: "member_id, prickle_id"`
+- Only one attendance record per member per prickle
+- Safe to run multiple times
+- **Use case:** Fix bugs in matching logic, improve confidence scoring
+
+#### ⚠️ ADDITIVE (Creates New Rows)
+These operations INSERT new rows each time:
+
+**`POST /api/import/members`**
+- `INSERT` creates new temporal snapshot each time
+- Multiple imports = full history
+- Safe but intentional (you want history)
+- **Use case:** Regular snapshots (daily/weekly) to track changes
+
+**`POST /api/import/zoom`**
+- `INSERT` creates new zoom_attendees rows
+- Multiple imports = duplicate attendees if same date range
+- **Workaround:** Delete from `zoom_attendees` for date range first, OR ignore duplicates in Bronze and rely on Silver deduplication
+
+### Recovery Scenarios
+
+#### Scenario 1: Imported Zoom Before Kajabi
+**Problem:** Can't process attendance yet (no members)
+
+**Fix:**
+```bash
+# 1. Import Kajabi data
+POST /api/import/members
+
+# 2. Process members
+POST /api/process/members
+
+# 3. Process attendance (Zoom data already in Bronze)
+POST /api/process/attendance
+```
+
+#### Scenario 2: Found Bug in Status Logic
+**Problem:** Members have wrong status values
+
+**Fix:**
+```bash
+# 1. Fix the status logic in /api/process/members
+
+# 2. Re-process members (UPSERT will update)
+POST /api/process/members
+```
+
+Silver layer is recalculated from Bronze - no data loss!
+
+#### Scenario 3: Accidentally Imported Zoom Data Twice
+**Problem:** Duplicate attendees in zoom_attendees (Bronze)
+
+**Options:**
+
+**A) Ignore duplicates (recommended):**
+- Silver layer deduplication handles it
+- `attendance` uses `UPSERT` on `(member_id, prickle_id)`
+- Only one attendance record per member per prickle
+
+**B) Clean Bronze:**
+```sql
+-- Delete duplicates (keep earliest)
+DELETE FROM zoom_attendees a
+USING zoom_attendees b
+WHERE a.id > b.id
+  AND a.meeting_uuid = b.meeting_uuid
+  AND a.email = b.email
+  AND a.join_time = b.join_time;
+```
+
+#### Scenario 4: Need to Backfill Historical Kajabi Data
+**Problem:** Want to import old Kajabi exports
+
+**Fix:**
+```bash
+# Import old CSV (will get current timestamp)
+POST /api/import/members
+
+# Better: Manually set imported_at to historical date
+# Insert into kajabi_members with custom imported_at
+INSERT INTO kajabi_members (email, imported_at, data)
+VALUES (..., '2023-01-01', ...);
+
+# Then process members to update Silver
+POST /api/process/members
+```
+
+### Data Evolution Over Time
+
+**Week 1:**
+```
+kajabi_members: 299 rows (1 snapshot)
+members: 299 rows
+zoom_attendees: 50 rows
+attendance: 45 rows (5 unmatched)
+```
+
+**Week 2 (after re-import):**
+```
+kajabi_members: 598 rows (2 snapshots)
+  ↳ Can detect who went on hiatus between imports
+members: 299 rows (updated via UPSERT)
+  ↳ Status reflects latest snapshot
+zoom_attendees: 100 rows (new import)
+attendance: 90 rows (updated via UPSERT)
+  ↳ New prickles added, existing updated
+```
+
+**Week 4 (after 4 imports):**
+```
+kajabi_members: 1196 rows (4 snapshots)
+  ↳ Full temporal history
+  ↳ Can query status changes over time
+members: 299 rows (always current)
+zoom_attendees: 200 rows
+attendance: 180 rows
+```
+
+### Key Principles for Safe Processing
+
+1. **Bronze is Append-Only (Temporal)**
+   - Never delete from Bronze unless cleaning up mistakes
+   - kajabi_members builds history with each import
+   - zoom_attendees can have duplicates (Silver deduplicates)
+
+2. **Silver is Reprocessable**
+   - Can always reprocess from Bronze
+   - UPSERT ensures idempotency
+   - Fix bugs in business logic, re-run processing
+
+3. **Process in Order (Bronze → Silver → Gold)**
+   - Import Bronze first
+   - Process Silver from Bronze
+   - Aggregate Gold from Silver
+
+4. **Dependencies Must Exist**
+   - Can't process `attendance` without `members`
+   - Can't process `members` without `kajabi_members`
+   - Check endpoints return "0 processed" if dependencies missing
+
+5. **Silver Reflects Latest Bronze**
+   - `members` always reflects latest `kajabi_members` snapshot
+   - `attendance` reflects current `zoom_attendees` + current `members`
+   - Reprocessing Silver updates to latest business logic
+
 ## Data Flow: Import → Process Workflow
 
 ### 1. Import Members (Bronze)
@@ -250,9 +453,208 @@ Tests verify:
 
 Run tests: `npm test`
 
+## Evolution: From Batch to Streaming/Real-time
+
+### Current Architecture: Batch Processing
+
+**How it works today:**
+```
+Manual trigger → Import API → Bronze → Manual trigger → Process API → Silver
+```
+
+**Characteristics:**
+- Periodic imports (daily, weekly)
+- Manual processing steps
+- Temporal snapshots in Bronze
+- Deterministic, testable
+
+### Future Architecture: Streaming/Real-time
+
+**How it could work:**
+```
+Webhook/Event → Bronze → Database Trigger → Silver (auto-updated)
+```
+
+**Migration Path:**
+
+#### Phase 1: Keep Batch, Add Automation (Current → Next)
+```sql
+-- Add database triggers to auto-process Silver from Bronze
+CREATE OR REPLACE FUNCTION auto_process_member()
+RETURNS TRIGGER AS $$
+BEGIN
+  -- Auto-update members table when kajabi_members changes
+  INSERT INTO members (email, name, joined_at, status, plan)
+  VALUES (
+    NEW.email,
+    NEW.data->>'Name',
+    (NEW.data->>'Member Created At')::date,
+    derive_status(NEW.data), -- status logic function
+    extract_plan(NEW.data)    -- plan extraction function
+  )
+  ON CONFLICT (email) DO UPDATE SET
+    name = EXCLUDED.name,
+    status = EXCLUDED.status,
+    plan = EXCLUDED.plan,
+    updated_at = now();
+  
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER on_kajabi_import
+  AFTER INSERT ON kajabi_members
+  FOR EACH ROW
+  EXECUTE FUNCTION auto_process_member();
+```
+
+**Benefits:**
+- Still supports batch imports (backward compatible)
+- Automatically processes Silver layer
+- No manual /api/process/members needed
+- Temporal snapshots still preserved in Bronze
+
+#### Phase 2: Add Webhooks (Batch → Hybrid)
+
+**Kajabi Webhooks:**
+```
+Kajabi → webhook → /api/webhooks/kajabi → kajabi_members → trigger → members
+```
+
+**Zoom Webhooks:**
+```
+Zoom → webhook → /api/webhooks/zoom → zoom_attendees → trigger → attendance
+```
+
+**Implementation:**
+```typescript
+// New endpoint: /api/webhooks/kajabi
+export async function POST(request: NextRequest) {
+  const payload = await request.json();
+  
+  // Insert into Bronze (same as batch import)
+  await supabase.from("kajabi_members").insert({
+    email: payload.email,
+    imported_at: new Date().toISOString(),
+    data: payload,
+  });
+  
+  // Trigger auto-processes Silver (if Phase 1 triggers exist)
+  // OR manually call processing here
+}
+```
+
+**Characteristics:**
+- Real-time updates when Kajabi data changes
+- Still preserves temporal snapshots
+- Can still do batch imports (CSV) for backfills
+- Coexists with batch approach
+
+#### Phase 3: Full Streaming (Hybrid → Real-time)
+
+**Change Data Capture (CDC) with Postgres:**
+```
+Bronze INSERT → Postgres Logical Replication → Process → Silver UPDATE
+```
+
+**Or Supabase Realtime:**
+```typescript
+// Subscribe to Bronze changes, update Silver
+supabase
+  .channel('kajabi_changes')
+  .on('postgres_changes', 
+    { event: 'INSERT', schema: 'public', table: 'kajabi_members' },
+    async (payload) => {
+      await processMembers(); // Auto-process
+    }
+  )
+  .subscribe();
+```
+
+### Why Medallion Architecture Enables This Evolution
+
+**✅ Separation of Concerns:**
+- Bronze layer doesn't care if data comes from batch CSV or webhook
+- Silver processing logic is the same regardless of trigger
+- Business logic centralized in one place
+
+**✅ Temporal Snapshots Preserved:**
+- Streaming doesn't break historical analysis
+- Each webhook event = new snapshot in Bronze
+- Can still query "what was status on 2024-01-15?"
+
+**✅ Reprocessability:**
+- If webhook fails, can batch-import CSV
+- If processing logic has bugs, can reprocess from Bronze
+- Bronze is immutable source of truth
+
+**✅ Testing:**
+- Test batch imports in dev
+- Same processing logic works for streaming
+- Can replay Bronze data to test Silver logic
+
+### Streaming Data Flow Example
+
+**Scenario: Member cancels membership in Kajabi**
+
+#### Current (Batch):
+```
+1. Next day/week: Admin imports CSV
+2. kajabi_members: new snapshot (Offboarding tag added)
+3. Admin runs: POST /api/process/members  
+4. members: status → inactive
+```
+
+#### Future (Streaming):
+```
+1. Real-time: Kajabi webhook fires
+2. kajabi_members: new snapshot (Offboarding tag added)
+3. Database trigger auto-fires
+4. members: status → inactive (automatically)
+5. Optional: Email notification to admin
+```
+
+**Bronze stays the same, Silver updates automatically!**
+
+### Backward Compatibility
+
+**All approaches can coexist:**
+
+| Approach | Bronze Write | Silver Update | Use Case |
+|----------|-------------|---------------|----------|
+| Batch CSV | Manual API call | Manual API call | Backfills, historical data |
+| Webhook | Webhook endpoint | Manual API call | Semi-automated |
+| Webhook + Trigger | Webhook endpoint | Database trigger | Real-time |
+| CDC/Realtime | Webhook endpoint | Event listener | Fully streaming |
+
+**The medallion architecture supports all of these!**
+
+### Migration Checklist: Batch → Streaming
+
+- [ ] Phase 1: Add database triggers for auto-processing
+  - [ ] Create `derive_status()` function (extract from API code)
+  - [ ] Create `auto_process_member()` trigger
+  - [ ] Create `auto_process_attendance()` trigger
+  - [ ] Test: batch imports still work, Silver auto-updates
+  
+- [ ] Phase 2: Add webhook endpoints
+  - [ ] Create `/api/webhooks/kajabi`
+  - [ ] Create `/api/webhooks/zoom`
+  - [ ] Set up webhook signing/verification
+  - [ ] Test: webhooks write to Bronze, triggers update Silver
+  
+- [ ] Phase 3: Enable Supabase Realtime (optional)
+  - [ ] Subscribe to Bronze changes
+  - [ ] Handle Silver updates in real-time
+  - [ ] Add conflict resolution for concurrent updates
+
+**Recommendation:** Start with Phase 1 (triggers). This gives you automatic processing while keeping the simple batch import workflow for development and backfills.
+
 ## Future Enhancements
 
-1. **Temporal Hiatus Detection** - Auto-populate `member_hiatus_history` from `kajabi_members` snapshots
-2. **Scheduled Prickle Matching** - Match Zoom meetings to scheduled prickles by time overlap
-3. **Engagement Score Calculation** - Populate `member_metrics` from `attendance`
-4. **Risk Analysis** - Populate `member_engagement` with ML-based predictions
+1. **Database Triggers for Auto-processing** - Eliminate manual processing steps
+2. **Webhook Endpoints** - Real-time updates from Kajabi/Zoom webhooks
+3. **Temporal Hiatus Detection** - Auto-populate `member_hiatus_history` from `kajabi_members` snapshots
+4. **Scheduled Prickle Matching** - Match Zoom meetings to scheduled prickles by time overlap
+5. **Engagement Score Calculation** - Populate `member_metrics` from `attendance`
+6. **Risk Analysis** - Populate `member_engagement` with ML-based predictions
