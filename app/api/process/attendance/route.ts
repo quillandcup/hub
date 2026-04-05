@@ -323,8 +323,15 @@ export async function POST(request: NextRequest) {
         const attendeeStart = new Date(attendee.join_time);
         const attendeeEnd = new Date(attendee.leave_time);
 
-        // Find which segment(s) this attendee intersects
-        for (const segment of segments) {
+        // Find which segment(s) this attendee intersects and calculate durations
+        const intersections: Array<{
+          segment: any;
+          intersection: { start: Date; end: Date };
+          durationMin: number;
+          segmentIndex: number;
+        }> = [];
+
+        segments.forEach((segment, segmentIndex) => {
           const segmentStart = new Date(segment.start_time);
           const segmentEnd = new Date(segment.end_time);
 
@@ -335,29 +342,53 @@ export async function POST(request: NextRequest) {
             segmentEnd
           );
 
-          if (!intersection) continue;
+          if (intersection) {
+            const durationMs = intersection.end.getTime() - intersection.start.getTime();
+            const durationMin = durationMs / (60 * 1000);
 
-          // Calculate intersection duration in minutes
-          const intersectionDurationMs = intersection.end.getTime() - intersection.start.getTime();
-          const intersectionDurationMin = intersectionDurationMs / (60 * 1000);
+            intersections.push({
+              segment,
+              intersection,
+              durationMin,
+              segmentIndex,
+            });
+          }
+        });
 
-          // For PUPs: only count attendance if meaningful duration (>15 minutes)
-          // Prevents counting someone who joined 7 min early for next prickle as PUP attendance
-          if (segment.type === "pup" && intersectionDurationMin < 15) {
-            continue;
+        // Filter out PUP attendance if person also attended adjacent scheduled prickle
+        // (prevents double-counting someone who just showed up early/late)
+        const filteredIntersections = intersections.filter((item, index) => {
+          // If not a PUP, always count it
+          if (item.segment.type !== "pup") return true;
+
+          // Check if there's an adjacent scheduled prickle attendance
+          const prevIntersection = index > 0 ? intersections[index - 1] : null;
+          const nextIntersection = index < intersections.length - 1 ? intersections[index + 1] : null;
+
+          const hasAdjacentScheduled =
+            (prevIntersection && prevIntersection.segment.type === "calendar") ||
+            (nextIntersection && nextIntersection.segment.type === "calendar");
+
+          // If attending adjacent scheduled prickle, only count PUP if substantial (>15 min)
+          if (hasAdjacentScheduled && item.durationMin < 15) {
+            return false;
           }
 
-          const prickleId = prickleIdsBySegment.get(segment);
+          return true;
+        });
+
+        // Create attendance records
+        for (const item of filteredIntersections) {
+          const prickleId = prickleIdsBySegment.get(item.segment);
           if (!prickleId) continue;
 
-          // Create attendance record with intersection times
           const { error: attendanceError } = await supabase
             .from("attendance")
             .upsert({
               member_id: match.member_id,
               prickle_id: prickleId,
-              join_time: intersection.start.toISOString(),
-              leave_time: intersection.end.toISOString(),
+              join_time: item.intersection.start.toISOString(),
+              leave_time: item.intersection.end.toISOString(),
               confidence_score: match.confidence,
             }, {
               onConflict: "member_id,prickle_id",
