@@ -3,7 +3,7 @@ import { GoogleCalendarClient } from "@/lib/google-calendar/client";
 import { NextRequest, NextResponse } from "next/server";
 
 /**
- * Sync prickles from Google Calendar (idempotent)
+ * Sync calendar events from Google Calendar to Bronze layer (idempotent)
  * Can be called regularly via cron or manually
  */
 export async function POST(request: NextRequest) {
@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
     let updated = 0;
     let skipped = 0;
 
-    // Import/update each event as a prickle
+    // Import/update each event to Bronze (calendar_events table)
     for (const event of events) {
       // Skip events without start/end times (all-day events, etc.)
       if (!event.start?.dateTime || !event.end?.dateTime) {
@@ -62,47 +62,42 @@ export async function POST(request: NextRequest) {
         continue;
       }
 
-      // Extract host from event creator or organizer
-      const host =
-        event.creator?.displayName ||
-        event.creator?.email ||
-        event.organizer?.displayName ||
-        event.organizer?.email ||
-        "Unknown";
-
-      const prickleData = {
-        title: event.summary || "Untitled Event",
-        host,
+      const eventData = {
+        google_event_id: event.id,
+        summary: event.summary || null,
+        description: event.description || null,
+        location: event.location || null,
         start_time: event.start.dateTime,
         end_time: event.end.dateTime,
-        type: "Calendar Event",
-        source: "calendar",
-        google_calendar_event_id: event.id,
+        creator_email: event.creator?.email || null,
+        creator_name: event.creator?.displayName || null,
+        organizer_email: event.organizer?.email || null,
+        organizer_name: event.organizer?.displayName || null,
+        raw_data: event, // Store full event data
       };
 
-      // Check if prickle already exists
-      const { data: existingPrickle } = await supabase
-        .from("prickles")
-        .select("id, title, start_time, end_time, host")
-        .eq("google_calendar_event_id", event.id)
+      // Check if event already exists
+      const { data: existingEvent } = await supabase
+        .from("calendar_events")
+        .select("id, summary, start_time, end_time")
+        .eq("google_event_id", event.id)
         .single();
 
-      if (existingPrickle) {
+      if (existingEvent) {
         // Update if details changed
         const changed =
-          existingPrickle.title !== prickleData.title ||
-          existingPrickle.start_time !== prickleData.start_time ||
-          existingPrickle.end_time !== prickleData.end_time ||
-          existingPrickle.host !== prickleData.host;
+          existingEvent.summary !== eventData.summary ||
+          existingEvent.start_time !== eventData.start_time ||
+          existingEvent.end_time !== eventData.end_time;
 
         if (changed) {
           const { error: updateError } = await supabase
-            .from("prickles")
-            .update(prickleData)
-            .eq("id", existingPrickle.id);
+            .from("calendar_events")
+            .update(eventData)
+            .eq("id", existingEvent.id);
 
           if (updateError) {
-            console.error("Error updating prickle:", updateError);
+            console.error("Error updating calendar event:", updateError);
             skipped++;
             continue;
           }
@@ -113,13 +108,13 @@ export async function POST(request: NextRequest) {
         continue;
       }
 
-      // Insert new prickle
+      // Insert new event
       const { error: insertError } = await supabase
-        .from("prickles")
-        .insert(prickleData);
+        .from("calendar_events")
+        .insert(eventData);
 
       if (insertError) {
-        console.error("Error inserting prickle:", insertError);
+        console.error("Error inserting calendar event:", insertError);
         skipped++;
         continue;
       }
