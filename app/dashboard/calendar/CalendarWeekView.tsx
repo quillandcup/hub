@@ -6,10 +6,13 @@ import { useRouter } from "next/navigation";
 interface Prickle {
   id: string;
   host: string;
+  host_id?: string;
   start_time: string;
   end_time: string;
   prickle_type: string; // Prickle type name from prickle_types table
   attendance_count: number;
+  host_missing?: boolean;
+  host_late?: boolean;
 }
 
 interface CalendarWeekViewProps {
@@ -249,6 +252,7 @@ export default function CalendarWeekView({ prickles, weekStart }: CalendarWeekVi
                           >
                             <div className="text-xs font-semibold truncate">
                               {prickle.prickle_type}
+                              {(prickle.host_missing || prickle.host_late) && " ⚠️"}
                             </div>
                             <div className="text-xs truncate">
                               {startTime}
@@ -263,6 +267,8 @@ export default function CalendarWeekView({ prickles, weekStart }: CalendarWeekVi
                                 <div className="font-semibold mb-1">{prickle.prickle_type}</div>
                                 <div>Host: {prickle.host || "none"}</div>
                                 <div>Attendance: {prickle.attendance_count}</div>
+                                {prickle.host_missing && <div className="text-yellow-400 dark:text-yellow-300 mt-1">⚠️ Host did not attend</div>}
+                                {prickle.host_late && <div className="text-yellow-400 dark:text-yellow-300 mt-1">⚠️ Host was late (&gt;5 min)</div>}
                               </div>
                             )}
                           </div>

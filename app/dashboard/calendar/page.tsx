@@ -70,21 +70,49 @@ export default async function CalendarPage({
       start_time,
       end_time,
       prickle_types!inner(name),
-      attendance(id)
+      attendance(id, member_id, join_time)
     `)
     .gte("start_time", weekStart.toISOString())
     .lt("start_time", weekEnd.toISOString())
     .order("start_time", { ascending: true });
 
-  // Transform the data to include attendance count
-  const pricklesWithCount = prickles?.map((prickle: any) => ({
-    id: prickle.id,
-    host: prickle.host?.name || null, // Extract name from host member object
-    start_time: prickle.start_time,
-    end_time: prickle.end_time,
-    prickle_type: prickle.prickle_types?.name || "Unknown",
-    attendance_count: prickle.attendance?.length || 0,
-  })) || [];
+  // Transform the data to include attendance count and host attendance status
+  const pricklesWithCount = prickles?.map((prickle: any) => {
+    const hostId = prickle.host?.id;
+    let hostAttendance = null;
+    let hostMissing = false;
+    let hostLate = false;
+
+    if (hostId) {
+      // Find host's attendance record
+      hostAttendance = prickle.attendance?.find((a: any) => a.member_id === hostId);
+
+      if (!hostAttendance) {
+        hostMissing = true;
+      } else {
+        // Check if host was late (>5 minutes)
+        const prickleStart = new Date(prickle.start_time);
+        const hostJoin = new Date(hostAttendance.join_time);
+        const lateThresholdMs = 5 * 60 * 1000; // 5 minutes
+
+        if (hostJoin.getTime() - prickleStart.getTime() > lateThresholdMs) {
+          hostLate = true;
+        }
+      }
+    }
+
+    return {
+      id: prickle.id,
+      host: prickle.host?.name || null,
+      host_id: hostId,
+      start_time: prickle.start_time,
+      end_time: prickle.end_time,
+      prickle_type: prickle.prickle_types?.name || "Unknown",
+      attendance_count: prickle.attendance?.length || 0,
+      host_missing: hostMissing,
+      host_late: hostLate,
+    };
+  }) || [];
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
