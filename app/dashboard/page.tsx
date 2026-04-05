@@ -118,7 +118,7 @@ export default async function DashboardPage() {
           <MetricCard
             label="Total Members"
             value={totalMembers}
-            description={`${activeMembers} active, ${onHiatus} on hiatus`}
+            description={`${activeMembers} active, ${onHiatus} hiatus, ${inactive} inactive`}
           />
           <MetricCard
             label="Prickles (30d)"
