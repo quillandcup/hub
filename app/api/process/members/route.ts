@@ -63,14 +63,15 @@ export async function POST(request: NextRequest) {
       }
 
       // Derive status from products and tags (business logic)
-      // Active = has membership product
+      // Check Offboarding tag FIRST - it's the strongest signal of cancellation
+      // Active = has membership product AND no offboarding tag
       // On Hiatus = has member tag but product removed during pause
       // Inactive = offboarding tag OR neither product nor tag (leads/trials)
       let status: "active" | "inactive" | "on_hiatus";
-      if (products.includes("Quill & Cup Membership")) {
+      if (tags.includes("Offboarding")) {
+        status = "inactive"; // Officially cancelled - check this FIRST
+      } else if (products.includes("Quill & Cup Membership")) {
         status = "active"; // Has active membership product
-      } else if (tags.includes("Offboarding")) {
-        status = "inactive"; // Officially cancelled
       } else if (tags.includes("Quill & Cup Member")) {
         status = "on_hiatus"; // Has member tag but no product = paused
       } else {

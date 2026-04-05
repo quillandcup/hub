@@ -19,10 +19,10 @@ export default async function DashboardPage() {
     .from("members")
     .select("status");
 
-  const totalMembers = memberStats?.length || 0;
   const activeMembers = memberStats?.filter(m => m.status === "active").length || 0;
   const onHiatus = memberStats?.filter(m => m.status === "on_hiatus").length || 0;
   const inactive = memberStats?.filter(m => m.status === "inactive").length || 0;
+  const totalMembers = activeMembers + onHiatus; // Exclude inactive (cancelled members)
 
   // Prickles in last 30 days
   const thirtyDaysAgo = new Date();
@@ -118,7 +118,7 @@ export default async function DashboardPage() {
           <MetricCard
             label="Total Members"
             value={totalMembers}
-            description={`${activeMembers} active, ${onHiatus} hiatus, ${inactive} inactive`}
+            description={`${activeMembers} active, ${onHiatus} on hiatus`}
           />
           <MetricCard
             label="Prickles (30d)"
