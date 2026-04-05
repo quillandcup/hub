@@ -239,31 +239,39 @@ export default function CalendarWeekView({ prickles, weekStart }: CalendarWeekVi
                         });
 
                         return (
-                          <div
-                            key={prickle.id}
-                            className={`absolute left-1 right-1 rounded border-2 p-1.5 overflow-hidden pointer-events-auto cursor-pointer hover:opacity-90 transition-opacity ${getAttendanceColor(prickle.attendance_count)}`}
-                            style={{
-                              top: `${adjustedTop}px`,
-                              height: `${height}px`,
-                            }}
-                            onClick={() => router.push(`/dashboard/prickles/${prickle.id}`)}
-                            onMouseEnter={() => setHoveredPrickle(prickle.id)}
-                            onMouseLeave={() => setHoveredPrickle(null)}
-                          >
-                            <div className="text-xs font-semibold truncate">
-                              {prickle.prickle_type}
-                              {(prickle.host_missing || prickle.host_late) && " ⚠️"}
-                            </div>
-                            <div className="text-xs truncate">
-                              {startTime}
-                            </div>
-                            <div className="text-xs font-bold mt-0.5">
-                              {prickle.attendance_count} {prickle.attendance_count === 1 ? "attendee" : "attendees"}
+                          <>
+                            <div
+                              key={prickle.id}
+                              className={`absolute left-1 right-1 rounded border-2 p-1.5 overflow-hidden pointer-events-auto cursor-pointer hover:opacity-90 transition-opacity ${getAttendanceColor(prickle.attendance_count)}`}
+                              style={{
+                                top: `${adjustedTop}px`,
+                                height: `${height}px`,
+                              }}
+                              onClick={() => router.push(`/dashboard/prickles/${prickle.id}`)}
+                              onMouseEnter={() => setHoveredPrickle(prickle.id)}
+                              onMouseLeave={() => setHoveredPrickle(null)}
+                            >
+                              <div className="text-xs font-semibold truncate">
+                                {prickle.prickle_type}
+                                {(prickle.host_missing || prickle.host_late) && " ⚠️"}
+                              </div>
+                              <div className="text-xs truncate">
+                                {startTime}
+                              </div>
+                              <div className="text-xs font-bold mt-0.5">
+                                {prickle.attendance_count} {prickle.attendance_count === 1 ? "attendee" : "attendees"}
+                              </div>
                             </div>
 
-                            {/* Styled tooltip */}
+                            {/* Styled tooltip - rendered outside overflow-hidden container */}
                             {hoveredPrickle === prickle.id && (
-                              <div className="absolute z-50 left-full ml-2 top-0 bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 px-3 py-2 rounded-lg shadow-lg text-xs whitespace-nowrap pointer-events-none">
+                              <div
+                                className="absolute z-50 bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 px-3 py-2 rounded-lg shadow-lg text-xs whitespace-nowrap pointer-events-none"
+                                style={{
+                                  top: `${adjustedTop}px`,
+                                  left: 'calc(100% + 8px)', // Position to the right of the day column
+                                }}
+                              >
                                 <div className="font-semibold mb-1">{prickle.prickle_type}</div>
                                 <div>Host: {prickle.host || "none"}</div>
                                 <div>Attendance: {prickle.attendance_count}</div>
@@ -271,7 +279,7 @@ export default function CalendarWeekView({ prickles, weekStart }: CalendarWeekVi
                                 {prickle.host_late && <div className="text-yellow-400 dark:text-yellow-300 mt-1">⚠️ Host was late (&gt;5 min)</div>}
                               </div>
                             )}
-                          </div>
+                          </>
                         );
                       })}
                     </div>

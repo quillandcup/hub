@@ -166,7 +166,11 @@ export default function MemberDetails({ member, attendanceRecords }: MemberDetai
                       </td>
                       <td className="px-6 py-4 text-sm text-slate-700 dark:text-slate-300">
                         {prickle.host ? (
-                          <Link href={`/dashboard/members/${prickle.host.id}`} className="text-blue-600 hover:text-blue-700 dark:text-blue-400 hover:underline">
+                          <Link
+                            href={`/dashboard/members/${prickle.host.id}`}
+                            className="text-blue-600 hover:text-blue-700 dark:text-blue-400 hover:underline"
+                            onClick={(e) => e.stopPropagation()}
+                          >
                             {prickle.host.name}
                           </Link>
                         ) : (
