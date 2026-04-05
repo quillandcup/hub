@@ -25,7 +25,9 @@ export default async function CalendarPage({
   let weekStart: Date;
   if (params.week) {
     // Parse week from URL (format: YYYY-MM-DD) and normalize to Sunday
-    const paramDate = new Date(params.week);
+    // Use local timezone parsing to avoid UTC shift issues
+    const [year, month, day] = params.week.split('-').map(Number);
+    const paramDate = new Date(year, month - 1, day); // month is 0-indexed
     const dayOfWeek = paramDate.getDay(); // 0 = Sunday
     weekStart = new Date(paramDate);
     weekStart.setDate(paramDate.getDate() - dayOfWeek); // Adjust to Sunday
