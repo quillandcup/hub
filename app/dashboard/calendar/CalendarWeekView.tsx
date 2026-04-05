@@ -67,7 +67,13 @@ export default function CalendarWeekView({ prickles, weekStart }: CalendarWeekVi
   // Default to Eastern Time
   const [timezone, setTimezone] = useState("America/New_York");
   const [hoveredPrickle, setHoveredPrickle] = useState<string | null>(null);
+  const [showPups, setShowPups] = useState(true);
   const router = useRouter();
+
+  // Filter prickles based on showPups
+  const filteredPrickles = showPups
+    ? prickles
+    : prickles.filter(p => p.prickle_type !== "Pop-Up Prickle");
 
   // Generate array of 7 days
   const days = Array.from({ length: 7 }, (_, i) => {
@@ -80,7 +86,7 @@ export default function CalendarWeekView({ prickles, weekStart }: CalendarWeekVi
 
   // Group prickles by day (in the selected timezone)
   const pricklesByDay = days.map(day => {
-    return prickles.filter(p => {
+    return filteredPrickles.filter(p => {
       const prickleStart = new Date(p.start_time);
       // Get the date in the selected timezone
       const prickleDateStr = prickleStart.toLocaleDateString("en-US", {
@@ -127,19 +133,30 @@ export default function CalendarWeekView({ prickles, weekStart }: CalendarWeekVi
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Timezone:</span>
-            <select
-              value={timezone}
-              onChange={(e) => setTimezone(e.target.value)}
-              className="px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg text-sm text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              {TIMEZONES.map((tz) => (
-                <option key={tz.value} value={tz.value}>
-                  {tz.label}
-                </option>
-              ))}
-            </select>
+          <div className="flex items-center gap-4">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={showPups}
+                onChange={(e) => setShowPups(e.target.checked)}
+                className="w-4 h-4 text-blue-600 bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600 rounded focus:ring-2 focus:ring-blue-500"
+              />
+              <span className="text-sm text-slate-700 dark:text-slate-300">Show Pop-Up Prickles</span>
+            </label>
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Timezone:</span>
+              <select
+                value={timezone}
+                onChange={(e) => setTimezone(e.target.value)}
+                className="px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg text-sm text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                {TIMEZONES.map((tz) => (
+                  <option key={tz.value} value={tz.value}>
+                    {tz.label}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
       </div>
