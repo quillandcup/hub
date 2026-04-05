@@ -2,6 +2,18 @@
 
 ## Member Status Refinements
 
+### Reverify Hiatus Members After Kajabi/SOP Updates
+After updating Kajabi data and SOPs to ensure Offboarding tags are consistently applied:
+- Re-import member data from Kajabi
+- Verify on_hiatus count matches expected hiatus members
+- Cross-reference with manual hiatus spreadsheet
+- ~21 members identified as needing Offboarding tag (hiatus ended, didn't resubscribe)
+
+**Current Status Detection Logic:**
+- Active: has "Quill & Cup Membership" product
+- On Hiatus: has "Quill & Cup Member" tag but no product AND no "Offboarding" tag
+- Inactive: has "Offboarding" tag OR neither product nor member tag
+
 ### Enhanced Inactive Member Classification
 Currently all inactive members are grouped together. Add granular status to distinguish:
 - **Former Member** - Had "Quill & Cup Membership" product in the past but cancelled
