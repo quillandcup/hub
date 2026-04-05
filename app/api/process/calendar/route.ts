@@ -32,19 +32,34 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get calendar events from Bronze layer
-    // Note: Supabase default limit is 1000, so we need to paginate or set higher limit
-    const { data: calendarEvents, error: fetchError } = await supabase
-      .from("calendar_events")
-      .select("*")
-      .gte("start_time", fromDate)
-      .lte("end_time", toDate)
-      .order("start_time")
-      .limit(10000); // Allow up to 10k events per processing run
+    // Get calendar events from Bronze layer with pagination
+    // Fetch in batches to handle any number of events
+    const BATCH_SIZE = 1000;
+    let allEvents: any[] = [];
+    let offset = 0;
+    let hasMore = true;
 
-    if (fetchError) throw fetchError;
+    while (hasMore) {
+      const { data: batch, error: fetchError } = await supabase
+        .from("calendar_events")
+        .select("*")
+        .gte("start_time", fromDate)
+        .lte("end_time", toDate)
+        .order("start_time")
+        .range(offset, offset + BATCH_SIZE - 1);
 
-    if (!calendarEvents || calendarEvents.length === 0) {
+      if (fetchError) throw fetchError;
+
+      if (batch && batch.length > 0) {
+        allEvents = allEvents.concat(batch);
+        offset += batch.length;
+        hasMore = batch.length === BATCH_SIZE;
+      } else {
+        hasMore = false;
+      }
+    }
+
+    if (allEvents.length === 0) {
       return NextResponse.json({
         success: true,
         message: "No calendar events found in date range",
@@ -64,7 +79,7 @@ export async function POST(request: NextRequest) {
     };
 
     // Process each calendar event into a prickle
-    for (const event of calendarEvents) {
+    for (const event of allEvents) {
       const titleHost = event.summary ? extractHostFromTitle(event.summary) : null;
       const host = titleHost ||
         event.creator_name ||
@@ -129,7 +144,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      calendarEvents: calendarEvents.length,
+      calendarEvents: allEvents.length,
       pricklesCreated: created,
       pricklesUpdated: updated,
       skipped,

@@ -20,7 +20,9 @@
       "Bash(psql:*)",
       "Bash(npx next:*)",
       "Bash(lsof -ti:3000)",
-      "Bash(xargs kill:*)"
+      "Bash(xargs kill:*)",
+      "Bash(date -u -v-30d +%Y-%m-%dT%H:%M:%S.000Z)",
+      "Bash(date -u -v+90d +%Y-%m-%dT%H:%M:%S.000Z)"
     ]
   }
 }

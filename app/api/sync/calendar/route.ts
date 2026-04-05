@@ -55,6 +55,7 @@ export async function POST(request: NextRequest) {
     let skipped = 0;
 
     // Import/update each event to Bronze (calendar_events table)
+    // Note: Google Calendar API handles pagination internally via listEvents
     for (const event of events) {
       // Skip events without start/end times (all-day events, etc.)
       if (!event.start?.dateTime || !event.end?.dateTime) {
