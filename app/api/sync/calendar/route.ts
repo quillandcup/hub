@@ -76,7 +76,7 @@ export async function POST(request: NextRequest) {
         start_time: event.start.dateTime,
         end_time: event.end.dateTime,
         type: "Calendar Event",
-        source: "google_calendar",
+        source: "calendar",
         google_calendar_event_id: event.id,
       };
 

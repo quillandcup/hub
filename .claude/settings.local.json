@@ -18,7 +18,9 @@
       "Bash(npx supabase:*)",
       "Bash(npm test:*)",
       "Bash(psql:*)",
-      "Bash(npx next:*)"
+      "Bash(npx next:*)",
+      "Bash(lsof -ti:3000)",
+      "Bash(xargs kill:*)"
     ]
   }
 }
