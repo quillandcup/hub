@@ -6,30 +6,9 @@ import CalendarSyncButton from "./CalendarSyncButton";
 export default function CalendarImportForm() {
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
-  const [calendarId, setCalendarId] = useState("primary");
-  const [refreshToken, setRefreshToken] = useState("");
+  const [calendarId, setCalendarId] = useState("");
   const [importing, setImporting] = useState(false);
   const [result, setResult] = useState<any>(null);
-  const [authenticating, setAuthenticating] = useState(false);
-
-  const handleAuthenticate = async () => {
-    setAuthenticating(true);
-    try {
-      const response = await fetch("/api/google-calendar/auth");
-      const data = await response.json();
-
-      if (data.authUrl) {
-        // Open auth URL in new window
-        window.open(data.authUrl, "_blank");
-      } else {
-        setResult({ error: "Failed to get auth URL" });
-      }
-    } catch (error: any) {
-      setResult({ error: error.message });
-    } finally {
-      setAuthenticating(false);
-    }
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -43,10 +22,9 @@ export default function CalendarImportForm() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          calendarId,
+          calendarId: calendarId || undefined,
           fromDate,
           toDate,
-          refreshToken: refreshToken || undefined,
         }),
       });
 
@@ -64,44 +42,11 @@ export default function CalendarImportForm() {
       <div className="border-b border-slate-200 dark:border-slate-800 pb-4 mb-6">
         <h3 className="text-lg font-bold">Import Prickles from Google Calendar</h3>
         <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
-          Fetch scheduled events from your Google Calendar
+          Fetch scheduled events from the configured calendar (uses service account)
         </p>
-      </div>
-
-      {/* Authentication Section */}
-      <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
-        <h4 className="font-semibold text-blue-900 dark:text-blue-100 mb-2">
-          Step 1: Authenticate with Google
-        </h4>
-        <p className="text-sm text-blue-800 dark:text-blue-200 mb-3">
-          Click the button below to authenticate with Google Calendar. After authenticating,
-          copy the refresh token from the URL and paste it below.
-        </p>
-        <button
-          onClick={handleAuthenticate}
-          disabled={authenticating}
-          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-lg font-medium transition-colors"
-        >
-          {authenticating ? "Opening..." : "Authenticate with Google"}
-        </button>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
-        <div>
-          <label className="block text-sm font-medium mb-2">
-            Refresh Token (from authentication)
-          </label>
-          <input
-            type="text"
-            value={refreshToken}
-            onChange={(e) => setRefreshToken(e.target.value)}
-            placeholder="Paste refresh token here (or leave empty to use .env)"
-            className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
-          />
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-            Optional: Leave empty to use GOOGLE_REFRESH_TOKEN from .env.local
-          </p>
-        </div>
 
         <div>
           <label className="block text-sm font-medium mb-2">

@@ -2,45 +2,27 @@ import { google } from "googleapis";
 
 /**
  * Google Calendar API client for fetching prickle events
+ * Uses service account authentication (no OAuth required)
  */
 export class GoogleCalendarClient {
-  private oauth2Client;
   private calendar;
 
   constructor() {
-    this.oauth2Client = new google.auth.OAuth2(
-      process.env.GOOGLE_CLIENT_ID,
-      process.env.GOOGLE_CLIENT_SECRET,
-      process.env.GOOGLE_REDIRECT_URI
-    );
+    // Use service account credentials from environment
+    const credentials = process.env.GOOGLE_SERVICE_ACCOUNT_KEY
+      ? JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_KEY)
+      : null;
 
-    this.calendar = google.calendar({ version: "v3", auth: this.oauth2Client });
-  }
+    if (!credentials) {
+      throw new Error("GOOGLE_SERVICE_ACCOUNT_KEY not configured");
+    }
 
-  /**
-   * Get OAuth authorization URL
-   */
-  getAuthUrl(): string {
-    return this.oauth2Client.generateAuthUrl({
-      access_type: "offline",
-      scope: ["https://www.googleapis.com/auth/calendar.readonly"],
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ["https://www.googleapis.com/auth/calendar.readonly"],
     });
-  }
 
-  /**
-   * Exchange authorization code for tokens
-   */
-  async getTokensFromCode(code: string) {
-    const { tokens } = await this.oauth2Client.getToken(code);
-    this.oauth2Client.setCredentials(tokens);
-    return tokens;
-  }
-
-  /**
-   * Set tokens for authenticated requests
-   */
-  setTokens(tokens: any) {
-    this.oauth2Client.setCredentials(tokens);
+    this.calendar = google.calendar({ version: "v3", auth });
   }
 
   /**

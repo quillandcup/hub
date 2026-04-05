@@ -1,41 +1,20 @@
 # Google Calendar Sync
 
-Automatically sync prickles from Google Calendar.
+Automatically sync prickles from Google Calendar using service account authentication.
 
 ## Setup
 
-### 1. Get Google OAuth Credentials
+See [CALENDAR_SETUP.md](./CALENDAR_SETUP.md) for detailed setup instructions.
 
-1. Go to [Google Cloud Console](https://console.cloud.google.com/)
-2. Create a new project (or select existing)
-3. Enable Google Calendar API
-4. Create OAuth 2.0 credentials
-5. Add authorized redirect URI: `http://localhost:3000/api/google-calendar/callback` (dev) or your production URL
-
-### 2. Configure Environment Variables
-
-Add to `.env.local`:
-
-```bash
-# Google Calendar API
-GOOGLE_CLIENT_ID=your-client-id-here
-GOOGLE_CLIENT_SECRET=your-client-secret-here
-GOOGLE_REDIRECT_URI=http://localhost:3000/api/google-calendar/callback
-
-# Quill & Cup Prickle Calendar ID
-GOOGLE_CALENDAR_ID=dd6745e544f1a8a93f0f7fd6d3fc633ab9c864e1090603a793c69d101f695e6e@group.calendar.google.com
-
-# Get this from OAuth flow (see step 3)
-GOOGLE_REFRESH_TOKEN=your-refresh-token-here
-```
-
-### 3. Get Refresh Token
-
-1. Go to `/dashboard/import`
-2. Click "Authenticate with Google"
-3. Sign in and grant permissions
-4. Copy the `refresh_token` from the redirect URL
-5. Add to `.env.local` as `GOOGLE_REFRESH_TOKEN`
+**Quick version:**
+1. Create service account in Google Cloud Console
+2. Download JSON key
+3. Share calendar with service account email
+4. Add to `.env.local`:
+   ```bash
+   GOOGLE_SERVICE_ACCOUNT_KEY={"type":"service_account",...full JSON...}
+   GOOGLE_CALENDAR_ID=dd6745e544f1a8a93f0f7fd6d3fc633ab9c864e1090603a793c69d101f695e6e@group.calendar.google.com
+   ```
 
 ## Manual Sync
 

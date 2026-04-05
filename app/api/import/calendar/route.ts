@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { calendarId, fromDate, toDate, refreshToken } = body;
+    const { calendarId, fromDate, toDate } = body;
 
     if (!fromDate || !toDate) {
       return NextResponse.json(
@@ -28,19 +28,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Initialize Google Calendar client
+    // Initialize Google Calendar client (uses service account from env)
     const client = new GoogleCalendarClient();
-
-    // Use refresh token if provided, otherwise use env variable
-    const token = refreshToken || process.env.GOOGLE_REFRESH_TOKEN;
-    if (!token) {
-      return NextResponse.json(
-        { error: "No Google Calendar refresh token available. Please authenticate first." },
-        { status: 400 }
-      );
-    }
-
-    client.setTokens({ refresh_token: token });
 
     // Fetch events from calendar
     const timeMin = new Date(fromDate).toISOString();

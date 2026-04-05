@@ -23,19 +23,10 @@ export async function POST(request: NextRequest) {
     const { daysBack = 30, daysForward = 90 } = body;
 
     // Use environment variables for calendar config
-    const refreshToken = process.env.GOOGLE_REFRESH_TOKEN;
     const calendarId = process.env.GOOGLE_CALENDAR_ID || "primary";
 
-    if (!refreshToken) {
-      return NextResponse.json(
-        { error: "No Google Calendar refresh token configured in .env" },
-        { status: 400 }
-      );
-    }
-
-    // Initialize Google Calendar client
+    // Initialize Google Calendar client (uses service account from env)
     const client = new GoogleCalendarClient();
-    client.setTokens({ refresh_token: refreshToken });
 
     // Calculate date range (default: 30 days back, 90 days forward)
     const now = new Date();
