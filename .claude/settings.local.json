@@ -15,7 +15,8 @@
       "Bash(pkill:*)",
       "Bash(npx tsc:*)",
       "Bash(npm search:*)",
-      "Bash(npx supabase:*)"
+      "Bash(npx supabase:*)",
+      "Bash(npm test:*)"
     ]
   }
 }
