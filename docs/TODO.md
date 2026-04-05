@@ -44,6 +44,47 @@ Import Prickles schedule from:
 
 ---
 
+## Security & Access Control
+
+### Row Level Security (RLS)
+- **CRITICAL: Setup RLS policies in Supabase**
+  - Currently completely insecure - any authenticated user can access all data
+  - Define policies per table based on user role
+  - Test policies thoroughly before production
+
+### Role-Based Access Control (RBAC)
+Define user roles and permissions:
+
+1. **Member/Customer** (future)
+   - View own profile and attendance history
+   - Cannot access other members' data
+   - Cannot access admin tools
+
+2. **Admin** (current default)
+   - Full access to all features
+   - Import/process data
+   - View all members and prickles
+   - Edit members, prickles, aliases
+
+3. **Assistant** (future)
+   - Read-only access to member data for support
+   - Can view attendance and engagement metrics
+   - Cannot edit or delete
+   - Cannot access import/process tools
+
+4. **More granular roles** (future consideration)
+   - Content Manager - manage prickles/calendar only
+   - Analytics Viewer - read-only dashboards
+   - Onboarding Specialist - member CRUD only
+
+**Implementation:**
+- Add `role` column to user profiles table
+- Create RLS policies per role
+- Update UI to show/hide features based on role
+- Add role management interface for admins
+
+---
+
 ## Analytics & Matching
 
 ### Member Matching Logic (In Progress)
@@ -59,10 +100,62 @@ Set up background agents for faster parallel development
 
 ## UI Enhancements
 
+### Navigation & Layout
+- **Collapsible left-nav with information hierarchy**
+  - Current state: Jumble of inter-linked tools (dashboard → name matching → search-based matching)
+  - Goal: Clear, organized navigation with logical grouping
+  - Consider sections: Dashboard, Members, Prickles, Import/Process, Admin Tools
+
+- **User profile dropdown in top-nav**
+  - Replace simple "Sign out" link with dropdown menu
+  - Add "Edit Profile" link
+  - First setting: Default timezone preference
+  - Option for "Browser/Local Time" to auto-detect
+  - Store user preferences in database
+
 ### Dashboard Improvements
-- Charts/graphs for engagement trends
-- Member activity timeline
-- Risk alerts and notifications
+
+**Current State:**
+The dashboard has basic stats cards, at-risk members list, and engagement insights.
+
+**Potential Additions:**
+
+1. **Recent Activity Feed**
+   - Last 10-20 activities across all members
+   - Types: New members, prickle attendance, hiatus starts/ends
+   - Real-time or near-real-time updates
+
+2. **Upcoming Prickles This Week**
+   - Calendar preview of this week's scheduled prickles
+   - Show host, type, time, expected attendance (based on historical avg)
+   - Click to view prickle details or edit
+
+3. **Host Leaderboard**
+   - Top hosts by number of prickles hosted (last 30 days)
+   - Host attendance/punctuality stats
+   - Identify hosts who need support
+
+4. **Attendance Trends Charts**
+   - Line chart: Average attendance over time (30/60/90 days)
+   - Bar chart: Attendance by prickle type
+   - Heatmap: Popular prickle times (day/hour)
+
+5. **Quick Actions / Shortcuts**
+   - "Import Zoom Data" button
+   - "Process Attendance" button
+   - "View Unmatched Events" button
+   - Jump to common admin tasks
+
+6. **Alerts & Notifications Panel**
+   - Host no-shows this week (scheduled but didn't attend)
+   - Members who just became at-risk
+   - Data processing errors or warnings
+   - Unmatched Zoom attendees count
+
+7. **Member Lifecycle Summary**
+   - New members this month
+   - Members ending hiatus soon
+   - Churned members (went inactive this month)
 
 ### Admin Features
 - Manually create/edit members
