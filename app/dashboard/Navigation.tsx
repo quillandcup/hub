@@ -37,13 +37,18 @@ const navigation: NavSection[] = [
     ],
   },
   {
+    name: "Data Hygiene",
+    items: [
+      { name: "Unmatched Events", href: "/dashboard/unmatched-events", icon: "📋" },
+      { name: "Unmatched Zoom", href: "/dashboard/aliases", icon: "🔍" },
+      { name: "Name Matching", href: "/dashboard/name-matching", icon: "🧩" },
+    ],
+  },
+  {
     name: "Data Management",
     items: [
       { name: "Import Data", href: "/dashboard/import", icon: "📥" },
       { name: "Prickle Types", href: "/dashboard/prickle-types", icon: "🏷️" },
-      { name: "Unmatched Events", href: "/dashboard/unmatched-events", icon: "📋" },
-      { name: "Unmatched Zoom", href: "/dashboard/aliases", icon: "🔍" },
-      { name: "Name Matching", href: "/dashboard/name-matching", icon: "🧩" },
     ],
   },
 ];
