@@ -33,14 +33,16 @@ export default async function ImportPage() {
             <div className="mb-6">
               <h2 className="text-xl font-bold mb-2">Member Import (CSV)</h2>
               <p className="text-slate-600 dark:text-slate-400 mb-3">
-                Upload a CSV file with member data. Automatically detects Kajabi exports or custom CSV format.
+                Upload a CSV file with member data. Automatically detects Kajabi subscriptions export, members export, or custom CSV format.
               </p>
               <details className="text-sm text-slate-500 dark:text-slate-400">
                 <summary className="cursor-pointer font-medium hover:text-slate-700 dark:hover:text-slate-300">
                   CSV Format Details
                 </summary>
                 <div className="mt-2 pl-4 space-y-2">
-                  <p><strong>Kajabi Export:</strong> Go to Contacts → All Contacts → Filter "Customers" → Select All → Bulk Action "Export"</p>
+                  <p className="font-semibold text-green-600 dark:text-green-400">Recommended: Kajabi Subscriptions Export</p>
+                  <p className="pl-4">Go to <a href="https://app.kajabi.com/admin/sites/2147577478/payments/subscriptions" target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 underline">Payments → Subscriptions</a> → Click the three dots (...) → Export subscriptions</p>
+                  <p className="mt-2"><strong>Alternative: Kajabi Members Export:</strong> Go to Contacts → All Contacts → Filter "Customers" → Select All → Bulk Action "Export"</p>
                   <p><strong>Custom CSV:</strong> Include columns: name, email, joined_at, status (active/inactive/on_hiatus), plan (optional)</p>
                 </div>
               </details>

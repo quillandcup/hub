@@ -79,17 +79,94 @@ function parseCSV(text: string): any[] {
   const headerLine = lines[0];
   const headers = parseCSVLine(headerLine);
 
-  // Check if this is a Kajabi export
-  const isKajabi = headers.includes("Name") && headers.includes("Email") && headers.includes("Member Created At");
+  // Check if this is a Kajabi Subscriptions export
+  const isKajabiSubscriptions = headers.includes("Customer Email") && headers.includes("Status") && headers.includes("Kajabi Subscription ID");
 
-  if (isKajabi) {
-    return parseKajabiCSV(headers, lines.slice(1));
+  // Check if this is a Kajabi Members export
+  const isKajabiMembers = headers.includes("Name") && headers.includes("Email") && headers.includes("Member Created At");
+
+  if (isKajabiSubscriptions) {
+    return parseKajabiSubscriptionsCSV(headers, lines.slice(1));
+  } else if (isKajabiMembers) {
+    return parseKajabiMembersCSV(headers, lines.slice(1));
   } else {
     return parseSimpleCSV(headers, lines.slice(1));
   }
 }
 
-function parseKajabiCSV(headers: string[], dataLines: string[]): any[] {
+function parseKajabiSubscriptionsCSV(headers: string[], dataLines: string[]): any[] {
+  const nameIdx = headers.indexOf("Customer Name");
+  const emailIdx = headers.indexOf("Customer Email");
+  const statusIdx = headers.indexOf("Status");
+  const createdAtIdx = headers.indexOf("Created At");
+
+  const rawData: any[] = [];
+
+  // Group subscriptions by email to get the most recent/active one
+  const subscriptionsByEmail = new Map<string, any[]>();
+
+  for (let i = 0; i < dataLines.length; i++) {
+    const line = dataLines[i].trim();
+    if (!line) continue;
+
+    const values = parseCSVLine(line);
+
+    const name = values[nameIdx]?.trim();
+    const email = values[emailIdx]?.trim();
+    const status = values[statusIdx]?.trim();
+    const createdAt = values[createdAtIdx]?.trim();
+
+    // Skip if missing required fields
+    if (!name || !email || !status || !createdAt) {
+      console.warn(`Skipping Kajabi subscriptions row ${i + 2}: missing required fields`);
+      continue;
+    }
+
+    // Validate email
+    if (!email.includes("@")) {
+      console.warn(`Skipping Kajabi subscriptions row ${i + 2}: invalid email "${email}"`);
+      continue;
+    }
+
+    const emailLower = email.toLowerCase();
+
+    // Store raw data (all columns as JSONB)
+    const rawRow: any = { email: emailLower };
+    headers.forEach((header, idx) => {
+      rawRow[header] = values[idx]?.trim() || "";
+    });
+
+    // Group by email
+    if (!subscriptionsByEmail.has(emailLower)) {
+      subscriptionsByEmail.set(emailLower, []);
+    }
+    subscriptionsByEmail.get(emailLower)!.push(rawRow);
+  }
+
+  // For each email, choose the most relevant subscription
+  // Priority: Active > Paused > Pending Cancellation > Canceled (most recent)
+  for (const [email, subscriptions] of subscriptionsByEmail) {
+    const priorityOrder = ["Active", "Pending Cancellation", "Paused", "Canceled"];
+
+    subscriptions.sort((a, b) => {
+      const aPriority = priorityOrder.indexOf(a.Status);
+      const bPriority = priorityOrder.indexOf(b.Status);
+
+      if (aPriority !== bPriority) {
+        return aPriority - bPriority;
+      }
+
+      // If same status, prefer most recent
+      return new Date(b["Created At"]).getTime() - new Date(a["Created At"]).getTime();
+    });
+
+    rawData.push(subscriptions[0]);
+  }
+
+  return rawData;
+}
+
+function parseKajabiMembersCSV(headers: string[], dataLines: string[]): any[] {
   const nameIdx = headers.indexOf("Name");
   const emailIdx = headers.indexOf("Email");
   const createdAtIdx = headers.indexOf("Member Created At");
