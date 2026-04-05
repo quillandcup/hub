@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import ZoomImportAndProcessForm from "./ZoomImportAndProcessForm";
 import MemberImportForm from "./MemberImportForm";
+import CalendarImportForm from "./CalendarImportForm";
 
 export default async function ImportPage() {
   const supabase = await createClient();
@@ -50,6 +51,9 @@ export default async function ImportPage() {
 
             <MemberImportForm />
           </div>
+
+          {/* Google Calendar Import */}
+          <CalendarImportForm />
 
           {/* Zoom Attendance Import & Process */}
           <div className="bg-white dark:bg-slate-900 rounded-lg shadow p-6">
