@@ -6,7 +6,7 @@ import CalendarWeekView from "./CalendarWeekView";
 export default async function CalendarPage({
   searchParams,
 }: {
-  searchParams: { week?: string };
+  searchParams: Promise<{ week?: string }>;
 }) {
   const supabase = await createClient();
 
@@ -18,11 +18,14 @@ export default async function CalendarPage({
     redirect("/login");
   }
 
+  // Await searchParams in Next.js 15
+  const params = await searchParams;
+
   // Get week from URL param or default to last week
   let weekStart: Date;
-  if (searchParams.week) {
+  if (params.week) {
     // Parse week from URL (format: YYYY-MM-DD) and normalize to Sunday
-    const paramDate = new Date(searchParams.week);
+    const paramDate = new Date(params.week);
     const dayOfWeek = paramDate.getDay(); // 0 = Sunday
     weekStart = new Date(paramDate);
     weekStart.setDate(paramDate.getDate() - dayOfWeek); // Adjust to Sunday
