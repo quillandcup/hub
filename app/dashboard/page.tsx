@@ -175,15 +175,14 @@ export default async function DashboardPage() {
     .map(([date, hours]) => ({ date, hours: Math.round(hours * 10) / 10 }))
     .sort((a, b) => a.date.localeCompare(b.date));
 
-  // Weekly Engagement Rate: % of active members who attended this week
-  const startOfWeek = new Date(now);
-  startOfWeek.setDate(now.getDate() - now.getDay()); // Sunday
-  startOfWeek.setHours(0, 0, 0, 0);
+  // Weekly Engagement Rate: % of active members who attended in last 7 days
+  const sevenDaysAgo = new Date(now);
+  sevenDaysAgo.setDate(now.getDate() - 7);
 
   const { data: weeklyAttendees } = await supabase
     .from("attendance")
     .select("member_id")
-    .gte("join_time", startOfWeek.toISOString())
+    .gte("join_time", sevenDaysAgo.toISOString())
     .lte("join_time", now.toISOString());
 
   const uniqueWeeklyAttendees = new Set(weeklyAttendees?.map(a => a.member_id) || []).size;
@@ -219,7 +218,7 @@ export default async function DashboardPage() {
             description={`${activeMembers} active, ${onHiatus} on hiatus`}
           />
           <MetricCard
-            label="Weekly Engagement"
+            label="Engagement (7d)"
             value={`${weeklyEngagementRate}%`}
             description={`${uniqueWeeklyAttendees} of ${activeMembers} active members`}
           />
