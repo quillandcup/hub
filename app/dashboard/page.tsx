@@ -190,6 +190,38 @@ export default async function DashboardPage() {
     ? Math.round((uniqueWeeklyAttendees / activeMembers) * 100)
     : 0;
 
+  // Average Prickles per Active Member (last 7 days)
+  const avgPricklesPerMember = activeMembers > 0
+    ? (weeklyAttendees?.length || 0) / activeMembers
+    : 0;
+
+  // Monthly Churn: Members who became inactive this month (approximation)
+  // Note: Without historical status tracking, we estimate by checking updated_at
+  const startOfThisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+  const { data: recentlyInactive } = await supabase
+    .from("members")
+    .select("id")
+    .eq("status", "inactive")
+    .gte("updated_at", startOfThisMonth.toISOString());
+
+  const monthlyChurn = recentlyInactive?.length || 0;
+  const totalNonInactive = activeMembers + onHiatus;
+  const churnRate = totalNonInactive > 0
+    ? Math.round((monthlyChurn / totalNonInactive) * 100)
+    : 0;
+
+  // Host Participation Rate: % of active members who have hosted (ever)
+  const { data: hostsEver } = await supabase
+    .from("prickles")
+    .select("host")
+    .not("host", "is", null);
+
+  const uniqueHosts = new Set(hostsEver?.map(p => p.host) || []).size;
+  const hostParticipationRate = activeMembers > 0
+    ? Math.round((uniqueHosts / activeMembers) * 100)
+    : 0;
+
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
       <header className="border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
@@ -237,6 +269,25 @@ export default async function DashboardPage() {
             value={atRisk}
             description="Active but not attending"
             highlighted
+          />
+        </div>
+
+        {/* Additional KPIs */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <MetricCard
+            label="Avg Prickles"
+            value={avgPricklesPerMember.toFixed(1)}
+            description="per active member (7d)"
+          />
+          <MetricCard
+            label="Recent Churn"
+            value={monthlyChurn}
+            description={`Became inactive this month`}
+          />
+          <MetricCard
+            label="Host Participation"
+            value={`${hostParticipationRate}%`}
+            description={`${uniqueHosts} of ${activeMembers} have hosted`}
           />
         </div>
 
@@ -402,7 +453,7 @@ export default async function DashboardPage() {
   );
 }
 
-function MetricCard({ label, value, description, highlighted }: { label: string; value: number; description: string; highlighted?: boolean }) {
+function MetricCard({ label, value, description, highlighted }: { label: string; value: number | string; description: string; highlighted?: boolean }) {
   return (
     <div className={`bg-white dark:bg-slate-900 rounded-lg shadow p-6 ${highlighted ? 'ring-2 ring-red-500' : ''}`}>
       <div className={`text-4xl font-bold mb-2 ${highlighted ? 'text-red-600 dark:text-red-400' : 'text-blue-600 dark:text-blue-400'}`}>

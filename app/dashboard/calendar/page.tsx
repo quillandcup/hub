@@ -62,19 +62,25 @@ export default async function CalendarPage({
   const isNextDisabled = nextWeek.getTime() > today.getTime();
 
   // Fetch prickles for the current week with attendance counts and host
-  const { data: prickles } = await supabase
+  const { data: prickles, error: pricklesError } = await supabase
     .from("prickles")
     .select(`
       id,
       host:members(id, name),
       start_time,
       end_time,
-      prickle_types!inner(name),
+      type_id,
+      prickle_types:type_id(name),
       attendance(id, member_id, join_time)
     `)
     .gte("start_time", weekStart.toISOString())
     .lt("start_time", weekEnd.toISOString())
     .order("start_time", { ascending: true });
+
+  if (pricklesError) {
+    console.error("Error fetching prickles:", pricklesError);
+    throw pricklesError;
+  }
 
   // Transform the data to include attendance count and host attendance status
   const pricklesWithCount = prickles?.map((prickle: any) => {

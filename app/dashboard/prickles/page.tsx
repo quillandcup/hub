@@ -22,7 +22,8 @@ export default async function PricklesPage() {
       start_time,
       end_time,
       source,
-      prickle_types!inner(name),
+      type_id,
+      prickle_types:type_id(name),
       prickle_popularity(*)
     `)
     .order("start_time", { ascending: false })

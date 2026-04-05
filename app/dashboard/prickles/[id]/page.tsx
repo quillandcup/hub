@@ -6,8 +6,9 @@ import PrickleDetails from "./PrickleDetails";
 export default async function PrickleDetailPage({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
+  const { id } = await params;
   const supabase = await createClient();
 
   const {
@@ -28,9 +29,10 @@ export default async function PrickleDetailPage({
       end_time,
       source,
       zoom_meeting_uuid,
-      prickle_types!inner(name, description)
+      type_id,
+      prickle_types:type_id(name, description)
     `)
-    .eq("id", params.id)
+    .eq("id", id)
     .single();
 
   if (!prickle) {
@@ -57,7 +59,7 @@ export default async function PrickleDetailPage({
       member_id,
       members!inner(id, name, email)
     `)
-    .eq("prickle_id", params.id)
+    .eq("prickle_id", id)
     .order("join_time", { ascending: true });
 
   // Check host attendance status
