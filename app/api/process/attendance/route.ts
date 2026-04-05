@@ -135,8 +135,18 @@ export async function POST(request: NextRequest) {
     let matchedToCalendar = 0;
     let createdNewPrickles = 0;
 
-    // Cache to avoid creating duplicate PUPs for same meeting/time window
-    const pupCache = new Map<string, string>(); // key: "uuid-start-end", value: prickle_id
+    // Cache PUPs by meeting_uuid to avoid creating duplicates for same Zoom meeting
+    const pupByMeetingUuid = new Map<string, string>(); // meeting_uuid -> prickle_id
+
+    // Group attendees by meeting_uuid to calculate meeting windows for PUPs
+    const attendeesByMeeting = new Map<string, any[]>();
+    for (const attendee of zoomAttendees) {
+      const uuid = attendee.meeting_uuid || attendee.meeting_id;
+      if (!attendeesByMeeting.has(uuid)) {
+        attendeesByMeeting.set(uuid, []);
+      }
+      attendeesByMeeting.get(uuid)!.push(attendee);
+    }
 
     // Process each attendee individually
     for (const attendee of zoomAttendees) {
@@ -155,11 +165,10 @@ export async function POST(request: NextRequest) {
 
       matchedAttendees++;
 
-      // Find or create prickle for THIS ATTENDEE'S join/leave window
+      // Try to find overlapping calendar prickle using THIS ATTENDEE'S join/leave window
       const attendeeStart = attendee.join_time;
       const attendeeEnd = attendee.leave_time;
 
-      // Try to find overlapping calendar prickle
       let prickleId = await findOverlappingPrickle(
         supabase,
         attendeeStart,
@@ -169,35 +178,40 @@ export async function POST(request: NextRequest) {
       if (prickleId) {
         matchedToCalendar++;
       } else {
-        // No calendar match - create or find existing PUP for this time window
+        // No calendar match - create or find PUP for the MEETING (not individual attendee)
         const meetingUuid = attendee.meeting_uuid || attendee.meeting_id;
-        const pupCacheKey = `${meetingUuid}-${attendeeStart}-${attendeeEnd}`;
 
-        // Check if we already created a PUP for this exact time window
-        if (pupCache.has(pupCacheKey)) {
-          prickleId = pupCache.get(pupCacheKey)!;
+        if (pupByMeetingUuid.has(meetingUuid)) {
+          // Already created PUP for this meeting
+          prickleId = pupByMeetingUuid.get(meetingUuid)!;
         } else {
-          // Check if PUP already exists in database for this attendee's time window
+          // Calculate meeting window from all attendees in this meeting
+          const meetingAttendees = attendeesByMeeting.get(meetingUuid) || [];
+          const joinTimes = meetingAttendees.map(a => new Date(a.join_time).getTime());
+          const leaveTimes = meetingAttendees.map(a => new Date(a.leave_time).getTime());
+          const meetingStart = new Date(Math.min(...joinTimes)).toISOString();
+          const meetingEnd = new Date(Math.max(...leaveTimes)).toISOString();
+
+          // Check if PUP already exists for this meeting
           const { data: existingPup } = await supabase
             .from("prickles")
             .select("id")
             .eq("source", "zoom")
-            .eq("start_time", attendeeStart)
-            .eq("end_time", attendeeEnd)
+            .eq("zoom_meeting_uuid", meetingUuid)
             .single();
 
           if (existingPup) {
             prickleId = existingPup.id;
-            pupCache.set(pupCacheKey, prickleId);
+            pupByMeetingUuid.set(meetingUuid, prickleId);
           } else {
-            // Create new PUP for this attendee's time window
+            // Create new PUP for the entire meeting window
             const { data: newPrickle, error: prickleError } = await supabase
               .from("prickles")
               .insert({
                 type_id: pupType.id,
                 host: "Unknown",
-                start_time: attendeeStart,
-                end_time: attendeeEnd,
+                start_time: meetingStart,
+                end_time: meetingEnd,
                 source: "zoom",
                 zoom_meeting_uuid: meetingUuid,
               })
@@ -210,7 +224,7 @@ export async function POST(request: NextRequest) {
             }
 
             prickleId = newPrickle.id;
-            pupCache.set(pupCacheKey, prickleId);
+            pupByMeetingUuid.set(meetingUuid, prickleId);
             createdNewPrickles++;
           }
         }
