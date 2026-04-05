@@ -15,19 +15,83 @@ export default async function DashboardPage() {
   }
 
   // Fetch dashboard metrics
-  const { data: members } = await supabase
+  const { data: memberStats } = await supabase
     .from("members")
-    .select("*")
+    .select("status");
+
+  const totalMembers = memberStats?.length || 0;
+  const activeMembers = memberStats?.filter(m => m.status === "active").length || 0;
+  const onHiatus = memberStats?.filter(m => m.status === "on_hiatus").length || 0;
+  const inactive = memberStats?.filter(m => m.status === "inactive").length || 0;
+
+  // Prickles in last 30 days
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+  const { data: recentPrickles } = await supabase
+    .from("prickles")
+    .select("id")
+    .gte("start_time", thirtyDaysAgo.toISOString());
+
+  const pricklesLast30Days = recentPrickles?.length || 0;
+
+  // Total attendance records
+  const { count: totalAttendance } = await supabase
+    .from("attendance")
+    .select("*", { count: "exact", head: true });
+
+  // At-risk: active members with no attendance in last 30 days
+  const { data: atRiskMembers } = await supabase
+    .from("members")
+    .select(`
+      id,
+      name,
+      email,
+      attendance!inner(join_time)
+    `)
     .eq("status", "active");
 
-  const { data: metrics } = await supabase
-    .from("member_metrics")
-    .select("*");
+  const atRisk = atRiskMembers?.filter(m => {
+    const hasRecentAttendance = m.attendance?.some((a: any) =>
+      new Date(a.join_time) >= thirtyDaysAgo
+    );
+    return !hasRecentAttendance;
+  }).length || 0;
 
-  const activeMembers = members?.length || 0;
-  const attendedLast7Days = metrics?.filter(m => m.prickles_last_7_days > 0).length || 0;
-  const attendedLast30Days = metrics?.filter(m => m.prickles_last_30_days > 0).length || 0;
-  const atRisk = metrics?.filter(m => m.prickles_last_30_days === 0).length || 0;
+  // Top 10 most active members (all time)
+  const { data: topAttendees } = await supabase
+    .from("attendance")
+    .select(`
+      member_id,
+      members!inner(name, email)
+    `)
+    .limit(1000);
+
+  // Count attendance per member
+  const attendanceCounts = new Map<string, { name: string; email: string; count: number }>();
+  topAttendees?.forEach((a: any) => {
+    const existing = attendanceCounts.get(a.member_id);
+    if (existing) {
+      existing.count++;
+    } else {
+      attendanceCounts.set(a.member_id, {
+        name: a.members.name,
+        email: a.members.email,
+        count: 1,
+      });
+    }
+  });
+
+  const topAttendeesData = Array.from(attendanceCounts.values())
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 10);
+
+  // At-risk members list (active with no attendance in 30 days)
+  const atRiskMembersList = atRiskMembers?.filter(m => {
+    const hasRecentAttendance = m.attendance?.some((a: any) =>
+      new Date(a.join_time) >= thirtyDaysAgo
+    );
+    return !hasRecentAttendance;
+  }).slice(0, 10) || [];
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
@@ -44,24 +108,24 @@ export default async function DashboardPage() {
         {/* Top Metrics */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
           <MetricCard
-            label="Active Members"
-            value={activeMembers}
-            description="Total active"
+            label="Total Members"
+            value={totalMembers}
+            description={`${activeMembers} active, ${onHiatus} on hiatus`}
           />
           <MetricCard
-            label="Attended Last 7 Days"
-            value={attendedLast7Days}
-            description="Recent engagement"
+            label="Prickles (30d)"
+            value={pricklesLast30Days}
+            description="Sessions this month"
           />
           <MetricCard
-            label="Attended Last 30 Days"
-            value={attendedLast30Days}
-            description="Monthly active"
+            label="Total Attendance"
+            value={totalAttendance || 0}
+            description="All-time records"
           />
           <MetricCard
             label="At Risk"
             value={atRisk}
-            description="Need outreach"
+            description="Active but not attending"
             highlighted
           />
         </div>
@@ -78,6 +142,56 @@ export default async function DashboardPage() {
             <p className="text-slate-600 dark:text-slate-300">
               Your command center for tracking Prickles attendance, member engagement, and community insights.
             </p>
+          </div>
+        </div>
+
+        {/* Engagement Insights */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+          {/* Top Attendees */}
+          <div className="bg-white dark:bg-slate-900 rounded-lg shadow p-6">
+            <h2 className="text-xl font-bold mb-4">🌟 Top Attendees</h2>
+            <div className="space-y-3">
+              {topAttendeesData.map((member, idx) => (
+                <div key={idx} className="flex items-center justify-between py-2 border-b border-slate-100 dark:border-slate-800 last:border-0">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center text-sm font-bold text-blue-600 dark:text-blue-400">
+                      {idx + 1}
+                    </div>
+                    <div>
+                      <div className="font-semibold text-slate-900 dark:text-slate-100">{member.name}</div>
+                      <div className="text-sm text-slate-500 dark:text-slate-400">{member.email}</div>
+                    </div>
+                  </div>
+                  <div className="text-lg font-bold text-blue-600 dark:text-blue-400">
+                    {member.count}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* At-Risk Members */}
+          <div className="bg-white dark:bg-slate-900 rounded-lg shadow p-6">
+            <h2 className="text-xl font-bold mb-4">⚠️ At-Risk Members</h2>
+            <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
+              Active members with no attendance in last 30 days
+            </p>
+            <div className="space-y-3">
+              {atRiskMembersList.length === 0 ? (
+                <div className="text-center py-8 text-slate-500">
+                  No at-risk members! 🎉
+                </div>
+              ) : (
+                atRiskMembersList.map((member: any, idx: number) => (
+                  <div key={idx} className="flex items-center justify-between py-2 border-b border-slate-100 dark:border-slate-800 last:border-0">
+                    <div>
+                      <div className="font-semibold text-slate-900 dark:text-slate-100">{member.name}</div>
+                      <div className="text-sm text-slate-500 dark:text-slate-400">{member.email}</div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         </div>
 
