@@ -31,47 +31,30 @@ export async function POST(request: NextRequest) {
     const meetings = await zoom.listMeetings(fromDate, toDate);
 
     let totalAttendees = 0;
-    let matchedAttendees = 0;
-    let highConfidenceMatches = 0;
     const processedMeetings = [];
 
     // For each meeting, fetch participants and insert into zoom_attendees
     for (const meeting of meetings) {
       const participants = await zoom.getParticipants(meeting.uuid);
 
-      // Match each participant to a member and insert into zoom_attendees table
-      const attendeesToInsert = await Promise.all(
-        participants.map(async (p) => {
-          // Try to match participant to a member
-          const { data: matchResult } = await supabase.rpc('match_member_by_name', {
-            zoom_name: p.name,
-            zoom_email: p.user_email || null,
-          });
-
-          const match = matchResult && matchResult.length > 0 ? matchResult[0] : null;
-
-          return {
-            meeting_id: meeting.id.toString(),
-            meeting_uuid: meeting.uuid,
-            topic: meeting.topic,
-            participant_id: p.id,
-            user_id: p.user_id || null,
-            registrant_id: p.registrant_id || null,
-            name: p.name,
-            email: p.user_email || null,
-            join_time: p.join_time,
-            leave_time: p.leave_time,
-            duration: p.duration,
-            attentiveness_score: p.attentiveness_score || null,
-            failover: p.failover || false,
-            status: p.status || null,
-            matched_member_id: match?.member_id || null,
-            match_confidence: match?.confidence || null,
-            match_type: match?.match_type || null,
-            raw_payload: p,
-          };
-        })
-      );
+      // Insert participants into zoom_attendees table (bronze - raw data only)
+      const attendeesToInsert = participants.map((p) => ({
+        meeting_id: meeting.id.toString(),
+        meeting_uuid: meeting.uuid,
+        topic: meeting.topic,
+        participant_id: p.id,
+        user_id: p.user_id || null,
+        registrant_id: p.registrant_id || null,
+        name: p.name,
+        email: p.user_email || null,
+        join_time: p.join_time,
+        leave_time: p.leave_time,
+        duration: p.duration,
+        attentiveness_score: p.attentiveness_score || null,
+        failover: p.failover || false,
+        status: p.status || null,
+        raw_payload: p,
+      }));
 
       if (attendeesToInsert.length > 0) {
         const { error } = await supabase
@@ -84,12 +67,6 @@ export async function POST(request: NextRequest) {
         }
 
         totalAttendees += attendeesToInsert.length;
-
-        // Track match statistics
-        const matched = attendeesToInsert.filter(a => a.matched_member_id).length;
-        const highConf = attendeesToInsert.filter(a => a.match_confidence === 'high').length;
-        matchedAttendees += matched;
-        highConfidenceMatches += highConf;
       }
 
       processedMeetings.push({
@@ -104,9 +81,6 @@ export async function POST(request: NextRequest) {
       success: true,
       meetings: processedMeetings.length,
       totalAttendees,
-      matchedAttendees,
-      highConfidenceMatches,
-      matchRate: totalAttendees > 0 ? Math.round((matchedAttendees / totalAttendees) * 100) : 0,
       data: processedMeetings,
     });
   } catch (error: any) {

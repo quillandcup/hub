@@ -61,11 +61,6 @@ CREATE TABLE IF NOT EXISTS zoom_attendees (
     failover BOOLEAN, -- Whether participant used failover
     status TEXT, -- in_meeting, in_waiting_room, etc.
 
-    -- Member matching (from match_member_by_name)
-    matched_member_id UUID REFERENCES members(id) ON DELETE SET NULL,
-    match_confidence TEXT CHECK (match_confidence IN ('high', 'medium', 'low')),
-    match_type TEXT CHECK (match_type IN ('email', 'alias', 'normalized', 'fuzzy')),
-
     -- Raw data
     raw_payload JSONB, -- Full Zoom API response
     created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
@@ -75,8 +70,6 @@ CREATE INDEX IF NOT EXISTS idx_zoom_attendees_meeting_id ON zoom_attendees(meeti
 CREATE INDEX IF NOT EXISTS idx_zoom_attendees_email ON zoom_attendees(email);
 CREATE INDEX IF NOT EXISTS idx_zoom_attendees_join_time ON zoom_attendees(join_time);
 CREATE INDEX IF NOT EXISTS idx_zoom_attendees_user_id ON zoom_attendees(user_id);
-CREATE INDEX IF NOT EXISTS idx_zoom_attendees_matched_member_id ON zoom_attendees(matched_member_id);
-CREATE INDEX IF NOT EXISTS idx_zoom_attendees_match_confidence ON zoom_attendees(match_confidence);
 
 -- Scheduled prickles (writing sessions) from calendar/Slack
 CREATE TABLE IF NOT EXISTS prickles (
