@@ -22,7 +22,9 @@
       "Bash(lsof -ti:3000)",
       "Bash(xargs kill:*)",
       "Bash(date -u -v-30d +%Y-%m-%dT%H:%M:%S.000Z)",
-      "Bash(date -u -v+90d +%Y-%m-%dT%H:%M:%S.000Z)"
+      "Bash(date -u -v+90d +%Y-%m-%dT%H:%M:%S.000Z)",
+      "mcp__plugin_context7_context7__resolve-library-id",
+      "Bash(wc:*)"
     ]
   }
 }
