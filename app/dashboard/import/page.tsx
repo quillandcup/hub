@@ -3,6 +3,8 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import ZoomImportForm from "./ZoomImportForm";
 import MemberImportForm from "./MemberImportForm";
+import ProcessMembersButton from "./ProcessMembersButton";
+import ProcessAttendanceForm from "./ProcessAttendanceForm";
 
 export default async function ImportPage() {
   const supabase = await createClient();
@@ -62,6 +64,33 @@ export default async function ImportPage() {
             </div>
 
             <ZoomImportForm />
+          </div>
+
+          {/* Divider */}
+          <div className="border-t-2 border-slate-200 dark:border-slate-700 my-8"></div>
+
+          {/* Process Members */}
+          <div className="bg-white dark:bg-slate-900 rounded-lg shadow p-6">
+            <div className="mb-6">
+              <h2 className="text-xl font-bold mb-2">Process Members</h2>
+              <p className="text-slate-600 dark:text-slate-400">
+                After importing member data, process it to populate the members table with derived status and metadata.
+              </p>
+            </div>
+
+            <ProcessMembersButton />
+          </div>
+
+          {/* Process Attendance */}
+          <div className="bg-white dark:bg-slate-900 rounded-lg shadow p-6">
+            <div className="mb-6">
+              <h2 className="text-xl font-bold mb-2">Process Attendance</h2>
+              <p className="text-slate-600 dark:text-slate-400">
+                After importing Zoom data, process it to match attendees to members and create attendance records.
+              </p>
+            </div>
+
+            <ProcessAttendanceForm />
           </div>
         </div>
       </main>
