@@ -46,12 +46,16 @@ export default async function DashboardPage() {
       id,
       name,
       email,
-      attendance!inner(join_time)
+      attendance(join_time)
     `)
     .eq("status", "active");
 
   const atRisk = atRiskMembers?.filter(m => {
-    const hasRecentAttendance = m.attendance?.some((a: any) =>
+    // No attendance at all, or no recent attendance
+    if (!m.attendance || m.attendance.length === 0) {
+      return true;
+    }
+    const hasRecentAttendance = m.attendance.some((a: any) =>
       new Date(a.join_time) >= thirtyDaysAgo
     );
     return !hasRecentAttendance;
@@ -87,7 +91,11 @@ export default async function DashboardPage() {
 
   // At-risk members list (active with no attendance in 30 days)
   const atRiskMembersList = atRiskMembers?.filter(m => {
-    const hasRecentAttendance = m.attendance?.some((a: any) =>
+    // No attendance at all, or no recent attendance
+    if (!m.attendance || m.attendance.length === 0) {
+      return true;
+    }
+    const hasRecentAttendance = m.attendance.some((a: any) =>
       new Date(a.join_time) >= thirtyDaysAgo
     );
     return !hasRecentAttendance;
