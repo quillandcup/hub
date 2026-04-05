@@ -161,15 +161,11 @@ export default function ZoomImportAndProcessForm() {
             <p>• {processResult.zoomAttendees} Zoom attendees</p>
             <p>• {processResult.matchedAttendees} matched to members ({processResult.matchRate}% match rate)</p>
             <p>• {processResult.skippedUnmatched} unmatched</p>
-            <p>• {processResult.meetingsProcessed || processResult.pricklesCreated || 0} meetings processed</p>
             {processResult.matchedToCalendar !== undefined && (
-              <p className="ml-4 text-xs">↳ {processResult.matchedToCalendar} matched to calendar prickles</p>
-            )}
-            {processResult.matchedToExistingPups !== undefined && processResult.matchedToExistingPups > 0 && (
-              <p className="ml-4 text-xs">↳ {processResult.matchedToExistingPups} matched to existing Pop-Up Prickles</p>
+              <p>• {processResult.matchedToCalendar} matched to scheduled prickles</p>
             )}
             {processResult.createdNewPrickles !== undefined && (
-              <p className="ml-4 text-xs">↳ {processResult.createdNewPrickles} new Pop-Up Prickles created</p>
+              <p>• {processResult.createdNewPrickles} Pop-Up Prickles created for unscheduled meetings</p>
             )}
             <p>• {processResult.attendanceRecords} attendance records created</p>
           </div>
