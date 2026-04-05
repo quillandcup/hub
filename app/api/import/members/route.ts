@@ -46,22 +46,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Step 1: Upsert into kajabi_members (raw data)
+    // Step 1: Insert into kajabi_members (raw data - temporal snapshots)
+    const importTimestamp = new Date().toISOString();
     const { error: kajabiError } = await supabase
       .from("kajabi_members")
-      .upsert(
+      .insert(
         rawData.map((row) => ({
           email: row.email.toLowerCase(),
-          imported_at: new Date().toISOString(),
+          imported_at: importTimestamp,
           data: row,
-        })),
-        {
-          onConflict: "email",
-        }
+        }))
       );
 
     if (kajabiError) {
-      console.error("Error upserting to kajabi_members:", kajabiError);
+      console.error("Error inserting to kajabi_members:", kajabiError);
       throw kajabiError;
     }
 
