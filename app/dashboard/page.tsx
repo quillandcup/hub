@@ -25,17 +25,9 @@ export default async function DashboardPage() {
   const inactive = memberStats?.filter(m => m.status === "inactive").length || 0;
   const totalMembers = activeMembers + onHiatus; // Exclude inactive (cancelled members)
 
-  // Prickles in last 30 days (past only, exclude future)
   const now = new Date();
   const thirtyDaysAgo = new Date();
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-  const { data: recentPrickles } = await supabase
-    .from("prickles")
-    .select("id")
-    .gte("start_time", thirtyDaysAgo.toISOString())
-    .lte("start_time", now.toISOString());
-
-  const pricklesLast30Days = recentPrickles?.length || 0;
 
   // Total attendance records
   const { count: totalAttendance } = await supabase
@@ -104,18 +96,43 @@ export default async function DashboardPage() {
     return !hasRecentAttendance;
   }).slice(0, 10) || [];
 
-  // Total Writing Hours This Month
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-  const { data: monthAttendance } = await supabase
+  // Writing Hours Last 30 Days - median per active member
+  const { data: last30DaysAttendance } = await supabase
     .from("attendance")
-    .select("join_time, leave_time")
-    .gte("join_time", startOfMonth.toISOString())
+    .select("join_time, leave_time, member_id")
+    .gte("join_time", thirtyDaysAgo.toISOString())
     .lte("join_time", now.toISOString());
 
-  const totalHoursThisMonth = monthAttendance?.reduce((total, record) => {
+  // Calculate hours per member
+  const hoursByMember = new Map<string, number>();
+  last30DaysAttendance?.forEach(record => {
     const duration = (new Date(record.leave_time).getTime() - new Date(record.join_time).getTime()) / (1000 * 60 * 60);
-    return total + duration;
-  }, 0) || 0;
+    hoursByMember.set(record.member_id, (hoursByMember.get(record.member_id) || 0) + duration);
+  });
+
+  // Get all active member IDs to include zeros for members who didn't attend
+  const { data: activeMemberIds } = await supabase
+    .from("members")
+    .select("id")
+    .eq("status", "active");
+
+  const hoursArray: number[] = [];
+  activeMemberIds?.forEach(member => {
+    hoursArray.push(hoursByMember.get(member.id) || 0);
+  });
+
+  // Calculate median
+  const sortedHours = hoursArray.sort((a, b) => a - b);
+  const mid = Math.floor(sortedHours.length / 2);
+  const medianHours = sortedHours.length > 0
+    ? sortedHours.length % 2 === 0
+      ? (sortedHours[mid - 1] + sortedHours[mid]) / 2
+      : sortedHours[mid]
+    : 0;
+
+  // Also calculate average for comparison
+  const totalHours = hoursArray.reduce((sum, h) => sum + h, 0);
+  const avgHours = hoursArray.length > 0 ? totalHours / hoursArray.length : 0;
 
   // Weekly Attendance (last 8 weeks)
   const eightWeeksAgo = new Date();
@@ -190,27 +207,6 @@ export default async function DashboardPage() {
     ? Math.round((uniqueWeeklyAttendees / activeMembers) * 100)
     : 0;
 
-  // Average Prickles per Active Member (last 7 days)
-  const avgPricklesPerMember = activeMembers > 0
-    ? (weeklyAttendees?.length || 0) / activeMembers
-    : 0;
-
-  // Monthly Churn: Members who became inactive this month (approximation)
-  // Note: Without historical status tracking, we estimate by checking updated_at
-  const startOfThisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-
-  const { data: recentlyInactive } = await supabase
-    .from("members")
-    .select("id")
-    .eq("status", "inactive")
-    .gte("updated_at", startOfThisMonth.toISOString());
-
-  const monthlyChurn = recentlyInactive?.length || 0;
-  const totalNonInactive = activeMembers + onHiatus;
-  const churnRate = totalNonInactive > 0
-    ? Math.round((monthlyChurn / totalNonInactive) * 100)
-    : 0;
-
   // Host Participation Rate: % of active members who have hosted (ever)
   const { data: hostsEver } = await supabase
     .from("prickles")
@@ -255,39 +251,20 @@ export default async function DashboardPage() {
             description={`${uniqueWeeklyAttendees} of ${activeMembers} active members`}
           />
           <MetricCard
-            label="Prickles (30d)"
-            value={pricklesLast30Days}
-            description="Sessions this month"
-          />
-          <MetricCard
-            label="Writing Hours"
-            value={Math.round(totalHoursThisMonth)}
-            description="This month"
-          />
-          <MetricCard
-            label="At Risk"
-            value={atRisk}
-            description="Active but not attending"
-            highlighted
-          />
-        </div>
-
-        {/* Additional KPIs */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <MetricCard
-            label="Avg Prickles"
-            value={avgPricklesPerMember.toFixed(1)}
-            description="per active member (7d)"
-          />
-          <MetricCard
-            label="Recent Churn"
-            value={monthlyChurn}
-            description={`Became inactive this month`}
+            label="Median Hours (30d)"
+            value={medianHours.toFixed(1)}
+            description={`per member • ${avgHours.toFixed(1)} avg`}
           />
           <MetricCard
             label="Host Participation"
             value={`${hostParticipationRate}%`}
-            description={`${uniqueHosts} of ${activeMembers} have hosted`}
+            description={`${uniqueHosts} of ${activeMembers} ever hosted`}
+          />
+          <MetricCard
+            label="At Risk (30d)"
+            value={atRisk}
+            description="Active but not attending"
+            highlighted
           />
         </div>
 
