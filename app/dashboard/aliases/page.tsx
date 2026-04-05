@@ -20,15 +20,11 @@ export default async function AliasSearchPage() {
     .select("id, name, email, status")
     .order("name");
 
-  // Get unmatched Zoom attendees
+  // Get unmatched Zoom attendees - those that don't match any member
   const { data: allZoomNames } = await supabase
     .from("zoom_attendees")
     .select("name, email")
     .order("name");
-
-  const { data: matchedAttendance } = await supabase
-    .from("attendance")
-    .select("id, member_id");
 
   // Count how many times each Zoom name appears
   const zoomNameCounts = new Map<string, { count: number; emails: Set<string> }>();
@@ -45,34 +41,25 @@ export default async function AliasSearchPage() {
     }
   });
 
-  const matchedMemberIds = new Set(matchedAttendance?.map(a => a.member_id) || []);
-
-  const { data: allMembersForEmailMatch } = await supabase
-    .from("members")
-    .select("id, name, email");
-
-  const memberEmailMap = new Map(
-    allMembersForEmailMatch?.map(m => [m.email?.toLowerCase(), m]) || []
-  );
-
   const unmatchedZoomAttendees: Array<{
     zoomName: string;
     appearances: number;
     emails: string[];
   }> = [];
 
+  // Check each Zoom name to see if it can be matched
   for (const [zoomName, info] of zoomNameCounts) {
-    let hasMatch = false;
+    if (info.count < 3) continue; // Skip infrequent names
 
-    for (const email of info.emails) {
-      const member = memberEmailMap.get(email.toLowerCase());
-      if (member && matchedMemberIds.has(member.id)) {
-        hasMatch = true;
-        break;
-      }
-    }
+    // Use the actual matching function to check if this would match
+    const email = info.emails.size > 0 ? Array.from(info.emails)[0] : null;
+    const { data: matchResult } = await supabase.rpc("match_member_by_name", {
+      zoom_name: zoomName,
+      zoom_email: email,
+    });
 
-    if (!hasMatch && info.count >= 3) {
+    // If no match found, add to unmatched list
+    if (!matchResult || matchResult.length === 0) {
       unmatchedZoomAttendees.push({
         zoomName,
         appearances: info.count,
