@@ -33,12 +33,14 @@ export async function POST(request: NextRequest) {
     }
 
     // Get calendar events from Bronze layer
+    // Note: Supabase default limit is 1000, so we need to paginate or set higher limit
     const { data: calendarEvents, error: fetchError } = await supabase
       .from("calendar_events")
       .select("*")
       .gte("start_time", fromDate)
       .lte("end_time", toDate)
-      .order("start_time");
+      .order("start_time")
+      .limit(10000); // Allow up to 10k events per processing run
 
     if (fetchError) throw fetchError;
 

@@ -85,10 +85,16 @@ export async function POST(request: NextRequest) {
 
       if (existingEvent) {
         // Update if details changed
+        // Normalize timestamps for comparison (both to ISO strings)
+        const existingStart = new Date(existingEvent.start_time).toISOString();
+        const existingEnd = new Date(existingEvent.end_time).toISOString();
+        const newStart = new Date(eventData.start_time).toISOString();
+        const newEnd = new Date(eventData.end_time).toISOString();
+
         const changed =
           existingEvent.summary !== eventData.summary ||
-          existingEvent.start_time !== eventData.start_time ||
-          existingEvent.end_time !== eventData.end_time;
+          existingStart !== newStart ||
+          existingEnd !== newEnd;
 
         if (changed) {
           const { error: updateError } = await supabase
