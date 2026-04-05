@@ -65,7 +65,7 @@ export default function DashboardCharts({ weeklyAttendance, dailyHours }: Dashbo
           <InfoTooltip text="Stacked bar shows unique members (blue, bottom) and their repeat attendance (green, top). Height = total attendance. Example: 20 unique members + 30 repeat visits = 50 total." />
         </div>
         <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
-          Attendance patterns over last 8 weeks
+          Unique members vs repeat attendance
         </p>
         <ResponsiveContainer width="100%" height={250}>
           <BarChart data={weeklyAttendance}>
@@ -99,7 +99,7 @@ export default function DashboardCharts({ weeklyAttendance, dailyHours }: Dashbo
           <InfoTooltip text="Daily total of hours all members spent in prickles. Calculated by summing the duration each person attended (join to leave time). Shows collective creative time across the community." />
         </div>
         <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
-          Collective writing time per day (last 30 days)
+          Total hours spent writing together
         </p>
         <ResponsiveContainer width="100%" height={250}>
           <AreaChart data={dailyHours}>
