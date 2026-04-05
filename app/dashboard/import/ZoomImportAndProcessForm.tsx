@@ -165,6 +165,9 @@ export default function ZoomImportAndProcessForm() {
             {processResult.matchedToCalendar !== undefined && (
               <p className="ml-4 text-xs">↳ {processResult.matchedToCalendar} matched to calendar prickles</p>
             )}
+            {processResult.matchedToExistingPups !== undefined && processResult.matchedToExistingPups > 0 && (
+              <p className="ml-4 text-xs">↳ {processResult.matchedToExistingPups} matched to existing Pop-Up Prickles</p>
+            )}
             {processResult.createdNewPrickles !== undefined && (
               <p className="ml-4 text-xs">↳ {processResult.createdNewPrickles} new Pop-Up Prickles created</p>
             )}

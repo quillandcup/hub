@@ -109,6 +109,7 @@ export async function POST(request: NextRequest) {
 
     const pricklesByMeetingUuid = new Map<string, string>();
     let matchedToCalendar = 0;
+    let matchedToExistingPups = 0;
     let createdNewPrickles = 0;
 
     for (const [meetingUuid, attendees] of meetingsByUuid) {
@@ -118,19 +119,8 @@ export async function POST(request: NextRequest) {
       const meetingStart = new Date(Math.min(...joinTimes)).toISOString();
       const meetingEnd = new Date(Math.max(...leaveTimes)).toISOString();
 
-      // Check if prickle already exists for this Zoom meeting
-      const { data: existingPrickle } = await supabase
-        .from("prickles")
-        .select("id")
-        .eq("zoom_meeting_uuid", meetingUuid)
-        .single();
-
-      if (existingPrickle) {
-        pricklesByMeetingUuid.set(meetingUuid, existingPrickle.id);
-        continue;
-      }
-
-      // Try to find overlapping calendar prickle (15min threshold)
+      // ALWAYS try to find overlapping calendar prickle first (15min threshold)
+      // This ensures we prefer calendar matches over existing PUPs
       const calendarPrickleId = await findOverlappingPrickle(
         supabase,
         meetingStart,
@@ -138,9 +128,28 @@ export async function POST(request: NextRequest) {
       );
 
       if (calendarPrickleId) {
-        // Match found - use calendar prickle
+        // Match found - use calendar prickle and tag with zoom_meeting_uuid for faster lookup
+        await supabase
+          .from("prickles")
+          .update({ zoom_meeting_uuid: meetingUuid })
+          .eq("id", calendarPrickleId);
+
         pricklesByMeetingUuid.set(meetingUuid, calendarPrickleId);
         matchedToCalendar++;
+        continue;
+      }
+
+      // No calendar match - check if PUP already exists for this Zoom meeting
+      const { data: existingPup } = await supabase
+        .from("prickles")
+        .select("id")
+        .eq("zoom_meeting_uuid", meetingUuid)
+        .eq("source", "zoom")
+        .single();
+
+      if (existingPup) {
+        pricklesByMeetingUuid.set(meetingUuid, existingPup.id);
+        matchedToExistingPups++;
         continue;
       }
 
@@ -236,6 +245,7 @@ export async function POST(request: NextRequest) {
       skippedUnmatched,
       meetingsProcessed: pricklesByMeetingUuid.size,
       matchedToCalendar,
+      matchedToExistingPups,
       createdNewPrickles,
       attendanceRecords,
       matchRate: zoomAttendees.length > 0

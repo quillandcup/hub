@@ -113,14 +113,15 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      if (!host) {
-        // Can't extract or match host - queue for admin review
+      // Match to prickle type (only queue if we have no type at all)
+      if (!rawType) {
+        // No type could be extracted - queue for admin review
         await supabase
           .from("unmatched_calendar_events")
           .upsert({
             calendar_event_id: event.id,
             raw_summary: event.summary,
-            suggested_type: rawType,
+            suggested_type: null,
             suggested_host: suggestedHost,
             status: "pending",
           }, {
@@ -130,11 +131,10 @@ export async function POST(request: NextRequest) {
         continue;
       }
 
-      // Match to prickle type
       const typeId = await matchPrickleType(supabase, rawType);
 
       if (!typeId) {
-        // Type not found - queue for admin review
+        // Type extracted but not in prickle_types table - queue for admin review
         await supabase
           .from("unmatched_calendar_events")
           .upsert({

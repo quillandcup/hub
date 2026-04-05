@@ -8,10 +8,6 @@ export default function ApplyAliasesButton() {
   const [error, setError] = useState<string | null>(null);
 
   const handleApply = async () => {
-    if (!confirm("Apply member aliases from supabase/member-aliases.csv?\n\nThis will create aliases for known Zoom name variations.")) {
-      return;
-    }
-
     setLoading(true);
     setError(null);
     setResult(null);
