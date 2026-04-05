@@ -4,6 +4,7 @@ import Link from "next/link";
 import ZoomImportAndProcessForm from "./ZoomImportAndProcessForm";
 import MemberImportForm from "./MemberImportForm";
 import CalendarImportForm from "./CalendarImportForm";
+import ApplyAliasesButton from "./ApplyAliasesButton";
 
 export default async function ImportPage() {
   const supabase = await createClient();
@@ -51,6 +52,9 @@ export default async function ImportPage() {
 
             <MemberImportForm />
           </div>
+
+          {/* Apply Member Aliases */}
+          <ApplyAliasesButton />
 
           {/* Google Calendar Import */}
           <CalendarImportForm />

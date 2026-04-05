@@ -149,7 +149,7 @@ export async function POST(request: NextRequest) {
       const { data: pupType } = await supabase
         .from("prickle_types")
         .select("id")
-        .eq("normalized_name", "pop-up-prickle")
+        .eq("normalized_name", "pop-up")
         .single();
 
       if (!pupType) {

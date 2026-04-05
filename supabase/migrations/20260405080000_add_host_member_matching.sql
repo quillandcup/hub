@@ -1,0 +1,21 @@
+-- Add member matching for prickle host field
+--
+-- DESIGN DECISION: Keep host as TEXT (not FK to members)
+--
+-- Rationale:
+-- 1. Flexibility: Allows non-member hosts (guest facilitators, external speakers)
+-- 2. Simplicity: Avoids foreign key constraints that could break if members are deleted
+-- 3. Consistency: Matches the pattern used in Zoom attendance (where "Unknown" is stored)
+-- 4. Validation: We validate and normalize to canonical member names via match_member_by_name
+--
+-- Implementation:
+-- - Calendar processing (app/api/process/calendar/route.ts) uses match_member_by_name
+--   to match organizer/creator to members and stores canonical name
+-- - Manual categorization modal (UnmatchedEventsTable.tsx) provides member dropdown
+-- - Resolve-batch API (app/api/prickle-types/resolve-batch/route.ts) validates host
+--   against members and normalizes to canonical name
+--
+-- The host field stores the canonical member name from members.name when matched,
+-- or allows arbitrary text for non-member hosts.
+
+COMMENT ON COLUMN prickles.host IS 'Host name - canonical member name when matched via match_member_by_name, or custom text for non-member hosts';

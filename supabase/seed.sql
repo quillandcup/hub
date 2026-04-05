@@ -57,9 +57,9 @@ DECLARE
   heads_down_type_id UUID;
   progress_type_id UUID;
 BEGIN
-  SELECT id INTO sprint_type_id FROM prickle_types WHERE normalized_name = 'sprint-prickle';
+  SELECT id INTO sprint_type_id FROM prickle_types WHERE normalized_name = 'sprint';
   SELECT id INTO heads_down_type_id FROM prickle_types WHERE normalized_name = 'heads-down';
-  SELECT id INTO progress_type_id FROM prickle_types WHERE normalized_name = 'progress-prickle';
+  SELECT id INTO progress_type_id FROM prickle_types WHERE normalized_name = 'progress';
 
   -- Week 1 (March 10-16)
   INSERT INTO prickles (id, type_id, host, start_time, end_time, source) VALUES
@@ -234,62 +234,13 @@ INSERT INTO member_activities (member_id, activity_type, activity_category, titl
 -- MEMBER NAME ALIASES (Production Data)
 -- =====================================================
 -- Maps Zoom display names to canonical member names
--- These persist across database resets and apply to production
-
--- Note: For production data, use a migration after members are imported
--- DO block to safely handle cases where member might not exist yet
-DO $$
-DECLARE
-  lili_id UUID;
-  jehdoyle_id UUID;
-  gina_id UUID;
-  sam_id UUID;
-BEGIN
-  -- Get member IDs (production members)
-  SELECT id INTO lili_id FROM members WHERE email = 'member9@example.com';
-  SELECT id INTO jehdoyle_id FROM members WHERE email = 'member10@example.com';
-  SELECT id INTO gina_id FROM members WHERE email = 'member11@example.com';
-  SELECT id INTO sam_id FROM members WHERE email = 'member12@example.com';
-
-  -- Add aliases (only if member exists and alias doesn't already exist)
-
-  -- lili -> Lili Raphaelson
-  IF lili_id IS NOT NULL AND NOT EXISTS (
-    SELECT 1 FROM member_name_aliases WHERE member_id = lili_id AND alias = 'lili'
-  ) THEN
-    INSERT INTO member_name_aliases (member_id, alias)
-    VALUES (lili_id, 'lili');
-  END IF;
-
-  -- Member 10 -> jehdoyle
-  IF jehdoyle_id IS NOT NULL AND NOT EXISTS (
-    SELECT 1 FROM member_name_aliases WHERE member_id = jehdoyle_id AND alias = 'Member 10'
-  ) THEN
-    INSERT INTO member_name_aliases (member_id, alias)
-    VALUES (jehdoyle_id, 'Member 10');
-  END IF;
-
-  -- Member 10 -> jehdoyle
-  IF jehdoyle_id IS NOT NULL AND NOT EXISTS (
-    SELECT 1 FROM member_name_aliases WHERE member_id = jehdoyle_id AND alias = 'Member 10'
-  ) THEN
-    INSERT INTO member_name_aliases (member_id, alias)
-    VALUES (jehdoyle_id, 'Member 10');
-  END IF;
-
-  -- Gina -> Gina R. Briggs
-  IF gina_id IS NOT NULL AND NOT EXISTS (
-    SELECT 1 FROM member_name_aliases WHERE member_id = gina_id AND alias = 'Gina'
-  ) THEN
-    INSERT INTO member_name_aliases (member_id, alias)
-    VALUES (gina_id, 'Gina');
-  END IF;
-
-  -- Sam -> Sam Anne Cook
-  IF sam_id IS NOT NULL AND NOT EXISTS (
-    SELECT 1 FROM member_name_aliases WHERE member_id = sam_id AND alias = 'Sam'
-  ) THEN
-    INSERT INTO member_name_aliases (member_id, alias)
-    VALUES (sam_id, 'Sam');
-  END IF;
-END $$;
+--
+-- NOTE: Aliases are NOT created in seed data because members don't exist yet!
+-- Instead, aliases are managed in: supabase/member-aliases.csv
+--
+-- To apply aliases:
+-- 1. Import members from Kajabi first
+-- 2. Call POST /api/admin/apply-aliases to create aliases from CSV
+-- 3. Re-process Zoom attendance to benefit from aliases
+--
+-- This ensures aliases work in both dev and production.

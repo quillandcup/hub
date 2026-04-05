@@ -81,17 +81,47 @@ export async function POST(request: NextRequest) {
       }
 
       // Parse prickle type and host from summary
-      const { type: rawType, host } = parsePrickleFromSummary(event.summary);
+      const { type: rawType, host: extractedHost } = parsePrickleFromSummary(event.summary);
+
+      let host = extractedHost;
+      let suggestedHost = event.creator_name || event.organizer_name || null;
+
+      // If no host extracted from summary, try to match organizer/creator to a member
+      if (!host && (event.organizer_name || event.creator_name)) {
+        const nameToMatch = event.organizer_name || event.creator_name;
+        const emailToMatch = event.organizer_email || event.creator_email || null;
+
+        const { data: matchResult } = await supabase.rpc("match_member_by_name", {
+          zoom_name: nameToMatch,
+          zoom_email: emailToMatch,
+        });
+
+        const match = matchResult && matchResult.length > 0 ? matchResult[0] : null;
+
+        if (match) {
+          // Get the canonical member name
+          const { data: member } = await supabase
+            .from("members")
+            .select("name")
+            .eq("id", match.member_id)
+            .single();
+
+          if (member) {
+            host = member.name;
+            suggestedHost = member.name;
+          }
+        }
+      }
 
       if (!host) {
-        // Can't extract host - queue for admin review
+        // Can't extract or match host - queue for admin review
         await supabase
           .from("unmatched_calendar_events")
           .upsert({
             calendar_event_id: event.id,
             raw_summary: event.summary,
             suggested_type: rawType,
-            suggested_host: event.creator_name || event.organizer_name || null,
+            suggested_host: suggestedHost,
             status: "pending",
           }, {
             onConflict: "calendar_event_id",

@@ -9,19 +9,20 @@ CREATE TABLE prickle_types (
 
 -- Seed common prickle types (normalized for matching)
 INSERT INTO prickle_types (name, normalized_name, description) VALUES
-    ('Progress Prickle', 'progress-prickle', 'Default prickle type when no label specified'),
-    ('Pop-Up Prickle', 'pop-up-prickle', 'Off-schedule or impromptu prickles'),
-    ('Pitch Prickle', 'pitch-prickle', 'Pitch-focused prickles'),
+    ('Progress Prickle', 'progress', 'Default prickle type when no label specified'),
+    ('Pop-Up Prickle', 'pop-up', 'Off-schedule or impromptu prickles'),
     ('Heads Down', 'heads-down', 'Focused writing time'),
-    ('Sprint Prickle', 'sprint-prickle', 'Sprint writing sessions'),
     ('Open Table', 'open-table', 'Open discussion and community time'),
-    ('Educational Prickle', 'educational-prickle', 'Learning and education sessions'),
-    ('Craft & Chat Prickle', 'craft-chat-prickle', 'Craft discussion sessions'),
-    ('Feel Good Friday', 'feel-good-friday', 'Friday community sessions'),
-    ('Social Media Sunday', 'social-media-sunday', 'Social media focused sessions'),
-    ('Pomodoro Prickle', 'pomodoro-prickle', 'Pomodoro technique sessions'),
-    ('Plot or Plan Prickle', 'plot-plan-prickle', 'Planning and plotting sessions'),
-    ('#AuthorLife Heads Down', 'authorlife-heads-down', 'Author-focused heads down time');
+    ('Sprint Prickle', 'sprint', 'Sprint writing sessions'),
+    ('Craft & Chat Prickle', 'craft-chat', 'Craft discussion sessions'),
+    ('Educational Prickle', 'educational', 'Learning and education sessions'),
+    ('Plot or Plan Prickle', 'plot-plan', 'Planning and plotting sessions'),
+    ('Pomodoro', 'pomodoro', 'Pomodoro technique sessions'),
+    ('Social Media Sunday Prickle', 'social-media-sunday', 'Social media focused sessions'),
+    ('#AuthorLife Heads Down Prickle', 'authorlife-heads-down', 'Author-focused heads down time'),
+    ('Monthly Goal Review', 'monthly-goal-review', 'Monthly goal review sessions'),
+    ('Hedgies on First', 'hedgies-on-first', 'Hedgies on First sessions'),
+    ('Members Only Pitch Prickle', 'members-only-pitch', 'Members-only pitch sessions');
 
 -- Create unmatched calendar events queue for admin review
 CREATE TABLE unmatched_calendar_events (
@@ -44,11 +45,11 @@ ALTER TABLE prickles ADD COLUMN type_id UUID REFERENCES prickle_types(id) ON DEL
 -- Migrate existing prickles to use type_id (best effort - map common patterns)
 -- Note: This will need manual review for unmapped types
 UPDATE prickles SET type_id = (
-    SELECT id FROM prickle_types WHERE normalized_name = 'progress-prickle'
+    SELECT id FROM prickle_types WHERE normalized_name = 'progress'
 ) WHERE type IS NULL OR type = 'Calendar Event' OR type = '';
 
 UPDATE prickles SET type_id = (
-    SELECT id FROM prickle_types WHERE normalized_name = 'pop-up-prickle'
+    SELECT id FROM prickle_types WHERE normalized_name = 'pop-up'
 ) WHERE source = 'zoom';
 
 -- Drop the old title column
@@ -57,6 +58,9 @@ ALTER TABLE prickles DROP COLUMN IF EXISTS title;
 -- Make type column TEXT for backward compatibility, but prefer type_id
 -- We'll deprecate the TEXT type column later
 ALTER TABLE prickles ALTER COLUMN type DROP NOT NULL;
+
+-- Allow NULL for host (some prickles like Open Table have no designated host)
+ALTER TABLE prickles ALTER COLUMN host DROP NOT NULL;
 
 -- Add indexes
 CREATE INDEX idx_prickles_type_id ON prickles(type_id);

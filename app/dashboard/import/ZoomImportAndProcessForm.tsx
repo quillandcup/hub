@@ -3,11 +3,11 @@
 import { useState } from "react";
 
 export default function ZoomImportAndProcessForm() {
-  // Default to last 90 days
+  // Default to last 30 days
   const today = new Date().toISOString().split("T")[0];
-  const ninetyDaysAgo = new Date();
-  ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
-  const defaultFromDate = ninetyDaysAgo.toISOString().split("T")[0];
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+  const defaultFromDate = thirtyDaysAgo.toISOString().split("T")[0];
 
   const [fromDate, setFromDate] = useState(defaultFromDate);
   const [toDate, setToDate] = useState(today);
@@ -161,7 +161,13 @@ export default function ZoomImportAndProcessForm() {
             <p>• {processResult.zoomAttendees} Zoom attendees</p>
             <p>• {processResult.matchedAttendees} matched to members ({processResult.matchRate}% match rate)</p>
             <p>• {processResult.skippedUnmatched} unmatched</p>
-            <p>• {processResult.pricklesCreated} prickles created</p>
+            <p>• {processResult.meetingsProcessed || processResult.pricklesCreated || 0} meetings processed</p>
+            {processResult.matchedToCalendar !== undefined && (
+              <p className="ml-4 text-xs">↳ {processResult.matchedToCalendar} matched to calendar prickles</p>
+            )}
+            {processResult.createdNewPrickles !== undefined && (
+              <p className="ml-4 text-xs">↳ {processResult.createdNewPrickles} new Pop-Up Prickles created</p>
+            )}
             <p>• {processResult.attendanceRecords} attendance records created</p>
           </div>
         </div>

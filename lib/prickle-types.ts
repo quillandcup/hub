@@ -22,28 +22,39 @@ export function normalizePrickleType(rawType: string): string {
  * - "Prickle w/Lili" → { type: null (default Progress Prickle), host: "Lili" }
  * - "HEADS DOWN w/Cody" → { type: "HEADS DOWN", host: "Cody" }
  * - "Pitch Prickle w/Sarah" → { type: "Pitch Prickle", host: "Sarah" }
+ * - "Open Table Prickle" → { type: "Open Table Prickle", host: null }
+ * - "'Midnight Crew' w/member13-display" → { type: "Midnight Crew", host: "member13-display" }
  */
 export function parsePrickleFromSummary(summary: string): {
   type: string | null;
   host: string | null;
 } {
+  // Remove surrounding quotes if present
+  const cleaned = summary.replace(/^['"](.+?)['"]$/, "$1").trim();
+
   // Pattern: [TYPE] w/[HOST]
-  const match = summary.match(/^(.+?)\s*w\/\s*(.+?)$/i);
+  const matchWithHost = cleaned.match(/^(.+?)\s*w\/\s*(.+?)$/i);
 
-  if (!match) {
-    return { type: null, host: null };
+  if (matchWithHost) {
+    const beforeW = matchWithHost[1].replace(/^['"]|['"]$/g, "").trim();
+    const host = matchWithHost[2].trim();
+
+    // If it's just "Prickle w/Host", that's a Progress Prickle
+    if (beforeW.toLowerCase() === "prickle") {
+      return { type: "Prickle", host };
+    }
+
+    // Otherwise extract the type
+    return { type: beforeW, host };
   }
 
-  const beforeW = match[1].trim();
-  const host = match[2].trim();
-
-  // If it's just "Prickle w/Host", that's a Progress Prickle (no explicit type)
-  if (beforeW.toLowerCase() === "prickle") {
-    return { type: null, host }; // null type = default to Progress Prickle
+  // No "w/" found - it's a standalone prickle type (no host)
+  // e.g., "Open Table Prickle", "Heads Down Prickle"
+  if (cleaned) {
+    return { type: cleaned, host: null };
   }
 
-  // Otherwise extract the type
-  return { type: beforeW, host };
+  return { type: null, host: null };
 }
 
 /**
@@ -59,12 +70,22 @@ export async function matchPrickleType(
     const { data } = await supabase
       .from("prickle_types")
       .select("id")
-      .eq("normalized_name", "progress-prickle")
+      .eq("normalized_name", "progress")
       .single();
     return data?.id || null;
   }
 
   const normalized = normalizePrickleType(rawType);
+
+  // If normalization resulted in empty string (e.g., "Prickle" → ""), treat as Progress Prickle
+  if (!normalized || normalized === "") {
+    const { data } = await supabase
+      .from("prickle_types")
+      .select("id")
+      .eq("normalized_name", "progress")
+      .single();
+    return data?.id || null;
+  }
 
   // Try exact match first
   const { data } = await supabase
