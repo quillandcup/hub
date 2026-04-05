@@ -54,11 +54,33 @@ export default async function PrickleDetailPage({
       join_time,
       leave_time,
       confidence_score,
+      member_id,
       members!inner(id, name, email)
     `)
     .eq("prickle_id", params.id)
     .order("join_time", { ascending: true });
 
+  // Check host attendance status
+  const hostId = prickle.host?.id;
+  let hostMissing = false;
+  let hostLate = false;
+
+  if (hostId) {
+    const hostAttendance = attendanceRecords?.find((a: any) => a.member_id === hostId);
+
+    if (!hostAttendance) {
+      hostMissing = true;
+    } else {
+      // Check if host was late (>5 minutes)
+      const prickleStart = new Date(prickle.start_time);
+      const hostJoin = new Date(hostAttendance.join_time);
+      const lateThresholdMs = 5 * 60 * 1000; // 5 minutes
+
+      if (hostJoin.getTime() - prickleStart.getTime() > lateThresholdMs) {
+        hostLate = true;
+      }
+    }
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
@@ -76,6 +98,8 @@ export default async function PrickleDetailPage({
           <PrickleDetails
             prickle={prickle}
             attendanceRecords={attendanceRecords || []}
+            hostMissing={hostMissing}
+            hostLate={hostLate}
           />
         </div>
       </main>

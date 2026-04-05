@@ -14,9 +14,11 @@ const TIMEZONES = [
 interface PrickleDetailsProps {
   prickle: any;
   attendanceRecords: any[];
+  hostMissing: boolean;
+  hostLate: boolean;
 }
 
-export default function PrickleDetails({ prickle, attendanceRecords }: PrickleDetailsProps) {
+export default function PrickleDetails({ prickle, attendanceRecords, hostMissing, hostLate }: PrickleDetailsProps) {
   const [timezone, setTimezone] = useState("America/New_York");
 
   const prickleType = prickle.prickle_types as any;
@@ -75,9 +77,26 @@ export default function PrickleDetails({ prickle, attendanceRecords }: PrickleDe
             <span className="text-slate-600 dark:text-slate-400">Host:</span>
             <p className="font-semibold">
               {hostMember ? (
-                <Link href={`/dashboard/members/${hostMember.id}`} className="text-blue-600 hover:text-blue-700 dark:text-blue-400 hover:underline">
-                  {hostMember.name}
-                </Link>
+                <>
+                  <Link href={`/dashboard/members/${hostMember.id}`} className="text-blue-600 hover:text-blue-700 dark:text-blue-400 hover:underline">
+                    {hostMember.name}
+                  </Link>
+                  {(hostMissing || hostLate) && (
+                    <span className="ml-2" title={hostMissing ? "Host did not attend" : "Host was late (>5 min)"}>
+                      ⚠️
+                    </span>
+                  )}
+                  {hostMissing && (
+                    <span className="ml-2 text-xs text-yellow-600 dark:text-yellow-400">
+                      (did not attend)
+                    </span>
+                  )}
+                  {hostLate && !hostMissing && (
+                    <span className="ml-2 text-xs text-yellow-600 dark:text-yellow-400">
+                      (late &gt;5 min)
+                    </span>
+                  )}
+                </>
               ) : (
                 <span className="text-slate-900 dark:text-slate-100">None</span>
               )}
