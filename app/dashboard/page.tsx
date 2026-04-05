@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import SignOutButton from "./SignOutButton";
+import DashboardCharts from "./DashboardCharts";
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -103,6 +104,63 @@ export default async function DashboardPage() {
     return !hasRecentAttendance;
   }).slice(0, 10) || [];
 
+  // Total Writing Hours This Month
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const { data: monthAttendance } = await supabase
+    .from("attendance")
+    .select("join_time, leave_time")
+    .gte("join_time", startOfMonth.toISOString())
+    .lte("join_time", now.toISOString());
+
+  const totalHoursThisMonth = monthAttendance?.reduce((total, record) => {
+    const duration = (new Date(record.leave_time).getTime() - new Date(record.join_time).getTime()) / (1000 * 60 * 60);
+    return total + duration;
+  }, 0) || 0;
+
+  // Weekly Attendance (last 8 weeks)
+  const eightWeeksAgo = new Date();
+  eightWeeksAgo.setDate(eightWeeksAgo.getDate() - 56); // 8 weeks
+  const { data: weeklyAttendanceData } = await supabase
+    .from("attendance")
+    .select("join_time")
+    .gte("join_time", eightWeeksAgo.toISOString())
+    .lte("join_time", now.toISOString());
+
+  // Group by week
+  const weeklyAttendance = new Map<string, number>();
+  weeklyAttendanceData?.forEach((record) => {
+    const date = new Date(record.join_time);
+    const weekStart = new Date(date);
+    weekStart.setDate(date.getDate() - date.getDay()); // Sunday
+    weekStart.setHours(0, 0, 0, 0);
+    const weekKey = weekStart.toISOString().split('T')[0];
+    weeklyAttendance.set(weekKey, (weeklyAttendance.get(weekKey) || 0) + 1);
+  });
+
+  const weeklyAttendanceArray = Array.from(weeklyAttendance.entries())
+    .map(([week, count]) => ({ week, count }))
+    .sort((a, b) => a.week.localeCompare(b.week));
+
+  // Daily Writing Hours (last 30 days)
+  const { data: dailyAttendanceData } = await supabase
+    .from("attendance")
+    .select("join_time, leave_time")
+    .gte("join_time", thirtyDaysAgo.toISOString())
+    .lte("join_time", now.toISOString());
+
+  // Group by day
+  const dailyHours = new Map<string, number>();
+  dailyAttendanceData?.forEach((record) => {
+    const date = new Date(record.join_time);
+    const dayKey = date.toISOString().split('T')[0];
+    const duration = (new Date(record.leave_time).getTime() - new Date(record.join_time).getTime()) / (1000 * 60 * 60);
+    dailyHours.set(dayKey, (dailyHours.get(dayKey) || 0) + duration);
+  });
+
+  const dailyHoursArray = Array.from(dailyHours.entries())
+    .map(([date, hours]) => ({ date, hours: Math.round(hours * 10) / 10 }))
+    .sort((a, b) => a.date.localeCompare(b.date));
+
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
       <header className="border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
@@ -124,7 +182,7 @@ export default async function DashboardPage() {
 
       <main className="container mx-auto px-6 py-8">
         {/* Top Metrics */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
           <MetricCard
             label="Total Members"
             value={totalMembers}
@@ -134,6 +192,11 @@ export default async function DashboardPage() {
             label="Prickles (30d)"
             value={pricklesLast30Days}
             description="Sessions this month"
+          />
+          <MetricCard
+            label="Writing Hours"
+            value={Math.round(totalHoursThisMonth)}
+            description="This month"
           />
           <MetricCard
             label="Total Attendance"
@@ -162,6 +225,9 @@ export default async function DashboardPage() {
             </p>
           </div>
         </div>
+
+        {/* Charts */}
+        <DashboardCharts weeklyAttendance={weeklyAttendanceArray} dailyHours={dailyHoursArray} />
 
         {/* Engagement Insights */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
