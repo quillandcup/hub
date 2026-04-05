@@ -225,7 +225,6 @@ export default async function NameMatchingReportPage() {
               </div>
             </div>
           </div>
-        </div>
       </main>
     </div>
   );

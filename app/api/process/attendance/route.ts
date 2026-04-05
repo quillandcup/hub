@@ -109,9 +109,16 @@ export async function POST(request: NextRequest) {
 
           prickleId = newPrickle.id;
         }
-
-        pricklesByMeetingUuid.set(attendee.meeting_uuid, prickleId);
       }
+
+      // Safety check - prickleId should always be set by now
+      if (!prickleId) {
+        console.error(`No prickle ID for meeting ${attendee.meeting_uuid}`);
+        continue;
+      }
+
+      // Cache the prickle ID for this meeting
+      pricklesByMeetingUuid.set(attendee.meeting_uuid, prickleId);
 
       // Create attendance record (Silver layer - inferred data)
       const { error: attendanceError } = await supabase
