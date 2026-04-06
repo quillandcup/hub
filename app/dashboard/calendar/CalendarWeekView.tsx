@@ -17,7 +17,7 @@ interface Prickle {
 
 interface CalendarWeekViewProps {
   prickles: Prickle[];
-  weekStart: Date;
+  weekStartISO: string; // ISO string to avoid server/client Date serialization issues
 }
 
 // Common timezones for the dropdown
@@ -66,7 +66,11 @@ function getPricklePosition(startTime: string, endTime: string, timezone: string
   return { top, height };
 }
 
-export default function CalendarWeekView({ prickles, weekStart }: CalendarWeekViewProps) {
+export default function CalendarWeekView({ prickles, weekStartISO }: CalendarWeekViewProps) {
+  // Parse ISO string to Date on client side to avoid server/client hydration mismatch
+  // The server calculates weekStart as midnight local time, we preserve that by parsing the date components
+  const weekStart = new Date(weekStartISO);
+
   // Default to Eastern Time
   const [timezone, setTimezone] = useState("America/New_York");
   const [hoveredPrickle, setHoveredPrickle] = useState<string | null>(null);

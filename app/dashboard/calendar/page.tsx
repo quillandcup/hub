@@ -149,7 +149,7 @@ export default async function CalendarPage({
           </div>
         </div>
       </div>
-      <CalendarWeekView prickles={pricklesWithCount} weekStart={weekStart} />
+      <CalendarWeekView prickles={pricklesWithCount} weekStartISO={weekStart.toISOString()} />
     </div>
   );
 }
