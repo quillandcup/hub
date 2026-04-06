@@ -1,6 +1,9 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 
+// Extend timeout for processing large batches of members
+export const maxDuration = 60; // 60 seconds (max for Hobby tier)
+
 /**
  * Process Bronze layer data (kajabi_members) into Silver layer (members)
  *

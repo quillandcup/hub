@@ -2,6 +2,9 @@ import { createClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 import { parsePrickleFromSummary, matchPrickleType } from "@/lib/prickle-types";
 
+// Extend timeout for processing large batches of events
+export const maxDuration = 60; // 60 seconds (max for Hobby tier)
+
 /**
  * Process Bronze layer (calendar_events) into Silver layer (prickles)
  *

@@ -2,6 +2,9 @@ import { createClient } from "@/lib/supabase/server";
 import { GoogleCalendarClient } from "@/lib/google-calendar/client";
 import { NextRequest, NextResponse } from "next/server";
 
+// Extend timeout for syncing large calendars
+export const maxDuration = 60; // 60 seconds (max for Hobby tier)
+
 /**
  * Sync calendar events from Google Calendar to Bronze layer (idempotent)
  * Can be called regularly via cron or manually
