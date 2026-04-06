@@ -114,9 +114,14 @@ ORDER BY tablename;
 
 From Supabase Dashboard → **Settings → API**:
 
+You'll see two sections:
+1. **Publishable and secret API keys** (use these)
+2. **Legacy anon, service_role API keys** (ignore these)
+
+Copy from the **Publishable and secret API keys** section:
 - `NEXT_PUBLIC_SUPABASE_URL` - Your project URL
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY` - Publishable key (anon)
-- `SUPABASE_SERVICE_ROLE_KEY` - Secret key (service_role) - **Keep this secret!**
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY` - The "publishable" key
+- `SUPABASE_SERVICE_ROLE_KEY` - The "secret" key - **Keep this secret!**
 
 Save these for Vercel environment variables.
 
@@ -157,10 +162,10 @@ vercel
 Go to **Project Settings → Environment Variables** and add:
 
 ```bash
-# Supabase (Production)
+# Supabase (Production) - get from "Publishable and secret API keys" section
 NEXT_PUBLIC_SUPABASE_URL=https://xxxxx.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGc...  # Publishable key (anon)
-SUPABASE_SERVICE_ROLE_KEY=eyJhbGc...      # Secret key (service_role) - KEEP SECRET!
+NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGc...  # Publishable key
+SUPABASE_SERVICE_ROLE_KEY=eyJhbGc...      # Secret key - KEEP SECRET!
 
 # Zoom API
 ZOOM_ACCOUNT_ID=your_zoom_account_id
