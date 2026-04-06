@@ -155,16 +155,27 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Upsert into members table (Silver - canonical data with business logic)
+    // STEP 2: DELETE all existing members (for reprocessability)
+    // This makes the process fully reprocessable - we regenerate Silver from Bronze
+    console.log("Deleting all existing members");
+    const { error: deleteError } = await supabase
+      .from("members")
+      .delete()
+      .neq("id", "00000000-0000-0000-0000-000000000000"); // Delete all (PostgreSQL DELETE requires a WHERE clause)
+
+    if (deleteError) {
+      console.error("Error deleting existing members:", deleteError);
+      throw deleteError;
+    }
+
+    // STEP 3: INSERT fresh members from Bronze snapshot
     const { data, error } = await supabase
       .from("members")
-      .upsert(membersToUpsert, {
-        onConflict: "email",
-      })
+      .insert(membersToUpsert)
       .select();
 
     if (error) {
-      console.error("Error upserting members:", error);
+      console.error("Error inserting members:", error);
       throw error;
     }
 

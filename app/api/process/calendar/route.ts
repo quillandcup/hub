@@ -237,15 +237,46 @@ export async function POST(request: NextRequest) {
 
     console.log(`Actions: insert ${pricklesToInsert.length}, update ${pricklesToUpdate.length}, unmatched ${unmatchedEvents.length}, skipped ${skipped}`);
 
-    // STEP 3: Batch database writes in parallel
+    // STEP 3: DELETE existing calendar prickles in date range (for reprocessability)
+    // This makes the process fully reprocessable - we regenerate Silver from Bronze
+    console.log(`Deleting existing calendar prickles in date range`);
+    const { error: deleteError } = await supabase
+      .from("prickles")
+      .delete()
+      .eq("source", "calendar")
+      .gte("start_time", fromDate)
+      .lte("end_time", toDate);
+
+    if (deleteError) {
+      console.error("Error deleting existing prickles:", deleteError);
+      throw deleteError;
+    }
+
+    // STEP 4: Batch INSERT all prickles (both new and previously existing)
+    // Since we deleted everything, we insert fresh from Bronze
     const CHUNK_SIZE = 100;
     let created = 0;
     let updated = 0;
     let queuedForReview = 0;
 
-    // Insert prickles in batches
-    if (pricklesToInsert.length > 0) {
-      const insertChunks = chunk(pricklesToInsert, CHUNK_SIZE);
+    // Combine insert and update lists - all become inserts after DELETE
+    const allPrickles = [...pricklesToInsert];
+    for (const p of pricklesToUpdate) {
+      const existingPrickle = existingPrickles?.find(ep => ep.id === p.id);
+      if (existingPrickle) {
+        allPrickles.push({
+          type_id: p.type_id,
+          host: p.host,
+          start_time: existingPrickle.start_time,
+          end_time: existingPrickle.end_time,
+          source: "calendar",
+        });
+      }
+    }
+
+    // Insert all prickles in batches
+    if (allPrickles.length > 0) {
+      const insertChunks = chunk(allPrickles, CHUNK_SIZE);
       const insertResults = await Promise.all(
         insertChunks.map((batch) =>
           supabase.from("prickles").insert(batch)
@@ -255,26 +286,8 @@ export async function POST(request: NextRequest) {
       // Adjust for last chunk
       const lastChunkResult = insertResults[insertResults.length - 1];
       if (!lastChunkResult.error) {
-        created = created - CHUNK_SIZE + (pricklesToInsert.length % CHUNK_SIZE || CHUNK_SIZE);
+        created = created - CHUNK_SIZE + (allPrickles.length % CHUNK_SIZE || CHUNK_SIZE);
       }
-    }
-
-    // Update prickles in batches (need individual updates due to unique IDs)
-    if (pricklesToUpdate.length > 0) {
-      const updateChunks = chunk(pricklesToUpdate, CHUNK_SIZE);
-      const updateResults = await Promise.all(
-        updateChunks.map((batch) =>
-          Promise.all(
-            batch.map((p) =>
-              supabase
-                .from("prickles")
-                .update({ host: p.host, type_id: p.type_id })
-                .eq("id", p.id)
-            )
-          )
-        )
-      );
-      updated = updateResults.flat().filter((r) => !r.error).length;
     }
 
     // Queue unmatched events in batches
@@ -295,14 +308,14 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    console.log(`Completed: created ${created}, updated ${updated}, queued ${queuedForReview}`);
+    console.log(`Completed: processed ${created}, queued ${queuedForReview}`);
 
     return NextResponse.json({
       success: true,
-      calendarEvents: allEvents.length,
+      eventsProcessed: allEvents.length,
       pricklesCreated: created,
-      pricklesUpdated: updated,
-      queuedForReview,
+      pricklesUpdated: 0, // All are creates now (DELETE + INSERT pattern)
+      skippedNoMatch: unmatchedEvents.length,
       skipped,
     });
   } catch (error: any) {
