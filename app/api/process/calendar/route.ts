@@ -257,19 +257,36 @@ export async function POST(request: NextRequest) {
 
     console.log(`Actions: insert ${pricklesToInsert.length}, update ${pricklesToUpdate.length}, unmatched ${unmatchedEvents.length}, skipped ${skipped}`);
 
-    // STEP 3: DELETE existing calendar prickles in date range (for reprocessability)
+    // STEP 3: DELETE existing data in date range (for reprocessability)
     // This makes the process fully reprocessable - we regenerate Silver from Bronze
-    console.log(`Deleting existing calendar prickles in date range`);
-    const { error: deleteError } = await supabase
+    console.log(`Deleting existing calendar prickles and unmatched events in date range`);
+
+    // Delete calendar prickles
+    const { error: deletePricklesError } = await supabase
       .from("prickles")
       .delete()
       .eq("source", "calendar")
       .gte("start_time", fromDate)
       .lte("end_time", toDate);
 
-    if (deleteError) {
-      console.error("Error deleting existing prickles:", deleteError);
-      throw deleteError;
+    if (deletePricklesError) {
+      console.error("Error deleting existing prickles:", deletePricklesError);
+      throw deletePricklesError;
+    }
+
+    // Delete unmatched events for calendar_events in this date range
+    // This ensures previously unmatched events that now match are removed from queue
+    const calendarEventIds = allEvents.map(e => e.id);
+    if (calendarEventIds.length > 0) {
+      const { error: deleteUnmatchedError } = await supabase
+        .from("unmatched_calendar_events")
+        .delete()
+        .in("calendar_event_id", calendarEventIds);
+
+      if (deleteUnmatchedError) {
+        console.error("Error deleting unmatched events:", deleteUnmatchedError);
+        // Don't throw - this is cleanup, not critical
+      }
     }
 
     // STEP 4: Batch INSERT all prickles (both new and previously existing)
