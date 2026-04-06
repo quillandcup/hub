@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { getTestSupabaseAdminClient } from '../helpers/supabase'
+import { seedReferenceData } from '../helpers/seed-data'
 
 /**
  * Test to ensure attendance table allows multiple records per (member_id, prickle_id)
@@ -17,6 +18,9 @@ describe('Attendance Multiple Records', () => {
   let testPrickleId: string
 
   beforeAll(async () => {
+    // Seed reference data (prickle_types)
+    await seedReferenceData()
+
     // Create test member
     const { data: member, error: memberError } = await supabase
       .from('members')

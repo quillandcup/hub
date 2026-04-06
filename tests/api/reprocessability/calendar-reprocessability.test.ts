@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { getTestSupabaseAdminClient, getTestAuthHeaders } from '../../helpers/supabase'
+import { seedReferenceData } from '../../helpers/seed-data'
 
 /**
  * Test to verify /api/process/calendar is fully reprocessable
@@ -22,6 +23,9 @@ describe('Calendar Reprocessability', () => {
   let prickleTypeId: string
 
   beforeAll(async () => {
+    // Seed reference data (prickle_types, test members)
+    await seedReferenceData()
+
     // Get a prickle type for testing
     const { data: prickleType } = await supabase
       .from('prickle_types')

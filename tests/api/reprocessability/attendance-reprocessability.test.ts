@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { getTestSupabaseAdminClient, getTestAuthHeaders } from '../../helpers/supabase'
+import { seedReferenceData } from '../../helpers/seed-data'
 
 /**
  * Test to verify /api/process/attendance is fully reprocessable
@@ -24,6 +25,9 @@ describe('Attendance Reprocessability', () => {
   let prickleTypeId: string
 
   beforeAll(async () => {
+    // Seed reference data (prickle_types)
+    await seedReferenceData()
+
     // Create test member
     const { data: member } = await supabase
       .from('members')
