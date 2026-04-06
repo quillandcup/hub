@@ -114,3 +114,82 @@ Before committing changes to API routes, verify:
 
 **Gold Layer** (aggregated views):
 - Currently computed on-demand in dashboard queries
+
+### Data Pipeline Reprocessability
+
+**CRITICAL PRINCIPLE**: All Silver layer processing MUST be fully reprocessable from Bronze data using DELETE + INSERT pattern.
+
+**Why this matters**:
+- Deleted events/members must be removed from Silver layer when reprocessing
+- UPSERT patterns leave orphaned data (e.g., deleted calendar event stays in prickles)
+- The pipeline must always reflect current truth from Bronze sources
+
+**Required Pattern for ALL Silver Processing**:
+
+```typescript
+// ✅ CORRECT: DELETE + INSERT pattern
+export async function POST(request: NextRequest) {
+  // 1. Load Bronze data
+  const bronzeData = await supabase.from("bronze_table").select("*");
+  
+  // 2. DELETE existing Silver data in scope
+  await supabase
+    .from("silver_table")
+    .delete()
+    .gte("date_field", fromDate)  // Scope by date range or condition
+    .lte("date_field", toDate);
+  
+  // 3. Process Bronze → Silver in memory
+  const silverData = processBronzeData(bronzeData);
+  
+  // 4. INSERT fresh Silver data
+  await supabase.from("silver_table").insert(silverData);
+}
+
+// ❌ WRONG: UPSERT pattern (leaves orphaned data)
+await supabase.from("silver_table").upsert(silverData, { onConflict: "id" });
+```
+
+**Current Implementation Status**:
+
+1. **`/api/process/members`** ✅
+   - DELETE all members
+   - INSERT fresh from latest `kajabi_members` snapshot
+   - Scope: All members (full refresh)
+
+2. **`/api/process/calendar`** ✅
+   - DELETE calendar prickles in date range
+   - INSERT fresh from `calendar_events` in date range
+   - Scope: Date range (fromDate, toDate)
+
+3. **`/api/process/attendance`** ✅
+   - DELETE attendance in date range
+   - DELETE PUPs (zoom-sourced prickles) in date range
+   - INSERT fresh from `zoom_attendees` in date range
+   - Scope: Date range (fromDate, toDate)
+
+**Bronze Layer Idempotency** (different pattern):
+
+Bronze imports use UPSERT or timestamp-based append for idempotency:
+
+```typescript
+// Calendar sync: UPSERT by google_event_id
+await supabase.from("calendar_events").upsert(events, { 
+  onConflict: "google_event_id" 
+});
+
+// Members import: Append with imported_at timestamp
+await supabase.from("kajabi_members").insert({ 
+  ...memberData, 
+  imported_at: new Date() 
+});
+```
+
+**Testing Requirements**:
+
+Every Silver processing route MUST have tests verifying:
+1. Initial processing creates records
+2. Reprocessing with deleted source data removes Silver records
+3. Reprocessing with changed source data updates Silver records
+
+See: `tests/api/reprocessability/`
