@@ -75,7 +75,9 @@ export default async function CalendarPage({
 
   // Transform the data to include attendance count and host attendance status
   const pricklesWithCount = prickles?.map((prickle: any) => {
-    const hostId = prickle.host?.id;
+    // Handle host as array or object (Supabase foreign key can return either)
+    const host = Array.isArray(prickle.host) ? prickle.host[0] : prickle.host;
+    const hostId = host?.id;
     let hostAttendance = null;
     let hostMissing = false;
     let hostLate = false;
@@ -100,7 +102,7 @@ export default async function CalendarPage({
 
     return {
       id: prickle.id,
-      host: prickle.host?.name || null,
+      host: host?.name || null,
       host_id: hostId,
       start_time: prickle.start_time,
       end_time: prickle.end_time,
