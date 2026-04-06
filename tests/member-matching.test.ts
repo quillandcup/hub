@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterEach, afterAll } from 'vitest'
-import { getTestSupabaseClient } from './helpers/supabase'
+import { getTestSupabaseClient, getTestSupabaseAdminClient } from './helpers/supabase'
 
 interface MatchResult {
   member_id: string
@@ -8,17 +8,18 @@ interface MatchResult {
 }
 
 describe('match_member_by_name function', () => {
-  const supabase = getTestSupabaseClient()
+  const supabase = getTestSupabaseClient() // For RPC calls
+  const adminClient = getTestSupabaseAdminClient() // For data setup/teardown
   let testMemberId: string
   let testMemberEmail: string
   const testEmail = 'test.member@example.com'
 
   beforeAll(async () => {
     // Clean up any existing test member from previous runs
-    await supabase.from('members').delete().eq('email', testEmail)
+    await adminClient.from('members').delete().eq('email', testEmail)
 
     // Create a test member for matching
-    const { data, error } = await supabase
+    const { data, error } = await adminClient
       .from('members')
       .insert({
         name: 'Test Member',
@@ -36,7 +37,7 @@ describe('match_member_by_name function', () => {
 
   afterEach(async () => {
     // Clean up any test aliases after each test
-    await supabase
+    await adminClient
       .from('member_name_aliases')
       .delete()
       .eq('member_id', testMemberId)
@@ -44,7 +45,7 @@ describe('match_member_by_name function', () => {
 
   afterAll(async () => {
     // Clean up test member
-    await supabase.from('members').delete().eq('id', testMemberId)
+    await adminClient.from('members').delete().eq('id', testMemberId)
   })
 
   async function matchMember(
@@ -95,7 +96,7 @@ describe('match_member_by_name function', () => {
   describe('alias matching', () => {
     it('should match by exact alias (high confidence)', async () => {
       // Create alias
-      await supabase.from('member_name_aliases').insert({
+      await adminClient.from('member_name_aliases').insert({
         member_id: testMemberId,
         alias: 'TM',
       })
@@ -110,7 +111,7 @@ describe('match_member_by_name function', () => {
 
     it('should match multiple aliases for same member', async () => {
       // Create multiple aliases
-      await supabase.from('member_name_aliases').insert([
+      await adminClient.from('member_name_aliases').insert([
         { member_id: testMemberId, alias: 'TM' },
         { member_id: testMemberId, alias: 'TestM' },
       ])
@@ -123,7 +124,7 @@ describe('match_member_by_name function', () => {
     })
 
     it('should prioritize alias over normalized match', async () => {
-      await supabase.from('member_name_aliases').insert({
+      await adminClient.from('member_name_aliases').insert({
         member_id: testMemberId,
         alias: 'Test Member',
       })
@@ -234,7 +235,7 @@ describe('match_member_by_name function', () => {
     })
 
     it('should return high confidence for alias match', async () => {
-      await supabase.from('member_name_aliases').insert({
+      await adminClient.from('member_name_aliases').insert({
         member_id: testMemberId,
         alias: 'TM',
       })
@@ -257,7 +258,7 @@ describe('match_member_by_name function', () => {
   describe('match type priority', () => {
     it('should prioritize: email > alias > normalized > fuzzy', async () => {
       // Set up alias
-      await supabase.from('member_name_aliases').insert({
+      await adminClient.from('member_name_aliases').insert({
         member_id: testMemberId,
         alias: 'Test Member',
       })

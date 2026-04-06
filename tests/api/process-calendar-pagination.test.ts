@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
-import { getTestSupabaseClient } from '../helpers/supabase'
+import { getTestSupabaseAdminClient } from '../helpers/supabase'
 
 /**
  * Integration test to ensure calendar processing handles >1000 events
@@ -8,7 +8,7 @@ import { getTestSupabaseClient } from '../helpers/supabase'
  * regression where pagination was removed during optimization.
  */
 describe('Calendar Processing Pagination', () => {
-  const supabase = getTestSupabaseClient()
+  const supabase = getTestSupabaseAdminClient()
 
   describe('pagination requirement', () => {
     it('should handle >1000 calendar events without truncation', async () => {
@@ -29,8 +29,8 @@ describe('Calendar Processing Pagination', () => {
       const testEvents = Array.from({ length: 1500 }, (_, i) => ({
         google_event_id: `test-event-${i}-${Date.now()}`,
         summary: `Test Event ${i}`,
-        start_time: new Date(2099, 0, 1, 10 + (i % 24), 0).toISOString(),
-        end_time: new Date(2099, 0, 1, 11 + (i % 24), 0).toISOString(),
+        start_time: new Date(2099, 0, 1 + Math.floor(i / 24), 10 + (i % 24), 0).toISOString(),
+        end_time: new Date(2099, 0, 1 + Math.floor(i / 24), 11 + (i % 24), 0).toISOString(),
         creator_email: 'test@example.com',
         organizer_email: 'test@example.com',
         imported_at: new Date().toISOString(),
@@ -45,14 +45,14 @@ describe('Calendar Processing Pagination', () => {
       }
 
       // Verify all 1500 were inserted
-      const { data: verifyInsert, error: verifyError } = await supabase
+      const { count, error: countError } = await supabase
         .from('calendar_events')
         .select('id', { count: 'exact', head: true })
         .gte('start_time', testDateFrom)
         .lte('end_time', testDateTo)
 
-      expect(verifyError).toBeNull()
-      expect(verifyInsert).toBeDefined()
+      expect(countError).toBeNull()
+      expect(count).toBe(1500)
 
       // Now test that a query fetching them all uses pagination
       // We simulate what the API route does
@@ -92,8 +92,8 @@ describe('Calendar Processing Pagination', () => {
         .lte('end_time', testDateTo)
     })
 
-    it('should document the pagination pattern in code', async () => {
-      // This is a documentation test - verifies the actual route file
+    it('should verify pagination code exists in route', async () => {
+      // This is a code inspection test - verifies the actual route file
       // contains the pagination pattern
       const fs = await import('fs/promises')
       const path = await import('path')
@@ -108,15 +108,15 @@ describe('Calendar Processing Pagination', () => {
       // Verify pagination keywords exist in the file
       expect(routeContent).toContain('while (hasMore)')
       expect(routeContent).toContain('range(offset')
-      expect(routeContent).toContain('BATCH_SIZE')
+      expect(routeContent).toContain('FETCH_BATCH_SIZE')
 
-      // Verify it's not using a single query without pagination
-      const singleQueryPattern = /from\(["']calendar_events["']\)[^;]*\.select\([^)]*\)[^;]*;(?!.*range)/
-      expect(routeContent).not.toMatch(singleQueryPattern)
+      // Verify it fetches calendar_events with range
+      expect(routeContent).toContain('from("calendar_events")')
+      expect(routeContent).toMatch(/range\(offset,\s*offset\s*\+\s*FETCH_BATCH_SIZE\s*-\s*1\)/)
     })
   })
 
-  describe('performance regression prevention', () => {
+  describe('performance patterns', () => {
     it('should use Promise.all for parallel reference data loading', async () => {
       // Prevent regression where parallel loading was replaced with sequential
       const fs = await import('fs/promises')
