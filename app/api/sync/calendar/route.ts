@@ -53,12 +53,27 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    // OPTIMIZATION: Load all existing events upfront for this date range
+    // This avoids N individual SELECT queries in the loop below
+    const { data: existingEvents } = await supabase
+      .from("calendar_events")
+      .select("id, google_event_id, summary, start_time, end_time")
+      .gte("start_time", timeMin)
+      .lte("start_time", timeMax);
+
+    // Build lookup map by google_event_id for O(1) access
+    const existingByGoogleId = new Map(
+      (existingEvents || []).map((e) => [e.google_event_id, e])
+    );
+
     let imported = 0;
     let updated = 0;
     let skipped = 0;
 
-    // Import/update each event to Bronze (calendar_events table)
-    // Note: Google Calendar API handles pagination internally via listEvents
+    const eventsToInsert: any[] = [];
+    const eventsToUpdate: Array<{ id: string; data: any }> = [];
+
+    // Process all events in memory first
     for (const event of events) {
       // Skip events without start/end times (all-day events, etc.)
       if (!event.start?.dateTime || !event.end?.dateTime) {
@@ -80,16 +95,10 @@ export async function POST(request: NextRequest) {
         raw_data: event, // Store full event data
       };
 
-      // Check if event already exists
-      const { data: existingEvent } = await supabase
-        .from("calendar_events")
-        .select("id, summary, start_time, end_time")
-        .eq("google_event_id", event.id)
-        .single();
+      const existingEvent = existingByGoogleId.get(event.id);
 
       if (existingEvent) {
-        // Update if details changed
-        // Normalize timestamps for comparison (both to ISO strings)
+        // Check if changed (normalize timestamps for comparison)
         const existingStart = new Date(existingEvent.start_time).toISOString();
         const existingEnd = new Date(existingEvent.end_time).toISOString();
         const newStart = new Date(eventData.start_time).toISOString();
@@ -101,35 +110,48 @@ export async function POST(request: NextRequest) {
           existingEnd !== newEnd;
 
         if (changed) {
-          const { error: updateError } = await supabase
-            .from("calendar_events")
-            .update(eventData)
-            .eq("id", existingEvent.id);
-
-          if (updateError) {
-            console.error("Error updating calendar event:", updateError);
-            skipped++;
-            continue;
-          }
-          updated++;
+          eventsToUpdate.push({ id: existingEvent.id, data: eventData });
         } else {
           skipped++;
         }
-        continue;
+      } else {
+        eventsToInsert.push(eventData);
       }
+    }
 
-      // Insert new event
+    // Batch insert new events
+    if (eventsToInsert.length > 0) {
       const { error: insertError } = await supabase
         .from("calendar_events")
-        .insert(eventData);
+        .insert(eventsToInsert);
 
       if (insertError) {
-        console.error("Error inserting calendar event:", insertError);
-        skipped++;
-        continue;
+        console.error("Error inserting calendar events:", insertError);
+        return NextResponse.json(
+          { error: "Failed to insert calendar events" },
+          { status: 500 }
+        );
+      }
+      imported = eventsToInsert.length;
+    }
+
+    // Batch update changed events
+    // Note: Supabase doesn't support batch UPDATE with different values,
+    // so we do individual updates but in parallel
+    if (eventsToUpdate.length > 0) {
+      const updatePromises = eventsToUpdate.map(({ id, data }) =>
+        supabase.from("calendar_events").update(data).eq("id", id)
+      );
+
+      const results = await Promise.all(updatePromises);
+      const errors = results.filter((r) => r.error);
+
+      if (errors.length > 0) {
+        console.error(`Failed to update ${errors.length} events`);
       }
 
-      imported++;
+      updated = eventsToUpdate.length - errors.length;
+      skipped += errors.length;
     }
 
     return NextResponse.json({
