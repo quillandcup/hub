@@ -84,7 +84,7 @@ export default function CalendarSyncButton() {
 
         <button
           onClick={handleProcess}
-          disabled={processing || !syncResult}
+          disabled={processing}
           className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white rounded-lg font-medium transition-colors text-sm"
         >
           {processing ? "Processing..." : "2. Process Events"}
