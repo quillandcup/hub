@@ -61,6 +61,12 @@ describe('Members Reprocessability', () => {
     const response = await fetch('http://localhost:3000/api/process/members', {
       method: 'POST',
     })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      throw new Error(`API call failed: ${response.status} - ${errorText}`)
+    }
+
     const result = await response.json()
 
     // ASSERT: Members created
