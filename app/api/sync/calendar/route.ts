@@ -53,13 +53,18 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // OPTIMIZATION: Load all existing events upfront for this date range
+    // OPTIMIZATION: Load all existing events upfront by google_event_id
     // This avoids N individual SELECT queries in the loop below
+    // We query by google_event_id (not date range) because events may have
+    // been synced in a previous run with different date range
+    const googleEventIds = events
+      .filter((e) => e.id)
+      .map((e) => e.id);
+
     const { data: existingEvents } = await supabase
       .from("calendar_events")
       .select("id, google_event_id, summary, start_time, end_time")
-      .gte("start_time", timeMin)
-      .lte("start_time", timeMax);
+      .in("google_event_id", googleEventIds);
 
     // Build lookup map by google_event_id for O(1) access
     const existingByGoogleId = new Map(
