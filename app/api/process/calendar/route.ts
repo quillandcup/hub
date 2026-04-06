@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
-import { parsePrickleFromSummary } from "@/lib/prickle-types";
+import { parsePrickleFromSummary, normalizePrickleType } from "@/lib/prickle-types";
 
 // Extend timeout for processing large batches of events
 export const maxDuration = 300; // 5 minutes
@@ -108,7 +108,7 @@ export async function POST(request: NextRequest) {
     ] = await Promise.all([
       supabase.from("members").select("id, name, email"),
       supabase.from("member_name_aliases").select("alias, member_id"),
-      supabase.from("prickle_types").select("id, name"),
+      supabase.from("prickle_types").select("id, name, normalized_name"),
       supabase
         .from("prickles")
         .select("id, start_time, end_time, host, type_id")
@@ -137,8 +137,8 @@ export async function POST(request: NextRequest) {
     const aliasToMemberId = new Map(
       aliases?.map((a) => [a.alias, a.member_id]) || []
     );
-    const typeByName = new Map(
-      prickleTypes?.map((t) => [t.name.toLowerCase(), t.id]) || []
+    const typeByNormalizedName = new Map(
+      prickleTypes?.map((t) => [t.normalized_name, t.id]) || []
     );
     const existingPrickleKey = (start: string, end: string) => `${start}|${end}`;
     const existingPricklesMap = new Map(
@@ -198,20 +198,23 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // Match to prickle type
-      if (!rawType) {
-        // No type could be extracted - queue for admin review
-        unmatchedEvents.push({
-          calendar_event_id: event.id,
-          raw_summary: event.summary,
-          suggested_type: null,
-          suggested_host: suggestedHostName,
-          status: "pending",
-        });
-        continue;
-      }
+      // Match to prickle type using normalization
+      let typeId: string | null = null;
 
-      const typeId = typeByName.get(rawType.toLowerCase());
+      if (!rawType) {
+        // No type extracted - default to Progress Prickle
+        typeId = typeByNormalizedName.get("progress") || null;
+      } else {
+        // Normalize the extracted type and look up by normalized_name
+        const normalizedType = normalizePrickleType(rawType);
+
+        // If normalization resulted in empty (e.g., just "Prickle"), default to Progress
+        if (!normalizedType || normalizedType === "") {
+          typeId = typeByNormalizedName.get("progress") || null;
+        } else {
+          typeId = typeByNormalizedName.get(normalizedType) || null;
+        }
+      }
 
       if (!typeId) {
         // Type extracted but not in prickle_types table - queue for admin review
