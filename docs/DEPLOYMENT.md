@@ -29,6 +29,7 @@ Before deploying, all critical security measures are in place:
    - **Organization**: Select or create
    - **Name**: `quillandcup-admin-portal` (or your preference)
    - **Database Password**: Generate a strong password (save this!)
+       DB password: phX09ttGJQXb2OD2
    - **Region**: Choose closest to your users
 4. Click **"Create new project"** (takes ~2 minutes)
 
@@ -52,9 +53,21 @@ supabase db push
 supabase migration list
 ```
 
-### 1.4 Disable Public Signups in Production
+### 1.4 Test User Invite (Before Pushing Migrations)
 
-**Disable Public Signups:**
+**Important:** Test inviting yourself BEFORE pushing any migrations:
+
+1. Go to **Authentication → Users** 
+2. Click **"Invite User"**
+3. Enter your email
+4. Check your email for the invite link
+5. Complete signup with a password
+
+This verifies the base auth system works. If this fails on a fresh project, something is wrong with your Supabase project setup - delete and recreate it.
+
+### 1.5 Disable Public Signups
+
+After testing invite works:
 
 1. In Supabase Dashboard, go to **Authentication** 
 2. Find the toggle: **"Allow new users to sign up"**
@@ -68,19 +81,27 @@ This prevents anyone from creating accounts directly.
 - This allows invited users to log in
 - It's separate from the signup toggle
 
-**To Invite Users in Production:**
+### 1.6 Now Push Database Migrations
 
-1. Go to **Authentication → Users** 
-2. Click **"Invite User"**
-3. Enter email → User receives invite link
-4. They set password and can log in
+```bash
+# Link to your new production project
+supabase link --project-ref YOUR_PROJECT_REF
 
-**Verify RLS Protection:**
+# Push all migrations
+supabase db push
 
-Run this in SQL Editor to confirm all tables are protected:
+# Verify migrations applied
+supabase migration list --linked
+```
+
+All tables will now have RLS enabled and the `user_profiles` table will exist.
+
+### 1.7 Verify RLS Protection
+
+Run this in SQL Editor to confirm:
 
 ```sql
--- Check RLS is enabled
+-- Check RLS is enabled on all tables
 SELECT tablename, rowsecurity 
 FROM pg_tables 
 WHERE schemaname = 'public' 
@@ -89,13 +110,13 @@ ORDER BY tablename;
 -- All should show rowsecurity = true
 ```
 
-### 1.5 Get Production API Keys
+### 1.8 Get Production API Keys
 
 From Supabase Dashboard → **Settings → API**:
 
 - `NEXT_PUBLIC_SUPABASE_URL` - Your project URL
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY` - Public anon key
-- `SUPABASE_SERVICE_ROLE_KEY` - Service role key (keep secret!)
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY` - Publishable key (anon)
+- `SUPABASE_SERVICE_ROLE_KEY` - Secret key (service_role) - **Keep this secret!**
 
 Save these for Vercel environment variables.
 
@@ -138,8 +159,8 @@ Go to **Project Settings → Environment Variables** and add:
 ```bash
 # Supabase (Production)
 NEXT_PUBLIC_SUPABASE_URL=https://xxxxx.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGc...
-SUPABASE_SERVICE_ROLE_KEY=eyJhbGc...
+NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGc...  # Publishable key (anon)
+SUPABASE_SERVICE_ROLE_KEY=eyJhbGc...      # Secret key (service_role) - KEEP SECRET!
 
 # Zoom API
 ZOOM_ACCOUNT_ID=your_zoom_account_id
