@@ -473,44 +473,18 @@ export async function POST(request: NextRequest) {
     }
 
     console.log(`Segment lookup failures: ${segmentLookupFailures}`);
-    console.log(`Collected ${attendanceToUpsert.length} attendance records to upsert`);
+    console.log(`Collected ${attendanceToUpsert.length} attendance records to insert`);
 
-    // Deduplicate attendance records by (member_id, prickle_id)
-    // Keep the record with earliest join_time and latest leave_time
-    const attendanceByKey = new Map<string, any>();
-
-    for (const record of attendanceToUpsert) {
-      const key = `${record.member_id}|${record.prickle_id}`;
-      const existing = attendanceByKey.get(key);
-
-      if (!existing) {
-        attendanceByKey.set(key, record);
-      } else {
-        // Merge: earliest join, latest leave
-        const earliestJoin = existing.join_time < record.join_time ? existing.join_time : record.join_time;
-        const latestLeave = existing.leave_time > record.leave_time ? existing.leave_time : record.leave_time;
-
-        attendanceByKey.set(key, {
-          ...existing,
-          join_time: earliestJoin,
-          leave_time: latestLeave,
-        });
-      }
-    }
-
-    const deduplicatedAttendance = Array.from(attendanceByKey.values());
-    console.log(`After deduplication: ${deduplicatedAttendance.length} unique attendance records`);
-
-    if (deduplicatedAttendance.length > 0) {
+    // STEP 5: Batch insert all attendance records
+    // Note: We allow multiple records per (member_id, prickle_id) to track leave/rejoin patterns
+    if (attendanceToUpsert.length > 0) {
       const CHUNK_SIZE = 500;
-      const chunks = chunk(deduplicatedAttendance, CHUNK_SIZE);
-      console.log(`Upserting in ${chunks.length} chunks of ${CHUNK_SIZE}`);
+      const chunks = chunk(attendanceToUpsert, CHUNK_SIZE);
+      console.log(`Inserting in ${chunks.length} chunks of ${CHUNK_SIZE}`);
 
       const results = await Promise.all(
         chunks.map((batch, i) =>
-          supabase.from("attendance").upsert(batch, {
-            onConflict: "member_id,prickle_id",
-          }).then(result => {
+          supabase.from("attendance").insert(batch).then(result => {
             if (result.error) {
               console.error(`Error upserting chunk ${i}:`, result.error);
             }
