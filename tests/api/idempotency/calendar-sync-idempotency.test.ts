@@ -45,6 +45,7 @@ describe('Calendar Sync Idempotency', () => {
         start_time: '2099-12-15T09:00:00Z',
         end_time: '2099-12-15T10:00:00Z',
         creator_email: 'test@example.com',
+        raw_data: { id: testGoogleEventId1 },
       },
       {
         google_event_id: testGoogleEventId2,
@@ -52,6 +53,7 @@ describe('Calendar Sync Idempotency', () => {
         start_time: '2099-12-15T14:00:00Z',
         end_time: '2099-12-15T16:00:00Z',
         creator_email: 'test@example.com',
+        raw_data: { id: testGoogleEventId2 },
       },
     ]
 
@@ -77,6 +79,7 @@ describe('Calendar Sync Idempotency', () => {
         start_time: '2099-12-15T09:00:00Z',
         end_time: '2099-12-15T10:00:00Z',
         creator_email: 'test@example.com',
+        raw_data: {},
       },
       {
         google_event_id: testGoogleEventId2,
@@ -84,6 +87,7 @@ describe('Calendar Sync Idempotency', () => {
         start_time: '2099-12-15T14:00:00Z',
         end_time: '2099-12-15T16:00:00Z',
         creator_email: 'test@example.com',
+        raw_data: {},
       },
     ]
 
@@ -114,6 +118,7 @@ describe('Calendar Sync Idempotency', () => {
         start_time: '2099-12-15T09:00:00Z',
         end_time: '2099-12-15T10:00:00Z',
         creator_email: 'test@example.com',
+        raw_data: {},
       },
     ]
 
@@ -146,6 +151,7 @@ describe('Calendar Sync Idempotency', () => {
       start_time: '2099-12-15T18:00:00Z',
       end_time: '2099-12-15T19:00:00Z',
       creator_email: 'test@example.com',
+      raw_data: {},
     }
 
     // ACT: UPSERT new event
@@ -181,6 +187,7 @@ describe('Calendar Sync Idempotency', () => {
         start_time: '2099-12-15T09:00:00Z',
         end_time: '2099-12-15T10:00:00Z',
         creator_email: 'test@example.com',
+        raw_data: {},
       },
       {
         google_event_id: testGoogleEventId2,
@@ -188,6 +195,7 @@ describe('Calendar Sync Idempotency', () => {
         start_time: '2099-12-15T14:00:00Z',
         end_time: '2099-12-15T16:00:00Z',
         creator_email: 'test@example.com',
+        raw_data: {},
       },
     ]
 
@@ -218,6 +226,7 @@ describe('Calendar Sync Idempotency', () => {
       start_time: '2099-12-15T09:00:00Z',
       end_time: '2099-12-15T10:00:00Z',
       creator_email: 'test@example.com',
+      raw_data: { id: testGoogleEventId1 },
     }
 
     // ACT: Regular INSERT should fail due to unique constraint

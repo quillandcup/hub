@@ -5,9 +5,9 @@ import { getTestSupabaseAdminClient } from '../../helpers/supabase'
  * Test to verify /api/import/zoom is idempotent
  *
  * CRITICAL: Zoom import must be idempotent - importing the same date range
- * multiple times should not create duplicate meetings or attendees.
+ * multiple times should not create duplicate attendee records.
  *
- * Pattern: UPSERT by meeting_uuid
+ * Pattern: UPSERT by (meeting_uuid, name, join_time)
  */
 describe('Zoom Import Idempotency', () => {
   const supabase = getTestSupabaseAdminClient()
@@ -21,11 +21,6 @@ describe('Zoom Import Idempotency', () => {
       .from('zoom_attendees')
       .delete()
       .or(`meeting_uuid.eq.${testMeetingUuid1},meeting_uuid.eq.${testMeetingUuid2}`)
-
-    await supabase
-      .from('zoom_meetings')
-      .delete()
-      .or(`uuid.eq.${testMeetingUuid1},uuid.eq.${testMeetingUuid2}`)
   })
 
   afterAll(async () => {
@@ -34,87 +29,15 @@ describe('Zoom Import Idempotency', () => {
       .from('zoom_attendees')
       .delete()
       .or(`meeting_uuid.eq.${testMeetingUuid1},meeting_uuid.eq.${testMeetingUuid2}`)
-
-    await supabase
-      .from('zoom_meetings')
-      .delete()
-      .or(`uuid.eq.${testMeetingUuid1},uuid.eq.${testMeetingUuid2}`)
-  })
-
-  it('should create zoom meetings on first import', async () => {
-    // ARRANGE: Insert meetings directly (simulating what import would do)
-    const meetings = [
-      {
-        uuid: testMeetingUuid1,
-        topic: 'Morning Writing Session',
-        start_time: '2099-11-15T09:00:00Z',
-        end_time: '2099-11-15T10:00:00Z',
-        duration: 60,
-      },
-      {
-        uuid: testMeetingUuid2,
-        topic: 'Deep Work Session',
-        start_time: '2099-11-15T14:00:00Z',
-        end_time: '2099-11-15T16:00:00Z',
-        duration: 120,
-      },
-    ]
-
-    const { error } = await supabase.from('zoom_meetings').insert(meetings)
-
-    // ASSERT: Meetings created
-    expect(error).toBeNull()
-
-    const { data: inserted } = await supabase
-      .from('zoom_meetings')
-      .select('*')
-      .in('uuid', [testMeetingUuid1, testMeetingUuid2])
-
-    expect(inserted).toHaveLength(2)
-  })
-
-  it('should not create duplicate meetings when re-importing (idempotent)', async () => {
-    // ARRANGE: Re-insert the same meetings (simulating re-import)
-    const meetings = [
-      {
-        uuid: testMeetingUuid1,
-        topic: 'Morning Writing Session',
-        start_time: '2099-11-15T09:00:00Z',
-        end_time: '2099-11-15T10:00:00Z',
-        duration: 60,
-      },
-      {
-        uuid: testMeetingUuid2,
-        topic: 'Deep Work Session',
-        start_time: '2099-11-15T14:00:00Z',
-        end_time: '2099-11-15T16:00:00Z',
-        duration: 120,
-      },
-    ]
-
-    // ACT: UPSERT (this is what import route does)
-    const { error } = await supabase
-      .from('zoom_meetings')
-      .upsert(meetings, {
-        onConflict: 'uuid',
-      })
-
-    expect(error).toBeNull()
-
-    // ASSERT: Still only 2 meetings (no duplicates)
-    const { data: afterUpsert } = await supabase
-      .from('zoom_meetings')
-      .select('*')
-      .in('uuid', [testMeetingUuid1, testMeetingUuid2])
-
-    expect(afterUpsert).toHaveLength(2)
   })
 
   it('should create zoom attendees on first import', async () => {
-    // ARRANGE: Insert attendees
+    // ARRANGE: Insert attendees (simulating what import would do)
     const attendees = [
       {
+        meeting_id: '123456',
         meeting_uuid: testMeetingUuid1,
+        topic: 'Morning Writing Session',
         name: 'Alice Writer',
         email: 'alice@example.com',
         join_time: '2099-11-15T09:00:00Z',
@@ -122,7 +45,9 @@ describe('Zoom Import Idempotency', () => {
         duration: 60,
       },
       {
+        meeting_id: '123456',
         meeting_uuid: testMeetingUuid1,
+        topic: 'Morning Writing Session',
         name: 'Bob Author',
         email: 'bob@example.com',
         join_time: '2099-11-15T09:05:00Z',
@@ -145,10 +70,12 @@ describe('Zoom Import Idempotency', () => {
   })
 
   it('should not create duplicate attendees when re-importing (idempotent)', async () => {
-    // ARRANGE: Re-insert same attendees
+    // ARRANGE: Re-insert same attendees (simulating re-import)
     const attendees = [
       {
+        meeting_id: '123456',
         meeting_uuid: testMeetingUuid1,
+        topic: 'Morning Writing Session',
         name: 'Alice Writer',
         email: 'alice@example.com',
         join_time: '2099-11-15T09:00:00Z',
@@ -156,7 +83,9 @@ describe('Zoom Import Idempotency', () => {
         duration: 60,
       },
       {
+        meeting_id: '123456',
         meeting_uuid: testMeetingUuid1,
+        topic: 'Morning Writing Session',
         name: 'Bob Author',
         email: 'bob@example.com',
         join_time: '2099-11-15T09:05:00Z',
@@ -165,117 +94,170 @@ describe('Zoom Import Idempotency', () => {
       },
     ]
 
-    // ACT: UPSERT attendees
-    // Note: The unique constraint might be on (meeting_uuid, email, join_time)
-    // or the table might have an id-based upsert
+    // ACT: UPSERT with unique constraint on (meeting_uuid, name, join_time)
     const { error } = await supabase
       .from('zoom_attendees')
-      .upsert(attendees)
+      .upsert(attendees, {
+        onConflict: 'meeting_uuid,name,join_time',
+        ignoreDuplicates: true,
+      })
 
-    // ASSERT: Should either succeed with no duplicates or fail gracefully
-    // Depending on table schema
-    if (error) {
-      // If there's no unique constraint, this is expected
-      // In that case, the import route should handle deduplication
-      expect(error.code).toBeTruthy()
-    } else {
-      // If UPSERT works, verify no duplicates
-      const { data: afterUpsert } = await supabase
-        .from('zoom_attendees')
-        .select('*')
-        .eq('meeting_uuid', testMeetingUuid1)
+    expect(error).toBeNull()
 
-      // Should still be 2 attendees (or possibly more if multiple join/leave)
-      // but not duplicates of the exact same record
-      expect(afterUpsert).toBeTruthy()
-    }
+    // ASSERT: Still only 2 attendees (no duplicates)
+    const { data: afterUpsert } = await supabase
+      .from('zoom_attendees')
+      .select('*')
+      .eq('meeting_uuid', testMeetingUuid1)
+
+    expect(afterUpsert).toHaveLength(2)
   })
 
-  it('should handle multiple import cycles without creating duplicate meetings', async () => {
-    // ARRANGE: Import the same meetings 5 times
-    const meetings = [
+  it('should handle same person rejoining (different join_time)', async () => {
+    // ARRANGE: Alice leaves and rejoins (different join_time)
+    const newJoin = {
+      meeting_id: '123456',
+      meeting_uuid: testMeetingUuid1,
+      topic: 'Morning Writing Session',
+      name: 'Alice Writer',
+      email: 'alice@example.com',
+      join_time: '2099-11-15T10:30:00Z', // Different join time
+      leave_time: '2099-11-15T11:00:00Z',
+      duration: 30,
+    }
+
+    // ACT: UPSERT
+    const { error } = await supabase
+      .from('zoom_attendees')
+      .upsert([newJoin], {
+        onConflict: 'meeting_uuid,name,join_time',
+        ignoreDuplicates: true,
+      })
+
+    expect(error).toBeNull()
+
+    // ASSERT: Now 3 records (Alice has 2, Bob has 1)
+    const { data: allAttendees } = await supabase
+      .from('zoom_attendees')
+      .select('*')
+      .eq('meeting_uuid', testMeetingUuid1)
+
+    expect(allAttendees).toHaveLength(3)
+
+    const aliceRecords = allAttendees?.filter(a => a.name === 'Alice Writer')
+    expect(aliceRecords).toHaveLength(2)
+  })
+
+  it('should handle multiple meetings (different meeting_uuid)', async () => {
+    // ARRANGE: Add attendees for second meeting
+    const meeting2Attendees = [
       {
-        uuid: testMeetingUuid1,
+        meeting_id: '789012',
+        meeting_uuid: testMeetingUuid2,
+        topic: 'Deep Work Session',
+        name: 'Alice Writer', // Same person, different meeting
+        email: 'alice@example.com',
+        join_time: '2099-11-15T14:00:00Z',
+        leave_time: '2099-11-15T16:00:00Z',
+        duration: 120,
+      },
+      {
+        meeting_id: '789012',
+        meeting_uuid: testMeetingUuid2,
+        topic: 'Deep Work Session',
+        name: 'Charlie Poet',
+        email: 'charlie@example.com',
+        join_time: '2099-11-15T14:00:00Z',
+        leave_time: '2099-11-15T16:00:00Z',
+        duration: 120,
+      },
+    ]
+
+    // ACT: UPSERT
+    const { error } = await supabase
+      .from('zoom_attendees')
+      .upsert(meeting2Attendees, {
+        onConflict: 'meeting_uuid,name,join_time',
+        ignoreDuplicates: true,
+      })
+
+    expect(error).toBeNull()
+
+    // ASSERT: Meeting 2 has 2 attendees
+    const { data: meeting2Data } = await supabase
+      .from('zoom_attendees')
+      .select('*')
+      .eq('meeting_uuid', testMeetingUuid2)
+
+    expect(meeting2Data).toHaveLength(2)
+  })
+
+  it('should handle multiple import cycles without creating duplicates', async () => {
+    // ARRANGE: Import the same attendees 5 times
+    const attendees = [
+      {
+        meeting_id: '123456',
+        meeting_uuid: testMeetingUuid1,
         topic: 'Morning Writing Session',
-        start_time: '2099-11-15T09:00:00Z',
-        end_time: '2099-11-15T10:00:00Z',
+        name: 'Alice Writer',
+        email: 'alice@example.com',
+        join_time: '2099-11-15T09:00:00Z',
+        leave_time: '2099-11-15T10:00:00Z',
         duration: 60,
       },
       {
-        uuid: testMeetingUuid2,
-        topic: 'Deep Work Session',
-        start_time: '2099-11-15T14:00:00Z',
-        end_time: '2099-11-15T16:00:00Z',
-        duration: 120,
+        meeting_id: '123456',
+        meeting_uuid: testMeetingUuid1,
+        topic: 'Morning Writing Session',
+        name: 'Bob Author',
+        email: 'bob@example.com',
+        join_time: '2099-11-15T09:05:00Z',
+        leave_time: '2099-11-15T09:55:00Z',
+        duration: 50,
       },
     ]
 
     // ACT: UPSERT 5 times
     for (let i = 0; i < 5; i++) {
       const { error } = await supabase
-        .from('zoom_meetings')
-        .upsert(meetings, {
-          onConflict: 'uuid',
+        .from('zoom_attendees')
+        .upsert(attendees, {
+          onConflict: 'meeting_uuid,name,join_time',
+          ignoreDuplicates: true,
         })
       expect(error).toBeNull()
     }
 
-    // ASSERT: Still only 2 meetings (completely idempotent)
+    // ASSERT: Still same number of attendees (completely idempotent)
     const { data: finalCheck } = await supabase
-      .from('zoom_meetings')
+      .from('zoom_attendees')
       .select('*')
-      .in('uuid', [testMeetingUuid1, testMeetingUuid2])
+      .in('meeting_uuid', [testMeetingUuid1, testMeetingUuid2])
 
-    expect(finalCheck).toHaveLength(2)
+    expect(finalCheck).toHaveLength(5) // 3 from meeting1 + 2 from meeting2
   })
 
-  it('should update meeting details when they change', async () => {
-    // ARRANGE: Same meeting with updated topic
-    const updatedMeeting = {
-      uuid: testMeetingUuid1,
-      topic: 'Morning Writing Session - UPDATED',
-      start_time: '2099-11-15T09:00:00Z',
-      end_time: '2099-11-15T10:00:00Z',
-      duration: 60,
-    }
-
-    // ACT: UPSERT with changed data
-    const { error } = await supabase
-      .from('zoom_meetings')
-      .upsert([updatedMeeting], {
-        onConflict: 'uuid',
-      })
-
-    expect(error).toBeNull()
-
-    // ASSERT: Meeting updated, not duplicated
-    const { data: afterUpdate } = await supabase
-      .from('zoom_meetings')
-      .select('*')
-      .eq('uuid', testMeetingUuid1)
-      .single()
-
-    expect(afterUpdate?.topic).toBe('Morning Writing Session - UPDATED')
-  })
-
-  it('should verify unique constraint on meeting uuid', async () => {
-    // ARRANGE: Try to INSERT (not UPSERT) duplicate uuid
+  it('should verify unique constraint on (meeting_uuid, name, join_time)', async () => {
+    // ARRANGE: Try to INSERT (not UPSERT) duplicate record
     const duplicate = {
-      uuid: testMeetingUuid1,
-      topic: 'Duplicate Meeting',
-      start_time: '2099-11-15T09:00:00Z',
-      end_time: '2099-11-15T10:00:00Z',
+      meeting_id: '123456',
+      meeting_uuid: testMeetingUuid1,
+      topic: 'Morning Writing Session',
+      name: 'Alice Writer',
+      email: 'alice@example.com',
+      join_time: '2099-11-15T09:00:00Z', // Same as first Alice record
+      leave_time: '2099-11-15T10:00:00Z',
       duration: 60,
     }
 
     // ACT: Regular INSERT should fail due to unique constraint
     const { error } = await supabase
-      .from('zoom_meetings')
+      .from('zoom_attendees')
       .insert([duplicate])
 
     // ASSERT: Should fail with duplicate key error
     expect(error).toBeTruthy()
     expect(error?.code).toBe('23505') // PostgreSQL duplicate key error
-    expect(error?.message).toContain('uuid')
+    expect(error?.message).toContain('idx_zoom_attendees_unique')
   })
 })

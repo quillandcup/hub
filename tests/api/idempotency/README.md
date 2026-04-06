@@ -31,19 +31,19 @@ npm test -- tests/api/idempotency/
 
 ### 2. Zoom Import (`/api/import/zoom`) - UPSERT Pattern
 
-**Pattern**: `UPSERT by meeting_uuid`
+**Pattern**: `UPSERT by (meeting_uuid, name, join_time)`
 
 **Behavior**:
-- First import creates meetings and attendees
+- First import creates zoom attendee records
 - Re-importing same data does NOT create duplicates
-- Changed meeting details are updated
-- New meetings are added
+- Same person can have multiple records if they rejoin (different join_time)
+- Different meetings tracked by meeting_uuid
 - Safe for scheduled imports
 
 **Tests verify**:
-- ✓ No duplicate meetings on re-import
-- ✓ Updates work correctly
-- ✓ Unique constraint prevents duplicates
+- ✓ No duplicate attendees on re-import
+- ✓ Same person rejoining creates separate record (different join_time)
+- ✓ Unique constraint prevents exact duplicates
 - ✓ Multiple import cycles are idempotent
 
 ### 3. Members Import (`/api/import/members`) - Append-Only Snapshots
