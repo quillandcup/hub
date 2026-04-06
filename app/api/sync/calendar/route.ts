@@ -124,11 +124,14 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Batch insert new events
+    // Batch insert new events (use UPSERT to handle race conditions)
     if (eventsToInsert.length > 0) {
       const { error: insertError } = await supabase
         .from("calendar_events")
-        .insert(eventsToInsert);
+        .upsert(eventsToInsert, {
+          onConflict: 'google_event_id',
+          ignoreDuplicates: false, // Update if exists
+        });
 
       if (insertError) {
         console.error("Error inserting calendar events:", insertError);
