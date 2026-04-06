@@ -118,7 +118,7 @@ export default function MemberImportForm() {
           <button
             type="button"
             onClick={handleProcess}
-            disabled={processLoading || !result}
+            disabled={processLoading}
             className="flex-1 px-6 py-3 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white font-semibold rounded-lg transition-colors"
           >
             {processLoading ? "Processing..." : "2. Process Members"}
