@@ -63,7 +63,9 @@ export default async function PrickleDetailPage({
     .order("join_time", { ascending: true });
 
   // Check host attendance status
-  const hostId = prickle.host?.id;
+  // Note: Supabase returns foreign key relationships as arrays or objects depending on the relationship
+  const host = Array.isArray(prickle.host) ? prickle.host[0] : prickle.host;
+  const hostId = host?.id;
   let hostMissing = false;
   let hostLate = false;
 
