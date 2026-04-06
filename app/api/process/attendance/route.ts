@@ -374,6 +374,7 @@ export async function POST(request: NextRequest) {
 
     // STEP 4: Assign attendees to segments and collect attendance records
     const attendanceToUpsert: any[] = [];
+    let segmentLookupFailures = 0;
 
     for (const [meetingUuid, attendees] of meetingsByUuid) {
       const segments = segmentsByMeeting.get(meetingUuid) || [];
@@ -449,7 +450,16 @@ export async function POST(request: NextRequest) {
         // Collect attendance records for batch upsert
         for (const item of filteredIntersections) {
           const prickleId = prickleIdsBySegment.get(item.segment);
-          if (!prickleId) continue;
+          if (!prickleId) {
+            segmentLookupFailures++;
+            console.error(`Failed to find prickle ID for segment:`, {
+              segmentType: item.segment.type,
+              segmentStart: item.segment.start_time,
+              segmentEnd: item.segment.end_time,
+              mapSize: prickleIdsBySegment.size,
+            });
+            continue;
+          }
 
           attendanceToUpsert.push({
             member_id: match.member_id,
@@ -462,22 +472,35 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // STEP 5: Batch upsert all attendance records
+    console.log(`Segment lookup failures: ${segmentLookupFailures}`);
+    console.log(`Collected ${attendanceToUpsert.length} attendance records to upsert`);
+
     if (attendanceToUpsert.length > 0) {
       const CHUNK_SIZE = 500;
       const chunks = chunk(attendanceToUpsert, CHUNK_SIZE);
+      console.log(`Upserting in ${chunks.length} chunks of ${CHUNK_SIZE}`);
 
       const results = await Promise.all(
-        chunks.map((batch) =>
+        chunks.map((batch, i) =>
           supabase.from("attendance").upsert(batch, {
             onConflict: "member_id,prickle_id",
+          }).then(result => {
+            if (result.error) {
+              console.error(`Error upserting chunk ${i}:`, result.error);
+            }
+            return result;
           })
         )
       );
 
-      attendanceRecords = results.filter((r) => !r.error).reduce((sum, r, i) => {
-        return sum + (chunks[i]?.length || 0);
-      }, 0);
+      // Count successful upserts
+      results.forEach((result, i) => {
+        if (!result.error) {
+          attendanceRecords += chunks[i].length;
+        }
+      });
+
+      console.log(`Successfully upserted ${attendanceRecords} attendance records`);
     }
 
     return NextResponse.json({
