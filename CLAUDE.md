@@ -173,23 +173,38 @@ await supabase.from("silver_table").upsert(silverData, { onConflict: "id" });
 Bronze imports use UPSERT or timestamp-based append for idempotency:
 
 ```typescript
-// Calendar sync: UPSERT by google_event_id
+// ✅ Calendar sync: UPSERT by google_event_id
 await supabase.from("calendar_events").upsert(events, { 
   onConflict: "google_event_id" 
 });
 
-// Members import: Append with imported_at timestamp
+// ✅ Zoom import: UPSERT by meeting_uuid
+await supabase.from("zoom_meetings").upsert(meetings, {
+  onConflict: "uuid"
+});
+
+// ✅ Members import: Append with imported_at timestamp (snapshots)
 await supabase.from("kajabi_members").insert({ 
   ...memberData, 
   imported_at: new Date() 
 });
+// Processing uses latest snapshot, making it idempotent at processing level
 ```
 
 **Testing Requirements**:
 
-Every Silver processing route MUST have tests verifying:
+Every Silver processing route MUST have reprocessability tests verifying:
 1. Initial processing creates records
 2. Reprocessing with deleted source data removes Silver records
 3. Reprocessing with changed source data updates Silver records
+4. DELETE + INSERT pattern (not UPSERT) - orphan detection
 
 See: `tests/api/reprocessability/`
+
+Every Bronze import route MUST have idempotency tests verifying:
+1. First import creates records
+2. Re-importing same data does NOT create duplicates
+3. Re-importing with changed data updates correctly (UPSERT) or creates new snapshots (append-only)
+4. Multiple import cycles are safe
+
+See: `tests/api/idempotency/`
