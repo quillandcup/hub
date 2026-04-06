@@ -56,20 +56,39 @@ export async function POST(request: NextRequest) {
 
     console.log(`Processing calendar events from ${fromDate} to ${toDate}`);
 
-    // STEP 1: Load all reference data in parallel
+    // STEP 1a: Fetch all calendar events with pagination (Supabase default limit is 1000)
+    const FETCH_BATCH_SIZE = 1000;
+    let allEvents: any[] = [];
+    let offset = 0;
+    let hasMore = true;
+
+    while (hasMore) {
+      const { data: batch, error: fetchError } = await supabase
+        .from("calendar_events")
+        .select("*")
+        .gte("start_time", fromDate)
+        .lte("end_time", toDate)
+        .order("start_time")
+        .range(offset, offset + FETCH_BATCH_SIZE - 1);
+
+      if (fetchError) throw fetchError;
+
+      if (batch && batch.length > 0) {
+        allEvents = allEvents.concat(batch);
+        offset += batch.length;
+        hasMore = batch.length === FETCH_BATCH_SIZE;
+      } else {
+        hasMore = false;
+      }
+    }
+
+    // STEP 1b: Load all reference data in parallel
     const [
-      { data: allEvents },
       { data: members },
       { data: aliases },
       { data: prickleTypes },
       { data: existingPrickles },
     ] = await Promise.all([
-      supabase
-        .from("calendar_events")
-        .select("*")
-        .gte("start_time", fromDate)
-        .lte("end_time", toDate)
-        .order("start_time"),
       supabase.from("members").select("id, name, email"),
       supabase.from("member_name_aliases").select("alias, member_id"),
       supabase.from("prickle_types").select("id, name"),
