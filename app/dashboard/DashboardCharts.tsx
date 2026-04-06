@@ -114,7 +114,10 @@ export default function DashboardCharts({ weeklyAttendance, dailyHours }: Dashbo
             <YAxis className="text-xs fill-slate-600 dark:fill-slate-400" />
             <Tooltip
               labelFormatter={formatDateLabel}
-              formatter={(value: number) => [`${value.toFixed(1)} hrs`, "Writing Time"]}
+              formatter={(value) => {
+                const numValue = typeof value === 'number' ? value : 0;
+                return [`${numValue.toFixed(1)} hrs`, "Writing Time"];
+              }}
               contentStyle={{
                 backgroundColor: 'var(--tooltip-bg, #1e293b)',
                 border: 'none',
