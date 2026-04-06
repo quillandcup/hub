@@ -1,18 +1,35 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
-import { parsePrickleFromSummary, matchPrickleType } from "@/lib/prickle-types";
+import { parsePrickleFromSummary } from "@/lib/prickle-types";
 
 // Extend timeout for processing large batches of events
-export const maxDuration = 60; // 60 seconds (max for Hobby tier)
+export const maxDuration = 300; // 5 minutes
+
+// Helper to normalize name (simplified version of DB function)
+function normalizeName(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+// Helper to chunk array for batch processing
+function chunk<T>(array: T[], size: number): T[][] {
+  const chunks: T[][] = [];
+  for (let i = 0; i < array.length; i += size) {
+    chunks.push(array.slice(i, i + size));
+  }
+  return chunks;
+}
 
 /**
  * Process Bronze layer (calendar_events) into Silver layer (prickles)
  *
  * This endpoint:
- * 1. Reads calendar_events (Bronze - raw Google Calendar data)
- * 2. Parses prickle type and host from summary
- * 3. Matches to prickle_types or queues for admin review
- * 4. Upserts into prickles (Silver - canonical events)
+ * 1. Loads all reference data upfront (members, aliases, prickle_types, existing prickles)
+ * 2. Processes events in memory to determine actions
+ * 3. Batches database writes for performance
  */
 export async function POST(request: NextRequest) {
   const supabase = await createClient();
@@ -37,33 +54,34 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get calendar events from Bronze layer with pagination
-    const BATCH_SIZE = 1000;
-    let allEvents: any[] = [];
-    let offset = 0;
-    let hasMore = true;
+    console.log(`Processing calendar events from ${fromDate} to ${toDate}`);
 
-    while (hasMore) {
-      const { data: batch, error: fetchError } = await supabase
+    // STEP 1: Load all reference data in parallel
+    const [
+      { data: allEvents },
+      { data: members },
+      { data: aliases },
+      { data: prickleTypes },
+      { data: existingPrickles },
+    ] = await Promise.all([
+      supabase
         .from("calendar_events")
         .select("*")
         .gte("start_time", fromDate)
         .lte("end_time", toDate)
-        .order("start_time")
-        .range(offset, offset + BATCH_SIZE - 1);
+        .order("start_time"),
+      supabase.from("members").select("id, name, email"),
+      supabase.from("member_name_aliases").select("alias, member_id"),
+      supabase.from("prickle_types").select("id, name"),
+      supabase
+        .from("prickles")
+        .select("id, start_time, end_time, host, type_id")
+        .eq("source", "calendar")
+        .gte("start_time", fromDate)
+        .lte("end_time", toDate),
+    ]);
 
-      if (fetchError) throw fetchError;
-
-      if (batch && batch.length > 0) {
-        allEvents = allEvents.concat(batch);
-        offset += batch.length;
-        hasMore = batch.length === BATCH_SIZE;
-      } else {
-        hasMore = false;
-      }
-    }
-
-    if (allEvents.length === 0) {
+    if (!allEvents || allEvents.length === 0) {
       return NextResponse.json({
         success: true,
         message: "No calendar events found in date range",
@@ -71,12 +89,32 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    let created = 0;
-    let updated = 0;
-    let skipped = 0;
-    let queuedForReview = 0;
+    console.log(`Loaded ${allEvents.length} events, ${members?.length || 0} members, ${prickleTypes?.length || 0} types`);
 
-    // Process each calendar event into a prickle
+    // Build lookup maps for fast matching
+    const membersByEmail = new Map(
+      members?.map((m) => [m.email.toLowerCase(), m]) || []
+    );
+    const membersByNormalizedName = new Map(
+      members?.map((m) => [normalizeName(m.name), m]) || []
+    );
+    const aliasToMemberId = new Map(
+      aliases?.map((a) => [a.alias, a.member_id]) || []
+    );
+    const typeByName = new Map(
+      prickleTypes?.map((t) => [t.name.toLowerCase(), t.id]) || []
+    );
+    const existingPrickleKey = (start: string, end: string) => `${start}|${end}`;
+    const existingPricklesMap = new Map(
+      existingPrickles?.map((p) => [existingPrickleKey(p.start_time, p.end_time), p]) || []
+    );
+
+    // STEP 2: Process events in memory
+    const pricklesToInsert: any[] = [];
+    const pricklesToUpdate: any[] = [];
+    const unmatchedEvents: any[] = [];
+    let skipped = 0;
+
     for (const event of allEvents) {
       if (!event.summary) {
         skipped++;
@@ -86,123 +124,159 @@ export async function POST(request: NextRequest) {
       // Parse prickle type and host from summary
       const { type: rawType, host: extractedHostName } = parsePrickleFromSummary(event.summary);
 
+      // Match host to member ID
       let hostId: string | null = null;
       let suggestedHostName = event.creator_name || event.organizer_name || null;
 
-      // Try to match host to a member ID
       const hostNameToMatch = extractedHostName || event.organizer_name || event.creator_name;
+      const hostEmailToMatch = event.organizer_email || event.creator_email;
 
       if (hostNameToMatch) {
-        const emailToMatch = event.organizer_email || event.creator_email || null;
-
-        const { data: matchResult } = await supabase.rpc("match_member_by_name", {
-          zoom_name: hostNameToMatch,
-          zoom_email: emailToMatch,
-        });
-
-        const match = matchResult && matchResult.length > 0 ? matchResult[0] : null;
-
-        if (match) {
-          hostId = match.member_id;
-
-          // Get canonical member name for suggested_host
-          const { data: member } = await supabase
-            .from("members")
-            .select("name")
-            .eq("id", match.member_id)
-            .single();
-
+        // Try email match first
+        if (hostEmailToMatch) {
+          const member = membersByEmail.get(hostEmailToMatch.toLowerCase());
           if (member) {
+            hostId = member.id;
+            suggestedHostName = member.name;
+          }
+        }
+
+        // Try alias match
+        if (!hostId && aliasToMemberId.has(hostNameToMatch)) {
+          const memberId = aliasToMemberId.get(hostNameToMatch)!;
+          const member = members?.find((m) => m.id === memberId);
+          if (member) {
+            hostId = member.id;
+            suggestedHostName = member.name;
+          }
+        }
+
+        // Try normalized name match
+        if (!hostId) {
+          const normalized = normalizeName(hostNameToMatch);
+          const member = membersByNormalizedName.get(normalized);
+          if (member) {
+            hostId = member.id;
             suggestedHostName = member.name;
           }
         }
       }
 
-      // Match to prickle type (only queue if we have no type at all)
+      // Match to prickle type
       if (!rawType) {
         // No type could be extracted - queue for admin review
-        await supabase
-          .from("unmatched_calendar_events")
-          .upsert({
-            calendar_event_id: event.id,
-            raw_summary: event.summary,
-            suggested_type: null,
-            suggested_host: suggestedHostName,
-            status: "pending",
-          }, {
-            onConflict: "calendar_event_id",
-          });
-        queuedForReview++;
+        unmatchedEvents.push({
+          calendar_event_id: event.id,
+          raw_summary: event.summary,
+          suggested_type: null,
+          suggested_host: suggestedHostName,
+          status: "pending",
+        });
         continue;
       }
 
-      const typeId = await matchPrickleType(supabase, rawType);
+      const typeId = typeByName.get(rawType.toLowerCase());
 
       if (!typeId) {
         // Type extracted but not in prickle_types table - queue for admin review
-        await supabase
-          .from("unmatched_calendar_events")
-          .upsert({
-            calendar_event_id: event.id,
-            raw_summary: event.summary,
-            suggested_type: rawType,
-            suggested_host: suggestedHostName,
-            status: "pending",
-          }, {
-            onConflict: "calendar_event_id",
-          });
-        queuedForReview++;
+        unmatchedEvents.push({
+          calendar_event_id: event.id,
+          raw_summary: event.summary,
+          suggested_type: rawType,
+          suggested_host: suggestedHostName,
+          status: "pending",
+        });
         continue;
       }
 
       // Check if prickle already exists
-      const { data: existingPrickle } = await supabase
-        .from("prickles")
-        .select("id, host, type_id")
-        .eq("start_time", event.start_time)
-        .eq("end_time", event.end_time)
-        .eq("source", "calendar")
-        .single();
+      const key = existingPrickleKey(event.start_time, event.end_time);
+      const existingPrickle = existingPricklesMap.get(key);
 
       if (existingPrickle) {
         // Update if host or type changed
         if (existingPrickle.host !== hostId || existingPrickle.type_id !== typeId) {
-          const { error: updateError } = await supabase
-            .from("prickles")
-            .update({ host: hostId, type_id: typeId })
-            .eq("id", existingPrickle.id);
-
-          if (updateError) {
-            console.error("Error updating prickle:", updateError);
-            skipped++;
-            continue;
-          }
-          updated++;
+          pricklesToUpdate.push({
+            id: existingPrickle.id,
+            host: hostId,
+            type_id: typeId,
+          });
         } else {
           skipped++;
         }
-        continue;
-      }
-
-      // Create new prickle
-      const { error: insertError } = await supabase
-        .from("prickles")
-        .insert({
+      } else {
+        // Create new prickle
+        pricklesToInsert.push({
           type_id: typeId,
           host: hostId,
           start_time: event.start_time,
           end_time: event.end_time,
           source: "calendar",
         });
-
-      if (insertError) {
-        console.error("Error creating prickle:", insertError);
-        skipped++;
-        continue;
       }
-
-      created++;
     }
+
+    console.log(`Actions: insert ${pricklesToInsert.length}, update ${pricklesToUpdate.length}, unmatched ${unmatchedEvents.length}, skipped ${skipped}`);
+
+    // STEP 3: Batch database writes in parallel
+    const CHUNK_SIZE = 100;
+    let created = 0;
+    let updated = 0;
+    let queuedForReview = 0;
+
+    // Insert prickles in batches
+    if (pricklesToInsert.length > 0) {
+      const insertChunks = chunk(pricklesToInsert, CHUNK_SIZE);
+      const insertResults = await Promise.all(
+        insertChunks.map((batch) =>
+          supabase.from("prickles").insert(batch)
+        )
+      );
+      created = insertResults.filter((r) => !r.error).length * CHUNK_SIZE;
+      // Adjust for last chunk
+      const lastChunkResult = insertResults[insertResults.length - 1];
+      if (!lastChunkResult.error) {
+        created = created - CHUNK_SIZE + (pricklesToInsert.length % CHUNK_SIZE || CHUNK_SIZE);
+      }
+    }
+
+    // Update prickles in batches (need individual updates due to unique IDs)
+    if (pricklesToUpdate.length > 0) {
+      const updateChunks = chunk(pricklesToUpdate, CHUNK_SIZE);
+      const updateResults = await Promise.all(
+        updateChunks.map((batch) =>
+          Promise.all(
+            batch.map((p) =>
+              supabase
+                .from("prickles")
+                .update({ host: p.host, type_id: p.type_id })
+                .eq("id", p.id)
+            )
+          )
+        )
+      );
+      updated = updateResults.flat().filter((r) => !r.error).length;
+    }
+
+    // Queue unmatched events in batches
+    if (unmatchedEvents.length > 0) {
+      const unmatchedChunks = chunk(unmatchedEvents, CHUNK_SIZE);
+      const unmatchedResults = await Promise.all(
+        unmatchedChunks.map((batch) =>
+          supabase.from("unmatched_calendar_events").upsert(batch, {
+            onConflict: "calendar_event_id",
+          })
+        )
+      );
+      queuedForReview = unmatchedResults.filter((r) => !r.error).length * CHUNK_SIZE;
+      // Adjust for last chunk
+      const lastChunkResult = unmatchedResults[unmatchedResults.length - 1];
+      if (!lastChunkResult.error) {
+        queuedForReview = queuedForReview - CHUNK_SIZE + (unmatchedEvents.length % CHUNK_SIZE || CHUNK_SIZE);
+      }
+    }
+
+    console.log(`Completed: created ${created}, updated ${updated}, queued ${queuedForReview}`);
 
     return NextResponse.json({
       success: true,
