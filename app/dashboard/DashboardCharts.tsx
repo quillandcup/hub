@@ -45,13 +45,15 @@ function InfoTooltip({ text }: { text: string }) {
 
 export default function DashboardCharts({ weeklyAttendance, dailyHours }: DashboardChartsProps) {
   // Format week label to be more readable
-  const formatWeekLabel = (weekStr: string) => {
+  const formatWeekLabel = (weekStr: unknown) => {
+    if (typeof weekStr !== 'string') return '';
     const date = new Date(weekStr);
     return `${date.getMonth() + 1}/${date.getDate()}`;
   };
 
   // Format date label for daily chart
-  const formatDateLabel = (dateStr: string) => {
+  const formatDateLabel = (dateStr: unknown) => {
+    if (typeof dateStr !== 'string') return '';
     const date = new Date(dateStr);
     return `${date.getMonth() + 1}/${date.getDate()}`;
   };
