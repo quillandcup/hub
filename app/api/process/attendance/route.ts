@@ -2,7 +2,25 @@ import { createClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 
 // Extend timeout for processing large batches of attendance records
-export const maxDuration = 60; // 60 seconds (max for Hobby tier)
+export const maxDuration = 300; // 5 minutes
+
+// Helper to normalize name for matching
+function normalizeName(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+// Helper to chunk array for batch processing
+function chunk<T>(array: T[], size: number): T[][] {
+  const chunks: T[][] = [];
+  for (let i = 0; i < array.length; i += size) {
+    chunks.push(array.slice(i, i + size));
+  }
+  return chunks;
+}
 
 /**
  * Find all calendar prickles that overlap with a time range
@@ -222,6 +240,58 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Load reference data upfront for in-memory matching (performance optimization)
+    const [{ data: allPrickles }, { data: members }, { data: aliases }] = await Promise.all([
+      supabase
+        .from("prickles")
+        .select("id, start_time, end_time, type_id")
+        .eq("source", "calendar")
+        .gte("start_time", fromDate)
+        .lte("end_time", toDate),
+      supabase.from("members").select("id, name, email"),
+      supabase.from("member_name_aliases").select("alias, member_id"),
+    ]);
+
+    // Build lookup maps for fast in-memory matching
+    const membersByEmail = new Map(
+      members?.map((m) => [m.email.toLowerCase(), m]) || []
+    );
+    const membersByNormalizedName = new Map(
+      members?.map((m) => [normalizeName(m.name), m]) || []
+    );
+    const aliasToMember = new Map<string, any>();
+    aliases?.forEach((a) => {
+      const member = members?.find((m) => m.id === a.member_id);
+      if (member) aliasToMember.set(a.alias, member);
+    });
+
+    // Helper to match attendee to member in memory
+    function matchAttendeeToMember(name: string, email: string | null): { member_id: string; confidence: string } | null {
+      // Try email match first
+      if (email) {
+        const member = membersByEmail.get(email.toLowerCase());
+        if (member) return { member_id: member.id, confidence: "high" };
+      }
+
+      // Try alias match
+      if (aliasToMember.has(name)) {
+        const member = aliasToMember.get(name)!;
+        return { member_id: member.id, confidence: "high" };
+      }
+
+      // Try normalized name match
+      const normalized = normalizeName(name);
+      const member = membersByNormalizedName.get(normalized);
+      if (member) return { member_id: member.id, confidence: "high" };
+
+      return null;
+    }
+
+    // Helper to find overlapping prickles in memory
+    function findOverlappingPricklesInMemory(start: string, end: string): any[] {
+      return (allPrickles || []).filter((p) => p.start_time < end && p.end_time > start);
+    }
+
     // Track stats
     let attendanceRecords = 0;
     let matchedAttendees = 0;
@@ -249,9 +319,8 @@ export async function POST(request: NextRequest) {
       const meetingStart = new Date(Math.min(...joinTimes.map(d => d.getTime())));
       const meetingEnd = new Date(Math.max(...leaveTimes.map(d => d.getTime())));
 
-      // Find overlapping scheduled prickles
-      const scheduledPrickles = await findOverlappingPrickles(
-        supabase,
+      // Find overlapping scheduled prickles (in memory for performance)
+      const scheduledPrickles = findOverlappingPricklesInMemory(
         meetingStart.toISOString(),
         meetingEnd.toISOString()
       );
@@ -303,18 +372,15 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // STEP 4: Assign attendees to segments and create attendance records
+    // STEP 4: Assign attendees to segments and collect attendance records
+    const attendanceToUpsert: any[] = [];
+
     for (const [meetingUuid, attendees] of meetingsByUuid) {
       const segments = segmentsByMeeting.get(meetingUuid) || [];
 
       for (const attendee of attendees) {
-        // Match attendee to member
-        const { data: matchResult } = await supabase.rpc("match_member_by_name", {
-          zoom_name: attendee.name,
-          zoom_email: attendee.email,
-        });
-
-        const match = matchResult && matchResult.length > 0 ? matchResult[0] : null;
+        // Match attendee to member (in memory for performance)
+        const match = matchAttendeeToMember(attendee.name, attendee.email);
 
         if (!match) {
           skippedUnmatched++;
@@ -380,31 +446,38 @@ export async function POST(request: NextRequest) {
           return true;
         });
 
-        // Create attendance records
+        // Collect attendance records for batch upsert
         for (const item of filteredIntersections) {
           const prickleId = prickleIdsBySegment.get(item.segment);
           if (!prickleId) continue;
 
-          const { error: attendanceError } = await supabase
-            .from("attendance")
-            .upsert({
-              member_id: match.member_id,
-              prickle_id: prickleId,
-              join_time: item.intersection.start.toISOString(),
-              leave_time: item.intersection.end.toISOString(),
-              confidence_score: match.confidence,
-            }, {
-              onConflict: "member_id,prickle_id",
-            });
-
-          if (attendanceError) {
-            console.error("Error creating attendance:", attendanceError);
-            continue;
-          }
-
-          attendanceRecords++;
+          attendanceToUpsert.push({
+            member_id: match.member_id,
+            prickle_id: prickleId,
+            join_time: item.intersection.start.toISOString(),
+            leave_time: item.intersection.end.toISOString(),
+            confidence_score: match.confidence,
+          });
         }
       }
+    }
+
+    // STEP 5: Batch upsert all attendance records
+    if (attendanceToUpsert.length > 0) {
+      const CHUNK_SIZE = 500;
+      const chunks = chunk(attendanceToUpsert, CHUNK_SIZE);
+
+      const results = await Promise.all(
+        chunks.map((batch) =>
+          supabase.from("attendance").upsert(batch, {
+            onConflict: "member_id,prickle_id",
+          })
+        )
+      );
+
+      attendanceRecords = results.filter((r) => !r.error).reduce((sum, r, i) => {
+        return sum + (chunks[i]?.length || 0);
+      }, 0);
     }
 
     return NextResponse.json({
