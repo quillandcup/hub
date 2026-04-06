@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
-import { getTestSupabaseAdminClient } from '../../helpers/supabase'
+import { getTestSupabaseAdminClient, getTestAuthHeaders } from '../../helpers/supabase'
 
 /**
  * Test to verify /api/process/members is fully reprocessable
@@ -55,11 +55,22 @@ describe('Members Reprocessability', () => {
       },
     ]
 
-    await supabase.from('kajabi_members').insert(bronzeData)
+    const { error: insertError } = await supabase.from('kajabi_members').insert(bronzeData)
+    expect(insertError).toBeNull()
+
+    // Verify data was inserted
+    const { data: verifyData, error: verifyError } = await supabase
+      .from('kajabi_members')
+      .select('*')
+      .in('email', [testEmail1, testEmail2])
+
+    expect(verifyError).toBeNull()
+    expect(verifyData).toHaveLength(2)
 
     // ACT: Process members
     const response = await fetch('http://localhost:3000/api/process/members', {
       method: 'POST',
+      headers: getTestAuthHeaders(),
     })
 
     if (!response.ok) {
@@ -103,7 +114,14 @@ describe('Members Reprocessability', () => {
     // ACT: Reprocess members
     const response = await fetch('http://localhost:3000/api/process/members', {
       method: 'POST',
+      headers: getTestAuthHeaders(),
     })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      throw new Error(`API call failed: ${response.status} - ${errorText}`)
+    }
+
     const result = await response.json()
 
     // ASSERT: Deleted member removed, new member added
@@ -141,7 +159,14 @@ describe('Members Reprocessability', () => {
     // ACT: Reprocess
     const response = await fetch('http://localhost:3000/api/process/members', {
       method: 'POST',
+      headers: getTestAuthHeaders(),
     })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      throw new Error(`API call failed: ${response.status} - ${errorText}`)
+    }
+
     const result = await response.json()
 
     // ASSERT: Member status updated to inactive
@@ -180,7 +205,14 @@ describe('Members Reprocessability', () => {
     // ACT: Process members (should DELETE all, then INSERT from Bronze)
     const response = await fetch('http://localhost:3000/api/process/members', {
       method: 'POST',
+      headers: getTestAuthHeaders(),
     })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      throw new Error(`API call failed: ${response.status} - ${errorText}`)
+    }
+
     const result = await response.json()
 
     expect(result.success).toBe(true)

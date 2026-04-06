@@ -169,15 +169,32 @@ function timeIntersection(
  * 6. Inserts attendance records (Silver - inferred data)
  */
 export async function POST(request: NextRequest) {
-  const supabase = await createClient();
+  // Check authentication (supports both cookie-based and service role key)
+  const authHeader = request.headers.get('authorization');
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const isServiceRole = authHeader && serviceRoleKey && authHeader.includes(serviceRoleKey);
 
-  // Check authentication
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  let supabase;
 
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (isServiceRole) {
+    // Use service role client for tests
+    const { createClient: createSupabaseClient } = await import('@supabase/supabase-js');
+    supabase = createSupabaseClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      serviceRoleKey,
+      { auth: { autoRefreshToken: false, persistSession: false } }
+    );
+  } else {
+    // Use cookie-based client for normal requests
+    supabase = await createClient();
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
   }
 
   try {

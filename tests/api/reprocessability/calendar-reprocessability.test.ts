@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
-import { getTestSupabaseAdminClient } from '../../helpers/supabase'
+import { getTestSupabaseAdminClient, getTestAuthHeaders } from '../../helpers/supabase'
 
 /**
  * Test to verify /api/process/calendar is fully reprocessable
@@ -86,7 +86,7 @@ describe('Calendar Reprocessability', () => {
     // ACT: Process calendar
     const response = await fetch('http://localhost:3000/api/process/calendar', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...getTestAuthHeaders() },
       body: JSON.stringify({
         fromDate: testDateRange.from,
         toDate: testDateRange.to,
@@ -119,7 +119,7 @@ describe('Calendar Reprocessability', () => {
     // ACT: Reprocess calendar
     const response = await fetch('http://localhost:3000/api/process/calendar', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...getTestAuthHeaders() },
       body: JSON.stringify({
         fromDate: testDateRange.from,
         toDate: testDateRange.to,
@@ -157,7 +157,7 @@ describe('Calendar Reprocessability', () => {
     // ACT: Reprocess
     const response = await fetch('http://localhost:3000/api/process/calendar', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...getTestAuthHeaders() },
       body: JSON.stringify({
         fromDate: testDateRange.from,
         toDate: testDateRange.to,
@@ -209,7 +209,7 @@ describe('Calendar Reprocessability', () => {
     // ACT: Process calendar (should DELETE all in range, then INSERT from Bronze)
     const response = await fetch('http://localhost:3000/api/process/calendar', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...getTestAuthHeaders() },
       body: JSON.stringify({
         fromDate: testDateRange.from,
         toDate: testDateRange.to,
@@ -245,7 +245,7 @@ describe('Calendar Reprocessability', () => {
     // ACT: Process June only
     const response = await fetch('http://localhost:3000/api/process/calendar', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...getTestAuthHeaders() },
       body: JSON.stringify({
         fromDate: testDateRange.from,
         toDate: testDateRange.to,

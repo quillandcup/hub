@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
-import { getTestSupabaseAdminClient } from '../../helpers/supabase'
+import { getTestSupabaseAdminClient, getTestAuthHeaders } from '../../helpers/supabase'
 
 /**
  * Test to verify /api/process/attendance is fully reprocessable
@@ -104,7 +104,7 @@ describe('Attendance Reprocessability', () => {
     // ACT: Process attendance
     const response = await fetch('http://localhost:3000/api/process/attendance', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...getTestAuthHeaders() },
       body: JSON.stringify({
         fromDate: testDateRange.from,
         toDate: testDateRange.to,
@@ -136,7 +136,7 @@ describe('Attendance Reprocessability', () => {
     // ACT: Reprocess
     const response = await fetch('http://localhost:3000/api/process/attendance', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...getTestAuthHeaders() },
       body: JSON.stringify({
         fromDate: testDateRange.from,
         toDate: testDateRange.to,
@@ -180,7 +180,7 @@ describe('Attendance Reprocessability', () => {
     // Process to create PUP
     await fetch('http://localhost:3000/api/process/attendance', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...getTestAuthHeaders() },
       body: JSON.stringify({
         fromDate: testDateRange.from,
         toDate: testDateRange.to,
@@ -204,7 +204,7 @@ describe('Attendance Reprocessability', () => {
     // ACT: Reprocess
     const response = await fetch('http://localhost:3000/api/process/attendance', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...getTestAuthHeaders() },
       body: JSON.stringify({
         fromDate: testDateRange.from,
         toDate: testDateRange.to,
@@ -250,7 +250,7 @@ describe('Attendance Reprocessability', () => {
     // ACT: Process attendance (should DELETE all in range, then INSERT from Bronze)
     const response = await fetch('http://localhost:3000/api/process/attendance', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...getTestAuthHeaders() },
       body: JSON.stringify({
         fromDate: testDateRange.from,
         toDate: testDateRange.to,
@@ -295,7 +295,7 @@ describe('Attendance Reprocessability', () => {
     // Process June data
     await fetch('http://localhost:3000/api/process/attendance', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...getTestAuthHeaders() },
       body: JSON.stringify({
         fromDate: '2099-06-01',
         toDate: '2099-06-30',
@@ -305,7 +305,7 @@ describe('Attendance Reprocessability', () => {
     // ACT: Process May only
     const response = await fetch('http://localhost:3000/api/process/attendance', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...getTestAuthHeaders() },
       body: JSON.stringify({
         fromDate: testDateRange.from,
         toDate: testDateRange.to,

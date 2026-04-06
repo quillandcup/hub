@@ -23,3 +23,19 @@ export function getTestSupabaseAdminClient() {
     }
   })
 }
+
+/**
+ * Get auth headers for API route testing
+ *
+ * Uses service role key to bypass auth checks in integration tests.
+ * The service role key is passed in the Authorization header, and Next.js
+ * routes will recognize it via the Supabase client.
+ */
+export function getTestAuthHeaders() {
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU'
+
+  return {
+    'Authorization': `Bearer ${supabaseServiceKey}`,
+    'apikey': supabaseServiceKey,
+  }
+}
