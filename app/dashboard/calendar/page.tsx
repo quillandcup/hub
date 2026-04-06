@@ -149,7 +149,14 @@ export default async function CalendarPage({
           </div>
         </div>
       </div>
-      <CalendarWeekView prickles={pricklesWithCount} weekStartISO={weekStart.toISOString()} />
+      <CalendarWeekView
+        prickles={pricklesWithCount}
+        weekStartDate={{
+          year: weekStart.getFullYear(),
+          month: weekStart.getMonth(),
+          day: weekStart.getDate()
+        }}
+      />
     </div>
   );
 }
