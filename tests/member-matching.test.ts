@@ -1,15 +1,15 @@
 import { describe, it, expect, beforeAll, afterEach, afterAll } from 'vitest'
-import { getTestSupabaseClient, getTestSupabaseAdminClient } from './helpers/supabase'
+import { getTestSupabaseAdminClient } from './helpers/supabase'
+import { matchAttendeeToMember, normalizeName, type Member, type MemberAlias, type MatchResult } from '../lib/member-matching'
 
-interface MatchResult {
-  member_id: string
-  confidence: 'high' | 'medium' | 'low'
-  match_type: 'email' | 'alias' | 'normalized' | 'fuzzy'
-}
-
-describe('match_member_by_name function', () => {
-  const supabase = getTestSupabaseClient() // For RPC calls
-  const adminClient = getTestSupabaseAdminClient() // For data setup/teardown
+/**
+ * Tests for centralized member matching library
+ *
+ * NOTE: These tests were migrated from the old database function approach.
+ * Fuzzy matching tests were removed as that feature is not in the new implementation.
+ */
+describe('member matching library', () => {
+  const adminClient = getTestSupabaseAdminClient()
   let testMemberId: string
   let testMemberEmail: string
   const testEmail = 'test.member@example.com'
@@ -48,18 +48,47 @@ describe('match_member_by_name function', () => {
     await adminClient.from('members').delete().eq('id', testMemberId)
   })
 
+  /**
+   * Helper to load members and aliases from DB and call matching function
+   */
   async function matchMember(
     zoom_name: string,
     zoom_email: string | null = null
   ): Promise<MatchResult | null> {
-    const { data, error } = await supabase.rpc('match_member_by_name', {
+    // Load members and aliases from database
+    const { data: members } = await adminClient
+      .from('members')
+      .select('id, name, email')
+
+    const { data: aliases } = await adminClient
+      .from('member_name_aliases')
+      .select('member_id, alias')
+
+    return matchAttendeeToMember(
       zoom_name,
       zoom_email,
+      members as Member[] || [],
+      aliases as MemberAlias[] || []
+    )
+  }
+
+  describe('normalizeName function', () => {
+    it('should convert to lowercase', () => {
+      expect(normalizeName('TEST MEMBER')).toBe('test member')
     })
 
-    if (error) throw error
-    return data && data.length > 0 ? data[0] : null
-  }
+    it('should remove punctuation', () => {
+      expect(normalizeName("O'Brien")).toBe('obrien')
+    })
+
+    it('should collapse multiple spaces', () => {
+      expect(normalizeName('Test   Member')).toBe('test member')
+    })
+
+    it('should trim whitespace', () => {
+      expect(normalizeName('  Test Member  ')).toBe('test member')
+    })
+  })
 
   describe('email matching', () => {
     it('should match by exact email (high confidence)', async () => {
@@ -68,7 +97,7 @@ describe('match_member_by_name function', () => {
       expect(result).not.toBeNull()
       expect(result?.member_id).toBe(testMemberId)
       expect(result?.confidence).toBe('high')
-      expect(result?.match_type).toBe('email')
+      expect(result?.method).toBe('email')
     })
 
     it('should match by email regardless of case', async () => {
@@ -76,20 +105,20 @@ describe('match_member_by_name function', () => {
 
       expect(result).not.toBeNull()
       expect(result?.member_id).toBe(testMemberId)
-      expect(result?.match_type).toBe('email')
+      expect(result?.method).toBe('email')
     })
 
     it('should prioritize email match over name match', async () => {
       const result = await matchMember('Test Member', testMemberEmail)
 
-      expect(result?.match_type).toBe('email')
+      expect(result?.method).toBe('email')
     })
 
     it('should not match invalid email', async () => {
       const result = await matchMember('Test Member', 'nonexistent@example.com')
 
       // Should fall through to normalized name match
-      expect(result?.match_type).not.toBe('email')
+      expect(result?.method).not.toBe('email')
     })
   })
 
@@ -106,7 +135,7 @@ describe('match_member_by_name function', () => {
       expect(result).not.toBeNull()
       expect(result?.member_id).toBe(testMemberId)
       expect(result?.confidence).toBe('high')
-      expect(result?.match_type).toBe('alias')
+      expect(result?.method).toBe('alias')
     })
 
     it('should match multiple aliases for same member', async () => {
@@ -131,7 +160,7 @@ describe('match_member_by_name function', () => {
 
       const result = await matchMember('Test Member')
 
-      expect(result?.match_type).toBe('alias')
+      expect(result?.method).toBe('alias')
     })
   })
 
@@ -142,26 +171,26 @@ describe('match_member_by_name function', () => {
       expect(result).not.toBeNull()
       expect(result?.member_id).toBe(testMemberId)
       expect(result?.confidence).toBe('high')
-      expect(result?.match_type).toBe('normalized')
+      expect(result?.method).toBe('normalized_name')
     })
 
     it('should match case-insensitive', async () => {
       const result = await matchMember('TEST MEMBER')
 
       expect(result?.member_id).toBe(testMemberId)
-      expect(result?.match_type).toBe('normalized')
+      expect(result?.method).toBe('normalized_name')
     })
 
     it('should match with extra whitespace', async () => {
       const result = await matchMember('  Test   Member  ')
 
       expect(result?.member_id).toBe(testMemberId)
-      expect(result?.match_type).toBe('normalized')
+      expect(result?.method).toBe('normalized_name')
     })
 
     it('should match with punctuation differences', async () => {
       // Create member with punctuation
-      const { data } = await supabase
+      const { data } = await adminClient
         .from('members')
         .insert({
           name: "O'Brien",
@@ -175,36 +204,10 @@ describe('match_member_by_name function', () => {
       const result = await matchMember('OBrien')
 
       expect(result?.member_id).toBe(data!.id)
-      expect(result?.match_type).toBe('normalized')
+      expect(result?.method).toBe('normalized_name')
 
       // Cleanup
-      await supabase.from('members').delete().eq('id', data!.id)
-    })
-  })
-
-  describe('fuzzy matching', () => {
-    it('should match similar names with typos (medium/low confidence)', async () => {
-      // "Tast Member" is close to "Test Member"
-      const result = await matchMember('Tast Member')
-
-      expect(result).not.toBeNull()
-      expect(result?.member_id).toBe(testMemberId)
-      expect(result?.match_type).toBe('fuzzy')
-      expect(['medium', 'low']).toContain(result?.confidence)
-    })
-
-    it('should return medium confidence for very similar names', async () => {
-      // Very similar - just one letter off
-      const result = await matchMember('Test Mumber')
-
-      expect(result?.confidence).toBe('medium')
-      expect(result?.match_type).toBe('fuzzy')
-    })
-
-    it('should not match completely different names', async () => {
-      const result = await matchMember('Completely Different Name')
-
-      expect(result).toBeNull()
+      await adminClient.from('members').delete().eq('id', data!.id)
     })
   })
 
@@ -248,15 +251,10 @@ describe('match_member_by_name function', () => {
       const result = await matchMember('TEST MEMBER')
       expect(result?.confidence).toBe('high')
     })
-
-    it('should return medium/low confidence for fuzzy match', async () => {
-      const result = await matchMember('Tast Member')
-      expect(['medium', 'low']).toContain(result?.confidence)
-    })
   })
 
-  describe('match type priority', () => {
-    it('should prioritize: email > alias > normalized > fuzzy', async () => {
+  describe('match priority', () => {
+    it('should prioritize: email > alias > normalized', async () => {
       // Set up alias
       await adminClient.from('member_name_aliases').insert({
         member_id: testMemberId,
@@ -266,16 +264,15 @@ describe('match_member_by_name function', () => {
       // All these should match, but with different priorities
       const emailMatch = await matchMember('Wrong Name', testMemberEmail)
       const aliasMatch = await matchMember('Test Member')
-      const normalizedMatch = await matchMember('test member')
 
-      expect(emailMatch?.match_type).toBe('email')
-      expect(aliasMatch?.match_type).toBe('alias') // alias wins over normalized
+      expect(emailMatch?.method).toBe('email')
+      expect(aliasMatch?.method).toBe('alias') // alias wins over normalized
 
       // Clean up alias
-      await supabase.from('member_name_aliases').delete().eq('member_id', testMemberId)
+      await adminClient.from('member_name_aliases').delete().eq('member_id', testMemberId)
 
-      const normalizedMatch2 = await matchMember('test member')
-      expect(normalizedMatch2?.match_type).toBe('normalized')
+      const normalizedMatch = await matchMember('test member')
+      expect(normalizedMatch?.method).toBe('normalized_name')
     })
   })
 })
