@@ -131,17 +131,21 @@ export default async function CalendarPage({
             >
               ← Previous
             </Link>
-            <Link
-              href={`/dashboard/calendar?week=${nextWeekParam}`}
-              className={`px-3 py-2 rounded-lg transition-colors ${
-                isNextDisabled
-                  ? "bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-600 cursor-not-allowed"
-                  : "bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300"
-              }`}
-              {...(isNextDisabled ? { "aria-disabled": true, onClick: (e: any) => e.preventDefault() } : {})}
-            >
-              Next →
-            </Link>
+            {isNextDisabled ? (
+              <span
+                className="px-3 py-2 rounded-lg transition-colors bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-600 cursor-not-allowed"
+                aria-disabled="true"
+              >
+                Next →
+              </span>
+            ) : (
+              <Link
+                href={`/dashboard/calendar?week=${nextWeekParam}`}
+                className="px-3 py-2 rounded-lg transition-colors bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300"
+              >
+                Next →
+              </Link>
+            )}
           </div>
         </div>
       </div>
