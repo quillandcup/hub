@@ -33,6 +33,7 @@ describe('Calendar Processing Pagination', () => {
         end_time: new Date(2099, 0, 1 + Math.floor(i / 24), 11 + (i % 24), 0).toISOString(),
         creator_email: 'test@example.com',
         organizer_email: 'test@example.com',
+        raw_data: {},
         imported_at: new Date().toISOString(),
       }))
 
