@@ -104,17 +104,10 @@ export async function POST(request: NextRequest) {
       { data: members },
       { data: aliases },
       { data: prickleTypes },
-      { data: existingPrickles },
     ] = await Promise.all([
       supabase.from("members").select("id, name, email"),
       supabase.from("member_name_aliases").select("alias, member_id"),
       supabase.from("prickle_types").select("id, name, normalized_name"),
-      supabase
-        .from("prickles")
-        .select("id, start_time, end_time, host, type_id")
-        .eq("source", "calendar")
-        .gte("start_time", fromDate)
-        .lte("end_time", toDate),
     ]);
 
     if (!allEvents || allEvents.length === 0) {
@@ -140,20 +133,15 @@ export async function POST(request: NextRequest) {
     const typeByNormalizedName = new Map(
       prickleTypes?.map((t) => [t.normalized_name, t.id]) || []
     );
-    const existingPrickleKey = (start: string, end: string) => `${start}|${end}`;
-    const existingPricklesMap = new Map(
-      existingPrickles?.map((p) => [existingPrickleKey(p.start_time, p.end_time), p]) || []
-    );
 
     // STEP 2: Process events in memory
     const pricklesToInsert: any[] = [];
-    const pricklesToUpdate: any[] = [];
     const unmatchedEvents: any[] = [];
-    let skipped = 0;
+    let skippedNoSummary = 0;
 
     for (const event of allEvents) {
       if (!event.summary) {
-        skipped++;
+        skippedNoSummary++;
         continue;
       }
 
@@ -228,34 +216,17 @@ export async function POST(request: NextRequest) {
         continue;
       }
 
-      // Check if prickle already exists
-      const key = existingPrickleKey(event.start_time, event.end_time);
-      const existingPrickle = existingPricklesMap.get(key);
-
-      if (existingPrickle) {
-        // Update if host or type changed
-        if (existingPrickle.host !== hostId || existingPrickle.type_id !== typeId) {
-          pricklesToUpdate.push({
-            id: existingPrickle.id,
-            host: hostId,
-            type_id: typeId,
-          });
-        } else {
-          skipped++;
-        }
-      } else {
-        // Create new prickle
-        pricklesToInsert.push({
-          type_id: typeId,
-          host: hostId,
-          start_time: event.start_time,
-          end_time: event.end_time,
-          source: "calendar",
-        });
-      }
+      // Add to insert list (we DELETE everything, so all matched events are re-inserted)
+      pricklesToInsert.push({
+        type_id: typeId,
+        host: hostId,
+        start_time: event.start_time,
+        end_time: event.end_time,
+        source: "calendar",
+      });
     }
 
-    console.log(`Actions: insert ${pricklesToInsert.length}, update ${pricklesToUpdate.length}, unmatched ${unmatchedEvents.length}, skipped ${skipped}`);
+    console.log(`Actions: insert ${pricklesToInsert.length}, unmatched ${unmatchedEvents.length}, skipped (no summary) ${skippedNoSummary}`);
 
     // STEP 3: DELETE existing data in date range (for reprocessability)
     // This makes the process fully reprocessable - we regenerate Silver from Bronze
@@ -289,31 +260,15 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // STEP 4: Batch INSERT all prickles (both new and previously existing)
+    // STEP 4: Batch INSERT all prickles
     // Since we deleted everything, we insert fresh from Bronze
     const CHUNK_SIZE = 100;
     let created = 0;
-    let updated = 0;
     let queuedForReview = 0;
 
-    // Combine insert and update lists - all become inserts after DELETE
-    const allPrickles = [...pricklesToInsert];
-    for (const p of pricklesToUpdate) {
-      const existingPrickle = existingPrickles?.find(ep => ep.id === p.id);
-      if (existingPrickle) {
-        allPrickles.push({
-          type_id: p.type_id,
-          host: p.host,
-          start_time: existingPrickle.start_time,
-          end_time: existingPrickle.end_time,
-          source: "calendar",
-        });
-      }
-    }
-
     // Insert all prickles in batches
-    if (allPrickles.length > 0) {
-      const insertChunks = chunk(allPrickles, CHUNK_SIZE);
+    if (pricklesToInsert.length > 0) {
+      const insertChunks = chunk(pricklesToInsert, CHUNK_SIZE);
       const insertResults = await Promise.all(
         insertChunks.map((batch) =>
           supabase.from("prickles").insert(batch)
@@ -323,7 +278,7 @@ export async function POST(request: NextRequest) {
       // Adjust for last chunk
       const lastChunkResult = insertResults[insertResults.length - 1];
       if (!lastChunkResult.error) {
-        created = created - CHUNK_SIZE + (allPrickles.length % CHUNK_SIZE || CHUNK_SIZE);
+        created = created - CHUNK_SIZE + (pricklesToInsert.length % CHUNK_SIZE || CHUNK_SIZE);
       }
     }
 
@@ -353,7 +308,7 @@ export async function POST(request: NextRequest) {
       pricklesCreated: created,
       pricklesUpdated: 0, // All are creates now (DELETE + INSERT pattern)
       skippedNoMatch: unmatchedEvents.length,
-      skipped,
+      skipped: skippedNoSummary,
     });
   } catch (error: any) {
     console.error("Error processing calendar events:", error);
