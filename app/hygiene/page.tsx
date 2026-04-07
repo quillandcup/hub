@@ -14,6 +14,7 @@ export default async function DataHygienePage() {
     { count: matchedCalendarEvents },
     { count: unmatchedCalendarEvents },
     { count: totalZoomAttendees },
+    { data: processedMeetings },
     { count: totalMembers },
     { count: totalAliases },
     { data: pupsWith0Attendees },
@@ -25,6 +26,12 @@ export default async function DataHygienePage() {
     supabase.from("prickles").select("*", { count: "exact", head: true }).eq("source", "calendar"),
     supabase.from("unmatched_calendar_events").select("*", { count: "exact", head: true }).eq("status", "pending"),
     supabase.from("zoom_attendees").select("*", { count: "exact", head: true }),
+    // Get unique meeting UUIDs that have been processed into prickles
+    supabase
+      .from("prickles")
+      .select("zoom_meeting_uuid")
+      .eq("source", "zoom")
+      .not("zoom_meeting_uuid", "is", null),
     supabase.from("members").select("*", { count: "exact", head: true }),
     supabase.from("member_name_aliases").select("*", { count: "exact", head: true }),
     // Find PUPs with 0 attendees
@@ -64,6 +71,22 @@ export default async function DataHygienePage() {
 
   // Calculate orphaned events (imported but never processed)
   const orphanedEvents = (totalCalendarEvents || 0) - (matchedCalendarEvents || 0) - (unmatchedCalendarEvents || 0);
+
+  // Calculate zoom match rate by counting zoom_attendees in processed meetings
+  const processedMeetingUuids = new Set(processedMeetings?.map(p => p.zoom_meeting_uuid) || []);
+
+  // Count zoom_attendees in processed meetings
+  // We need to fetch zoom_attendees with meeting_uuid to check which are in processed meetings
+  const { data: allZoomAttendees } = await supabase
+    .from("zoom_attendees")
+    .select("meeting_uuid")
+    .not("meeting_uuid", "is", null);
+
+  const matchedZoomAttendees = allZoomAttendees?.filter(
+    za => processedMeetingUuids.has(za.meeting_uuid)
+  ).length || 0;
+
+  const unmatchedZoomAttendees = (totalZoomAttendees || 0) - matchedZoomAttendees;
 
   // Get date range of orphaned events if any exist
   // We use the full calendar_events range as an approximation
@@ -137,10 +160,6 @@ export default async function DataHygienePage() {
     }
   }
 
-  // Calculate Zoom match rate (from most recent processing)
-  // This is an estimate - actual rate would need to be stored in processing results
-  const estimatedZoomMatchRate = 95; // Placeholder - would come from last processing result
-
   return (
     <div className="p-6">
       <div className="max-w-7xl mx-auto">
@@ -186,14 +205,18 @@ export default async function DataHygienePage() {
               <span className="text-2xl">🔍</span>
             </div>
             <p className="text-3xl font-bold text-slate-900 dark:text-slate-100 mb-1">
-              {estimatedZoomMatchRate}%
+              {totalZoomAttendees && matchedZoomAttendees
+                ? Math.round((matchedZoomAttendees / totalZoomAttendees) * 100)
+                : 0}%
             </p>
             <p className="text-sm text-slate-600 dark:text-slate-400">
-              match rate (last 30 days)
+              {matchedZoomAttendees}/{totalZoomAttendees} matched
             </p>
-            <p className="text-xs text-blue-600 dark:text-blue-400 mt-2">
-              View unmatched names →
-            </p>
+            {unmatchedZoomAttendees > 0 && (
+              <p className="text-xs text-orange-600 dark:text-orange-400 mt-2">
+                View unmatched names →
+              </p>
+            )}
           </Link>
 
           {/* Name Aliases */}
