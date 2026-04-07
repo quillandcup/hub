@@ -46,8 +46,8 @@ export default async function AliasListPage() {
     <div className="container mx-auto px-6 py-8">
       {/* Page Header */}
       <div className="mb-6">
-        <Link href="/hygiene" className="text-blue-600 dark:text-blue-400 hover:underline mb-2 inline-block">
-          ← Back to Hygiene Dashboard
+        <Link href="/dashboard" className="text-blue-600 dark:text-blue-400 hover:underline mb-2 inline-block">
+          ← Back to Dashboard
         </Link>
         <div className="flex items-center justify-between mt-2">
           <div>

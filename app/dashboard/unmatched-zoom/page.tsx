@@ -4,17 +4,26 @@ import AliasSearchForm from "./AliasSearchForm";
 export default async function AliasSearchPage() {
   const supabase = await createClient();
 
-  // Get all members for search
-  const { data: allMembers } = await supabase
-    .from("members")
-    .select("id, name, email, status")
-    .order("name");
+  //Get all members for search and ignored names in parallel
+  const [
+    { data: allMembers },
+    { data: ignoredNames },
+    { data: allZoomNames },
+  ] = await Promise.all([
+    supabase
+      .from("members")
+      .select("id, name, email, status")
+      .order("name"),
+    supabase
+      .from("ignored_zoom_names")
+      .select("zoom_name"),
+    supabase
+      .from("zoom_attendees")
+      .select("name, email")
+      .order("name"),
+  ]);
 
-  // Get unmatched Zoom attendees - those that don't match any member
-  const { data: allZoomNames } = await supabase
-    .from("zoom_attendees")
-    .select("name, email")
-    .order("name");
+  const ignoredSet = new Set(ignoredNames?.map(i => i.zoom_name) || []);
 
   // Count how many times each Zoom name appears
   const zoomNameCounts = new Map<string, { count: number; emails: Set<string> }>();
@@ -39,6 +48,9 @@ export default async function AliasSearchPage() {
 
   // Check each Zoom name to see if it can be matched
   for (const [zoomName, info] of zoomNameCounts) {
+    // Skip ignored names
+    if (ignoredSet.has(zoomName)) continue;
+
     // Use the actual matching function to check if this would match
     const email = info.emails.size > 0 ? Array.from(info.emails)[0] : null;
     const { data: matchResult } = await supabase.rpc("match_member_by_name", {
