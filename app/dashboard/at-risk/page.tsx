@@ -107,9 +107,12 @@ export default async function AtRiskPage() {
                 <div key={member.id} className="p-6 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
-                      <div className="font-semibold text-lg text-slate-900 dark:text-slate-100">
+                      <Link
+                        href={`/dashboard/members/${member.id}`}
+                        className="font-semibold text-lg text-slate-900 dark:text-slate-100 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                      >
                         {member.name}
-                      </div>
+                      </Link>
                       <div className="text-sm text-slate-600 dark:text-slate-400 mt-1">
                         {member.email}
                       </div>
