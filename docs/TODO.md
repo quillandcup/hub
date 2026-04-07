@@ -122,6 +122,11 @@ Set up background agents for faster parallel development
   - Goal: Clear, organized navigation with logical grouping
   - Consider sections: Dashboard, Members, Prickles, Import/Process, Admin Tools
 
+- **Mobile navigation issues**
+  - On mobile, user's email dropdown in top-right overlaps left-nav collapse arrow
+  - Makes it impossible to collapse nav in vertical orientation (nav takes up most of screen)
+  - Nav should start collapsed on mobile by default
+
 - **User profile dropdown in top-nav**
   - Replace simple "Sign out" link with dropdown menu
   - Add "Edit Profile" link
@@ -129,10 +134,20 @@ Set up background agents for faster parallel development
   - Option for "Browser/Local Time" to auto-detect
   - Store user preferences in database
 
+- **User settings page**
+  - Preferred theme (dark/light/device default)
+  - Timezone preference (becomes default on calendar and other timezone dropdowns)
+  - Working location and timezone for global time analysis
+  - Store preferences in user_profiles table
+
 ### Dashboard Improvements
 
 **Current State:**
 The dashboard has basic stats cards, at-risk members list, and engagement insights.
+
+**Needed Fixes:**
+- Top Attendees list should link to each member's profile page
+- At-Risk Members list should link to each member's profile page
 
 **Potential Additions:**
 
@@ -177,6 +192,56 @@ The dashboard has basic stats cards, at-risk members list, and engagement insigh
 - Manually create/edit members
 - Manually create/edit Prickles
 - Mark members for outreach
+
+### Member Profile Pages
+- **Attendance over time chart**
+  - Show historical attendance patterns
+  - Help identify engagement trends per member
+  
+- **Display member's aliases**
+  - Show list of configured name aliases for this member
+  - Read-only display (no ability to add aliases from member page)
+  - Link to name matching page for alias management
+
+- **Working location and timezone**
+  - Configurable per member
+  - Enable "local time" analysis (e.g., "most people write in evenings globally")
+  - Show what local time members are attending from
+
+### General Improvements
+- Add favicon to the application
+
+---
+
+## Bug Fixes
+
+### Attendance Counting
+- **Leave/rejoin counted as multiple attendees**
+  - Current: User who leaves and rejoins shows as multiple attendees
+  - Visible on prickle details page
+  - Should count unique members, not attendance records
+  - Note: attendance table allows multiple records per (member_id, prickle_id) by design to track leave/rejoin patterns
+
+### Prickle Types
+- **Edit prickle type returns 404**
+  - Example: `/dashboard/prickle-types/38368b77-5970-4d63-9063-fe603ee639bf/edit`
+  - Route exists but shows 404 page
+  - Investigate routing issue
+
+### Host Processing
+- **Host assignment appears broken on Progress Prickles**
+  - Most Progress Prickles don't have hosts assigned
+  - Should be populated during calendar event processing
+  - Check calendar event parsing for host field
+
+### Member Filters
+- **At-risk and highly-engaged filters don't work**
+  - URL: `/dashboard/members?filter=highly_engaged`
+  - Filter parameter is in URL but not applied to results
+  - Both filters affected
+
+### Incomplete TODO
+- "Members attend" - Note: This TODO was incomplete/cut off. Needs clarification.
 
 ---
 
