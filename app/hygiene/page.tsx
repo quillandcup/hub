@@ -13,6 +13,7 @@ export default async function DataHygienePage() {
     { count: totalCalendarEvents },
     { count: matchedCalendarEvents },
     { count: unmatchedCalendarEvents },
+    { count: calendarPricklesWithHost },
     { count: totalZoomAttendees },
     { count: totalMembers },
     { count: totalAliases },
@@ -24,6 +25,7 @@ export default async function DataHygienePage() {
     supabase.from("calendar_events").select("*", { count: "exact", head: true }),
     supabase.from("prickles").select("*", { count: "exact", head: true }).eq("source", "calendar"),
     supabase.from("unmatched_calendar_events").select("*", { count: "exact", head: true }).eq("status", "pending"),
+    supabase.from("prickles").select("*", { count: "exact", head: true }).eq("source", "calendar").not("host", "is", null),
     supabase.from("zoom_attendees").select("*", { count: "exact", head: true }),
     supabase.from("members").select("*", { count: "exact", head: true }),
     supabase.from("member_name_aliases").select("*", { count: "exact", head: true }),
@@ -60,6 +62,10 @@ export default async function DataHygienePage() {
 
   const calendarMatchRate = totalCalendarEvents && matchedCalendarEvents
     ? Math.round((matchedCalendarEvents / totalCalendarEvents) * 100)
+    : 0;
+
+  const hostMatchRate = matchedCalendarEvents && calendarPricklesWithHost
+    ? Math.round((calendarPricklesWithHost / matchedCalendarEvents) * 100)
     : 0;
 
   // Calculate orphaned events (imported but never processed)
@@ -240,7 +246,7 @@ export default async function DataHygienePage() {
         </h1>
 
         {/* At-a-glance metrics */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           {/* Calendar Events */}
           <Link
             href="/hygiene/unmatched-events"
@@ -264,6 +270,27 @@ export default async function DataHygienePage() {
               </p>
             )}
           </Link>
+
+          {/* Host Assignment */}
+          <div className="block p-6 bg-white dark:bg-slate-900 rounded-lg shadow border border-slate-200 dark:border-slate-800">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-sm font-medium text-slate-600 dark:text-slate-400">
+                Host Assignment
+              </h3>
+              <span className="text-2xl">👤</span>
+            </div>
+            <p className={`text-3xl font-bold mb-1 ${hostMatchRate < 50 ? 'text-orange-600 dark:text-orange-400' : 'text-slate-900 dark:text-slate-100'}`}>
+              {hostMatchRate}%
+            </p>
+            <p className="text-sm text-slate-600 dark:text-slate-400">
+              {calendarPricklesWithHost}/{matchedCalendarEvents} prickles with host
+            </p>
+            {hostMatchRate < 50 && (
+              <p className="text-xs text-orange-600 dark:text-orange-400 mt-2">
+                Low host match rate
+              </p>
+            )}
+          </div>
 
           {/* Zoom Attendees */}
           <Link
