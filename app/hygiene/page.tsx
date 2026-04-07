@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
+import ProcessOrphanedButton from "./ProcessOrphanedButton";
 
 export const dynamic = "force-dynamic";
 
@@ -159,10 +160,9 @@ export default async function DataHygienePage() {
                     These events were imported but never processed - they're not in prickles or the
                     unmatched queue. This usually means they fell outside the date range during processing.
                   </p>
-                  <p className="text-xs text-red-700 dark:text-red-300">
-                    <strong>Action required:</strong> Reprocess calendar events with a broader date range
-                    to include these events (likely from early March).
-                  </p>
+                  <div className="mt-3">
+                    <ProcessOrphanedButton orphanedCount={orphanedEvents} />
+                  </div>
                 </div>
               </div>
             </div>
