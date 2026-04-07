@@ -181,8 +181,7 @@ export default function CalendarImportForm() {
           <div className="text-sm text-green-700 dark:text-green-300 space-y-1">
             <p>• Calendar events: {processResult.eventsProcessed || 0}</p>
             <p>• Prickles created: {processResult.pricklesCreated || 0}</p>
-            <p>• Prickles updated: {processResult.pricklesUpdated || 0}</p>
-            <p>• Skipped (no match): {processResult.skippedNoMatch || 0}</p>
+            <p>• Unmatched: {processResult.skippedNoMatch || 0}</p>
           </div>
         </div>
       )}

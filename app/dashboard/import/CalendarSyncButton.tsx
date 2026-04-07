@@ -131,8 +131,7 @@ export default function CalendarSyncButton() {
               <ul className="text-xs space-y-0.5">
                 <li>Calendar events: {processResult.eventsProcessed || 0}</li>
                 <li>Prickles created: {processResult.pricklesCreated || 0}</li>
-                <li>Prickles updated: {processResult.pricklesUpdated || 0}</li>
-                <li>Skipped: {processResult.skipped || 0}</li>
+                <li>Unmatched: {processResult.skippedNoMatch || 0}</li>
               </ul>
             </div>
           )}

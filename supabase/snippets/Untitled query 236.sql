@@ -1,0 +1,1 @@
+  SELECT COUNT(*) FROM calendar_events;

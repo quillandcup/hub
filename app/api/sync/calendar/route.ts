@@ -61,10 +61,21 @@ export async function POST(request: NextRequest) {
       .filter((e) => e.id)
       .map((e) => e.id);
 
-    const { data: existingEvents } = await supabase
-      .from("calendar_events")
-      .select("id, google_event_id, summary, start_time, end_time")
-      .in("google_event_id", googleEventIds);
+    // Fetch existing events in batches to handle >1000 IDs
+    let existingEvents: any[] = [];
+    const BATCH_SIZE = 1000;
+
+    for (let i = 0; i < googleEventIds.length; i += BATCH_SIZE) {
+      const batch = googleEventIds.slice(i, i + BATCH_SIZE);
+      const { data } = await supabase
+        .from("calendar_events")
+        .select("id, google_event_id, summary, start_time, end_time")
+        .in("google_event_id", batch);
+
+      if (data) {
+        existingEvents = existingEvents.concat(data);
+      }
+    }
 
     // Build lookup map by google_event_id for O(1) access
     const existingByGoogleId = new Map(
