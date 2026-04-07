@@ -13,7 +13,8 @@ export default function Icon() {
     (
       <div
         style={{
-          fontSize: 24,
+          fontSize: 11,
+          fontWeight: 'bold',
           background: '#8B4513',
           width: '100%',
           height: '100%',
@@ -22,9 +23,11 @@ export default function Icon() {
           justifyContent: 'center',
           color: 'white',
           borderRadius: '20%',
+          fontFamily: 'system-ui, sans-serif',
+          letterSpacing: '-0.5px',
         }}
       >
-        Q
+        Q&C
       </div>
     ),
     {
