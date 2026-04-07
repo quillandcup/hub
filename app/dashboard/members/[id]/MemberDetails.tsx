@@ -15,10 +15,9 @@ const TIMEZONES = [
 interface MemberDetailsProps {
   member: any;
   attendanceRecords: any[];
-  aliases: Array<{ alias: string }>;
 }
 
-export default function MemberDetails({ member, attendanceRecords, aliases }: MemberDetailsProps) {
+export default function MemberDetails({ member, attendanceRecords }: MemberDetailsProps) {
   const [timezone, setTimezone] = useState("America/New_York");
   const router = useRouter();
 
@@ -109,34 +108,6 @@ export default function MemberDetails({ member, attendanceRecords, aliases }: Me
           </p>
         </div>
       </div>
-
-      {/* Name Aliases */}
-      {aliases.length > 0 && (
-        <div className="bg-white dark:bg-slate-900 rounded-lg shadow p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Name Aliases</h3>
-            <Link
-              href="/hygiene/unmatched-zoom"
-              className="text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 hover:underline"
-            >
-              Manage on Name Matching page →
-            </Link>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {aliases.map(({ alias }) => (
-              <span
-                key={alias}
-                className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-md text-sm border border-slate-200 dark:border-slate-700"
-              >
-                {alias}
-              </span>
-            ))}
-          </div>
-          <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
-            These aliases help match Zoom attendance records to this member when names vary.
-          </p>
-        </div>
-      )}
 
       {/* Attendance History */}
       <div className="bg-white dark:bg-slate-900 rounded-lg shadow">

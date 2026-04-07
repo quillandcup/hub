@@ -68,7 +68,41 @@ export default async function MemberDetailPage({
             ← Back to Members
           </Link>
           <div className="mt-2">
-            <h1 className="text-2xl font-bold">{member.name}</h1>
+            <div className="flex items-center gap-3 flex-wrap">
+              <h1 className="text-2xl font-bold">{member.name}</h1>
+              {aliases && aliases.length > 0 && (
+                <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap gap-1.5">
+                    {aliases.map(({ alias }) => (
+                      <span
+                        key={alias}
+                        className="px-2 py-0.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded text-xs border border-slate-200 dark:border-slate-600"
+                      >
+                        {alias}
+                      </span>
+                    ))}
+                  </div>
+                  <div className="group relative">
+                    <svg
+                      className="w-4 h-4 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 cursor-help"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                      />
+                    </svg>
+                    <div className="invisible group-hover:visible absolute left-0 top-6 w-64 p-2 bg-slate-900 dark:bg-slate-700 text-white text-xs rounded shadow-lg z-10">
+                      Aliases help match Zoom names to people. <Link href="/hygiene/unmatched-zoom" className="underline hover:text-blue-300">Manage aliases →</Link>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
             <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
               {member.email}
             </p>
@@ -77,7 +111,7 @@ export default async function MemberDetailPage({
       </header>
 
       <main className="container mx-auto px-6 py-8">
-        <MemberDetails member={member} attendanceRecords={attendance || []} aliases={aliases || []} />
+        <MemberDetails member={member} attendanceRecords={attendance || []} />
       </main>
     </div>
   );
