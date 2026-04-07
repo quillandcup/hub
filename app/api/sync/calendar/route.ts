@@ -126,7 +126,10 @@ export async function POST(request: NextRequest) {
           existingEnd !== newEnd;
 
         if (changed) {
-          eventsToUpdate.push({ id: existingEvent.id, data: eventData });
+          eventsToUpdate.push({
+            id: existingEvent.id,
+            data: { ...eventData, imported_at: new Date().toISOString() }
+          });
         } else {
           skipped++;
         }
