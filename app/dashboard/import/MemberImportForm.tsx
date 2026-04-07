@@ -153,8 +153,16 @@ export default function MemberImportForm() {
           <p className="font-semibold text-green-800 dark:text-green-200 mb-2">
             ✓ Successfully processed {processResult.processed} members
           </p>
+          {processResult.sourceBreakdown && (
+            <div className="text-sm text-green-700 dark:text-green-300 space-y-1 mb-3">
+              <p className="font-semibold">Sources:</p>
+              <p>• {processResult.sourceBreakdown.kajabi} from Kajabi</p>
+              <p>• {processResult.sourceBreakdown.staff} staff members</p>
+            </div>
+          )}
           {processResult.statusBreakdown && (
             <div className="text-sm text-green-700 dark:text-green-300 space-y-1">
+              <p className="font-semibold">Status:</p>
               <p>• {processResult.statusBreakdown.active} active</p>
               <p>• {processResult.statusBreakdown.on_hiatus} on hiatus</p>
               <p>• {processResult.statusBreakdown.inactive} inactive</p>
