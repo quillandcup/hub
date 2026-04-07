@@ -104,10 +104,16 @@ export async function POST(request: NextRequest) {
       { data: members },
       { data: aliases },
       { data: prickleTypes },
+      { data: resolvedUnmatchedEvents },
     ] = await Promise.all([
       supabase.from("members").select("id, name, email"),
       supabase.from("member_name_aliases").select("alias, member_id"),
       supabase.from("prickle_types").select("id, name, normalized_name"),
+      // Load previously resolved/ignored unmatched events to apply learned decisions
+      supabase
+        .from("unmatched_calendar_events")
+        .select("calendar_event_id, resolved_type_id, status")
+        .in("status", ["resolved", "ignored"]),
     ]);
 
     if (!allEvents || allEvents.length === 0) {
@@ -118,7 +124,7 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    console.log(`Loaded ${allEvents.length} events, ${members?.length || 0} members, ${prickleTypes?.length || 0} types`);
+    console.log(`Loaded ${allEvents.length} events, ${members?.length || 0} members, ${prickleTypes?.length || 0} types, ${resolvedUnmatchedEvents?.length || 0} user decisions (resolved/ignored)`);
 
     // Build lookup maps for fast matching
     const membersByEmail = new Map(
@@ -133,11 +139,17 @@ export async function POST(request: NextRequest) {
     const typeByNormalizedName = new Map(
       prickleTypes?.map((t) => [t.normalized_name, t.id]) || []
     );
+    // Map calendar_event_id → { status, resolved_type_id } for user decisions
+    const userDecisionByEventId = new Map(
+      resolvedUnmatchedEvents?.map((r) => [r.calendar_event_id, { status: r.status, typeId: r.resolved_type_id }]) || []
+    );
 
     // STEP 2: Process events in memory
     const pricklesToInsert: any[] = [];
     const unmatchedEvents: any[] = [];
     let skippedNoSummary = 0;
+    let autoResolvedCount = 0;
+    let ignoredCount = 0;
 
     for (const event of allEvents) {
       if (!event.summary) {
@@ -188,31 +200,44 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // Match to prickle type using normalization
+      // Check if this event was previously resolved/ignored by the user
+      // If so, apply that decision automatically (system learns from user)
       let typeId: string | null = null;
+      const userDecision = userDecisionByEventId.get(event.id);
 
-      if (!rawType) {
-        // No type extracted - default to Progress Prickle
-        typeId = typeByNormalizedName.get("progress") || null;
+      if (userDecision?.status === "ignored") {
+        // Event was previously ignored - skip it
+        ignoredCount++;
+        continue;
+      } else if (userDecision?.status === "resolved" && userDecision.typeId) {
+        // Event was previously resolved - use that type
+        typeId = userDecision.typeId;
+        autoResolvedCount++;
       } else {
-        // Normalize the extracted type and look up by normalized_name
-        const normalizedType = normalizePrickleType(rawType);
-
-        // If normalization resulted in empty (e.g., just "Prickle"), default to Progress
-        if (!normalizedType || normalizedType === "") {
+        // Match to prickle type using normalization
+        if (!rawType) {
+          // No type extracted - default to Progress Prickle
           typeId = typeByNormalizedName.get("progress") || null;
         } else {
-          typeId = typeByNormalizedName.get(normalizedType) || null;
-        }
+          // Normalize the extracted type and look up by normalized_name
+          const normalizedType = normalizePrickleType(rawType);
 
-        // If exact match failed, try partial match (e.g., "Midnight Open Table" contains "Open Table")
-        if (!typeId && prickleTypes) {
-          const summaryLower = event.summary.toLowerCase();
-          for (const type of prickleTypes) {
-            const typeNameLower = type.name.toLowerCase();
-            if (summaryLower.includes(typeNameLower)) {
-              typeId = type.id;
-              break;
+          // If normalization resulted in empty (e.g., just "Prickle"), default to Progress
+          if (!normalizedType || normalizedType === "") {
+            typeId = typeByNormalizedName.get("progress") || null;
+          } else {
+            typeId = typeByNormalizedName.get(normalizedType) || null;
+          }
+
+          // If exact match failed, try partial match (e.g., "Midnight Open Table" contains "Open Table")
+          if (!typeId && prickleTypes) {
+            const summaryLower = event.summary.toLowerCase();
+            for (const type of prickleTypes) {
+              const typeNameLower = type.name.toLowerCase();
+              if (summaryLower.includes(typeNameLower)) {
+                typeId = type.id;
+                break;
+              }
             }
           }
         }
@@ -334,6 +359,8 @@ export async function POST(request: NextRequest) {
       pricklesUpdated: 0, // All are creates now (DELETE + INSERT pattern)
       skippedNoMatch: unmatchedEvents.length,
       skipped: skippedNoSummary,
+      autoResolved: autoResolvedCount,
+      ignored: ignoredCount,
     });
   } catch (error: any) {
     console.error("Error processing calendar events:", error);
