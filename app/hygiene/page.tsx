@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import ProcessOrphanedButton from "./ProcessOrphanedButton";
 import ProcessOrphanedMeetingsButton from "./ProcessOrphanedMeetingsButton";
+import { matchAttendeeToMember } from "@/lib/member-matching";
 
 export const dynamic = "force-dynamic";
 
@@ -117,34 +118,6 @@ export default async function DataHygienePage() {
     supabase.from("member_name_aliases").select("alias, member_id"),
   ]);
 
-  // Build lookup maps (same as processing)
-  function normalizeName(name: string): string {
-    return name
-      .toLowerCase()
-      .replace(/[^a-z0-9\s]/g, "")
-      .replace(/\s+/g, " ")
-      .trim();
-  }
-
-  const membersByEmail = new Map(
-    membersForMatching?.map((m) => [m.email.toLowerCase(), m]) || []
-  );
-  const membersByNormalizedName = new Map(
-    membersForMatching?.map((m) => [normalizeName(m.name), m]) || []
-  );
-  const aliasToMember = new Map<string, any>();
-  aliasesForMatching?.forEach((a) => {
-    const member = membersForMatching?.find((m) => m.id === a.member_id);
-    if (member) aliasToMember.set(a.alias, member);
-  });
-
-  function canMatchAttendee(name: string, email: string | null): boolean {
-    if (email && membersByEmail.has(email.toLowerCase())) return true;
-    if (aliasToMember.has(name.trim())) return true;
-    if (membersByNormalizedName.has(normalizeName(name))) return true;
-    return false;
-  }
-
   // Get all zoom_attendees with name/email for matching
   const { data: allAttendeesForMatching } = await supabase
     .from("zoom_attendees")
@@ -155,8 +128,8 @@ export default async function DataHygienePage() {
   // This matches what the processing does (see route.ts line 358)
   const meetingTimeWindows = new Map<string, { start: Date; end: Date }>();
   allAttendeesForMatching?.forEach(m => {
-    // Skip unmatched attendees (same logic as processing)
-    if (!canMatchAttendee(m.name, m.email)) return;
+    // Skip unmatched attendees (use centralized matching logic)
+    if (!matchAttendeeToMember(m.name, m.email, membersForMatching || [], aliasesForMatching || [])) return;
 
     const existing = meetingTimeWindows.get(m.meeting_uuid);
     const joinTime = new Date(m.join_time);
