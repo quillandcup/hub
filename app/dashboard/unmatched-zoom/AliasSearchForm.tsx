@@ -34,10 +34,16 @@ export default function AliasSearchForm({
   const [saveResult, setSaveResult] = useState<string | null>(null);
   const [searchTerms, setSearchTerms] = useState<Record<string, string>>({});
   const [focusedSearch, setFocusedSearch] = useState<string | null>(null);
+  const [ignoredNames, setIgnoredNames] = useState<Set<string>>(new Set());
+  const [ignoring, setIgnoring] = useState<string | null>(null);
+  const [prickleModalOpen, setPrickleModalOpen] = useState(false);
+  const [selectedZoomName, setSelectedZoomName] = useState<string | null>(null);
+  const [prickles, setPrickles] = useState<any[]>([]);
+  const [loadingPrickles, setLoadingPrickles] = useState(false);
 
-  // Remove matched items from the list
+  // Remove matched and ignored items from the list
   const availableZoomNames = unmatchedAttendees.filter(
-    (a) => !matches.some((m) => m.zoomName === a.zoomName)
+    (a) => !matches.some((m) => m.zoomName === a.zoomName) && !ignoredNames.has(a.zoomName)
   );
 
   const handleSearchChange = (zoomName: string, value: string) => {
@@ -93,6 +99,57 @@ export default function AliasSearchForm({
       setSaveResult(`❌ ${error.message}`);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleIgnore = async (zoomName: string) => {
+    const reason = prompt(`Why are you ignoring "${zoomName}"?\n(Optional - press OK to skip)`);
+    if (reason === null) return; // User cancelled
+
+    setIgnoring(zoomName);
+
+    try {
+      const response = await fetch("/api/zoom/ignore", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ zoomName, reason: reason || null }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || "Failed to ignore name");
+      }
+
+      setIgnoredNames(new Set([...ignoredNames, zoomName]));
+    } catch (error: any) {
+      alert(`Error: ${error.message}`);
+    } finally {
+      setIgnoring(null);
+    }
+  };
+
+  const handleViewPrickles = async (zoomName: string) => {
+    setSelectedZoomName(zoomName);
+    setPrickleModalOpen(true);
+    setLoadingPrickles(true);
+
+    try {
+      // Fetch prickles where this Zoom name appeared
+      const response = await fetch(`/api/zoom/prickles?zoomName=${encodeURIComponent(zoomName)}`);
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to fetch prickles");
+      }
+
+      setPrickles(data.prickles || []);
+    } catch (error: any) {
+      alert(`Error: ${error.message}`);
+      setPrickleModalOpen(false);
+    } finally {
+      setLoadingPrickles(false);
     }
   };
 
@@ -191,7 +248,7 @@ export default function AliasSearchForm({
 
               return (
                 <div key={attendee.zoomName} className="p-3">
-                  <div className="grid grid-cols-[300px_1fr] gap-4 items-start">
+                  <div className="grid grid-cols-[300px_1fr_auto] gap-4 items-start">
                     {/* Left: Name and metadata */}
                     <div>
                       <div className="flex items-center gap-2 mb-1">
@@ -210,7 +267,13 @@ export default function AliasSearchForm({
                         )}
                       </div>
                       <div className="text-xs text-slate-500 dark:text-slate-400">
-                        {attendee.zoomName.length} chars • {attendee.appearances} appearances
+                        {attendee.zoomName.length} chars •{" "}
+                        <button
+                          onClick={() => handleViewPrickles(attendee.zoomName)}
+                          className="text-blue-600 dark:text-blue-400 hover:underline"
+                        >
+                          {attendee.appearances} appearances
+                        </button>
                       </div>
                       {attendee.emails.length > 0 && (
                         <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
@@ -219,7 +282,7 @@ export default function AliasSearchForm({
                       )}
                     </div>
 
-                    {/* Right: Search input */}
+                    {/* Middle: Search input */}
                     <div className="relative">
                       <input
                         type="text"
@@ -257,6 +320,17 @@ export default function AliasSearchForm({
                         </div>
                       )}
                     </div>
+
+                    {/* Right: Ignore button */}
+                    <div>
+                      <button
+                        onClick={() => handleIgnore(attendee.zoomName)}
+                        disabled={ignoring === attendee.zoomName}
+                        className="px-3 py-1.5 text-sm text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 border border-slate-300 dark:border-slate-600 hover:border-slate-400 dark:hover:border-slate-500 rounded disabled:opacity-50"
+                      >
+                        {ignoring === attendee.zoomName ? "Ignoring..." : "Ignore"}
+                      </button>
+                    </div>
                   </div>
                 </div>
               );
@@ -264,6 +338,59 @@ export default function AliasSearchForm({
           )}
         </div>
       </div>
+
+      {/* Prickle Modal */}
+      {prickleModalOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-lg shadow-xl max-w-2xl w-full max-h-[80vh] overflow-hidden">
+            <div className="p-6 border-b border-slate-200 dark:border-slate-800">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xl font-bold">
+                  Prickles for &quot;{selectedZoomName}&quot;
+                </h3>
+                <button
+                  onClick={() => setPrickleModalOpen(false)}
+                  className="text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            <div className="p-6 overflow-y-auto max-h-[60vh]">
+              {loadingPrickles ? (
+                <div className="text-center text-slate-500 py-8">Loading...</div>
+              ) : prickles.length === 0 ? (
+                <div className="text-center text-slate-500 py-8">No prickles found</div>
+              ) : (
+                <div className="space-y-2">
+                  {prickles.map((prickle: any) => (
+                    <a
+                      key={prickle.id}
+                      href={`/dashboard/prickles/${prickle.id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="block p-3 border border-slate-200 dark:border-slate-700 rounded-lg hover:border-blue-500 dark:hover:border-blue-400 transition-colors"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="font-semibold text-slate-900 dark:text-slate-100">
+                            {prickle.type_name || "Unknown Type"}
+                          </div>
+                          <div className="text-sm text-slate-600 dark:text-slate-400">
+                            {new Date(prickle.start_time).toLocaleString()}
+                          </div>
+                        </div>
+                        <div className="text-blue-600 dark:text-blue-400">→</div>
+                      </div>
+                    </a>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Instructions */}
       <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
