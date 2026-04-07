@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 import { parsePrickleFromSummary, normalizePrickleType } from "@/lib/prickle-types";
+import { matchAttendeeToMember } from "@/lib/member-matching";
 
 // Extend timeout for processing large batches of events
 export const maxDuration = 300; // 5 minutes
@@ -174,74 +175,23 @@ export async function POST(request: NextRequest) {
       const hostEmailToMatch = extractedHostName ? null : (event.organizer_email || event.creator_email);
 
       if (hostNameToMatch) {
-        // Try email match first
-        if (hostEmailToMatch) {
-          const member = membersByEmail.get(hostEmailToMatch.toLowerCase());
-          if (member) {
-            hostId = member.id;
-            suggestedHostName = member.name;
-          }
-        }
+        // Use centralized member matching logic
+        // Skip email matching if we extracted a host from "w/Name" pattern
+        // (otherwise "Prickle w/Lili" would match to calendar organizer email)
+        const match = matchAttendeeToMember(
+          hostNameToMatch,
+          hostEmailToMatch,
+          members || [],
+          aliases || [],
+          !hostEmailToMatch // Skip email if null (extracted host case)
+        );
 
-        // Try alias match (case-insensitive for flexibility)
-        const normalizedForAlias = hostNameToMatch.trim().toLowerCase();
-        if (!hostId && aliasToMemberId.has(normalizedForAlias)) {
-          const memberId = aliasToMemberId.get(normalizedForAlias)!;
-          const member = members?.find((m) => m.id === memberId);
-          if (member) {
-            hostId = member.id;
-            suggestedHostName = member.name;
-          }
-        }
-
-        // Try first name + last initial pattern (e.g., "Katie P" → "Member 22")
-        if (!hostId) {
-          // Match pattern: "FirstName LastInitial" (with optional period/space)
-          const nameInitialPattern = hostNameToMatch.match(/^([A-Za-z]+)\s+([A-Za-z])\.?$/);
-          if (nameInitialPattern) {
-            const firstName = nameInitialPattern[1].toLowerCase();
-            const lastInitial = nameInitialPattern[2].toLowerCase();
-
-            // Find members where first name matches and last name starts with initial
-            const candidates = members?.filter(m => {
-              const nameParts = m.name.toLowerCase().split(/\s+/);
-              if (nameParts.length < 2) return false;
-              const memberFirstName = nameParts[0];
-              const memberLastName = nameParts[nameParts.length - 1];
-              return memberFirstName === firstName && memberLastName.startsWith(lastInitial);
-            }) || [];
-
-            // Only use if exactly one match (unambiguous)
-            if (candidates.length === 1) {
-              hostId = candidates[0].id;
-              suggestedHostName = candidates[0].name;
-            }
-          }
-        }
-
-        // Try first name only match (if unambiguous)
-        if (!hostId && hostNameToMatch.split(/\s+/).length === 1) {
-          // Single word - try matching by first name only
-          const firstName = hostNameToMatch.toLowerCase();
-          const candidates = members?.filter(m => {
-            const nameParts = m.name.toLowerCase().split(/\s+/);
-            return nameParts[0] === firstName;
-          }) || [];
-
-          // Only use if exactly one match (unambiguous)
-          if (candidates.length === 1) {
-            hostId = candidates[0].id;
-            suggestedHostName = candidates[0].name;
-          }
-        }
-
-        // Try normalized name match (full name fallback)
-        if (!hostId) {
-          const normalized = normalizeName(hostNameToMatch);
-          const member = membersByNormalizedName.get(normalized);
-          if (member) {
-            hostId = member.id;
-            suggestedHostName = member.name;
+        if (match) {
+          hostId = match.member_id;
+          // Update suggested name to matched member's name
+          const matchedMember = members?.find(m => m.id === match.member_id);
+          if (matchedMember) {
+            suggestedHostName = matchedMember.name;
           }
         }
       }

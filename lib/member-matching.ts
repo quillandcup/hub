@@ -38,24 +38,28 @@ export function normalizeName(name: string): string {
 }
 
 /**
- * Matches a Zoom attendee (name + optional email) to a member record
+ * Matches a name (and optional email) to a member record
  *
  * Matching rules (in priority order):
- * 1. Email exact match (if email provided) - HIGHEST confidence
- * 2. Alias exact match - HIGH confidence
- * 3. Normalized name match - HIGH confidence
+ * 1. Email exact match (if email provided and skipEmail=false) - HIGHEST confidence
+ * 2. Alias match (case-insensitive) - HIGH confidence
+ * 3. First name + last initial (e.g., "Katie P" → "Member 22") - HIGH confidence
+ * 4. First name only (if unambiguous) - HIGH confidence
+ * 5. Normalized name match - HIGH confidence
  *
- * @param attendeeName - The name from Zoom
- * @param attendeeEmail - The email from Zoom (may be null)
+ * @param attendeeName - The name to match (from Zoom, calendar, etc.)
+ * @param attendeeEmail - Optional email address
  * @param members - Array of all members
  * @param aliases - Array of all name aliases
+ * @param skipEmail - If true, skip email matching (useful when email is org account, not person)
  * @returns MatchResult if found, null if no match
  */
 export function matchAttendeeToMember(
   attendeeName: string,
   attendeeEmail: string | null,
   members: Member[],
-  aliases: MemberAlias[]
+  aliases: MemberAlias[],
+  skipEmail = false
 ): MatchResult | null {
   // Build lookup maps for O(1) matching
   const membersByEmail = new Map<string, Member>();
@@ -68,16 +72,17 @@ export function matchAttendeeToMember(
     membersByNormalizedName.set(normalizeName(member.name), member);
   }
 
-  // Index aliases
+  // Index aliases (case-insensitive for flexibility)
+  // Aliases are disambiguation rules and should be flexible
   for (const alias of aliases) {
     const member = members.find(m => m.id === alias.member_id);
     if (member) {
-      aliasToMember.set(alias.alias, member);
+      aliasToMember.set(alias.alias.trim().toLowerCase(), member);
     }
   }
 
-  // Rule 1: Try email match first (highest confidence)
-  if (attendeeEmail) {
+  // Rule 1: Try email match first (if not skipped and email provided)
+  if (!skipEmail && attendeeEmail) {
     const member = membersByEmail.get(attendeeEmail.toLowerCase());
     if (member) {
       return {
@@ -88,9 +93,10 @@ export function matchAttendeeToMember(
     }
   }
 
-  // Rule 2: Try alias match (exact string match)
-  if (aliasToMember.has(attendeeName)) {
-    const member = aliasToMember.get(attendeeName)!;
+  // Rule 2: Try alias match (case-insensitive for flexibility)
+  const normalizedForAlias = attendeeName.trim().toLowerCase();
+  if (aliasToMember.has(normalizedForAlias)) {
+    const member = aliasToMember.get(normalizedForAlias)!;
     return {
       member_id: member.id,
       confidence: 'high',
@@ -98,7 +104,51 @@ export function matchAttendeeToMember(
     };
   }
 
-  // Rule 3: Try normalized name match
+  // Rule 3: Try first name + last initial pattern (e.g., "Katie P" → "Member 22")
+  const nameInitialPattern = attendeeName.match(/^([A-Za-z]+)\s+([A-Za-z])\.?$/);
+  if (nameInitialPattern) {
+    const firstName = nameInitialPattern[1].toLowerCase();
+    const lastInitial = nameInitialPattern[2].toLowerCase();
+
+    // Find members where first name matches and last name starts with initial
+    const candidates = members.filter(m => {
+      const nameParts = m.name.toLowerCase().split(/\s+/);
+      if (nameParts.length < 2) return false;
+      const memberFirstName = nameParts[0];
+      const memberLastName = nameParts[nameParts.length - 1];
+      return memberFirstName === firstName && memberLastName.startsWith(lastInitial);
+    });
+
+    // Only use if exactly one match (unambiguous)
+    if (candidates.length === 1) {
+      return {
+        member_id: candidates[0].id,
+        confidence: 'high',
+        method: 'normalized_name' // Using normalized_name method for now
+      };
+    }
+  }
+
+  // Rule 4: Try first name only match (if unambiguous)
+  if (attendeeName.split(/\s+/).length === 1) {
+    // Single word - try matching by first name only
+    const firstName = attendeeName.toLowerCase();
+    const candidates = members.filter(m => {
+      const nameParts = m.name.toLowerCase().split(/\s+/);
+      return nameParts[0] === firstName;
+    });
+
+    // Only use if exactly one match (unambiguous)
+    if (candidates.length === 1) {
+      return {
+        member_id: candidates[0].id,
+        confidence: 'high',
+        method: 'normalized_name' // Using normalized_name method for now
+      };
+    }
+  }
+
+  // Rule 5: Try normalized full name match (fallback)
   const normalized = normalizeName(attendeeName);
   const member = membersByNormalizedName.get(normalized);
   if (member) {
