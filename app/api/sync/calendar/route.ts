@@ -53,13 +53,8 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // OPTIMIZATION: Load all existing events upfront by google_event_id
-    // Paginate to handle >1000 rows
-    const googleEventIds = events
-      .filter((e) => e.id)
-      .map((e) => e.id);
-
-    // Fetch ALL existing events with pagination (not filtered by IDs to avoid .in() limits)
+    // OPTIMIZATION: Load existing events in the sync date range
+    // This is much more efficient than loading ALL events or using .in() with 1000+ IDs
     let existingEvents: any[] = [];
     let offset = 0;
     const FETCH_BATCH = 1000;
@@ -69,6 +64,8 @@ export async function POST(request: NextRequest) {
       const { data } = await supabase
         .from("calendar_events")
         .select("id, google_event_id, summary, start_time, end_time")
+        .gte("start_time", timeMin)
+        .lte("end_time", timeMax)
         .range(offset, offset + FETCH_BATCH - 1);
 
       if (data && data.length > 0) {
