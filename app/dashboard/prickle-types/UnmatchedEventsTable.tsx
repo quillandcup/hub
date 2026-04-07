@@ -78,6 +78,7 @@ export default function UnmatchedEventsTable({
   const closeModal = () => {
     setSelectedGroup(null);
     setError(null);
+    setLoading(false);
   };
 
   // Filter members based on search term
