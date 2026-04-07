@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
       endTime,
     } = body;
 
-    if (!unmatchedEventId || !calendarEventId || !host || !startTime || !endTime) {
+    if (!unmatchedEventId || !calendarEventId || !startTime || !endTime) {
       return NextResponse.json(
         { error: "Missing required fields" },
         { status: 400 }
@@ -81,12 +81,30 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Match host to member ID (host field is a UUID foreign key to members)
+    let hostId: string | null = null;
+
+    if (host && host.trim()) {
+      // Try to match the host name to a member using the RPC function
+      const { data: matchResult } = await supabase.rpc("match_member_by_name", {
+        zoom_name: host.trim(),
+        zoom_email: null,
+      });
+
+      const match = matchResult && matchResult.length > 0 ? matchResult[0] : null;
+
+      if (match) {
+        hostId = match.member_id;
+      }
+      // If no match found, leave hostId as null (allows events without known hosts)
+    }
+
     // Create the prickle
     const { error: prickleError } = await supabase
       .from("prickles")
       .insert({
         type_id: resolvedTypeId,
-        host: host.trim(),
+        host: hostId,
         start_time: startTime,
         end_time: endTime,
         source: "calendar",

@@ -80,32 +80,23 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate and match host to a member
-    let canonicalHost: string | null = host?.trim() || null;
+    // Match host to member ID (host field is a UUID foreign key to members)
+    let hostId: string | null = null;
 
     // Only try to match if a host was provided
-    if (canonicalHost) {
-      // Try to match the host to a member to get canonical name
+    if (host && host.trim()) {
+      // Try to match the host to a member to get member_id
       const { data: matchResult } = await supabase.rpc("match_member_by_name", {
-        zoom_name: canonicalHost,
+        zoom_name: host.trim(),
         zoom_email: null,
       });
 
       const match = matchResult && matchResult.length > 0 ? matchResult[0] : null;
 
       if (match) {
-        // Get the canonical member name
-        const { data: member } = await supabase
-          .from("members")
-          .select("name")
-          .eq("id", match.member_id)
-          .single();
-
-        if (member) {
-          canonicalHost = member.name;
-        }
+        hostId = match.member_id;
       }
-      // If no match found, use the provided host name as-is (allows non-member hosts)
+      // If no match found, leave hostId as null (allows events without known hosts)
     }
 
     // Fetch calendar event details for each event
@@ -124,7 +115,7 @@ export async function POST(request: NextRequest) {
     // Create prickles for all events
     const pricklesToInsert = calendarEvents.map((event: any) => ({
       type_id: resolvedTypeId,
-      host: canonicalHost,
+      host: hostId,
       start_time: event.start_time,
       end_time: event.end_time,
       source: "calendar",
