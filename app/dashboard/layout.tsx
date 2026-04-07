@@ -24,7 +24,7 @@ export default async function DashboardLayout({
 
       <div className="flex flex-col flex-1 min-w-0">
         {/* Top header bar */}
-        <header className="h-16 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex items-center justify-end px-6 flex-shrink-0">
+        <header className="h-16 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex items-center justify-end px-6 flex-shrink-0 relative z-30">
           <UserMenu userEmail={user.email || "User"} />
         </header>
 
