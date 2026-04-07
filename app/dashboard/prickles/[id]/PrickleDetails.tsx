@@ -27,6 +27,9 @@ export default function PrickleDetails({ prickle, attendanceRecords, hostMissing
   const endTime = new Date(prickle.end_time);
   const durationMinutes = Math.round((endTime.getTime() - startTime.getTime()) / 60000);
 
+  // Count unique members (attendance table allows multiple records per member for leave/rejoin)
+  const uniqueMembers = new Set(attendanceRecords.map(r => r.member_id || r.members?.id)).size;
+
   const formatTime = (date: Date) => {
     return date.toLocaleTimeString("en-US", {
       timeZone: timezone,
@@ -122,7 +125,7 @@ export default function PrickleDetails({ prickle, attendanceRecords, hostMissing
           <div>
             <span className="text-slate-600 dark:text-slate-400">Attendance:</span>
             <p className="font-semibold text-slate-900 dark:text-slate-100">
-              {attendanceRecords.length} {attendanceRecords.length === 1 ? "attendee" : "attendees"}
+              {uniqueMembers} {uniqueMembers === 1 ? "attendee" : "attendees"}
             </p>
           </div>
         </div>
@@ -137,7 +140,12 @@ export default function PrickleDetails({ prickle, attendanceRecords, hostMissing
       {/* Attendance List */}
       <div className="bg-white dark:bg-slate-900 rounded-lg shadow">
         <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800">
-          <h2 className="text-xl font-bold">Attendees ({attendanceRecords.length})</h2>
+          <h2 className="text-xl font-bold">Attendees ({uniqueMembers})</h2>
+          {attendanceRecords.length > uniqueMembers && (
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+              {attendanceRecords.length} total records (some members left and rejoined)
+            </p>
+          )}
         </div>
         {attendanceRecords.length > 0 ? (
           <div className="overflow-x-auto">

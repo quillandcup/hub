@@ -171,19 +171,13 @@ The dashboard has basic stats cards, at-risk members list, and engagement insigh
    - Bar chart: Attendance by prickle type
    - Heatmap: Popular prickle times (day/hour)
 
-5. **Quick Actions / Shortcuts**
-   - "Import Zoom Data" button
-   - "Process Attendance" button
-   - "View Unmatched Events" button
-   - Jump to common admin tasks
-
-6. **Alerts & Notifications Panel**
+5. **Alerts & Notifications Panel**
    - Host no-shows this week (scheduled but didn't attend)
    - Members who just became at-risk
    - Data processing errors or warnings
    - Unmatched Zoom attendees count
 
-7. **Member Lifecycle Summary**
+6. **Member Lifecycle Summary**
    - New members this month
    - Members ending hiatus soon
    - Churned members (went inactive this month)
@@ -216,17 +210,15 @@ The dashboard has basic stats cards, at-risk members list, and engagement insigh
 ## Bug Fixes
 
 ### Attendance Counting
-- **Leave/rejoin counted as multiple attendees**
-  - Current: User who leaves and rejoins shows as multiple attendees
-  - Visible on prickle details page
-  - Should count unique members, not attendance records
+- ✅ **FIXED: Leave/rejoin counted as multiple attendees**
+  - Prickle details page now counts unique members, not attendance records
+  - Shows note when members left and rejoined: "X total records (some members left and rejoined)"
   - Note: attendance table allows multiple records per (member_id, prickle_id) by design to track leave/rejoin patterns
 
 ### Prickle Types
-- **Edit prickle type returns 404**
-  - Example: `/dashboard/prickle-types/38368b77-5970-4d63-9063-fe603ee639bf/edit`
-  - Route exists but shows 404 page
-  - Investigate routing issue
+- ✅ **FIXED: Edit prickle type route**
+  - Route is at `/data/prickle-types/{id}/edit` (not `/dashboard/prickle-types/{id}/edit`)
+  - Working correctly
 
 ### Host Processing
 - **Host assignment appears broken on Progress Prickles**
