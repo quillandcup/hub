@@ -194,7 +194,48 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        // Try normalized name match
+        // Try first name + last initial pattern (e.g., "Katie P" → "Member 22")
+        if (!hostId) {
+          // Match pattern: "FirstName LastInitial" (with optional period/space)
+          const nameInitialPattern = hostNameToMatch.match(/^([A-Za-z]+)\s+([A-Za-z])\.?$/);
+          if (nameInitialPattern) {
+            const firstName = nameInitialPattern[1].toLowerCase();
+            const lastInitial = nameInitialPattern[2].toLowerCase();
+
+            // Find members where first name matches and last name starts with initial
+            const candidates = members?.filter(m => {
+              const nameParts = m.name.toLowerCase().split(/\s+/);
+              if (nameParts.length < 2) return false;
+              const memberFirstName = nameParts[0];
+              const memberLastName = nameParts[nameParts.length - 1];
+              return memberFirstName === firstName && memberLastName.startsWith(lastInitial);
+            }) || [];
+
+            // Only use if exactly one match (unambiguous)
+            if (candidates.length === 1) {
+              hostId = candidates[0].id;
+              suggestedHostName = candidates[0].name;
+            }
+          }
+        }
+
+        // Try first name only match (if unambiguous)
+        if (!hostId && hostNameToMatch.split(/\s+/).length === 1) {
+          // Single word - try matching by first name only
+          const firstName = hostNameToMatch.toLowerCase();
+          const candidates = members?.filter(m => {
+            const nameParts = m.name.toLowerCase().split(/\s+/);
+            return nameParts[0] === firstName;
+          }) || [];
+
+          // Only use if exactly one match (unambiguous)
+          if (candidates.length === 1) {
+            hostId = candidates[0].id;
+            suggestedHostName = candidates[0].name;
+          }
+        }
+
+        // Try normalized name match (full name fallback)
         if (!hostId) {
           const normalized = normalizeName(hostNameToMatch);
           const member = membersByNormalizedName.get(normalized);
