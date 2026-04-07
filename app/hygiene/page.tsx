@@ -128,7 +128,7 @@ export default async function DataHygienePage() {
 
           {/* Zoom Attendees */}
           <Link
-            href="/dashboard/aliases"
+            href="/dashboard/unmatched-zoom"
             className="block p-6 bg-white dark:bg-slate-900 rounded-lg shadow hover:shadow-lg transition-shadow border border-slate-200 dark:border-slate-800"
           >
             <div className="flex items-center justify-between mb-2">
@@ -150,7 +150,7 @@ export default async function DataHygienePage() {
 
           {/* Name Aliases */}
           <Link
-            href="/dashboard/aliases/list"
+            href="/dashboard/unmatched-zoom/list"
             className="block p-6 bg-white dark:bg-slate-900 rounded-lg shadow hover:shadow-lg transition-shadow border border-slate-200 dark:border-slate-800"
           >
             <div className="flex items-center justify-between mb-2">
