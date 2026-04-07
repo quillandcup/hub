@@ -25,7 +25,7 @@ export default async function PrickleTypesPage() {
         <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
           <h2 className="text-xl font-bold">All Types ({prickleTypes?.length || 0})</h2>
           <Link
-            href="/dashboard/prickle-types/new"
+            href="/data/prickle-types/new"
             className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors"
           >
             + Add Type
@@ -61,7 +61,7 @@ export default async function PrickleTypesPage() {
                   </td>
                   <td className="px-6 py-4">
                     <Link
-                      href={`/dashboard/prickle-types/${type.id}/edit`}
+                      href={`/data/prickle-types/${type.id}/edit`}
                       className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
                     >
                       Edit
