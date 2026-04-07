@@ -8,15 +8,29 @@ All member name matching for Zoom attendance processing uses the centralized log
 
 1. **Email Match** (highest priority)
    - Exact match on email address (case-insensitive)
+   - Can be skipped via `skipEmail` parameter (for calendar organizers)
    - Confidence: HIGH
    - Example: `member13@example.com` → Member 13
 
 2. **Alias Match**
-   - Exact match on configured alias
+   - Case-insensitive match on configured alias
+   - Flexible: `member13-display`, `bestie`, `BESTIE` all match the same alias
    - Confidence: HIGH
    - Example: `member13-display` → Member 13
 
-3. **Normalized Name Match**
+3. **First Name + Last Initial**
+   - Matches pattern like "Katie P" to "Member 22"
+   - Only matches if unambiguous (exactly one candidate)
+   - Confidence: HIGH
+   - Example: `Katie P` → Member 22 (if only one Katie P* exists)
+
+4. **First Name Only**
+   - Matches single word to first name
+   - Only matches if unambiguous (exactly one candidate)
+   - Confidence: HIGH
+   - Example: `Lili` → Lili Sutter (if only one Lili exists)
+
+5. **Normalized Name Match**
    - Fuzzy match after normalization
    - Confidence: HIGH
    - Example: `Member 33` → Member 33
@@ -53,6 +67,25 @@ if (match) {
   console.log(`Method: ${match.method}`) // 'email' | 'alias' | 'normalized_name'
   console.log(`Confidence: ${match.confidence}`) // 'high'
 }
+```
+
+### Calendar Processing (Skip Email Matching)
+
+For calendar events where the organizer email is the org account (not the actual host):
+
+```typescript
+// Extract host from "Prickle w/Lili" pattern
+const hostName = extractedFromSummary // "Lili"
+const organizerEmail = event.organizer_email // "team@quillandcup.com" (org account)
+
+// Skip email matching since it would incorrectly match to org account
+const match = matchAttendeeToMember(
+  hostName,
+  organizerEmail,
+  members,
+  aliases,
+  true // skipEmail = true
+)
 ```
 
 ### Batch Matching
@@ -142,9 +175,17 @@ if (match) {
 }
 ```
 
+## Recent Improvements
+
+- ✅ Case-insensitive alias matching (April 2026)
+- ✅ First name + last initial pattern matching (April 2026)
+- ✅ First name only matching for unambiguous cases (April 2026)
+- ✅ skipEmail parameter for calendar processing (April 2026)
+- ✅ Centralized matching logic across all processing (April 2026)
+
 ## Future Improvements
 
 - [ ] Add fuzzy string matching (Levenshtein distance) for "low" confidence matches
 - [ ] Track match statistics to identify problematic names
 - [ ] Add ML-based name matching for complex cases
-- [ ] Support for name variations (nicknames, shortened forms)
+- [ ] Support for additional name variations (nicknames, shortened forms beyond first name)
