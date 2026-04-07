@@ -285,9 +285,9 @@ export default async function DataHygienePage() {
             <p className="text-sm text-slate-600 dark:text-slate-400">
               {calendarPricklesWithHost}/{matchedCalendarEvents} prickles with host
             </p>
-            {hostMatchRate < 90 && matchedCalendarEvents > 0 && (
+            {(calendarPricklesWithHost || 0) < (matchedCalendarEvents || 0) && (
               <p className="text-xs text-orange-600 dark:text-orange-400 mt-2">
-                Low host match rate
+                {(matchedCalendarEvents || 0) - (calendarPricklesWithHost || 0)} prickles missing host
               </p>
             )}
           </div>
