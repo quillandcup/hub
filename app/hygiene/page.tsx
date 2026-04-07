@@ -128,7 +128,7 @@ export default async function DataHygienePage() {
 
           {/* Zoom Attendees */}
           <Link
-            href="/hygiene/unmatched-zoom"
+            href="/dashboard/aliases"
             className="block p-6 bg-white dark:bg-slate-900 rounded-lg shadow hover:shadow-lg transition-shadow border border-slate-200 dark:border-slate-800"
           >
             <div className="flex items-center justify-between mb-2">
