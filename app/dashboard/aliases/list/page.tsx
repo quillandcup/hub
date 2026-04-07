@@ -22,13 +22,16 @@ export default async function AliasListPage() {
 
   // Group aliases by member
   const aliasesByMember = new Map<string, any[]>();
-  aliases?.forEach((alias) => {
-    if (!alias.member) return;
-    const memberId = alias.member.id;
+  aliases?.forEach((alias: any) => {
+    // Supabase returns member as an array when using select with joins
+    const member = Array.isArray(alias.member) ? alias.member[0] : alias.member;
+    if (!member) return;
+
+    const memberId = member.id;
     if (!aliasesByMember.has(memberId)) {
       aliasesByMember.set(memberId, []);
     }
-    aliasesByMember.get(memberId)!.push(alias);
+    aliasesByMember.get(memberId)!.push({ ...alias, member });
   });
 
   // Convert to sorted array
