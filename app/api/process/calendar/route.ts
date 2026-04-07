@@ -217,8 +217,15 @@ export async function POST(request: NextRequest) {
       }
 
       // Add to insert list (we DELETE everything, so all matched events are re-inserted)
+      // Only store title if it's different from the type (for "fun names" like "Midnight Crew")
+      const matchedType = prickleTypes?.find(t => t.id === typeId);
+      const isSameAsType = matchedType &&
+        (event.summary === matchedType.name ||
+         event.summary === `${matchedType.name} Prickle`);
+
       pricklesToInsert.push({
         type_id: typeId,
+        title: isSameAsType ? null : event.summary, // NULL if just "{Type}" or "{Type} Prickle"
         host: hostId,
         start_time: event.start_time,
         end_time: event.end_time,
