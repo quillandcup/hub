@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
-import UnmatchedEventsTable from "../prickle-types/UnmatchedEventsTable";
+import UnmatchedEventsTable from "../../data/prickle-types/UnmatchedEventsTable";
 
 export default async function UnmatchedEventsPage() {
   const supabase = await createClient();
