@@ -133,8 +133,10 @@ export async function POST(request: NextRequest) {
     const membersByNormalizedName = new Map(
       members?.map((m) => [normalizeName(m.name), m]) || []
     );
+    // Build alias map with lowercase keys for case-insensitive matching
+    // Aliases are disambiguation rules and should be flexible
     const aliasToMemberId = new Map(
-      aliases?.map((a) => [a.alias, a.member_id]) || []
+      aliases?.map((a) => [a.alias.trim().toLowerCase(), a.member_id]) || []
     );
     const typeByNormalizedName = new Map(
       prickleTypes?.map((t) => [t.normalized_name, t.id]) || []
@@ -181,9 +183,10 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        // Try alias match
-        if (!hostId && aliasToMemberId.has(hostNameToMatch)) {
-          const memberId = aliasToMemberId.get(hostNameToMatch)!;
+        // Try alias match (case-insensitive for flexibility)
+        const normalizedForAlias = hostNameToMatch.trim().toLowerCase();
+        if (!hostId && aliasToMemberId.has(normalizedForAlias)) {
+          const memberId = aliasToMemberId.get(normalizedForAlias)!;
           const member = members?.find((m) => m.id === memberId);
           if (member) {
             hostId = member.id;
