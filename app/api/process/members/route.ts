@@ -5,12 +5,17 @@ import { NextRequest, NextResponse } from "next/server";
 export const maxDuration = 60; // 60 seconds (max for Hobby tier)
 
 /**
- * Process Bronze layer data (kajabi_members) into Silver layer (members)
+ * Process Bronze layer data into Silver layer (members)
+ *
+ * Bronze sources:
+ * 1. kajabi_members - Paying customers from Kajabi
+ * 2. staff - Team members (owners, staff, contractors)
  *
  * This endpoint:
- * 1. Reads latest kajabi_members snapshot (Bronze - raw Kajabi CSV)
- * 2. Applies business logic to derive member status from Products/Tags
- * 3. Upserts into members table (Silver - canonical member data)
+ * 1. Reads latest kajabi_members snapshot
+ * 2. Reads staff table
+ * 3. Applies business logic to both sources
+ * 4. Regenerates members table (DELETE + INSERT pattern)
  */
 export async function POST(request: NextRequest) {
   // Check authentication (supports both cookie-based and service role key)
@@ -42,38 +47,41 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    // Get the latest snapshot from kajabi_members (most recent imported_at for each email)
-    const { data: latestSnapshot, error: snapshotError } = await supabase
-      .from("kajabi_members")
-      .select("*")
-      .order("imported_at", { ascending: false });
+    // STEP 1: Load Bronze data from both sources
+    const [
+      { data: kajabiSnapshot, error: kajabiError },
+      { data: staffMembers, error: staffError }
+    ] = await Promise.all([
+      supabase
+        .from("kajabi_members")
+        .select("*")
+        .order("imported_at", { ascending: false }),
+      supabase
+        .from("staff")
+        .select("*")
+    ]);
 
-    if (snapshotError) throw snapshotError;
+    if (kajabiError) throw kajabiError;
+    if (staffError) throw staffError;
 
-    console.log('[DEBUG] kajabi_members query result:', {
-      count: latestSnapshot?.length || 0,
-      emails: latestSnapshot?.map(r => r.email).slice(0, 5)
+    console.log('[DEBUG] Bronze sources:', {
+      kajabi_count: kajabiSnapshot?.length || 0,
+      staff_count: staffMembers?.length || 0,
     });
 
-    if (!latestSnapshot || latestSnapshot.length === 0) {
-      return NextResponse.json({
-        success: true,
-        message: "No kajabi_members data found. Run /api/import/members first.",
-        processed: 0,
-      });
-    }
+    // STEP 2: Process Kajabi members (Bronze source 1)
+    const kajabiMembers = [];
 
-    // Get unique emails with their latest snapshot
-    const latestByEmail = new Map<string, any>();
-    for (const row of latestSnapshot) {
-      if (!latestByEmail.has(row.email)) {
-        latestByEmail.set(row.email, row);
+    if (kajabiSnapshot && kajabiSnapshot.length > 0) {
+      // Get unique emails with their latest snapshot
+      const latestByEmail = new Map<string, any>();
+      for (const row of kajabiSnapshot) {
+        if (!latestByEmail.has(row.email)) {
+          latestByEmail.set(row.email, row);
+        }
       }
-    }
 
-    const membersToUpsert = [];
-
-    for (const [email, kajabiMember] of latestByEmail) {
+      for (const [email, kajabiMember] of latestByEmail) {
       const data = kajabiMember.data;
 
       // Check if this is subscription data or member data
@@ -160,24 +168,43 @@ export async function POST(request: NextRequest) {
         joinedAt = createdAt.split(" ")[0];
       }
 
-      membersToUpsert.push({
-        email: email.toLowerCase(),
-        name,
-        joined_at: joinedAt,
-        status,
-        plan,
-      });
+        kajabiMembers.push({
+          email: email.toLowerCase(),
+          name,
+          joined_at: joinedAt,
+          status,
+          plan,
+          source: 'kajabi',
+          staff_role: null,
+          user_id: null,
+        });
+      }
     }
 
-    if (membersToUpsert.length === 0) {
+    // STEP 3: Process staff members (Bronze source 2)
+    const processedStaffMembers = (staffMembers || []).map(staff => ({
+      email: staff.email.toLowerCase(),
+      name: staff.name,
+      joined_at: staff.hire_date || '2020-01-01', // Default for staff without hire_date
+      status: 'active' as const, // Staff are always active
+      plan: null, // Staff don't have plans
+      source: 'staff',
+      staff_role: staff.role,
+      user_id: staff.user_id,
+    }));
+
+    // STEP 4: Combine both sources
+    const allMembers = [...kajabiMembers, ...processedStaffMembers];
+
+    if (allMembers.length === 0) {
       return NextResponse.json({
         success: true,
-        message: "No valid members to process",
+        message: "No valid members to process from either source",
         processed: 0,
       });
     }
 
-    // STEP 2: DELETE all existing members (for reprocessability)
+    // STEP 5: DELETE all existing members (for reprocessability)
     // This makes the process fully reprocessable - we regenerate Silver from Bronze
     console.log("Deleting all existing members");
     const { error: deleteError } = await supabase
@@ -190,10 +217,10 @@ export async function POST(request: NextRequest) {
       throw deleteError;
     }
 
-    // STEP 3: INSERT fresh members from Bronze snapshot
+    // STEP 6: INSERT fresh members from both Bronze sources
     const { data, error } = await supabase
       .from("members")
-      .insert(membersToUpsert)
+      .insert(allMembers)
       .select();
 
     if (error) {
@@ -204,10 +231,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       processed: data?.length || 0,
+      sourceBreakdown: {
+        kajabi: kajabiMembers.length,
+        staff: processedStaffMembers.length,
+      },
       statusBreakdown: {
-        active: membersToUpsert.filter((m) => m.status === "active").length,
-        on_hiatus: membersToUpsert.filter((m) => m.status === "on_hiatus").length,
-        inactive: membersToUpsert.filter((m) => m.status === "inactive").length,
+        active: allMembers.filter((m) => m.status === "active").length,
+        on_hiatus: allMembers.filter((m) => m.status === "on_hiatus").length,
+        inactive: allMembers.filter((m) => m.status === "inactive").length,
       },
     });
   } catch (error: any) {
