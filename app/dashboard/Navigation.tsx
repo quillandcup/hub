@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -58,9 +58,26 @@ export default function Navigation() {
   const [collapsed, setCollapsed] = useState(false);
   const pathname = usePathname();
 
+  // Initialize collapsed state based on screen size
+  useEffect(() => {
+    const isMobile = window.innerWidth < 768;
+    setCollapsed(isMobile);
+  }, []);
+
+  // Handle window resize to auto-collapse on mobile
+  useEffect(() => {
+    const handleResize = () => {
+      const isMobile = window.innerWidth < 768;
+      setCollapsed(isMobile);
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   return (
     <aside
-      className={`flex-shrink-0 h-screen bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 transition-all duration-300 ${
+      className={`flex-shrink-0 h-screen bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 transition-all duration-300 z-10 ${
         collapsed ? "w-16" : "w-64"
       }`}
     >
@@ -73,7 +90,7 @@ export default function Navigation() {
         )}
         <button
           onClick={() => setCollapsed(!collapsed)}
-          className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
+          className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors relative z-20"
           aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
         >
           {collapsed ? "→" : "←"}
