@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import ProcessOrphanedButton from "./ProcessOrphanedButton";
+import ProcessOrphanedMeetingsButton from "./ProcessOrphanedMeetingsButton";
 
 export const dynamic = "force-dynamic";
 
@@ -86,6 +87,53 @@ export default async function DataHygienePage() {
 
     if (minEvent && maxEvent) {
       orphanedDateRange = { fromDate: minEvent.start_time, toDate: maxEvent.end_time };
+    }
+  }
+
+  // Calculate orphaned Zoom meetings (in zoom_attendees but not converted to prickles)
+  // Get unique meeting UUIDs from zoom_attendees
+  const { data: allMeetingUuids } = await supabase
+    .from("zoom_attendees")
+    .select("meeting_uuid")
+    .not("meeting_uuid", "is", null);
+
+  const uniqueMeetingUuids = new Set(allMeetingUuids?.map(m => m.meeting_uuid) || []);
+
+  // Get meeting UUIDs that have prickles
+  const { data: pricklesWithMeetings } = await supabase
+    .from("prickles")
+    .select("zoom_meeting_uuid")
+    .eq("source", "zoom")
+    .not("zoom_meeting_uuid", "is", null);
+
+  const prickleMeetingUuids = new Set(pricklesWithMeetings?.map(p => p.zoom_meeting_uuid) || []);
+
+  // Orphaned meetings = meetings that don't have prickles
+  const orphanedMeetingUuids = [...uniqueMeetingUuids].filter(uuid => !prickleMeetingUuids.has(uuid));
+  const orphanedMeetings = orphanedMeetingUuids.length;
+
+  // Get date range of orphaned meetings if any exist
+  let orphanedMeetingsDateRange = null;
+  if (orphanedMeetings > 0) {
+    const [{ data: minMeeting }, { data: maxMeeting }] = await Promise.all([
+      supabase
+        .from("zoom_attendees")
+        .select("join_time")
+        .not("meeting_uuid", "is", null)
+        .order("join_time", { ascending: true })
+        .limit(1)
+        .single(),
+      supabase
+        .from("zoom_attendees")
+        .select("leave_time")
+        .not("meeting_uuid", "is", null)
+        .order("leave_time", { ascending: false })
+        .limit(1)
+        .single(),
+    ]);
+
+    if (minMeeting && maxMeeting) {
+      orphanedMeetingsDateRange = { fromDate: minMeeting.join_time, toDate: maxMeeting.leave_time };
     }
   }
 
@@ -212,6 +260,29 @@ export default async function DataHygienePage() {
                     Recommendation: Reprocess calendar events from early March to auto-resolve
                     these events.
                   </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {orphanedMeetings > 0 && (
+            <div className="p-4 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg">
+              <div className="flex items-start gap-3">
+                <span className="text-xl">🚨</span>
+                <div className="flex-1">
+                  <h3 className="font-semibold text-orange-900 dark:text-orange-100 mb-1">
+                    {orphanedMeetings} orphaned Zoom meetings detected
+                  </h3>
+                  <p className="text-sm text-orange-800 dark:text-orange-200 mb-2">
+                    These Zoom meetings have attendee records but were never processed into Pop-Up Prickles.
+                    This usually means they fell outside the date range during attendance processing.
+                  </p>
+                  <div className="mt-3">
+                    <ProcessOrphanedMeetingsButton
+                      orphanedCount={orphanedMeetings}
+                      dateRange={orphanedMeetingsDateRange}
+                    />
+                  </div>
                 </div>
               </div>
             </div>
