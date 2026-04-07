@@ -50,6 +50,7 @@ const navigation: NavSection[] = [
     items: [
       { name: "Import Data", href: "/data/import", icon: "📥" },
       { name: "Prickle Types", href: "/data/prickle-types", icon: "🏷️" },
+      { name: "Name Aliases", href: "/data/aliases", icon: "👤" },
     ],
   },
 ];

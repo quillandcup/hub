@@ -103,9 +103,12 @@ export default async function AliasListPage() {
                   <tr key={member.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div>
-                        <div className="font-medium text-slate-900 dark:text-slate-100">
+                        <Link
+                          href={`/dashboard/members/${member.id}`}
+                          className="font-medium text-slate-900 dark:text-slate-100 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                        >
                           {member.name}
-                        </div>
+                        </Link>
                         <div className="text-sm text-slate-500 dark:text-slate-400">
                           {member.email}
                         </div>
