@@ -150,7 +150,9 @@ export async function POST(request: NextRequest) {
 
       // Match host to member ID
       let hostId: string | null = null;
-      let suggestedHostName = event.creator_name || event.organizer_name || null;
+      // For unmatched events, suggest the extracted host first (e.g., "Kristin" from "w/Kristin")
+      // Fall back to calendar organizer if no host extracted
+      let suggestedHostName = extractedHostName || event.creator_name || event.organizer_name || null;
 
       const hostNameToMatch = extractedHostName || event.organizer_name || event.creator_name;
       const hostEmailToMatch = event.organizer_email || event.creator_email;
