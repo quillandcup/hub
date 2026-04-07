@@ -55,16 +55,19 @@ const navigation: NavSection[] = [
 ];
 
 export default function Navigation() {
-  const [collapsed, setCollapsed] = useState(false);
+  // Mobile-first: default to collapsed, check on mount to expand on desktop
+  // This prevents flicker by starting in the correct state for mobile
+  const [collapsed, setCollapsed] = useState(() => {
+    // Only check window size on client-side
+    if (typeof window !== 'undefined') {
+      return window.innerWidth < 768;
+    }
+    // Default to collapsed for SSR (mobile-first)
+    return true;
+  });
   const pathname = usePathname();
 
-  // Initialize collapsed state based on screen size
-  useEffect(() => {
-    const isMobile = window.innerWidth < 768;
-    setCollapsed(isMobile);
-  }, []);
-
-  // Handle window resize to auto-collapse on mobile
+  // Handle window resize to auto-adjust on screen size changes
   useEffect(() => {
     const handleResize = () => {
       const isMobile = window.innerWidth < 768;

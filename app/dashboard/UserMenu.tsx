@@ -29,14 +29,14 @@ export default function UserMenu({ userEmail }: UserMenuProps) {
     <div className="relative" ref={menuRef}>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+        className="flex items-center gap-2 px-2 md:px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
       >
         <div className="w-8 h-8 rounded-full bg-gradient-to-r from-blue-600 to-purple-600 flex items-center justify-center text-white font-semibold text-sm">
           {userEmail.charAt(0).toUpperCase()}
         </div>
-        <span className="text-sm text-slate-700 dark:text-slate-300">{userEmail}</span>
+        <span className="hidden md:inline text-sm text-slate-700 dark:text-slate-300">{userEmail}</span>
         <svg
-          className={`w-4 h-4 text-slate-500 transition-transform ${isOpen ? "rotate-180" : ""}`}
+          className={`hidden md:block w-4 h-4 text-slate-500 transition-transform ${isOpen ? "rotate-180" : ""}`}
           fill="none"
           stroke="currentColor"
           viewBox="0 0 24 24"
