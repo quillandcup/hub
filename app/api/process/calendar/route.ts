@@ -324,6 +324,13 @@ export async function POST(request: NextRequest) {
           supabase.from("prickles").insert(batch)
         )
       );
+
+      // Log any errors
+      const failedChunks = insertResults.filter((r) => r.error);
+      if (failedChunks.length > 0) {
+        console.error(`Failed to insert ${failedChunks.length} chunks:`, failedChunks[0].error);
+      }
+
       created = insertResults.filter((r) => !r.error).length * CHUNK_SIZE;
       // Adjust for last chunk
       const lastChunkResult = insertResults[insertResults.length - 1];

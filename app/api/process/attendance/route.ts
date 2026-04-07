@@ -310,9 +310,10 @@ export async function POST(request: NextRequest) {
         if (member) return { member_id: member.id, confidence: "high" };
       }
 
-      // Try alias match
-      if (aliasToMember.has(name)) {
-        const member = aliasToMember.get(name)!;
+      // Try alias match (trim whitespace from Zoom names)
+      const trimmedName = name.trim();
+      if (aliasToMember.has(trimmedName)) {
+        const member = aliasToMember.get(trimmedName)!;
         return { member_id: member.id, confidence: "high" };
       }
 
@@ -350,9 +351,23 @@ export async function POST(request: NextRequest) {
     const segmentsByMeeting = new Map<string, any[]>();
 
     for (const [meetingUuid, attendees] of meetingsByUuid) {
-      // Calculate meeting window from ALL attendees
-      const joinTimes = attendees.map(a => new Date(a.join_time));
-      const leaveTimes = attendees.map(a => new Date(a.leave_time));
+      // CRITICAL: Calculate meeting window from MATCHED attendees only
+      // If we use all attendees (including unmatched), we create PUP segments
+      // for time windows where only unmatched attendees were present,
+      // resulting in 0-attendee PUPs
+      const matchedAttendeesForWindow = attendees.filter(a => {
+        const match = matchAttendeeToMember(a.name, a.email);
+        return match !== null;
+      });
+
+      // Skip meetings where nobody matched (edge case)
+      if (matchedAttendeesForWindow.length === 0) {
+        console.warn(`Meeting ${meetingUuid} has no matched attendees - skipping segment creation`);
+        continue;
+      }
+
+      const joinTimes = matchedAttendeesForWindow.map(a => new Date(a.join_time));
+      const leaveTimes = matchedAttendeesForWindow.map(a => new Date(a.leave_time));
       const meetingStart = new Date(Math.min(...joinTimes.map(d => d.getTime())));
       const meetingEnd = new Date(Math.max(...leaveTimes.map(d => d.getTime())));
 
@@ -384,6 +399,14 @@ export async function POST(request: NextRequest) {
           prickleIdsBySegment.set(segment, segment.prickle_id);
           matchedToCalendar++; // Count segments, not attendees for now
         } else {
+          // Skip 0-duration PUP segments (edge case bug)
+          const segmentStart = new Date(segment.start_time);
+          const segmentEnd = new Date(segment.end_time);
+          if (segmentStart.getTime() >= segmentEnd.getTime()) {
+            console.warn(`Skipping 0-duration PUP segment: ${segment.start_time} - ${segment.end_time}`);
+            continue;
+          }
+
           // Create PUP
           const { data: newPrickle, error: prickleError } = await supabase
             .from("prickles")
