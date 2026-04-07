@@ -29,11 +29,11 @@ export default async function DataHygienePage() {
       .eq("source", "zoom")
       .not("id", "in", `(SELECT DISTINCT prickle_id FROM attendance WHERE prickle_id IS NOT NULL)`)
       .limit(10),
-    // Last calendar sync
+    // Last calendar sync (use imported_at which updates on UPSERT)
     supabase
       .from("calendar_events")
-      .select("created_at")
-      .order("created_at", { ascending: false })
+      .select("imported_at")
+      .order("imported_at", { ascending: false })
       .limit(1)
       .single(),
     // Last attendance processing (most recent PUP)
@@ -164,8 +164,8 @@ export default async function DataHygienePage() {
             <div className="flex justify-between items-center">
               <span className="text-slate-600 dark:text-slate-400">Last calendar sync:</span>
               <span className="font-medium text-slate-900 dark:text-slate-100">
-                {lastSync?.created_at
-                  ? new Date(lastSync.created_at).toLocaleString()
+                {lastSync?.imported_at
+                  ? new Date(lastSync.imported_at).toLocaleString()
                   : "Never"}
               </span>
             </div>
