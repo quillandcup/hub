@@ -27,7 +27,7 @@ export default async function EditPrickleTypePage({
     .single();
 
   if (error || !prickleType) {
-    redirect("/dashboard/prickle-types");
+    redirect("/data/prickle-types");
   }
 
   return (
@@ -35,7 +35,7 @@ export default async function EditPrickleTypePage({
       <header className="border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
         <div className="container mx-auto px-6 py-4">
           <Link
-            href="/dashboard/prickle-types"
+            href="/data/prickle-types"
             className="text-blue-600 hover:text-blue-700 dark:text-blue-400 text-sm mb-2 inline-block"
           >
             ← Back to Prickle Types
