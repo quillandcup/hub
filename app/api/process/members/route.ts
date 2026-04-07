@@ -206,11 +206,24 @@ export async function POST(request: NextRequest) {
 
     // STEP 5: DELETE all existing members (for reprocessability)
     // This makes the process fully reprocessable - we regenerate Silver from Bronze
-    console.log("Deleting all existing members");
+    console.log("Deleting all existing members and orphaned aliases");
+
+    // First, delete all member_name_aliases (they reference member_id which will change)
+    const { error: deleteAliasesError } = await supabase
+      .from("member_name_aliases")
+      .delete()
+      .neq("id", "00000000-0000-0000-0000-000000000000");
+
+    if (deleteAliasesError) {
+      console.error("Error deleting aliases:", deleteAliasesError);
+      throw deleteAliasesError;
+    }
+
+    // Then delete members (this will generate new UUIDs on INSERT)
     const { error: deleteError } = await supabase
       .from("members")
       .delete()
-      .neq("id", "00000000-0000-0000-0000-000000000000"); // Delete all (PostgreSQL DELETE requires a WHERE clause)
+      .neq("id", "00000000-0000-0000-0000-000000000000");
 
     if (deleteError) {
       console.error("Error deleting existing members:", deleteError);
