@@ -157,6 +157,21 @@ export async function POST(request: NextRequest) {
       imported = eventsToInsert.length;
     }
 
+    // Touch imported_at on all synced events to track last sync time
+    // This ensures the hygiene dashboard shows accurate "last sync" even if no events changed
+    if (events.length > 0) {
+      const googleEventIds = events.map(e => e.id);
+      const { error: touchError } = await supabase
+        .from("calendar_events")
+        .update({ imported_at: new Date().toISOString() })
+        .in("google_event_id", googleEventIds);
+
+      if (touchError) {
+        console.warn("Failed to update imported_at timestamps:", touchError);
+        // Don't fail the sync for this
+      }
+    }
+
     // Batch update changed events
     // Note: Supabase doesn't support batch UPDATE with different values,
     // so we do individual updates but in parallel
