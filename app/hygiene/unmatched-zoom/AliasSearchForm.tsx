@@ -367,7 +367,13 @@ export default function AliasSearchForm({
               {loadingPrickles ? (
                 <div className="text-center text-slate-500 py-8">Loading...</div>
               ) : prickles.length === 0 ? (
-                <div className="text-center text-slate-500 py-8">No prickles found</div>
+                <div className="text-center py-8">
+                  <div className="text-slate-500 mb-4">No prickles found</div>
+                  <div className="text-sm text-slate-400 max-w-md mx-auto">
+                    This Zoom name appeared in meetings that weren&apos;t processed into prickles yet.
+                    Try reprocessing attendance data to include these meetings.
+                  </div>
+                </div>
               ) : (
                 <div className="space-y-2">
                   {prickles.map((prickle: any) => (
