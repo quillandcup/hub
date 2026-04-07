@@ -246,17 +246,21 @@ export async function POST(request: NextRequest) {
     }
 
     // Delete unmatched events for calendar_events in this date range
-    // This ensures previously unmatched events that now match are removed from queue
+    // Batch the deletes to avoid .in() limits with >1000 calendar_event_ids
     const calendarEventIds = allEvents.map(e => e.id);
     if (calendarEventIds.length > 0) {
-      const { error: deleteUnmatchedError } = await supabase
-        .from("unmatched_calendar_events")
-        .delete()
-        .in("calendar_event_id", calendarEventIds);
+      const DELETE_BATCH = 500;
+      for (let i = 0; i < calendarEventIds.length; i += DELETE_BATCH) {
+        const batch = calendarEventIds.slice(i, i + DELETE_BATCH);
+        const { error: deleteError } = await supabase
+          .from("unmatched_calendar_events")
+          .delete()
+          .in("calendar_event_id", batch);
 
-      if (deleteUnmatchedError) {
-        console.error("Error deleting unmatched events:", deleteUnmatchedError);
-        // Don't throw - this is cleanup, not critical
+        if (deleteError) {
+          console.error("Error deleting unmatched events batch:", deleteError);
+          // Don't throw - this is cleanup, not critical
+        }
       }
     }
 
