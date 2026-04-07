@@ -53,6 +53,13 @@ export default async function MemberDetailPage({
     .eq("member_id", id)
     .order("join_time", { ascending: false });
 
+  // Fetch member name aliases
+  const { data: aliases } = await supabase
+    .from("member_name_aliases")
+    .select("alias")
+    .eq("member_id", id)
+    .order("alias");
+
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
       <header className="border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
@@ -70,7 +77,7 @@ export default async function MemberDetailPage({
       </header>
 
       <main className="container mx-auto px-6 py-8">
-        <MemberDetails member={member} attendanceRecords={attendance || []} />
+        <MemberDetails member={member} attendanceRecords={attendance || []} aliases={aliases || []} />
       </main>
     </div>
   );
