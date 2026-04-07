@@ -12,32 +12,20 @@ export default function ProcessOrphanedButton({ orphanedCount, dateRange }: Proc
   const [result, setResult] = useState<{ success: boolean; message: string } | null>(null);
 
   const handleProcess = async () => {
-    // Calculate date range
-    let fromDate: string;
-    let toDate: string;
+    // Require date range - no arbitrary fallbacks
+    if (!dateRange) {
+      setResult({
+        success: false,
+        message: "✗ Cannot determine date range of orphaned events. Please refresh the page and try again.",
+      });
+      return;
+    }
 
-    if (dateRange) {
-      // Use exact range of orphaned events
-      fromDate = dateRange.fromDate;
-      toDate = dateRange.toDate;
+    const fromFormatted = new Date(dateRange.fromDate).toLocaleDateString();
+    const toFormatted = new Date(dateRange.toDate).toLocaleDateString();
 
-      const fromFormatted = new Date(fromDate).toLocaleDateString();
-      const toFormatted = new Date(toDate).toLocaleDateString();
-
-      if (!confirm(`Process calendar events to resolve ${orphanedCount} orphaned events?\n\nThis will reprocess events from ${fromFormatted} to ${toFormatted}.`)) {
-        return;
-      }
-    } else {
-      // Fallback: process last 6 months
-      const to = new Date();
-      const from = new Date();
-      from.setMonth(from.getMonth() - 6);
-      fromDate = from.toISOString();
-      toDate = to.toISOString();
-
-      if (!confirm(`Process calendar events to resolve ${orphanedCount} orphaned events?\n\nThis will reprocess all calendar events from the past 6 months.`)) {
-        return;
-      }
+    if (!confirm(`Process calendar events to resolve ${orphanedCount} orphaned events?\n\nThis will reprocess events from ${fromFormatted} to ${toFormatted}.`)) {
+      return;
     }
 
     setProcessing(true);
@@ -51,8 +39,8 @@ export default function ProcessOrphanedButton({ orphanedCount, dateRange }: Proc
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          fromDate,
-          toDate,
+          fromDate: dateRange.fromDate,
+          toDate: dateRange.toDate,
         }),
       });
 
