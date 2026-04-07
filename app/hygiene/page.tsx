@@ -60,6 +60,9 @@ export default async function DataHygienePage() {
     ? Math.round((matchedCalendarEvents / totalCalendarEvents) * 100)
     : 0;
 
+  // Calculate orphaned events (imported but never processed)
+  const orphanedEvents = (totalCalendarEvents || 0) - (matchedCalendarEvents || 0) - (unmatchedCalendarEvents || 0);
+
   // Calculate Zoom match rate (from most recent processing)
   // This is an estimate - actual rate would need to be stored in processing results
   const estimatedZoomMatchRate = 95; // Placeholder - would come from last processing result
@@ -144,6 +147,27 @@ export default async function DataHygienePage() {
 
         {/* Data quality warnings */}
         <div className="space-y-4 mb-8">
+          {orphanedEvents > 0 && (
+            <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+              <div className="flex items-start gap-3">
+                <span className="text-xl">🚨</span>
+                <div className="flex-1">
+                  <h3 className="font-semibold text-red-900 dark:text-red-100 mb-1">
+                    {orphanedEvents} orphaned calendar events detected
+                  </h3>
+                  <p className="text-sm text-red-800 dark:text-red-200 mb-2">
+                    These events were imported but never processed - they're not in prickles or the
+                    unmatched queue. This usually means they fell outside the date range during processing.
+                  </p>
+                  <p className="text-xs text-red-700 dark:text-red-300">
+                    <strong>Action required:</strong> Reprocess calendar events with a broader date range
+                    to include these events (likely from early March).
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {oldUnmatchedEvents && oldUnmatchedEvents.length > 0 && (
             <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
               <div className="flex items-start gap-3">
