@@ -4,25 +4,46 @@ import { useState } from "react";
 
 interface ProcessOrphanedButtonProps {
   orphanedCount: number;
+  dateRange: { fromDate: string; toDate: string } | null;
 }
 
-export default function ProcessOrphanedButton({ orphanedCount }: ProcessOrphanedButtonProps) {
+export default function ProcessOrphanedButton({ orphanedCount, dateRange }: ProcessOrphanedButtonProps) {
   const [processing, setProcessing] = useState(false);
   const [result, setResult] = useState<{ success: boolean; message: string } | null>(null);
 
   const handleProcess = async () => {
-    if (!confirm(`Process calendar events to resolve ${orphanedCount} orphaned events?\n\nThis will reprocess all calendar events from the past 6 months.`)) {
-      return;
+    // Calculate date range
+    let fromDate: string;
+    let toDate: string;
+
+    if (dateRange) {
+      // Use exact range of orphaned events
+      fromDate = dateRange.fromDate;
+      toDate = dateRange.toDate;
+
+      const fromFormatted = new Date(fromDate).toLocaleDateString();
+      const toFormatted = new Date(toDate).toLocaleDateString();
+
+      if (!confirm(`Process calendar events to resolve ${orphanedCount} orphaned events?\n\nThis will reprocess events from ${fromFormatted} to ${toFormatted}.`)) {
+        return;
+      }
+    } else {
+      // Fallback: process last 6 months
+      const to = new Date();
+      const from = new Date();
+      from.setMonth(from.getMonth() - 6);
+      fromDate = from.toISOString();
+      toDate = to.toISOString();
+
+      if (!confirm(`Process calendar events to resolve ${orphanedCount} orphaned events?\n\nThis will reprocess all calendar events from the past 6 months.`)) {
+        return;
+      }
     }
 
     setProcessing(true);
     setResult(null);
 
     try {
-      // Process last 6 months to catch any orphaned events
-      const toDate = new Date();
-      const fromDate = new Date();
-      fromDate.setMonth(fromDate.getMonth() - 6);
 
       const response = await fetch("/api/process/calendar", {
         method: "POST",
@@ -30,8 +51,8 @@ export default function ProcessOrphanedButton({ orphanedCount }: ProcessOrphaned
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          fromDate: fromDate.toISOString(),
-          toDate: toDate.toISOString(),
+          fromDate,
+          toDate,
         }),
       });
 

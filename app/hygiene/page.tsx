@@ -64,6 +64,31 @@ export default async function DataHygienePage() {
   // Calculate orphaned events (imported but never processed)
   const orphanedEvents = (totalCalendarEvents || 0) - (matchedCalendarEvents || 0) - (unmatchedCalendarEvents || 0);
 
+  // Get date range of orphaned events if any exist
+  // We use the full calendar_events range as an approximation
+  // The processing uses DELETE + INSERT so it's safe to reprocess the full range
+  let orphanedDateRange = null;
+  if (orphanedEvents > 0) {
+    const [{ data: minEvent }, { data: maxEvent }] = await Promise.all([
+      supabase
+        .from("calendar_events")
+        .select("start_time")
+        .order("start_time", { ascending: true })
+        .limit(1)
+        .single(),
+      supabase
+        .from("calendar_events")
+        .select("end_time")
+        .order("end_time", { ascending: false })
+        .limit(1)
+        .single(),
+    ]);
+
+    if (minEvent && maxEvent) {
+      orphanedDateRange = { fromDate: minEvent.start_time, toDate: maxEvent.end_time };
+    }
+  }
+
   // Calculate Zoom match rate (from most recent processing)
   // This is an estimate - actual rate would need to be stored in processing results
   const estimatedZoomMatchRate = 95; // Placeholder - would come from last processing result
@@ -161,7 +186,10 @@ export default async function DataHygienePage() {
                     unmatched queue. This usually means they fell outside the date range during processing.
                   </p>
                   <div className="mt-3">
-                    <ProcessOrphanedButton orphanedCount={orphanedEvents} />
+                    <ProcessOrphanedButton
+                      orphanedCount={orphanedEvents}
+                      dateRange={orphanedDateRange}
+                    />
                   </div>
                 </div>
               </div>
