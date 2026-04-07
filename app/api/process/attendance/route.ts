@@ -258,13 +258,33 @@ export async function POST(request: NextRequest) {
     }
 
     // Load reference data upfront for in-memory matching (performance optimization)
-    const [{ data: allPrickles }, { data: members }, { data: aliases }] = await Promise.all([
-      supabase
+    // Note: Load ALL calendar prickles that OVERLAP with date range (not just contained within)
+    // A prickle overlaps if: prickle.start_time < toDate AND prickle.end_time > fromDate
+    let allPrickles: any[] = [];
+    let prickleOffset = 0;
+    const PRICKLE_BATCH = 1000;
+    let hasMorePrickles = true;
+
+    while (hasMorePrickles) {
+      const { data: batch } = await supabase
         .from("prickles")
         .select("id, start_time, end_time, type_id")
         .eq("source", "calendar")
-        .gte("start_time", fromDate)
-        .lte("end_time", toDate),
+        .lt("start_time", toDate)    // Prickle starts before end of range
+        .gt("end_time", fromDate)    // Prickle ends after start of range
+        .order("start_time")
+        .range(prickleOffset, prickleOffset + PRICKLE_BATCH - 1);
+
+      if (batch && batch.length > 0) {
+        allPrickles = allPrickles.concat(batch);
+        prickleOffset += batch.length;
+        hasMorePrickles = batch.length === PRICKLE_BATCH;
+      } else {
+        hasMorePrickles = false;
+      }
+    }
+
+    const [{ data: members }, { data: aliases }] = await Promise.all([
       supabase.from("members").select("id, name, email"),
       supabase.from("member_name_aliases").select("alias, member_id"),
     ]);
