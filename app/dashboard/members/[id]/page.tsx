@@ -82,7 +82,7 @@ export default async function MemberDetailPage({
                       </span>
                     ))}
                   </div>
-                  <div className="group relative">
+                  <div className="group relative inline-block">
                     <svg
                       className="w-4 h-4 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 cursor-help"
                       fill="none"
@@ -96,7 +96,7 @@ export default async function MemberDetailPage({
                         d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
                       />
                     </svg>
-                    <div className="invisible group-hover:visible absolute left-0 top-6 w-64 p-2 bg-slate-900 dark:bg-slate-700 text-white text-xs rounded shadow-lg z-10">
+                    <div className="opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto absolute left-0 top-6 w-64 p-3 bg-slate-900 dark:bg-slate-700 text-white text-xs rounded shadow-lg z-10 transition-opacity duration-200">
                       Aliases help match Zoom names to people. <Link href="/hygiene/unmatched-zoom" className="underline hover:text-blue-300">Manage aliases →</Link>
                     </div>
                   </div>
