@@ -221,10 +221,11 @@ The dashboard has basic stats cards, at-risk members list, and engagement insigh
   - Working correctly
 
 ### Host Processing
-- **Host assignment appears broken on Progress Prickles**
-  - Most Progress Prickles don't have hosts assigned
-  - Should be populated during calendar event processing
-  - Check calendar event parsing for host field
+- ✅ **FIXED: Host assignment broken on Progress Prickles**
+  - Bug: When extracting host from "Prickle w/Lili", code incorrectly tried to match using organizer email (calendar account) instead of just the extracted name "Lili"
+  - Fix: Only use organizer/creator email when no host extracted from "w/Name" pattern
+  - Before: 85.8% without host (308/359). After fix, should match most hosts via aliases or name matching
+  - Reprocess calendar events to apply fix
 
 ### Member Filters
 - **At-risk and highly-engaged filters don't work**

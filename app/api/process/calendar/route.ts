@@ -167,7 +167,9 @@ export async function POST(request: NextRequest) {
       let suggestedHostName = extractedHostName || event.creator_name || event.organizer_name || null;
 
       const hostNameToMatch = extractedHostName || event.organizer_name || event.creator_name;
-      const hostEmailToMatch = event.organizer_email || event.creator_email;
+      // Only use organizer/creator email if we didn't extract a host from "w/Name" pattern
+      // Otherwise we'd match "Prickle w/Lili" to the calendar organizer instead of Lili
+      const hostEmailToMatch = extractedHostName ? null : (event.organizer_email || event.creator_email);
 
       if (hostNameToMatch) {
         // Try email match first
