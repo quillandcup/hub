@@ -279,13 +279,13 @@ export default async function DataHygienePage() {
               </h3>
               <span className="text-2xl">👤</span>
             </div>
-            <p className={`text-3xl font-bold mb-1 ${hostMatchRate < 50 ? 'text-orange-600 dark:text-orange-400' : 'text-slate-900 dark:text-slate-100'}`}>
+            <p className="text-3xl font-bold text-slate-900 dark:text-slate-100 mb-1">
               {hostMatchRate}%
             </p>
             <p className="text-sm text-slate-600 dark:text-slate-400">
               {calendarPricklesWithHost}/{matchedCalendarEvents} prickles with host
             </p>
-            {hostMatchRate < 50 && (
+            {hostMatchRate < 90 && matchedCalendarEvents > 0 && (
               <p className="text-xs text-orange-600 dark:text-orange-400 mt-2">
                 Low host match rate
               </p>
