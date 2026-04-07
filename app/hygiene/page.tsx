@@ -46,7 +46,7 @@ export default async function DataHygienePage() {
       .single(),
   ]);
 
-  const calendarMatchRate = totalCalendarEvents
+  const calendarMatchRate = totalCalendarEvents && matchedCalendarEvents
     ? Math.round((matchedCalendarEvents / totalCalendarEvents) * 100)
     : 0;
 
