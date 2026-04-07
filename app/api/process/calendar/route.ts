@@ -202,6 +202,18 @@ export async function POST(request: NextRequest) {
         } else {
           typeId = typeByNormalizedName.get(normalizedType) || null;
         }
+
+        // If exact match failed, try partial match (e.g., "Midnight Open Table" contains "Open Table")
+        if (!typeId && prickleTypes) {
+          const summaryLower = event.summary.toLowerCase();
+          for (const type of prickleTypes) {
+            const typeNameLower = type.name.toLowerCase();
+            if (summaryLower.includes(typeNameLower)) {
+              typeId = type.id;
+              break;
+            }
+          }
+        }
       }
 
       if (!typeId) {
