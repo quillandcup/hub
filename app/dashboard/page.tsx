@@ -92,12 +92,13 @@ export default async function DashboardPage() {
     .map(memberId => {
       const member = memberMap.get(memberId);
       return member ? {
+        id: member.id,
         name: member.name,
         email: member.email,
         count: attendanceCounts.get(memberId) || 0,
       } : null;
     })
-    .filter((m): m is { name: string; email: string; count: number } => m !== null);
+    .filter((m): m is { id: string; name: string; email: string; count: number } => m !== null);
 
   // At-risk members list (active with no attendance in 30 days)
   const atRiskMembersList = atRiskMembers?.filter(m => {
@@ -295,10 +296,10 @@ export default async function DashboardPage() {
                     <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center text-sm font-bold text-blue-600 dark:text-blue-400">
                       {idx + 1}
                     </div>
-                    <div>
-                      <div className="font-semibold text-slate-900 dark:text-slate-100">{member.name}</div>
+                    <Link href={`/dashboard/members/${member.id}`} className="hover:opacity-80 transition-opacity">
+                      <div className="font-semibold text-slate-900 dark:text-slate-100 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">{member.name}</div>
                       <div className="text-sm text-slate-500 dark:text-slate-400">{member.email}</div>
-                    </div>
+                    </Link>
                   </div>
                   <div className="text-lg font-bold text-blue-600 dark:text-blue-400">
                     {member.count}
@@ -329,10 +330,10 @@ export default async function DashboardPage() {
               ) : (
                 atRiskMembersList.map((member: any, idx: number) => (
                   <div key={idx} className="flex items-center justify-between py-2 border-b border-slate-100 dark:border-slate-800 last:border-0">
-                    <div>
-                      <div className="font-semibold text-slate-900 dark:text-slate-100">{member.name}</div>
+                    <Link href={`/dashboard/members/${member.id}`} className="hover:opacity-80 transition-opacity">
+                      <div className="font-semibold text-slate-900 dark:text-slate-100 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">{member.name}</div>
                       <div className="text-sm text-slate-500 dark:text-slate-400">{member.email}</div>
-                    </div>
+                    </Link>
                   </div>
                 ))
               )}
