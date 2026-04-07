@@ -5,7 +5,7 @@ export const metadata: Metadata = {
   title: "Quill & Cup Admin Portal",
   description: "Attendance and engagement analytics for Quill & Cup writing sessions",
   icons: {
-    icon: '/icon.svg',
+    icon: '/icon.png',
   },
 };
 
