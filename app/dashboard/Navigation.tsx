@@ -32,23 +32,24 @@ const navigation: NavSection[] = [
   {
     name: "Prickles",
     items: [
-      { name: "Calendar View", href: "/dashboard/calendar", icon: "📅" },
+      { name: "Calendar View", href: "/calendar", icon: "📅" },
       { name: "All Prickles", href: "/dashboard/prickles", icon: "✍️" },
     ],
   },
   {
     name: "Data Hygiene",
     items: [
-      { name: "Unmatched Events", href: "/dashboard/unmatched-events", icon: "📋" },
-      { name: "Unmatched Zoom", href: "/dashboard/aliases", icon: "🔍" },
-      { name: "Name Matching", href: "/dashboard/name-matching", icon: "🧩" },
+      { name: "Health Check", href: "/hygiene", icon: "🏥" },
+      { name: "Unmatched Events", href: "/hygiene/unmatched-events", icon: "📋" },
+      { name: "Unmatched Zoom", href: "/hygiene/unmatched-zoom", icon: "🔍" },
+      { name: "Name Matching", href: "/hygiene/name-matching", icon: "🧩" },
     ],
   },
   {
     name: "Data Management",
     items: [
-      { name: "Import Data", href: "/dashboard/import", icon: "📥" },
-      { name: "Prickle Types", href: "/dashboard/prickle-types", icon: "🏷️" },
+      { name: "Import Data", href: "/data/import", icon: "📥" },
+      { name: "Prickle Types", href: "/data/prickle-types", icon: "🏷️" },
     ],
   },
 ];
