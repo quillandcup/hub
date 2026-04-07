@@ -5,20 +5,36 @@ import UnmatchedEventsTable from "../prickle-types/UnmatchedEventsTable";
 export default async function UnmatchedEventsPage() {
   const supabase = await createClient();
 
-  // Fetch unmatched calendar events
-  const { data: unmatchedEvents } = await supabase
-    .from("unmatched_calendar_events")
-    .select(`
-      id,
-      calendar_event_id,
-      raw_summary,
-      suggested_type,
-      suggested_host,
-      status,
-      created_at
-    `)
-    .eq("status", "pending")
-    .order("created_at", { ascending: false });
+  // Fetch unmatched calendar events (paginate to handle >1000 rows)
+  let unmatchedEvents: any[] = [];
+  const BATCH_SIZE = 1000;
+  let offset = 0;
+  let hasMore = true;
+
+  while (hasMore) {
+    const { data: batch } = await supabase
+      .from("unmatched_calendar_events")
+      .select(`
+        id,
+        calendar_event_id,
+        raw_summary,
+        suggested_type,
+        suggested_host,
+        status,
+        created_at
+      `)
+      .eq("status", "pending")
+      .order("created_at", { ascending: false })
+      .range(offset, offset + BATCH_SIZE - 1);
+
+    if (batch && batch.length > 0) {
+      unmatchedEvents = unmatchedEvents.concat(batch);
+      offset += batch.length;
+      hasMore = batch.length === BATCH_SIZE;
+    } else {
+      hasMore = false;
+    }
+  }
 
   // Group by raw_summary
   const groupedEvents = new Map<string, any[]>();
