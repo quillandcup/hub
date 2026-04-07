@@ -341,16 +341,22 @@ export default function AliasSearchForm({
 
       {/* Prickle Modal */}
       {prickleModalOpen && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-slate-900 rounded-lg shadow-xl max-w-2xl w-full max-h-[80vh] overflow-hidden">
+        <div
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+          onClick={() => setPrickleModalOpen(false)}
+        >
+          <div
+            className="bg-white dark:bg-slate-900 rounded-lg shadow-xl max-w-2xl w-full max-h-[80vh] overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="p-6 border-b border-slate-200 dark:border-slate-800">
-              <div className="flex items-center justify-between">
-                <h3 className="text-xl font-bold">
+              <div className="flex items-center justify-between gap-4">
+                <h3 className="text-xl font-bold flex-1 truncate">
                   Prickles for &quot;{selectedZoomName}&quot;
                 </h3>
                 <button
                   onClick={() => setPrickleModalOpen(false)}
-                  className="text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+                  className="text-2xl leading-none text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300 flex-shrink-0"
                 >
                   ✕
                 </button>

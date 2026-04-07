@@ -43,8 +43,16 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ prickles: [] });
     }
 
-    // Get unique meeting UUIDs
-    const meetingUuids = [...new Set(attendees.map(a => a.meeting_uuid))];
+    // Get unique meeting UUIDs (filter out nulls)
+    const meetingUuids = [...new Set(attendees.map(a => a.meeting_uuid).filter(uuid => uuid !== null))];
+
+    console.log(`Found ${attendees.length} attendee records for "${zoomName}"`);
+    console.log(`Unique meeting UUIDs: ${meetingUuids.length}`, meetingUuids.slice(0, 3));
+
+    if (meetingUuids.length === 0) {
+      console.log(`No valid meeting UUIDs for "${zoomName}"`);
+      return NextResponse.json({ prickles: [] });
+    }
 
     // Fetch prickles for these meetings
     const { data: prickles, error: pricklesError } = await supabase
@@ -60,6 +68,8 @@ export async function GET(request: NextRequest) {
       `)
       .in("zoom_meeting_uuid", meetingUuids)
       .order("start_time", { ascending: false });
+
+    console.log(`Found ${prickles?.length || 0} prickles for "${zoomName}"`);
 
     if (pricklesError) {
       console.error("Error fetching prickles:", pricklesError);

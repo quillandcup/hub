@@ -19,26 +19,32 @@ export default async function AliasSearchPage() {
       .select("zoom_name"),
     supabase
       .from("zoom_attendees")
-      .select("name, email")
+      .select("name, email, meeting_uuid")
       .order("name"),
   ]);
 
   const ignoredSet = new Set(ignoredNames?.map(i => i.zoom_name) || []);
 
-  // Count how many times each Zoom name appears
-  const zoomNameCounts = new Map<string, { count: number; emails: Set<string> }>();
+  // Count unique meetings (not total records) for each Zoom name
+  const zoomNameCounts = new Map<string, { count: number; emails: Set<string>; meetings: Set<string> }>();
   allZoomNames?.forEach(z => {
     const existing = zoomNameCounts.get(z.name);
     if (existing) {
-      existing.count++;
+      if (z.meeting_uuid) existing.meetings.add(z.meeting_uuid);
       if (z.email) existing.emails.add(z.email);
     } else {
       zoomNameCounts.set(z.name, {
-        count: 1,
+        count: 0, // Will be set to meetings.size below
         emails: new Set(z.email ? [z.email] : []),
+        meetings: new Set(z.meeting_uuid ? [z.meeting_uuid] : []),
       });
     }
   });
+
+  // Update counts to be unique meetings
+  for (const [name, info] of zoomNameCounts) {
+    info.count = info.meetings.size;
+  }
 
   const unmatchedZoomAttendees: Array<{
     zoomName: string;
