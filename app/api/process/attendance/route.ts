@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
+import { matchAttendeeToMember } from "@/lib/member-matching";
 
 // Extend timeout for processing large batches of attendance records
 export const maxDuration = 300; // 5 minutes
@@ -289,42 +290,6 @@ export async function POST(request: NextRequest) {
       supabase.from("member_name_aliases").select("alias, member_id"),
     ]);
 
-    // Build lookup maps for fast in-memory matching
-    const membersByEmail = new Map(
-      members?.map((m) => [m.email.toLowerCase(), m]) || []
-    );
-    const membersByNormalizedName = new Map(
-      members?.map((m) => [normalizeName(m.name), m]) || []
-    );
-    const aliasToMember = new Map<string, any>();
-    aliases?.forEach((a) => {
-      const member = members?.find((m) => m.id === a.member_id);
-      if (member) aliasToMember.set(a.alias, member);
-    });
-
-    // Helper to match attendee to member in memory
-    function matchAttendeeToMember(name: string, email: string | null): { member_id: string; confidence: string } | null {
-      // Try email match first
-      if (email) {
-        const member = membersByEmail.get(email.toLowerCase());
-        if (member) return { member_id: member.id, confidence: "high" };
-      }
-
-      // Try alias match (trim whitespace from Zoom names)
-      const trimmedName = name.trim();
-      if (aliasToMember.has(trimmedName)) {
-        const member = aliasToMember.get(trimmedName)!;
-        return { member_id: member.id, confidence: "high" };
-      }
-
-      // Try normalized name match
-      const normalized = normalizeName(name);
-      const member = membersByNormalizedName.get(normalized);
-      if (member) return { member_id: member.id, confidence: "high" };
-
-      return null;
-    }
-
     // Helper to find overlapping prickles in memory
     function findOverlappingPricklesInMemory(start: string, end: string): any[] {
       return (allPrickles || []).filter((p) => p.start_time < end && p.end_time > start);
@@ -356,7 +321,7 @@ export async function POST(request: NextRequest) {
       // for time windows where only unmatched attendees were present,
       // resulting in 0-attendee PUPs
       const matchedAttendeesForWindow = attendees.filter(a => {
-        const match = matchAttendeeToMember(a.name, a.email);
+        const match = matchAttendeeToMember(a.name, a.email, members || [], aliases || []);
         return match !== null;
       });
 
@@ -440,8 +405,8 @@ export async function POST(request: NextRequest) {
       const segments = segmentsByMeeting.get(meetingUuid) || [];
 
       for (const attendee of attendees) {
-        // Match attendee to member (in memory for performance)
-        const match = matchAttendeeToMember(attendee.name, attendee.email);
+        // Match attendee to member using centralized logic
+        const match = matchAttendeeToMember(attendee.name, attendee.email, members || [], aliases || []);
 
         if (!match) {
           skippedUnmatched++;
