@@ -14,7 +14,6 @@ export default async function DataHygienePage() {
     { count: matchedCalendarEvents },
     { count: unmatchedCalendarEvents },
     { count: totalZoomAttendees },
-    { data: processedMeetings },
     { count: totalMembers },
     { count: totalAliases },
     { data: pupsWith0Attendees },
@@ -26,12 +25,6 @@ export default async function DataHygienePage() {
     supabase.from("prickles").select("*", { count: "exact", head: true }).eq("source", "calendar"),
     supabase.from("unmatched_calendar_events").select("*", { count: "exact", head: true }).eq("status", "pending"),
     supabase.from("zoom_attendees").select("*", { count: "exact", head: true }),
-    // Get unique meeting UUIDs that have been processed into prickles
-    supabase
-      .from("prickles")
-      .select("zoom_meeting_uuid")
-      .eq("source", "zoom")
-      .not("zoom_meeting_uuid", "is", null),
     supabase.from("members").select("*", { count: "exact", head: true }),
     supabase.from("member_name_aliases").select("*", { count: "exact", head: true }),
     // Find PUPs with 0 attendees
@@ -73,20 +66,11 @@ export default async function DataHygienePage() {
   const orphanedEvents = (totalCalendarEvents || 0) - (matchedCalendarEvents || 0) - (unmatchedCalendarEvents || 0);
 
   // Calculate zoom match rate by counting zoom_attendees in processed meetings
-  const processedMeetingUuids = new Set(processedMeetings?.map(p => p.zoom_meeting_uuid) || []);
+  // Processed meetings = those with PUPs or calendar overlap (calculated below)
+  const processedMeetingUuidsSet = new Set<string>();
 
-  // Count zoom_attendees in processed meetings
-  // We need to fetch zoom_attendees with meeting_uuid to check which are in processed meetings
-  const { data: allZoomAttendees } = await supabase
-    .from("zoom_attendees")
-    .select("meeting_uuid")
-    .not("meeting_uuid", "is", null);
-
-  const matchedZoomAttendees = allZoomAttendees?.filter(
-    za => processedMeetingUuids.has(za.meeting_uuid)
-  ).length || 0;
-
-  const unmatchedZoomAttendees = (totalZoomAttendees || 0) - matchedZoomAttendees;
+  // Will be populated by orphaned meetings calculation below
+  // (meeting is processed if it's NOT orphaned)
 
   // Get date range of orphaned events if any exist
   // We use the full calendar_events range as an approximation
@@ -113,27 +97,81 @@ export default async function DataHygienePage() {
     }
   }
 
-  // Calculate orphaned Zoom meetings (in zoom_attendees but not converted to prickles)
-  // Get unique meeting UUIDs from zoom_attendees
-  const { data: allMeetingUuids } = await supabase
+  // Calculate orphaned Zoom meetings (meetings where attendees weren't processed)
+  // Note: Meetings can be processed in two ways:
+  // 1. Create new PUPs (prickles with source='zoom' and zoom_meeting_uuid)
+  // 2. Match to existing calendar prickles (no new prickle, but attendance created)
+
+  // Get all unique meeting UUIDs and their time windows
+  const { data: meetingWindows } = await supabase
+    .from("zoom_attendees")
+    .select("meeting_uuid, join_time, leave_time")
+    .not("meeting_uuid", "is", null);
+
+  // Group by meeting_uuid to get time windows
+  const meetingTimeWindows = new Map<string, { start: Date; end: Date }>();
+  meetingWindows?.forEach(m => {
+    const existing = meetingTimeWindows.get(m.meeting_uuid);
+    const joinTime = new Date(m.join_time);
+    const leaveTime = new Date(m.leave_time);
+
+    if (existing) {
+      existing.start = new Date(Math.min(existing.start.getTime(), joinTime.getTime()));
+      existing.end = new Date(Math.max(existing.end.getTime(), leaveTime.getTime()));
+    } else {
+      meetingTimeWindows.set(m.meeting_uuid, { start: joinTime, end: leaveTime });
+    }
+  });
+
+  // Get all prickles (calendar and zoom) with their time windows
+  const { data: allPricklesForOverlap } = await supabase
+    .from("prickles")
+    .select("id, start_time, end_time, zoom_meeting_uuid, source");
+
+  // Check each meeting to see if it has been processed
+  const orphanedMeetingUuids: string[] = [];
+
+  for (const [meetingUuid, timeWindow] of meetingTimeWindows) {
+    // Check if this meeting has a PUP
+    const hasPUP = allPricklesForOverlap?.some(
+      p => p.source === 'zoom' && p.zoom_meeting_uuid === meetingUuid
+    );
+
+    if (hasPUP) {
+      processedMeetingUuidsSet.add(meetingUuid);
+      continue; // Not orphaned - has a PUP
+    }
+
+    // Check if meeting overlaps with any calendar prickle
+    const overlapsCalendar = allPricklesForOverlap?.some(p => {
+      if (p.source !== 'calendar') return false;
+      const prickleStart = new Date(p.start_time);
+      const prickleEnd = new Date(p.end_time);
+      // Check for time overlap
+      return prickleStart < timeWindow.end && prickleEnd > timeWindow.start;
+    });
+
+    if (overlapsCalendar) {
+      processedMeetingUuidsSet.add(meetingUuid);
+    } else {
+      // No PUP and no calendar overlap = truly orphaned
+      orphanedMeetingUuids.push(meetingUuid);
+    }
+  }
+
+  const orphanedMeetings = orphanedMeetingUuids.length;
+
+  // Count zoom_attendees in processed meetings
+  const { data: allZoomAttendeesForCount } = await supabase
     .from("zoom_attendees")
     .select("meeting_uuid")
     .not("meeting_uuid", "is", null);
 
-  const uniqueMeetingUuids = new Set(allMeetingUuids?.map(m => m.meeting_uuid) || []);
+  const matchedZoomAttendees = allZoomAttendeesForCount?.filter(
+    za => processedMeetingUuidsSet.has(za.meeting_uuid)
+  ).length || 0;
 
-  // Get meeting UUIDs that have prickles
-  const { data: pricklesWithMeetings } = await supabase
-    .from("prickles")
-    .select("zoom_meeting_uuid")
-    .eq("source", "zoom")
-    .not("zoom_meeting_uuid", "is", null);
-
-  const prickleMeetingUuids = new Set(pricklesWithMeetings?.map(p => p.zoom_meeting_uuid) || []);
-
-  // Orphaned meetings = meetings that don't have prickles
-  const orphanedMeetingUuids = [...uniqueMeetingUuids].filter(uuid => !prickleMeetingUuids.has(uuid));
-  const orphanedMeetings = orphanedMeetingUuids.length;
+  const unmatchedZoomAttendees = (totalZoomAttendees || 0) - matchedZoomAttendees;
 
   // Get date range of orphaned meetings if any exist
   let orphanedMeetingsDateRange = null;

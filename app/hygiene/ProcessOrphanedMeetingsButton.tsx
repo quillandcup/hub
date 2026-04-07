@@ -49,9 +49,14 @@ export default function ProcessOrphanedMeetingsButton({ orphanedCount, dateRange
         throw new Error(data.error || "Failed to process attendance");
       }
 
+      const parts = [];
+      if (data.createdNewPrickles > 0) parts.push(`${data.createdNewPrickles} new PUPs`);
+      if (data.matchedToCalendar > 0) parts.push(`${data.matchedToCalendar} matched to calendar`);
+      parts.push(`${data.attendanceRecords || 0} attendance records`);
+
       setResult({
         success: true,
-        message: `✓ Processed ${data.pupsCreated || 0} PUPs, ${data.attendanceRecords || 0} attendance records`,
+        message: `✓ Processed ${data.meetingsProcessed || 0} meetings: ${parts.join(', ')}`,
       });
 
       // Refresh page after 2 seconds to show updated counts
