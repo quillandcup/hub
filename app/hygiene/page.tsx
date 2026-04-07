@@ -102,15 +102,56 @@ export default async function DataHygienePage() {
   // 1. Create new PUPs (prickles with source='zoom' and zoom_meeting_uuid)
   // 2. Match to existing calendar prickles (no new prickle, but attendance created)
 
-  // Get all unique meeting UUIDs and their time windows
-  const { data: meetingWindows } = await supabase
+  // CRITICAL: Must use same matching logic as processing to calculate meeting windows
+  // Otherwise orphaned count will include unmatched attendee time ranges that never get processed
+
+  // Load members and aliases for matching (same as processing does)
+  const [{ data: membersForMatching }, { data: aliasesForMatching }] = await Promise.all([
+    supabase.from("members").select("id, name, email"),
+    supabase.from("member_name_aliases").select("alias, member_id"),
+  ]);
+
+  // Build lookup maps (same as processing)
+  function normalizeName(name: string): string {
+    return name
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  const membersByEmail = new Map(
+    membersForMatching?.map((m) => [m.email.toLowerCase(), m]) || []
+  );
+  const membersByNormalizedName = new Map(
+    membersForMatching?.map((m) => [normalizeName(m.name), m]) || []
+  );
+  const aliasToMember = new Map<string, any>();
+  aliasesForMatching?.forEach((a) => {
+    const member = membersForMatching?.find((m) => m.id === a.member_id);
+    if (member) aliasToMember.set(a.alias, member);
+  });
+
+  function canMatchAttendee(name: string, email: string | null): boolean {
+    if (email && membersByEmail.has(email.toLowerCase())) return true;
+    if (aliasToMember.has(name.trim())) return true;
+    if (membersByNormalizedName.has(normalizeName(name))) return true;
+    return false;
+  }
+
+  // Get all zoom_attendees with name/email for matching
+  const { data: allAttendeesForMatching } = await supabase
     .from("zoom_attendees")
-    .select("meeting_uuid, join_time, leave_time")
+    .select("meeting_uuid, name, email, join_time, leave_time")
     .not("meeting_uuid", "is", null);
 
-  // Group by meeting_uuid to get time windows
+  // Group by meeting_uuid, but ONLY use MATCHED attendees to calculate time windows
+  // This matches what the processing does (see route.ts line 358)
   const meetingTimeWindows = new Map<string, { start: Date; end: Date }>();
-  meetingWindows?.forEach(m => {
+  allAttendeesForMatching?.forEach(m => {
+    // Skip unmatched attendees (same logic as processing)
+    if (!canMatchAttendee(m.name, m.email)) return;
+
     const existing = meetingTimeWindows.get(m.meeting_uuid);
     const joinTime = new Date(m.join_time);
     const leaveTime = new Date(m.leave_time);
@@ -174,27 +215,20 @@ export default async function DataHygienePage() {
   const unmatchedZoomAttendees = (totalZoomAttendees || 0) - matchedZoomAttendees;
 
   // Get date range of orphaned meetings if any exist
+  // Use the time windows we already calculated (from matched attendees)
   let orphanedMeetingsDateRange = null;
   if (orphanedMeetings > 0) {
-    const [{ data: minMeeting }, { data: maxMeeting }] = await Promise.all([
-      supabase
-        .from("zoom_attendees")
-        .select("join_time")
-        .not("meeting_uuid", "is", null)
-        .order("join_time", { ascending: true })
-        .limit(1)
-        .single(),
-      supabase
-        .from("zoom_attendees")
-        .select("leave_time")
-        .not("meeting_uuid", "is", null)
-        .order("leave_time", { ascending: false })
-        .limit(1)
-        .single(),
-    ]);
+    const orphanedWindows = orphanedMeetingUuids
+      .map(uuid => meetingTimeWindows.get(uuid))
+      .filter((w): w is { start: Date; end: Date } => w !== undefined);
 
-    if (minMeeting && maxMeeting) {
-      orphanedMeetingsDateRange = { fromDate: minMeeting.join_time, toDate: maxMeeting.leave_time };
+    if (orphanedWindows.length > 0) {
+      const minStart = new Date(Math.min(...orphanedWindows.map(w => w.start.getTime())));
+      const maxEnd = new Date(Math.max(...orphanedWindows.map(w => w.end.getTime())));
+      orphanedMeetingsDateRange = {
+        fromDate: minStart.toISOString(),
+        toDate: maxEnd.toISOString()
+      };
     }
   }
 
