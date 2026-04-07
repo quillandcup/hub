@@ -194,11 +194,23 @@ export default function AliasSearchForm({
                   <div className="grid grid-cols-[300px_1fr] gap-4 items-start">
                     {/* Left: Name and metadata */}
                     <div>
-                      <div className="font-mono font-semibold text-slate-900 dark:text-slate-100">
-                        {attendee.zoomName}
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="font-mono font-semibold text-slate-900 dark:text-slate-100">
+                          &quot;{attendee.zoomName}&quot;
+                        </span>
+                        {attendee.zoomName !== attendee.zoomName.trim() && (
+                          <span className="text-xs px-2 py-0.5 bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 rounded">
+                            whitespace
+                          </span>
+                        )}
+                        {/[^\x00-\x7F]/.test(attendee.zoomName) && (
+                          <span className="text-xs px-2 py-0.5 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded">
+                            special chars
+                          </span>
+                        )}
                       </div>
-                      <div className="text-sm text-slate-600 dark:text-slate-400 mt-0.5">
-                        {attendee.appearances} appearances
+                      <div className="text-xs text-slate-500 dark:text-slate-400">
+                        {attendee.zoomName.length} chars • {attendee.appearances} appearances
                       </div>
                       {attendee.emails.length > 0 && (
                         <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
