@@ -48,6 +48,11 @@ describe('Calendar Reprocessability', () => {
       .delete()
       .gte('start_time', testDateRange.from)
       .lte('end_time', testDateRange.to)
+
+    await supabase
+      .from('unmatched_calendar_events')
+      .delete()
+      .ilike('raw_summary', '%Test%')
   })
 
   afterAll(async () => {
@@ -64,6 +69,12 @@ describe('Calendar Reprocessability', () => {
       .delete()
       .gte('start_time', testDateRange.from)
       .lte('end_time', testDateRange.to)
+
+    // Clean up unmatched events (cascade should handle this, but be explicit)
+    await supabase
+      .from('unmatched_calendar_events')
+      .delete()
+      .ilike('raw_summary', '%Test%')
   })
 
   it('should create prickles from calendar events on first process', async () => {
@@ -274,5 +285,85 @@ describe('Calendar Reprocessability', () => {
       .from('prickles')
       .delete()
       .eq('start_time', '2099-07-01T10:00:00+00:00')
+  })
+
+  it('should remove unmatched events from queue when they become matched on reprocessing', async () => {
+    // ARRANGE: Insert a calendar event with an unrecognized type
+    const unmatchedEvent = {
+      google_event_id: 'test-event-unmatched',
+      summary: 'Weird Custom Prickle Type',
+      start_time: '2099-06-22T10:00:00Z',
+      end_time: '2099-06-22T11:00:00Z',
+      creator_email: 'test@example.com',
+      raw_data: {},
+    }
+
+    await supabase.from('calendar_events').insert(unmatchedEvent)
+
+    // Process - should add to unmatched queue
+    await fetch('http://localhost:3000/api/process/calendar', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...getTestAuthHeaders() },
+      body: JSON.stringify({
+        fromDate: testDateRange.from,
+        toDate: testDateRange.to,
+      }),
+    })
+
+    // Verify event is in unmatched queue
+    const { data: unmatchedBefore } = await supabase
+      .from('unmatched_calendar_events')
+      .select('*')
+      .eq('raw_summary', 'Weird Custom Prickle Type')
+
+    expect(unmatchedBefore).toBeTruthy()
+    expect(unmatchedBefore?.length).toBe(1)
+
+    // ARRANGE: Now add the prickle type to the database
+    const { data: newType } = await supabase
+      .from('prickle_types')
+      .insert({
+        name: 'Weird Custom Prickle Type',
+        normalized_name: 'weird-custom-type',
+        description: 'Test type',
+      })
+      .select('id')
+      .single()
+
+    expect(newType).toBeTruthy()
+
+    // ACT: Reprocess calendar
+    const response = await fetch('http://localhost:3000/api/process/calendar', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...getTestAuthHeaders() },
+      body: JSON.stringify({
+        fromDate: testDateRange.from,
+        toDate: testDateRange.to,
+      }),
+    })
+
+    const result = await response.json()
+    expect(result.success).toBe(true)
+
+    // ASSERT: Event should be REMOVED from unmatched queue (now matches!)
+    const { data: unmatchedAfter } = await supabase
+      .from('unmatched_calendar_events')
+      .select('*')
+      .eq('raw_summary', 'Weird Custom Prickle Type')
+
+    expect(unmatchedAfter).toHaveLength(0)
+
+    // ASSERT: Event should have created a prickle
+    const { data: prickle } = await supabase
+      .from('prickles')
+      .select('*')
+      .eq('type_id', newType.id)
+      .eq('start_time', '2099-06-22T10:00:00+00:00')
+
+    expect(prickle).toHaveLength(1)
+
+    // Clean up
+    await supabase.from('calendar_events').delete().eq('google_event_id', 'test-event-unmatched')
+    await supabase.from('prickle_types').delete().eq('id', newType.id)
   })
 })
