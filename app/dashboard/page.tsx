@@ -47,32 +47,57 @@ export default async function DashboardPage() {
   }).length || 0;
 
   // Top 10 most active members (all time)
-  const { data: topAttendees } = await supabase
-    .from("attendance")
-    .select(`
-      member_id,
-      members!inner(name, email)
-    `)
-    .limit(1000);
+  // Fetch all attendance records (just member_id) with pagination
+  let allAttendance: any[] = [];
+  let offset = 0;
+  const BATCH_SIZE = 1000;
+  let hasMore = true;
+
+  while (hasMore) {
+    const { data: batch } = await supabase
+      .from("attendance")
+      .select("member_id")
+      .range(offset, offset + BATCH_SIZE - 1);
+
+    if (batch && batch.length > 0) {
+      allAttendance = allAttendance.concat(batch);
+      offset += batch.length;
+      hasMore = batch.length === BATCH_SIZE;
+    } else {
+      hasMore = false;
+    }
+  }
 
   // Count attendance per member
-  const attendanceCounts = new Map<string, { name: string; email: string; count: number }>();
-  topAttendees?.forEach((a: any) => {
-    const existing = attendanceCounts.get(a.member_id);
-    if (existing) {
-      existing.count++;
-    } else {
-      attendanceCounts.set(a.member_id, {
-        name: a.members.name,
-        email: a.members.email,
-        count: 1,
-      });
-    }
+  const attendanceCounts = new Map<string, number>();
+  allAttendance.forEach((a) => {
+    attendanceCounts.set(a.member_id, (attendanceCounts.get(a.member_id) || 0) + 1);
   });
 
-  const topAttendeesData = Array.from(attendanceCounts.values())
-    .sort((a, b) => b.count - a.count)
-    .slice(0, 10);
+  // Get top 10 member IDs
+  const topMemberIds = Array.from(attendanceCounts.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 10)
+    .map(([memberId]) => memberId);
+
+  // Fetch member details for top 10
+  const { data: topMembers } = await supabase
+    .from("members")
+    .select("id, name, email")
+    .in("id", topMemberIds);
+
+  const memberMap = new Map(topMembers?.map(m => [m.id, m]) || []);
+
+  const topAttendeesData = topMemberIds
+    .map(memberId => {
+      const member = memberMap.get(memberId);
+      return member ? {
+        name: member.name,
+        email: member.email,
+        count: attendanceCounts.get(memberId) || 0,
+      } : null;
+    })
+    .filter((m): m is { name: string; email: string; count: number } => m !== null);
 
   // At-risk members list (active with no attendance in 30 days)
   const atRiskMembersList = atRiskMembers?.filter(m => {
