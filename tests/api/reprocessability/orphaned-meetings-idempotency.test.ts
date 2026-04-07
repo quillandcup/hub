@@ -17,6 +17,7 @@
  */
 
 import { createClient } from '@supabase/supabase-js';
+import { matchAttendeeToMember } from '@/lib/member-matching';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -113,33 +114,6 @@ describe('Orphaned Meetings Idempotency', () => {
         supabase.from('member_name_aliases').select('alias, member_id'),
       ]);
 
-      function normalizeName(name: string): string {
-        return name
-          .toLowerCase()
-          .replace(/[^a-z0-9\s]/g, '')
-          .replace(/\s+/g, ' ')
-          .trim();
-      }
-
-      const membersByEmail = new Map(
-        members?.map((m) => [m.email.toLowerCase(), m]) || []
-      );
-      const membersByNormalizedName = new Map(
-        members?.map((m) => [normalizeName(m.name), m]) || []
-      );
-      const aliasToMember = new Map<string, any>();
-      aliases?.forEach((a) => {
-        const member = members?.find((m) => m.id === a.member_id);
-        if (member) aliasToMember.set(a.alias, member);
-      });
-
-      function canMatchAttendee(name: string, email: string | null): boolean {
-        if (email && membersByEmail.has(email.toLowerCase())) return true;
-        if (aliasToMember.has(name.trim())) return true;
-        if (membersByNormalizedName.has(normalizeName(name))) return true;
-        return false;
-      }
-
       // Get all zoom_attendees for test meeting
       const { data: allAttendees } = await supabase
         .from('zoom_attendees')
@@ -149,7 +123,8 @@ describe('Orphaned Meetings Idempotency', () => {
       // Calculate meeting windows from MATCHED attendees only
       const meetingTimeWindows = new Map<string, { start: Date; end: Date }>();
       allAttendees?.forEach((m) => {
-        if (!canMatchAttendee(m.name, m.email)) return;
+        // Use centralized matching logic
+        if (!matchAttendeeToMember(m.name, m.email, members || [], aliases || [])) return;
 
         const existing = meetingTimeWindows.get(m.meeting_uuid);
         const joinTime = new Date(m.join_time);
@@ -296,32 +271,9 @@ describe('Orphaned Meetings Idempotency', () => {
       },
     ]);
 
-    // Calculate orphaned meetings
+    // Calculate orphaned meetings using centralized matching logic
     const { data: members } = await supabase.from('members').select('id, name, email');
     const { data: aliases } = await supabase.from('member_name_aliases').select('alias, member_id');
-
-    function normalizeName(name: string): string {
-      return name
-        .toLowerCase()
-        .replace(/[^a-z0-9\s]/g, '')
-        .replace(/\s+/g, ' ')
-        .trim();
-    }
-
-    const membersByEmail = new Map(members?.map((m) => [m.email.toLowerCase(), m]) || []);
-    const membersByNormalizedName = new Map(members?.map((m) => [normalizeName(m.name), m]) || []);
-    const aliasToMember = new Map<string, any>();
-    aliases?.forEach((a) => {
-      const member = members?.find((m) => m.id === a.member_id);
-      if (member) aliasToMember.set(a.alias, member);
-    });
-
-    function canMatchAttendee(name: string, email: string | null): boolean {
-      if (email && membersByEmail.has(email.toLowerCase())) return true;
-      if (aliasToMember.has(name.trim())) return true;
-      if (membersByNormalizedName.has(normalizeName(name))) return true;
-      return false;
-    }
 
     const { data: allAttendees } = await supabase
       .from('zoom_attendees')
@@ -330,7 +282,8 @@ describe('Orphaned Meetings Idempotency', () => {
 
     const meetingTimeWindows = new Map<string, { start: Date; end: Date }>();
     allAttendees?.forEach((m) => {
-      if (!canMatchAttendee(m.name, m.email)) return;
+      // Use centralized matching logic
+      if (!matchAttendeeToMember(m.name, m.email, members || [], aliases || [])) return;
 
       const existing = meetingTimeWindows.get(m.meeting_uuid);
       const joinTime = new Date(m.join_time);
