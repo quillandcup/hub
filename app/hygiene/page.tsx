@@ -387,6 +387,32 @@ export default async function DataHygienePage() {
             </div>
           )}
 
+          {hostMatchRate < 70 && (matchedCalendarEvents || 0) > 0 && (
+            <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+              <div className="flex items-start gap-3">
+                <span className="text-xl">💡</span>
+                <div className="flex-1">
+                  <h3 className="font-semibold text-blue-900 dark:text-blue-100 mb-1">
+                    Low host assignment rate detected
+                  </h3>
+                  <p className="text-sm text-blue-800 dark:text-blue-200 mb-2">
+                    Many calendar prickles are missing host assignments. Reprocessing calendar
+                    events will attempt to match hosts from &quot;Prickle w/[Name]&quot; patterns
+                    using member aliases and name matching.
+                  </p>
+                  <p className="text-xs text-blue-700 dark:text-blue-300">
+                    Current rate: {hostMatchRate}% ({calendarPricklesWithHost}/{matchedCalendarEvents} with host).
+                    Go to{" "}
+                    <Link href="/data/import" className="underline hover:text-blue-500">
+                      Data Import
+                    </Link>{" "}
+                    and click &quot;Process Calendar&quot; to improve host matching.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {orphanedMeetings > 0 && (
             <div className="p-4 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg">
               <div className="flex items-start gap-3">
