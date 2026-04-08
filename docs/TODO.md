@@ -2,17 +2,25 @@
 
 ## Member Status Refinements
 
-### Reverify Hiatus Members After Kajabi/SOP Updates
-After updating Kajabi data and SOPs to ensure Offboarding tags are consistently applied:
-- Re-import member data from Kajabi
-- Verify on_hiatus count matches expected hiatus members
-- Cross-reference with manual hiatus spreadsheet
-- ~21 members identified as needing Offboarding tag (hiatus ended, didn't resubscribe)
+### Fix Hiatus Tracking - TRUST ISSUE
+**Problem:** Hiatus detection doesn't match manual spreadsheet. At-risk members may include people on known hiatus.
 
 **Current Status Detection Logic:**
 - Active: has "Quill & Cup Membership" product
 - On Hiatus: has "Quill & Cup Member" tag but no product AND no "Offboarding" tag
 - Inactive: has "Offboarding" tag OR neither product nor member tag
+
+**Root Cause:** Missing or inconsistent source data from Kajabi
+- Offboarding tags not consistently applied in Kajabi
+- Manual hiatus spreadsheet may be more accurate than Kajabi tags
+- ~21 members identified as needing Offboarding tag (hiatus ended, didn't resubscribe)
+
+**Action Required:**
+1. Audit Kajabi tagging - ensure SOPs are followed
+2. Compare Kajabi export vs manual hiatus spreadsheet
+3. Determine source of truth (Kajabi or spreadsheet?)
+4. Either: Fix Kajabi tags OR import hiatus data from spreadsheet
+5. Re-import and verify on_hiatus count matches expectations
 
 ### Enhanced Inactive Member Classification
 Currently all inactive members are grouped together. Add granular status to distinguish:
@@ -30,11 +38,28 @@ Currently all inactive members are grouped together. Add granular status to dist
 
 ## Data Import
 
-### Kajabi API Integration
-Replace CSV import with direct Kajabi API integration when API access is enabled on plan.
-- Real-time sync
+### Automated Daily Imports
+**Goal:** Stop manually babysitting data - automate the entire pipeline
+
+**Priority 1: Daily Cron Jobs**
+- Kajabi CSV import (daily at 2 AM)
+- Zoom meeting/attendee reports (daily at 3 AM)
+- Auto-trigger processing after imports complete
+- Email alerts only on failures
+
+**Priority 2: Kajabi API Integration**
+Replace CSV import with direct Kajabi API integration when API access is enabled on plan:
+- Real-time sync via API
 - Automatic status updates
 - Webhook support for member changes
+- Eliminates manual CSV export/upload
+
+**Research: Community Analytics Tools**
+Explore for ideas/inspiration (NOT to replace, just learn from):
+- Orbit - community analytics
+- Common Room - member engagement tracking
+- Goal: Mine for feature ideas, UX patterns, analytics approaches
+- Keep building custom solution (more fun, free for small community)
 
 ### Schedule Import
 Import Prickles schedule from:
@@ -160,6 +185,13 @@ Set up background agents for faster parallel development
 - **Attendance over time chart**
   - Show historical attendance patterns
   - Help identify engagement trends per member
+
+- **Member status change tracking**
+  - Track status transitions (active → hiatus → active, active → at-risk → active)
+  - Show timeline: "Became at-risk: March 17", "Previously at-risk: Jan 5 - Jan 20 (returned after outreach)"
+  - Helps validate at-risk detection and hiatus tracking
+  - Shows engagement patterns over time
+  - **Depends on:** Reliable hiatus data from Kajabi (see "Fix Hiatus Tracking" above)
 
 - **Working location and timezone**
   - Configurable per member
