@@ -72,7 +72,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log(`Processing calendar events from ${fromDate} to ${toDate}`);
+    // Normalize date strings to proper datetime boundaries for overlap queries
+    // fromDate: use as-is (start of day if date-only)
+    // toDate: if date-only, add 1 day to get start of next day
+    // This ensures overlap logic catches records that cross boundaries
+    const fromDateTime = fromDate.includes('T') ? fromDate : `${fromDate}T00:00:00Z`;
+    const toDateTime = toDate.includes('T') ? toDate : (() => {
+      const nextDay = new Date(toDate);
+      nextDay.setDate(nextDay.getDate() + 1);
+      return nextDay.toISOString().split('T')[0] + 'T00:00:00Z';
+    })();
+
+    console.log(`Processing calendar events from ${fromDateTime} to ${toDateTime}`);
 
     // STEP 1a: Fetch all calendar events that overlap the date range
     // Use overlap logic (start < rangeEnd AND end > rangeStart) to catch events
@@ -86,8 +97,8 @@ export async function POST(request: NextRequest) {
       const { data: batch, error: fetchError } = await supabase
         .from("calendar_events")
         .select("*")
-        .lt("start_time", toDate)
-        .gt("end_time", fromDate)
+        .lt("start_time", toDateTime)
+        .gt("end_time", fromDateTime)
         .order("start_time")
         .range(offset, offset + FETCH_BATCH_SIZE - 1);
 
@@ -283,8 +294,8 @@ export async function POST(request: NextRequest) {
       .from("prickles")
       .delete()
       .eq("source", "calendar")
-      .lt("start_time", toDate)
-      .gt("end_time", fromDate);
+      .lt("start_time", toDateTime)
+      .gt("end_time", fromDateTime);
 
     if (deletePricklesError) {
       console.error("Error deleting existing prickles:", deletePricklesError);

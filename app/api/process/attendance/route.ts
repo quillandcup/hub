@@ -209,15 +209,30 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Normalize date strings to proper datetime boundaries for overlap queries
+    // fromDate: use as-is (start of day if date-only)
+    // toDate: if date-only, add 1 day to get start of next day
+    // This ensures overlap logic catches records that cross boundaries
+    const fromDateTime = fromDate.includes('T') ? fromDate : `${fromDate}T00:00:00Z`;
+    const toDateTime = toDate.includes('T') ? toDate : (() => {
+      const nextDay = new Date(toDate);
+      nextDay.setDate(nextDay.getDate() + 1);
+      return nextDay.toISOString().split('T')[0] + 'T00:00:00Z';
+    })();
+
+    console.log(`Date normalization: from ${fromDate} -> ${fromDateTime}, to ${toDate} -> ${toDateTime}`);
+
     // Get all zoom attendees that overlap the date range
     // Use overlap logic (start < rangeEnd AND end > rangeStart) to catch attendees
     // whose sessions span across date boundaries
     const { data: zoomAttendees, error: zoomError } = await supabase
       .from("zoom_attendees")
       .select("*")
-      .lt("join_time", toDate)
-      .gt("leave_time", fromDate)
+      .lt("join_time", toDateTime)
+      .gt("leave_time", fromDateTime)
       .order("join_time");
+
+    console.log(`Found ${zoomAttendees?.length || 0} zoom attendees in range`);
 
     if (zoomError) throw zoomError;
 
@@ -235,8 +250,8 @@ export async function POST(request: NextRequest) {
     await supabase
       .from("attendance")
       .delete()
-      .lt("join_time", toDate)
-      .gt("leave_time", fromDate);
+      .lt("join_time", toDateTime)
+      .gt("leave_time", fromDateTime);
 
     // Delete existing Pop-Up Prickles that overlap this date range
     // Calendar prickles are kept, but PUPs are regenerated
@@ -245,8 +260,8 @@ export async function POST(request: NextRequest) {
       .from("prickles")
       .delete()
       .eq("source", "zoom")
-      .lt("start_time", toDate)
-      .gt("end_time", fromDate);
+      .lt("start_time", toDateTime)
+      .gt("end_time", fromDateTime);
 
     // Get Pop-Up Prickle type ID
     const { data: pupType } = await supabase
@@ -275,8 +290,8 @@ export async function POST(request: NextRequest) {
         .from("prickles")
         .select("id, start_time, end_time, type_id")
         .eq("source", "calendar")
-        .lt("start_time", toDate)    // Prickle starts before end of range
-        .gt("end_time", fromDate)    // Prickle ends after start of range
+        .lt("start_time", toDateTime)    // Prickle starts before end of range
+        .gt("end_time", fromDateTime)    // Prickle ends after start of range
         .order("start_time")
         .range(prickleOffset, prickleOffset + PRICKLE_BATCH - 1);
 
