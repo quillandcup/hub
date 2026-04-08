@@ -192,7 +192,7 @@ The dashboard has basic stats cards, at-risk members list, and engagement insigh
   - Show historical attendance patterns
   - Help identify engagement trends per member
   
-- **Display member's aliases**
+- ✅ **Display member's aliases** - DONE (commit 8d9e05d, enhanced in 5329cda)
   - Show list of configured name aliases for this member
   - Read-only display (no ability to add aliases from member page)
   - Link to name matching page for alias management
