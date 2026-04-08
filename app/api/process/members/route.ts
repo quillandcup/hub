@@ -169,8 +169,10 @@ export async function POST(request: NextRequest) {
       }
 
       // Extract external IDs for linking to Kajabi and Stripe
-      const kajabiId = data.ID || data["Contact ID"] || null;
-      const stripeCustomerId = data["External Customer ID"] || data["Stripe Customer ID"] || null;
+      // Contacts export: ID = Kajabi contact ID
+      // Subscriptions export: Customer ID = Kajabi contact ID, Provider ID = Stripe customer ID (when Provider = "Stripe")
+      const kajabiId = data.ID || data["Customer ID"] || null;
+      const stripeCustomerId = (data.Provider === "Stripe" && data["Provider ID"]) || null;
 
         kajabiMembers.push({
           email: email.toLowerCase(),
