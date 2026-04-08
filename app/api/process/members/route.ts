@@ -73,16 +73,33 @@ export async function POST(request: NextRequest) {
     const kajabiMembers = [];
 
     if (kajabiSnapshot && kajabiSnapshot.length > 0) {
-      // Get unique emails with their latest snapshot
-      const latestByEmail = new Map<string, any>();
+      // Group all snapshots by email (to merge data from multiple imports)
+      const snapshotsByEmail = new Map<string, any[]>();
       for (const row of kajabiSnapshot) {
-        if (!latestByEmail.has(row.email)) {
-          latestByEmail.set(row.email, row);
+        if (!snapshotsByEmail.has(row.email)) {
+          snapshotsByEmail.set(row.email, []);
         }
+        snapshotsByEmail.get(row.email)!.push(row);
       }
 
-      for (const [email, kajabiMember] of latestByEmail) {
-      const data = kajabiMember.data;
+      // Process each email: use latest snapshot for core data, merge external IDs from all snapshots
+      for (const [email, snapshots] of snapshotsByEmail) {
+      // Use the most recent snapshot for core member data
+      const latestSnapshot = snapshots[0]; // Already sorted by imported_at DESC
+      const data = latestSnapshot.data;
+
+      // Collect external IDs from ALL snapshots (prefer first non-null value found)
+      let kajabiId = null;
+      let stripeCustomerId = null;
+      for (const snapshot of snapshots) {
+        const snapshotData = snapshot.data;
+        if (!kajabiId && snapshotData.ID) {
+          kajabiId = snapshotData.ID;
+        }
+        if (!stripeCustomerId && snapshotData.Provider === "Stripe" && snapshotData["Provider ID"]) {
+          stripeCustomerId = snapshotData["Provider ID"];
+        }
+      }
 
       // Check if this is subscription data or member data
       const isSubscriptionData = !!data["Customer Name"] && !!data.Status;
@@ -168,11 +185,7 @@ export async function POST(request: NextRequest) {
         joinedAt = createdAt.split(" ")[0];
       }
 
-      // Extract external IDs for linking to Kajabi and Stripe
-      // Contacts export: ID = Kajabi contact ID
-      // Subscriptions export: Customer ID = Kajabi contact ID, Provider ID = Stripe customer ID (when Provider = "Stripe")
-      const kajabiId = data.ID || data["Customer ID"] || null;
-      const stripeCustomerId = (data.Provider === "Stripe" && data["Provider ID"]) || null;
+      // External IDs were collected from all snapshots above (before the main processing loop)
 
         kajabiMembers.push({
           email: email.toLowerCase(),
@@ -183,8 +196,8 @@ export async function POST(request: NextRequest) {
           source: 'kajabi',
           staff_role: null,
           user_id: null,
-          kajabi_id: kajabiId,
-          stripe_customer_id: stripeCustomerId,
+          kajabi_id: kajabiId, // Merged from all snapshots
+          stripe_customer_id: stripeCustomerId, // Merged from all snapshots
         });
       }
     }
