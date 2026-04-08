@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import Link from "next/link";
 import SignOutButton from "./SignOutButton";
 
 interface UserMenuProps {
@@ -52,13 +53,13 @@ export default function UserMenu({ userEmail }: UserMenuProps) {
             <p className="text-sm text-slate-500 dark:text-slate-400 truncate">{userEmail}</p>
           </div>
 
-          {/* Future: Profile/Settings link */}
-          {/* <Link
+          <Link
             href="/dashboard/profile"
-            className="block px-4 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
+            className="block px-4 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+            onClick={() => setIsOpen(false)}
           >
             Edit Profile
-          </Link> */}
+          </Link>
 
           <div className="px-4 py-2">
             <SignOutButton />
