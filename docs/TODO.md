@@ -47,23 +47,13 @@ Import Prickles schedule from:
 ## Security & Access Control
 
 ### User Invitations
-- ✅ **DONE: Disabled public signups**
-  - Set `enable_signup = false` in `supabase/config.toml`
-  - Admins invite users through Supabase Studio
-  - See `docs/INVITING_USERS.md` for instructions
-- **TODO: In-app invite management (future)**
+- **In-app invite management**
   - Admin page to send invites with pre-set roles
   - Email templates for invitations
   - Track invite status and expiration
 
 ### Row Level Security (RLS)
-- ✅ **DONE: Basic RLS enabled on all tables**
-  - All tables have RLS enabled
-  - Authenticated users get full access (all are admins for now)
-  - user_profiles table created with role column
-  - Helper functions and auto-profile creation in place
-  - See `docs/RLS_SECURITY.md` for details
-- **TODO: Implement role-based restrictions when needed**
+- **Role-based restrictions**
   - Add assistant/member roles when we have non-admin users
   - Update policies to restrict based on role
   - Test thoroughly before granting access to non-admins
@@ -117,25 +107,12 @@ Set up background agents for faster parallel development
 ## UI Enhancements
 
 ### Navigation & Layout
-- **Collapsible left-nav with information hierarchy**
-  - Current state: Organized into Dashboard, Members, Data, Import sections
-  - ✅ **DONE: Mobile navigation fixed** - Nav starts collapsed on mobile, hydration error fixed
-  - Future: Could further refine hierarchy and grouping
-
-- ✅ **DONE: User profile dropdown and timezone settings**
-  - Profile dropdown with "Edit Profile" link
-  - Profile settings page with timezone preference
-  - Timezone stored in user_profiles table
-  - Used as default in timezone dropdowns (e.g., prickle details)
-
-- **User settings - additional preferences (future)**
+- **User settings - additional preferences**
   - Preferred theme (dark/light/device default)
   - Working location for global time analysis
+  - Further refine navigation hierarchy and grouping
 
 ### Dashboard Improvements
-
-**Current State:**
-The dashboard has basic stats cards, at-risk members list, and engagement insights.
 
 **Needed Fixes:**
 - Top Attendees list should link to each member's profile page
@@ -183,18 +160,6 @@ The dashboard has basic stats cards, at-risk members list, and engagement insigh
 - **Attendance over time chart**
   - Show historical attendance patterns
   - Help identify engagement trends per member
-  
-- ✅ **Display member's aliases** - DONE (commit 8d9e05d, enhanced in 5329cda)
-  - Show list of configured name aliases for this member
-  - Read-only display (no ability to add aliases from member page)
-  - Link to name matching page for alias management
-
-- ✅ **DONE: Network graph visualization** - Members section now includes interactive network graph
-  - Shows member connections based on co-attendance at prickles
-  - Force-directed physics simulation with edge weights
-  - Interactive: search members, click nodes, navigate connections
-  - Pan and zoom controls (mouse wheel zoom, drag to pan, reset view button)
-  - Helps identify community clusters and member relationships
 
 - **Working location and timezone**
   - Configurable per member
@@ -207,44 +172,6 @@ The dashboard has basic stats cards, at-risk members list, and engagement insigh
 ---
 
 ## Bug Fixes
-
-### Attendance Counting
-- ✅ **FIXED: Leave/rejoin counted as multiple attendees**
-  - Prickle details page now counts unique members, not attendance records
-  - Shows note when members left and rejoined: "X total records (some members left and rejoined)"
-  - Note: attendance table allows multiple records per (member_id, prickle_id) by design to track leave/rejoin patterns
-
-### Prickle Types
-- ✅ **FIXED: Edit prickle type route**
-  - Route is at `/data/prickle-types/{id}/edit` (not `/dashboard/prickle-types/{id}/edit`)
-  - Working correctly
-
-### Host Processing
-- ✅ **FIXED: Host assignment broken on Progress Prickles**
-  - Bug: When extracting host from "Prickle w/Lili", code incorrectly tried to match using organizer email (calendar account) instead of just the extracted name "Lili"
-  - Fix: Only use organizer/creator email when no host extracted from "w/Name" pattern
-  - Before: 85.8% without host (308/359). After fix, should match most hosts via aliases or name matching
-  - Reprocess calendar events to apply fix
-
-### Data Processing & Reprocessability
-
-- ✅ **FIXED: Midnight-crossing meetings orphaned** - CRITICAL
-  - Bug: Meetings crossing midnight (11 PM → 1 AM) were not processed
-  - Root cause: Old containment logic (gte/lte) missed boundary-crossing records
-  - Fix: Changed to overlap logic (lt/gt) with proper date normalization
-  - **ACTION REQUIRED:** Reprocess attendance data in production to capture 19 orphaned meetings
-  
-- ✅ **FIXED: DELETE queries executed after early return**
-  - Bug: When Bronze data (zoom_attendees) deleted, Silver data (PUPs) remained orphaned
-  - Root cause: DELETE queries ran AFTER "no attendees" check and early return
-  - Fix: Moved DELETE queries before attendee check (DELETE + INSERT pattern requirement)
-  - Impact: Ensures true idempotency - Silver layer always reflects Bronze state
-
-- ✅ **FIXED: Edge segment filtering for calendar prickles**
-  - Bug: Members joining <15 min early/late to scheduled prickles got separate short records
-  - Root cause: 15-min filter only applied to PUPs, not calendar prickles
-  - Fix: Apply filter to ANY short segment (<15 min) adjacent to longer segment
-  - **ACTION REQUIRED:** Reprocess attendance data in production to apply fix
 
 ### Member Filters
 - **At-risk and highly-engaged filters don't work**
