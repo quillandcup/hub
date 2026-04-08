@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { ThemeSwitcher } from "./ThemeSwitcher";
+import { TimezoneSwitcher } from "./TimezoneSwitcher";
 
 export default async function ProfilePage() {
   const supabase = await createClient();
@@ -12,6 +13,15 @@ export default async function ProfilePage() {
   if (!user) {
     redirect("/login");
   }
+
+  // Fetch user profile to get timezone preference
+  const { data: profile } = await supabase
+    .from("user_profiles")
+    .select("timezone_preference")
+    .eq("id", user.id)
+    .single();
+
+  const timezonePreference = profile?.timezone_preference || "browser";
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
@@ -50,14 +60,7 @@ export default async function ProfilePage() {
               <div className="space-y-6">
                 <ThemeSwitcher />
 
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                    Default Timezone
-                  </label>
-                  <p className="text-sm text-slate-500 dark:text-slate-400 italic">
-                    Timezone preferences will be available in a future update
-                  </p>
-                </div>
+                <TimezoneSwitcher initialTimezone={timezonePreference} />
               </div>
             </div>
 
