@@ -209,12 +209,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get all zoom attendees in date range
+    // Get all zoom attendees that overlap the date range
+    // Use overlap logic (start < rangeEnd AND end > rangeStart) to catch attendees
+    // whose sessions span across date boundaries
     const { data: zoomAttendees, error: zoomError } = await supabase
       .from("zoom_attendees")
       .select("*")
-      .gte("join_time", fromDate)
-      .lte("leave_time", toDate)
+      .lt("join_time", toDate)
+      .gt("leave_time", fromDate)
       .order("join_time");
 
     if (zoomError) throw zoomError;
@@ -227,22 +229,24 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Delete existing attendance records in this date range
+    // Delete existing attendance records that overlap this date range
     // This makes the process fully idempotent - we regenerate Silver layer from Bronze
+    // Use overlap logic to catch records that span across date boundaries
     await supabase
       .from("attendance")
       .delete()
-      .gte("join_time", fromDate)
-      .lte("leave_time", toDate);
+      .lt("join_time", toDate)
+      .gt("leave_time", fromDate);
 
-    // Delete existing Pop-Up Prickles in this date range
+    // Delete existing Pop-Up Prickles that overlap this date range
     // Calendar prickles are kept, but PUPs are regenerated
+    // Use overlap logic to catch PUPs that span across date boundaries
     await supabase
       .from("prickles")
       .delete()
       .eq("source", "zoom")
-      .gte("start_time", fromDate)
-      .lte("end_time", toDate);
+      .lt("start_time", toDate)
+      .gt("end_time", fromDate);
 
     // Get Pop-Up Prickle type ID
     const { data: pupType } = await supabase

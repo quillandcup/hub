@@ -74,7 +74,9 @@ export async function POST(request: NextRequest) {
 
     console.log(`Processing calendar events from ${fromDate} to ${toDate}`);
 
-    // STEP 1a: Fetch all calendar events with pagination (Supabase default limit is 1000)
+    // STEP 1a: Fetch all calendar events that overlap the date range
+    // Use overlap logic (start < rangeEnd AND end > rangeStart) to catch events
+    // that span across date boundaries
     const FETCH_BATCH_SIZE = 1000;
     let allEvents: any[] = [];
     let offset = 0;
@@ -84,8 +86,8 @@ export async function POST(request: NextRequest) {
       const { data: batch, error: fetchError } = await supabase
         .from("calendar_events")
         .select("*")
-        .gte("start_time", fromDate)
-        .lte("end_time", toDate)
+        .lt("start_time", toDate)
+        .gt("end_time", fromDate)
         .order("start_time")
         .range(offset, offset + FETCH_BATCH_SIZE - 1);
 
@@ -274,13 +276,15 @@ export async function POST(request: NextRequest) {
     // This makes the process fully reprocessable - we regenerate Silver from Bronze
     console.log(`Deleting existing calendar prickles and unmatched events in date range`);
 
-    // Delete calendar prickles
+    // Delete calendar prickles that overlap the date range
+    // Use overlap logic (start < rangeEnd AND end > rangeStart) instead of containment
+    // This ensures we delete prickles that span across date boundaries
     const { error: deletePricklesError } = await supabase
       .from("prickles")
       .delete()
       .eq("source", "calendar")
-      .gte("start_time", fromDate)
-      .lte("end_time", toDate);
+      .lt("start_time", toDate)
+      .gt("end_time", fromDate);
 
     if (deletePricklesError) {
       console.error("Error deleting existing prickles:", deletePricklesError);
