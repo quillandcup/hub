@@ -24,7 +24,7 @@ export default async function MembersPage({
   // Get filter from URL
   const filter = (params.filter as string) || "all";
 
-  // Build query
+  // Build query - apply filters that work on the members table directly
   let query = supabase
     .from("members")
     .select(`
@@ -33,18 +33,22 @@ export default async function MembersPage({
       member_engagement(*)
     `);
 
-  // Apply filters
+  // Apply status filters (these work on the members table directly)
   if (filter === "active") {
     query = query.eq("status", "active");
-  } else if (filter === "at_risk") {
-    query = query.eq("member_engagement.risk_level", "high");
-  } else if (filter === "highly_engaged") {
-    query = query.eq("member_engagement.engagement_tier", "highly_engaged");
   } else if (filter === "on_hiatus") {
     query = query.eq("status", "on_hiatus");
   }
 
-  const { data: members } = await query.order("name");
+  const { data: allMembers } = await query.order("name");
+
+  // Apply engagement filters in memory (these require filtering on joined data)
+  let members = allMembers ?? null;
+  if (filter === "at_risk") {
+    members = allMembers?.filter((m) => m.member_engagement?.risk_level === "high") ?? null;
+  } else if (filter === "highly_engaged") {
+    members = allMembers?.filter((m) => m.member_engagement?.engagement_tier === "highly_engaged") ?? null;
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
