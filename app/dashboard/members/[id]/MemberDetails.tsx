@@ -35,7 +35,7 @@ export default function MemberDetails({ member, attendanceRecords, userTimezoneP
       : userTimezonePreference;
 
   const [timezone, setTimezone] = useState(defaultTimezone);
-  const [view, setView] = useState<"list" | "calendar">("list");
+  const [view, setView] = useState<"list" | "calendar">("calendar");
   const router = useRouter();
 
   // Update timezone when defaultTimezone changes (after browser detection)

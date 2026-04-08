@@ -107,9 +107,41 @@ export default async function MemberDetailPage({
                 </div>
               )}
             </div>
-            <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
-              {member.email}
-            </p>
+            <div className="mt-1 flex flex-col gap-1">
+              <p className="text-sm text-slate-600 dark:text-slate-400">
+                {member.email}
+              </p>
+              {(member.kajabi_id || member.stripe_customer_id) && (
+                <div className="flex items-center gap-3 text-xs">
+                  {member.kajabi_id && (
+                    <a
+                      href={`https://app.kajabi.com/admin/contacts/${member.kajabi_id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 hover:underline"
+                    >
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                      </svg>
+                      Kajabi
+                    </a>
+                  )}
+                  {member.stripe_customer_id && (
+                    <a
+                      href={`https://dashboard.stripe.com/customers/${member.stripe_customer_id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 hover:underline"
+                    >
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                      </svg>
+                      Stripe
+                    </a>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </header>

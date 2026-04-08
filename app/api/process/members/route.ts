@@ -168,6 +168,10 @@ export async function POST(request: NextRequest) {
         joinedAt = createdAt.split(" ")[0];
       }
 
+      // Extract external IDs for linking to Kajabi and Stripe
+      const kajabiId = data.ID || data["Contact ID"] || null;
+      const stripeCustomerId = data["External Customer ID"] || data["Stripe Customer ID"] || null;
+
         kajabiMembers.push({
           email: email.toLowerCase(),
           name,
@@ -177,6 +181,8 @@ export async function POST(request: NextRequest) {
           source: 'kajabi',
           staff_role: null,
           user_id: null,
+          kajabi_id: kajabiId,
+          stripe_customer_id: stripeCustomerId,
         });
       }
     }
@@ -191,6 +197,8 @@ export async function POST(request: NextRequest) {
       source: 'staff',
       staff_role: staff.role,
       user_id: staff.user_id,
+      kajabi_id: null, // Staff don't have Kajabi IDs
+      stripe_customer_id: null, // Staff don't have Stripe IDs
     }));
 
     // STEP 4: Combine both sources
