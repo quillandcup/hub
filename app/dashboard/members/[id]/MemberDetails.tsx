@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import AttendanceCalendar from "./AttendanceCalendar";
 
 const TIMEZONES = [
   { value: "America/New_York", label: "Eastern (ET)" },
@@ -19,6 +20,7 @@ interface MemberDetailsProps {
 
 export default function MemberDetails({ member, attendanceRecords }: MemberDetailsProps) {
   const [timezone, setTimezone] = useState("America/New_York");
+  const [view, setView] = useState<"list" | "calendar">("list");
   const router = useRouter();
 
   const formatTime = (date: Date) => {
@@ -112,76 +114,119 @@ export default function MemberDetails({ member, attendanceRecords }: MemberDetai
       {/* Attendance History */}
       <div className="bg-white dark:bg-slate-900 rounded-lg shadow">
         <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800">
-          <h2 className="text-xl font-bold">Attendance History ({attendanceRecords.length})</h2>
-        </div>
-        {attendanceRecords.length > 0 ? (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-slate-50 dark:bg-slate-800">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                    Prickle Type
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                    Date
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                    Time
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                    Duration
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                    Host
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
-                {attendanceRecords.map((record: any) => {
-                  const prickle = record.prickles;
-                  const joinTime = new Date(record.join_time);
-                  const leaveTime = new Date(record.leave_time);
-                  const durationMinutes = Math.round((leaveTime.getTime() - joinTime.getTime()) / 60000);
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-bold">Attendance History ({attendanceRecords.length})</h2>
 
-                  return (
-                    <tr
-                      key={record.id}
-                      className="hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer"
-                      onClick={() => router.push(`/dashboard/prickles/${prickle.id}`)}
-                    >
-                      <td className="px-6 py-4">
-                        <div className="text-sm font-medium text-slate-900 dark:text-slate-100">
-                          {prickle.host?.id === member.id && "⭐ "}
-                          {prickle.prickle_types?.name || "Unknown"}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 text-sm text-slate-700 dark:text-slate-300">
-                        {formatDate(joinTime)}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-slate-700 dark:text-slate-300">
-                        {formatTime(joinTime)} - {formatTime(leaveTime)}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-slate-700 dark:text-slate-300">
-                        {durationMinutes} min
-                      </td>
-                      <td className="px-6 py-4 text-sm text-slate-700 dark:text-slate-300">
-                        {prickle.host ? (
-                          <Link
-                            href={`/dashboard/members/${prickle.host.id}`}
-                            className="text-blue-600 hover:text-blue-700 dark:text-blue-400 hover:underline"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            {prickle.host.name}
-                          </Link>
-                        ) : (
-                          "None"
-                        )}
-                      </td>
+            {/* View Tabs */}
+            <div className="flex bg-slate-100 dark:bg-slate-800 rounded-lg p-1">
+              <button
+                onClick={() => setView("list")}
+                className={`
+                  px-4 py-1.5 text-sm font-medium rounded-md transition-colors
+                  ${view === "list"
+                    ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-sm"
+                    : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
+                  }
+                `}
+              >
+                List
+              </button>
+              <button
+                onClick={() => setView("calendar")}
+                className={`
+                  px-4 py-1.5 text-sm font-medium rounded-md transition-colors
+                  ${view === "calendar"
+                    ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-sm"
+                    : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
+                  }
+                `}
+              >
+                Calendar
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {attendanceRecords.length > 0 ? (
+          <div className="p-6">
+            {view === "list" ? (
+              <div className="overflow-x-auto -mx-6">
+                <table className="w-full">
+                  <thead className="bg-slate-50 dark:bg-slate-800">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                        Prickle Type
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                        Date
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                        Time
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                        Duration
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                        Host
+                      </th>
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
+                    {attendanceRecords.map((record: any) => {
+                      const prickle = record.prickles;
+                      const joinTime = new Date(record.join_time);
+                      const leaveTime = new Date(record.leave_time);
+                      const durationMinutes = Math.round((leaveTime.getTime() - joinTime.getTime()) / 60000);
+
+                      return (
+                        <tr
+                          key={record.id}
+                          className="hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer"
+                          onClick={() => router.push(`/dashboard/prickles/${prickle.id}`)}
+                        >
+                          <td className="px-6 py-4">
+                            <div className="text-sm font-medium text-slate-900 dark:text-slate-100">
+                              {prickle.host?.id === member.id && "⭐ "}
+                              {prickle.prickle_types?.name || "Unknown"}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 text-sm text-slate-700 dark:text-slate-300">
+                            {formatDate(joinTime)}
+                          </td>
+                          <td className="px-6 py-4 text-sm text-slate-700 dark:text-slate-300">
+                            {formatTime(joinTime)} - {formatTime(leaveTime)}
+                          </td>
+                          <td className="px-6 py-4 text-sm text-slate-700 dark:text-slate-300">
+                            {durationMinutes} min
+                          </td>
+                          <td className="px-6 py-4 text-sm text-slate-700 dark:text-slate-300">
+                            {prickle.host ? (
+                              <Link
+                                href={`/dashboard/members/${prickle.host.id}`}
+                                className="text-blue-600 hover:text-blue-700 dark:text-blue-400 hover:underline"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                {prickle.host.name}
+                              </Link>
+                            ) : (
+                              "None"
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <AttendanceCalendar
+                member={member}
+                attendanceRecords={attendanceRecords}
+                timezone={timezone}
+                formatTime={formatTime}
+                formatDate={formatDate}
+              />
+            )}
           </div>
         ) : (
           <div className="p-12 text-center text-slate-500 dark:text-slate-400">
