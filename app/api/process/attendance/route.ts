@@ -256,15 +256,24 @@ export async function POST(request: NextRequest) {
     // Delete existing Pop-Up Prickles that overlap this date range
     // Calendar prickles are kept, but PUPs are regenerated
     // Use overlap logic to catch PUPs that span across date boundaries
-    const { data: deletedPups, error: deletePupsError } = await supabase
+
+    // First query to see what will be deleted (for logging)
+    const { data: pupsToDelete } = await supabase
+      .from("prickles")
+      .select("id, start_time, end_time, zoom_meeting_uuid")
+      .eq("source", "zoom")
+      .lt("start_time", toDateTime)
+      .gt("end_time", fromDateTime);
+
+    console.log(`Will delete ${pupsToDelete?.length || 0} PUPs in range ${fromDateTime} to ${toDateTime}`, pupsToDelete?.map(p => ({ uuid: p.zoom_meeting_uuid, start: p.start_time, end: p.end_time })));
+
+    // Now delete them
+    const { error: deletePupsError } = await supabase
       .from("prickles")
       .delete()
       .eq("source", "zoom")
       .lt("start_time", toDateTime)
-      .gt("end_time", fromDateTime)
-      .select();
-
-    console.log(`Deleted ${deletedPups?.length || 0} PUPs in range ${fromDateTime} to ${toDateTime}`);
+      .gt("end_time", fromDateTime);
 
     // Get Pop-Up Prickle type ID
     const { data: pupType } = await supabase
