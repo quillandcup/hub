@@ -118,27 +118,19 @@ Set up background agents for faster parallel development
 
 ### Navigation & Layout
 - **Collapsible left-nav with information hierarchy**
-  - Current state: Jumble of inter-linked tools (dashboard → name matching → search-based matching)
-  - Goal: Clear, organized navigation with logical grouping
-  - Consider sections: Dashboard, Members, Prickles, Import/Process, Admin Tools
+  - Current state: Organized into Dashboard, Members, Data, Import sections
+  - ✅ **DONE: Mobile navigation fixed** - Nav starts collapsed on mobile, hydration error fixed
+  - Future: Could further refine hierarchy and grouping
 
-- **Mobile navigation issues**
-  - On mobile, user's email dropdown in top-right overlaps left-nav collapse arrow
-  - Makes it impossible to collapse nav in vertical orientation (nav takes up most of screen)
-  - Nav should start collapsed on mobile by default
+- ✅ **DONE: User profile dropdown and timezone settings**
+  - Profile dropdown with "Edit Profile" link
+  - Profile settings page with timezone preference
+  - Timezone stored in user_profiles table
+  - Used as default in timezone dropdowns (e.g., prickle details)
 
-- **User profile dropdown in top-nav**
-  - Replace simple "Sign out" link with dropdown menu
-  - Add "Edit Profile" link
-  - First setting: Default timezone preference
-  - Option for "Browser/Local Time" to auto-detect
-  - Store user preferences in database
-
-- **User settings page**
+- **User settings - additional preferences (future)**
   - Preferred theme (dark/light/device default)
-  - Timezone preference (becomes default on calendar and other timezone dropdowns)
-  - Working location and timezone for global time analysis
-  - Store preferences in user_profiles table
+  - Working location for global time analysis
 
 ### Dashboard Improvements
 
@@ -197,6 +189,13 @@ The dashboard has basic stats cards, at-risk members list, and engagement insigh
   - Read-only display (no ability to add aliases from member page)
   - Link to name matching page for alias management
 
+- ✅ **DONE: Network graph visualization** - Members section now includes interactive network graph
+  - Shows member connections based on co-attendance at prickles
+  - Force-directed physics simulation with edge weights
+  - Interactive: search members, click nodes, navigate connections
+  - Pan and zoom controls (mouse wheel zoom, drag to pan, reset view button)
+  - Helps identify community clusters and member relationships
+
 - **Working location and timezone**
   - Configurable per member
   - Enable "local time" analysis (e.g., "most people write in evenings globally")
@@ -227,14 +226,31 @@ The dashboard has basic stats cards, at-risk members list, and engagement insigh
   - Before: 85.8% without host (308/359). After fix, should match most hosts via aliases or name matching
   - Reprocess calendar events to apply fix
 
+### Data Processing & Reprocessability
+
+- ✅ **FIXED: Midnight-crossing meetings orphaned** - CRITICAL
+  - Bug: Meetings crossing midnight (11 PM → 1 AM) were not processed
+  - Root cause: Old containment logic (gte/lte) missed boundary-crossing records
+  - Fix: Changed to overlap logic (lt/gt) with proper date normalization
+  - **ACTION REQUIRED:** Reprocess attendance data in production to capture 19 orphaned meetings
+  
+- ✅ **FIXED: DELETE queries executed after early return**
+  - Bug: When Bronze data (zoom_attendees) deleted, Silver data (PUPs) remained orphaned
+  - Root cause: DELETE queries ran AFTER "no attendees" check and early return
+  - Fix: Moved DELETE queries before attendee check (DELETE + INSERT pattern requirement)
+  - Impact: Ensures true idempotency - Silver layer always reflects Bronze state
+
+- ✅ **FIXED: Edge segment filtering for calendar prickles**
+  - Bug: Members joining <15 min early/late to scheduled prickles got separate short records
+  - Root cause: 15-min filter only applied to PUPs, not calendar prickles
+  - Fix: Apply filter to ANY short segment (<15 min) adjacent to longer segment
+  - **ACTION REQUIRED:** Reprocess attendance data in production to apply fix
+
 ### Member Filters
 - **At-risk and highly-engaged filters don't work**
   - URL: `/dashboard/members?filter=highly_engaged`
   - Filter parameter is in URL but not applied to results
   - Both filters affected
-
-### Incomplete TODO
-- "Members attend" - Note: This TODO was incomplete/cut off. Needs clarification.
 
 ---
 
