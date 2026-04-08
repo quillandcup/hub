@@ -33,6 +33,9 @@ export default function NetworkGraph({ nodes: initialNodes, edges }: NetworkGrap
   const [nodes, setNodes] = useState<Node[]>([]);
   const canvasRef = useRef<SVGSVGElement>(null);
   const animationRef = useRef<number | undefined>(undefined);
+  const [transform, setTransform] = useState({ x: 0, y: 0, scale: 1 });
+  const [isPanning, setIsPanning] = useState(false);
+  const [panStart, setPanStart] = useState({ x: 0, y: 0 });
 
   const width = 1200;
   const height = 800;
@@ -177,6 +180,45 @@ export default function NetworkGraph({ nodes: initialNodes, edges }: NetworkGrap
     return 0.3;
   };
 
+  const handleWheel = (e: React.WheelEvent<SVGSVGElement>) => {
+    e.preventDefault();
+    const delta = -e.deltaY * 0.001;
+    const newScale = Math.max(0.1, Math.min(5, transform.scale * (1 + delta)));
+
+    // Zoom towards mouse position
+    const rect = canvasRef.current?.getBoundingClientRect();
+    if (rect) {
+      const mouseX = e.clientX - rect.left;
+      const mouseY = e.clientY - rect.top;
+
+      const newX = mouseX - (mouseX - transform.x) * (newScale / transform.scale);
+      const newY = mouseY - (mouseY - transform.y) * (newScale / transform.scale);
+
+      setTransform({ x: newX, y: newY, scale: newScale });
+    }
+  };
+
+  const handleMouseDown = (e: React.MouseEvent<SVGSVGElement>) => {
+    if ((e.target as SVGElement).tagName === 'svg' || (e.target as SVGElement).tagName === 'rect') {
+      setIsPanning(true);
+      setPanStart({ x: e.clientX - transform.x, y: e.clientY - transform.y });
+    }
+  };
+
+  const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
+    if (isPanning) {
+      setTransform({
+        ...transform,
+        x: e.clientX - panStart.x,
+        y: e.clientY - panStart.y,
+      });
+    }
+  };
+
+  const handleMouseUp = () => {
+    setIsPanning(false);
+  };
+
   const handleNodeClick = (nodeId: string) => {
     setSelectedNodeId(selectedNodeId === nodeId ? null : nodeId);
   };
@@ -202,6 +244,12 @@ export default function NetworkGraph({ nodes: initialNodes, edges }: NetworkGrap
           onChange={(e) => setSearchTerm(e.target.value)}
           className="flex-1 px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
         />
+        <button
+          onClick={() => setTransform({ x: 0, y: 0, scale: 1 })}
+          className="px-4 py-2 bg-slate-200 dark:bg-slate-700 rounded-lg hover:bg-slate-300 dark:hover:bg-slate-600"
+        >
+          Reset View
+        </button>
         {selectedNodeId && (
           <button
             onClick={() => setSelectedNodeId(null)}
@@ -220,66 +268,77 @@ export default function NetworkGraph({ nodes: initialNodes, edges }: NetworkGrap
             width={width}
             height={height}
             className="border border-slate-200 dark:border-slate-700 rounded"
+            onWheel={handleWheel}
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+            onMouseLeave={handleMouseUp}
+            style={{ cursor: isPanning ? 'grabbing' : 'grab' }}
           >
-            {/* Edges */}
-            <g>
-              {visibleEdges.map((edge, i) => {
-                const sourceNode = nodes.find(n => n.id === edge.source);
-                const targetNode = nodes.find(n => n.id === edge.target);
-                if (!sourceNode?.x || !targetNode?.x) return null;
+            {/* Background for panning */}
+            <rect width={width} height={height} fill="transparent" />
 
-                return (
-                  <line
-                    key={i}
-                    x1={sourceNode.x}
-                    y1={sourceNode.y}
-                    x2={targetNode.x}
-                    y2={targetNode.y}
-                    stroke="#94a3b8"
-                    strokeWidth={getEdgeWidth(edge)}
-                    opacity={getEdgeOpacity(edge)}
-                  />
-                );
-              })}
-            </g>
+            <g transform={`translate(${transform.x}, ${transform.y}) scale(${transform.scale})`}>
+              {/* Edges */}
+              <g>
+                {visibleEdges.map((edge, i) => {
+                  const sourceNode = nodes.find(n => n.id === edge.source);
+                  const targetNode = nodes.find(n => n.id === edge.target);
+                  if (!sourceNode?.x || !targetNode?.x) return null;
 
-            {/* Nodes */}
-            <g>
-              {filteredNodes.map(node => {
-                if (!node.x || !node.y) return null;
-                const isHighlighted = highlightedNodeIds.has(node.id);
-                const isSelected = node.id === selectedNodeId;
-
-                return (
-                  <g
-                    key={node.id}
-                    style={{ cursor: "pointer" }}
-                    onClick={() => handleNodeClick(node.id)}
-                  >
-                    <circle
-                      cx={node.x}
-                      cy={node.y}
-                      r={getNodeSize(node)}
-                      fill={isSelected ? "#3b82f6" : isHighlighted ? "#60a5fa" : "#64748b"}
-                      stroke={isSelected ? "#1e40af" : "none"}
-                      strokeWidth={isSelected ? 3 : 0}
-                      opacity={searchTerm && !node.name.toLowerCase().includes(searchTerm.toLowerCase()) ? 0.2 : 1}
+                  return (
+                    <line
+                      key={i}
+                      x1={sourceNode.x}
+                      y1={sourceNode.y}
+                      x2={targetNode.x}
+                      y2={targetNode.y}
+                      stroke="#94a3b8"
+                      strokeWidth={getEdgeWidth(edge)}
+                      opacity={getEdgeOpacity(edge)}
                     />
-                    {(isSelected || isHighlighted) && (
-                      <text
-                        x={node.x}
-                        y={node.y - getNodeSize(node) - 5}
-                        textAnchor="middle"
-                        fontSize="12"
-                        fill="#1e293b"
-                        className="dark:fill-slate-100"
-                      >
-                        {node.name}
-                      </text>
-                    )}
-                  </g>
-                );
-              })}
+                  );
+                })}
+              </g>
+
+              {/* Nodes */}
+              <g>
+                {filteredNodes.map(node => {
+                  if (!node.x || !node.y) return null;
+                  const isHighlighted = highlightedNodeIds.has(node.id);
+                  const isSelected = node.id === selectedNodeId;
+
+                  return (
+                    <g
+                      key={node.id}
+                      style={{ cursor: "pointer" }}
+                      onClick={() => handleNodeClick(node.id)}
+                    >
+                      <circle
+                        cx={node.x}
+                        cy={node.y}
+                        r={getNodeSize(node)}
+                        fill={isSelected ? "#3b82f6" : isHighlighted ? "#60a5fa" : "#64748b"}
+                        stroke={isSelected ? "#1e40af" : "none"}
+                        strokeWidth={isSelected ? 3 : 0}
+                        opacity={searchTerm && !node.name.toLowerCase().includes(searchTerm.toLowerCase()) ? 0.2 : 1}
+                      />
+                      {(isSelected || isHighlighted) && (
+                        <text
+                          x={node.x}
+                          y={node.y - getNodeSize(node) - 5}
+                          textAnchor="middle"
+                          fontSize="12"
+                          fill="#1e293b"
+                          className="dark:fill-slate-100"
+                        >
+                          {node.name}
+                        </text>
+                      )}
+                    </g>
+                  );
+                })}
+              </g>
             </g>
           </svg>
         </div>
