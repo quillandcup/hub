@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 import { normalizePrickleType } from "@/lib/prickle-types";
+import { matchAttendeeToMember } from "@/lib/member-matching";
 
 /**
  * Resolve multiple unmatched calendar events by creating prickles for all
@@ -85,13 +86,19 @@ export async function POST(request: NextRequest) {
 
     // Only try to match if a host was provided
     if (host && host.trim()) {
-      // Try to match the host to a member to get member_id
-      const { data: matchResult } = await supabase.rpc("match_member_by_name", {
-        zoom_name: host.trim(),
-        zoom_email: null,
-      });
+      // Load members and aliases for matching
+      const [{ data: members }, { data: aliases }] = await Promise.all([
+        supabase.from("members").select("id, name, email"),
+        supabase.from("member_name_aliases").select("alias, member_id"),
+      ]);
 
-      const match = matchResult && matchResult.length > 0 ? matchResult[0] : null;
+      // Try to match the host to a member using centralized matching
+      const match = matchAttendeeToMember(
+        host.trim(),
+        null,
+        members || [],
+        aliases || []
+      );
 
       if (match) {
         hostId = match.member_id;

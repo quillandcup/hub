@@ -1,12 +1,14 @@
 import { createClient } from "@/lib/supabase/server";
 import AliasSearchForm from "./AliasSearchForm";
+import { matchAttendeeToMember } from "@/lib/member-matching";
 
 export default async function AliasSearchPage() {
   const supabase = await createClient();
 
-  //Get all members for search and ignored names in parallel
+  //Get all members, aliases, ignored names, and zoom names in parallel
   const [
     { data: allMembers },
+    { data: aliases },
     { data: ignoredNames },
     { data: allZoomNames },
   ] = await Promise.all([
@@ -14,6 +16,9 @@ export default async function AliasSearchPage() {
       .from("members")
       .select("id, name, email, status")
       .order("name"),
+    supabase
+      .from("member_name_aliases")
+      .select("alias, member_id"),
     supabase
       .from("ignored_zoom_names")
       .select("zoom_name"),
@@ -57,15 +62,17 @@ export default async function AliasSearchPage() {
     // Skip ignored names
     if (ignoredSet.has(zoomName)) continue;
 
-    // Use the actual matching function to check if this would match
+    // Use centralized matching logic to check if this would match
     const email = info.emails.size > 0 ? Array.from(info.emails)[0] : null;
-    const { data: matchResult } = await supabase.rpc("match_member_by_name", {
-      zoom_name: zoomName,
-      zoom_email: email,
-    });
+    const matchResult = matchAttendeeToMember(
+      zoomName,
+      email,
+      allMembers || [],
+      aliases || []
+    );
 
     // If no match found, add to unmatched list
-    if (!matchResult || matchResult.length === 0) {
+    if (!matchResult) {
       unmatchedZoomAttendees.push({
         zoomName,
         appearances: info.count,

@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import MatchingGame from "./MatchingGame";
+import { matchAttendeeToMember } from "@/lib/member-matching";
 
 export default async function NameMatchingReportPage() {
   const supabase = await createClient();
@@ -14,17 +15,29 @@ export default async function NameMatchingReportPage() {
     redirect("/login");
   }
 
-  // Get active members with their attendance count
-  const { data: activeMembers } = await supabase
-    .from("members")
-    .select(`
-      id,
-      name,
-      email,
-      attendance(id)
-    `)
-    .eq("status", "active")
-    .order("name");
+  // Get active members with their attendance count, all members, and aliases in parallel
+  const [
+    { data: activeMembers },
+    { data: allMembers },
+    { data: aliases },
+  ] = await Promise.all([
+    supabase
+      .from("members")
+      .select(`
+        id,
+        name,
+        email,
+        attendance(id)
+      `)
+      .eq("status", "active")
+      .order("name"),
+    supabase
+      .from("members")
+      .select("id, name, email"),
+    supabase
+      .from("member_name_aliases")
+      .select("alias, member_id"),
+  ]);
 
   // Filter for members with zero attendance
   const membersWithNoAttendance = activeMembers
@@ -66,15 +79,17 @@ export default async function NameMatchingReportPage() {
   for (const [zoomName, info] of zoomNameCounts) {
     if (info.count < 3) continue; // Skip infrequent names
 
-    // Use the actual matching function to check if this would match
+    // Use centralized matching logic to check if this would match
     const email = info.emails.size > 0 ? Array.from(info.emails)[0] : null;
-    const { data: matchResult } = await supabase.rpc("match_member_by_name", {
-      zoom_name: zoomName,
-      zoom_email: email,
-    });
+    const matchResult = matchAttendeeToMember(
+      zoomName,
+      email,
+      allMembers || [],
+      aliases || []
+    );
 
     // If no match found, add to unmatched list
-    if (!matchResult || matchResult.length === 0) {
+    if (!matchResult) {
       unmatchedZoomAttendees.push({
         zoomName,
         appearances: info.count,
