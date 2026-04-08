@@ -3,6 +3,15 @@
 import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
 
+/**
+ * Theme preference switcher
+ *
+ * Note: Theme is stored in localStorage (device-specific) rather than the database.
+ * This allows users to have different themes on different devices based on context
+ * (e.g., dark mode on desktop at night, light mode on phone in sunlight).
+ *
+ * Compare with TimezoneSwitcher which stores in database for cross-device consistency.
+ */
 export function ThemeSwitcher() {
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);

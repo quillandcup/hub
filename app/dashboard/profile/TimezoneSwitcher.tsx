@@ -3,6 +3,14 @@
 import { useState, useEffect } from "react";
 import { updateTimezonePreference } from "./actions";
 
+/**
+ * Timezone preference switcher
+ *
+ * Note: Timezone is stored in the database (user-level preference) for cross-device consistency.
+ * Users should see times in their preferred timezone on all devices.
+ *
+ * Compare with ThemeSwitcher which stores in localStorage for device-specific preferences.
+ */
 interface TimezoneSwitcherProps {
   initialTimezone?: string;
 }
