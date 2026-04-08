@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import CalendarWeekView from "./CalendarWeekView";
+import { getUserTimezonePreference } from "@/lib/timezone";
 
 export default async function CalendarPage({
   searchParams,
@@ -72,6 +73,9 @@ export default async function CalendarPage({
     console.error("Error fetching prickles:", pricklesError);
     throw pricklesError;
   }
+
+  // Get user's timezone preference
+  const userTimezone = await getUserTimezonePreference();
 
   // Transform the data to include attendance count and host attendance status
   const pricklesWithCount = prickles?.map((prickle: any) => {
@@ -156,6 +160,7 @@ export default async function CalendarPage({
           month: weekStart.getMonth(),
           day: weekStart.getDate()
         }}
+        userTimezonePreference={userTimezone}
       />
     </div>
   );

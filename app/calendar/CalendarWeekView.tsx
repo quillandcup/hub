@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
 interface Prickle {
@@ -18,6 +18,7 @@ interface Prickle {
 interface CalendarWeekViewProps {
   prickles: Prickle[];
   weekStartDate: { year: number; month: number; day: number }; // Date components to avoid timezone issues
+  userTimezonePreference?: string; // User's timezone preference from profile
 }
 
 // Common timezones for the dropdown
@@ -66,16 +67,34 @@ function getPricklePosition(startTime: string, endTime: string, timezone: string
   return { top, height };
 }
 
-export default function CalendarWeekView({ prickles, weekStartDate }: CalendarWeekViewProps) {
+export default function CalendarWeekView({ prickles, weekStartDate, userTimezonePreference = "browser" }: CalendarWeekViewProps) {
   // Reconstruct Date from components to avoid timezone serialization issues
   // Using date components (not timestamps) ensures consistent day-of-week on server and client
   const weekStart = new Date(weekStartDate.year, weekStartDate.month, weekStartDate.day, 0, 0, 0, 0);
 
-  // Default to Eastern Time
-  const [timezone, setTimezone] = useState("America/New_York");
+  // Detect browser timezone if user preference is "browser"
+  const [detectedTimezone, setDetectedTimezone] = useState<string | null>(null);
+  useEffect(() => {
+    if (userTimezonePreference === "browser") {
+      setDetectedTimezone(Intl.DateTimeFormat().resolvedOptions().timeZone);
+    }
+  }, [userTimezonePreference]);
+
+  // Use user's preference, or detected timezone, or fallback to ET
+  const defaultTimezone =
+    userTimezonePreference === "browser"
+      ? (detectedTimezone || "America/New_York")
+      : userTimezonePreference;
+
+  const [timezone, setTimezone] = useState(defaultTimezone);
   const [hoveredPrickle, setHoveredPrickle] = useState<string | null>(null);
   const [showPups, setShowPups] = useState(true);
   const router = useRouter();
+
+  // Update timezone when defaultTimezone changes (after browser detection)
+  useEffect(() => {
+    setTimezone(defaultTimezone);
+  }, [defaultTimezone]);
 
   // Filter prickles based on showPups and remove 0-duration prickles
   const filteredPrickles = prickles

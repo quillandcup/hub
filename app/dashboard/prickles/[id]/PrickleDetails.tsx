@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 
 const TIMEZONES = [
@@ -16,10 +16,30 @@ interface PrickleDetailsProps {
   attendanceRecords: any[];
   hostMissing: boolean;
   hostLate: boolean;
+  userTimezonePreference?: string; // User's timezone preference from profile
 }
 
-export default function PrickleDetails({ prickle, attendanceRecords, hostMissing, hostLate }: PrickleDetailsProps) {
-  const [timezone, setTimezone] = useState("America/New_York");
+export default function PrickleDetails({ prickle, attendanceRecords, hostMissing, hostLate, userTimezonePreference = "browser" }: PrickleDetailsProps) {
+  // Detect browser timezone if user preference is "browser"
+  const [detectedTimezone, setDetectedTimezone] = useState<string | null>(null);
+  useEffect(() => {
+    if (userTimezonePreference === "browser") {
+      setDetectedTimezone(Intl.DateTimeFormat().resolvedOptions().timeZone);
+    }
+  }, [userTimezonePreference]);
+
+  // Use user's preference, or detected timezone, or fallback to ET
+  const defaultTimezone =
+    userTimezonePreference === "browser"
+      ? (detectedTimezone || "America/New_York")
+      : userTimezonePreference;
+
+  const [timezone, setTimezone] = useState(defaultTimezone);
+
+  // Update timezone when defaultTimezone changes (after browser detection)
+  useEffect(() => {
+    setTimezone(defaultTimezone);
+  }, [defaultTimezone]);
 
   const prickleType = prickle.prickle_types as any;
   const hostMember = prickle.host as any; // { id, name } or null

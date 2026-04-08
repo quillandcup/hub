@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import PrickleDetails from "./PrickleDetails";
+import { getUserTimezonePreference } from "@/lib/timezone";
 
 export default async function PrickleDetailPage({
   params,
@@ -86,6 +87,9 @@ export default async function PrickleDetailPage({
     }
   }
 
+  // Get user's timezone preference
+  const userTimezone = await getUserTimezonePreference();
+
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
       <header className="border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
@@ -104,6 +108,7 @@ export default async function PrickleDetailPage({
             attendanceRecords={attendanceRecords || []}
             hostMissing={hostMissing}
             hostLate={hostLate}
+            userTimezonePreference={userTimezone}
           />
         </div>
       </main>

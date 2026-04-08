@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import AttendanceCalendar from "./AttendanceCalendar";
@@ -16,12 +16,32 @@ const TIMEZONES = [
 interface MemberDetailsProps {
   member: any;
   attendanceRecords: any[];
+  userTimezonePreference?: string; // User's timezone preference from profile
 }
 
-export default function MemberDetails({ member, attendanceRecords }: MemberDetailsProps) {
-  const [timezone, setTimezone] = useState("America/New_York");
+export default function MemberDetails({ member, attendanceRecords, userTimezonePreference = "browser" }: MemberDetailsProps) {
+  // Detect browser timezone if user preference is "browser"
+  const [detectedTimezone, setDetectedTimezone] = useState<string | null>(null);
+  useEffect(() => {
+    if (userTimezonePreference === "browser") {
+      setDetectedTimezone(Intl.DateTimeFormat().resolvedOptions().timeZone);
+    }
+  }, [userTimezonePreference]);
+
+  // Use user's preference, or detected timezone, or fallback to ET
+  const defaultTimezone =
+    userTimezonePreference === "browser"
+      ? (detectedTimezone || "America/New_York")
+      : userTimezonePreference;
+
+  const [timezone, setTimezone] = useState(defaultTimezone);
   const [view, setView] = useState<"list" | "calendar">("list");
   const router = useRouter();
+
+  // Update timezone when defaultTimezone changes (after browser detection)
+  useEffect(() => {
+    setTimezone(defaultTimezone);
+  }, [defaultTimezone]);
 
   const formatTime = (date: Date) => {
     return date.toLocaleTimeString("en-US", {

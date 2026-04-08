@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import MemberDetails from "./MemberDetails";
+import { getUserTimezonePreference } from "@/lib/timezone";
 
 export default async function MemberDetailPage({
   params,
@@ -60,6 +61,9 @@ export default async function MemberDetailPage({
     .eq("member_id", id)
     .order("alias");
 
+  // Get user's timezone preference
+  const userTimezone = await getUserTimezonePreference();
+
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
       <header className="border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
@@ -111,7 +115,11 @@ export default async function MemberDetailPage({
       </header>
 
       <main className="container mx-auto px-6 py-8">
-        <MemberDetails member={member} attendanceRecords={attendance || []} />
+        <MemberDetails
+          member={member}
+          attendanceRecords={attendance || []}
+          userTimezonePreference={userTimezone}
+        />
       </main>
     </div>
   );
