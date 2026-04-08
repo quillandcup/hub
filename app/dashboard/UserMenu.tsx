@@ -58,12 +58,10 @@ export default function UserMenu({ userEmail }: UserMenuProps) {
             className="block px-4 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
             onClick={() => setIsOpen(false)}
           >
-            Edit Profile
+            Profile
           </Link>
 
-          <div className="px-4 py-2">
-            <SignOutButton />
-          </div>
+          <SignOutButton onSignOut={() => setIsOpen(false)} />
         </div>
       )}
     </div>

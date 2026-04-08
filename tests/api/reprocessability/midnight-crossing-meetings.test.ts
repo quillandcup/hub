@@ -105,6 +105,7 @@ describe('Midnight-Crossing Meeting Reprocessability', () => {
     })
 
     await supabase.from('zoom_attendees').insert({
+      meeting_id: midnightMeetingUuid, // Required NOT NULL field
       meeting_uuid: midnightMeetingUuid,
       name: 'Midnight Test Member',
       email: null,
@@ -112,6 +113,16 @@ describe('Midnight-Crossing Meeting Reprocessability', () => {
       leave_time: '2099-08-02T01:00:00Z',
       duration: 120,
     })
+
+    // Verify test data was inserted
+    const { data: insertedAttendee } = await supabase
+      .from('zoom_attendees')
+      .select('*')
+      .eq('meeting_uuid', midnightMeetingUuid)
+      .single()
+
+    console.log('Inserted attendee:', insertedAttendee)
+    expect(insertedAttendee).toBeTruthy()
 
     // ACT: Process Aug 1 (meeting starts on Aug 1, ends on Aug 2)
     const response = await fetch('http://localhost:3000/api/process/attendance', {
@@ -205,7 +216,20 @@ describe('Midnight-Crossing Meeting Reprocessability', () => {
     // This test verifies that the DELETE query uses overlap logic (lt/gt)
     // instead of containment logic (gte/lte)
 
-    // ARRANGE: Verify PUP exists
+    // ARRANGE: Create the PUP first by processing
+    const setupResponse = await fetch('http://localhost:3000/api/process/attendance', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...getTestAuthHeaders() },
+      body: JSON.stringify({
+        fromDate: '2099-08-01',
+        toDate: '2099-08-01',
+      }),
+    })
+
+    const setupResult = await setupResponse.json()
+    expect(setupResult.success).toBe(true)
+
+    // Verify PUP was created
     const { data: pupBefore } = await supabase
       .from('prickles')
       .select('*')
@@ -281,6 +305,7 @@ describe('Midnight-Crossing Meeting Reprocessability', () => {
 
     await supabase.from('zoom_attendees').insert([
       {
+        meeting_id: meeting1Uuid,
         meeting_uuid: meeting1Uuid,
         name: 'Midnight Test Member',
         email: null,
@@ -289,6 +314,7 @@ describe('Midnight-Crossing Meeting Reprocessability', () => {
         duration: 120,
       },
       {
+        meeting_id: meeting2Uuid,
         meeting_uuid: meeting2Uuid,
         name: 'Midnight Test Member',
         email: null,

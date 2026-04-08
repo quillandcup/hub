@@ -17,20 +17,27 @@ export async function seedReferenceData() {
     .limit(1)
 
   if (!existingTypes || existingTypes.length === 0) {
+    // Seed essential prickle types needed for tests
+    // normalized_name is computed by DB trigger, so we don't need to set it
     await supabase.from('prickle_types').insert([
       {
-        name: 'Morning Pages',
-        description: 'Morning writing session',
+        name: 'Pop-Up Prickle',
+        description: 'Unscheduled writing session',
         default_duration: 60,
       },
       {
-        name: 'Deep Work',
-        description: 'Focused work session',
-        default_duration: 120,
+        name: 'Progress Prickle',
+        description: 'Default prickle type for scheduled sessions',
+        default_duration: 60,
       },
       {
-        name: 'Writing Sprint',
-        description: 'Sprint writing session',
+        name: 'Heads Down',
+        description: 'Focused writing session',
+        default_duration: 60,
+      },
+      {
+        name: 'Sprint Prickle',
+        description: 'Short sprint writing session',
         default_duration: 30,
       },
     ])
