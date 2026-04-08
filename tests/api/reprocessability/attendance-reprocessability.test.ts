@@ -53,34 +53,43 @@ describe('Attendance Reprocessability', () => {
 
     testMeetingUuid = `test-meeting-${Date.now()}`
 
-    // Clean up any existing test data
+    // Clean up any existing test data using OVERLAP logic (not containment)
+    // Use lt(nextMonthStart) and gt(monthStart) to catch boundary-crossing records
     await supabase
       .from('attendance')
       .delete()
-      .gte('join_time', `${testDateRange.from}T00:00:00Z`)
-      .lte('leave_time', `${testDateRange.to}T23:59:59Z`)
+      .lt('join_time', '2099-06-01T00:00:00Z')
+      .gt('leave_time', `${testDateRange.from}T00:00:00Z`)
 
     await supabase
       .from('prickles')
       .delete()
       .eq('source', 'zoom')
-      .gte('start_time', `${testDateRange.from}T00:00:00Z`)
+      .lt('start_time', '2099-06-01T00:00:00Z')
+      .gt('end_time', `${testDateRange.from}T00:00:00Z`)
 
     await supabase
       .from('zoom_attendees')
       .delete()
-      .gte('join_time', `${testDateRange.from}T00:00:00Z`)
+      .lt('join_time', '2099-06-01T00:00:00Z')
+      .gt('leave_time', `${testDateRange.from}T00:00:00Z`)
 
     await supabase
       .from('zoom_meetings')
       .delete()
-      .gte('start_time', `${testDateRange.from}T00:00:00Z`)
+      .lt('start_time', '2099-06-01T00:00:00Z')
+      .gt('end_time', `${testDateRange.from}T00:00:00Z`)
   })
 
   afterAll(async () => {
-    // Clean up
+    // Clean up using overlap logic to ensure we catch all test data
     await supabase.from('attendance').delete().eq('member_id', testMemberId)
-    await supabase.from('prickles').delete().eq('source', 'zoom').gte('start_time', `${testDateRange.from}T00:00:00Z`)
+    await supabase
+      .from('prickles')
+      .delete()
+      .eq('source', 'zoom')
+      .lt('start_time', '2099-06-01T00:00:00Z')
+      .gt('end_time', `${testDateRange.from}T00:00:00Z`)
     await supabase.from('zoom_attendees').delete().ilike('meeting_uuid', 'test-meeting-%')
     await supabase.from('zoom_meetings').delete().ilike('uuid', 'test-meeting-%')
     await supabase.from('members').delete().eq('id', testMemberId)
