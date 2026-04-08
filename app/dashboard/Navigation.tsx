@@ -26,6 +26,7 @@ const navigation: NavSection[] = [
     name: "Members",
     items: [
       { name: "All Members", href: "/dashboard/members", icon: "👥" },
+      { name: "Network", href: "/dashboard/members/network", icon: "🕸️" },
       { name: "At-Risk Members", href: "/dashboard/at-risk", icon: "⚠️" },
     ],
   },
