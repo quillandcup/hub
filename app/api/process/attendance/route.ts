@@ -450,25 +450,27 @@ export async function POST(request: NextRequest) {
           }
         });
 
-        // Filter out PUP attendance if person also attended adjacent scheduled prickle
-        // (prevents double-counting someone who just showed up early/late)
+        // Filter out short edge segments when adjacent to a longer segment
+        // (prevents double-counting someone who showed up early/late by <15 min)
         const filteredIntersections = intersections.filter((item, index) => {
-          // If not a PUP, always count it
-          if (item.segment.type !== "pup") return true;
+          // Only filter short segments (<15 min)
+          if (item.durationMin >= 15) return true;
 
-          // Check if there's an adjacent scheduled prickle attendance
+          // Check if there's an adjacent longer segment
           const prevIntersection = index > 0 ? intersections[index - 1] : null;
           const nextIntersection = index < intersections.length - 1 ? intersections[index + 1] : null;
 
-          const hasAdjacentScheduled =
-            (prevIntersection && prevIntersection.segment.type === "calendar") ||
-            (nextIntersection && nextIntersection.segment.type === "calendar");
+          const hasAdjacentLonger =
+            (prevIntersection && prevIntersection.durationMin >= 15) ||
+            (nextIntersection && nextIntersection.durationMin >= 15);
 
-          // If attending adjacent scheduled prickle, only count PUP if substantial (>15 min)
-          if (hasAdjacentScheduled && item.durationMin < 15) {
+          // If short segment adjacent to longer segment, filter it out
+          // (e.g., joined 4 min early for next prickle, or stayed 3 min late from previous)
+          if (hasAdjacentLonger) {
             return false;
           }
 
+          // Keep short standalone segments (e.g., quick 10-min check-in with no adjacent attendance)
           return true;
         });
 
