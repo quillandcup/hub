@@ -44,7 +44,49 @@ async function exportSlackData(options: ExportOptions) {
 
   console.log(`Date range: ${new Date(oldest * 1000).toISOString()} to ${new Date(latest * 1000).toISOString()}`);
 
-  // TODO: Implement export logic
+  // 1. Export users
+  const users = await fetchAllUsers();
+  writeCSV(outputDir, 'slack_users.csv', users);
+}
+
+async function fetchAllUsers() {
+  console.log('Fetching users...');
+  const users: any[] = [];
+  let cursor: string | undefined;
+
+  do {
+    const result: any = await slack.users.list({ cursor, limit: 200 });
+
+    if (result.members) {
+      users.push(...result.members.map((u: any) => ({
+        user_id: u.id,
+        email: u.profile?.email || null,
+        name: u.name,
+        display_name: u.profile?.display_name || u.name,
+        real_name: u.real_name,
+        is_bot: u.is_bot || false,
+        is_deleted: u.deleted || false,
+        raw_payload: JSON.stringify(u)
+      })));
+    }
+
+    cursor = result.response_metadata?.next_cursor;
+  } while (cursor);
+
+  console.log(`  Fetched ${users.length} users`);
+  return users;
+}
+
+function writeCSV(outputDir: string, filename: string, data: any[]) {
+  if (data.length === 0) {
+    console.warn(`  ⚠ No data for ${filename}, skipping`);
+    return;
+  }
+
+  const csv = parse(data);
+  const filepath = `${outputDir}/${filename}`;
+  writeFileSync(filepath, csv);
+  console.log(`  ✓ ${filename} (${data.length} rows)`);
 }
 
 main().catch((error) => {
