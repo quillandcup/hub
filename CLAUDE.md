@@ -106,43 +106,53 @@ Before committing changes to API routes, verify:
 
 ## Data Architecture
 
-**Bronze Layer** (raw imports):
-- `calendar_events`, `zoom_attendees`, `zoom_meetings`, `kajabi_members`
+**Bronze Layer** (raw imports from external systems):
+- `calendar_events`, `zoom_attendees`, `zoom_meetings`, `kajabi_members`, `subscription_history`, `slack_messages`, `slack_reactions`, `slack_channels`, `slack_users`
+- **Pattern**: UPSERT on natural keys for idempotency
 
-**Silver Layer** (processed/canonical):
-- `members`, `prickles`, `attendance`, `prickle_types`
+**Local Layer** (operational data owned by this app):
+- `member_hiatus_history`, `member_name_aliases`, `ignored_zoom_names`, `prickle_types`, `staff`
+- **Pattern**: Normal CRUD operations (INSERT, UPDATE, DELETE)
+- **NOT reprocessed** - these tables ARE the source of truth
+
+**Silver Layer** (canonical state, computed from Bronze + Local):
+- `members`, `prickles`, `attendance`
+- **Pattern**: DELETE + INSERT, recomputed from Bronze + Local sources
 
 **Gold Layer** (aggregated views):
 - Currently computed on-demand in dashboard queries
 
 ### Data Pipeline Reprocessability
 
-**CRITICAL PRINCIPLE**: All Silver layer processing MUST be fully reprocessable from Bronze data using DELETE + INSERT pattern.
+**CRITICAL PRINCIPLE**: Silver layer processing MUST be fully reprocessable from Bronze + Local sources using DELETE + INSERT pattern.
 
 **Why this matters**:
 - Deleted events/members must be removed from Silver layer when reprocessing
 - UPSERT patterns leave orphaned data (e.g., deleted calendar event stays in prickles)
-- The pipeline must always reflect current truth from Bronze sources
+- The pipeline must always reflect current truth from ALL sources (Bronze + Local)
 
 **Required Pattern for ALL Silver Processing**:
 
 ```typescript
 // ✅ CORRECT: DELETE + INSERT pattern
 export async function POST(request: NextRequest) {
-  // 1. Load Bronze data
+  // 1. Load Bronze data (imports)
   const bronzeData = await supabase.from("bronze_table").select("*");
   
-  // 2. DELETE existing Silver data in scope
+  // 2. Load Local data (operational)
+  const localData = await supabase.from("local_table").select("*");
+  
+  // 3. DELETE existing Silver data in scope
   await supabase
     .from("silver_table")
     .delete()
     .gte("date_field", fromDate)  // Scope by date range or condition
     .lte("date_field", toDate);
   
-  // 3. Process Bronze → Silver in memory
-  const silverData = processBronzeData(bronzeData);
+  // 4. Reconcile Bronze + Local → Silver in memory
+  const silverData = reconcileSources(bronzeData, localData);
   
-  // 4. INSERT fresh Silver data
+  // 5. INSERT fresh Silver data
   await supabase.from("silver_table").insert(silverData);
 }
 
