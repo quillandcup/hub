@@ -52,6 +52,9 @@ async function exportSlackData(options: ExportOptions) {
   const channels = await fetchAllChannels();
   writeCSV(outputDir, 'slack_channels.csv', channels);
 
+  // 2.5. Auto-join public channels
+  await autoJoinPublicChannels(channels);
+
   // 3. Export messages and reactions
   console.log('Fetching messages...');
   const allMessages: any[] = [];
@@ -158,6 +161,38 @@ async function fetchAllChannels() {
 
   console.log(`  Fetched ${channels.length} channels`);
   return channels;
+}
+
+async function autoJoinPublicChannels(channels: any[]) {
+  console.log('Auto-joining public channels...');
+  let joined = 0;
+  let alreadyMember = 0;
+  let failed = 0;
+
+  for (const channel of channels) {
+    // Skip private channels and archived channels
+    if (channel.is_private || channel.is_archived) {
+      continue;
+    }
+
+    try {
+      await slack.conversations.join({ channel: channel.channel_id });
+      joined++;
+      console.log(`  ✓ Joined #${channel.name}`);
+
+      // Small delay to avoid rate limits
+      await sleep(100);
+    } catch (error: any) {
+      if (error.data?.error === 'already_in_channel') {
+        alreadyMember++;
+      } else {
+        console.warn(`  ⚠ Could not join #${channel.name}: ${error.data?.error || error.message}`);
+        failed++;
+      }
+    }
+  }
+
+  console.log(`  Joined ${joined} new channels, already member of ${alreadyMember}, ${failed} failed`);
 }
 
 async function fetchChannelHistory(

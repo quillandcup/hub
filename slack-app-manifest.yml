@@ -1,0 +1,52 @@
+display_information:
+  name: Quill & Cup Admin Portal
+  description: Community engagement tracking and analytics
+  background_color: "#4A154B"
+features:
+  bot_user:
+    display_name: Quill & Cup Admin
+    always_online: true
+oauth_config:
+  scopes:
+    bot:
+      # Channel access
+      - channels:history
+      - channels:read
+      - channels:join
+      - groups:history
+      - groups:read
+      # DM access
+      - im:history
+      - mpim:history
+      # User data
+      - users:read
+      - users:read.email
+      # Reactions and files
+      - reactions:read
+      - files:read
+settings:
+  # Phase 1: Event subscriptions DISABLED (batch export only)
+  # Phase 2: Uncomment and update request_url with your Vercel domain
+  # event_subscriptions:
+  #   request_url: https://REPLACE_WITH_YOUR_DOMAIN.vercel.app/api/webhooks/slack
+  #   bot_events:
+  #     # Messages
+  #     - message.channels
+  #     - message.groups
+  #     - message.im
+  #     - message.mpim
+  #     # Reactions
+  #     - reaction_added
+  #     - reaction_removed
+  #     # Message changes
+  #     - message.deleted
+  #     - message.changed
+  #     # Channel changes
+  #     - channel_created
+  #     - channel_rename
+  #     - channel_archive
+  #     # User changes
+  #     - user_change
+  org_deploy_enabled: false
+  socket_mode_enabled: false
+  token_rotation_enabled: false
