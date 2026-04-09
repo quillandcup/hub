@@ -110,26 +110,31 @@ export async function POST(request: NextRequest) {
 
 async function parseCSV(file: File): Promise<any[]> {
   const text = await file.text();
-  const lines = text.trim().split("\n");
+  const rows = parseCSVText(text);
 
-  if (lines.length < 2) {
+  if (rows.length < 2) {
     return [];
   }
 
-  const headers = parseCSVLine(lines[0]);
+  const headers = rows[0];
   const data: any[] = [];
 
-  for (let i = 1; i < lines.length; i++) {
-    const line = lines[i].trim();
-    if (!line) continue;
-
-    const values = parseCSVLine(line);
+  for (let i = 1; i < rows.length; i++) {
+    const values = rows[i];
     const row: any = {};
 
     headers.forEach((header, index) => {
       const value = values[index]?.trim() || "";
       // Parse JSON fields
-      if (header === 'raw_payload' || header === 'files') {
+      if (header === 'raw_payload') {
+        // raw_payload is NOT NULL in database, default to empty object
+        try {
+          row[header] = value ? JSON.parse(value) : {};
+        } catch {
+          row[header] = {};
+        }
+      } else if (header === 'files') {
+        // files can be null
         try {
           row[header] = value ? JSON.parse(value) : null;
         } catch {
@@ -150,25 +155,52 @@ async function parseCSV(file: File): Promise<any[]> {
   return data;
 }
 
-// Parse a CSV line handling quoted fields with commas
-function parseCSVLine(line: string): string[] {
-  const result: string[] = [];
-  let current = "";
+// Parse CSV text handling quoted fields with commas, newlines, and escaped quotes
+function parseCSVText(text: string): string[][] {
+  const rows: string[][] = [];
+  let currentRow: string[] = [];
+  let currentField = "";
   let inQuotes = false;
 
-  for (let i = 0; i < line.length; i++) {
-    const char = line[i];
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i];
+    const nextChar = i + 1 < text.length ? text[i + 1] : null;
 
     if (char === '"') {
-      inQuotes = !inQuotes;
-    } else if (char === "," && !inQuotes) {
-      result.push(current);
-      current = "";
+      if (inQuotes && nextChar === '"') {
+        // Escaped quote ("") - add single quote to field
+        currentField += '"';
+        i++; // Skip next quote
+      } else {
+        // Toggle quote state
+        inQuotes = !inQuotes;
+      }
+    } else if (char === ',' && !inQuotes) {
+      // Field separator
+      currentRow.push(currentField);
+      currentField = "";
+    } else if ((char === '\n' || char === '\r') && !inQuotes) {
+      // Row separator (handle both \n and \r\n)
+      if (char === '\r' && nextChar === '\n') {
+        i++; // Skip \n in \r\n
+      }
+      if (currentField || currentRow.length > 0) {
+        currentRow.push(currentField);
+        rows.push(currentRow);
+        currentRow = [];
+        currentField = "";
+      }
     } else {
-      current += char;
+      // Regular character
+      currentField += char;
     }
   }
 
-  result.push(current);
-  return result;
+  // Push last field and row if not empty
+  if (currentField || currentRow.length > 0) {
+    currentRow.push(currentField);
+    rows.push(currentRow);
+  }
+
+  return rows;
 }
