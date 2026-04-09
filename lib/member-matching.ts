@@ -14,6 +14,7 @@ export interface Member {
 export interface MemberAlias {
   member_id: string;
   alias: string;
+  source: 'zoom' | 'slack';
 }
 
 export interface MatchResult {
