@@ -359,14 +359,14 @@ Set up background agents for faster parallel development
 
 **Phase 1 Progress:**
 - [x] Database migrations (Bronze tables, aliases extension)
-- [x] Export script (batch CSV export)
-- [x] Import API endpoint
-- [x] Processing endpoint (Bronze → Silver)
-- [x] Member matching library
+- [x] Export script (batch CSV export with auto-join for public channels)
+- [x] Import API endpoint (handles multi-line CSV fields, escaped quotes)
+- [x] Processing endpoint (Bronze → Silver with DELETE + INSERT pattern)
+- [x] Member matching library (3-tier: manual alias > email > normalized name)
+- [x] Tests (reprocessability, idempotency, matching) - All 9 tests passing
+- [x] Initial export and import (484 users, 26 channels, 485 messages, 4726 reactions → 111 activities)
 - [ ] Data hygiene UI (unmatched users matching interface)
-- [ ] Tests (reprocessability, idempotency, matching)
-- [ ] Initial 30-day export and import
-- [ ] Dashboard updates (member profiles, engagement scoring)
+- [ ] Dashboard updates (member profiles show Slack activity, engagement scoring)
 
 ### Activity Feed Expansion (Future)
 Beyond Slack, expand `member_activities` tracking:
