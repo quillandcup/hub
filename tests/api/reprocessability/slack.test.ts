@@ -14,12 +14,13 @@ import { getTestSupabaseAdminClient, getTestAuthHeaders } from '../../helpers/su
  */
 describe('Slack Reprocessability', () => {
   const supabase = getTestSupabaseAdminClient()
-  const testMemberId = 'test-slack-member-reprocess'
+  const testMemberId = '00000000-0000-0000-0000-000000000001' // Valid UUID
   const testSlackUserId = 'U_TEST_REPROCESS'
   const testEmail = 'slack-reprocess@example.com'
 
   beforeAll(async () => {
     // Clean up any existing test data
+    await supabase.from('slack_users').delete().eq('user_id', testSlackUserId)
     await supabase.from('slack_messages').delete().like('message_ts', 'TEST_%')
     await supabase.from('slack_reactions').delete().like('message_ts', 'TEST_%')
     await supabase
@@ -30,19 +31,36 @@ describe('Slack Reprocessability', () => {
       .lte('occurred_at', '2099-04-02')
     await supabase.from('members').delete().eq('id', testMemberId)
 
-    // Insert test member with matching Slack user ID
-    await supabase.from('members').insert({
+    // Insert test member
+    const { error: memberError } = await supabase.from('members').insert({
       id: testMemberId,
       email: testEmail,
       name: 'Test Slack Member',
       joined_at: '2022-01-01',
       status: 'active',
-      slack_user_id: testSlackUserId,
+    })
+    if (memberError) {
+      console.error('Failed to insert test member:', memberError)
+      throw memberError
+    }
+
+    // Insert test Slack user (for matching)
+    await supabase.from('slack_users').insert({
+      user_id: testSlackUserId,
+      email: testEmail,
+      name: 'test_user',
+      display_name: 'Test User',
+      real_name: 'Test Slack Member',
+      is_bot: false,
+      is_deleted: false,
+      imported_at: new Date().toISOString(),
+      raw_payload: {},
     })
   })
 
   afterAll(async () => {
     // Clean up test data
+    await supabase.from('slack_users').delete().eq('user_id', testSlackUserId)
     await supabase.from('slack_messages').delete().like('message_ts', 'TEST_%')
     await supabase.from('slack_reactions').delete().like('message_ts', 'TEST_%')
     await supabase
@@ -208,8 +226,13 @@ describe('Slack Reprocessability', () => {
     const orphanActivity = {
       member_id: testMemberId,
       activity_type: 'slack_message',
+      activity_category: 'communication',
+      title: 'Posted in #orphan-channel',
+      description: null,
       source: 'slack',
       occurred_at: '2099-04-01T12:00:00Z',
+      engagement_value: 10,
+      related_id: 'C_ORPHAN:ORPHAN_MESSAGE',
       metadata: {
         message_ts: 'ORPHAN_MESSAGE',
         channel_id: 'C_ORPHAN',
@@ -217,7 +240,11 @@ describe('Slack Reprocessability', () => {
       },
     }
 
-    await supabase.from('member_activities').insert(orphanActivity)
+    const { error: insertError } = await supabase.from('member_activities').insert(orphanActivity)
+    if (insertError) {
+      console.error('Failed to insert orphan activity:', insertError)
+      throw insertError
+    }
 
     // Verify orphan exists
     const { data: before } = await supabase
