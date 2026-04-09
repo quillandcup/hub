@@ -10,7 +10,7 @@
     "test": "vitest",
     "test:ui": "vitest --ui",
     "test:run": "vitest run",
-    "export:slack": "tsx scripts/export-slack-data.ts"
+    "export:slack": "NODE_OPTIONS='--dns-result-order=ipv4first' tsx scripts/export-slack-data.ts"
   },
   "dependencies": {
     "@slack/web-api": "^7.15.0",
