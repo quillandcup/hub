@@ -38,28 +38,126 @@ Currently all inactive members are grouped together. Add granular status to dist
 
 ## Data Import
 
-### Automated Daily Imports
-**Goal:** Stop manually babysitting data - automate the entire pipeline
+### Vision: Kajabi as Single Source of Truth Replica
+**Goal:** Import ALL Kajabi data to own our data completely
+- Build custom analytics impossible in Kajabi
+- Track full member lifecycle (products, transactions, engagement)
+- Enable migration off Kajabi in future if needed
+- See full design: `docs/KAJABI_DATA_MODEL.md`
 
-**Priority 1: Daily Cron Jobs**
-- Kajabi CSV import (daily at 2 AM)
-- Zoom meeting/attendee reports (daily at 3 AM)
-- Auto-trigger processing after imports complete
-- Email alerts only on failures
+### Phase 1: Basic Member Data (✅ Current)
+**Status:** Manual CSV exports weekly
+**Data Sources:**
+- Contacts CSV (Kajabi contact ID, email, name, tags, products)
+- Subscriptions CSV (Stripe customer ID, subscription status, offers)
 
-**Priority 2: Kajabi API Integration**
-Replace CSV import with direct Kajabi API integration when API access is enabled on plan:
-- Real-time sync via API
-- Automatic status updates
-- Webhook support for member changes
-- Eliminates manual CSV export/upload
+**What we track:**
+- Member status (active, inactive, on_hiatus)
+- Current products (denormalized string)
+- External IDs for linking to Kajabi/Stripe
 
-**Research: Community Analytics Tools**
-Explore for ideas/inspiration (NOT to replace, just learn from):
-- Orbit - community analytics
-- Common Room - member engagement tracking
-- Goal: Mine for feature ideas, UX patterns, analytics approaches
-- Keep building custom solution (more fun, free for small community)
+**Limitations:**
+- Products not queryable (need to normalize)
+- No transaction history
+- No historical product access tracking
+- Manual export process
+
+### Phase 2A: Products Catalog (Next - Manual Setup)
+**Goal:** Normalize product data to enable product-based queries
+
+**Tasks:**
+1. Create `kajabi_products` table (manual catalog of ~10 products)
+2. Create `member_products` junction table (historical product access)
+3. Update member processing to parse Products field into `member_products`
+4. Seed known products:
+   - Quill & Cup Membership (subscription)
+   - 180 Program (includes Q&C Membership for 6 months)
+   - Mindset Training
+   - Self-Editing Academy
+   - BFF Program
+   - Hedgies on First Orientation
+   - Chicago Retreat
+
+**Enables:**
+- "Show all members with 180 Program"
+- "When did member join/leave BFF Program?"
+- Product-based segmentation
+
+**Effort:** Low (couple hours)
+**Impact:** High (critical for product analytics)
+
+### Phase 2B: Playwright Scraper (Next - Automation)
+**Goal:** Automate export downloads to eliminate manual work
+
+**Current Plan:**
+- ❌ Kajabi API not available on current plan
+- ✅ Build Playwright scraper to automate export downloads
+- See designs: `docs/KAJABI_SCRAPER_DESIGN.md`, `docs/KAJABI_ZAPIER_ANALYSIS.md`
+
+**Scraper will:**
+1. Login to Kajabi (credentials in GitHub Secrets)
+2. Navigate to export pages
+3. Click "Export All" buttons
+4. Download CSVs (same format as manual exports)
+5. Upload to our app via existing `/api/import/*` endpoints
+6. Trigger processing
+7. Email only on failures
+
+**Phase 2B.1: MVP Scraper (Week 1)**
+- Export Contacts CSV
+- Export Subscriptions CSV
+- Upload both to app
+- Run daily via GitHub Actions (free)
+
+**Phase 2B.2: Add Transactions (Week 2)**
+- Export Transactions CSV (`/sales/transactions`)
+- Create `kajabi_transactions` table
+- Import transaction history
+- Enable LTV calculations, revenue analytics
+
+**Phase 2B.3: Add Offers (Week 3)**
+- Export Offers data (`/sales/offers` - per offer ID)
+- Create `kajabi_offers` table
+- Link offers to products
+- Understand purchase bundles
+
+**Effort:** 2-3 hours to build MVP, 1 hour per additional export
+**Cost:** $0 (GitHub Actions free tier)
+**Impact:** High (eliminate all manual work)
+
+### Phase 3: Lead & Engagement Tracking (Future)
+**Additional exports to consider:**
+
+**Lead Tracking:**
+- Form Submissions (`/marketing/forms` - per form)
+- Opt-in Reports (`/analytics/opt-ins`)
+- Understand lead sources and conversion funnel
+
+**Engagement Tracking:**
+- Product Progress (`/analytics/product-progress`)
+- Course completion rates
+- Student success metrics
+
+**Effort:** Medium (1-2 hours per export type)
+**Priority:** Lower (focus on core member/financial data first)
+
+### Automated Daily Schedule
+**Once scraper is built:**
+
+1. **1:00 AM** - Kajabi scraper runs (GitHub Actions)
+   - Downloads: Contacts, Subscriptions, Transactions, Offers
+   - Uploads to app
+   - Triggers processing
+
+2. **2:00 AM** - Zoom meeting reports (future automation)
+   - Download attendance data
+   - Upload to app
+
+3. **3:00 AM** - All processing complete
+   - Email report with stats
+   - Alert only on failures
+
+**Cost:** $0 (GitHub Actions free tier handles this easily)
 
 ### Schedule Import
 Import Prickles schedule from:
@@ -215,10 +313,64 @@ Set up background agents for faster parallel development
 
 ## CRM Features
 
-### Activity Feed
-Expand `member_activities` tracking:
+### Slack Integration (Phase 1: In Progress)
+**Goal:** Track Slack engagement as another signal of community health
+
+**Phase 1: Data Ingestion (Real-time Slack API)**
+- Install Slack app with Events API
+- Ingest: messages posted, reactions given/received, thread participation, channel activity, file uploads
+- Store in `member_activities` table (already has slack_message, slack_reaction types)
+- Bronze layer: `slack_events` (raw Slack events)
+- Silver layer: Process into `member_activities`
+
+**Phase 2: Member Profile Enhancement**
+- Show Slack activity on member profile pages
+  - "Posted 12 messages this month"
+  - "Active in #accountability, #sprints"
+  - Timeline of Slack engagement alongside Prickle attendance
+
+**Phase 3: Combined Engagement Scoring**
+- Calculate unified engagement score across Prickles + Slack + other activities
+- Weight different activity types (Prickle attendance = 5, Slack message = 1, etc.)
+- Display on dashboard and member profiles
+
+**Phase 4: At-Risk Detection Enhancement**
+- Use Slack activity as health signal
+- Flag members who stopped posting (used to be active)
+- Identify lurkers (attending Prickles but not engaging in Slack)
+- Combined risk score: low Prickle attendance + low Slack activity
+
+**Phase 5: Outreach Triggers & Alerts**
+- "Alice hasn't posted in 14 days (usually posts 3x/week)"
+- "Bob is very active in Slack but hasn't attended a Prickle in 30 days"
+- Email/dashboard notifications for community managers
+
+**Phase 6: Channel Health Metrics (Future)**
+- Messages per day by channel
+- Member participation rates
+- Identify dead channels for archival
+
+**Phase 7: Activity Feed (Future)**
+- Live stream of community activity
+- Recent Slack messages, reactions, file shares
+- Combined with Prickle attendance
+- Real-time or near-real-time updates
+- Help admins stay connected to pulse of community
+
+**Phase 1 Progress:**
+- [x] Database migrations (Bronze tables, aliases extension)
+- [x] Export script (batch CSV export)
+- [x] Import API endpoint
+- [x] Processing endpoint (Bronze → Silver)
+- [x] Member matching library
+- [ ] Data hygiene UI (unmatched users matching interface)
+- [ ] Tests (reprocessability, idempotency, matching)
+- [ ] Initial 30-day export and import
+- [ ] Dashboard updates (member profiles, engagement scoring)
+
+### Activity Feed Expansion (Future)
+Beyond Slack, expand `member_activities` tracking:
 - Whitepaper downloads
-- Slack messages/reactions
 - Email opens/clicks
 - Retreat registrations/attendance
 - Community contributions
