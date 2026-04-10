@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import AttendanceCalendar from "./AttendanceCalendar";
+import { slackEmojiToUnicode, formatSlackPermalink } from "@/lib/slack-emoji";
 
 const TIMEZONES = [
   { value: "America/New_York", label: "Eastern (ET)" },
@@ -65,6 +66,9 @@ export default function MemberDetails({ member, attendanceRecords, hiatusHistory
 
   const memberMetrics = member.member_metrics || {};
   const memberEngagement = member.member_engagement || {};
+
+  // Slack workspace URL - TODO: move to env variable
+  const SLACK_WORKSPACE_URL = 'https://quillandcup.slack.com';
 
   // Calculate Slack statistics
   const slackStats = {
@@ -275,13 +279,23 @@ export default function MemberDetails({ member, attendanceRecords, hiatusHistory
                       const isThreadReply = activity.activity_type === 'slack_thread_reply';
                       const isReaction = activity.activity_type === 'slack_reaction';
 
-                      // Extract reaction emoji from title or metadata
-                      const reactionEmoji = isReaction
-                        ? (activity.metadata?.reaction || activity.title?.match(/:([^:]+):/)?.[1] || '👍')
+                      // Extract reaction emoji from metadata and convert to Unicode
+                      const reactionShortcode = isReaction
+                        ? (activity.metadata?.reaction || activity.title?.match(/:([^:]+):/)?.[1] || 'thumbsup')
+                        : null;
+                      const reactionEmoji = reactionShortcode ? slackEmojiToUnicode(reactionShortcode) : null;
+
+                      // Build Slack permalink
+                      const slackUrl = activity.metadata?.channel_id && activity.metadata?.message_ts
+                        ? formatSlackPermalink(
+                            SLACK_WORKSPACE_URL,
+                            activity.metadata.channel_id,
+                            activity.metadata.message_ts
+                          )
                         : null;
 
-                      return (
-                        <tr key={activity.id} className="hover:bg-slate-50 dark:hover:bg-slate-800">
+                      const rowContent = (
+                        <>
                           <td className="px-6 py-3 whitespace-nowrap">
                             <div className="flex items-center gap-2">
                               {isMessage ? (
@@ -295,7 +309,7 @@ export default function MemberDetails({ member, attendanceRecords, hiatusHistory
                                 </>
                               ) : (
                                 <>
-                                  <span className="text-base">:{reactionEmoji}:</span>
+                                  <span className="text-base">{reactionEmoji}</span>
                                   <span className="text-xs text-slate-600 dark:text-slate-400">
                                     Reaction
                                   </span>
@@ -310,7 +324,7 @@ export default function MemberDetails({ member, attendanceRecords, hiatusHistory
                           </td>
                           <td className="px-6 py-3">
                             <p className="text-sm text-slate-700 dark:text-slate-300 truncate max-w-md">
-                              {activity.description || (isReaction ? `Reacted with :${reactionEmoji}:` : '—')}
+                              {activity.description || (isReaction ? `Reacted with ${reactionEmoji}` : '—')}
                             </p>
                           </td>
                           <td className="px-6 py-3 whitespace-nowrap">
@@ -321,6 +335,20 @@ export default function MemberDetails({ member, attendanceRecords, hiatusHistory
                               </span>
                             </div>
                           </td>
+                        </>
+                      );
+
+                      return slackUrl ? (
+                        <tr
+                          key={activity.id}
+                          className="hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer"
+                          onClick={() => window.open(slackUrl, '_blank')}
+                        >
+                          {rowContent}
+                        </tr>
+                      ) : (
+                        <tr key={activity.id} className="hover:bg-slate-50 dark:hover:bg-slate-800">
+                          {rowContent}
                         </tr>
                       );
                     })}
