@@ -216,8 +216,20 @@ export async function POST(request: NextRequest) {
       stripe_customer_id: null, // Staff don't have Stripe IDs
     }));
 
-    // STEP 4: Combine both sources
-    const allMembers = [...kajabiMembers, ...processedStaffMembers];
+    // STEP 4: Combine both sources (deduplicate by email, prefer staff over kajabi)
+    const membersByEmail = new Map<string, any>();
+
+    // Add Kajabi members first
+    for (const member of kajabiMembers) {
+      membersByEmail.set(member.email, member);
+    }
+
+    // Add staff members (overwrites Kajabi if duplicate - staff is authoritative)
+    for (const member of processedStaffMembers) {
+      membersByEmail.set(member.email, member);
+    }
+
+    const allMembers = Array.from(membersByEmail.values());
 
     if (allMembers.length === 0) {
       return NextResponse.json({
@@ -226,6 +238,8 @@ export async function POST(request: NextRequest) {
         processed: 0,
       });
     }
+
+    console.log(`Combined sources: ${kajabiMembers.length} Kajabi + ${processedStaffMembers.length} staff = ${allMembers.length} unique members`);
 
     // STEP 5: DELETE all existing members (for reprocessability)
     // This makes the process fully reprocessable - we regenerate Silver from Bronze
