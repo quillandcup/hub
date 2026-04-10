@@ -61,6 +61,22 @@ export default async function MemberDetailPage({
     .eq("member_id", id)
     .order("alias");
 
+  // Fetch hiatus history
+  const { data: hiatusHistory } = await supabase
+    .from("member_hiatus_history")
+    .select("*")
+    .eq("member_id", id)
+    .order("start_date", { ascending: false });
+
+  // Fetch Slack activities
+  const { data: slackActivities } = await supabase
+    .from("member_activities")
+    .select("*")
+    .eq("member_id", id)
+    .eq("source", "slack")
+    .order("occurred_at", { ascending: false })
+    .limit(50);
+
   // Get user's timezone preference
   const userTimezone = await getUserTimezonePreference();
 
@@ -150,6 +166,8 @@ export default async function MemberDetailPage({
         <MemberDetails
           member={member}
           attendanceRecords={attendance || []}
+          hiatusHistory={hiatusHistory || []}
+          slackActivities={slackActivities || []}
           userTimezonePreference={userTimezone}
         />
       </main>
