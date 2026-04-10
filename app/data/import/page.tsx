@@ -2,8 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import ZoomImportAndProcessForm from "./ZoomImportAndProcessForm";
-import MemberImportForm from "./MemberImportForm";
-import SubscriptionImportForm from "./SubscriptionImportForm";
+import KajabiImportForm from "./KajabiImportForm";
 import CalendarImportForm from "./CalendarImportForm";
 import SlackImportForm from "./SlackImportForm";
 import ApplyAliasesButton from "./ApplyAliasesButton";
@@ -32,53 +31,31 @@ export default async function ImportPage() {
 
       <main className="container mx-auto px-6 py-8">
         <div className="max-w-4xl mx-auto space-y-6">
-          {/* Member CSV Import & Process */}
+          {/* Kajabi Import & Processing */}
           <div className="bg-white dark:bg-slate-900 rounded-lg shadow p-6">
             <div className="mb-6">
-              <h2 className="text-xl font-bold mb-2">Member Import & Processing</h2>
+              <h2 className="text-xl font-bold mb-2">Kajabi Import & Processing</h2>
               <p className="text-slate-600 dark:text-slate-400 mb-3">
-                Upload a CSV file with member data, then process it to populate the members table.
+                Import member and subscription data from Kajabi CSV exports, then process to populate members table and track hiatus periods.
               </p>
               <details className="text-sm text-slate-500 dark:text-slate-400">
                 <summary className="cursor-pointer font-medium hover:text-slate-700 dark:hover:text-slate-300">
-                  CSV Format Details
+                  How to Export from Kajabi
                 </summary>
                 <div className="mt-2 pl-4 space-y-2">
-                  <p className="font-semibold text-green-600 dark:text-green-400">Recommended: Kajabi Members Export</p>
+                  <p className="font-semibold text-green-600 dark:text-green-400">Members Export (recommended)</p>
                   <p className="pl-4">Go to Contacts → All Contacts → Filter "Customers" → Select All → Bulk Action "Export"</p>
                   <p className="text-xs text-slate-400">Expected columns: Name, Email, Products, Tags, Member Created At</p>
-                  <p className="mt-2"><strong>Alternative: Kajabi Subscriptions Export</strong> (auto-detected, but use Members export for best results)</p>
+
+                  <p className="mt-3 font-semibold text-green-600 dark:text-green-400">Subscriptions Export (for hiatus tracking)</p>
+                  <p className="pl-4">Go to <a href="https://app.kajabi.com/admin/sites/2147577478/payments/subscriptions" target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 underline">Payments → Subscriptions</a> → Click the three dots (...) → Export subscriptions</p>
                   <p className="text-xs text-slate-400">Expected columns: Customer Name, Customer Email, Status, Created At, Offer Title</p>
-                  <p className="mt-2"><strong>Custom CSV:</strong> Include columns: name, email, joined_at, status (active/inactive/on_hiatus), plan (optional)</p>
+                  <p className="text-xs text-yellow-600 dark:text-yellow-400 mt-1">⚠️ Re-export weekly/monthly to track status changes over time</p>
                 </div>
               </details>
             </div>
 
-            <MemberImportForm />
-          </div>
-
-          {/* Subscription Import for Hiatus Tracking */}
-          <div className="bg-white dark:bg-slate-900 rounded-lg shadow p-6">
-            <div className="mb-6">
-              <h2 className="text-xl font-bold mb-2">Subscription Import (Hiatus Tracking)</h2>
-              <p className="text-slate-600 dark:text-slate-400 mb-3">
-                Upload subscription CSV exports to track hiatus periods over time. Re-export and upload regularly (weekly/monthly) to detect status changes.
-              </p>
-              <details className="text-sm text-slate-500 dark:text-slate-400">
-                <summary className="cursor-pointer font-medium hover:text-slate-700 dark:hover:text-slate-300">
-                  How It Works
-                </summary>
-                <div className="mt-2 pl-4 space-y-2">
-                  <p>• Export subscriptions CSV from <a href="https://app.kajabi.com/admin/sites/2147577478/payments/subscriptions" target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 underline">Kajabi Payments → Subscriptions</a></p>
-                  <p>• Upload the CSV here to create a snapshot</p>
-                  <p>• System compares snapshots over time to detect when members pause/resume</p>
-                  <p>• Hiatus periods are automatically tracked in member profiles and dashboard</p>
-                  <p className="text-yellow-600 dark:text-yellow-400 font-medium">⚠️ Regular exports required: Upload weekly or monthly to track changes accurately</p>
-                </div>
-              </details>
-            </div>
-
-            <SubscriptionImportForm />
+            <KajabiImportForm />
           </div>
 
           {/* Apply Member Aliases */}
