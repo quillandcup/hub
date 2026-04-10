@@ -149,6 +149,7 @@ export async function POST(request: NextRequest) {
           description: null,
           metadata: {
             channel_id: reaction.channel_id,
+            channel_name: reaction.channel_name,
             message_ts: reaction.message_ts,
             reaction: reaction.reaction,
           },

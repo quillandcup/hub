@@ -250,55 +250,88 @@ export default function MemberDetails({ member, attendanceRecords, hiatusHistory
             {/* Recent Activity */}
             <div>
               <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">Recent Activity</h3>
-              <div className="space-y-3">
-                {slackActivities.slice(0, 10).map((activity: any) => {
-                  const occurred = new Date(activity.occurred_at);
-                  const isMessage = activity.activity_type === 'slack_message' || activity.activity_type === 'slack_thread_reply';
-                  const isThreadReply = activity.activity_type === 'slack_thread_reply';
+              <div className="overflow-x-auto -mx-6">
+                <table className="w-full">
+                  <thead className="bg-slate-50 dark:bg-slate-800 border-y border-slate-200 dark:border-slate-700">
+                    <tr>
+                      <th className="px-6 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                        Type
+                      </th>
+                      <th className="px-6 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                        Channel
+                      </th>
+                      <th className="px-6 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                        Content
+                      </th>
+                      <th className="px-6 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                        Date
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
+                    {slackActivities.slice(0, 20).map((activity: any) => {
+                      const occurred = new Date(activity.occurred_at);
+                      const isMessage = activity.activity_type === 'slack_message' || activity.activity_type === 'slack_thread_reply';
+                      const isThreadReply = activity.activity_type === 'slack_thread_reply';
+                      const isReaction = activity.activity_type === 'slack_reaction';
 
-                  return (
-                    <div
-                      key={activity.id}
-                      className="flex items-start gap-3 p-3 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700"
-                    >
-                      <div className="flex-shrink-0 mt-0.5">
-                        {isMessage ? (
-                          <svg className="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                          </svg>
-                        ) : (
-                          <svg className="w-5 h-5 text-yellow-500" fill="currentColor" viewBox="0 0 24 24">
-                            <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
-                          </svg>
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="text-sm font-medium text-slate-900 dark:text-slate-100">
-                            {isThreadReply ? '↩️ Thread reply' : isMessage ? 'Message' : 'Reaction'}
-                          </span>
-                          <span className="text-xs text-slate-500 dark:text-slate-400">
-                            in #{activity.metadata?.channel_name}
-                          </span>
-                        </div>
-                        {activity.description && (
-                          <p className="text-sm text-slate-600 dark:text-slate-400 truncate">
-                            {activity.description}
-                          </p>
-                        )}
-                        <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                          {occurred.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
-                          {" at "}
-                          {occurred.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
+                      // Extract reaction emoji from title or metadata
+                      const reactionEmoji = isReaction
+                        ? (activity.metadata?.reaction || activity.title?.match(/:([^:]+):/)?.[1] || '👍')
+                        : null;
+
+                      return (
+                        <tr key={activity.id} className="hover:bg-slate-50 dark:hover:bg-slate-800">
+                          <td className="px-6 py-3 whitespace-nowrap">
+                            <div className="flex items-center gap-2">
+                              {isMessage ? (
+                                <>
+                                  <svg className="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                                  </svg>
+                                  <span className="text-xs text-slate-600 dark:text-slate-400">
+                                    {isThreadReply ? 'Reply' : 'Message'}
+                                  </span>
+                                </>
+                              ) : (
+                                <>
+                                  <span className="text-base">:{reactionEmoji}:</span>
+                                  <span className="text-xs text-slate-600 dark:text-slate-400">
+                                    Reaction
+                                  </span>
+                                </>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-6 py-3 whitespace-nowrap">
+                            <span className="text-xs text-slate-600 dark:text-slate-400">
+                              #{activity.metadata?.channel_name || 'unknown'}
+                            </span>
+                          </td>
+                          <td className="px-6 py-3">
+                            <p className="text-sm text-slate-700 dark:text-slate-300 truncate max-w-md">
+                              {activity.description || (isReaction ? `Reacted with :${reactionEmoji}:` : '—')}
+                            </p>
+                          </td>
+                          <td className="px-6 py-3 whitespace-nowrap">
+                            <div className="text-xs text-slate-500 dark:text-slate-400">
+                              {occurred.toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                              <span className="ml-1">
+                                {occurred.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
+                              </span>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
-              {slackActivities.length > 10 && (
-                <div className="mt-3 text-center text-sm text-slate-500 dark:text-slate-400">
-                  Showing 10 of {slackActivities.length} activities
+              {slackActivities.length > 20 && (
+                <div className="mt-3 text-center">
+                  <button className="text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 hover:underline">
+                    Show all {slackActivities.length} activities
+                  </button>
                 </div>
               )}
             </div>

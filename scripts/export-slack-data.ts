@@ -249,6 +249,7 @@ async function fetchChannelHistory(
               reactions.push({
                 message_ts: msg.ts,
                 channel_id: channelId,
+                channel_name: channelName,
                 reaction: reaction.name,
                 user_id: userId,
                 user_email: '', // Will be filled later
