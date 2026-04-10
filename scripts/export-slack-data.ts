@@ -185,6 +185,7 @@ async function autoJoinPublicChannels(channels: any[]) {
     } catch (error: any) {
       if (error.data?.error === 'already_in_channel') {
         alreadyMember++;
+        // Don't log as joined - we're already in
       } else {
         console.warn(`  ⚠ Could not join #${channel.name}: ${error.data?.error || error.message}`);
         failed++;
