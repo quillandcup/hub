@@ -5,6 +5,7 @@ import ZoomImportAndProcessForm from "./ZoomImportAndProcessForm";
 import MemberImportForm from "./MemberImportForm";
 import SubscriptionImportForm from "./SubscriptionImportForm";
 import CalendarImportForm from "./CalendarImportForm";
+import SlackImportForm from "./SlackImportForm";
 import ApplyAliasesButton from "./ApplyAliasesButton";
 
 export default async function ImportPage() {
@@ -85,6 +86,32 @@ export default async function ImportPage() {
 
           {/* Google Calendar Import */}
           <CalendarImportForm />
+
+          {/* Slack Import & Processing */}
+          <div className="bg-white dark:bg-slate-900 rounded-lg shadow p-6">
+            <div className="mb-6">
+              <h2 className="text-xl font-bold mb-2">Slack Import & Processing</h2>
+              <p className="text-slate-600 dark:text-slate-400 mb-3">
+                Import Slack data from CSV exports, then process it to create member activity records.
+              </p>
+              <details className="text-sm text-slate-500 dark:text-slate-400">
+                <summary className="cursor-pointer font-medium hover:text-slate-700 dark:hover:text-slate-300">
+                  How to Export from Slack
+                </summary>
+                <div className="mt-2 pl-4 space-y-2">
+                  <p><strong>Step 1: Set SLACK_BOT_TOKEN environment variable</strong></p>
+                  <p className="pl-4">Get your token from Slack App settings and add to <code className="bg-slate-100 dark:bg-slate-800 px-1 rounded">.env.local</code></p>
+                  <p><strong>Step 2: Run export script</strong></p>
+                  <p className="pl-4"><code className="bg-slate-100 dark:bg-slate-800 px-1 rounded">npx ts-node scripts/export-slack-data.ts 30 exports</code></p>
+                  <p className="text-xs text-slate-400">(exports last 30 days to exports/ directory)</p>
+                  <p><strong>Step 3: Upload the 4 generated CSV files below</strong></p>
+                  <p className="pl-4">Files: slack_users.csv, slack_channels.csv, slack_messages.csv, slack_reactions.csv</p>
+                </div>
+              </details>
+            </div>
+
+            <SlackImportForm />
+          </div>
 
           {/* Zoom Attendance Import & Process */}
           <div className="bg-white dark:bg-slate-900 rounded-lg shadow p-6">
