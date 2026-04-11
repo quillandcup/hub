@@ -88,6 +88,22 @@ export async function POST(request: NextRequest) {
     if (messagesError) throw messagesError;
     if (reactionsError) throw reactionsError;
 
+    // Detect date range from imported messages
+    let dateRange = null;
+    if (messages.length > 0) {
+      const dates = messages
+        .map(m => m.occurred_at)
+        .filter(d => d)
+        .sort();
+
+      if (dates.length > 0) {
+        dateRange = {
+          fromDate: dates[0].split('T')[0], // First message date (YYYY-MM-DD)
+          toDate: dates[dates.length - 1].split('T')[0], // Last message date (YYYY-MM-DD)
+        };
+      }
+    }
+
     return NextResponse.json({
       success: true,
       imported: {
@@ -97,6 +113,7 @@ export async function POST(request: NextRequest) {
         reactions: reactions.length,
       },
       importTimestamp,
+      dateRange,
       message: "Imported to Slack Bronze tables. Run /api/process/slack to populate member_activities.",
     });
   } catch (error: any) {

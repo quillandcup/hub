@@ -50,6 +50,12 @@ export default function SlackImportForm() {
 
       setResult(data);
 
+      // Auto-populate date range from imported data
+      if (data.dateRange) {
+        setFromDate(data.dateRange.fromDate);
+        setToDate(data.dateRange.toDate);
+      }
+
       // Reset file inputs
       setUsersFile(null);
       setChannelsFile(null);
@@ -209,7 +215,12 @@ export default function SlackImportForm() {
             <p>• {result.imported?.messages || 0} messages</p>
             <p>• {result.imported?.reactions || 0} reactions</p>
           </div>
-          <p className="mt-3 text-sm text-blue-700 dark:text-blue-300">
+          {result.dateRange && (
+            <p className="mt-3 text-sm text-blue-700 dark:text-blue-300">
+              📅 Detected date range: {result.dateRange.fromDate} to {result.dateRange.toDate}
+            </p>
+          )}
+          <p className="mt-2 text-sm text-blue-700 dark:text-blue-300">
             {result.message}
           </p>
         </div>
@@ -221,7 +232,7 @@ export default function SlackImportForm() {
           2. Process Slack Data
         </h3>
         <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
-          Transform Bronze layer (imported CSVs) into Silver layer (member activities). Select date range to process.
+          Transform Bronze layer (imported CSVs) into Silver layer (member activities). Date range auto-populated from imported messages.
         </p>
 
         <div className="flex gap-4 mb-4">
