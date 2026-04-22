@@ -35,7 +35,7 @@ export default async function DataHygienePage() {
       .from("prickles")
       .select("id, start_time, end_time")
       .eq("source", "zoom")
-      .not("id", "in", `(SELECT DISTINCT prickle_id FROM attendance WHERE prickle_id IS NOT NULL)`)
+      .not("id", "in", `(SELECT DISTINCT prickle_id FROM prickle_attendance WHERE prickle_id IS NOT NULL)`)
       .limit(10),
     // Find old unmatched events (queued before prickle_types migration)
     supabase

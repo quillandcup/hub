@@ -21,7 +21,7 @@ export default async function AtRiskPage() {
       name,
       email,
       joined_at,
-      attendance(join_time)
+      prickle_attendance(join_time)
     `)
     .eq("status", "active")
     .order("name");
@@ -32,10 +32,10 @@ export default async function AtRiskPage() {
   // Filter for at-risk members
   const atRiskMembers = activeMembers?.filter(m => {
     // No attendance at all, or no recent attendance
-    if (!m.attendance || m.attendance.length === 0) {
+    if (!m.prickle_attendance || m.prickle_attendance.length === 0) {
       return true;
     }
-    const hasRecentAttendance = m.attendance.some((a: any) =>
+    const hasRecentAttendance = m.prickle_attendance.some((a: any) =>
       new Date(a.join_time) >= thirtyDaysAgo
     );
     return !hasRecentAttendance;
@@ -43,9 +43,9 @@ export default async function AtRiskPage() {
 
   // Calculate stats for each member
   const membersWithStats = atRiskMembers.map(m => {
-    const totalAttendance = m.attendance?.length || 0;
-    const lastAttendance = m.attendance && m.attendance.length > 0
-      ? new Date(Math.max(...m.attendance.map((a: any) => new Date(a.join_time).getTime())))
+    const totalAttendance = m.prickle_attendance?.length || 0;
+    const lastAttendance = m.prickle_attendance && m.prickle_attendance.length > 0
+      ? new Date(Math.max(...m.prickle_attendance.map((a: any) => new Date(a.join_time).getTime())))
       : null;
 
     return {

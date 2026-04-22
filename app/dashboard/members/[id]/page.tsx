@@ -37,7 +37,7 @@ export default async function MemberDetailPage({
 
   // Fetch all attendance records for this member with prickle details
   const { data: attendance } = await supabase
-    .from("attendance")
+    .from("prickle_attendance")
     .select(`
       id,
       join_time,

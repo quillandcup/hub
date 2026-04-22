@@ -33,7 +33,7 @@ describe('Orphaned Meetings Idempotency', () => {
 
   afterAll(async () => {
     // Clean up test data
-    await supabase.from('attendance').delete().ilike('member_id', 'test-orphan-%');
+    await supabase.from('prickle_attendance').delete().ilike('member_id', 'test-orphan-%');
     await supabase.from('prickles').delete().eq('source', 'zoom').ilike('zoom_meeting_uuid', 'test-meeting-%');
     await supabase.from('zoom_attendees').delete().ilike('meeting_uuid', 'test-meeting-%');
     await supabase.from('member_name_aliases').delete().eq('alias', 'TestMatched');

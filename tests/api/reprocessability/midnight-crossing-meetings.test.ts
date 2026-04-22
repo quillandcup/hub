@@ -55,7 +55,7 @@ describe('Midnight-Crossing Meeting Reprocessability', () => {
     // Clean up using OVERLAP logic (not containment)
     // This ensures we catch records that cross date boundaries
     await supabase
-      .from('attendance')
+      .from('prickle_attendance')
       .delete()
       .lt('join_time', '2099-08-02T00:00:00Z')
       .gt('leave_time', '2099-08-01T00:00:00Z')
@@ -82,7 +82,7 @@ describe('Midnight-Crossing Meeting Reprocessability', () => {
 
   afterAll(async () => {
     // Clean up using overlap logic
-    await supabase.from('attendance').delete().eq('member_id', testMemberId)
+    await supabase.from('prickle_attendance').delete().eq('member_id', testMemberId)
     await supabase
       .from('prickles')
       .delete()
@@ -143,7 +143,7 @@ describe('Midnight-Crossing Meeting Reprocessability', () => {
 
     // Verify attendance was created
     const { data: attendance } = await supabase
-      .from('attendance')
+      .from('prickle_attendance')
       .select('*')
       .eq('member_id', testMemberId)
 
@@ -166,7 +166,7 @@ describe('Midnight-Crossing Meeting Reprocessability', () => {
   it('should be idempotent when reprocessing same date range', async () => {
     // ARRANGE: Get current state
     const { data: beforeAttendance } = await supabase
-      .from('attendance')
+      .from('prickle_attendance')
       .select('*')
       .eq('member_id', testMemberId)
 
@@ -194,7 +194,7 @@ describe('Midnight-Crossing Meeting Reprocessability', () => {
 
     // ASSERT: Same result (idempotent)
     const { data: afterAttendance } = await supabase
-      .from('attendance')
+      .from('prickle_attendance')
       .select('*')
       .eq('member_id', testMemberId)
 
@@ -274,7 +274,7 @@ describe('Midnight-Crossing Meeting Reprocessability', () => {
 
     // Also verify attendance was deleted
     const { data: attendanceAfter } = await supabase
-      .from('attendance')
+      .from('prickle_attendance')
       .select('*')
       .eq('member_id', testMemberId)
 
@@ -356,7 +356,7 @@ describe('Midnight-Crossing Meeting Reprocessability', () => {
       .eq('source', 'zoom')
       .in('zoom_meeting_uuid', [meeting1Uuid, meeting2Uuid])
     await supabase
-      .from('attendance')
+      .from('prickle_attendance')
       .delete()
       .eq('member_id', testMemberId)
       .gte('join_time', '2099-08-01T22:00:00Z')

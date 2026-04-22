@@ -60,7 +60,7 @@ describe('Attendance Multiple Records', () => {
 
   afterAll(async () => {
     // Clean up
-    await supabase.from('attendance').delete().eq('member_id', testMemberId)
+    await supabase.from('prickle_attendance').delete().eq('member_id', testMemberId)
     await supabase.from('prickles').delete().eq('id', testPrickleId)
     await supabase.from('members').delete().eq('id', testMemberId)
   })
@@ -68,7 +68,7 @@ describe('Attendance Multiple Records', () => {
   it('should allow multiple attendance records for same (member_id, prickle_id)', async () => {
     // Person joins at 9:00, leaves at 9:30
     const { error: error1 } = await supabase
-      .from('attendance')
+      .from('prickle_attendance')
       .insert({
         member_id: testMemberId,
         prickle_id: testPrickleId,
@@ -81,7 +81,7 @@ describe('Attendance Multiple Records', () => {
 
     // Person rejoins at 11:00, leaves at 11:30
     const { error: error2 } = await supabase
-      .from('attendance')
+      .from('prickle_attendance')
       .insert({
         member_id: testMemberId,
         prickle_id: testPrickleId,
@@ -94,7 +94,7 @@ describe('Attendance Multiple Records', () => {
 
     // Verify both records exist
     const { data: records, error: fetchError } = await supabase
-      .from('attendance')
+      .from('prickle_attendance')
       .select('*')
       .eq('member_id', testMemberId)
       .eq('prickle_id', testPrickleId)
@@ -106,7 +106,7 @@ describe('Attendance Multiple Records', () => {
   it('should calculate correct total attendance time from multiple records', async () => {
     // Query for total time
     const { data: records } = await supabase
-      .from('attendance')
+      .from('prickle_attendance')
       .select('join_time, leave_time')
       .eq('member_id', testMemberId)
       .eq('prickle_id', testPrickleId)
@@ -124,7 +124,7 @@ describe('Attendance Multiple Records', () => {
   it('should count unique prickles correctly despite multiple records', async () => {
     // Count distinct prickles attended
     const { data, error } = await supabase
-      .from('attendance')
+      .from('prickle_attendance')
       .select('prickle_id')
       .eq('member_id', testMemberId)
 
@@ -139,7 +139,7 @@ describe('Attendance Multiple Records', () => {
   it('should verify attendance exists even with multiple records', async () => {
     // Check if member attended this prickle (should return true)
     const { data, error } = await supabase
-      .from('attendance')
+      .from('prickle_attendance')
       .select('id')
       .eq('member_id', testMemberId)
       .eq('prickle_id', testPrickleId)
@@ -152,7 +152,7 @@ describe('Attendance Multiple Records', () => {
 
   it('should preserve actual join/leave times without merging', async () => {
     const { data: records } = await supabase
-      .from('attendance')
+      .from('prickle_attendance')
       .select('join_time, leave_time')
       .eq('member_id', testMemberId)
       .eq('prickle_id', testPrickleId)

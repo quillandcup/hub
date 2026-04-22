@@ -63,7 +63,7 @@ export default async function CalendarPage({
       end_time,
       type_id,
       prickle_types:type_id(name),
-      attendance(id, member_id, join_time)
+      prickle_attendance(id, member_id, join_time)
     `)
     .gte("start_time", weekStart.toISOString())
     .lt("start_time", weekEnd.toISOString())
@@ -88,7 +88,7 @@ export default async function CalendarPage({
 
     if (hostId) {
       // Find host's attendance record
-      hostAttendance = prickle.attendance?.find((a: any) => a.member_id === hostId);
+      hostAttendance = prickle.prickle_attendance?.find((a: any) => a.member_id === hostId);
 
       if (!hostAttendance) {
         hostMissing = true;
@@ -111,7 +111,7 @@ export default async function CalendarPage({
       start_time: prickle.start_time,
       end_time: prickle.end_time,
       prickle_type: prickle.prickle_types?.name || "Unknown",
-      attendance_count: prickle.attendance?.length || 0,
+      attendance_count: prickle.prickle_attendance?.length || 0,
       host_missing: hostMissing,
       host_late: hostLate,
     };

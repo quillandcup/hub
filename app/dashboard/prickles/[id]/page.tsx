@@ -51,7 +51,7 @@ export default async function PrickleDetailPage({
 
   // Fetch attendance records with member details
   const { data: attendanceRecords } = await supabase
-    .from("attendance")
+    .from("prickle_attendance")
     .select(`
       id,
       join_time,

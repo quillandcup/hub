@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
 
     // Get all attendance records with prickle info
     const { data: attendance } = await supabase
-      .from("attendance")
+      .from("prickle_attendance")
       .select(`
         member_id,
         prickle_id,

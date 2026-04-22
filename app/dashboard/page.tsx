@@ -21,7 +21,7 @@ export default async function DashboardPage() {
 
   // Total attendance records
   const { count: totalAttendance } = await supabase
-    .from("attendance")
+    .from("prickle_attendance")
     .select("*", { count: "exact", head: true });
 
   // At-risk: active members with no attendance in last 30 days
@@ -31,16 +31,16 @@ export default async function DashboardPage() {
       id,
       name,
       email,
-      attendance(join_time)
+      prickle_attendance(join_time)
     `)
     .eq("status", "active");
 
   const atRisk = atRiskMembers?.filter(m => {
     // No attendance at all, or no recent attendance
-    if (!m.attendance || m.attendance.length === 0) {
+    if (!m.prickle_attendance || m.prickle_attendance.length === 0) {
       return true;
     }
-    const hasRecentAttendance = m.attendance.some((a: any) =>
+    const hasRecentAttendance = m.prickle_attendance.some((a: any) =>
       new Date(a.join_time) >= thirtyDaysAgo
     );
     return !hasRecentAttendance;
@@ -55,7 +55,7 @@ export default async function DashboardPage() {
 
   while (hasMore) {
     const { data: batch } = await supabase
-      .from("attendance")
+      .from("prickle_attendance")
       .select("member_id")
       .range(offset, offset + BATCH_SIZE - 1);
 
@@ -103,10 +103,10 @@ export default async function DashboardPage() {
   // At-risk members list (active with no attendance in 30 days)
   const atRiskMembersList = atRiskMembers?.filter(m => {
     // No attendance at all, or no recent attendance
-    if (!m.attendance || m.attendance.length === 0) {
+    if (!m.prickle_attendance || m.prickle_attendance.length === 0) {
       return true;
     }
-    const hasRecentAttendance = m.attendance.some((a: any) =>
+    const hasRecentAttendance = m.prickle_attendance.some((a: any) =>
       new Date(a.join_time) >= thirtyDaysAgo
     );
     return !hasRecentAttendance;
@@ -114,7 +114,7 @@ export default async function DashboardPage() {
 
   // Writing Hours Last 30 Days - median per active member
   const { data: last30DaysAttendance } = await supabase
-    .from("attendance")
+    .from("prickle_attendance")
     .select("join_time, leave_time, member_id")
     .gte("join_time", thirtyDaysAgo.toISOString())
     .lte("join_time", now.toISOString());
@@ -154,7 +154,7 @@ export default async function DashboardPage() {
   const eightWeeksAgo = new Date();
   eightWeeksAgo.setDate(eightWeeksAgo.getDate() - 56); // 8 weeks
   const { data: weeklyAttendanceData } = await supabase
-    .from("attendance")
+    .from("prickle_attendance")
     .select("join_time, member_id")
     .gte("join_time", eightWeeksAgo.toISOString())
     .lte("join_time", now.toISOString());
@@ -190,7 +190,7 @@ export default async function DashboardPage() {
 
   // Daily Writing Hours (last 30 days)
   const { data: dailyAttendanceData } = await supabase
-    .from("attendance")
+    .from("prickle_attendance")
     .select("join_time, leave_time")
     .gte("join_time", thirtyDaysAgo.toISOString())
     .lte("join_time", now.toISOString());
@@ -213,7 +213,7 @@ export default async function DashboardPage() {
   sevenDaysAgo.setDate(now.getDate() - 7);
 
   const { data: weeklyAttendees } = await supabase
-    .from("attendance")
+    .from("prickle_attendance")
     .select("member_id")
     .gte("join_time", sevenDaysAgo.toISOString())
     .lte("join_time", now.toISOString());

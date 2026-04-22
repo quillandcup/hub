@@ -27,7 +27,7 @@ export default async function NameMatchingReportPage() {
         id,
         name,
         email,
-        attendance(id)
+        prickle_attendance(id)
       `)
       .eq("status", "active")
       .order("name"),
@@ -41,7 +41,7 @@ export default async function NameMatchingReportPage() {
 
   // Filter for members with zero attendance
   const membersWithNoAttendance = activeMembers
-    ?.filter(m => !m.attendance || m.attendance.length === 0)
+    ?.filter(m => !m.prickle_attendance || m.prickle_attendance.length === 0)
     .map(m => ({
       id: m.id,
       name: m.name,

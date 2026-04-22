@@ -228,7 +228,7 @@ export async function POST(request: NextRequest) {
 
     // Delete existing attendance records that overlap this date range
     await supabase
-      .from("attendance")
+      .from("prickle_attendance")
       .delete()
       .lt("join_time", toDateTime)
       .gt("leave_time", fromDateTime);
@@ -541,7 +541,7 @@ export async function POST(request: NextRequest) {
 
       const results = await Promise.all(
         chunks.map((batch, i) =>
-          supabase.from("attendance").insert(batch).then(result => {
+          supabase.from("prickle_attendance").insert(batch).then(result => {
             if (result.error) {
               console.error(`Error upserting chunk ${i}:`, result.error);
             }

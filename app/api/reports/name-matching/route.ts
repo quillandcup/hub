@@ -28,14 +28,14 @@ export async function GET(request: NextRequest) {
         id,
         name,
         email,
-        attendance(id)
+        prickle_attendance(id)
       `)
       .eq("status", "active")
       .order("name");
 
     // Filter for members with zero attendance
     const membersWithNoAttendance = activeMembers
-      ?.filter(m => !m.attendance || m.attendance.length === 0)
+      ?.filter(m => !m.prickle_attendance || m.prickle_attendance.length === 0)
       .map(m => ({
         id: m.id,
         name: m.name,
@@ -51,7 +51,7 @@ export async function GET(request: NextRequest) {
 
     // Get all matched names from attendance table
     const { data: matchedAttendance } = await supabase
-      .from("attendance")
+      .from("prickle_attendance")
       .select(`
         id,
         member_id,

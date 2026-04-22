@@ -56,7 +56,7 @@ describe('Attendance Reprocessability', () => {
     // Clean up any existing test data using OVERLAP logic (not containment)
     // Use lt(nextMonthStart) and gt(monthStart) to catch boundary-crossing records
     await supabase
-      .from('attendance')
+      .from('prickle_attendance')
       .delete()
       .lt('join_time', '2099-06-01T00:00:00Z')
       .gt('leave_time', `${testDateRange.from}T00:00:00Z`)
@@ -83,7 +83,7 @@ describe('Attendance Reprocessability', () => {
 
   afterAll(async () => {
     // Clean up using overlap logic to ensure we catch all test data
-    await supabase.from('attendance').delete().eq('member_id', testMemberId)
+    await supabase.from('prickle_attendance').delete().eq('member_id', testMemberId)
     await supabase
       .from('prickles')
       .delete()
@@ -131,7 +131,7 @@ describe('Attendance Reprocessability', () => {
     expect(result.attendanceRecords).toBeGreaterThan(0)
 
     const { data: attendance } = await supabase
-      .from('attendance')
+      .from('prickle_attendance')
       .select('*')
       .eq('member_id', testMemberId)
 
@@ -162,7 +162,7 @@ describe('Attendance Reprocessability', () => {
     expect(result.success).toBe(true)
 
     const { data: attendance } = await supabase
-      .from('attendance')
+      .from('prickle_attendance')
       .select('*')
       .eq('member_id', testMemberId)
 
@@ -249,11 +249,11 @@ describe('Attendance Reprocessability', () => {
       confidence_score: 'high',
     }
 
-    await supabase.from('attendance').insert(orphanAttendance)
+    await supabase.from('prickle_attendance').insert(orphanAttendance)
 
     // Verify orphan exists
     const { data: before } = await supabase
-      .from('attendance')
+      .from('prickle_attendance')
       .select('*')
       .eq('join_time', '2099-05-25T16:00:00+00:00')
       .single()
@@ -276,7 +276,7 @@ describe('Attendance Reprocessability', () => {
     // ASSERT: Orphan should be GONE (DELETE + INSERT removes it)
     // If UPSERT was used, orphan would still exist
     const { data: after } = await supabase
-      .from('attendance')
+      .from('prickle_attendance')
       .select('*')
       .eq('join_time', '2099-05-25T16:00:00+00:00')
       .single()
@@ -330,7 +330,7 @@ describe('Attendance Reprocessability', () => {
 
     // ASSERT: June attendance should still exist (out of scope)
     const { data: juneAttendance } = await supabase
-      .from('attendance')
+      .from('prickle_attendance')
       .select('*')
       .eq('member_id', testMemberId)
       .eq('join_time', '2099-06-01T10:00:00+00:00')
@@ -340,6 +340,6 @@ describe('Attendance Reprocessability', () => {
     // Clean up
     await supabase.from('zoom_attendees').delete().eq('meeting_uuid', juneMeetingUuid)
     await supabase.from('zoom_meetings').delete().eq('uuid', juneMeetingUuid)
-    await supabase.from('attendance').delete().eq('join_time', '2099-06-01T10:00:00+00:00')
+    await supabase.from('prickle_attendance').delete().eq('join_time', '2099-06-01T10:00:00+00:00')
   })
 })

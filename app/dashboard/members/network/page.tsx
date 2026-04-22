@@ -38,7 +38,7 @@ export default async function MemberNetworkPage() {
 
   // Get all attendance records
   const { data: attendance } = await supabase
-    .from("attendance")
+    .from("prickle_attendance")
     .select(`
       member_id,
       prickle_id
