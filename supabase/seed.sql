@@ -6,10 +6,17 @@
 TRUNCATE prickle_popularity CASCADE;
 TRUNCATE member_engagement CASCADE;
 TRUNCATE member_metrics CASCADE;
-TRUNCATE attendance CASCADE;
+TRUNCATE prickle_attendance CASCADE;
 TRUNCATE member_hiatus_history CASCADE;
 TRUNCATE prickles CASCADE;
-TRUNCATE zoom_attendees CASCADE;
+TRUNCATE bronze.zoom_attendees CASCADE;
+TRUNCATE bronze.calendar_events CASCADE;
+TRUNCATE bronze.kajabi_members CASCADE;
+TRUNCATE bronze.subscription_history CASCADE;
+TRUNCATE bronze.slack_messages CASCADE;
+TRUNCATE bronze.slack_reactions CASCADE;
+TRUNCATE bronze.slack_channels CASCADE;
+TRUNCATE bronze.slack_users CASCADE;
 TRUNCATE members CASCADE;
 
 -- =====================================================
@@ -90,7 +97,7 @@ END $$;
 -- =====================================================
 
 -- Sample Zoom attendance records matching actual Zoom API/report schema
-INSERT INTO zoom_attendees (meeting_id, meeting_uuid, topic, participant_id, user_id, name, email, join_time, leave_time, duration, attentiveness_score, status) VALUES
+INSERT INTO bronze.zoom_attendees (meeting_id, meeting_uuid, topic, participant_id, user_id, name, email, join_time, leave_time, duration, attentiveness_score, status) VALUES
 -- Session 1 attendees (Morning Writing Sprint - March 10)
 ('83456789012', 'abc123def456==', 'Morning Writing Sprint', 'part_001', 'user_cody', 'Owner 2', 'owner2@example.com', '2026-03-10 09:05:00+00', '2026-03-10 10:25:00+00', 80, 95, 'in_meeting'),
 ('83456789012', 'abc123def456==', 'Morning Writing Sprint', 'part_002', NULL, 'Sarah J', 'sarah.j@example.com', '2026-03-10 09:10:00+00', '2026-03-10 10:30:00+00', 80, 88, 'in_meeting'),
@@ -119,7 +126,7 @@ INSERT INTO zoom_attendees (meeting_id, meeting_uuid, topic, participant_id, use
 -- =====================================================
 
 -- High confidence matches (email match + time overlap)
-INSERT INTO attendance (member_id, prickle_id, join_time, leave_time, confidence_score) VALUES
+INSERT INTO prickle_attendance (member_id, prickle_id, join_time, leave_time, confidence_score) VALUES
 -- Session 1
 ('11111111-1111-1111-1111-111111111111', '10000001-0000-0000-0000-000000000001', '2026-03-10 09:05:00+00', '2026-03-10 10:25:00+00', 'high'),
 ('33333333-3333-3333-3333-333333333333', '10000001-0000-0000-0000-000000000001', '2026-03-10 09:10:00+00', '2026-03-10 10:30:00+00', 'high'),
