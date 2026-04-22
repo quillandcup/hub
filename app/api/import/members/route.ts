@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
     // Insert into kajabi_members (Bronze - raw data only)
     const importTimestamp = new Date().toISOString();
     const { error: kajabiError } = await supabase
-      .from("kajabi_members")
+      .from("bronze.kajabi_members")
       .insert(
         rawData.map((row) => ({
           email: row.email.toLowerCase(),

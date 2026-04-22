@@ -23,13 +23,13 @@ describe('Members Import Idempotency', () => {
 
   beforeAll(async () => {
     // Clean up any existing test data
-    await supabase.from('kajabi_members').delete().ilike('email', 'idempotency-test-%')
+    await supabase.from('bronze.kajabi_members').delete().ilike('email', 'idempotency-test-%')
     await supabase.from('members').delete().ilike('email', 'idempotency-test-%')
   })
 
   afterAll(async () => {
     // Clean up test data
-    await supabase.from('kajabi_members').delete().ilike('email', 'idempotency-test-%')
+    await supabase.from('bronze.kajabi_members').delete().ilike('email', 'idempotency-test-%')
     await supabase.from('members').delete().ilike('email', 'idempotency-test-%')
   })
 
@@ -59,13 +59,13 @@ describe('Members Import Idempotency', () => {
       },
     ]
 
-    const { error } = await supabase.from('kajabi_members').insert(bronzeData)
+    const { error } = await supabase.from('bronze.kajabi_members').insert(bronzeData)
 
     // ASSERT: Records created
     expect(error).toBeNull()
 
     const { data: inserted } = await supabase
-      .from('kajabi_members')
+      .from('bronze.kajabi_members')
       .select('*')
       .in('email', [testEmail1, testEmail2])
 
@@ -105,13 +105,13 @@ describe('Members Import Idempotency', () => {
     ]
 
     // ACT: INSERT again (append-only, not UPSERT)
-    const { error } = await supabase.from('kajabi_members').insert(bronzeData)
+    const { error } = await supabase.from('bronze.kajabi_members').insert(bronzeData)
 
     expect(error).toBeNull()
 
     // ASSERT: Now have 4 records total (2 per email, different timestamps)
     const { data: allRecords } = await supabase
-      .from('kajabi_members')
+      .from('bronze.kajabi_members')
       .select('*')
       .in('email', [testEmail1, testEmail2])
       .order('imported_at', { ascending: true })
@@ -142,12 +142,12 @@ describe('Members Import Idempotency', () => {
       },
     ]
 
-    await supabase.from('kajabi_members').insert(updatedBronzeData)
+    await supabase.from('bronze.kajabi_members').insert(updatedBronzeData)
 
     // ACT: Process members (should use latest snapshot)
     // Manually simulate what process/members does: get latest by imported_at
     const { data: latestSnapshot } = await supabase
-      .from('kajabi_members')
+      .from('bronze.kajabi_members')
       .select('*')
       .order('imported_at', { ascending: false })
 
@@ -189,13 +189,13 @@ describe('Members Import Idempotency', () => {
         },
       ]
 
-      const { error } = await supabase.from('kajabi_members').insert(bronzeData)
+      const { error } = await supabase.from('bronze.kajabi_members').insert(bronzeData)
       expect(error).toBeNull()
     }
 
     // ASSERT: testEmail1 now has many snapshots (2 initial + 1 canceled + 3 new = 6)
     const { data: allSnapshots } = await supabase
-      .from('kajabi_members')
+      .from('bronze.kajabi_members')
       .select('*')
       .eq('email', testEmail1)
       .order('imported_at', { ascending: true })
@@ -210,7 +210,7 @@ describe('Members Import Idempotency', () => {
   it('should allow querying historical snapshots by timestamp', async () => {
     // ARRANGE: Get all snapshots for testEmail1
     const { data: allSnapshots } = await supabase
-      .from('kajabi_members')
+      .from('bronze.kajabi_members')
       .select('*')
       .eq('email', testEmail1)
       .order('imported_at', { ascending: true })
@@ -220,14 +220,14 @@ describe('Members Import Idempotency', () => {
 
     // ACT: Query specific snapshot
     const { data: oldestSnapshot } = await supabase
-      .from('kajabi_members')
+      .from('bronze.kajabi_members')
       .select('*')
       .eq('email', testEmail1)
       .eq('imported_at', oldestTimestamp)
       .single()
 
     const { data: newestSnapshot } = await supabase
-      .from('kajabi_members')
+      .from('bronze.kajabi_members')
       .select('*')
       .eq('email', testEmail1)
       .eq('imported_at', newestTimestamp)
@@ -245,7 +245,7 @@ describe('Members Import Idempotency', () => {
     await new Promise(resolve => setTimeout(resolve, 100))
 
     const timestamp4 = new Date().toISOString()
-    await supabase.from('kajabi_members').insert({
+    await supabase.from('bronze.kajabi_members').insert({
       email: testEmail2,
       imported_at: timestamp4,
       data: {
@@ -259,7 +259,7 @@ describe('Members Import Idempotency', () => {
     await new Promise(resolve => setTimeout(resolve, 100))
 
     const timestamp5 = new Date().toISOString()
-    await supabase.from('kajabi_members').insert({
+    await supabase.from('bronze.kajabi_members').insert({
       email: testEmail2,
       imported_at: timestamp5,
       data: {
@@ -272,7 +272,7 @@ describe('Members Import Idempotency', () => {
 
     // ACT: Get latest snapshot (what processing does)
     const { data: latestSnapshot } = await supabase
-      .from('kajabi_members')
+      .from('bronze.kajabi_members')
       .select('*')
       .eq('email', testEmail2)
       .order('imported_at', { ascending: false })
@@ -285,7 +285,7 @@ describe('Members Import Idempotency', () => {
 
     // Multiple snapshots exist but processing result is deterministic
     const { data: allSnapshots } = await supabase
-      .from('kajabi_members')
+      .from('bronze.kajabi_members')
       .select('*')
       .eq('email', testEmail2)
 

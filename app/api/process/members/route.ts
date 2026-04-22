@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
       { data: staffMembers, error: staffError }
     ] = await Promise.all([
       supabase
-        .from("kajabi_members")
+        .from("bronze.kajabi_members")
         .select("*")
         .order("imported_at", { ascending: false }),
       supabase

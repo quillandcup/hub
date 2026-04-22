@@ -20,13 +20,13 @@ describe('Members Reprocessability', () => {
 
   beforeAll(async () => {
     // Clean up any existing test data
-    await supabase.from('kajabi_members').delete().ilike('email', 'reprocess-test-%')
+    await supabase.from('bronze.kajabi_members').delete().ilike('email', 'reprocess-test-%')
     await supabase.from('members').delete().ilike('email', 'reprocess-test-%')
   })
 
   afterAll(async () => {
     // Clean up test data
-    await supabase.from('kajabi_members').delete().ilike('email', 'reprocess-test-%')
+    await supabase.from('bronze.kajabi_members').delete().ilike('email', 'reprocess-test-%')
     await supabase.from('members').delete().ilike('email', 'reprocess-test-%')
   })
 
@@ -55,12 +55,12 @@ describe('Members Reprocessability', () => {
       },
     ]
 
-    const { error: insertError } = await supabase.from('kajabi_members').insert(bronzeData)
+    const { error: insertError } = await supabase.from('bronze.kajabi_members').insert(bronzeData)
     expect(insertError).toBeNull()
 
     // Verify data was inserted
     const { data: verifyData, error: verifyError } = await supabase
-      .from('kajabi_members')
+      .from('bronze.kajabi_members')
       .select('*')
       .in('email', [testEmail1, testEmail2])
 
@@ -96,7 +96,7 @@ describe('Members Reprocessability', () => {
 
   it('should remove deleted members when reprocessing', async () => {
     // ARRANGE: Delete one member from Bronze, add a new one
-    await supabase.from('kajabi_members').delete().eq('email', testEmail1)
+    await supabase.from('bronze.kajabi_members').delete().eq('email', testEmail1)
 
     const newBronzeData = {
       email: testEmail3,
@@ -109,7 +109,7 @@ describe('Members Reprocessability', () => {
       imported_at: new Date().toISOString(),
     }
 
-    await supabase.from('kajabi_members').insert(newBronzeData)
+    await supabase.from('bronze.kajabi_members').insert(newBronzeData)
 
     // ACT: Reprocess members
     const response = await fetch('http://localhost:3000/api/process/members', {
@@ -145,7 +145,7 @@ describe('Members Reprocessability', () => {
   it('should update member status when Bronze data changes', async () => {
     // ARRANGE: Update testEmail2 status to Canceled in Bronze
     await supabase
-      .from('kajabi_members')
+      .from('bronze.kajabi_members')
       .update({
         data: {
           'Customer Name': 'Test Member 2',
