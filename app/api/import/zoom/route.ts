@@ -58,7 +58,7 @@ export async function POST(request: NextRequest) {
 
       if (attendeesToInsert.length > 0) {
         const { error } = await supabase
-          .from("zoom_attendees")
+          .from("bronze.zoom_attendees")
           .upsert(attendeesToInsert, {
             onConflict: "meeting_uuid,name,join_time",
             ignoreDuplicates: true,

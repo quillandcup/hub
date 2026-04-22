@@ -87,7 +87,7 @@ describe('Orphaned Meetings Idempotency', () => {
     const meetingUuid = 'test-meeting-orphaned-1';
     const baseDate = new Date('2026-04-01T09:00:00Z');
 
-    await supabase.from('zoom_attendees').insert([
+    await supabase.from('bronze.zoom_attendees').insert([
       // Unmatched attendee: 9:00-9:15 (extends window to the left)
       {
         meeting_uuid: meetingUuid,
@@ -116,7 +116,7 @@ describe('Orphaned Meetings Idempotency', () => {
 
       // Get all zoom_attendees for test meeting
       const { data: allAttendees } = await supabase
-        .from('zoom_attendees')
+        .from('bronze.zoom_attendees')
         .select('meeting_uuid, name, email, join_time, leave_time')
         .eq('meeting_uuid', meetingUuid);
 
@@ -254,7 +254,7 @@ describe('Orphaned Meetings Idempotency', () => {
     const baseDate = new Date('2026-04-02T10:00:00Z');
 
     // Create meeting with only unmatched attendees
-    await supabase.from('zoom_attendees').insert([
+    await supabase.from('bronze.zoom_attendees').insert([
       {
         meeting_uuid: meetingUuid,
         name: 'Unmatched One',

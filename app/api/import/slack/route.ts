@@ -56,28 +56,28 @@ export async function POST(request: NextRequest) {
     const importTimestamp = new Date().toISOString();
 
     const { error: usersError } = await supabase
-      .from("slack_users")
+      .from("bronze.slack_users")
       .upsert(
         users.map(u => ({ ...u, imported_at: importTimestamp })),
         { onConflict: "user_id" }
       );
 
     const { error: channelsError } = await supabase
-      .from("slack_channels")
+      .from("bronze.slack_channels")
       .upsert(
         channels.map(c => ({ ...c, imported_at: importTimestamp })),
         { onConflict: "channel_id" }
       );
 
     const { error: messagesError } = await supabase
-      .from("slack_messages")
+      .from("bronze.slack_messages")
       .upsert(
         messages.map(m => ({ ...m, imported_at: importTimestamp })),
         { onConflict: "channel_id,message_ts" }
       );
 
     const { error: reactionsError } = await supabase
-      .from("slack_reactions")
+      .from("bronze.slack_reactions")
       .upsert(
         reactions.map(r => ({ ...r, imported_at: importTimestamp })),
         { onConflict: "channel_id,message_ts,reaction,user_id" }

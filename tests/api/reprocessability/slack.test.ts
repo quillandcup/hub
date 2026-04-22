@@ -20,9 +20,9 @@ describe('Slack Reprocessability', () => {
 
   beforeAll(async () => {
     // Clean up any existing test data
-    await supabase.from('slack_users').delete().eq('user_id', testSlackUserId)
-    await supabase.from('slack_messages').delete().like('message_ts', 'TEST_%')
-    await supabase.from('slack_reactions').delete().like('message_ts', 'TEST_%')
+    await supabase.from('bronze.slack_users').delete().eq('user_id', testSlackUserId)
+    await supabase.from('bronze.slack_messages').delete().like('message_ts', 'TEST_%')
+    await supabase.from('bronze.slack_reactions').delete().like('message_ts', 'TEST_%')
     await supabase
       .from('member_activities')
       .delete()
@@ -60,9 +60,9 @@ describe('Slack Reprocessability', () => {
 
   afterAll(async () => {
     // Clean up test data
-    await supabase.from('slack_users').delete().eq('user_id', testSlackUserId)
-    await supabase.from('slack_messages').delete().like('message_ts', 'TEST_%')
-    await supabase.from('slack_reactions').delete().like('message_ts', 'TEST_%')
+    await supabase.from('bronze.slack_users').delete().eq('user_id', testSlackUserId)
+    await supabase.from('bronze.slack_messages').delete().like('message_ts', 'TEST_%')
+    await supabase.from('bronze.slack_reactions').delete().like('message_ts', 'TEST_%')
     await supabase
       .from('member_activities')
       .delete()

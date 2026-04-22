@@ -69,13 +69,13 @@ describe('Attendance Reprocessability', () => {
       .gt('end_time', `${testDateRange.from}T00:00:00Z`)
 
     await supabase
-      .from('zoom_attendees')
+      .from('bronze.zoom_attendees')
       .delete()
       .lt('join_time', '2099-06-01T00:00:00Z')
       .gt('leave_time', `${testDateRange.from}T00:00:00Z`)
 
     await supabase
-      .from('zoom_meetings')
+      .from('bronze.zoom_meetings')
       .delete()
       .lt('start_time', '2099-06-01T00:00:00Z')
       .gt('end_time', `${testDateRange.from}T00:00:00Z`)
@@ -90,14 +90,14 @@ describe('Attendance Reprocessability', () => {
       .eq('source', 'zoom')
       .lt('start_time', '2099-06-01T00:00:00Z')
       .gt('end_time', `${testDateRange.from}T00:00:00Z`)
-    await supabase.from('zoom_attendees').delete().ilike('meeting_uuid', 'test-meeting-%')
-    await supabase.from('zoom_meetings').delete().ilike('uuid', 'test-meeting-%')
+    await supabase.from('bronze.zoom_attendees').delete().ilike('meeting_uuid', 'test-meeting-%')
+    await supabase.from('bronze.zoom_meetings').delete().ilike('uuid', 'test-meeting-%')
     await supabase.from('members').delete().eq('id', testMemberId)
   })
 
   it('should create attendance records from Zoom data on first process', async () => {
     // ARRANGE: Insert Bronze Zoom data
-    await supabase.from('zoom_meetings').insert({
+    await supabase.from('bronze.zoom_meetings').insert({
       uuid: testMeetingUuid,
       topic: 'Test Meeting',
       start_time: '2099-05-15T10:00:00Z',
@@ -105,7 +105,7 @@ describe('Attendance Reprocessability', () => {
       duration: 60,
     })
 
-    await supabase.from('zoom_attendees').insert({
+    await supabase.from('bronze.zoom_attendees').insert({
       meeting_uuid: testMeetingUuid,
       name: 'Reprocess Test Member',
       email: null, // Will match by name
@@ -173,7 +173,7 @@ describe('Attendance Reprocessability', () => {
     // ARRANGE: Create a PUP by having a Zoom meeting without calendar match
     const pupMeetingUuid = `test-meeting-pup-${Date.now()}`
 
-    await supabase.from('zoom_meetings').insert({
+    await supabase.from('bronze.zoom_meetings').insert({
       uuid: pupMeetingUuid,
       topic: 'Unscheduled Writing',
       start_time: '2099-05-20T14:00:00Z',
@@ -181,7 +181,7 @@ describe('Attendance Reprocessability', () => {
       duration: 60,
     })
 
-    await supabase.from('zoom_attendees').insert({
+    await supabase.from('bronze.zoom_attendees').insert({
       meeting_uuid: pupMeetingUuid,
       name: 'Reprocess Test Member',
       email: null,
@@ -288,7 +288,7 @@ describe('Attendance Reprocessability', () => {
     // ARRANGE: Insert attendance outside the date range
     const juneMeetingUuid = `test-meeting-june-${Date.now()}`
 
-    await supabase.from('zoom_meetings').insert({
+    await supabase.from('bronze.zoom_meetings').insert({
       uuid: juneMeetingUuid,
       topic: 'June Meeting',
       start_time: '2099-06-01T10:00:00Z',
@@ -296,7 +296,7 @@ describe('Attendance Reprocessability', () => {
       duration: 60,
     })
 
-    await supabase.from('zoom_attendees').insert({
+    await supabase.from('bronze.zoom_attendees').insert({
       meeting_uuid: juneMeetingUuid,
       name: 'Reprocess Test Member',
       email: null,

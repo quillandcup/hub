@@ -45,7 +45,7 @@ export async function GET(request: NextRequest) {
     // Get unmatched Zoom attendees (names that appear in zoom_attendees but not in attendance)
     // First, get all distinct Zoom attendee names
     const { data: allZoomNames } = await supabase
-      .from("zoom_attendees")
+      .from("bronze.zoom_attendees")
       .select("name, email")
       .order("name");
 

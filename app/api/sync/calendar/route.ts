@@ -62,7 +62,7 @@ export async function POST(request: NextRequest) {
 
     while (hasMore) {
       const { data } = await supabase
-        .from("calendar_events")
+        .from("bronze.calendar_events")
         .select("id, google_event_id, summary, start_time, end_time")
         .gte("start_time", timeMin)
         .lte("end_time", timeMax)
@@ -141,7 +141,7 @@ export async function POST(request: NextRequest) {
     // Batch insert new events (use UPSERT to handle race conditions)
     if (eventsToInsert.length > 0) {
       const { error: insertError } = await supabase
-        .from("calendar_events")
+        .from("bronze.calendar_events")
         .upsert(eventsToInsert, {
           onConflict: 'google_event_id',
           ignoreDuplicates: false, // Update if exists
@@ -162,7 +162,7 @@ export async function POST(request: NextRequest) {
     if (events.length > 0) {
       const googleEventIds = events.map(e => e.id);
       const { error: touchError } = await supabase
-        .from("calendar_events")
+        .from("bronze.calendar_events")
         .update({ imported_at: new Date().toISOString() })
         .in("google_event_id", googleEventIds);
 

@@ -22,12 +22,12 @@ export async function GET(request: NextRequest) {
       { data: ignoredUsers },
       { data: slackMessages },
     ] = await Promise.all([
-      supabase.from("slack_users").select("user_id, email, real_name, display_name, is_bot"),
+      supabase.from("bronze.slack_users").select("user_id, email, real_name, display_name, is_bot"),
       supabase.from("members").select("id, name, email"),
       supabase.from("member_name_aliases").select("alias, member_id, source"),
       supabase.from("ignored_slack_users").select("user_id"),
       // Get message counts per user for activity level
-      supabase.from("slack_messages").select("user_id"),
+      supabase.from("bronze.slack_messages").select("user_id"),
     ]);
 
     // Match users

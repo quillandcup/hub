@@ -23,7 +23,7 @@ export default async function AliasSearchPage() {
       .from("ignored_zoom_names")
       .select("zoom_name"),
     supabase
-      .from("zoom_attendees")
+      .from("bronze.zoom_attendees")
       .select("name, email, meeting_uuid")
       .order("name"),
   ]);

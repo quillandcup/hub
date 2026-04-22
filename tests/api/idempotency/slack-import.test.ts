@@ -23,18 +23,18 @@ describe('Slack Import Idempotency', () => {
 
   beforeAll(async () => {
     // Clean up any existing test data
-    await supabase.from('slack_reactions').delete().like('channel_id', 'TEST_CHANNEL_%')
-    await supabase.from('slack_messages').delete().like('channel_id', 'TEST_CHANNEL_%')
-    await supabase.from('slack_channels').delete().like('channel_id', 'TEST_CHANNEL_%')
-    await supabase.from('slack_users').delete().like('user_id', 'TEST_USER_%')
+    await supabase.from('bronze.slack_reactions').delete().like('channel_id', 'TEST_CHANNEL_%')
+    await supabase.from('bronze.slack_messages').delete().like('channel_id', 'TEST_CHANNEL_%')
+    await supabase.from('bronze.slack_channels').delete().like('channel_id', 'TEST_CHANNEL_%')
+    await supabase.from('bronze.slack_users').delete().like('user_id', 'TEST_USER_%')
   })
 
   afterAll(async () => {
     // Clean up test data
-    await supabase.from('slack_reactions').delete().like('channel_id', 'TEST_CHANNEL_%')
-    await supabase.from('slack_messages').delete().like('channel_id', 'TEST_CHANNEL_%')
-    await supabase.from('slack_channels').delete().like('channel_id', 'TEST_CHANNEL_%')
-    await supabase.from('slack_users').delete().like('user_id', 'TEST_USER_%')
+    await supabase.from('bronze.slack_reactions').delete().like('channel_id', 'TEST_CHANNEL_%')
+    await supabase.from('bronze.slack_messages').delete().like('channel_id', 'TEST_CHANNEL_%')
+    await supabase.from('bronze.slack_channels').delete().like('channel_id', 'TEST_CHANNEL_%')
+    await supabase.from('bronze.slack_users').delete().like('user_id', 'TEST_USER_%')
   })
 
   // Helper to convert array of objects to CSV format
