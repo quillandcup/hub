@@ -222,36 +222,6 @@ export async function POST(request: NextRequest) {
 
     console.log(`Date normalization: from ${fromDate} -> ${fromDateTime}, to ${toDate} -> ${toDateTime}`);
 
-    // CRITICAL: Delete existing Silver data FIRST, before checking if Bronze data exists
-    // This ensures we remove orphaned Silver records when Bronze is deleted
-    // (DELETE + INSERT pattern for reprocessability)
-
-    // Delete existing attendance records that overlap this date range
-    await supabase
-      .from("prickle_attendance")
-      .delete()
-      .lt("join_time", toDateTime)
-      .gt("leave_time", fromDateTime);
-
-    // Delete existing Pop-Up Prickles that overlap this date range
-    // First query to see what will be deleted (for logging)
-    const { data: pupsToDelete } = await supabase
-      .from("prickles")
-      .select("id, start_time, end_time, zoom_meeting_uuid")
-      .eq("source", "zoom")
-      .lt("start_time", toDateTime)
-      .gt("end_time", fromDateTime);
-
-    console.log(`Deleted ${pupsToDelete?.length || 0} PUPs in range ${fromDateTime} to ${toDateTime}`, pupsToDelete?.map(p => ({ uuid: p.zoom_meeting_uuid, start: p.start_time, end: p.end_time })));
-
-    // Now delete them
-    await supabase
-      .from("prickles")
-      .delete()
-      .eq("source", "zoom")
-      .lt("start_time", toDateTime)
-      .gt("end_time", fromDateTime);
-
     // Get all zoom attendees that overlap the date range
     // Use overlap logic (start < rangeEnd AND end > rangeStart) to catch attendees
     // whose sessions span across date boundaries
@@ -384,8 +354,11 @@ export async function POST(request: NextRequest) {
       segmentsByMeeting.set(meetingUuid, segments);
     }
 
-    // STEP 3: Create prickles for PUP segments
+    // STEP 3: Prepare PUP data (assign client-side temp IDs instead of creating them now)
+    // We'll create them atomically with attendance later
     const prickleIdsBySegment = new Map<any, string>();
+    const pupsToCreate: any[] = [];
+    let clientPupIdCounter = 0;
 
     for (const segments of segmentsByMeeting.values()) {
       for (const segment of segments) {
@@ -402,26 +375,21 @@ export async function POST(request: NextRequest) {
             continue;
           }
 
-          // Create PUP
-          const { data: newPrickle, error: prickleError } = await supabase
-            .from("prickles")
-            .insert({
-              type_id: segment.type_id,
-              host: null, // PUPs have no host
-              start_time: segment.start_time,
-              end_time: segment.end_time,
-              source: "zoom",
-              zoom_meeting_uuid: segment.zoom_meeting_uuid,
-            })
-            .select("id")
-            .single();
+          // Assign a client-side temp ID for this PUP
+          const clientPupId = `pup_${clientPupIdCounter++}`;
+          prickleIdsBySegment.set(segment, clientPupId);
 
-          if (prickleError || !newPrickle) {
-            console.error("Error creating PUP segment:", prickleError);
-            continue;
-          }
+          // Add to PUPs to create atomically later
+          pupsToCreate.push({
+            client_prickle_id: clientPupId,
+            type_id: segment.type_id,
+            host: null, // PUPs have no host
+            start_time: segment.start_time,
+            end_time: segment.end_time,
+            source: "zoom",
+            zoom_meeting_uuid: segment.zoom_meeting_uuid,
+          });
 
-          prickleIdsBySegment.set(segment, newPrickle.id);
           createdNewPrickles++;
         }
       }
@@ -504,10 +472,12 @@ export async function POST(request: NextRequest) {
           return true;
         });
 
-        // Collect attendance records for batch upsert
+        // Collect attendance records for atomic insert
+        // For calendar segments: prickle_id is a real UUID
+        // For PUP segments: client_prickle_id is a temp ID (will be resolved by atomic function)
         for (const item of filteredIntersections) {
-          const prickleId = prickleIdsBySegment.get(item.segment);
-          if (!prickleId) {
+          const prickleIdOrClientId = prickleIdsBySegment.get(item.segment);
+          if (!prickleIdOrClientId) {
             segmentLookupFailures++;
             console.error(`Failed to find prickle ID for segment:`, {
               segmentType: item.segment.type,
@@ -518,47 +488,48 @@ export async function POST(request: NextRequest) {
             continue;
           }
 
-          attendanceToUpsert.push({
+          // Determine if this is a calendar prickle (UUID) or PUP (temp ID)
+          const isCalendarPrickle = item.segment.type === "calendar";
+          const attendanceRecord: any = {
             member_id: match.member_id,
-            prickle_id: prickleId,
             join_time: item.intersection.start.toISOString(),
             leave_time: item.intersection.end.toISOString(),
             confidence_score: match.confidence,
-          });
+          };
+
+          if (isCalendarPrickle) {
+            attendanceRecord.prickle_id = prickleIdOrClientId; // Real UUID
+            attendanceRecord.client_prickle_id = null;
+          } else {
+            attendanceRecord.prickle_id = null;
+            attendanceRecord.client_prickle_id = prickleIdOrClientId; // Temp ID
+          }
+
+          attendanceToUpsert.push(attendanceRecord);
         }
       }
     }
 
     console.log(`Segment lookup failures: ${segmentLookupFailures}`);
-    console.log(`Collected ${attendanceToUpsert.length} attendance records to insert`);
+    console.log(`Collected ${attendanceToUpsert.length} attendance records and ${pupsToCreate.length} PUPs to insert atomically`);
 
-    // STEP 5: Batch insert all attendance records
-    // Note: We allow multiple records per (member_id, prickle_id) to track leave/rejoin patterns
-    if (attendanceToUpsert.length > 0) {
-      const CHUNK_SIZE = 500;
-      const chunks = chunk(attendanceToUpsert, CHUNK_SIZE);
-      console.log(`Inserting in ${chunks.length} chunks of ${CHUNK_SIZE}`);
+    // STEP 5: Atomically reprocess attendance and PUPs using database function
+    // This ensures DELETE + INSERT happens in a single transaction,
+    // preventing users from seeing partial state during reprocessing
+    const { error: reprocessError } = await supabase.rpc('reprocess_prickle_attendance_atomic', {
+      from_date: fromDateTime,
+      to_date: toDateTime,
+      new_pup_data: pupsToCreate,
+      new_attendance_data: attendanceToUpsert,
+    });
 
-      const results = await Promise.all(
-        chunks.map((batch, i) =>
-          supabase.from("prickle_attendance").insert(batch).then(result => {
-            if (result.error) {
-              console.error(`Error upserting chunk ${i}:`, result.error);
-            }
-            return result;
-          })
-        )
-      );
-
-      // Count successful upserts
-      results.forEach((result, i) => {
-        if (!result.error) {
-          attendanceRecords += chunks[i].length;
-        }
-      });
-
-      console.log(`Successfully upserted ${attendanceRecords} attendance records`);
+    if (reprocessError) {
+      console.error("Error atomically reprocessing attendance:", reprocessError);
+      throw reprocessError;
     }
+
+    attendanceRecords = attendanceToUpsert.length;
+    console.log(`Successfully reprocessed ${attendanceRecords} attendance records and ${pupsToCreate.length} PUPs`);
 
     return NextResponse.json({
       success: true,
