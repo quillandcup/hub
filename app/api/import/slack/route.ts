@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { triggerReprocessing } from "@/lib/processing/trigger";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(request: NextRequest) {
@@ -102,6 +103,17 @@ export async function POST(request: NextRequest) {
           toDate: dates[dates.length - 1].split('T')[0], // Last message date (YYYY-MM-DD)
         };
       }
+    }
+
+    // Auto-trigger Slack processing if we have a date range
+    if (dateRange) {
+      console.log(`Triggering Slack processing for date range: ${dateRange.fromDate} to ${dateRange.toDate}`);
+      await triggerReprocessing('slack_messages', 'bronze', {
+        dateRange: {
+          from: new Date(dateRange.fromDate),
+          to: new Date(dateRange.toDate + 'T23:59:59Z')
+        }
+      });
     }
 
     return NextResponse.json({

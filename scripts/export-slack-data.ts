@@ -189,7 +189,7 @@ async function autoJoinPublicChannels(channels: any[]) {
     } catch (error: any) {
       if (error.data?.error === 'already_in_channel') {
         alreadyMember++;
-        // Don't log as joined - we're already in
+        // Silently count - we're already in the channel
       } else {
         console.warn(`  ⚠ Could not join #${channel.name}: ${error.data?.error || error.message}`);
         failed++;
@@ -197,7 +197,15 @@ async function autoJoinPublicChannels(channels: any[]) {
     }
   }
 
-  console.log(`  Joined ${joined} new channels, already member of ${alreadyMember}, ${failed} failed`);
+  if (joined > 0) {
+    console.log(`  Joined ${joined} new channels`);
+  }
+  if (alreadyMember > 0) {
+    console.log(`  Already member of ${alreadyMember} channels`);
+  }
+  if (failed > 0) {
+    console.log(`  Failed to join ${failed} channels`);
+  }
 }
 
 async function fetchChannelHistory(

@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { triggerReprocessing } from "@/lib/processing/trigger";
 import { NextRequest, NextResponse } from "next/server";
 
 /**
@@ -89,12 +90,15 @@ export async function POST(request: NextRequest) {
       return acc;
     }, {});
 
+    // Auto-trigger hiatus processing
+    console.log('Triggering hiatus processing from subscription_history import');
+    await triggerReprocessing('subscription_history', 'bronze');
+
     return NextResponse.json({
       success: true,
       imported: inserted?.length || 0,
       importTimestamp,
       statusBreakdown,
-      message: "Imported to subscription_history. Run /api/process/hiatus to detect hiatus periods.",
     });
   } catch (error: any) {
     console.error("Error importing subscriptions:", error);

@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { triggerReprocessing } from "@/lib/processing/trigger";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(request: NextRequest) {
@@ -41,7 +42,8 @@ export async function POST(request: NextRequest) {
     // Insert into kajabi_members (Bronze - raw data only)
     const importTimestamp = new Date().toISOString();
     const { error: kajabiError } = await supabase
-      .from("bronze.kajabi_members")
+      .schema('bronze')
+      .from("kajabi_members")
       .insert(
         rawData.map((row) => ({
           email: row.email.toLowerCase(),
@@ -55,11 +57,14 @@ export async function POST(request: NextRequest) {
       throw kajabiError;
     }
 
+    // Auto-trigger member processing
+    console.log('Triggering member processing from kajabi_members import');
+    await triggerReprocessing('kajabi_members', 'bronze');
+
     return NextResponse.json({
       success: true,
       imported: rawData.length,
       importTimestamp,
-      message: "Imported to kajabi_members. Run /api/process/members to populate members table.",
     });
   } catch (error: any) {
     console.error("Error importing members:", error);
