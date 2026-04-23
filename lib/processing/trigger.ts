@@ -41,6 +41,9 @@ export const SILVER_DEPENDENCIES: Record<string, TableDependencies> = {
 
 /**
  * Find which Silver tables are affected by a Bronze/Local table change
+ *
+ * IMPORTANT: Silver dependencies are processing order constraints, NOT change propagation.
+ * Only Bronze/Local dependencies trigger reprocessing.
  */
 export function getAffectedSilverTables(
   changedTable: string,
@@ -54,14 +57,9 @@ export function getAffectedSilverTables(
     }
   }
 
-  // Also include tables that depend on affected tables (transitive)
-  const allAffected = new Set(affected);
-  for (const table of affected) {
-    const downstream = getDownstreamSilverTables(table);
-    downstream.forEach(t => allAffected.add(t));
-  }
-
-  return Array.from(allAffected);
+  // Do NOT propagate to downstream Silver tables
+  // Silver dependencies are for ordering, not change propagation
+  return affected;
 }
 
 function getDownstreamSilverTables(silverTable: string): string[] {
