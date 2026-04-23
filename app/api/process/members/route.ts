@@ -262,46 +262,23 @@ export async function POST(request: NextRequest) {
 
     console.log(`Combined sources: ${kajabiMembers.length} Kajabi + ${processedStaffMembers.length} staff = ${allMembers.length} unique members`);
 
-    // STEP 5: DELETE all existing members (for reprocessability)
-    // This makes the process fully reprocessable - we regenerate Silver from Bronze
-    console.log("Deleting all existing members and orphaned aliases");
+    // STEP 5: Atomically reprocess members using database function
+    // This ensures DELETE + INSERT happens in a single transaction,
+    // preventing users from seeing partial state during reprocessing
+    console.log("Atomically reprocessing all members");
 
-    // First, delete all member_name_aliases (they reference member_id which will change)
-    const { error: deleteAliasesError } = await supabase
-      .from("member_name_aliases")
-      .delete()
-      .neq("id", "00000000-0000-0000-0000-000000000000");
+    const { error: reprocessError } = await supabase.rpc('reprocess_members_atomic', {
+      new_data: allMembers,
+    });
 
-    if (deleteAliasesError) {
-      console.error("Error deleting aliases:", deleteAliasesError);
-      throw deleteAliasesError;
-    }
-
-    // Then delete members (this will generate new UUIDs on INSERT)
-    const { error: deleteError } = await supabase
-      .from("members")
-      .delete()
-      .neq("id", "00000000-0000-0000-0000-000000000000");
-
-    if (deleteError) {
-      console.error("Error deleting existing members:", deleteError);
-      throw deleteError;
-    }
-
-    // STEP 6: INSERT fresh members from both Bronze sources
-    const { data, error } = await supabase
-      .from("members")
-      .insert(allMembers)
-      .select();
-
-    if (error) {
-      console.error("Error inserting members:", error);
-      throw error;
+    if (reprocessError) {
+      console.error("Error atomically reprocessing members:", reprocessError);
+      throw reprocessError;
     }
 
     return NextResponse.json({
       success: true,
-      processed: data?.length || 0,
+      processed: allMembers.length,
       sourceBreakdown: {
         kajabi: kajabiMembers.length,
         staff: processedStaffMembers.length,
