@@ -9,9 +9,6 @@ export default function CalendarImportForm() {
   const [calendarId, setCalendarId] = useState("");
   const [importing, setImporting] = useState(false);
   const [result, setResult] = useState<any>(null);
-  const [processLoading, setProcessLoading] = useState(false);
-  const [processResult, setProcessResult] = useState<any>(null);
-  const [processError, setProcessError] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -40,29 +37,6 @@ export default function CalendarImportForm() {
     }
   };
 
-  const handleProcess = async () => {
-    setProcessLoading(true);
-    setProcessError(null);
-    setProcessResult(null);
-
-    try {
-      const response = await fetch("/api/process/calendar", {
-        method: "POST",
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to process calendar");
-      }
-
-      setProcessResult(data);
-    } catch (err: any) {
-      setProcessError(err.message);
-    } finally {
-      setProcessLoading(false);
-    }
-  };
 
   return (
     <div className="bg-white dark:bg-slate-900 rounded-lg shadow p-6">
@@ -119,24 +93,13 @@ export default function CalendarImportForm() {
           </div>
         </div>
 
-        <div className="flex gap-3">
-          <button
-            type="submit"
-            disabled={importing}
-            className="flex-1 px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-semibold rounded-lg transition-colors"
-          >
-            {importing ? "Importing..." : "1. Import Events"}
-          </button>
-
-          <button
-            type="button"
-            onClick={handleProcess}
-            disabled={processLoading}
-            className="flex-1 px-6 py-3 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white font-semibold rounded-lg transition-colors"
-          >
-            {processLoading ? "Processing..." : "2. Process Calendar"}
-          </button>
-        </div>
+        <button
+          type="submit"
+          disabled={importing}
+          className="w-full px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-semibold rounded-lg transition-colors"
+        >
+          {importing ? "Importing..." : "Import Calendar Events"}
+        </button>
       </form>
 
       {/* Import Results */}
@@ -152,7 +115,7 @@ export default function CalendarImportForm() {
             <p className="text-red-800 dark:text-red-200">{result.error}</p>
           ) : (
             <div className="text-blue-800 dark:text-blue-200">
-              <p className="font-semibold mb-2">✓ Import Successful!</p>
+              <p className="font-semibold mb-2">✓ Import Successful (auto-processing in background)!</p>
               <ul className="text-sm space-y-1">
                 <li>Total events found: {result.total || 0}</li>
                 <li>Imported (new): {result.imported || 0}</li>
@@ -161,34 +124,6 @@ export default function CalendarImportForm() {
               </ul>
             </div>
           )}
-        </div>
-      )}
-
-      {/* Process Error */}
-      {processError && (
-        <div className="mt-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-          <p className="text-sm text-red-800 dark:text-red-200 font-semibold">Processing Error:</p>
-          <p className="text-sm text-red-700 dark:text-red-300">{processError}</p>
-        </div>
-      )}
-
-      {/* Process Results */}
-      {processResult && (
-        <div className="mt-4 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
-          <p className="font-semibold text-green-800 dark:text-green-200 mb-2">
-            ✓ Successfully processed calendar events
-          </p>
-          <div className="text-sm text-green-700 dark:text-green-300 space-y-1">
-            <p>• Calendar events: {processResult.eventsProcessed || 0}</p>
-            <p>• Prickles created: {processResult.pricklesCreated || 0}</p>
-            {(processResult.autoResolved || 0) > 0 && (
-              <p className="ml-4">↳ Auto-resolved: {processResult.autoResolved}</p>
-            )}
-            <p>• Unmatched: {processResult.skippedNoMatch || 0}</p>
-            {(processResult.ignored || 0) > 0 && (
-              <p>• Ignored: {processResult.ignored}</p>
-            )}
-          </div>
         </div>
       )}
 

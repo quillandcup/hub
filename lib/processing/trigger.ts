@@ -29,20 +29,20 @@ export const SILVER_DEPENDENCIES: Record<string, TableDependencies> = {
     processingScope: 'full'  // Process all subscription history snapshots
   },
 
-  prickles: {
-    bronze: ['calendar_events', 'zoom_meetings'],
+  calendar: {
+    bronze: ['calendar_events'],
     local: ['prickle_types'],
     silver: [],
     processingScope: 'date-range',
-    dateField: 'prickle_date'
+    dateField: 'start_time'
   },
 
   attendance: {
     bronze: ['zoom_attendees'],
     local: ['member_name_aliases', 'ignored_zoom_names'],
-    silver: ['members', 'prickles'],  // Must process members and prickles first
+    silver: ['members', 'calendar'],  // Must process members and calendar prickles first
     processingScope: 'date-range',
-    dateField: 'prickle_date'
+    dateField: 'join_time'
   }
 };
 

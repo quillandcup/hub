@@ -65,8 +65,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Auto-trigger prickles reprocessing (last 90 days)
-    console.log('Triggering prickles reprocessing from prickle_types change');
+    // Auto-trigger calendar prickles reprocessing (last 90 days)
+    console.log('Triggering calendar reprocessing from prickle_types change');
     await triggerReprocessing('prickle_types', 'local');
 
     return NextResponse.json({
