@@ -57,14 +57,15 @@ export async function POST(request: NextRequest) {
       throw kajabiError;
     }
 
-    // Auto-trigger member processing
+    // Auto-trigger member processing (wait for completion)
     console.log('Triggering member processing from kajabi_members import');
-    await triggerReprocessing('kajabi_members', 'bronze');
+    const processingResults = await triggerReprocessing('kajabi_members', 'bronze');
 
     return NextResponse.json({
       success: true,
       imported: rawData.length,
       importTimestamp,
+      processing: processingResults.processed,
     });
   } catch (error: any) {
     console.error("Error importing members:", error);

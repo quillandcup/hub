@@ -159,7 +159,7 @@ export default function SlackImportForm() {
       {result && (
         <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
           <p className="text-sm text-blue-800 dark:text-blue-200 font-semibold mb-2">
-            ✓ Import Successful (auto-processing in background)
+            ✓ Slack Import & Processing Complete
           </p>
           <div className="text-sm text-blue-700 dark:text-blue-300 space-y-1">
             <p>• {result.imported?.users || 0} users</p>
@@ -171,6 +171,17 @@ export default function SlackImportForm() {
             <p className="mt-3 text-sm text-blue-700 dark:text-blue-300">
               📅 Detected date range: {result.dateRange.fromDate} to {result.dateRange.toDate}
             </p>
+          )}
+          {result.processing && result.processing.length > 0 && (
+            <div className="mt-3 pl-4 border-l-2 border-blue-300 dark:border-blue-700">
+              <p className="font-semibold text-blue-800 dark:text-blue-200">Processed to Silver:</p>
+              {result.processing.map((p: any, i: number) => (
+                <p key={i} className="text-sm text-blue-700 dark:text-blue-300">
+                  • {p.table}: {p.success ? '✓' : '✗'}
+                  {p.processed?.total_activities !== undefined && ` (${p.processed.total_activities} activities)`}
+                </p>
+              ))}
+            </div>
           )}
         </div>
       )}

@@ -105,10 +105,11 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Auto-trigger Slack processing if we have a date range
+    // Auto-trigger Slack processing if we have a date range (wait for completion)
+    let processingResults = null;
     if (dateRange) {
       console.log(`Triggering Slack processing for date range: ${dateRange.fromDate} to ${dateRange.toDate}`);
-      await triggerReprocessing('slack_messages', 'bronze', {
+      processingResults = await triggerReprocessing('slack_messages', 'bronze', {
         dateRange: {
           from: new Date(dateRange.fromDate),
           to: new Date(dateRange.toDate + 'T23:59:59Z')
@@ -126,6 +127,7 @@ export async function POST(request: NextRequest) {
       },
       importTimestamp,
       dateRange,
+      processing: processingResults?.processed || [],
     });
   } catch (error: any) {
     console.error("Error importing Slack data:", error);

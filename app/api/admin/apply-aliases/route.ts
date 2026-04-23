@@ -97,10 +97,11 @@ export async function POST(request: NextRequest) {
       created++;
     }
 
-    // Auto-trigger attendance reprocessing if any aliases were created (last 90 days)
+    // Auto-trigger attendance reprocessing if any aliases were created (wait for completion)
+    let processingResults = null;
     if (created > 0) {
       console.log(`Triggering attendance reprocessing from ${created} member_name_aliases changes`);
-      await triggerReprocessing('member_name_aliases', 'local');
+      processingResults = await triggerReprocessing('member_name_aliases', 'local');
     }
 
     return NextResponse.json({
@@ -110,6 +111,7 @@ export async function POST(request: NextRequest) {
       skipped,
       errors,
       messages,
+      processing: processingResults?.processed || [],
     });
   } catch (error: any) {
     console.error("Error applying aliases:", error);

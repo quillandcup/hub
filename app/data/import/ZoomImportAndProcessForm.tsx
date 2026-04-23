@@ -97,8 +97,22 @@ export default function ZoomImportAndProcessForm() {
       {importResult && (
         <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
           <p className="text-sm text-blue-800 dark:text-blue-200 font-semibold mb-2">
-            ✓ Imported {importResult.meetings} meetings with {importResult.totalAttendees} total attendees (auto-processing in background)
+            ✓ Zoom Import & Processing Complete
           </p>
+          <div className="text-sm text-blue-700 dark:text-blue-300 space-y-1">
+            <p>• Imported {importResult.meetings} meetings with {importResult.totalAttendees} total attendees to Bronze</p>
+            {importResult.reprocessing && (
+              <div className="mt-2 pl-4 border-l-2 border-blue-300 dark:border-blue-700">
+                <p className="font-semibold text-blue-800 dark:text-blue-200">Processed to Silver:</p>
+                {importResult.reprocessing.zoom_attendees?.processed?.map((p: any, i: number) => (
+                  <p key={`attendees-${i}`}>
+                    • {p.table}: {p.success ? '✓' : '✗'}
+                    {p.attendanceRecords !== undefined && ` (${p.attendanceRecords} attendance records)`}
+                  </p>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>

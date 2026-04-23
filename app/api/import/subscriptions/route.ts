@@ -90,15 +90,16 @@ export async function POST(request: NextRequest) {
       return acc;
     }, {});
 
-    // Auto-trigger hiatus processing
+    // Auto-trigger hiatus processing (wait for completion)
     console.log('Triggering hiatus processing from subscription_history import');
-    await triggerReprocessing('subscription_history', 'bronze');
+    const processingResults = await triggerReprocessing('subscription_history', 'bronze');
 
     return NextResponse.json({
       success: true,
       imported: inserted?.length || 0,
       importTimestamp,
       statusBreakdown,
+      processing: processingResults.processed,
     });
   } catch (error: any) {
     console.error("Error importing subscriptions:", error);

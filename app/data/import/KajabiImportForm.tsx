@@ -143,27 +143,49 @@ export default function KajabiImportForm() {
           {result.members && (
             <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
               <p className="text-sm text-blue-800 dark:text-blue-200 font-semibold mb-2">
-                ✓ Members Import Successful
+                ✓ Members Import & Processing Complete
               </p>
-              <p className="text-sm text-blue-700 dark:text-blue-300">
-                Imported {result.members.imported} members (auto-processing in background)
-              </p>
+              <div className="text-sm text-blue-700 dark:text-blue-300 space-y-1">
+                <p>• Imported {result.members.imported} members to Bronze</p>
+                {result.members.processing && result.members.processing.length > 0 && (
+                  <div className="mt-2 pl-4 border-l-2 border-blue-300 dark:border-blue-700">
+                    <p className="font-semibold">Processed to Silver:</p>
+                    {result.members.processing.map((p: any, i: number) => (
+                      <p key={i}>
+                        • {p.table}: {p.success ? '✓' : '✗'}
+                        {p.processed !== undefined && ` (${p.processed} records)`}
+                      </p>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
           {result.subscriptions && (
             <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
               <p className="text-sm text-blue-800 dark:text-blue-200 font-semibold mb-2">
-                ✓ Subscriptions Import Successful
+                ✓ Subscriptions Import & Processing Complete
               </p>
               <div className="text-sm text-blue-700 dark:text-blue-300 space-y-1">
-                <p>• Imported {result.subscriptions.imported} subscription records (auto-processing in background)</p>
+                <p>• Imported {result.subscriptions.imported} subscription records to Bronze</p>
                 <p>• Import timestamp: {new Date(result.subscriptions.importTimestamp).toLocaleString()}</p>
                 {result.subscriptions.statusBreakdown && (
                   <div className="mt-2">
                     <p className="font-semibold">Status Breakdown:</p>
                     {Object.entries(result.subscriptions.statusBreakdown).map(([status, count]) => (
                       <p key={status}>• {status}: {count as number}</p>
+                    ))}
+                  </div>
+                )}
+                {result.subscriptions.processing && result.subscriptions.processing.length > 0 && (
+                  <div className="mt-2 pl-4 border-l-2 border-blue-300 dark:border-blue-700">
+                    <p className="font-semibold">Processed to Silver:</p>
+                    {result.subscriptions.processing.map((p: any, i: number) => (
+                      <p key={i}>
+                        • {p.table}: {p.success ? '✓' : '✗'}
+                        {p.detectedPeriods !== undefined && ` (${p.detectedPeriods} hiatus periods detected)`}
+                      </p>
                     ))}
                   </div>
                 )}
