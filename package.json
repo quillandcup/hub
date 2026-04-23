@@ -10,7 +10,8 @@
     "test": "vitest",
     "test:ui": "vitest --ui",
     "test:run": "vitest run",
-    "export:slack": "NODE_OPTIONS='--dns-result-order=ipv4first' tsx scripts/export-slack-data.ts"
+    "export:slack": "NODE_OPTIONS='--dns-result-order=ipv4first' tsx scripts/export-slack-data.ts",
+    "env:sync": "./scripts/sync-to-vercel.sh"
   },
   "dependencies": {
     "@slack/web-api": "^7.15.0",
@@ -29,6 +30,7 @@
     "remark-gfm": "^4.0.1"
   },
   "devDependencies": {
+    "@types/json2csv": "^5.0.7",
     "@types/node": "^22.19.17",
     "@types/react": "^19",
     "@types/react-dom": "^19",
