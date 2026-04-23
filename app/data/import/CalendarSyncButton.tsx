@@ -59,13 +59,24 @@ export default function CalendarSyncButton() {
             <p>{syncResult.error}</p>
           ) : (
             <div>
-              <p className="font-semibold mb-1">✓ Sync Complete (auto-processing in background)</p>
+              <p className="font-semibold mb-1">✓ Calendar Sync & Processing Complete</p>
               <ul className="text-xs space-y-0.5">
                 <li>Total: {syncResult.total || 0}</li>
                 <li>New: {syncResult.imported || 0}</li>
                 <li>Updated: {syncResult.updated || 0}</li>
                 <li>Unchanged: {syncResult.skipped || 0}</li>
               </ul>
+              {syncResult.processing?.processed && syncResult.processing.processed.length > 0 && (
+                <div className="mt-2 pl-3 border-l-2 border-blue-300">
+                  <p className="font-semibold">Processed to Silver:</p>
+                  {syncResult.processing.processed.map((p: any, i: number) => (
+                    <p key={i} className="text-xs">
+                      • {p.table}: {p.success ? '✓' : '✗'}
+                      {p.pricklesCreated !== undefined && ` (${p.pricklesCreated} prickles)`}
+                    </p>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>

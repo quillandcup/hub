@@ -115,13 +115,24 @@ export default function CalendarImportForm() {
             <p className="text-red-800 dark:text-red-200">{result.error}</p>
           ) : (
             <div className="text-blue-800 dark:text-blue-200">
-              <p className="font-semibold mb-2">✓ Import Successful (auto-processing in background)!</p>
+              <p className="font-semibold mb-2">✓ Calendar Import & Processing Complete</p>
               <ul className="text-sm space-y-1">
                 <li>Total events found: {result.total || 0}</li>
                 <li>Imported (new): {result.imported || 0}</li>
                 <li>Updated (changed): {result.updated || 0}</li>
                 <li>Skipped (unchanged/invalid): {result.skipped || 0}</li>
               </ul>
+              {result.processing?.processed && result.processing.processed.length > 0 && (
+                <div className="mt-3 pl-4 border-l-2 border-blue-300 dark:border-blue-700">
+                  <p className="font-semibold">Processed to Silver:</p>
+                  {result.processing.processed.map((p: any, i: number) => (
+                    <p key={i} className="text-sm">
+                      • {p.table}: {p.success ? '✓' : '✗'}
+                      {p.pricklesCreated !== undefined && ` (${p.pricklesCreated} prickles)`}
+                    </p>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>
