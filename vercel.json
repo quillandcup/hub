@@ -1,0 +1,17 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "crons": [
+    {
+      "path": "/api/reconcile/calendar",
+      "schedule": "0 2 * * *"
+    },
+    {
+      "path": "/api/reconcile/zoom",
+      "schedule": "30 2 * * *"
+    },
+    {
+      "path": "/api/reconcile/members",
+      "schedule": "0 3 * * *"
+    }
+  ]
+}
