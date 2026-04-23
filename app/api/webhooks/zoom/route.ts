@@ -130,7 +130,7 @@ async function processMeetingEvent(payload: any) {
     // Trigger Zoom import asynchronously
     // Use a slight delay (10 seconds) to ensure Zoom has finalized the meeting data
     setTimeout(() => {
-      fetch(`${baseUrl}/api/data/import/zoom`, {
+      fetch(`${baseUrl}/api/import/zoom`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -140,8 +140,6 @@ async function processMeetingEvent(payload: any) {
         body: JSON.stringify({
           fromDate,
           toDate,
-          // Only import this specific meeting to avoid processing all meetings
-          meetingId: meetingData.id,
         }),
       })
         .then((response) => {

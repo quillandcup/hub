@@ -94,7 +94,14 @@ export async function POST(request: NextRequest) {
  * Process Slack event and UPSERT to Bronze layer
  */
 async function processSlackEvent(event: any) {
-  const supabase = await createClient();
+  // Use service role client for webhooks (no user session)
+  const { createClient: createSupabaseClient } = await import('@supabase/supabase-js');
+  const supabase = createSupabaseClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { autoRefreshToken: false, persistSession: false } }
+  );
+
   const eventType = event.type;
 
   console.log(`Processing Slack event: ${eventType}`, {
