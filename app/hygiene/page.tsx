@@ -15,6 +15,7 @@ export default async function DataHygienePage() {
     { count: matchedCalendarEvents },
     { count: unmatchedCalendarEvents },
     { count: calendarPricklesWithHost },
+    { count: calendarPricklesMissingHost },
     { count: totalZoomAttendees },
     { count: totalMembers },
     { count: totalAliases },
@@ -26,7 +27,16 @@ export default async function DataHygienePage() {
     supabase.schema('bronze').from("calendar_events").select("*", { count: "exact", head: true }),
     supabase.from("prickles").select("*", { count: "exact", head: true }).eq("source", "calendar"),
     supabase.from("unmatched_calendar_events").select("*", { count: "exact", head: true }).eq("status", "pending"),
-    supabase.from("prickles").select("*", { count: "exact", head: true }).eq("source", "calendar").not("host", "is", null),
+    // Count prickles with hosts (only those that require hosts)
+    supabase.from("prickles").select("*, prickle_types!inner(requires_host)", { count: "exact", head: true })
+      .eq("source", "calendar")
+      .not("host", "is", null)
+      .eq("prickle_types.requires_host", true),
+    // Count prickles missing hosts (only those that require hosts)
+    supabase.from("prickles").select("*, prickle_types!inner(requires_host)", { count: "exact", head: true })
+      .eq("source", "calendar")
+      .is("host", null)
+      .eq("prickle_types.requires_host", true),
     supabase.schema('bronze').from("zoom_attendees").select("*", { count: "exact", head: true }),
     supabase.from("members").select("*", { count: "exact", head: true }),
     supabase.from("member_name_aliases").select("*", { count: "exact", head: true }),
@@ -65,8 +75,10 @@ export default async function DataHygienePage() {
     ? Math.round((matchedCalendarEvents / totalCalendarEvents) * 100)
     : 0;
 
-  const hostMatchRate = matchedCalendarEvents && calendarPricklesWithHost
-    ? Math.round((calendarPricklesWithHost / matchedCalendarEvents) * 100)
+  // Host match rate: % of prickles requiring hosts that have hosts
+  const totalRequiringHosts = (calendarPricklesWithHost || 0) + (calendarPricklesMissingHost || 0);
+  const hostMatchRate = totalRequiringHosts > 0
+    ? Math.round((calendarPricklesWithHost / totalRequiringHosts) * 100)
     : 0;
 
   // Calculate orphaned events (imported but never processed)
@@ -245,7 +257,10 @@ export default async function DataHygienePage() {
           </Link>
 
           {/* Host Assignment */}
-          <div className="block p-6 bg-white dark:bg-slate-900 rounded-lg shadow border border-slate-200 dark:border-slate-800">
+          <Link
+            href="/dashboard/data-health/missing-hosts"
+            className="block p-6 bg-white dark:bg-slate-900 rounded-lg shadow hover:shadow-lg transition-shadow border border-slate-200 dark:border-slate-800"
+          >
             <div className="flex items-center justify-between mb-2">
               <h3 className="text-sm font-medium text-slate-600 dark:text-slate-400">
                 Host Assignment
@@ -256,14 +271,14 @@ export default async function DataHygienePage() {
               {hostMatchRate}%
             </p>
             <p className="text-sm text-slate-600 dark:text-slate-400">
-              {calendarPricklesWithHost}/{matchedCalendarEvents} prickles with host
+              {calendarPricklesWithHost}/{totalRequiringHosts} prickles with host
             </p>
-            {(calendarPricklesWithHost || 0) < (matchedCalendarEvents || 0) && (
+            {calendarPricklesMissingHost && calendarPricklesMissingHost > 0 && (
               <p className="text-xs text-orange-600 dark:text-orange-400 mt-2">
-                {(matchedCalendarEvents || 0) - (calendarPricklesWithHost || 0)} prickles missing host
+                {calendarPricklesMissingHost} prickles missing host →
               </p>
             )}
-          </div>
+          </Link>
 
           {/* Zoom Attendees */}
           <Link
@@ -360,26 +375,25 @@ export default async function DataHygienePage() {
             </div>
           )}
 
-          {hostMatchRate < 70 && (matchedCalendarEvents || 0) > 0 && (
+          {hostMatchRate < 90 && totalRequiringHosts > 0 && (
             <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
               <div className="flex items-start gap-3">
                 <span className="text-xl">💡</span>
                 <div className="flex-1">
                   <h3 className="font-semibold text-blue-900 dark:text-blue-100 mb-1">
-                    Low host assignment rate detected
+                    Host assignment opportunities
                   </h3>
                   <p className="text-sm text-blue-800 dark:text-blue-200 mb-2">
-                    Many calendar prickles are missing host assignments. Reprocessing calendar
-                    events will attempt to match hosts from &quot;Prickle w/[Name]&quot; patterns
-                    using member aliases and name matching.
+                    Some prickles requiring hosts are missing assignments. Update calendar events
+                    with &quot;w/[Name]&quot; patterns or set default hosts for prickle types.
                   </p>
                   <p className="text-xs text-blue-700 dark:text-blue-300">
-                    Current rate: {hostMatchRate}% ({calendarPricklesWithHost}/{matchedCalendarEvents} with host).
-                    Go to{" "}
-                    <Link href="/data/import" className="underline hover:text-blue-500">
-                      Data Import
+                    Current rate: {hostMatchRate}% ({calendarPricklesWithHost}/{totalRequiringHosts} with host).
+                    Visit{" "}
+                    <Link href="/dashboard/data-health/missing-hosts" className="underline hover:text-blue-500">
+                      Missing Hosts
                     </Link>{" "}
-                    and click &quot;Process Calendar&quot; to improve host matching.
+                    to review and assign.
                   </p>
                 </div>
               </div>

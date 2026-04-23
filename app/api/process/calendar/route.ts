@@ -122,7 +122,7 @@ export async function POST(request: NextRequest) {
     ] = await Promise.all([
       supabase.from("members").select("id, name, email"),
       supabase.from("member_name_aliases").select("alias, member_id"),
-      supabase.from("prickle_types").select("id, name, normalized_name"),
+      supabase.from("prickle_types").select("id, name, normalized_name, default_host_id"),
       // Load previously resolved/ignored unmatched events to apply learned decisions
       supabase
         .from("unmatched_calendar_events")
@@ -182,22 +182,24 @@ export async function POST(request: NextRequest) {
       // Fall back to calendar organizer if no host extracted
       let suggestedHostName = extractedHostName || event.creator_name || event.organizer_name || null;
 
-      const hostNameToMatch = extractedHostName || event.organizer_name || event.creator_name;
-      // Only use organizer/creator email if we didn't extract a host from "w/Name" pattern
-      // Otherwise we'd match "Prickle w/Lili" to the calendar organizer instead of Lili
-      const hostEmailToMatch = extractedHostName ? null : (event.organizer_email || event.creator_email);
+      const hostNameToMatch = extractedHostName; // Only use host from "w/Name" pattern
+      // Never use creator/organizer email - they just manage the calendar, not host the events
+      const hostEmailToMatch = null;
 
       if (hostNameToMatch) {
         // Use centralized member matching logic
-        // Skip email matching if we extracted a host from "w/Name" pattern
-        // (otherwise "Prickle w/Lili" would match to calendar organizer email)
+        // Only match extracted host names (from "w/Name" pattern)
         const match = matchAttendeeToMember(
           hostNameToMatch,
           hostEmailToMatch,
           members || [],
           aliases || [],
-          !hostEmailToMatch // Skip email if null (extracted host case)
+          true // Skip email matching - we only have the name from event title
         );
+
+        if (!match && extractedHostName) {
+          console.log(`Failed to match host "${extractedHostName}" from event "${event.summary}"`);
+        }
 
         if (match) {
           hostId = match.member_id;
@@ -271,10 +273,13 @@ export async function POST(request: NextRequest) {
         (event.summary === matchedType.name ||
          event.summary === `${matchedType.name} Prickle`);
 
+      // Use default host if no host was extracted from "w/Name" pattern
+      const finalHostId = hostId || matchedType?.default_host_id || null;
+
       pricklesToInsert.push({
         type_id: typeId,
         title: isSameAsType ? null : event.summary, // NULL if just "{Type}" or "{Type} Prickle"
-        host: hostId,
+        host: finalHostId,
         start_time: event.start_time,
         end_time: event.end_time,
         source: "calendar",
