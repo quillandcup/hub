@@ -1,8 +1,12 @@
 #!/usr/bin/env ts-node
 
+import { config } from 'dotenv';
 import { WebClient } from '@slack/web-api';
 import { writeFileSync, mkdirSync } from 'fs';
 import { parse } from 'json2csv';
+
+// Load .env.local
+config({ path: '.env.local' });
 
 const SLACK_BOT_TOKEN = process.env.SLACK_BOT_TOKEN;
 
