@@ -16,10 +16,6 @@ export default function ZoomImportAndProcessForm() {
   const [importResult, setImportResult] = useState<any>(null);
   const [importError, setImportError] = useState<string | null>(null);
 
-  const [processLoading, setProcessLoading] = useState(false);
-  const [processResult, setProcessResult] = useState<any>(null);
-  const [processError, setProcessError] = useState<string | null>(null);
-
   const handleImport = async (e: React.FormEvent) => {
     e.preventDefault();
     setImportLoading(true);
@@ -46,34 +42,6 @@ export default function ZoomImportAndProcessForm() {
       setImportError(err.message || "An error occurred during import");
     } finally {
       setImportLoading(false);
-    }
-  };
-
-  const handleProcess = async () => {
-    setProcessLoading(true);
-    setProcessError(null);
-    setProcessResult(null);
-
-    try {
-      const response = await fetch("/api/process/attendance", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ fromDate, toDate }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to process attendance");
-      }
-
-      setProcessResult(data);
-    } catch (err: any) {
-      setProcessError(err.message);
-    } finally {
-      setProcessLoading(false);
     }
   };
 
@@ -110,24 +78,13 @@ export default function ZoomImportAndProcessForm() {
           </div>
         </div>
 
-        <div className="flex gap-3">
-          <button
-            type="submit"
-            disabled={importLoading}
-            className="flex-1 px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-semibold rounded-lg transition-colors"
-          >
-            {importLoading ? "Importing..." : "1. Import Zoom Data"}
-          </button>
-
-          <button
-            type="button"
-            onClick={handleProcess}
-            disabled={processLoading}
-            className="flex-1 px-6 py-3 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white font-semibold rounded-lg transition-colors"
-          >
-            {processLoading ? "Processing..." : "2. Process Attendance"}
-          </button>
-        </div>
+        <button
+          type="submit"
+          disabled={importLoading}
+          className="w-full px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-semibold rounded-lg transition-colors"
+        >
+          {importLoading ? "Importing..." : "Import Zoom Data"}
+        </button>
       </form>
 
       {importError && (
@@ -140,35 +97,8 @@ export default function ZoomImportAndProcessForm() {
       {importResult && (
         <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
           <p className="text-sm text-blue-800 dark:text-blue-200 font-semibold mb-2">
-            ✓ Imported {importResult.meetings} meetings with {importResult.totalAttendees} total attendees
+            ✓ Imported {importResult.meetings} meetings with {importResult.totalAttendees} total attendees (auto-processing in background)
           </p>
-        </div>
-      )}
-
-      {processError && (
-        <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-          <p className="text-sm text-red-800 dark:text-red-200 font-semibold">Processing Error:</p>
-          <p className="text-sm text-red-700 dark:text-red-300">{processError}</p>
-        </div>
-      )}
-
-      {processResult && (
-        <div className="p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
-          <p className="font-semibold text-green-800 dark:text-green-200 mb-2">
-            ✓ Successfully processed attendance
-          </p>
-          <div className="text-sm text-green-700 dark:text-green-300 space-y-1">
-            <p>• {processResult.zoomAttendees} Zoom attendees</p>
-            <p>• {processResult.matchedAttendees} matched to members ({processResult.matchRate}% match rate)</p>
-            <p>• {processResult.skippedUnmatched} unmatched</p>
-            {processResult.meetingsProcessed !== undefined && (
-              <p>• {processResult.meetingsProcessed} Zoom meetings processed</p>
-            )}
-            {processResult.segmentsCreated !== undefined && (
-              <p className="ml-4 text-xs">↳ {processResult.segmentsCreated} total segments ({processResult.matchedToCalendar || 0} scheduled + {processResult.createdNewPrickles || 0} PUPs)</p>
-            )}
-            <p>• {processResult.attendanceRecords} attendance records created</p>
-          </div>
         </div>
       )}
     </div>

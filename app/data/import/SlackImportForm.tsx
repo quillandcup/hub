@@ -12,12 +12,6 @@ export default function SlackImportForm() {
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const [fromDate, setFromDate] = useState("");
-  const [toDate, setToDate] = useState("");
-  const [processLoading, setProcessLoading] = useState(false);
-  const [processResult, setProcessResult] = useState<any>(null);
-  const [processError, setProcessError] = useState<string | null>(null);
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -50,12 +44,6 @@ export default function SlackImportForm() {
 
       setResult(data);
 
-      // Auto-populate date range from imported data
-      if (data.dateRange) {
-        setFromDate(data.dateRange.fromDate);
-        setToDate(data.dateRange.toDate);
-      }
-
       // Reset file inputs
       setUsersFile(null);
       setChannelsFile(null);
@@ -70,42 +58,6 @@ export default function SlackImportForm() {
       setError(err.message || "An error occurred during import");
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleProcess = async () => {
-    if (!fromDate || !toDate) {
-      setProcessError("Please select date range");
-      return;
-    }
-
-    setProcessLoading(true);
-    setProcessError(null);
-    setProcessResult(null);
-
-    try {
-      const response = await fetch("/api/process/slack", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          fromDate: new Date(fromDate).toISOString(),
-          toDate: new Date(toDate + "T23:59:59").toISOString(),
-        }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to process Slack data");
-      }
-
-      setProcessResult(data);
-    } catch (err: any) {
-      setProcessError(err.message);
-    } finally {
-      setProcessLoading(false);
     }
   };
 
@@ -193,7 +145,7 @@ export default function SlackImportForm() {
           disabled={loading || !allFilesSelected}
           className="w-full px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-semibold rounded-lg transition-colors"
         >
-          {loading ? "Importing..." : "1. Import Slack CSVs"}
+          {loading ? "Importing..." : "Import Slack CSVs"}
         </button>
       </form>
 
@@ -207,7 +159,7 @@ export default function SlackImportForm() {
       {result && (
         <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
           <p className="text-sm text-blue-800 dark:text-blue-200 font-semibold mb-2">
-            ✓ Import Successful
+            ✓ Import Successful (auto-processing in background)
           </p>
           <div className="text-sm text-blue-700 dark:text-blue-300 space-y-1">
             <p>• {result.imported?.users || 0} users</p>
@@ -220,76 +172,8 @@ export default function SlackImportForm() {
               📅 Detected date range: {result.dateRange.fromDate} to {result.dateRange.toDate}
             </p>
           )}
-          <p className="mt-2 text-sm text-blue-700 dark:text-blue-300">
-            {result.message}
-          </p>
         </div>
       )}
-
-      {/* Process Section */}
-      <div className="mt-6 pt-6 border-t border-slate-200 dark:border-slate-800">
-        <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">
-          2. Process Slack Data
-        </h3>
-        <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
-          Transform Bronze layer (imported CSVs) into Silver layer (member activities). Date range auto-populated from imported messages.
-        </p>
-
-        <div className="flex gap-4 mb-4">
-          <div className="flex-1">
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-              From Date
-            </label>
-            <input
-              type="date"
-              value={fromDate}
-              onChange={(e) => setFromDate(e.target.value)}
-              className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
-            />
-          </div>
-
-          <div className="flex-1">
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-              To Date
-            </label>
-            <input
-              type="date"
-              value={toDate}
-              onChange={(e) => setToDate(e.target.value)}
-              className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
-            />
-          </div>
-        </div>
-
-        <button
-          type="button"
-          onClick={handleProcess}
-          disabled={processLoading || !fromDate || !toDate}
-          className="w-full px-6 py-3 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white font-semibold rounded-lg transition-colors"
-        >
-          {processLoading ? "Processing..." : "2. Process to Member Activities"}
-        </button>
-
-        {processError && (
-          <div className="mt-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-            <p className="text-sm text-red-800 dark:text-red-200 font-semibold">Processing Error:</p>
-            <p className="text-sm text-red-700 dark:text-red-300">{processError}</p>
-          </div>
-        )}
-
-        {processResult && (
-          <div className="mt-4 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
-            <p className="font-semibold text-green-800 dark:text-green-200 mb-2">
-              ✓ Processing Complete
-            </p>
-            <div className="text-sm text-green-700 dark:text-green-300 space-y-1">
-              <p>• {processResult.processed?.messages || 0} message activities</p>
-              <p>• {processResult.processed?.reactions || 0} reaction activities</p>
-              <p>• {processResult.processed?.total_activities || 0} total activities created</p>
-            </div>
-          </div>
-        )}
-      </div>
     </div>
   );
 }
