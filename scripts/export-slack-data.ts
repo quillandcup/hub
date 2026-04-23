@@ -1,4 +1,4 @@
-#!/usr/bin/env ts-node
+#!/usr/bin/env tsx
 
 import { config } from 'dotenv';
 import { WebClient } from '@slack/web-api';

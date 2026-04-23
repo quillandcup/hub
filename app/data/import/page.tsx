@@ -79,7 +79,7 @@ export default async function ImportPage() {
                   <p><strong>Step 1: Set SLACK_BOT_TOKEN environment variable</strong></p>
                   <p className="pl-4">Get your token from Slack App settings and add to <code className="bg-slate-100 dark:bg-slate-800 px-1 rounded">.env.local</code></p>
                   <p><strong>Step 2: Run export script</strong></p>
-                  <p className="pl-4"><code className="bg-slate-100 dark:bg-slate-800 px-1 rounded">npx ts-node scripts/export-slack-data.ts 30 exports</code></p>
+                  <p className="pl-4"><code className="bg-slate-100 dark:bg-slate-800 px-1 rounded">npx tsx scripts/export-slack-data.ts 30 exports</code></p>
                   <p className="text-xs text-slate-400">(exports last 30 days to exports/ directory)</p>
                   <p><strong>Step 3: Upload the 4 generated CSV files below</strong></p>
                   <p className="pl-4">Files: slack_users.csv, slack_channels.csv, slack_messages.csv, slack_reactions.csv</p>
