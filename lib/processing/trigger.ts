@@ -22,6 +22,13 @@ export const SILVER_DEPENDENCIES: Record<string, TableDependencies> = {
     processingScope: 'full'  // Entity state, no date scoping
   },
 
+  hiatus: {
+    bronze: ['subscription_history'],
+    local: [],
+    silver: ['members'],  // Must process members first to have member IDs
+    processingScope: 'full'  // Process all subscription history snapshots
+  },
+
   prickles: {
     bronze: ['calendar_events', 'zoom_meetings'],
     local: ['prickle_types'],
