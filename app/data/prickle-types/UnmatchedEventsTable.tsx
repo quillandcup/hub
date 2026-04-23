@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Modal from "@/components/Modal";
+import MemberSearch from "@/components/MemberSearch";
 
 interface EventGroup {
   summary: string;

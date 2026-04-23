@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import MemberSearch from "@/components/MemberSearch";
+import { formatDateTimeRange } from "@/lib/formatters";
 
 interface PrickleTypeStats {
   prickle_type: string;
@@ -352,8 +353,7 @@ export default function MissingHostsPage() {
                           {prickle.title || prickle.prickle_type}
                         </p>
                         <p className="text-sm text-gray-600">
-                          {new Date(prickle.start_time).toLocaleDateString()} {new Date(prickle.start_time).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })} -{" "}
-                          {new Date(prickle.end_time).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+                          {formatDateTimeRange(prickle.start_time, prickle.end_time)}
                         </p>
                       </div>
                     </div>

@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import MemberSearch from "@/components/MemberSearch";
+import Modal from "@/components/Modal";
+import { formatDateTime } from "@/lib/formatters";
 
 interface UnmatchedAttendee {
   zoomName: string;
@@ -283,69 +285,47 @@ export default function AliasSearchForm({
       </div>
 
       {/* Prickle Modal */}
-      {prickleModalOpen && (
-        <div
-          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
-          onClick={() => setPrickleModalOpen(false)}
-        >
-          <div
-            className="bg-white dark:bg-slate-900 rounded-lg shadow-xl max-w-2xl w-full max-h-[80vh] overflow-hidden"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="p-6 border-b border-slate-200 dark:border-slate-800">
-              <div className="flex items-center justify-between gap-4">
-                <h3 className="text-xl font-bold flex-1 truncate">
-                  Prickles for &quot;{selectedZoomName}&quot;
-                </h3>
-                <button
-                  onClick={() => setPrickleModalOpen(false)}
-                  className="text-2xl leading-none text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300 flex-shrink-0"
-                >
-                  ✕
-                </button>
-              </div>
-            </div>
-
-            <div className="p-6 overflow-y-auto max-h-[60vh]">
-              {loadingPrickles ? (
-                <div className="text-center text-slate-500 py-8">Loading...</div>
-              ) : prickles.length === 0 ? (
-                <div className="text-center py-8">
-                  <div className="text-slate-500 mb-4">No prickles found</div>
-                  <div className="text-sm text-slate-400 max-w-md mx-auto">
-                    This Zoom name appeared in meetings that weren&apos;t processed into prickles yet.
-                    Try reprocessing attendance data to include these meetings.
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {prickles.map((prickle: any) => (
-                    <a
-                      key={prickle.id}
-                      href={`/dashboard/prickles/${prickle.id}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="block p-3 border border-slate-200 dark:border-slate-700 rounded-lg hover:border-blue-500 dark:hover:border-blue-400 transition-colors"
-                    >
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <div className="font-semibold text-slate-900 dark:text-slate-100">
-                            {prickle.type_name || "Unknown Type"}
-                          </div>
-                          <div className="text-sm text-slate-600 dark:text-slate-400">
-                            {new Date(prickle.start_time).toLocaleString()}
-                          </div>
-                        </div>
-                        <div className="text-blue-600 dark:text-blue-400">→</div>
-                      </div>
-                    </a>
-                  ))}
-                </div>
-              )}
+      <Modal
+        isOpen={prickleModalOpen}
+        onClose={() => setPrickleModalOpen(false)}
+        title={`Prickles for "${selectedZoomName}"`}
+      >
+        {loadingPrickles ? (
+          <div className="text-center text-slate-500 py-8">Loading...</div>
+        ) : prickles.length === 0 ? (
+          <div className="text-center py-8">
+            <div className="text-slate-500 mb-4">No prickles found</div>
+            <div className="text-sm text-slate-400 max-w-md mx-auto">
+              This Zoom name appeared in meetings that weren&apos;t processed into prickles yet.
+              Try reprocessing attendance data to include these meetings.
             </div>
           </div>
-        </div>
-      )}
+        ) : (
+          <div className="space-y-2">
+            {prickles.map((prickle: any) => (
+              <a
+                key={prickle.id}
+                href={`/dashboard/prickles/${prickle.id}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block p-3 border border-slate-200 dark:border-slate-700 rounded-lg hover:border-blue-500 dark:hover:border-blue-400 transition-colors"
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="font-semibold text-slate-900 dark:text-slate-100">
+                      {prickle.type_name || "Unknown Type"}
+                    </div>
+                    <div className="text-sm text-slate-600 dark:text-slate-400">
+                      {formatDateTime(prickle.start_time)}
+                    </div>
+                  </div>
+                  <div className="text-blue-600 dark:text-blue-400">→</div>
+                </div>
+              </a>
+            ))}
+          </div>
+        )}
+      </Modal>
 
       {/* Instructions */}
       <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
