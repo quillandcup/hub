@@ -16,6 +16,20 @@ Each webhook handler:
 3. Triggers downstream Silver processing asynchronously
 4. Returns 200 OK immediately (webhooks expect fast response)
 
+## Security - Environment Variables
+
+**IMPORTANT:** Webhook signature secrets are **production secrets** and must be stored in Vercel environment variables, **never committed to the repository**.
+
+### Required Vercel Environment Variables
+
+Set these in Vercel dashboard → Settings → Environment Variables → Production:
+
+- `ZOOM_WEBHOOK_SECRET_TOKEN` - From Zoom app webhook settings
+- `SLACK_SIGNING_SECRET` - From Slack app basic information page
+- `GOOGLE_CALENDAR_WEBHOOK_TOKEN` - Generate with `openssl rand -hex 32`
+
+**DO NOT** add these to `.env.local` or commit them to git. They are production-only secrets.
+
 ## Webhook Endpoints
 
 All webhooks are deployed at:

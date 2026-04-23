@@ -229,7 +229,33 @@ This secret is used by Vercel to authenticate cron job requests to the reconcili
 - `/api/reconcile/zoom` (2:30am daily)
 - `/api/reconcile/members` (3:00am daily)
 
-### Step 3.6: Pull Environment Variables Locally
+### Step 3.6: Configure Webhook Signature Secrets (Production Only)
+
+**⚠️ CRITICAL:** Webhook secrets are **production-only** secrets. Never set them locally or commit them to git.
+
+```bash
+# Set webhook secrets in PRODUCTION ONLY
+# These verify webhooks are from the claimed source
+
+# Zoom webhook secret (from Zoom app webhook settings)
+vercel env add ZOOM_WEBHOOK_SECRET_TOKEN production
+# Enter the secret token from your Zoom app configuration
+
+# Slack signing secret (from Slack app basic information page)
+vercel env add SLACK_SIGNING_SECRET production
+# Enter the signing secret from your Slack app
+
+# Google Calendar webhook token (generate a random token)
+openssl rand -hex 32
+vercel env add GOOGLE_CALENDAR_WEBHOOK_TOKEN production
+# Paste the generated token
+```
+
+**DO NOT** set these in preview or development environments. Webhooks only work in production with proper SSL/domains.
+
+See [docs/WEBHOOK_SETUP.md](./WEBHOOK_SETUP.md) for complete webhook configuration guide.
+
+### Step 3.7: Pull Environment Variables Locally
 
 ```bash
 # Pull development environment variables for local work
