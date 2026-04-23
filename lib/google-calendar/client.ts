@@ -27,6 +27,7 @@ export class GoogleCalendarClient {
 
   /**
    * List events from a calendar within a date range
+   * Uses pagination to fetch all events (Google Calendar API has max 2500 per request)
    */
   async listEvents(
     calendarId: string,
@@ -34,16 +35,25 @@ export class GoogleCalendarClient {
     timeMax: string
   ): Promise<any[]> {
     try {
-      const response = await this.calendar.events.list({
-        calendarId,
-        timeMin,
-        timeMax,
-        singleEvents: true,
-        orderBy: "startTime",
-        maxResults: 2500,
-      });
+      let allEvents: any[] = [];
+      let pageToken: string | undefined;
 
-      return response.data.items || [];
+      do {
+        const response = await this.calendar.events.list({
+          calendarId,
+          timeMin,
+          timeMax,
+          singleEvents: true,
+          orderBy: "startTime",
+          maxResults: 250, // Use reasonable page size for pagination
+          pageToken,
+        });
+
+        allEvents = allEvents.concat(response.data.items || []);
+        pageToken = response.data.nextPageToken || undefined;
+      } while (pageToken);
+
+      return allEvents;
     } catch (error: any) {
       console.error("Error fetching calendar events:", error);
       throw new Error(

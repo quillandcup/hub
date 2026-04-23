@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { GoogleCalendarClient } from "@/lib/google-calendar/client";
 import { NextRequest, NextResponse } from "next/server";
+import { triggerReprocessing } from "@/lib/processing/trigger";
 
 // Extend timeout for syncing large calendars
 export const maxDuration = 300; // 5 minutes (max for Hobby tier)
@@ -191,6 +192,14 @@ export async function POST(request: NextRequest) {
       skipped += errors.length;
     }
 
+    // Trigger downstream Silver layer reprocessing
+    const processingResult = await triggerReprocessing('calendar_events', 'bronze', {
+      dateRange: {
+        from: fromDate,
+        to: toDate
+      }
+    });
+
     return NextResponse.json({
       success: true,
       total: events.length,
@@ -201,6 +210,7 @@ export async function POST(request: NextRequest) {
         from: fromDate.toISOString(),
         to: toDate.toISOString(),
       },
+      processing: processingResult,
     });
   } catch (error: any) {
     console.error("Error syncing calendar:", error);

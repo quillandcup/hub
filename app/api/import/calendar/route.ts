@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { GoogleCalendarClient } from "@/lib/google-calendar/client";
+import { triggerReprocessing } from "@/lib/processing/trigger";
 import { NextRequest, NextResponse } from "next/server";
 
 /**
@@ -100,12 +101,22 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Auto-trigger downstream Silver layer processing
+    console.log(`Triggering downstream processing for date range ${fromDate} to ${toDate}`);
+    const processingResult = await triggerReprocessing('calendar_events', 'bronze', {
+      dateRange: {
+        from: new Date(fromDate),
+        to: new Date(toDate)
+      }
+    });
+
     return NextResponse.json({
       success: true,
       total: events.length,
       imported,
       updated,
       skipped,
+      processing: processingResult,
     });
   } catch (error: any) {
     console.error("Error importing calendar events:", error);
