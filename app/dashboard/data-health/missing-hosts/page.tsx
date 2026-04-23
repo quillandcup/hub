@@ -35,10 +35,21 @@ export default function MissingHostsPage() {
   const [prickles, setPrickles] = useState<PrickleWithoutHost[]>([]);
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showDetailedStats, setShowDetailedStats] = useState(false);
+  const [detailedStats, setDetailedStats] = useState<{
+    total: number;
+    withHost: number;
+    withHostRequiring: number;
+    withHostNotRequiring: number;
+    withoutHost: number;
+    withoutHostRequiring: number;
+    withoutHostNotRequiring: number;
+  } | null>(null);
 
   useEffect(() => {
     loadStats();
     loadMembers();
+    loadDetailedStats();
   }, []);
 
   useEffect(() => {
@@ -113,6 +124,58 @@ export default function MissingHostsPage() {
 
     setStats(statsArray);
     setLoading(false);
+  }
+
+  async function loadDetailedStats() {
+    const supabase = createClient();
+
+    // Count all calendar prickles
+    const { count: total } = await supabase
+      .from("prickles")
+      .select("*", { count: "exact", head: true })
+      .eq("source", "calendar");
+
+    // Count prickles with hosts (requiring)
+    const { count: withHostRequiring } = await supabase
+      .from("prickles")
+      .select("*, prickle_types!inner(requires_host)", { count: "exact", head: true })
+      .eq("source", "calendar")
+      .not("host", "is", null)
+      .eq("prickle_types.requires_host", true);
+
+    // Count prickles with hosts (not requiring)
+    const { count: withHostNotRequiring } = await supabase
+      .from("prickles")
+      .select("*, prickle_types!inner(requires_host)", { count: "exact", head: true })
+      .eq("source", "calendar")
+      .not("host", "is", null)
+      .eq("prickle_types.requires_host", false);
+
+    // Count prickles without hosts (requiring)
+    const { count: withoutHostRequiring } = await supabase
+      .from("prickles")
+      .select("*, prickle_types!inner(requires_host)", { count: "exact", head: true })
+      .eq("source", "calendar")
+      .is("host", null)
+      .eq("prickle_types.requires_host", true);
+
+    // Count prickles without hosts (not requiring)
+    const { count: withoutHostNotRequiring } = await supabase
+      .from("prickles")
+      .select("*, prickle_types!inner(requires_host)", { count: "exact", head: true })
+      .eq("source", "calendar")
+      .is("host", null)
+      .eq("prickle_types.requires_host", false);
+
+    setDetailedStats({
+      total: total || 0,
+      withHost: (withHostRequiring || 0) + (withHostNotRequiring || 0),
+      withHostRequiring: withHostRequiring || 0,
+      withHostNotRequiring: withHostNotRequiring || 0,
+      withoutHost: (withoutHostRequiring || 0) + (withoutHostNotRequiring || 0),
+      withoutHostRequiring: withoutHostRequiring || 0,
+      withoutHostNotRequiring: withoutHostNotRequiring || 0,
+    });
   }
 
   async function loadMembers() {
@@ -233,6 +296,27 @@ export default function MissingHostsPage() {
                 <p className="text-sm text-gray-500">prickles intentionally unhosted</p>
               </div>
             </div>
+
+            {/* Collapsible Detailed Breakdown */}
+            {detailedStats && (
+              <div className="mt-4 pt-4 border-t border-gray-200">
+                <button
+                  onClick={() => setShowDetailedStats(!showDetailedStats)}
+                  className="text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1"
+                >
+                  {showDetailedStats ? '▼' : '▶'} Detailed Breakdown
+                </button>
+                {showDetailedStats && (
+                  <div className="mt-3 text-sm space-y-1 font-mono text-gray-700">
+                    <div>Total calendar prickles: {detailedStats.total.toLocaleString()}</div>
+                    <div>With hosts: {detailedStats.withHost.toLocaleString()} ({detailedStats.withHostRequiring.toLocaleString()} requiring + {detailedStats.withHostNotRequiring.toLocaleString()} not requiring)</div>
+                    <div>Without hosts: {detailedStats.withoutHost.toLocaleString()} ({detailedStats.withoutHostRequiring.toLocaleString()} requiring + {detailedStats.withoutHostNotRequiring.toLocaleString()} not requiring)</div>
+                    <div className="pt-1 border-t border-gray-200">Requiring hosts: {(detailedStats.withHostRequiring + detailedStats.withoutHostRequiring).toLocaleString()} ({detailedStats.withHostRequiring.toLocaleString()} with + {detailedStats.withoutHostRequiring.toLocaleString()} without)</div>
+                    <div>Not requiring hosts: {(detailedStats.withHostNotRequiring + detailedStats.withoutHostNotRequiring).toLocaleString()} ({detailedStats.withHostNotRequiring.toLocaleString()} with + {detailedStats.withoutHostNotRequiring.toLocaleString()} without)</div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Data Quality Issues */}
