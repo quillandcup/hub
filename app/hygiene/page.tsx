@@ -263,22 +263,19 @@ export default async function DataHygienePage() {
           >
             <div className="flex items-center justify-between mb-2">
               <h3 className="text-sm font-medium text-slate-600 dark:text-slate-400">
-                Missing Hosts
+                Host Assignment
               </h3>
               <span className="text-2xl">👤</span>
             </div>
             <p className="text-3xl font-bold text-slate-900 dark:text-slate-100 mb-1">
-              {calendarPricklesMissingHost || 0}
+              {hostMatchRate}%
             </p>
             <p className="text-sm text-slate-600 dark:text-slate-400">
-              prickles need host assignment
-            </p>
-            <p className="text-xs text-slate-500 dark:text-slate-500 mt-1">
-              {calendarPricklesWithHost} already assigned ({hostMatchRate}%)
+              {calendarPricklesWithHost}/{totalRequiringHosts} assigned
             </p>
             {calendarPricklesMissingHost && calendarPricklesMissingHost > 0 && (
               <p className="text-xs text-orange-600 dark:text-orange-400 mt-2">
-                Assign hosts →
+                {calendarPricklesMissingHost} missing hosts →
               </p>
             )}
           </Link>
