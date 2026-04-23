@@ -263,21 +263,19 @@ export default async function DataHygienePage() {
           >
             <div className="flex items-center justify-between mb-2">
               <h3 className="text-sm font-medium text-slate-600 dark:text-slate-400">
-                Host Assignment
+                Missing Hosts
               </h3>
               <span className="text-2xl">👤</span>
             </div>
             <p className="text-3xl font-bold text-slate-900 dark:text-slate-100 mb-1">
-              {hostMatchRate}%
+              {calendarPricklesMissingHost || 0}
             </p>
             <p className="text-sm text-slate-600 dark:text-slate-400">
-              {calendarPricklesWithHost}/{totalRequiringHosts} prickles with host
+              prickles need host assignment
             </p>
-            {calendarPricklesMissingHost && calendarPricklesMissingHost > 0 && (
-              <p className="text-xs text-orange-600 dark:text-orange-400 mt-2">
-                {calendarPricklesMissingHost} prickles missing host →
-              </p>
-            )}
+            <p className="text-xs text-slate-500 dark:text-slate-500 mt-2">
+              {calendarPricklesWithHost} already assigned ({hostMatchRate}%)
+            </p>
           </Link>
 
           {/* Zoom Attendees */}
