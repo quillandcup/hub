@@ -288,26 +288,24 @@ export async function POST(request: NextRequest) {
 
     console.log(`Actions: insert ${pricklesToInsert.length}, unmatched ${unmatchedEvents.length}, skipped (no summary) ${skippedNoSummary}`);
 
-    // STEP 3: DELETE existing data in date range (for reprocessability)
-    // This makes the process fully reprocessable - we regenerate Silver from Bronze
-    console.log(`Deleting existing calendar prickles and unmatched events in date range`);
+    // STEP 3: Atomically reprocess prickles using database function
+    // This ensures DELETE + INSERT happens in a single transaction,
+    // preventing users from seeing partial state during reprocessing
+    console.log(`Atomically reprocessing calendar prickles in date range`);
 
-    // Delete calendar prickles that overlap the date range
-    // Use overlap logic (start < rangeEnd AND end > rangeStart) instead of containment
-    // This ensures we delete prickles that span across date boundaries
-    const { error: deletePricklesError } = await supabase
-      .from("prickles")
-      .delete()
-      .eq("source", "calendar")
-      .lt("start_time", toDateTime)
-      .gt("end_time", fromDateTime);
+    const { error: reprocessError } = await supabase.rpc('reprocess_prickles_atomic', {
+      from_date: fromDateTime,
+      to_date: toDateTime,
+      new_data: pricklesToInsert,
+    });
 
-    if (deletePricklesError) {
-      console.error("Error deleting existing prickles:", deletePricklesError);
-      throw deletePricklesError;
+    if (reprocessError) {
+      console.error("Error atomically reprocessing prickles:", reprocessError);
+      throw reprocessError;
     }
 
     // Delete unmatched events for calendar_events in this date range
+    // (This is a separate operation - not part of atomic reprocessing)
     // Batch the deletes to avoid .in() limits with >1000 calendar_event_ids
     const calendarEventIds = allEvents.map(e => e.id);
     if (calendarEventIds.length > 0) {
@@ -326,37 +324,12 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // STEP 4: Batch INSERT all prickles
-    // Since we deleted everything, we insert fresh from Bronze
-    const CHUNK_SIZE = 100;
-    let created = 0;
+    // STEP 4: Queue unmatched events for admin review
     let queuedForReview = 0;
-
-    // Insert all prickles in batches
-    if (pricklesToInsert.length > 0) {
-      const insertChunks = chunk(pricklesToInsert, CHUNK_SIZE);
-      const insertResults = await Promise.all(
-        insertChunks.map((batch) =>
-          supabase.from("prickles").insert(batch)
-        )
-      );
-
-      // Log any errors
-      const failedChunks = insertResults.filter((r) => r.error);
-      if (failedChunks.length > 0) {
-        console.error(`Failed to insert ${failedChunks.length} chunks:`, failedChunks[0].error);
-      }
-
-      created = insertResults.filter((r) => !r.error).length * CHUNK_SIZE;
-      // Adjust for last chunk
-      const lastChunkResult = insertResults[insertResults.length - 1];
-      if (!lastChunkResult.error) {
-        created = created - CHUNK_SIZE + (pricklesToInsert.length % CHUNK_SIZE || CHUNK_SIZE);
-      }
-    }
 
     // Queue unmatched events in batches
     if (unmatchedEvents.length > 0) {
+      const CHUNK_SIZE = 100;
       const unmatchedChunks = chunk(unmatchedEvents, CHUNK_SIZE);
       const unmatchedResults = await Promise.all(
         unmatchedChunks.map((batch) =>
@@ -373,12 +346,12 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    console.log(`Completed: processed ${created}, queued ${queuedForReview}`);
+    console.log(`Completed: processed ${pricklesToInsert.length}, queued ${queuedForReview}`);
 
     return NextResponse.json({
       success: true,
       eventsProcessed: allEvents.length,
-      pricklesCreated: created,
+      pricklesCreated: pricklesToInsert.length,
       pricklesUpdated: 0, // All are creates now (DELETE + INSERT pattern)
       skippedNoMatch: unmatchedEvents.length,
       skipped: skippedNoSummary,
