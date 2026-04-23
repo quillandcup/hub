@@ -273,9 +273,14 @@ export default async function DataHygienePage() {
             <p className="text-sm text-slate-600 dark:text-slate-400">
               prickles need host assignment
             </p>
-            <p className="text-xs text-slate-500 dark:text-slate-500 mt-2">
+            <p className="text-xs text-slate-500 dark:text-slate-500 mt-1">
               {calendarPricklesWithHost} already assigned ({hostMatchRate}%)
             </p>
+            {calendarPricklesMissingHost && calendarPricklesMissingHost > 0 && (
+              <p className="text-xs text-orange-600 dark:text-orange-400 mt-2">
+                Assign hosts →
+              </p>
+            )}
           </Link>
 
           {/* Zoom Attendees */}
