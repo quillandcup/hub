@@ -1,6 +1,8 @@
 -- Add atomic reprocessing function for members
 -- This function ensures DELETE + INSERT happens in a single transaction,
 -- preventing users from seeing partial state during reprocessing
+-- Atomically reprocess all members (full-table refresh).
+-- DELETE + INSERT in single transaction prevents users from seeing partial state.
 
 CREATE OR REPLACE FUNCTION reprocess_members_atomic(
   new_data JSONB
@@ -32,6 +34,3 @@ BEGIN
   FROM jsonb_array_elements(new_data);
 END;
 $$ LANGUAGE plpgsql;
-
-COMMENT ON FUNCTION reprocess_members_atomic IS
-'Atomically reprocess all members (full-table refresh). DELETE + INSERT in single transaction prevents users from seeing partial state.';

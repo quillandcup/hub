@@ -1,6 +1,8 @@
 -- Add atomic reprocessing function for calendar prickles
 -- This function ensures DELETE + INSERT happens in a single transaction,
 -- preventing users from seeing partial state during reprocessing
+-- Atomically reprocess calendar prickles for a date range.
+-- DELETE + INSERT in single transaction prevents users from seeing partial state.
 
 CREATE OR REPLACE FUNCTION reprocess_prickles_atomic(
   from_date TIMESTAMPTZ,
@@ -27,6 +29,3 @@ BEGIN
   FROM jsonb_array_elements(new_data);
 END;
 $$ LANGUAGE plpgsql;
-
-COMMENT ON FUNCTION reprocess_prickles_atomic IS
-'Atomically reprocess calendar prickles for a date range. DELETE + INSERT in single transaction prevents users from seeing partial state.';

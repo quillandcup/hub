@@ -1,6 +1,8 @@
 -- Add atomic reprocessing function for prickle attendance and PUPs
 -- This function ensures DELETE + INSERT happens in a single transaction,
 -- preventing users from seeing partial state during reprocessing
+-- Atomically reprocess attendance and PUPs for a date range.
+-- DELETE + INSERT in single transaction prevents users from seeing partial state.
 
 CREATE OR REPLACE FUNCTION reprocess_prickle_attendance_atomic(
   from_date TIMESTAMPTZ,
@@ -63,6 +65,3 @@ BEGIN
   WHERE new_attendance_data != 'null'::jsonb AND jsonb_array_length(new_attendance_data) > 0;
 END;
 $$ LANGUAGE plpgsql;
-
-COMMENT ON FUNCTION reprocess_prickle_attendance_atomic IS
-'Atomically reprocess attendance and PUPs for a date range. DELETE + INSERT in single transaction prevents users from seeing partial state.';
