@@ -44,7 +44,7 @@ export default async function ImportPage() {
                 </summary>
                 <div className="mt-2 pl-4 space-y-2">
                   <p className="font-semibold text-green-600 dark:text-green-400">Members Export (recommended)</p>
-                  <p className="pl-4">Go to <a href="https://app.kajabi.com/admin/sites/2147577478/contacts" target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 underline">Contacts → All Contacts</a> → Filter "Customers" → Select All → Bulk Action "Export"</p>
+                  <p className="pl-4">Go to <a href="https://app.kajabi.com/admin/sites/2147577478/contacts?segment_id=members&is_member=true" target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 underline">Contacts → Customers</a> → Select All → Bulk Action "Export"</p>
                   <p className="text-xs text-slate-400">Expected columns: Name, Email, Products, Tags, Member Created At</p>
 
                   <p className="mt-3 font-semibold text-green-600 dark:text-green-400">Subscriptions Export (for hiatus tracking)</p>
