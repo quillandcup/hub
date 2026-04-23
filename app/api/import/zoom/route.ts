@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { createZoomClient } from "@/lib/zoom/client";
+import { triggerReprocessing } from "@/lib/processing/trigger";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(request: NextRequest) {
@@ -31,13 +32,42 @@ export async function POST(request: NextRequest) {
     const meetings = await zoom.listMeetings(fromDate, toDate);
 
     let totalAttendees = 0;
+    let totalMeetings = 0;
     const processedMeetings = [];
 
-    // For each meeting, fetch participants and insert into zoom_attendees
+    // For each meeting, insert metadata and participants
     for (const meeting of meetings) {
+      // Insert meeting metadata into zoom_meetings table (bronze)
+      const meetingToInsert = {
+        meeting_uuid: meeting.uuid,
+        meeting_id: meeting.id.toString(),
+        topic: meeting.topic,
+        start_time: meeting.start_time,
+        end_time: meeting.end_time || null,
+        duration_minutes: meeting.duration || null,
+        host_email: meeting.host_email || null,
+        host_name: meeting.host_name || null,
+        participant_count: meeting.participants_count || null,
+        data: meeting,
+      };
+
+      const { error: meetingError } = await supabase
+        .from("bronze.zoom_meetings")
+        .upsert(meetingToInsert, {
+          onConflict: "meeting_uuid",
+          ignoreDuplicates: false, // Update if exists
+        });
+
+      if (meetingError) {
+        console.error(`Error upserting meeting ${meeting.uuid}:`, meetingError);
+        throw meetingError;
+      }
+
+      totalMeetings++;
+
+      // Fetch and insert participants
       const participants = await zoom.getParticipants(meeting.uuid);
 
-      // Insert participants into zoom_attendees table (bronze - raw data only)
       const attendeesToInsert = participants.map((p) => ({
         meeting_id: meeting.id.toString(),
         meeting_uuid: meeting.uuid,
@@ -60,8 +90,8 @@ export async function POST(request: NextRequest) {
         const { error } = await supabase
           .from("bronze.zoom_attendees")
           .upsert(attendeesToInsert, {
-            onConflict: "meeting_uuid,name,join_time",
-            ignoreDuplicates: true,
+            onConflict: "meeting_uuid,participant_id,join_time",
+            ignoreDuplicates: false, // Update if exists
           });
 
         if (error) {
@@ -80,11 +110,30 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    // Trigger downstream Silver layer processing
+    const from = new Date(fromDate);
+    const to = new Date(toDate);
+
+    console.log(`Triggering reprocessing for zoom_attendees and zoom_meetings (${fromDate} to ${toDate})`);
+
+    // Trigger for both bronze tables that changed
+    const attendeesResult = await triggerReprocessing('zoom_attendees', 'bronze', {
+      dateRange: { from, to }
+    });
+
+    const meetingsResult = await triggerReprocessing('zoom_meetings', 'bronze', {
+      dateRange: { from, to }
+    });
+
     return NextResponse.json({
       success: true,
-      meetings: processedMeetings.length,
+      meetings: totalMeetings,
       totalAttendees,
       data: processedMeetings,
+      reprocessing: {
+        zoom_attendees: attendeesResult,
+        zoom_meetings: meetingsResult
+      }
     });
   } catch (error: any) {
     console.error("Error importing Zoom data:", error);
