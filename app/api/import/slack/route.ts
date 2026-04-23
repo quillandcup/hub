@@ -114,7 +114,6 @@ export async function POST(request: NextRequest) {
       },
       importTimestamp,
       dateRange,
-      message: "Imported to Slack Bronze tables. Run /api/process/slack to populate member_activities.",
     });
   } catch (error: any) {
     console.error("Error importing Slack data:", error);

@@ -30,6 +30,10 @@ BEFORE UPDATE ON bronze.zoom_meetings
 FOR EACH ROW
 EXECUTE FUNCTION update_updated_at_column();
 
+-- Grant permissions on zoom_meetings
+GRANT ALL ON bronze.zoom_meetings TO postgres, service_role;
+GRANT SELECT ON bronze.zoom_meetings TO anon, authenticated;
+
 -- Update comments to match architecture
 COMMENT ON TABLE bronze.zoom_attendees IS 'BRONZE: Raw Zoom participant data (UPSERT by meeting_uuid + participant_id for idempotent imports)';
 COMMENT ON TABLE bronze.zoom_meetings IS 'BRONZE: Raw Zoom meeting metadata (UPSERT by meeting_uuid for idempotent imports)';
