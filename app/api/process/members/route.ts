@@ -47,10 +47,11 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    // STEP 1: Load Bronze data from both sources
+    // STEP 1: Load Bronze data from both sources + email aliases
     const [
       { data: kajabiSnapshot, error: kajabiError },
-      { data: staffMembers, error: staffError }
+      { data: staffMembers, error: staffError },
+      { data: emailAliases, error: aliasesError }
     ] = await Promise.all([
       supabase
         .from("bronze.kajabi_members")
@@ -58,31 +59,51 @@ export async function POST(request: NextRequest) {
         .order("imported_at", { ascending: false }),
       supabase
         .from("staff")
+        .select("*"),
+      supabase
+        .from("member_email_aliases")
         .select("*")
     ]);
 
     if (kajabiError) throw kajabiError;
     if (staffError) throw staffError;
+    if (aliasesError) throw aliasesError;
 
     console.log('[DEBUG] Bronze sources:', {
       kajabi_count: kajabiSnapshot?.length || 0,
       staff_count: staffMembers?.length || 0,
+      email_aliases_count: emailAliases?.length || 0,
     });
+
+    // Build alias map: alias_email -> canonical_email
+    const aliasMap = new Map<string, string>();
+    if (emailAliases && emailAliases.length > 0) {
+      for (const alias of emailAliases) {
+        aliasMap.set(alias.alias_email.toLowerCase(), alias.canonical_email.toLowerCase());
+      }
+    }
+
+    // Helper function to resolve email via aliases
+    function resolveEmail(email: string): string {
+      const normalized = email.toLowerCase();
+      return aliasMap.get(normalized) || normalized;
+    }
 
     // STEP 2: Process Kajabi members (Bronze source 1)
     const kajabiMembers = [];
 
     if (kajabiSnapshot && kajabiSnapshot.length > 0) {
-      // Group all snapshots by email (to merge data from multiple imports)
+      // Group all snapshots by canonical email (resolve aliases first)
       const snapshotsByEmail = new Map<string, any[]>();
       for (const row of kajabiSnapshot) {
-        if (!snapshotsByEmail.has(row.email)) {
-          snapshotsByEmail.set(row.email, []);
+        const canonicalEmail = resolveEmail(row.email);
+        if (!snapshotsByEmail.has(canonicalEmail)) {
+          snapshotsByEmail.set(canonicalEmail, []);
         }
-        snapshotsByEmail.get(row.email)!.push(row);
+        snapshotsByEmail.get(canonicalEmail)!.push(row);
       }
 
-      // Process each email: use latest snapshot for core data, merge external IDs from all snapshots
+      // Process each canonical email: use latest snapshot for core data, merge external IDs from all snapshots
       for (const [email, snapshots] of snapshotsByEmail) {
       // Use the most recent snapshot for core member data
       const latestSnapshot = snapshots[0]; // Already sorted by imported_at DESC
@@ -204,7 +225,7 @@ export async function POST(request: NextRequest) {
 
     // STEP 3: Process staff members (Bronze source 2)
     const processedStaffMembers = (staffMembers || []).map(staff => ({
-      email: staff.email.toLowerCase(),
+      email: resolveEmail(staff.email), // Resolve to canonical email
       name: staff.name,
       joined_at: staff.hire_date || '2020-01-01', // Default for staff without hire_date
       status: 'active' as const, // Staff are always active
