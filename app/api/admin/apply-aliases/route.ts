@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { triggerReprocessing } from "@/lib/processing/trigger";
 import { NextRequest, NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
@@ -94,6 +95,12 @@ export async function POST(request: NextRequest) {
 
       messages.push(`Created: "${alias}" → ${member.name} (${email})`);
       created++;
+    }
+
+    // Auto-trigger attendance reprocessing if any aliases were created (last 90 days)
+    if (created > 0) {
+      console.log(`Triggering attendance reprocessing from ${created} member_name_aliases changes`);
+      await triggerReprocessing('member_name_aliases', 'local');
     }
 
     return NextResponse.json({

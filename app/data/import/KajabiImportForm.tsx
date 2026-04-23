@@ -10,14 +10,6 @@ export default function KajabiImportForm() {
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const [processLoading, setProcessLoading] = useState(false);
-  const [processResult, setProcessResult] = useState<any>(null);
-  const [processError, setProcessError] = useState<string | null>(null);
-
-  const [processHiatusLoading, setProcessHiatusLoading] = useState(false);
-  const [processHiatusResult, setProcessHiatusResult] = useState<any>(null);
-  const [processHiatusError, setProcessHiatusError] = useState<string | null>(null);
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -91,54 +83,6 @@ export default function KajabiImportForm() {
     }
   };
 
-  const handleProcessMembers = async () => {
-    setProcessLoading(true);
-    setProcessError(null);
-    setProcessResult(null);
-
-    try {
-      const response = await fetch("/api/process/members", {
-        method: "POST",
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to process members");
-      }
-
-      setProcessResult(data);
-    } catch (err: any) {
-      setProcessError(err.message);
-    } finally {
-      setProcessLoading(false);
-    }
-  };
-
-  const handleProcessHiatus = async () => {
-    setProcessHiatusLoading(true);
-    setProcessHiatusError(null);
-    setProcessHiatusResult(null);
-
-    try {
-      const response = await fetch("/api/process/hiatus", {
-        method: "POST",
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to process hiatus");
-      }
-
-      setProcessHiatusResult(data);
-    } catch (err: any) {
-      setProcessHiatusError(err.message);
-    } finally {
-      setProcessHiatusLoading(false);
-    }
-  };
-
   return (
     <div>
       <form onSubmit={handleSubmit} className="space-y-4">
@@ -183,7 +127,7 @@ export default function KajabiImportForm() {
           disabled={loading || (!membersFile && !subscriptionsFile)}
           className="w-full px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-semibold rounded-lg transition-colors"
         >
-          {loading ? "Importing..." : "1. Import Kajabi CSVs"}
+          {loading ? "Importing..." : "Import Kajabi CSVs"}
         </button>
       </form>
 
@@ -202,7 +146,7 @@ export default function KajabiImportForm() {
                 ✓ Members Import Successful
               </p>
               <p className="text-sm text-blue-700 dark:text-blue-300">
-                Imported {result.members.imported} members to raw data
+                Imported {result.members.imported} members (auto-processing in background)
               </p>
             </div>
           )}
@@ -213,7 +157,7 @@ export default function KajabiImportForm() {
                 ✓ Subscriptions Import Successful
               </p>
               <div className="text-sm text-blue-700 dark:text-blue-300 space-y-1">
-                <p>• Imported {result.subscriptions.imported} subscription records</p>
+                <p>• Imported {result.subscriptions.imported} subscription records (auto-processing in background)</p>
                 <p>• Import timestamp: {new Date(result.subscriptions.importTimestamp).toLocaleString()}</p>
                 {result.subscriptions.statusBreakdown && (
                   <div className="mt-2">
@@ -228,91 +172,6 @@ export default function KajabiImportForm() {
           )}
         </div>
       )}
-
-      {/* Process Section */}
-      <div className="mt-6 pt-6 border-t border-slate-200 dark:border-slate-800">
-        <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">
-          2. Process Data
-        </h3>
-        <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
-          Transform Bronze layer (imported CSVs) into Silver layer (members and hiatus tracking).
-        </p>
-
-        <div className="flex gap-3">
-          <button
-            type="button"
-            onClick={handleProcessMembers}
-            disabled={processLoading}
-            className="flex-1 px-6 py-3 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white font-semibold rounded-lg transition-colors"
-          >
-            {processLoading ? "Processing..." : "Process Members"}
-          </button>
-
-          <button
-            type="button"
-            onClick={handleProcessHiatus}
-            disabled={processHiatusLoading}
-            className="flex-1 px-6 py-3 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-400 text-white font-semibold rounded-lg transition-colors"
-          >
-            {processHiatusLoading ? "Processing..." : "Process Hiatus"}
-          </button>
-        </div>
-
-        {processError && (
-          <div className="mt-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-            <p className="text-sm text-red-800 dark:text-red-200 font-semibold">Processing Error:</p>
-            <p className="text-sm text-red-700 dark:text-red-300">{processError}</p>
-          </div>
-        )}
-
-        {processResult && (
-          <div className="mt-4 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
-            <p className="font-semibold text-green-800 dark:text-green-200 mb-2">
-              ✓ Successfully processed {processResult.processed} members
-            </p>
-            {processResult.sourceBreakdown && (
-              <div className="text-sm text-green-700 dark:text-green-300 space-y-1 mb-3">
-                <p className="font-semibold">Sources:</p>
-                <p>• {processResult.sourceBreakdown.kajabi} from Kajabi</p>
-                <p>• {processResult.sourceBreakdown.staff} staff members</p>
-              </div>
-            )}
-            {processResult.statusBreakdown && (
-              <div className="text-sm text-green-700 dark:text-green-300 space-y-1">
-                <p className="font-semibold">Status:</p>
-                <p>• {processResult.statusBreakdown.active} active</p>
-                <p>• {processResult.statusBreakdown.on_hiatus} on hiatus</p>
-                <p>• {processResult.statusBreakdown.inactive} inactive</p>
-              </div>
-            )}
-          </div>
-        )}
-
-        {processHiatusError && (
-          <div className="mt-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-            <p className="text-sm text-red-800 dark:text-red-200 font-semibold">Hiatus Processing Error:</p>
-            <p className="text-sm text-red-700 dark:text-red-300">{processHiatusError}</p>
-          </div>
-        )}
-
-        {processHiatusResult && (
-          <div className="mt-4 p-4 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg">
-            <p className="font-semibold text-purple-800 dark:text-purple-200 mb-2">
-              ✓ Hiatus Processing Complete
-            </p>
-            <div className="text-sm text-purple-700 dark:text-purple-300 space-y-1">
-              <p>• Detected {processHiatusResult.detectedPeriods || 0} hiatus periods total</p>
-              <p>• Matched {processHiatusResult.matchedToMembers || 0} to existing members</p>
-              {processHiatusResult.statusBreakdown && (
-                <>
-                  <p>• {processHiatusResult.statusBreakdown.ongoing || 0} ongoing hiatuses</p>
-                  <p>• {processHiatusResult.statusBreakdown.completed || 0} completed hiatuses</p>
-                </>
-              )}
-            </div>
-          </div>
-        )}
-      </div>
     </div>
   );
 }

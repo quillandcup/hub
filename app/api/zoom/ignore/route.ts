@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { triggerReprocessing } from "@/lib/processing/trigger";
 import { NextRequest, NextResponse } from "next/server";
 
 /**
@@ -41,6 +42,10 @@ export async function POST(request: NextRequest) {
       console.error("Error ignoring Zoom name:", error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
+
+    // Auto-trigger attendance reprocessing (last 90 days)
+    console.log('Triggering attendance reprocessing from ignored_zoom_names change');
+    await triggerReprocessing('ignored_zoom_names', 'local');
 
     return NextResponse.json({ success: true });
   } catch (error: any) {
@@ -88,6 +93,10 @@ export async function DELETE(request: NextRequest) {
       console.error("Error un-ignoring Zoom name:", error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
+
+    // Auto-trigger attendance reprocessing (last 90 days)
+    console.log('Triggering attendance reprocessing from ignored_zoom_names change');
+    await triggerReprocessing('ignored_zoom_names', 'local');
 
     return NextResponse.json({ success: true });
   } catch (error: any) {

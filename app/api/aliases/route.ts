@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { triggerReprocessing } from "@/lib/processing/trigger";
 import { NextRequest, NextResponse } from "next/server";
 
 /**
@@ -42,6 +43,10 @@ export async function POST(request: NextRequest) {
       console.error("Error inserting aliases:", error);
       throw error;
     }
+
+    // Auto-trigger attendance reprocessing (last 90 days)
+    console.log('Triggering attendance reprocessing from member_name_aliases change');
+    await triggerReprocessing('member_name_aliases', 'local');
 
     return NextResponse.json({
       success: true,

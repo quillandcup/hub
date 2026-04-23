@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { triggerReprocessing } from "@/lib/processing/trigger";
 import { NextRequest, NextResponse } from "next/server";
 import { normalizePrickleType } from "@/lib/prickle-types";
 
@@ -63,6 +64,10 @@ export async function POST(request: NextRequest) {
         { status: 500 }
       );
     }
+
+    // Auto-trigger prickles reprocessing (last 90 days)
+    console.log('Triggering prickles reprocessing from prickle_types change');
+    await triggerReprocessing('prickle_types', 'local');
 
     return NextResponse.json({
       success: true,

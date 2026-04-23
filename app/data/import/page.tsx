@@ -6,6 +6,7 @@ import KajabiImportForm from "./KajabiImportForm";
 import CalendarImportForm from "./CalendarImportForm";
 import SlackImportForm from "./SlackImportForm";
 import ApplyAliasesButton from "./ApplyAliasesButton";
+import ManualReprocessingSection from "./ManualReprocessingSection";
 
 export default async function ImportPage() {
   const supabase = await createClient();
@@ -101,6 +102,9 @@ export default async function ImportPage() {
 
             <ZoomImportAndProcessForm />
           </div>
+
+          {/* Manual Reprocessing */}
+          <ManualReprocessingSection />
         </div>
       </main>
     </div>

@@ -171,6 +171,17 @@ export async function triggerReprocessing(
     return { processed: [] };
   }
 
+  // For Local layer changes without explicit date range, default to last 90 days
+  let dateRange = options?.dateRange;
+  if (layer === 'local' && !dateRange) {
+    const now = new Date();
+    const ninetyDaysAgo = new Date();
+    ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+
+    dateRange = { from: ninetyDaysAgo, to: now };
+    console.log(`Local layer change: defaulting to last 90 days (${ninetyDaysAgo.toISOString()} to ${now.toISOString()})`);
+  }
+
   // Process in correct order
   const order = getProcessingOrder(affected);
 
@@ -179,7 +190,7 @@ export async function triggerReprocessing(
   const results = [];
   for (const table of order) {
     try {
-      const result = await processTable(table, options);
+      const result = await processTable(table, { dateRange });
       results.push({ table, success: true, ...result });
     } catch (error: any) {
       console.error(`Failed to process ${table}:`, error);
