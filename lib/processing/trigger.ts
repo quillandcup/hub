@@ -43,6 +43,14 @@ export const SILVER_DEPENDENCIES: Record<string, TableDependencies> = {
     silver: ['members', 'calendar'],  // Must process members and calendar prickles first
     processingScope: 'date-range',
     dateField: 'join_time'
+  },
+
+  slack: {
+    bronze: ['slack_messages', 'slack_reactions'],
+    local: ['ignored_slack_users'],
+    silver: ['members'],  // Must process members first for matching
+    processingScope: 'date-range',
+    dateField: 'occurred_at'
   }
 };
 
