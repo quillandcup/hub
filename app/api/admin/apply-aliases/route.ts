@@ -80,12 +80,16 @@ export async function POST(request: NextRequest) {
       }
 
       // Create the alias
-      const { error: insertError } = await supabase
+      console.log(`Attempting to insert alias: "${alias}" for member ${member.id} (${member.name})`);
+      const { data: insertData, error: insertError } = await supabase
         .from("member_name_aliases")
         .insert({
           member_id: member.id,
           alias: alias,
-        });
+        })
+        .select();
+
+      console.log(`Insert result for "${alias}":`, { data: insertData, error: insertError });
 
       if (insertError) {
         messages.push(`Error creating alias "${alias}" for ${email}: ${insertError.message}`);
@@ -97,11 +101,41 @@ export async function POST(request: NextRequest) {
       created++;
     }
 
-    // Auto-trigger attendance reprocessing if any aliases were created (wait for completion)
+    // Auto-trigger attendance reprocessing ONLY (skip members to avoid cascade delete)
+    // Aliases reference member_id with ON DELETE CASCADE, so if members get deleted
+    // and recreated (which happens in member reprocessing), all aliases are lost
     let processingResults = null;
     if (created > 0) {
-      console.log(`Triggering attendance reprocessing from ${created} member_name_aliases changes`);
-      processingResults = await triggerReprocessing('member_name_aliases', 'local');
+      console.log(`Triggering attendance reprocessing for last 90 days (skipping members to preserve aliases)`);
+      const now = new Date();
+      const ninetyDaysAgo = new Date();
+      ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+
+      // Directly trigger attendance processing (skip members dependency)
+      const baseUrl = process.env.VERCEL_URL
+        ? `https://${process.env.VERCEL_URL}`
+        : 'http://localhost:3000';
+
+      const response = await fetch(`${baseUrl}/api/process/attendance`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
+        },
+        body: JSON.stringify({
+          fromDate: ninetyDaysAgo.toISOString(),
+          toDate: now.toISOString()
+        })
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        processingResults = { processed: [{ table: 'attendance', success: true, ...result }] };
+      } else {
+        const error = await response.text();
+        console.error('Attendance reprocessing failed:', error);
+        processingResults = { processed: [{ table: 'attendance', success: false, error }] };
+      }
     }
 
     return NextResponse.json({

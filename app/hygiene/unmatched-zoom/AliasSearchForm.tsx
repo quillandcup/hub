@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import MemberSearch from "@/components/MemberSearch";
 
 interface UnmatchedAttendee {
   zoomName: string;
@@ -32,8 +33,6 @@ export default function AliasSearchForm({
   const [matches, setMatches] = useState<Match[]>([]);
   const [saving, setSaving] = useState(false);
   const [saveResult, setSaveResult] = useState<string | null>(null);
-  const [searchTerms, setSearchTerms] = useState<Record<string, string>>({});
-  const [focusedSearch, setFocusedSearch] = useState<string | null>(null);
   const [ignoredNames, setIgnoredNames] = useState<Set<string>>(new Set());
   const [ignoring, setIgnoring] = useState<string | null>(null);
   const [prickleModalOpen, setPrickleModalOpen] = useState(false);
@@ -46,12 +45,9 @@ export default function AliasSearchForm({
     (a) => !matches.some((m) => m.zoomName === a.zoomName) && !ignoredNames.has(a.zoomName)
   );
 
-  const handleSearchChange = (zoomName: string, value: string) => {
-    setSearchTerms({ ...searchTerms, [zoomName]: value });
-    setFocusedSearch(zoomName);
-  };
+  const handleSelectMember = (zoomName: string, member: Member | null) => {
+    if (!member) return; // Don't add null matches
 
-  const handleSelectMember = (zoomName: string, member: Member) => {
     setMatches([
       ...matches,
       {
@@ -61,8 +57,6 @@ export default function AliasSearchForm({
         memberEmail: member.email,
       },
     ]);
-    setSearchTerms({ ...searchTerms, [zoomName]: "" });
-    setFocusedSearch(null);
   };
 
   const handleRemoveMatch = (zoomName: string) => {
@@ -153,19 +147,6 @@ export default function AliasSearchForm({
     }
   };
 
-  // Filter members based on search term
-  const getFilteredMembers = (zoomName: string) => {
-    const searchTerm = searchTerms[zoomName]?.toLowerCase() || "";
-    if (!searchTerm) return [];
-
-    return allMembers
-      .filter(
-        (m) =>
-          m.name.toLowerCase().includes(searchTerm) ||
-          m.email.toLowerCase().includes(searchTerm)
-      )
-      .slice(0, 10); // Limit to 10 results
-  };
 
   return (
     <div className="space-y-6">
@@ -241,100 +222,62 @@ export default function AliasSearchForm({
               All matched! 🎉
             </div>
           ) : (
-            availableZoomNames.map((attendee) => {
-              const filteredMembers = getFilteredMembers(attendee.zoomName);
-              const showDropdown =
-                focusedSearch === attendee.zoomName && filteredMembers.length > 0;
-
-              return (
-                <div key={attendee.zoomName} className="p-3">
-                  <div className="grid grid-cols-[300px_1fr_auto] gap-4 items-start">
-                    {/* Left: Name and metadata */}
-                    <div>
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="font-mono font-semibold text-slate-900 dark:text-slate-100">
-                          &quot;{attendee.zoomName}&quot;
+            availableZoomNames.map((attendee) => (
+              <div key={attendee.zoomName} className="p-3">
+                <div className="grid grid-cols-[300px_1fr_auto] gap-4 items-start">
+                  {/* Left: Name and metadata */}
+                  <div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="font-mono font-semibold text-slate-900 dark:text-slate-100">
+                        &quot;{attendee.zoomName}&quot;
+                      </span>
+                      {attendee.zoomName !== attendee.zoomName.trim() && (
+                        <span className="text-xs px-2 py-0.5 bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 rounded">
+                          whitespace
                         </span>
-                        {attendee.zoomName !== attendee.zoomName.trim() && (
-                          <span className="text-xs px-2 py-0.5 bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 rounded">
-                            whitespace
-                          </span>
-                        )}
-                        {/[^\x00-\x7F]/.test(attendee.zoomName) && (
-                          <span className="text-xs px-2 py-0.5 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded">
-                            special chars
-                          </span>
-                        )}
-                      </div>
-                      <div className="text-xs text-slate-500 dark:text-slate-400">
-                        {attendee.zoomName.length} chars •{" "}
-                        <button
-                          onClick={() => handleViewPrickles(attendee.zoomName)}
-                          className="text-blue-600 dark:text-blue-400 hover:underline"
-                        >
-                          {attendee.appearances} appearances
-                        </button>
-                      </div>
-                      {attendee.emails.length > 0 && (
-                        <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                          {attendee.emails.join(", ")}
-                        </div>
+                      )}
+                      {/[^\x00-\x7F]/.test(attendee.zoomName) && (
+                        <span className="text-xs px-2 py-0.5 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded">
+                          special chars
+                        </span>
                       )}
                     </div>
-
-                    {/* Middle: Search input */}
-                    <div className="relative">
-                      <input
-                        type="text"
-                        placeholder="Search for member..."
-                        value={searchTerms[attendee.zoomName] || ""}
-                        onChange={(e) =>
-                          handleSearchChange(attendee.zoomName, e.target.value)
-                        }
-                        onFocus={() => setFocusedSearch(attendee.zoomName)}
-                        onBlur={() => {
-                          // Delay to allow click on dropdown
-                          setTimeout(() => setFocusedSearch(null), 200);
-                        }}
-                        className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
-
-                      {/* Dropdown */}
-                      {showDropdown && (
-                        <div className="absolute z-10 w-full mt-1 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg shadow-lg max-h-60 overflow-y-auto">
-                          {filteredMembers.map((member) => (
-                            <button
-                              key={member.id}
-                              onClick={() => handleSelectMember(attendee.zoomName, member)}
-                              className="w-full px-3 py-2 text-left hover:bg-slate-100 dark:hover:bg-slate-700 border-b border-slate-200 dark:border-slate-700 last:border-b-0"
-                            >
-                              <div className="font-semibold text-slate-900 dark:text-slate-100 text-sm">
-                                {member.name}
-                              </div>
-                              <div className="text-xs text-slate-600 dark:text-slate-400">
-                                {member.email}
-                                <span className="ml-2 text-slate-500">({member.status})</span>
-                              </div>
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Right: Ignore button */}
-                    <div>
+                    <div className="text-xs text-slate-500 dark:text-slate-400">
+                      {attendee.zoomName.length} chars •{" "}
                       <button
-                        onClick={() => handleIgnore(attendee.zoomName)}
-                        disabled={ignoring === attendee.zoomName}
-                        className="px-3 py-1.5 text-sm text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 border border-slate-300 dark:border-slate-600 hover:border-slate-400 dark:hover:border-slate-500 rounded disabled:opacity-50"
+                        onClick={() => handleViewPrickles(attendee.zoomName)}
+                        className="text-blue-600 dark:text-blue-400 hover:underline"
                       >
-                        {ignoring === attendee.zoomName ? "Ignoring..." : "Ignore"}
+                        {attendee.appearances} appearances
                       </button>
                     </div>
+                    {attendee.emails.length > 0 && (
+                      <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                        {attendee.emails.join(", ")}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Middle: Member search */}
+                  <MemberSearch
+                    members={allMembers}
+                    selectedMemberId={null}
+                    onSelect={(member) => handleSelectMember(attendee.zoomName, member)}
+                  />
+
+                  {/* Right: Ignore button */}
+                  <div>
+                    <button
+                      onClick={() => handleIgnore(attendee.zoomName)}
+                      disabled={ignoring === attendee.zoomName}
+                      className="px-3 py-1.5 text-sm text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 border border-slate-300 dark:border-slate-600 hover:border-slate-400 dark:hover:border-slate-500 rounded disabled:opacity-50"
+                    >
+                      {ignoring === attendee.zoomName ? "Ignoring..." : "Ignore"}
+                    </button>
                   </div>
                 </div>
-              );
-            })
+              </div>
+            ))
           )}
         </div>
       </div>
