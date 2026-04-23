@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
       };
 
       const { error: meetingError } = await supabase
-        .from("bronze.zoom_meetings")
+        .schema('bronze').from("zoom_meetings")
         .upsert(meetingToInsert, {
           onConflict: "meeting_uuid",
           ignoreDuplicates: false, // Update if exists
@@ -88,7 +88,7 @@ export async function POST(request: NextRequest) {
 
       if (attendeesToInsert.length > 0) {
         const { error } = await supabase
-          .from("bronze.zoom_attendees")
+          .schema('bronze').from("zoom_attendees")
           .upsert(attendeesToInsert, {
             onConflict: "meeting_uuid,participant_id,join_time",
             ignoreDuplicates: false, // Update if exists

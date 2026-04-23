@@ -76,7 +76,7 @@ export async function POST(request: NextRequest) {
 
       // Upsert to Bronze (update if exists, insert if not)
       const { error: upsertError } = await supabase
-        .from("bronze.calendar_events")
+        .schema('bronze').from("calendar_events")
         .upsert(eventData, {
           onConflict: "google_event_id",
         });

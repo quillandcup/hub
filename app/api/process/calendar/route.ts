@@ -95,7 +95,7 @@ export async function POST(request: NextRequest) {
 
     while (hasMore) {
       const { data: batch, error: fetchError } = await supabase
-        .from("bronze.calendar_events")
+        .schema('bronze').from("calendar_events")
         .select("*")
         .lt("start_time", toDateTime)
         .gt("end_time", fromDateTime)

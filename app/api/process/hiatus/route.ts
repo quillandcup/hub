@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
   try {
     // STEP 1: Load all subscription history ordered by import time
     const { data: subscriptionHistory, error: loadError } = await supabase
-      .from("bronze.subscription_history")
+      .schema('bronze').from("subscription_history")
       .select("*")
       .order("imported_at", { ascending: true })
       .order("customer_email", { ascending: true });

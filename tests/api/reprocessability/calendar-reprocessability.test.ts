@@ -44,7 +44,7 @@ describe('Calendar Reprocessability', () => {
       .lte('end_time', testDateRange.to)
 
     await supabase
-      .from('bronze.calendar_events')
+      .schema('bronze').from('calendar_events')
       .delete()
       .gte('start_time', testDateRange.from)
       .lte('end_time', testDateRange.to)
@@ -65,7 +65,7 @@ describe('Calendar Reprocessability', () => {
       .lte('end_time', testDateRange.to)
 
     await supabase
-      .from('bronze.calendar_events')
+      .schema('bronze').from('calendar_events')
       .delete()
       .gte('start_time', testDateRange.from)
       .lte('end_time', testDateRange.to)
@@ -96,7 +96,7 @@ describe('Calendar Reprocessability', () => {
       },
     ]
 
-    await supabase.from('bronze.calendar_events').insert(bronzeEvents)
+    await supabase.schema('bronze').from('calendar_events').insert(bronzeEvents)
 
     // ACT: Process calendar
     const response = await fetch('http://localhost:3000/api/process/calendar', {

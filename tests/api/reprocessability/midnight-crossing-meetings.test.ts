@@ -68,13 +68,13 @@ describe('Midnight-Crossing Meeting Reprocessability', () => {
       .gt('end_time', '2099-08-01T00:00:00Z')
 
     await supabase
-      .from('bronze.zoom_attendees')
+      .schema('bronze').from('zoom_attendees')
       .delete()
       .lt('join_time', '2099-08-02T00:00:00Z')
       .gt('leave_time', '2099-08-01T00:00:00Z')
 
     await supabase
-      .from('bronze.zoom_meetings')
+      .schema('bronze').from('zoom_meetings')
       .delete()
       .lt('start_time', '2099-08-02T00:00:00Z')
       .gt('end_time', '2099-08-01T00:00:00Z')
@@ -89,14 +89,14 @@ describe('Midnight-Crossing Meeting Reprocessability', () => {
       .eq('source', 'zoom')
       .lt('start_time', '2099-08-02T00:00:00Z')
       .gt('end_time', '2099-08-01T00:00:00Z')
-    await supabase.from('bronze.zoom_attendees').delete().ilike('meeting_uuid', 'test-midnight-%')
-    await supabase.from('bronze.zoom_meetings').delete().ilike('uuid', 'test-midnight-%')
+    await supabase.schema('bronze').from('zoom_attendees').delete().ilike('meeting_uuid', 'test-midnight-%')
+    await supabase.schema('bronze').from('zoom_meetings').delete().ilike('uuid', 'test-midnight-%')
     await supabase.from('members').delete().eq('id', testMemberId)
   })
 
   it('should process meeting that crosses midnight boundary (Aug 1 23:00 → Aug 2 01:00)', async () => {
     // ARRANGE: Create a meeting that spans Aug 1 → Aug 2
-    await supabase.from('bronze.zoom_meetings').insert({
+    await supabase.schema('bronze').from('zoom_meetings').insert({
       uuid: midnightMeetingUuid,
       topic: 'Late Night Writing Session',
       start_time: '2099-08-01T23:00:00Z',
@@ -104,7 +104,7 @@ describe('Midnight-Crossing Meeting Reprocessability', () => {
       duration: 120,
     })
 
-    await supabase.from('bronze.zoom_attendees').insert({
+    await supabase.schema('bronze').from('zoom_attendees').insert({
       meeting_id: midnightMeetingUuid, // Required NOT NULL field
       meeting_uuid: midnightMeetingUuid,
       name: 'Midnight Test Member',
@@ -240,7 +240,7 @@ describe('Midnight-Crossing Meeting Reprocessability', () => {
 
     // Delete the Bronze data (Zoom attendees)
     await supabase
-      .from('bronze.zoom_attendees')
+      .schema('bronze').from('zoom_attendees')
       .delete()
       .eq('meeting_uuid', midnightMeetingUuid)
 

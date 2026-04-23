@@ -72,7 +72,7 @@ export async function POST(request: NextRequest) {
 
     // UPSERT to make imports idempotent
     const { error: insertError, data: inserted } = await supabase
-      .from("bronze.subscription_history")
+      .schema('bronze').from("subscription_history")
       .upsert(records, {
         onConflict: "kajabi_subscription_id,imported_at",
       })

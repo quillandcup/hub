@@ -23,11 +23,11 @@ export default async function DataHygienePage() {
     { data: lastSync },
     { data: lastProcessing },
   ] = await Promise.all([
-    supabase.from("bronze.calendar_events").select("*", { count: "exact", head: true }),
+    supabase.schema('bronze').from("calendar_events").select("*", { count: "exact", head: true }),
     supabase.from("prickles").select("*", { count: "exact", head: true }).eq("source", "calendar"),
     supabase.from("unmatched_calendar_events").select("*", { count: "exact", head: true }).eq("status", "pending"),
     supabase.from("prickles").select("*", { count: "exact", head: true }).eq("source", "calendar").not("host", "is", null),
-    supabase.from("bronze.zoom_attendees").select("*", { count: "exact", head: true }),
+    supabase.schema('bronze').from("zoom_attendees").select("*", { count: "exact", head: true }),
     supabase.from("members").select("*", { count: "exact", head: true }),
     supabase.from("member_name_aliases").select("*", { count: "exact", head: true }),
     // Find PUPs with 0 attendees
@@ -46,7 +46,7 @@ export default async function DataHygienePage() {
       .limit(10),
     // Last calendar sync (use imported_at which updates on UPSERT)
     supabase
-      .from("bronze.calendar_events")
+      .schema('bronze').from("calendar_events")
       .select("imported_at")
       .order("imported_at", { ascending: false })
       .limit(1)
@@ -86,13 +86,13 @@ export default async function DataHygienePage() {
   if (orphanedEvents > 0) {
     const [{ data: minEvent }, { data: maxEvent }] = await Promise.all([
       supabase
-        .from("bronze.calendar_events")
+        .schema('bronze').from("calendar_events")
         .select("start_time")
         .order("start_time", { ascending: true })
         .limit(1)
         .single(),
       supabase
-        .from("bronze.calendar_events")
+        .schema('bronze').from("calendar_events")
         .select("end_time")
         .order("end_time", { ascending: false })
         .limit(1)
@@ -120,7 +120,7 @@ export default async function DataHygienePage() {
 
   // Get all zoom_attendees with name/email for matching
   const { data: allAttendeesForMatching } = await supabase
-    .from("bronze.zoom_attendees")
+    .schema('bronze').from("zoom_attendees")
     .select("meeting_uuid, name, email, join_time, leave_time")
     .not("meeting_uuid", "is", null);
 
@@ -183,7 +183,7 @@ export default async function DataHygienePage() {
 
   // Count zoom_attendees in processed meetings
   const { data: allZoomAttendeesForCount } = await supabase
-    .from("bronze.zoom_attendees")
+    .schema('bronze').from("zoom_attendees")
     .select("meeting_uuid")
     .not("meeting_uuid", "is", null);
 

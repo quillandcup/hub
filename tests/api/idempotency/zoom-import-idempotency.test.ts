@@ -18,7 +18,7 @@ describe('Zoom Import Idempotency', () => {
   beforeAll(async () => {
     // Clean up any existing test data
     await supabase
-      .from('bronze.zoom_attendees')
+      .schema('bronze').from('zoom_attendees')
       .delete()
       .or(`meeting_uuid.eq.${testMeetingUuid1},meeting_uuid.eq.${testMeetingUuid2}`)
   })
@@ -26,7 +26,7 @@ describe('Zoom Import Idempotency', () => {
   afterAll(async () => {
     // Clean up test data
     await supabase
-      .from('bronze.zoom_attendees')
+      .schema('bronze').from('zoom_attendees')
       .delete()
       .or(`meeting_uuid.eq.${testMeetingUuid1},meeting_uuid.eq.${testMeetingUuid2}`)
   })
@@ -56,13 +56,13 @@ describe('Zoom Import Idempotency', () => {
       },
     ]
 
-    const { error } = await supabase.from('bronze.zoom_attendees').insert(attendees)
+    const { error } = await supabase.schema('bronze').from('zoom_attendees').insert(attendees)
 
     // ASSERT: Attendees created
     expect(error).toBeNull()
 
     const { data: inserted } = await supabase
-      .from('bronze.zoom_attendees')
+      .schema('bronze').from('zoom_attendees')
       .select('*')
       .eq('meeting_uuid', testMeetingUuid1)
 
@@ -96,7 +96,7 @@ describe('Zoom Import Idempotency', () => {
 
     // ACT: UPSERT with unique constraint on (meeting_uuid, name, join_time)
     const { error } = await supabase
-      .from('bronze.zoom_attendees')
+      .schema('bronze').from('zoom_attendees')
       .upsert(attendees, {
         onConflict: 'meeting_uuid,name,join_time',
         ignoreDuplicates: true,

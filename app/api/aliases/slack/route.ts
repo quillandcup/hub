@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
 
     // Verify Slack user exists
     const { data: slackUser } = await supabase
-      .from("bronze.slack_users")
+      .schema('bronze').from("slack_users")
       .select("user_id")
       .eq("user_id", slack_user_id)
       .single();

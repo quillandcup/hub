@@ -256,7 +256,7 @@ export async function POST(request: NextRequest) {
     // Use overlap logic (start < rangeEnd AND end > rangeStart) to catch attendees
     // whose sessions span across date boundaries
     const { data: zoomAttendees, error: zoomError } = await supabase
-      .from("bronze.zoom_attendees")
+      .schema('bronze').from("zoom_attendees")
       .select("*")
       .lt("join_time", toDateTime)
       .gt("leave_time", fromDateTime)

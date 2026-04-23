@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
       { data: emailAliases, error: aliasesError }
     ] = await Promise.all([
       supabase
-        .from("bronze.kajabi_members")
+        .schema('bronze').from("kajabi_members")
         .select("*")
         .order("imported_at", { ascending: false }),
       supabase

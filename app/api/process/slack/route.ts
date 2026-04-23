@@ -92,7 +92,7 @@ export async function POST(request: NextRequest) {
 
     // STEP 3: Load Slack users for matching
     const { data: slackUsers } = await supabase
-      .from("bronze.slack_users")
+      .schema('bronze').from("slack_users")
       .select("user_id, email, real_name");
 
     // Match Slack users to members (in memory)
@@ -225,7 +225,7 @@ async function loadAllMessages(supabase: any, fromDate: string, toDate: string) 
 
   while (hasMore) {
     const { data: batch } = await supabase
-      .from("bronze.slack_messages")
+      .schema('bronze').from("slack_messages")
       .select("*")
       .gte("occurred_at", fromDate)
       .lte("occurred_at", toDate)
@@ -253,7 +253,7 @@ async function loadAllReactions(supabase: any, fromDate: string, toDate: string)
 
   while (hasMore) {
     const { data: batch } = await supabase
-      .from("bronze.slack_reactions")
+      .schema('bronze').from("slack_reactions")
       .select("*")
       .gte("occurred_at", fromDate)
       .lte("occurred_at", toDate)

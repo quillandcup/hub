@@ -50,7 +50,7 @@ export default async function NameMatchingReportPage() {
 
   // Get unmatched Zoom attendees - those that don't match any member
   const { data: allZoomNames } = await supabase
-    .from("bronze.zoom_attendees")
+    .schema('bronze').from("zoom_attendees")
     .select("name, email")
     .order("name");
 

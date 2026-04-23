@@ -108,7 +108,7 @@ export async function POST(request: NextRequest) {
 
     // Fetch calendar event details for each event
     const { data: calendarEvents } = await supabase
-      .from("bronze.calendar_events")
+      .schema('bronze').from("calendar_events")
       .select("id, start_time, end_time")
       .in("id", calendarEventIds);
 

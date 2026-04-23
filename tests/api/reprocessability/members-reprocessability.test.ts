@@ -20,13 +20,13 @@ describe('Members Reprocessability', () => {
 
   beforeAll(async () => {
     // Clean up any existing test data
-    await supabase.from('bronze.kajabi_members').delete().ilike('email', 'reprocess-test-%')
+    await supabase.schema('bronze').from('kajabi_members').delete().ilike('email', 'reprocess-test-%')
     await supabase.from('members').delete().ilike('email', 'reprocess-test-%')
   })
 
   afterAll(async () => {
     // Clean up test data
-    await supabase.from('bronze.kajabi_members').delete().ilike('email', 'reprocess-test-%')
+    await supabase.schema('bronze').from('kajabi_members').delete().ilike('email', 'reprocess-test-%')
     await supabase.from('members').delete().ilike('email', 'reprocess-test-%')
   })
 
@@ -55,12 +55,12 @@ describe('Members Reprocessability', () => {
       },
     ]
 
-    const { error: insertError } = await supabase.from('bronze.kajabi_members').insert(bronzeData)
+    const { error: insertError } = await supabase.schema('bronze').from('kajabi_members').insert(bronzeData)
     expect(insertError).toBeNull()
 
     // Verify data was inserted
     const { data: verifyData, error: verifyError } = await supabase
-      .from('bronze.kajabi_members')
+      .schema('bronze').from('kajabi_members')
       .select('*')
       .in('email', [testEmail1, testEmail2])
 
@@ -96,7 +96,7 @@ describe('Members Reprocessability', () => {
 
   it('should remove deleted members when reprocessing', async () => {
     // ARRANGE: Delete one member from Bronze, add a new one
-    await supabase.from('bronze.kajabi_members').delete().eq('email', testEmail1)
+    await supabase.schema('bronze').from('kajabi_members').delete().eq('email', testEmail1)
 
     const newBronzeData = {
       email: testEmail3,

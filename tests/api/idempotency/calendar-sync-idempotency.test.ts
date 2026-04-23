@@ -23,7 +23,7 @@ describe('Calendar Sync Idempotency', () => {
   beforeAll(async () => {
     // Clean up any existing test data
     await supabase
-      .from('bronze.calendar_events')
+      .schema('bronze').from('calendar_events')
       .delete()
       .or(`google_event_id.eq.${testGoogleEventId1},google_event_id.eq.${testGoogleEventId2}`)
   })
@@ -31,7 +31,7 @@ describe('Calendar Sync Idempotency', () => {
   afterAll(async () => {
     // Clean up test data
     await supabase
-      .from('bronze.calendar_events')
+      .schema('bronze').from('calendar_events')
       .delete()
       .or(`google_event_id.eq.${testGoogleEventId1},google_event_id.eq.${testGoogleEventId2}`)
   })
@@ -57,13 +57,13 @@ describe('Calendar Sync Idempotency', () => {
       },
     ]
 
-    const { error } = await supabase.from('bronze.calendar_events').insert(events)
+    const { error } = await supabase.schema('bronze').from('calendar_events').insert(events)
 
     // ASSERT: Events created
     expect(error).toBeNull()
 
     const { data: inserted } = await supabase
-      .from('bronze.calendar_events')
+      .schema('bronze').from('calendar_events')
       .select('*')
       .in('google_event_id', [testGoogleEventId1, testGoogleEventId2])
 
@@ -93,7 +93,7 @@ describe('Calendar Sync Idempotency', () => {
 
     // ACT: UPSERT (this is what sync route does)
     const { error } = await supabase
-      .from('bronze.calendar_events')
+      .schema('bronze').from('calendar_events')
       .upsert(events, {
         onConflict: 'google_event_id',
       })

@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
 
     // Find all zoom_attendees records with this name
     const { data: attendees, error: attendeesError } = await supabase
-      .from("bronze.zoom_attendees")
+      .schema('bronze').from("zoom_attendees")
       .select("meeting_uuid")
       .eq("name", zoomName);
 

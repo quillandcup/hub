@@ -20,7 +20,7 @@ describe('Calendar Processing Pagination', () => {
 
       // Clean up any existing test data
       await supabase
-        .from('bronze.calendar_events')
+        .schema('bronze').from('calendar_events')
         .delete()
         .gte('start_time', testDateFrom)
         .lte('end_time', testDateTo)
@@ -41,13 +41,13 @@ describe('Calendar Processing Pagination', () => {
       const CHUNK_SIZE = 500
       for (let i = 0; i < testEvents.length; i += CHUNK_SIZE) {
         const chunk = testEvents.slice(i, i + CHUNK_SIZE)
-        const { error } = await supabase.from('bronze.calendar_events').insert(chunk)
+        const { error } = await supabase.schema('bronze').from('calendar_events').insert(chunk)
         expect(error).toBeNull()
       }
 
       // Verify all 1500 were inserted
       const { count, error: countError } = await supabase
-        .from('bronze.calendar_events')
+        .schema('bronze').from('calendar_events')
         .select('id', { count: 'exact', head: true })
         .gte('start_time', testDateFrom)
         .lte('end_time', testDateTo)
@@ -64,7 +64,7 @@ describe('Calendar Processing Pagination', () => {
 
       while (hasMore) {
         const { data: batch, error } = await supabase
-          .from('bronze.calendar_events')
+          .schema('bronze').from('calendar_events')
           .select('*')
           .gte('start_time', testDateFrom)
           .lte('end_time', testDateTo)
@@ -87,7 +87,7 @@ describe('Calendar Processing Pagination', () => {
 
       // Clean up test data
       await supabase
-        .from('bronze.calendar_events')
+        .schema('bronze').from('calendar_events')
         .delete()
         .gte('start_time', testDateFrom)
         .lte('end_time', testDateTo)

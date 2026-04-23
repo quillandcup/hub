@@ -23,13 +23,13 @@ describe('Members Import Idempotency', () => {
 
   beforeAll(async () => {
     // Clean up any existing test data
-    await supabase.from('bronze.kajabi_members').delete().ilike('email', 'idempotency-test-%')
+    await supabase.schema('bronze').from('kajabi_members').delete().ilike('email', 'idempotency-test-%')
     await supabase.from('members').delete().ilike('email', 'idempotency-test-%')
   })
 
   afterAll(async () => {
     // Clean up test data
-    await supabase.from('bronze.kajabi_members').delete().ilike('email', 'idempotency-test-%')
+    await supabase.schema('bronze').from('kajabi_members').delete().ilike('email', 'idempotency-test-%')
     await supabase.from('members').delete().ilike('email', 'idempotency-test-%')
   })
 
@@ -59,13 +59,13 @@ describe('Members Import Idempotency', () => {
       },
     ]
 
-    const { error } = await supabase.from('bronze.kajabi_members').insert(bronzeData)
+    const { error } = await supabase.schema('bronze').from('kajabi_members').insert(bronzeData)
 
     // ASSERT: Records created
     expect(error).toBeNull()
 
     const { data: inserted } = await supabase
-      .from('bronze.kajabi_members')
+      .schema('bronze').from('kajabi_members')
       .select('*')
       .in('email', [testEmail1, testEmail2])
 
