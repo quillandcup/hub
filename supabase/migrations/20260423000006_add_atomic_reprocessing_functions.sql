@@ -85,13 +85,13 @@ BEGIN
     SELECT
       value->>'client_prickle_id' as client_prickle_id,
       inserted_pups.id as prickle_id
-    FROM jsonb_array_elements(new_pup_data) AS pup_data,
+    FROM jsonb_array_elements(new_pup_data),
          inserted_pups
     WHERE new_pup_data != 'null'::jsonb
       AND jsonb_array_length(new_pup_data) > 0
-      AND inserted_pups.zoom_meeting_uuid = pup_data.value->>'zoom_meeting_uuid'
-      AND inserted_pups.start_time = (pup_data.value->>'start_time')::timestamptz
-      AND inserted_pups.end_time = (pup_data.value->>'end_time')::timestamptz
+      AND inserted_pups.zoom_meeting_uuid = value->>'zoom_meeting_uuid'
+      AND inserted_pups.start_time = (value->>'start_time')::timestamptz
+      AND inserted_pups.end_time = (value->>'end_time')::timestamptz
   )
   -- Insert attendance records
   -- If prickle_id is set, use it directly (calendar prickle)
