@@ -207,7 +207,29 @@ vercel env add GOOGLE_CALENDAR_ID preview
 vercel env add GOOGLE_SERVICE_ACCOUNT_KEY preview
 ```
 
-### Step 3.5: Pull Environment Variables Locally
+### Step 3.5: Configure Cron Job Authentication
+
+The daily reconciliation cron jobs require a secret for authentication:
+
+```bash
+# Generate a secure random secret
+openssl rand -hex 32
+
+# Add to production environment only
+vercel env add CRON_SECRET production
+# Paste the generated secret
+
+# Add to preview/development for testing (optional)
+vercel env add CRON_SECRET preview
+vercel env add CRON_SECRET development
+```
+
+This secret is used by Vercel to authenticate cron job requests to the reconciliation endpoints:
+- `/api/reconcile/calendar` (2:00am daily)
+- `/api/reconcile/zoom` (2:30am daily)
+- `/api/reconcile/members` (3:00am daily)
+
+### Step 3.6: Pull Environment Variables Locally
 
 ```bash
 # Pull development environment variables for local work
@@ -400,6 +422,7 @@ npm run dev
 | `GOOGLE_SERVICE_ACCOUNT_KEY` | Shared or Prod | Shared or Dev | Shared or Dev | Google API credentials |
 | `KAJABI_CLIENT_ID` | TBD | TBD | TBD | Kajabi API credentials |
 | `KAJABI_CLIENT_SECRET` | TBD | TBD | TBD | Kajabi API credentials |
+| `CRON_SECRET` | Required | Optional | Optional | Authentication for Vercel cron jobs |
 
 ### Vercel System Environment Variables
 
