@@ -1,0 +1,154 @@
+<h2>Bidirectional Sync Scenarios</h2>
+<p class="subtitle">Understanding how changes flow between systems</p>
+
+<div class="section">
+  <h3>You Have API Access To:</h3>
+  <div style="display: flex; gap: 20px; margin: 20px 0;">
+    <div style="flex: 1; background: #d4edda; border: 2px solid #28a745; border-radius: 8px; padding: 20px; text-align: center;">
+      <div style="font-size: 32px; margin-bottom: 10px;">✅</div>
+      <strong>Kajabi API</strong><br/>
+      <small>Read & Write Access</small>
+    </div>
+    <div style="flex: 1; background: #d4edda; border: 2px solid #28a745; border-radius: 8px; padding: 20px; text-align: center;">
+      <div style="font-size: 32px; margin-bottom: 10px;">✅</div>
+      <strong>Slack API</strong><br/>
+      <small>Bot Already Installed</small>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Critical Sync Question</h3>
+  <p>When changes happen in Kajabi (outside your admin portal), how should we detect and handle them?</p>
+
+  <div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 20px; margin: 20px 0;">
+    <strong>Example Scenarios:</strong>
+    <ul style="margin: 10px 0 0 20px;">
+      <li>Member cancels their subscription directly through Kajabi checkout page</li>
+      <li>Member updates their email in Kajabi</li>
+      <li>Subscription payment fails (Stripe/Kajabi auto-pauses)</li>
+      <li>Member manually resumes from their Kajabi account</li>
+      <li>Admin processes refund directly in Kajabi</li>
+    </ul>
+  </div>
+</div>
+
+<div class="section">
+  <h3>How Should We Detect External Changes?</h3>
+
+  <div class="options">
+    <div class="option" data-choice="a" onclick="toggleSelect(this)">
+      <div class="letter">A</div>
+      <div class="content">
+        <h3>Kajabi Webhooks (Real-time)</h3>
+        <p><strong>How it works:</strong> Kajabi sends HTTP POST to your API when events occur (subscription.paused, member.updated, etc.)</p>
+        <div class="pros-cons" style="margin-top: 15px;">
+          <div class="pros">
+            <strong>Pros:</strong>
+            <ul>
+              <li>Real-time sync (seconds)</li>
+              <li>Event-driven architecture</li>
+              <li>No polling overhead</li>
+              <li>Can trigger Slack actions immediately</li>
+            </ul>
+          </div>
+          <div class="cons">
+            <strong>Cons:</strong>
+            <ul>
+              <li>Need to verify Kajabi has webhook support</li>
+              <li>Must handle webhook validation/security</li>
+              <li>Need retry logic for failed webhooks</li>
+              <li>Requires publicly accessible endpoint</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="option" data-choice="b" onclick="toggleSelect(this)">
+      <div class="letter">B</div>
+      <div class="content">
+        <h3>Polling Kajabi API (Scheduled)</h3>
+        <p><strong>How it works:</strong> Cron job runs hourly/daily to fetch changed records from Kajabi (e.g., GET /members?updated_since=...)</p>
+        <div class="pros-cons" style="margin-top: 15px;">
+          <div class="pros">
+            <strong>Pros:</strong>
+            <ul>
+              <li>Simple, predictable</li>
+              <li>No special infrastructure needed</li>
+              <li>Can use Vercel Cron (free)</li>
+              <li>Easier to debug/test</li>
+            </ul>
+          </div>
+          <div class="cons">
+            <strong>Cons:</strong>
+            <ul>
+              <li>Delayed sync (minutes to hours)</li>
+              <li>API rate limit concerns</li>
+              <li>May miss rapid changes</li>
+              <li>Unnecessary API calls if no changes</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="option" data-choice="c" onclick="toggleSelect(this)">
+      <div class="letter">C</div>
+      <div class="content">
+        <h3>Hybrid: Webhooks + Polling Backup</h3>
+        <p><strong>How it works:</strong> Use webhooks for real-time sync, but also poll periodically to catch missed events or webhooks failures</p>
+        <div class="pros-cons" style="margin-top: 15px;">
+          <div class="pros">
+            <strong>Pros:</strong>
+            <ul>
+              <li>Best of both worlds</li>
+              <li>Resilient to webhook failures</li>
+              <li>Fast for normal cases</li>
+              <li>Catches edge cases</li>
+            </ul>
+          </div>
+          <div class="cons">
+            <strong>Cons:</strong>
+            <ul>
+              <li>More complex to implement</li>
+              <li>Need idempotency everywhere</li>
+              <li>Higher maintenance</li>
+              <li>Two sync paths to debug</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="option" data-choice="d" onclick="toggleSelect(this)">
+      <div class="letter">D</div>
+      <div class="content">
+        <h3>Admin Portal Only (No External Sync)</h3>
+        <p><strong>How it works:</strong> Disable direct member access to Kajabi settings. All changes MUST go through admin portal.</p>
+        <div class="pros-cons" style="margin-top: 15px;">
+          <div class="pros">
+            <strong>Pros:</strong>
+            <ul>
+              <li>Simplest architecture</li>
+              <li>Admin portal is guaranteed source of truth</li>
+              <li>No sync conflicts</li>
+              <li>Easiest to implement</li>
+            </ul>
+          </div>
+          <div class="cons">
+            <strong>Cons:</strong>
+            <ul>
+              <li>Members can't self-service</li>
+              <li>Payment failures still happen externally</li>
+              <li>Stripe webhooks bypass Kajabi</li>
+              <li>May frustrate members</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<p style="margin-top: 30px; color: #666; font-style: italic;">Note: We can start simple and add complexity later. The architecture should support evolving from option D → B → A/C over time.</p>

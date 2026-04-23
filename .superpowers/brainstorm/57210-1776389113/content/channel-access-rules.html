@@ -1,0 +1,234 @@
+<h2>Channel Access Rules Configuration</h2>
+<p class="subtitle">How should we define which members get access to which Slack channels?</p>
+
+<div class="section">
+  <h3>Example Rules From Your Use Cases</h3>
+
+  <table style="width: 100%; border-collapse: collapse; margin-top: 20px;">
+    <thead>
+      <tr style="background: #333; color: white;">
+        <th style="padding: 12px; text-align: left; border: 1px solid #666;">Trigger</th>
+        <th style="padding: 12px; text-align: left; border: 1px solid #666;">Channel(s)</th>
+        <th style="padding: 12px; text-align: left; border: 1px solid #666;">Action</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr style="background: white;">
+        <td style="padding: 12px; border: 1px solid #ddd;">Trial member converts to paid</td>
+        <td style="padding: 12px; border: 1px solid #ddd;">#members-only, #accountability</td>
+        <td style="padding: 12px; border: 1px solid #ddd;">Grant access</td>
+      </tr>
+      <tr style="background: #f5f5f5;">
+        <td style="padding: 12px; border: 1px solid #ddd;">Member reaches 30 days</td>
+        <td style="padding: 12px; border: 1px solid #ddd;">#advanced-topics</td>
+        <td style="padding: 12px; border: 1px solid #ddd;">Grant access</td>
+      </tr>
+      <tr style="background: white;">
+        <td style="padding: 12px; border: 1px solid #ddd;">Member joins 180 Program</td>
+        <td style="padding: 12px; border: 1px solid #ddd;">#180-program, #180-cohort-2026</td>
+        <td style="padding: 12px; border: 1px solid #ddd;">Grant access</td>
+      </tr>
+      <tr style="background: #f5f5f5;">
+        <td style="padding: 12px; border: 1px solid #ddd;">Member starts hiatus</td>
+        <td style="padding: 12px; border: 1px solid #ddd;">ALL channels</td>
+        <td style="padding: 12px; border: 1px solid #ddd;">Remove access</td>
+      </tr>
+      <tr style="background: white;">
+        <td style="padding: 12px; border: 1px solid #ddd;">Member cancels</td>
+        <td style="padding: 12px; border: 1px solid #ddd;">ALL channels</td>
+        <td style="padding: 12px; border: 1px solid #ddd;">Remove access</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="section">
+  <h3>How Should These Rules Be Defined?</h3>
+
+  <div class="options">
+    <div class="option" data-choice="a" onclick="toggleSelect(this)">
+      <div class="letter">A</div>
+      <div class="content">
+        <h3>Hard-Coded in Application</h3>
+        <p>Rules written directly in TypeScript code</p>
+
+        <div style="background: #f5f5f5; padding: 15px; margin: 15px 0; border-radius: 6px; border: 1px solid #ddd;">
+          <strong>Example code:</strong>
+          <pre style="background: white; padding: 10px; border-radius: 4px; overflow-x: auto; border: 1px solid #ddd;"><code>if (member.status === 'trial_converted') {
+  await addToChannels(['members-only', 'accountability']);
+}
+if (member.days_since_join === 30) {
+  await addToChannels(['advanced-topics']);
+}
+if (member.programs.includes('180')) {
+  await addToChannels(['180-program']);
+}</code></pre>
+        </div>
+
+        <table style="width: 100%; margin-top: 15px;">
+          <tr>
+            <td style="width: 50%; padding: 10px; vertical-align: top; border: 1px solid #ddd;">
+              <strong>Pros:</strong>
+              <ul style="margin: 5px 0 0 20px;">
+                <li>Simple to implement</li>
+                <li>Fast execution</li>
+                <li>Type-safe</li>
+                <li>Easy to debug</li>
+              </ul>
+            </td>
+            <td style="width: 50%; padding: 10px; vertical-align: top; border: 1px solid #ddd;">
+              <strong>Cons:</strong>
+              <ul style="margin: 5px 0 0 20px;">
+                <li>Requires code deploy to change rules</li>
+                <li>Not visible to non-developers</li>
+                <li>Hard to audit what rules exist</li>
+              </ul>
+            </td>
+          </tr>
+        </table>
+      </div>
+    </div>
+
+    <div class="option" data-choice="b" onclick="toggleSelect(this)">
+      <div class="letter">B</div>
+      <div class="content">
+        <h3>Database Rules Engine</h3>
+        <p>Rules stored in database tables, interpreted at runtime</p>
+
+        <div style="background: #f5f5f5; padding: 15px; margin: 15px 0; border-radius: 6px; border: 1px solid #ddd;">
+          <strong>Example schema:</strong>
+          <pre style="background: white; padding: 10px; border-radius: 4px; overflow-x: auto; border: 1px solid #ddd;"><code>channel_access_rules {
+  id: uuid
+  trigger_type: 'status_change' | 'milestone' | 'program_join'
+  trigger_value: jsonb  -- {from: 'trial', to: 'paid'}
+  channels: text[]      -- ['members-only', 'accountability']
+  action: 'grant' | 'revoke'
+  active: boolean
+}</code></pre>
+        </div>
+
+        <table style="width: 100%; margin-top: 15px;">
+          <tr>
+            <td style="width: 50%; padding: 10px; vertical-align: top; border: 1px solid #ddd;">
+              <strong>Pros:</strong>
+              <ul style="margin: 5px 0 0 20px;">
+                <li>Change rules without deploy</li>
+                <li>Admin UI to manage rules</li>
+                <li>Easy to audit and report</li>
+                <li>Very flexible</li>
+              </ul>
+            </td>
+            <td style="width: 50%; padding: 10px; vertical-align: top; border: 1px solid #ddd;">
+              <strong>Cons:</strong>
+              <ul style="margin: 5px 0 0 20px;">
+                <li>Complex to implement</li>
+                <li>Slower execution</li>
+                <li>Harder to debug</li>
+                <li>Can create invalid rules</li>
+              </ul>
+            </td>
+          </tr>
+        </table>
+      </div>
+    </div>
+
+    <div class="option" data-choice="c" onclick="toggleSelect(this)">
+      <div class="letter">C</div>
+      <div class="content">
+        <h3>Configuration File (YAML/JSON)</h3>
+        <p>Rules defined in a config file checked into git</p>
+
+        <div style="background: #f5f5f5; padding: 15px; margin: 15px 0; border-radius: 6px; border: 1px solid #ddd;">
+          <strong>Example config:</strong>
+          <pre style="background: white; padding: 10px; border-radius: 4px; overflow-x: auto; border: 1px solid #ddd;"><code>channel_access_rules:
+  - trigger: trial_converted
+    channels: [members-only, accountability]
+    action: grant
+
+  - trigger: days_since_join >= 30
+    channels: [advanced-topics]
+    action: grant
+
+  - trigger: program_joined(180)
+    channels: [180-program, 180-cohort-2026]
+    action: grant</code></pre>
+        </div>
+
+        <table style="width: 100%; margin-top: 15px;">
+          <tr>
+            <td style="width: 50%; padding: 10px; vertical-align: top; border: 1px solid #ddd;">
+              <strong>Pros:</strong>
+              <ul style="margin: 5px 0 0 20px;">
+                <li>Version controlled (git history)</li>
+                <li>Readable by non-developers</li>
+                <li>Easy to review in PRs</li>
+                <li>Moderately flexible</li>
+              </ul>
+            </td>
+            <td style="width: 50%; padding: 10px; vertical-align: top; border: 1px solid #ddd;">
+              <strong>Cons:</strong>
+              <ul style="margin: 5px 0 0 20px;">
+                <li>Still requires deploy to change</li>
+                <li>No runtime editing</li>
+                <li>Syntax errors possible</li>
+              </ul>
+            </td>
+          </tr>
+        </table>
+      </div>
+    </div>
+
+    <div class="option" data-choice="d" onclick="toggleSelect(this)">
+      <div class="letter">D</div>
+      <div class="content">
+        <h3>Hybrid: Core Rules + Configurable Mappings</h3>
+        <p>Hard-code the logic, configure the channel mappings</p>
+
+        <div style="background: #f5f5f5; padding: 15px; margin: 15px 0; border-radius: 6px; border: 1px solid #ddd;">
+          <strong>Example:</strong>
+          <pre style="background: white; padding: 10px; border-radius: 4px; overflow-x: auto; border: 1px solid #ddd;"><code>// Code defines WHEN to grant access
+if (member.status === 'trial_converted') {
+  await grantAccessByTrigger('trial_converted');
+}
+
+// Database defines WHICH channels
+program_channel_mappings {
+  program_name: '180 Program'
+  channels: ['180-program', '180-cohort-2026']
+}
+
+milestone_channel_mappings {
+  milestone: 'days_30'
+  channels: ['advanced-topics']
+}</code></pre>
+        </div>
+
+        <table style="width: 100%; margin-top: 15px;">
+          <tr>
+            <td style="width: 50%; padding: 10px; vertical-align: top; border: 1px solid #ddd;">
+              <strong>Pros:</strong>
+              <ul style="margin: 5px 0 0 20px;">
+                <li>Balance of flexibility and simplicity</li>
+                <li>Change channel names without deploy</li>
+                <li>Core logic is type-safe</li>
+                <li>Easy to add new programs</li>
+              </ul>
+            </td>
+            <td style="width: 50%; padding: 10px; vertical-align: top; border: 1px solid #ddd;">
+              <strong>Cons:</strong>
+              <ul style="margin: 5px 0 0 20px;">
+                <li>Can't add new trigger types without deploy</li>
+                <li>Two places to look (code + DB)</li>
+                <li>Medium complexity</li>
+              </ul>
+            </td>
+          </tr>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div style="margin-top: 30px; padding: 20px; background: #f5f5f5; border: 1px solid #ddd; border-radius: 6px;">
+  <strong>Recommendation:</strong> Start with Option A (hard-coded) for MVP, migrate to Option D (hybrid) once you have 3+ programs with channel mappings. Option A is fastest to ship, Option D scales better long-term.
+</div>

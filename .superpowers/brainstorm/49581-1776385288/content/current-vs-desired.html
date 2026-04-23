@@ -1,0 +1,128 @@
+<h2>Current State vs Desired State</h2>
+<p class="subtitle">Understanding the scope of the automation system</p>
+
+<div class="section">
+  <h3>Current State: Manual SOPs</h3>
+  <div style="background: #f8f9fa; border-left: 4px solid #dc3545; padding: 20px; margin: 20px 0;">
+    <div style="text-align: center; margin-bottom: 20px;">
+      <div style="display: inline-block; padding: 10px 20px; background: white; border: 2px solid #666; border-radius: 8px; margin: 0 10px;">
+        <strong>Kajabi</strong><br/>
+        <small>Billing & Subscriptions</small>
+      </div>
+      <span style="font-size: 24px; color: #999;">⟷</span>
+      <div style="display: inline-block; padding: 10px 20px; background: white; border: 2px solid #666; border-radius: 8px; margin: 0 10px;">
+        <strong>Admin Portal</strong><br/>
+        <small>Read-only analytics</small>
+      </div>
+      <span style="font-size: 24px; color: #999;">⟷</span>
+      <div style="display: inline-block; padding: 10px 20px; background: white; border: 2px solid #666; border-radius: 8px; margin: 0 10px;">
+        <strong>Slack</strong><br/>
+        <small>Community</small>
+      </div>
+    </div>
+    <div style="background: #fff3cd; padding: 15px; border-radius: 6px;">
+      <strong>❌ Problems:</strong>
+      <ul style="margin: 10px 0 0 20px;">
+        <li>Manual CSV exports from Kajabi weekly</li>
+        <li>Manual Slack invites/removals</li>
+        <li>Manual channel access management</li>
+        <li>Manual hiatus tracking in spreadsheets</li>
+        <li>Manual refund calculations for 180 program</li>
+        <li>No automated onboarding flows</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Desired State: Admin Portal as Orchestration Hub</h3>
+  <div style="background: #f8f9fa; border-left: 4px solid #28a745; padding: 20px; margin: 20px 0;">
+    <div style="text-align: center; margin-bottom: 20px;">
+      <div style="display: inline-block; padding: 10px 20px; background: white; border: 2px solid #007bff; border-radius: 8px; margin: 0 10px;">
+        <strong>Kajabi</strong><br/>
+        <small>Billing source of truth</small>
+      </div>
+      <span style="font-size: 24px; color: #007bff;">⟵</span>
+      <div style="display: inline-block; padding: 20px 30px; background: #007bff; color: white; border-radius: 8px; margin: 0 10px; font-size: 18px;">
+        <strong>Admin Portal</strong><br/>
+        <small>Orchestration Hub</small>
+      </div>
+      <span style="font-size: 24px; color: #007bff;">⟶</span>
+      <div style="display: inline-block; padding: 10px 20px; background: white; border: 2px solid #007bff; border-radius: 8px; margin: 0 10px;">
+        <strong>Slack</strong><br/>
+        <small>Access control</small>
+      </div>
+    </div>
+    <div style="background: #d4edda; padding: 15px; border-radius: 6px;">
+      <strong>✅ Capabilities:</strong>
+      <ul style="margin: 10px 0 0 20px;">
+        <li><strong>Hiatus:</strong> Set time-limited pause → Pause in Kajabi, remove from Slack, auto-resume</li>
+        <li><strong>Gifts:</strong> Grant 1 month free → Extend in Kajabi</li>
+        <li><strong>Cancellation:</strong> Cancel → Cancel in Kajabi, remove from Slack</li>
+        <li><strong>Onboarding:</strong> Trial conversion → Add to Slack channels, assign buddy</li>
+        <li><strong>Milestones:</strong> 30 days → Unlock new channels; Program join → Unlock program channels</li>
+        <li><strong>180 Program:</strong> Auto-calculate and apply partial refund</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Key Automations Identified</h3>
+  <table style="width: 100%; border-collapse: collapse; background: white; margin-top: 20px;">
+    <thead>
+      <tr style="background: #e9ecef;">
+        <th style="padding: 12px; text-align: left; border: 1px solid #dee2e6;">Trigger</th>
+        <th style="padding: 12px; text-align: left; border: 1px solid #dee2e6;">Actions</th>
+        <th style="padding: 12px; text-align: left; border: 1px solid #dee2e6;">Priority</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td style="padding: 12px; border: 1px solid #dee2e6;"><strong>Hiatus Started</strong></td>
+        <td style="padding: 12px; border: 1px solid #dee2e6;">Pause in Kajabi, Remove from Slack, Schedule auto-resume</td>
+        <td style="padding: 12px; border: 1px solid #dee2e6;"><span style="background: #dc3545; color: white; padding: 4px 8px; border-radius: 4px; font-size: 12px;">HIGH</span></td>
+      </tr>
+      <tr>
+        <td style="padding: 12px; border: 1px solid #dee2e6;"><strong>Hiatus Ended</strong></td>
+        <td style="padding: 12px; border: 1px solid #dee2e6;">Resume in Kajabi, Re-invite to Slack</td>
+        <td style="padding: 12px; border: 1px solid #dee2e6;"><span style="background: #dc3545; color: white; padding: 4px 8px; border-radius: 4px; font-size: 12px;">HIGH</span></td>
+      </tr>
+      <tr>
+        <td style="padding: 12px; border: 1px solid #dee2e6;"><strong>Gift Granted</strong></td>
+        <td style="padding: 12px; border: 1px solid #dee2e6;">Extend subscription 1 month in Kajabi</td>
+        <td style="padding: 12px; border: 1px solid #dee2e6;"><span style="background: #ffc107; color: black; padding: 4px 8px; border-radius: 4px; font-size: 12px;">MEDIUM</span></td>
+      </tr>
+      <tr>
+        <td style="padding: 12px; border: 1px solid #dee2e6;"><strong>Cancellation</strong></td>
+        <td style="padding: 12px; border: 1px solid #dee2e6;">Cancel in Kajabi, Remove from Slack</td>
+        <td style="padding: 12px; border: 1px solid #dee2e6;"><span style="background: #dc3545; color: white; padding: 4px 8px; border-radius: 4px; font-size: 12px;">HIGH</span></td>
+      </tr>
+      <tr>
+        <td style="padding: 12px; border: 1px solid #dee2e6;"><strong>Signup (New Member)</strong></td>
+        <td style="padding: 12px; border: 1px solid #dee2e6;">Invite to Slack, Assign onboarding buddy</td>
+        <td style="padding: 12px; border: 1px solid #dee2e6;"><span style="background: #ffc107; color: black; padding: 4px 8px; border-radius: 4px; font-size: 12px;">MEDIUM</span></td>
+      </tr>
+      <tr>
+        <td style="padding: 12px; border: 1px solid #dee2e6;"><strong>Trial Conversion</strong></td>
+        <td style="padding: 12px; border: 1px solid #dee2e6;">Add to members-only Slack channels</td>
+        <td style="padding: 12px; border: 1px solid #dee2e6;"><span style="background: #ffc107; color: black; padding: 4px 8px; border-radius: 4px; font-size: 12px;">MEDIUM</span></td>
+      </tr>
+      <tr>
+        <td style="padding: 12px; border: 1px solid #dee2e6;"><strong>30-Day Milestone</strong></td>
+        <td style="padding: 12px; border: 1px solid #dee2e6;">Unlock new Slack channel</td>
+        <td style="padding: 12px; border: 1px solid #dee2e6;"><span style="background: #28a745; color: white; padding: 4px 8px; border-radius: 4px; font-size: 12px;">LOW</span></td>
+      </tr>
+      <tr>
+        <td style="padding: 12px; border: 1px solid #dee2e6;"><strong>Program Join (e.g., 180)</strong></td>
+        <td style="padding: 12px; border: 1px solid #dee2e6;">Unlock program-specific Slack channels, Calculate partial refund</td>
+        <td style="padding: 12px; border: 1px solid #dee2e6;"><span style="background: #ffc107; color: black; padding: 4px 8px; border-radius: 4px; font-size: 12px;">MEDIUM</span></td>
+      </tr>
+      <tr>
+        <td style="padding: 12px; border: 1px solid #dee2e6;"><strong>Onboarding Buddy Assignment</strong></td>
+        <td style="padding: 12px; border: 1px solid #dee2e6;">Assign "big sister" to trial member</td>
+        <td style="padding: 12px; border: 1px solid #dee2e6;"><span style="background: #6c757d; color: white; padding: 4px 8px; border-radius: 4px; font-size: 12px;">VERY LOW</span></td>
+      </tr>
+    </tbody>
+  </table>
+</div>

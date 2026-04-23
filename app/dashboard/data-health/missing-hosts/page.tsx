@@ -352,13 +352,10 @@ export default function MissingHostsPage() {
                           {prickle.title || prickle.prickle_type}
                         </p>
                         <p className="text-sm text-gray-600">
-                          {new Date(prickle.start_time).toLocaleString()} -{" "}
-                          {new Date(prickle.end_time).toLocaleTimeString()}
+                          {new Date(prickle.start_time).toLocaleDateString()} {new Date(prickle.start_time).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })} -{" "}
+                          {new Date(prickle.end_time).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
                         </p>
                       </div>
-                      <span className="text-xs px-2 py-1 bg-gray-200 rounded">
-                        {prickle.source}
-                      </span>
                     </div>
                   </div>
                 ))}

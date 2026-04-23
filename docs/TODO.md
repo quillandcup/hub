@@ -167,6 +167,53 @@ Import Prickles schedule from:
 
 ---
 
+## Infrastructure & Deployment
+
+### Multi-Environment Setup
+**Status:** Documentation created, awaiting implementation
+
+**Setup Tasks:**
+1. [ ] Add custom domain to Vercel project
+   - Configure DNS records (CNAME or A record)
+   - Wait for SSL certificate provisioning
+   - Set as production domain
+
+2. [ ] Create development Supabase project
+   - Provision new project for dev/preview environments
+   - Copy schema from production
+   - Add test data
+
+3. [ ] Configure environment-specific variables in Vercel
+   - Production: Production Supabase credentials
+   - Preview: Development Supabase credentials
+   - Development: Development Supabase credentials
+   - Separate or share external integrations (Zoom, Google, Kajabi)
+
+4. [ ] Verify environment isolation
+   - Test local development uses dev Supabase
+   - Test preview deployments use dev Supabase
+   - Test production uses production Supabase
+   - Confirm no data leakage between environments
+
+5. [ ] Optional enhancements
+   - Add EnvironmentIndicator component to root layout
+   - Use lib/config.ts for environment-aware behavior
+   - Add environment info to settings/about page
+
+**Documentation:**
+- Setup guide: `docs/DEPLOYMENT_SETUP.md`
+- Quick start: `docs/QUICK_START.md`
+- Verification checklist: `docs/VERIFICATION_CHECKLIST.md`
+- Setup script: `scripts/setup-environments.sh`
+
+**Benefits:**
+- Safe testing without affecting production data
+- Branch-based preview deployments for QA
+- Clear separation of development and production
+- Easier onboarding for new developers
+
+---
+
 ## Security & Access Control
 
 ### User Invitations

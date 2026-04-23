@@ -176,10 +176,16 @@ export default function SlackImportForm() {
             <div className="mt-3 pl-4 border-l-2 border-blue-300 dark:border-blue-700">
               <p className="font-semibold text-blue-800 dark:text-blue-200">Processed to Silver:</p>
               {result.processing.map((p: any, i: number) => (
-                <p key={i} className="text-sm text-blue-700 dark:text-blue-300">
-                  • {p.table}: {p.success ? '✓' : '✗'}
-                  {p.processed?.total_activities !== undefined && ` (${p.processed.total_activities} activities)`}
-                </p>
+                <div key={i} className="text-sm text-blue-700 dark:text-blue-300">
+                  <p className="font-semibold">• {p.table}: {p.success ? '✓' : '✗'}</p>
+                  {p.processed && (
+                    <div className="pl-4 space-y-0.5">
+                      {p.processed.messages !== undefined && <p>Message activities: {p.processed.messages}</p>}
+                      {p.processed.reactions !== undefined && <p>Reaction activities: {p.processed.reactions}</p>}
+                      {p.processed.total_activities !== undefined && <p>Total activities: {p.processed.total_activities}</p>}
+                    </div>
+                  )}
+                </div>
               ))}
             </div>
           )}

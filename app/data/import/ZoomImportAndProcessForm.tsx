@@ -105,10 +105,21 @@ export default function ZoomImportAndProcessForm() {
               <div className="mt-2 pl-4 border-l-2 border-blue-300 dark:border-blue-700">
                 <p className="font-semibold text-blue-800 dark:text-blue-200">Processed to Silver:</p>
                 {importResult.reprocessing.zoom_attendees?.processed?.map((p: any, i: number) => (
-                  <p key={`attendees-${i}`}>
-                    • {p.table}: {p.success ? '✓' : '✗'}
-                    {p.attendanceRecords !== undefined && ` (${p.attendanceRecords} attendance records)`}
-                  </p>
+                  <div key={`attendees-${i}`}>
+                    <p className="font-semibold">• {p.table}: {p.success ? '✓' : '✗'}</p>
+                    {p.zoomAttendees !== undefined && (
+                      <div className="pl-4 space-y-0.5 text-sm">
+                        <p>Zoom attendees: {p.zoomAttendees}</p>
+                        <p>Matched to members: {p.matchedAttendees} ({p.matchRate}% match rate)</p>
+                        <p>Unmatched: {p.skippedUnmatched}</p>
+                        {p.meetingsProcessed !== undefined && <p>Meetings processed: {p.meetingsProcessed}</p>}
+                        {p.segmentsCreated !== undefined && (
+                          <p className="ml-2">↳ {p.segmentsCreated} segments ({p.matchedToCalendar || 0} scheduled + {p.createdNewPrickles || 0} PUPs)</p>
+                        )}
+                        <p>Attendance records: {p.attendanceRecords}</p>
+                      </div>
+                    )}
+                  </div>
                 ))}
               </div>
             )}

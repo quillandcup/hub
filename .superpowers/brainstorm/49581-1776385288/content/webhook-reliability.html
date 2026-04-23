@@ -1,0 +1,198 @@
+<h2>Webhook Reliability Strategies</h2>
+<p class="subtitle">How to handle failed or missed webhooks</p>
+
+<div class="section">
+  <h3>Your Concern: What if webhooks fail or get missed?</h3>
+  <div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 20px; margin: 20px 0;">
+    <strong>Real scenarios where webhooks can fail:</strong>
+    <ul style="margin: 10px 0 0 20px;">
+      <li>Your API is down during deployment</li>
+      <li>Network timeout between Kajabi and your server</li>
+      <li>Kajabi webhook system has a bug</li>
+      <li>Webhook payload is malformed and crashes your endpoint</li>
+      <li>Rate limiting or temporary blocking</li>
+    </ul>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Strategies for Webhook Reliability</h3>
+
+  <div class="options">
+    <div class="option" data-choice="a" onclick="toggleSelect(this)">
+      <div class="letter">A</div>
+      <div class="content">
+        <h3>Webhooks + Lightweight Reconciliation</h3>
+        <p><strong>Primary:</strong> Kajabi webhooks for real-time sync</p>
+        <p><strong>Backup:</strong> Daily reconciliation job that only checks for discrepancies (not full poll)</p>
+
+        <div style="background: #e9ecef; padding: 15px; margin: 15px 0; border-radius: 6px;">
+          <strong>How reconciliation works:</strong>
+          <ol style="margin: 10px 0 0 20px;">
+            <li>Query Kajabi for members updated in last 48 hours</li>
+            <li>Compare against your database records</li>
+            <li>Only process differences (missed webhooks)</li>
+            <li>Log discrepancies for investigation</li>
+          </ol>
+        </div>
+
+        <div class="pros-cons" style="margin-top: 15px;">
+          <div class="pros">
+            <strong>Pros:</strong>
+            <ul>
+              <li>99% of updates are real-time</li>
+              <li>Catches missed webhooks within 24 hours</li>
+              <li>Lower API usage than full polling</li>
+              <li>Reasonable complexity</li>
+            </ul>
+          </div>
+          <div class="cons">
+            <strong>Cons:</strong>
+            <ul>
+              <li>Still need idempotent processing</li>
+              <li>Potential for 24-hour sync delay</li>
+              <li>Two code paths to maintain</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="option" data-choice="b" onclick="toggleSelect(this)">
+      <div class="letter">B</div>
+      <div class="content">
+        <h3>Webhooks + Dead Letter Queue + Manual Trigger</h3>
+        <p><strong>Primary:</strong> Kajabi webhooks with retry logic</p>
+        <p><strong>Monitoring:</strong> Failed webhooks go to dead letter queue (DLQ)</p>
+        <p><strong>Recovery:</strong> Admin UI has "Re-sync Member" button for manual fix</p>
+
+        <div style="background: #e9ecef; padding: 15px; margin: 15px 0; border-radius: 6px;">
+          <strong>How it works:</strong>
+          <ol style="margin: 10px 0 0 20px;">
+            <li>Webhook endpoint logs all attempts (success/failure)</li>
+            <li>Failed webhooks stored in DLQ with retry metadata</li>
+            <li>Dashboard shows DLQ count (alerts if > 0)</li>
+            <li>Admin can manually trigger re-sync for specific member</li>
+            <li>Optional: Auto-retry DLQ items every 6 hours</li>
+          </ol>
+        </div>
+
+        <div class="pros-cons" style="margin-top: 15px;">
+          <div class="pros">
+            <strong>Pros:</strong>
+            <ul>
+              <li>Real-time for normal cases</li>
+              <li>Explicit visibility into failures</li>
+              <li>Manual override for critical issues</li>
+              <li>Simpler than full polling</li>
+            </ul>
+          </div>
+          <div class="cons">
+            <strong>Cons:</strong>
+            <ul>
+              <li>Requires monitoring dashboard</li>
+              <li>Admin intervention needed for failures</li>
+              <li>Silent failures if DLQ not monitored</li>
+              <li>No automatic catch-up</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="option" data-choice="c" onclick="toggleSelect(this)">
+      <div class="letter">C</div>
+      <div class="content">
+        <h3>Full Hybrid (Webhooks + Hourly Polling)</h3>
+        <p><strong>Primary:</strong> Kajabi webhooks for real-time sync</p>
+        <p><strong>Backup:</strong> Hourly polling for all changes in last 2 hours (overlap window)</p>
+
+        <div style="background: #e9ecef; padding: 15px; margin: 15px 0; border-radius: 6px;">
+          <strong>How it works:</strong>
+          <ol style="margin: 10px 0 0 20px;">
+            <li>Webhooks process changes immediately</li>
+            <li>Every hour: poll Kajabi for changes in last 2 hours</li>
+            <li>Idempotent processing (same change can be processed twice)</li>
+            <li>Overlap window ensures no gaps</li>
+          </ol>
+        </div>
+
+        <div class="pros-cons" style="margin-top: 15px;">
+          <div class="pros">
+            <strong>Pros:</strong>
+            <ul>
+              <li>Maximum reliability</li>
+              <li>Auto-recovery from failures</li>
+              <li>Fast catch-up (1 hour max delay)</li>
+              <li>No manual intervention needed</li>
+            </ul>
+          </div>
+          <div class="cons">
+            <strong>Cons:</strong>
+            <ul>
+              <li>Highest API usage</li>
+              <li>Most complex to implement</li>
+              <li>Duplicate processing overhead</li>
+              <li>Hardest to debug</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="option" data-choice="d" onclick="toggleSelect(this)">
+      <div class="letter">D</div>
+      <div class="content">
+        <h3>Webhooks Only (Trust Kajabi)</h3>
+        <p><strong>Primary:</strong> Kajabi webhooks with standard retry</p>
+        <p><strong>Backup:</strong> None - assume Kajabi webhook system is reliable</p>
+
+        <div style="background: #e9ecef; padding: 15px; margin: 15px 0; border-radius: 6px;">
+          <strong>How it works:</strong>
+          <ol style="margin: 10px 0 0 20px;">
+            <li>Kajabi sends webhook, you process it</li>
+            <li>Kajabi retries failed webhooks (if they support it)</li>
+            <li>Log all webhook attempts for debugging</li>
+            <li>Monitor logs for errors</li>
+          </ol>
+        </div>
+
+        <div class="pros-cons" style="margin-top: 15px;">
+          <div class="pros">
+            <strong>Pros:</strong>
+            <ul>
+              <li>Simplest implementation</li>
+              <li>Lowest API usage</li>
+              <li>Single code path</li>
+              <li>Easy to understand and debug</li>
+            </ul>
+          </div>
+          <div class="cons">
+            <strong>Cons:</strong>
+            <ul>
+              <li>No safety net for missed webhooks</li>
+              <li>Depends on Kajabi reliability</li>
+              <li>Silently drift if webhooks fail</li>
+              <li>Manual investigation required</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Recommended Approach</h3>
+  <div style="background: #d1ecf1; border-left: 4px solid #0c5460; padding: 20px; margin: 20px 0;">
+    <strong>Start with Option A (Webhooks + Daily Reconciliation)</strong>
+    <p style="margin: 15px 0 10px 0;">This balances reliability with complexity:</p>
+    <ul style="margin: 10px 0 0 20px;">
+      <li>✅ Real-time sync for 99% of changes</li>
+      <li>✅ Automatic catch-up within 24 hours</li>
+      <li>✅ Reasonable API usage (1 request/day vs 24/day for hourly polling)</li>
+      <li>✅ Can start with just webhooks, add reconciliation later</li>
+      <li>✅ Easy to upgrade to Option C if 24-hour delay isn't acceptable</li>
+    </ul>
+  </div>
+</div>

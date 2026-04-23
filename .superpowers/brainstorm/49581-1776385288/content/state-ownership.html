@@ -1,0 +1,184 @@
+<h2>State Ownership & Conflict Resolution</h2>
+<p class="subtitle">Which system is the source of truth for what?</p>
+
+<div class="section">
+  <h3>Data Ownership Model</h3>
+  <p>When the same data exists in multiple systems, we need clear ownership rules:</p>
+
+  <table style="width: 100%; border-collapse: collapse; background: white; margin-top: 20px;">
+    <thead>
+      <tr style="background: #e9ecef;">
+        <th style="padding: 12px; text-align: left; border: 1px solid #dee2e6;">Data Type</th>
+        <th style="padding: 12px; text-align: left; border: 1px solid #dee2e6;">Source of Truth</th>
+        <th style="padding: 12px; text-align: left; border: 1px solid #dee2e6;">Other Systems</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td style="padding: 12px; border: 1px solid #dee2e6;"><strong>Subscription Status</strong><br/><small>(active, paused, canceled)</small></td>
+        <td style="padding: 12px; border: 1px solid #dee2e6; background: #fff3cd;">
+          <div style="font-size: 20px; margin-bottom: 5px;">⚠️ Needs Decision</div>
+          Kajabi OR Admin Portal?
+        </td>
+        <td style="padding: 12px; border: 1px solid #dee2e6;">Mirror only</td>
+      </tr>
+      <tr>
+        <td style="padding: 12px; border: 1px solid #dee2e6;"><strong>Billing Info</strong><br/><small>(payment method, next charge)</small></td>
+        <td style="padding: 12px; border: 1px solid #dee2e6; background: #d4edda;">Kajabi/Stripe (always)</td>
+        <td style="padding: 12px; border: 1px solid #dee2e6;">Admin Portal: Read-only</td>
+      </tr>
+      <tr>
+        <td style="padding: 12px; border: 1px solid #dee2e6;"><strong>Member Profile</strong><br/><small>(name, email)</small></td>
+        <td style="padding: 12px; border: 1px solid #dee2e6; background: #fff3cd;">
+          <div style="font-size: 20px; margin-bottom: 5px;">⚠️ Needs Decision</div>
+          Kajabi OR Admin Portal?
+        </td>
+        <td style="padding: 12px; border: 1px solid #dee2e6;">Sync bidirectionally</td>
+      </tr>
+      <tr>
+        <td style="padding: 12px; border: 1px solid #dee2e6;"><strong>Slack Membership</strong><br/><small>(channels, invites)</small></td>
+        <td style="padding: 12px; border: 1px solid #dee2e6; background: #d4edda;">Admin Portal (always)</td>
+        <td style="padding: 12px; border: 1px solid #dee2e6;">Slack: Managed via API</td>
+      </tr>
+      <tr>
+        <td style="padding: 12px; border: 1px solid #dee2e6;"><strong>Hiatus Schedule</strong><br/><small>(start date, end date, auto-resume)</small></td>
+        <td style="padding: 12px; border: 1px solid #dee2e6; background: #fff3cd;">
+          <div style="font-size: 20px; margin-bottom: 5px;">⚠️ Needs Decision</div>
+          Admin Portal OR Kajabi?
+        </td>
+        <td style="padding: 12px; border: 1px solid #dee2e6;">-</td>
+      </tr>
+      <tr>
+        <td style="padding: 12px; border: 1px solid #dee2e6;"><strong>Product Access</strong><br/><small>(which programs member has)</small></td>
+        <td style="padding: 12px; border: 1px solid #dee2e6; background: #d4edda;">Kajabi (always)</td>
+        <td style="padding: 12px; border: 1px solid #dee2e6;">Admin Portal: Mirror for analytics</td>
+      </tr>
+      <tr>
+        <td style="padding: 12px; border: 1px solid #dee2e6;"><strong>Onboarding Buddy</strong><br/><small>("big sister" assignments)</small></td>
+        <td style="padding: 12px; border: 1px solid #dee2e6; background: #d4edda;">Admin Portal (always)</td>
+        <td style="padding: 12px; border: 1px solid #dee2e6;">Kajabi doesn't know about this</td>
+      </tr>
+      <tr>
+        <td style="padding: 12px; border: 1px solid #dee2e6;"><strong>Prickle Attendance</strong><br/><small>(Zoom attendance data)</small></td>
+        <td style="padding: 12px; border: 1px solid #dee2e6; background: #d4edda;">Admin Portal (always)</td>
+        <td style="padding: 12px; border: 1px solid #dee2e6;">Kajabi doesn't know about this</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="section">
+  <h3>The Key Question: Hiatus Management</h3>
+  <p>Hiatus is your primary use case. Where should the hiatus schedule live?</p>
+
+  <div class="options">
+    <div class="option" data-choice="a" onclick="toggleSelect(this)">
+      <div class="letter">A</div>
+      <div class="content">
+        <h3>Admin Portal Owns Hiatus Schedule</h3>
+        <p><strong>Flow:</strong> Admin sets hiatus dates in portal → Portal pauses in Kajabi → Portal auto-resumes when date arrives</p>
+
+        <div style="background: #e9ecef; padding: 15px; margin: 15px 0; border-radius: 6px;">
+          <strong>How it works:</strong>
+          <ol style="margin: 10px 0 0 20px;">
+            <li>Admin Portal stores: <code>hiatus_start_date</code>, <code>hiatus_end_date</code></li>
+            <li>On start date: Portal calls Kajabi API to pause subscription</li>
+            <li>On end date: Portal calls Kajabi API to resume subscription</li>
+            <li>Portal handles all Slack channel removals/re-invites</li>
+          </ol>
+        </div>
+
+        <div class="pros-cons" style="margin-top: 15px;">
+          <div class="pros">
+            <strong>Pros:</strong>
+            <ul>
+              <li>Portal is single source of truth for hiatus</li>
+              <li>Can track hiatus history easily</li>
+              <li>Can see upcoming hiatus end dates</li>
+              <li>Auto-resume logic lives in one place</li>
+            </ul>
+          </div>
+          <div class="cons">
+            <strong>Cons:</strong>
+            <ul>
+              <li>Need scheduled job for auto-resume</li>
+              <li>If member manually resumes in Kajabi, creates conflict</li>
+              <li>Portal must reconcile external changes</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="option" data-choice="b" onclick="toggleSelect(this)">
+      <div class="letter">B</div>
+      <div class="content">
+        <h3>Kajabi Owns Subscription State, Portal Orchestrates</h3>
+        <p><strong>Flow:</strong> Admin sets hiatus in portal → Portal pauses in Kajabi + stores metadata → Kajabi webhook tells portal when resumed</p>
+
+        <div style="background: #e9ecef; padding: 15px; margin: 15px 0; border-radius: 6px;">
+          <strong>How it works:</strong>
+          <ol style="margin: 10px 0 0 20px;">
+            <li>Admin Portal stores: <code>hiatus_reason</code>, <code>expected_resume_date</code> (metadata only)</li>
+            <li>Portal immediately pauses subscription in Kajabi</li>
+            <li>Kajabi handles subscription state (paused/active)</li>
+            <li>Portal listens to Kajabi webhooks for state changes</li>
+            <li>Auto-resume: Portal calls Kajabi API on scheduled date</li>
+          </ol>
+        </div>
+
+        <div class="pros-cons" style="margin-top: 15px;">
+          <div class="pros">
+            <strong>Pros:</strong>
+            <ul>
+              <li>Kajabi always has correct billing state</li>
+              <li>Easier to handle external changes (member resumes in Kajabi)</li>
+              <li>Portal metadata adds context (why/when)</li>
+              <li>Clear separation of concerns</li>
+            </ul>
+          </div>
+          <div class="cons">
+            <strong>Cons:</strong>
+            <ul>
+              <li>State split between two systems</li>
+              <li>Need to sync Kajabi state back to portal</li>
+              <li>Auto-resume still needs scheduled job</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Conflict Scenarios</h3>
+  <p>What should happen in these edge cases?</p>
+
+  <div style="background: #f8d7da; border-left: 4px solid #dc3545; padding: 20px; margin: 20px 0;">
+    <strong>Scenario 1: Admin sets hiatus, member cancels directly in Kajabi</strong>
+    <ul style="margin: 10px 0 0 20px;">
+      <li>Option A: Cancellation wins - clear hiatus, remove from Slack</li>
+      <li>Option B: Block cancellation in Kajabi (disable self-service)</li>
+      <li>Option C: Detect cancellation, notify admin, ask what to do</li>
+    </ul>
+  </div>
+
+  <div style="background: #f8d7da; border-left: 4px solid #dc3545; padding: 20px; margin: 20px 0;">
+    <strong>Scenario 2: Member updates email in Kajabi, has active Slack invite</strong>
+    <ul style="margin: 10px 0 0 20px;">
+      <li>Option A: Auto-remove old email from Slack, invite new email</li>
+      <li>Option B: Keep Slack as-is, show warning in admin portal</li>
+      <li>Option C: Prevent email changes in Kajabi (require admin portal)</li>
+    </ul>
+  </div>
+
+  <div style="background: #f8d7da; border-left: 4px solid #dc3545; padding: 20px; margin: 20px 0;">
+    <strong>Scenario 3: Slack API fails when trying to remove member from channels</strong>
+    <ul style="margin: 10px 0 0 20px;">
+      <li>Option A: Fail the entire operation (rollback hiatus in Kajabi)</li>
+      <li>Option B: Log error, queue for retry, continue with hiatus</li>
+      <li>Option C: Mark member as "sync failed", notify admin</li>
+    </ul>
+  </div>
+</div>

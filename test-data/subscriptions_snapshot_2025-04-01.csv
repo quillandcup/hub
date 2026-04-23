@@ -1,0 +1,4 @@
+Kajabi Subscription ID,Setup Up Fee,Amount,Currency,Interval,Type,Status,Trial Ends On,Canceled On,Next Payment Date,Customer ID,Customer Name,Customer Email,Offer ID,Offer Title,Provider,Provider ID,Created At,Coupon Used
+3001234580,,$47.00,USD,Month,Subscription,Paused,,,"May 1, 2025",3001020,Monica Rivers,monica@example.com,2148293442,"Yes, girl! I see you!",Stripe,cus_monica123,"Jun 1, 2023",
+3001234581,,$47.00,USD,Month,Subscription,Paused,,,"May 1, 2025",3001021,Nathan Park,nathan@example.com,2148293442,"Yes, girl! I see you!",Stripe,cus_nathan456,"Aug 15, 2023",
+3001234582,,$47.00,USD,Month,Subscription,Active,,,"May 1, 2025",3001022,Olivia Chen,olivia@example.com,2148293442,"Yes, girl! I see you!",Stripe,cus_olivia789,"Sep 10, 2023",

@@ -151,10 +151,21 @@ export default function KajabiImportForm() {
                   <div className="mt-2 pl-4 border-l-2 border-blue-300 dark:border-blue-700">
                     <p className="font-semibold">Processed to Silver:</p>
                     {result.members.processing.map((p: any, i: number) => (
-                      <p key={i}>
-                        • {p.table}: {p.success ? '✓' : '✗'}
-                        {p.processed !== undefined && ` (${p.processed} records)`}
-                      </p>
+                      <div key={i}>
+                        <p className="font-semibold">• {p.table}: {p.success ? '✓' : '✗'}</p>
+                        {p.processed !== undefined && (
+                          <div className="pl-4 space-y-0.5 text-sm">
+                            <p>Total members: {p.processed}</p>
+                            {p.statusBreakdown && (
+                              <>
+                                <p>Active: {p.statusBreakdown.active}</p>
+                                <p>On hiatus: {p.statusBreakdown.on_hiatus}</p>
+                                <p>Inactive: {p.statusBreakdown.inactive}</p>
+                              </>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     ))}
                   </div>
                 )}
@@ -182,10 +193,21 @@ export default function KajabiImportForm() {
                   <div className="mt-2 pl-4 border-l-2 border-blue-300 dark:border-blue-700">
                     <p className="font-semibold">Processed to Silver:</p>
                     {result.subscriptions.processing.map((p: any, i: number) => (
-                      <p key={i}>
-                        • {p.table}: {p.success ? '✓' : '✗'}
-                        {p.detectedPeriods !== undefined && ` (${p.detectedPeriods} hiatus periods detected)`}
-                      </p>
+                      <div key={i}>
+                        <p className="font-semibold">• {p.table}: {p.success ? '✓' : '✗'}</p>
+                        {p.table === 'hiatus' && (
+                          <div className="pl-4 space-y-0.5 text-sm">
+                            <p>Hiatus periods detected: {p.detectedPeriods || 0}</p>
+                            <p>Matched to members: {p.matchedToMembers || 0}</p>
+                            {p.statusBreakdown && (
+                              <>
+                                <p>Ongoing: {p.statusBreakdown.ongoing || 0}</p>
+                                <p>Completed: {p.statusBreakdown.completed || 0}</p>
+                              </>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     ))}
                   </div>
                 )}

@@ -90,7 +90,7 @@ export async function POST(request: NextRequest) {
         const { error } = await supabase
           .schema('bronze').from("zoom_attendees")
           .upsert(attendeesToInsert, {
-            onConflict: "meeting_uuid,participant_id,join_time",
+            onConflict: "meeting_uuid,name,join_time",
             ignoreDuplicates: false, // Update if exists
           });
 

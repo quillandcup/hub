@@ -1,0 +1,12 @@
+Kajabi Subscription ID,Setup Up Fee,Amount,Currency,Interval,Type,Status,Trial Ends On,Canceled On,Next Payment Date,Customer ID,Customer Name,Customer Email,Offer ID,Offer Title,Provider,Provider ID,Created At,Coupon Used
+3001234567,,$47.00,USD,Month,Subscription,Paused,,,"May 2, 2026",3001001,Alice Johnson,alice@example.com,2148293442,"Yes, girl! I see you!",Stripe,cus_alice123,"Jan 15, 2024",
+3001234568,,$47.00,USD,Month,Subscription,Active,,,"May 5, 2026",3001002,Bob Martinez,bob@example.com,2148293442,"Yes, girl! I see you!",Stripe,cus_bob456,"Feb 20, 2024",
+3001234569,,$47.00,USD,Month,Subscription,Paused,,,"May 10, 2026",3001003,Carol Smith,carol@example.com,2148293442,"Yes, girl! I see you!",Stripe,cus_carol789,"Mar 10, 2024",
+3001234570,,$47.00,USD,Month,Subscription,Active,,,"May 12, 2026",3001004,Diana Wong,diana@example.com,2148293442,"Yes, girl! I see you!",Stripe,cus_diana012,"Apr 5, 2024",
+3001234571,,$47.00,USD,Month,Subscription,Paused,,,"May 15, 2026",3001005,Emily Brown,emily@example.com,2148293442,"Yes, girl! I see you!",Stripe,cus_emily345,"May 12, 2024",
+3001234572,,$47.00,USD,Month,Subscription,Active,,,"May 18, 2026",3001006,Frank Lee,frank@example.com,2148293442,"Yes, girl! I see you!",Stripe,cus_frank678,"Jun 8, 2024",
+3001234573,,$47.00,USD,Month,Subscription,Active,,,"May 20, 2026",3001007,Grace Taylor,grace@example.com,2148293442,"Yes, girl! I see you!",Stripe,cus_grace901,"Jul 3, 2024",
+3001234574,,$47.00,USD,Month,Subscription,Paused,,,"May 22, 2026",3001008,Henry Davis,henry@example.com,2148293442,"Yes, girl! I see you!",Stripe,cus_henry234,"Aug 15, 2024",
+3001234575,,$47.00,USD,Month,Subscription,Canceled,,"Feb 10, 2026",,3001009,Irene Kim,irene@example.com,2148293442,"Yes, girl! I see you!",Stripe,cus_irene567,"Sep 20, 2024",
+3001234576,,$47.00,USD,Month,Subscription,Canceled,,"Jan 25, 2026",,3001010,Jack Wilson,jack@example.com,2148293442,"Yes, girl! I see you!",Stripe,cus_jack890,"Oct 5, 2024",
+3001234577,,$47.00,USD,Month,Subscription,Active,,,"May 25, 2026",3001011,Karen Lopez,karen@example.com,2148293442,"Yes, girl! I see you!",Stripe,cus_karen123,"Apr 1, 2026",

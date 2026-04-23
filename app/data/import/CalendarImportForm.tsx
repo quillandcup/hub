@@ -126,10 +126,18 @@ export default function CalendarImportForm() {
                 <div className="mt-3 pl-4 border-l-2 border-blue-300 dark:border-blue-700">
                   <p className="font-semibold">Processed to Silver:</p>
                   {result.processing.processed.map((p: any, i: number) => (
-                    <p key={i} className="text-sm">
-                      • {p.table}: {p.success ? '✓' : '✗'}
-                      {p.pricklesCreated !== undefined && ` (${p.pricklesCreated} prickles)`}
-                    </p>
+                    <div key={i} className="text-sm">
+                      <p className="font-semibold">• {p.table}: {p.success ? '✓' : '✗'}</p>
+                      {p.eventsProcessed !== undefined && (
+                        <div className="pl-4 space-y-0.5 text-sm">
+                          <p>Calendar events: {p.eventsProcessed}</p>
+                          <p>Prickles created: {p.pricklesCreated}</p>
+                          {p.autoResolved > 0 && <p className="ml-2">↳ Auto-resolved: {p.autoResolved}</p>}
+                          <p>Unmatched: {p.skippedNoMatch}</p>
+                          {p.ignored > 0 && <p>Ignored: {p.ignored}</p>}
+                        </div>
+                      )}
+                    </div>
                   ))}
                 </div>
               )}

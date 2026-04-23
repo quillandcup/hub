@@ -29,7 +29,10 @@
       "Bash(rm /Users/cody/codyaray/git/quillandcup/admin-portal/app/dashboard/prickle-types/review/\\\\[id\\\\]/page.tsx /Users/cody/codyaray/git/quillandcup/admin-portal/app/dashboard/prickle-types/review/\\\\[id\\\\]/ResolveEventForm.tsx)",
       "Bash(rmdir /Users/cody/codyaray/git/quillandcup/admin-portal/app/dashboard/prickle-types/review/\\\\[id\\\\])",
       "Bash(npx vitest:*)",
-      "Bash(jq)"
+      "Bash(jq)",
+      "Read(//tmp/**)",
+      "Bash(npx tsx:*)",
+      "Bash(docker exec supabase_db_admin-portal *)"
     ]
   }
 }
