@@ -59,7 +59,7 @@ BEGIN
     ),
     (attendance.value->>'join_time')::timestamptz,
     (attendance.value->>'leave_time')::timestamptz,
-    (attendance.value->>'confidence_score')::numeric
+    attendance.value->>'confidence_score'
   FROM jsonb_array_elements(new_attendance_data) AS attendance
   LEFT JOIN prickle_id_map ON prickle_id_map.client_prickle_id = attendance.value->>'client_prickle_id'
   WHERE new_attendance_data != 'null'::jsonb AND jsonb_array_length(new_attendance_data) > 0;
