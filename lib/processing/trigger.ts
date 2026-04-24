@@ -59,6 +59,9 @@ export const SILVER_DEPENDENCIES: Record<string, TableDependencies> = {
  *
  * IMPORTANT: Silver dependencies are processing order constraints, NOT change propagation.
  * Only Bronze/Local dependencies trigger reprocessing.
+ *
+ * EXCEPTION: calendar_events changes also trigger attendance reprocessing because
+ * calendar prickles get new UUIDs during reprocessing, orphaning attendance records.
  */
 export function getAffectedSilverTables(
   changedTable: string,
@@ -72,8 +75,15 @@ export function getAffectedSilverTables(
     }
   }
 
-  // Do NOT propagate to downstream Silver tables
-  // Silver dependencies are for ordering, not change propagation
+  // SPECIAL CASE: calendar_events changes orphan attendance records
+  // because calendar reprocessing creates new prickle UUIDs.
+  // Must reprocess attendance to re-link to new prickles.
+  if (layer === 'bronze' && changedTable === 'calendar_events') {
+    if (!affected.includes('attendance')) {
+      affected.push('attendance');
+    }
+  }
+
   return affected;
 }
 
