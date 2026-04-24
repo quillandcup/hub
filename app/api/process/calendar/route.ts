@@ -309,7 +309,7 @@ export async function POST(request: NextRequest) {
     // Batch the deletes to avoid .in() limits with >1000 calendar_event_ids
     const calendarEventIds = allEvents.map(e => e.id);
     if (calendarEventIds.length > 0) {
-      const DELETE_BATCH = 500;
+      const DELETE_BATCH = 100; // Reduced from 500 to avoid "URI too long" errors
       for (let i = 0; i < calendarEventIds.length; i += DELETE_BATCH) {
         const batch = calendarEventIds.slice(i, i + DELETE_BATCH);
         const { error: deleteError } = await supabase

@@ -162,14 +162,19 @@ export async function POST(request: NextRequest) {
     // This ensures the hygiene dashboard shows accurate "last sync" even if no events changed
     if (events.length > 0) {
       const googleEventIds = events.map(e => e.id);
-      const { error: touchError } = await supabase
-        .schema('bronze').from("calendar_events")
-        .update({ imported_at: new Date().toISOString() })
-        .in("google_event_id", googleEventIds);
+      const UPDATE_BATCH = 100; // Batch to avoid "URI too long" errors
 
-      if (touchError) {
-        console.warn("Failed to update imported_at timestamps:", touchError);
-        // Don't fail the sync for this
+      for (let i = 0; i < googleEventIds.length; i += UPDATE_BATCH) {
+        const batch = googleEventIds.slice(i, i + UPDATE_BATCH);
+        const { error: touchError } = await supabase
+          .schema('bronze').from("calendar_events")
+          .update({ imported_at: new Date().toISOString() })
+          .in("google_event_id", batch);
+
+        if (touchError) {
+          console.warn("Failed to update imported_at timestamps batch:", touchError);
+          // Don't fail the sync for this
+        }
       }
     }
 
