@@ -197,10 +197,6 @@ export async function POST(request: NextRequest) {
           true // Skip email matching - we only have the name from event title
         );
 
-        if (!match && extractedHostName) {
-          console.log(`Failed to match host "${extractedHostName}" from event "${event.summary}"`);
-        }
-
         if (match) {
           hostId = match.member_id;
           // Update suggested name to matched member's name

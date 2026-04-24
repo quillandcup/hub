@@ -327,7 +327,6 @@ export async function POST(request: NextRequest) {
 
       // Skip meetings where nobody matched (edge case)
       if (matchedAttendeesForWindow.length === 0) {
-        console.warn(`Meeting ${meetingUuid} has no matched attendees - skipping segment creation`);
         continue;
       }
 
