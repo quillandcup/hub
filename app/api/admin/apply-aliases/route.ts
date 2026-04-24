@@ -98,22 +98,24 @@ export async function POST(request: NextRequest) {
       created++;
     }
 
-    // Auto-trigger attendance reprocessing ONLY (skip members to avoid cascade delete)
+    // Auto-trigger calendar → attendance reprocessing (skip members to preserve aliases)
     // Aliases reference member_id with ON DELETE CASCADE, so if members get deleted
     // and recreated (which happens in member reprocessing), all aliases are lost
     let processingResults = null;
     if (created > 0) {
-      console.log(`Triggering attendance reprocessing for last 90 days (skipping members to preserve aliases)`);
+      console.log(`Triggering calendar + attendance reprocessing for last 90 days (skipping members to preserve aliases)`);
       const now = new Date();
       const ninetyDaysAgo = new Date();
       ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
 
-      // Directly trigger attendance processing (skip members dependency)
       const baseUrl = process.env.VERCEL_URL
         ? `https://${process.env.VERCEL_URL}`
         : 'http://localhost:3000';
 
-      const response = await fetch(`${baseUrl}/api/process/attendance`, {
+      const results = [];
+
+      // First: Reprocess calendar (picks up new aliases for host matching)
+      const calendarResponse = await fetch(`${baseUrl}/api/process/calendar`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -125,14 +127,38 @@ export async function POST(request: NextRequest) {
         })
       });
 
-      if (response.ok) {
-        const result = await response.json();
-        processingResults = { processed: [{ table: 'attendance', success: true, ...result }] };
+      if (calendarResponse.ok) {
+        const result = await calendarResponse.json();
+        results.push({ table: 'calendar', success: true, ...result });
       } else {
-        const error = await response.text();
-        console.error('Attendance reprocessing failed:', error);
-        processingResults = { processed: [{ table: 'attendance', success: false, error }] };
+        const error = await calendarResponse.text();
+        console.error('Calendar reprocessing failed:', error);
+        results.push({ table: 'calendar', success: false, error });
       }
+
+      // Second: Reprocess attendance (picks up new aliases for attendee matching)
+      const attendanceResponse = await fetch(`${baseUrl}/api/process/attendance`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
+        },
+        body: JSON.stringify({
+          fromDate: ninetyDaysAgo.toISOString(),
+          toDate: now.toISOString()
+        })
+      });
+
+      if (attendanceResponse.ok) {
+        const result = await attendanceResponse.json();
+        results.push({ table: 'attendance', success: true, ...result });
+      } else {
+        const error = await attendanceResponse.text();
+        console.error('Attendance reprocessing failed:', error);
+        results.push({ table: 'attendance', success: false, error });
+      }
+
+      processingResults = { processed: results };
     }
 
     return NextResponse.json({
