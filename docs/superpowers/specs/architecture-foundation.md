@@ -115,37 +115,67 @@ DELETE FROM ignored_zoom_names WHERE zoom_name = 'Test User';
 
 **Characteristics:**
 - Stored in `public` schema with `SILVER` comment
-- **Reprocessable via DELETE + INSERT** (never UPSERT)
-- Can be rebuilt from Bronze + Local at any time
+- **Reprocessable** - can be rebuilt from Bronze + Local at any time
 - Processing logic is deterministic
+- Pattern choice depends on entity type (see below)
 
 **Tables:**
-- `members` (canonical member list from Kajabi + aliases)
-- `member_product_access` (product access from Kajabi purchases)
-- `member_subscriptions` (links members to Stripe subscriptions)
-- `member_slack_channels` (current Slack channel access)
-- `prickles` (canonical events from calendar + zoom)
-- `prickle_attendance` (prickle attendance records from zoom data)
+- `members` (canonical member list from Kajabi + aliases) - **Identity Entity**
+- `member_product_access` (product access from Kajabi purchases) - Event Entity
+- `member_subscriptions` (links members to Stripe subscriptions) - Event Entity
+- `member_slack_channels` (current Slack channel access) - Event Entity
+- `prickles` (canonical events from calendar + zoom) - Event Entity
+- `prickle_attendance` (prickle attendance records from zoom data) - Event Entity
 
-**Reprocessability Pattern:**
+#### Identity Entities vs Event Entities
+
+Silver tables fall into two categories with different reprocessing patterns:
+
+**Identity Entities** - Stable identities with relationships (use UPSERT):
+- Entities: `members`, `products`, `channels`
+- Pattern: **UPSERT by stable identifier** (email, external ID)
+- Why: Must preserve UUIDs to maintain foreign key relationships
+- Scope: Full table reprocessing
+
+```sql
+-- CORRECT: UPSERT by stable identifier (preserves UUIDs and relationships)
+INSERT INTO members (email, name, joined_at, status, ...)
+SELECT email, name, joined_at, status, ...
+FROM bronze.kajabi_members
+WHERE ...
+ON CONFLICT (email) DO UPDATE SET
+  name = EXCLUDED.name,
+  status = EXCLUDED.status,
+  updated_at = NOW();
+
+-- Why: Same email → same UUID → aliases, prickles, attendance stay linked
+```
+
+**Event Entities** - Time-scoped events and relationships (use DELETE + INSERT):
+- Entities: `prickles`, `prickle_attendance`, `member_product_access`, `member_slack_channels`
+- Pattern: **DELETE + INSERT by scope** (date range, status)
+- Why: Must remove orphans when source data is deleted
+- Scope: Date range or other logical scope
+
 ```sql
 -- CORRECT: DELETE + INSERT (orphans are removed)
 DELETE FROM prickles
-WHERE date >= '2026-04-01' AND date <= '2026-04-30';
+WHERE start_time >= '2026-04-01' AND start_time < '2026-05-01'
+  AND source = 'calendar';
 
-INSERT INTO prickles (...)
+INSERT INTO prickles (type_id, title, host, start_time, end_time, source)
 SELECT ... FROM bronze.calendar_events
-WHERE ...;
+WHERE start_time >= '2026-04-01' AND start_time < '2026-05-01';
 
 -- WRONG: UPSERT (leaves orphaned data)
 INSERT INTO prickles (...) VALUES (...)
 ON CONFLICT (id) DO UPDATE ...;  -- ❌ Deleted events stay forever
 ```
 
-**Why DELETE + INSERT:**
-- If a calendar event is deleted, UPSERT leaves the prickle orphaned
-- DELETE + INSERT ensures Silver reflects current Bronze state
-- Critical for data integrity during reprocessing
+**Why the distinction:**
+- **Identity entities** have stable external identifiers (email) and must preserve internal UUIDs across reprocessing to maintain relationships (aliases, attendance)
+- **Event entities** are scoped by time/status and should be fully recomputed for each scope - deleted events must be removed from Silver
+- Both patterns achieve reprocessability but optimize for different data characteristics
 
 ### Gold Layer
 
@@ -215,22 +245,61 @@ The ability to delete and recreate Silver layer data from Bronze + Local sources
 
 ### Requirements for Silver Tables
 
+**For Identity Entities** (members, products, channels):
+1. **UPSERT by stable identifier** (email, external ID) in processing routes
+2. **Full table scope** (process all entities each time)
+3. **Preserve UUIDs** (same identifier → same UUID across reprocessing)
+4. **Deterministic logic** (same inputs → same outputs)
+5. **No manual edits** (all changes via reprocessing)
+
+**For Event Entities** (prickles, attendance, access):
 1. **DELETE + INSERT pattern** in processing routes
 2. **Scoped deletion** (by date range or other criteria, not full table)
-3. **Deterministic logic** (same inputs → same outputs)
-4. **No manual edits** (all changes via reprocessing)
+3. **Remove orphans** (deleted source data → deleted Silver data)
+4. **Deterministic logic** (same inputs → same outputs)
+5. **No manual edits** (all changes via reprocessing)
 
 ### Testing Reprocessability
 
-Every Silver processing route must have tests verifying:
-1. Initial processing creates records
-2. Reprocessing with deleted source data removes Silver records
-3. Reprocessing with changed source data updates Silver records
-4. No orphaned data after reprocessing
-
 **Test location:** `tests/api/reprocessability/`
 
-**Example test:**
+**For Identity Entities** - must verify UUID stability:
+```typescript
+test('members reprocessing preserves UUIDs and relationships', async () => {
+  // 1. Process members → creates members
+  await POST('/api/process/members');
+  const { data: memberBefore } = await supabase
+    .from('members')
+    .select('id, email')
+    .eq('email', 'user@example.com')
+    .single();
+  
+  // 2. Create an alias for this member
+  await supabase.from('member_name_aliases')
+    .insert({ member_id: memberBefore.id, alias: 'User' });
+  
+  // 3. Reprocess members (new Bronze data, same email)
+  await POST('/api/process/members');
+  const { data: memberAfter } = await supabase
+    .from('members')
+    .select('id, email')
+    .eq('email', 'user@example.com')
+    .single();
+  
+  // 4. Verify UUID unchanged (relationships preserved)
+  expect(memberAfter.id).toBe(memberBefore.id);
+  
+  // 5. Verify alias still exists (not CASCADE deleted)
+  const { data: alias } = await supabase
+    .from('member_name_aliases')
+    .select('*')
+    .eq('member_id', memberBefore.id)
+    .single();
+  expect(alias).toBeTruthy();
+});
+```
+
+**For Event Entities** - must verify orphan removal:
 ```typescript
 test('prickles reprocessing removes deleted events', async () => {
   // 1. Process calendar events → creates prickles
@@ -252,7 +321,7 @@ test('prickles reprocessing removes deleted events', async () => {
   const { data: orphan } = await supabase
     .from('prickles')
     .select('*')
-    .eq('calendar_event_id', 'deleted-event')
+    .eq('google_event_id', 'deleted-event')
     .single();
   expect(orphan).toBeNull();
 });
