@@ -273,45 +273,45 @@ export default function MissingHostsPage() {
 
   return (
     <div className="p-8 max-w-6xl mx-auto">
-      <h1 className="text-3xl font-bold mb-6">Prickles Missing Hosts</h1>
+      <h1 className="text-3xl font-bold mb-6 dark:text-slate-100">Prickles Missing Hosts</h1>
 
       {loading ? (
-        <p className="text-gray-500">Loading...</p>
+        <p className="text-gray-500 dark:text-slate-400">Loading...</p>
       ) : (
         <div className="space-y-8">
           {/* Summary */}
-          <div className="bg-white border rounded-lg p-6">
-            <h2 className="text-xl font-semibold mb-4">Summary</h2>
+          <div className="bg-white dark:bg-slate-800 border dark:border-slate-700 rounded-lg p-6">
+            <h2 className="text-xl font-semibold mb-4 dark:text-slate-100">Summary</h2>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <p className="text-sm text-gray-600">Data Quality Issues</p>
-                <p className="text-2xl font-bold text-orange-600">{totalUnexpected}</p>
-                <p className="text-sm text-gray-500">prickles requiring hosts</p>
+                <p className="text-sm text-gray-600 dark:text-slate-400">Data Quality Issues</p>
+                <p className="text-2xl font-bold text-orange-600 dark:text-orange-400">{totalUnexpected}</p>
+                <p className="text-sm text-gray-500 dark:text-slate-500">prickles requiring hosts</p>
               </div>
               <div>
-                <p className="text-sm text-gray-600">Expected (No Host Required)</p>
-                <p className="text-2xl font-bold text-gray-600">
+                <p className="text-sm text-gray-600 dark:text-slate-400">Expected (No Host Required)</p>
+                <p className="text-2xl font-bold text-gray-600 dark:text-slate-400">
                   {expectedUnhosted.reduce((sum, s) => sum + s.missing_host_count, 0)}
                 </p>
-                <p className="text-sm text-gray-500">prickles intentionally unhosted</p>
+                <p className="text-sm text-gray-500 dark:text-slate-500">prickles intentionally unhosted</p>
               </div>
             </div>
 
             {/* Collapsible Detailed Breakdown */}
             {detailedStats && (
-              <div className="mt-4 pt-4 border-t border-gray-200">
+              <div className="mt-4 pt-4 border-t border-gray-200 dark:border-slate-700">
                 <button
                   onClick={() => setShowDetailedStats(!showDetailedStats)}
-                  className="text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1"
+                  className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 flex items-center gap-1"
                 >
                   {showDetailedStats ? '▼' : '▶'} Detailed Breakdown
                 </button>
                 {showDetailedStats && (
-                  <div className="mt-3 text-sm space-y-1 font-mono text-gray-700">
+                  <div className="mt-3 text-sm space-y-1 font-mono text-gray-700 dark:text-slate-300">
                     <div>Total calendar prickles: {detailedStats.total.toLocaleString()}</div>
                     <div>With hosts: {detailedStats.withHost.toLocaleString()} ({detailedStats.withHostRequiring.toLocaleString()} requiring + {detailedStats.withHostNotRequiring.toLocaleString()} not requiring)</div>
                     <div>Without hosts: {detailedStats.withoutHost.toLocaleString()} ({detailedStats.withoutHostRequiring.toLocaleString()} requiring + {detailedStats.withoutHostNotRequiring.toLocaleString()} not requiring)</div>
-                    <div className="pt-1 border-t border-gray-200">Requiring hosts: {(detailedStats.withHostRequiring + detailedStats.withoutHostRequiring).toLocaleString()} ({detailedStats.withHostRequiring.toLocaleString()} with + {detailedStats.withoutHostRequiring.toLocaleString()} without)</div>
+                    <div className="pt-1 border-t border-gray-200 dark:border-slate-700">Requiring hosts: {(detailedStats.withHostRequiring + detailedStats.withoutHostRequiring).toLocaleString()} ({detailedStats.withHostRequiring.toLocaleString()} with + {detailedStats.withoutHostRequiring.toLocaleString()} without)</div>
                     <div>Not requiring hosts: {(detailedStats.withHostNotRequiring + detailedStats.withoutHostNotRequiring).toLocaleString()} ({detailedStats.withHostNotRequiring.toLocaleString()} with + {detailedStats.withoutHostNotRequiring.toLocaleString()} without)</div>
                   </div>
                 )}
@@ -321,29 +321,29 @@ export default function MissingHostsPage() {
 
           {/* Data Quality Issues */}
           {unexpectedUnhosted.length > 0 && (
-            <div className="bg-white border rounded-lg p-6">
-              <h2 className="text-xl font-semibold mb-4 text-orange-600">
+            <div className="bg-white dark:bg-slate-800 border dark:border-slate-700 rounded-lg p-6">
+              <h2 className="text-xl font-semibold mb-4 text-orange-600 dark:text-orange-400">
                 ⚠️ Missing Hosts (Data Quality Issues)
               </h2>
-              <p className="text-sm text-gray-600 mb-4">
+              <p className="text-sm text-gray-600 dark:text-slate-400 mb-4">
                 These prickle types should have hosts but don't. Click to investigate.
               </p>
               <div className="space-y-2">
                 {unexpectedUnhosted.map((stat) => (
                   <div
                     key={stat.prickle_type_id}
-                    className="p-3 bg-orange-50 rounded-lg"
+                    className="p-3 bg-orange-50 dark:bg-orange-900/20 border dark:border-orange-800/30 rounded-lg"
                   >
                     <div className="flex items-start justify-between mb-2">
                       <div className="flex-1">
-                        <p className="font-medium">{stat.prickle_type}</p>
-                        <p className="text-sm text-gray-600">
+                        <p className="font-medium dark:text-slate-100">{stat.prickle_type}</p>
+                        <p className="text-sm text-gray-600 dark:text-slate-400">
                           {stat.missing_host_count} prickles missing hosts
                         </p>
                       </div>
                       <button
                         onClick={() => setSelectedType(stat.prickle_type_id)}
-                        className="text-xs px-3 py-1 bg-white border rounded hover:bg-gray-50"
+                        className="text-xs px-3 py-1 bg-white dark:bg-slate-700 border dark:border-slate-600 rounded hover:bg-gray-50 dark:hover:bg-slate-600 dark:text-slate-200"
                       >
                         View
                       </button>
@@ -358,7 +358,7 @@ export default function MissingHostsPage() {
                       />
                       <button
                         onClick={() => toggleRequiresHost(stat.prickle_type_id, stat.requires_host)}
-                        className="text-xs px-3 py-1 bg-white border rounded hover:bg-gray-50 whitespace-nowrap"
+                        className="text-xs px-3 py-1 bg-white dark:bg-slate-700 border dark:border-slate-600 rounded hover:bg-gray-50 dark:hover:bg-slate-600 dark:text-slate-200 whitespace-nowrap"
                       >
                         Mark Optional
                       </button>
@@ -371,29 +371,29 @@ export default function MissingHostsPage() {
 
           {/* Expected Unhosted */}
           {expectedUnhosted.length > 0 && (
-            <div className="bg-white border rounded-lg p-6">
-              <h2 className="text-xl font-semibold mb-4">
+            <div className="bg-white dark:bg-slate-800 border dark:border-slate-700 rounded-lg p-6">
+              <h2 className="text-xl font-semibold mb-4 dark:text-slate-100">
                 ✓ Expected Unhosted Prickles
               </h2>
-              <p className="text-sm text-gray-600 mb-4">
+              <p className="text-sm text-gray-600 dark:text-slate-400 mb-4">
                 These prickle types don't require hosts (community events, self-directed time, etc.)
               </p>
               <div className="space-y-2">
                 {expectedUnhosted.map((stat) => (
                   <div
                     key={stat.prickle_type_id}
-                    className="p-3 bg-gray-50 rounded-lg"
+                    className="p-3 bg-gray-50 dark:bg-slate-700/50 border dark:border-slate-600/50 rounded-lg"
                   >
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex-1">
-                        <p className="font-medium text-gray-700">{stat.prickle_type}</p>
-                        <p className="text-sm text-gray-500">
+                        <p className="font-medium text-gray-700 dark:text-slate-200">{stat.prickle_type}</p>
+                        <p className="text-sm text-gray-500 dark:text-slate-400">
                           {stat.missing_host_count} prickles (host not required)
                         </p>
                       </div>
                       <button
                         onClick={() => toggleRequiresHost(stat.prickle_type_id, stat.requires_host)}
-                        className="text-xs px-3 py-1 bg-white border rounded hover:bg-gray-50 whitespace-nowrap"
+                        className="text-xs px-3 py-1 bg-white dark:bg-slate-700 border dark:border-slate-600 rounded hover:bg-gray-50 dark:hover:bg-slate-600 dark:text-slate-200 whitespace-nowrap"
                       >
                         Mark Required
                       </button>
@@ -415,14 +415,14 @@ export default function MissingHostsPage() {
 
           {/* Detail View */}
           {selectedType && (
-            <div className="bg-white border rounded-lg p-6">
+            <div className="bg-white dark:bg-slate-800 border dark:border-slate-700 rounded-lg p-6">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-semibold">
+                <h2 className="text-xl font-semibold dark:text-slate-100">
                   {stats.find((s) => s.prickle_type_id === selectedType)?.prickle_type} - Missing Hosts
                 </h2>
                 <button
                   onClick={() => setSelectedType(null)}
-                  className="text-sm text-gray-500 hover:text-gray-700"
+                  className="text-sm text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-300"
                 >
                   Close
                 </button>
@@ -430,13 +430,13 @@ export default function MissingHostsPage() {
 
               <div className="space-y-2 max-h-96 overflow-y-auto">
                 {prickles.map((prickle) => (
-                  <div key={prickle.id} className="p-3 bg-gray-50 rounded-lg">
+                  <div key={prickle.id} className="p-3 bg-gray-50 dark:bg-slate-700/50 border dark:border-slate-600/50 rounded-lg">
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
-                        <p className="font-medium">
+                        <p className="font-medium dark:text-slate-100">
                           {prickle.title || prickle.prickle_type}
                         </p>
-                        <p className="text-sm text-gray-600">
+                        <p className="text-sm text-gray-600 dark:text-slate-400">
                           {formatDateTimeRange(prickle.start_time, prickle.end_time)}
                         </p>
                       </div>
@@ -446,7 +446,7 @@ export default function MissingHostsPage() {
               </div>
 
               {prickles.length === 100 && (
-                <p className="text-sm text-gray-500 mt-4">Showing first 100 prickles</p>
+                <p className="text-sm text-gray-500 dark:text-slate-400 mt-4">Showing first 100 prickles</p>
               )}
             </div>
           )}
