@@ -49,3 +49,7 @@ next-env.d.ts
 /supabase/.branches
 /supabase/.temp
 /supabase/logs
+
+# AI/ML cache directories
+.fastembed_cache/
+.superpowers/
