@@ -36,7 +36,7 @@ export default async function NameMatchingReportPage() {
       .select("id, name, email"),
     supabase
       .from("member_name_aliases")
-      .select("alias, member_id"),
+      .select("alias, member_id, source"),
   ]);
 
   // Filter for members with zero attendance

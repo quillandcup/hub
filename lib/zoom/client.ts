@@ -10,6 +10,10 @@ interface ZoomMeeting {
   topic: string;
   start_time: string;
   end_time: string;
+  duration?: number;
+  host_email?: string;
+  host_name?: string;
+  participants_count?: number;
 }
 
 interface ZoomMeetingsResponse {

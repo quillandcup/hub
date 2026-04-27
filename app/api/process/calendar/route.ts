@@ -121,7 +121,7 @@ export async function POST(request: NextRequest) {
       { data: resolvedUnmatchedEvents },
     ] = await Promise.all([
       supabase.from("members").select("id, name, email"),
-      supabase.from("member_name_aliases").select("alias, member_id"),
+      supabase.from("member_name_aliases").select("alias, member_id, source"),
       supabase.from("prickle_types").select("id, name, normalized_name, default_host_id"),
       // Load previously resolved/ignored unmatched events to apply learned decisions
       supabase

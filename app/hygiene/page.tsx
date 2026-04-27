@@ -78,7 +78,7 @@ export default async function DataHygienePage() {
   // Host match rate: % of prickles requiring hosts that have hosts
   const totalRequiringHosts = (calendarPricklesWithHost || 0) + (calendarPricklesMissingHost || 0);
   const hostMatchRate = totalRequiringHosts > 0
-    ? Math.round((calendarPricklesWithHost / totalRequiringHosts) * 100)
+    ? Math.round(((calendarPricklesWithHost || 0) / totalRequiringHosts) * 100)
     : 0;
 
   // Calculate orphaned events (imported but never processed)
@@ -127,7 +127,7 @@ export default async function DataHygienePage() {
   // Load members and aliases for matching (same as processing does)
   const [{ data: membersForMatching }, { data: aliasesForMatching }] = await Promise.all([
     supabase.from("members").select("id, name, email"),
-    supabase.from("member_name_aliases").select("alias, member_id"),
+    supabase.from("member_name_aliases").select("alias, member_id, source"),
   ]);
 
   // Get all zoom_attendees with name/email for matching

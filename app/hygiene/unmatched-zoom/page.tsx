@@ -14,11 +14,11 @@ export default async function AliasSearchPage() {
   ] = await Promise.all([
     supabase
       .from("members")
-      .select("id, name, email, status")
+      .select("id, name, email")
       .order("name"),
     supabase
       .from("member_name_aliases")
-      .select("alias, member_id"),
+      .select("alias, member_id, source"),
     supabase
       .from("ignored_zoom_names")
       .select("zoom_name"),
