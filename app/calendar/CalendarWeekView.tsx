@@ -262,9 +262,8 @@ export default function CalendarWeekView({ prickles, weekStartDate, userTimezone
                         });
 
                         return (
-                          <>
+                          <div key={prickle.id}>
                             <div
-                              key={prickle.id}
                               className={`absolute left-1 right-1 rounded border-2 p-1.5 overflow-hidden pointer-events-auto cursor-pointer hover:opacity-90 transition-opacity ${getAttendanceColor(prickle.attendance_count)}`}
                               style={{
                                 top: `${adjustedTop}px`,
@@ -292,7 +291,10 @@ export default function CalendarWeekView({ prickles, weekStartDate, userTimezone
                                 className="absolute z-50 bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 px-3 py-2 rounded-lg shadow-lg text-xs whitespace-nowrap pointer-events-none"
                                 style={{
                                   top: `${adjustedTop}px`,
-                                  left: 'calc(100% + 8px)', // Position to the right of the day column
+                                  ...(dayIndex === 6
+                                    ? { right: 'calc(100% + 8px)' }  // Sunday: position left
+                                    : { left: 'calc(100% + 8px)' }   // Others: position right
+                                  ),
                                 }}
                               >
                                 <div className="font-semibold mb-1">{prickle.prickle_type}</div>
@@ -302,7 +304,7 @@ export default function CalendarWeekView({ prickles, weekStartDate, userTimezone
                                 {prickle.host_late && <div className="text-yellow-400 dark:text-yellow-300 mt-1">⚠️ Host was late (&gt;5 min)</div>}
                               </div>
                             )}
-                          </>
+                          </div>
                         );
                       })}
                     </div>
