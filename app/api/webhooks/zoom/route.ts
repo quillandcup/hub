@@ -25,9 +25,8 @@ export async function POST(request: NextRequest) {
     const body = await request.text();
     const payload = JSON.parse(body);
 
-    // TODO: Verify webhook signature
+    // Verify webhook signature
     // Zoom uses HMAC-SHA256 signature verification
-    // For now, log the signature header for debugging
     const signature = request.headers.get("x-zm-signature");
     const timestamp = request.headers.get("x-zm-request-timestamp");
 
@@ -37,20 +36,20 @@ export async function POST(request: NextRequest) {
       timestamp,
     });
 
-    // FUTURE: Implement signature verification
-    // const secretToken = process.env.ZOOM_WEBHOOK_SECRET_TOKEN;
-    // if (secretToken) {
-    //   const message = `v0:${timestamp}:${body}`;
-    //   const hashForVerify = createHmac('sha256', secretToken)
-    //     .update(message)
-    //     .digest('hex');
-    //   const expectedSignature = `v0=${hashForVerify}`;
-    //
-    //   if (signature !== expectedSignature) {
-    //     console.error("Invalid Zoom webhook signature");
-    //     return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
-    //   }
-    // }
+    // Verify signature if secret token is configured
+    const secretToken = process.env.ZOOM_WEBHOOK_SECRET_TOKEN;
+    if (secretToken && signature) {
+      const message = `v0:${timestamp}:${body}`;
+      const hashForVerify = createHmac('sha256', secretToken)
+        .update(message)
+        .digest('hex');
+      const expectedSignature = `v0=${hashForVerify}`;
+
+      if (signature !== expectedSignature) {
+        console.error("Invalid Zoom webhook signature");
+        return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
+      }
+    }
 
     const eventType = payload.event;
 

@@ -1,0 +1,17 @@
+{
+  "headers": {
+    "x-slack-signature": "v0=test-signature",
+    "x-slack-request-timestamp": "1234567890"
+  },
+  "body": {
+    "type": "event_callback",
+    "event": {
+      "type": "message",
+      "channel": "C123456",
+      "user": "U123456",
+      "text": "Looking forward to today's prickle!",
+      "ts": "1714147200.000000",
+      "thread_ts": null
+    }
+  }
+}

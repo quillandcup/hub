@@ -1,0 +1,9 @@
+{
+  "headers": {
+    "x-goog-channel-id": "test-channel-123",
+    "x-goog-resource-state": "sync",
+    "x-goog-resource-id": "test-resource-456",
+    "x-goog-channel-token": "test-token-789"
+  },
+  "body": {}
+}

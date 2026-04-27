@@ -1,0 +1,10 @@
+{
+  "headers": {
+    "x-slack-signature": "v0=test-signature",
+    "x-slack-request-timestamp": "1234567890"
+  },
+  "body": {
+    "type": "url_verification",
+    "challenge": "test-challenge-string-123"
+  }
+}

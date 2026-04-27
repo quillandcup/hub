@@ -16,9 +16,8 @@ export const maxDuration = 60;
  */
 export async function POST(request: NextRequest) {
   try {
-    // TODO: Verify webhook signature
+    // Verify webhook token
     // Google Calendar uses X-Goog-Channel-Token header for verification
-    // For now, we'll implement basic validation
     const channelToken = request.headers.get("x-goog-channel-token");
     const resourceState = request.headers.get("x-goog-resource-state");
     const resourceId = request.headers.get("x-goog-resource-id");
@@ -37,6 +36,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: "Invalid webhook payload" },
         { status: 400 }
+      );
+    }
+
+    // Verify channel token if configured
+    const expectedToken = process.env.GOOGLE_CALENDAR_WEBHOOK_TOKEN;
+    if (expectedToken && channelToken !== expectedToken) {
+      console.error("Invalid Google Calendar webhook token");
+      return NextResponse.json(
+        { error: "Invalid token" },
+        { status: 401 }
       );
     }
 

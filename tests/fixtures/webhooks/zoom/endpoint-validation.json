@@ -1,0 +1,12 @@
+{
+  "headers": {
+    "x-zm-signature": "v0=test-signature",
+    "x-zm-request-timestamp": "1234567890"
+  },
+  "body": {
+    "event": "endpoint.url_validation",
+    "payload": {
+      "plainToken": "test-plain-token-123"
+    }
+  }
+}

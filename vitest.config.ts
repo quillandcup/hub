@@ -5,7 +5,7 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
-    setupFiles: ['./tests/setup.ts'],
+    setupFiles: ['./tests/setup.ts', './tests/setup-msw.ts'],
     include: ['tests/**/*.test.ts'],
   },
   resolve: {

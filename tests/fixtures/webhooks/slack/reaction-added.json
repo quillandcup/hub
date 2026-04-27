@@ -1,0 +1,20 @@
+{
+  "headers": {
+    "x-slack-signature": "v0=test-signature",
+    "x-slack-request-timestamp": "1234567890"
+  },
+  "body": {
+    "type": "event_callback",
+    "event": {
+      "type": "reaction_added",
+      "user": "U123456",
+      "reaction": "tada",
+      "item": {
+        "type": "message",
+        "channel": "C123456",
+        "ts": "1714147200.000000"
+      },
+      "event_ts": "1714147210.000000"
+    }
+  }
+}

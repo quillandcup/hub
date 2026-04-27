@@ -1,0 +1,19 @@
+{
+  "headers": {
+    "x-zm-signature": "v0=test-signature",
+    "x-zm-request-timestamp": "1234567890"
+  },
+  "body": {
+    "event": "meeting.ended",
+    "payload": {
+      "object": {
+        "id": "123456789",
+        "uuid": "test-meeting-uuid-123",
+        "topic": "Morning Writing Session",
+        "start_time": "2026-04-26T14:00:00Z",
+        "end_time": "2026-04-26T15:00:00Z",
+        "duration": 60
+      }
+    }
+  }
+}

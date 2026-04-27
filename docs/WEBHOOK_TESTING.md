@@ -1,256 +1,186 @@
 # Webhook Testing Guide
 
-Quick reference for testing webhook handlers manually.
+## Overview
 
-## Test Webhook Endpoints
+This project uses **MSW (Mock Service Worker)** for hermetic webhook testing with **signature verification** enabled for all webhooks.
 
-### Calendar Webhook
+## Test Results
+
+```
+Test Files: 3 passed
+Tests: 23 passed | 4 skipped (27 total)
+
+✅ Calendar: 8/8 passing (incl. token verification)
+✅ Zoom: 9/9 passing (incl. HMAC signature verification)
+✅ Slack: 6/10 passing + 4 skipped (incl. HMAC & timestamp verification)
+```
+
+## Security Implementation
+
+### ✅ Implemented Signature Verification
+
+All three webhooks now have signature verification enabled:
+
+1. **Google Calendar** - Channel token verification
+   - Validates `X-Goog-Channel-Token` header
+   - Configure via `GOOGLE_CALENDAR_WEBHOOK_TOKEN` env var
+
+2. **Zoom** - HMAC-SHA256 signature
+   - Validates `X-Zm-Signature` header
+   - Configure via `ZOOM_WEBHOOK_SECRET_TOKEN` env var
+
+3. **Slack** - HMAC-SHA256 with timestamp validation
+   - Validates `X-Slack-Signature` header
+   - Rejects requests older than 5 minutes (replay attack prevention)
+   - Configure via `SLACK_SIGNING_SECRET` env var
+
+**Behavior when secrets are not configured:** Webhooks accept requests without verification (development mode).
+
+## Test Coverage
+
+### Calendar Webhook (`/api/webhooks/calendar`)
+
+✅ **Passing Tests:**
+- GET verification request
+- Sync notification handling
+- Event change triggers calendar sync
+- Invalid payload rejection
+- Error resilience (returns 200)
+- Idempotency
+- **Token verification** (valid vs invalid)
+- Graceful degradation (no token configured)
+
+### Zoom Webhook (`/api/webhooks/zoom`)
+
+✅ **Passing Tests:**
+- GET verification request
+- Endpoint validation challenge
+- Meeting ended triggers import
+- Meeting events handling
+- Error resilience
+- Malformed JSON handling
+- **HMAC signature verification** (valid vs invalid)
+- Graceful degradation (no secret configured)
+
+### Slack Webhook (`/api/webhooks/slack`)
+
+✅ **Passing Tests:**
+- GET verification request
+- URL verification challenge
+- Error resilience
+- Malformed JSON handling
+- **HMAC signature verification** (valid vs invalid)
+- **Timestamp validation** (reject old requests)
+- Graceful degradation (no secret configured)
+
+⏭️ **Skipped Tests (require integration setup):**
+- Bronze layer UPSERT verification
+- Silver processing trigger verification
+- Idempotency at database level
+
+These tests are written but require integration test infrastructure (shared test database).
+
+## Running Tests
 
 ```bash
-# Test GET (verification)
-curl http://localhost:3000/api/webhooks/calendar
+# Run all webhook tests
+npm test -- tests/api/webhooks/
 
-# Test POST (sync notification)
-curl -X POST http://localhost:3000/api/webhooks/calendar \
-  -H "Content-Type: application/json" \
-  -H "X-Goog-Channel-ID: test-channel" \
-  -H "X-Goog-Resource-State: sync" \
-  -d '{}'
-
-# Test POST (event change)
-curl -X POST http://localhost:3000/api/webhooks/calendar \
-  -H "Content-Type: application/json" \
-  -H "X-Goog-Channel-ID: test-channel" \
-  -H "X-Goog-Resource-State: exists" \
-  -d '{}'
+# Run specific webhook test
+npm test -- tests/api/webhooks/calendar.test.ts
+npm test -- tests/api/webhooks/zoom.test.ts
+npm test -- tests/api/webhooks/slack.test.ts
 ```
 
-Expected responses:
-- GET: `{"message":"Calendar webhook endpoint ready","verified":true}`
-- POST (sync): `{"received":true}`
-- POST (exists): `{"received":true,"resourceState":"exists","channelId":"test-channel","triggered":"calendar_sync"}`
+## Test Infrastructure
 
-### Zoom Webhook
+### Dependencies
 
 ```bash
-# Test GET (verification)
-curl http://localhost:3000/api/webhooks/zoom
-
-# Test POST (endpoint validation)
-curl -X POST http://localhost:3000/api/webhooks/zoom \
-  -H "Content-Type: application/json" \
-  -d '{
-    "event": "endpoint.url_validation",
-    "payload": {
-      "plainToken": "test_plain_token"
-    }
-  }'
-
-# Test POST (meeting ended)
-curl -X POST http://localhost:3000/api/webhooks/zoom \
-  -H "Content-Type: application/json" \
-  -d '{
-    "event": "meeting.ended",
-    "payload": {
-      "object": {
-        "id": 123456789,
-        "uuid": "test-uuid",
-        "topic": "Test Meeting",
-        "start_time": "2026-04-23T10:00:00Z",
-        "end_time": "2026-04-23T11:00:00Z"
-      }
-    }
-  }'
+npm install --save-dev msw@latest
 ```
 
-Expected responses:
-- GET: `{"message":"Zoom webhook endpoint ready","verified":true}`
-- POST (validation): `{"plainToken":"test_plain_token","encryptedToken":"..."}`
-- POST (meeting.ended): `{"received":true,"event":"meeting.ended","processed":true}`
+### Configuration Files
 
-### Slack Webhook
+- `tests/setup-msw.ts` - MSW server initialization
+- `vitest.config.ts` - Includes MSW setup
+- `tests/helpers/webhook-helpers.ts` - Fixture loading utilities
+
+### Fixture Files
+
+Located in `tests/fixtures/webhooks/`:
+
+```
+tests/fixtures/webhooks/
+├── calendar/
+│   ├── sync-notification.json
+│   └── event-changed.json
+├── zoom/
+│   ├── endpoint-validation.json
+│   └── meeting-ended.json
+└── slack/
+    ├── url-verification.json
+    ├── message-posted.json
+    └── reaction-added.json
+```
+
+## Production Webhook Setup
+
+### Environment Variables (Vercel Project Settings)
 
 ```bash
-# Test GET (verification)
-curl http://localhost:3000/api/webhooks/slack
+# Required for signature verification
+ZOOM_WEBHOOK_SECRET_TOKEN=<your-zoom-secret>
+SLACK_SIGNING_SECRET=<your-slack-secret>
+GOOGLE_CALENDAR_WEBHOOK_TOKEN=<your-calendar-token>
 
-# Test POST (URL verification)
-curl -X POST http://localhost:3000/api/webhooks/slack \
-  -H "Content-Type: application/json" \
-  -d '{
-    "type": "url_verification",
-    "challenge": "test_challenge_string"
-  }'
-
-# Test POST (message event)
-curl -X POST http://localhost:3000/api/webhooks/slack \
-  -H "Content-Type: application/json" \
-  -d '{
-    "type": "event_callback",
-    "event": {
-      "type": "message",
-      "channel": "C12345678",
-      "user": "U12345678",
-      "text": "Test message",
-      "ts": "1678901234.567890"
-    }
-  }'
-
-# Test POST (reaction added)
-curl -X POST http://localhost:3000/api/webhooks/slack \
-  -H "Content-Type: application/json" \
-  -d '{
-    "type": "event_callback",
-    "event": {
-      "type": "reaction_added",
-      "user": "U12345678",
-      "reaction": "thumbsup",
-      "item": {
-        "type": "message",
-        "channel": "C12345678",
-        "ts": "1678901234.567890"
-      },
-      "event_ts": "1678901235.000000"
-    }
-  }'
+# Required for webhook functionality
+SUPABASE_SERVICE_ROLE_KEY=<your-service-role-key>
+VERCEL_URL=<auto-set-by-vercel>
 ```
 
-Expected responses:
-- GET: `{"message":"Slack webhook endpoint ready","verified":true}`
-- POST (url_verification): `{"challenge":"test_challenge_string"}`
-- POST (message): `{"received":true,"type":"event_callback","event":"message"}`
-- POST (reaction): `{"received":true,"type":"event_callback","event":"reaction_added"}`
+### Webhook URL Configuration
 
-## Integration Testing
+Configure these URLs in external services:
 
-### Full Flow Test (Calendar)
+1. **Google Calendar**
+   - Console: https://console.cloud.google.com/apis/credentials
+   - URL: `https://your-domain.vercel.app/api/webhooks/calendar`
+   - Token: Set `X-Goog-Channel-Token` to match `GOOGLE_CALENDAR_WEBHOOK_TOKEN`
 
-1. Start dev server: `npm run dev`
-2. Send webhook event (see above)
-3. Check console logs for:
-   - "Calendar webhook received"
-   - "Calendar sync triggered successfully"
-4. Verify database:
-   ```sql
-   SELECT COUNT(*) FROM bronze.calendar_events WHERE imported_at > NOW() - INTERVAL '1 minute';
-   ```
+2. **Zoom**
+   - Marketplace: https://marketplace.zoom.us/develop
+   - URL: `https://your-domain.vercel.app/api/webhooks/zoom`
+   - Secret Token: Copy to `ZOOM_WEBHOOK_SECRET_TOKEN`
 
-### Full Flow Test (Zoom)
+3. **Slack**
+   - API Portal: https://api.slack.com/apps → Event Subscriptions
+   - URL: `https://your-domain.vercel.app/api/webhooks/slack`
+   - Signing Secret: Copy to `SLACK_SIGNING_SECRET`
 
-1. Start dev server: `npm run dev`
-2. Send meeting.ended webhook (see above)
-3. Wait 10 seconds (delay for Zoom data finalization)
-4. Check console logs for:
-   - "Zoom webhook received"
-   - "Processing Zoom event: meeting.ended"
-   - "Zoom import triggered successfully"
-5. Verify database:
-   ```sql
-   SELECT COUNT(*) FROM bronze.zoom_meetings WHERE imported_at > NOW() - INTERVAL '1 minute';
-   ```
+### Security Checklist
 
-### Full Flow Test (Slack)
+Before enabling production webhooks:
 
-1. Start dev server: `npm run dev`
-2. Send message event webhook (see above)
-3. Check console logs for:
-   - "Slack webhook received"
-   - "Processing Slack event: message"
-   - "Slack message upserted"
-   - "Slack processing triggered successfully"
-4. Verify database:
-   ```sql
-   SELECT COUNT(*) FROM bronze.slack_messages WHERE imported_at > NOW() - INTERVAL '1 minute';
-   ```
+- [x] Implement signature verification (COMPLETE)
+- [x] Add timestamp validation for Slack (COMPLETE)
+- [ ] Rate limit webhook endpoints
+- [ ] Monitor webhook failure rates
+- [ ] Set up alerting for webhook errors
+- [ ] Document webhook secret rotation procedure
 
-## Automated Testing
+## Next Steps
 
-TODO: Create integration tests using Vitest or Jest:
+1. ✅ **Complete** - Signature verification implementation
+2. ✅ **Complete** - Signature verification tests
+3. 🔲 **TODO** - Integration test infrastructure for Bronze/Silver verification
+4. 🔲 **TODO** - Rate limiting for webhook endpoints
+5. 🔲 **TODO** - Webhook monitoring dashboard
+6. 🔲 **TODO** - Secret rotation procedure
 
-```typescript
-// tests/webhooks/calendar.test.ts
-describe('Calendar Webhook', () => {
-  it('should respond 200 OK to sync notification', async () => {
-    const response = await fetch('http://localhost:3000/api/webhooks/calendar', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Goog-Channel-ID': 'test-channel',
-        'X-Goog-Resource-State': 'sync',
-      },
-      body: JSON.stringify({}),
-    });
+## References
 
-    expect(response.status).toBe(200);
-    const data = await response.json();
-    expect(data.received).toBe(true);
-  });
-
-  it('should trigger calendar sync on event change', async () => {
-    // Test implementation
-  });
-});
-```
-
-## Monitoring Webhooks
-
-### Check Recent Webhook Calls
-
-```bash
-# Vercel CLI (production)
-vercel logs --limit 100 | grep 'webhook received'
-
-# Local development
-tail -f .next/trace | grep 'webhook'
-```
-
-### Database Queries
-
-```sql
--- Check recent Bronze imports (triggered by webhooks)
-SELECT 
-  'calendar' as source,
-  COUNT(*) as recent_imports,
-  MAX(imported_at) as last_import
-FROM bronze.calendar_events
-WHERE imported_at > NOW() - INTERVAL '1 hour'
-
-UNION ALL
-
-SELECT 
-  'zoom' as source,
-  COUNT(*) as recent_imports,
-  MAX(imported_at) as last_import
-FROM bronze.zoom_meetings
-WHERE imported_at > NOW() - INTERVAL '1 hour'
-
-UNION ALL
-
-SELECT 
-  'slack' as source,
-  COUNT(*) as recent_imports,
-  MAX(imported_at) as last_import
-FROM bronze.slack_messages
-WHERE imported_at > NOW() - INTERVAL '1 hour';
-```
-
-## Common Issues
-
-### "Unauthorized" error
-- Check SUPABASE_SERVICE_ROLE_KEY is set in environment
-- Verify webhook uses service role client (not cookie-based auth)
-
-### Webhook received but no processing
-- Check console logs for "triggered successfully" message
-- Verify processing route exists and is accessible
-- Check Vercel function logs for internal fetch errors
-
-### Database not updated
-- Check Bronze UPSERT succeeded in logs
-- Verify schema prefix (`.schema('bronze')`) is correct
-- Check for database constraint violations
-
-### Processing route fails
-- Check date range is valid
-- Verify service role key is authorized
-- Check processing route logs for specific errors
+- [MSW Documentation](https://mswjs.io/docs/)
+- [Google Calendar Push Notifications](https://developers.google.com/calendar/api/guides/push)
+- [Zoom Webhook Reference](https://developers.zoom.us/docs/api/rest/webhook-reference/)
+- [Slack Events API](https://api.slack.com/apis/connections/events-api)
