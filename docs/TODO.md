@@ -214,6 +214,77 @@ Import Prickles schedule from:
 
 ---
 
+## Testing Infrastructure
+
+### Webhook Integration Tests
+**Status:** 4 tests skipped, awaiting integration test infrastructure
+
+**Problem:** 
+Current webhook tests are unit tests that verify HTTP endpoints and signature validation, but cannot verify Bronze layer database writes because the webhook routes create their own Supabase client instances internally.
+
+**Skipped Tests (in `tests/api/webhooks/slack.test.ts`):**
+1. `should upsert message to Bronze layer` - Verify Slack messages inserted to `bronze.slack_messages`
+2. `should upsert reaction to Bronze layer` - Verify reactions inserted to `bronze.slack_reactions`
+3. `should trigger Silver processing after Bronze upsert` - Verify `/api/process/slack` is called
+4. `should be idempotent (duplicate messages upserted, not duplicated)` - Verify UPSERT behavior prevents duplicates
+
+**What's Tested Now (23 passing tests):**
+- ✅ HTTP response codes and payloads
+- ✅ Signature verification (Calendar token, Zoom HMAC, Slack HMAC + timestamp)
+- ✅ Invalid payload rejection
+- ✅ Error handling
+- ✅ Async trigger mocking (via MSW)
+
+**What's Missing:**
+- ❌ Actual Bronze layer database writes
+- ❌ End-to-end Silver processing verification
+- ❌ Database-level idempotency validation
+
+**Solution: Integration Test Infrastructure**
+
+**Option A: Shared Test Database (Recommended)**
+1. Create dedicated test Supabase project or schema
+2. Configure test environment to use test database
+3. Mock environment variables in tests:
+   ```typescript
+   beforeEach(async () => {
+     // Point webhook to test database
+     process.env.NEXT_PUBLIC_SUPABASE_URL = TEST_SUPABASE_URL
+     process.env.SUPABASE_SERVICE_ROLE_KEY = TEST_SERVICE_ROLE_KEY
+     
+     // Reset test data
+     await testDb.truncate(['slack_messages', 'slack_reactions'])
+   })
+   ```
+4. Un-skip tests and verify Bronze writes
+5. Verify Silver processing triggers and completes
+
+**Option B: Dependency Injection (More Work)**
+1. Refactor webhook routes to accept Supabase client as parameter
+2. Tests inject test client
+3. Production uses default client
+4. Requires more code changes but better testability
+
+**Implementation Tasks:**
+1. [ ] Set up test Supabase project or schema
+2. [ ] Create test helpers for database reset/seeding
+3. [ ] Update webhook tests to use test database
+4. [ ] Un-skip the 4 skipped tests
+5. [ ] Verify all 27 tests pass
+6. [ ] Add test coverage for Calendar and Zoom Bronze writes
+7. [ ] Document integration test setup in `docs/WEBHOOK_TESTING.md`
+
+**Benefits:**
+- Full end-to-end webhook verification
+- Catch Bronze layer bugs before production
+- Verify UPSERT idempotency at database level
+- Confidence in webhook → Bronze → Silver pipeline
+
+**Effort:** 2-4 hours
+**Priority:** Medium (current unit tests provide good coverage, integration tests add confidence)
+
+---
+
 ## Security & Access Control
 
 ### User Invitations

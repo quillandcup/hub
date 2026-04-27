@@ -169,11 +169,106 @@ Before enabling production webhooks:
 - [ ] Set up alerting for webhook errors
 - [ ] Document webhook secret rotation procedure
 
+## Integration Testing (Next Step)
+
+### Current Limitation
+
+The 4 skipped tests in `tests/api/webhooks/slack.test.ts` cannot verify Bronze layer database writes because webhook routes create their own Supabase client instances internally. Unit tests can only verify:
+- ✅ HTTP responses
+- ✅ Signature verification
+- ✅ Async trigger mocking
+
+But **cannot** verify:
+- ❌ Actual Bronze layer inserts
+- ❌ End-to-end Silver processing
+- ❌ Database-level idempotency
+
+### Implementation Plan
+
+**See:** `docs/TODO.md` → Testing Infrastructure → Webhook Integration Tests for full details.
+
+**Quick Summary:**
+
+1. **Set up test Supabase project/schema**
+   - Create dedicated test database
+   - Seed with minimal required data
+
+2. **Create test environment helpers**
+   ```typescript
+   // tests/helpers/test-db.ts
+   export async function setupTestDb() {
+     // Point to test database
+     process.env.NEXT_PUBLIC_SUPABASE_URL = TEST_URL
+     process.env.SUPABASE_SERVICE_ROLE_KEY = TEST_KEY
+   }
+   
+   export async function resetTestDb(tables: string[]) {
+     // Truncate tables between tests
+     for (const table of tables) {
+       await testClient.from(table).delete().neq('id', '00000000-0000-0000-0000-000000000000')
+     }
+   }
+   ```
+
+3. **Update skipped tests**
+   ```typescript
+   // Change from:
+   it.skip('should upsert message to Bronze layer', async () => {
+   
+   // To:
+   it('should upsert message to Bronze layer', async () => {
+     await setupTestDb()
+     await resetTestDb(['slack_messages'])
+     
+     // ... rest of test
+     
+     // Now can verify database writes!
+     const { data } = await testClient
+       .schema('bronze')
+       .from('slack_messages')
+       .select('*')
+       .eq('message_ts', '1714147200.000000')
+     
+     expect(data).toHaveLength(1)
+   })
+   ```
+
+4. **Add similar tests for Calendar and Zoom**
+   - Verify `bronze.calendar_events` writes
+   - Verify `bronze.zoom_meetings` writes
+   - Verify `bronze.zoom_attendees` writes
+
+5. **Verify Silver processing triggers**
+   - Mock Silver processing endpoints
+   - Verify they're called with correct date ranges
+   - Optionally test full Bronze → Silver pipeline
+
+**Effort:** 2-4 hours  
+**Impact:** High confidence in webhook → database pipeline  
+**Priority:** Medium (current tests cover security, these add E2E confidence)
+
+### Un-skipping Tests Checklist
+
+Once integration infrastructure is ready:
+
+- [ ] Set up test database (Supabase project or schema)
+- [ ] Create `tests/helpers/test-db.ts` with setup/reset utilities
+- [ ] Update `tests/api/webhooks/slack.test.ts`:
+  - [ ] Remove `.skip` from 4 tests
+  - [ ] Add test database setup to `beforeEach`
+  - [ ] Add Bronze layer assertions
+  - [ ] Verify all tests pass
+- [ ] Add Bronze verification to Calendar tests (2-3 new tests)
+- [ ] Add Bronze verification to Zoom tests (2-3 new tests)
+- [ ] Update this documentation with integration test examples
+- [ ] Run full test suite: `npm test -- tests/api/webhooks/`
+- [ ] Target: 27 passing tests (no skipped)
+
 ## Next Steps
 
 1. ✅ **Complete** - Signature verification implementation
 2. ✅ **Complete** - Signature verification tests
-3. 🔲 **TODO** - Integration test infrastructure for Bronze/Silver verification
+3. 🔲 **TODO** - Integration test infrastructure for Bronze/Silver verification (see above)
 4. 🔲 **TODO** - Rate limiting for webhook endpoints
 5. 🔲 **TODO** - Webhook monitoring dashboard
 6. 🔲 **TODO** - Secret rotation procedure
