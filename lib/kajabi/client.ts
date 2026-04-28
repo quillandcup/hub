@@ -9,37 +9,54 @@ const KAJABI_API_BASE = 'https://api.kajabi.com';
 
 export interface KajabiContact {
   id: string;
-  email: string;
-  first_name: string;
-  last_name: string;
-  name: string;
-  created_at: string;
-  updated_at: string;
-  last_contacted: string | null;
-  last_activity: string | null;
-  tags: string[];
-  custom_fields: Record<string, any>;
-  [key: string]: any;
+  type: 'contacts';
+  attributes: {
+    name: string;
+    email: string;
+    phone_number: string | null;
+    business_number: string | null;
+    subscribed: boolean;
+    address_line_1: string | null;
+    address_line_2: string | null;
+    address_city: string | null;
+    address_state: string | null;
+    address_country: string | null;
+    address_zip: string | null;
+    external_user_id: string | null;
+    custom_1: string | null;
+    custom_2: string | null;
+    custom_3: string | null;
+    created_at: string;
+    updated_at: string;
+    [key: string]: any;
+  };
+  relationships?: Record<string, any>;
+  links?: Record<string, any>;
 }
 
 export interface KajabiSubscription {
   id: string;
-  customer_id: string;
-  customer_name: string;
-  customer_email: string;
-  status: 'Active' | 'Canceled' | 'Paused' | 'Pending Cancellation';
-  amount: string;
-  currency: string;
-  interval: string;
-  created_at: string;
-  canceled_on: string | null;
-  trial_ends_on: string | null;
-  next_payment_date: string | null;
-  offer_id: string;
-  offer_title: string;
-  provider: string;
-  provider_id: string;
-  [key: string]: any;
+  type: 'subscriptions';
+  attributes: {
+    customer_id?: string;
+    customer_name?: string;
+    customer_email?: string;
+    status: 'Active' | 'Canceled' | 'Paused' | 'Pending Cancellation';
+    amount?: string;
+    currency?: string;
+    interval?: string;
+    created_at: string;
+    canceled_on?: string | null;
+    trial_ends_on?: string | null;
+    next_payment_date?: string | null;
+    offer_id?: string;
+    offer_title?: string;
+    provider?: string;
+    provider_id?: string;
+    [key: string]: any;
+  };
+  relationships?: Record<string, any>;
+  links?: Record<string, any>;
 }
 
 export class KajabiClient {

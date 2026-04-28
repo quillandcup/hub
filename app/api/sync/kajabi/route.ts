@@ -43,23 +43,27 @@ export async function POST(request: NextRequest) {
       console.log(`Fetched ${contacts.length} contacts from Kajabi`);
 
       // Transform to our format (matching CSV import structure)
+      // Kajabi API returns JSON:API format with attributes nested
       const importTimestamp = new Date().toISOString();
-      const memberRecords = contacts.map((contact) => ({
-        email: contact.email.toLowerCase(),
-        imported_at: importTimestamp,
-        data: {
-          Name: contact.name || `${contact.first_name} ${contact.last_name}`.trim(),
-          Email: contact.email,
-          "First Name": contact.first_name || "",
-          "Last Name": contact.last_name || "",
-          "Member Created At": contact.created_at,
-          "Last Contacted": contact.last_contacted || "",
-          "Last Activity": contact.last_activity || "",
-          Tags: Array.isArray(contact.tags) ? contact.tags.join(", ") : "",
-          // Store full raw data
-          _raw: contact,
-        },
-      }));
+      const memberRecords = contacts.map((contact) => {
+        const attrs = contact.attributes;
+        return {
+          email: attrs.email.toLowerCase(),
+          imported_at: importTimestamp,
+          data: {
+            Name: attrs.name || "",
+            Email: attrs.email,
+            "First Name": attrs.name?.split(' ')[0] || "",
+            "Last Name": attrs.name?.split(' ').slice(1).join(' ') || "",
+            "Member Created At": attrs.created_at,
+            "Last Contacted": "", // Not available in JSON:API response
+            "Last Activity": "", // Not available in JSON:API response
+            Tags: "", // Tags are in relationships, would need separate request
+            // Store full raw data
+            _raw: contact,
+          },
+        };
+      });
 
       // Insert into kajabi_members (Bronze)
       const { error: membersError } = await supabase
@@ -89,27 +93,31 @@ export async function POST(request: NextRequest) {
       console.log(`Fetched ${subscriptions.length} subscriptions from Kajabi`);
 
       // Transform to our format (matching CSV import structure)
+      // Kajabi API returns JSON:API format with attributes nested
       const importTimestamp = new Date().toISOString();
-      const subscriptionRecords = subscriptions.map((sub) => ({
-        kajabi_subscription_id: sub.id,
-        customer_id: sub.customer_id,
-        customer_name: sub.customer_name,
-        customer_email: sub.customer_email.toLowerCase(),
-        status: sub.status,
-        amount: sub.amount,
-        currency: sub.currency,
-        interval: sub.interval,
-        created_at_kajabi: sub.created_at,
-        canceled_on: sub.canceled_on,
-        trial_ends_on: sub.trial_ends_on,
-        next_payment_date: sub.next_payment_date,
-        offer_id: sub.offer_id,
-        offer_title: sub.offer_title,
-        provider: sub.provider,
-        provider_id: sub.provider_id,
-        imported_at: importTimestamp,
-        data: sub, // Store full raw data
-      }));
+      const subscriptionRecords = subscriptions.map((sub) => {
+        const attrs = sub.attributes;
+        return {
+          kajabi_subscription_id: sub.id,
+          customer_id: attrs.customer_id || "",
+          customer_name: attrs.customer_name || "",
+          customer_email: (attrs.customer_email || "").toLowerCase(),
+          status: attrs.status,
+          amount: attrs.amount || "",
+          currency: attrs.currency || "",
+          interval: attrs.interval || "",
+          created_at_kajabi: attrs.created_at,
+          canceled_on: attrs.canceled_on || null,
+          trial_ends_on: attrs.trial_ends_on || null,
+          next_payment_date: attrs.next_payment_date || null,
+          offer_id: attrs.offer_id || "",
+          offer_title: attrs.offer_title || "",
+          provider: attrs.provider || "",
+          provider_id: attrs.provider_id || "",
+          imported_at: importTimestamp,
+          data: sub, // Store full raw data
+        };
+      });
 
       // UPSERT to make imports idempotent
       const { error: subsError, data: inserted } = await supabase
@@ -127,7 +135,8 @@ export async function POST(request: NextRequest) {
 
       // Count status breakdown
       const statusBreakdown = subscriptions.reduce((acc: any, sub) => {
-        acc[sub.status] = (acc[sub.status] || 0) + 1;
+        const status = sub.attributes.status;
+        acc[status] = (acc[status] || 0) + 1;
         return acc;
       }, {});
 
