@@ -3,8 +3,10 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import ZoomImportAndProcessForm from "./ZoomImportAndProcessForm";
 import CalendarImportForm from "./CalendarImportForm";
+import SlackApiImportForm from "./SlackApiImportForm";
 import ApplyAliasesButton from "./ApplyAliasesButton";
 import ManualReprocessingSection from "./ManualReprocessingSection";
+import KajabiApiImportForm from "./KajabiApiImportForm";
 
 export default async function ImportPage() {
   const supabase = await createClient();
@@ -40,7 +42,7 @@ export default async function ImportPage() {
 
       <main className="container mx-auto px-6 py-8">
         <div className="max-w-4xl mx-auto space-y-6">
-          {/* Kajabi API Import - TODO */}
+          {/* Kajabi API Import */}
           <div className="bg-white dark:bg-slate-900 rounded-lg shadow p-6">
             <div className="mb-6">
               <h2 className="text-xl font-bold mb-2">Kajabi API Import</h2>
@@ -49,15 +51,7 @@ export default async function ImportPage() {
               </p>
             </div>
 
-            {/* TODO: Create KajabiApiImportForm component using KAJABI_CLIENT_ID/KAJABI_CLIENT_SECRET */}
-            <div className="p-6 bg-yellow-50 dark:bg-yellow-900/20 border-2 border-dashed border-yellow-300 dark:border-yellow-700 rounded-lg">
-              <p className="text-yellow-800 dark:text-yellow-200 font-semibold mb-2">
-                🚧 Coming Soon: API-Based Import
-              </p>
-              <p className="text-sm text-yellow-700 dark:text-yellow-300">
-                This will use the Kajabi API to fetch members and subscriptions directly. For now, use the <Link href="/data/import/testing" className="underline">CSV testing import page</Link>.
-              </p>
-            </div>
+            <KajabiApiImportForm />
           </div>
 
           {/* Apply Member Aliases */}
@@ -66,7 +60,7 @@ export default async function ImportPage() {
           {/* Google Calendar Import */}
           <CalendarImportForm />
 
-          {/* Slack API Import - TODO */}
+          {/* Slack API Import */}
           <div className="bg-white dark:bg-slate-900 rounded-lg shadow p-6">
             <div className="mb-6">
               <h2 className="text-xl font-bold mb-2">Slack API Import</h2>
@@ -75,15 +69,7 @@ export default async function ImportPage() {
               </p>
             </div>
 
-            {/* TODO: Create SlackApiImportForm component using SLACK_BOT_TOKEN - convert scripts/export-slack-data.ts into API endpoint */}
-            <div className="p-6 bg-yellow-50 dark:bg-yellow-900/20 border-2 border-dashed border-yellow-300 dark:border-yellow-700 rounded-lg">
-              <p className="text-yellow-800 dark:text-yellow-200 font-semibold mb-2">
-                🚧 Coming Soon: API-Based Import
-              </p>
-              <p className="text-sm text-yellow-700 dark:text-yellow-300">
-                This will use the Slack API to fetch users, channels, messages, and reactions directly. For now, use the <Link href="/data/import/testing" className="underline">CSV testing import page</Link>.
-              </p>
-            </div>
+            <SlackApiImportForm />
           </div>
 
           {/* Zoom Attendance Import & Process */}

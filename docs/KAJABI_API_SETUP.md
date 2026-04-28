@@ -38,8 +38,10 @@ Returns subscription data including:
    ```env
    KAJABI_API_KEY=your_api_key_here
    ```
-3. **Create sync endpoint:** `/api/sync/kajabi`
-4. **Schedule daily cron job** to auto-sync
+   - For local development: Add to `.env.local`
+   - For production: Add to Vercel environment variables
+3. **Use the import form:** Go to `/data/import` and use the "Kajabi API Import" section
+4. **Optional:** Schedule daily cron job to auto-sync (future enhancement)
 
 ### Benefits
 - ✅ No manual CSV exports
