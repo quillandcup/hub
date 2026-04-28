@@ -300,8 +300,8 @@ export default function CalendarWeekView({ prickles, weekStartDate, userTimezone
                                 <div className="font-semibold mb-1">{prickle.prickle_type}</div>
                                 <div>Host: {prickle.host || "none"}</div>
                                 <div>Attendance: {prickle.attendance_count}</div>
-                                {prickle.host_missing && <div className="text-yellow-400 dark:text-yellow-300 mt-1">⚠️ Host did not attend</div>}
-                                {prickle.host_late && <div className="text-yellow-400 dark:text-yellow-300 mt-1">⚠️ Host was late (&gt;5 min)</div>}
+                                {prickle.host_missing && <div className="text-yellow-400 dark:text-orange-600 mt-1">⚠️ Host did not attend</div>}
+                                {prickle.host_late && <div className="text-yellow-400 dark:text-orange-600 mt-1">⚠️ Host was late (&gt;5 min)</div>}
                               </div>
                             )}
                           </div>
