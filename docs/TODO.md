@@ -38,6 +38,54 @@ Currently all inactive members are grouped together. Add granular status to dist
 
 ## Data Import
 
+### Production API-Based Imports (In Progress)
+**Status:** Import pages split - CSV testing separate from production API imports
+
+**Current State:**
+- ✅ CSV imports moved to `/data/import/testing`
+- ✅ Production page at `/data/import` ready for API-based imports
+- ⏳ Kajabi API import - TODO
+- ⏳ Slack API import - TODO
+
+**Implementation Tasks:**
+
+**1. Kajabi API Import (`/data/import`)**
+- [ ] Create `KajabiApiImportForm.tsx` component
+- [ ] Use `KAJABI_CLIENT_ID` and `KAJABI_CLIENT_SECRET` from env
+- [ ] Fetch members and subscriptions from Kajabi API
+- [ ] Call existing `/api/import/members` and `/api/import/subscriptions` endpoints
+- [ ] Handle OAuth flow if required
+- [ ] Add date range selector (last 7 days, 30 days, all time)
+- [ ] Replace placeholder in `/data/import/page.tsx`
+
+**2. Slack API Import (`/data/import`)**
+- [ ] Create `SlackApiImportForm.tsx` component
+- [ ] Use `SLACK_BOT_TOKEN` from env
+- [ ] Convert `scripts/export-slack-data.ts` logic into API endpoint:
+  - Create `/api/import/slack-api/route.ts`
+  - Fetch users, channels, messages, reactions from Slack API
+  - Format into CSV-like structure or call Bronze insert directly
+- [ ] Add date range selector (last 7 days, 30 days, 90 days)
+- [ ] Show progress indicator (Slack API is rate-limited)
+- [ ] Replace placeholder in `/data/import/page.tsx`
+
+**3. Testing Page CSV Imports (Lower Priority)**
+- [ ] Add Zoom CSV import to `/data/import/testing`
+  - Component for uploading meeting/attendee CSV files
+  - Parse and call `/api/import/zoom`
+- [ ] Add Calendar CSV import to `/data/import/testing`
+  - Component for uploading calendar events CSV
+  - Parse and call `/api/import/calendar`
+
+**Benefits:**
+- Eliminate manual CSV export/upload workflow
+- Real-time data sync from source systems
+- Faster iteration in development
+- Production uses live APIs, testing uses static CSVs
+
+**Effort:** 4-6 hours total (2-3 hours per API import)
+**Priority:** High (unblock production workflow)
+
 ### Vision: Kajabi as Single Source of Truth Replica
 **Goal:** Import ALL Kajabi data to own our data completely
 - Build custom analytics impossible in Kajabi
