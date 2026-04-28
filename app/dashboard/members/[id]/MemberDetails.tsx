@@ -39,6 +39,9 @@ export default function MemberDetails({ member, attendanceRecords, hiatusHistory
 
   const [timezone, setTimezone] = useState(defaultTimezone);
   const [view, setView] = useState<"list" | "calendar">("calendar");
+  const [slackActivityFilter, setSlackActivityFilter] = useState<"all" | "messages" | "reactions">("all");
+  const [slackChannelFilter, setSlackChannelFilter] = useState<string | null>(null);
+  const [showAllSlackActivities, setShowAllSlackActivities] = useState(false);
   const router = useRouter();
 
   // Update timezone when defaultTimezone changes (after browser detection)
@@ -209,7 +212,41 @@ export default function MemberDetails({ member, attendanceRecords, hiatusHistory
       {/* Slack Activity */}
       <div className="bg-white dark:bg-slate-900 rounded-lg shadow">
         <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800">
-          <h2 className="text-xl font-bold">Slack Activity</h2>
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-bold">Slack Activity</h2>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setSlackActivityFilter("all")}
+                className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${
+                  slackActivityFilter === "all"
+                    ? "bg-blue-100 dark:bg-blue-900 text-blue-900 dark:text-blue-100"
+                    : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700"
+                }`}
+              >
+                All
+              </button>
+              <button
+                onClick={() => setSlackActivityFilter("messages")}
+                className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${
+                  slackActivityFilter === "messages"
+                    ? "bg-blue-100 dark:bg-blue-900 text-blue-900 dark:text-blue-100"
+                    : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700"
+                }`}
+              >
+                Messages
+              </button>
+              <button
+                onClick={() => setSlackActivityFilter("reactions")}
+                className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${
+                  slackActivityFilter === "reactions"
+                    ? "bg-blue-100 dark:bg-blue-900 text-blue-900 dark:text-blue-100"
+                    : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700"
+                }`}
+              >
+                Reactions
+              </button>
+            </div>
+          </div>
         </div>
         {slackActivities.length > 0 ? (
           <div className="p-6">
@@ -244,15 +281,30 @@ export default function MemberDetails({ member, attendanceRecords, hiatusHistory
             {/* Channel Participation */}
             {slackStats.channels.length > 0 && (
               <div className="mb-6">
-                <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">Active Channels</h3>
+                <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">
+                  Active Channels
+                  {slackChannelFilter && (
+                    <button
+                      onClick={() => setSlackChannelFilter(null)}
+                      className="ml-2 text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                    >
+                      (clear filter)
+                    </button>
+                  )}
+                </h3>
                 <div className="flex flex-wrap gap-2">
                   {slackStats.channels.slice(0, 10).map((channel: string) => (
-                    <span
+                    <button
                       key={channel}
-                      className="px-3 py-1 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded-full text-sm border border-blue-200 dark:border-blue-800"
+                      onClick={() => setSlackChannelFilter(channel === slackChannelFilter ? null : channel)}
+                      className={`px-3 py-1 rounded-full text-sm border transition-colors cursor-pointer ${
+                        slackChannelFilter === channel
+                          ? "bg-blue-200 dark:bg-blue-800 text-blue-900 dark:text-blue-100 border-blue-400 dark:border-blue-600"
+                          : "bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-900/40"
+                      }`}
                     >
                       #{channel}
-                    </span>
+                    </button>
                   ))}
                   {slackStats.channels.length > 10 && (
                     <span className="px-3 py-1 text-slate-500 dark:text-slate-400 text-sm">
@@ -285,7 +337,25 @@ export default function MemberDetails({ member, attendanceRecords, hiatusHistory
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
-                    {slackActivities.slice(0, 20).map((activity: any) => {
+                    {slackActivities
+                      .filter((activity: any) => {
+                        // Filter by activity type
+                        if (slackActivityFilter === "messages") {
+                          return activity.activity_type === 'slack_message' || activity.activity_type === 'slack_thread_reply';
+                        } else if (slackActivityFilter === "reactions") {
+                          return activity.activity_type === 'slack_reaction';
+                        }
+                        return true; // "all" shows everything
+                      })
+                      .filter((activity: any) => {
+                        // Filter by channel
+                        if (slackChannelFilter) {
+                          return activity.metadata?.channel_name === slackChannelFilter;
+                        }
+                        return true;
+                      })
+                      .slice(0, showAllSlackActivities ? undefined : 20)
+                      .map((activity: any) => {
                       const occurred = new Date(activity.occurred_at);
                       const isMessage = activity.activity_type === 'slack_message' || activity.activity_type === 'slack_thread_reply';
                       const isThreadReply = activity.activity_type === 'slack_thread_reply';
@@ -378,13 +448,36 @@ export default function MemberDetails({ member, attendanceRecords, hiatusHistory
                   </tbody>
                 </table>
               </div>
-              {slackActivities.length > 20 && (
-                <div className="mt-3 text-center">
-                  <button className="text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 hover:underline">
-                    Show all {slackActivities.length} activities
-                  </button>
-                </div>
-              )}
+              {(() => {
+                const filteredActivities = slackActivities
+                  .filter((activity: any) => {
+                    if (slackActivityFilter === "messages") {
+                      return activity.activity_type === 'slack_message' || activity.activity_type === 'slack_thread_reply';
+                    } else if (slackActivityFilter === "reactions") {
+                      return activity.activity_type === 'slack_reaction';
+                    }
+                    return true;
+                  })
+                  .filter((activity: any) => {
+                    if (slackChannelFilter) {
+                      return activity.metadata?.channel_name === slackChannelFilter;
+                    }
+                    return true;
+                  });
+
+                return filteredActivities.length > 20 && (
+                  <div className="mt-3 text-center">
+                    <button
+                      onClick={() => setShowAllSlackActivities(!showAllSlackActivities)}
+                      className="text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 hover:underline"
+                    >
+                      {showAllSlackActivities
+                        ? "Show less"
+                        : `Show all ${filteredActivities.length} activities`}
+                    </button>
+                  </div>
+                );
+              })()}
             </div>
           </div>
         ) : (
