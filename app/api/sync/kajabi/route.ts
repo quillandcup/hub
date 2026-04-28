@@ -103,9 +103,19 @@ export async function POST(request: NextRequest) {
         customerMap.set(customer.id, customer.attributes);
       }
 
+      console.log(`Customer map size: ${customerMap.size}`);
+      console.log(`Sample customer IDs: ${Array.from(customerMap.keys()).slice(0, 5).join(', ')}`);
+
+      // Log sample purchase structure to debug
+      if (purchases.length > 0) {
+        const sample = purchases[0];
+        console.log(`Sample purchase relationships:`, JSON.stringify(sample.relationships, null, 2));
+      }
+
       // Transform to our format (matching CSV import structure)
       // Kajabi API returns purchases (not subscriptions) with JSON:API format
       const importTimestamp = new Date().toISOString();
+      let skippedCount = 0;
       const subscriptionRecords = purchases
         .map((purchase) => {
           const attrs = purchase.attributes;
@@ -117,7 +127,10 @@ export async function POST(request: NextRequest) {
 
           // Skip if no customer data (required for hiatus processing)
           if (!customer || !customer.email) {
-            console.warn(`Skipping purchase ${purchase.id}: no customer data found for customer_id ${customerId}`);
+            if (skippedCount < 5) {
+              console.warn(`Skipping purchase ${purchase.id}: no customer data found for customer_id "${customerId}"`);
+            }
+            skippedCount++;
             return null;
           }
 
@@ -146,6 +159,11 @@ export async function POST(request: NextRequest) {
           };
         })
         .filter((record): record is NonNullable<typeof record> => record !== null);
+
+      if (skippedCount > 0) {
+        console.warn(`Skipped ${skippedCount} purchases due to missing customer data`);
+      }
+      console.log(`Successfully mapped ${subscriptionRecords.length} purchases to subscription records`);
 
       // UPSERT to make imports idempotent
       const { error: subsError, data: inserted } = await supabase
