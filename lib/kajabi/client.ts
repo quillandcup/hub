@@ -2,11 +2,10 @@
  * Kajabi API Client
  *
  * Handles authentication and API calls to Kajabi's REST API.
- * Documentation: https://developer.kajabi.com/reference/api-overview
+ * Documentation: https://help.kajabi.com/api-reference/introduction
  */
 
 const KAJABI_API_BASE = 'https://api.kajabi.com';
-const KAJABI_OAUTH_BASE = 'https://app.kajabi.com'; // OAuth endpoints are on app.kajabi.com, not api.kajabi.com
 
 export interface KajabiContact {
   id: string;
@@ -59,6 +58,7 @@ export class KajabiClient {
 
   /**
    * Get OAuth access token using client credentials flow
+   * See: https://help.kajabi.com/api-reference/authentication/get-access-token
    */
   private async getAccessToken(): Promise<string> {
     // Return cached token if still valid
@@ -66,16 +66,19 @@ export class KajabiClient {
       return this.accessToken;
     }
 
-    const response = await fetch(`${KAJABI_OAUTH_BASE}/oauth/token`, {
+    // Build form-encoded body
+    const params = new URLSearchParams({
+      grant_type: 'client_credentials',
+      client_id: this.clientId,
+      client_secret: this.clientSecret,
+    });
+
+    const response = await fetch(`${KAJABI_API_BASE}/v1/oauth/token`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
+        'Content-Type': 'application/x-www-form-urlencoded',
       },
-      body: JSON.stringify({
-        grant_type: 'client_credentials',
-        client_id: this.clientId,
-        client_secret: this.clientSecret,
-      }),
+      body: params.toString(),
     });
 
     if (!response.ok) {
@@ -132,7 +135,7 @@ export class KajabiClient {
 
     while (hasMore) {
       const response: any = await this.request(
-        `/api/v1/contacts?page=${page}&per_page=${perPage}`
+        `/v1/contacts?page=${page}&per_page=${perPage}`
       );
 
       if (response.contacts && response.contacts.length > 0) {
@@ -171,7 +174,7 @@ export class KajabiClient {
 
     while (hasMore) {
       const response: any = await this.request(
-        `/api/v1/subscriptions?page=${page}&per_page=${perPage}`
+        `/v1/subscriptions?page=${page}&per_page=${perPage}`
       );
 
       if (response.subscriptions && response.subscriptions.length > 0) {
