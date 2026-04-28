@@ -184,6 +184,7 @@ export class KajabiClient {
       const contacts = response.data || [];
 
       if (contacts.length > 0) {
+        console.log(`[Kajabi API] Contacts page ${pageNumber}: ${contacts.length} records (${response.meta?.current_page}/${response.meta?.total_pages} pages, ${response.meta?.total_count} total)`);
         yield contacts;
         pageNumber++;
 
@@ -234,6 +235,7 @@ export class KajabiClient {
       const customers = response.data || [];
 
       if (customers.length > 0) {
+        console.log(`[Kajabi API] Customers page ${pageNumber}: ${customers.length} records (${response.meta?.current_page}/${response.meta?.total_pages} pages, ${response.meta?.total_count} total)`);
         yield customers;
         pageNumber++;
         hasMore = response.meta?.current_page < response.meta?.total_pages;
@@ -283,6 +285,7 @@ export class KajabiClient {
       const purchases = response.data || [];
 
       if (purchases.length > 0) {
+        console.log(`[Kajabi API] Purchases page ${pageNumber}: ${purchases.length} records (${response.meta?.current_page}/${response.meta?.total_pages} pages, ${response.meta?.total_count} total)`);
         yield purchases;
         pageNumber++;
 
