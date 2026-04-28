@@ -6,6 +6,7 @@
  */
 
 const KAJABI_API_BASE = 'https://api.kajabi.com';
+const KAJABI_OAUTH_BASE = 'https://app.kajabi.com'; // OAuth endpoints are on app.kajabi.com, not api.kajabi.com
 
 export interface KajabiContact {
   id: string;
@@ -65,7 +66,7 @@ export class KajabiClient {
       return this.accessToken;
     }
 
-    const response = await fetch(`${KAJABI_API_BASE}/oauth/token`, {
+    const response = await fetch(`${KAJABI_OAUTH_BASE}/oauth/token`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
