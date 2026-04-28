@@ -92,38 +92,60 @@ export async function POST(request: NextRequest) {
       const purchases = await kajabi.fetchAllSubscriptions();
       console.log(`Fetched ${purchases.length} purchases from Kajabi`);
 
+      // Fetch customers to get email/name (required for hiatus processing)
+      console.log("Fetching customers to enrich purchase data...");
+      const customers = await kajabi.fetchAllCustomers();
+      console.log(`Fetched ${customers.length} customers from Kajabi`);
+
+      // Build customer lookup map
+      const customerMap = new Map<string, any>();
+      for (const customer of customers) {
+        customerMap.set(customer.id, customer.attributes);
+      }
+
       // Transform to our format (matching CSV import structure)
       // Kajabi API returns purchases (not subscriptions) with JSON:API format
       const importTimestamp = new Date().toISOString();
-      const subscriptionRecords = purchases.map((purchase) => {
-        const attrs = purchase.attributes;
-        const customerId = purchase.relationships?.customer?.data?.id || "";
-        const offerId = purchase.relationships?.offer?.data?.id || "";
+      const subscriptionRecords = purchases
+        .map((purchase) => {
+          const attrs = purchase.attributes;
+          const customerId = purchase.relationships?.customer?.data?.id || "";
+          const offerId = purchase.relationships?.offer?.data?.id || "";
 
-        // Determine status from deactivated_at field
-        const status = attrs.deactivated_at ? "Canceled" : "Active";
+          // Get customer data from lookup
+          const customer = customerMap.get(customerId);
 
-        return {
-          kajabi_subscription_id: purchase.id,
-          customer_id: customerId,
-          customer_name: "", // Not available in purchases endpoint
-          customer_email: "", // Not available in purchases endpoint
-          status: status,
-          amount: attrs.amount_in_cents ? (attrs.amount_in_cents / 100).toString() : "",
-          currency: "USD", // Assuming USD, not in API response
-          interval: "", // Not available in purchases endpoint
-          created_at_kajabi: attrs.effective_start_at || attrs.created_at,
-          canceled_on: attrs.deactivated_at || null,
-          trial_ends_on: null, // Not available in purchases endpoint
-          next_payment_date: null, // Not available in purchases endpoint
-          offer_id: offerId,
-          offer_title: "", // Not available in purchases endpoint
-          provider: "Kajabi", // Purchases are through Kajabi
-          provider_id: purchase.id,
-          imported_at: importTimestamp,
-          data: purchase, // Store full raw data
-        };
-      });
+          // Skip if no customer data (required for hiatus processing)
+          if (!customer || !customer.email) {
+            console.warn(`Skipping purchase ${purchase.id}: no customer data found for customer_id ${customerId}`);
+            return null;
+          }
+
+          // Determine status from deactivated_at field
+          const status = attrs.deactivated_at ? "Canceled" : "Active";
+
+          return {
+            kajabi_subscription_id: purchase.id,
+            customer_id: customerId,
+            customer_name: customer.name || "",
+            customer_email: customer.email.toLowerCase(),
+            status: status,
+            amount: attrs.amount_in_cents ? (attrs.amount_in_cents / 100).toString() : "",
+            currency: "USD", // Assuming USD, not in API response
+            interval: "", // Not available in purchases endpoint
+            created_at_kajabi: attrs.effective_start_at || attrs.created_at,
+            canceled_on: attrs.deactivated_at || null,
+            trial_ends_on: null, // Not available in purchases endpoint
+            next_payment_date: null, // Not available in purchases endpoint
+            offer_id: offerId,
+            offer_title: "", // Would require separate offers API call
+            provider: "Kajabi", // Purchases are through Kajabi
+            provider_id: purchase.id,
+            imported_at: importTimestamp,
+            data: purchase, // Store full raw data
+          };
+        })
+        .filter((record): record is NonNullable<typeof record> => record !== null);
 
       // UPSERT to make imports idempotent
       const { error: subsError, data: inserted } = await supabase

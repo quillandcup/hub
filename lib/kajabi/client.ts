@@ -212,6 +212,53 @@ export class KajabiClient {
   }
 
   /**
+   * Fetch all customers with pagination support
+   * Customers are similar to contacts but with purchase/revenue data
+   */
+  async *fetchCustomersPaginated(): AsyncGenerator<any[]> {
+    let pageNumber = 1;
+    const pageSize = 100;
+    let hasMore = true;
+
+    while (hasMore) {
+      const params = new URLSearchParams({
+        'filter[site_id]': this.siteId,
+        'page[number]': pageNumber.toString(),
+        'page[size]': pageSize.toString(),
+      });
+
+      const response: any = await this.request(
+        `/v1/customers?${params.toString()}`
+      );
+
+      const customers = response.data || [];
+
+      if (customers.length > 0) {
+        yield customers;
+        pageNumber++;
+        hasMore = response.meta?.current_page < response.meta?.total_pages;
+      } else {
+        hasMore = false;
+      }
+
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+  }
+
+  /**
+   * Fetch all customers at once
+   */
+  async fetchAllCustomers(): Promise<any[]> {
+    const allCustomers: any[] = [];
+
+    for await (const batch of this.fetchCustomersPaginated()) {
+      allCustomers.push(...batch);
+    }
+
+    return allCustomers;
+  }
+
+  /**
    * Fetch all purchases (subscriptions) with pagination support
    * Uses JSON:API pagination format: page[number] and page[size]
    * Note: Kajabi stores subscriptions as "purchases" in their API
