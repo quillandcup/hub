@@ -12,14 +12,21 @@ Internal admin dashboard for Quill & Cup attendance and engagement analytics.
 ### Start Local Development
 
 ```bash
-# 1. Start Docker Desktop (open the app)
+# 1. Install git hooks (one-time setup)
+./scripts/install-hooks.sh
 
-# 2. Start Supabase
+# 2. Start Docker Desktop (open the app)
+
+# 3. Start Supabase
 supabase start
 
-# 3. Start Next.js
+# 4. Start Next.js
 npm run dev
 ```
+
+**Git Hooks Installed:**
+- `pre-commit` - Runs `npm run build` to catch TypeScript errors before committing
+- Skip temporarily with: `git commit --no-verify`
 
 ### Test Auth Flow
 
