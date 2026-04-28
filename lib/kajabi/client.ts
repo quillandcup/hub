@@ -45,15 +45,20 @@ export interface KajabiSubscription {
 export class KajabiClient {
   private clientId: string;
   private clientSecret: string;
+  private siteId: string;
   private accessToken: string | null = null;
   private tokenExpiry: number | null = null;
 
-  constructor(clientId: string, clientSecret: string) {
+  constructor(clientId: string, clientSecret: string, siteId: string) {
     if (!clientId || !clientSecret) {
       throw new Error('Kajabi Client ID and Client Secret are required');
     }
+    if (!siteId) {
+      throw new Error('Kajabi Site ID is required');
+    }
     this.clientId = clientId;
     this.clientSecret = clientSecret;
+    this.siteId = siteId;
   }
 
   /**
@@ -91,6 +96,7 @@ export class KajabiClient {
     const data = await response.json();
 
     if (!data.access_token) {
+      console.error('[Kajabi OAuth] Response missing access_token:', data);
       throw new Error('Kajabi OAuth response missing access_token');
     }
 
@@ -99,12 +105,15 @@ export class KajabiClient {
     // Set expiry to 90% of actual expiry to refresh before it expires
     this.tokenExpiry = Date.now() + (data.expires_in * 1000 * 0.9);
 
+    console.log(`[Kajabi OAuth] Token acquired, expires in ${data.expires_in}s`);
     return token;
   }
 
   private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
     const url = `${KAJABI_API_BASE}${endpoint}`;
     const token = await this.getAccessToken();
+
+    console.log(`[Kajabi API] ${options.method || 'GET'} ${url}`);
 
     const response = await fetch(url, {
       ...options,
@@ -117,9 +126,20 @@ export class KajabiClient {
 
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(
-        `Kajabi API error (${response.status}): ${errorText || response.statusText}`
-      );
+      console.error(`[Kajabi API] Error ${response.status} from ${url}:`, errorText.substring(0, 500));
+
+      // Try to parse JSON error if available
+      try {
+        const errorJson = JSON.parse(errorText);
+        throw new Error(
+          `Kajabi API error (${response.status}): ${errorJson.error || JSON.stringify(errorJson)}`
+        );
+      } catch {
+        // Not JSON, return text error
+        throw new Error(
+          `Kajabi API error (${response.status}): ${errorText.substring(0, 200) || response.statusText}`
+        );
+      }
     }
 
     return response.json();
@@ -127,21 +147,33 @@ export class KajabiClient {
 
   /**
    * Fetch all contacts with pagination support
+   * Uses JSON:API pagination format: page[number] and page[size]
    */
   async *fetchContactsPaginated(): AsyncGenerator<KajabiContact[]> {
-    let page = 1;
-    const perPage = 100; // Kajabi's max per page
+    let pageNumber = 1;
+    const pageSize = 100; // Kajabi's recommended page size
     let hasMore = true;
 
     while (hasMore) {
+      const params = new URLSearchParams({
+        'filter[site_id]': this.siteId,
+        'page[number]': pageNumber.toString(),
+        'page[size]': pageSize.toString(),
+      });
+
       const response: any = await this.request(
-        `/v1/contacts?page=${page}&per_page=${perPage}`
+        `/v1/contacts?${params.toString()}`
       );
 
-      if (response.contacts && response.contacts.length > 0) {
-        yield response.contacts;
-        page++;
-        hasMore = response.contacts.length === perPage;
+      // JSON:API format: response.data contains the array
+      const contacts = response.data || [];
+
+      if (contacts.length > 0) {
+        yield contacts;
+        pageNumber++;
+
+        // Check if there are more pages using meta or links
+        hasMore = response.meta?.current_page < response.meta?.total_pages;
       } else {
         hasMore = false;
       }
@@ -166,21 +198,33 @@ export class KajabiClient {
 
   /**
    * Fetch all subscriptions with pagination support
+   * Uses JSON:API pagination format: page[number] and page[size]
    */
   async *fetchSubscriptionsPaginated(): AsyncGenerator<KajabiSubscription[]> {
-    let page = 1;
-    const perPage = 100;
+    let pageNumber = 1;
+    const pageSize = 100;
     let hasMore = true;
 
     while (hasMore) {
+      const params = new URLSearchParams({
+        'filter[site_id]': this.siteId,
+        'page[number]': pageNumber.toString(),
+        'page[size]': pageSize.toString(),
+      });
+
       const response: any = await this.request(
-        `/v1/subscriptions?page=${page}&per_page=${perPage}`
+        `/v1/subscriptions?${params.toString()}`
       );
 
-      if (response.subscriptions && response.subscriptions.length > 0) {
-        yield response.subscriptions;
-        page++;
-        hasMore = response.subscriptions.length === perPage;
+      // JSON:API format: response.data contains the array
+      const subscriptions = response.data || [];
+
+      if (subscriptions.length > 0) {
+        yield subscriptions;
+        pageNumber++;
+
+        // Check if there are more pages using meta or links
+        hasMore = response.meta?.current_page < response.meta?.total_pages;
       } else {
         hasMore = false;
       }
@@ -210,10 +254,15 @@ export class KajabiClient {
 export function createKajabiClient(): KajabiClient {
   const clientId = process.env.KAJABI_CLIENT_ID;
   const clientSecret = process.env.KAJABI_CLIENT_SECRET;
+  const siteId = process.env.KAJABI_SITE_ID;
 
   if (!clientId || !clientSecret) {
     throw new Error('KAJABI_CLIENT_ID and KAJABI_CLIENT_SECRET environment variables are required');
   }
 
-  return new KajabiClient(clientId, clientSecret);
+  if (!siteId) {
+    throw new Error('KAJABI_SITE_ID environment variable is required. Find it in your Kajabi admin URL (e.g., /admin/sites/2147577478)');
+  }
+
+  return new KajabiClient(clientId, clientSecret, siteId);
 }

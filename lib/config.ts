@@ -61,6 +61,7 @@ export const integrations = {
   kajabi: {
     clientId: process.env.KAJABI_CLIENT_ID,
     clientSecret: process.env.KAJABI_CLIENT_SECRET,
+    siteId: process.env.KAJABI_SITE_ID,
   },
 };
 
