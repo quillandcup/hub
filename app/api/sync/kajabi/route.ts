@@ -88,34 +88,40 @@ export async function POST(request: NextRequest) {
 
     // Import subscriptions if requested
     if (importSubscriptions) {
-      console.log("Fetching subscriptions from Kajabi API...");
-      const subscriptions = await kajabi.fetchAllSubscriptions();
-      console.log(`Fetched ${subscriptions.length} subscriptions from Kajabi`);
+      console.log("Fetching purchases (subscriptions) from Kajabi API...");
+      const purchases = await kajabi.fetchAllSubscriptions();
+      console.log(`Fetched ${purchases.length} purchases from Kajabi`);
 
       // Transform to our format (matching CSV import structure)
-      // Kajabi API returns JSON:API format with attributes nested
+      // Kajabi API returns purchases (not subscriptions) with JSON:API format
       const importTimestamp = new Date().toISOString();
-      const subscriptionRecords = subscriptions.map((sub) => {
-        const attrs = sub.attributes;
+      const subscriptionRecords = purchases.map((purchase) => {
+        const attrs = purchase.attributes;
+        const customerId = purchase.relationships?.customer?.data?.id || "";
+        const offerId = purchase.relationships?.offer?.data?.id || "";
+
+        // Determine status from deactivated_at field
+        const status = attrs.deactivated_at ? "Canceled" : "Active";
+
         return {
-          kajabi_subscription_id: sub.id,
-          customer_id: attrs.customer_id || "",
-          customer_name: attrs.customer_name || "",
-          customer_email: (attrs.customer_email || "").toLowerCase(),
-          status: attrs.status,
-          amount: attrs.amount || "",
-          currency: attrs.currency || "",
-          interval: attrs.interval || "",
-          created_at_kajabi: attrs.created_at,
-          canceled_on: attrs.canceled_on || null,
-          trial_ends_on: attrs.trial_ends_on || null,
-          next_payment_date: attrs.next_payment_date || null,
-          offer_id: attrs.offer_id || "",
-          offer_title: attrs.offer_title || "",
-          provider: attrs.provider || "",
-          provider_id: attrs.provider_id || "",
+          kajabi_subscription_id: purchase.id,
+          customer_id: customerId,
+          customer_name: "", // Not available in purchases endpoint
+          customer_email: "", // Not available in purchases endpoint
+          status: status,
+          amount: attrs.amount_in_cents ? (attrs.amount_in_cents / 100).toString() : "",
+          currency: "USD", // Assuming USD, not in API response
+          interval: "", // Not available in purchases endpoint
+          created_at_kajabi: attrs.effective_start_at || attrs.created_at,
+          canceled_on: attrs.deactivated_at || null,
+          trial_ends_on: null, // Not available in purchases endpoint
+          next_payment_date: null, // Not available in purchases endpoint
+          offer_id: offerId,
+          offer_title: "", // Not available in purchases endpoint
+          provider: "Kajabi", // Purchases are through Kajabi
+          provider_id: purchase.id,
           imported_at: importTimestamp,
-          data: sub, // Store full raw data
+          data: purchase, // Store full raw data
         };
       });
 
@@ -134,8 +140,8 @@ export async function POST(request: NextRequest) {
       }
 
       // Count status breakdown
-      const statusBreakdown = subscriptions.reduce((acc: any, sub) => {
-        const status = sub.attributes.status;
+      const statusBreakdown = purchases.reduce((acc: any, purchase) => {
+        const status = purchase.attributes.deactivated_at ? "Canceled" : "Active";
         acc[status] = (acc[status] || 0) + 1;
         return acc;
       }, {});

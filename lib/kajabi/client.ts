@@ -34,30 +34,28 @@ export interface KajabiContact {
   links?: Record<string, any>;
 }
 
-export interface KajabiSubscription {
+export interface KajabiPurchase {
   id: string;
-  type: 'subscriptions';
+  type: 'purchases';
   attributes: {
-    customer_id?: string;
-    customer_name?: string;
-    customer_email?: string;
-    status: 'Active' | 'Canceled' | 'Paused' | 'Pending Cancellation';
-    amount?: string;
-    currency?: string;
-    interval?: string;
+    amount_in_cents: number;
     created_at: string;
-    canceled_on?: string | null;
-    trial_ends_on?: string | null;
-    next_payment_date?: string | null;
-    offer_id?: string;
-    offer_title?: string;
-    provider?: string;
-    provider_id?: string;
+    deactivated_at: string | null;
+    deactivation_reason: string | null;
+    effective_start_at: string;
+    multipay_payments_made: number;
     [key: string]: any;
   };
-  relationships?: Record<string, any>;
+  relationships?: {
+    customer?: { data: { id: string; type: 'customers' } };
+    offer?: { data: { id: string; type: 'offers' } };
+    [key: string]: any;
+  };
   links?: Record<string, any>;
 }
+
+// Alias for backwards compatibility
+export type KajabiSubscription = KajabiPurchase;
 
 export class KajabiClient {
   private clientId: string;
@@ -214,8 +212,9 @@ export class KajabiClient {
   }
 
   /**
-   * Fetch all subscriptions with pagination support
+   * Fetch all purchases (subscriptions) with pagination support
    * Uses JSON:API pagination format: page[number] and page[size]
+   * Note: Kajabi stores subscriptions as "purchases" in their API
    */
   async *fetchSubscriptionsPaginated(): AsyncGenerator<KajabiSubscription[]> {
     let pageNumber = 1;
@@ -230,14 +229,14 @@ export class KajabiClient {
       });
 
       const response: any = await this.request(
-        `/v1/subscriptions?${params.toString()}`
+        `/v1/purchases?${params.toString()}`
       );
 
       // JSON:API format: response.data contains the array
-      const subscriptions = response.data || [];
+      const purchases = response.data || [];
 
-      if (subscriptions.length > 0) {
-        yield subscriptions;
+      if (purchases.length > 0) {
+        yield purchases;
         pageNumber++;
 
         // Check if there are more pages using meta or links
