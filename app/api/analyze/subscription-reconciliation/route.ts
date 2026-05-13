@@ -129,7 +129,7 @@ export async function GET(request: NextRequest) {
       );
 
       // Reverse alias map: canonical_email → Set of alias emails
-      // Used so a member at member21@example.com can match Stripe customer at jediauthor@gmail.com
+      // Used to match a member's Stripe subscription when billed under a different email
       const reverseAliasMap = new Map<string, Set<string>>();
       for (const alias of emailAliases || []) {
         const canonical = alias.canonical_email.toLowerCase();
