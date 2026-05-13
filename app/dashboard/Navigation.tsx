@@ -53,6 +53,8 @@ const navigation: NavSection[] = [
       { name: "Import Data", href: "/data/import", icon: "📥" },
       { name: "Prickle Types", href: "/data/prickle-types", icon: "🏷️" },
       { name: "Name Aliases", href: "/data/aliases", icon: "👤" },
+      { name: "Member Overrides", href: "/dashboard/member-overrides", icon: "🎁" },
+      { name: "Reconciliation", href: "/dashboard/reconciliation", icon: "🔄" },
     ],
   },
 ];
