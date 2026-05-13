@@ -23,7 +23,7 @@ const MAILPIT_API = "http://localhost:54324/api/v1";
 const MIN_ALL_CLIENTS_PERCENT = 80;
 
 // Suite 2: top-5 clients by market share. Current scores: ~96%.
-const MIN_TOP5_CLIENTS_PERCENT = 90;
+const MIN_TOP5_CLIENTS_PERCENT = 95;
 
 // Apple Mail, Gmail, Outlook, Samsung Email, Yahoo — ~85% of email opens (Litmus 2024).
 const TOP_5_FAMILIES = new Set(["apple-mail", "gmail", "outlook", "samsung-email", "yahoo"]);
