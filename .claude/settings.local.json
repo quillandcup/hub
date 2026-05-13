@@ -32,7 +32,14 @@
       "Bash(jq)",
       "Read(//tmp/**)",
       "Bash(npx tsx:*)",
-      "Bash(docker exec supabase_db_admin-portal *)"
+      "Bash(docker exec supabase_db_admin-portal *)",
+      "Bash(chmod +x *)",
+      "Bash(npx ctx7@latest *)",
+      "Bash(node *)",
+      "Bash(dig NS quillandcup.com +short)",
+      "Bash(dig SOA quillandcup.com +short)",
+      "Bash(dig CNAME *)",
+      "Bash(r2 claude *)"
     ]
   }
 }
