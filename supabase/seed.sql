@@ -3,11 +3,16 @@
 -- =====================================================
 
 -- Clear existing data (in reverse dependency order)
+-- Note: TRUNCATE members CASCADE will also wipe prickle_types (because of default_host_id FK)
+-- We'll re-seed prickle_types after the truncates
 TRUNCATE prickle_popularity CASCADE;
 TRUNCATE member_engagement CASCADE;
 TRUNCATE member_metrics CASCADE;
+TRUNCATE member_activities CASCADE;
 TRUNCATE prickle_attendance CASCADE;
 TRUNCATE member_hiatus_history CASCADE;
+TRUNCATE member_status_overrides CASCADE;
+TRUNCATE member_name_aliases CASCADE;
 TRUNCATE prickles CASCADE;
 TRUNCATE bronze.zoom_attendees CASCADE;
 TRUNCATE bronze.calendar_events CASCADE;
@@ -18,6 +23,29 @@ TRUNCATE bronze.slack_reactions CASCADE;
 TRUNCATE bronze.slack_channels CASCADE;
 TRUNCATE bronze.slack_users CASCADE;
 TRUNCATE members CASCADE;
+
+-- Re-seed prickle_types (wiped by TRUNCATE members CASCADE)
+-- Note: migrations normally handle this, but seed.sql wipes it
+INSERT INTO prickle_types (name, normalized_name, description, requires_host, default_host_id)
+VALUES
+  ('Progress Prickle', 'progress', 'General progress prickles', true, NULL),
+  ('Plot or Plan Prickle', 'plot-or-plan', 'Plot or plan sessions', true, NULL),
+  ('Sprint Prickle', 'sprint', 'Focused sprint sessions', true, NULL),
+  ('Heads Down', 'heads-down', 'Deep work sessions', true, NULL),
+  ('Pitch Prickle', 'pitch', 'Pitching and feedback sessions', true, NULL),
+  ('Midnight Crew', 'midnight-crew', 'Late night writing crew', false, NULL),
+  ('Feel Good Friday Prickle', 'feel-good-friday', 'Friday celebration prickles', false, NULL),
+  ('Open Table', 'open-table', 'Open community hangouts', false, NULL),
+  ('Social Media Sunday Prickle', 'social-media-sunday', 'Social media planning', false, NULL),
+  ('Craft & Chat Prickle', 'craft-chat', 'Crafting and conversation', false, NULL),
+  ('Pomodoro', 'pomodoro', 'Pomodoro technique sessions', false, NULL),
+  ('#AuthorLife Heads Down Prickle', 'authorlife-heads-down', 'Author life deep work', false, NULL),
+  ('Monthly Goal Review', 'monthly-goal-review', 'Monthly goal planning', false, NULL),
+  ('Pop-Up Prickle', 'pop-up', 'Spontaneous prickles from Zoom', false, NULL),
+  ('Hedgies on First', 'hedgies-on-first', 'First week community onboarding', false, NULL),
+  ('Members Only Pitch Prickle', 'members-only-pitch', 'Members-only pitching sessions', true, NULL),
+  ('Educational Prickle', 'educational', 'Educational and workshop sessions', true, NULL)
+ON CONFLICT (normalized_name) DO NOTHING;
 
 -- =====================================================
 -- MEMBERS (Bronze)
