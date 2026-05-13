@@ -120,7 +120,7 @@ export async function POST(request: NextRequest) {
       { data: prickleTypes },
       { data: resolvedUnmatchedEvents },
     ] = await Promise.all([
-      supabase.from("members").select("id, name, email"),
+      supabase.from("members").select("id, name, email").eq("status", "active"),
       supabase.from("member_name_aliases").select("alias, member_id, source"),
       supabase.from("prickle_types").select("id, name, normalized_name, default_host_id"),
       // Load previously resolved/ignored unmatched events to apply learned decisions
@@ -197,7 +197,7 @@ export async function POST(request: NextRequest) {
           true // Skip email matching - we only have the name from event title
         );
 
-        if (match) {
+        if (match && 'member_id' in match) {
           hostId = match.member_id;
           // Update suggested name to matched member's name
           const matchedMember = members?.find(m => m.id === match.member_id);

@@ -88,7 +88,7 @@ export async function POST(request: NextRequest) {
     if (host && host.trim()) {
       // Load members and aliases for matching
       const [{ data: members }, { data: aliases }] = await Promise.all([
-        supabase.from("members").select("id, name, email"),
+        supabase.from("members").select("id, name, email").eq("status", "active"),
         supabase.from("member_name_aliases").select("alias, member_id, source"),
       ]);
 
@@ -100,7 +100,7 @@ export async function POST(request: NextRequest) {
         aliases || []
       );
 
-      if (match) {
+      if (match && 'member_id' in match) {
         hostId = match.member_id;
       }
       // If no match found, leave hostId as null (allows events without known hosts)

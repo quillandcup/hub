@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
-import { matchAttendeeToMember } from "@/lib/member-matching";
+import { matchAttendeeToMember, type MatchResult } from "@/lib/member-matching";
 
 // Extend timeout for processing large batches of attendance records
 export const maxDuration = 300; // 5 minutes
@@ -286,7 +286,7 @@ export async function POST(request: NextRequest) {
     }
 
     const [{ data: members }, { data: aliases }] = await Promise.all([
-      supabase.from("members").select("id, name, email"),
+      supabase.from("members").select("id, name, email").eq("status", "active"),
       supabase.from("member_name_aliases").select("alias, member_id, source"),
     ]);
 
@@ -396,6 +396,7 @@ export async function POST(request: NextRequest) {
 
     // STEP 4: Assign attendees to segments and collect attendance records
     const attendanceToUpsert: any[] = [];
+    const ambiguousMatches: Array<{ name: string; email: string | null; candidateIds: string[] }> = [];
     let segmentLookupFailures = 0;
 
     for (const [meetingUuid, attendees] of meetingsByUuid) {
@@ -407,6 +408,18 @@ export async function POST(request: NextRequest) {
 
         if (!match) {
           skippedUnmatched++;
+          continue;
+        }
+
+        // Check if match is ambiguous
+        if ('reason' in match && match.reason === 'ambiguous') {
+          // Track ambiguous match for later upserting
+          ambiguousMatches.push({
+            name: attendee.name,
+            email: attendee.email,
+            candidateIds: match.candidates.map(c => c.id),
+          });
+          skippedUnmatched++; // Count as unmatched since we can't assign it
           continue;
         }
 
@@ -489,11 +502,12 @@ export async function POST(request: NextRequest) {
 
           // Determine if this is a calendar prickle (UUID) or PUP (temp ID)
           const isCalendarPrickle = item.segment.type === "calendar";
+          const resolvedMatch = match as MatchResult;
           const attendanceRecord: any = {
-            member_id: match.member_id,
+            member_id: resolvedMatch.member_id,
             join_time: item.intersection.start.toISOString(),
             leave_time: item.intersection.end.toISOString(),
-            confidence_score: match.confidence,
+            confidence_score: resolvedMatch.confidence,
           };
 
           if (isCalendarPrickle) {
@@ -530,11 +544,46 @@ export async function POST(request: NextRequest) {
     attendanceRecords = attendanceToUpsert.length;
     console.log(`Successfully reprocessed ${attendanceRecords} attendance records and ${pupsToCreate.length} PUPs`);
 
+    // STEP 6: Track ambiguous matches for admin resolution
+    let ambiguousNamesTracked = 0;
+    if (ambiguousMatches.length > 0) {
+      // Group by name+email to get unique combinations with counts
+      const ambiguousGroups = new Map<string, { name: string; email: string | null; candidateIds: string[]; count: number }>();
+
+      for (const match of ambiguousMatches) {
+        const key = `${match.name}|${match.email || ''}`;
+        if (ambiguousGroups.has(key)) {
+          ambiguousGroups.get(key)!.count++;
+        } else {
+          ambiguousGroups.set(key, { ...match, count: 1 });
+        }
+      }
+
+      // Upsert each unique ambiguous name using database function
+      for (const group of ambiguousGroups.values()) {
+        const { error: upsertError } = await supabase.rpc('upsert_ambiguous_zoom_name', {
+          p_zoom_name: group.name,
+          p_zoom_email: group.email,
+          p_candidate_member_ids: group.candidateIds,
+          p_occurrence_increment: group.count,
+        });
+
+        if (upsertError) {
+          console.error(`Error tracking ambiguous name "${group.name}":`, upsertError);
+        } else {
+          ambiguousNamesTracked++;
+        }
+      }
+
+      console.log(`Tracked ${ambiguousNamesTracked} unique ambiguous Zoom names`);
+    }
+
     return NextResponse.json({
       success: true,
       zoomAttendees: zoomAttendees.length,
       matchedAttendees,
       skippedUnmatched,
+      ambiguousNamesTracked,
       meetingsProcessed: meetingsByUuid.size,
       segmentsCreated: matchedToCalendar + createdNewPrickles,
       matchedToCalendar,
