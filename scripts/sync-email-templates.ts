@@ -1,7 +1,7 @@
 /**
  * Render React Email templates and sync them to a hosted Supabase project
- * via the Management API. Also writes rendered HTML back to supabase/templates/
- * for local dev (config.toml reads from there).
+ * via the Management API. Also writes rendered HTML to supabase/templates/
+ * so local Supabase (config.toml) stays in sync.
  *
  * Requires two env vars not needed by the app itself:
  *   SUPABASE_PROJECT_REF   — project reference (e.g. "abcxyzabcxyz")
@@ -15,18 +15,11 @@
  *   npx tsx scripts/sync-email-templates.ts .env.prod
  */
 
-import * as React from "react";
-import { render } from "react-email";
 import { writeFileSync } from "fs";
 import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
 import { config } from "dotenv";
-
-import { InviteEmail } from "../supabase/emails/invite";
-import { ConfirmationEmail } from "../supabase/emails/confirmation";
-import { RecoveryEmail } from "../supabase/emails/recovery";
-import { MagicLinkEmail } from "../supabase/emails/magic-link";
-import { EmailChangeEmail } from "../supabase/emails/email-change";
+import { buildTemplates } from "./_email-templates";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(__dirname, "..");
@@ -60,49 +53,14 @@ if (!PROJECT_REF || !ACCESS_TOKEN) {
   process.exit(1);
 }
 
-// Supabase Go template variables — passed as literal strings so they survive
-// rendering and are substituted at send time by Supabase's mailer.
-const CONFIRMATION_URL = "{{ .ConfirmationURL }}";
-const NEW_EMAIL = "{{ .NewEmail }}";
-
 (async () => {
-  const templates = [
-    {
-      name: "invite",
-      subject: "You're invited to join Quill & Cup",
-      html: await render(React.createElement(InviteEmail, { confirmationUrl: CONFIRMATION_URL })),
-    },
-    {
-      name: "confirmation",
-      subject: "Confirm your email – Quill & Cup",
-      html: await render(React.createElement(ConfirmationEmail, { confirmationUrl: CONFIRMATION_URL })),
-    },
-    {
-      name: "recovery",
-      subject: "Reset your Quill & Cup password",
-      html: await render(React.createElement(RecoveryEmail, { confirmationUrl: CONFIRMATION_URL })),
-    },
-    {
-      name: "magic_link",
-      subject: "Your Quill & Cup sign-in link",
-      html: await render(React.createElement(MagicLinkEmail, { confirmationUrl: CONFIRMATION_URL })),
-    },
-    {
-      name: "email_change",
-      subject: "Confirm your new email – Quill & Cup",
-      html: await render(
-        React.createElement(EmailChangeEmail, { confirmationUrl: CONFIRMATION_URL, newEmail: NEW_EMAIL })
-      ),
-    },
-  ];
+  const templates = await buildTemplates();
 
-  // Write rendered HTML to supabase/templates/ for local Supabase (config.toml)
   console.log("Writing rendered HTML to supabase/templates/...");
   for (const t of templates) {
     writeFileSync(resolve(templatesDir, `${t.name}.html`), t.html);
   }
 
-  // Build the Management API payload
   const payload: Record<string, string> = {};
   for (const t of templates) {
     payload[`mailer_subjects_${t.name}`] = t.subject;

@@ -12,6 +12,7 @@
     "test:run": "vitest run",
     "export:slack": "NODE_OPTIONS='--dns-result-order=ipv4first' tsx scripts/export-slack-data.ts",
     "env:sync": "./scripts/sync-to-vercel.sh",
+    "templates:render": "tsx scripts/render-email-templates.ts",
     "templates:sync": "tsx scripts/sync-email-templates.ts .env.prod"
   },
   "dependencies": {
