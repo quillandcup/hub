@@ -226,16 +226,25 @@ otp_expiry = 3600
 # admin_email = "admin@email.com"
 # sender_name = "Admin"
 
-# Uncomment to customize email template
-# [auth.email.template.invite]
-# subject = "You have been invited"
-# content_path = "./supabase/templates/invite.html"
+[auth.email.template.invite]
+subject = "You're invited to join Quill & Cup"
+content_path = "./templates/invite.html"
 
-# Uncomment to customize notification email template
-# [auth.email.notification.password_changed]
-# enabled = true
-# subject = "Your password has been changed"
-# content_path = "./templates/password_changed_notification.html"
+[auth.email.template.confirmation]
+subject = "Confirm your email – Quill & Cup"
+content_path = "./templates/confirmation.html"
+
+[auth.email.template.recovery]
+subject = "Reset your Quill & Cup password"
+content_path = "./templates/recovery.html"
+
+[auth.email.template.magic_link]
+subject = "Your Quill & Cup sign-in link"
+content_path = "./templates/magic_link.html"
+
+[auth.email.template.email_change]
+subject = "Confirm your new email – Quill & Cup"
+content_path = "./templates/email_change.html"
 
 [auth.sms]
 # Allow/disallow new user signups via SMS to your project.
