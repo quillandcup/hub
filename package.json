@@ -28,7 +28,9 @@
     "react-markdown": "^10.1.0",
     "recharts": "^3.8.1",
     "rehype-raw": "^7.0.0",
-    "remark-gfm": "^4.0.1"
+    "remark-gfm": "^4.0.1",
+    "stripe": "^22.1.0",
+    "vercel": "^53.4.0"
   },
   "devDependencies": {
     "@types/json2csv": "^5.0.7",
