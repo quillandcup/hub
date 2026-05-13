@@ -25,177 +25,129 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const body = await request.json();
-    const { importMembers = true, importSubscriptions = true } = body;
-
     const results: any = {
       members: null,
-      subscriptions: null,
     };
 
     // Create Kajabi API client
     const kajabi = createKajabiClient();
 
-    // Import members if requested
-    if (importMembers) {
-      console.log("Fetching contacts from Kajabi API...");
-      const contacts = await kajabi.fetchAllContacts();
-      console.log(`Fetched ${contacts.length} contacts from Kajabi`);
+    // Import members (contacts, customers, purchases, offers)
+    // Following medallion architecture: Store RAW data in Bronze, transform in Silver
+      console.log("Fetching raw data from Kajabi API (contacts, customers, purchases, offers)...");
 
-      // Transform to our format (matching CSV import structure)
-      // Kajabi API returns JSON:API format with attributes nested
+      // Fetch all raw data from Kajabi API
+      const [contacts, customers, purchases, offers] = await Promise.all([
+        kajabi.fetchAllContacts(),
+        kajabi.fetchAllCustomers(),
+        kajabi.fetchAllSubscriptions(),
+        kajabi.fetchAllOffers(),
+      ]);
+
+      console.log(`Fetched ${contacts.length} contacts, ${customers.length} customers, ${purchases.length} purchases, ${offers.length} offers from Kajabi`);
+
       const importTimestamp = new Date().toISOString();
-      const memberRecords = contacts.map((contact) => {
-        const attrs = contact.attributes;
-        return {
-          email: attrs.email.toLowerCase(),
-          imported_at: importTimestamp,
-          data: {
-            Name: attrs.name || "",
-            Email: attrs.email,
-            "First Name": attrs.name?.split(' ')[0] || "",
-            "Last Name": attrs.name?.split(' ').slice(1).join(' ') || "",
-            "Member Created At": attrs.created_at,
-            "Last Contacted": "", // Not available in JSON:API response
-            "Last Activity": "", // Not available in JSON:API response
-            Tags: "", // Tags are in relationships, would need separate request
-            // Store full raw data
-            _raw: contact,
-          },
-        };
-      });
 
-      // Insert into kajabi_members (Bronze)
-      const { error: membersError } = await supabase
+      // BRONZE LAYER: Store raw data as-is (no transformation)
+
+      // 1. Contacts (all people in Kajabi)
+      const contactRecords = contacts.map(contact => ({
+        kajabi_contact_id: contact.id,
+        email: contact.attributes.email.toLowerCase(),
+        name: contact.attributes.name,
+        created_at_kajabi: contact.attributes.created_at,
+        updated_at_kajabi: contact.attributes.updated_at,
+        imported_at: importTimestamp,
+        data: contact,
+      }));
+
+      const { error: contactsError } = await supabase
         .schema("bronze")
-        .from("kajabi_members")
-        .insert(memberRecords);
+        .from("kajabi_contacts")
+        .upsert(contactRecords, { onConflict: "kajabi_contact_id" });
 
-      if (membersError) {
-        console.error("Error inserting kajabi_members:", membersError);
-        throw new Error(`Members import failed: ${membersError.message}`);
+      if (contactsError) {
+        console.error("Error upserting kajabi_contacts:", contactsError);
+        throw new Error(`Contacts import failed: ${contactsError.message}`);
       }
 
-      console.log("Triggering member processing...");
-      const processingResults = await triggerReprocessing("kajabi_members", "bronze");
+      // 2. Customers (people who made purchases)
+      const customerRecords = customers.map(customer => ({
+        kajabi_customer_id: customer.id,
+        email: customer.attributes.email.toLowerCase(),
+        name: customer.attributes.name,
+        created_at_kajabi: customer.attributes.created_at,
+        updated_at_kajabi: customer.attributes.updated_at,
+        imported_at: importTimestamp,
+        data: customer,
+      }));
+
+      const { error: customersError } = await supabase
+        .schema("bronze")
+        .from("kajabi_customers")
+        .upsert(customerRecords, { onConflict: "kajabi_customer_id" });
+
+      if (customersError) {
+        console.error("Error upserting kajabi_customers:", customersError);
+        throw new Error(`Customers import failed: ${customersError.message}`);
+      }
+
+      // 3. Purchases (subscription records)
+      const purchaseRecords = purchases.map(purchase => ({
+        kajabi_purchase_id: purchase.id,
+        kajabi_customer_id: purchase.relationships?.customer?.data?.id || null,
+        kajabi_offer_id: purchase.relationships?.offer?.data?.id || null,
+        amount_in_cents: purchase.attributes.amount_in_cents,
+        currency: purchase.attributes.currency || 'USD',
+        status: purchase.attributes.deactivated_at ? 'canceled' : 'active',
+        created_at_kajabi: purchase.attributes.created_at,
+        effective_start_at: purchase.attributes.effective_start_at,
+        deactivated_at: purchase.attributes.deactivated_at,
+        imported_at: importTimestamp,
+        data: purchase,
+      }));
+
+      const { error: purchasesError } = await supabase
+        .schema("bronze")
+        .from("kajabi_purchases")
+        .upsert(purchaseRecords, { onConflict: "kajabi_purchase_id" });
+
+      if (purchasesError) {
+        console.error("Error upserting kajabi_purchases:", purchasesError);
+        throw new Error(`Purchases import failed: ${purchasesError.message}`);
+      }
+
+      // 4. Offers (products/subscriptions offered)
+      const offerRecords = offers.map(offer => ({
+        kajabi_offer_id: offer.id,
+        name: offer.attributes.title, // title, not name
+        status: offer.attributes.status,
+        trial_period_days: offer.attributes.trial_period_days,
+        imported_at: importTimestamp,
+        data: offer,
+      }));
+
+      const { error: offersError } = await supabase
+        .schema("bronze")
+        .from("kajabi_offers")
+        .upsert(offerRecords, { onConflict: "kajabi_offer_id" });
+
+      if (offersError) {
+        console.error("Error upserting kajabi_offers:", offersError);
+        throw new Error(`Offers import failed: ${offersError.message}`);
+      }
+
+      console.log("Bronze import complete. Triggering Silver processing...");
+      const processingResults = await triggerReprocessing("kajabi_contacts", "bronze");
 
       results.members = {
-        imported: contacts.length,
+        contacts: contactRecords.length,
+        customers: customerRecords.length,
+        purchases: purchaseRecords.length,
+        offers: offerRecords.length,
         importTimestamp,
         processing: processingResults.processed,
       };
-    }
-
-    // Import subscriptions if requested
-    if (importSubscriptions) {
-      console.log("Fetching purchases (subscriptions) from Kajabi API...");
-      const purchases = await kajabi.fetchAllSubscriptions();
-      console.log(`Fetched ${purchases.length} purchases from Kajabi`);
-
-      // Fetch customers to get email/name (required for hiatus processing)
-      console.log("Fetching customers to enrich purchase data...");
-      const customers = await kajabi.fetchAllCustomers();
-      console.log(`Fetched ${customers.length} customers from Kajabi`);
-
-      // Build customer lookup map
-      const customerMap = new Map<string, any>();
-      for (const customer of customers) {
-        customerMap.set(customer.id, customer.attributes);
-      }
-
-      console.log(`Customer map size: ${customerMap.size}`);
-      console.log(`Sample customer IDs: ${Array.from(customerMap.keys()).slice(0, 5).join(', ')}`);
-
-      // Log sample purchase structure to debug
-      if (purchases.length > 0) {
-        const sample = purchases[0];
-        console.log(`Sample purchase relationships:`, JSON.stringify(sample.relationships, null, 2));
-      }
-
-      // Transform to our format (matching CSV import structure)
-      // Kajabi API returns purchases (not subscriptions) with JSON:API format
-      const importTimestamp = new Date().toISOString();
-      let skippedCount = 0;
-      const subscriptionRecords = purchases
-        .map((purchase) => {
-          const attrs = purchase.attributes;
-          const customerId = purchase.relationships?.customer?.data?.id || "";
-          const offerId = purchase.relationships?.offer?.data?.id || "";
-
-          // Get customer data from lookup
-          const customer = customerMap.get(customerId);
-
-          // Skip if no customer data (required for hiatus processing)
-          if (!customer || !customer.email) {
-            if (skippedCount < 5) {
-              console.warn(`Skipping purchase ${purchase.id}: no customer data found for customer_id "${customerId}"`);
-            }
-            skippedCount++;
-            return null;
-          }
-
-          // Determine status from deactivated_at field
-          const status = attrs.deactivated_at ? "Canceled" : "Active";
-
-          return {
-            kajabi_subscription_id: purchase.id,
-            customer_id: customerId,
-            customer_name: customer.name || "",
-            customer_email: customer.email.toLowerCase(),
-            status: status,
-            amount: attrs.amount_in_cents ? (attrs.amount_in_cents / 100).toString() : "",
-            currency: "USD", // Assuming USD, not in API response
-            interval: "", // Not available in purchases endpoint
-            created_at_kajabi: attrs.effective_start_at || attrs.created_at,
-            canceled_on: attrs.deactivated_at || null,
-            trial_ends_on: null, // Not available in purchases endpoint
-            next_payment_date: null, // Not available in purchases endpoint
-            offer_id: offerId,
-            offer_title: "", // Would require separate offers API call
-            provider: "Kajabi", // Purchases are through Kajabi
-            provider_id: purchase.id,
-            imported_at: importTimestamp,
-            data: purchase, // Store full raw data
-          };
-        })
-        .filter((record): record is NonNullable<typeof record> => record !== null);
-
-      if (skippedCount > 0) {
-        console.warn(`Skipped ${skippedCount} purchases due to missing customer data`);
-      }
-      console.log(`Successfully mapped ${subscriptionRecords.length} purchases to subscription records`);
-
-      // UPSERT to make imports idempotent
-      const { error: subsError, data: inserted } = await supabase
-        .schema("bronze")
-        .from("subscription_history")
-        .upsert(subscriptionRecords, {
-          onConflict: "kajabi_subscription_id,imported_at",
-        })
-        .select();
-
-      if (subsError) {
-        console.error("Error inserting subscription_history:", subsError);
-        throw new Error(`Subscriptions import failed: ${subsError.message}`);
-      }
-
-      // Count status breakdown
-      const statusBreakdown = purchases.reduce((acc: any, purchase) => {
-        const status = purchase.attributes.deactivated_at ? "Canceled" : "Active";
-        acc[status] = (acc[status] || 0) + 1;
-        return acc;
-      }, {});
-
-      console.log("Triggering hiatus processing...");
-      const processingResults = await triggerReprocessing("subscription_history", "bronze");
-
-      results.subscriptions = {
-        imported: inserted?.length || 0,
-        importTimestamp,
-        statusBreakdown,
-        processing: processingResults.processed,
-      };
-    }
 
     return NextResponse.json({
       success: true,

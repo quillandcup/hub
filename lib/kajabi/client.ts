@@ -57,6 +57,21 @@ export interface KajabiPurchase {
 // Alias for backwards compatibility
 export type KajabiSubscription = KajabiPurchase;
 
+export interface KajabiOffer {
+  id: string;
+  type: 'offers';
+  attributes: {
+    name: string;
+    status: string;
+    trial_period_days: number | null;
+    created_at: string;
+    updated_at: string;
+    [key: string]: any;
+  };
+  relationships?: Record<string, any>;
+  links?: Record<string, any>;
+}
+
 export class KajabiClient {
   private clientId: string;
   private clientSecret: string;
@@ -161,10 +176,13 @@ export class KajabiClient {
   }
 
   /**
-   * Fetch all contacts with pagination support
-   * Uses JSON:API pagination format: page[number] and page[size]
+   * Generic pagination helper for Kajabi JSON:API endpoints
+   * Handles pagination, rate limiting, and logging
    */
-  async *fetchContactsPaginated(): AsyncGenerator<KajabiContact[]> {
+  private async *fetchPaginated<T>(
+    endpoint: string,
+    resourceName: string
+  ): AsyncGenerator<T[]> {
     let pageNumber = 1;
     const pageSize = 100; // Kajabi's recommended page size
     let hasMore = true;
@@ -177,19 +195,25 @@ export class KajabiClient {
       });
 
       const response: any = await this.request(
-        `/v1/contacts?${params.toString()}`
+        `${endpoint}?${params.toString()}`
       );
 
       // JSON:API format: response.data contains the array
-      const contacts = response.data || [];
+      const items = response.data || [];
 
-      if (contacts.length > 0) {
-        console.log(`[Kajabi API] Contacts page ${pageNumber}: ${contacts.length} records (${response.meta?.current_page}/${response.meta?.total_pages} pages, ${response.meta?.total_count} total)`);
-        yield contacts;
+      if (items.length > 0) {
+        console.log(`[Kajabi API] ${resourceName} page ${pageNumber}: ${items.length} records (${response.meta?.current_page}/${response.meta?.total_pages} pages, ${response.meta?.total_count} total)`);
+        yield items;
         pageNumber++;
 
-        // Check if there are more pages using meta or links
-        hasMore = response.meta?.current_page < response.meta?.total_pages;
+        // Determine if there are more pages
+        if (response.meta?.current_page != null && response.meta?.total_pages != null) {
+          // Use meta info if available
+          hasMore = response.meta.current_page < response.meta.total_pages;
+        } else {
+          // No meta info - continue if we got a full page
+          hasMore = items.length === pageSize;
+        }
       } else {
         hasMore = false;
       }
@@ -197,6 +221,14 @@ export class KajabiClient {
       // Small delay to respect rate limits
       await new Promise(resolve => setTimeout(resolve, 100));
     }
+  }
+
+  /**
+   * Fetch all contacts with pagination support
+   * Uses JSON:API pagination format: page[number] and page[size]
+   */
+  async *fetchContactsPaginated(): AsyncGenerator<KajabiContact[]> {
+    yield* this.fetchPaginated<KajabiContact>('/v1/contacts', 'Contacts');
   }
 
   /**
@@ -209,6 +241,7 @@ export class KajabiClient {
       allContacts.push(...batch);
     }
 
+    console.log(`[Kajabi API] Fetched ${allContacts.length} total contacts`);
     return allContacts;
   }
 
@@ -217,34 +250,7 @@ export class KajabiClient {
    * Customers are similar to contacts but with purchase/revenue data
    */
   async *fetchCustomersPaginated(): AsyncGenerator<any[]> {
-    let pageNumber = 1;
-    const pageSize = 100;
-    let hasMore = true;
-
-    while (hasMore) {
-      const params = new URLSearchParams({
-        'filter[site_id]': this.siteId,
-        'page[number]': pageNumber.toString(),
-        'page[size]': pageSize.toString(),
-      });
-
-      const response: any = await this.request(
-        `/v1/customers?${params.toString()}`
-      );
-
-      const customers = response.data || [];
-
-      if (customers.length > 0) {
-        console.log(`[Kajabi API] Customers page ${pageNumber}: ${customers.length} records (${response.meta?.current_page}/${response.meta?.total_pages} pages, ${response.meta?.total_count} total)`);
-        yield customers;
-        pageNumber++;
-        hasMore = response.meta?.current_page < response.meta?.total_pages;
-      } else {
-        hasMore = false;
-      }
-
-      await new Promise(resolve => setTimeout(resolve, 100));
-    }
+    yield* this.fetchPaginated('/v1/customers', 'Customers');
   }
 
   /**
@@ -257,6 +263,7 @@ export class KajabiClient {
       allCustomers.push(...batch);
     }
 
+    console.log(`[Kajabi API] Fetched ${allCustomers.length} total customers`);
     return allCustomers;
   }
 
@@ -266,38 +273,7 @@ export class KajabiClient {
    * Note: Kajabi stores subscriptions as "purchases" in their API
    */
   async *fetchSubscriptionsPaginated(): AsyncGenerator<KajabiSubscription[]> {
-    let pageNumber = 1;
-    const pageSize = 100;
-    let hasMore = true;
-
-    while (hasMore) {
-      const params = new URLSearchParams({
-        'filter[site_id]': this.siteId,
-        'page[number]': pageNumber.toString(),
-        'page[size]': pageSize.toString(),
-      });
-
-      const response: any = await this.request(
-        `/v1/purchases?${params.toString()}`
-      );
-
-      // JSON:API format: response.data contains the array
-      const purchases = response.data || [];
-
-      if (purchases.length > 0) {
-        console.log(`[Kajabi API] Purchases page ${pageNumber}: ${purchases.length} records (${response.meta?.current_page}/${response.meta?.total_pages} pages, ${response.meta?.total_count} total)`);
-        yield purchases;
-        pageNumber++;
-
-        // Check if there are more pages using meta or links
-        hasMore = response.meta?.current_page < response.meta?.total_pages;
-      } else {
-        hasMore = false;
-      }
-
-      // Small delay to respect rate limits
-      await new Promise(resolve => setTimeout(resolve, 100));
-    }
+    yield* this.fetchPaginated<KajabiSubscription>('/v1/purchases', 'Purchases');
   }
 
   /**
@@ -310,7 +286,30 @@ export class KajabiClient {
       allSubscriptions.push(...batch);
     }
 
+    console.log(`[Kajabi API] Fetched ${allSubscriptions.length} total purchases`);
     return allSubscriptions;
+  }
+
+  /**
+   * Fetch all offers with pagination support
+   * Uses JSON:API pagination format: page[number] and page[size]
+   */
+  async *fetchOffersPaginated(): AsyncGenerator<KajabiOffer[]> {
+    yield* this.fetchPaginated<KajabiOffer>('/v1/offers', 'Offers');
+  }
+
+  /**
+   * Fetch all offers at once
+   */
+  async fetchAllOffers(): Promise<KajabiOffer[]> {
+    const allOffers: KajabiOffer[] = [];
+
+    for await (const batch of this.fetchOffersPaginated()) {
+      allOffers.push(...batch);
+    }
+
+    console.log(`[Kajabi API] Fetched ${allOffers.length} total offers`);
+    return allOffers;
   }
 }
 

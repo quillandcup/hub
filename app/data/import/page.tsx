@@ -7,6 +7,7 @@ import SlackApiImportForm from "./SlackApiImportForm";
 import ApplyAliasesButton from "./ApplyAliasesButton";
 import ManualReprocessingSection from "./ManualReprocessingSection";
 import KajabiApiImportForm from "./KajabiApiImportForm";
+import StripeImportForm from "./StripeImportForm";
 
 export default async function ImportPage() {
   const supabase = await createClient();
@@ -52,6 +53,18 @@ export default async function ImportPage() {
             </div>
 
             <KajabiApiImportForm />
+          </div>
+
+          {/* Stripe API Import */}
+          <div className="bg-white dark:bg-slate-900 rounded-lg shadow p-6">
+            <div className="mb-6">
+              <h2 className="text-xl font-bold mb-2">Stripe API Import</h2>
+              <p className="text-slate-600 dark:text-slate-400 mb-3">
+                Import subscription status data from Stripe to compare with Kajabi and identify paused/past_due subscriptions.
+              </p>
+            </div>
+
+            <StripeImportForm />
           </div>
 
           {/* Apply Member Aliases */}
