@@ -7,15 +7,20 @@ export const maxDuration = 60; // 60 seconds (max for Hobby tier)
 /**
  * Process Bronze layer data into Silver layer (members)
  *
+ * NEW ARCHITECTURE: Follows medallion pattern
+ *
  * Bronze sources:
- * 1. kajabi_members - Paying customers from Kajabi
- * 2. staff - Team members (owners, staff, contractors)
+ * 1. kajabi_contacts - All people in Kajabi (raw)
+ * 2. kajabi_customers - People who made purchases (raw)
+ * 3. kajabi_purchases - Purchase/subscription records (raw)
+ * 4. kajabi_offers - Offer/product definitions (raw)
+ * 5. staff - Team members
  *
  * This endpoint:
- * 1. Reads latest kajabi_members snapshot
- * 2. Reads staff table
- * 3. Applies business logic to both sources
- * 4. Regenerates members table (DELETE + INSERT pattern)
+ * 1. Reads latest Bronze data (contacts, purchases, offers)
+ * 2. Joins them to determine member status and trial flag
+ * 3. Applies business logic
+ * 4. Regenerates members table (UPSERT pattern to preserve UUIDs)
  */
 export async function POST(request: NextRequest) {
   // Check authentication (supports both cookie-based and service role key)
@@ -47,35 +52,42 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    // STEP 1: Load Bronze data from both sources + email aliases
+    // STEP 1: Load Bronze data + Local data
     const [
-      { data: kajabiSnapshot, error: kajabiError },
+      { data: contacts, error: contactsError },
+      { data: customers, error: customersError },
+      { data: purchases, error: purchasesError },
+      { data: offers, error: offersError },
       { data: staffMembers, error: staffError },
       { data: emailAliases, error: aliasesError }
     ] = await Promise.all([
-      supabase
-        .schema('bronze').from("kajabi_members")
-        .select("*")
-        .order("imported_at", { ascending: false }),
-      supabase
-        .from("staff")
-        .select("*"),
-      supabase
-        .from("member_email_aliases")
-        .select("*")
+      supabase.schema('bronze').from("kajabi_contacts").select("*"),
+      supabase.schema('bronze').from("kajabi_customers").select("*"),
+      supabase.schema('bronze').from("kajabi_purchases").select("*"),
+      supabase.schema('bronze').from("kajabi_offers").select("*"),
+      supabase.from("staff").select("*"),
+      supabase.from("member_email_aliases").select("*")
     ]);
 
-    if (kajabiError) throw kajabiError;
+    if (contactsError) throw contactsError;
+    if (customersError) throw customersError;
+    if (purchasesError) throw purchasesError;
+    if (offersError) throw offersError;
     if (staffError) throw staffError;
     if (aliasesError) throw aliasesError;
 
     console.log('[DEBUG] Bronze sources:', {
-      kajabi_count: kajabiSnapshot?.length || 0,
+      contacts_count: contacts?.length || 0,
+      customers_count: customers?.length || 0,
+      purchases_count: purchases?.length || 0,
+      offers_count: offers?.length || 0,
       staff_count: staffMembers?.length || 0,
       email_aliases_count: emailAliases?.length || 0,
     });
 
-    // Build alias map: alias_email -> canonical_email
+    // STEP 2: Build lookup maps
+
+    // Email alias resolution
     const aliasMap = new Map<string, string>();
     if (emailAliases && emailAliases.length > 0) {
       for (const alias of emailAliases) {
@@ -83,171 +95,168 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Helper function to resolve email via aliases
     function resolveEmail(email: string): string {
       const normalized = email.toLowerCase();
       return aliasMap.get(normalized) || normalized;
     }
 
-    // STEP 2: Process Kajabi members (Bronze source 1)
+    // Offer lookup by ID
+    const offerMap = new Map<string, any>();
+    if (offers && offers.length > 0) {
+      for (const offer of offers) {
+        offerMap.set(offer.kajabi_offer_id, offer);
+      }
+    }
+
+    // Customer lookup by ID (for joining purchases → customer email)
+    const customerMap = new Map<string, any>();
+    if (customers && customers.length > 0) {
+      for (const customer of customers) {
+        customerMap.set(customer.kajabi_customer_id, customer);
+      }
+    }
+
+    // Purchases by email (join via customer)
+    const purchasesByEmail = new Map<string, any[]>();
+    if (purchases && purchases.length > 0) {
+      for (const purchase of purchases) {
+        const customer = customerMap.get(purchase.kajabi_customer_id);
+        if (customer?.email) {
+          const email = resolveEmail(customer.email);
+          if (!purchasesByEmail.has(email)) {
+            purchasesByEmail.set(email, []);
+          }
+          purchasesByEmail.get(email)!.push(purchase);
+        }
+      }
+    }
+
+    // STEP 3: Process Kajabi contacts into members
     const kajabiMembers = [];
 
-    if (kajabiSnapshot && kajabiSnapshot.length > 0) {
-      // Group all snapshots by canonical email (resolve aliases first)
-      const snapshotsByEmail = new Map<string, any[]>();
-      for (const row of kajabiSnapshot) {
-        const canonicalEmail = resolveEmail(row.email);
-        if (!snapshotsByEmail.has(canonicalEmail)) {
-          snapshotsByEmail.set(canonicalEmail, []);
-        }
-        snapshotsByEmail.get(canonicalEmail)!.push(row);
-      }
+    if (contacts && contacts.length > 0) {
+      for (const contact of contacts) {
+        const email = resolveEmail(contact.email);
+        const contactPurchases = purchasesByEmail.get(email) || [];
 
-      // Process each canonical email: use latest snapshot for core data, merge external IDs from all snapshots
-      for (const [email, snapshots] of snapshotsByEmail) {
-      // Use the most recent snapshot for core member data
-      const latestSnapshot = snapshots[0]; // Already sorted by imported_at DESC
-      const data = latestSnapshot.data;
+        // Find active SUBSCRIPTION purchase (Quill & Cup Membership product)
+        // Active = has an active purchase for a subscription offer
+        const activePurchase = contactPurchases.find(p => {
+          if (p.status !== 'active') return false;
+          const offer = offerMap.get(p.kajabi_offer_id);
+          // Check if offer is a subscription (data.attributes.subscription === true)
+          return offer?.data?.attributes?.subscription === true;
+        });
 
-      // Collect external IDs from ALL snapshots (prefer first non-null value found)
-      let kajabiId = null;
-      let stripeCustomerId = null;
-      for (const snapshot of snapshots) {
-        const snapshotData = snapshot.data;
-        if (!kajabiId && snapshotData.ID) {
-          kajabiId = snapshotData.ID;
-        }
-        if (!stripeCustomerId && snapshotData.Provider === "Stripe" && snapshotData["Provider ID"]) {
-          stripeCustomerId = snapshotData["Provider ID"];
-        }
-      }
+        // Determine if this is a trial user
+        let isTrial = false;
+        let plan: string | null = null;
 
-      // Check if this is subscription data or member data
-      const isSubscriptionData = !!data["Customer Name"] && !!data.Status;
+        if (activePurchase) {
+          const offer = offerMap.get(activePurchase.kajabi_offer_id);
+          if (offer) {
+            // Trial detection: offer has trial_period_days > 0
+            isTrial = (offer.trial_period_days && offer.trial_period_days > 0) || false;
 
-      let name: string;
-      let createdAt: string;
-      let status: "active" | "inactive" | "on_hiatus";
-      let plan: string | null = null;
-
-      if (isSubscriptionData) {
-        // Subscription export format
-        name = data["Customer Name"] || "";
-        createdAt = data["Created At"] || "";
-        const subscriptionStatus = data.Status || "";
-
-        // Skip if missing critical fields
-        if (!name || !createdAt) {
-          console.warn(`Skipping member ${email}: missing name or created_at`);
-          continue;
+            // Determine plan from offer name
+            const offerName = offer.name || '';
+            if (offerName.includes('Quill & Cup Membership') || offerName.includes('Membership')) {
+              plan = 'Membership';
+            } else if (offerName.includes('BFF')) {
+              plan = 'BFF';
+            } else if (offerName) {
+              plan = 'Other';
+            }
+          }
         }
 
-        // Map subscription status to member status
-        if (subscriptionStatus === "Active" || subscriptionStatus === "Pending Cancellation") {
+        // Determine member status
+        let status: "active" | "inactive" | "on_hiatus";
+        if (activePurchase) {
           status = "active";
-        } else if (subscriptionStatus === "Paused") {
-          status = "on_hiatus";
-        } else if (subscriptionStatus === "Canceled") {
+        } else if (contactPurchases.length > 0) {
+          // Had purchases but none active subscription = canceled
           status = "inactive";
         } else {
-          status = "inactive"; // Unknown status defaults to inactive
+          // Never purchased (leads, trial prospects) = inactive
+          status = "inactive";
         }
 
-        // Extract plan from Offer Title
-        const offerTitle = data["Offer Title"] || "";
-        if (offerTitle.includes("Quill & Cup Membership") || offerTitle.includes("Yes, girl! I see you!")) {
-          plan = "Membership";
-        } else if (offerTitle) {
-          plan = "Other";
-        }
-      } else {
-        // Member export format (legacy)
-        name = data.Name || "";
-        createdAt = data["Member Created At"] || "";
-        const tags = data.Tags || "";
-        const products = data.Products || "";
-
-        // Skip if missing critical fields
-        if (!name || !createdAt) {
-          console.warn(`Skipping member ${email}: missing name or created_at`);
+        // Skip if missing required fields
+        if (!contact.created_at_kajabi) {
+          console.warn(`Skipping contact ${email}: missing created_at`);
           continue;
         }
 
-        // Derive status from products and tags (business logic)
-        // Check Offboarding tag FIRST - it's the strongest signal of cancellation
-        if (tags.includes("Offboarding")) {
-          status = "inactive"; // Officially cancelled - check this FIRST
-        } else if (products.includes("Quill & Cup Membership")) {
-          status = "active"; // Has active membership product
-        } else if (tags.includes("Quill & Cup Member")) {
-          status = "on_hiatus"; // Has member tag but no product = paused
-        } else {
-          status = "inactive"; // Default: leads, trials, former members
+        // Use email as name fallback
+        const name = contact.name || email;
+        if (!contact.name) {
+          console.warn(`Contact ${email}: using email as name (no name in Kajabi)`);
         }
-
-        // Extract plan from products
-        if (products.includes("Quill & Cup Membership")) {
-          plan = "Membership";
-        } else if (products.includes("BFF Program")) {
-          plan = "BFF";
-        } else if (products) {
-          plan = "Other";
-        }
-      }
-
-      // Format joined_at
-      // Kajabi format can be: "2022-09-03 18:49:55 -0600" or "Sep 11, 2022"
-      let joinedAt: string;
-      if (createdAt.includes(",")) {
-        // Format: "Sep 11, 2022" -> "2022-09-11"
-        joinedAt = new Date(createdAt).toISOString().split("T")[0];
-      } else {
-        // Format: "2022-09-03 18:49:55 -0600" -> "2022-09-03"
-        joinedAt = createdAt.split(" ")[0];
-      }
-
-      // External IDs were collected from all snapshots above (before the main processing loop)
 
         kajabiMembers.push({
-          email: email.toLowerCase(),
+          email,
           name,
-          joined_at: joinedAt,
+          joined_at: contact.created_at_kajabi.split('T')[0], // Convert to date
           status,
           plan,
           source: 'kajabi',
           staff_role: null,
           user_id: null,
-          kajabi_id: kajabiId, // Merged from all snapshots
-          stripe_customer_id: stripeCustomerId, // Merged from all snapshots
+          kajabi_id: contact.kajabi_contact_id,
+          stripe_customer_id: null, // Would need to map from Stripe if available
+          // Store trial flag for future use
+          _metadata: { isTrial }
         });
       }
     }
 
-    // STEP 3: Process staff members (Bronze source 2)
-    const processedStaffMembers = (staffMembers || []).map(staff => ({
-      email: resolveEmail(staff.email), // Resolve to canonical email
-      name: staff.name,
-      joined_at: staff.hire_date || '2020-01-01', // Default for staff without hire_date
-      status: 'active' as const, // Staff are always active
-      plan: null, // Staff don't have plans
-      source: 'staff',
-      staff_role: staff.role,
-      user_id: staff.user_id,
-      kajabi_id: null, // Staff don't have Kajabi IDs
-      stripe_customer_id: null, // Staff don't have Stripe IDs
-    }));
+    // STEP 4: Build staff lookup map
+    const staffByEmail = new Map<string, any>();
+    if (staffMembers && staffMembers.length > 0) {
+      for (const staff of staffMembers) {
+        staffByEmail.set(resolveEmail(staff.email), staff);
+      }
+    }
 
-    // STEP 4: Combine both sources (deduplicate by email, prefer staff over kajabi)
+    // STEP 5: Merge Kajabi members with staff metadata
+    // Staff are only "active" if they have an active Kajabi purchase
     const membersByEmail = new Map<string, any>();
 
-    // Add Kajabi members first
+    // Process Kajabi members and enhance with staff data
     for (const member of kajabiMembers) {
+      const staff = staffByEmail.get(member.email);
+
+      if (staff) {
+        // Merge: keep Kajabi status (purchase-based), add staff metadata
+        member.staff_role = staff.role;
+        member.user_id = staff.user_id;
+        // Use staff hire date if earlier than Kajabi joined_at
+        if (staff.hire_date && staff.hire_date < member.joined_at) {
+          member.joined_at = staff.hire_date;
+        }
+        // Mark as processed
+        staffByEmail.delete(member.email);
+      }
+
       membersByEmail.set(member.email, member);
     }
 
-    // Add staff members (overwrites Kajabi if duplicate - staff is authoritative)
-    for (const member of processedStaffMembers) {
-      membersByEmail.set(member.email, member);
+    // Add staff members who have NO Kajabi record (inactive by default)
+    for (const [email, staff] of staffByEmail) {
+      membersByEmail.set(email, {
+        email,
+        name: staff.name,
+        joined_at: staff.hire_date || '2020-01-01',
+        status: 'inactive' as const, // Staff without purchase = inactive
+        plan: null,
+        source: 'staff',
+        staff_role: staff.role,
+        user_id: staff.user_id,
+        kajabi_id: null,
+        stripe_customer_id: null,
+        _metadata: { isTrial: false }
+      });
     }
 
     const allMembers = Array.from(membersByEmail.values());
@@ -255,34 +264,30 @@ export async function POST(request: NextRequest) {
     if (allMembers.length === 0) {
       return NextResponse.json({
         success: true,
-        message: "No valid members to process from either source",
+        message: "No valid members to process",
         processed: 0,
       });
     }
 
-    console.log(`Combined sources: ${kajabiMembers.length} Kajabi + ${processedStaffMembers.length} staff = ${allMembers.length} unique members`);
+    const staffCount = allMembers.filter(m => m.staff_role !== null).length;
+    const staffWithPurchases = allMembers.filter(m => m.staff_role !== null && m.status === 'active').length;
+    console.log(`Combined sources: ${kajabiMembers.length} Kajabi members, ${staffCount} staff (${staffWithPurchases} with active purchases) = ${allMembers.length} unique members`);
 
-    // STEP 5: Atomically reprocess members using database function
-    // This ensures DELETE + INSERT happens in a single transaction,
-    // preventing users from seeing partial state during reprocessing
-    console.log("Atomically reprocessing all members");
+    // STEP 6: UPSERT to Silver layer (preserves UUIDs for existing members)
+    console.log("Upserting members to Silver layer (preserving UUIDs)...");
 
-    const { error: reprocessError } = await supabase.rpc('reprocess_members_atomic', {
+    const { error: upsertError } = await supabase.rpc('reprocess_members_atomic', {
       new_data: allMembers,
     });
 
-    if (reprocessError) {
-      console.error("Error atomically reprocessing members:", reprocessError);
-      throw reprocessError;
+    if (upsertError) {
+      console.error("Error upserting members:", upsertError);
+      throw upsertError;
     }
 
     return NextResponse.json({
       success: true,
       processed: allMembers.length,
-      sourceBreakdown: {
-        kajabi: kajabiMembers.length,
-        staff: processedStaffMembers.length,
-      },
       statusBreakdown: {
         active: allMembers.filter((m) => m.status === "active").length,
         on_hiatus: allMembers.filter((m) => m.status === "on_hiatus").length,

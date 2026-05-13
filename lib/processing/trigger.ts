@@ -16,17 +16,10 @@ export interface TableDependencies {
 
 export const SILVER_DEPENDENCIES: Record<string, TableDependencies> = {
   members: {
-    bronze: ['kajabi_members'],
+    bronze: ['kajabi_contacts', 'kajabi_customers', 'kajabi_purchases', 'kajabi_offers'],
     local: ['member_email_aliases'],
     silver: [],
     processingScope: 'full'  // Entity state, no date scoping
-  },
-
-  hiatus: {
-    bronze: ['subscription_history'],
-    local: [],
-    silver: ['members'],  // Must process members first to have member IDs
-    processingScope: 'full'  // Process all subscription history snapshots
   },
 
   calendar: {

@@ -1,10 +1,11 @@
 import { createClient } from "@/lib/supabase/server";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
 /**
  * Get all members for dropdown/autocomplete
+ * Supports ?email=xxx query parameter for lookup by email
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
   const supabase = await createClient();
 
   // Check authentication
@@ -17,10 +18,19 @@ export async function GET() {
   }
 
   try {
-    const { data: members, error } = await supabase
+    const { searchParams } = new URL(request.url);
+    const email = searchParams.get("email");
+
+    let query = supabase
       .from("members")
       .select("id, name, email")
       .order("name");
+
+    if (email) {
+      query = query.ilike("email", email);
+    }
+
+    const { data: members, error } = await query;
 
     if (error) throw error;
 

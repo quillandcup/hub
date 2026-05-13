@@ -23,6 +23,13 @@ export interface MatchResult {
   method: 'email' | 'alias' | 'normalized_name';
 }
 
+export interface AmbiguousMatch {
+  reason: 'ambiguous';
+  candidates: Member[];
+  attempted_name: string;
+  attempted_email: string | null;
+}
+
 /**
  * Normalizes a name for fuzzy matching
  * - Converts to lowercase
@@ -53,7 +60,7 @@ export function normalizeName(name: string): string {
  * @param members - Array of all members
  * @param aliases - Array of all name aliases
  * @param skipEmail - If true, skip email matching (useful when email is org account, not person)
- * @returns MatchResult if found, null if no match
+ * @returns MatchResult if unique match found, AmbiguousMatch if multiple candidates, null if no match
  */
 export function matchAttendeeToMember(
   attendeeName: string,
@@ -61,7 +68,7 @@ export function matchAttendeeToMember(
   members: Member[],
   aliases: MemberAlias[],
   skipEmail = false
-): MatchResult | null {
+): MatchResult | AmbiguousMatch | null {
   // Build lookup maps for O(1) matching
   const membersByEmail = new Map<string, Member>();
   const membersByNormalizedName = new Map<string, Member>();
@@ -127,6 +134,14 @@ export function matchAttendeeToMember(
         confidence: 'high',
         method: 'normalized_name' // Using normalized_name method for now
       };
+    } else if (candidates.length > 1) {
+      // Multiple matches - ambiguous
+      return {
+        reason: 'ambiguous',
+        candidates,
+        attempted_name: attendeeName,
+        attempted_email: attendeeEmail,
+      };
     }
   }
 
@@ -145,6 +160,14 @@ export function matchAttendeeToMember(
         member_id: candidates[0].id,
         confidence: 'high',
         method: 'normalized_name' // Using normalized_name method for now
+      };
+    } else if (candidates.length > 1) {
+      // Multiple matches - ambiguous
+      return {
+        reason: 'ambiguous',
+        candidates,
+        attempted_name: attendeeName,
+        attempted_email: attendeeEmail,
       };
     }
   }
@@ -180,7 +203,7 @@ export function batchMatchAttendees(
 
   for (const attendee of attendees) {
     const match = matchAttendeeToMember(attendee.name, attendee.email, members, aliases);
-    if (match) {
+    if (match && 'member_id' in match) {
       matches.push({ ...attendee, match });
     } else {
       unmatched.push(attendee);
