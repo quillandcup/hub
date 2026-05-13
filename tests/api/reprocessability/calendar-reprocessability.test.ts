@@ -357,13 +357,13 @@ describe('Calendar Reprocessability', () => {
     const { data: prickle } = await supabase
       .from('prickles')
       .select('*')
-      .eq('type_id', newType.id)
+      .eq('type_id', newType!.id)
       .eq('start_time', '2099-06-22T10:00:00+00:00')
 
     expect(prickle).toHaveLength(1)
 
     // Clean up
     await supabase.from('calendar_events').delete().eq('google_event_id', 'test-event-unmatched')
-    await supabase.from('prickle_types').delete().eq('id', newType.id)
+    await supabase.from('prickle_types').delete().eq('id', newType!.id)
   })
 })

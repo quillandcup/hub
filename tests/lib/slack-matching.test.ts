@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { matchSlackUsersToMembers } from '@/lib/slack-matching';
+import type { MemberAlias } from '@/lib/member-matching';
 
 describe('Slack User Matching', () => {
   const members = [
@@ -7,7 +8,7 @@ describe('Slack User Matching', () => {
     { id: 'member-2', name: 'Bob Smith', email: 'bob@example.com' },
   ];
 
-  const aliases = [
+  const aliases: MemberAlias[] = [
     { member_id: 'member-1', alias: 'U_ALICE_MANUAL', source: 'slack' },
   ];
 

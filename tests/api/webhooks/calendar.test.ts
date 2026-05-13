@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { http, HttpResponse } from 'msw'
+import type { NextRequest } from 'next/server'
 import { server } from '../../setup-msw'
 import { loadWebhookFixture } from '../../helpers/webhook-helpers'
 import { POST, GET } from '@/app/api/webhooks/calendar/route'
@@ -20,7 +21,7 @@ describe('Calendar Webhook', () => {
         method: 'GET',
       })
 
-      const response = await GET(request)
+      const response = await GET(request as unknown as NextRequest)
       const body = await response.json()
 
       expect(response.status).toBe(200)
@@ -39,7 +40,7 @@ describe('Calendar Webhook', () => {
         body: JSON.stringify(fixture.body),
       })
 
-      const response = await POST(request)
+      const response = await POST(request as unknown as NextRequest)
       const body = await response.json()
 
       expect(response.status).toBe(200)
@@ -67,7 +68,7 @@ describe('Calendar Webhook', () => {
         body: JSON.stringify(fixture.body),
       })
 
-      const response = await POST(request)
+      const response = await POST(request as unknown as NextRequest)
       const body = await response.json()
 
       // Should return 200 immediately
@@ -96,7 +97,7 @@ describe('Calendar Webhook', () => {
         body: JSON.stringify({}),
       })
 
-      const response = await POST(request)
+      const response = await POST(request as unknown as NextRequest)
       const body = await response.json()
 
       expect(response.status).toBe(400)
@@ -119,7 +120,7 @@ describe('Calendar Webhook', () => {
         body: JSON.stringify(fixture.body),
       })
 
-      const response = await POST(request)
+      const response = await POST(request as unknown as NextRequest)
 
       // Should still return 200 (webhook best practice)
       expect(response.status).toBe(200)
@@ -144,7 +145,7 @@ describe('Calendar Webhook', () => {
           body: JSON.stringify(fixture.body),
         })
 
-        const response = await POST(request)
+        const response = await POST(request as unknown as NextRequest)
         expect(response.status).toBe(200)
       }
 
@@ -177,7 +178,7 @@ describe('Calendar Webhook', () => {
         body: JSON.stringify(fixture.body),
       })
 
-      const validResponse = await POST(validRequest)
+      const validResponse = await POST(validRequest as unknown as NextRequest)
       expect(validResponse.status).toBe(200)
 
       // Test with invalid token
@@ -190,7 +191,7 @@ describe('Calendar Webhook', () => {
         body: JSON.stringify(fixture.body),
       })
 
-      const invalidResponse = await POST(invalidRequest)
+      const invalidResponse = await POST(invalidRequest as unknown as NextRequest)
       expect(invalidResponse.status).toBe(401)
 
       const errorBody = await invalidResponse.json()
@@ -210,7 +211,7 @@ describe('Calendar Webhook', () => {
         body: JSON.stringify(fixture.body),
       })
 
-      const response = await POST(request)
+      const response = await POST(request as unknown as NextRequest)
       expect(response.status).toBe(200)
 
       // Restore env var

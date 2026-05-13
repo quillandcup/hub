@@ -55,21 +55,21 @@ describe('member matching library', () => {
     zoom_name: string,
     zoom_email: string | null = null
   ): Promise<MatchResult | null> {
-    // Load members and aliases from database
     const { data: members } = await adminClient
       .from('members')
       .select('id, name, email')
 
     const { data: aliases } = await adminClient
       .from('member_name_aliases')
-      .select('member_id, alias')
+      .select('member_id, alias, source')
 
-    return matchAttendeeToMember(
+    const result = matchAttendeeToMember(
       zoom_name,
       zoom_email,
       members as Member[] || [],
       aliases as MemberAlias[] || []
     )
+    return result && 'member_id' in result ? result : null
   }
 
   describe('normalizeName function', () => {

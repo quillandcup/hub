@@ -16,6 +16,7 @@
  * MATCHED attendees when calculating meeting time windows.
  */
 
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { createClient } from '@supabase/supabase-js';
 import { matchAttendeeToMember } from '@/lib/member-matching';
 
@@ -23,7 +24,7 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
 describe('Orphaned Meetings Idempotency', () => {
-  let supabase: ReturnType<typeof createClient>;
+  let supabase: any;
 
   beforeAll(() => {
     supabase = createClient(supabaseUrl, supabaseKey, {
@@ -87,7 +88,7 @@ describe('Orphaned Meetings Idempotency', () => {
     const meetingUuid = 'test-meeting-orphaned-1';
     const baseDate = new Date('2026-04-01T09:00:00Z');
 
-    await supabase.schema('bronze').from('zoom_attendees').insert([
+    await (supabase as any).schema('bronze').from('zoom_attendees').insert([
       // Unmatched attendee: 9:00-9:15 (extends window to the left)
       {
         meeting_uuid: meetingUuid,
@@ -115,14 +116,14 @@ describe('Orphaned Meetings Idempotency', () => {
       ]);
 
       // Get all zoom_attendees for test meeting
-      const { data: allAttendees } = await supabase
+      const { data: allAttendees } = await (supabase as any)
         .schema('bronze').from('zoom_attendees')
         .select('meeting_uuid, name, email, join_time, leave_time')
         .eq('meeting_uuid', meetingUuid);
 
       // Calculate meeting windows from MATCHED attendees only
       const meetingTimeWindows = new Map<string, { start: Date; end: Date }>();
-      allAttendees?.forEach((m) => {
+      allAttendees?.forEach((m: any) => {
         // Use centralized matching logic
         if (!matchAttendeeToMember(m.name, m.email, members || [], aliases || [])) return;
 
@@ -149,13 +150,13 @@ describe('Orphaned Meetings Idempotency', () => {
       for (const [uuid, timeWindow] of meetingTimeWindows) {
         // Check if has PUP
         const hasPUP = allPrickles?.some(
-          (p) => p.source === 'zoom' && p.zoom_meeting_uuid === uuid
+          (p: any) => p.source === 'zoom' && p.zoom_meeting_uuid === uuid
         );
 
         if (hasPUP) continue;
 
         // Check if overlaps calendar
-        const overlapsCalendar = allPrickles?.some((p) => {
+        const overlapsCalendar = allPrickles?.some((p: any) => {
           if (p.source !== 'calendar') return false;
           const prickleStart = new Date(p.start_time);
           const prickleEnd = new Date(p.end_time);
@@ -254,7 +255,7 @@ describe('Orphaned Meetings Idempotency', () => {
     const baseDate = new Date('2026-04-02T10:00:00Z');
 
     // Create meeting with only unmatched attendees
-    await supabase.schema('bronze').from('zoom_attendees').insert([
+    await (supabase as any).schema('bronze').from('zoom_attendees').insert([
       {
         meeting_uuid: meetingUuid,
         name: 'Unmatched One',
@@ -281,7 +282,7 @@ describe('Orphaned Meetings Idempotency', () => {
       .eq('meeting_uuid', meetingUuid);
 
     const meetingTimeWindows = new Map<string, { start: Date; end: Date }>();
-    allAttendees?.forEach((m) => {
+    allAttendees?.forEach((m: any) => {
       // Use centralized matching logic
       if (!matchAttendeeToMember(m.name, m.email, members || [], aliases || [])) return;
 

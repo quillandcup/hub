@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { http, HttpResponse } from 'msw'
+import type { NextRequest } from 'next/server'
 import { server } from '../../setup-msw'
 import { loadWebhookFixture } from '../../helpers/webhook-helpers'
 import { POST, GET } from '@/app/api/webhooks/zoom/route'
@@ -22,7 +23,7 @@ describe('Zoom Webhook', () => {
         method: 'GET',
       })
 
-      const response = await GET(request)
+      const response = await GET(request as unknown as NextRequest)
       const body = await response.json()
 
       expect(response.status).toBe(200)
@@ -52,7 +53,7 @@ describe('Zoom Webhook', () => {
         body,
       })
 
-      const response = await POST(request)
+      const response = await POST(request as unknown as NextRequest)
       const responseBody = await response.json()
 
       expect(response.status).toBe(200)
@@ -97,7 +98,7 @@ describe('Zoom Webhook', () => {
         body,
       })
 
-      const response = await POST(request)
+      const response = await POST(request as unknown as NextRequest)
       const responseBody = await response.json()
 
       // Should return 200 immediately
@@ -144,7 +145,7 @@ describe('Zoom Webhook', () => {
         body,
       })
 
-      const response = await POST(request)
+      const response = await POST(request as unknown as NextRequest)
       const responseBody = await response.json()
 
       expect(response.status).toBe(200)
@@ -178,7 +179,7 @@ describe('Zoom Webhook', () => {
         body,
       })
 
-      const response = await POST(request)
+      const response = await POST(request as unknown as NextRequest)
 
       // Should still return 200 to avoid retries
       expect(response.status).toBe(200)
@@ -195,7 +196,7 @@ describe('Zoom Webhook', () => {
         body: 'invalid-json',
       })
 
-      const response = await POST(request)
+      const response = await POST(request as unknown as NextRequest)
       const body = await response.json()
 
       // Should return 200 with error message
@@ -227,7 +228,7 @@ describe('Zoom Webhook', () => {
         body,
       })
 
-      const validResponse = await POST(validRequest)
+      const validResponse = await POST(validRequest as unknown as NextRequest)
       expect(validResponse.status).toBe(200)
 
       // Test with invalid signature
@@ -240,7 +241,7 @@ describe('Zoom Webhook', () => {
         body,
       })
 
-      const invalidResponse = await POST(invalidRequest)
+      const invalidResponse = await POST(invalidRequest as unknown as NextRequest)
       expect(invalidResponse.status).toBe(401)
 
       const errorBody = await invalidResponse.json()
@@ -260,7 +261,7 @@ describe('Zoom Webhook', () => {
         body: JSON.stringify(fixture.body),
       })
 
-      const response = await POST(request)
+      const response = await POST(request as unknown as NextRequest)
       expect(response.status).toBe(200)
 
       // Restore env var
