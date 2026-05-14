@@ -27,7 +27,7 @@ Before deploying, all critical security measures are in place:
 2. Click **"New Project"**
 3. Set:
    - **Organization**: Select or create
-   - **Name**: `quillandcup-admin-portal` (or your preference)
+   - **Name**: `hub` (or your preference)
    - **Database Password**: Generate a strong password (save this!)
        DB password: phX09ttGJQXb2OD2
    - **Region**: Choose closest to your users

@@ -13,7 +13,7 @@
 
 1. Go to [Google Cloud Console](https://console.cloud.google.com/)
 2. Click project dropdown → "NEW PROJECT"
-3. Name: "Quill & Cup Admin" 
+3. Name: "Quill & Cup" 
 4. Click "CREATE"
 
 ### 2. Enable Google Calendar API

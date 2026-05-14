@@ -47,7 +47,7 @@ export default function LoginPage() {
         <div className="text-center mb-8">
           <Link href="/">
             <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent mb-2">
-              Quill & Cup Admin
+              Hedgie Hub
             </h1>
           </Link>
           <p className="text-slate-600 dark:text-slate-400">Sign in to your account</p>

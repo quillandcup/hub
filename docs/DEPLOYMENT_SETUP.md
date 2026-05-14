@@ -1,6 +1,6 @@
 # Deployment and Environment Setup Guide
 
-This guide walks through setting up custom domains, environment separation, and proper configuration for the Quill & Cup Admin Portal.
+This guide walks through setting up custom domains, environment separation, and proper configuration for the Hedgie Hub.
 
 ## Table of Contents
 
@@ -16,9 +16,9 @@ This guide walks through setting up custom domains, environment separation, and 
 
 ### Step 1.1: Add Domain in Vercel Dashboard
 
-1. Navigate to your Vercel project: https://vercel.com/quillandcup/admin-portal
+1. Navigate to your Vercel project: https://vercel.com/quillandcup/hub
 2. Click **Settings** > **Domains**
-3. Enter your desired domain (e.g., `admin.quillandcup.com`)
+3. Enter your desired domain (e.g., `hub.quillandcup.com`)
 4. Click **Add**
 
 ### Step 1.2: Configure DNS

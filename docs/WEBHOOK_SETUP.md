@@ -4,7 +4,7 @@ This guide explains how to configure and test real-time webhook handlers for Bro
 
 ## Overview
 
-The admin portal supports real-time webhooks from external systems:
+Hedgie Hub supports real-time webhooks from external systems:
 
 - **Google Calendar** - Push notifications when calendar events change
 - **Zoom** - Events when meetings start/end or participants join/leave
@@ -39,7 +39,7 @@ https://your-domain.vercel.app/api/webhooks/{service}
 ```
 
 Example endpoints:
-- Production: `https://admin.quillandcup.com/api/webhooks/calendar`
+- Production: `https://hub.quillandcup.com/api/webhooks/calendar`
 - Preview: `https://admin-git-main-yourorg.vercel.app/api/webhooks/zoom`
 - Development: `http://localhost:3000/api/webhooks/slack`
 
@@ -56,9 +56,9 @@ curl -X POST \
   -H 'Authorization: Bearer {access_token}' \
   -H 'Content-Type: application/json' \
   -d '{
-    "id": "quill-cup-admin-portal",
+    "id": "hedgie-hub",
     "type": "web_hook",
-    "address": "https://admin.quillandcup.com/api/webhooks/calendar",
+    "address": "https://hub.quillandcup.com/api/webhooks/calendar",
     "token": "{your_secret_token}",
     "expiration": "{unix_timestamp_ms}"
   }'
@@ -74,7 +74,7 @@ curl -X POST \
 Test the endpoint verification:
 
 ```bash
-curl https://admin.quillandcup.com/api/webhooks/calendar
+curl https://hub.quillandcup.com/api/webhooks/calendar
 ```
 
 Expected response:
@@ -100,7 +100,7 @@ See: [Google Calendar Push Notifications](https://developers.google.com/calendar
 
 1. **Create a Zoom App** at [Zoom Marketplace](https://marketplace.zoom.us/develop/create)
 2. **Enable Event Subscriptions** in app settings
-3. **Add webhook URL**: `https://admin.quillandcup.com/api/webhooks/zoom`
+3. **Add webhook URL**: `https://hub.quillandcup.com/api/webhooks/zoom`
 4. **Subscribe to events**:
    - Meeting Started
    - Meeting Ended
@@ -117,7 +117,7 @@ See: [Google Calendar Push Notifications](https://developers.google.com/calendar
 Test the endpoint verification:
 
 ```bash
-curl https://admin.quillandcup.com/api/webhooks/zoom
+curl https://hub.quillandcup.com/api/webhooks/zoom
 ```
 
 Expected response:
@@ -144,7 +144,7 @@ See: [Zoom Webhook Events](https://developers.zoom.us/docs/api/rest/webhook-refe
 
 1. **Create a Slack App** at [Slack API](https://api.slack.com/apps)
 2. **Enable Event Subscriptions** in app settings
-3. **Set Request URL**: `https://admin.quillandcup.com/api/webhooks/slack`
+3. **Set Request URL**: `https://hub.quillandcup.com/api/webhooks/slack`
 4. **Subscribe to bot events**:
    - `message.channels` - Messages in public channels
    - `message.groups` - Messages in private channels
@@ -161,7 +161,7 @@ See: [Zoom Webhook Events](https://developers.zoom.us/docs/api/rest/webhook-refe
 Test the endpoint verification:
 
 ```bash
-curl https://admin.quillandcup.com/api/webhooks/slack
+curl https://hub.quillandcup.com/api/webhooks/slack
 ```
 
 Expected response:

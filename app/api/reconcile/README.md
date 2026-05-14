@@ -73,15 +73,15 @@ You can trigger reconciliation jobs manually for testing:
 TOKEN="your-supabase-jwt-token"
 
 # Calendar reconciliation
-curl -X POST https://admin.quillandcup.com/api/reconcile/calendar \
+curl -X POST https://hub.quillandcup.com/api/reconcile/calendar \
   -H "Authorization: Bearer $TOKEN"
 
 # Zoom reconciliation
-curl -X POST https://admin.quillandcup.com/api/reconcile/zoom \
+curl -X POST https://hub.quillandcup.com/api/reconcile/zoom \
   -H "Authorization: Bearer $TOKEN"
 
 # Members reconciliation
-curl -X POST https://admin.quillandcup.com/api/reconcile/members \
+curl -X POST https://hub.quillandcup.com/api/reconcile/members \
   -H "Authorization: Bearer $TOKEN"
 ```
 

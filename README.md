@@ -1,6 +1,6 @@
-# Quill & Cup Admin Portal
+# Hedgie Hub
 
-Internal admin dashboard for Quill & Cup attendance and engagement analytics.
+Attendance and engagement analytics for Quill & Cup writing sessions.
 
 ## Quick Start
 

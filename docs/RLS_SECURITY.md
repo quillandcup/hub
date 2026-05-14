@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document describes the Row Level Security implementation for the Quill & Cup Admin Portal.
+This document describes the Row Level Security implementation for the Hedgie Hub.
 
 ## Current State
 

@@ -6,7 +6,7 @@ Use this checklist to verify your multi-environment setup is working correctly.
 
 Before starting the setup process, verify you have:
 
-- [ ] Access to Vercel project (quillandcup/admin-portal)
+- [ ] Access to Vercel project (quillandcup/hub)
 - [ ] Access to production Supabase project
 - [ ] Created development Supabase project
 - [ ] Copied schema from production to development Supabase
@@ -37,10 +37,10 @@ Before starting the setup process, verify you have:
 **Test Command:**
 ```bash
 # Check DNS resolution
-dig admin.quillandcup.com
+dig hub.quillandcup.com
 
 # Check SSL certificate
-curl -vI https://admin.quillandcup.com 2>&1 | grep -i 'subject\|issuer'
+curl -vI https://hub.quillandcup.com 2>&1 | grep -i 'subject\|issuer'
 ```
 
 ---
@@ -175,7 +175,7 @@ curl http://localhost:3000 -I
 - [ ] Created feature branch (`git checkout -b test/preview-env`)
 - [ ] Pushed to GitHub (`git push origin test/preview-env`)
 - [ ] Vercel automatically created preview deployment
-- [ ] Preview URL accessible (https://admin-portal-*.vercel.app)
+- [ ] Preview URL accessible (https://hub-*.vercel.app)
 
 ### Verify Preview Environment
 

@@ -1,4 +1,4 @@
-# Inviting Users to Admin Portal
+# Inviting Users to Hedgie Hub
 
 ## Overview
 

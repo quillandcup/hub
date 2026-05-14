@@ -2339,7 +2339,7 @@ export SLACK_BOT_TOKEN=xoxb-your-token
 
 - [ ] **Step 3: Add bot to channels**
 
-In Slack, run `/invite @Quill & Cup Admin` in each channel you want to track.
+In Slack, run `/invite @Hedgie Hub` in each channel you want to track.
 
 - [ ] **Step 4: Run export script**
 

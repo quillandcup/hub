@@ -37,7 +37,7 @@ This is an internal admin tool, not member-facing.
 
 ### Primary User
 
-Quill & Cup Admin (Ania / Cody)
+Quill & Cup (Ania / Cody)
 
 **Needs:**
 - See who isn't showing up

@@ -1,6 +1,6 @@
 # Environment Setup - Getting Started
 
-This directory contains all the documentation you need to set up custom domains and multi-environment configuration for the Quill & Cup Admin Portal.
+This directory contains all the documentation you need to set up custom domains and multi-environment configuration for the Hedgie Hub.
 
 ## Quick Navigation
 
@@ -35,7 +35,7 @@ This directory contains all the documentation you need to set up custom domains 
 ### 1. Custom Domain
 Transform your Vercel deployment URL into a professional custom domain:
 - **Before**: `https://quillandcup-admin.vercel.app`
-- **After**: `https://admin.quillandcup.com` (or your chosen domain)
+- **After**: `https://hub.quillandcup.com` (or your chosen domain)
 
 ### 2. Environment Separation
 Create isolated environments for safe development:
@@ -66,7 +66,7 @@ Proper credential management across environments:
 Before starting, ensure you have:
 
 1. **Access**
-   - [ ] Vercel project access (quillandcup/admin-portal)
+   - [ ] Vercel project access (quillandcup/hub)
    - [ ] Production Supabase project access
    - [ ] Custom domain DNS management access (if adding domain)
 
@@ -86,7 +86,7 @@ Before starting, ensure you have:
 ```bash
 # Clone repository
 git clone <repository-url>
-cd admin-portal
+cd hub
 
 # Install dependencies
 npm install
@@ -95,7 +95,7 @@ npm install
 npm install -g vercel
 
 # Link to Vercel project
-vercel link --yes --project admin-portal
+vercel link --yes --project hub
 
 # Pull environment variables
 vercel env pull .env.local --environment=development

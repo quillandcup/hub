@@ -1,13 +1,13 @@
 # Quick Start Guide
 
-This guide gets you up and running with the Quill & Cup Admin Portal in different environments.
+This guide gets you up and running with the Hedgie Hub in different environments.
 
 ## For New Developers
 
 ### Prerequisites
 
 - Node.js 18+ installed
-- Access to the Vercel project (quillandcup/admin-portal)
+- Access to the Vercel project (quillandcup/hub)
 - Access to development Supabase project credentials
 
 ### Setup in 5 Minutes
@@ -15,7 +15,7 @@ This guide gets you up and running with the Quill & Cup Admin Portal in differen
 1. **Clone and install dependencies**
    ```bash
    git clone <repository-url>
-   cd admin-portal
+   cd hub
    npm install
    ```
 
@@ -26,7 +26,7 @@ This guide gets you up and running with the Quill & Cup Admin Portal in differen
 
 3. **Link to Vercel project**
    ```bash
-   vercel link --yes --project admin-portal
+   vercel link --yes --project hub
    ```
 
 4. **Pull development environment variables**
@@ -53,7 +53,7 @@ That's it! You're now running the admin portal locally with development Supabase
 | Environment | Trigger | Database | URL |
 |-------------|---------|----------|-----|
 | **Development** | `npm run dev` | Dev Supabase | http://localhost:3000 |
-| **Preview** | Push to feature branch | Dev Supabase | `https://admin-portal-*.vercel.app` |
+| **Preview** | Push to feature branch | Dev Supabase | `https://hub-*.vercel.app` |
 | **Production** | Push to main branch | Prod Supabase | Custom domain + `https://quillandcup-admin.vercel.app` |
 
 ---
@@ -64,8 +64,8 @@ That's it! You're now running the admin portal locally with development Supabase
 
 ```bash
 # Via Vercel dashboard
-1. Go to: https://vercel.com/quillandcup/admin-portal/settings/domains
-2. Enter your domain (e.g., admin.quillandcup.com)
+1. Go to: https://vercel.com/quillandcup/hub/settings/domains
+2. Enter your domain (e.g., hub.quillandcup.com)
 3. Follow DNS configuration instructions
 4. Wait for SSL certificate to provision (5-10 minutes)
 ```
@@ -217,7 +217,7 @@ git push origin main                    # Push (deploys to production)
 
 ## Support
 
-- **Vercel Dashboard**: https://vercel.com/quillandcup/admin-portal
-- **Deployment Logs**: https://vercel.com/quillandcup/admin-portal/deployments
-- **Environment Variables**: https://vercel.com/quillandcup/admin-portal/settings/environment-variables
-- **Domain Settings**: https://vercel.com/quillandcup/admin-portal/settings/domains
+- **Vercel Dashboard**: https://vercel.com/quillandcup/hub
+- **Deployment Logs**: https://vercel.com/quillandcup/hub/deployments
+- **Environment Variables**: https://vercel.com/quillandcup/hub/settings/environment-variables
+- **Domain Settings**: https://vercel.com/quillandcup/hub/settings/domains

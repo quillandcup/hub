@@ -1,4 +1,4 @@
-# Medallion Architecture - Quill & Cup Admin Portal
+# Medallion Architecture - Hedgie Hub
 
 ## Overview
 

@@ -3,7 +3,7 @@ import "./globals.css";
 import { ThemeProvider } from "./providers/ThemeProvider";
 
 export const metadata: Metadata = {
-  title: "Quill & Cup Admin Portal",
+  title: "Hedgie Hub",
   description: "Attendance and engagement analytics for Quill & Cup writing sessions",
   icons: {
     icon: '/icon.png',

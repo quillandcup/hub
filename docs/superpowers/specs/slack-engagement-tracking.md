@@ -880,7 +880,7 @@ it('should handle message event and create Bronze record', async () => {
    - Basic Information → Copy Signing Secret
 
 3. **Add Bot to Channels**
-   - Run `/invite @Quill & Cup Admin` in each channel
+   - Run `/invite @Hedgie Hub` in each channel
 
 ### Environment Variables
 
@@ -1000,7 +1000,7 @@ POST /api/process/slack
 - Requires explicit channel invitation
 - OAuth scopes clearly documented
 
-**Admin Portal:**
+**Hedgie Hub:**
 - Existing RLS policies apply
 - Only authenticated admins can view Slack data
 - Manual alias creation requires admin role

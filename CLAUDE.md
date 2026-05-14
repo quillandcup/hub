@@ -1,4 +1,4 @@
-# Development Guidelines for Quill & Cup Admin Portal
+# Development Guidelines for Hedgie Hub
 
 ## Critical Architecture Rules
 

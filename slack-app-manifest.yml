@@ -1,10 +1,10 @@
 display_information:
-  name: Quill & Cup Admin Portal
+  name: Hedgie Hub
   description: Community engagement tracking and analytics
   background_color: "#4A154B"
 features:
   bot_user:
-    display_name: Quill & Cup Admin
+    display_name: Hedgie Hub
     always_online: true
 oauth_config:
   scopes:
