@@ -1,6 +1,6 @@
 # Hedgie Hub
 
-Attendance and engagement analytics for Quill & Cup writing sessions.
+Member engagement platform for Quill & Cup — giving members visibility into their writing journey and giving staff the tools to understand community health.
 
 ## Quick Start
 
@@ -50,7 +50,11 @@ npm run dev
 
 ## Overview
 
-This system tracks attendance and engagement for Quill & Cup's weekly writing sessions, helping identify at-risk members and understand session popularity.
+Hedgie Hub centralizes data from Kajabi, Zoom, Google Calendar, and Slack to serve two audiences:
+
+**Members** can log in to see their own writing journey — attendance calendars, writing streaks, badges for accomplishments, and more.
+
+**Staff** get a clear picture of community health — who's showing up, who's at risk of churning, and which sessions are thriving.
 
 ## Tech Stack
 
@@ -61,7 +65,7 @@ This system tracks attendance and engagement for Quill & Cup's weekly writing se
 ## Architecture
 
 The system uses a **medallion architecture** (bronze/silver/gold) for data transformation:
-- **Bronze**: Raw data from Kajabi, Zoom, and Calendar (no inference)
+- **Bronze**: Raw data from Kajabi, Zoom, Calendar, and Slack (no inference)
 - **Silver**: Inferred attendance and enriched metrics (business logic applied)
 - **Gold**: Business analytics and insights
 
@@ -69,8 +73,8 @@ See [Database Architecture](supabase/ARCHITECTURE.md) for detailed layer documen
 
 ## Current Features
 
-✅ Landing page with roadmap  
-✅ Magic link authentication  
-✅ Protected dashboard  
-🚧 Member analytics (coming soon)  
-🚧 Session insights (coming soon)
+✅ Landing page with roadmap
+✅ Magic link authentication
+✅ Protected dashboard
+🚧 Member profile — writing streak, attendance calendar, badges
+🚧 Staff analytics — session insights, at-risk member identification

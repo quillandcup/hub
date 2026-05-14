@@ -44,7 +44,7 @@ This guide gets you up and running with the Hedgie Hub in different environments
    http://localhost:3000
    ```
 
-That's it! You're now running the admin portal locally with development Supabase.
+That's it! You're now running Hedgie Hub locally with development Supabase.
 
 ---
 
