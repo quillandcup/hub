@@ -40,7 +40,10 @@
       "Bash(dig SOA quillandcup.com +short)",
       "Bash(dig CNAME *)",
       "Bash(r2 claude *)",
-      "Skill(superpowers:brainstorming)"
+      "Skill(superpowers:brainstorming)",
+      "Bash(npm audit *)",
+      "Skill(contextual-commit)",
+      "Bash(npm view *)"
     ]
   }
 }
