@@ -46,10 +46,11 @@ export async function startSudo(memberId: string) {
 }
 
 export async function exitSudo() {
-  await requireAdmin()
-
   const cookieStore = await cookies()
-  const returnTo = cookieStore.get('sudo_return_to')?.value || '/admin'
+  const rawReturnTo = cookieStore.get('sudo_return_to')?.value || '/admin'
+  const returnTo = rawReturnTo.startsWith('/') && !rawReturnTo.startsWith('//')
+    ? rawReturnTo
+    : '/admin'
 
   cookieStore.delete('sudo_as')
   cookieStore.delete('sudo_return_to')
