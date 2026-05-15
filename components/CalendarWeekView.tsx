@@ -279,7 +279,7 @@ export default function CalendarWeekView({
                                 height: `${height}px`,
                               }}
                               onClick={mode !== "member" ? () => router.push(`/admin/prickles/${prickle.id}`) : undefined}
-                              onMouseEnter={() => setHoveredPrickle(prickle.id)}
+                              onMouseEnter={() => { if (mode !== "member") setHoveredPrickle(prickle.id); }}
                               onMouseLeave={() => setHoveredPrickle(null)}
                             >
                               <div className="text-xs font-semibold truncate">
