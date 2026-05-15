@@ -4,6 +4,7 @@ import CalendarWeekView from "@/components/CalendarWeekView";
 import CalendarScrollContainer from "@/components/CalendarScrollContainer";
 import { getUserTimezonePreference } from "@/lib/timezone";
 import { getEffectiveIdentity } from "@/lib/sudo";
+import { buildMemberPrickleViews } from "@/lib/calendar/member-prickle-views";
 
 export default async function MemberCalendarPage({
   searchParams,
@@ -71,20 +72,13 @@ export default async function MemberCalendarPage({
 
   const attendedIds = new Set(attended?.map((a) => a.prickle_id) ?? []);
 
-  // Shape data to match CalendarWeekView Prickle interface.
-  // attendance_count: 1 = attended, 0 = did not attend.
-  // host must be a string per the interface; use empty string when not applicable.
-  const pricklesForView = (prickles ?? []).map((p: any) => ({
-    id: p.id,
-    start_time: p.start_time,
-    end_time: p.end_time,
-    prickle_type: p.prickle_types?.name ?? "Unknown",
-    attendance_count: attendedIds.has(p.id) ? 1 : 0,
-    host: "",
-    host_id: undefined,
-    host_missing: false,
-    host_late: false,
-  }));
+  // Shape data to match CalendarWeekView Prickle interface, filtered to attended prickles.
+  // countByPrickle will be wired in Task 3; pass empty Map as placeholder.
+  const pricklesForView = buildMemberPrickleViews(
+    prickles ?? [],
+    attendedIds,
+    new Map()
+  );
 
   const userTimezone = await getUserTimezonePreference();
 
