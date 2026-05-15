@@ -53,3 +53,4 @@ next-env.d.ts
 # AI/ML cache directories
 .fastembed_cache/
 .superpowers/
+.next-ci

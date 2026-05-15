@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import CalendarWeekView from "@/components/CalendarWeekView";
+import CalendarScrollContainer from "@/components/CalendarScrollContainer";
 import { getUserTimezonePreference } from "@/lib/timezone";
 
 export default async function MemberCalendarPage({
@@ -140,7 +141,7 @@ export default async function MemberCalendarPage({
           </div>
         </div>
       </div>
-      <div className="overflow-y-auto" style={{ maxHeight: 'calc(100vh - 220px)' }}>
+      <CalendarScrollContainer scrollToHour={7}>
         <CalendarWeekView
           prickles={pricklesForView}
           weekStartDate={{
@@ -150,7 +151,7 @@ export default async function MemberCalendarPage({
           }}
           userTimezonePreference={userTimezone}
         />
-      </div>
+      </CalendarScrollContainer>
     </div>
   );
 }
