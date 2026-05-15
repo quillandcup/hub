@@ -37,4 +37,10 @@ describe('sudo HMAC helpers', () => {
     process.env.SUDO_SECRET = 'different-secret-32-chars-xxxxxxx'
     expect(parseSudoCookie(value)).toBeNull()
   })
+
+  it('parseSudoCookie returns null when SUDO_SECRET is not set', () => {
+    const value = signSudoCookie(ADMIN_ID, MEMBER_ID)
+    delete process.env.SUDO_SECRET
+    expect(parseSudoCookie(value)).toBeNull()
+  })
 })
