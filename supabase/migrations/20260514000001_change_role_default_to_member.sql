@@ -17,3 +17,5 @@ BEGIN
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+COMMENT ON FUNCTION create_user_profile() IS 'Auto-creates user profile with default member role on signup';
