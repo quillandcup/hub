@@ -32,10 +32,11 @@ export async function updateSession(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   // Public routes — no auth required
+  // API routes handle their own auth via requireAdmin/createApiAuth
   const isPublic =
     pathname === '/login' ||
     pathname.startsWith('/auth/') ||
-    pathname.startsWith('/api/webhooks/')
+    pathname.startsWith('/api/')
 
   if (!user && !isPublic) {
     const url = request.nextUrl.clone()
