@@ -72,13 +72,34 @@ export default async function MemberCalendarPage({
 
   const attendedIds = new Set(attended?.map((a) => a.prickle_id) ?? []);
 
+  // Fetch distinct member count per attended prickle
+  // prickle_attendance allows multiple rows per (member_id, prickle_id) for leave/rejoin,
+  // so we count distinct member_ids in memory.
+  const attendedPrickleIds = [...attendedIds];
+  let countByPrickle = new Map<string, number>();
+
+  if (attendedPrickleIds.length > 0) {
+    const { data: countRows } = await supabase
+      .from("prickle_attendance")
+      .select("prickle_id, member_id")
+      .in("prickle_id", attendedPrickleIds);
+
+    const memberSets = new Map<string, Set<string>>();
+    countRows?.forEach(({ prickle_id, member_id }) => {
+      if (!memberSets.has(prickle_id)) memberSets.set(prickle_id, new Set());
+      memberSets.get(prickle_id)!.add(member_id);
+    });
+    countByPrickle = new Map(
+      [...memberSets.entries()].map(([id, members]) => [id, members.size])
+    );
+  }
+
   // Shape data to match CalendarWeekView Prickle interface, filtered to attended prickles.
-  // countByPrickle will be wired in Task 3; pass empty Map as placeholder.
   type RawPrickle = { id: string; start_time: string; end_time: string; prickle_types: { name: string } | null };
   const pricklesForView = buildMemberPrickleViews(
     (prickles ?? []) as unknown as RawPrickle[],
     attendedIds,
-    new Map()
+    countByPrickle
   );
 
   const userTimezone = await getUserTimezonePreference();
@@ -125,6 +146,7 @@ export default async function MemberCalendarPage({
             day: weekStart.getDate(),
           }}
           userTimezonePreference={userTimezone}
+          mode="member"
         />
       </CalendarScrollContainer>
     </div>
