@@ -140,15 +140,17 @@ export default async function MemberCalendarPage({
           </div>
         </div>
       </div>
-      <CalendarWeekView
-        prickles={pricklesForView}
-        weekStartDate={{
-          year: weekStart.getFullYear(),
-          month: weekStart.getMonth(),
-          day: weekStart.getDate(),
-        }}
-        userTimezonePreference={userTimezone}
-      />
+      <div className="overflow-y-auto" style={{ maxHeight: 'calc(100vh - 220px)' }}>
+        <CalendarWeekView
+          prickles={pricklesForView}
+          weekStartDate={{
+            year: weekStart.getFullYear(),
+            month: weekStart.getMonth(),
+            day: weekStart.getDate(),
+          }}
+          userTimezonePreference={userTimezone}
+        />
+      </div>
     </div>
   );
 }
