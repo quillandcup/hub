@@ -1,0 +1,145 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+
+interface NavItem {
+  name: string;
+  href: string;
+  icon?: string;
+}
+
+interface NavSection {
+  name: string;
+  items: NavItem[];
+}
+
+const navigation: NavSection[] = [
+  {
+    name: "Overview",
+    items: [
+      { name: "Dashboard", href: "/admin", icon: "📊" },
+    ],
+  },
+  {
+    name: "Members",
+    items: [
+      { name: "All Members", href: "/admin/members", icon: "👥" },
+      { name: "At-Risk Members", href: "/admin/at-risk", icon: "⚠️" },
+      { name: "Hiatus Tracking", href: "/admin/hiatus", icon: "⏸️" },
+      { name: "Network", href: "/admin/members/network", icon: "🕸️" },
+    ],
+  },
+  {
+    name: "Prickles",
+    items: [
+      { name: "Calendar View", href: "/admin/calendar", icon: "📅" },
+      { name: "All Prickles", href: "/admin/prickles", icon: "✍️" },
+    ],
+  },
+  {
+    name: "Data Hygiene",
+    items: [
+      { name: "Health Check", href: "/admin/hygiene", icon: "🏥" },
+      { name: "Unmatched Events", href: "/admin/hygiene/unmatched-events", icon: "📋" },
+      { name: "Unmatched Zoom", href: "/admin/hygiene/unmatched-zoom", icon: "🔍" },
+      { name: "Name Matching", href: "/admin/hygiene/name-matching", icon: "🧩" },
+    ],
+  },
+  {
+    name: "Data Management",
+    items: [
+      { name: "Import Data", href: "/admin/data/import", icon: "📥" },
+      { name: "Prickle Types", href: "/admin/data/prickle-types", icon: "🏷️" },
+      { name: "Name Aliases", href: "/admin/data/aliases", icon: "👤" },
+      { name: "Member Overrides", href: "/admin/member-overrides", icon: "🎁" },
+      { name: "Reconciliation", href: "/admin/reconciliation", icon: "🔄" },
+    ],
+  },
+];
+
+export default function AdminNavigation() {
+  const [collapsed, setCollapsed] = useState(true);
+  const pathname = usePathname();
+
+  useEffect(() => {
+    const isMobile = window.innerWidth < 768;
+    setCollapsed(isMobile);
+    const handleResize = () => setCollapsed(window.innerWidth < 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  return (
+    <aside
+      className={`flex-shrink-0 h-screen bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 transition-all duration-300 z-10 flex flex-col ${
+        collapsed ? "w-16" : "w-64"
+      }`}
+    >
+      {/* Header */}
+      <div className="h-16 flex items-center justify-between px-4 border-b border-slate-200 dark:border-slate-800 flex-shrink-0">
+        {!collapsed && (
+          <h1 className="text-lg font-bold text-slate-500 dark:text-slate-400">
+            ⚙️ Admin
+          </h1>
+        )}
+        <button
+          onClick={() => setCollapsed(!collapsed)}
+          className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors relative z-20"
+          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+        >
+          {collapsed ? "→" : "←"}
+        </button>
+      </div>
+
+      {/* Back to member view */}
+      <div className="px-4 py-2 border-b border-slate-200 dark:border-slate-800 flex-shrink-0">
+        <Link
+          href="/calendar"
+          className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
+          title={collapsed ? "My View" : undefined}
+        >
+          <span>←</span>
+          {!collapsed && <span>My View</span>}
+        </Link>
+      </div>
+
+      {/* Navigation */}
+      <nav className="p-4 overflow-y-auto flex-1">
+        {navigation.map((section) => (
+          <div key={section.name} className="mb-6">
+            {!collapsed && (
+              <h2 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2 px-3">
+                {section.name}
+              </h2>
+            )}
+            <ul className="space-y-1">
+              {section.items.map((item) => {
+                const isActive =
+                  pathname === item.href ||
+                  (item.href !== "/admin" && pathname?.startsWith(item.href));
+                return (
+                  <li key={item.href}>
+                    <Link
+                      href={item.href}
+                      className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
+                        isActive
+                          ? "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 font-medium"
+                          : "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                      }`}
+                      title={collapsed ? item.name : undefined}
+                    >
+                      {item.icon && <span className="text-lg">{item.icon}</span>}
+                      {!collapsed && <span>{item.name}</span>}
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        ))}
+      </nav>
+    </aside>
+  );
+}
