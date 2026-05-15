@@ -20,10 +20,12 @@ describe('CalendarWeekView mode prop', () => {
 
   it('disables click navigation in member mode', () => {
     // onClick must be conditional on mode
-    expect(src).toMatch(/mode.*admin.*router\.push|router\.push.*mode.*admin/s);
+    expect(src).toMatch(/onClick=\{mode !== "member".*router\.push/s);
   });
 
   it('hides attendee count label in member mode', () => {
     expect(src).toContain('mode !== "member"');
+    // Verify the count label specifically is gated
+    expect(src).toMatch(/mode !== "member"[\s\S]{0,100}text-xs font-bold/);
   });
 });
