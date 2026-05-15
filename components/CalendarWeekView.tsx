@@ -284,7 +284,7 @@ export default function CalendarWeekView({
                             >
                               <div className="text-xs font-semibold truncate">
                                 {prickle.prickle_type}
-                                {(prickle.host_missing || prickle.host_late) && " ⚠️"}
+                                {mode !== "member" && (prickle.host_missing || prickle.host_late) && " ⚠️"}
                               </div>
                               <div className="text-xs truncate">
                                 {startTime}
@@ -297,7 +297,7 @@ export default function CalendarWeekView({
                             </div>
 
                             {/* Styled tooltip - rendered outside overflow-hidden container */}
-                            {hoveredPrickle === prickle.id && (
+                            {hoveredPrickle === prickle.id && mode !== "member" && (
                               <div
                                 className="absolute z-50 bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 px-3 py-2 rounded-lg shadow-lg text-xs whitespace-nowrap pointer-events-none"
                                 style={{
