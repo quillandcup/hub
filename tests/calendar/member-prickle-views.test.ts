@@ -5,7 +5,7 @@ const makePrickle = (id: string, overrides = {}) => ({
   id,
   start_time: '2026-05-12T14:00:00Z',
   end_time: '2026-05-12T15:00:00Z',
-  prickle_types: [{ name: 'Morning Writing' }],
+  prickle_types: { name: 'Morning Writing' },
   ...overrides,
 });
 
@@ -41,7 +41,7 @@ describe('buildMemberPrickleViews', () => {
   });
 
   it('uses prickle_types.name as prickle_type', () => {
-    const prickles = [makePrickle('a', { prickle_types: [{ name: 'Deep Work' }] })];
+    const prickles = [makePrickle('a', { prickle_types: { name: 'Deep Work' } })];
     const attendedIds = new Set(['a']);
     const countByPrickle = new Map([['a', 2]]);
 

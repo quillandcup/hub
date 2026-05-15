@@ -74,8 +74,9 @@ export default async function MemberCalendarPage({
 
   // Shape data to match CalendarWeekView Prickle interface, filtered to attended prickles.
   // countByPrickle will be wired in Task 3; pass empty Map as placeholder.
+  type RawPrickle = { id: string; start_time: string; end_time: string; prickle_types: { name: string } | null };
   const pricklesForView = buildMemberPrickleViews(
-    prickles ?? [],
+    (prickles ?? []) as unknown as RawPrickle[],
     attendedIds,
     new Map()
   );

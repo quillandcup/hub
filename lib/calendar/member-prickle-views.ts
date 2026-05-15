@@ -4,7 +4,7 @@ interface RawPrickleRow {
   id: string;
   start_time: string;
   end_time: string;
-  prickle_types: { name: string }[] | null;
+  prickle_types: { name: string } | null;
 }
 
 export function buildMemberPrickleViews(
@@ -18,7 +18,7 @@ export function buildMemberPrickleViews(
       id: p.id,
       start_time: p.start_time,
       end_time: p.end_time,
-      prickle_type: p.prickle_types?.[0]?.name ?? "Unknown",
+      prickle_type: p.prickle_types?.name ?? "Unknown",
       attendance_count: countByPrickle.get(p.id) ?? 1,
       host: "",
       host_id: undefined,
