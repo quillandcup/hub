@@ -143,7 +143,7 @@ export default function CalendarWeekView({ prickles, weekStartDate, userTimezone
   const hours = Array.from({ length: 24 }, (_, i) => i);
 
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-lg shadow overflow-hidden">
+    <div className="bg-white dark:bg-slate-900 rounded-lg shadow overflow-clip">
       {/* Legend */}
       <div className="p-4 border-b border-slate-200 dark:border-slate-800">
         <div className="flex items-center justify-between">
