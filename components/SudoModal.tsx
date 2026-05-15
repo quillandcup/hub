@@ -24,8 +24,11 @@ export default function SudoModal({ isOpen, onClose, members }: SudoModalProps) 
   async function handleConfirm() {
     if (!selectedMember) return
     setIsPending(true)
-    await startSudo(selectedMember.id)
-    // Server action redirects — no need to reset state
+    try {
+      await startSudo(selectedMember.id)
+    } finally {
+      setIsPending(false)
+    }
   }
 
   return (
