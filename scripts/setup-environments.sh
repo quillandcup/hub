@@ -1,12 +1,12 @@
 #!/bin/bash
 
-# Environment Setup Script for Quill & Cup Admin Portal
+# Environment Setup Script for Hedgie Hub
 # This script helps configure environment variables across Production, Preview, and Development
 
 set -e
 
 echo "=========================================="
-echo "Quill & Cup Admin Portal - Environment Setup"
+echo "Hedgie Hub - Environment Setup"
 echo "=========================================="
 echo ""
 
@@ -27,7 +27,7 @@ fi
 if [ ! -d ".vercel" ]; then
     echo -e "${YELLOW}Project not linked to Vercel${NC}"
     echo "Linking project..."
-    vercel link --yes --project admin-portal
+    vercel link --yes --project hub
 fi
 
 echo -e "${GREEN}✓ Project linked to Vercel${NC}"

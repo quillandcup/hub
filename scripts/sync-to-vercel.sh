@@ -25,8 +25,12 @@ sync_env_var() {
     # Remove existing variable for this environment
     vercel env rm "$var_name" "$vercel_env" --yes 2>/dev/null || true
 
-    # Add new value using --value flag to avoid interactive prompts (including git branch prompt for preview)
-    vercel env add "$var_name" "$vercel_env" --value "$value" --yes
+    # For preview, pass empty git-branch positional arg to select all preview branches (non-interactive)
+    if [ "$vercel_env" = "preview" ]; then
+        vercel env add "$var_name" "$vercel_env" "" --value "$value" --yes
+    else
+        vercel env add "$var_name" "$vercel_env" --value "$value" --yes
+    fi
 }
 
 echo "=== Syncing DEVELOPMENT environment ==="
