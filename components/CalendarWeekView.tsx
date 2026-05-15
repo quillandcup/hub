@@ -197,10 +197,9 @@ export default function CalendarWeekView({ prickles, weekStartDate, userTimezone
       </div>
 
       {/* Calendar Grid */}
-      <div className="overflow-x-auto">
-        <div className="min-w-[1000px]">
-          {/* Day Headers */}
-          <div className="grid grid-cols-8 border-b border-slate-200 dark:border-slate-800">
+      <div className="min-w-[1000px]">
+          {/* Day Headers — sticky so they stay visible while time rows scroll */}
+          <div className="sticky top-0 z-20 grid grid-cols-8 border-b border-slate-200 dark:border-slate-800">
             <div className="p-2 bg-slate-50 dark:bg-slate-800"></div>
             {days.map((day, i) => {
               const isToday = day.toDateString() === new Date().toDateString();
@@ -314,7 +313,6 @@ export default function CalendarWeekView({ prickles, weekStartDate, userTimezone
             </div>
           </div>
         </div>
-      </div>
     </div>
   );
 }
