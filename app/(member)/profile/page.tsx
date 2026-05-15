@@ -1,5 +1,4 @@
 import { createClient } from "@/lib/supabase/server";
-import { redirect } from "next/navigation";
 import { ThemeSwitcher } from "./ThemeSwitcher";
 import { TimezoneSwitcher } from "./TimezoneSwitcher";
 
@@ -10,9 +9,7 @@ export default async function ProfilePage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) {
-    redirect("/login");
-  }
+  if (!user) return null;
 
   // Fetch user profile to get timezone preference
   const { data: profile } = await supabase
