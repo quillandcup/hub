@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
-interface Prickle {
+export interface Prickle {
   id: string;
   host: string;
   host_id?: string;
