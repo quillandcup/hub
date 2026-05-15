@@ -296,7 +296,7 @@ export default async function DashboardPage() {
                     <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center text-sm font-bold text-blue-600 dark:text-blue-400">
                       {idx + 1}
                     </div>
-                    <Link href={`/dashboard/members/${member.id}`} className="hover:opacity-80 transition-opacity">
+                    <Link href={`/admin/members/${member.id}`} className="hover:opacity-80 transition-opacity">
                       <div className="font-semibold text-slate-900 dark:text-slate-100 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">{member.name}</div>
                       <div className="text-sm text-slate-500 dark:text-slate-400">{member.email}</div>
                     </Link>
@@ -314,7 +314,7 @@ export default async function DashboardPage() {
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-bold">⚠️ At-Risk Members</h2>
               {atRiskMembersList.length > 0 && (
-                <Link href="/dashboard/at-risk" className="text-sm text-blue-600 dark:text-blue-400 hover:underline">
+                <Link href="/admin/at-risk" className="text-sm text-blue-600 dark:text-blue-400 hover:underline">
                   View All ({atRisk})
                 </Link>
               )}
@@ -330,7 +330,7 @@ export default async function DashboardPage() {
               ) : (
                 atRiskMembersList.map((member: any, idx: number) => (
                   <div key={idx} className="flex items-center justify-between py-2 border-b border-slate-100 dark:border-slate-800 last:border-0">
-                    <Link href={`/dashboard/members/${member.id}`} className="hover:opacity-80 transition-opacity">
+                    <Link href={`/admin/members/${member.id}`} className="hover:opacity-80 transition-opacity">
                       <div className="font-semibold text-slate-900 dark:text-slate-100 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">{member.name}</div>
                       <div className="text-sm text-slate-500 dark:text-slate-400">{member.email}</div>
                     </Link>

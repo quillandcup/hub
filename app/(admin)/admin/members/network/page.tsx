@@ -105,7 +105,7 @@ export default async function MemberNetworkPage() {
       <header className="border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
         <div className="container mx-auto px-6 py-4">
           <Link
-            href="/dashboard/members"
+            href="/admin/members"
             className="text-blue-600 hover:text-blue-700 dark:text-blue-400 text-sm mb-2 inline-block"
           >
             ← Back to Members

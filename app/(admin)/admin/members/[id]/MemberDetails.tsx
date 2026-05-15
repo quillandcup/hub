@@ -652,7 +652,7 @@ export default function MemberDetails({ member, attendanceRecords, hiatusHistory
                         <tr
                           key={record.id}
                           className="hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer"
-                          onClick={() => router.push(`/dashboard/prickles/${prickle.id}`)}
+                          onClick={() => router.push(`/admin/prickles/${prickle.id}`)}
                         >
                           <td className="px-6 py-4">
                             <div className="text-sm font-medium text-slate-900 dark:text-slate-100">
@@ -672,7 +672,7 @@ export default function MemberDetails({ member, attendanceRecords, hiatusHistory
                           <td className="px-6 py-4 text-sm text-slate-700 dark:text-slate-300">
                             {prickle.host ? (
                               <Link
-                                href={`/dashboard/members/${prickle.host.id}`}
+                                href={`/admin/members/${prickle.host.id}`}
                                 className="text-blue-600 hover:text-blue-700 dark:text-blue-400 hover:underline"
                                 onClick={(e) => e.stopPropagation()}
                               >

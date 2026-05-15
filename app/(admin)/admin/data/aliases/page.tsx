@@ -46,7 +46,7 @@ export default async function AliasListPage() {
     <div className="container mx-auto px-6 py-8">
       {/* Page Header */}
       <div className="mb-6">
-        <Link href="/dashboard" className="text-blue-600 dark:text-blue-400 hover:underline mb-2 inline-block">
+        <Link href="/admin" className="text-blue-600 dark:text-blue-400 hover:underline mb-2 inline-block">
           ← Back to Dashboard
         </Link>
         <div className="flex items-center justify-between mt-2">
@@ -57,7 +57,7 @@ export default async function AliasListPage() {
             </p>
           </div>
           <Link
-            href="/hygiene/unmatched-zoom"
+            href="/admin/hygiene/unmatched-zoom"
             className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
           >
             + Add New Aliases
@@ -78,7 +78,7 @@ export default async function AliasListPage() {
         {memberAliases.length === 0 ? (
           <div className="p-12 text-center text-slate-500 dark:text-slate-400">
             No aliases configured yet.{" "}
-            <Link href="/hygiene/unmatched-zoom" className="text-blue-600 dark:text-blue-400 hover:underline">
+            <Link href="/admin/hygiene/unmatched-zoom" className="text-blue-600 dark:text-blue-400 hover:underline">
               Add your first alias
             </Link>
           </div>
@@ -104,7 +104,7 @@ export default async function AliasListPage() {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div>
                         <Link
-                          href={`/dashboard/members/${member.id}`}
+                          href={`/admin/members/${member.id}`}
                           className="font-medium text-slate-900 dark:text-slate-100 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
                         >
                           {member.name}

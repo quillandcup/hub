@@ -258,7 +258,7 @@ export default async function DataHygienePage() {
 
           {/* Host Assignment */}
           <Link
-            href="/dashboard/data-health/missing-hosts"
+            href="/admin/data-health/missing-hosts"
             className="block p-6 bg-white dark:bg-slate-900 rounded-lg shadow hover:shadow-lg transition-shadow border border-slate-200 dark:border-slate-800"
           >
             <div className="flex items-center justify-between mb-2">
@@ -390,7 +390,7 @@ export default async function DataHygienePage() {
                   <p className="text-xs text-blue-700 dark:text-blue-300">
                     Current rate: {hostMatchRate}% ({calendarPricklesWithHost}/{totalRequiringHosts} with host).
                     Visit{" "}
-                    <Link href="/dashboard/data-health/missing-hosts" className="underline hover:text-blue-500">
+                    <Link href="/admin/data-health/missing-hosts" className="underline hover:text-blue-500">
                       Missing Hosts
                     </Link>{" "}
                     to review and assign.

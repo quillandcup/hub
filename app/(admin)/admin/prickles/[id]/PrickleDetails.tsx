@@ -101,7 +101,7 @@ export default function PrickleDetails({ prickle, attendanceRecords, hostMissing
             <p className="font-semibold">
               {hostMember ? (
                 <>
-                  <Link href={`/dashboard/members/${hostMember.id}`} className="text-blue-600 hover:text-blue-700 dark:text-blue-400 hover:underline">
+                  <Link href={`/admin/members/${hostMember.id}`} className="text-blue-600 hover:text-blue-700 dark:text-blue-400 hover:underline">
                     {hostMember.name}
                   </Link>
                   {(hostMissing || hostLate) && (
@@ -196,7 +196,7 @@ export default function PrickleDetails({ prickle, attendanceRecords, hostMissing
                   return (
                     <tr key={record.id} className="hover:bg-slate-50 dark:hover:bg-slate-800">
                       <td className="px-6 py-4">
-                        <Link href={`/dashboard/members/${member.id}`} className="text-sm font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 hover:underline">
+                        <Link href={`/admin/members/${member.id}`} className="text-sm font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 hover:underline">
                           {member.name}
                         </Link>
                         <div className="text-xs text-slate-500 dark:text-slate-400">

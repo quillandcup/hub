@@ -268,7 +268,7 @@ export default function CalendarWeekView({ prickles, weekStartDate, userTimezone
                                 top: `${adjustedTop}px`,
                                 height: `${height}px`,
                               }}
-                              onClick={() => router.push(`/dashboard/prickles/${prickle.id}`)}
+                              onClick={() => router.push(`/admin/prickles/${prickle.id}`)}
                               onMouseEnter={() => setHoveredPrickle(prickle.id)}
                               onMouseLeave={() => setHoveredPrickle(null)}
                             >

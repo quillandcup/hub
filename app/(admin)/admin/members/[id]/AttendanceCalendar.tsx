@@ -192,7 +192,7 @@ export default function AttendanceCalendar({
               return (
                 <div
                   key={record.id}
-                  onClick={() => router.push(`/dashboard/prickles/${prickle.id}`)}
+                  onClick={() => router.push(`/admin/prickles/${prickle.id}`)}
                   className="p-3 bg-white dark:bg-slate-900 rounded border border-slate-200 dark:border-slate-700 hover:border-blue-500 dark:hover:border-blue-400 cursor-pointer transition-colors"
                 >
                   <div className="flex items-start justify-between">
@@ -208,7 +208,7 @@ export default function AttendanceCalendar({
                         <div className="text-sm text-slate-500 dark:text-slate-400 mt-1">
                           Host:{" "}
                           <Link
-                            href={`/dashboard/members/${prickle.host.id}`}
+                            href={`/admin/members/${prickle.host.id}`}
                             className="text-blue-600 hover:text-blue-700 dark:text-blue-400 hover:underline"
                             onClick={(e) => e.stopPropagation()}
                           >

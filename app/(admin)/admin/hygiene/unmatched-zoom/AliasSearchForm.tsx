@@ -304,7 +304,7 @@ export default function AliasSearchForm({
             {prickles.map((prickle: any) => (
               <a
                 key={prickle.id}
-                href={`/dashboard/prickles/${prickle.id}`}
+                href={`/admin/prickles/${prickle.id}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="block p-3 border border-slate-200 dark:border-slate-700 rounded-lg hover:border-blue-500 dark:hover:border-blue-400 transition-colors"

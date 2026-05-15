@@ -54,7 +54,7 @@ export default async function MembersPage({
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
       <header className="border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
         <div className="container mx-auto px-6 py-4">
-          <Link href="/dashboard" className="text-blue-600 hover:text-blue-700 dark:text-blue-400 text-sm mb-2 inline-block">
+          <Link href="/admin" className="text-blue-600 hover:text-blue-700 dark:text-blue-400 text-sm mb-2 inline-block">
             ← Back to Dashboard
           </Link>
           <h1 className="text-2xl font-bold">Member Analytics</h1>
@@ -103,7 +103,7 @@ export default async function MembersPage({
                 {members?.map((member: any) => (
                   <tr key={member.id} className="hover:bg-slate-50 dark:hover:bg-slate-800">
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <Link href={`/dashboard/members/${member.id}`} className="text-sm font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 hover:underline">
+                      <Link href={`/admin/members/${member.id}`} className="text-sm font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 hover:underline">
                         {member.name}
                       </Link>
                     </td>

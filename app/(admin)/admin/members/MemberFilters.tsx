@@ -21,7 +21,7 @@ export default function MemberFilters({ currentFilter }: { currentFilter: string
     } else {
       params.set("filter", filter);
     }
-    router.push(`/dashboard/members?${params.toString()}`);
+    router.push(`/admin/members?${params.toString()}`);
   };
 
   return (

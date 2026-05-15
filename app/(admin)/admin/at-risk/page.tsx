@@ -72,7 +72,7 @@ export default async function AtRiskPage() {
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
       <header className="border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
         <div className="container mx-auto px-6 py-4">
-          <Link href="/dashboard" className="text-blue-600 dark:text-blue-400 hover:underline mb-2 inline-block">
+          <Link href="/admin" className="text-blue-600 dark:text-blue-400 hover:underline mb-2 inline-block">
             ← Back to Dashboard
           </Link>
           <h1 className="text-2xl font-bold">⚠️ At-Risk Members</h1>
@@ -108,7 +108,7 @@ export default async function AtRiskPage() {
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <Link
-                        href={`/dashboard/members/${member.id}`}
+                        href={`/admin/members/${member.id}`}
                         className="font-semibold text-lg text-slate-900 dark:text-slate-100 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
                       >
                         {member.name}

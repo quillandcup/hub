@@ -23,6 +23,6 @@ export async function updateTimezonePreference(timezone: string) {
     return { error: error.message };
   }
 
-  revalidatePath("/dashboard/profile");
+  revalidatePath("/profile");
   return { success: true };
 }

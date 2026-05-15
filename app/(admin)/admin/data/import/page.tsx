@@ -26,7 +26,7 @@ export default async function ImportPage() {
         <div className="container mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
             <div>
-              <Link href="/dashboard" className="text-blue-600 hover:text-blue-700 dark:text-blue-400 text-sm mb-2 inline-block">
+              <Link href="/admin" className="text-blue-600 hover:text-blue-700 dark:text-blue-400 text-sm mb-2 inline-block">
                 ← Back to Dashboard
               </Link>
               <h1 className="text-2xl font-bold">Import Data</h1>

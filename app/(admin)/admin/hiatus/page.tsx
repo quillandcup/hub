@@ -184,7 +184,7 @@ export default async function HiatusTrackingPage() {
                       </td>
                       <td className="px-6 py-4">
                         <Link
-                          href={`/dashboard/members/${item.member.id}`}
+                          href={`/admin/members/${item.member.id}`}
                           className="text-sm font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 hover:underline"
                         >
                           {item.member.name}
@@ -237,7 +237,7 @@ export default async function HiatusTrackingPage() {
                       </td>
                       <td className="px-6 py-4">
                         <Link
-                          href={`/dashboard/members/${record.member.id}`}
+                          href={`/admin/members/${record.member.id}`}
                           className="text-sm font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 hover:underline"
                         >
                           {record.member.name}

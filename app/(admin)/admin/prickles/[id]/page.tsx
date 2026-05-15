@@ -41,7 +41,7 @@ export default async function PrickleDetailPage({
       <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center">
         <div className="text-center">
           <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 mb-2">Prickle not found</h1>
-          <Link href="/dashboard/calendar" className="text-blue-600 hover:text-blue-700 dark:text-blue-400">
+          <Link href="/admin/calendar" className="text-blue-600 hover:text-blue-700 dark:text-blue-400">
             ← Back to Calendar
           </Link>
         </div>
@@ -94,7 +94,7 @@ export default async function PrickleDetailPage({
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
       <header className="border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
         <div className="container mx-auto px-6 py-4">
-          <Link href="/dashboard/calendar" className="text-blue-600 hover:text-blue-700 dark:text-blue-400 text-sm mb-2 inline-block">
+          <Link href="/admin/calendar" className="text-blue-600 hover:text-blue-700 dark:text-blue-400 text-sm mb-2 inline-block">
             ← Back to Calendar
           </Link>
           <h1 className="text-2xl font-bold mt-2">Prickle Details</h1>

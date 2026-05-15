@@ -107,7 +107,7 @@ export default async function NameMatchingReportPage() {
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
       <header className="border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
         <div className="container mx-auto px-6 py-4">
-          <Link href="/dashboard" className="text-blue-600 dark:text-blue-400 hover:underline mb-2 inline-block">
+          <Link href="/admin" className="text-blue-600 dark:text-blue-400 hover:underline mb-2 inline-block">
             ← Back to Dashboard
           </Link>
           <div className="flex items-center justify-between">

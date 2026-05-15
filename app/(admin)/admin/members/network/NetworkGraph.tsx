@@ -357,7 +357,7 @@ export default function NetworkGraph({ nodes: initialNodes, edges }: NetworkGrap
                   {selectedNode.totalPrickles} total prickles
                 </p>
                 <button
-                  onClick={() => router.push(`/dashboard/members/${selectedNode.id}`)}
+                  onClick={() => router.push(`/admin/members/${selectedNode.id}`)}
                   className="mt-2 text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 hover:underline"
                 >
                   View profile →
