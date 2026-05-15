@@ -30,11 +30,23 @@ export default async function MemberLayout({
 
   let members: { id: string; name: string; email: string }[] = []
   if (isAdmin) {
-    const { data } = await supabase
-      .from('members')
-      .select('id, name, email')
-      .order('name')
-    members = data ?? []
+    let offset = 0
+    const BATCH_SIZE = 1000
+    let hasMore = true
+    while (hasMore) {
+      const { data: batch } = await supabase
+        .from('members')
+        .select('id, name, email')
+        .order('name')
+        .range(offset, offset + BATCH_SIZE - 1)
+      if (batch && batch.length > 0) {
+        members = members.concat(batch)
+        offset += batch.length
+        hasMore = batch.length === BATCH_SIZE
+      } else {
+        hasMore = false
+      }
+    }
   }
 
   return (

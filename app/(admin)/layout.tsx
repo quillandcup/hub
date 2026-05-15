@@ -42,10 +42,24 @@ export default async function AdminLayout({
     );
   }
 
-  const { data: members } = await supabase
-    .from("members")
-    .select("id, name, email")
-    .order("name");
+  let members: { id: string; name: string; email: string }[] = []
+  let offset = 0
+  const BATCH_SIZE = 1000
+  let hasMore = true
+  while (hasMore) {
+    const { data: batch } = await supabase
+      .from("members")
+      .select("id, name, email")
+      .order("name")
+      .range(offset, offset + BATCH_SIZE - 1)
+    if (batch && batch.length > 0) {
+      members = members.concat(batch)
+      offset += batch.length
+      hasMore = batch.length === BATCH_SIZE
+    } else {
+      hasMore = false
+    }
+  }
 
   return (
     <div className="flex h-screen overflow-hidden bg-slate-50 dark:bg-slate-950">
@@ -55,7 +69,7 @@ export default async function AdminLayout({
           <UserMenu
             userEmail={user.email || "User"}
             isAdmin={true}
-            members={members ?? []}
+            members={members}
           />
         </header>
         <main className="flex-1 overflow-auto">
