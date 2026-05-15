@@ -19,6 +19,7 @@ interface CalendarWeekViewProps {
   prickles: Prickle[];
   weekStartDate: { year: number; month: number; day: number }; // Date components to avoid timezone issues
   userTimezonePreference?: string; // User's timezone preference from profile
+  mode?: "admin" | "member";
 }
 
 // Common timezones for the dropdown
@@ -67,7 +68,12 @@ function getPricklePosition(startTime: string, endTime: string, timezone: string
   return { top, height };
 }
 
-export default function CalendarWeekView({ prickles, weekStartDate, userTimezonePreference = "browser" }: CalendarWeekViewProps) {
+export default function CalendarWeekView({
+  prickles,
+  weekStartDate,
+  userTimezonePreference = "browser",
+  mode = "admin",
+}: CalendarWeekViewProps) {
   // Reconstruct Date from components to avoid timezone serialization issues
   // Using date components (not timestamps) ensures consistent day-of-week on server and client
   const weekStart = new Date(weekStartDate.year, weekStartDate.month, weekStartDate.day, 0, 0, 0, 0);
@@ -145,56 +151,58 @@ export default function CalendarWeekView({ prickles, weekStartDate, userTimezone
   return (
     <div className="bg-white dark:bg-slate-900 rounded-lg shadow overflow-clip min-w-[1000px]">
       {/* Legend */}
-      <div className="p-4 border-b border-slate-200 dark:border-slate-800">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-6">
-            <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Attendance:</span>
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2">
-                <div className="w-4 h-4 rounded bg-blue-100 dark:bg-blue-950 border border-blue-300 dark:border-blue-700"></div>
-                <span className="text-xs text-slate-600 dark:text-slate-400">1-3</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-4 h-4 rounded bg-blue-200 dark:bg-blue-900 border border-blue-400 dark:border-blue-600"></div>
-                <span className="text-xs text-slate-600 dark:text-slate-400">4-6</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-4 h-4 rounded bg-blue-400 dark:bg-blue-700 border border-blue-500"></div>
-                <span className="text-xs text-slate-600 dark:text-slate-400">7-10</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-4 h-4 rounded bg-blue-600 dark:bg-blue-600 border border-blue-700 dark:border-blue-400"></div>
-                <span className="text-xs text-slate-600 dark:text-slate-400">11+</span>
+      {mode !== "member" && (
+        <div className="p-4 border-b border-slate-200 dark:border-slate-800">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-6">
+              <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Attendance:</span>
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 rounded bg-blue-100 dark:bg-blue-950 border border-blue-300 dark:border-blue-700"></div>
+                  <span className="text-xs text-slate-600 dark:text-slate-400">1-3</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 rounded bg-blue-200 dark:bg-blue-900 border border-blue-400 dark:border-blue-600"></div>
+                  <span className="text-xs text-slate-600 dark:text-slate-400">4-6</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 rounded bg-blue-400 dark:bg-blue-700 border border-blue-500"></div>
+                  <span className="text-xs text-slate-600 dark:text-slate-400">7-10</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 rounded bg-blue-600 dark:bg-blue-600 border border-blue-700 dark:border-blue-400"></div>
+                  <span className="text-xs text-slate-600 dark:text-slate-400">11+</span>
+                </div>
               </div>
             </div>
-          </div>
-          <div className="flex items-center gap-4">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={showPups}
-                onChange={(e) => setShowPups(e.target.checked)}
-                className="w-4 h-4 text-blue-600 bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600 rounded focus:ring-2 focus:ring-blue-500"
-              />
-              <span className="text-sm text-slate-700 dark:text-slate-300">Show Pop-Up Prickles</span>
-            </label>
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Timezone:</span>
-              <select
-                value={timezone}
-                onChange={(e) => setTimezone(e.target.value)}
-                className="px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg text-sm text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                {TIMEZONES.map((tz) => (
-                  <option key={tz.value} value={tz.value}>
-                    {tz.label}
-                  </option>
-                ))}
-              </select>
+            <div className="flex items-center gap-4">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={showPups}
+                  onChange={(e) => setShowPups(e.target.checked)}
+                  className="w-4 h-4 text-blue-600 bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600 rounded focus:ring-2 focus:ring-blue-500"
+                />
+                <span className="text-sm text-slate-700 dark:text-slate-300">Show Pop-Up Prickles</span>
+              </label>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Timezone:</span>
+                <select
+                  value={timezone}
+                  onChange={(e) => setTimezone(e.target.value)}
+                  className="px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg text-sm text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  {TIMEZONES.map((tz) => (
+                    <option key={tz.value} value={tz.value}>
+                      {tz.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Calendar Grid */}
       <div className="min-w-[1000px]">
@@ -263,12 +271,14 @@ export default function CalendarWeekView({ prickles, weekStartDate, userTimezone
                         return (
                           <div key={prickle.id}>
                             <div
-                              className={`absolute left-1 right-1 rounded border-2 p-1.5 overflow-hidden pointer-events-auto cursor-pointer hover:opacity-90 transition-opacity ${getAttendanceColor(prickle.attendance_count)}`}
+                              className={`absolute left-1 right-1 rounded border-2 p-1.5 overflow-hidden pointer-events-auto transition-opacity ${
+                                mode !== "member" ? "cursor-pointer hover:opacity-90" : ""
+                              } ${getAttendanceColor(prickle.attendance_count)}`}
                               style={{
                                 top: `${adjustedTop}px`,
                                 height: `${height}px`,
                               }}
-                              onClick={() => router.push(`/admin/prickles/${prickle.id}`)}
+                              onClick={mode !== "member" ? () => router.push(`/admin/prickles/${prickle.id}`) : undefined}
                               onMouseEnter={() => setHoveredPrickle(prickle.id)}
                               onMouseLeave={() => setHoveredPrickle(null)}
                             >
@@ -279,9 +289,11 @@ export default function CalendarWeekView({ prickles, weekStartDate, userTimezone
                               <div className="text-xs truncate">
                                 {startTime}
                               </div>
-                              <div className="text-xs font-bold mt-0.5">
-                                {prickle.attendance_count} {prickle.attendance_count === 1 ? "attendee" : "attendees"}
-                              </div>
+                              {mode !== "member" && (
+                                <div className="text-xs font-bold mt-0.5">
+                                  {prickle.attendance_count} {prickle.attendance_count === 1 ? "attendee" : "attendees"}
+                                </div>
+                              )}
                             </div>
 
                             {/* Styled tooltip - rendered outside overflow-hidden container */}
