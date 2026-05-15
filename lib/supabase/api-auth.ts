@@ -34,3 +34,27 @@ export async function createApiAuth(request: NextRequest) {
 
   return { supabase, user };
 }
+
+/**
+ * Verifies that the request is from an authenticated admin user.
+ *
+ * Returns an object with:
+ * - supabase: the client
+ * - user: the authenticated user (or null if no session)
+ * - forbidden: true if user is not admin, false otherwise
+ *
+ * Service-role key in Authorization header bypasses role check (used by tests).
+ */
+export async function requireAdmin(request: NextRequest) {
+  const auth = await createApiAuth(request);
+  if (!auth.user) return { ...auth, forbidden: true as const };
+  // Service-role key used by integration tests bypasses role check
+  if (auth.user.id === "service-role") return { ...auth, forbidden: false as const };
+  const { data: profile } = await auth.supabase
+    .from("user_profiles")
+    .select("role")
+    .eq("id", auth.user.id)
+    .single();
+  if (profile?.role !== "admin") return { ...auth, forbidden: true as const };
+  return { ...auth, forbidden: false as const };
+}
