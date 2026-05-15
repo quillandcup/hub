@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
-import CalendarWeekView from "./CalendarWeekView";
+import CalendarWeekView from "@/components/CalendarWeekView";
 import { getUserTimezonePreference } from "@/lib/timezone";
 
 export default async function CalendarPage({
