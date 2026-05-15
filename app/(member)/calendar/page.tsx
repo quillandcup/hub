@@ -79,10 +79,14 @@ export default async function MemberCalendarPage({
   let countByPrickle = new Map<string, number>();
 
   if (attendedPrickleIds.length > 0) {
-    const { data: countRows } = await supabase
+    const { data: countRows, error: countError } = await supabase
       .from("prickle_attendance")
       .select("prickle_id, member_id")
-      .in("prickle_id", attendedPrickleIds);
+      .in("prickle_id", attendedPrickleIds)
+      .gte("join_time", weekStart.toISOString())
+      .lt("join_time", weekEnd.toISOString());
+
+    if (countError) throw countError;
 
     const memberSets = new Map<string, Set<string>>();
     countRows?.forEach(({ prickle_id, member_id }) => {
