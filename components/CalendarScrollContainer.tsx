@@ -13,7 +13,14 @@ export default function CalendarScrollContainer({
 
   useEffect(() => {
     if (ref.current) {
-      ref.current.scrollTop = scrollToHour * 60;
+      const target = ref.current.querySelector(`[data-hour="${scrollToHour}"]`);
+      if (target) {
+        const containerTop = ref.current.getBoundingClientRect().top;
+        const targetTop = (target as HTMLElement).getBoundingClientRect().top;
+        ref.current.scrollTop = targetTop - containerTop;
+      } else {
+        ref.current.scrollTop = scrollToHour * 60;
+      }
     }
   }, [scrollToHour]);
 

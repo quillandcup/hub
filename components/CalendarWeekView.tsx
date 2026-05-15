@@ -228,7 +228,7 @@ export default function CalendarWeekView({ prickles, weekStartDate, userTimezone
               {/* Time Labels */}
               <div>
                 {hours.map(hour => (
-                  <div key={hour} className="h-[60px] border-b border-slate-200 dark:border-slate-800 p-2 text-xs text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800">
+                  <div key={hour} data-hour={hour} className="h-[60px] border-b border-slate-200 dark:border-slate-800 p-2 text-xs text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800">
                     {hour === 0 ? "12 AM" : hour < 12 ? `${hour} AM` : hour === 12 ? "12 PM" : `${hour - 12} PM`}
                   </div>
                 ))}

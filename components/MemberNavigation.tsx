@@ -62,14 +62,14 @@ export default function MemberNavigation({ isAdmin }: MemberNavigationProps) {
 
       {/* Admin Portal — fixed at bottom, admin-only */}
       {isAdmin && (
-        <div className="p-4 border-t border-slate-200 dark:border-slate-800 flex-shrink-0">
+        <div className="px-2 py-3 border-t border-slate-200 dark:border-slate-800 flex-shrink-0">
           <Link
             href="/admin"
-            className="flex items-center gap-3 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
-            title={collapsed ? "Admin Portal" : undefined}
+            className="flex items-center justify-center gap-2 px-2 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+            title="Admin Portal"
           >
-            <span className="text-lg">⚙️</span>
-            {!collapsed && <span className="text-sm">Admin Portal →</span>}
+            <span className="text-base flex-shrink-0">⚙️</span>
+            {!collapsed && <span className="text-sm whitespace-nowrap">Admin Portal →</span>}
           </Link>
         </div>
       )}
