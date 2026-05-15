@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { requireAdmin } from "@/lib/supabase/api-auth";
 import { GoogleCalendarClient } from "@/lib/google-calendar/client";
 import { triggerReprocessing } from "@/lib/processing/trigger";
 import { NextRequest, NextResponse } from "next/server";
@@ -14,25 +14,10 @@ export const maxDuration = 300; // 5 minutes (max for Hobby tier)
  * Scheduled to run daily at 2am via Vercel Cron
  */
 export async function POST(request: NextRequest) {
-  const supabase = await createClient();
-
-  // Check authentication
-  // For cron jobs, Vercel sends Authorization: Bearer <CRON_SECRET>
-  // For manual testing, allow authenticated users
-  const authHeader = request.headers.get("authorization");
-  const cronSecret = process.env.CRON_SECRET;
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  // Allow either cron secret or authenticated user
-  const isAuthorizedCron = cronSecret && authHeader === `Bearer ${cronSecret}`;
-  const isAuthenticatedUser = !!user;
-
-  if (!isAuthorizedCron && !isAuthenticatedUser) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireAdmin(request);
+  if (!auth.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (auth.forbidden) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const { supabase } = auth;
 
   try {
     // Use environment variables for calendar config

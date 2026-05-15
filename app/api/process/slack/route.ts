@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { requireAdmin } from "@/lib/supabase/api-auth";
 import { NextRequest, NextResponse } from "next/server";
 import { matchSlackUsersToMembers } from "@/lib/slack-matching";
 
@@ -26,33 +26,10 @@ function chunk<T>(array: T[], size: number): T[][] {
  * 6. INSERTs fresh activities (reprocessable)
  */
 export async function POST(request: NextRequest) {
-  // Check authentication
-  const authHeader = request.headers.get('authorization');
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  const isServiceRole = authHeader && serviceRoleKey && authHeader.includes(serviceRoleKey);
-
-  let supabase;
-
-  if (isServiceRole) {
-    // Use service role client for tests
-    const { createClient: createSupabaseClient } = await import('@supabase/supabase-js');
-    supabase = createSupabaseClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      serviceRoleKey,
-      { auth: { autoRefreshToken: false, persistSession: false } }
-    );
-  } else {
-    // Use cookie-based client for normal requests
-    supabase = await createClient();
-
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-  }
+  const auth = await requireAdmin(request);
+  if (!auth.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (auth.forbidden) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const { supabase } = auth;
 
   try {
     const body = await request.json();

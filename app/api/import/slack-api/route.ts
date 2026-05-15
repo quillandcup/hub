@@ -1,6 +1,6 @@
 import { WebClient } from '@slack/web-api';
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { requireAdmin } from '@/lib/supabase/api-auth';
 
 export const maxDuration = 300; // 5 minutes for Slack API calls
 
@@ -9,33 +9,10 @@ interface SlackApiImportRequest {
 }
 
 export async function POST(request: NextRequest) {
-  // Check authentication
-  const authHeader = request.headers.get('authorization');
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  const isServiceRole = authHeader && serviceRoleKey && authHeader.includes(serviceRoleKey);
-
-  let supabase;
-
-  if (isServiceRole) {
-    // Use service role client for tests/scripts
-    const { createClient: createSupabaseClient } = await import('@supabase/supabase-js');
-    supabase = createSupabaseClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      serviceRoleKey,
-      { auth: { autoRefreshToken: false, persistSession: false } }
-    );
-  } else {
-    // Use cookie-based client for normal requests
-    supabase = await createClient();
-
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-  }
+  const auth = await requireAdmin(request);
+  if (!auth.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (auth.forbidden) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const { supabase } = auth;
 
   try {
     const SLACK_BOT_TOKEN = process.env.SLACK_BOT_TOKEN;

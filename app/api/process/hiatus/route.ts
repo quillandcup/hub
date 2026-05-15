@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { requireAdmin } from "@/lib/supabase/api-auth";
 import { NextRequest, NextResponse } from "next/server";
 
 export const maxDuration = 60; // 60 seconds for processing
@@ -19,33 +19,10 @@ export const maxDuration = 60; // 60 seconds for processing
  * Note: This uses DELETE + INSERT pattern for reprocessability
  */
 export async function POST(request: NextRequest) {
-  // Check authentication (supports both cookie-based and service role key)
-  const authHeader = request.headers.get('authorization');
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  const isServiceRole = authHeader && serviceRoleKey && authHeader.includes(serviceRoleKey);
-
-  let supabase;
-
-  if (isServiceRole) {
-    // Use service role client for tests
-    const { createClient: createSupabaseClient } = await import('@supabase/supabase-js');
-    supabase = createSupabaseClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      serviceRoleKey,
-      { auth: { autoRefreshToken: false, persistSession: false } }
-    );
-  } else {
-    // Use cookie-based client for normal requests
-    supabase = await createClient();
-
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-  }
+  const auth = await requireAdmin(request);
+  if (!auth.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (auth.forbidden) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const { supabase } = auth;
 
   try {
     // STEP 1: Load all subscription history ordered by import time

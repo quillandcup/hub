@@ -1,4 +1,4 @@
-import { createApiAuth } from "@/lib/supabase/api-auth";
+import { requireAdmin } from "@/lib/supabase/api-auth";
 import { NextRequest, NextResponse } from "next/server";
 
 /**
@@ -6,11 +6,10 @@ import { NextRequest, NextResponse } from "next/server";
  * Compare Stripe, Kajabi, and local overrides to identify discrepancies
  */
 export async function GET(request: NextRequest) {
-  const { supabase, user } = await createApiAuth(request);
-
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireAdmin(request);
+  if (!auth.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (auth.forbidden) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const { supabase } = auth;
 
   try {
     // Query to get membership product IDs
