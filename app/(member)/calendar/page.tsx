@@ -3,6 +3,7 @@ import Link from "next/link";
 import CalendarWeekView from "@/components/CalendarWeekView";
 import CalendarScrollContainer from "@/components/CalendarScrollContainer";
 import { getUserTimezonePreference } from "@/lib/timezone";
+import { getEffectiveIdentity } from "@/lib/sudo";
 
 export default async function MemberCalendarPage({
   searchParams,
@@ -13,8 +14,10 @@ export default async function MemberCalendarPage({
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  // Layout guarantees user is authenticated; assertion satisfies TypeScript.
   if (!user) return null;
+
+  const effectiveIdentity = await getEffectiveIdentity(user);
+  if (!effectiveIdentity) return null;
 
   const params = await searchParams;
 
@@ -48,29 +51,6 @@ export default async function MemberCalendarPage({
   const isNextDisabled = nextWeek.getTime() > today.getTime();
   const formatWeekParam = (date: Date) => date.toISOString().split("T")[0];
 
-  // Resolve the member record for this user by email
-  const { data: member } = await supabase
-    .from("members")
-    .select("id, name")
-    .eq("email", user.email!)
-    .single();
-
-  if (!member) {
-    return (
-      <div className="container mx-auto px-6 py-8">
-        <div className="bg-white dark:bg-slate-900 rounded-lg p-8 text-center border border-slate-200 dark:border-slate-800">
-          <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-2">
-            Account not linked
-          </h2>
-          <p className="text-slate-600 dark:text-slate-400">
-            Your account isn&apos;t linked to a member profile yet. Contact an
-            admin.
-          </p>
-        </div>
-      </div>
-    );
-  }
-
   // Fetch all prickles for the week
   const { data: prickles, error: pricklesError } = await supabase
     .from("prickles")
@@ -85,7 +65,7 @@ export default async function MemberCalendarPage({
   const { data: attended } = await supabase
     .from("prickle_attendance")
     .select("prickle_id")
-    .eq("member_id", member.id)
+    .eq("member_id", effectiveIdentity.memberId)
     .gte("join_time", weekStart.toISOString())
     .lt("join_time", weekEnd.toISOString());
 
