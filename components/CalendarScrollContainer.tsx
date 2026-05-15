@@ -25,7 +25,7 @@ export default function CalendarScrollContainer({
   }, [scrollToHour]);
 
   return (
-    <div ref={ref} className="overflow-y-auto" style={{ maxHeight: "calc(100vh - 220px)" }}>
+    <div ref={ref} className="overflow-auto" style={{ maxHeight: "calc(100vh - 220px)" }}>
       {children}
     </div>
   );
