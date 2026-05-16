@@ -22,7 +22,7 @@ export default function MemberNavigation({ isAdmin, memberId }: MemberNavigation
   }, []);
 
   const isCalendarActive = pathname === '/calendar';
-  const isProfileActive = pathname.startsWith('/members/');
+  const isProfileActive = pathname === `/members/${memberId}` || pathname.startsWith(`/members/${memberId}/`);
 
   return (
     <aside
