@@ -21,16 +21,17 @@ export function computeStreaks(joinTimes: string[], now: Date = new Date()): Str
 
   const weeks = [...new Set(joinTimes.map(weekIndex))].sort((a, b) => a - b)
 
-  let longestStreak = 1
+  let longestStreak = 0
   let run = 1
   for (let i = 1; i < weeks.length; i++) {
     if (weeks[i] === weeks[i - 1] + 1) {
       run++
-      if (run > longestStreak) longestStreak = run
     } else {
+      longestStreak = Math.max(longestStreak, run)
       run = 1
     }
   }
+  longestStreak = Math.max(longestStreak, run)
 
   const currentWeek = weekIndex(now.toISOString())
   const lastAttendedWeek = weeks[weeks.length - 1]

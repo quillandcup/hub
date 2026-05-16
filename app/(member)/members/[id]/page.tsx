@@ -21,25 +21,46 @@ export default async function MemberProfilePage({
 
   const isSelf = effectiveIdentity.memberId === id
 
-  const [{ data: member }, { data: metrics }] = await Promise.all([
-    supabase.from("members").select("id, name, email, joined_at, status").eq("id", id).single(),
-    supabase.from("member_metrics").select("*").eq("member_id", id).single(),
-  ])
+  const { data: member } = await supabase
+    .from("members")
+    .select("id, name, email, joined_at, status")
+    .eq("id", id)
+    .single()
 
   if (!member) notFound()
 
-  let attendance: { id: string; join_time: string; leave_time: string; prickles: { start_time: string; prickle_types: { name: string } | null } | null }[] = []
+  let metrics: {
+    member_id: string
+    last_attended_at: string | null
+    sessions_last_7_days: number
+    sessions_last_30_days: number
+    total_sessions: number
+    engagement_score: number
+    updated_at: string
+  } | null = null
+  let attendance: {
+    id: string
+    join_time: string
+    leave_time: string
+    prickles: { start_time: string; prickle_types: { name: string } | null } | null
+  }[] = []
   let streakJoinTimes: string[] = []
-  if (isSelf) {
-    // Start history fetch immediately (independent of streak pagination)
-    const historyPromise = supabase
-      .from("prickle_attendance")
-      .select("id, join_time, leave_time, prickles(start_time, prickle_types(name))")
-      .eq("member_id", id)
-      .order("join_time", { ascending: false })
-      .limit(50)
 
-    // Paginate all join_times for streak computation
+  if (isSelf) {
+    // Fetch metrics and history concurrently (both bounded queries)
+    const [{ data: metricsData }, { data: historyData }] = await Promise.all([
+      supabase.from("member_metrics").select("*").eq("member_id", id).single(),
+      supabase
+        .from("prickle_attendance")
+        .select("id, join_time, leave_time, prickles(start_time, prickle_types(name))")
+        .eq("member_id", id)
+        .order("join_time", { ascending: false })
+        .limit(50),
+    ])
+    metrics = metricsData
+    attendance = (historyData ?? []) as unknown as typeof attendance
+
+    // Paginate all join_times for streak computation (sequential by nature)
     const BATCH_SIZE = 1000
     let offset = 0
     let hasMore = true
@@ -57,9 +78,6 @@ export default async function MemberProfilePage({
         hasMore = false
       }
     }
-
-    const { data: historyData } = await historyPromise
-    attendance = (historyData ?? []) as unknown as typeof attendance
   }
 
   const streaks = computeStreaks(streakJoinTimes)
