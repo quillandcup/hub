@@ -21,6 +21,12 @@ describe('computeStreaks', () => {
     expect(computeStreaks([weeksAgo(0)], fixedNow)).toEqual({ currentStreak: 1, longestStreak: 1 })
   })
 
+  it('currentStreak is 1 when last attendance was exactly last week', () => {
+    expect(
+      computeStreaks([weeksAgo(1)], fixedNow)
+    ).toEqual({ currentStreak: 1, longestStreak: 1 })
+  })
+
   it('deduplicates multiple attendances in the same week', () => {
     // Two timestamps in the same week
     const t1 = weeksAgo(0)
