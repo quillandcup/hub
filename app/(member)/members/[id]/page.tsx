@@ -28,18 +28,26 @@ export default async function MemberProfilePage({
 
   if (!member) notFound()
 
-  let attendance: { join_time: string; leave_time: string; prickles: { start_time: string; prickle_types: { name: string } | null } | null }[] = []
+  let attendance: { id: string; join_time: string; leave_time: string; prickles: { start_time: string; prickle_types: { name: string } | null } | null }[] = []
+  let streakJoinTimes: string[] = []
   if (isSelf) {
-    const { data } = await supabase
-      .from("prickle_attendance")
-      .select("join_time, leave_time, prickles(start_time, prickle_types(name))")
-      .eq("member_id", id)
-      .order("join_time", { ascending: false })
-      .limit(50)
-    attendance = (data ?? []) as unknown as typeof attendance
+    const [{ data: streakData }, { data: historyData }] = await Promise.all([
+      supabase
+        .from("prickle_attendance")
+        .select("join_time")
+        .eq("member_id", id),
+      supabase
+        .from("prickle_attendance")
+        .select("id, join_time, leave_time, prickles(start_time, prickle_types(name))")
+        .eq("member_id", id)
+        .order("join_time", { ascending: false })
+        .limit(50),
+    ])
+    streakJoinTimes = (streakData ?? []).map((a) => a.join_time)
+    attendance = (historyData ?? []) as unknown as typeof attendance
   }
 
-  const streaks = computeStreaks(attendance.map((a) => a.join_time))
+  const streaks = computeStreaks(streakJoinTimes)
 
   const joinedYear = new Date(member.joined_at).getFullYear()
   const joinedMonth = new Date(member.joined_at).toLocaleString("en-US", { month: "long" })
@@ -148,7 +156,7 @@ export default async function MemberProfilePage({
               <p className="text-sm text-slate-500 dark:text-slate-400">No prickles attended yet.</p>
             ) : (
               <div className="space-y-2">
-                {attendance.map((record, i) => {
+                {attendance.map((record) => {
                   const joinDate = new Date(record.join_time)
                   const durationMin = Math.round(
                     (new Date(record.leave_time).getTime() - joinDate.getTime()) / 60000
@@ -161,7 +169,7 @@ export default async function MemberProfilePage({
                   })
                   return (
                     <div
-                      key={i}
+                      key={record.id}
                       className="flex items-center justify-between py-2 border-b border-slate-100 dark:border-slate-800 last:border-0"
                     >
                       <div>
