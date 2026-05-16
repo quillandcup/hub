@@ -5,10 +5,11 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 interface MemberNavigationProps {
-  isAdmin: boolean;
+  isAdmin: boolean
+  memberId: string
 }
 
-export default function MemberNavigation({ isAdmin }: MemberNavigationProps) {
+export default function MemberNavigation({ isAdmin, memberId }: MemberNavigationProps) {
   const [collapsed, setCollapsed] = useState(true);
   const pathname = usePathname();
 
@@ -20,7 +21,8 @@ export default function MemberNavigation({ isAdmin }: MemberNavigationProps) {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  const isActive = pathname === '/calendar';
+  const isCalendarActive = pathname === '/calendar';
+  const isProfileActive = pathname.startsWith('/members/');
 
   return (
     <aside
@@ -45,11 +47,11 @@ export default function MemberNavigation({ isAdmin }: MemberNavigationProps) {
       </div>
 
       {/* Nav items */}
-      <nav className="p-4 flex-1">
+      <nav className="p-4 flex-1 space-y-1">
         <Link
           href="/calendar"
           className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
-            isActive
+            isCalendarActive
               ? "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 font-medium"
               : "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
           }`}
@@ -57,6 +59,19 @@ export default function MemberNavigation({ isAdmin }: MemberNavigationProps) {
         >
           <span className="text-lg">📅</span>
           {!collapsed && <span>My Calendar</span>}
+        </Link>
+
+        <Link
+          href={`/members/${memberId}`}
+          className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
+            isProfileActive
+              ? "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 font-medium"
+              : "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+          }`}
+          title={collapsed ? "My Profile" : undefined}
+        >
+          <span className="text-lg">👤</span>
+          {!collapsed && <span>My Profile</span>}
         </Link>
       </nav>
 
@@ -74,5 +89,5 @@ export default function MemberNavigation({ isAdmin }: MemberNavigationProps) {
         </div>
       )}
     </aside>
-  );
+  )
 }

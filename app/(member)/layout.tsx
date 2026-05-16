@@ -51,7 +51,7 @@ export default async function MemberLayout({
 
   return (
     <div className="flex h-screen overflow-hidden bg-slate-50 dark:bg-slate-950">
-      <MemberNavigation isAdmin={isAdmin} />
+      <MemberNavigation isAdmin={isAdmin} memberId={effectiveIdentity.memberId} />
       <div className="flex flex-col flex-1 min-w-0">
         {effectiveIdentity.isSudo && (
           <SudoBanner
