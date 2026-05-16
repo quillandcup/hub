@@ -31,19 +31,31 @@ export default async function MemberProfilePage({
   let attendance: { id: string; join_time: string; leave_time: string; prickles: { start_time: string; prickle_types: { name: string } | null } | null }[] = []
   let streakJoinTimes: string[] = []
   if (isSelf) {
-    const [{ data: streakData }, { data: historyData }] = await Promise.all([
-      supabase
+    // Paginate prickle_attendance to handle members with 1000+ records
+    const BATCH_SIZE = 1000
+    let offset = 0
+    let hasMore = true
+    while (hasMore) {
+      const { data: batch } = await supabase
         .from("prickle_attendance")
         .select("join_time")
-        .eq("member_id", id),
-      supabase
-        .from("prickle_attendance")
-        .select("id, join_time, leave_time, prickles(start_time, prickle_types(name))")
         .eq("member_id", id)
-        .order("join_time", { ascending: false })
-        .limit(50),
-    ])
-    streakJoinTimes = (streakData ?? []).map((a) => a.join_time)
+        .range(offset, offset + BATCH_SIZE - 1)
+      if (batch && batch.length > 0) {
+        streakJoinTimes = streakJoinTimes.concat(batch.map((r) => r.join_time))
+        offset += batch.length
+        hasMore = batch.length === BATCH_SIZE
+      } else {
+        hasMore = false
+      }
+    }
+
+    const { data: historyData } = await supabase
+      .from("prickle_attendance")
+      .select("id, join_time, leave_time, prickles(start_time, prickle_types(name))")
+      .eq("member_id", id)
+      .order("join_time", { ascending: false })
+      .limit(50)
     attendance = (historyData ?? []) as unknown as typeof attendance
   }
 
