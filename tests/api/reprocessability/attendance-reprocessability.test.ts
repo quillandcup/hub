@@ -98,14 +98,17 @@ describe('Attendance Reprocessability', () => {
   it('should create attendance records from Zoom data on first process', async () => {
     // ARRANGE: Insert Bronze Zoom data
     await supabase.schema('bronze').from('zoom_meetings').insert({
-      uuid: testMeetingUuid,
+      meeting_uuid: testMeetingUuid,
+      meeting_id: testMeetingUuid,
       topic: 'Test Meeting',
       start_time: '2099-05-15T10:00:00Z',
       end_time: '2099-05-15T11:00:00Z',
-      duration: 60,
+      duration_minutes: 60,
+      data: {},
     })
 
     await supabase.schema('bronze').from('zoom_attendees').insert({
+      meeting_id: testMeetingUuid,
       meeting_uuid: testMeetingUuid,
       name: 'Reprocess Test Member',
       email: null, // Will match by name
@@ -142,7 +145,7 @@ describe('Attendance Reprocessability', () => {
   it('should remove attendance when Zoom data is deleted', async () => {
     // ARRANGE: Delete the Zoom attendee record
     await supabase
-      .from('zoom_attendees')
+      .schema('bronze').from('zoom_attendees')
       .delete()
       .eq('meeting_uuid', testMeetingUuid)
 
@@ -174,14 +177,17 @@ describe('Attendance Reprocessability', () => {
     const pupMeetingUuid = `test-meeting-pup-${Date.now()}`
 
     await supabase.schema('bronze').from('zoom_meetings').insert({
-      uuid: pupMeetingUuid,
+      meeting_uuid: pupMeetingUuid,
+      meeting_id: pupMeetingUuid,
       topic: 'Unscheduled Writing',
       start_time: '2099-05-20T14:00:00Z',
       end_time: '2099-05-20T15:00:00Z',
-      duration: 60,
+      duration_minutes: 60,
+      data: {},
     })
 
     await supabase.schema('bronze').from('zoom_attendees').insert({
+      meeting_id: pupMeetingUuid,
       meeting_uuid: pupMeetingUuid,
       name: 'Reprocess Test Member',
       email: null,
@@ -211,8 +217,8 @@ describe('Attendance Reprocessability', () => {
     expect(pupBefore?.length).toBeGreaterThan(0)
 
     // ARRANGE: Delete Zoom meeting
-    await supabase.from('zoom_attendees').delete().eq('meeting_uuid', pupMeetingUuid)
-    await supabase.from('zoom_meetings').delete().eq('uuid', pupMeetingUuid)
+    await supabase.schema('bronze').from('zoom_attendees').delete().eq('meeting_uuid', pupMeetingUuid)
+    await supabase.schema('bronze').from('zoom_meetings').delete().eq('meeting_uuid', pupMeetingUuid)
 
     // ACT: Reprocess
     const response = await fetch('http://localhost:3000/api/process/attendance', {
@@ -239,17 +245,22 @@ describe('Attendance Reprocessability', () => {
   })
 
   it('should verify DELETE + INSERT pattern (not UPSERT)', async () => {
-    // ARRANGE: Insert attendance directly into Silver (bypassing Bronze)
+    // ARRANGE: Create a prickle then insert attendance directly into Silver (bypassing Bronze)
     // This simulates orphaned data that UPSERT would keep
-    const orphanAttendance = {
+    const { data: orphanPrickle } = await supabase.from('prickles').insert({
+      type_id: prickleTypeId,
+      start_time: '2099-05-25T16:00:00Z',
+      end_time: '2099-05-25T17:00:00Z',
+      source: 'zoom',
+    }).select('id').single()
+
+    await supabase.from('prickle_attendance').insert({
       member_id: testMemberId,
-      prickle_id: prickleTypeId, // Using type_id as dummy prickle_id
+      prickle_id: orphanPrickle!.id,
       join_time: '2099-05-25T16:00:00Z',
       leave_time: '2099-05-25T17:00:00Z',
       confidence_score: 'high',
-    }
-
-    await supabase.from('prickle_attendance').insert(orphanAttendance)
+    })
 
     // Verify orphan exists
     const { data: before } = await supabase
@@ -289,14 +300,17 @@ describe('Attendance Reprocessability', () => {
     const juneMeetingUuid = `test-meeting-june-${Date.now()}`
 
     await supabase.schema('bronze').from('zoom_meetings').insert({
-      uuid: juneMeetingUuid,
+      meeting_uuid: juneMeetingUuid,
+      meeting_id: juneMeetingUuid,
       topic: 'June Meeting',
       start_time: '2099-06-01T10:00:00Z',
       end_time: '2099-06-01T11:00:00Z',
-      duration: 60,
+      duration_minutes: 60,
+      data: {},
     })
 
     await supabase.schema('bronze').from('zoom_attendees').insert({
+      meeting_id: juneMeetingUuid,
       meeting_uuid: juneMeetingUuid,
       name: 'Reprocess Test Member',
       email: null,
@@ -338,8 +352,8 @@ describe('Attendance Reprocessability', () => {
     expect(juneAttendance).toHaveLength(1)
 
     // Clean up
-    await supabase.from('zoom_attendees').delete().eq('meeting_uuid', juneMeetingUuid)
-    await supabase.from('zoom_meetings').delete().eq('uuid', juneMeetingUuid)
+    await supabase.schema('bronze').from('zoom_attendees').delete().eq('meeting_uuid', juneMeetingUuid)
+    await supabase.schema('bronze').from('zoom_meetings').delete().eq('meeting_uuid', juneMeetingUuid)
     await supabase.from('prickle_attendance').delete().eq('join_time', '2099-06-01T10:00:00+00:00')
   })
 })

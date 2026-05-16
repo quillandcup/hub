@@ -17,43 +17,36 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { createClient } from '@supabase/supabase-js';
+import { getTestSupabaseAdminClient, getTestAuthHeaders } from '../../helpers/supabase';
 import { matchAttendeeToMember } from '@/lib/member-matching';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-
 describe('Orphaned Meetings Idempotency', () => {
-  let supabase: any;
-
-  beforeAll(() => {
-    supabase = createClient(supabaseUrl, supabaseKey, {
-      auth: { autoRefreshToken: false, persistSession: false }
-    });
-  });
+  const supabase = getTestSupabaseAdminClient();
 
   afterAll(async () => {
-    // Clean up test data
-    await supabase.from('prickle_attendance').delete().ilike('member_id', 'test-orphan-%');
-    await supabase.from('prickles').delete().eq('source', 'zoom').ilike('zoom_meeting_uuid', 'test-meeting-%');
-    await supabase.from('zoom_attendees').delete().ilike('meeting_uuid', 'test-meeting-%');
-    await supabase.from('member_name_aliases').delete().eq('alias', 'TestMatched');
+    // Clean up test data - delete members first (cascades to prickle_attendance and member_name_aliases)
     await supabase.from('members').delete().ilike('email', 'test-orphan-%');
+    await supabase.from('prickles').delete().eq('source', 'zoom').ilike('zoom_meeting_uuid', 'test-orphan-meeting-%');
+    await supabase.schema('bronze').from('zoom_attendees').delete().ilike('meeting_uuid', 'test-orphan-meeting-%');
     await supabase.from('prickle_types').delete().eq('normalized_name', 'test-orphan-pup');
   });
 
   it('should be idempotent: orphaned count = 0 after first processing, stays 0 on reprocessing', async () => {
-    // SETUP: Create test data that reproduces the bug scenario
+    // SETUP: Clean up any leftover data from previous runs, then create fresh test data
+    // Delete members first (cascades to prickle_attendance and member_name_aliases)
+    await supabase.from('members').delete().ilike('email', 'test-orphan-%');
+    await supabase.from('prickles').delete().eq('source', 'zoom').ilike('zoom_meeting_uuid', 'test-orphan-meeting-%');
+    await supabase.schema('bronze').from('zoom_attendees').delete().ilike('meeting_uuid', 'test-orphan-meeting-%');
+    await supabase.from('prickle_types').delete().eq('normalized_name', 'test-orphan-pup');
 
     // 1. Create test member and alias
     const { data: member } = await supabase
       .from('members')
       .insert({
-        id: 'test-orphan-member-1',
         name: 'Alice Testuser',
         email: 'test-orphan-alice@example.com',
         status: 'active',
-        kajabi_id: 'test-orphan-kajabi-1',
+        joined_at: '2022-01-01',
       })
       .select()
       .single();
@@ -85,25 +78,29 @@ describe('Orphaned Meetings Idempotency', () => {
 
     // 3. Create zoom_attendees for a meeting with BOTH matched and unmatched attendees
     // This reproduces the bug: unmatched attendee extends meeting window beyond matched attendees
-    const meetingUuid = 'test-meeting-orphaned-1';
+    const meetingUuid = 'test-orphan-meeting-1';
     const baseDate = new Date('2026-04-01T09:00:00Z');
 
     await (supabase as any).schema('bronze').from('zoom_attendees').insert([
       // Unmatched attendee: 9:00-9:15 (extends window to the left)
       {
+        meeting_id: meetingUuid,
         meeting_uuid: meetingUuid,
         name: 'Cate Unmatched',
         email: 'unmatched@example.com',
         join_time: new Date(baseDate.getTime()).toISOString(),
         leave_time: new Date(baseDate.getTime() + 15 * 60 * 1000).toISOString(),
+        duration: 15,
       },
       // Matched attendee: 9:30-10:30 (this is the window that should be processed)
       {
+        meeting_id: meetingUuid,
         meeting_uuid: meetingUuid,
         name: 'TestMatched',
         email: 'test-orphan-alice@example.com',
         join_time: new Date(baseDate.getTime() + 30 * 60 * 1000).toISOString(),
         leave_time: new Date(baseDate.getTime() + 90 * 60 * 1000).toISOString(),
+        duration: 60,
       },
     ]);
 
@@ -183,7 +180,7 @@ describe('Orphaned Meetings Idempotency', () => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${supabaseKey}`,
+        ...getTestAuthHeaders(),
       },
       body: JSON.stringify({ fromDate, toDate }),
     });
@@ -220,7 +217,7 @@ describe('Orphaned Meetings Idempotency', () => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${supabaseKey}`,
+        ...getTestAuthHeaders(),
       },
       body: JSON.stringify({ fromDate, toDate }),
     });
@@ -251,24 +248,28 @@ describe('Orphaned Meetings Idempotency', () => {
     // Edge case: Meeting with ONLY unmatched attendees should not appear in orphaned count
     // because processing would skip it entirely (0 matched attendees)
 
-    const meetingUuid = 'test-meeting-orphaned-2';
+    const meetingUuid = 'test-orphan-meeting-2';
     const baseDate = new Date('2026-04-02T10:00:00Z');
 
     // Create meeting with only unmatched attendees
     await (supabase as any).schema('bronze').from('zoom_attendees').insert([
       {
+        meeting_id: meetingUuid,
         meeting_uuid: meetingUuid,
         name: 'Unmatched One',
         email: 'unmatched1@example.com',
         join_time: baseDate.toISOString(),
         leave_time: new Date(baseDate.getTime() + 30 * 60 * 1000).toISOString(),
+        duration: 30,
       },
       {
+        meeting_id: meetingUuid,
         meeting_uuid: meetingUuid,
         name: 'Unmatched Two',
         email: 'unmatched2@example.com',
         join_time: baseDate.toISOString(),
         leave_time: new Date(baseDate.getTime() + 30 * 60 * 1000).toISOString(),
+        duration: 30,
       },
     ]);
 
@@ -277,7 +278,7 @@ describe('Orphaned Meetings Idempotency', () => {
     const { data: aliases } = await supabase.from('member_name_aliases').select('alias, member_id');
 
     const { data: allAttendees } = await supabase
-      .from('zoom_attendees')
+      .schema('bronze').from('zoom_attendees')
       .select('meeting_uuid, name, email, join_time, leave_time')
       .eq('meeting_uuid', meetingUuid);
 

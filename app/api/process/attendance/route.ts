@@ -214,6 +214,17 @@ export async function POST(request: NextRequest) {
     if (zoomError) throw zoomError;
 
     if (!zoomAttendees || zoomAttendees.length === 0) {
+      // Still call the atomic procedure to DELETE any orphaned PUPs/attendance in this range
+      const { error: cleanupError } = await supabase.rpc('reprocess_prickle_attendance_atomic', {
+        from_date: fromDateTime,
+        to_date: toDateTime,
+        new_pup_data: [],
+        new_attendance_data: [],
+      });
+      if (cleanupError) {
+        console.error("Error cleaning up attendance for empty range:", cleanupError);
+        throw cleanupError;
+      }
       return NextResponse.json({
         success: true,
         message: "No zoom attendees found in date range",

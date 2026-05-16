@@ -90,18 +90,20 @@ describe('Midnight-Crossing Meeting Reprocessability', () => {
       .lt('start_time', '2099-08-02T00:00:00Z')
       .gt('end_time', '2099-08-01T00:00:00Z')
     await supabase.schema('bronze').from('zoom_attendees').delete().ilike('meeting_uuid', 'test-midnight-%')
-    await supabase.schema('bronze').from('zoom_meetings').delete().ilike('uuid', 'test-midnight-%')
+    await supabase.schema('bronze').from('zoom_meetings').delete().ilike('meeting_uuid', 'test-midnight-%')
     await supabase.from('members').delete().eq('id', testMemberId)
   })
 
   it('should process meeting that crosses midnight boundary (Aug 1 23:00 → Aug 2 01:00)', async () => {
     // ARRANGE: Create a meeting that spans Aug 1 → Aug 2
     await supabase.schema('bronze').from('zoom_meetings').insert({
-      uuid: midnightMeetingUuid,
+      meeting_uuid: midnightMeetingUuid,
+      meeting_id: midnightMeetingUuid,
       topic: 'Late Night Writing Session',
       start_time: '2099-08-01T23:00:00Z',
       end_time: '2099-08-02T01:00:00Z',
-      duration: 120,
+      duration_minutes: 120,
+      data: {},
     })
 
     await supabase.schema('bronze').from('zoom_attendees').insert({
@@ -116,7 +118,7 @@ describe('Midnight-Crossing Meeting Reprocessability', () => {
 
     // Verify test data was inserted
     const { data: insertedAttendee } = await supabase
-      .from('zoom_attendees')
+      .schema('bronze').from('zoom_attendees')
       .select('*')
       .eq('meeting_uuid', midnightMeetingUuid)
       .single()
@@ -286,24 +288,28 @@ describe('Midnight-Crossing Meeting Reprocessability', () => {
     const meeting1Uuid = `test-midnight-1-${Date.now()}`
     const meeting2Uuid = `test-midnight-2-${Date.now()}`
 
-    await supabase.from('zoom_meetings').insert([
+    await supabase.schema('bronze').from('zoom_meetings').insert([
       {
-        uuid: meeting1Uuid,
+        meeting_uuid: meeting1Uuid,
+        meeting_id: meeting1Uuid,
         topic: 'Late Night 1',
         start_time: '2099-08-01T22:30:00Z',
         end_time: '2099-08-02T00:30:00Z',
-        duration: 120,
+        duration_minutes: 120,
+        data: {},
       },
       {
-        uuid: meeting2Uuid,
+        meeting_uuid: meeting2Uuid,
+        meeting_id: meeting2Uuid,
         topic: 'Late Night 2',
         start_time: '2099-08-01T23:45:00Z',
         end_time: '2099-08-02T01:15:00Z',
-        duration: 90,
+        duration_minutes: 90,
+        data: {},
       },
     ])
 
-    await supabase.from('zoom_attendees').insert([
+    await supabase.schema('bronze').from('zoom_attendees').insert([
       {
         meeting_id: meeting1Uuid,
         meeting_uuid: meeting1Uuid,
@@ -348,8 +354,8 @@ describe('Midnight-Crossing Meeting Reprocessability', () => {
     expect(pups).toHaveLength(2)
 
     // Clean up
-    await supabase.from('zoom_attendees').delete().in('meeting_uuid', [meeting1Uuid, meeting2Uuid])
-    await supabase.from('zoom_meetings').delete().in('uuid', [meeting1Uuid, meeting2Uuid])
+    await supabase.schema('bronze').from('zoom_attendees').delete().in('meeting_uuid', [meeting1Uuid, meeting2Uuid])
+    await supabase.schema('bronze').from('zoom_meetings').delete().in('meeting_uuid', [meeting1Uuid, meeting2Uuid])
     await supabase
       .from('prickles')
       .delete()

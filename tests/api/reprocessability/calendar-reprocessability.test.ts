@@ -53,6 +53,17 @@ describe('Calendar Reprocessability', () => {
       .from('unmatched_calendar_events')
       .delete()
       .ilike('raw_summary', '%Test%')
+
+    await supabase
+      .from('unmatched_calendar_events')
+      .delete()
+      .eq('raw_summary', 'Weird Custom Prickle Type')
+
+    // Clean up any leftover prickle_type from failed previous runs
+    await supabase
+      .from('prickle_types')
+      .delete()
+      .eq('normalized_name', 'weird-custom-type')
   })
 
   afterAll(async () => {
@@ -75,6 +86,11 @@ describe('Calendar Reprocessability', () => {
       .from('unmatched_calendar_events')
       .delete()
       .ilike('raw_summary', '%Test%')
+
+    await supabase
+      .from('unmatched_calendar_events')
+      .delete()
+      .eq('raw_summary', 'Weird Custom Prickle Type')
   })
 
   it('should create prickles from calendar events on first process', async () => {
@@ -82,17 +98,19 @@ describe('Calendar Reprocessability', () => {
     const bronzeEvents = [
       {
         google_event_id: 'test-event-1',
-        summary: 'Morning Pages',
+        summary: 'Progress Prickle',
         start_time: '2099-06-15T09:00:00Z',
         end_time: '2099-06-15T10:00:00Z',
         creator_email: 'test@example.com',
+        raw_data: {},
       },
       {
         google_event_id: 'test-event-2',
-        summary: 'Deep Work',
+        summary: 'Heads Down',
         start_time: '2099-06-16T14:00:00Z',
         end_time: '2099-06-16T16:00:00Z',
         creator_email: 'test@example.com',
+        raw_data: {},
       },
     ]
 
@@ -127,7 +145,7 @@ describe('Calendar Reprocessability', () => {
   it('should remove prickles for deleted calendar events when reprocessing', async () => {
     // ARRANGE: Delete one calendar event from Bronze
     await supabase
-      .from('calendar_events')
+      .schema('bronze').from('calendar_events')
       .delete()
       .eq('google_event_id', 'test-event-1')
 
@@ -161,13 +179,14 @@ describe('Calendar Reprocessability', () => {
     // ARRANGE: Add a new calendar event
     const newEvent = {
       google_event_id: 'test-event-3',
-      summary: 'Writing Sprint',
+      summary: 'Sprint Prickle',
       start_time: '2099-06-20T10:00:00Z',
       end_time: '2099-06-20T11:00:00Z',
       creator_email: 'test@example.com',
+      raw_data: {},
     }
 
-    await supabase.from('calendar_events').insert(newEvent)
+    await supabase.schema('bronze').from('calendar_events').insert(newEvent)
 
     // ACT: Reprocess
     const response = await fetch('http://localhost:3000/api/process/calendar', {
@@ -298,7 +317,7 @@ describe('Calendar Reprocessability', () => {
       raw_data: {},
     }
 
-    await supabase.from('calendar_events').insert(unmatchedEvent)
+    await supabase.schema('bronze').from('calendar_events').insert(unmatchedEvent)
 
     // Process - should add to unmatched queue
     await fetch('http://localhost:3000/api/process/calendar', {
@@ -363,7 +382,7 @@ describe('Calendar Reprocessability', () => {
     expect(prickle).toHaveLength(1)
 
     // Clean up
-    await supabase.from('calendar_events').delete().eq('google_event_id', 'test-event-unmatched')
+    await supabase.schema('bronze').from('calendar_events').delete().eq('google_event_id', 'test-event-unmatched')
     await supabase.from('prickle_types').delete().eq('id', newType!.id)
   })
 })

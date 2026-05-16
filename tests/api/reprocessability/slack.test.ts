@@ -45,7 +45,7 @@ describe('Slack Reprocessability', () => {
     }
 
     // Insert test Slack user (for matching)
-    await supabase.from('slack_users').insert({
+    await supabase.schema('bronze').from('slack_users').insert({
       user_id: testSlackUserId,
       email: testEmail,
       name: 'test_user',
@@ -113,12 +113,12 @@ describe('Slack Reprocessability', () => {
       },
     ]
 
-    const { error: insertError } = await supabase.from('slack_messages').insert(testMessages)
+    const { error: insertError } = await supabase.schema('bronze').from('slack_messages').insert(testMessages)
     expect(insertError).toBeNull()
 
     // Verify data was inserted
     const { data: verifyData, error: verifyError } = await supabase
-      .from('slack_messages')
+      .schema('bronze').from('slack_messages')
       .select('*')
       .in('message_ts', ['TEST_001', 'TEST_002'])
 
@@ -163,13 +163,13 @@ describe('Slack Reprocessability', () => {
   it('should remove deleted messages when reprocessing', async () => {
     // ARRANGE: Mark one message as deleted
     await supabase
-      .from('slack_messages')
+      .schema('bronze').from('slack_messages')
       .update({ deleted_at: new Date().toISOString() })
       .eq('message_ts', 'TEST_002')
 
     // Verify deletion was applied
     const { data: deletedMsg } = await supabase
-      .from('slack_messages')
+      .schema('bronze').from('slack_messages')
       .select('deleted_at')
       .eq('message_ts', 'TEST_002')
       .single()

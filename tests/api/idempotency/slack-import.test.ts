@@ -163,23 +163,23 @@ describe('Slack Import Idempotency', () => {
 
     // Verify records created in database
     const { data: users } = await supabase
-      .from('slack_users')
+      .schema('bronze').from('slack_users')
       .select('*')
       .eq('user_id', testUserId)
 
     const { data: channels } = await supabase
-      .from('slack_channels')
+      .schema('bronze').from('slack_channels')
       .select('*')
       .eq('channel_id', testChannelId)
 
     const { data: messages } = await supabase
-      .from('slack_messages')
+      .schema('bronze').from('slack_messages')
       .select('*')
       .eq('channel_id', testChannelId)
       .eq('message_ts', testMessageTs)
 
     const { data: reactions } = await supabase
-      .from('slack_reactions')
+      .schema('bronze').from('slack_reactions')
       .select('*')
       .eq('channel_id', testChannelId)
       .eq('message_ts', testMessageTs)
@@ -279,23 +279,23 @@ describe('Slack Import Idempotency', () => {
 
     // ASSERT: Still only 1 record of each type (no duplicates)
     const { data: users } = await supabase
-      .from('slack_users')
+      .schema('bronze').from('slack_users')
       .select('*')
       .eq('user_id', testUserId)
 
     const { data: channels } = await supabase
-      .from('slack_channels')
+      .schema('bronze').from('slack_channels')
       .select('*')
       .eq('channel_id', testChannelId)
 
     const { data: messages } = await supabase
-      .from('slack_messages')
+      .schema('bronze').from('slack_messages')
       .select('*')
       .eq('channel_id', testChannelId)
       .eq('message_ts', testMessageTs)
 
     const { data: reactions } = await supabase
-      .from('slack_reactions')
+      .schema('bronze').from('slack_reactions')
       .select('*')
       .eq('channel_id', testChannelId)
       .eq('message_ts', testMessageTs)
@@ -393,26 +393,26 @@ describe('Slack Import Idempotency', () => {
 
     // ASSERT: Records updated (still only 1 of each)
     const { data: users } = await supabase
-      .from('slack_users')
+      .schema('bronze').from('slack_users')
       .select('*')
       .eq('user_id', testUserId)
       .single()
 
     const { data: channels } = await supabase
-      .from('slack_channels')
+      .schema('bronze').from('slack_channels')
       .select('*')
       .eq('channel_id', testChannelId)
       .single()
 
     const { data: messages } = await supabase
-      .from('slack_messages')
+      .schema('bronze').from('slack_messages')
       .select('*')
       .eq('channel_id', testChannelId)
       .eq('message_ts', testMessageTs)
       .single()
 
     const { data: reactions } = await supabase
-      .from('slack_reactions')
+      .schema('bronze').from('slack_reactions')
       .select('*')
       .eq('channel_id', testChannelId)
       .eq('message_ts', testMessageTs)
@@ -522,22 +522,22 @@ describe('Slack Import Idempotency', () => {
 
     // ASSERT: Still only 1 record of each type (completely idempotent)
     const { data: users } = await supabase
-      .from('slack_users')
+      .schema('bronze').from('slack_users')
       .select('*')
       .eq('user_id', testUserId)
 
     const { data: channels } = await supabase
-      .from('slack_channels')
+      .schema('bronze').from('slack_channels')
       .select('*')
       .eq('channel_id', testChannelId)
 
     const { data: messages } = await supabase
-      .from('slack_messages')
+      .schema('bronze').from('slack_messages')
       .select('*')
       .eq('channel_id', testChannelId)
 
     const { data: reactions } = await supabase
-      .from('slack_reactions')
+      .schema('bronze').from('slack_reactions')
       .select('*')
       .eq('channel_id', testChannelId)
 
@@ -636,13 +636,13 @@ describe('Slack Import Idempotency', () => {
 
     // ASSERT: Now 2 messages in same channel
     const { data: messages } = await supabase
-      .from('slack_messages')
+      .schema('bronze').from('slack_messages')
       .select('*')
       .eq('channel_id', testChannelId)
       .order('message_ts')
 
     const { data: reactions } = await supabase
-      .from('slack_reactions')
+      .schema('bronze').from('slack_reactions')
       .select('*')
       .eq('channel_id', testChannelId)
       .order('message_ts')
@@ -780,7 +780,7 @@ describe('Slack Import Idempotency', () => {
 
     // ASSERT: 3+ reactions on same message (original thumbsup + heart + heart from previous test + new reactions)
     const { data: reactions } = await supabase
-      .from('slack_reactions')
+      .schema('bronze').from('slack_reactions')
       .select('*')
       .eq('channel_id', testChannelId)
       .eq('message_ts', testMessageTs)

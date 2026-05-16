@@ -106,7 +106,7 @@ describe('Zoom Import Idempotency', () => {
 
     // ASSERT: Still only 2 attendees (no duplicates)
     const { data: afterUpsert } = await supabase
-      .from('zoom_attendees')
+      .schema('bronze').from('zoom_attendees')
       .select('*')
       .eq('meeting_uuid', testMeetingUuid1)
 
@@ -128,7 +128,7 @@ describe('Zoom Import Idempotency', () => {
 
     // ACT: UPSERT
     const { error } = await supabase
-      .from('zoom_attendees')
+      .schema('bronze').from('zoom_attendees')
       .upsert([newJoin], {
         onConflict: 'meeting_uuid,name,join_time',
         ignoreDuplicates: true,
@@ -138,7 +138,7 @@ describe('Zoom Import Idempotency', () => {
 
     // ASSERT: Now 3 records (Alice has 2, Bob has 1)
     const { data: allAttendees } = await supabase
-      .from('zoom_attendees')
+      .schema('bronze').from('zoom_attendees')
       .select('*')
       .eq('meeting_uuid', testMeetingUuid1)
 
@@ -175,7 +175,7 @@ describe('Zoom Import Idempotency', () => {
 
     // ACT: UPSERT
     const { error } = await supabase
-      .from('zoom_attendees')
+      .schema('bronze').from('zoom_attendees')
       .upsert(meeting2Attendees, {
         onConflict: 'meeting_uuid,name,join_time',
         ignoreDuplicates: true,
@@ -185,7 +185,7 @@ describe('Zoom Import Idempotency', () => {
 
     // ASSERT: Meeting 2 has 2 attendees
     const { data: meeting2Data } = await supabase
-      .from('zoom_attendees')
+      .schema('bronze').from('zoom_attendees')
       .select('*')
       .eq('meeting_uuid', testMeetingUuid2)
 
@@ -220,7 +220,7 @@ describe('Zoom Import Idempotency', () => {
     // ACT: UPSERT 5 times
     for (let i = 0; i < 5; i++) {
       const { error } = await supabase
-        .from('zoom_attendees')
+        .schema('bronze').from('zoom_attendees')
         .upsert(attendees, {
           onConflict: 'meeting_uuid,name,join_time',
           ignoreDuplicates: true,
@@ -230,7 +230,7 @@ describe('Zoom Import Idempotency', () => {
 
     // ASSERT: Still same number of attendees (completely idempotent)
     const { data: finalCheck } = await supabase
-      .from('zoom_attendees')
+      .schema('bronze').from('zoom_attendees')
       .select('*')
       .in('meeting_uuid', [testMeetingUuid1, testMeetingUuid2])
 
@@ -252,7 +252,7 @@ describe('Zoom Import Idempotency', () => {
 
     // ACT: Regular INSERT should fail due to unique constraint
     const { error } = await supabase
-      .from('zoom_attendees')
+      .schema('bronze').from('zoom_attendees')
       .insert([duplicate])
 
     // ASSERT: Should fail with duplicate key error

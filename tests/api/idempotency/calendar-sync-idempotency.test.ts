@@ -102,7 +102,7 @@ describe('Calendar Sync Idempotency', () => {
 
     // ASSERT: Still only 2 events (no duplicates)
     const { data: afterUpsert } = await supabase
-      .from('calendar_events')
+      .schema('bronze').from('calendar_events')
       .select('*')
       .in('google_event_id', [testGoogleEventId1, testGoogleEventId2])
 
@@ -124,7 +124,7 @@ describe('Calendar Sync Idempotency', () => {
 
     // ACT: UPSERT with changed data
     const { error } = await supabase
-      .from('calendar_events')
+      .schema('bronze').from('calendar_events')
       .upsert(updatedEvents, {
         onConflict: 'google_event_id',
       })
@@ -133,7 +133,7 @@ describe('Calendar Sync Idempotency', () => {
 
     // ASSERT: Event updated, not duplicated
     const { data: afterUpdate } = await supabase
-      .from('calendar_events')
+      .schema('bronze').from('calendar_events')
       .select('*')
       .in('google_event_id', [testGoogleEventId1, testGoogleEventId2])
 
@@ -156,7 +156,7 @@ describe('Calendar Sync Idempotency', () => {
 
     // ACT: UPSERT new event
     const { error } = await supabase
-      .from('calendar_events')
+      .schema('bronze').from('calendar_events')
       .upsert([newEvent], {
         onConflict: 'google_event_id',
       })
@@ -165,7 +165,7 @@ describe('Calendar Sync Idempotency', () => {
 
     // ASSERT: Now 3 events total
     const { data: allEvents } = await supabase
-      .from('calendar_events')
+      .schema('bronze').from('calendar_events')
       .select('*')
       .in('google_event_id', [testGoogleEventId1, testGoogleEventId2, testGoogleEventId3])
 
@@ -173,7 +173,7 @@ describe('Calendar Sync Idempotency', () => {
 
     // Clean up the third event
     await supabase
-      .from('calendar_events')
+      .schema('bronze').from('calendar_events')
       .delete()
       .eq('google_event_id', testGoogleEventId3)
   })
@@ -202,7 +202,7 @@ describe('Calendar Sync Idempotency', () => {
     // ACT: UPSERT 5 times
     for (let i = 0; i < 5; i++) {
       const { error } = await supabase
-        .from('calendar_events')
+        .schema('bronze').from('calendar_events')
         .upsert(events, {
           onConflict: 'google_event_id',
         })
@@ -211,7 +211,7 @@ describe('Calendar Sync Idempotency', () => {
 
     // ASSERT: Still only 2 events (completely idempotent)
     const { data: finalCheck } = await supabase
-      .from('calendar_events')
+      .schema('bronze').from('calendar_events')
       .select('*')
       .in('google_event_id', [testGoogleEventId1, testGoogleEventId2])
 
@@ -231,7 +231,7 @@ describe('Calendar Sync Idempotency', () => {
 
     // ACT: Regular INSERT should fail due to unique constraint
     const { error } = await supabase
-      .from('calendar_events')
+      .schema('bronze').from('calendar_events')
       .insert([duplicate])
 
     // ASSERT: Should fail with duplicate key error
