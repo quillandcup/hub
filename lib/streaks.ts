@@ -6,8 +6,6 @@ export interface Streaks {
 function weekIndex(isoTimestamp: string): number {
   const MS_PER_WEEK = 7 * 24 * 60 * 60 * 1000
   const timestamp = new Date(isoTimestamp).getTime()
-  // Simple epoch-based week: divide timestamp by MS_PER_WEEK
-  // Timestamps in the same 7-day period get the same week number
   // Adjust to Monday boundary by finding the start of the calendar week
   const dateObj = new Date(timestamp)
   const dayOfWeek = dateObj.getUTCDay() // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
@@ -18,7 +16,7 @@ function weekIndex(isoTimestamp: string): number {
   return Math.floor(weekStart.getTime() / MS_PER_WEEK)
 }
 
-export function computeStreaks(joinTimes: string[]): Streaks {
+export function computeStreaks(joinTimes: string[], now: Date = new Date()): Streaks {
   if (joinTimes.length === 0) return { currentStreak: 0, longestStreak: 0 }
 
   const weeks = [...new Set(joinTimes.map(weekIndex))].sort((a, b) => a - b)
@@ -32,6 +30,14 @@ export function computeStreaks(joinTimes: string[]): Streaks {
     } else {
       run = 1
     }
+  }
+
+  const currentWeek = weekIndex(now.toISOString())
+  const lastAttendedWeek = weeks[weeks.length - 1]
+
+  // Streak is broken if last attendance was more than 1 week ago
+  if (lastAttendedWeek < currentWeek - 1) {
+    return { currentStreak: 0, longestStreak }
   }
 
   let currentStreak = 1
