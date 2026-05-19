@@ -1,6 +1,25 @@
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { NextRequest, NextResponse } from "next/server";
 
+const KAJABI_CDN = "https://kajabi-storefronts-production.kajabi-cdn.com/kajabi-storefronts-production/"
+
+function toKajabiPhotoUrl(path: string | null | undefined): string | null {
+  if (!path) return null
+  if (path.startsWith("http://") || path.startsWith("https://")) return path
+  return KAJABI_CDN + path
+}
+
+function toSocialUrl(base: string, handle: string | null | undefined): string | null {
+  if (!handle) return null
+  const trimmed = handle.trim()
+  if (!trimmed) return null
+  if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) return trimmed
+  // Strip leading @, /, spaces; strip trailing /
+  const clean = trimmed.replace(/^[@/\s]+/, "").replace(/\/+$/, "")
+  if (!clean) return null
+  return `${base}/${clean}`
+}
+
 // Extend timeout for processing large batches of members
 export const maxDuration = 60; // 60 seconds (max for Hobby tier)
 
@@ -197,11 +216,11 @@ export async function POST(request: NextRequest) {
           user_id: null,
           kajabi_id: contact.kajabi_contact_id,
           stripe_customer_id: null,
-          photo_url: attrs?.avatar || null,
+          photo_url: toKajabiPhotoUrl(attrs?.avatar),
           bio: attrs?.public_bio || null,
-          instagram_url: attrs?.socials?.instagram || null,
-          facebook_url: attrs?.socials?.facebook || null,
-          twitter_url: attrs?.socials?.twitter || null,
+          instagram_url: toSocialUrl("https://instagram.com", attrs?.socials?.instagram),
+          facebook_url: toSocialUrl("https://facebook.com", attrs?.socials?.facebook),
+          twitter_url: toSocialUrl("https://x.com", attrs?.socials?.twitter),
           _metadata: { isTrial }
         });
       }
