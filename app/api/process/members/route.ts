@@ -97,7 +97,11 @@ export async function POST(request: NextRequest) {
     const customerByEmail = new Map<string, any>();
     if (customers && customers.length > 0) {
       for (const customer of customers) {
-        customerByEmail.set(resolveEmail(customer.email), customer);
+        const email = resolveEmail(customer.email);
+        const existing = customerByEmail.get(email);
+        if (!existing || customer.updated_at_kajabi > existing.updated_at_kajabi) {
+          customerByEmail.set(email, customer);
+        }
       }
     }
 
