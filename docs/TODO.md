@@ -469,6 +469,13 @@ Set up background agents for faster parallel development
 
 ## Bug Fixes
 
+### Bronze-Tier Pagination Gap in `/api/process/members`
+- **Where:** `app/api/process/members/route.ts` — Bronze table fetches (lines ~41-42)
+- **Tables affected:** `kajabi_contacts`, `kajabi_customers`, `kajabi_purchases`, `kajabi_offers`
+- **Problem:** All four Bronze tables are fetched with a single unguarded `.select("*")` (no pagination). When any table exceeds 1000 rows, Silver processing silently truncates — members beyond row 1000 get incorrect status/plan and null profile fields (photo_url, bio, socials) with no error or warning.
+- **Fix:** Add paginated fetch for all four Bronze sources, then merge results in memory before processing
+- **Why not fixed yet:** Pre-existing in codebase; requires a larger refactor to paginate + merge all four Bronze sources
+
 ### Member Filters
 - **At-risk and highly-engaged filters don't work**
   - URL: `/dashboard/members?filter=highly_engaged`
