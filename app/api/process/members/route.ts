@@ -93,6 +93,14 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Profile field lookup: email → customer (for avatar, bio, socials)
+    const customerByEmail = new Map<string, any>();
+    if (customers && customers.length > 0) {
+      for (const customer of customers) {
+        customerByEmail.set(resolveEmail(customer.email), customer);
+      }
+    }
+
     // Purchases by email (join via customer)
     const purchasesByEmail = new Map<string, any[]>();
     if (purchases && purchases.length > 0) {
@@ -171,18 +179,25 @@ export async function POST(request: NextRequest) {
           console.warn(`Contact ${email}: using email as name (no name in Kajabi)`);
         }
 
+        const customer = customerByEmail.get(email);
+        const attrs = customer?.data?.attributes;
+
         kajabiMembers.push({
           email,
           name,
-          joined_at: contact.created_at_kajabi.split('T')[0], // Convert to date
+          joined_at: contact.created_at_kajabi.split('T')[0],
           status,
           plan,
           source: 'kajabi',
           staff_role: null,
           user_id: null,
           kajabi_id: contact.kajabi_contact_id,
-          stripe_customer_id: null, // Would need to map from Stripe if available
-          // Store trial flag for future use
+          stripe_customer_id: null,
+          photo_url: attrs?.avatar || null,
+          bio: attrs?.public_bio || null,
+          instagram_url: attrs?.socials?.instagram || null,
+          facebook_url: attrs?.socials?.facebook || null,
+          twitter_url: attrs?.socials?.twitter || null,
           _metadata: { isTrial }
         });
       }
@@ -225,13 +240,18 @@ export async function POST(request: NextRequest) {
         email,
         name: staff.name,
         joined_at: staff.hire_date || '2020-01-01',
-        status: 'inactive' as const, // Staff without purchase = inactive
+        status: 'inactive' as const,
         plan: null,
         source: 'staff',
         staff_role: staff.role,
         user_id: staff.user_id,
         kajabi_id: null,
         stripe_customer_id: null,
+        photo_url: null,
+        bio: null,
+        instagram_url: null,
+        facebook_url: null,
+        twitter_url: null,
         _metadata: { isTrial: false }
       });
     }
