@@ -4,6 +4,16 @@ import { getEffectiveIdentity } from "@/lib/sudo"
 import { computeStreaks } from "@/lib/streaks"
 import MemberAvatar from "./MemberAvatar"
 
+function safeUrl(url: string | null): string | null {
+  if (!url) return null
+  try {
+    const parsed = new URL(url)
+    return parsed.protocol === "https:" || parsed.protocol === "http:" ? url : null
+  } catch {
+    return null
+  }
+}
+
 export default async function MemberProfilePage({
   params,
 }: {
@@ -101,7 +111,7 @@ export default async function MemberProfilePage({
     <div className="container mx-auto px-6 py-8 max-w-2xl">
       {/* Header */}
       <div className="mb-8 flex items-center gap-4">
-        <MemberAvatar name={member.name} photoUrl={member.photo_url} size={56} />
+        <MemberAvatar name={member.name} photoUrl={safeUrl(member.photo_url)} size={56} />
         <div>
           <h1 className="text-3xl font-bold">{member.name}</h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
@@ -118,11 +128,11 @@ export default async function MemberProfilePage({
       )}
 
       {/* Social links */}
-      {(member.instagram_url || member.facebook_url || member.twitter_url) && (
+      {(safeUrl(member.instagram_url) || safeUrl(member.facebook_url) || safeUrl(member.twitter_url)) && (
         <div className="flex items-center gap-4 mb-6">
-          {member.twitter_url && (
+          {safeUrl(member.twitter_url) && (
             <a
-              href={member.twitter_url}
+              href={safeUrl(member.twitter_url)!}
               target="_blank"
               rel="noopener noreferrer"
               className="text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 transition-colors"
@@ -133,9 +143,9 @@ export default async function MemberProfilePage({
               </svg>
             </a>
           )}
-          {member.instagram_url && (
+          {safeUrl(member.instagram_url) && (
             <a
-              href={member.instagram_url}
+              href={safeUrl(member.instagram_url)!}
               target="_blank"
               rel="noopener noreferrer"
               className="text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 transition-colors"
@@ -146,9 +156,9 @@ export default async function MemberProfilePage({
               </svg>
             </a>
           )}
-          {member.facebook_url && (
+          {safeUrl(member.facebook_url) && (
             <a
-              href={member.facebook_url}
+              href={safeUrl(member.facebook_url)!}
               target="_blank"
               rel="noopener noreferrer"
               className="text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 transition-colors"
