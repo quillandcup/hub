@@ -107,11 +107,16 @@ export default async function MemberProfilePage({
     inactive: "Inactive",
   }
 
+  const safeTwitter = safeUrl(member.twitter_url)
+  const safeInstagram = safeUrl(member.instagram_url)
+  const safeFacebook = safeUrl(member.facebook_url)
+  const safePhoto = safeUrl(member.photo_url)
+
   return (
     <div className="container mx-auto px-6 py-8 max-w-2xl">
       {/* Header */}
       <div className="mb-8 flex items-center gap-4">
-        <MemberAvatar name={member.name} photoUrl={safeUrl(member.photo_url)} size={56} />
+        <MemberAvatar name={member.name} photoUrl={safePhoto} size={56} />
         <div>
           <h1 className="text-3xl font-bold">{member.name}</h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
@@ -128,11 +133,11 @@ export default async function MemberProfilePage({
       )}
 
       {/* Social links */}
-      {(safeUrl(member.instagram_url) || safeUrl(member.facebook_url) || safeUrl(member.twitter_url)) && (
+      {(safeInstagram || safeFacebook || safeTwitter) && (
         <div className="flex items-center gap-4 mb-6">
-          {safeUrl(member.twitter_url) && (
+          {safeTwitter && (
             <a
-              href={safeUrl(member.twitter_url)!}
+              href={safeTwitter}
               target="_blank"
               rel="noopener noreferrer"
               className="text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 transition-colors"
@@ -143,9 +148,9 @@ export default async function MemberProfilePage({
               </svg>
             </a>
           )}
-          {safeUrl(member.instagram_url) && (
+          {safeInstagram && (
             <a
-              href={safeUrl(member.instagram_url)!}
+              href={safeInstagram}
               target="_blank"
               rel="noopener noreferrer"
               className="text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 transition-colors"
@@ -156,9 +161,9 @@ export default async function MemberProfilePage({
               </svg>
             </a>
           )}
-          {safeUrl(member.facebook_url) && (
+          {safeFacebook && (
             <a
-              href={safeUrl(member.facebook_url)!}
+              href={safeFacebook}
               target="_blank"
               rel="noopener noreferrer"
               className="text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 transition-colors"
