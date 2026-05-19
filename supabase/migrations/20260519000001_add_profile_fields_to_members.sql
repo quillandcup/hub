@@ -1,17 +1,18 @@
 -- Add profile fields to Silver members table
 -- Source: Kajabi /v1/customers endpoint (avatar, public_bio, socials)
 ALTER TABLE members
-  ADD COLUMN photo_url TEXT,
-  ADD COLUMN bio TEXT,
-  ADD COLUMN instagram_url TEXT,
-  ADD COLUMN facebook_url TEXT,
-  ADD COLUMN twitter_url TEXT;
+  ADD COLUMN IF NOT EXISTS photo_url TEXT,
+  ADD COLUMN IF NOT EXISTS bio TEXT,
+  ADD COLUMN IF NOT EXISTS instagram_url TEXT,
+  ADD COLUMN IF NOT EXISTS facebook_url TEXT,
+  ADD COLUMN IF NOT EXISTS twitter_url TEXT;
 
 -- Update reprocess_members_atomic to include the new profile fields
 CREATE OR REPLACE FUNCTION reprocess_members_atomic(
   new_data JSONB
 ) RETURNS void AS $$
 BEGIN
+  -- Single transaction: UPSERT members by email to preserve UUIDs and relationships
   INSERT INTO members (
     email, name, joined_at, status, plan, source, staff_role, user_id,
     kajabi_id, stripe_customer_id,
@@ -50,5 +51,14 @@ BEGIN
     facebook_url = EXCLUDED.facebook_url,
     twitter_url = EXCLUDED.twitter_url,
     updated_at = NOW();
+  -- Note: We do NOT delete members that aren't in new_data
+  -- This preserves historical data for members who left/were removed
+  -- If needed in future, could add status='inactive' logic here
 END;
 $$ LANGUAGE plpgsql;
+
+COMMENT ON COLUMN members.photo_url IS 'Member avatar URL from Kajabi /v1/customers avatar field';
+COMMENT ON COLUMN members.bio IS 'Member public bio from Kajabi /v1/customers public_bio field';
+COMMENT ON COLUMN members.instagram_url IS 'Instagram profile URL from Kajabi /v1/customers socials.instagram';
+COMMENT ON COLUMN members.facebook_url IS 'Facebook profile URL from Kajabi /v1/customers socials.facebook';
+COMMENT ON COLUMN members.twitter_url IS 'Twitter/X profile URL from Kajabi /v1/customers socials.twitter';
