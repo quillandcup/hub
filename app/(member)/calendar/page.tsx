@@ -141,7 +141,10 @@ export default async function MemberCalendarPage({
           </div>
         </div>
       </div>
-      <CalendarScrollContainer scrollToHour={7}>
+      <CalendarScrollContainer
+          prickleStartTimes={pricklesForView.map((p) => p.start_time)}
+          timezone={userTimezone}
+        >
         <CalendarWeekView
           prickles={pricklesForView}
           weekStartDate={{
