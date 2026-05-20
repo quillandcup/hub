@@ -111,6 +111,7 @@ export default async function PrickleDetailPage({
             hostLate={hostLate}
             userTimezonePreference={userTimezone}
             memberBasePath={memberBasePath}
+            showMemberEmails={isActingAsAdmin}
           />
         </div>
       </main>

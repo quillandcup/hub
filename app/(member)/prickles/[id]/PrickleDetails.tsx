@@ -18,6 +18,7 @@ interface PrickleDetailsProps {
   hostLate: boolean;
   userTimezonePreference?: string;
   memberBasePath: string;
+  showMemberEmails: boolean;
 }
 
 export default function PrickleDetails({
@@ -27,6 +28,7 @@ export default function PrickleDetails({
   hostLate,
   userTimezonePreference = "browser",
   memberBasePath,
+  showMemberEmails,
 }: PrickleDetailsProps) {
   const [detectedTimezone, setDetectedTimezone] = useState<string | null>(null);
   useEffect(() => {
@@ -203,9 +205,11 @@ export default function PrickleDetails({
                         <Link href={`${memberBasePath}/${member.id}`} className="text-sm font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 hover:underline">
                           {member.name}
                         </Link>
-                        <div className="text-xs text-slate-500 dark:text-slate-400">
-                          {member.email}
-                        </div>
+                        {showMemberEmails && (
+                          <div className="text-xs text-slate-500 dark:text-slate-400">
+                            {member.email}
+                          </div>
+                        )}
                       </td>
                       <td className="px-6 py-4 text-sm text-slate-700 dark:text-slate-300">
                         {formatTime(joinTime)}
