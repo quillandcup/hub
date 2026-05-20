@@ -1,12 +1,17 @@
+import { createHash } from "crypto";
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { NextRequest, NextResponse } from "next/server";
 
 const KAJABI_CDN = "https://kajabi-storefronts-production.kajabi-cdn.com/kajabi-storefronts-production/"
 
-function toKajabiPhotoUrl(path: string | null | undefined): string | null {
-  if (!path) return null
-  if (path.startsWith("http://") || path.startsWith("https://")) return path
-  return KAJABI_CDN + path
+function toKajabiPhotoUrl(path: string | null | undefined, email: string): string {
+  if (path) {
+    if (path.startsWith("http://") || path.startsWith("https://")) return path
+    return KAJABI_CDN + path
+  }
+  // Fall back to Gravatar; d=404 means 404 if no account (MemberAvatar onError → initials)
+  const hash = createHash("md5").update(email.toLowerCase().trim()).digest("hex")
+  return `https://www.gravatar.com/avatar/${hash}?d=404&s=200`
 }
 
 function toSocialUrl(base: string, handle: string | null | undefined): string | null {
@@ -216,7 +221,7 @@ export async function POST(request: NextRequest) {
           user_id: null,
           kajabi_id: contact.kajabi_contact_id,
           stripe_customer_id: null,
-          photo_url: toKajabiPhotoUrl(attrs?.avatar),
+          photo_url: toKajabiPhotoUrl(attrs?.avatar, email),
           bio: attrs?.public_bio || null,
           instagram_url: toSocialUrl("https://instagram.com", attrs?.socials?.instagram),
           facebook_url: toSocialUrl("https://facebook.com", attrs?.socials?.facebook),
