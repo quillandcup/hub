@@ -652,7 +652,7 @@ export default function MemberDetails({ member, attendanceRecords, hiatusHistory
                         <tr
                           key={record.id}
                           className="hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer"
-                          onClick={() => router.push(`/admin/prickles/${prickle.id}`)}
+                          onClick={() => router.push(`/prickles/${prickle.id}`)}
                         >
                           <td className="px-6 py-4">
                             <div className="text-sm font-medium text-slate-900 dark:text-slate-100">
