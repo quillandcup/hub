@@ -43,7 +43,11 @@
       "Bash(node *)",
       "Skill(superpowers:brainstorming)",
       "Skill(contextual-commit)",
-      "Bash(npm run *)"
+      "Bash(npm run *)",
+      "Skill(superpowers:requesting-code-review)",
+      "Bash(rm \"/Users/cody/codyaray/git/quillandcup/hub/app/\\(admin\\)/admin/prickles/[id]/page.tsx\")",
+      "Bash(rm \"/Users/cody/codyaray/git/quillandcup/hub/app/\\(admin\\)/admin/prickles/[id]/PrickleDetails.tsx\")",
+      "Bash(rmdir \"/Users/cody/codyaray/git/quillandcup/hub/app/\\(admin\\)/admin/prickles/[id]\")"
     ]
   }
 }
