@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import PrickleDetails from "./PrickleDetails";
 import { getUserTimezonePreference } from "@/lib/timezone";
+import { getEffectiveIdentity } from "@/lib/sudo";
 
 export default async function PrickleDetailPage({
   params,
@@ -20,14 +21,14 @@ export default async function PrickleDetailPage({
     redirect("/login");
   }
 
-  const { data: profile } = await supabase
-    .from("user_profiles")
-    .select("role")
-    .eq("id", user.id)
-    .single();
-  const isAdmin = profile?.role === "admin";
-  const memberBasePath = isAdmin ? "/admin/members" : "/members";
-  const backHref = isAdmin ? "/admin/calendar" : "/calendar";
+  const [profileResult, effectiveIdentity] = await Promise.all([
+    supabase.from("user_profiles").select("role").eq("id", user.id).single(),
+    getEffectiveIdentity(user),
+  ]);
+  const isAdmin = profileResult.data?.role === "admin";
+  const isActingAsAdmin = isAdmin && !effectiveIdentity?.isSudo;
+  const memberBasePath = isActingAsAdmin ? "/admin/members" : "/members";
+  const backHref = isActingAsAdmin ? "/admin/calendar" : "/calendar";
 
   const { data: prickle } = await supabase
     .from("prickles")
