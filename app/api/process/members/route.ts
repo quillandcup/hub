@@ -5,11 +5,13 @@ import { NextRequest, NextResponse } from "next/server";
 const KAJABI_CDN = "https://kajabi-storefronts-production.kajabi-cdn.com/kajabi-storefronts-production/"
 
 function toKajabiPhotoUrl(path: string | null | undefined, email: string): string {
-  if (path) {
+  // Custom Kajabi upload — relative path or already-absolute non-Gravatar URL
+  if (path && !path.includes("gravatar.com")) {
     if (path.startsWith("http://") || path.startsWith("https://")) return path
     return KAJABI_CDN + path
   }
-  // Fall back to Gravatar; d=404 means 404 if no account (MemberAvatar onError → initials)
+  // No custom photo (empty, null, or Kajabi's own Gravatar URL with its default-avatar fallback).
+  // Generate our own Gravatar URL with d=404 so MemberAvatar's onError fires → initials fallback.
   const hash = createHash("md5").update(email.toLowerCase().trim()).digest("hex")
   return `https://www.gravatar.com/avatar/${hash}?d=404&s=200`
 }
