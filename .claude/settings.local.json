@@ -37,7 +37,13 @@
       "Bash(mv \"app/dashboard/prickles/[id]/page.tsx\" \"app/\\(admin\\)/admin/prickles/[id]/page.tsx\")",
       "Bash(mv \"app/dashboard/prickles/[id]/PrickleDetails.tsx\" \"app/\\(admin\\)/admin/prickles/[id]/PrickleDetails.tsx\")",
       "Bash(next build *)",
-      "Bash(npx next *)"
+      "Bash(npx next *)",
+      "Skill(superpowers:finishing-a-development-branch)",
+      "Bash(npm test *)",
+      "Bash(node *)",
+      "Skill(superpowers:brainstorming)",
+      "Skill(contextual-commit)",
+      "Bash(npm run *)"
     ]
   }
 }
