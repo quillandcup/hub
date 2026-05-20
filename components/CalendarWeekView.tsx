@@ -271,15 +271,13 @@ export default function CalendarWeekView({
                         return (
                           <div key={prickle.id}>
                             <div
-                              className={`absolute left-1 right-1 rounded border-2 p-1.5 overflow-hidden pointer-events-auto transition-opacity ${
-                                mode !== "member" ? "cursor-pointer hover:opacity-90" : ""
-                              } ${getAttendanceColor(prickle.attendance_count)}`}
+                              className={`absolute left-1 right-1 rounded border-2 p-1.5 overflow-hidden pointer-events-auto transition-opacity cursor-pointer hover:opacity-90 ${getAttendanceColor(prickle.attendance_count)}`}
                               style={{
                                 top: `${adjustedTop}px`,
                                 height: `${height}px`,
                               }}
-                              onClick={mode !== "member" ? () => router.push(`/admin/prickles/${prickle.id}`) : undefined}
-                              onMouseEnter={() => { if (mode !== "member") setHoveredPrickle(prickle.id); }}
+                              onClick={() => router.push(`/prickles/${prickle.id}`)}
+                              onMouseEnter={() => setHoveredPrickle(prickle.id)}
                               onMouseLeave={() => setHoveredPrickle(null)}
                             >
                               <div className="text-xs font-semibold truncate">
@@ -297,7 +295,7 @@ export default function CalendarWeekView({
                             </div>
 
                             {/* Styled tooltip - rendered outside overflow-hidden container */}
-                            {hoveredPrickle === prickle.id && mode !== "member" && (
+                            {hoveredPrickle === prickle.id && (
                               <div
                                 className="absolute z-50 bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 px-3 py-2 rounded-lg shadow-lg text-xs whitespace-nowrap pointer-events-none"
                                 style={{
