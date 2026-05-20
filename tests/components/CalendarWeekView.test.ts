@@ -18,14 +18,18 @@ describe('CalendarWeekView mode prop', () => {
     expect(src).toContain('mode !== "member"');
   });
 
-  it('disables click navigation in member mode', () => {
-    // onClick must be conditional on mode
-    expect(src).toMatch(/onClick=\{mode !== "member".*router\.push/s);
+  it('enables click navigation to /prickles/ in both modes', () => {
+    expect(src).toContain('router.push(`/prickles/${prickle.id}`)');
+    expect(src).not.toContain('/admin/prickles/');
+  });
+
+  it('shows tooltip in member mode', () => {
+    // Tooltip must not be gated on mode
+    expect(src).not.toMatch(/hoveredPrickle === prickle\.id && mode !== "member"/);
   });
 
   it('hides attendee count label in member mode', () => {
     expect(src).toContain('mode !== "member"');
-    // Verify the count label specifically is gated
     expect(src).toMatch(/mode !== "member"[\s\S]{0,100}text-xs font-bold/);
   });
 });
