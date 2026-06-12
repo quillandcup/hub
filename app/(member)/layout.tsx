@@ -4,6 +4,7 @@ import { getEffectiveIdentity } from '@/lib/sudo'
 import MemberNavigation from '@/components/MemberNavigation'
 import UserMenu from '@/components/UserMenu'
 import SudoBanner from '@/components/SudoBanner'
+import { TimezoneInitializer } from '@/components/TimezoneInitializer'
 
 export default async function MemberLayout({
   children,
@@ -17,11 +18,12 @@ export default async function MemberLayout({
 
   const { data: profile } = await supabase
     .from('user_profiles')
-    .select('role')
+    .select('role, timezone_preference')
     .eq('id', user.id)
     .single()
 
   const isAdmin = profile?.role === 'admin'
+  const storedTimezone = profile?.timezone_preference ?? 'browser'
 
   const effectiveIdentity = await getEffectiveIdentity(user)
 
@@ -70,6 +72,7 @@ export default async function MemberLayout({
         <main className="flex-1 overflow-auto">
           {children}
         </main>
+        <TimezoneInitializer storedTimezone={storedTimezone} />
       </div>
     </div>
   )
