@@ -12,7 +12,6 @@ const pageSrc = fs.readFileSync(
   'utf-8'
 );
 
-// Inline helpers from MemberCalendarClient for unit testing
 function formatWeekRange(start: Date, endExclusive: Date): string {
   const end = new Date(endExclusive);
   end.setDate(end.getDate() - 1);
@@ -27,7 +26,7 @@ function parseDateKey(k: string): number {
   return new Date(y, m - 1, d).getTime();
 }
 
-function sortedDateKeys(keys: string[]): string[] {
+function sortedAscending(keys: string[]): string[] {
   return [...keys].sort((a, b) => parseDateKey(a) - parseDateKey(b));
 }
 
@@ -46,26 +45,24 @@ describe('MemberCalendarClient', () => {
       expect(h1Matches).toHaveLength(1);
     });
 
-    it('shows the same Prev/label/Today/Next nav for all views', () => {
-      // The unified nav block is not conditionally hidden per view
+    it('nav block contains Prev, label, Today, Next for all views', () => {
       expect(src).toContain('handlePrev');
       expect(src).toContain('navLabel');
       expect(src).toContain('handleToday');
       expect(src).toContain('handleNext');
-      // view !== "list" only appears in the scroll effect guard, not in JSX nav rendering
+      // Navigation: Prev comment marks the JSX nav block
       const navBlockStart = src.indexOf('Navigation: Prev');
-      const navBlockEnd = src.indexOf('Month view');
+      const navBlockEnd = src.indexOf('view === "month"');
       const navJsx = src.slice(navBlockStart, navBlockEnd);
       expect(navJsx).not.toContain('view !== "list"');
     });
   });
 
   describe('timezone selector', () => {
-    it('renders at top level before the view toggle', () => {
+    it('renders before the view toggle', () => {
       const timezoneIdx = src.indexOf('Timezone:');
       const viewToggleIdx = src.indexOf('["month", "week", "list"]');
       expect(timezoneIdx).toBeGreaterThan(-1);
-      expect(viewToggleIdx).toBeGreaterThan(-1);
       expect(timezoneIdx).toBeLessThan(viewToggleIdx);
     });
 
@@ -82,8 +79,7 @@ describe('MemberCalendarClient', () => {
       expect(src).toContain('timezone={timezone}');
     });
 
-    it('resets list date when timezone changes', () => {
-      // When timezone changes the dateKeys change format, so currentListDateKey must reset
+    it('resets list position when timezone changes', () => {
       expect(src).toContain('setCurrentListDateKey(null)');
     });
   });
@@ -142,7 +138,7 @@ describe('MemberCalendarClient', () => {
       expect(src).toContain('currentListDateIdx >= sortedDateKeys.length - 1');
     });
 
-    it('handleToday in list view jumps to today or most recent past entry', () => {
+    it('handleToday in list view jumps to today or nearest past entry', () => {
       const todayFn = src.slice(src.indexOf('const handleToday'), src.indexOf('const navLabel'));
       expect(todayFn).toContain('view === "list"');
       expect(todayFn).toContain('sortedDateKeys.includes(todayKey)');
@@ -154,23 +150,7 @@ describe('MemberCalendarClient', () => {
     });
 
     it('defaults to the most recent date with entries', () => {
-      // effectiveListDateKey falls back to the last item in sortedDateKeys
       expect(src).toContain('sortedDateKeys.at(-1)');
-    });
-
-    it('scrolls to the active date section when it changes', () => {
-      expect(src).toContain('scrollIntoView');
-      expect(src).toContain('list-date-');
-    });
-
-    it('list is grouped by date with section headers', () => {
-      expect(src).toContain('descendingDateKeys');
-      expect(src).toContain('header-${dateKey}');
-    });
-
-    it('highlights the active date section', () => {
-      expect(src).toContain('isActive');
-      expect(src).toContain('dateKey === effectiveListDateKey');
     });
   });
 
@@ -183,20 +163,20 @@ describe('MemberCalendarClient', () => {
       expect(src).toContain('–');
     });
 
-    it('renders range for the first week of June 2026', () => {
-      const start = new Date(2026, 5, 1); // Jun 1
+    it('renders Jun 1–7, 2026', () => {
+      const start = new Date(2026, 5, 1);
       const endExclusive = new Date(2026, 5, 8);
       expect(formatWeekRange(start, endExclusive)).toBe('Jun 1 – Jun 7, 2026');
     });
 
     it('handles month-boundary weeks', () => {
-      const start = new Date(2026, 4, 31); // May 31
+      const start = new Date(2026, 4, 31);
       const endExclusive = new Date(2026, 5, 7);
       expect(formatWeekRange(start, endExclusive)).toBe('May 31 – Jun 6, 2026');
     });
 
     it('handles year-boundary weeks', () => {
-      const start = new Date(2025, 11, 28); // Dec 28
+      const start = new Date(2025, 11, 28);
       const endExclusive = new Date(2026, 0, 4);
       expect(formatWeekRange(start, endExclusive)).toBe('Dec 28 – Jan 3, 2026');
     });
@@ -205,28 +185,41 @@ describe('MemberCalendarClient', () => {
   describe('list date key sorting', () => {
     it('sorts MM/DD/YYYY keys chronologically', () => {
       const keys = ['06/12/2026', '01/05/2026', '12/31/2025', '06/01/2026'];
-      const sorted = sortedDateKeys(keys);
-      expect(sorted).toEqual(['12/31/2025', '01/05/2026', '06/01/2026', '06/12/2026']);
+      expect(sortedAscending(keys)).toEqual([
+        '12/31/2025',
+        '01/05/2026',
+        '06/01/2026',
+        '06/12/2026',
+      ]);
     });
 
     it('handles same-month ordering', () => {
       const keys = ['06/30/2026', '06/01/2026', '06/15/2026'];
-      const sorted = sortedDateKeys(keys);
-      expect(sorted).toEqual(['06/01/2026', '06/15/2026', '06/30/2026']);
+      expect(sortedAscending(keys)).toEqual(['06/01/2026', '06/15/2026', '06/30/2026']);
     });
   });
 
-  describe('week view data', () => {
-    it('deduplicates prickles for the selected week', () => {
-      expect(src).toContain('seenPrickleIds');
-      expect(src).toContain('seenPrickleIds.has(prickle.id)');
+  describe('composition — delegates rendering to sub-components', () => {
+    it('uses AttendanceMonthGrid for month view', () => {
+      expect(src).toContain('AttendanceMonthGrid');
+      expect(src).toContain("view === \"month\"");
     });
 
-    it('renders CalendarWeekView in member mode', () => {
+    it('uses AttendanceListTable for list view', () => {
+      expect(src).toContain('AttendanceListTable');
+      expect(src).toContain("view === \"list\"");
+    });
+
+    it('uses CalendarWeekView for week view', () => {
+      expect(src).toContain('CalendarWeekView');
       expect(src).toContain('mode="member"');
     });
 
-    it('derives all data from attendance prop (no extra fetch)', () => {
+    it('passes effectiveListDateKey as activeListDateKey to AttendanceListTable', () => {
+      expect(src).toContain('activeListDateKey={effectiveListDateKey}');
+    });
+
+    it('derives prickles from attendance prop without an extra fetch', () => {
       expect(src).not.toContain('supabase');
       expect(src).not.toContain('createClient');
     });
