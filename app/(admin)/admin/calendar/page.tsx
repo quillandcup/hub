@@ -111,7 +111,7 @@ export default async function CalendarPage({
       start_time: prickle.start_time,
       end_time: prickle.end_time,
       prickle_type: prickle.prickle_types?.name || "Unknown",
-      attendance_count: prickle.prickle_attendance?.length || 0,
+      attendance_count: new Set(prickle.prickle_attendance?.map((a: any) => a.member_id) || []).size,
       host_missing: hostMissing,
       host_late: hostLate,
     };
