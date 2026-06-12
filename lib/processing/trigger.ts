@@ -132,8 +132,20 @@ async function processTable(
   table: string,
   options?: { dateRange?: { from: Date; to: Date } }
 ) {
+  // Import handlers lazily to avoid circular dependencies at module load time
+  const handlers: Record<string, () => Promise<{ POST: (req: any) => Promise<any> }>> = {
+    members: () => import('@/app/api/process/members/route'),
+    calendar: () => import('@/app/api/process/calendar/route'),
+    attendance: () => import('@/app/api/process/attendance/route'),
+    slack: () => import('@/app/api/process/slack/route'),
+  };
+
+  const handlerLoader = handlers[table];
+  if (!handlerLoader) {
+    throw new Error(`No handler registered for table: ${table}`);
+  }
+
   const deps = SILVER_DEPENDENCIES[table];
-  const route = `/api/process/${table.replace('_', '-')}`;
 
   // Determine scope based on table config
   let body: any = {};
@@ -147,21 +159,21 @@ async function processTable(
       toDate: options.dateRange.to.toISOString()
     };
   }
-  // else: full table reprocessing, no parameters needed
 
-  const baseUrl = process.env.VERCEL_URL
-    ? `https://${process.env.VERCEL_URL}`
-    : 'http://localhost:3000';
-
-  const response = await fetch(`${baseUrl}${route}`, {
+  // Call the handler directly (no HTTP round-trip — avoids Vercel deployment protection)
+  const { NextRequest } = await import('next/server');
+  const url = new URL(`http://internal/api/process/${table}`);
+  const request = new NextRequest(url, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      // Use service role key to bypass auth (internal processing)
       'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
     },
-    body: JSON.stringify(body)
+    body: JSON.stringify(body),
   });
+
+  const { POST } = await handlerLoader();
+  const response = await POST(request);
 
   if (!response.ok) {
     const error = await response.text();
