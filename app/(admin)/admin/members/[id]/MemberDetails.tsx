@@ -1,18 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
-import Link from "next/link";
-import AttendanceCalendar from "./AttendanceCalendar";
+import { useState } from "react";
+import MemberAttendanceView from "@/components/MemberAttendanceView";
 import { slackEmojiToUnicode, formatSlackPermalink } from "@/lib/slack-emoji";
-
-const TIMEZONES = [
-  { value: "America/New_York", label: "Eastern (ET)" },
-  { value: "America/Chicago", label: "Central (CT)" },
-  { value: "America/Denver", label: "Mountain (MT)" },
-  { value: "America/Los_Angeles", label: "Pacific (PT)" },
-  { value: "UTC", label: "UTC" },
-];
 
 interface MemberDetailsProps {
   member: any;
@@ -23,49 +13,9 @@ interface MemberDetailsProps {
 }
 
 export default function MemberDetails({ member, attendanceRecords, hiatusHistory, slackActivities, userTimezonePreference = "browser" }: MemberDetailsProps) {
-  // Detect browser timezone if user preference is "browser"
-  const [detectedTimezone, setDetectedTimezone] = useState<string | null>(null);
-  useEffect(() => {
-    if (userTimezonePreference === "browser") {
-      setDetectedTimezone(Intl.DateTimeFormat().resolvedOptions().timeZone);
-    }
-  }, [userTimezonePreference]);
-
-  // Use user's preference, or detected timezone, or fallback to ET
-  const defaultTimezone =
-    userTimezonePreference === "browser"
-      ? (detectedTimezone || "America/New_York")
-      : userTimezonePreference;
-
-  const [timezone, setTimezone] = useState(defaultTimezone);
-  const [view, setView] = useState<"list" | "calendar">("calendar");
   const [slackActivityFilter, setSlackActivityFilter] = useState<"all" | "messages" | "reactions">("all");
   const [slackChannelFilter, setSlackChannelFilter] = useState<string | null>(null);
   const [showAllSlackActivities, setShowAllSlackActivities] = useState(false);
-  const router = useRouter();
-
-  // Update timezone when defaultTimezone changes (after browser detection)
-  useEffect(() => {
-    setTimezone(defaultTimezone);
-  }, [defaultTimezone]);
-
-  const formatTime = (date: Date) => {
-    return date.toLocaleTimeString("en-US", {
-      timeZone: timezone,
-      hour: "numeric",
-      minute: "2-digit",
-    });
-  };
-
-  const formatDate = (date: Date) => {
-    return date.toLocaleDateString("en-US", {
-      timeZone: timezone,
-      weekday: "short",
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    });
-  };
 
   const memberMetrics = member.member_metrics || {};
   const memberEngagement = member.member_engagement || {};
@@ -112,24 +62,6 @@ export default function MemberDetails({ member, attendanceRecords, hiatusHistory
 
   return (
     <div className="space-y-6">
-      {/* Timezone Selector */}
-      <div className="flex justify-end">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Timezone:</span>
-          <select
-            value={timezone}
-            onChange={(e) => setTimezone(e.target.value)}
-            className="px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg text-sm text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            {TIMEZONES.map((tz) => (
-              <option key={tz.value} value={tz.value}>
-                {tz.label}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
-
       {/* Member Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="bg-white dark:bg-slate-900 rounded-lg shadow p-6">
@@ -210,128 +142,11 @@ export default function MemberDetails({ member, attendanceRecords, hiatusHistory
       </div>
 
       {/* Attendance History */}
-      <div className="bg-white dark:bg-slate-900 rounded-lg shadow">
-        <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xl font-bold">Attendance History ({attendanceRecords.length})</h2>
-
-            {/* View Tabs */}
-            <div className="flex bg-slate-100 dark:bg-slate-800 rounded-lg p-1">
-              <button
-                onClick={() => setView("list")}
-                className={`
-                  px-4 py-1.5 text-sm font-medium rounded-md transition-colors
-                  ${view === "list"
-                    ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-sm"
-                    : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
-                  }
-                `}
-              >
-                List
-              </button>
-              <button
-                onClick={() => setView("calendar")}
-                className={`
-                  px-4 py-1.5 text-sm font-medium rounded-md transition-colors
-                  ${view === "calendar"
-                    ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-sm"
-                    : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
-                  }
-                `}
-              >
-                Calendar
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {attendanceRecords.length > 0 ? (
-          <div className="p-6">
-            {view === "list" ? (
-              <div className="overflow-x-auto -mx-6">
-                <table className="w-full">
-                  <thead className="bg-slate-50 dark:bg-slate-800">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                        Prickle Type
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                        Date
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                        Time
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                        Duration
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                        Host
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
-                    {attendanceRecords.map((record: any) => {
-                      const prickle = record.prickles;
-                      const joinTime = new Date(record.join_time);
-                      const leaveTime = new Date(record.leave_time);
-                      const durationMinutes = Math.round((leaveTime.getTime() - joinTime.getTime()) / 60000);
-
-                      return (
-                        <tr
-                          key={record.id}
-                          className="hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer"
-                          onClick={() => router.push(`/prickles/${prickle.id}`)}
-                        >
-                          <td className="px-6 py-4">
-                            <div className="text-sm font-medium text-slate-900 dark:text-slate-100">
-                              {prickle.host?.id === member.id && "⭐ "}
-                              {prickle.prickle_types?.name || "Unknown"}
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 text-sm text-slate-700 dark:text-slate-300">
-                            {formatDate(joinTime)}
-                          </td>
-                          <td className="px-6 py-4 text-sm text-slate-700 dark:text-slate-300">
-                            {formatTime(joinTime)} - {formatTime(leaveTime)}
-                          </td>
-                          <td className="px-6 py-4 text-sm text-slate-700 dark:text-slate-300">
-                            {durationMinutes} min
-                          </td>
-                          <td className="px-6 py-4 text-sm text-slate-700 dark:text-slate-300">
-                            {prickle.host ? (
-                              <Link
-                                href={`/admin/members/${prickle.host.id}`}
-                                className="text-blue-600 hover:text-blue-700 dark:text-blue-400 hover:underline"
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                {prickle.host.name}
-                              </Link>
-                            ) : (
-                              "None"
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <AttendanceCalendar
-                member={member}
-                attendanceRecords={attendanceRecords}
-                timezone={timezone}
-                formatTime={formatTime}
-                formatDate={formatDate}
-              />
-            )}
-          </div>
-        ) : (
-          <div className="p-12 text-center text-slate-500 dark:text-slate-400">
-            No attendance records for this member
-          </div>
-        )}
-      </div>
+      <MemberAttendanceView
+        member={member}
+        attendanceRecords={attendanceRecords}
+        userTimezonePreference={userTimezonePreference}
+      />
 
       {/* Hiatus History */}
       {hiatusHistory.length > 0 && (
