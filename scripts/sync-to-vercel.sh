@@ -58,10 +58,26 @@ if [ ! -f .env.prod ]; then
     exit 1
 fi
 
-# Sync Supabase vars from .env.prod to production
-for var in NEXT_PUBLIC_SUPABASE_URL NEXT_PUBLIC_SUPABASE_ANON_KEY SUPABASE_SERVICE_ROLE_KEY; do
+# Sync all production vars from .env.prod
+for var in \
+    NEXT_PUBLIC_SUPABASE_URL NEXT_PUBLIC_SUPABASE_ANON_KEY SUPABASE_SERVICE_ROLE_KEY \
+    ZOOM_ACCOUNT_ID ZOOM_CLIENT_ID ZOOM_CLIENT_SECRET \
+    KAJABI_CLIENT_ID KAJABI_CLIENT_SECRET KAJABI_SITE_ID \
+    GOOGLE_CALENDAR_ID GOOGLE_SERVICE_ACCOUNT_KEY \
+    SLACK_BOT_TOKEN \
+    STRIPE_API_KEY; do
     sync_env_var "$var" .env.prod production
 done
+
+echo ""
+echo "=== Validating environment variables ==="
+
+MISSING_ENV_VARS=$(awk -F'=' '/^[[:space:]]*#/ || /^[[:space:]]*$/ || /SUPABASE_PROJECT_REF/ || /SUPABASE_ACCESS_TOKEN/ {next} {keys[$1] = keys[$1] (keys[$1] ? "," : "") FILENAME} END {for (k in keys) if (split(keys[k], files, ",") < 3) print "Key [" k "] is missing. Found only in: " keys[k]}' .env.*)
+
+if [ ! -z "${MISSING_ENV_VARS}" ]; then
+    echo "${MISSING_ENV_VARS}"
+    exit 1
+fi
 
 echo ""
 echo "✅ Environment variables synced to Vercel!"
