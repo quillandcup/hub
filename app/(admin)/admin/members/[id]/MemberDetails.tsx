@@ -209,6 +209,214 @@ export default function MemberDetails({ member, attendanceRecords, hiatusHistory
         </div>
       </div>
 
+      {/* Attendance History */}
+      <div className="bg-white dark:bg-slate-900 rounded-lg shadow">
+        <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-bold">Attendance History ({attendanceRecords.length})</h2>
+
+            {/* View Tabs */}
+            <div className="flex bg-slate-100 dark:bg-slate-800 rounded-lg p-1">
+              <button
+                onClick={() => setView("list")}
+                className={`
+                  px-4 py-1.5 text-sm font-medium rounded-md transition-colors
+                  ${view === "list"
+                    ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-sm"
+                    : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
+                  }
+                `}
+              >
+                List
+              </button>
+              <button
+                onClick={() => setView("calendar")}
+                className={`
+                  px-4 py-1.5 text-sm font-medium rounded-md transition-colors
+                  ${view === "calendar"
+                    ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-sm"
+                    : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
+                  }
+                `}
+              >
+                Calendar
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {attendanceRecords.length > 0 ? (
+          <div className="p-6">
+            {view === "list" ? (
+              <div className="overflow-x-auto -mx-6">
+                <table className="w-full">
+                  <thead className="bg-slate-50 dark:bg-slate-800">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                        Prickle Type
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                        Date
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                        Time
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                        Duration
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                        Host
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
+                    {attendanceRecords.map((record: any) => {
+                      const prickle = record.prickles;
+                      const joinTime = new Date(record.join_time);
+                      const leaveTime = new Date(record.leave_time);
+                      const durationMinutes = Math.round((leaveTime.getTime() - joinTime.getTime()) / 60000);
+
+                      return (
+                        <tr
+                          key={record.id}
+                          className="hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer"
+                          onClick={() => router.push(`/prickles/${prickle.id}`)}
+                        >
+                          <td className="px-6 py-4">
+                            <div className="text-sm font-medium text-slate-900 dark:text-slate-100">
+                              {prickle.host?.id === member.id && "⭐ "}
+                              {prickle.prickle_types?.name || "Unknown"}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 text-sm text-slate-700 dark:text-slate-300">
+                            {formatDate(joinTime)}
+                          </td>
+                          <td className="px-6 py-4 text-sm text-slate-700 dark:text-slate-300">
+                            {formatTime(joinTime)} - {formatTime(leaveTime)}
+                          </td>
+                          <td className="px-6 py-4 text-sm text-slate-700 dark:text-slate-300">
+                            {durationMinutes} min
+                          </td>
+                          <td className="px-6 py-4 text-sm text-slate-700 dark:text-slate-300">
+                            {prickle.host ? (
+                              <Link
+                                href={`/admin/members/${prickle.host.id}`}
+                                className="text-blue-600 hover:text-blue-700 dark:text-blue-400 hover:underline"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                {prickle.host.name}
+                              </Link>
+                            ) : (
+                              "None"
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <AttendanceCalendar
+                member={member}
+                attendanceRecords={attendanceRecords}
+                timezone={timezone}
+                formatTime={formatTime}
+                formatDate={formatDate}
+              />
+            )}
+          </div>
+        ) : (
+          <div className="p-12 text-center text-slate-500 dark:text-slate-400">
+            No attendance records for this member
+          </div>
+        )}
+      </div>
+
+      {/* Hiatus History */}
+      {hiatusHistory.length > 0 && (
+        <div className="bg-white dark:bg-slate-900 rounded-lg shadow">
+          <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800">
+            <h2 className="text-xl font-bold">Hiatus History</h2>
+          </div>
+          <div className="p-6">
+            <div className="space-y-4">
+              {hiatusHistory.map((hiatus: any, idx: number) => {
+                const startDate = new Date(hiatus.start_date);
+                const endDate = hiatus.end_date ? new Date(hiatus.end_date) : null;
+                const isOngoing = !endDate;
+
+                let durationText = "";
+                if (endDate) {
+                  const durationDays = Math.floor((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+                  const durationMonths = Math.floor(durationDays / 30);
+                  if (durationMonths > 0) {
+                    durationText = `${durationMonths} month${durationMonths > 1 ? 's' : ''}`;
+                  } else {
+                    durationText = `${durationDays} day${durationDays > 1 ? 's' : ''}`;
+                  }
+                } else {
+                  const daysSoFar = Math.floor((new Date().getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+                  const monthsSoFar = Math.floor(daysSoFar / 30);
+                  if (monthsSoFar > 0) {
+                    durationText = `${monthsSoFar} month${monthsSoFar > 1 ? 's' : ''} so far`;
+                  } else {
+                    durationText = `${daysSoFar} day${daysSoFar > 1 ? 's' : ''} so far`;
+                  }
+                }
+
+                return (
+                  <div
+                    key={hiatus.id}
+                    className={`p-4 rounded-lg border ${
+                      isOngoing
+                        ? "bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800"
+                        : "bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700"
+                    }`}
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-2 flex-wrap">
+                          <span className="text-sm font-medium text-slate-900 dark:text-slate-100">
+                            {startDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                            {" → "}
+                            {endDate ? (
+                              <span className="px-2 py-0.5 rounded bg-blue-100 dark:bg-blue-900 text-blue-900 dark:text-blue-100 font-semibold">
+                                {endDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                              </span>
+                            ) : (
+                              "Ongoing"
+                            )}
+                          </span>
+                          {isOngoing && hiatusProgress && (
+                            <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-yellow-200 dark:bg-yellow-800 text-yellow-900 dark:text-yellow-100">
+                              {hiatusProgress}
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-sm text-slate-600 dark:text-slate-400">
+                          Duration: {durationText}
+                        </div>
+                        {hiatus.reason && (
+                          <div className="text-sm text-slate-600 dark:text-slate-400 mt-1">
+                            {hiatus.reason}
+                          </div>
+                        )}
+                      </div>
+                      {isOngoing && (
+                        <span className="px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300">
+                          Current
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Slack Activity */}
       <div className="bg-white dark:bg-slate-900 rounded-lg shadow">
         <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800">
@@ -493,214 +701,6 @@ export default function MemberDetails({ member, attendanceRecords, hiatusHistory
             <p className="text-sm text-slate-500 dark:text-slate-500">
               This member hasn't posted messages or reactions in Slack yet
             </p>
-          </div>
-        )}
-      </div>
-
-      {/* Hiatus History */}
-      {hiatusHistory.length > 0 && (
-        <div className="bg-white dark:bg-slate-900 rounded-lg shadow">
-          <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800">
-            <h2 className="text-xl font-bold">Hiatus History</h2>
-          </div>
-          <div className="p-6">
-            <div className="space-y-4">
-              {hiatusHistory.map((hiatus: any, idx: number) => {
-                const startDate = new Date(hiatus.start_date);
-                const endDate = hiatus.end_date ? new Date(hiatus.end_date) : null;
-                const isOngoing = !endDate;
-
-                let durationText = "";
-                if (endDate) {
-                  const durationDays = Math.floor((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
-                  const durationMonths = Math.floor(durationDays / 30);
-                  if (durationMonths > 0) {
-                    durationText = `${durationMonths} month${durationMonths > 1 ? 's' : ''}`;
-                  } else {
-                    durationText = `${durationDays} day${durationDays > 1 ? 's' : ''}`;
-                  }
-                } else {
-                  const daysSoFar = Math.floor((new Date().getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
-                  const monthsSoFar = Math.floor(daysSoFar / 30);
-                  if (monthsSoFar > 0) {
-                    durationText = `${monthsSoFar} month${monthsSoFar > 1 ? 's' : ''} so far`;
-                  } else {
-                    durationText = `${daysSoFar} day${daysSoFar > 1 ? 's' : ''} so far`;
-                  }
-                }
-
-                return (
-                  <div
-                    key={hiatus.id}
-                    className={`p-4 rounded-lg border ${
-                      isOngoing
-                        ? "bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800"
-                        : "bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700"
-                    }`}
-                  >
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-2 flex-wrap">
-                          <span className="text-sm font-medium text-slate-900 dark:text-slate-100">
-                            {startDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
-                            {" → "}
-                            {endDate ? (
-                              <span className="px-2 py-0.5 rounded bg-blue-100 dark:bg-blue-900 text-blue-900 dark:text-blue-100 font-semibold">
-                                {endDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
-                              </span>
-                            ) : (
-                              "Ongoing"
-                            )}
-                          </span>
-                          {isOngoing && hiatusProgress && (
-                            <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-yellow-200 dark:bg-yellow-800 text-yellow-900 dark:text-yellow-100">
-                              {hiatusProgress}
-                            </span>
-                          )}
-                        </div>
-                        <div className="text-sm text-slate-600 dark:text-slate-400">
-                          Duration: {durationText}
-                        </div>
-                        {hiatus.reason && (
-                          <div className="text-sm text-slate-600 dark:text-slate-400 mt-1">
-                            {hiatus.reason}
-                          </div>
-                        )}
-                      </div>
-                      {isOngoing && (
-                        <span className="px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300">
-                          Current
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Attendance History */}
-      <div className="bg-white dark:bg-slate-900 rounded-lg shadow">
-        <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xl font-bold">Attendance History ({attendanceRecords.length})</h2>
-
-            {/* View Tabs */}
-            <div className="flex bg-slate-100 dark:bg-slate-800 rounded-lg p-1">
-              <button
-                onClick={() => setView("list")}
-                className={`
-                  px-4 py-1.5 text-sm font-medium rounded-md transition-colors
-                  ${view === "list"
-                    ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-sm"
-                    : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
-                  }
-                `}
-              >
-                List
-              </button>
-              <button
-                onClick={() => setView("calendar")}
-                className={`
-                  px-4 py-1.5 text-sm font-medium rounded-md transition-colors
-                  ${view === "calendar"
-                    ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-sm"
-                    : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
-                  }
-                `}
-              >
-                Calendar
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {attendanceRecords.length > 0 ? (
-          <div className="p-6">
-            {view === "list" ? (
-              <div className="overflow-x-auto -mx-6">
-                <table className="w-full">
-                  <thead className="bg-slate-50 dark:bg-slate-800">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                        Prickle Type
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                        Date
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                        Time
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                        Duration
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                        Host
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
-                    {attendanceRecords.map((record: any) => {
-                      const prickle = record.prickles;
-                      const joinTime = new Date(record.join_time);
-                      const leaveTime = new Date(record.leave_time);
-                      const durationMinutes = Math.round((leaveTime.getTime() - joinTime.getTime()) / 60000);
-
-                      return (
-                        <tr
-                          key={record.id}
-                          className="hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer"
-                          onClick={() => router.push(`/prickles/${prickle.id}`)}
-                        >
-                          <td className="px-6 py-4">
-                            <div className="text-sm font-medium text-slate-900 dark:text-slate-100">
-                              {prickle.host?.id === member.id && "⭐ "}
-                              {prickle.prickle_types?.name || "Unknown"}
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 text-sm text-slate-700 dark:text-slate-300">
-                            {formatDate(joinTime)}
-                          </td>
-                          <td className="px-6 py-4 text-sm text-slate-700 dark:text-slate-300">
-                            {formatTime(joinTime)} - {formatTime(leaveTime)}
-                          </td>
-                          <td className="px-6 py-4 text-sm text-slate-700 dark:text-slate-300">
-                            {durationMinutes} min
-                          </td>
-                          <td className="px-6 py-4 text-sm text-slate-700 dark:text-slate-300">
-                            {prickle.host ? (
-                              <Link
-                                href={`/admin/members/${prickle.host.id}`}
-                                className="text-blue-600 hover:text-blue-700 dark:text-blue-400 hover:underline"
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                {prickle.host.name}
-                              </Link>
-                            ) : (
-                              "None"
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <AttendanceCalendar
-                member={member}
-                attendanceRecords={attendanceRecords}
-                timezone={timezone}
-                formatTime={formatTime}
-                formatDate={formatDate}
-              />
-            )}
-          </div>
-        ) : (
-          <div className="p-12 text-center text-slate-500 dark:text-slate-400">
-            No attendance records for this member
           </div>
         )}
       </div>
