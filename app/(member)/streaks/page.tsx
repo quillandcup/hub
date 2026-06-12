@@ -115,10 +115,18 @@ function SisterStreakRow({
               href={slackDmUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-xs text-slate-400 hover:text-[#4A154B] dark:hover:text-purple-400 flex-shrink-0"
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-[#4A154B]/10 text-[#4A154B] hover:bg-[#4A154B]/20 dark:bg-purple-900/30 dark:text-purple-300 dark:hover:bg-purple-900/50 transition-colors flex-shrink-0"
               title={`Message ${s.memberName} on Slack`}
             >
-              Message on Slack →
+              <svg viewBox="0 0 54 54" className="w-3 h-3 flex-shrink-0" aria-hidden="true">
+                <g fill="none" fillRule="evenodd">
+                  <path d="M19.712.133a5.381 5.381 0 0 0-5.376 5.387 5.381 5.381 0 0 0 5.376 5.386h5.376V5.52A5.381 5.381 0 0 0 19.712.133m0 14.365H5.376A5.381 5.381 0 0 0 0 19.884a5.381 5.381 0 0 0 5.376 5.387h14.336a5.381 5.381 0 0 0 5.376-5.387 5.381 5.381 0 0 0-5.376-5.386" fill="#36C5F0"/>
+                  <path d="M53.76 19.884a5.381 5.381 0 0 0-5.376-5.386 5.381 5.381 0 0 0-5.376 5.386v5.387h5.376a5.381 5.381 0 0 0 5.376-5.387m-14.336 0V5.52A5.381 5.381 0 0 0 34.048.133a5.381 5.381 0 0 0-5.376 5.387v14.364a5.381 5.381 0 0 0 5.376 5.387 5.381 5.381 0 0 0 5.376-5.387" fill="#2EB67D"/>
+                  <path d="M34.048 54a5.381 5.381 0 0 0 5.376-5.387 5.381 5.381 0 0 0-5.376-5.386h-5.376v5.386A5.381 5.381 0 0 0 34.048 54m0-14.365h14.336a5.381 5.381 0 0 0 5.376-5.386 5.381 5.381 0 0 0-5.376-5.387H34.048a5.381 5.381 0 0 0-5.376 5.387 5.381 5.381 0 0 0 5.376 5.386" fill="#ECB22E"/>
+                  <path d="M0 34.249a5.381 5.381 0 0 0 5.376 5.386 5.381 5.381 0 0 0 5.376-5.386v-5.387H5.376A5.381 5.381 0 0 0 0 34.249m14.336 0v14.364A5.381 5.381 0 0 0 19.712 54a5.381 5.381 0 0 0 5.376-5.387V34.249a5.381 5.381 0 0 0-5.376-5.387 5.381 5.381 0 0 0-5.376 5.387" fill="#E01E5A"/>
+                </g>
+              </svg>
+              Message
             </Link>
           )}
         </div>
@@ -279,7 +287,7 @@ export default async function StreaksPage() {
         .in("id", sisterMemberIds),
     ])
     for (const a of slackAliases ?? []) {
-      slackDmByMemberId.set(a.member_id, `https://slack.com/app_redirect?channel=${a.alias}`)
+      slackDmByMemberId.set(a.member_id, `https://quillandcup.slack.com/app_redirect?channel=${a.alias}`)
     }
     const unmatchedIds = sisterMemberIds.filter((id) => !slackDmByMemberId.has(id))
     if (unmatchedIds.length > 0) {
@@ -296,7 +304,7 @@ export default async function StreaksPage() {
         )
         for (const u of slackUsers ?? []) {
           const mid = u.email ? memberIdByEmail.get(u.email) : undefined
-          if (mid) slackDmByMemberId.set(mid, `https://slack.com/app_redirect?channel=${u.user_id}`)
+          if (mid) slackDmByMemberId.set(mid, `https://quillandcup.slack.com/app_redirect?channel=${u.user_id}`)
         }
       }
     }
