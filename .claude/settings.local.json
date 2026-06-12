@@ -47,7 +47,11 @@
       "Skill(superpowers:requesting-code-review)",
       "Bash(rm \"/Users/cody/codyaray/git/quillandcup/hub/app/\\(admin\\)/admin/prickles/[id]/page.tsx\")",
       "Bash(rm \"/Users/cody/codyaray/git/quillandcup/hub/app/\\(admin\\)/admin/prickles/[id]/PrickleDetails.tsx\")",
-      "Bash(rmdir \"/Users/cody/codyaray/git/quillandcup/hub/app/\\(admin\\)/admin/prickles/[id]\")"
+      "Bash(rmdir \"/Users/cody/codyaray/git/quillandcup/hub/app/\\(admin\\)/admin/prickles/[id]\")",
+      "Bash(git *)",
+      "mcp__plugin_context7_context7__*",
+      "Bash(npm ls *)",
+      "Bash(npm show *)"
     ]
   }
 }
