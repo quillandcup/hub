@@ -151,6 +151,9 @@ export default async function MemberDetailPage({
                       Kajabi
                     </a>
                   )}
+                  {member.kajabi_id && member.stripe_customer_id && (
+                    <span className="text-slate-300 dark:text-slate-600">|</span>
+                  )}
                   {member.stripe_customer_id && (
                     <a
                       href={`https://dashboard.stripe.com/customers/${member.stripe_customer_id}`}
