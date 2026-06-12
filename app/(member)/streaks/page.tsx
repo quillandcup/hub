@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 import Link from "next/link"
 import { getEffectiveIdentity } from "@/lib/sudo"
+import { getUserTimezonePreference } from "@/lib/timezone"
 import {
   computeStreaks,
   computePrickleStreaks,
@@ -9,6 +10,8 @@ import {
   type PrickleStreak,
   type SisterStreak,
 } from "@/lib/streaks"
+
+const ORG_TIMEZONE = "America/New_York"
 
 function formatHour(hour: number): string {
   if (hour === 0) return '12am'
@@ -85,9 +88,11 @@ function formatShortDate(iso: string): string {
 function SisterStreakRow({
   s,
   prickleMap,
+  slackDmUrl,
 }: {
   s: SisterStreak
   prickleMap: Map<string, PrickleInfo>
+  slackDmUrl?: string
 }) {
   const isActive = s.currentStreak > 0
   const sharedPrickles = s.sharedPrickleIds
@@ -98,12 +103,25 @@ function SisterStreakRow({
   return (
     <div className="py-3 border-b border-slate-100 dark:border-slate-800 last:border-0">
       <div className="flex items-center justify-between">
-        <span
-          className={`text-sm font-medium ${isActive ? "" : "text-slate-500 dark:text-slate-400"}`}
-        >
-          {isActive && <span className="mr-1.5">🔥</span>}
-          {s.memberName}
-        </span>
+        <div className="flex items-center gap-2 min-w-0">
+          <span
+            className={`text-sm font-medium ${isActive ? "" : "text-slate-500 dark:text-slate-400"}`}
+          >
+            {isActive && <span className="mr-1.5">🔥</span>}
+            {s.memberName}
+          </span>
+          {slackDmUrl && (
+            <Link
+              href={slackDmUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-slate-400 hover:text-[#4A154B] dark:hover:text-purple-400 flex-shrink-0"
+              title={`Message ${s.memberName} on Slack`}
+            >
+              Message on Slack →
+            </Link>
+          )}
+        </div>
         <div className="flex items-center gap-6 text-right flex-shrink-0 ml-4">
           <div className="w-16">
             <p className="text-sm font-bold">{s.currentStreak}w</p>
@@ -146,10 +164,14 @@ export default async function StreaksPage() {
   } = await supabase.auth.getUser()
   if (!user) redirect("/login")
 
-  const effectiveIdentity = await getEffectiveIdentity(user)
+  const [effectiveIdentity, tzPref] = await Promise.all([
+    getEffectiveIdentity(user),
+    getUserTimezonePreference(),
+  ])
   if (!effectiveIdentity) redirect("/admin")
 
   const memberId = effectiveIdentity.memberId
+  const timeZone = tzPref === "browser" ? ORG_TIMEZONE : tzPref
 
   // Paginate all of this member's attendance with prickle type info
   const BATCH_SIZE = 1000
@@ -189,7 +211,9 @@ export default async function StreaksPage() {
         prickleTypeName: r.prickles!.prickle_types!.name,
         joinTime: r.join_time,
         prickleStartTime: r.prickles!.start_time,
-      }))
+      })),
+    new Date(),
+    timeZone
   )
     .filter((s) => s.longestStreak >= 2)
     .sort((a, b) => b.currentStreak - a.currentStreak || b.longestStreak - a.longestStreak)
@@ -237,6 +261,21 @@ export default async function StreaksPage() {
     .filter((s) => s.longestStreak >= 2)
     .sort((a, b) => b.currentStreak - a.currentStreak || b.longestStreak - a.longestStreak)
     .slice(0, 20)
+
+  // Look up Slack user IDs via the authoritative member_name_aliases (source='slack') mapping
+  // TODO: proactively send a Slack bot DM when a sister streak is at risk (no shared prickle yet this week)
+  const sisterMemberIds = sisterStreaks.map((s) => s.memberId)
+  const slackDmByMemberId = new Map<string, string>()
+  if (sisterMemberIds.length > 0) {
+    const { data: slackAliases } = await supabase
+      .from("member_name_aliases")
+      .select("member_id, alias")
+      .in("member_id", sisterMemberIds)
+      .eq("source", "slack")
+    for (const a of slackAliases ?? []) {
+      slackDmByMemberId.set(a.member_id, `https://slack.com/app_redirect?channel=${a.alias}`)
+    }
+  }
 
   // Map prickle_id → display info for shared prickle links
   const prickleMap = new Map<string, PrickleInfo>()
@@ -289,7 +328,12 @@ export default async function StreaksPage() {
         ) : (
           <div>
             {sisterStreaks.map((s) => (
-              <SisterStreakRow key={s.memberId} s={s} prickleMap={prickleMap} />
+              <SisterStreakRow
+                key={s.memberId}
+                s={s}
+                prickleMap={prickleMap}
+                slackDmUrl={slackDmByMemberId.get(s.memberId)}
+              />
             ))}
           </div>
         )}
