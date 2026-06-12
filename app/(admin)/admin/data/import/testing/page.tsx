@@ -1,10 +1,14 @@
 import { createClient } from "@/lib/supabase/server";
-import { redirect } from "next/navigation";
+import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import KajabiImportForm from "../KajabiImportForm";
 import SlackImportForm from "../SlackImportForm";
 
 export default async function TestingImportPage() {
+  if (process.env.NODE_ENV !== "development") {
+    notFound();
+  }
+
   const supabase = await createClient();
 
   const {
