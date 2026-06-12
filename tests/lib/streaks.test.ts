@@ -66,6 +66,11 @@ describe('computeStreaks', () => {
   })
 })
 
+// Fixed prickle start times (same day+hour = same series)
+const SPRINT_START = '2026-01-05T05:00:00Z'  // Monday 5am UTC
+const DEEP_START   = '2026-01-05T09:00:00Z'  // Monday 9am UTC
+const WED_START    = '2026-01-07T14:00:00Z'  // Wednesday 2pm UTC
+
 describe('computePrickleStreaks', () => {
   it('returns empty array for empty input', () => {
     expect(computePrickleStreaks([], fixedNow)).toEqual([])
@@ -73,28 +78,54 @@ describe('computePrickleStreaks', () => {
 
   it('computes per-type streaks independently', () => {
     const records = [
-      { prickleTypeName: 'Morning Sprint', joinTime: weeksAgo(2) },
-      { prickleTypeName: 'Morning Sprint', joinTime: weeksAgo(1) },
-      { prickleTypeName: 'Morning Sprint', joinTime: weeksAgo(0) },
-      { prickleTypeName: 'Deep Work', joinTime: weeksAgo(4) },
-      { prickleTypeName: 'Deep Work', joinTime: weeksAgo(3) },
+      { prickleTypeName: 'Morning Sprint', joinTime: weeksAgo(2), prickleStartTime: SPRINT_START },
+      { prickleTypeName: 'Morning Sprint', joinTime: weeksAgo(1), prickleStartTime: SPRINT_START },
+      { prickleTypeName: 'Morning Sprint', joinTime: weeksAgo(0), prickleStartTime: SPRINT_START },
+      { prickleTypeName: 'Deep Work',      joinTime: weeksAgo(4), prickleStartTime: DEEP_START },
+      { prickleTypeName: 'Deep Work',      joinTime: weeksAgo(3), prickleStartTime: DEEP_START },
     ]
     const result = computePrickleStreaks(records, fixedNow)
     const sprint = result.find(r => r.prickleTypeName === 'Morning Sprint')
     const deep = result.find(r => r.prickleTypeName === 'Deep Work')
-    expect(sprint).toEqual({ prickleTypeName: 'Morning Sprint', currentStreak: 3, longestStreak: 3 })
-    expect(deep).toEqual({ prickleTypeName: 'Deep Work', currentStreak: 0, longestStreak: 2 })
+    expect(sprint).toMatchObject({ prickleTypeName: 'Morning Sprint', dayOfWeek: 'Monday', startHour: 5, currentStreak: 3, longestStreak: 3 })
+    expect(deep).toMatchObject({ prickleTypeName: 'Deep Work', dayOfWeek: 'Monday', startHour: 9, currentStreak: 0, longestStreak: 2 })
   })
 
-  it('deduplicates multiple attendances of same type in same week', () => {
+  it('deduplicates multiple attendances of same series in same week', () => {
     const t1 = weeksAgo(0)
     const t2 = new Date(new Date(t1).getTime() + 2 * 24 * 60 * 60 * 1000).toISOString()
     const records = [
-      { prickleTypeName: 'Morning Sprint', joinTime: t1 },
-      { prickleTypeName: 'Morning Sprint', joinTime: t2 },
+      { prickleTypeName: 'Morning Sprint', joinTime: t1, prickleStartTime: SPRINT_START },
+      { prickleTypeName: 'Morning Sprint', joinTime: t2, prickleStartTime: SPRINT_START },
     ]
     const result = computePrickleStreaks(records, fixedNow)
-    expect(result).toEqual([{ prickleTypeName: 'Morning Sprint', currentStreak: 1, longestStreak: 1 }])
+    expect(result).toMatchObject([{ prickleTypeName: 'Morning Sprint', dayOfWeek: 'Monday', startHour: 5, currentStreak: 1, longestStreak: 1 }])
+  })
+
+  it('treats same type at different day as separate streaks', () => {
+    const records = [
+      { prickleTypeName: 'Morning Sprint', joinTime: weeksAgo(1), prickleStartTime: SPRINT_START },
+      { prickleTypeName: 'Morning Sprint', joinTime: weeksAgo(0), prickleStartTime: SPRINT_START },
+      { prickleTypeName: 'Morning Sprint', joinTime: weeksAgo(3), prickleStartTime: WED_START },
+    ]
+    const result = computePrickleStreaks(records, fixedNow)
+    const monSprint = result.find(r => r.prickleTypeName === 'Morning Sprint' && r.dayOfWeek === 'Monday')
+    const wedSprint = result.find(r => r.prickleTypeName === 'Morning Sprint' && r.dayOfWeek === 'Wednesday')
+    expect(monSprint).toMatchObject({ currentStreak: 2, longestStreak: 2 })
+    expect(wedSprint).toMatchObject({ currentStreak: 0, longestStreak: 1 })
+  })
+
+  it('treats same type on same day at different hours as separate streaks', () => {
+    const AM_START = '2026-01-05T05:00:00Z'  // Monday 5am UTC
+    const PM_START = '2026-01-05T15:00:00Z'  // Monday 3pm UTC
+    const records = [
+      { prickleTypeName: 'Sprint', joinTime: weeksAgo(0), prickleStartTime: AM_START },
+      { prickleTypeName: 'Sprint', joinTime: weeksAgo(0), prickleStartTime: PM_START },
+    ]
+    const result = computePrickleStreaks(records, fixedNow)
+    expect(result).toHaveLength(2)
+    expect(result.find(r => r.startHour === 5)).toMatchObject({ currentStreak: 1 })
+    expect(result.find(r => r.startHour === 15)).toMatchObject({ currentStreak: 1 })
   })
 })
 

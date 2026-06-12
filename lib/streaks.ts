@@ -5,6 +5,8 @@ export interface Streaks {
 
 export interface PrickleStreak extends Streaks {
   prickleTypeName: string
+  dayOfWeek: string
+  startHour: number
 }
 
 export interface SisterStreak extends Streaks {
@@ -59,18 +61,28 @@ export function computeStreaks(joinTimes: string[], now: Date = new Date()): Str
   return computeStreaksFromWeeks(weeks, weekIndex(now.toISOString()))
 }
 
+const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+
 export function computePrickleStreaks(
-  records: { prickleTypeName: string; joinTime: string }[],
+  records: { prickleTypeName: string; joinTime: string; prickleStartTime: string }[],
   now: Date = new Date()
 ): PrickleStreak[] {
-  const grouped = new Map<string, string[]>()
+  type GroupEntry = { prickleTypeName: string; dayOfWeek: string; startHour: number; joinTimes: string[] }
+  const grouped = new Map<string, GroupEntry>()
   for (const r of records) {
-    const group = grouped.get(r.prickleTypeName) ?? []
-    group.push(r.joinTime)
-    grouped.set(r.prickleTypeName, group)
+    const prickleDate = new Date(r.prickleStartTime)
+    const dayOfWeek = DAY_NAMES[prickleDate.getUTCDay()]
+    const startHour = prickleDate.getUTCHours()
+    const key = `${r.prickleTypeName}|${dayOfWeek}|${startHour}`
+    if (!grouped.has(key)) {
+      grouped.set(key, { prickleTypeName: r.prickleTypeName, dayOfWeek, startHour, joinTimes: [] })
+    }
+    grouped.get(key)!.joinTimes.push(r.joinTime)
   }
-  return Array.from(grouped.entries()).map(([prickleTypeName, joinTimes]) => ({
+  return Array.from(grouped.values()).map(({ prickleTypeName, dayOfWeek, startHour, joinTimes }) => ({
     prickleTypeName,
+    dayOfWeek,
+    startHour,
     ...computeStreaks(joinTimes, now),
   }))
 }

@@ -9,6 +9,17 @@ import {
   type SisterStreak,
 } from "@/lib/streaks"
 
+function formatHour(hour: number): string {
+  if (hour === 0) return '12am'
+  if (hour < 12) return `${hour}am`
+  if (hour === 12) return '12pm'
+  return `${hour - 12}pm`
+}
+
+function formatPrickleLabel(typeName: string, dayOfWeek: string, startHour: number): string {
+  return `${typeName} · ${dayOfWeek}s · ${formatHour(startHour)}`
+}
+
 function StreakBadge({ current, longest }: { current: number; longest: number }) {
   return (
     <div className="flex items-center gap-6">
@@ -77,7 +88,7 @@ export default async function StreaksPage() {
   type MyRecord = {
     prickle_id: string
     join_time: string
-    prickles: { prickle_types: { name: string } | null } | null
+    prickles: { start_time: string; prickle_types: { name: string } | null } | null
   }
   let myAttendance: MyRecord[] = []
   {
@@ -86,7 +97,7 @@ export default async function StreaksPage() {
     while (hasMore) {
       const { data: batch } = await supabase
         .from("prickle_attendance")
-        .select("prickle_id, join_time, prickles(prickle_types(name))")
+        .select("prickle_id, join_time, prickles(start_time, prickle_types(name))")
         .eq("member_id", memberId)
         .range(offset, offset + BATCH_SIZE - 1)
       if (batch && batch.length > 0) {
@@ -105,8 +116,12 @@ export default async function StreaksPage() {
   // Prickle type streaks
   const prickleStreaks: PrickleStreak[] = computePrickleStreaks(
     myAttendance
-      .filter((r) => r.prickles?.prickle_types?.name)
-      .map((r) => ({ prickleTypeName: r.prickles!.prickle_types!.name, joinTime: r.join_time }))
+      .filter((r) => r.prickles?.prickle_types?.name && r.prickles?.start_time)
+      .map((r) => ({
+        prickleTypeName: r.prickles!.prickle_types!.name,
+        joinTime: r.join_time,
+        prickleStartTime: r.prickles!.start_time,
+      }))
   )
     .filter((s) => s.longestStreak >= 2)
     .sort((a, b) => b.currentStreak - a.currentStreak || b.longestStreak - a.longestStreak)
@@ -212,19 +227,18 @@ export default async function StreaksPage() {
           Prickle Streaks
         </h2>
         <p className="text-xs text-slate-400 dark:text-slate-500 mb-4">
-          Your consistency attending specific prickle types.
+          Your consistency attending the same recurring prickle.
         </p>
         {prickleStreaks.length === 0 ? (
           <p className="text-sm text-slate-500 dark:text-slate-400">
-            No prickle streaks yet. Attend the same type of prickle for 2+ consecutive weeks to
-            start one.
+            No prickle streaks yet. Attend the same prickle for 2+ consecutive weeks to start one.
           </p>
         ) : (
           <div>
             {prickleStreaks.map((s) => (
               <StreakRow
-                key={s.prickleTypeName}
-                label={s.prickleTypeName}
+                key={`${s.prickleTypeName}|${s.dayOfWeek}|${s.startHour}`}
+                label={formatPrickleLabel(s.prickleTypeName, s.dayOfWeek, s.startHour)}
                 current={s.currentStreak}
                 longest={s.longestStreak}
               />
