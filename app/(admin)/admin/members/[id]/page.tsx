@@ -128,7 +128,7 @@ export default async function MemberDetailPage({
                   type="submit"
                   className="px-3 py-1 text-xs font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-700 rounded-md hover:bg-amber-200 dark:hover:bg-amber-900/50 transition-colors"
                 >
-                  Sudo as {member.name}
+                  Sudo As
                 </button>
               </form>
             </div>
