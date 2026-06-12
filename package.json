@@ -35,8 +35,7 @@
     "recharts": "^3.8.1",
     "rehype-raw": "^7.0.0",
     "remark-gfm": "^4.0.1",
-    "stripe": "^22.1.0",
-    "vercel": "^54.0.0"
+    "stripe": "^22.1.0"
   },
   "devDependencies": {
     "@types/json2csv": "^5.0.7",
@@ -47,6 +46,7 @@
     "@vitest/ui": "^4.1.2",
     "autoprefixer": "^10.4.20",
     "dotenv-cli": "^11.0.0",
+    "vercel": "^54.0.0",
     "eslint": "^9",
     "eslint-config-next": "^15.3.0",
     "msw": "^2.13.6",
