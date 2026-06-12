@@ -16,11 +16,7 @@ export default function MemberFilters({ currentFilter }: { currentFilter: string
 
   const handleFilterChange = (filter: string) => {
     const params = new URLSearchParams(searchParams);
-    if (filter === "all") {
-      params.delete("filter");
-    } else {
-      params.set("filter", filter);
-    }
+    params.set("filter", filter);
     router.push(`/admin/members?${params.toString()}`);
   };
 

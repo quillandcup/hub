@@ -22,7 +22,7 @@ export default async function MembersPage({
   }
 
   // Get filter from URL
-  const filter = (params.filter as string) || "all";
+  const filter = (params.filter as string) || "active";
 
   // Build query - apply filters that work on the members table directly
   let query = supabase
