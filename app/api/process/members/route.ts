@@ -60,14 +60,16 @@ export async function POST(request: NextRequest) {
       { data: purchases, error: purchasesError },
       { data: offers, error: offersError },
       { data: staffMembers, error: staffError },
-      { data: emailAliases, error: aliasesError }
+      { data: emailAliases, error: aliasesError },
+      { data: stripeCustomers, error: stripeError }
     ] = await Promise.all([
       supabase.schema('bronze').from("kajabi_contacts").select("*"),
       supabase.schema('bronze').from("kajabi_customers").select("*"),
       supabase.schema('bronze').from("kajabi_purchases").select("*"),
       supabase.schema('bronze').from("kajabi_offers").select("*"),
       supabase.from("staff").select("*"),
-      supabase.from("member_email_aliases").select("*")
+      supabase.from("member_email_aliases").select("*"),
+      supabase.schema('bronze').from("stripe_customers").select("stripe_customer_id, email")
     ]);
 
     if (contactsError) throw contactsError;
@@ -76,6 +78,7 @@ export async function POST(request: NextRequest) {
     if (offersError) throw offersError;
     if (staffError) throw staffError;
     if (aliasesError) throw aliasesError;
+    if (stripeError) throw stripeError;
 
     console.log('[DEBUG] Bronze sources:', {
       contacts_count: contacts?.length || 0,
@@ -84,6 +87,7 @@ export async function POST(request: NextRequest) {
       offers_count: offers?.length || 0,
       staff_count: staffMembers?.length || 0,
       email_aliases_count: emailAliases?.length || 0,
+      stripe_customers_count: stripeCustomers?.length || 0,
     });
 
     // STEP 2: Build lookup maps
@@ -125,6 +129,16 @@ export async function POST(request: NextRequest) {
         const existing = customerByEmail.get(email);
         if (!existing || customer.updated_at_kajabi > existing.updated_at_kajabi) {
           customerByEmail.set(email, customer);
+        }
+      }
+    }
+
+    // Stripe customer ID lookup: email → stripe_customer_id
+    const stripeIdByEmail = new Map<string, string>();
+    if (stripeCustomers && stripeCustomers.length > 0) {
+      for (const sc of stripeCustomers) {
+        if (sc.email && sc.stripe_customer_id) {
+          stripeIdByEmail.set(resolveEmail(sc.email), sc.stripe_customer_id);
         }
       }
     }
@@ -220,7 +234,7 @@ export async function POST(request: NextRequest) {
           staff_role: null,
           user_id: null,
           kajabi_id: contact.kajabi_contact_id,
-          stripe_customer_id: null,
+          stripe_customer_id: stripeIdByEmail.get(email) ?? null,
           photo_url: toKajabiPhotoUrl(attrs?.avatar, email),
           bio: attrs?.public_bio || null,
           instagram_url: toSocialUrl("https://instagram.com", attrs?.socials?.instagram),
