@@ -47,13 +47,16 @@ describe('MemberCalendarClient', () => {
     });
 
     it('shows the same Prev/label/Today/Next nav for all views', () => {
-      // No conditional hiding of nav per view — nav block is always rendered
-      expect(src).not.toContain('view !== "list"');
-      // The unified nav block contains handlePrev, navLabel, handleToday, handleNext
+      // The unified nav block is not conditionally hidden per view
       expect(src).toContain('handlePrev');
       expect(src).toContain('navLabel');
       expect(src).toContain('handleToday');
       expect(src).toContain('handleNext');
+      // view !== "list" only appears in the scroll effect guard, not in JSX nav rendering
+      const navBlockStart = src.indexOf('Navigation: Prev');
+      const navBlockEnd = src.indexOf('Month view');
+      const navJsx = src.slice(navBlockStart, navBlockEnd);
+      expect(navJsx).not.toContain('view !== "list"');
     });
   });
 
