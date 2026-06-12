@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
+import Link from "next/link"
 import { getEffectiveIdentity } from "@/lib/sudo"
 import {
   computeStreaks,
@@ -67,6 +68,73 @@ function StreakRow({
           <p className="text-xs text-slate-400">best</p>
         </div>
       </div>
+    </div>
+  )
+}
+
+type PrickleInfo = { startTime: string; typeName: string }
+
+function formatShortDate(iso: string): string {
+  return new Date(iso).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  })
+}
+
+function SisterStreakRow({
+  s,
+  prickleMap,
+}: {
+  s: SisterStreak
+  prickleMap: Map<string, PrickleInfo>
+}) {
+  const isActive = s.currentStreak > 0
+  const sharedPrickles = s.sharedPrickleIds
+    .map((id) => ({ id, ...prickleMap.get(id) }))
+    .filter((p): p is { id: string; startTime: string; typeName: string } => !!p.startTime)
+    .sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime())
+
+  return (
+    <div className="py-3 border-b border-slate-100 dark:border-slate-800 last:border-0">
+      <div className="flex items-center justify-between">
+        <span
+          className={`text-sm font-medium ${isActive ? "" : "text-slate-500 dark:text-slate-400"}`}
+        >
+          {isActive && <span className="mr-1.5">🔥</span>}
+          {s.memberName}
+        </span>
+        <div className="flex items-center gap-6 text-right flex-shrink-0 ml-4">
+          <div className="w-16">
+            <p className="text-sm font-bold">{s.currentStreak}w</p>
+            <p className="text-xs text-slate-400">current</p>
+          </div>
+          <div className="w-16">
+            <p className="text-sm font-bold text-slate-400 dark:text-slate-500">
+              {s.longestStreak}w
+            </p>
+            <p className="text-xs text-slate-400">best</p>
+          </div>
+        </div>
+      </div>
+      {sharedPrickles.length > 0 && (
+        <details className="mt-1.5">
+          <summary className="text-xs text-slate-400 cursor-pointer select-none hover:text-slate-600 dark:hover:text-slate-300 w-fit">
+            {sharedPrickles.length} shared {sharedPrickles.length === 1 ? "prickle" : "prickles"}
+          </summary>
+          <div className="mt-1.5 flex flex-wrap gap-1.5">
+            {sharedPrickles.map((p) => (
+              <Link
+                key={p.id}
+                href={`/prickles/${p.id}`}
+                className="text-xs bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded px-2 py-0.5 text-slate-600 dark:text-slate-300"
+              >
+                {formatShortDate(p.startTime)} · {p.typeName}
+              </Link>
+            ))}
+          </div>
+        </details>
+      )}
     </div>
   )
 }
@@ -170,6 +238,17 @@ export default async function StreaksPage() {
     .sort((a, b) => b.currentStreak - a.currentStreak || b.longestStreak - a.longestStreak)
     .slice(0, 20)
 
+  // Map prickle_id → display info for shared prickle links
+  const prickleMap = new Map<string, PrickleInfo>()
+  for (const r of myAttendance) {
+    if (r.prickles?.start_time && !prickleMap.has(r.prickle_id)) {
+      prickleMap.set(r.prickle_id, {
+        startTime: r.prickles.start_time,
+        typeName: r.prickles.prickle_types?.name ?? "Prickle",
+      })
+    }
+  }
+
   return (
     <div className="container mx-auto px-6 py-8 max-w-2xl">
       <h1 className="text-3xl font-bold mb-8">Streaks</h1>
@@ -210,12 +289,7 @@ export default async function StreaksPage() {
         ) : (
           <div>
             {sisterStreaks.map((s) => (
-              <StreakRow
-                key={s.memberId}
-                label={s.memberName}
-                current={s.currentStreak}
-                longest={s.longestStreak}
-              />
+              <SisterStreakRow key={s.memberId} s={s} prickleMap={prickleMap} />
             ))}
           </div>
         )}

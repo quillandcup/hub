@@ -147,7 +147,10 @@ describe('computeSisterStreaks', () => {
       { memberId: 'alice', memberName: 'Alice', prickleId: 'p3', joinTime: weeksAgo(0) },
     ]
     const result = computeSisterStreaks(myAttendance, coAttendance, fixedNow)
-    expect(result).toEqual([{ memberId: 'alice', memberName: 'Alice', currentStreak: 3, longestStreak: 3 }])
+    expect(result).toHaveLength(1)
+    expect(result[0]).toMatchObject({ memberId: 'alice', memberName: 'Alice', currentStreak: 3, longestStreak: 3 })
+    expect(result[0].sharedPrickleIds).toEqual(expect.arrayContaining(['p1', 'p2', 'p3']))
+    expect(result[0].sharedPrickleIds).toHaveLength(3)
   })
 
   it('does not count weeks where co-member attended a different prickle', () => {
@@ -173,7 +176,9 @@ describe('computeSisterStreaks', () => {
       { memberId: 'alice', memberName: 'Alice', prickleId: 'p3', joinTime: weeksAgo(0) },
     ]
     const result = computeSisterStreaks(myAttendance, coAttendance, fixedNow)
-    expect(result).toEqual([{ memberId: 'alice', memberName: 'Alice', currentStreak: 2, longestStreak: 2 }])
+    expect(result[0]).toMatchObject({ memberId: 'alice', memberName: 'Alice', currentStreak: 2, longestStreak: 2 })
+    // All 3 prickles are shared even though p1 was in a broken streak
+    expect(result[0].sharedPrickleIds).toEqual(expect.arrayContaining(['p1', 'p2', 'p3']))
   })
 
   it('tracks multiple co-members independently', () => {
@@ -189,7 +194,27 @@ describe('computeSisterStreaks', () => {
     const result = computeSisterStreaks(myAttendance, coAttendance, fixedNow)
     const alice = result.find(r => r.memberId === 'alice')
     const bob = result.find(r => r.memberId === 'bob')
-    expect(alice).toEqual({ memberId: 'alice', memberName: 'Alice', currentStreak: 2, longestStreak: 2 })
-    expect(bob).toEqual({ memberId: 'bob', memberName: 'Bob', currentStreak: 1, longestStreak: 1 })
+    expect(alice).toMatchObject({ memberId: 'alice', memberName: 'Alice', currentStreak: 2, longestStreak: 2 })
+    expect(alice?.sharedPrickleIds).toEqual(expect.arrayContaining(['p1', 'p2']))
+    expect(bob).toMatchObject({ memberId: 'bob', memberName: 'Bob', currentStreak: 1, longestStreak: 1 })
+    expect(bob?.sharedPrickleIds).toEqual(['p2'])
+  })
+
+  it('includes prickles from broken streaks in sharedPrickleIds', () => {
+    // p1 was shared 4 weeks ago (broken streak), p2+p3 are the current streak
+    const myAttendance = [
+      { prickleId: 'p1', joinTime: weeksAgo(4) },
+      { prickleId: 'p2', joinTime: weeksAgo(1) },
+      { prickleId: 'p3', joinTime: weeksAgo(0) },
+    ]
+    const coAttendance = [
+      { memberId: 'alice', memberName: 'Alice', prickleId: 'p1', joinTime: weeksAgo(4) },
+      { memberId: 'alice', memberName: 'Alice', prickleId: 'p2', joinTime: weeksAgo(1) },
+      { memberId: 'alice', memberName: 'Alice', prickleId: 'p3', joinTime: weeksAgo(0) },
+    ]
+    const result = computeSisterStreaks(myAttendance, coAttendance, fixedNow)
+    expect(result[0]).toMatchObject({ currentStreak: 2, longestStreak: 2 })
+    expect(result[0].sharedPrickleIds).toEqual(expect.arrayContaining(['p1', 'p2', 'p3']))
+    expect(result[0].sharedPrickleIds).toHaveLength(3)
   })
 })

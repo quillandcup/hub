@@ -12,6 +12,7 @@ export interface PrickleStreak extends Streaks {
 export interface SisterStreak extends Streaks {
   memberId: string
   memberName: string
+  sharedPrickleIds: string[]
 }
 
 function weekIndex(isoTimestamp: string): number {
@@ -103,21 +104,23 @@ export function computeSisterStreaks(
     myPrickleWeeks.set(r.prickleId, set)
   }
 
-  // For each co-member, collect weeks where they attended a prickle I also attended that week
-  const sisterWeeks = new Map<string, { name: string; weeks: Set<number> }>()
+  // For each co-member, collect weeks and prickle IDs where they attended a prickle I also attended that week
+  const sisterWeeks = new Map<string, { name: string; weeks: Set<number>; prickleIds: Set<string> }>()
   for (const r of coAttendance) {
     const week = weekIndex(r.joinTime)
     if (!myPrickleWeeks.get(r.prickleId)?.has(week)) continue
-    const entry = sisterWeeks.get(r.memberId) ?? { name: r.memberName, weeks: new Set() }
+    const entry = sisterWeeks.get(r.memberId) ?? { name: r.memberName, weeks: new Set(), prickleIds: new Set() }
     entry.weeks.add(week)
+    entry.prickleIds.add(r.prickleId)
     sisterWeeks.set(r.memberId, entry)
   }
 
-  return Array.from(sisterWeeks.entries()).map(([memberId, { name, weeks }]) => {
+  return Array.from(sisterWeeks.entries()).map(([memberId, { name, weeks, prickleIds }]) => {
     const sortedWeeks = [...weeks].sort((a, b) => a - b)
     return {
       memberId,
       memberName: name,
+      sharedPrickleIds: [...prickleIds],
       ...computeStreaksFromWeeks(sortedWeeks, currentWeek),
     }
   })
