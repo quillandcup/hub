@@ -3,6 +3,7 @@ import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import MemberDetails from "./MemberDetails";
 import { getUserTimezonePreference } from "@/lib/timezone";
+import { startSudo } from "@/app/actions/sudo";
 
 export default async function MemberDetailPage({
   params,
@@ -122,6 +123,14 @@ export default async function MemberDetailPage({
                   </div>
                 </div>
               )}
+              <form action={startSudo.bind(null, member.id)}>
+                <button
+                  type="submit"
+                  className="px-3 py-1 text-xs font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-700 rounded-md hover:bg-amber-200 dark:hover:bg-amber-900/50 transition-colors"
+                >
+                  Sudo as {member.name}
+                </button>
+              </form>
             </div>
             <div className="mt-1 flex flex-col gap-1">
               <p className="text-sm text-slate-600 dark:text-slate-400">
