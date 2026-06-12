@@ -72,7 +72,7 @@ export default async function MemberLayout({
         <main className="flex-1 overflow-auto">
           {children}
         </main>
-        <TimezoneInitializer storedTimezone={storedTimezone} />
+        <TimezoneInitializer storedTimezone={storedTimezone} isSudo={effectiveIdentity.isSudo} />
       </div>
     </div>
   )

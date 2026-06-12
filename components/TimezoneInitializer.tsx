@@ -14,12 +14,14 @@ function formatTzDisplay(tz: string): string {
   return name ? `(${offset}) ${name} - ${city}` : `(${offset}) ${city}`
 }
 
-export function TimezoneInitializer({ storedTimezone }: { storedTimezone: string }) {
+export function TimezoneInitializer({ storedTimezone, isSudo }: { storedTimezone: string; isSudo: boolean }) {
   const router = useRouter()
   const [showBanner, setShowBanner] = useState(false)
   const [detectedTz, setDetectedTz] = useState<string>("")
 
   useEffect(() => {
+    if (isSudo) return
+
     const detected = Intl.DateTimeFormat().resolvedOptions().timeZone
     setDetectedTz(detected)
 
@@ -32,7 +34,7 @@ export function TimezoneInitializer({ storedTimezone }: { storedTimezone: string
       const dismissed = localStorage.getItem("tz_mismatch_dismissed")
       if (!dismissed) setShowBanner(true)
     }
-  }, [storedTimezone])
+  }, [storedTimezone, isSudo])
 
   const handleYes = async () => {
     setShowBanner(false)
