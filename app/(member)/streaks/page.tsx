@@ -262,18 +262,43 @@ export default async function StreaksPage() {
     .sort((a, b) => b.currentStreak - a.currentStreak || b.longestStreak - a.longestStreak)
     .slice(0, 20)
 
-  // Look up Slack user IDs via the authoritative member_name_aliases (source='slack') mapping
+  // Look up Slack user IDs: prefer confirmed alias, fall back to email match
   // TODO: proactively send a Slack bot DM when a sister streak is at risk (no shared prickle yet this week)
   const sisterMemberIds = sisterStreaks.map((s) => s.memberId)
   const slackDmByMemberId = new Map<string, string>()
   if (sisterMemberIds.length > 0) {
-    const { data: slackAliases } = await supabase
-      .from("member_name_aliases")
-      .select("member_id, alias")
-      .in("member_id", sisterMemberIds)
-      .eq("source", "slack")
+    const [{ data: slackAliases }, { data: sisterMembers }] = await Promise.all([
+      supabase
+        .from("member_name_aliases")
+        .select("member_id, alias")
+        .in("member_id", sisterMemberIds)
+        .eq("source", "slack"),
+      supabase
+        .from("members")
+        .select("id, email")
+        .in("id", sisterMemberIds),
+    ])
     for (const a of slackAliases ?? []) {
       slackDmByMemberId.set(a.member_id, `https://slack.com/app_redirect?channel=${a.alias}`)
+    }
+    const unmatchedIds = sisterMemberIds.filter((id) => !slackDmByMemberId.has(id))
+    if (unmatchedIds.length > 0) {
+      const emailByMemberId = new Map((sisterMembers ?? []).map((m) => [m.id, m.email]))
+      const emails = unmatchedIds.map((id) => emailByMemberId.get(id)).filter((e): e is string => !!e)
+      if (emails.length > 0) {
+        const { data: slackUsers } = await supabase
+          .schema("bronze")
+          .from("slack_users")
+          .select("user_id, email")
+          .in("email", emails)
+        const memberIdByEmail = new Map(
+          (sisterMembers ?? []).map((m) => [m.email, m.id])
+        )
+        for (const u of slackUsers ?? []) {
+          const mid = u.email ? memberIdByEmail.get(u.email) : undefined
+          if (mid) slackDmByMemberId.set(mid, `https://slack.com/app_redirect?channel=${u.user_id}`)
+        }
+      }
     }
   }
 
