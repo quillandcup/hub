@@ -64,16 +64,28 @@ export function computeStreaks(joinTimes: string[], now: Date = new Date()): Str
 
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
+function getLocalDayAndHour(date: Date, timeZone: string): { dayOfWeek: string; startHour: number } {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    weekday: 'long',
+    hour: 'numeric',
+    hour12: false,
+  }).formatToParts(date)
+  const dayOfWeek = parts.find(p => p.type === 'weekday')?.value ?? DAY_NAMES[date.getUTCDay()]
+  const hourStr = parts.find(p => p.type === 'hour')?.value ?? String(date.getUTCHours())
+  return { dayOfWeek, startHour: parseInt(hourStr, 10) % 24 }
+}
+
 export function computePrickleStreaks(
   records: { prickleTypeName: string; joinTime: string; prickleStartTime: string }[],
-  now: Date = new Date()
+  now: Date = new Date(),
+  timeZone: string = 'UTC'
 ): PrickleStreak[] {
   type GroupEntry = { prickleTypeName: string; dayOfWeek: string; startHour: number; joinTimes: string[] }
   const grouped = new Map<string, GroupEntry>()
   for (const r of records) {
     const prickleDate = new Date(r.prickleStartTime)
-    const dayOfWeek = DAY_NAMES[prickleDate.getUTCDay()]
-    const startHour = prickleDate.getUTCHours()
+    const { dayOfWeek, startHour } = getLocalDayAndHour(prickleDate, timeZone)
     const key = `${r.prickleTypeName}|${dayOfWeek}|${startHour}`
     if (!grouped.has(key)) {
       grouped.set(key, { prickleTypeName: r.prickleTypeName, dayOfWeek, startHour, joinTimes: [] })
