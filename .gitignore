@@ -54,3 +54,6 @@ next-env.d.ts
 .fastembed_cache/
 .superpowers/
 .next-ci
+
+# Claude Code
+.claude/worktrees/
