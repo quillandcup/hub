@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { computeStreaks } from '@/lib/streaks'
+import { computeStreaks, computePrickleStreaks, computeSisterStreaks } from '@/lib/streaks'
 
 // Helpers: build ISO timestamps N weeks apart from a fixed anchor
 const ANCHOR_MS = new Date('2026-01-05T12:00:00Z').getTime() // a Monday
@@ -63,5 +63,102 @@ describe('computeStreaks', () => {
         weeksAgo(0),
       ], fixedNow)
     ).toEqual({ currentStreak: 1, longestStreak: 4 })
+  })
+})
+
+describe('computePrickleStreaks', () => {
+  it('returns empty array for empty input', () => {
+    expect(computePrickleStreaks([], fixedNow)).toEqual([])
+  })
+
+  it('computes per-type streaks independently', () => {
+    const records = [
+      { prickleTypeName: 'Morning Sprint', joinTime: weeksAgo(2) },
+      { prickleTypeName: 'Morning Sprint', joinTime: weeksAgo(1) },
+      { prickleTypeName: 'Morning Sprint', joinTime: weeksAgo(0) },
+      { prickleTypeName: 'Deep Work', joinTime: weeksAgo(4) },
+      { prickleTypeName: 'Deep Work', joinTime: weeksAgo(3) },
+    ]
+    const result = computePrickleStreaks(records, fixedNow)
+    const sprint = result.find(r => r.prickleTypeName === 'Morning Sprint')
+    const deep = result.find(r => r.prickleTypeName === 'Deep Work')
+    expect(sprint).toEqual({ prickleTypeName: 'Morning Sprint', currentStreak: 3, longestStreak: 3 })
+    expect(deep).toEqual({ prickleTypeName: 'Deep Work', currentStreak: 0, longestStreak: 2 })
+  })
+
+  it('deduplicates multiple attendances of same type in same week', () => {
+    const t1 = weeksAgo(0)
+    const t2 = new Date(new Date(t1).getTime() + 2 * 24 * 60 * 60 * 1000).toISOString()
+    const records = [
+      { prickleTypeName: 'Morning Sprint', joinTime: t1 },
+      { prickleTypeName: 'Morning Sprint', joinTime: t2 },
+    ]
+    const result = computePrickleStreaks(records, fixedNow)
+    expect(result).toEqual([{ prickleTypeName: 'Morning Sprint', currentStreak: 1, longestStreak: 1 }])
+  })
+})
+
+describe('computeSisterStreaks', () => {
+  it('returns empty array when no co-attendance', () => {
+    const myAttendance = [{ prickleId: 'p1', joinTime: weeksAgo(0) }]
+    expect(computeSisterStreaks(myAttendance, [], fixedNow)).toEqual([])
+  })
+
+  it('counts weeks where both attended the same prickle', () => {
+    const myAttendance = [
+      { prickleId: 'p1', joinTime: weeksAgo(2) },
+      { prickleId: 'p2', joinTime: weeksAgo(1) },
+      { prickleId: 'p3', joinTime: weeksAgo(0) },
+    ]
+    const coAttendance = [
+      { memberId: 'alice', memberName: 'Alice', prickleId: 'p1', joinTime: weeksAgo(2) },
+      { memberId: 'alice', memberName: 'Alice', prickleId: 'p2', joinTime: weeksAgo(1) },
+      { memberId: 'alice', memberName: 'Alice', prickleId: 'p3', joinTime: weeksAgo(0) },
+    ]
+    const result = computeSisterStreaks(myAttendance, coAttendance, fixedNow)
+    expect(result).toEqual([{ memberId: 'alice', memberName: 'Alice', currentStreak: 3, longestStreak: 3 }])
+  })
+
+  it('does not count weeks where co-member attended a different prickle', () => {
+    const myAttendance = [{ prickleId: 'p1', joinTime: weeksAgo(0) }]
+    const coAttendance = [
+      // Alice attended a different prickle the same week — not a shared prickle
+      { memberId: 'alice', memberName: 'Alice', prickleId: 'p2', joinTime: weeksAgo(0) },
+    ]
+    const result = computeSisterStreaks(myAttendance, coAttendance, fixedNow)
+    expect(result).toEqual([])
+  })
+
+  it('streak is broken when a week has no shared prickle', () => {
+    // Shared weeks 3 and 1 ago, gap at week 2
+    const myAttendance = [
+      { prickleId: 'p1', joinTime: weeksAgo(3) },
+      { prickleId: 'p2', joinTime: weeksAgo(1) },
+      { prickleId: 'p3', joinTime: weeksAgo(0) },
+    ]
+    const coAttendance = [
+      { memberId: 'alice', memberName: 'Alice', prickleId: 'p1', joinTime: weeksAgo(3) },
+      { memberId: 'alice', memberName: 'Alice', prickleId: 'p2', joinTime: weeksAgo(1) },
+      { memberId: 'alice', memberName: 'Alice', prickleId: 'p3', joinTime: weeksAgo(0) },
+    ]
+    const result = computeSisterStreaks(myAttendance, coAttendance, fixedNow)
+    expect(result).toEqual([{ memberId: 'alice', memberName: 'Alice', currentStreak: 2, longestStreak: 2 }])
+  })
+
+  it('tracks multiple co-members independently', () => {
+    const myAttendance = [
+      { prickleId: 'p1', joinTime: weeksAgo(1) },
+      { prickleId: 'p2', joinTime: weeksAgo(0) },
+    ]
+    const coAttendance = [
+      { memberId: 'alice', memberName: 'Alice', prickleId: 'p1', joinTime: weeksAgo(1) },
+      { memberId: 'alice', memberName: 'Alice', prickleId: 'p2', joinTime: weeksAgo(0) },
+      { memberId: 'bob', memberName: 'Bob', prickleId: 'p2', joinTime: weeksAgo(0) },
+    ]
+    const result = computeSisterStreaks(myAttendance, coAttendance, fixedNow)
+    const alice = result.find(r => r.memberId === 'alice')
+    const bob = result.find(r => r.memberId === 'bob')
+    expect(alice).toEqual({ memberId: 'alice', memberName: 'Alice', currentStreak: 2, longestStreak: 2 })
+    expect(bob).toEqual({ memberId: 'bob', memberName: 'Bob', currentStreak: 1, longestStreak: 1 })
   })
 })
