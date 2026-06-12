@@ -24,7 +24,6 @@ export default async function DataHygienePage() {
     { data: lastSync },
     { data: lastProcessing },
     { count: missingStripeCount },
-    { count: missingAccountCount },
   ] = await Promise.all([
     supabase.schema('bronze').from("calendar_events").select("*", { count: "exact", head: true }),
     supabase.from("prickles").select("*", { count: "exact", head: true }).eq("source", "calendar"),
@@ -75,10 +74,6 @@ export default async function DataHygienePage() {
     supabase.from("members").select("*", { count: "exact", head: true })
       .eq("status", "active")
       .is("stripe_customer_id", null),
-    // Active members with no portal account
-    supabase.from("members").select("*", { count: "exact", head: true })
-      .eq("status", "active")
-      .is("user_id", null),
   ]);
 
   const calendarMatchRate = totalCalendarEvents && matchedCalendarEvents
@@ -328,10 +323,10 @@ export default async function DataHygienePage() {
               <span className="text-2xl">🔗</span>
             </div>
             <p className="text-3xl font-bold text-slate-900 dark:text-slate-100 mb-1">
-              {(missingStripeCount ?? 0) + (missingAccountCount ?? 0)}
+              {missingStripeCount ?? 0}
             </p>
             <p className="text-sm text-slate-600 dark:text-slate-400">
-              missing fields across active members
+              active members missing Stripe ID
             </p>
             {(missingStripeCount ?? 0) > 0 && (
               <p className="text-xs text-orange-600 dark:text-orange-400 mt-2">

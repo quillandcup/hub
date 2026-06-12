@@ -12,6 +12,7 @@ export default function MemberFilters({ currentFilter }: { currentFilter: string
     { value: "at_risk", label: "At Risk" },
     { value: "highly_engaged", label: "Highly Engaged" },
     { value: "on_hiatus", label: "On Hiatus" },
+    { value: "unregistered", label: "Active, Unregistered" },
   ];
 
   const handleFilterChange = (filter: string) => {

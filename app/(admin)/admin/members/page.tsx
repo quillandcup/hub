@@ -38,6 +38,8 @@ export default async function MembersPage({
     query = query.eq("status", "active");
   } else if (filter === "on_hiatus") {
     query = query.eq("status", "on_hiatus");
+  } else if (filter === "unregistered") {
+    query = query.eq("status", "active").is("user_id", null);
   }
 
   const { data: allMembers } = await query.order("name");
