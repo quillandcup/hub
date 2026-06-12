@@ -2,14 +2,23 @@
 
 import { useState } from "react";
 
+function defaultFromDate() {
+  const d = new Date();
+  d.setDate(d.getDate() - 30);
+  return d.toISOString().split("T")[0];
+}
+
+function defaultToDate() {
+  return new Date().toISOString().split("T")[0];
+}
+
 export default function ManualReprocessingSection() {
   const [loading, setLoading] = useState<Record<string, boolean>>({});
   const [results, setResults] = useState<Record<string, any>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  // Date range state for date-scoped processing
-  const [fromDate, setFromDate] = useState("");
-  const [toDate, setToDate] = useState("");
+  const [fromDate, setFromDate] = useState(defaultFromDate);
+  const [toDate, setToDate] = useState(defaultToDate);
 
   const handleProcess = async (endpoint: string, requiresDateRange: boolean) => {
     setLoading({ ...loading, [endpoint]: true });

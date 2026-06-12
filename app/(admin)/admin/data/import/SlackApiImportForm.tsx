@@ -3,7 +3,7 @@
 import { useState } from "react";
 
 export default function SlackApiImportForm() {
-  const [daysBack, setDaysBack] = useState<number>(7);
+  const [daysBack, setDaysBack] = useState<number>(30);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);

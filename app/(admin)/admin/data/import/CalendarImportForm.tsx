@@ -1,12 +1,22 @@
 "use client";
 
 import { useState } from "react";
-import CalendarSyncButton from "./CalendarSyncButton";
+
+function defaultFromDate() {
+  const d = new Date();
+  d.setDate(d.getDate() - 30);
+  return d.toISOString().split("T")[0];
+}
+
+function defaultToDate() {
+  const d = new Date();
+  d.setDate(d.getDate() + 90);
+  return d.toISOString().split("T")[0];
+}
 
 export default function CalendarImportForm() {
-  const [fromDate, setFromDate] = useState("");
-  const [toDate, setToDate] = useState("");
-  const [calendarId, setCalendarId] = useState("");
+  const [fromDate, setFromDate] = useState(defaultFromDate);
+  const [toDate, setToDate] = useState(defaultToDate);
   const [importing, setImporting] = useState(false);
   const [result, setResult] = useState<any>(null);
 
@@ -21,11 +31,7 @@ export default function CalendarImportForm() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          calendarId: calendarId || undefined,
-          fromDate,
-          toDate,
-        }),
+        body: JSON.stringify({ fromDate, toDate }),
       });
 
       const data = await response.json();
@@ -37,7 +43,6 @@ export default function CalendarImportForm() {
     }
   };
 
-
   return (
     <div className="bg-white dark:bg-slate-900 rounded-lg shadow p-6">
       <div className="border-b border-slate-200 dark:border-slate-800 pb-4 mb-6">
@@ -48,28 +53,9 @@ export default function CalendarImportForm() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
-
-        <div>
-          <label className="block text-sm font-medium mb-2">
-            Calendar ID
-          </label>
-          <input
-            type="text"
-            value={calendarId}
-            onChange={(e) => setCalendarId(e.target.value)}
-            placeholder="Leave empty to use GOOGLE_CALENDAR_ID from .env"
-            className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
-          />
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-            Optional: Leave empty to use GOOGLE_CALENDAR_ID from .env.local
-          </p>
-        </div>
-
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium mb-2">
-              From Date
-            </label>
+            <label className="block text-sm font-medium mb-2">From Date</label>
             <input
               type="date"
               value={fromDate}
@@ -80,9 +66,7 @@ export default function CalendarImportForm() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-2">
-              To Date
-            </label>
+            <label className="block text-sm font-medium mb-2">To Date</label>
             <input
               type="date"
               value={toDate}
@@ -98,11 +82,10 @@ export default function CalendarImportForm() {
           disabled={importing}
           className="w-full px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-semibold rounded-lg transition-colors"
         >
-          {importing ? "Importing..." : "Import Calendar Events"}
+          {importing ? "Syncing..." : "Sync Calendar"}
         </button>
       </form>
 
-      {/* Import Results */}
       {result && (
         <div
           className={`mt-6 p-4 rounded-lg ${
@@ -127,7 +110,7 @@ export default function CalendarImportForm() {
                   <p className="font-semibold">Processed to Silver:</p>
                   {result.processing.processed.map((p: any, i: number) => (
                     <div key={i} className="text-sm">
-                      <p className="font-semibold">• {p.table}: {p.success ? '✓' : '✗'}</p>
+                      <p className="font-semibold">• {p.table}: {p.success ? "✓" : "✗"}</p>
                       {p.eventsProcessed !== undefined && (
                         <div className="pl-4 space-y-0.5 text-sm">
                           <p>Calendar events: {p.eventsProcessed}</p>
@@ -145,9 +128,6 @@ export default function CalendarImportForm() {
           )}
         </div>
       )}
-
-      {/* Quick Sync */}
-      <CalendarSyncButton />
     </div>
   );
 }
