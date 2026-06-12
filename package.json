@@ -14,7 +14,8 @@
     "db:push": "dotenv -e .env.prod -- supabase db push",
     "env:sync": "./scripts/sync-to-vercel.sh",
     "templates:render": "tsx scripts/render-email-templates.ts",
-    "templates:sync": "tsx scripts/sync-email-templates.ts .env.prod"
+    "templates:sync": "tsx scripts/sync-email-templates.ts .env.prod",
+    "quarantine:remove": "xattr -r -d com.apple.quarantine node_modules"
   },
   "dependencies": {
     "@slack/web-api": "^7.15.0",
