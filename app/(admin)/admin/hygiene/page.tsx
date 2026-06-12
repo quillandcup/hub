@@ -23,6 +23,8 @@ export default async function DataHygienePage() {
     { data: oldUnmatchedEvents },
     { data: lastSync },
     { data: lastProcessing },
+    { count: missingStripeCount },
+    { count: missingAccountCount },
   ] = await Promise.all([
     supabase.schema('bronze').from("calendar_events").select("*", { count: "exact", head: true }),
     supabase.from("prickles").select("*", { count: "exact", head: true }).eq("source", "calendar"),
@@ -69,6 +71,14 @@ export default async function DataHygienePage() {
       .order("created_at", { ascending: false })
       .limit(1)
       .single(),
+    // Active members missing Stripe customer ID
+    supabase.from("members").select("*", { count: "exact", head: true })
+      .eq("status", "active")
+      .is("stripe_customer_id", null),
+    // Active members with no portal account
+    supabase.from("members").select("*", { count: "exact", head: true })
+      .eq("status", "active")
+      .is("user_id", null),
   ]);
 
   const calendarMatchRate = totalCalendarEvents && matchedCalendarEvents
@@ -234,7 +244,7 @@ export default async function DataHygienePage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           {/* Calendar Events */}
           <Link
-            href="/hygiene/unmatched-events"
+            href="/admin/hygiene/unmatched-events"
             className="block p-6 bg-white dark:bg-slate-900 rounded-lg shadow hover:shadow-lg transition-shadow border border-slate-200 dark:border-slate-800"
           >
             <div className="flex items-center justify-between mb-2">
@@ -282,7 +292,7 @@ export default async function DataHygienePage() {
 
           {/* Zoom Attendees */}
           <Link
-            href="/hygiene/unmatched-zoom"
+            href="/admin/hygiene/unmatched-zoom"
             className="block p-6 bg-white dark:bg-slate-900 rounded-lg shadow hover:shadow-lg transition-shadow border border-slate-200 dark:border-slate-800"
           >
             <div className="flex items-center justify-between mb-2">
@@ -306,9 +316,33 @@ export default async function DataHygienePage() {
             )}
           </Link>
 
+          {/* Missing Member Data */}
+          <Link
+            href="/admin/hygiene/missing-member-data"
+            className="block p-6 bg-white dark:bg-slate-900 rounded-lg shadow hover:shadow-lg transition-shadow border border-slate-200 dark:border-slate-800"
+          >
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-sm font-medium text-slate-600 dark:text-slate-400">
+                Member Data
+              </h3>
+              <span className="text-2xl">🔗</span>
+            </div>
+            <p className="text-3xl font-bold text-slate-900 dark:text-slate-100 mb-1">
+              {(missingStripeCount ?? 0) + (missingAccountCount ?? 0)}
+            </p>
+            <p className="text-sm text-slate-600 dark:text-slate-400">
+              missing fields across active members
+            </p>
+            {(missingStripeCount ?? 0) > 0 && (
+              <p className="text-xs text-orange-600 dark:text-orange-400 mt-2">
+                {missingStripeCount} missing Stripe ID →
+              </p>
+            )}
+          </Link>
+
           {/* Name Aliases */}
           <Link
-            href="/data/aliases"
+            href="/admin/data/aliases"
             className="block p-6 bg-white dark:bg-slate-900 rounded-lg shadow hover:shadow-lg transition-shadow border border-slate-200 dark:border-slate-800"
           >
             <div className="flex items-center justify-between mb-2">
