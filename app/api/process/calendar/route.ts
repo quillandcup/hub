@@ -288,7 +288,8 @@ export async function POST(request: NextRequest) {
         const { error: deleteError } = await supabase
           .from("unmatched_calendar_events")
           .delete()
-          .in("calendar_event_id", batch);
+          .in("calendar_event_id", batch)
+          .eq("status", "pending");
 
         if (deleteError) {
           console.error("Error deleting unmatched events batch:", deleteError);
