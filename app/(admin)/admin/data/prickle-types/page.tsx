@@ -7,7 +7,7 @@ export default async function PrickleTypesPage() {
   // Fetch all prickle types
   const { data: prickleTypes } = await supabase
     .from("prickle_types")
-    .select("id, name, normalized_name")
+    .select("id, name, normalized_name, description")
     .order("name");
 
   return (
@@ -42,6 +42,9 @@ export default async function PrickleTypesPage() {
                   Normalized
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                  Description
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                   Actions
                 </th>
               </tr>
@@ -57,6 +60,11 @@ export default async function PrickleTypesPage() {
                   <td className="px-6 py-4">
                     <div className="text-sm text-slate-600 dark:text-slate-400 font-mono">
                       {type.normalized_name}
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 max-w-xs">
+                    <div className="text-sm text-slate-600 dark:text-slate-400 truncate" title={type.description ?? ""}>
+                      {type.description ?? <span className="text-slate-400 dark:text-slate-600 italic">—</span>}
                     </div>
                   </td>
                   <td className="px-6 py-4">
