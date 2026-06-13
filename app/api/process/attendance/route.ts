@@ -1,6 +1,7 @@
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { NextRequest, NextResponse } from "next/server";
 import { matchAttendeeToMember, type MatchResult } from "@/lib/member-matching";
+import { filterTrivialPups } from "@/lib/processing/attendance";
 
 // Extend timeout for processing large batches of attendance records
 export const maxDuration = 300; // 5 minutes
@@ -344,7 +345,7 @@ export async function POST(request: NextRequest) {
     // STEP 3: Prepare PUP data (assign client-side temp IDs instead of creating them now)
     // We'll create them atomically with attendance later
     const prickleIdsBySegment = new Map<any, string>();
-    const pupsToCreate: any[] = [];
+    let pupsToCreate: any[] = [];
     let clientPupIdCounter = 0;
 
     for (const segments of segmentsByMeeting.values()) {
@@ -383,7 +384,7 @@ export async function POST(request: NextRequest) {
     }
 
     // STEP 4: Assign attendees to segments and collect attendance records
-    const attendanceToUpsert: any[] = [];
+    let attendanceToUpsert: any[] = [];
     const ambiguousMatches: Array<{ name: string; email: string | null; candidateIds: string[] }> = [];
     let segmentLookupFailures = 0;
 
@@ -512,6 +513,17 @@ export async function POST(request: NextRequest) {
     }
 
     console.log(`Segment lookup failures: ${segmentLookupFailures}`);
+
+    // STEP 4b: Drop trivial PUPs — <5 min duration with only 1 unique attendee.
+    // A solo person joining a Zoom for under 5 minutes is not a real prickle.
+    const { filteredPups, filteredAttendance, removedCount } = filterTrivialPups(pupsToCreate, attendanceToUpsert);
+    pupsToCreate = filteredPups;
+    attendanceToUpsert = filteredAttendance;
+    createdNewPrickles -= removedCount;
+    if (removedCount > 0) {
+      console.log(`Dropped ${removedCount} trivial PUPs (<5 min, 1 attendee)`);
+    }
+
     console.log(`Collected ${attendanceToUpsert.length} attendance records and ${pupsToCreate.length} PUPs to insert atomically`);
 
     // STEP 5: Atomically reprocess attendance and PUPs using database function
