@@ -11,7 +11,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { fromDate, toDate } = body;
+    const { fromDate, toDate, skipProcessing = false } = body;
 
     if (!fromDate || !toDate) {
       return NextResponse.json(
@@ -104,13 +104,22 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    if (skipProcessing) {
+      return NextResponse.json({
+        success: true,
+        meetings: totalMeetings,
+        totalAttendees,
+        data: processedMeetings,
+        reprocessing: "skipped",
+      });
+    }
+
     // Trigger downstream Silver layer processing
     const from = new Date(fromDate);
     const to = new Date(toDate);
 
     console.log(`Triggering reprocessing for zoom_attendees and zoom_meetings (${fromDate} to ${toDate})`);
 
-    // Trigger for both bronze tables that changed
     const attendeesResult = await triggerReprocessing('zoom_attendees', 'bronze', {
       dateRange: { from, to }
     });
