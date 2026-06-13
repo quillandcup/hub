@@ -4,10 +4,6 @@ import { requireAdmin } from '@/lib/supabase/api-auth';
 
 export const maxDuration = 300; // 5 minutes for Slack API calls
 
-interface SlackApiImportRequest {
-  daysBack: number;
-}
-
 export async function POST(request: NextRequest) {
   const auth = await requireAdmin(request);
   if (!auth.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -24,16 +20,25 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const body: SlackApiImportRequest = await request.json();
-    const daysBack = body.daysBack || 7;
+    const body = await request.json();
+    let { fromDate, toDate } = body;
 
-    console.log(`Fetching ${daysBack} days of Slack data from API`);
+    // Default to last 30 days
+    if (!fromDate || !toDate) {
+      const now = new Date();
+      toDate = now.toISOString().split('T')[0];
+      const thirtyDaysAgo = new Date(now);
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      fromDate = thirtyDaysAgo.toISOString().split('T')[0];
+    }
+
+    console.log(`Fetching Slack data from ${fromDate} to ${toDate}`);
 
     const slack = new WebClient(SLACK_BOT_TOKEN);
 
-    // Calculate date range
-    const oldest = Math.floor(Date.now() / 1000) - (daysBack * 24 * 60 * 60);
-    const latest = Math.floor(Date.now() / 1000);
+    // Calculate Unix timestamps for Slack API
+    const oldest = Math.floor(new Date(fromDate).getTime() / 1000);
+    const latest = Math.floor(new Date(toDate + 'T23:59:59Z').getTime() / 1000);
 
     console.log(`Date range: ${new Date(oldest * 1000).toISOString()} to ${new Date(latest * 1000).toISOString()}`);
 
@@ -164,7 +169,8 @@ export async function POST(request: NextRequest) {
         messages: allMessages.length,
         reactions: allReactions.length,
       },
-      daysBack,
+      fromDate,
+      toDate,
       imported: {
         users: users.length,
         channels: channels.length,
