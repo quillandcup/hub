@@ -40,6 +40,7 @@ export default function UnmatchedEventsTable({
   const [mode, setMode] = useState<"existing" | "new">("existing");
   const [selectedTypeId, setSelectedTypeId] = useState(prickleTypes[0]?.id || "");
   const [newTypeName, setNewTypeName] = useState("");
+  const [newTypeDescription, setNewTypeDescription] = useState("");
   const [host, setHost] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -72,6 +73,7 @@ export default function UnmatchedEventsTable({
     setMode("existing");
     setSelectedTypeId(prickleTypes[0]?.id || "");
     setNewTypeName(group.suggestedType || "");
+    setNewTypeDescription("");
     setHost(group.suggestedHost || "");
     setHostSearchTerm(group.suggestedHost || "");
     setError(null);
@@ -113,6 +115,7 @@ export default function UnmatchedEventsTable({
           mode,
           typeId: mode === "existing" ? selectedTypeId : null,
           newTypeName: mode === "new" ? newTypeName : null,
+          newTypeDescription: mode === "new" ? newTypeDescription : null,
           host,
         }),
       });
@@ -305,14 +308,23 @@ export default function UnmatchedEventsTable({
                       ))}
                     </select>
                   ) : (
-                    <input
-                      type="text"
-                      value={newTypeName}
-                      onChange={(e) => setNewTypeName(e.target.value)}
-                      placeholder="e.g., Pitch Prickle, Workshop Prickle"
-                      className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
-                      required
-                    />
+                    <div className="space-y-3">
+                      <input
+                        type="text"
+                        value={newTypeName}
+                        onChange={(e) => setNewTypeName(e.target.value)}
+                        placeholder="e.g., Pitch Prickle, Workshop Prickle"
+                        className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+                        required
+                      />
+                      <textarea
+                        value={newTypeDescription}
+                        onChange={(e) => setNewTypeDescription(e.target.value)}
+                        placeholder="Description (optional)"
+                        rows={2}
+                        className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 resize-none"
+                      />
+                    </div>
                   )}
                 </div>
 

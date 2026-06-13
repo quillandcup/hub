@@ -21,6 +21,7 @@ export async function POST(request: NextRequest) {
       mode,
       typeId,
       newTypeName,
+      newTypeDescription,
       host,
     } = body;
 
@@ -53,6 +54,7 @@ export async function POST(request: NextRequest) {
           .insert({
             name: newTypeName.trim(),
             normalized_name: normalized,
+            ...(newTypeDescription?.trim() ? { description: newTypeDescription.trim() } : {}),
           })
           .select("id")
           .single();
