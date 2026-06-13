@@ -6,14 +6,6 @@ import CalendarScrollContainer from "./CalendarScrollContainer";
 import AttendanceMonthGrid from "./AttendanceMonthGrid";
 import AttendanceListTable from "./AttendanceListTable";
 
-const TIMEZONES = [
-  { value: "America/New_York", label: "Eastern (ET)" },
-  { value: "America/Chicago", label: "Central (CT)" },
-  { value: "America/Denver", label: "Mountain (MT)" },
-  { value: "America/Los_Angeles", label: "Pacific (PT)" },
-  { value: "UTC", label: "UTC" },
-];
-
 interface Props {
   memberId: string;
   attendance: any[];
@@ -60,10 +52,9 @@ export default function MemberCalendarClient({
     }
   }, [defaultTimezone]);
 
-  const resolvedDefault =
+  const timezone =
     defaultTimezone === "browser" ? detectedTimezone || "America/New_York" : defaultTimezone;
 
-  const [timezone, setTimezone] = useState(resolvedDefault);
   const [view, setView] = useState<"month" | "week" | "list">(initialView);
   const [currentMonthDate, setCurrentMonthDate] = useState(() => new Date());
   const [currentWeekStart, setCurrentWeekStart] = useState(() => {
@@ -75,10 +66,6 @@ export default function MemberCalendarClient({
   });
   // null = default to most recent date with entries
   const [currentListDateKey, setCurrentListDateKey] = useState<string | null>(null);
-
-  useEffect(() => {
-    setTimezone(resolvedDefault);
-  }, [resolvedDefault]);
 
   // Reset list position when timezone changes (dateKeys are timezone-dependent)
   useEffect(() => {
@@ -206,24 +193,6 @@ export default function MemberCalendarClient({
         <div className="flex items-center justify-between flex-wrap gap-3">
           <h1 className="text-2xl font-bold">My Attendance</h1>
           <div className="flex items-center gap-3 flex-wrap">
-            {/* Timezone selector */}
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                Timezone:
-              </span>
-              <select
-                value={timezone}
-                onChange={(e) => setTimezone(e.target.value)}
-                className="px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg text-sm text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                {TIMEZONES.map((tz) => (
-                  <option key={tz.value} value={tz.value}>
-                    {tz.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
             {/* View toggle */}
             <div className="flex bg-slate-100 dark:bg-slate-800 rounded-lg p-1">
               {(["month", "week", "list"] as const).map((v) => (
@@ -241,39 +210,41 @@ export default function MemberCalendarClient({
               ))}
             </div>
 
-            {/* Navigation: Prev | label | Today | Next (all views) */}
-            <div className="flex items-center gap-1">
-              <button
-                onClick={handlePrev}
-                disabled={isPrevDisabled}
-                className={`px-3 py-2 rounded-lg transition-colors ${
-                  isPrevDisabled
-                    ? "bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-600 cursor-not-allowed"
-                    : "bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300"
-                }`}
-              >
-                ←
-              </button>
-              <span className="px-2 text-sm font-medium text-slate-700 dark:text-slate-300 min-w-[160px] text-center">
+            {/* Navigation: label | Prev | Today | Next (all views) */}
+            <div className="flex items-center gap-2">
+              <span className="px-1 text-sm font-medium text-slate-700 dark:text-slate-300">
                 {navLabel}
               </span>
-              <button
-                onClick={handleToday}
-                className="px-3 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg text-slate-700 dark:text-slate-300 transition-colors text-sm"
-              >
-                Today
-              </button>
-              <button
-                onClick={handleNext}
-                disabled={isNextDisabled}
-                className={`px-3 py-2 rounded-lg transition-colors ${
-                  isNextDisabled
-                    ? "bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-600 cursor-not-allowed"
-                    : "bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300"
-                }`}
-              >
-                →
-              </button>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={handlePrev}
+                  disabled={isPrevDisabled}
+                  className={`px-3 py-2 rounded-lg transition-colors ${
+                    isPrevDisabled
+                      ? "bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-600 cursor-not-allowed"
+                      : "bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300"
+                  }`}
+                >
+                  ←
+                </button>
+                <button
+                  onClick={handleToday}
+                  className="px-3 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg text-slate-700 dark:text-slate-300 transition-colors text-sm"
+                >
+                  Today
+                </button>
+                <button
+                  onClick={handleNext}
+                  disabled={isNextDisabled}
+                  className={`px-3 py-2 rounded-lg transition-colors ${
+                    isNextDisabled
+                      ? "bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-600 cursor-not-allowed"
+                      : "bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300"
+                  }`}
+                >
+                  →
+                </button>
+              </div>
             </div>
           </div>
         </div>
