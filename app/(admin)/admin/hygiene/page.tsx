@@ -135,11 +135,26 @@ export default async function DataHygienePage() {
     supabase.from("member_name_aliases").select("alias, member_id, source"),
   ]);
 
-  // Get all zoom_attendees with name/email for matching
-  const { data: allAttendeesForMatching } = await supabase
-    .schema('bronze').from("zoom_attendees")
-    .select("meeting_uuid, name, email, join_time, leave_time")
-    .not("meeting_uuid", "is", null);
+  // Get all zoom_attendees with name/email for matching (paginated — table exceeds 1000 rows)
+  const allAttendeesForMatching: { meeting_uuid: string; name: string; email: string | null; join_time: string; leave_time: string }[] = [];
+  {
+    const BATCH = 1000;
+    let offset = 0, hasMore = true;
+    while (hasMore) {
+      const { data: batch } = await supabase
+        .schema('bronze').from("zoom_attendees")
+        .select("meeting_uuid, name, email, join_time, leave_time")
+        .not("meeting_uuid", "is", null)
+        .range(offset, offset + BATCH - 1);
+      if (batch && batch.length > 0) {
+        allAttendeesForMatching.push(...batch);
+        offset += batch.length;
+        hasMore = batch.length === BATCH;
+      } else {
+        hasMore = false;
+      }
+    }
+  }
 
   // Group by meeting_uuid, but ONLY use MATCHED attendees to calculate time windows
   // This matches what the processing does (see route.ts line 358)
@@ -198,15 +213,10 @@ export default async function DataHygienePage() {
 
   const orphanedMeetings = orphanedMeetingUuids.length;
 
-  // Count zoom_attendees in processed meetings
-  const { data: allZoomAttendeesForCount } = await supabase
-    .schema('bronze').from("zoom_attendees")
-    .select("meeting_uuid")
-    .not("meeting_uuid", "is", null);
-
-  const matchedZoomAttendees = allZoomAttendeesForCount?.filter(
+  // Count zoom_attendees in processed meetings — reuse allAttendeesForMatching (already paginated)
+  const matchedZoomAttendees = allAttendeesForMatching.filter(
     za => processedMeetingUuidsSet.has(za.meeting_uuid)
-  ).length || 0;
+  ).length;
 
   const unmatchedZoomAttendees = (totalZoomAttendees || 0) - matchedZoomAttendees;
 

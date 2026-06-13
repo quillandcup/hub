@@ -5,28 +5,36 @@ import { matchAttendeeToMember } from "@/lib/member-matching";
 export default async function AliasSearchPage() {
   const supabase = await createClient();
 
-  //Get all members, aliases, ignored names, and zoom names in parallel
+  // Get members, aliases, ignored names in parallel; paginate zoom_attendees separately
   const [
     { data: allMembers },
     { data: aliases },
     { data: ignoredNames },
-    { data: allZoomNames },
   ] = await Promise.all([
-    supabase
-      .from("members")
-      .select("id, name, email")
-      .order("name"),
-    supabase
-      .from("member_name_aliases")
-      .select("alias, member_id, source"),
-    supabase
-      .from("ignored_zoom_names")
-      .select("zoom_name"),
-    supabase
-      .schema('bronze').from("zoom_attendees")
-      .select("name, email, meeting_uuid")
-      .order("name"),
+    supabase.from("members").select("id, name, email").order("name"),
+    supabase.from("member_name_aliases").select("alias, member_id, source"),
+    supabase.from("ignored_zoom_names").select("zoom_name"),
   ]);
+
+  // Paginate zoom_attendees — table exceeds 1000 rows
+  const allZoomNames: { name: string; email: string | null; meeting_uuid: string }[] = [];
+  {
+    const BATCH = 1000;
+    let offset = 0, hasMore = true;
+    while (hasMore) {
+      const { data: batch } = await supabase
+        .schema('bronze').from("zoom_attendees")
+        .select("name, email, meeting_uuid")
+        .range(offset, offset + BATCH - 1);
+      if (batch && batch.length > 0) {
+        allZoomNames.push(...batch);
+        offset += batch.length;
+        hasMore = batch.length === BATCH;
+      } else {
+        hasMore = false;
+      }
+    }
+  }
 
   const ignoredSet = new Set(ignoredNames?.map(i => i.zoom_name) || []);
 
