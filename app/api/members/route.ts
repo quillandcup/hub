@@ -15,6 +15,8 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const email = searchParams.get("email");
 
+    const search = searchParams.get("search");
+
     let query = supabase
       .from("members")
       .select("id, name, email")
@@ -22,6 +24,8 @@ export async function GET(request: NextRequest) {
 
     if (email) {
       query = query.ilike("email", email);
+    } else if (search) {
+      query = query.or(`name.ilike.%${search}%,email.ilike.%${search}%`);
     }
 
     const { data: members, error } = await query;

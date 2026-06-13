@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import MemberDetails from "./MemberDetails";
+import MergeButton from "./MergeButton";
 import { getUserTimezonePreference } from "@/lib/timezone";
 import { startSudo } from "@/app/actions/sudo";
 
@@ -131,6 +132,7 @@ export default async function MemberDetailPage({
                   Sudo As
                 </button>
               </form>
+              <MergeButton member={{ id: member.id, name: member.name, email: member.email }} />
             </div>
             <div className="mt-1 flex flex-col gap-1">
               <p className="text-sm text-slate-600 dark:text-slate-400">
