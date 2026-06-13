@@ -12,6 +12,12 @@ interface Props {
   memberBasePath?: string;
 }
 
+function shortName(name: string): string {
+  const match = name.match(/"([^"]+)"/);
+  if (match) return match[1];
+  return name.split(" ")[0];
+}
+
 function dateKey(date: Date, timezone: string): string {
   return date.toLocaleDateString("en-US", {
     timeZone: timezone,
@@ -104,15 +110,20 @@ export default function AttendanceMonthGrid({
                     </div>
                     {att.length > 0 && (
                       <div className="mt-1 space-y-1">
-                        {att.slice(0, 3).map((record) => (
-                          <div
-                            key={record.id}
-                            className="text-xs px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded truncate"
-                            title={record.prickles?.prickle_types?.name}
-                          >
-                            {record.prickles?.prickle_types?.name}
-                          </div>
-                        ))}
+                        {att.slice(0, 3).map((record) => {
+                          const typeName = record.prickles?.prickle_types?.name;
+                          const hostName = record.prickles?.host?.name;
+                          const label = hostName ? `${typeName} w/ ${shortName(hostName)}` : typeName;
+                          return (
+                            <div
+                              key={record.id}
+                              className="text-xs px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded truncate"
+                              title={label}
+                            >
+                              {label}
+                            </div>
+                          );
+                        })}
                         {att.length > 3 && (
                           <div className="text-xs text-slate-500 dark:text-slate-400 px-1.5">
                             +{att.length - 3} more
