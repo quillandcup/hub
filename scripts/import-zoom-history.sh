@@ -5,13 +5,16 @@
 # Phase 2 (--process): runs Silver processing in quarterly chunks after Bronze is loaded
 #
 # Usage:
-#   ./scripts/import-zoom-history.sh --url https://your-app.vercel.app
-#   ./scripts/import-zoom-history.sh --url https://your-app.vercel.app --process
-#   ./scripts/import-zoom-history.sh --url https://your-app.vercel.app --from 2023-06  # resume from month
+#   ./scripts/import-zoom-history.sh                          # local (.env.local)
+#   ./scripts/import-zoom-history.sh --env prod               # prod (.env.prod + prod URL)
+#   ./scripts/import-zoom-history.sh --env prod --process     # Silver processing against prod
+#   ./scripts/import-zoom-history.sh --env prod --from 2023-06  # resume from month
+#   ./scripts/import-zoom-history.sh --url https://custom-url --env prod  # override URL
 
 set -uo pipefail
 
-BASE_URL="http://localhost:3000"
+ENV="local"
+BASE_URL=""
 MODE="import"
 RESUME_FROM=""
 START_YEAR=2021
@@ -21,20 +24,31 @@ END_MONTH=6
 
 while [[ $# -gt 0 ]]; do
   case $1 in
-    --url)      BASE_URL="$2"; shift 2 ;;
+    --env)      ENV="$2"; shift 2 ;;
+    --url)      BASE_URL="${2%/}"; shift 2 ;;
     --process)  MODE="process"; shift ;;
     --from)     RESUME_FROM="$2"; shift 2 ;;
     *) echo "Unknown argument: $1"; exit 1 ;;
   esac
 done
 
-# Load service role key from .env.local
-if [[ -f .env.local ]]; then
-  SERVICE_ROLE_KEY=$(grep '^SUPABASE_SERVICE_ROLE_KEY=' .env.local | head -1 | cut -d= -f2- | tr -d '"'"'" )
+# Set defaults based on --env
+if [[ "$ENV" == "prod" ]]; then
+  ENV_FILE=".env.prod"
+  : "${BASE_URL:=https://hub.quillandcup.com}"
+else
+  ENV_FILE=".env.local"
+  : "${BASE_URL:=http://localhost:3000}"
+fi
+BASE_URL="${BASE_URL%/}"
+
+# Load service role key from env file
+if [[ -f "$ENV_FILE" ]]; then
+  SERVICE_ROLE_KEY=$(grep '^SUPABASE_SERVICE_ROLE_KEY=' "$ENV_FILE" | head -1 | cut -d= -f2- | tr -d '"'"'" )
 fi
 
 if [[ -z "${SERVICE_ROLE_KEY:-}" ]]; then
-  echo "Error: SUPABASE_SERVICE_ROLE_KEY not found in .env.local"
+  echo "Error: SUPABASE_SERVICE_ROLE_KEY not found in $ENV_FILE"
   exit 1
 fi
 
@@ -75,15 +89,14 @@ run_import() {
 
     printf "[%3d] %s → %s ... " $batch "$from_date" "$to_date"
 
-    local response http_code body
-    response=$(curl -s -w "\n%{http_code}" -X POST "$BASE_URL/api/import/zoom" \
+    local tmp http_code body
+    tmp=$(mktemp)
+    http_code=$(curl -s -o "$tmp" -w "%{http_code}" -X POST "$BASE_URL/api/import/zoom" \
       -H "Content-Type: application/json" \
       -H "Authorization: Bearer $SERVICE_ROLE_KEY" \
       -d "{\"fromDate\":\"$from_date\",\"toDate\":\"$to_date\",\"skipProcessing\":true}" \
-      --max-time 310 2>&1)
-
-    http_code=$(printf '%s' "$response" | tail -1)
-    body=$(printf '%s' "$response" | head -n -1)
+      --max-time 310)
+    body=$(cat "$tmp"); rm "$tmp"
 
     if [[ "$http_code" == "200" ]]; then
       local meetings attendees
@@ -149,15 +162,14 @@ run_processing() {
 
     for route in "calendar" "attendance"; do
       printf "     %-12s ... " "$route"
-      local response http_code body
-      response=$(curl -s -w "\n%{http_code}" -X POST "$BASE_URL/api/process/$route" \
+      local tmp http_code body
+      tmp=$(mktemp)
+      http_code=$(curl -s -o "$tmp" -w "%{http_code}" -X POST "$BASE_URL/api/process/$route" \
         -H "Content-Type: application/json" \
         -H "Authorization: Bearer $SERVICE_ROLE_KEY" \
         -d "{\"fromDate\":\"$from_date\",\"toDate\":\"$to_date\"}" \
-        --max-time 310 2>&1)
-
-      http_code=$(printf '%s' "$response" | tail -1)
-      body=$(printf '%s' "$response" | head -n -1)
+        --max-time 310)
+      body=$(cat "$tmp"); rm "$tmp"
 
       if [[ "$http_code" == "200" ]]; then
         echo "✓"
