@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
     // Get latest import timestamp for each Bronze table
     const { data: latestKajabiImport } = await supabase
       .schema("bronze")
-      .from("kajabi_members")
+      .from("kajabi_purchases")
       .select("imported_at")
       .order("imported_at", { ascending: false })
       .limit(1)
