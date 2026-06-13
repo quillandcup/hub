@@ -3,13 +3,7 @@
 import { useState } from "react";
 
 export default function SlackApiImportForm() {
-  const today = new Date().toISOString().split("T")[0];
-  const thirtyDaysAgo = new Date();
-  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-  const defaultFromDate = thirtyDaysAgo.toISOString().split("T")[0];
-
-  const [fromDate, setFromDate] = useState(defaultFromDate);
-  const [toDate, setToDate] = useState(today);
+  const [daysBack, setDaysBack] = useState<number>(30);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
@@ -27,7 +21,7 @@ export default function SlackApiImportForm() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ fromDate, toDate }),
+        body: JSON.stringify({ daysBack }),
       });
 
       const data = await response.json();
@@ -47,34 +41,19 @@ export default function SlackApiImportForm() {
   return (
     <div>
       <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label htmlFor="fromDate" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-              From Date
-            </label>
-            <input
-              id="fromDate"
-              type="date"
-              value={fromDate}
-              onChange={(e) => setFromDate(e.target.value)}
-              required
-              className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
-            />
-          </div>
-
-          <div>
-            <label htmlFor="toDate" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-              To Date
-            </label>
-            <input
-              id="toDate"
-              type="date"
-              value={toDate}
-              onChange={(e) => setToDate(e.target.value)}
-              required
-              className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
-            />
-          </div>
+        <div>
+          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+            Date Range
+          </label>
+          <select
+            value={daysBack}
+            onChange={(e) => setDaysBack(parseInt(e.target.value))}
+            className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+          >
+            <option value={7}>Last 7 days</option>
+            <option value={30}>Last 30 days</option>
+            <option value={90}>Last 90 days</option>
+          </select>
         </div>
 
         <button
