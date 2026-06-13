@@ -4,6 +4,8 @@ import { useState, useRef, useEffect } from 'react'
 import Link from 'next/link'
 import SignOutButton from './SignOutButton'
 import SudoModal from './SudoModal'
+import FeaturePreviewsModal from './FeaturePreviewsModal'
+import type { FeatureKey } from '@/lib/features'
 
 interface Member {
   id: string
@@ -16,6 +18,7 @@ interface UserMenuProps {
   isAdmin?: boolean
   isSudo?: boolean
   members?: Member[]
+  enabledFeatures?: FeatureKey[]
 }
 
 export default function UserMenu({
@@ -23,9 +26,11 @@ export default function UserMenu({
   isAdmin = false,
   isSudo = false,
   members = [],
+  enabledFeatures = [],
 }: UserMenuProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [isSudoModalOpen, setIsSudoModalOpen] = useState(false)
+  const [isFeaturePreviewsOpen, setIsFeaturePreviewsOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -76,6 +81,16 @@ export default function UserMenu({
               Profile
             </Link>
 
+            {isAdmin && (
+              <button
+                type="button"
+                onClick={() => { setIsOpen(false); setIsFeaturePreviewsOpen(true) }}
+                className="w-full text-left px-4 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+              >
+                Feature Previews
+              </button>
+            )}
+
             {isAdmin && !isSudo && (
               <button
                 type="button"
@@ -96,6 +111,14 @@ export default function UserMenu({
           isOpen={isSudoModalOpen}
           onClose={() => setIsSudoModalOpen(false)}
           members={members}
+        />
+      )}
+
+      {isAdmin && (
+        <FeaturePreviewsModal
+          isOpen={isFeaturePreviewsOpen}
+          onClose={() => setIsFeaturePreviewsOpen(false)}
+          enabledFeatures={enabledFeatures}
         />
       )}
     </>

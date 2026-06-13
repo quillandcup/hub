@@ -3,13 +3,15 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import type { FeatureKey } from "@/lib/features";
 
 interface MemberNavigationProps {
-  isAdmin: boolean
-  memberId: string
+  isAdmin: boolean;
+  memberId: string;
+  enabledFeatures: FeatureKey[];
 }
 
-export default function MemberNavigation({ isAdmin, memberId }: MemberNavigationProps) {
+export default function MemberNavigation({ isAdmin, memberId, enabledFeatures }: MemberNavigationProps) {
   const [collapsed, setCollapsed] = useState(true);
   const pathname = usePathname();
 
@@ -24,6 +26,8 @@ export default function MemberNavigation({ isAdmin, memberId }: MemberNavigation
   const isCalendarActive = pathname === '/calendar';
   const isStreaksActive = pathname === '/streaks';
   const isProfileActive = pathname === `/members/${memberId}` || pathname.startsWith(`/members/${memberId}/`);
+
+  const showStreaks = enabledFeatures.includes('streaks');
 
   return (
     <aside
@@ -62,18 +66,20 @@ export default function MemberNavigation({ isAdmin, memberId }: MemberNavigation
           {!collapsed && <span>My Calendar</span>}
         </Link>
 
-        <Link
-          href="/streaks"
-          className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
-            isStreaksActive
-              ? "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 font-medium"
-              : "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
-          }`}
-          title={collapsed ? "Streaks" : undefined}
-        >
-          <span className="text-lg">🔥</span>
-          {!collapsed && <span>Streaks</span>}
-        </Link>
+        {showStreaks && (
+          <Link
+            href="/streaks"
+            className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
+              isStreaksActive
+                ? "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 font-medium"
+                : "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+            }`}
+            title={collapsed ? "Streaks" : undefined}
+          >
+            <span className="text-lg">🔥</span>
+            {!collapsed && <span>Streaks</span>}
+          </Link>
+        )}
 
         <Link
           href={`/members/${memberId}`}

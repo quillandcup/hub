@@ -1,5 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
+import { getUserFeaturePreviews } from "@/lib/features.server";
+import type { FeatureKey } from "@/lib/features";
 import AdminNavigation from "./admin/AdminNavigation";
 import UserMenu from "@/components/UserMenu";
 
@@ -42,6 +44,8 @@ export default async function AdminLayout({
     );
   }
 
+  const enabledFeatures: FeatureKey[] = await getUserFeaturePreviews(user.id);
+
   let members: { id: string; name: string; email: string }[] = []
   let offset = 0
   const BATCH_SIZE = 1000
@@ -63,13 +67,14 @@ export default async function AdminLayout({
 
   return (
     <div className="flex h-screen overflow-hidden bg-slate-50 dark:bg-slate-950">
-      <AdminNavigation />
+      <AdminNavigation enabledFeatures={enabledFeatures} />
       <div className="flex flex-col flex-1 min-w-0">
         <header className="h-16 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex items-center justify-end px-6 flex-shrink-0 relative z-30">
           <UserMenu
             userEmail={user.email || "User"}
             isAdmin={true}
             members={members}
+            enabledFeatures={enabledFeatures}
           />
         </header>
         <main className="flex-1 overflow-auto">

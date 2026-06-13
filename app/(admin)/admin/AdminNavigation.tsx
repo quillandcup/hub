@@ -3,11 +3,13 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import type { FeatureKey } from "@/lib/features";
 
 interface NavItem {
   name: string;
   href: string;
   icon?: string;
+  feature?: FeatureKey;
 }
 
 interface NavSection {
@@ -27,7 +29,7 @@ const navigation: NavSection[] = [
     items: [
       { name: "All Members", href: "/admin/members", icon: "👥" },
       { name: "At-Risk Members", href: "/admin/at-risk", icon: "⚠️" },
-      { name: "Hiatus Tracking", href: "/admin/hiatus", icon: "⏸️" },
+      { name: "Hiatus Tracking", href: "/admin/hiatus", icon: "⏸️", feature: "hiatus_tracking" },
       { name: "Network", href: "/admin/members/network", icon: "🕸️" },
     ],
   },
@@ -53,13 +55,17 @@ const navigation: NavSection[] = [
       { name: "Import Data", href: "/admin/data/import", icon: "📥" },
       { name: "Prickle Types", href: "/admin/data/prickle-types", icon: "🏷️" },
       { name: "Name Aliases", href: "/admin/data/aliases", icon: "👤" },
-      { name: "Member Overrides", href: "/admin/member-overrides", icon: "🎁" },
+      { name: "Member Overrides", href: "/admin/member-overrides", icon: "🎁", feature: "member_overrides" },
       { name: "Reconciliation", href: "/admin/reconciliation", icon: "🔄" },
     ],
   },
 ];
 
-export default function AdminNavigation() {
+interface AdminNavigationProps {
+  enabledFeatures: FeatureKey[];
+}
+
+export default function AdminNavigation({ enabledFeatures }: AdminNavigationProps) {
   const [collapsed, setCollapsed] = useState(true);
   const pathname = usePathname();
 
@@ -107,39 +113,46 @@ export default function AdminNavigation() {
 
       {/* Navigation */}
       <nav className="p-4 overflow-y-auto flex-1">
-        {navigation.map((section) => (
-          <div key={section.name} className="mb-6">
-            {!collapsed && (
-              <h2 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2 px-3">
-                {section.name}
-              </h2>
-            )}
-            <ul className="space-y-1">
-              {section.items.map((item) => {
-                const isActive =
-                  pathname === item.href ||
-                  (item.href !== "/admin" && pathname?.startsWith(item.href));
-                return (
-                  <li key={item.href}>
-                    <Link
-                      href={item.href}
-                      className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
-                        isActive
-                          ? "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 font-medium"
-                          : "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
-                      }`}
-                      title={collapsed ? item.name : undefined}
-                    >
-                      {item.icon && <span className="text-lg">{item.icon}</span>}
-                      {!collapsed && <span>{item.name}</span>}
-                    </Link>
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-        ))}
+        {navigation.map((section) => {
+          const visibleItems = section.items.filter(
+            (item) => !item.feature || enabledFeatures.includes(item.feature)
+          );
+          if (visibleItems.length === 0) return null;
+          return (
+            <div key={section.name} className="mb-6">
+              {!collapsed && (
+                <h2 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2 px-3">
+                  {section.name}
+                </h2>
+              )}
+              <ul className="space-y-1">
+                {visibleItems.map((item) => {
+                  const isActive =
+                    pathname === item.href ||
+                    (item.href !== "/admin" && pathname?.startsWith(item.href));
+                  return (
+                    <li key={item.href}>
+                      <Link
+                        href={item.href}
+                        className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
+                          isActive
+                            ? "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 font-medium"
+                            : "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                        }`}
+                        title={collapsed ? item.name : undefined}
+                      >
+                        {item.icon && <span className="text-lg">{item.icon}</span>}
+                        {!collapsed && <span>{item.name}</span>}
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          );
+        })}
       </nav>
+
     </aside>
   );
 }

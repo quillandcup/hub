@@ -1,6 +1,8 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { getEffectiveIdentity } from '@/lib/sudo'
+import { getUserFeaturePreviews } from '@/lib/features.server'
+import type { FeatureKey } from '@/lib/features'
 import MemberNavigation from '@/components/MemberNavigation'
 import UserMenu from '@/components/UserMenu'
 import SudoBanner from '@/components/SudoBanner'
@@ -24,6 +26,10 @@ export default async function MemberLayout({
 
   const isAdmin = profile?.role === 'admin'
   const storedTimezone = profile?.timezone_preference ?? 'browser'
+
+  const enabledFeatures: FeatureKey[] = isAdmin
+    ? await getUserFeaturePreviews(user.id)
+    : []
 
   const effectiveIdentity = await getEffectiveIdentity(user)
 
@@ -53,7 +59,7 @@ export default async function MemberLayout({
 
   return (
     <div className="flex h-screen overflow-hidden bg-slate-50 dark:bg-slate-950">
-      <MemberNavigation isAdmin={isAdmin} memberId={effectiveIdentity.memberId} />
+      <MemberNavigation isAdmin={isAdmin} memberId={effectiveIdentity.memberId} enabledFeatures={enabledFeatures} />
       <div className="flex flex-col flex-1 min-w-0">
         {effectiveIdentity.isSudo && (
           <SudoBanner
@@ -67,6 +73,7 @@ export default async function MemberLayout({
             isAdmin={isAdmin}
             isSudo={effectiveIdentity.isSudo}
             members={members}
+            enabledFeatures={enabledFeatures}
           />
         </header>
         <main className="flex-1 overflow-auto">

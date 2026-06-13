@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import { getUserFeaturePreviews } from "@/lib/features.server";
 
 export default async function HiatusTrackingPage() {
   const supabase = await createClient();
@@ -12,6 +13,9 @@ export default async function HiatusTrackingPage() {
   if (!user) {
     redirect("/login");
   }
+
+  const enabledFeatures = await getUserFeaturePreviews(user.id);
+  if (!enabledFeatures.includes('hiatus_tracking')) redirect("/admin");
 
   // Fetch all members currently on hiatus with their hiatus history
   const { data: onHiatusMembers } = await supabase

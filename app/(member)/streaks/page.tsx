@@ -3,6 +3,7 @@ import { redirect } from "next/navigation"
 import Link from "next/link"
 import { getEffectiveIdentity } from "@/lib/sudo"
 import { getUserTimezonePreference } from "@/lib/timezone"
+import { getUserFeaturePreviews } from "@/lib/features.server"
 import {
   computeStreaks,
   computePrickleStreaks,
@@ -172,11 +173,13 @@ export default async function StreaksPage() {
   } = await supabase.auth.getUser()
   if (!user) redirect("/login")
 
-  const [effectiveIdentity, tzPref] = await Promise.all([
+  const [effectiveIdentity, tzPref, enabledFeatures] = await Promise.all([
     getEffectiveIdentity(user),
     getUserTimezonePreference(),
+    getUserFeaturePreviews(user.id),
   ])
   if (!effectiveIdentity) redirect("/admin")
+  if (!enabledFeatures.includes('streaks')) redirect("/calendar")
 
   const memberId = effectiveIdentity.memberId
   const timeZone = tzPref === "browser" ? ORG_TIMEZONE : tzPref
