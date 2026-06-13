@@ -39,7 +39,7 @@ export default function NewPrickleTypeForm() {
       }
 
       // Success - redirect back to prickle types page
-      router.push("/data/prickle-types");
+      router.push("/admin/data/prickle-types");
       router.refresh();
     } catch (err: any) {
       setError(err.message);
@@ -103,7 +103,7 @@ export default function NewPrickleTypeForm() {
           </button>
           <button
             type="button"
-            onClick={() => router.push("/data/prickle-types")}
+            onClick={() => router.push("/admin/data/prickle-types")}
             disabled={loading}
             className="px-6 py-2 bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 disabled:bg-slate-300 text-slate-700 dark:text-slate-300 rounded-lg font-medium transition-colors"
           >
