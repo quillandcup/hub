@@ -89,13 +89,47 @@ export async function POST(request: NextRequest) {
     }
     await Promise.all(aliasOps);
 
-    // Patch primary with any external IDs it was missing, and record the secondary's email as
-    // an alias so future imports still resolve. Also clean up derived records for the secondary.
+    // Update ambiguous_zoom_names.candidate_member_ids arrays — Supabase JS can't do
+    // in-place array element replacement, so we fetch affected rows and patch each one.
+    const { data: ambiguousWithSecondary } = await supabase
+      .from("ambiguous_zoom_names")
+      .select("id, candidate_member_ids")
+      .contains("candidate_member_ids", [secondaryId]);
+
+    if (ambiguousWithSecondary && ambiguousWithSecondary.length > 0) {
+      await Promise.all(
+        ambiguousWithSecondary.map((row) => {
+          const withoutSecondary = (row.candidate_member_ids as string[]).filter(
+            (id) => id !== secondaryId
+          );
+          const newIds = withoutSecondary.includes(primaryId)
+            ? withoutSecondary
+            : [...withoutSecondary, primaryId];
+          return run(
+            supabase
+              .from("ambiguous_zoom_names")
+              .update({ candidate_member_ids: newIds })
+              .eq("id", row.id)
+          );
+        })
+      );
+    }
+
+    // Patch primary with any external IDs it was missing, record secondary's email as an alias
+    // (and re-point any existing aliases that had secondary as their canonical), and clean up
+    // derived records that will be recomputed for the primary.
     const patchAndCleanup: Promise<unknown>[] = [
+      // Add secondary email as an alias pointing to primary
       run(supabase.from("member_email_aliases").upsert(
         { canonical_email: primary.email, alias_email: secondary.email, source: "manual" },
         { onConflict: "alias_email" }
       )),
+      // Re-point any existing aliases that had secondary as their canonical email
+      run(supabase
+        .from("member_email_aliases")
+        .update({ canonical_email: primary.email })
+        .eq("canonical_email", secondary.email)
+      ),
       run(supabase.from("member_metrics").delete().eq("member_id", secondaryId)),
       run(supabase.from("member_engagement").delete().eq("member_id", secondaryId)),
     ];
