@@ -45,28 +45,29 @@ export default function MemberFilters({ currentFilter }: { currentFilter: string
   }, []);
 
   return (
-    <div className="space-y-3">
-      <input
-        type="search"
-        value={search}
-        onChange={(e) => handleSearchChange(e.target.value)}
-        placeholder="Search by name or email..."
-        className="w-full max-w-sm px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
-      />
-      <div className="flex flex-wrap gap-2">
-        {filters.map((filter) => (
-          <button
-            key={filter.value}
-            onClick={() => handleFilterChange(filter.value)}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              currentFilter === filter.value
-                ? "bg-blue-600 text-white"
-                : "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700"
-            }`}
-          >
-            {filter.label}
-          </button>
-        ))}
+    <div className="flex flex-wrap items-center gap-2">
+      {filters.map((filter) => (
+        <button
+          key={filter.value}
+          onClick={() => handleFilterChange(filter.value)}
+          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+            currentFilter === filter.value
+              ? "bg-blue-600 text-white"
+              : "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700"
+          }`}
+        >
+          {filter.label}
+        </button>
+      ))}
+      <div className="ml-auto flex items-center gap-1.5 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 px-3 py-2 focus-within:ring-2 focus-within:ring-blue-500">
+        <span className="text-sm leading-none select-none">🔍</span>
+        <input
+          type="search"
+          value={search}
+          onChange={(e) => handleSearchChange(e.target.value)}
+          placeholder="Search by name or email..."
+          className="text-sm bg-transparent text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none w-56"
+        />
       </div>
     </div>
   );
