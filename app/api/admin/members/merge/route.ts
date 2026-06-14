@@ -21,12 +21,30 @@ export async function POST(request: NextRequest) {
   }
 
   const [{ data: primary }, { data: secondary }] = await Promise.all([
-    supabase.from("members").select("id, name, email").eq("id", primaryId).single(),
-    supabase.from("members").select("id, name, email").eq("id", secondaryId).single(),
+    supabase.from("members").select("id, name, email, kajabi_id, stripe_customer_id, user_id").eq("id", primaryId).single(),
+    supabase.from("members").select("id, name, email, kajabi_id, stripe_customer_id, user_id").eq("id", secondaryId).single(),
   ]);
 
   if (!primary) return NextResponse.json({ error: "Primary member not found" }, { status: 404 });
   if (!secondary) return NextResponse.json({ error: "Secondary member not found" }, { status: 404 });
+
+  // Track conflicts where both members have different non-null values.
+  // The primary always wins — we note discarded secondary values.
+  const conflicts: { field: string; kept: string; discarded: string }[] = [];
+
+  // Build a patch to fill in any external IDs the primary is missing from the secondary.
+  const primaryPatch: Record<string, string> = {};
+
+  for (const field of ["kajabi_id", "stripe_customer_id", "user_id"] as const) {
+    const primaryVal = primary[field];
+    const secondaryVal = secondary[field];
+
+    if (!primaryVal && secondaryVal) {
+      primaryPatch[field] = secondaryVal;
+    } else if (primaryVal && secondaryVal && primaryVal !== secondaryVal) {
+      conflicts.push({ field, kept: primaryVal, discarded: secondaryVal });
+    }
+  }
 
   try {
     // Transfer simple foreign keys in parallel
@@ -71,16 +89,20 @@ export async function POST(request: NextRequest) {
     }
     await Promise.all(aliasOps);
 
-    // Record secondary's email as an email alias so future imports still resolve correctly
-    await Promise.all([
+    // Patch primary with any external IDs it was missing, and record the secondary's email as
+    // an alias so future imports still resolve. Also clean up derived records for the secondary.
+    const patchAndCleanup: Promise<unknown>[] = [
       run(supabase.from("member_email_aliases").upsert(
         { canonical_email: primary.email, alias_email: secondary.email, source: "manual" },
         { onConflict: "alias_email" }
       )),
-      // Remove derived records for secondary (will be recomputed for primary)
       run(supabase.from("member_metrics").delete().eq("member_id", secondaryId)),
       run(supabase.from("member_engagement").delete().eq("member_id", secondaryId)),
-    ]);
+    ];
+    if (Object.keys(primaryPatch).length > 0) {
+      patchAndCleanup.push(run(supabase.from("members").update(primaryPatch).eq("id", primaryId)));
+    }
+    await Promise.all(patchAndCleanup);
 
     const { error: deleteError } = await supabase.from("members").delete().eq("id", secondaryId);
     if (deleteError) throw deleteError;
@@ -88,12 +110,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       message: `Merged "${secondary.name}" (${secondary.email}) into "${primary.name}" (${primary.email})`,
+      transferred: Object.keys(primaryPatch),
+      conflicts,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Failed to merge members";
     console.error("Error merging members:", error);
-    return NextResponse.json(
-      { error: error.message || "Failed to merge members" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

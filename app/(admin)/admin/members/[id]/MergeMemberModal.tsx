@@ -24,6 +24,7 @@ export default function MergeMemberModal({ primaryMember, isOpen, onClose }: Mer
   const [loading, setLoading] = useState(false);
   const [merging, setMerging] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [conflicts, setConflicts] = useState<{ field: string; kept: string; discarded: string }[]>([]);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -32,6 +33,7 @@ export default function MergeMemberModal({ primaryMember, isOpen, onClose }: Mer
       setResults([]);
       setSelectedSecondary(null);
       setError(null);
+      setConflicts([]);
     }
   }, [isOpen]);
 
@@ -68,10 +70,15 @@ export default function MergeMemberModal({ primaryMember, isOpen, onClose }: Mer
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Merge failed");
+      if (json.conflicts?.length) {
+        setConflicts(json.conflicts);
+        router.refresh();
+        return;
+      }
       onClose();
       router.refresh();
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Merge failed");
     } finally {
       setMerging(false);
     }
@@ -182,24 +189,51 @@ export default function MergeMemberModal({ primaryMember, isOpen, onClose }: Mer
           </div>
         )}
 
+        {conflicts.length > 0 && (
+          <div className="rounded-lg bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-700 p-3 text-xs space-y-1">
+            <p className="font-semibold text-orange-800 dark:text-orange-300">Merge complete — ID conflicts detected:</p>
+            <ul className="list-disc list-inside space-y-0.5 text-orange-700 dark:text-orange-400">
+              {conflicts.map((c) => (
+                <li key={c.field}>
+                  <strong>{c.field}</strong>: kept <code>{c.kept}</code>, discarded <code>{c.discarded}</code>
+                </li>
+              ))}
+            </ul>
+            <p className="text-orange-600 dark:text-orange-500 mt-1">
+              Both members had different external IDs. The primary&apos;s values were kept. Verify in Kajabi/Stripe if needed.
+            </p>
+          </div>
+        )}
+
         {error && (
           <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
         )}
 
         <div className="flex justify-end gap-3 pt-1">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 text-sm text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleMerge}
-            disabled={!selectedSecondary || merging}
-            className="px-4 py-2 text-sm font-medium bg-red-600 hover:bg-red-700 disabled:bg-red-300 dark:disabled:bg-red-900 text-white rounded-lg transition-colors"
-          >
-            {merging ? "Merging..." : "Merge & Delete Duplicate"}
-          </button>
+          {conflicts.length > 0 ? (
+            <button
+              onClick={onClose}
+              className="px-4 py-2 text-sm font-medium bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+            >
+              Done
+            </button>
+          ) : (
+            <>
+              <button
+                onClick={onClose}
+                className="px-4 py-2 text-sm text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleMerge}
+                disabled={!selectedSecondary || merging}
+                className="px-4 py-2 text-sm font-medium bg-red-600 hover:bg-red-700 disabled:bg-red-300 dark:disabled:bg-red-900 text-white rounded-lg transition-colors"
+              >
+                {merging ? "Merging..." : "Merge & Delete Duplicate"}
+              </button>
+            </>
+          )}
         </div>
       </div>
     </Modal>
