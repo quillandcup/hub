@@ -23,6 +23,7 @@ export default async function MembersPage({
 
   // Get filter from URL
   const filter = (params.filter as string) || "active";
+  const search = (params.search as string) || "";
 
   // Build query - apply filters that work on the members table directly
   let query = supabase
@@ -32,6 +33,10 @@ export default async function MembersPage({
       member_metrics(*),
       member_engagement(*)
     `);
+
+  if (search) {
+    query = query.or(`name.ilike.%${search}%,email.ilike.%${search}%`);
+  }
 
   // Apply status filters (these work on the members table directly)
   if (filter === "active") {
