@@ -3,6 +3,7 @@ import Link from "next/link";
 import ProcessOrphanedButton from "./ProcessOrphanedButton";
 import ProcessOrphanedMeetingsButton from "./ProcessOrphanedMeetingsButton";
 import { matchAttendeeToMember } from "@/lib/member-matching";
+import { detectDuplicates } from "@/lib/member-duplicates";
 
 export const dynamic = "force-dynamic";
 
@@ -24,6 +25,7 @@ export default async function DataHygienePage() {
     { data: lastSync },
     { data: lastProcessing },
     { count: missingStripeCount },
+    { data: membersForDuplicates },
   ] = await Promise.all([
     supabase.schema('bronze').from("calendar_events").select("*", { count: "exact", head: true }),
     supabase.from("prickles").select("*", { count: "exact", head: true }).eq("source", "calendar"),
@@ -74,7 +76,11 @@ export default async function DataHygienePage() {
     supabase.from("members").select("*", { count: "exact", head: true })
       .eq("status", "active")
       .is("stripe_customer_id", null),
+    // Members for duplicate detection (limit 1000; members table stays small)
+    supabase.from("members").select("id, name, email, status").order("name"),
   ]);
+
+  const duplicateCount = detectDuplicates(membersForDuplicates ?? []).length;
 
   const calendarMatchRate = totalCalendarEvents && matchedCalendarEvents
     ? Math.round((matchedCalendarEvents / totalCalendarEvents) * 100)
@@ -365,6 +371,35 @@ export default async function DataHygienePage() {
             <p className="text-xs text-blue-600 dark:text-blue-400 mt-2">
               View all aliases →
             </p>
+          </Link>
+
+          {/* Merge & Fix */}
+          <Link
+            href="/admin/hygiene/merge-fix"
+            className="block p-6 bg-white dark:bg-slate-900 rounded-lg shadow hover:shadow-lg transition-shadow border border-slate-200 dark:border-slate-800"
+          >
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-sm font-medium text-slate-600 dark:text-slate-400">
+                Merge & Fix
+              </h3>
+              <span className="text-2xl">🔀</span>
+            </div>
+            <p className="text-3xl font-bold text-slate-900 dark:text-slate-100 mb-1">
+              {duplicateCount}
+            </p>
+            <p className="text-sm text-slate-600 dark:text-slate-400">
+              potential duplicate{duplicateCount !== 1 ? "s" : ""} detected
+            </p>
+            {duplicateCount > 0 && (
+              <p className="text-xs text-orange-600 dark:text-orange-400 mt-2">
+                {duplicateCount} group{duplicateCount !== 1 ? "s" : ""} to review →
+              </p>
+            )}
+            {duplicateCount === 0 && (
+              <p className="text-xs text-green-600 dark:text-green-400 mt-2">
+                No duplicates found ✓
+              </p>
+            )}
           </Link>
         </div>
 
