@@ -38,6 +38,19 @@ All three flows call the same API endpoint: `POST /api/admin/members/merge`.
 
 When both members have **different non-null values** for `kajabi_id`, `stripe_customer_id`, or `user_id`, the primary's value is kept and the secondary's is discarded. The API returns a `conflicts` array describing each discarded value, and the merge modal surfaces this as an orange warning after the merge completes. In that case, verify in Kajabi or Stripe that the correct account is linked.
 
+## Durability Across Reimports
+
+The merge is **durable across Kajabi/Stripe/Slack reimports** — the secondary is not re-created.
+
+How it holds:
+
+- **Kajabi contact re-import**: `process/members` runs `resolveEmail()` before building the member list. The secondary's email resolves to the primary's canonical email via `member_email_aliases`, so both Kajabi contacts collapse to a single member row. When a collision occurs, `process/members` prefers the contact whose original email is the canonical one (i.e. the primary), so the primary's `name`, `kajabi_id`, and status are never overwritten by the secondary's stale Kajabi data.
+- **Stripe re-import**: `stripe_customers` has no FK to `members`; the link is `stripe_customer_id` on the member row, which was preserved (or transferred) during merge.
+- **Slack**: `bronze.slack_users` is matched by email at activity-processing time. The email alias causes Slack messages from the secondary's email to be attributed to the primary.
+- **Zoom**: Same — name/email matching uses `member_name_aliases` and `member_email_aliases`, both of which were updated during the merge.
+
+The one thing a reimport **cannot** recover is a discarded external ID conflict (e.g. two different `kajabi_id` values where the secondary's was dropped). That information is gone from the Silver layer once the secondary is deleted.
+
 ## Duplicate Detection (`detectDuplicates`)
 
 The Merge & Fix page uses `lib/member-duplicates.ts` to detect candidates:

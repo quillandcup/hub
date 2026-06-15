@@ -226,6 +226,7 @@ export async function POST(request: NextRequest) {
 
         kajabiMembers.push({
           email,
+          _originalEmail: contact.email.toLowerCase(),
           name,
           joined_at: contact.created_at_kajabi.split('T')[0],
           status,
@@ -271,6 +272,19 @@ export async function POST(request: NextRequest) {
         }
         // Mark as processed
         staffByEmail.delete(member.email);
+      }
+
+      const existing = membersByEmail.get(member.email);
+      if (existing) {
+        // Two Kajabi contacts resolved to the same canonical email (merged member).
+        // Prefer the contact whose original email IS the canonical email — that's the
+        // primary. The alias contact's data (name, kajabi_id, etc.) must not overwrite it.
+        const existingIsCanonical = existing._originalEmail === member.email;
+        const incomingIsCanonical = member._originalEmail === member.email;
+        if (existingIsCanonical && !incomingIsCanonical) {
+          // Keep existing primary; skip this alias contact
+          continue;
+        }
       }
 
       membersByEmail.set(member.email, member);
