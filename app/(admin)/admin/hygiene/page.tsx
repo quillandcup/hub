@@ -401,6 +401,28 @@ export default async function DataHygienePage() {
               </p>
             )}
           </Link>
+
+          {/* External Conflicts */}
+          <Link
+            href="/admin/hygiene/external-conflicts"
+            className="block p-6 bg-white dark:bg-slate-900 rounded-lg shadow hover:shadow-lg transition-shadow border border-slate-200 dark:border-slate-800"
+          >
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-sm font-medium text-slate-600 dark:text-slate-400">
+                External Conflicts
+              </h3>
+              <span className="text-2xl">⚡</span>
+            </div>
+            <p className="text-3xl font-bold text-slate-900 dark:text-slate-100 mb-1">
+              ?
+            </p>
+            <p className="text-sm text-slate-600 dark:text-slate-400">
+              duplicate accounts in Kajabi, Stripe, Slack
+            </p>
+            <p className="text-xs text-blue-600 dark:text-blue-400 mt-2">
+              Check for duplicates →
+            </p>
+          </Link>
         </div>
 
         {/* Data quality warnings */}

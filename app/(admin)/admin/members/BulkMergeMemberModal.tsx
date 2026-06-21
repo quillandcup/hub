@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Modal from "@/components/Modal";
+import type { MemberExternalStatus } from "@/app/api/admin/members/external-status/route";
 
 interface Member {
   id: string;
@@ -22,9 +23,22 @@ export default function BulkMergeMemberModal({ members, isOpen, onClose }: BulkM
   const [merging, setMerging] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [conflicts, setConflicts] = useState<{ field: string; kept: string; discarded: string }[]>([]);
+  const [externalStatus, setExternalStatus] = useState<Record<string, MemberExternalStatus> | null>(null);
+  const [externalLoading, setExternalLoading] = useState(false);
 
   const primary = members.find((m) => m.id === primaryId);
   const secondaries = members.filter((m) => m.id !== primaryId);
+
+  const secondaryIds = secondaries.map(s => s.id).join(",");
+  useEffect(() => {
+    if (!secondaryIds) { setExternalStatus(null); return; }
+    setExternalLoading(true);
+    fetch(`/api/admin/members/external-status?ids=${secondaryIds}`)
+      .then(r => r.json())
+      .then(data => setExternalStatus(data.members ?? {}))
+      .catch(() => setExternalStatus(null))
+      .finally(() => setExternalLoading(false));
+  }, [secondaryIds]);
 
   async function handleMerge() {
     if (!primary || secondaries.length === 0) return;
@@ -113,6 +127,21 @@ export default function BulkMergeMemberModal({ members, isOpen, onClose }: BulkM
           </div>
         )}
 
+        {externalLoading && (
+          <p className="text-xs text-slate-500 dark:text-slate-400">Checking external accounts...</p>
+        )}
+
+        {!externalLoading && externalStatus && secondaries.some(s => hasExternalAccounts(externalStatus[s.id])) && (
+          <div className="rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-700 p-3 text-xs space-y-3">
+            <p className="font-semibold text-red-800 dark:text-red-300">
+              External accounts require manual cleanup after merging:
+            </p>
+            {secondaries.filter(s => hasExternalAccounts(externalStatus[s.id])).map(s => (
+              <ExternalAccountWarnings key={s.id} member={s} status={externalStatus[s.id]} />
+            ))}
+          </div>
+        )}
+
         {conflicts.length > 0 && (
           <div className="rounded-lg bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-700 p-3 text-xs space-y-1">
             <p className="font-semibold text-orange-800 dark:text-orange-300">Merge complete — ID conflicts detected:</p>
@@ -161,5 +190,68 @@ export default function BulkMergeMemberModal({ members, isOpen, onClose }: BulkM
         </div>
       </div>
     </Modal>
+  );
+}
+
+function hasExternalAccounts(status: MemberExternalStatus | undefined): boolean {
+  if (!status) return false;
+  return !!(status.kajabi_id || status.stripe_customer_id || status.slack_user_id);
+}
+
+function ExternalAccountWarnings({ member, status }: { member: { name: string; email: string }; status: MemberExternalStatus }) {
+  return (
+    <div>
+      <p className="font-semibold text-red-700 dark:text-red-400 mb-1">
+        {member.name} <span className="font-normal text-red-600 dark:text-red-500">({member.email})</span>
+      </p>
+      <ul className="space-y-1 ml-2">
+        {status.kajabi_id && (
+          <li className="flex items-start gap-1.5">
+            <span className="text-red-400 mt-0.5">•</span>
+            <span className={status.kajabi_active_purchases > 0 ? "text-red-700 dark:text-red-400" : "text-slate-600 dark:text-slate-400"}>
+              {status.kajabi_active_purchases > 0
+                ? "Active Kajabi subscription — cancel or migrate before merging"
+                : "Kajabi account — verify course access in Kajabi"}
+              {" "}
+              <a
+                href={`https://app.kajabi.com/admin/contacts/${status.kajabi_id}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-600 dark:text-blue-400 hover:underline"
+              >
+                {status.kajabi_id} ↗
+              </a>
+            </span>
+          </li>
+        )}
+        {status.stripe_customer_id && (
+          <li className="flex items-start gap-1.5">
+            <span className="text-red-400 mt-0.5">•</span>
+            <span className={status.stripe_active_subscriptions > 0 ? "text-red-700 dark:text-red-400" : "text-slate-600 dark:text-slate-400"}>
+              {status.stripe_active_subscriptions > 0
+                ? `${status.stripe_active_subscriptions} active Stripe subscription${status.stripe_active_subscriptions !== 1 ? "s" : ""} — cancel or migrate before merging`
+                : "Stripe account — no active subscriptions"}
+              {" "}
+              <a
+                href={`https://dashboard.stripe.com/customers/${status.stripe_customer_id}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-600 dark:text-blue-400 hover:underline"
+              >
+                {status.stripe_customer_id} ↗
+              </a>
+            </span>
+          </li>
+        )}
+        {status.slack_user_id && (
+          <li className="flex items-start gap-1.5">
+            <span className="text-slate-400 mt-0.5">•</span>
+            <span className="text-slate-600 dark:text-slate-400">
+              Slack account ({status.slack_user_id}) — message history resolves automatically via email alias
+            </span>
+          </li>
+        )}
+      </ul>
+    </div>
   );
 }

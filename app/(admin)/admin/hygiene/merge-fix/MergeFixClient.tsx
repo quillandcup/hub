@@ -2,11 +2,13 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import type { DuplicateGroup } from "@/lib/member-duplicates";
 import BulkMergeMemberModal from "../../members/BulkMergeMemberModal";
+import type { EnrichedGroup } from "@/lib/merge-fix";
+
+export type { EnrichedGroup };
 
 interface MergeFixClientProps {
-  duplicateGroups: DuplicateGroup[];
+  duplicateGroups: EnrichedGroup[];
 }
 
 const AVATAR_COLORS = [
@@ -16,20 +18,20 @@ const AVATAR_COLORS = [
   "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300",
 ];
 
-function groupKey(group: DuplicateGroup) {
+function groupKey(group: EnrichedGroup) {
   return group.members.map((m) => m.id).sort().join("|");
 }
 
 export default function MergeFixClient({ duplicateGroups }: MergeFixClientProps) {
   const router = useRouter();
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
-  const [mergeTarget, setMergeTarget] = useState<DuplicateGroup | null>(null);
+  const [mergeTarget, setMergeTarget] = useState<EnrichedGroup | null>(null);
   const [mergingAll, setMergingAll] = useState(false);
   const [mergeAllError, setMergeAllError] = useState<string | null>(null);
 
   const visible = duplicateGroups.filter((g) => !dismissed.has(groupKey(g)));
 
-  function dismiss(group: DuplicateGroup) {
+  function dismiss(group: EnrichedGroup) {
     setDismissed((prev) => new Set([...prev, groupKey(group)]));
   }
 
@@ -116,19 +118,35 @@ export default function MergeFixClient({ duplicateGroups }: MergeFixClientProps)
                     {member.name.charAt(0).toUpperCase()}
                   </div>
                   <div className="min-w-0">
-                    <p className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">
-                      {member.name}
-                    </p>
+                    <div className="flex items-center gap-1.5">
+                      <p className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">
+                        {member.name}
+                      </p>
+                      {j === 0 && (
+                        <span className="text-xs text-slate-400 dark:text-slate-500 flex-shrink-0">(primary)</span>
+                      )}
+                    </div>
                     <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
                       {member.email}
                     </p>
-                    <span className={`mt-1 inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
-                      member.status === "active"
-                        ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
-                        : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400"
-                    }`}>
-                      {member.status.replace("_", " ")}
-                    </span>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
+                        member.status === "active"
+                          ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                          : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400"
+                      }`}>
+                        {member.status.replace("_", " ")}
+                      </span>
+                      {member.stripe_customer_id && (
+                        <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
+                          member.stripe_active
+                            ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
+                            : "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400"
+                        }`}>
+                          {member.stripe_active ? "active in Stripe" : "in Stripe"}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
               ))}

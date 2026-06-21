@@ -3,6 +3,8 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { detectDuplicates } from "@/lib/member-duplicates";
 import MergeFixClient from "./MergeFixClient";
+import { sortGroupMembers } from "@/lib/merge-fix";
+import type { EnrichedGroup } from "@/lib/merge-fix";
 
 export const dynamic = "force-dynamic";
 
@@ -15,14 +17,14 @@ export default async function MergeFixPage() {
   if (!user) redirect("/login");
 
   // Paginate in case member count grows
-  const allMembers: { id: string; name: string; email: string; status: string }[] = [];
+  const allMembers: { id: string; name: string; email: string; status: string; stripe_customer_id: string | null }[] = [];
   const BATCH = 1000;
   let offset = 0;
   let hasMore = true;
   while (hasMore) {
     const { data: batch } = await supabase
       .from("members")
-      .select("id, name, email, status")
+      .select("id, name, email, status, stripe_customer_id")
       .order("name")
       .range(offset, offset + BATCH - 1);
     if (batch && batch.length > 0) {
@@ -35,6 +37,38 @@ export default async function MergeFixPage() {
   }
 
   const duplicateGroups = detectDuplicates(allMembers);
+
+  // Enrich groups with Stripe status and sort so the best primary candidate is first
+  const memberById = new Map(allMembers.map(m => [m.id, m]));
+  const stripeIdsInGroups = Array.from(new Set(
+    duplicateGroups
+      .flatMap(g => g.members)
+      .map(m => memberById.get(m.id)?.stripe_customer_id)
+      .filter((id): id is string => !!id)
+  ));
+
+  const { data: activeSubs } = stripeIdsInGroups.length > 0
+    ? await supabase.schema("bronze").from("stripe_subscriptions")
+        .select("stripe_customer_id")
+        .in("stripe_customer_id", stripeIdsInGroups)
+        .in("status", ["active", "trialing", "past_due"])
+    : { data: [] as { stripe_customer_id: string }[] };
+
+  const activeStripeCustomers = new Set((activeSubs ?? []).map(s => s.stripe_customer_id));
+
+  const enrichedGroups: EnrichedGroup[] = duplicateGroups.map(group => ({
+    reason: group.reason,
+    members: sortGroupMembers(
+      group.members.map(m => {
+        const raw = memberById.get(m.id);
+        return {
+          ...m,
+          stripe_customer_id: raw?.stripe_customer_id ?? null,
+          stripe_active: raw?.stripe_customer_id ? activeStripeCustomers.has(raw.stripe_customer_id) : false,
+        };
+      })
+    ),
+  }));
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
@@ -63,7 +97,7 @@ export default async function MergeFixPage() {
       </header>
 
       <main className="container mx-auto px-6 py-8">
-        <MergeFixClient duplicateGroups={duplicateGroups} />
+        <MergeFixClient duplicateGroups={enrichedGroups} />
       </main>
     </div>
   );
