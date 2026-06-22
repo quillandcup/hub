@@ -255,7 +255,7 @@ export async function POST(request: NextRequest) {
     }
 
     // STEP 5: Merge Kajabi members with staff metadata
-    // Staff are only "active" if they have an active Kajabi purchase
+    // Staff members are always active — they work for the company regardless of subscription status.
     const membersByEmail = new Map<string, any>();
 
     // Process Kajabi members and enhance with staff data
@@ -263,9 +263,9 @@ export async function POST(request: NextRequest) {
       const staff = staffByEmail.get(member.email);
 
       if (staff) {
-        // Merge: keep Kajabi status (purchase-based), add staff metadata
         member.staff_role = staff.role;
         member.user_id = staff.user_id;
+        member.status = 'active'; // Staff are always active
         // Use staff hire date if earlier than Kajabi joined_at
         if (staff.hire_date && staff.hire_date < member.joined_at) {
           member.joined_at = staff.hire_date;
@@ -290,13 +290,13 @@ export async function POST(request: NextRequest) {
       membersByEmail.set(member.email, member);
     }
 
-    // Add staff members who have NO Kajabi record (inactive by default)
+    // Add staff members who have NO Kajabi record — always active
     for (const [email, staff] of staffByEmail) {
       membersByEmail.set(email, {
         email,
         name: staff.name,
         joined_at: staff.hire_date || '2020-01-01',
-        status: 'inactive' as const,
+        status: 'active' as const,
         plan: null,
         source: 'staff',
         staff_role: staff.role,
