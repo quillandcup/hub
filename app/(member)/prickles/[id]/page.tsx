@@ -4,6 +4,8 @@ import Link from "next/link";
 import PrickleDetails from "./PrickleDetails";
 import { getUserTimezonePreference } from "@/lib/timezone";
 import { getEffectiveIdentity } from "@/lib/sudo";
+import { findUnmatchedZoomAttendees } from "@/lib/prickle-unmatched";
+import AliasSearchForm from "@/app/(admin)/admin/hygiene/unmatched-zoom/AliasSearchForm";
 
 export default async function PrickleDetailPage({
   params,
@@ -91,6 +93,33 @@ export default async function PrickleDetailPage({
 
   const userTimezone = await getUserTimezonePreference();
 
+  let unmatchedZoomAttendees: Array<{ zoomName: string; appearances: number; emails: string[] }> = [];
+  let allMembersForMatching: Array<{ id: string; name: string; email: string }> = [];
+
+  if (isActingAsAdmin && prickle) {
+    const [zoomResult, membersResult, aliasesResult, ignoredResult] = await Promise.all([
+      supabase.schema("bronze").from("zoom_attendees")
+        .select("name, email")
+        .lt("join_time", prickle.end_time)
+        .gt("leave_time", prickle.start_time),
+      supabase.from("members").select("id, name, email").eq("status", "active"),
+      supabase.from("member_name_aliases").select("alias, member_id, source"),
+      supabase.from("ignored_zoom_names").select("zoom_name"),
+    ]);
+
+    const members = membersResult.data || [];
+    const aliases = aliasesResult.data || [];
+    const ignoredNames = (ignoredResult.data || []).map((i: any) => i.zoom_name);
+    allMembersForMatching = members;
+
+    unmatchedZoomAttendees = findUnmatchedZoomAttendees(
+      zoomResult.data || [],
+      members,
+      aliases,
+      ignoredNames
+    );
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
       <header className="border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
@@ -103,7 +132,7 @@ export default async function PrickleDetailPage({
       </header>
 
       <main className="container mx-auto px-6 py-8">
-        <div className="max-w-4xl mx-auto">
+        <div className="max-w-4xl mx-auto space-y-6">
           <PrickleDetails
             prickle={prickle}
             attendanceRecords={attendanceRecords || []}
@@ -113,6 +142,12 @@ export default async function PrickleDetailPage({
             memberBasePath={memberBasePath}
             showMemberEmails={isActingAsAdmin}
           />
+          {isActingAsAdmin && unmatchedZoomAttendees.length > 0 && (
+            <AliasSearchForm
+              unmatchedAttendees={unmatchedZoomAttendees}
+              allMembers={allMembersForMatching}
+            />
+          )}
         </div>
       </main>
     </div>
