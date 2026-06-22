@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import BulkMergeMemberModal from "../../members/BulkMergeMemberModal";
 import type { EnrichedGroup } from "@/lib/merge-fix";
 
@@ -119,9 +120,12 @@ export default function MergeFixClient({ duplicateGroups }: MergeFixClientProps)
                   </div>
                   <div className="min-w-0">
                     <div className="flex items-center gap-1.5">
-                      <p className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">
+                      <Link
+                        href={`/admin/members/${member.id}`}
+                        className="text-sm font-medium text-slate-900 dark:text-slate-100 hover:text-blue-600 dark:hover:text-blue-400 hover:underline truncate"
+                      >
                         {member.name}
-                      </p>
+                      </Link>
                       {j === 0 && (
                         <span className="text-xs text-slate-400 dark:text-slate-500 flex-shrink-0">(primary)</span>
                       )}
