@@ -24,6 +24,11 @@ export function getTestSupabaseAdminClient() {
   })
 }
 
+/** Base URL for the local Next.js dev server. Override with TEST_API_BASE_URL env var. */
+export function getTestApiBaseUrl() {
+  return process.env.TEST_API_BASE_URL || 'http://localhost:3000'
+}
+
 /**
  * Get auth headers for API route testing
  *
