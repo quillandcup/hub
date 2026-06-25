@@ -1,21 +1,22 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { http, HttpResponse } from 'msw'
 import type { NextRequest } from 'next/server'
-import { server } from '../../setup-msw'
 import { loadWebhookFixture } from '../../helpers/webhook-helpers'
 import { getTestSupabaseAdminClient } from '../../helpers/supabase'
 import { POST, GET } from '@/app/api/webhooks/slack/route'
 import { createHmac } from 'crypto'
 
+// Mock triggerReprocessing — webhook now calls it directly (no HTTP)
+vi.mock('@/lib/processing/trigger', () => ({
+  triggerReprocessing: vi.fn(() => Promise.resolve({ processed: [] })),
+}))
+
+import { triggerReprocessing } from '@/lib/processing/trigger'
+
 describe('Slack Webhook', () => {
   const supabase = getTestSupabaseAdminClient()
-  const baseUrl = process.env.VERCEL_URL
-    ? `https://${process.env.VERCEL_URL}`
-    : 'http://localhost:3000'
 
   beforeEach(async () => {
     vi.clearAllMocks()
-    // Mock environment variable for tests
     process.env.SLACK_SIGNING_SECRET = 'test-slack-secret'
 
     // Clean up test data
@@ -78,68 +79,19 @@ describe('Slack Webhook', () => {
     })
 
     it.skip('should upsert message to Bronze layer', async () => {
-      // SKIP: This test requires the webhook route to use the same Supabase client instance
-      // In production, the webhook creates its own client with service role key
-      // Testing this requires integration test setup or refactoring to inject client
-      const fixture = loadWebhookFixture('slack', 'message-posted.json')
-
-      server.use(
-        http.post(`${baseUrl}/api/process/slack`, () => {
-          return HttpResponse.json({ success: true })
-        })
-      )
-
-      const request = new Request('http://localhost:3000/api/webhooks/slack', {
-        method: 'POST',
-        headers: new Headers(fixture.headers),
-        body: JSON.stringify(fixture.body),
-      })
-
-      const response = await POST(request as unknown as NextRequest)
-      const body = await response.json()
-
-      expect(response.status).toBe(200)
-      expect(body.received).toBe(true)
-      expect(body.event).toBe('message')
+      // SKIP: processSlackEvent creates its own Supabase client using process.env vars
+      // not loaded in vitest. Requires integration test setup with real credentials.
     })
 
     it.skip('should upsert reaction to Bronze layer', async () => {
-      // SKIP: Same reason as message test - requires refactoring or integration test setup
-      const fixture = loadWebhookFixture('slack', 'reaction-added.json')
-
-      server.use(
-        http.post(`${baseUrl}/api/process/slack`, () => {
-          return HttpResponse.json({ success: true })
-        })
-      )
-
-      const request = new Request('http://localhost:3000/api/webhooks/slack', {
-        method: 'POST',
-        headers: new Headers(fixture.headers),
-        body: JSON.stringify(fixture.body),
-      })
-
-      const response = await POST(request as unknown as NextRequest)
-      const body = await response.json()
-
-      expect(response.status).toBe(200)
-      expect(body.received).toBe(true)
-      expect(body.event).toBe('reaction_added')
+      // SKIP: Same reason as message test.
     })
 
     it.skip('should trigger Silver processing after Bronze upsert', async () => {
-      // SKIP: The trigger happens after async Bronze insert, which isn't accessible in unit tests
-      // This would be better tested as an integration test or E2E test
-      const fixture = loadWebhookFixture('slack', 'message-posted.json')
-
-      const request = new Request('http://localhost:3000/api/webhooks/slack', {
-        method: 'POST',
-        headers: new Headers(fixture.headers),
-        body: JSON.stringify(fixture.body),
-      })
-
-      const response = await POST(request as unknown as NextRequest)
-      expect(response.status).toBe(200)
+      // SKIP: processSlackEvent creates its own Supabase client using process.env vars
+      // that aren't loaded in vitest. The trigger only fires if the Bronze upsert succeeds,
+      // so we can't verify it without real credentials or a full mock of @supabase/supabase-js.
+      // The reprocessing trigger behavior is verified by tests/api/reprocessability/slack.test.ts.
     })
 
     it.skip('should be idempotent (duplicate messages upserted, not duplicated)', async () => {
@@ -225,12 +177,6 @@ describe('Slack Webhook', () => {
       const validSignature = 'v0=' + createHmac('sha256', 'test-slack-secret')
         .update(sigBasestring)
         .digest('hex')
-
-      server.use(
-        http.post('http://localhost:3000/api/process/slack', () => {
-          return HttpResponse.json({ success: true })
-        })
-      )
 
       // Test with valid signature
       const validRequest = new Request('http://localhost:3000/api/webhooks/slack', {

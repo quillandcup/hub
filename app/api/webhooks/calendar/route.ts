@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
-import { triggerReprocessing } from "@/lib/processing/trigger";
+import { triggerCalendarSync } from "@/lib/processing/trigger";
 
 // Webhook should respond quickly
 export const maxDuration = 60;
@@ -72,33 +72,9 @@ export async function POST(request: NextRequest) {
     toDate.setDate(toDate.getDate() + 90);
 
     // Trigger calendar sync asynchronously (fire-and-forget)
-    // Don't await to ensure we respond quickly to webhook
-    const baseUrl = process.env.VERCEL_URL
-      ? `https://${process.env.VERCEL_URL}`
-      : "http://localhost:3000";
-
-    fetch(`${baseUrl}/api/sync/calendar`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        // Use service role key to bypass auth (internal processing)
-        Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
-      },
-      body: JSON.stringify({
-        daysBack: 30,
-        daysForward: 90,
-      }),
-    })
-      .then((response) => {
-        if (!response.ok) {
-          console.error("Failed to trigger calendar sync:", response.statusText);
-        } else {
-          console.log("Calendar sync triggered successfully");
-        }
-      })
-      .catch((error) => {
-        console.error("Error triggering calendar sync:", error);
-      });
+    triggerCalendarSync({ daysBack: 30, daysForward: 90 })
+      .then(() => console.log("Calendar sync triggered successfully"))
+      .catch((error) => console.error("Error triggering calendar sync:", error));
 
     // Return 200 OK immediately (webhook expects fast response)
     return NextResponse.json({

@@ -102,57 +102,12 @@ export async function POST(request: NextRequest) {
       const ninetyDaysAgo = new Date();
       ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
 
-      const baseUrl = process.env.VERCEL_URL
-        ? `https://${process.env.VERCEL_URL}`
-        : 'http://localhost:3000';
-
-      const results = [];
-
-      // First: Reprocess calendar (picks up new aliases for host matching)
-      const calendarResponse = await fetch(`${baseUrl}/api/process/calendar`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
-        },
-        body: JSON.stringify({
-          fromDate: ninetyDaysAgo.toISOString(),
-          toDate: now.toISOString()
-        })
+      // Reprocess calendar then attendance — call handlers directly to avoid
+      // VERCEL_URL routing through Vercel deployment protection.
+      // triggerReprocessing('calendar_events') processes calendar → attendance in order.
+      processingResults = await triggerReprocessing('calendar_events', 'bronze', {
+        dateRange: { from: ninetyDaysAgo, to: now }
       });
-
-      if (calendarResponse.ok) {
-        const result = await calendarResponse.json();
-        results.push({ table: 'calendar', success: true, ...result });
-      } else {
-        const error = await calendarResponse.text();
-        console.error('Calendar reprocessing failed:', error);
-        results.push({ table: 'calendar', success: false, error });
-      }
-
-      // Second: Reprocess attendance (picks up new aliases for attendee matching)
-      const attendanceResponse = await fetch(`${baseUrl}/api/process/attendance`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
-        },
-        body: JSON.stringify({
-          fromDate: ninetyDaysAgo.toISOString(),
-          toDate: now.toISOString()
-        })
-      });
-
-      if (attendanceResponse.ok) {
-        const result = await attendanceResponse.json();
-        results.push({ table: 'attendance', success: true, ...result });
-      } else {
-        const error = await attendanceResponse.text();
-        console.error('Attendance reprocessing failed:', error);
-        results.push({ table: 'attendance', success: false, error });
-      }
-
-      processingResults = { processed: results };
     }
 
     return NextResponse.json({

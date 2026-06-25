@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 import { createHmac } from "crypto";
+import { triggerZoomImport } from "@/lib/processing/trigger";
 
 // Webhook should respond quickly
 export const maxDuration = 60;
@@ -122,36 +123,12 @@ async function processMeetingEvent(payload: any) {
     const fromDate = startTime.toISOString().split("T")[0];
     const toDate = endTime.toISOString().split("T")[0];
 
-    const baseUrl = process.env.VERCEL_URL
-      ? `https://${process.env.VERCEL_URL}`
-      : "http://localhost:3000";
-
-    // Trigger Zoom import asynchronously
-    // Use a slight delay (10 seconds) to ensure Zoom has finalized the meeting data
+    // Trigger Zoom import after a short delay to let Zoom finalize meeting data.
     setTimeout(() => {
-      fetch(`${baseUrl}/api/import/zoom`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          // Use service role key to bypass auth (internal processing)
-          Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
-        },
-        body: JSON.stringify({
-          fromDate,
-          toDate,
-        }),
-      })
-        .then((response) => {
-          if (!response.ok) {
-            console.error("Failed to trigger Zoom import:", response.statusText);
-          } else {
-            console.log("Zoom import triggered successfully");
-          }
-        })
-        .catch((error) => {
-          console.error("Error triggering Zoom import:", error);
-        });
-    }, 10000); // 10 second delay
+      triggerZoomImport({ fromDate, toDate })
+        .then(() => console.log("Zoom import triggered successfully"))
+        .catch((error) => console.error("Error triggering Zoom import:", error));
+    }, 10000);
   }
 }
 

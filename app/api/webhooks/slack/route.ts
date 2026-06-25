@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 import { createHmac } from "crypto";
+import { triggerReprocessing } from "@/lib/processing/trigger";
 
 // Webhook should respond quickly
 export const maxDuration = 60;
@@ -179,40 +180,17 @@ async function processSlackEvent(event: any) {
  * Trigger Silver layer processing for Slack data
  */
 function triggerSlackProcessing(messageTs: string) {
-  // Convert Slack timestamp to date
   const timestamp = new Date(parseFloat(messageTs) * 1000);
-  const fromDate = new Date(timestamp);
-  fromDate.setDate(fromDate.getDate() - 1); // Process 1 day before/after
-  const toDate = new Date(timestamp);
-  toDate.setDate(toDate.getDate() + 1);
+  const from = new Date(timestamp);
+  from.setDate(from.getDate() - 1);
+  const to = new Date(timestamp);
+  to.setDate(to.getDate() + 1);
 
-  const baseUrl = process.env.VERCEL_URL
-    ? `https://${process.env.VERCEL_URL}`
-    : "http://localhost:3000";
-
-  // Trigger async processing (fire-and-forget)
-  fetch(`${baseUrl}/api/process/slack`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      // Use service role key to bypass auth (internal processing)
-      Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
-    },
-    body: JSON.stringify({
-      fromDate: fromDate.toISOString(),
-      toDate: toDate.toISOString(),
-    }),
-  })
-    .then((response) => {
-      if (!response.ok) {
-        console.error("Failed to trigger Slack processing:", response.statusText);
-      } else {
-        console.log("Slack processing triggered successfully");
-      }
-    })
-    .catch((error) => {
-      console.error("Error triggering Slack processing:", error);
-    });
+  // Call the process/slack handler directly — avoids VERCEL_URL routing through
+  // Vercel deployment protection which blocks unauthenticated *.vercel.app requests.
+  triggerReprocessing("slack_messages", "bronze", { dateRange: { from, to } })
+    .then(() => console.log("Slack processing triggered successfully"))
+    .catch((error) => console.error("Error triggering Slack processing:", error));
 }
 
 /**

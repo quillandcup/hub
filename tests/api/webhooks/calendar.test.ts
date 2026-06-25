@@ -1,18 +1,21 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { http, HttpResponse } from 'msw'
 import type { NextRequest } from 'next/server'
-import { server } from '../../setup-msw'
 import { loadWebhookFixture } from '../../helpers/webhook-helpers'
 import { POST, GET } from '@/app/api/webhooks/calendar/route'
 
-describe('Calendar Webhook', () => {
-  const baseUrl = process.env.VERCEL_URL
-    ? `https://${process.env.VERCEL_URL}`
-    : 'http://localhost:3000'
+// Mock trigger module — webhook calls triggerCalendarSync() directly (no HTTP)
+vi.mock('@/lib/processing/trigger', () => ({
+  triggerCalendarSync: vi.fn(() => Promise.resolve({ success: true })),
+  triggerZoomImport: vi.fn(() => Promise.resolve({ success: true })),
+  triggerReprocessing: vi.fn(() => Promise.resolve({ processed: [] })),
+}))
 
+import { triggerCalendarSync } from '@/lib/processing/trigger'
+
+describe('Calendar Webhook', () => {
   beforeEach(() => {
-    // Reset mocks before each test
     vi.clearAllMocks()
+    vi.mocked(triggerCalendarSync).mockResolvedValue({ success: true })
   })
 
   describe('GET - Verification', () => {
@@ -50,18 +53,6 @@ describe('Calendar Webhook', () => {
     it('should trigger calendar sync on event change', async () => {
       const fixture = loadWebhookFixture('calendar', 'event-changed.json')
 
-      // Mock the internal fetch to /api/sync/calendar
-      let syncTriggered = false
-      let syncPayload: any = null
-
-      server.use(
-        http.post(`${baseUrl}/api/sync/calendar`, async ({ request }) => {
-          syncTriggered = true
-          syncPayload = await request.json()
-          return HttpResponse.json({ success: true })
-        })
-      )
-
       const request = new Request('http://localhost:3000/api/webhooks/calendar', {
         method: 'POST',
         headers: new Headers(fixture.headers),
@@ -77,15 +68,12 @@ describe('Calendar Webhook', () => {
       expect(body.resourceState).toBe('exists')
       expect(body.triggered).toBe('calendar_sync')
 
-      // Give async fetch time to trigger (webhook uses fire-and-forget)
-      await new Promise(resolve => setTimeout(resolve, 100))
+      // Wait for the fire-and-forget trigger to run
+      await vi.waitFor(() => {
+        expect(triggerCalendarSync).toHaveBeenCalledOnce()
+      }, { timeout: 1000 })
 
-      // Verify sync was triggered
-      expect(syncTriggered).toBe(true)
-      expect(syncPayload).toEqual({
-        daysBack: 30,
-        daysForward: 90,
-      })
+      expect(triggerCalendarSync).toHaveBeenCalledWith({ daysBack: 30, daysForward: 90 })
     })
 
     it('should reject invalid webhook payload (missing headers)', async () => {
@@ -107,12 +95,7 @@ describe('Calendar Webhook', () => {
     it('should still return 200 on internal errors to avoid retries', async () => {
       const fixture = loadWebhookFixture('calendar', 'event-changed.json')
 
-      // Mock fetch to fail
-      server.use(
-        http.post(`${baseUrl}/api/sync/calendar`, () => {
-          return HttpResponse.json({ error: 'Internal error' }, { status: 500 })
-        })
-      )
+      vi.mocked(triggerCalendarSync).mockRejectedValue(new Error('Internal error'))
 
       const request = new Request('http://localhost:3000/api/webhooks/calendar', {
         method: 'POST',
@@ -129,14 +112,6 @@ describe('Calendar Webhook', () => {
     it('should be idempotent (handle duplicate webhooks)', async () => {
       const fixture = loadWebhookFixture('calendar', 'event-changed.json')
 
-      let syncCallCount = 0
-      server.use(
-        http.post(`${baseUrl}/api/sync/calendar`, () => {
-          syncCallCount++
-          return HttpResponse.json({ success: true })
-        })
-      )
-
       // Send same webhook twice
       for (let i = 0; i < 2; i++) {
         const request = new Request('http://localhost:3000/api/webhooks/calendar', {
@@ -149,10 +124,10 @@ describe('Calendar Webhook', () => {
         expect(response.status).toBe(200)
       }
 
-      await new Promise(resolve => setTimeout(resolve, 200))
-
-      // Both webhooks should trigger sync (Google handles deduplication)
-      expect(syncCallCount).toBe(2)
+      // Wait for both fire-and-forget triggers to run
+      await vi.waitFor(() => {
+        expect(triggerCalendarSync).toHaveBeenCalledTimes(2)
+      }, { timeout: 1000 })
     })
   })
 
@@ -164,12 +139,6 @@ describe('Calendar Webhook', () => {
 
     it('should verify channel token', async () => {
       const fixture = loadWebhookFixture('calendar', 'event-changed.json')
-
-      server.use(
-        http.post(`${baseUrl}/api/sync/calendar`, () => {
-          return HttpResponse.json({ success: true })
-        })
-      )
 
       // Test with valid token (matches fixture)
       const validRequest = new Request('http://localhost:3000/api/webhooks/calendar', {

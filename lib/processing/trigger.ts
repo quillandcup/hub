@@ -184,6 +184,50 @@ async function processTable(
 }
 
 /**
+ * Trigger Google Calendar sync (Bronze layer import) then Silver reprocessing.
+ * Called by the calendar webhook to avoid VERCEL_URL deployment protection issues.
+ */
+export async function triggerCalendarSync(options: { daysBack: number; daysForward: number }) {
+  const { NextRequest } = await import('next/server');
+  const { POST } = await import('@/app/api/sync/calendar/route');
+  const req = new NextRequest(new URL('http://internal/api/sync/calendar'), {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
+    },
+    body: JSON.stringify(options),
+  });
+  const response = await POST(req);
+  if (!response.ok) {
+    throw new Error(`Calendar sync failed: ${response.statusText}`);
+  }
+  return response.json();
+}
+
+/**
+ * Trigger Zoom attendance import (Bronze layer import).
+ * Called by the Zoom webhook to avoid VERCEL_URL deployment protection issues.
+ */
+export async function triggerZoomImport(options: { fromDate: string; toDate: string }) {
+  const { NextRequest } = await import('next/server');
+  const { POST } = await import('@/app/api/import/zoom/route');
+  const req = new NextRequest(new URL('http://internal/api/import/zoom'), {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
+    },
+    body: JSON.stringify(options),
+  });
+  const response = await POST(req);
+  if (!response.ok) {
+    throw new Error(`Zoom import failed: ${response.statusText}`);
+  }
+  return response.json();
+}
+
+/**
  * Trigger downstream Silver layer reprocessing when Bronze/Local data changes
  */
 export async function triggerReprocessing(
