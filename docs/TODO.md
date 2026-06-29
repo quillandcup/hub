@@ -419,10 +419,17 @@ Set up background agents for faster parallel development
    - Show host, type, time, expected attendance (based on historical avg)
    - Click to view prickle details or edit
 
-3. **Host Leaderboard**
+3. **Host Leaderboard / Host Stats**
    - Top hosts by number of prickles hosted (last 30 days)
    - Host attendance/punctuality stats
    - Identify hosts who need support
+   - **Current hosts view**: for each active host, show hosting stats:
+     - Total prickles hosted, total missed, total late
+     - Total participants and total unique participants
+     - Total duration hosted
+     - First host date and most recent host date
+     - Hosting streaks: consecutive weeks in a row, consecutive months in a row
+   - **All-time hosts view**: everyone who has ever hosted, with same stats above
 
 4. **Attendance Trends Charts**
    - Line chart: Average attendance over time (30/60/90 days)
@@ -535,6 +542,17 @@ Set up background agents for faster parallel development
 - Combined with Prickle attendance
 - Real-time or near-real-time updates
 - Help admins stay connected to pulse of community
+
+**Host Confirmation Flow (Phase TBD):**
+- After each prickle ends, message the host to confirm participants and resolve unmatched Zoom attendees
+- For unhosted prickles: TBD — options include assigning to a random active member or the most "senior" hedgie (by join date or total duration excluding hiatus periods)
+
+**Messaging Abstraction Layer (prerequisite for Host Confirmation and future integrations):**
+- Abstract all outbound member messaging behind a common interface so backends are swappable per member
+- Initial backends: Slack, SMS, in-app notifications
+- Future backends: WhatsApp (important for non-US hedgies), email, etc.
+- Per-member preference: each member picks their preferred channel (or falls back to a default priority order)
+- The Host Confirmation Flow and any future interactive flows (confirmations, reminders, outreach) should be built on top of this abstraction, not wired directly to Slack
 
 **Phase 1 Progress:**
 - [x] Database migrations (Bronze tables, aliases extension)
