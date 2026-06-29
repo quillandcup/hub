@@ -18,16 +18,12 @@ describe('Calendar Processing Pagination', () => {
       const testDateFrom = '2099-01-01T00:00:00Z'
       const testDateTo = '2099-12-31T23:59:59Z'
 
-      // Clean up any existing test data
-      await supabase
-        .schema('bronze').from('calendar_events')
-        .delete()
-        .gte('start_time', testDateFrom)
-        .lte('end_time', testDateTo)
+      // Use a per-run prefix so concurrent tests inserting 2099 events don't pollute our count
+      const testRunPrefix = `pagination-test-${Date.now()}`
 
       // Create 1500 test calendar events
       const testEvents = Array.from({ length: 1500 }, (_, i) => ({
-        google_event_id: `test-event-${i}-${Date.now()}`,
+        google_event_id: `${testRunPrefix}-${i}`,
         summary: `Test Event ${i}`,
         start_time: new Date(2099, 0, 1 + Math.floor(i / 24), 10 + (i % 24), 0).toISOString(),
         end_time: new Date(2099, 0, 1 + Math.floor(i / 24), 11 + (i % 24), 0).toISOString(),
@@ -45,12 +41,11 @@ describe('Calendar Processing Pagination', () => {
         expect(error).toBeNull()
       }
 
-      // Verify all 1500 were inserted
+      // Verify all 1500 were inserted (filter by prefix to avoid counting other tests' data)
       const { count, error: countError } = await supabase
         .schema('bronze').from('calendar_events')
         .select('id', { count: 'exact', head: true })
-        .gte('start_time', testDateFrom)
-        .lte('end_time', testDateTo)
+        .like('google_event_id', `${testRunPrefix}-%`)
 
       expect(countError).toBeNull()
       expect(count).toBe(1500)
@@ -66,9 +61,8 @@ describe('Calendar Processing Pagination', () => {
         const { data: batch, error } = await supabase
           .schema('bronze').from('calendar_events')
           .select('*')
-          .gte('start_time', testDateFrom)
-          .lte('end_time', testDateTo)
-          .order('start_time')
+          .like('google_event_id', `${testRunPrefix}-%`)
+          .order('google_event_id')
           .range(offset, offset + BATCH_SIZE - 1)
 
         expect(error).toBeNull()
@@ -89,8 +83,7 @@ describe('Calendar Processing Pagination', () => {
       await supabase
         .schema('bronze').from('calendar_events')
         .delete()
-        .gte('start_time', testDateFrom)
-        .lte('end_time', testDateTo)
+        .like('google_event_id', `${testRunPrefix}-%`)
     })
 
     it('should verify pagination code exists in route', async () => {

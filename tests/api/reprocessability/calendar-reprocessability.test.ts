@@ -43,6 +43,13 @@ describe('Calendar Reprocessability', () => {
       .gte('start_time', testDateRange.from)
       .lte('end_time', testDateRange.to)
 
+    // Clean up the July prickle used in the scoped-reprocessing test (in case a previous run failed)
+    await supabase
+      .from('prickles')
+      .delete()
+      .eq('source', 'calendar')
+      .eq('start_time', '2099-07-01T10:00:00+00:00')
+
     await supabase
       .schema('bronze').from('calendar_events')
       .delete()
