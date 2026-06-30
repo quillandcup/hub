@@ -3,11 +3,10 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import PrickleDetails from "@/components/PrickleDetails";
 import { getUserTimezonePreference } from "@/lib/timezone";
-import { getEffectiveIdentity } from "@/lib/sudo";
 import { findUnmatchedZoomAttendees } from "@/lib/prickle-unmatched";
 import AliasSearchForm from "@/app/(admin)/admin/hygiene/unmatched-zoom/AliasSearchForm";
 
-export default async function PrickleDetailPage({
+export default async function AdminPrickleDetailPage({
   params,
 }: {
   params: Promise<{ id: string }>;
@@ -22,15 +21,6 @@ export default async function PrickleDetailPage({
   if (!user) {
     redirect("/login");
   }
-
-  const [profileResult, effectiveIdentity] = await Promise.all([
-    supabase.from("user_profiles").select("role").eq("id", user.id).single(),
-    getEffectiveIdentity(user),
-  ]);
-  const isAdmin = profileResult.data?.role === "admin";
-  const isActingAsAdmin = isAdmin && !effectiveIdentity?.isSudo;
-  const memberBasePath = isActingAsAdmin ? "/admin/members" : "/members";
-  const backHref = isActingAsAdmin ? "/admin/calendar" : "/calendar";
 
   const { data: prickle } = await supabase
     .from("prickles")
@@ -52,7 +42,7 @@ export default async function PrickleDetailPage({
       <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center">
         <div className="text-center">
           <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 mb-2">Prickle not found</h1>
-          <Link href={backHref} className="text-blue-600 hover:text-blue-700 dark:text-blue-400">
+          <Link href="/admin/calendar" className="text-blue-600 hover:text-blue-700 dark:text-blue-400">
             ← Back to Calendar
           </Link>
         </div>
@@ -93,41 +83,35 @@ export default async function PrickleDetailPage({
 
   const userTimezone = await getUserTimezonePreference();
 
-  let unmatchedZoomAttendees: Array<{ zoomName: string; appearances: number; emails: string[] }> = [];
-  let allMembersForMatching: Array<{ id: string; name: string; email: string }> = [];
+  const [zoomResult, membersResult, aliasesResult, ignoredResult, staffResult] = await Promise.all([
+    supabase.schema("bronze").from("zoom_attendees")
+      .select("name, email")
+      .lt("join_time", prickle.end_time)
+      .gt("leave_time", prickle.start_time),
+    supabase.from("members").select("id, name, email").eq("status", "active"),
+    supabase.from("member_name_aliases").select("alias, member_id, source"),
+    supabase.from("ignored_zoom_names").select("zoom_name"),
+    supabase.from("staff").select("name, email"),
+  ]);
 
-  if (isActingAsAdmin && prickle) {
-    const [zoomResult, membersResult, aliasesResult, ignoredResult, staffResult] = await Promise.all([
-      supabase.schema("bronze").from("zoom_attendees")
-        .select("name, email")
-        .lt("join_time", prickle.end_time)
-        .gt("leave_time", prickle.start_time),
-      supabase.from("members").select("id, name, email").eq("status", "active"),
-      supabase.from("member_name_aliases").select("alias, member_id, source"),
-      supabase.from("ignored_zoom_names").select("zoom_name"),
-      supabase.from("staff").select("name, email"),
-    ]);
+  const members = membersResult.data || [];
+  const aliases = aliasesResult.data || [];
+  const ignoredNames = (ignoredResult.data || []).map((i: any) => i.zoom_name);
+  const staff = staffResult.data || [];
 
-    const members = membersResult.data || [];
-    const aliases = aliasesResult.data || [];
-    const ignoredNames = (ignoredResult.data || []).map((i: any) => i.zoom_name);
-    const staff = staffResult.data || [];
-    allMembersForMatching = members;
-
-    unmatchedZoomAttendees = findUnmatchedZoomAttendees(
-      zoomResult.data || [],
-      members,
-      aliases,
-      ignoredNames,
-      staff
-    );
-  }
+  const unmatchedZoomAttendees = findUnmatchedZoomAttendees(
+    zoomResult.data || [],
+    members,
+    aliases,
+    ignoredNames,
+    staff
+  );
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
       <header className="border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
         <div className="container mx-auto px-6 py-4">
-          <Link href={backHref} className="text-blue-600 hover:text-blue-700 dark:text-blue-400 text-sm mb-2 inline-block">
+          <Link href="/admin/calendar" className="text-blue-600 hover:text-blue-700 dark:text-blue-400 text-sm mb-2 inline-block">
             ← Back to Calendar
           </Link>
           <h1 className="text-2xl font-bold mt-2">Prickle Details</h1>
@@ -142,13 +126,13 @@ export default async function PrickleDetailPage({
             hostMissing={hostMissing}
             hostLate={hostLate}
             userTimezonePreference={userTimezone}
-            memberBasePath={memberBasePath}
-            showMemberEmails={isActingAsAdmin}
+            memberBasePath="/admin/members"
+            showMemberEmails={true}
           />
-          {isActingAsAdmin && unmatchedZoomAttendees.length > 0 && (
+          {unmatchedZoomAttendees.length > 0 && (
             <AliasSearchForm
               unmatchedAttendees={unmatchedZoomAttendees}
-              allMembers={allMembersForMatching}
+              allMembers={members}
             />
           )}
         </div>

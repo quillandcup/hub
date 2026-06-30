@@ -20,6 +20,7 @@ interface CalendarWeekViewProps {
   weekStartDate: { year: number; month: number; day: number }; // Date components to avoid timezone issues
   userTimezonePreference?: string; // User's timezone preference from profile
   mode?: "admin" | "member";
+  prickleBasePath?: string;
 }
 
 // Common timezones for the dropdown
@@ -73,6 +74,7 @@ export default function CalendarWeekView({
   weekStartDate,
   userTimezonePreference = "browser",
   mode = "admin",
+  prickleBasePath = "/prickles",
 }: CalendarWeekViewProps) {
   // Reconstruct Date from components to avoid timezone serialization issues
   // Using date components (not timestamps) ensures consistent day-of-week on server and client
@@ -276,7 +278,7 @@ export default function CalendarWeekView({
                                 top: `${adjustedTop}px`,
                                 height: `${height}px`,
                               }}
-                              onClick={() => router.push(`/prickles/${prickle.id}`)}
+                              onClick={() => router.push(`${prickleBasePath}/${prickle.id}`)}
                               onMouseEnter={() => setHoveredPrickle(prickle.id)}
                               onMouseLeave={() => setHoveredPrickle(null)}
                             >

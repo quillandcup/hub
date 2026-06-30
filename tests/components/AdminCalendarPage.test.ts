@@ -31,4 +31,8 @@ describe('AdminCalendarPage navigation', () => {
   it('uses /admin/calendar for next week param', () => {
     expect(src).toContain('/admin/calendar?week=${nextWeekParam}');
   });
+
+  it('passes prickleBasePath="/admin/prickles" to CalendarWeekView', () => {
+    expect(src).toContain('prickleBasePath="/admin/prickles"');
+  });
 });

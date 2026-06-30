@@ -161,6 +161,7 @@ export default async function CalendarPage({
           day: weekStart.getDate()
         }}
         userTimezonePreference={userTimezone}
+        prickleBasePath="/admin/prickles"
       />
     </div>
   );

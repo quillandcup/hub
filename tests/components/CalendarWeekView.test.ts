@@ -18,9 +18,15 @@ describe('CalendarWeekView mode prop', () => {
     expect(src).toContain('mode !== "member"');
   });
 
-  it('enables click navigation to /prickles/ in both modes', () => {
-    expect(src).toContain('router.push(`/prickles/${prickle.id}`)');
-    expect(src).not.toContain('/admin/prickles/');
+  it('uses prickleBasePath for click navigation instead of a hardcoded path', () => {
+    expect(src).toContain('router.push(`${prickleBasePath}/${prickle.id}`)');
+    expect(src).not.toContain('router.push(`/prickles/${prickle.id}`)');
+    expect(src).not.toContain('router.push(`/admin/prickles/${prickle.id}`)');
+  });
+
+  it('accepts prickleBasePath prop defaulting to /prickles', () => {
+    expect(src).toContain('prickleBasePath?:');
+    expect(src).toContain('prickleBasePath = "/prickles"');
   });
 
   it('shows tooltip in member mode', () => {
