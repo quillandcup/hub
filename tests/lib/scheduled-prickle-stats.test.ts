@@ -48,14 +48,14 @@ describe('computeScheduledPrickleStats', () => {
     expect(result[0].max).toBe(2);
   });
 
-  it('computes min, mean, max, mode correctly', () => {
+  it('computes min, median, mean, max correctly', () => {
     const prickles = [
       prickle('p1', 't1', '2026-01-01'),
       prickle('p2', 't1', '2026-01-08'),
       prickle('p3', 't1', '2026-01-15'),
       prickle('p4', 't1', '2026-01-22'),
     ];
-    // attendance counts: p1=2, p2=4, p3=4, p4=6
+    // attendance counts: p1=2, p2=4, p3=4, p4=6 → sorted [2,4,4,6] → median=4
     const attendance = [
       attend('p1', 'm1'), attend('p1', 'm2'),
       attend('p2', 'm1'), attend('p2', 'm2'), attend('p2', 'm3'), attend('p2', 'm4'),
@@ -65,8 +65,8 @@ describe('computeScheduledPrickleStats', () => {
     const result = computeScheduledPrickleStats([t1], prickles, attendance);
     expect(result[0].min).toBe(2);
     expect(result[0].max).toBe(6);
+    expect(result[0].median).toBe(4);
     expect(result[0].mean).toBeCloseTo(4.0);
-    expect(result[0].mode).toBe(4);
   });
 
   it('sparkline contains last 12 sessions when there are more than 12', () => {

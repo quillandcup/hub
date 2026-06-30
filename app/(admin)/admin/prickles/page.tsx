@@ -19,11 +19,13 @@ async function fetchAllPrickles(
   const rows: Prickle[] = [];
   let offset = 0;
   let hasMore = true;
+  const now = new Date().toISOString();
 
   while (hasMore) {
     const { data } = await supabase
       .from("prickles")
       .select("id, type_id, start_time")
+      .lte("start_time", now)
       .range(offset, offset + BATCH - 1)
       .order("start_time", { ascending: true });
 
@@ -172,13 +174,13 @@ export default async function PricklesPage() {
                     Min
                   </th>
                   <th className="px-6 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                    Median
+                  </th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                     Mean
                   </th>
                   <th className="px-6 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                     Max
-                  </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                    Mode
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                     Trend (last 12)
@@ -205,14 +207,14 @@ export default async function PricklesPage() {
                     <td className="px-6 py-4 text-right text-sm text-slate-700 dark:text-slate-300 tabular-nums">
                       {row.min}
                     </td>
+                    <td className="px-6 py-4 text-right text-sm text-slate-700 dark:text-slate-300 tabular-nums">
+                      {row.median % 1 === 0 ? row.median : row.median.toFixed(1)}
+                    </td>
                     <td className="px-6 py-4 text-right text-sm font-medium text-slate-900 dark:text-slate-100 tabular-nums">
                       {row.mean.toFixed(1)}
                     </td>
                     <td className="px-6 py-4 text-right text-sm text-slate-700 dark:text-slate-300 tabular-nums">
                       {row.max}
-                    </td>
-                    <td className="px-6 py-4 text-right text-sm text-slate-700 dark:text-slate-300 tabular-nums">
-                      {row.mode}
                     </td>
                     <td className="px-6 py-4">
                       <Sparkline values={row.sparkline} />

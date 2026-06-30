@@ -19,9 +19,9 @@ export interface TypeStats {
   typeName: string;
   sessions: number;
   min: number;
+  median: number;
   mean: number;
   max: number;
-  mode: number;
   sparkline: number[]; // last <=12 sessions, oldest to newest
   lastSession: string; // ISO date string
 }
@@ -72,17 +72,13 @@ export function computeScheduledPrickleStats(
     const maxVal = Math.max(...counts);
     const meanVal = counts.reduce((s, c) => s + c, 0) / sessions;
 
-    // Mode: most common attendance count
-    const freq = new Map<number, number>();
-    for (const c of counts) freq.set(c, (freq.get(c) ?? 0) + 1);
-    let modeVal = counts[0];
-    let modeFreq = 0;
-    for (const [val, f] of freq) {
-      if (f > modeFreq) {
-        modeFreq = f;
-        modeVal = val;
-      }
-    }
+    // Median attendance count
+    const sorted2 = [...counts].sort((a, b) => a - b);
+    const mid = Math.floor(sorted2.length / 2);
+    const medianVal =
+      sorted2.length % 2 === 1
+        ? sorted2[mid]
+        : (sorted2[mid - 1] + sorted2[mid]) / 2;
 
     // Sparkline: last <=12 sessions
     const sparkline = counts.slice(-12);
@@ -94,9 +90,9 @@ export function computeScheduledPrickleStats(
       typeName: type.name,
       sessions,
       min: minVal,
+      median: medianVal,
       mean: meanVal,
       max: maxVal,
-      mode: modeVal,
       sparkline,
       lastSession,
     });
