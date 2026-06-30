@@ -181,10 +181,26 @@ export default async function DataHygienePage() {
     }
   });
 
-  // Get all prickles (calendar and zoom) with their time windows
-  const { data: allPricklesForOverlap } = await supabase
-    .from("prickles")
-    .select("id, start_time, end_time, zoom_meeting_uuid, source");
+  // Get all prickles (calendar and zoom) with their time windows (paginated — table exceeds 1000 rows)
+  const allPricklesForOverlap: { id: string; start_time: string; end_time: string; zoom_meeting_uuid: string | null; source: string }[] = [];
+  {
+    const BATCH = 1000;
+    let offset = 0, hasMore = true;
+    while (hasMore) {
+      const { data: batch } = await supabase
+        .from("prickles")
+        .select("id, start_time, end_time, zoom_meeting_uuid, source")
+        .order("start_time")
+        .range(offset, offset + BATCH - 1);
+      if (batch && batch.length > 0) {
+        allPricklesForOverlap.push(...batch);
+        offset += batch.length;
+        hasMore = batch.length === BATCH;
+      } else {
+        hasMore = false;
+      }
+    }
+  }
 
   // Check each meeting to see if it has been processed
   const orphanedMeetingUuids: string[] = [];
