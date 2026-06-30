@@ -97,7 +97,7 @@ export default async function PrickleDetailPage({
   let allMembersForMatching: Array<{ id: string; name: string; email: string }> = [];
 
   if (isActingAsAdmin && prickle) {
-    const [zoomResult, membersResult, aliasesResult, ignoredResult] = await Promise.all([
+    const [zoomResult, membersResult, aliasesResult, ignoredResult, staffResult] = await Promise.all([
       supabase.schema("bronze").from("zoom_attendees")
         .select("name, email")
         .lt("join_time", prickle.end_time)
@@ -105,18 +105,21 @@ export default async function PrickleDetailPage({
       supabase.from("members").select("id, name, email").eq("status", "active"),
       supabase.from("member_name_aliases").select("alias, member_id, source"),
       supabase.from("ignored_zoom_names").select("zoom_name"),
+      supabase.from("staff").select("name, email"),
     ]);
 
     const members = membersResult.data || [];
     const aliases = aliasesResult.data || [];
     const ignoredNames = (ignoredResult.data || []).map((i: any) => i.zoom_name);
+    const staff = staffResult.data || [];
     allMembersForMatching = members;
 
     unmatchedZoomAttendees = findUnmatchedZoomAttendees(
       zoomResult.data || [],
       members,
       aliases,
-      ignoredNames
+      ignoredNames,
+      staff
     );
   }
 

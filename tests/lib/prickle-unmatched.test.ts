@@ -95,4 +95,57 @@ describe('findUnmatchedZoomAttendees', () => {
     expect(result[0].emails).toHaveLength(0)
     expect(result[0].appearances).toBe(1)
   })
+
+  describe('staff filtering', () => {
+    const staff = [
+      { name: 'Owner 1', email: 'owner1@example.com' },
+      { name: 'Jane Staff', email: 'jane@quillandcup.com' },
+    ]
+
+    it('excludes staff matched by name', () => {
+      const zoom = [
+        { name: 'Owner 1', email: 'owner1@example.com' },
+        { name: 'Mystery Person', email: null },
+      ]
+      const result = findUnmatchedZoomAttendees(zoom, members, aliases, [], staff)
+      expect(result).toHaveLength(1)
+      expect(result[0].zoomName).toBe('Mystery Person')
+    })
+
+    it('excludes staff matched by email even when zoom name differs', () => {
+      const zoom = [
+        { name: 'A. Ray', email: 'owner1@example.com' },
+        { name: 'Mystery Person', email: null },
+      ]
+      const result = findUnmatchedZoomAttendees(zoom, members, aliases, [], staff)
+      expect(result).toHaveLength(1)
+      expect(result[0].zoomName).toBe('Mystery Person')
+    })
+
+    it('staff name match is case-insensitive', () => {
+      const zoom = [{ name: 'ania ray', email: null }]
+      expect(findUnmatchedZoomAttendees(zoom, members, aliases, [], staff)).toEqual([])
+    })
+
+    it('staff email match is case-insensitive', () => {
+      const zoom = [{ name: 'Owner 1', email: 'OWNER1@EXAMPLE.COM' }]
+      expect(findUnmatchedZoomAttendees(zoom, members, aliases, [], staff)).toEqual([])
+    })
+
+    it('returns all unmatched non-staff attendees unchanged when staff list is empty', () => {
+      const zoom = [{ name: 'Mystery Person', email: null }]
+      const result = findUnmatchedZoomAttendees(zoom, members, aliases, [], [])
+      expect(result).toHaveLength(1)
+    })
+
+    it('does not affect members who happen to share a name with staff', () => {
+      const membersWithStaffName: Member[] = [
+        ...members,
+        { id: '99', name: 'Owner 1', email: 'ania-member@example.com' },
+      ]
+      const zoom = [{ name: 'Owner 1', email: 'ania-member@example.com' }]
+      // Staff name match would suppress, but member match also fires — either way not in unmatched
+      expect(findUnmatchedZoomAttendees(zoom, membersWithStaffName, aliases, [], staff)).toEqual([])
+    })
+  })
 })

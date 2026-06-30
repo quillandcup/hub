@@ -217,7 +217,7 @@ export default function AliasSearchForm({
           </div>
         </div>
 
-        <div className="divide-y divide-slate-200 dark:divide-slate-800 max-h-[800px] overflow-y-auto">
+        <div className="divide-y divide-slate-200 dark:divide-slate-800">
           {availableZoomNames.length === 0 ? (
             <div className="p-12 text-center text-slate-500">
               All matched! 🎉

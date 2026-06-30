@@ -5,15 +5,17 @@ import { matchAttendeeToMember } from "@/lib/member-matching";
 export default async function AliasSearchPage() {
   const supabase = await createClient();
 
-  // Get members, aliases, ignored names in parallel; paginate zoom_attendees separately
+  // Get members, aliases, ignored names, and staff in parallel; paginate zoom_attendees separately
   const [
     { data: allMembers },
     { data: aliases },
     { data: ignoredNames },
+    { data: staffMembers },
   ] = await Promise.all([
     supabase.from("members").select("id, name, email").order("name"),
     supabase.from("member_name_aliases").select("alias, member_id, source"),
     supabase.from("ignored_zoom_names").select("zoom_name"),
+    supabase.from("staff").select("name, email"),
   ]);
 
   // Paginate zoom_attendees — table exceeds 1000 rows
@@ -37,6 +39,8 @@ export default async function AliasSearchPage() {
   }
 
   const ignoredSet = new Set(ignoredNames?.map(i => i.zoom_name) || []);
+  const staffEmails = new Set((staffMembers || []).map(s => s.email.toLowerCase()));
+  const staffNames = new Set((staffMembers || []).map(s => s.name.toLowerCase()));
 
   // Count unique meetings (not total records) for each Zoom name
   const zoomNameCounts = new Map<string, { count: number; emails: Set<string>; meetings: Set<string> }>();
@@ -69,6 +73,10 @@ export default async function AliasSearchPage() {
   for (const [zoomName, info] of zoomNameCounts) {
     // Skip ignored names
     if (ignoredSet.has(zoomName)) continue;
+
+    // Skip staff members — they attend but aren't tracked as members
+    const zoomEmail = info.emails.size > 0 ? Array.from(info.emails)[0]?.toLowerCase() : null;
+    if (staffNames.has(zoomName.toLowerCase()) || (zoomEmail && staffEmails.has(zoomEmail))) continue;
 
     // Use centralized matching logic to check if this would match
     const email = info.emails.size > 0 ? Array.from(info.emails)[0] : null;
