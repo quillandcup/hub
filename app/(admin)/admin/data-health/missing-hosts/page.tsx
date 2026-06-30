@@ -62,19 +62,33 @@ export default function MissingHostsPage() {
   async function loadStats() {
     const supabase = createClient();
 
-    const { data, error } = await supabase
-      .from("prickles")
-      .select(`
-        type_id,
-        prickle_types!inner(name, requires_host, default_host_id, members(name))
-      `)
-      .is("host", null)
-      .eq("source", "calendar");
+    const data: any[] = [];
+    let offset = 0;
+    let hasMore = true;
+    while (hasMore) {
+      const { data: batch, error } = await supabase
+        .from("prickles")
+        .select(`
+          type_id,
+          prickle_types!inner(name, requires_host, default_host_id, members(name))
+        `)
+        .is("host", null)
+        .eq("source", "calendar")
+        .range(offset, offset + 999);
 
-    if (error) {
-      console.error("Error loading stats:", error);
-      setLoading(false);
-      return;
+      if (error) {
+        console.error("Error loading stats:", error);
+        setLoading(false);
+        return;
+      }
+
+      if (batch && batch.length > 0) {
+        data.push(...batch);
+        offset += batch.length;
+        hasMore = batch.length === 1000;
+      } else {
+        hasMore = false;
+      }
     }
 
     // Group by type
@@ -182,18 +196,32 @@ export default function MissingHostsPage() {
   async function loadMembers() {
     const supabase = createClient();
 
-    const { data, error } = await supabase
-      .from("members")
-      .select("id, name, email")
-      .eq("status", "active")
-      .order("name");
+    const members: Member[] = [];
+    let offset = 0;
+    let hasMore = true;
+    while (hasMore) {
+      const { data: batch, error } = await supabase
+        .from("members")
+        .select("id, name, email")
+        .eq("status", "active")
+        .order("name")
+        .range(offset, offset + 999);
 
-    if (error) {
-      console.error("Error loading members:", error);
-      return;
+      if (error) {
+        console.error("Error loading members:", error);
+        return;
+      }
+
+      if (batch && batch.length > 0) {
+        members.push(...batch);
+        offset += batch.length;
+        hasMore = batch.length === 1000;
+      } else {
+        hasMore = false;
+      }
     }
 
-    setMembers(data || []);
+    setMembers(members);
   }
 
   async function loadPrickles(typeId: string) {

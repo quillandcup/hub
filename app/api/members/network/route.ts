@@ -13,13 +13,28 @@ export async function GET(request: NextRequest) {
 
   try {
     // Get all active members
-    const { data: members } = await supabase
-      .from("members")
-      .select("id, name, email, status")
-      .eq("status", "active")
-      .order("name");
+    const members: { id: string; name: string; email: string; status: string }[] = [];
+    {
+      let offset = 0;
+      let hasMore = true;
+      while (hasMore) {
+        const { data: batch } = await supabase
+          .from("members")
+          .select("id, name, email, status")
+          .eq("status", "active")
+          .order("name")
+          .range(offset, offset + 999);
+        if (batch && batch.length > 0) {
+          members.push(...batch);
+          offset += batch.length;
+          hasMore = batch.length === 1000;
+        } else {
+          hasMore = false;
+        }
+      }
+    }
 
-    if (!members || members.length === 0) {
+    if (members.length === 0) {
       return NextResponse.json({
         nodes: [],
         edges: [],
@@ -27,19 +42,34 @@ export async function GET(request: NextRequest) {
     }
 
     // Get all attendance records with prickle info
-    const { data: attendance } = await supabase
-      .from("prickle_attendance")
-      .select(`
-        member_id,
-        prickle_id,
-        prickles!inner(
-          id,
-          start_time
-        )
-      `)
-      .order("prickle_id");
+    const attendance: any[] = [];
+    {
+      let offset = 0;
+      let hasMore = true;
+      while (hasMore) {
+        const { data: batch } = await supabase
+          .from("prickle_attendance")
+          .select(`
+            member_id,
+            prickle_id,
+            prickles!inner(
+              id,
+              start_time
+            )
+          `)
+          .order("prickle_id")
+          .range(offset, offset + 999);
+        if (batch && batch.length > 0) {
+          attendance.push(...batch);
+          offset += batch.length;
+          hasMore = batch.length === 1000;
+        } else {
+          hasMore = false;
+        }
+      }
+    }
 
-    if (!attendance || attendance.length === 0) {
+    if (attendance.length === 0) {
       return NextResponse.json({
         nodes: members.map(m => ({
           id: m.id,

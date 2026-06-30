@@ -15,15 +15,32 @@ export async function GET(request: NextRequest) {
       { data: members },
       { data: aliases },
       { data: ignoredUsers },
-      { data: slackMessages },
     ] = await Promise.all([
       supabase.schema('bronze').from("slack_users").select("user_id, email, real_name, display_name, is_bot"),
       supabase.from("members").select("id, name, email"),
       supabase.from("member_name_aliases").select("alias, member_id, source"),
       supabase.from("ignored_slack_users").select("user_id"),
-      // Get message counts per user for activity level
-      supabase.schema('bronze').from("slack_messages").select("user_id"),
     ]);
+
+    // Paginate slack_messages to get complete activity counts per user
+    const slackMessages: { user_id: string }[] = [];
+    {
+      let offset = 0;
+      let hasMore = true;
+      while (hasMore) {
+        const { data: batch } = await supabase
+          .schema('bronze').from("slack_messages")
+          .select("user_id")
+          .range(offset, offset + 999);
+        if (batch && batch.length > 0) {
+          slackMessages.push(...batch);
+          offset += batch.length;
+          hasMore = batch.length === 1000;
+        } else {
+          hasMore = false;
+        }
+      }
+    }
 
     // Match users
     const userToMemberMap = await matchSlackUsersToMembers(

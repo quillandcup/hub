@@ -48,28 +48,45 @@ function groupByCanonical<T extends { email: string }>(
 export default async function ExternalConflictsPage() {
   const supabase = await createClient();
 
+  const paginate = async <T,>(
+    queryFn: (from: number, to: number) => PromiseLike<{ data: T[] | null }>
+  ): Promise<T[]> => {
+    const rows: T[] = [];
+    let offset = 0;
+    let hasMore = true;
+    while (hasMore) {
+      const { data } = await queryFn(offset, offset + 999);
+      if (data?.length) { rows.push(...data); offset += data.length; hasMore = data.length === 1000; }
+      else hasMore = false;
+    }
+    return rows;
+  };
+
   const [
-    { data: emailAliases },
-    { data: kajabiContacts },
-    { data: stripeCustomers },
-    { data: slackUsers },
-    { data: members },
-    { data: stripeActiveSubs },
-    { data: kajabiActivePurchases },
+    emailAliases,
+    kajabiContacts,
+    stripeCustomers,
+    slackUsers,
+    members,
+    stripeActiveSubs,
+    kajabiActivePurchases,
+    kajabiCustomers,
   ] = await Promise.all([
-    supabase.from("member_email_aliases").select("alias_email, canonical_email"),
-    supabase.schema("bronze").from("kajabi_contacts").select("kajabi_contact_id, email, name"),
-    supabase.schema("bronze").from("stripe_customers").select("stripe_customer_id, email, name"),
-    supabase.schema("bronze").from("slack_users")
-      .select("user_id, email, real_name, display_name")
-      .eq("is_bot", false),
-    supabase.from("members").select("id, name, email"),
+    supabase.from("member_email_aliases").select("alias_email, canonical_email").then(r => r.data ?? []),
+    paginate((from, to) => supabase.schema("bronze").from("kajabi_contacts")
+      .select("kajabi_contact_id, email, name").range(from, to)),
+    paginate((from, to) => supabase.schema("bronze").from("stripe_customers")
+      .select("stripe_customer_id, email, name").range(from, to)),
+    paginate((from, to) => supabase.schema("bronze").from("slack_users")
+      .select("user_id, email, real_name, display_name").eq("is_bot", false).range(from, to)),
+    supabase.from("members").select("id, name, email").then(r => r.data ?? []),
     supabase.schema("bronze").from("stripe_subscriptions")
       .select("stripe_customer_id, status")
-      .in("status", ["active", "trialing", "past_due"]),
+      .in("status", ["active", "trialing", "past_due"]).then(r => r.data ?? []),
     supabase.schema("bronze").from("kajabi_purchases")
-      .select("kajabi_customer_id")
-      .eq("status", "active"),
+      .select("kajabi_customer_id").eq("status", "active").then(r => r.data ?? []),
+    paginate((from, to) => supabase.schema("bronze").from("kajabi_customers")
+      .select("kajabi_customer_id, email").range(from, to)),
   ]);
 
   const aliasMap = buildAliasMap(emailAliases ?? []);
@@ -84,9 +101,6 @@ export default async function ExternalConflictsPage() {
     activeSubsByStripeCustomer.set(s.stripe_customer_id, (activeSubsByStripeCustomer.get(s.stripe_customer_id) ?? 0) + 1);
   }
 
-  // Load kajabi_customers to join contacts → purchases
-  const { data: kajabiCustomers } = await supabase.schema("bronze").from("kajabi_customers")
-    .select("kajabi_customer_id, email");
   const kajabiCustomerByEmail = new Map<string, string>();
   for (const c of kajabiCustomers ?? []) kajabiCustomerByEmail.set(c.email.toLowerCase(), c.kajabi_customer_id);
 

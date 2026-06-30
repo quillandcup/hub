@@ -15,46 +15,97 @@ export async function GET(request: NextRequest) {
   const { supabase } = auth;
 
   try {
-    // Get active members with their attendance count
-    const { data: activeMembers } = await supabase
-      .from("members")
-      .select(`
-        id,
-        name,
-        email,
-        prickle_attendance(id)
-      `)
-      .eq("status", "active")
-      .order("name");
+    // Paginate active members
+    const activeMembers: { id: string; name: string; email: string }[] = [];
+    {
+      let offset = 0;
+      let hasMore = true;
+      while (hasMore) {
+        const { data: batch } = await supabase
+          .from("members")
+          .select("id, name, email")
+          .eq("status", "active")
+          .order("name")
+          .range(offset, offset + 999);
+        if (batch && batch.length > 0) {
+          activeMembers.push(...batch);
+          offset += batch.length;
+          hasMore = batch.length === 1000;
+        } else {
+          hasMore = false;
+        }
+      }
+    }
+
+    // Paginate all Zoom attendee records
+    const allZoomNames: { name: string; email: string | null }[] = [];
+    {
+      let offset = 0;
+      let hasMore = true;
+      while (hasMore) {
+        const { data: batch } = await supabase
+          .schema('bronze').from("zoom_attendees")
+          .select("name, email")
+          .order("name")
+          .range(offset, offset + 999);
+        if (batch && batch.length > 0) {
+          allZoomNames.push(...batch);
+          offset += batch.length;
+          hasMore = batch.length === 1000;
+        } else {
+          hasMore = false;
+        }
+      }
+    }
+
+    // Paginate prickle attendance to find all matched member IDs
+    const matchedMemberIds = new Set<string>();
+    {
+      let offset = 0;
+      let hasMore = true;
+      while (hasMore) {
+        const { data: batch } = await supabase
+          .from("prickle_attendance")
+          .select("member_id")
+          .range(offset, offset + 999);
+        if (batch && batch.length > 0) {
+          for (const row of batch) matchedMemberIds.add(row.member_id);
+          offset += batch.length;
+          hasMore = batch.length === 1000;
+        } else {
+          hasMore = false;
+        }
+      }
+    }
+
+    // Paginate all members (including inactive) for Zoom name matching
+    const allMembers: { id: string; name: string; email: string }[] = [];
+    {
+      let offset = 0;
+      let hasMore = true;
+      while (hasMore) {
+        const { data: batch } = await supabase
+          .from("members")
+          .select("id, name, email")
+          .range(offset, offset + 999);
+        if (batch && batch.length > 0) {
+          allMembers.push(...batch);
+          offset += batch.length;
+          hasMore = batch.length === 1000;
+        } else {
+          hasMore = false;
+        }
+      }
+    }
 
     // Filter for members with zero attendance
     const membersWithNoAttendance = activeMembers
-      ?.filter(m => !m.prickle_attendance || m.prickle_attendance.length === 0)
-      .map(m => ({
-        id: m.id,
-        name: m.name,
-        email: m.email,
-      })) || [];
-
-    // Get unmatched Zoom attendees (names that appear in zoom_attendees but not in attendance)
-    // First, get all distinct Zoom attendee names
-    const { data: allZoomNames } = await supabase
-      .schema('bronze').from("zoom_attendees")
-      .select("name, email")
-      .order("name");
-
-    // Get all matched names from attendance table
-    const { data: matchedAttendance } = await supabase
-      .from("prickle_attendance")
-      .select(`
-        id,
-        member_id,
-        members!inner(name)
-      `);
+      .filter(m => !matchedMemberIds.has(m.id))
+      .map(m => ({ id: m.id, name: m.name, email: m.email }));
 
     // Count how many times each Zoom name appears
     const zoomNameCounts = new Map<string, { count: number; emails: Set<string> }>();
-    allZoomNames?.forEach(z => {
+    allZoomNames.forEach(z => {
       const existing = zoomNameCounts.get(z.name);
       if (existing) {
         existing.count++;
@@ -67,16 +118,7 @@ export async function GET(request: NextRequest) {
       }
     });
 
-    // Get matched member IDs
-    const matchedMemberIds = new Set(matchedAttendance?.map(a => a.member_id) || []);
-
-    // Find Zoom names that have NO matches in attendance table
-    // This is done by checking if the Zoom attendee's name appears in our member list but has zero attendance
-    const { data: allMembers } = await supabase
-      .from("members")
-      .select("id, name, email");
-
-    const memberNameMap = new Map(allMembers?.map(m => [m.email?.toLowerCase(), m]) || []);
+    const memberNameMap = new Map(allMembers.map(m => [m.email?.toLowerCase(), m]));
 
     const unmatchedZoomAttendees: Array<{
       zoomName: string;

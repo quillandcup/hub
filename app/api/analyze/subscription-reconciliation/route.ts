@@ -57,27 +57,87 @@ export async function GET(request: NextRequest) {
       console.warn("RPC get_subscription_reconciliation not found, using manual query");
 
       // Manual reconciliation query
-      const { data: members } = await supabase
-        .from("members")
-        .select("id, name, email, kajabi_id");
+      const members: any[] = [];
+      {
+        let offset = 0;
+        let hasMore = true;
+        while (hasMore) {
+          const { data: batch } = await supabase
+            .from("members")
+            .select("id, name, email, kajabi_id")
+            .range(offset, offset + 999);
+          if (batch && batch.length > 0) {
+            members.push(...batch);
+            offset += batch.length;
+            hasMore = batch.length === 1000;
+          } else {
+            hasMore = false;
+          }
+        }
+      }
 
       // Get Kajabi customers for email matching
-      const { data: kajabiCustomers } = await supabase
-        .schema("bronze")
-        .from("kajabi_customers")
-        .select("kajabi_customer_id, email");
+      const kajabiCustomers: any[] = [];
+      {
+        let offset = 0;
+        let hasMore = true;
+        while (hasMore) {
+          const { data: batch } = await supabase
+            .schema("bronze")
+            .from("kajabi_customers")
+            .select("kajabi_customer_id, email")
+            .range(offset, offset + 999);
+          if (batch && batch.length > 0) {
+            kajabiCustomers.push(...batch);
+            offset += batch.length;
+            hasMore = batch.length === 1000;
+          } else {
+            hasMore = false;
+          }
+        }
+      }
 
-      const { data: kajabiPurchases } = await supabase
-        .schema("bronze")
-        .from("kajabi_purchases")
-        .select("*")
-        .in("kajabi_offer_id", membershipProductIds);
+      const kajabiPurchases: any[] = [];
+      {
+        let offset = 0;
+        let hasMore = true;
+        while (hasMore) {
+          const { data: batch } = await supabase
+            .schema("bronze")
+            .from("kajabi_purchases")
+            .select("*")
+            .in("kajabi_offer_id", membershipProductIds)
+            .range(offset, offset + 999);
+          if (batch && batch.length > 0) {
+            kajabiPurchases.push(...batch);
+            offset += batch.length;
+            hasMore = batch.length === 1000;
+          } else {
+            hasMore = false;
+          }
+        }
+      }
 
       // Get Stripe customers for metadata matching
-      const { data: stripeCustomers } = await supabase
-        .schema("bronze")
-        .from("stripe_customers")
-        .select("stripe_customer_id, email, data");
+      const stripeCustomers: any[] = [];
+      {
+        let offset = 0;
+        let hasMore = true;
+        while (hasMore) {
+          const { data: batch } = await supabase
+            .schema("bronze")
+            .from("stripe_customers")
+            .select("stripe_customer_id, email, data")
+            .range(offset, offset + 999);
+          if (batch && batch.length > 0) {
+            stripeCustomers.push(...batch);
+            offset += batch.length;
+            hasMore = batch.length === 1000;
+          } else {
+            hasMore = false;
+          }
+        }
+      }
 
       // Get Stripe membership product IDs to filter out retreat payment plans
       const { data: stripeMembershipProducts } = await supabase
@@ -94,10 +154,25 @@ export async function GET(request: NextRequest) {
         console.warn("No Stripe membership products found — subscription filter disabled, using all subscriptions");
       }
 
-      const { data: allStripeSubscriptions } = await supabase
-        .schema("bronze")
-        .from("stripe_subscriptions")
-        .select("*");
+      const allStripeSubscriptions: any[] = [];
+      {
+        let offset = 0;
+        let hasMore = true;
+        while (hasMore) {
+          const { data: batch } = await supabase
+            .schema("bronze")
+            .from("stripe_subscriptions")
+            .select("*")
+            .range(offset, offset + 999);
+          if (batch && batch.length > 0) {
+            allStripeSubscriptions.push(...batch);
+            offset += batch.length;
+            hasMore = batch.length === 1000;
+          } else {
+            hasMore = false;
+          }
+        }
+      }
 
       // Filter to only membership subscriptions (exclude retreat payment plans, etc.)
       const stripeSubscriptions = membershipStripeProductIds.size > 0
