@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import MemberSearch from "@/components/MemberSearch";
 import { formatDateTimeRange } from "@/lib/formatters";
@@ -430,18 +431,18 @@ export default function MissingHostsPage() {
 
               <div className="space-y-2 max-h-96 overflow-y-auto">
                 {prickles.map((prickle) => (
-                  <div key={prickle.id} className="p-3 bg-gray-50 dark:bg-slate-700/50 border dark:border-slate-600/50 rounded-lg">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <p className="font-medium dark:text-slate-100">
-                          {prickle.title || prickle.prickle_type}
-                        </p>
-                        <p className="text-sm text-gray-600 dark:text-slate-400">
-                          {formatDateTimeRange(prickle.start_time, prickle.end_time)}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
+                  <Link
+                    key={prickle.id}
+                    href={`/admin/prickles/${prickle.id}`}
+                    className="block p-3 bg-gray-50 dark:bg-slate-700/50 border dark:border-slate-600/50 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
+                  >
+                    <p className="font-medium dark:text-slate-100">
+                      {prickle.title || prickle.prickle_type}
+                    </p>
+                    <p className="text-sm text-gray-600 dark:text-slate-400">
+                      {formatDateTimeRange(prickle.start_time, prickle.end_time)}
+                    </p>
+                  </Link>
                 ))}
               </div>
 
