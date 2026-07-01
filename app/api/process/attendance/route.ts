@@ -289,7 +289,7 @@ export async function POST(request: NextRequest) {
     }
 
     const [{ data: members }, { data: aliases }] = await Promise.all([
-      supabase.from("members").select("id, name, email").eq("status", "active"),
+      supabase.from("members").select("id, name, email"),
       supabase.from("member_name_aliases").select("alias, member_id, source"),
     ]);
 

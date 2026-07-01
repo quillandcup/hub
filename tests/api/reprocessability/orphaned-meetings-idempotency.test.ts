@@ -1,7 +1,7 @@
 /**
- * Regression test for orphaned meetings calculation idempotency bug
+ * Regression tests for orphaned meetings calculation idempotency
  *
- * Bug: Orphaned meetings calculation used ALL attendees to determine meeting windows,
+ * Bug 1: Orphaned meetings calculation used ALL attendees to determine meeting windows,
  * but processing only used MATCHED attendees. This caused non-idempotent behavior:
  * - Click 1: Process 234 meetings, create 176 PUPs → still shows 24 orphaned
  * - Click 2: Process SAME 234 meetings, create SAME 176 PUPs → shows 5 orphaned
@@ -12,8 +12,15 @@
  * - Processing created: PUP for 9:30-10:30 (only matched window)
  * - After processing: Orphaned calc STILL saw 9:00-10:30 with no coverage = orphaned
  *
- * Fix: Orphaned calculation now uses same matching logic as processing - only counts
+ * Fix 1: Orphaned calculation now uses same matching logic as processing - only counts
  * MATCHED attendees when calculating meeting time windows.
+ *
+ * Bug 2: Processing filtered members by status='active', but orphaned detection used all
+ * members. Meetings attended solely by inactive/cancelled members showed as perpetually
+ * orphaned because processing would skip them (no active matches).
+ *
+ * Fix 2: Processing now matches against all members regardless of status, so historical
+ * attendance by former members is preserved.
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
@@ -242,6 +249,100 @@ describe('Orphaned Meetings Idempotency', () => {
     expect(result2.meetingsProcessed).toBe(result1.meetingsProcessed);
     expect(result2.createdNewPrickles).toBe(result1.createdNewPrickles);
     expect(result2.attendanceRecords).toBe(result1.attendanceRecords);
+  });
+
+  it('should resolve orphaned meetings attended only by inactive members', async () => {
+    // Bug: processing used status='active' filter so meetings where all attendees are
+    // inactive/cancelled members were skipped and stayed orphaned forever.
+    // Fix: processing now matches all members regardless of status.
+
+    const meetingUuid = 'test-orphan-meeting-inactive';
+    const baseDate = new Date('2026-04-03T10:00:00Z');
+
+    // Clean up from any previous run
+    await supabase.from('members').delete().ilike('email', 'test-orphan-inactive-%');
+    await supabase.schema('bronze').from('zoom_attendees').delete().eq('meeting_uuid', meetingUuid);
+
+    const { data: inactiveMember } = await supabase
+      .from('members')
+      .insert({
+        name: 'Former Member',
+        email: 'test-orphan-inactive@example.com',
+        status: 'cancelled',
+        joined_at: '2022-01-01',
+      })
+      .select()
+      .single();
+
+    await supabase.schema('bronze').from('zoom_attendees').insert({
+      meeting_id: meetingUuid,
+      meeting_uuid: meetingUuid,
+      name: 'Former Member',
+      email: 'test-orphan-inactive@example.com',
+      join_time: baseDate.toISOString(),
+      leave_time: new Date(baseDate.getTime() + 60 * 60 * 1000).toISOString(),
+      duration: 60,
+    });
+
+    // Before processing: meeting should show as orphaned (matched attendee, no PUP)
+    const [{ data: members }, { data: aliases }] = await Promise.all([
+      supabase.from('members').select('id, name, email'),
+      supabase.from('member_name_aliases').select('alias, member_id'),
+    ]);
+
+    const { data: allAttendees } = await supabase
+      .schema('bronze').from('zoom_attendees')
+      .select('meeting_uuid, name, email, join_time, leave_time')
+      .eq('meeting_uuid', meetingUuid);
+
+    const meetingTimeWindows = new Map<string, { start: Date; end: Date }>();
+    allAttendees?.forEach((m: any) => {
+      if (!matchAttendeeToMember(m.name, m.email, members || [], aliases || [])) return;
+      const existing = meetingTimeWindows.get(m.meeting_uuid);
+      const joinTime = new Date(m.join_time);
+      const leaveTime = new Date(m.leave_time);
+      if (existing) {
+        existing.start = new Date(Math.min(existing.start.getTime(), joinTime.getTime()));
+        existing.end = new Date(Math.max(existing.end.getTime(), leaveTime.getTime()));
+      } else {
+        meetingTimeWindows.set(m.meeting_uuid, { start: joinTime, end: leaveTime });
+      }
+    });
+
+    expect(meetingTimeWindows.has(meetingUuid)).toBe(true); // inactive member matches
+
+    // Process attendance over the meeting's date range
+    const fromDate = new Date(baseDate.getTime() - 60 * 60 * 1000).toISOString();
+    const toDate = new Date(baseDate.getTime() + 120 * 60 * 1000).toISOString();
+
+    const response = await fetch('http://localhost:3000/api/process/attendance', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...getTestAuthHeaders() },
+      body: JSON.stringify({ fromDate, toDate }),
+    });
+    expect(response.ok).toBe(true);
+
+    // Attendance record should be created for the inactive member
+    const { data: attendance } = await supabase
+      .from('prickle_attendance')
+      .select('*')
+      .eq('member_id', inactiveMember!.id);
+
+    expect(attendance?.length).toBeGreaterThan(0);
+
+    // PUP should exist (meeting has no calendar prickle overlap)
+    const { data: pup } = await supabase
+      .from('prickles')
+      .select('id')
+      .eq('source', 'zoom')
+      .eq('zoom_meeting_uuid', meetingUuid)
+      .single();
+
+    expect(pup).toBeTruthy();
+
+    // Clean up
+    await supabase.schema('bronze').from('zoom_attendees').delete().eq('meeting_uuid', meetingUuid);
+    await supabase.from('members').delete().eq('id', inactiveMember!.id);
   });
 
   it('should not count meetings with only unmatched attendees as orphaned', async () => {

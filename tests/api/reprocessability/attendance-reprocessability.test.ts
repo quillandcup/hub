@@ -355,6 +355,65 @@ describe('Attendance Reprocessability', () => {
     expect(after).toBeNull()
   })
 
+  it('should create attendance for inactive members (historical accuracy)', async () => {
+    // Inactive members attended real meetings while they were active members.
+    // Their current status must not erase that history — processing uses all members.
+    const inactiveMeetingUuid = `test-meeting-inactive-${Date.now()}`
+
+    const { data: inactiveMember } = await supabase
+      .from('members')
+      .insert({
+        name: 'Inactive Test Member',
+        email: `inactive-test-${Date.now()}@example.com`,
+        joined_at: '2022-01-01',
+        status: 'cancelled',
+      })
+      .select('id')
+      .single()
+
+    await supabase.schema('bronze').from('zoom_meetings').insert({
+      meeting_uuid: inactiveMeetingUuid,
+      meeting_id: inactiveMeetingUuid,
+      topic: 'Historical Meeting',
+      start_time: '2099-05-22T10:00:00Z',
+      end_time: '2099-05-22T11:00:00Z',
+      duration_minutes: 60,
+      data: {},
+    })
+
+    await supabase.schema('bronze').from('zoom_attendees').insert({
+      meeting_id: inactiveMeetingUuid,
+      meeting_uuid: inactiveMeetingUuid,
+      name: 'Inactive Test Member',
+      email: null,
+      join_time: '2099-05-22T10:05:00Z',
+      leave_time: '2099-05-22T10:55:00Z',
+      duration: 50,
+    })
+
+    const response = await fetch('http://localhost:3000/api/process/attendance', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...getTestAuthHeaders() },
+      body: JSON.stringify({ fromDate: testDateRange.from, toDate: testDateRange.to }),
+    })
+
+    const result = await response.json()
+    expect(result.success).toBe(true)
+
+    const { data: attendance } = await supabase
+      .from('prickle_attendance')
+      .select('*')
+      .eq('member_id', inactiveMember!.id)
+
+    expect(attendance).toHaveLength(1)
+    expect(attendance?.[0].join_time).toBe('2099-05-22T10:05:00+00:00')
+
+    // Clean up
+    await supabase.schema('bronze').from('zoom_attendees').delete().eq('meeting_uuid', inactiveMeetingUuid)
+    await supabase.schema('bronze').from('zoom_meetings').delete().eq('meeting_uuid', inactiveMeetingUuid)
+    await supabase.from('members').delete().eq('id', inactiveMember!.id)
+  })
+
   it('should only affect data in date range (scoped reprocessing)', async () => {
     // ARRANGE: Insert attendance outside the date range
     const juneMeetingUuid = `test-meeting-june-${Date.now()}`
