@@ -374,7 +374,7 @@ export default async function PrickleKindInsightsPage({
                     Max
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                    Trend (last 12)
+                    Trend
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                     Last Session

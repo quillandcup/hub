@@ -94,20 +94,44 @@ describe('computeScheduledPrickleStats', () => {
     expect(result[0].mean).toBeCloseTo(4.0);
   });
 
-  it('sparkline contains last 12 sessions when there are more than 12', () => {
+  it('sparkline contains all sessions when there are 20 or fewer', () => {
     const prickles = Array.from({ length: 15 }, (_, i) =>
       prickle(`p${i}`, 't1', `2026-01-${String(i + 1).padStart(2, '0')}`)
     );
     const result = computeScheduledPrickleStats([t1], prickles, []);
-    expect(result[0].sparkline).toHaveLength(12);
+    expect(result[0].sparkline).toHaveLength(15);
   });
 
-  it('sparkline contains all sessions when there are 12 or fewer', () => {
-    const prickles = Array.from({ length: 5 }, (_, i) =>
-      prickle(`p${i}`, 't1', `2026-01-${String(i + 1).padStart(2, '0')}`)
+  it('sparkline is sampled to 20 points when there are more than 20 sessions', () => {
+    const prickles = Array.from({ length: 40 }, (_, i) =>
+      prickle(`p${i}`, 't1', `2026-01-${String((i % 28) + 1).padStart(2, '0')}`)
     );
     const result = computeScheduledPrickleStats([t1], prickles, []);
-    expect(result[0].sparkline).toHaveLength(5);
+    expect(result[0].sparkline).toHaveLength(20);
+  });
+
+  it('sparkline covers the full time window via bucket averaging (not just the last N sessions)', () => {
+    // 40 sessions: first 20 with 5 attendees, last 20 with 15 attendees
+    // bucketSize = 40/20 = 2, so each bucket averages 2 sessions
+    // First bucket → avg(5, 5) = 5; last bucket → avg(15, 15) = 15
+    const prickles = Array.from({ length: 40 }, (_, i) =>
+      prickle(`p${i}`, 't1', `2026-${String(Math.floor(i / 4) + 1).padStart(2, '0')}-${String((i % 4) * 7 + 1).padStart(2, '0')}`)
+    );
+    const attendance = [
+      // first 20 sessions: 5 attendees each
+      ...Array.from({ length: 20 }, (_, i) =>
+        Array.from({ length: 5 }, (_, m) => attend(`p${i}`, `m${m}`))
+      ).flat(),
+      // last 20 sessions: 15 attendees each
+      ...Array.from({ length: 20 }, (_, i) =>
+        Array.from({ length: 15 }, (_, m) => attend(`p${i + 20}`, `m${m}`))
+      ).flat(),
+    ];
+    const result = computeScheduledPrickleStats([t1], prickles, attendance);
+    const sparkline = result[0].sparkline;
+    expect(sparkline).toHaveLength(20);
+    expect(sparkline[0]).toBeCloseTo(5);   // early buckets reflect early sessions
+    expect(sparkline[19]).toBeCloseTo(15); // late buckets reflect late sessions
   });
 
   it('sparkline values are ordered oldest to newest', () => {

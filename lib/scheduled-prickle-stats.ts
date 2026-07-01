@@ -28,7 +28,7 @@ export interface TypeStats {
   median: number;
   mean: number;
   max: number;
-  sparkline: number[]; // last <=12 sessions, oldest to newest
+  sparkline: number[]; // all sessions in the time window, sampled to <=20 points, oldest to newest
   lastSession: string; // ISO date string
 }
 
@@ -67,6 +67,17 @@ type CoreStats = {
   lastSession: string;
 };
 
+function sampleSparkline(values: number[], maxPoints: number): number[] {
+  if (values.length <= maxPoints) return values;
+  const bucketSize = values.length / maxPoints;
+  return Array.from({ length: maxPoints }, (_, i) => {
+    const start = Math.floor(i * bucketSize);
+    const end = Math.floor((i + 1) * bucketSize);
+    const bucket = values.slice(start, end);
+    return bucket.reduce((s, v) => s + v, 0) / bucket.length;
+  });
+}
+
 function computeCoreStats(
   prickles: Prickle[],
   attendanceMap: Map<string, Set<string>>
@@ -96,7 +107,7 @@ function computeCoreStats(
     median: medianVal,
     mean: meanVal,
     max: maxVal,
-    sparkline: counts.slice(-12),
+    sparkline: sampleSparkline(counts, 20),
     lastSession: sorted[sorted.length - 1].start_time,
   };
 }
