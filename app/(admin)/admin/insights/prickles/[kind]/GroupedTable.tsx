@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, Fragment } from "react";
+import Link from "next/link";
 import type { GroupStats, PrickleSession } from "@/lib/scheduled-prickle-stats";
 
 // ---------------------------------------------------------------------------
@@ -63,13 +64,18 @@ function SessionList({ sessions }: { sessions: PrickleSession[] }) {
                 key={s.id}
                 className="flex gap-4 text-sm bg-white dark:bg-slate-900 rounded border border-slate-200 dark:border-slate-700 px-4 py-2.5"
               >
-                <div className="shrink-0 w-32 text-slate-500 dark:text-slate-400 text-xs pt-0.5">
-                  {new Date(s.startTime).toLocaleDateString(undefined, {
-                    weekday: "short",
-                    year: "numeric",
-                    month: "short",
-                    day: "numeric",
-                  })}
+                <div className="shrink-0 w-32 text-xs pt-0.5">
+                  <Link
+                    href={`/admin/prickles/${s.id}`}
+                    className="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 hover:underline"
+                  >
+                    {new Date(s.startTime).toLocaleDateString(undefined, {
+                      weekday: "short",
+                      year: "numeric",
+                      month: "short",
+                      day: "numeric",
+                    })}
+                  </Link>
                 </div>
                 <div className="flex-1 min-w-0">
                   {s.hostName && (
