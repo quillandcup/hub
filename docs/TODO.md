@@ -380,6 +380,17 @@ Define user roles and permissions:
 
 ---
 
+## Gamification / Badges
+
+### PUP-Starter Badge
+Recognize members who drive spontaneous collaboration by being the first to join (or most frequently starting) Pop-Up Prickles.
+
+Two possible definitions:
+1. **First joiner** — member with the earliest `join_time` in `attendance` for a given PUP
+2. **Most frequent caller** — member who initiates the most PUPs (may need Zoom host data or a `called_by` field on prickles)
+
+---
+
 ## Analytics & Matching
 
 ### Member Matching Logic (In Progress)
