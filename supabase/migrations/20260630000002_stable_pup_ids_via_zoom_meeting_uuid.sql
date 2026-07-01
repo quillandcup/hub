@@ -8,7 +8,35 @@
 -- across reprocesses. Only true orphans (Zoom meetings removed upstream) are deleted.
 
 -- zoom_meeting_uuid was already indexed but not unique; promote to unique.
+-- First deduplicate: for each zoom_meeting_uuid with multiple PUPs, keep the
+-- oldest (MIN id) and reassign its attendance records before deleting the rest.
 DROP INDEX IF EXISTS idx_prickles_zoom_meeting_uuid;
+
+WITH keepers AS (
+  SELECT zoom_meeting_uuid, MIN(id) AS keeper_id
+  FROM prickles
+  WHERE zoom_meeting_uuid IS NOT NULL
+  GROUP BY zoom_meeting_uuid
+  HAVING COUNT(*) > 1
+)
+UPDATE prickle_attendance pa
+SET prickle_id = keepers.keeper_id
+FROM prickles p
+JOIN keepers ON keepers.zoom_meeting_uuid = p.zoom_meeting_uuid
+WHERE pa.prickle_id = p.id
+  AND p.id != keepers.keeper_id;
+
+WITH keepers AS (
+  SELECT zoom_meeting_uuid, MIN(id) AS keeper_id
+  FROM prickles
+  WHERE zoom_meeting_uuid IS NOT NULL
+  GROUP BY zoom_meeting_uuid
+  HAVING COUNT(*) > 1
+)
+DELETE FROM prickles p
+USING keepers
+WHERE p.zoom_meeting_uuid = keepers.zoom_meeting_uuid
+  AND p.id != keepers.keeper_id;
 
 CREATE UNIQUE INDEX idx_prickles_zoom_meeting_uuid
   ON prickles(zoom_meeting_uuid)
