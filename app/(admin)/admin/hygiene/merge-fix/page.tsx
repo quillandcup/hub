@@ -18,8 +18,7 @@ export default async function MergeFixPage() {
 
   const { data: dismissedRows } = await supabase
     .from("dismissed_duplicate_groups")
-    .select("group_key")
-    .eq("user_id", user.id);
+    .select("group_key");
   const dismissedKeys = new Set((dismissedRows ?? []).map((r) => r.group_key));
 
   // Paginate in case member count grows
