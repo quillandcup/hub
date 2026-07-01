@@ -225,50 +225,69 @@ describe('Calendar Reprocessability', () => {
     ])
   })
 
-  it('should verify DELETE + INSERT pattern (not selective UPDATE)', async () => {
-    // ARRANGE: Insert a prickle directly into Silver (bypassing Bronze)
-    // This simulates an orphaned prickle that selective UPDATE would keep
-    const orphanPrickle = {
+  it('should preserve prickle UUIDs across reprocessing (stable links)', async () => {
+    // Reprocessing the same calendar data must not change prickle UUIDs.
+    // Broken URLs (/admin/prickles/<id>) are the symptom when this fails.
+    const { data: before } = await supabase
+      .from('prickles')
+      .select('id, start_time')
+      .eq('source', 'calendar')
+      .gte('start_time', testDateRange.from)
+      .lte('end_time', testDateRange.to)
+      .order('start_time')
+
+    expect(before?.length).toBeGreaterThan(0)
+    const idsBefore = before!.map(p => p.id)
+
+    const response = await fetch('http://localhost:3000/api/process/calendar', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...getTestAuthHeaders() },
+      body: JSON.stringify({ fromDate: testDateRange.from, toDate: testDateRange.to }),
+    })
+    expect((await response.json()).success).toBe(true)
+
+    const { data: after } = await supabase
+      .from('prickles')
+      .select('id, start_time')
+      .eq('source', 'calendar')
+      .gte('start_time', testDateRange.from)
+      .lte('end_time', testDateRange.to)
+      .order('start_time')
+
+    expect(after?.map(p => p.id)).toEqual(idsBefore)
+  })
+
+  it('should remove orphan prickles with no matching calendar event', async () => {
+    // A prickle inserted directly into Silver (no calendar_event_id) has no
+    // source calendar event, so reprocessing must delete it.
+    await supabase.from('prickles').insert({
       type_id: prickleTypeId,
       start_time: '2099-06-25T15:00:00Z',
       end_time: '2099-06-25T16:00:00Z',
       source: 'calendar',
-    }
+    })
 
-    await supabase.from('prickles').insert(orphanPrickle)
-
-    // Verify orphan exists
     const { data: before } = await supabase
       .from('prickles')
       .select('*')
       .eq('source', 'calendar')
       .eq('start_time', '2099-06-25T15:00:00+00:00')
       .single()
-
     expect(before).toBeTruthy()
 
-    // ACT: Process calendar (should DELETE all in range, then INSERT from Bronze)
     const response = await fetch('http://localhost:3000/api/process/calendar', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...getTestAuthHeaders() },
-      body: JSON.stringify({
-        fromDate: testDateRange.from,
-        toDate: testDateRange.to,
-      }),
+      body: JSON.stringify({ fromDate: testDateRange.from, toDate: testDateRange.to }),
     })
+    expect((await response.json()).success).toBe(true)
 
-    const result = await response.json()
-    expect(result.success).toBe(true)
-
-    // ASSERT: Orphan should be GONE (DELETE + INSERT removes it)
-    // If selective UPDATE was used, orphan would still exist
     const { data: after } = await supabase
       .from('prickles')
       .select('*')
       .eq('source', 'calendar')
       .eq('start_time', '2099-06-25T15:00:00+00:00')
       .single()
-
     expect(after).toBeNull()
   })
 

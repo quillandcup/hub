@@ -244,9 +244,69 @@ describe('Attendance Reprocessability', () => {
     expect(pupAfter).toHaveLength(0)
   })
 
-  it('should verify DELETE + INSERT pattern (not UPSERT)', async () => {
-    // ARRANGE: Create a prickle then insert attendance directly into Silver (bypassing Bronze)
-    // This simulates orphaned data that UPSERT would keep
+  it('should preserve PUP UUIDs across attendance reprocessing (stable links)', async () => {
+    // Reprocessing the same Zoom data must not change PUP UUIDs.
+    // Broken URLs (/admin/prickles/<id>) are the symptom when this fails.
+    const stableMeetingUuid = `test-meeting-stable-${Date.now()}`
+
+    await supabase.schema('bronze').from('zoom_meetings').insert({
+      meeting_uuid: stableMeetingUuid,
+      meeting_id: stableMeetingUuid,
+      topic: 'Stable PUP Test',
+      start_time: '2099-05-18T10:00:00Z',
+      end_time: '2099-05-18T11:00:00Z',
+      duration_minutes: 60,
+      data: {},
+    })
+    await supabase.schema('bronze').from('zoom_attendees').insert({
+      meeting_id: stableMeetingUuid,
+      meeting_uuid: stableMeetingUuid,
+      name: 'Reprocess Test Member',
+      email: null,
+      join_time: '2099-05-18T10:00:00Z',
+      leave_time: '2099-05-18T11:00:00Z',
+      duration: 60,
+    })
+
+    await fetch('http://localhost:3000/api/process/attendance', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...getTestAuthHeaders() },
+      body: JSON.stringify({ fromDate: testDateRange.from, toDate: testDateRange.to }),
+    })
+
+    const { data: pupBefore } = await supabase
+      .from('prickles')
+      .select('id')
+      .eq('source', 'zoom')
+      .eq('zoom_meeting_uuid', stableMeetingUuid)
+      .single()
+    expect(pupBefore).toBeTruthy()
+    const pupId = pupBefore!.id
+
+    // Reprocess with the same Zoom data
+    const response = await fetch('http://localhost:3000/api/process/attendance', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...getTestAuthHeaders() },
+      body: JSON.stringify({ fromDate: testDateRange.from, toDate: testDateRange.to }),
+    })
+    expect((await response.json()).success).toBe(true)
+
+    const { data: pupAfter } = await supabase
+      .from('prickles')
+      .select('id')
+      .eq('source', 'zoom')
+      .eq('zoom_meeting_uuid', stableMeetingUuid)
+      .single()
+    expect(pupAfter?.id).toBe(pupId)
+
+    // Clean up
+    await supabase.schema('bronze').from('zoom_attendees').delete().eq('meeting_uuid', stableMeetingUuid)
+    await supabase.schema('bronze').from('zoom_meetings').delete().eq('meeting_uuid', stableMeetingUuid)
+  })
+
+  it('should verify orphan PUPs and attendance are removed on reprocess', async () => {
+    // A PUP with no zoom_meeting_uuid has no stable key and no Bronze source,
+    // so reprocessing must remove it and its attendance records.
     const { data: orphanPrickle } = await supabase.from('prickles').insert({
       type_id: prickleTypeId,
       start_time: '2099-05-25T16:00:00Z',

@@ -239,7 +239,7 @@ export async function POST(request: NextRequest) {
         continue;
       }
 
-      // Add to insert list (we DELETE everything, so all matched events are re-inserted)
+      // Add to upsert list — calendar_event_id is the conflict key, so existing prickle UUIDs survive reprocessing
       // Only store title if it's different from the type (for "fun names" like "Midnight Crew")
       const matchedType = prickleTypes?.find(t => t.id === typeId);
       const isSameAsType = matchedType &&
@@ -250,6 +250,7 @@ export async function POST(request: NextRequest) {
       const finalHostId = hostId || matchedType?.default_host_id || null;
 
       pricklesToInsert.push({
+        calendar_event_id: event.id,
         type_id: typeId,
         title: isSameAsType ? null : event.summary, // NULL if just "{Type}" or "{Type} Prickle"
         host: finalHostId,
