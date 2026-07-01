@@ -63,6 +63,13 @@ export default async function MemberDetailPage({
     .eq("member_id", id)
     .order("alias");
 
+  // Fetch email aliases
+  const { data: emailAliases } = await supabase
+    .from("member_email_aliases")
+    .select("alias_email")
+    .eq("canonical_email", member.email)
+    .order("alias_email");
+
   // Fetch hiatus history
   const { data: hiatusHistory } = await supabase
     .from("member_hiatus_history")
@@ -119,7 +126,7 @@ export default async function MemberDetailPage({
                       />
                     </svg>
                     <div className="opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto absolute left-0 top-6 w-64 p-3 bg-slate-900 dark:bg-slate-700 text-white text-xs rounded shadow-lg z-10 transition-opacity duration-200 before:content-[''] before:absolute before:left-0 before:bottom-full before:w-full before:h-6">
-                      Aliases help match Zoom names to people. <Link href="/data/aliases" className="underline hover:text-blue-300">Manage aliases →</Link>
+                      Aliases help match Zoom names to people. <Link href="/admin/data/aliases" className="underline hover:text-blue-300">Manage aliases →</Link>
                     </div>
                   </div>
                 </div>
@@ -138,6 +145,11 @@ export default async function MemberDetailPage({
               <p className="text-sm text-slate-600 dark:text-slate-400">
                 {member.email}
               </p>
+              {emailAliases && emailAliases.length > 0 && (
+                <p className="text-xs text-slate-400 dark:text-slate-500 italic">
+                  Also known as: {emailAliases.map(({ alias_email }) => alias_email).join(", ")}
+                </p>
+              )}
               {(member.kajabi_id || member.stripe_customer_id) && (
                 <div className="flex items-center gap-3 text-xs">
                   {member.kajabi_id && (
@@ -183,6 +195,7 @@ export default async function MemberDetailPage({
           hiatusHistory={hiatusHistory || []}
           slackActivities={slackActivities || []}
           userTimezonePreference={userTimezone}
+          membershipHistory={[]}
         />
       </main>
     </div>
