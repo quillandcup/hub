@@ -12,6 +12,7 @@ export interface TableDependencies {
   silver: string[];  // Other Silver tables this depends on
   processingScope: 'full' | 'date-range';  // How to scope reprocessing
   dateField?: string;  // Required if processingScope = 'date-range'
+  localDefaultFutureDays?: number;  // Days forward to include when local deps change (default: 0)
 }
 
 export const SILVER_DEPENDENCIES: Record<string, TableDependencies> = {
@@ -24,10 +25,13 @@ export const SILVER_DEPENDENCIES: Record<string, TableDependencies> = {
 
   calendar: {
     bronze: ['calendar_events'],
-    local: ['prickle_types'],
+    local: ['prickle_types', 'member_name_aliases'],
     silver: [],
     processingScope: 'date-range',
-    dateField: 'start_time'
+    dateField: 'start_time',
+    // Calendar events are pre-scheduled months in advance, so local changes
+    // (like new host aliases) must reprocess future prickles too
+    localDefaultFutureDays: 90,
   },
 
   attendance: {
@@ -243,19 +247,27 @@ export async function triggerReprocessing(
     return { processed: [] };
   }
 
+  // Compute processing order first (needed for date range calculation)
+  const order = getProcessingOrder(affected);
+
   // For Local layer changes without explicit date range, default to last 90 days
+  // plus any forward window needed by affected tables (e.g. calendar has pre-scheduled future events)
   let dateRange = options?.dateRange;
   if (layer === 'local' && !dateRange) {
     const now = new Date();
     const ninetyDaysAgo = new Date();
     ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
 
-    dateRange = { from: ninetyDaysAgo, to: now };
-    console.log(`Local layer change: defaulting to last 90 days (${ninetyDaysAgo.toISOString()} to ${now.toISOString()})`);
-  }
+    const maxFutureDays = Math.max(
+      0,
+      ...order.map(t => SILVER_DEPENDENCIES[t]?.localDefaultFutureDays ?? 0)
+    );
+    const futureDate = new Date();
+    futureDate.setDate(futureDate.getDate() + maxFutureDays);
 
-  // Process in correct order
-  const order = getProcessingOrder(affected);
+    dateRange = { from: ninetyDaysAgo, to: futureDate };
+    console.log(`Local layer change: defaulting to last 90 days + ${maxFutureDays} days forward (${ninetyDaysAgo.toISOString()} to ${futureDate.toISOString()})`);
+  }
 
   console.log(`Reprocessing ${order.join(' → ')} due to ${layer}.${changedTable} change`);
 
