@@ -22,6 +22,7 @@ export default function MergeMemberModal({ primaryMember, isOpen, onClose }: Mer
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<Member[]>([]);
   const [selectedSecondary, setSelectedSecondary] = useState<Member | null>(null);
+  const [primaryId, setPrimaryId] = useState<string>(primaryMember.id);
   const [loading, setLoading] = useState(false);
   const [merging, setMerging] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -30,26 +31,37 @@ export default function MergeMemberModal({ primaryMember, isOpen, onClose }: Mer
   const [externalLoading, setExternalLoading] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Derive primary and secondary from the two members + chosen primaryId
+  const primary = selectedSecondary
+    ? ([primaryMember, selectedSecondary].find(m => m.id === primaryId) ?? primaryMember)
+    : primaryMember;
+  const secondary = selectedSecondary
+    ? ([primaryMember, selectedSecondary].find(m => m.id !== primaryId) ?? null)
+    : null;
+
   useEffect(() => {
     if (!isOpen) {
       setQuery("");
       setResults([]);
       setSelectedSecondary(null);
+      setPrimaryId(primaryMember.id);
       setError(null);
       setConflicts([]);
       setExternalStatus(null);
     }
-  }, [isOpen]);
+  }, [isOpen, primaryMember.id]);
 
+  // Check external accounts for the secondary (non-primary) member
+  const secondaryId = secondary?.id;
   useEffect(() => {
-    if (!selectedSecondary) { setExternalStatus(null); return; }
+    if (!secondaryId) { setExternalStatus(null); return; }
     setExternalLoading(true);
-    fetch(`/api/admin/members/external-status?ids=${selectedSecondary.id}`)
+    fetch(`/api/admin/members/external-status?ids=${secondaryId}`)
       .then(r => r.json())
-      .then(data => setExternalStatus(data.members?.[selectedSecondary.id] ?? null))
+      .then(data => setExternalStatus(data.members?.[secondaryId] ?? null))
       .catch(() => setExternalStatus(null))
       .finally(() => setExternalLoading(false));
-  }, [selectedSecondary?.id]);
+  }, [secondaryId]);
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -62,7 +74,7 @@ export default function MergeMemberModal({ primaryMember, isOpen, onClose }: Mer
       try {
         const res = await fetch(`/api/members?search=${encodeURIComponent(query.trim())}`);
         const json = await res.json();
-        // Exclude the primary member from results
+        // Exclude the page member from results
         setResults((json.members || []).filter((m: Member) => m.id !== primaryMember.id));
       } catch {
         setResults([]);
@@ -73,14 +85,14 @@ export default function MergeMemberModal({ primaryMember, isOpen, onClose }: Mer
   }, [query, primaryMember.id]);
 
   async function handleMerge() {
-    if (!selectedSecondary) return;
+    if (!secondary) return;
     setMerging(true);
     setError(null);
     try {
       const res = await fetch("/api/admin/members/merge", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ primaryId: primaryMember.id, secondaryId: selectedSecondary.id }),
+        body: JSON.stringify({ primaryId: primary.id, secondaryId: secondary.id }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Merge failed");
@@ -98,121 +110,180 @@ export default function MergeMemberModal({ primaryMember, isOpen, onClose }: Mer
     }
   }
 
+  function handleSelectSecondary(m: Member) {
+    setSelectedSecondary(m);
+    setPrimaryId(primaryMember.id);
+    setQuery("");
+    setResults([]);
+  }
+
+  function handleChangeSecondary() {
+    setSelectedSecondary(null);
+    setPrimaryId(primaryMember.id);
+  }
+
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Merge Duplicate Members" maxWidth="lg">
       <div className="space-y-5">
         <p className="text-sm text-slate-600 dark:text-slate-400">
-          Search for the duplicate member to absorb into <strong>{primaryMember.name}</strong>. All
-          attendance, activities, and aliases will be transferred to the primary. The duplicate will
-          be permanently deleted.
+          Search for the duplicate member to merge. Once selected, choose which one to keep as
+          primary. All attendance, activities, and aliases will be transferred to the primary. The
+          duplicate will be permanently deleted.
         </p>
 
-        {/* Primary */}
-        <div>
-          <p className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1.5">
-            Keep (primary)
-          </p>
-          <div className="flex items-center gap-3 p-3 rounded-lg border-2 border-blue-200 dark:border-blue-700 bg-blue-50 dark:bg-blue-950/30">
-            <div className="w-9 h-9 rounded-full bg-blue-200 dark:bg-blue-800 flex items-center justify-center text-sm font-semibold text-blue-700 dark:text-blue-300 flex-shrink-0">
-              {primaryMember.name.charAt(0).toUpperCase()}
+        {selectedSecondary ? (
+          /* Radio selection + absorb display */
+          <div className="space-y-3">
+            <div>
+              <p className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2">
+                Select primary (keep)
+              </p>
+              <div className="space-y-2">
+                {[primaryMember, selectedSecondary].map((m) => (
+                  <label
+                    key={m.id}
+                    className={`flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-colors ${
+                      primaryId === m.id
+                        ? "border-blue-300 dark:border-blue-600 bg-blue-50 dark:bg-blue-950/30"
+                        : "border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="primary"
+                      value={m.id}
+                      checked={primaryId === m.id}
+                      onChange={() => setPrimaryId(m.id)}
+                      className="accent-blue-600"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">{m.name}</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{m.email}</p>
+                    </div>
+                    {primaryId === m.id && (
+                      <span className="ml-auto text-xs font-medium text-blue-600 dark:text-blue-400 flex-shrink-0">Keep</span>
+                    )}
+                  </label>
+                ))}
+              </div>
             </div>
-            <div className="min-w-0">
-              <p className="font-medium text-sm truncate">{primaryMember.name}</p>
-              <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{primaryMember.email}</p>
-            </div>
-          </div>
-        </div>
 
-        {/* Secondary search */}
-        <div>
-          <p className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1.5">
-            Absorb & delete (duplicate)
-          </p>
-          {selectedSecondary ? (
-            <div className="flex items-center gap-3 p-3 rounded-lg border-2 border-red-200 dark:border-red-700 bg-red-50 dark:bg-red-950/30">
-              <div className="w-9 h-9 rounded-full bg-red-200 dark:bg-red-800 flex items-center justify-center text-sm font-semibold text-red-700 dark:text-red-300 flex-shrink-0">
-                {selectedSecondary.name.charAt(0).toUpperCase()}
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="font-medium text-sm truncate">{selectedSecondary.name}</p>
-                <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{selectedSecondary.email}</p>
-              </div>
-              <button
-                onClick={() => setSelectedSecondary(null)}
-                className="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 flex-shrink-0"
-              >
-                Change
-              </button>
-            </div>
-          ) : (
-            <div className="relative">
-              <input
-                type="text"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search by name or email..."
-                className="w-full px-3 py-2 text-sm border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                autoFocus
-              />
-              {loading && (
-                <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                  <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+            {secondary && (
+              <div>
+                <p className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1.5">
+                  Absorb & delete (duplicate)
+                </p>
+                <div className="flex items-center gap-3 p-3 rounded-lg border-2 border-red-200 dark:border-red-700 bg-red-50 dark:bg-red-950/30">
+                  <div className="w-9 h-9 rounded-full bg-red-200 dark:bg-red-800 flex items-center justify-center text-sm font-semibold text-red-700 dark:text-red-300 flex-shrink-0">
+                    {secondary.name.charAt(0).toUpperCase()}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium text-sm truncate">{secondary.name}</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{secondary.email}</p>
+                  </div>
+                  <button
+                    onClick={handleChangeSecondary}
+                    className="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 flex-shrink-0"
+                  >
+                    Change
+                  </button>
                 </div>
-              )}
-              {results.length > 0 && (
-                <div className="mt-1 border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden shadow-lg bg-white dark:bg-slate-900">
-                  {results.map((m) => (
-                    <button
-                      key={m.id}
-                      onClick={() => { setSelectedSecondary(m); setQuery(""); setResults([]); }}
-                      className="w-full text-left px-3 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800 border-b border-slate-100 dark:border-slate-800 last:border-0 transition-colors"
-                    >
-                      <p className="text-sm font-medium">{m.name}</p>
-                      <p className="text-xs text-slate-500 dark:text-slate-400">{m.email}</p>
-                    </button>
-                  ))}
+              </div>
+            )}
+          </div>
+        ) : (
+          /* Original static primary + search for secondary */
+          <>
+            {/* Primary */}
+            <div>
+              <p className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1.5">
+                Keep (primary)
+              </p>
+              <div className="flex items-center gap-3 p-3 rounded-lg border-2 border-blue-200 dark:border-blue-700 bg-blue-50 dark:bg-blue-950/30">
+                <div className="w-9 h-9 rounded-full bg-blue-200 dark:bg-blue-800 flex items-center justify-center text-sm font-semibold text-blue-700 dark:text-blue-300 flex-shrink-0">
+                  {primaryMember.name.charAt(0).toUpperCase()}
                 </div>
-              )}
-              {query.trim().length >= 2 && !loading && results.length === 0 && (
-                <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">No members found</p>
-              )}
+                <div className="min-w-0">
+                  <p className="font-medium text-sm truncate">{primaryMember.name}</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{primaryMember.email}</p>
+                </div>
+              </div>
             </div>
-          )}
-        </div>
+
+            {/* Secondary search */}
+            <div>
+              <p className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1.5">
+                Absorb & delete (duplicate)
+              </p>
+              <div className="relative">
+                <input
+                  type="text"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Search by name or email..."
+                  className="w-full px-3 py-2 text-sm border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  autoFocus
+                />
+                {loading && (
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                    <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                  </div>
+                )}
+                {results.length > 0 && (
+                  <div className="mt-1 border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden shadow-lg bg-white dark:bg-slate-900">
+                    {results.map((m) => (
+                      <button
+                        key={m.id}
+                        onClick={() => handleSelectSecondary(m)}
+                        className="w-full text-left px-3 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800 border-b border-slate-100 dark:border-slate-800 last:border-0 transition-colors"
+                      >
+                        <p className="text-sm font-medium">{m.name}</p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">{m.email}</p>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {query.trim().length >= 2 && !loading && results.length === 0 && (
+                  <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">No members found</p>
+                )}
+              </div>
+            </div>
+          </>
+        )}
 
         {/* What will happen */}
-        {selectedSecondary && (
+        {secondary && (
           <div className="rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-700 p-3 text-xs text-amber-800 dark:text-amber-300 space-y-1">
             <p className="font-semibold">What will happen:</p>
             <ul className="list-disc list-inside space-y-0.5 text-amber-700 dark:text-amber-400">
-              <li>All attendance records transferred to {primaryMember.name}</li>
+              <li>All attendance records transferred to {primary.name}</li>
               <li>All activities, hiatuses, and aliases transferred</li>
               <li>
-                <strong>{selectedSecondary.email}</strong> added as an email alias so future imports
+                <strong>{secondary.email}</strong> added as an email alias so future imports
                 still resolve correctly
               </li>
-              {selectedSecondary.name !== primaryMember.name && (
+              {secondary.name !== primary.name && (
                 <li>
-                  <strong>{selectedSecondary.name}</strong> added as a name alias for Zoom matching
+                  <strong>{secondary.name}</strong> added as a name alias for Zoom matching
                 </li>
               )}
               <li className="font-semibold">
-                {selectedSecondary.name} ({selectedSecondary.email}) permanently deleted
+                {secondary.name} ({secondary.email}) permanently deleted
               </li>
             </ul>
           </div>
         )}
 
-        {externalLoading && selectedSecondary && (
+        {externalLoading && secondary && (
           <p className="text-xs text-slate-500 dark:text-slate-400">Checking external accounts...</p>
         )}
 
-        {!externalLoading && externalStatus && selectedSecondary && hasExternalAccounts(externalStatus) && (
+        {!externalLoading && externalStatus && secondary && hasExternalAccounts(externalStatus) && (
           <div className="rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-700 p-3 text-xs space-y-1">
             <p className="font-semibold text-red-800 dark:text-red-300 mb-2">
               External accounts require manual cleanup after merging:
             </p>
-            <ExternalAccountWarnings member={selectedSecondary} status={externalStatus} />
+            <ExternalAccountWarnings member={secondary} status={externalStatus} />
           </div>
         )}
 
@@ -254,7 +325,7 @@ export default function MergeMemberModal({ primaryMember, isOpen, onClose }: Mer
               </button>
               <button
                 onClick={handleMerge}
-                disabled={!selectedSecondary || merging}
+                disabled={!secondary || merging}
                 className="px-4 py-2 text-sm font-medium bg-red-600 hover:bg-red-700 disabled:bg-red-300 dark:disabled:bg-red-900 text-white rounded-lg transition-colors"
               >
                 {merging ? "Merging..." : "Merge & Delete Duplicate"}
