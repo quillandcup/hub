@@ -166,7 +166,7 @@ export function computeScheduledPrickleStats(
 
 const DAY_ORDER = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
 
-function getScheduleSlot(startTime: string): { sortKey: string; label: string } {
+export function getScheduleSlot(startTime: string): { sortKey: string; label: string } {
   const dt = new Date(startTime);
 
   const weekdayLong = new Intl.DateTimeFormat("en-US", {

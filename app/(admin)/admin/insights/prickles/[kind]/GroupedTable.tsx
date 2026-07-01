@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, Fragment } from "react";
+import { useState, useMemo, Fragment, useEffect, useRef } from "react";
 import Link from "next/link";
 import type { GroupStats, PrickleSession } from "@/lib/scheduled-prickle-stats";
 
@@ -120,17 +120,27 @@ type SortColumn = NumericColumn | "lastSession" | "name";
 interface Props {
   rows: GroupStats[];
   groupBy: "schedule" | "host";
+  defaultExpanded?: string;
 }
 
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 
-export default function GroupedTable({ rows, groupBy }: Props) {
+export default function GroupedTable({ rows, groupBy, defaultExpanded }: Props) {
   const [sortCol, setSortCol] = useState<SortColumn>("name");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [filters, setFilters] = useState<Partial<Record<NumericColumn, string>>>({});
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [expanded, setExpanded] = useState<Set<string>>(() =>
+    defaultExpanded ? new Set([defaultExpanded]) : new Set()
+  );
+  const defaultExpandedRowRef = useRef<HTMLTableRowElement | null>(null);
+
+  useEffect(() => {
+    if (!defaultExpanded || !defaultExpandedRowRef.current) return;
+    const el = defaultExpandedRowRef.current;
+    setTimeout(() => el.scrollIntoView({ behavior: "smooth", block: "center" }), 150);
+  }, [defaultExpanded]);
 
   function handleSort(col: SortColumn) {
     if (sortCol === col) {
@@ -291,6 +301,7 @@ export default function GroupedTable({ rows, groupBy }: Props) {
               return (
                 <Fragment key={row.groupKey}>
                   <tr
+                    ref={row.groupKey === defaultExpanded ? defaultExpandedRowRef : null}
                     className="hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer"
                     onClick={() => toggleExpand(row.groupKey)}
                   >

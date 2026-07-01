@@ -19,6 +19,7 @@ interface PrickleDetailsProps {
   userTimezonePreference?: string;
   memberBasePath: string;
   showMemberEmails: boolean;
+  insightsSlotUrl?: string;
 }
 
 export default function PrickleDetails({
@@ -29,6 +30,7 @@ export default function PrickleDetails({
   userTimezonePreference = "browser",
   memberBasePath,
   showMemberEmails,
+  insightsSlotUrl,
 }: PrickleDetailsProps) {
   const [detectedTimezone, setDetectedTimezone] = useState<string | null>(null);
   useEffect(() => {
@@ -138,7 +140,13 @@ export default function PrickleDetails({
           <div>
             <span className="text-slate-600 dark:text-slate-400">Time:</span>
             <p className="font-semibold text-slate-900 dark:text-slate-100">
-              {formatTime(startTime)} - {formatTime(endTime)}
+              {insightsSlotUrl ? (
+                <Link href={insightsSlotUrl} className="text-blue-600 hover:text-blue-700 dark:text-blue-400 hover:underline">
+                  {formatTime(startTime)} - {formatTime(endTime)}
+                </Link>
+              ) : (
+                <>{formatTime(startTime)} - {formatTime(endTime)}</>
+              )}
               <span className="text-slate-500 dark:text-slate-400 ml-2">({durationMinutes} min)</span>
             </p>
           </div>

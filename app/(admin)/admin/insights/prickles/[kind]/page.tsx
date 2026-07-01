@@ -113,10 +113,10 @@ export default async function PrickleKindInsightsPage({
   searchParams,
 }: {
   params: Promise<{ kind: string }>;
-  searchParams: Promise<{ group?: string; from?: string; to?: string }>;
+  searchParams: Promise<{ group?: string; from?: string; to?: string; slot?: string }>;
 }) {
   const { kind } = await params;
-  const { group, from, to } = await searchParams;
+  const { group, from, to, slot } = await searchParams;
 
   const groupBy = group === "host" ? "host" : "schedule";
 
@@ -290,7 +290,7 @@ export default async function PrickleKindInsightsPage({
             )}
           </div>
         ) : (
-          <GroupedTable rows={grouped} groupBy={groupBy} />
+          <GroupedTable rows={grouped} groupBy={groupBy} defaultExpanded={slot} />
         )}
 
         {prickles.length > 0 && (

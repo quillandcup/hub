@@ -5,6 +5,7 @@ import PrickleDetails from "@/components/PrickleDetails";
 import { getUserTimezonePreference } from "@/lib/timezone";
 import { findUnmatchedZoomAttendees } from "@/lib/prickle-unmatched";
 import AliasSearchForm from "@/app/(admin)/admin/hygiene/unmatched-zoom/AliasSearchForm";
+import { getScheduleSlot } from "@/lib/scheduled-prickle-stats";
 
 export default async function AdminPrickleDetailPage({
   params,
@@ -32,7 +33,7 @@ export default async function AdminPrickleDetailPage({
       source,
       zoom_meeting_uuid,
       type_id,
-      prickle_types:type_id(name, description)
+      prickle_types:type_id(name, description, normalized_name)
     `)
     .eq("id", id)
     .single();
@@ -107,6 +108,14 @@ export default async function AdminPrickleDetailPage({
     staff
   );
 
+  const prickleTypeData = prickle.prickle_types as any;
+  const normalizedName = prickleTypeData?.normalized_name as string | undefined;
+  let insightsSlotUrl: string | undefined;
+  if (normalizedName) {
+    const slot = getScheduleSlot(prickle.start_time);
+    insightsSlotUrl = `/admin/insights/prickles/${normalizedName}?group=schedule&slot=${encodeURIComponent(slot.sortKey)}`;
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
       <header className="border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
@@ -128,6 +137,7 @@ export default async function AdminPrickleDetailPage({
             userTimezonePreference={userTimezone}
             memberBasePath="/admin/members"
             showMemberEmails={true}
+            insightsSlotUrl={insightsSlotUrl}
           />
           {unmatchedZoomAttendees.length > 0 && (
             <AliasSearchForm
