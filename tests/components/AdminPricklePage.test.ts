@@ -81,3 +81,16 @@ describe('PrickleDetails component location', () => {
     expect(memberPageSrc).not.toContain('./PrickleDetails');
   });
 });
+
+describe('Member prickle detail page unmatched zoom section', () => {
+  it('fetches all members for unmatched matching, not just active ones', () => {
+    expect(memberPageSrc).not.toMatch(/"members"[^;]*\.eq\("status",\s*"active"\)/);
+    expect(memberPageSrc).not.toContain('.eq("status", "active")');
+  });
+
+  it('fetches historical meeting counts to populate appearances for unmatched names', () => {
+    expect(memberPageSrc).toContain('historicalMeetings');
+    expect(memberPageSrc).toContain('meeting_uuid');
+    expect(memberPageSrc).toContain('a.appearances');
+  });
+});
