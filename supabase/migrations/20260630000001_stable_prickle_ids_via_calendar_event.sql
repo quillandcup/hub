@@ -14,14 +14,26 @@ CREATE UNIQUE INDEX idx_prickles_calendar_event_id
   WHERE calendar_event_id IS NOT NULL;
 
 -- Backfill existing calendar prickles by matching start_time + end_time.
--- Best-effort: any unmatched rows get calendar_event_id = NULL and will be replaced
--- with stable-ID rows on the next calendar reprocess.
+-- One prickle per calendar event (ROW_NUMBER picks one when duplicates exist).
+-- Unmatched and losing duplicates keep calendar_event_id = NULL and are removed
+-- by the DELETE-orphans step on the next calendar reprocess.
+WITH ranked AS (
+  SELECT
+    p.id  AS prickle_id,
+    ce.id AS event_id,
+    ROW_NUMBER() OVER (PARTITION BY ce.id ORDER BY p.id) AS rn
+  FROM prickles p
+  JOIN bronze.calendar_events ce
+    ON p.start_time = ce.start_time
+   AND p.end_time   = ce.end_time
+  WHERE p.source = 'calendar'
+    AND p.calendar_event_id IS NULL
+)
 UPDATE prickles p
-SET calendar_event_id = ce.id
-FROM bronze.calendar_events ce
-WHERE p.source = 'calendar'
-  AND p.start_time = ce.start_time
-  AND p.end_time = ce.end_time;
+SET calendar_event_id = ranked.event_id
+FROM ranked
+WHERE p.id = ranked.prickle_id
+  AND ranked.rn = 1;
 
 -- Replace the atomic function: DELETE orphans + UPSERT (preserves existing prickle UUIDs)
 CREATE OR REPLACE FUNCTION reprocess_prickles_atomic(
