@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { findUnmatchedZoomAttendees } from '@/lib/prickle-unmatched'
+import { findUnmatchedZoomAttendees, findMatchedZoomAttendeesWithoutAttendance } from '@/lib/prickle-unmatched'
 import type { Member, MemberAlias } from '@/lib/member-matching'
 
 const members: Member[] = [
@@ -164,5 +164,65 @@ describe('findUnmatchedZoomAttendees', () => {
       // Staff name match would suppress, but member match also fires — either way not in unmatched
       expect(findUnmatchedZoomAttendees(zoom, membersWithStaffName, aliases, [], staff)).toEqual([])
     })
+  })
+})
+
+describe('findMatchedZoomAttendeesWithoutAttendance', () => {
+  it('returns empty when all matched members have attendance records', () => {
+    const zoom = [{ name: 'Member 57', email: null }]
+    const attended = new Set(['1']) // Elle's member_id
+    expect(findMatchedZoomAttendeesWithoutAttendance(zoom, members, aliases, [], [], attended)).toEqual([])
+  })
+
+  it('returns matched members who are missing attendance records', () => {
+    const zoom = [{ name: 'Member 57', email: null }]
+    const attended = new Set<string>() // nobody has attendance
+    const result = findMatchedZoomAttendeesWithoutAttendance(zoom, members, aliases, [], [], attended)
+    expect(result).toHaveLength(1)
+    expect(result[0].memberId).toBe('1')
+    expect(result[0].memberName).toBe('Member 57')
+    expect(result[0].zoomName).toBe('Member 57')
+  })
+
+  it('includes the zoom name when it differs from the member name (alias match)', () => {
+    const zoom = [{ name: 'Elle', email: null }] // alias for Member 57
+    const attended = new Set<string>()
+    const result = findMatchedZoomAttendeesWithoutAttendance(zoom, members, aliases, [], [], attended)
+    expect(result).toHaveLength(1)
+    expect(result[0].memberName).toBe('Member 57')
+    expect(result[0].zoomName).toBe('Elle')
+  })
+
+  it('does not return unmatched attendees', () => {
+    const zoom = [{ name: 'Mystery Person', email: null }]
+    const attended = new Set<string>()
+    expect(findMatchedZoomAttendeesWithoutAttendance(zoom, members, aliases, [], [], attended)).toEqual([])
+  })
+
+  it('deduplicates when the same member appears multiple times (rejoin)', () => {
+    const zoom = [
+      { name: 'Jade Tennant', email: null },
+      { name: 'Jade Tennant', email: null },
+    ]
+    const attended = new Set<string>()
+    const result = findMatchedZoomAttendeesWithoutAttendance(zoom, members, aliases, [], [], attended)
+    expect(result).toHaveLength(1)
+  })
+
+  it('excludes ignored names', () => {
+    const zoom = [{ name: 'Member 57', email: null }]
+    const attended = new Set<string>()
+    expect(findMatchedZoomAttendeesWithoutAttendance(zoom, members, aliases, ['Member 57'], [], attended)).toEqual([])
+  })
+
+  it('excludes staff', () => {
+    const staffMembers = [{ name: 'Member 57', email: 'elle@example.com' }]
+    const zoom = [{ name: 'Member 57', email: null }]
+    const attended = new Set<string>()
+    expect(findMatchedZoomAttendeesWithoutAttendance(zoom, members, aliases, [], staffMembers, attended)).toEqual([])
+  })
+
+  it('returns empty when zoom attendee list is empty', () => {
+    expect(findMatchedZoomAttendeesWithoutAttendance([], members, aliases, [], [], new Set())).toEqual([])
   })
 })

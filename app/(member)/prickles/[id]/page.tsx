@@ -4,7 +4,7 @@ import Link from "next/link";
 import PrickleDetails from "@/components/PrickleDetails";
 import { getUserTimezonePreference } from "@/lib/timezone";
 import { getEffectiveIdentity } from "@/lib/sudo";
-import { findUnmatchedZoomAttendees } from "@/lib/prickle-unmatched";
+import { findUnmatchedZoomAttendees, findMatchedZoomAttendeesWithoutAttendance, type MatchedWithoutAttendance } from "@/lib/prickle-unmatched";
 import AliasSearchForm from "@/app/(admin)/admin/hygiene/unmatched-zoom/AliasSearchForm";
 
 export default async function PrickleDetailPage({
@@ -94,6 +94,7 @@ export default async function PrickleDetailPage({
   const userTimezone = await getUserTimezonePreference();
 
   let unmatchedZoomAttendees: Array<{ zoomName: string; appearances: number; emails: string[] }> = [];
+  let matchedWithoutAttendance: MatchedWithoutAttendance[] = [];
   let allMembersForMatching: Array<{ id: string; name: string; email: string }> = [];
 
   if (isActingAsAdmin && prickle) {
@@ -114,12 +115,23 @@ export default async function PrickleDetailPage({
     const staff = staffResult.data || [];
     allMembersForMatching = members;
 
+    const attendedMemberIds = new Set((attendanceRecords || []).map((a: any) => a.member_id));
+
     unmatchedZoomAttendees = findUnmatchedZoomAttendees(
       zoomResult.data || [],
       members,
       aliases,
       ignoredNames,
       staff
+    );
+
+    matchedWithoutAttendance = findMatchedZoomAttendeesWithoutAttendance(
+      zoomResult.data || [],
+      members,
+      aliases,
+      ignoredNames,
+      staff,
+      attendedMemberIds
     );
 
     if (unmatchedZoomAttendees.length > 0) {
@@ -165,6 +177,27 @@ export default async function PrickleDetailPage({
             memberBasePath={memberBasePath}
             showMemberEmails={isActingAsAdmin}
           />
+          {isActingAsAdmin && matchedWithoutAttendance.length > 0 && (
+            <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
+              <h3 className="font-semibold text-amber-900 dark:text-amber-100 mb-1">
+                Attendance gaps ({matchedWithoutAttendance.length})
+              </h3>
+              <p className="text-sm text-amber-800 dark:text-amber-200 mb-3">
+                These members were recognized in this Zoom meeting but have no attendance record —
+                they won&apos;t appear in member stats until attendance is reprocessed for this date range.
+              </p>
+              <ul className="space-y-1">
+                {matchedWithoutAttendance.map(m => (
+                  <li key={m.memberId} className="text-sm text-amber-900 dark:text-amber-100">
+                    <span className="font-medium">{m.memberName}</span>
+                    {m.zoomName !== m.memberName && (
+                      <span className="text-amber-700 dark:text-amber-300"> (as &quot;{m.zoomName}&quot;)</span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           {isActingAsAdmin && unmatchedZoomAttendees.length > 0 && (
             <AliasSearchForm
               unmatchedAttendees={unmatchedZoomAttendees}

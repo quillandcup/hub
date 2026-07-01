@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import PrickleDetails from "@/components/PrickleDetails";
 import { getUserTimezonePreference } from "@/lib/timezone";
-import { findUnmatchedZoomAttendees } from "@/lib/prickle-unmatched";
+import { findUnmatchedZoomAttendees, findMatchedZoomAttendeesWithoutAttendance } from "@/lib/prickle-unmatched";
 import AliasSearchForm from "@/app/(admin)/admin/hygiene/unmatched-zoom/AliasSearchForm";
 import { getScheduleSlot } from "@/lib/scheduled-prickle-stats";
 
@@ -100,12 +100,23 @@ export default async function AdminPrickleDetailPage({
   const ignoredNames = (ignoredResult.data || []).map((i: any) => i.zoom_name);
   const staff = staffResult.data || [];
 
+  const attendedMemberIds = new Set((attendanceRecords || []).map((a: any) => a.member_id));
+
   const unmatchedZoomAttendees = findUnmatchedZoomAttendees(
     zoomResult.data || [],
     members,
     aliases,
     ignoredNames,
     staff
+  );
+
+  const matchedWithoutAttendance = findMatchedZoomAttendeesWithoutAttendance(
+    zoomResult.data || [],
+    members,
+    aliases,
+    ignoredNames,
+    staff,
+    attendedMemberIds
   );
 
   // Fetch historical meeting counts so "appearances" in the UI reflects all-time data,
@@ -161,6 +172,27 @@ export default async function AdminPrickleDetailPage({
             showMemberEmails={true}
             insightsSlotUrl={insightsSlotUrl}
           />
+          {matchedWithoutAttendance.length > 0 && (
+            <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
+              <h3 className="font-semibold text-amber-900 dark:text-amber-100 mb-1">
+                Attendance gaps ({matchedWithoutAttendance.length})
+              </h3>
+              <p className="text-sm text-amber-800 dark:text-amber-200 mb-3">
+                These members were recognized in this Zoom meeting but have no attendance record —
+                they won&apos;t appear in member stats until attendance is reprocessed for this date range.
+              </p>
+              <ul className="space-y-1">
+                {matchedWithoutAttendance.map(m => (
+                  <li key={m.memberId} className="text-sm text-amber-900 dark:text-amber-100">
+                    <span className="font-medium">{m.memberName}</span>
+                    {m.zoomName !== m.memberName && (
+                      <span className="text-amber-700 dark:text-amber-300"> (as &quot;{m.zoomName}&quot;)</span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           {unmatchedZoomAttendees.length > 0 && (
             <AliasSearchForm
               unmatchedAttendees={unmatchedZoomAttendees}
