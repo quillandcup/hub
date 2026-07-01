@@ -32,7 +32,8 @@ export function TimezoneInitializer({ storedTimezone, isSudo }: { storedTimezone
 
     if (detected !== storedTimezone) {
       const dismissed = localStorage.getItem("tz_mismatch_dismissed")
-      if (!dismissed) setShowBanner(true)
+      const rejected = localStorage.getItem("tz_mismatch_rejected")
+      if (!dismissed && rejected !== detected) setShowBanner(true)
     }
   }, [storedTimezone, isSudo])
 
@@ -42,7 +43,10 @@ export function TimezoneInitializer({ storedTimezone, isSudo }: { storedTimezone
     router.refresh()
   }
 
-  const handleNo = () => setShowBanner(false)
+  const handleNo = () => {
+    setShowBanner(false)
+    localStorage.setItem("tz_mismatch_rejected", detectedTz)
+  }
 
   const handleNeverAskAgain = () => {
     setShowBanner(false)
