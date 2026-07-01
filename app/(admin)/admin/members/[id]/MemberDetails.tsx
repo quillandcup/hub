@@ -146,6 +146,7 @@ export default function MemberDetails({ member, attendanceRecords, hiatusHistory
         member={member}
         attendanceRecords={attendanceRecords}
         userTimezonePreference={userTimezonePreference}
+        prickleBasePath="/admin/prickles"
       />
 
       {/* Hiatus History */}

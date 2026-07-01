@@ -10,6 +10,7 @@ interface Props {
   activeListDateKey: string | undefined;
   memberId: string;
   memberBasePath?: string;
+  prickleBasePath?: string;
 }
 
 // dateKey format: "MM/DD/YYYY"
@@ -33,6 +34,7 @@ export default function AttendanceListTable({
   activeListDateKey,
   memberId,
   memberBasePath = "/members",
+  prickleBasePath = "/prickles",
 }: Props) {
   const router = useRouter();
 
@@ -119,7 +121,7 @@ export default function AttendanceListTable({
                       <tr
                         key={record.id}
                         className="hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer"
-                        onClick={() => router.push(`/prickles/${prickle.id}`)}
+                        onClick={() => router.push(`${prickleBasePath}/${prickle.id}`)}
                       >
                         <td className="px-6 py-4">
                           <div className="text-sm font-medium text-slate-900 dark:text-slate-100">

@@ -17,6 +17,7 @@ interface MemberAttendanceViewProps {
   attendanceRecords: any[];
   userTimezonePreference?: string;
   memberBasePath?: string;
+  prickleBasePath?: string;
 }
 
 export default function MemberAttendanceView({
@@ -24,6 +25,7 @@ export default function MemberAttendanceView({
   attendanceRecords,
   userTimezonePreference = "browser",
   memberBasePath = "/admin/members",
+  prickleBasePath = "/prickles",
 }: MemberAttendanceViewProps) {
   const router = useRouter();
 
@@ -193,7 +195,7 @@ export default function MemberAttendanceView({
                       <tr
                         key={record.id}
                         className="hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer"
-                        onClick={() => router.push(`/prickles/${prickle.id}`)}
+                        onClick={() => router.push(`${prickleBasePath}/${prickle.id}`)}
                       >
                         <td className="px-6 py-4">
                           <div className="text-sm font-medium text-slate-900 dark:text-slate-100">
@@ -335,7 +337,7 @@ export default function MemberAttendanceView({
                       return (
                         <div
                           key={record.id}
-                          onClick={() => router.push(`/prickles/${prickle.id}`)}
+                          onClick={() => router.push(`${prickleBasePath}/${prickle.id}`)}
                           className="p-3 bg-white dark:bg-slate-900 rounded border border-slate-200 dark:border-slate-700 hover:border-blue-500 dark:hover:border-blue-400 cursor-pointer transition-colors"
                         >
                           <div className="flex items-start justify-between">

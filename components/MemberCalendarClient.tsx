@@ -11,6 +11,7 @@ interface Props {
   attendance: any[];
   defaultTimezone: string;
   memberBasePath?: string;
+  prickleBasePath?: string;
   initialView?: "month" | "week" | "list";
 }
 
@@ -43,6 +44,7 @@ export default function MemberCalendarClient({
   attendance,
   defaultTimezone,
   memberBasePath = "/members",
+  prickleBasePath = "/prickles",
   initialView = "month",
 }: Props) {
   const [detectedTimezone, setDetectedTimezone] = useState<string | null>(null);
@@ -257,6 +259,7 @@ export default function MemberCalendarClient({
           currentMonthDate={currentMonthDate}
           memberId={memberId}
           memberBasePath={memberBasePath}
+          prickleBasePath={prickleBasePath}
         />
       )}
 
@@ -285,6 +288,7 @@ export default function MemberCalendarClient({
           activeListDateKey={effectiveListDateKey}
           memberId={memberId}
           memberBasePath={memberBasePath}
+          prickleBasePath={prickleBasePath}
         />
       )}
     </div>

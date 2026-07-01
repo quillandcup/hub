@@ -10,6 +10,7 @@ interface Props {
   currentMonthDate: Date;
   memberId: string;
   memberBasePath?: string;
+  prickleBasePath?: string;
 }
 
 function shortName(name: string): string {
@@ -33,6 +34,7 @@ export default function AttendanceMonthGrid({
   currentMonthDate,
   memberId,
   memberBasePath = "/members",
+  prickleBasePath = "/prickles",
 }: Props) {
   const router = useRouter();
   const [selectedDay, setSelectedDay] = useState<Date | null>(null);
@@ -153,7 +155,7 @@ export default function AttendanceMonthGrid({
                 return (
                   <div
                     key={record.id}
-                    onClick={() => router.push(`/prickles/${prickle.id}`)}
+                    onClick={() => router.push(`${prickleBasePath}/${prickle.id}`)}
                     className="p-3 bg-white dark:bg-slate-900 rounded border border-slate-200 dark:border-slate-700 hover:border-blue-500 dark:hover:border-blue-400 cursor-pointer transition-colors"
                   >
                     <div className="flex-1">
