@@ -16,6 +16,12 @@ export default async function MergeFixPage() {
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
+  const { data: dismissedRows } = await supabase
+    .from("dismissed_duplicate_groups")
+    .select("group_key")
+    .eq("user_id", user.id);
+  const dismissedKeys = new Set((dismissedRows ?? []).map((r) => r.group_key));
+
   // Paginate in case member count grows
   const allMembers: { id: string; name: string; email: string; status: string; stripe_customer_id: string | null }[] = [];
   const BATCH = 1000;
@@ -97,7 +103,7 @@ export default async function MergeFixPage() {
       </header>
 
       <main className="container mx-auto px-6 py-8">
-        <MergeFixClient duplicateGroups={enrichedGroups} />
+        <MergeFixClient duplicateGroups={enrichedGroups} dismissedKeys={dismissedKeys} />
       </main>
     </div>
   );
