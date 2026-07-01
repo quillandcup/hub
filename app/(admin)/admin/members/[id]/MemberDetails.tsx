@@ -10,9 +10,10 @@ interface MemberDetailsProps {
   hiatusHistory: any[];
   slackActivities: any[];
   userTimezonePreference?: string; // User's timezone preference from profile
+  membershipHistory: any[];
 }
 
-export default function MemberDetails({ member, attendanceRecords, hiatusHistory, slackActivities, userTimezonePreference = "browser" }: MemberDetailsProps) {
+export default function MemberDetails({ member, attendanceRecords, hiatusHistory, slackActivities, userTimezonePreference = "browser", membershipHistory }: MemberDetailsProps) {
   const [slackActivityFilter, setSlackActivityFilter] = useState<"all" | "messages" | "reactions">("all");
   const [slackChannelFilter, setSlackChannelFilter] = useState<string | null>(null);
   const [showAllSlackActivities, setShowAllSlackActivities] = useState(false);
@@ -69,6 +70,18 @@ export default function MemberDetails({ member, attendanceRecords, hiatusHistory
           <p className="mt-2">
             <StatusBadge status={member.status} />
           </p>
+          {member.status === "inactive" && (() => {
+            const lastMembership = membershipHistory.find(p => p.deactivated_at != null);
+            if (!lastMembership) return null;
+            const startDate = new Date(lastMembership.effective_start_at);
+            const endDate = new Date(lastMembership.deactivated_at);
+            const fmt = (d: Date) => d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+            return (
+              <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                Last membership: {fmt(startDate)} – {fmt(endDate)}
+              </p>
+            );
+          })()}
         </div>
 
         <div className="bg-white dark:bg-slate-900 rounded-lg shadow p-6">
@@ -140,6 +153,61 @@ export default function MemberDetails({ member, attendanceRecords, hiatusHistory
           )}
         </div>
       </div>
+
+      {/* Membership History */}
+      {membershipHistory.length > 0 && (
+        <div className="bg-white dark:bg-slate-900 rounded-lg shadow">
+          <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800">
+            <h2 className="text-xl font-bold">Membership History</h2>
+          </div>
+          <div className="p-6">
+            <div className="space-y-3">
+              {membershipHistory.map((purchase: any, idx: number) => {
+                const startDate = new Date(purchase.effective_start_at);
+                const endDate = purchase.deactivated_at ? new Date(purchase.deactivated_at) : null;
+                const isActive = !endDate;
+                const fmt = (d: Date) => d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+
+                let durationText = "";
+                if (endDate) {
+                  const durationDays = Math.floor((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+                  const durationMonths = Math.floor(durationDays / 30);
+                  if (durationMonths > 0) {
+                    durationText = `${durationMonths} month${durationMonths !== 1 ? "s" : ""}`;
+                  } else {
+                    durationText = `${durationDays} day${durationDays !== 1 ? "s" : ""}`;
+                  }
+                } else {
+                  const daysSoFar = Math.floor((new Date().getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+                  const monthsSoFar = Math.floor(daysSoFar / 30);
+                  if (monthsSoFar > 0) {
+                    durationText = `${monthsSoFar} month${monthsSoFar !== 1 ? "s" : ""} so far`;
+                  } else {
+                    durationText = `${daysSoFar} day${daysSoFar !== 1 ? "s" : ""} so far`;
+                  }
+                }
+
+                return (
+                  <div
+                    key={idx}
+                    className="flex items-center justify-between p-3 rounded-lg border bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700"
+                  >
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <span className="text-sm font-medium text-slate-900 dark:text-slate-100">
+                        {fmt(startDate)} → {endDate ? fmt(endDate) : "Present"}
+                      </span>
+                      <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${isActive ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300" : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400"}`}>
+                        {isActive ? "active" : "cancelled"}
+                      </span>
+                    </div>
+                    <span className="text-xs text-slate-500 dark:text-slate-400 ml-4 shrink-0">{durationText}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Attendance History */}
       <MemberAttendanceView

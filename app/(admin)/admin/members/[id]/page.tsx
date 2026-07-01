@@ -77,6 +77,25 @@ export default async function MemberDetailPage({
     .eq("member_id", id)
     .order("start_date", { ascending: false });
 
+  // Fetch Kajabi membership history
+  const { data: kajabiCustomer } = await supabase
+    .schema("bronze")
+    .from("kajabi_customers")
+    .select("kajabi_customer_id")
+    .eq("email", member.email)
+    .maybeSingle();
+
+  let membershipHistory: any[] = [];
+  if (kajabiCustomer?.kajabi_customer_id) {
+    const { data: purchases } = await supabase
+      .schema("bronze")
+      .from("kajabi_purchases")
+      .select("effective_start_at, deactivated_at, status")
+      .eq("kajabi_customer_id", kajabiCustomer.kajabi_customer_id)
+      .order("effective_start_at", { ascending: false });
+    membershipHistory = purchases || [];
+  }
+
   // Fetch Slack activities
   const { data: slackActivities } = await supabase
     .from("member_activities")
@@ -195,7 +214,7 @@ export default async function MemberDetailPage({
           hiatusHistory={hiatusHistory || []}
           slackActivities={slackActivities || []}
           userTimezonePreference={userTimezone}
-          membershipHistory={[]}
+          membershipHistory={membershipHistory}
         />
       </main>
     </div>
