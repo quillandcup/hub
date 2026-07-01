@@ -232,6 +232,19 @@ export async function triggerZoomImport(options: { fromDate: string; toDate: str
 }
 
 /**
+ * Trigger attendance reprocessing directly for a specific date range.
+ *
+ * Use this after member changes (new members added, status changes) to fix
+ * any attendance gaps without re-running member or calendar processing.
+ * Attendance processing fetches fresh members from the DB, so calling this
+ * after reprocess_members_atomic will pick up any newly-matchable names.
+ */
+export async function triggerAttendanceReprocessing(dateRange: { from: Date; to: Date }) {
+  console.log(`Triggering targeted attendance reprocessing: ${dateRange.from.toISOString()} to ${dateRange.to.toISOString()}`);
+  return processTable('attendance', { dateRange });
+}
+
+/**
  * Trigger downstream Silver layer reprocessing when Bronze/Local data changes
  */
 export async function triggerReprocessing(

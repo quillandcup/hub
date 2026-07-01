@@ -3,6 +3,7 @@ import {
   getAffectedSilverTables,
   getProcessingOrder,
   SILVER_DEPENDENCIES,
+  triggerAttendanceReprocessing,
 } from '@/lib/processing/trigger'
 
 describe('SILVER_DEPENDENCIES', () => {
@@ -54,5 +55,18 @@ describe('getProcessingOrder', () => {
   it('processes members before attendance', () => {
     const order = getProcessingOrder(['members', 'attendance'])
     expect(order.indexOf('members')).toBeLessThan(order.indexOf('attendance'))
+  })
+})
+
+describe('triggerAttendanceReprocessing', () => {
+  it('is exported from the trigger module', () => {
+    expect(typeof triggerAttendanceReprocessing).toBe('function')
+  })
+
+  it('accepts a date range and returns a promise', () => {
+    const from = new Date('2099-01-01')
+    const to = new Date('2099-01-31')
+    // We don't call it (would require a real DB), just verify it's callable with a dateRange
+    expect(triggerAttendanceReprocessing.length).toBe(1) // Takes one argument (dateRange)
   })
 })

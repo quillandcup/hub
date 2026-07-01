@@ -1,6 +1,7 @@
 import { createHash } from "crypto";
 import { requireAdmin } from "@/lib/supabase/api-auth";
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
+import { triggerAttendanceReprocessing } from "@/lib/processing/trigger";
 
 const KAJABI_CDN = "https://kajabi-storefronts-production.kajabi-cdn.com/kajabi-storefronts-production/"
 
@@ -25,8 +26,9 @@ function toSocialUrl(base: string, handle: string | null | undefined): string | 
   return `${base}/${clean}`
 }
 
-// Extend timeout for processing large batches of members
-export const maxDuration = 60; // 60 seconds (max for Hobby tier)
+// Extend timeout — member processing itself is fast (~10s), but we kick off
+// background attendance reprocessing via after() which needs the remainder.
+export const maxDuration = 300;
 
 /**
  * Process Bronze layer data into Silver layer (members)
@@ -337,6 +339,20 @@ export async function POST(request: NextRequest) {
       console.error("Error upserting members:", upsertError);
       throw upsertError;
     }
+
+    // After the response is sent, reprocess attendance for the last 90 days.
+    // This ensures any newly-added or newly-matchable members get their historical
+    // Zoom attendance records created — making "matched → no attendance record" impossible.
+    const reprocessTo = new Date();
+    const reprocessFrom = new Date(reprocessTo);
+    reprocessFrom.setDate(reprocessFrom.getDate() - 90);
+    after(async () => {
+      try {
+        await triggerAttendanceReprocessing({ from: reprocessFrom, to: reprocessTo });
+      } catch (err) {
+        console.error('Background attendance reprocessing failed after member change:', err);
+      }
+    });
 
     return NextResponse.json({
       success: true,
