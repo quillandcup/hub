@@ -41,19 +41,9 @@ const navigation: NavSection[] = [
     ],
   },
   {
-    name: "Data Hygiene",
-    items: [
-      { name: "Health Check", href: "/admin/hygiene", icon: "🏥" },
-      { name: "Merge & Fix", href: "/admin/hygiene/merge-fix", icon: "🔀" },
-      { name: "External Conflicts", href: "/admin/hygiene/external-conflicts", icon: "⚡" },
-      { name: "Unmatched Events", href: "/admin/hygiene/unmatched-events", icon: "📋" },
-      { name: "Unmatched Zoom", href: "/admin/hygiene/unmatched-zoom", icon: "🔍" },
-      { name: "Name Matching", href: "/admin/hygiene/name-matching", icon: "🧩" },
-    ],
-  },
-  {
     name: "Data Management",
     items: [
+      { name: "Health Check", href: "/admin/hygiene", icon: "🏥" },
       { name: "Import Data", href: "/admin/data/import", icon: "📥" },
       { name: "Prickle Types", href: "/admin/data/prickle-types", icon: "🏷️" },
       { name: "Name Aliases", href: "/admin/data/aliases", icon: "👤" },
