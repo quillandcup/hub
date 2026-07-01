@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { normalizeName, matchAttendeeToMember, batchMatchAttendees, type Member, type MemberAlias, type MatchResult } from '@/lib/member-matching'
+import { normalizeName, matchAttendeeToMember, batchMatchAttendees, type Member, type MemberAlias, type MemberEmailAlias, type MatchResult } from '@/lib/member-matching'
 
 describe('Member Matching', () => {
   const mockMembers: Member[] = [
@@ -182,6 +182,91 @@ describe('Member Matching', () => {
       expect(result.matches[0].match.method).toBe('alias')
       expect(result.matches[1].match.method).toBe('email')
       expect(result.matches[2].match.method).toBe('normalized_name')
+    })
+  })
+
+  describe('email alias matching (merged members)', () => {
+    const members: Member[] = [
+      { id: 'primary', name: 'Alice Writer', email: 'alice@primary.com' },
+      { id: 'other', name: 'Other Person', email: 'other@example.com' },
+    ]
+    const emailAliases: MemberEmailAlias[] = [
+      { alias_email: 'alice@oldaccount.com', canonical_email: 'alice@primary.com' },
+    ]
+
+    it('matches attendee by email alias after member merge', () => {
+      const result = matchAttendeeToMember(
+        'Alice Writer',
+        'alice@oldaccount.com',
+        members,
+        [],
+        emailAliases
+      )
+      expect(result).toEqual({ member_id: 'primary', confidence: 'high', method: 'email' })
+    })
+
+    it('canonical email still takes priority over alias', () => {
+      const result = matchAttendeeToMember(
+        'Alice Writer',
+        'alice@primary.com',
+        members,
+        [],
+        emailAliases
+      )
+      expect(result).toEqual({ member_id: 'primary', confidence: 'high', method: 'email' })
+    })
+
+    it('email alias takes priority over name alias', () => {
+      const nameAliases: MemberAlias[] = [
+        { member_id: 'other', alias: 'Alice Writer', source: 'zoom' },
+      ]
+      const result = matchAttendeeToMember(
+        'Alice Writer',
+        'alice@oldaccount.com',
+        members,
+        nameAliases,
+        emailAliases
+      )
+      expect((result as MatchResult).member_id).toBe('primary')
+    })
+
+    it('email alias match is case-insensitive', () => {
+      const result = matchAttendeeToMember(
+        'Alice Writer',
+        'ALICE@OLDACCOUNT.COM',
+        members,
+        [],
+        emailAliases
+      )
+      expect((result as MatchResult).member_id).toBe('primary')
+    })
+
+    it('does not use alias when canonical email is not a known member', () => {
+      // A broken alias (canonical_email not in members) should not match via the alias path.
+      // Use a name that also has no match so we can confirm nothing resolves.
+      const brokenAliases: MemberEmailAlias[] = [
+        { alias_email: 'alice@oldaccount.com', canonical_email: 'nonexistent@example.com' },
+      ]
+      const result = matchAttendeeToMember(
+        'Unknown Attendee',
+        'alice@oldaccount.com',
+        members,
+        [],
+        brokenAliases
+      )
+      expect(result).toBeNull()
+    })
+
+    it('secondary email returns null without email aliases (backward compatible)', () => {
+      // Without emailAliases, an attendee whose only identifier is a former secondary
+      // email and a non-matching name should not resolve.
+      const result = matchAttendeeToMember(
+        'Unknown Attendee',
+        'alice@oldaccount.com',
+        members,
+        []
+      )
+      expect(result).toBeNull()
     })
   })
 

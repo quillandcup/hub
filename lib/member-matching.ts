@@ -17,6 +17,11 @@ export interface MemberAlias {
   source: 'zoom' | 'slack';
 }
 
+export interface MemberEmailAlias {
+  alias_email: string;
+  canonical_email: string;
+}
+
 export interface MatchResult {
   member_id: string;
   confidence: 'high' | 'medium' | 'low';
@@ -50,6 +55,7 @@ export function normalizeName(name: string): string {
  *
  * Matching rules (in priority order):
  * 1. Email exact match (if email provided and skipEmail=false) - HIGHEST confidence
+ * 1.5. Email alias match (for merged members whose old email is now an alias)
  * 2. Alias match (case-insensitive) - HIGH confidence
  * 3. First name + last initial (e.g., "Katie P" → "Member 22") - HIGH confidence
  * 4. First name only (if unambiguous) - HIGH confidence
@@ -59,6 +65,7 @@ export function normalizeName(name: string): string {
  * @param attendeeEmail - Optional email address
  * @param members - Array of all members
  * @param aliases - Array of all name aliases
+ * @param emailAliases - Array of email aliases (e.g., from merged members)
  * @param skipEmail - If true, skip email matching (useful when email is org account, not person)
  * @returns MatchResult if unique match found, AmbiguousMatch if multiple candidates, null if no match
  */
@@ -67,6 +74,7 @@ export function matchAttendeeToMember(
   attendeeEmail: string | null,
   members: Member[],
   aliases: MemberAlias[],
+  emailAliases: MemberEmailAlias[] = [],
   skipEmail = false
 ): MatchResult | AmbiguousMatch | null {
   // Build lookup maps for O(1) matching
@@ -89,9 +97,30 @@ export function matchAttendeeToMember(
     }
   }
 
+  // Index email aliases: alias_email → member (for merged members)
+  const membersByEmailAlias = new Map<string, Member>();
+  for (const emailAlias of emailAliases) {
+    const member = membersByEmail.get(emailAlias.canonical_email.toLowerCase());
+    if (member) {
+      membersByEmailAlias.set(emailAlias.alias_email.toLowerCase(), member);
+    }
+  }
+
   // Rule 1: Try email match first (if not skipped and email provided)
   if (!skipEmail && attendeeEmail) {
     const member = membersByEmail.get(attendeeEmail.toLowerCase());
+    if (member) {
+      return {
+        member_id: member.id,
+        confidence: 'high',
+        method: 'email'
+      };
+    }
+  }
+
+  // Rule 1.5: Try email alias match (handles merged members whose old email is now an alias)
+  if (!skipEmail && attendeeEmail) {
+    const member = membersByEmailAlias.get(attendeeEmail.toLowerCase());
     if (member) {
       return {
         member_id: member.id,
@@ -193,7 +222,8 @@ export function matchAttendeeToMember(
 export function batchMatchAttendees(
   attendees: Array<{ name: string; email: string | null }>,
   members: Member[],
-  aliases: MemberAlias[]
+  aliases: MemberAlias[],
+  emailAliases: MemberEmailAlias[] = []
 ): {
   matches: Array<{ name: string; email: string | null; match: MatchResult }>;
   unmatched: Array<{ name: string; email: string | null }>;
@@ -202,7 +232,7 @@ export function batchMatchAttendees(
   const unmatched: Array<{ name: string; email: string | null }> = [];
 
   for (const attendee of attendees) {
-    const match = matchAttendeeToMember(attendee.name, attendee.email, members, aliases);
+    const match = matchAttendeeToMember(attendee.name, attendee.email, members, aliases, emailAliases);
     if (match && 'member_id' in match) {
       matches.push({ ...attendee, match });
     } else {

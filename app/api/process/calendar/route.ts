@@ -171,6 +171,7 @@ export async function POST(request: NextRequest) {
           hostEmailToMatch,
           members || [],
           aliases || [],
+          [],
           true // Skip email matching - we only have the name from event title
         );
 
