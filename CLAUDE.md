@@ -165,19 +165,21 @@ Before committing changes to API routes, verify:
 
 **Silver Layer** (canonical state, computed from Bronze + Local):
 - `members`, `prickles`, `attendance`
-- **Pattern**: DELETE + INSERT, recomputed from Bronze + Local sources
+- **Pattern**: DELETE + INSERT for `prickles`/`attendance`; `members` uses a custom atomic upsert (see below) to preserve historical attendance via the `ON DELETE CASCADE` FK
 
 **Gold Layer** (aggregated views):
 - Currently computed on-demand in dashboard queries
 
 ### Data Pipeline Reprocessability
 
-**CRITICAL PRINCIPLE**: Silver layer processing MUST be fully reprocessable from Bronze + Local sources using DELETE + INSERT pattern.
+**CRITICAL PRINCIPLE**: Silver layer processing MUST be fully reprocessable from Bronze + Local sources.
 
 **Why this matters**:
-- Deleted events/members must be removed from Silver layer when reprocessing
+- Deleted events must be removed from Silver layer when reprocessing
 - UPSERT patterns leave orphaned data (e.g., deleted calendar event stays in prickles)
 - The pipeline must always reflect current truth from ALL sources (Bronze + Local)
+
+**Note on `members`**: Former members are intentionally retained (status set to inactive) rather than deleted, because `prickle_attendance.member_id` has `ON DELETE CASCADE` — deleting a member would wipe their full attendance history. `prickles` and `attendance` use the canonical DELETE + INSERT pattern.
 
 **Required Pattern for ALL Silver Processing**:
 
@@ -210,10 +212,12 @@ await supabase.from("silver_table").upsert(silverData, { onConflict: "id" });
 
 **Current Implementation Status**:
 
-1. **`/api/process/members`** ✅
-   - DELETE all members
-   - INSERT fresh from latest `kajabi_members` snapshot
-   - Scope: All members (full refresh)
+1. **`/api/process/members`** ✅ — **exception to DELETE + INSERT**
+   - Uses `reprocess_members_atomic` SQL function instead of DELETE + INSERT
+   - UPDATE existing members matched by `kajabi_id` (handles email/name changes)
+   - UPSERT new members by email (staff and brand-new contacts)
+   - **Does NOT delete members missing from new data** — former members stay in the table with their status updated to inactive/cancelled, preserving `prickle_attendance` history via the `ON DELETE CASCADE` FK
+   - Scope: All members (full refresh of fields, never a row delete)
 
 2. **`/api/process/calendar`** ✅
    - DELETE calendar prickles in date range

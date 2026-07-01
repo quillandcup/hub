@@ -87,6 +87,23 @@ describe('findUnmatchedZoomAttendees', () => {
     expect(result).toHaveLength(2)
   })
 
+  it('matches against members regardless of their membership status', () => {
+    // The caller (prickle detail page) must pass ALL members, not just active ones.
+    // If only active members are passed, an inactive member's Zoom name would be
+    // falsely flagged as unmatched on the prickle page but correctly matched on the
+    // main unmatched-zoom page (which always passes all members).
+    const inactiveMember: Member = { id: '99', name: 'Former Member', email: 'former@example.com' }
+    const allMembers = [...members, inactiveMember]
+
+    const zoom = [{ name: 'Former Member', email: null }]
+
+    // With full member list: matched, not returned
+    expect(findUnmatchedZoomAttendees(zoom, allMembers, aliases, [])).toEqual([])
+
+    // With active-only list (simulates the old bug): incorrectly returned as unmatched
+    expect(findUnmatchedZoomAttendees(zoom, members, aliases, [])).toHaveLength(1)
+  })
+
   it('includes null emails in the record without adding them to the emails list', () => {
     const zoom = [
       { name: 'Mystery Person', email: null },

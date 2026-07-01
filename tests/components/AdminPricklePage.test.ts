@@ -41,6 +41,21 @@ describe('Admin prickle detail page routing', () => {
     expect(adminPageSrc).not.toContain('if (isActingAsAdmin');
   });
 
+  it('fetches all members for unmatched matching, not just active ones', () => {
+    // Filtering to active-only causes names matching inactive members to appear
+    // as unmatched on this page but not on the main unmatched-zoom page.
+    expect(adminPageSrc).not.toMatch(/"members"[^;]*\.eq\("status",\s*"active"\)/);
+    expect(adminPageSrc).not.toContain('.eq("status", "active")');
+  });
+
+  it('fetches historical meeting counts to populate appearances for unmatched names', () => {
+    // The in-prickle record count (usually 1) mismatches the modal which shows
+    // all-time prickles. We batch-fetch historical meeting_uuid counts instead.
+    expect(adminPageSrc).toContain('historicalMeetings');
+    expect(adminPageSrc).toContain('meeting_uuid');
+    expect(adminPageSrc).toContain('a.appearances');
+  });
+
   it('imports PrickleDetails from shared components directory', () => {
     expect(adminPageSrc).toContain('@/components/PrickleDetails');
   });

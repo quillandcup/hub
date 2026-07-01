@@ -89,7 +89,7 @@ export default async function AdminPrickleDetailPage({
       .select("name, email")
       .lt("join_time", prickle.end_time)
       .gt("leave_time", prickle.start_time),
-    supabase.from("members").select("id, name, email").eq("status", "active"),
+    supabase.from("members").select("id, name, email"),
     supabase.from("member_name_aliases").select("alias, member_id, source"),
     supabase.from("ignored_zoom_names").select("zoom_name"),
     supabase.from("staff").select("name, email"),
@@ -107,6 +107,28 @@ export default async function AdminPrickleDetailPage({
     ignoredNames,
     staff
   );
+
+  // Fetch historical meeting counts so "appearances" in the UI reflects all-time data,
+  // not just the count within this prickle's time window.
+  if (unmatchedZoomAttendees.length > 0) {
+    const unmatchedNames = unmatchedZoomAttendees.map(a => a.zoomName);
+    const { data: historicalAttendees } = await supabase
+      .schema("bronze").from("zoom_attendees")
+      .select("name, meeting_uuid")
+      .in("name", unmatchedNames)
+      .not("meeting_uuid", "is", null);
+
+    if (historicalAttendees) {
+      const historicalMeetings = new Map<string, Set<string>>();
+      for (const a of historicalAttendees) {
+        if (!historicalMeetings.has(a.name)) historicalMeetings.set(a.name, new Set());
+        historicalMeetings.get(a.name)!.add(a.meeting_uuid);
+      }
+      for (const a of unmatchedZoomAttendees) {
+        a.appearances = historicalMeetings.get(a.zoomName)?.size ?? a.appearances;
+      }
+    }
+  }
 
   const prickleTypeData = prickle.prickle_types as any;
   const normalizedName = prickleTypeData?.normalized_name as string | undefined;

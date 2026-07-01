@@ -324,7 +324,7 @@ export default async function DataHygienePage() {
           >
             <div className="flex items-center justify-between mb-2">
               <h3 className="text-sm font-medium text-slate-600 dark:text-slate-400">
-                Zoom Attendees
+                Zoom Coverage
               </h3>
               <span className="text-2xl">🔍</span>
             </div>
@@ -334,7 +334,7 @@ export default async function DataHygienePage() {
                 : 0}%
             </p>
             <p className="text-sm text-slate-600 dark:text-slate-400">
-              {matchedZoomAttendees}/{totalZoomAttendees} matched
+              {matchedZoomAttendees}/{totalZoomAttendees} in processed meetings
             </p>
             {unmatchedZoomAttendees > 0 && (
               <p className="text-xs text-orange-600 dark:text-orange-400 mt-2">
