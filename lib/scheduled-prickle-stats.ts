@@ -19,6 +19,14 @@ export interface AttendanceRow {
   member_id: string;
 }
 
+export interface PrickleSession {
+  id: string;
+  startTime: string;
+  hostName: string | null;
+  attendeeNames: string[];
+  attendeeCount: number;
+}
+
 export interface TypeStats {
   typeId: string;
   typeName: string;
@@ -42,6 +50,7 @@ export interface GroupStats {
   max: number;
   sparkline: number[];
   lastSession: string;
+  prickleSessions: PrickleSession[];
 }
 
 // ---------------------------------------------------------------------------
@@ -198,11 +207,12 @@ function getScheduleSlot(startTime: string): { sortKey: string; label: string } 
 export function computeGroupedPrickleStats(
   prickles: PrickleWithHost[],
   attendance: AttendanceRow[],
-  groupBy: "schedule" | "host"
+  groupBy: "schedule" | "host",
+  memberNameMap: Map<string, string> = new Map()
 ): GroupStats[] {
   const attendanceMap = buildAttendanceMap(attendance);
 
-  const groups = new Map<string, { label: string; prickles: Prickle[] }>();
+  const groups = new Map<string, { label: string; prickles: PrickleWithHost[] }>();
 
   for (const p of prickles) {
     let sortKey: string;
@@ -232,7 +242,27 @@ export function computeGroupedPrickleStats(
   for (const [sortKey, group] of groups) {
     const stats = computeCoreStats(group.prickles, attendanceMap);
     if (!stats) continue;
-    results.push({ groupKey: sortKey, groupLabel: group.label, ...stats });
+
+    const sortedPrickles = [...group.prickles].sort(
+      (a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime()
+    );
+
+    const prickleSessions: PrickleSession[] = sortedPrickles.map((p) => {
+      const host = Array.isArray(p.host) ? p.host[0] : p.host;
+      const attendeeIds = attendanceMap.get(p.id) ?? new Set<string>();
+      const attendeeNames = [...attendeeIds]
+        .map((id) => memberNameMap.get(id) ?? id)
+        .sort((a, b) => a.localeCompare(b));
+      return {
+        id: p.id,
+        startTime: p.start_time,
+        hostName: host?.name ?? null,
+        attendeeNames,
+        attendeeCount: attendeeIds.size,
+      };
+    });
+
+    results.push({ groupKey: sortKey, groupLabel: group.label, ...stats, prickleSessions });
   }
 
   results.sort((a, b) => a.groupKey.localeCompare(b.groupKey));

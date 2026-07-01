@@ -5,8 +5,8 @@ import {
   computeGroupedPrickleStats,
   type PrickleWithHost,
   type AttendanceRow,
-  type GroupStats,
 } from "@/lib/scheduled-prickle-stats";
+import GroupedTable from "./GroupedTable";
 
 // ---------------------------------------------------------------------------
 // Pagination helpers
@@ -86,89 +86,6 @@ async function fetchAttendanceForPrickles(
 }
 
 // ---------------------------------------------------------------------------
-// Sparkline SVG
-// ---------------------------------------------------------------------------
-
-function Sparkline({ values }: { values: number[] }) {
-  if (values.length < 2) {
-    return <span className="text-slate-400 text-sm">—</span>;
-  }
-
-  const W = 80;
-  const H = 24;
-  const PAD = 2;
-  const minV = Math.min(...values);
-  const maxV = Math.max(...values);
-  const range = maxV - minV || 1;
-
-  const points = values
-    .map((v, i) => {
-      const x = PAD + (i / (values.length - 1)) * (W - PAD * 2);
-      const y = H - PAD - ((v - minV) / range) * (H - PAD * 2);
-      return `${x.toFixed(1)},${y.toFixed(1)}`;
-    })
-    .join(" ");
-
-  return (
-    <svg
-      width={W}
-      height={H}
-      viewBox={`0 0 ${W} ${H}`}
-      aria-hidden="true"
-      className="inline-block text-blue-500 dark:text-blue-400"
-    >
-      <polyline
-        points={points}
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinejoin="round"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Stats table row
-// ---------------------------------------------------------------------------
-
-function StatsRow({ row }: { row: GroupStats }) {
-  return (
-    <tr className="hover:bg-slate-50 dark:hover:bg-slate-800">
-      <td className="px-6 py-4 text-sm font-medium text-slate-900 dark:text-slate-100">
-        {row.groupLabel}
-      </td>
-      <td className="px-6 py-4 text-right text-sm text-slate-900 dark:text-slate-100 tabular-nums">
-        {row.sessions}
-      </td>
-      <td className="px-6 py-4 text-right text-sm text-slate-700 dark:text-slate-300 tabular-nums">
-        {row.min}
-      </td>
-      <td className="px-6 py-4 text-right text-sm text-slate-700 dark:text-slate-300 tabular-nums">
-        {row.median % 1 === 0 ? row.median : row.median.toFixed(1)}
-      </td>
-      <td className="px-6 py-4 text-right text-sm font-medium text-slate-900 dark:text-slate-100 tabular-nums">
-        {row.mean.toFixed(1)}
-      </td>
-      <td className="px-6 py-4 text-right text-sm text-slate-700 dark:text-slate-300 tabular-nums">
-        {row.max}
-      </td>
-      <td className="px-6 py-4">
-        <Sparkline values={row.sparkline} />
-      </td>
-      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400">
-        {new Date(row.lastSession).toLocaleDateString(undefined, {
-          year: "numeric",
-          month: "short",
-          day: "numeric",
-        })}
-      </td>
-    </tr>
-  );
-}
-
-// ---------------------------------------------------------------------------
 // URL helpers
 // ---------------------------------------------------------------------------
 
@@ -221,11 +138,19 @@ export default async function PrickleKindInsightsPage({
 
   const today = new Date().toISOString().split("T")[0];
 
-  const prickles = await fetchPricklesForType(supabase, prickleType.id, from, to);
+  const [prickles, membersRaw] = await Promise.all([
+    fetchPricklesForType(supabase, prickleType.id, from, to),
+    supabase.from("members").select("id, name"),
+  ]);
+
+  const memberNameMap = new Map<string, string>(
+    (membersRaw.data ?? []).map((m) => [m.id, m.name])
+  );
+
   const prickleIds = prickles.map((p) => p.id);
   const attendance = await fetchAttendanceForPrickles(supabase, prickleIds);
 
-  const grouped = computeGroupedPrickleStats(prickles, attendance, groupBy);
+  const grouped = computeGroupedPrickleStats(prickles, attendance, groupBy, memberNameMap);
 
   const presets = [
     { label: "All Time", from: undefined, to: undefined },
@@ -236,7 +161,6 @@ export default async function PrickleKindInsightsPage({
 
   const currentPreset = presets.find((p) => p.from === from && p.to === to)?.label;
 
-  // Keep current range params when toggling group mode
   const rangeParams = { from, to };
   const scheduleUrl = buildUrl({ ...rangeParams, group: "schedule" });
   const hostUrl = buildUrl({ ...rangeParams, group: "host" });
@@ -349,64 +273,25 @@ export default async function PrickleKindInsightsPage({
           </div>
         </div>
 
-        {/* Stats table */}
-        <div className="bg-white dark:bg-slate-900 rounded-lg shadow">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-slate-50 dark:bg-slate-800">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                    {groupBy === "schedule" ? "Schedule Slot" : "Host"}
-                  </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                    Sessions
-                  </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                    Min
-                  </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                    Median
-                  </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                    Mean
-                  </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                    Max
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                    Trend
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                    Last Session
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
-                {grouped.map((row) => (
-                  <StatsRow key={row.groupKey} row={row} />
-                ))}
-              </tbody>
-            </table>
+        {grouped.length === 0 ? (
+          <div className="bg-white dark:bg-slate-900 rounded-lg shadow p-12 text-center text-slate-500 dark:text-slate-400">
+            No sessions found
+            {(from || to) && (
+              <span>
+                {" "}
+                for this period.{" "}
+                <Link
+                  href={buildUrl({ group: groupBy })}
+                  className="text-blue-600 hover:underline"
+                >
+                  View all time
+                </Link>
+              </span>
+            )}
           </div>
-
-          {grouped.length === 0 && (
-            <div className="p-12 text-center text-slate-500 dark:text-slate-400">
-              No sessions found
-              {(from || to) && (
-                <span>
-                  {" "}
-                  for this period.{" "}
-                  <Link
-                    href={buildUrl({ group: groupBy })}
-                    className="text-blue-600 hover:underline"
-                  >
-                    View all time
-                  </Link>
-                </span>
-              )}
-            </div>
-          )}
-        </div>
+        ) : (
+          <GroupedTable rows={grouped} groupBy={groupBy} />
+        )}
 
         {prickles.length > 0 && (
           <p className="text-xs text-slate-400 dark:text-slate-500 text-right">

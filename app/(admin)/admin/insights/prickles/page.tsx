@@ -7,6 +7,7 @@ import {
   type Prickle,
   type AttendanceRow,
 } from "@/lib/scheduled-prickle-stats";
+import PricklesTable from "./PricklesTable";
 
 // ---------------------------------------------------------------------------
 // Pagination helpers
@@ -72,51 +73,6 @@ async function fetchAllAttendance(
   }
 
   return rows;
-}
-
-// ---------------------------------------------------------------------------
-// Sparkline SVG component
-// ---------------------------------------------------------------------------
-
-function Sparkline({ values }: { values: number[] }) {
-  if (values.length < 2) {
-    return <span className="text-slate-400 text-sm">—</span>;
-  }
-
-  const W = 80;
-  const H = 24;
-  const PAD = 2;
-
-  const minV = Math.min(...values);
-  const maxV = Math.max(...values);
-  const range = maxV - minV || 1;
-
-  const points = values
-    .map((v, i) => {
-      const x = PAD + (i / (values.length - 1)) * (W - PAD * 2);
-      const y = H - PAD - ((v - minV) / range) * (H - PAD * 2);
-      return `${x.toFixed(1)},${y.toFixed(1)}`;
-    })
-    .join(" ");
-
-  return (
-    <svg
-      width={W}
-      height={H}
-      viewBox={`0 0 ${W} ${H}`}
-      aria-hidden="true"
-      className="inline-block text-blue-500 dark:text-blue-400"
-    >
-      <polyline
-        points={points}
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinejoin="round"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
 }
 
 // ---------------------------------------------------------------------------
@@ -253,98 +209,22 @@ export default async function PrickleInsightsPage({
           </div>
         </div>
 
-        {/* Stats table */}
-        <div className="bg-white dark:bg-slate-900 rounded-lg shadow">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-slate-50 dark:bg-slate-800">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                    Name
-                  </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                    Sessions
-                  </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                    Min
-                  </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                    Median
-                  </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                    Mean
-                  </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                    Max
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                    Trend
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                    Last Session
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
-                {stats.map((row) => (
-                  <tr
-                    key={row.typeId}
-                    className="hover:bg-slate-50 dark:hover:bg-slate-800"
-                  >
-                    <td className="px-6 py-4">
-                      <Link
-                        href={`/admin/insights/prickles/${row.normalizedName}${buildRangeUrl(from, to)}`}
-                        className="text-sm font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
-                      >
-                        {row.typeName}
-                      </Link>
-                    </td>
-                    <td className="px-6 py-4 text-right text-sm text-slate-900 dark:text-slate-100 tabular-nums">
-                      {row.sessions}
-                    </td>
-                    <td className="px-6 py-4 text-right text-sm text-slate-700 dark:text-slate-300 tabular-nums">
-                      {row.min}
-                    </td>
-                    <td className="px-6 py-4 text-right text-sm text-slate-700 dark:text-slate-300 tabular-nums">
-                      {row.median % 1 === 0 ? row.median : row.median.toFixed(1)}
-                    </td>
-                    <td className="px-6 py-4 text-right text-sm font-medium text-slate-900 dark:text-slate-100 tabular-nums">
-                      {row.mean.toFixed(1)}
-                    </td>
-                    <td className="px-6 py-4 text-right text-sm text-slate-700 dark:text-slate-300 tabular-nums">
-                      {row.max}
-                    </td>
-                    <td className="px-6 py-4">
-                      <Sparkline values={row.sparkline} />
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400">
-                      {new Date(row.lastSession).toLocaleDateString(undefined, {
-                        year: "numeric",
-                        month: "short",
-                        day: "numeric",
-                      })}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        {stats.length === 0 ? (
+          <div className="bg-white dark:bg-slate-900 rounded-lg shadow p-12 text-center text-slate-500 dark:text-slate-400">
+            No prickle data found
+            {(from || to) && (
+              <span>
+                {" "}
+                for this period.{" "}
+                <Link href="?" className="text-blue-600 hover:underline">
+                  View all time
+                </Link>
+              </span>
+            )}
           </div>
-
-          {stats.length === 0 && (
-            <div className="p-12 text-center text-slate-500 dark:text-slate-400">
-              No prickle data found
-              {(from || to) && (
-                <span>
-                  {" "}
-                  for this period.{" "}
-                  <Link href="?" className="text-blue-600 hover:underline">
-                    View all time
-                  </Link>
-                </span>
-              )}
-            </div>
-          )}
-        </div>
+        ) : (
+          <PricklesTable rows={stats} from={from} to={to} />
+        )}
       </main>
     </div>
   );
