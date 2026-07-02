@@ -24,7 +24,6 @@ export default function MemberNavigation({ isAdmin, memberId, enabledFeatures }:
   }, []);
 
   const isCalendarActive = pathname === '/calendar';
-  const isLiveActive = pathname === '/live';
   const isStreaksActive = pathname === '/streaks';
   const isProfileActive = pathname === `/members/${memberId}` || pathname.startsWith(`/members/${memberId}/`);
 
@@ -65,22 +64,6 @@ export default function MemberNavigation({ isAdmin, memberId, enabledFeatures }:
         >
           <span className="text-lg">📅</span>
           {!collapsed && <span>My Calendar</span>}
-        </Link>
-
-        <Link
-          href="/live"
-          className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
-            isLiveActive
-              ? "bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 font-medium"
-              : "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
-          }`}
-          title={collapsed ? "Live" : undefined}
-        >
-          <span className="relative flex items-center justify-center w-[1.125rem] h-[1.125rem] flex-shrink-0">
-            <span className="animate-ping absolute inline-flex h-2.5 w-2.5 rounded-full bg-red-400 opacity-60" />
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500" />
-          </span>
-          {!collapsed && <span>Live</span>}
         </Link>
 
         {showStreaks && (
