@@ -382,6 +382,21 @@ Define user roles and permissions:
 
 ## Gamification / Badges
 
+### Community Builder Leaderboard
+Recognize members who contribute most to community engagement — inspired by Long Angle's leaderboard (https://my.longangle.com/leaderboard).
+
+Possible signals to rank on:
+- Prickle attendance count or total hours
+- Slack messages/reactions
+- PUPs started or hosted
+- Streak length (consecutive weeks active)
+- Composite engagement score (see CRM Features / Engagement Scoring)
+
+Considerations:
+- Member-facing (public to the community) vs. admin-only view
+- Time window options (all-time, last 30/90 days, current month)
+- Opt-out mechanism so members who don't want to appear can hide themselves
+
 ### PUP-Starter Badge
 Recognize members who drive spontaneous collaboration by being the first to join (or most frequently starting) Pop-Up Prickles.
 
