@@ -34,6 +34,8 @@ describe('Member Email Change', () => {
   async function cleanUp() {
     await supabase.schema('bronze').from('kajabi_contacts').delete().ilike('kajabi_contact_id', `email-change-%${ts}`)
     await supabase.from('members').delete().ilike('email', `email-change-%${ts}@example.com`)
+    await supabase.from('member_email_aliases').delete().ilike('alias_email', `email-change-%${ts}@example.com`)
+    await supabase.from('member_email_aliases').delete().ilike('canonical_email', `email-change-%${ts}@example.com`)
   }
 
   beforeAll(async () => {
@@ -92,6 +94,79 @@ describe('Member Email Change', () => {
     const { data: after } = await supabase.from('members').select('id, email').eq('email', newEmail).single()
     expect(after!.id).toBe(member!.id)
   }, 30000)
+
+  it('creates an alias for the old email when the Kajabi email changes', async () => {
+    // The alias lets re-imports that reference the old email still resolve to the member.
+    const { data: member } = await supabase.from('members').select('id, email').eq('email', newEmail).single()
+    expect(member).toBeTruthy()
+
+    // Old email should now be an alias pointing to the new canonical
+    const { data: alias } = await supabase
+      .from('member_email_aliases')
+      .select('canonical_email, alias_email, source')
+      .eq('alias_email', oldEmail.toLowerCase())
+      .single()
+
+    expect(alias).toBeTruthy()
+    expect(alias!.canonical_email).toBe(newEmail.toLowerCase())
+    expect(alias!.source).toBe('auto_detected')
+
+    // New canonical email must NOT appear as an alias itself
+    const { data: shouldBeEmpty } = await supabase
+      .from('member_email_aliases')
+      .select('id')
+      .eq('alias_email', newEmail.toLowerCase())
+    expect(shouldBeEmpty).toHaveLength(0)
+
+    // Clean up alias so subsequent tests start clean
+    await supabase.from('member_email_aliases').delete().eq('alias_email', oldEmail.toLowerCase())
+  }, 30000)
+
+  it('redirects an existing alias chain when the canonical email changes', async () => {
+    // Scenario: member has alias foo@example.com → current canonical.
+    // When canonical changes, the existing alias should redirect to the new canonical.
+    const { data: member } = await supabase.from('members').select('id, email').eq('email', newEmail).single()
+    expect(member).toBeTruthy()
+
+    const chainAlias = `email-change-chain-${ts}@example.com`
+    await supabase.from('member_email_aliases').insert({
+      canonical_email: newEmail.toLowerCase(),
+      alias_email: chainAlias,
+      source: 'manual',
+    })
+
+    const secondNewEmail = `email-change-second-${ts}@example.com`
+    await supabase.schema('bronze').from('kajabi_contacts')
+      .update({ email: secondNewEmail })
+      .eq('kajabi_contact_id', kajabiContactId)
+
+    await processMembers()
+
+    // The chain alias should now point to the latest canonical
+    const { data: updatedAlias } = await supabase
+      .from('member_email_aliases')
+      .select('canonical_email')
+      .eq('alias_email', chainAlias)
+      .single()
+
+    expect(updatedAlias!.canonical_email).toBe(secondNewEmail.toLowerCase())
+
+    // And the intermediate email (newEmail) should now be an alias too
+    const { data: intermediateAlias } = await supabase
+      .from('member_email_aliases')
+      .select('canonical_email')
+      .eq('alias_email', newEmail.toLowerCase())
+      .single()
+
+    expect(intermediateAlias!.canonical_email).toBe(secondNewEmail.toLowerCase())
+
+    // Clean up
+    await supabase.from('member_email_aliases').delete().ilike('alias_email', `email-change-%${ts}@example.com`)
+    await supabase.schema('bronze').from('kajabi_contacts')
+      .update({ email: newEmail })
+      .eq('kajabi_contact_id', kajabiContactId)
+    await processMembers()
+  }, 60000)
 
   it('cleans up stale duplicate and preserves its attendance on the canonical member', async () => {
     // Simulate the state left by the old bug:
