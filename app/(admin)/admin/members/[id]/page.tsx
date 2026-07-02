@@ -110,7 +110,7 @@ export default async function MemberDetailPage({
             .filter((o: any) => {
               if (o.data?.attributes?.subscription !== true) return false;
               const name: string = o.name || '';
-              return MEMBERSHIP_PRODUCT_NAMES.some(n => name.includes(n)) || name.includes('Membership') || name.includes('BFF');
+              return MEMBERSHIP_PRODUCT_NAMES.some(n => name.includes(n)) || name.includes('Membership');
             })
             .map((o: any) => o.kajabi_offer_id)
         );
