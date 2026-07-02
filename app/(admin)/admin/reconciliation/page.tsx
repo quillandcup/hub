@@ -32,32 +32,58 @@ interface ReconciliationData {
   };
 }
 
+interface OrphanSlackUser {
+  slack_user_id: string;
+  email: string | null;
+  real_name: string;
+  display_name: string;
+}
+
+interface SlackData {
+  total_in_slack: number;
+  members_in_slack: string[];
+  orphan_slack_users: OrphanSlackUser[];
+}
+
 export default function ReconciliationPage() {
   const [data, setData] = useState<ReconciliationData | null>(null);
+  const [slackData, setSlackData] = useState<SlackData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filterDiscrepancies, setFilterDiscrepancies] = useState(true);
 
   useEffect(() => {
-    fetchReconciliation();
+    fetchAll();
   }, []);
+
+  const fetchAll = async () => {
+    setLoading(true);
+    setError(null);
+    await Promise.all([fetchReconciliation(), fetchSlackData()]);
+    setLoading(false);
+  };
 
   const fetchReconciliation = async () => {
     try {
-      setLoading(true);
       const response = await fetch("/api/analyze/subscription-reconciliation");
       const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error || "Failed to fetch reconciliation data");
-      }
-
+      if (!response.ok) throw new Error(result.error || "Failed to fetch reconciliation data");
       setData(result);
     } catch (err: any) {
       console.error("Error fetching reconciliation:", err);
       setError(err.message);
-    } finally {
-      setLoading(false);
+    }
+  };
+
+  const fetchSlackData = async () => {
+    try {
+      const response = await fetch("/api/analyze/slack-reconciliation");
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Failed to fetch Slack data");
+      setSlackData(result);
+    } catch (err: any) {
+      console.error("Error fetching Slack reconciliation:", err);
+      // Non-fatal — page still works without Slack data
     }
   };
 
@@ -85,6 +111,7 @@ export default function ReconciliationPage() {
     return null;
   }
 
+  const memberSlackSet = new Set(slackData?.members_in_slack ?? []);
   const filteredMembers = filterDiscrepancies
     ? data.members.filter((m) => m.has_discrepancy)
     : data.members;
@@ -94,7 +121,7 @@ export default function ReconciliationPage() {
       <div className="mb-6">
         <h1 className="text-2xl font-bold mb-2 dark:text-white">Subscription Reconciliation</h1>
         <p className="text-gray-600 dark:text-gray-400">
-          Compare expected vs actual member status across Stripe and Kajabi
+          Compare expected vs actual member status across Stripe, Kajabi, and Slack
         </p>
         {data.metadata.kajabi_import_timestamp && (
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
@@ -109,7 +136,7 @@ export default function ReconciliationPage() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-4 mb-6">
         <div className="p-4 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded">
           <div className="text-2xl font-bold dark:text-white">{data.summary.total_members}</div>
           <div className="text-sm text-gray-600 dark:text-gray-400">Total Members</div>
@@ -138,6 +165,12 @@ export default function ReconciliationPage() {
           </div>
           <div className="text-sm text-gray-600 dark:text-gray-400">Overrides</div>
         </div>
+        {slackData && (
+          <div className="p-4 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded">
+            <div className="text-2xl font-bold dark:text-white">{slackData.total_in_slack}</div>
+            <div className="text-sm text-gray-600 dark:text-gray-400">In Slack</div>
+          </div>
+        )}
         <div className="p-4 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded">
           <div
             className={`text-2xl font-bold ${
@@ -185,6 +218,11 @@ export default function ReconciliationPage() {
               <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">
                 Override
               </th>
+              {slackData && (
+                <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Slack
+                </th>
+              )}
               <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">
                 Status
               </th>
@@ -193,108 +231,161 @@ export default function ReconciliationPage() {
           <tbody className="divide-y divide-gray-200 dark:divide-slate-700 bg-white dark:bg-slate-900">
             {filteredMembers.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
-                  {filterDiscrepancies
-                    ? "No discrepancies found!"
-                    : "No members found"}
+                <td
+                  colSpan={slackData ? 7 : 6}
+                  className="px-4 py-8 text-center text-gray-500 dark:text-gray-400"
+                >
+                  {filterDiscrepancies ? "No discrepancies found!" : "No members found"}
                 </td>
               </tr>
             ) : (
-              filteredMembers.map((member) => (
-                <tr
-                  key={member.member_id}
-                  className={`hover:bg-gray-50 dark:hover:bg-slate-800 ${
-                    member.has_discrepancy ? "bg-red-50 dark:bg-red-950/20" : ""
-                  }`}
-                >
-                  <td className="px-4 py-3">
-                    <div className="font-medium dark:text-white">{member.member_name}</div>
-                    <div className="text-sm text-gray-600 dark:text-gray-400">
-                      {member.member_email}
-                    </div>
-                  </td>
-                  <td className="px-4 py-3">
-                    <span
-                      className={`px-2 py-1 text-xs rounded font-medium ${
-                        member.expected_kajabi_state === "active"
-                          ? "bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-300"
-                          : member.expected_kajabi_state === "inactive"
-                          ? "bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300"
-                          : "bg-yellow-100 dark:bg-yellow-900/40 text-yellow-800 dark:text-yellow-300"
-                      }`}
-                    >
-                      {member.expected_kajabi_state}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3">
-                    <span
-                      className={`px-2 py-1 text-xs rounded font-medium ${
-                        member.actual_kajabi_state === "active"
-                          ? "bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-300"
-                          : "bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300"
-                      }`}
-                    >
-                      {member.actual_kajabi_state}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3">
-                    <span
-                      className={`px-2 py-1 text-xs rounded font-medium ${
-                        member.stripe_state === "paying"
-                          ? "bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-300"
-                          : member.stripe_state === "paused"
-                          ? "bg-yellow-100 dark:bg-yellow-900/40 text-yellow-800 dark:text-yellow-300"
-                          : member.stripe_state === "past_due"
-                          ? "bg-red-100 dark:bg-red-900/40 text-red-800 dark:text-red-300"
-                          : "bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300"
-                      }`}
-                    >
-                      {member.stripe_state}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3">
-                    {member.override_type ? (
-                      <div>
-                        <span
-                          className={`px-2 py-1 text-xs rounded font-medium ${
-                            member.override_type === "gift"
-                              ? "bg-purple-100 dark:bg-purple-900/40 text-purple-800 dark:text-purple-300"
-                              : member.override_type === "hiatus"
-                              ? "bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-300"
-                              : "bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300"
-                          }`}
-                        >
-                          {member.override_type}
-                        </span>
-                        {member.override_reason && (
-                          <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                            {member.override_reason}
-                          </div>
-                        )}
+              filteredMembers.map((member) => {
+                const inSlack = memberSlackSet.has(member.member_id);
+                return (
+                  <tr
+                    key={member.member_id}
+                    className={`hover:bg-gray-50 dark:hover:bg-slate-800 ${
+                      member.has_discrepancy ? "bg-red-50 dark:bg-red-950/20" : ""
+                    }`}
+                  >
+                    <td className="px-4 py-3">
+                      <div className="font-medium dark:text-white">{member.member_name}</div>
+                      <div className="text-sm text-gray-600 dark:text-gray-400">
+                        {member.member_email}
                       </div>
-                    ) : (
-                      <span className="text-gray-400 dark:text-gray-500 text-sm">None</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3">
-                    {member.has_discrepancy ? (
-                      <span className="text-red-600 dark:text-red-400 font-medium text-sm">
-                        ⚠ Mismatch
+                    </td>
+                    <td className="px-4 py-3">
+                      <span
+                        className={`px-2 py-1 text-xs rounded font-medium ${
+                          member.expected_kajabi_state === "active"
+                            ? "bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-300"
+                            : member.expected_kajabi_state === "inactive"
+                            ? "bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300"
+                            : "bg-yellow-100 dark:bg-yellow-900/40 text-yellow-800 dark:text-yellow-300"
+                        }`}
+                      >
+                        {member.expected_kajabi_state}
                       </span>
-                    ) : (
-                      <span className="text-green-600 dark:text-green-400 text-sm">✓ OK</span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span
+                        className={`px-2 py-1 text-xs rounded font-medium ${
+                          member.actual_kajabi_state === "active"
+                            ? "bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-300"
+                            : "bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300"
+                        }`}
+                      >
+                        {member.actual_kajabi_state}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span
+                        className={`px-2 py-1 text-xs rounded font-medium ${
+                          member.stripe_state === "paying"
+                            ? "bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-300"
+                            : member.stripe_state === "paused"
+                            ? "bg-yellow-100 dark:bg-yellow-900/40 text-yellow-800 dark:text-yellow-300"
+                            : member.stripe_state === "past_due"
+                            ? "bg-red-100 dark:bg-red-900/40 text-red-800 dark:text-red-300"
+                            : "bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300"
+                        }`}
+                      >
+                        {member.stripe_state}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      {member.override_type ? (
+                        <div>
+                          <span
+                            className={`px-2 py-1 text-xs rounded font-medium ${
+                              member.override_type === "gift"
+                                ? "bg-purple-100 dark:bg-purple-900/40 text-purple-800 dark:text-purple-300"
+                                : member.override_type === "hiatus"
+                                ? "bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-300"
+                                : "bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300"
+                            }`}
+                          >
+                            {member.override_type}
+                          </span>
+                          {member.override_reason && (
+                            <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                              {member.override_reason}
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-gray-400 dark:text-gray-500 text-sm">None</span>
+                      )}
+                    </td>
+                    {slackData && (
+                      <td className="px-4 py-3 text-sm">
+                        {inSlack ? (
+                          <span className="text-green-600 dark:text-green-400">✓</span>
+                        ) : (
+                          <span className="text-gray-400 dark:text-gray-500">—</span>
+                        )}
+                      </td>
                     )}
-                  </td>
-                </tr>
-              ))
+                    <td className="px-4 py-3">
+                      {member.has_discrepancy ? (
+                        <span className="text-red-600 dark:text-red-400 font-medium text-sm">
+                          ⚠ Mismatch
+                        </span>
+                      ) : (
+                        <span className="text-green-600 dark:text-green-400 text-sm">✓ OK</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>
       </div>
 
+      {/* Orphan Slack users — in Slack but no member record at all */}
+      {slackData && slackData.orphan_slack_users.length > 0 && (
+        <div className="mt-8">
+          <h2 className="text-base font-semibold mb-3 dark:text-white">
+            In Slack with no member record ({slackData.orphan_slack_users.length})
+          </h2>
+          <div className="border border-gray-200 dark:border-slate-700 rounded overflow-hidden">
+            <table className="w-full">
+              <thead className="bg-gray-50 dark:bg-slate-800">
+                <tr>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Slack Name
+                  </th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Email
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200 dark:divide-slate-700 bg-white dark:bg-slate-900">
+                {slackData.orphan_slack_users.map((u) => (
+                  <tr key={u.slack_user_id} className="hover:bg-gray-50 dark:hover:bg-slate-800">
+                    <td className="px-4 py-3">
+                      <div className="font-medium dark:text-white">{u.real_name}</div>
+                      {u.display_name && u.display_name !== u.real_name && (
+                        <div className="text-xs text-gray-500 dark:text-gray-400">
+                          @{u.display_name}
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
+                      {u.email ?? <span className="text-gray-400 dark:text-gray-500">—</span>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
       <div className="mt-6">
         <button
-          onClick={fetchReconciliation}
+          onClick={fetchAll}
           className="px-4 py-2 bg-blue-600 dark:bg-blue-500 text-white rounded hover:bg-blue-700 dark:hover:bg-blue-600"
         >
           Refresh Data
