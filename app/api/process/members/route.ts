@@ -1,5 +1,6 @@
 import { createHash } from "crypto";
 import { requireAdmin } from "@/lib/supabase/api-auth";
+import { MEMBERSHIP_PRODUCT_NAMES } from "@/lib/membership";
 import { NextRequest, NextResponse, after } from "next/server";
 import { triggerAttendanceReprocessing } from "@/lib/processing/trigger";
 
@@ -189,7 +190,7 @@ export async function POST(request: NextRequest) {
 
             // Determine plan from offer name
             const offerName = offer.name || '';
-            if (offerName.includes('Quill & Cup Membership') || offerName.includes('Membership')) {
+            if (MEMBERSHIP_PRODUCT_NAMES.some(n => offerName.includes(n)) || offerName.includes('Membership')) {
               plan = 'Membership';
             } else if (offerName.includes('BFF')) {
               plan = 'BFF';

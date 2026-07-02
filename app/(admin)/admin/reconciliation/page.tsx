@@ -45,9 +45,40 @@ interface SlackData {
   orphan_slack_users: OrphanSlackUser[];
 }
 
+interface StripeOrphan {
+  stripe_customer_id: string;
+  email: string | null;
+  name: string | null;
+  created_at: string | null;
+}
+
+interface StripeOrphanData {
+  total_active_subscriptions: number;
+  orphans: StripeOrphan[];
+}
+
+interface ZoomInactiveMember {
+  member_id: string;
+  member_name: string;
+  member_status: string;
+  prickle_count: number;
+}
+
+interface ZoomUnmatchedAttendee {
+  name: string;
+  prickle_count: number;
+}
+
+interface ZoomAccessData {
+  matched_inactive: ZoomInactiveMember[];
+  unmatched: ZoomUnmatchedAttendee[];
+}
+
 export default function ReconciliationPage() {
   const [data, setData] = useState<ReconciliationData | null>(null);
   const [slackData, setSlackData] = useState<SlackData | null>(null);
+  const [stripeOrphanData, setStripeOrphanData] = useState<StripeOrphanData | null>(null);
+  const [zoomAccessData, setZoomAccessData] = useState<ZoomAccessData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filterDiscrepancies, setFilterDiscrepancies] = useState(true);
@@ -59,7 +90,7 @@ export default function ReconciliationPage() {
   const fetchAll = async () => {
     setLoading(true);
     setError(null);
-    await Promise.all([fetchReconciliation(), fetchSlackData()]);
+    await Promise.all([fetchReconciliation(), fetchSlackData(), fetchStripeOrphans(), fetchZoomAccess()]);
     setLoading(false);
   };
 
@@ -83,7 +114,28 @@ export default function ReconciliationPage() {
       setSlackData(result);
     } catch (err: any) {
       console.error("Error fetching Slack reconciliation:", err);
-      // Non-fatal — page still works without Slack data
+    }
+  };
+
+  const fetchStripeOrphans = async () => {
+    try {
+      const response = await fetch("/api/analyze/stripe-orphans");
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Failed to fetch Stripe orphans");
+      setStripeOrphanData(result);
+    } catch (err: any) {
+      console.error("Error fetching Stripe orphans:", err);
+    }
+  };
+
+  const fetchZoomAccess = async () => {
+    try {
+      const response = await fetch("/api/analyze/zoom-access");
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Failed to fetch Zoom access data");
+      setZoomAccessData(result);
+    } catch (err: any) {
+      console.error("Error fetching Zoom access:", err);
     }
   };
 
@@ -375,6 +427,95 @@ export default function ReconciliationPage() {
                     <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
                       {u.email ?? <span className="text-gray-400 dark:text-gray-500">—</span>}
                     </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Active Stripe subscribers with no member record */}
+      {stripeOrphanData && stripeOrphanData.orphans.length > 0 && (
+        <div className="mt-8">
+          <h2 className="text-base font-semibold mb-3 dark:text-white">
+            Active Stripe subscribers with no member record ({stripeOrphanData.orphans.length})
+          </h2>
+          <div className="border border-gray-200 dark:border-slate-700 rounded overflow-hidden">
+            <table className="w-full">
+              <thead className="bg-gray-50 dark:bg-slate-800">
+                <tr>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">Name</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">Email</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">Subscription Since</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200 dark:divide-slate-700 bg-white dark:bg-slate-900">
+                {stripeOrphanData.orphans.map((o) => (
+                  <tr key={o.stripe_customer_id} className="hover:bg-gray-50 dark:hover:bg-slate-800">
+                    <td className="px-4 py-3 font-medium dark:text-white">
+                      {o.name ?? <span className="text-gray-400 dark:text-gray-500">—</span>}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
+                      {o.email ?? <span className="text-gray-400 dark:text-gray-500">—</span>}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
+                      {o.created_at ? new Date(o.created_at).toLocaleDateString() : "—"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Zoom: attending prickles with inactive membership */}
+      {zoomAccessData && zoomAccessData.matched_inactive.length > 0 && (
+        <div className="mt-8">
+          <h2 className="text-base font-semibold mb-3 dark:text-white">
+            Attending prickles — membership inactive ({zoomAccessData.matched_inactive.length})
+          </h2>
+          <div className="border border-gray-200 dark:border-slate-700 rounded overflow-hidden">
+            <table className="w-full">
+              <thead className="bg-gray-50 dark:bg-slate-800">
+                <tr>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">Member</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">Prickles (last 90d)</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200 dark:divide-slate-700 bg-white dark:bg-slate-900">
+                {zoomAccessData.matched_inactive.map((m) => (
+                  <tr key={m.member_id} className="hover:bg-gray-50 dark:hover:bg-slate-800">
+                    <td className="px-4 py-3 font-medium dark:text-white">{m.member_name}</td>
+                    <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">{m.prickle_count}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Zoom: attending prickles with no member record */}
+      {zoomAccessData && zoomAccessData.unmatched.length > 0 && (
+        <div className="mt-8">
+          <h2 className="text-base font-semibold mb-3 dark:text-white">
+            Attending prickles — no member record found ({zoomAccessData.unmatched.length})
+          </h2>
+          <div className="border border-gray-200 dark:border-slate-700 rounded overflow-hidden">
+            <table className="w-full">
+              <thead className="bg-gray-50 dark:bg-slate-800">
+                <tr>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">Name</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">Prickles (last 90d)</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200 dark:divide-slate-700 bg-white dark:bg-slate-900">
+                {zoomAccessData.unmatched.map((u) => (
+                  <tr key={u.name} className="hover:bg-gray-50 dark:hover:bg-slate-800">
+                    <td className="px-4 py-3 font-medium dark:text-white">{u.name}</td>
+                    <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">{u.prickle_count}</td>
                   </tr>
                 ))}
               </tbody>

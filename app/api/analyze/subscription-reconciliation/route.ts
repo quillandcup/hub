@@ -1,4 +1,6 @@
 import { requireAdmin } from "@/lib/supabase/api-auth";
+import { MEMBERSHIP_PRODUCT_NAMES } from "@/lib/membership";
+import { buildReverseAliasMap, getMemberEmails } from "@/lib/stripe-matching";
 import { NextRequest, NextResponse } from "next/server";
 
 /**
@@ -17,7 +19,7 @@ export async function GET(request: NextRequest) {
       .schema("bronze")
       .from("kajabi_offers")
       .select("kajabi_offer_id")
-      .in("name", ["Quill & Cup Membership", "Yes, girl! I see you!"]);
+      .in("name", [...MEMBERSHIP_PRODUCT_NAMES]);
 
     if (productsError) {
       console.error("Error fetching membership products:", productsError);
@@ -144,7 +146,7 @@ export async function GET(request: NextRequest) {
         .schema("bronze")
         .from("stripe_products")
         .select("stripe_product_id, name")
-        .in("name", ["Quill & Cup Membership", "Yes, girl! I see you!"]);
+        .in("name", [...MEMBERSHIP_PRODUCT_NAMES]);
 
       const membershipStripeProductIds = new Set(
         stripeMembershipProducts?.map(p => p.stripe_product_id) || []
@@ -202,24 +204,12 @@ export async function GET(request: NextRequest) {
         stripeCustomers?.map(c => [c.stripe_customer_id, c]) || []
       );
 
-      // Reverse alias map: canonical_email → Set of alias emails
-      // Used to match a member's Stripe subscription when billed under a different email
-      const reverseAliasMap = new Map<string, Set<string>>();
-      for (const alias of emailAliases || []) {
-        const canonical = alias.canonical_email.toLowerCase();
-        if (!reverseAliasMap.has(canonical)) reverseAliasMap.set(canonical, new Set());
-        reverseAliasMap.get(canonical)!.add(alias.alias_email.toLowerCase());
-      }
+      const reverseAliasMap = buildReverseAliasMap(emailAliases || []);
 
       // Build reconciliation in memory
       // Only include members who have data in at least one system
       const reconciliationData = members?.map(member => {
-        const memberEmail = member.email?.toLowerCase();
-        // All emails that belong to this member (canonical + aliases)
-        const allMemberEmails = new Set([
-          memberEmail,
-          ...(reverseAliasMap.get(memberEmail) || []),
-        ]);
+        const allMemberEmails = getMemberEmails(member, reverseAliasMap);
 
         // Find Kajabi customer by email (kajabi_id in members is stale)
         const kajabiCustomer = kajabiCustomers?.find(c =>
