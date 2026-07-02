@@ -77,21 +77,22 @@ export default async function MemberDetailPage({
     .eq("member_id", id)
     .order("start_date", { ascending: false });
 
-  // Fetch Kajabi membership history
-  const { data: kajabiCustomer } = await supabase
+  // Fetch Kajabi membership history — query all customer IDs across primary + alias emails
+  const allEmails = [member.email, ...(emailAliases || []).map((a: any) => a.alias_email)];
+  const { data: kajabiCustomers } = await supabase
     .schema("bronze")
     .from("kajabi_customers")
     .select("kajabi_customer_id")
-    .eq("email", member.email)
-    .maybeSingle();
+    .in("email", allEmails);
 
   let membershipHistory: any[] = [];
-  if (kajabiCustomer?.kajabi_customer_id) {
+  const customerIds = (kajabiCustomers || []).map((c: any) => c.kajabi_customer_id).filter(Boolean);
+  if (customerIds.length > 0) {
     const { data: purchases } = await supabase
       .schema("bronze")
       .from("kajabi_purchases")
       .select("effective_start_at, deactivated_at, status, kajabi_offer_id")
-      .eq("kajabi_customer_id", kajabiCustomer.kajabi_customer_id)
+      .in("kajabi_customer_id", customerIds)
       .order("effective_start_at", { ascending: false });
 
     if (purchases && purchases.length > 0) {
