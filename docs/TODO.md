@@ -521,6 +521,14 @@ Set up background agents for faster parallel development
   - Filter parameter is in URL but not applied to results
   - Both filters affected
 
+### Reconciliation: Split monolithic endpoint and unify discrepancy logic _(refactor + code smell)_
+- **Code smell:** `has_discrepancy` is currently a hybrid — computed server-side for Kajabi/Stripe in `/api/analyze/subscription-reconciliation`, but Slack absence is ORed in client-side in `app/(admin)/admin/reconciliation/page.tsx`
+- **Root cause:** Slack, Stripe orphans, and Zoom access were already extracted into their own endpoints (`/api/analyze/slack-reconciliation`, `/api/analyze/stripe-orphans`, `/api/analyze/zoom-access`), but the subscription endpoint is still an all-in-one monolith that owns the `has_discrepancy` flag
+- **Fix:**
+  1. Split `/api/analyze/subscription-reconciliation` into separate endpoints (Stripe, Kajabi, etc.) following the same pattern
+  2. Move all `has_discrepancy` logic client-side so the page computes it by combining all sources uniformly
+  3. Remove `has_discrepancy` from the API response (it becomes a pure UI concern)
+
 ---
 
 ## CRM Features

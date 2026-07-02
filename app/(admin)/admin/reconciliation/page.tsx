@@ -164,8 +164,13 @@ export default function ReconciliationPage() {
   }
 
   const memberSlackSet = new Set(slackData?.members_in_slack ?? []);
+
+  const hasDiscrepancy = (m: MemberReconciliation) =>
+    m.has_discrepancy ||
+    (slackData !== null && !memberSlackSet.has(m.member_id) && m.expected_kajabi_state === "active");
+
   const filteredMembers = filterDiscrepancies
-    ? data.members.filter((m) => m.has_discrepancy)
+    ? data.members.filter(hasDiscrepancy)
     : data.members;
 
   return (
@@ -265,16 +270,16 @@ export default function ReconciliationPage() {
                 Actual (Kajabi)
               </th>
               <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">
-                Stripe State
-              </th>
-              <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">
-                Override
+                Stripe
               </th>
               {slackData && (
                 <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">
                   Slack
                 </th>
               )}
+              <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">
+                Override
+              </th>
               <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">
                 Status
               </th>
@@ -297,7 +302,7 @@ export default function ReconciliationPage() {
                   <tr
                     key={member.member_id}
                     className={`hover:bg-gray-50 dark:hover:bg-slate-800 ${
-                      member.has_discrepancy ? "bg-red-50 dark:bg-red-950/20" : ""
+                      hasDiscrepancy(member) ? "bg-red-50 dark:bg-red-950/20" : ""
                     }`}
                   >
                     <td className="px-4 py-3">
@@ -345,6 +350,15 @@ export default function ReconciliationPage() {
                         {member.stripe_state}
                       </span>
                     </td>
+                    {slackData && (
+                      <td className="px-4 py-3 text-sm">
+                        {inSlack ? (
+                          <span className="text-green-600 dark:text-green-400">✓</span>
+                        ) : (
+                          <span className="text-gray-400 dark:text-gray-500">—</span>
+                        )}
+                      </td>
+                    )}
                     <td className="px-4 py-3">
                       {member.override_type ? (
                         <div>
@@ -369,17 +383,8 @@ export default function ReconciliationPage() {
                         <span className="text-gray-400 dark:text-gray-500 text-sm">None</span>
                       )}
                     </td>
-                    {slackData && (
-                      <td className="px-4 py-3 text-sm">
-                        {inSlack ? (
-                          <span className="text-green-600 dark:text-green-400">✓</span>
-                        ) : (
-                          <span className="text-gray-400 dark:text-gray-500">—</span>
-                        )}
-                      </td>
-                    )}
                     <td className="px-4 py-3">
-                      {member.has_discrepancy ? (
+                      {hasDiscrepancy(member) ? (
                         <span className="text-red-600 dark:text-red-400 font-medium text-sm">
                           ⚠ Mismatch
                         </span>
