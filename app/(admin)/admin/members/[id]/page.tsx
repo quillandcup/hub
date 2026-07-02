@@ -90,10 +90,28 @@ export default async function MemberDetailPage({
     const { data: purchases } = await supabase
       .schema("bronze")
       .from("kajabi_purchases")
-      .select("effective_start_at, deactivated_at, status")
+      .select("effective_start_at, deactivated_at, status, kajabi_offer_id")
       .eq("kajabi_customer_id", kajabiCustomer.kajabi_customer_id)
       .order("effective_start_at", { ascending: false });
-    membershipHistory = purchases || [];
+
+    if (purchases && purchases.length > 0) {
+      const offerIds = [...new Set(purchases.map((p: any) => p.kajabi_offer_id).filter(Boolean))];
+      if (offerIds.length > 0) {
+        const { data: offers } = await supabase
+          .schema("bronze")
+          .from("kajabi_offers")
+          .select("kajabi_offer_id, data")
+          .in("kajabi_offer_id", offerIds);
+
+        const subscriptionOfferIds = new Set(
+          (offers || [])
+            .filter((o: any) => o.data?.attributes?.subscription === true)
+            .map((o: any) => o.kajabi_offer_id)
+        );
+
+        membershipHistory = purchases.filter((p: any) => subscriptionOfferIds.has(p.kajabi_offer_id));
+      }
+    }
   }
 
   // Fetch Slack activities
