@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
       { data: aliases },
       { data: ignoredUsers },
     ] = await Promise.all([
-      supabase.schema("bronze").from("slack_users").select("user_id, email, real_name, display_name, is_bot"),
+      supabase.schema("bronze").from("slack_users").select("user_id, email, real_name, display_name, is_bot, is_deleted"),
       supabase.from("members").select("id, name, email, status"),
       supabase.from("member_name_aliases").select("alias, member_id, source"),
       supabase.from("ignored_slack_users").select("user_id"),
@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
 
     const ignoredUserIds = new Set((ignoredUsers || []).map((u) => u.user_id));
     const nonBotSlackUsers = (slackUsers || []).filter(
-      (u) => !u.is_bot && !ignoredUserIds.has(u.user_id)
+      (u) => !u.is_bot && !u.is_deleted && !ignoredUserIds.has(u.user_id)
     );
 
     const userToMemberMap = await matchSlackUsersToMembers(
