@@ -419,6 +419,31 @@ Set up background agents for faster parallel development
 
 ---
 
+## Live Page (Who's in the Prickle Right Now)
+
+Show a `/live` page displaying the currently active prickle and its attendees in real time.
+
+**What was built and reverted:** A server-rendered `/live` page with 30-second auto-refresh querying `prickles WHERE start_time <= now AND end_time >= now`, plus attendee lists split into "currently present" vs "was here earlier". Reverted because attendance data isn't available during live sessions.
+
+**The blocker:** `prickle_attendance` (silver layer) is populated from Zoom reports, which are only available *after* a meeting ends. The page would always show 0 attendees during an active session.
+
+**The Zoom webhook gap:** Webhooks are set up at `/api/webhooks/zoom` and do receive `meeting.participant_joined` events, but currently ignore them — only `meeting.ended` and `meeting.participant_left` trigger a Zoom API import (with a 10-second delay). Even the `participant_left` import only captures who has already left, not who is currently present.
+
+**What's needed to build this properly:**
+
+1. **Handle `meeting.participant_joined` in the Zoom webhook** — write to a lightweight `live_participants` table (not part of the silver pipeline). Schema: `(meeting_uuid, zoom_user_id, name, join_time, left_at TIMESTAMPTZ nullable)`.
+2. **Handle `meeting.participant_left`** — set `left_at` on the matching row (already triggers the full import, which can remain).
+3. **Handle `meeting.ended`** — clear all rows for that `meeting_uuid` from `live_participants`.
+4. **Match live participants to prickles** — join `live_participants.meeting_uuid` to `prickles.zoom_meeting_uuid` to know which prickle is live.
+5. **Match live participants to members** — reuse the existing alias/email matching logic to resolve `zoom_user_id` or name to `members.id`.
+6. **Update the live page** — query `live_participants` instead of `prickle_attendance` for who is currently present, fall back to `prickle_attendance` for "was here earlier."
+
+**Alternatively (simpler but less real-time):** On `meeting.participant_joined`, immediately trigger the Zoom import (Zoom's live participant list API is available mid-meeting). This would populate `zoom_attendees` and then reprocess attendance, showing joined participants with no leave_time set yet.
+
+**Priority:** Low — the page itself is simple; the prerequisite is wiring up real-time Zoom participant data.
+
+---
+
 ## UI Enhancements
 
 ### Navigation & Layout
