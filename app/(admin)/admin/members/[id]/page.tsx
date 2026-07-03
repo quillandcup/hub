@@ -5,7 +5,7 @@ import MemberDetails from "./MemberDetails";
 import MergeButton from "./MergeButton";
 import { getUserTimezonePreference } from "@/lib/timezone";
 import { startSudo } from "@/app/actions/sudo";
-import { isMembershipOffer } from "@/lib/membership";
+import { fetchMembershipHistory } from "@/lib/kajabi/membership-history";
 
 export default async function MemberDetailPage({
   params,
@@ -86,35 +86,8 @@ export default async function MemberDetailPage({
     .select("kajabi_customer_id")
     .in("email", allEmails);
 
-  let membershipHistory: any[] = [];
   const customerIds = (kajabiCustomers || []).map((c: any) => c.kajabi_customer_id).filter(Boolean);
-  if (customerIds.length > 0) {
-    const { data: purchases } = await supabase
-      .schema("bronze")
-      .from("kajabi_purchases")
-      .select("effective_start_at, deactivated_at, status, kajabi_offer_id")
-      .in("kajabi_customer_id", customerIds)
-      .order("effective_start_at", { ascending: false });
-
-    if (purchases && purchases.length > 0) {
-      const offerIds = [...new Set(purchases.map((p: any) => p.kajabi_offer_id).filter(Boolean))];
-      if (offerIds.length > 0) {
-        const { data: offers } = await supabase
-          .schema("bronze")
-          .from("kajabi_offers")
-          .select("kajabi_offer_id, name, data")
-          .in("kajabi_offer_id", offerIds);
-
-        const subscriptionOfferIds = new Set(
-          (offers || [])
-            .filter((o: any) => o.data?.attributes?.subscription === true && isMembershipOffer(o.name || ''))
-            .map((o: any) => o.kajabi_offer_id)
-        );
-
-        membershipHistory = purchases.filter((p: any) => subscriptionOfferIds.has(p.kajabi_offer_id));
-      }
-    }
-  }
+  const membershipHistory = await fetchMembershipHistory(supabase, customerIds);
 
   // Fetch Slack activities
   const { data: slackActivities } = await supabase

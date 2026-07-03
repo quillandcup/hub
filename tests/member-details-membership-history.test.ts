@@ -1,30 +1,24 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { getTestSupabaseAdminClient } from './helpers/supabase'
+import { fetchMembershipHistory } from '@/lib/kajabi/membership-history'
 
-/**
- * Membership History must only show subscription-type purchases, not one-time
- * purchases like retreat deposits or other non-subscription offers.
- *
- * Bug that prompted this: page.tsx fetched all kajabi_purchases for a customer
- * with no offer-type filtering, so retreat deposits appeared in Membership History.
- *
- * Fix: filter purchases to those whose offer has data.attributes.subscription === true.
- */
-describe('Member Details - Membership History', () => {
+describe('fetchMembershipHistory', () => {
   const supabase = getTestSupabaseAdminClient()
   const ts = Date.now()
 
   const testCustomerId = `mh-test-customer-${ts}`
   const subscriptionOfferId = `mh-test-offer-subscription-${ts}`
+  const workshopOfferId = `mh-test-offer-workshop-${ts}`
   const retreatOfferId = `mh-test-offer-retreat-${ts}`
   const subscriptionPurchaseId = `mh-test-purchase-subscription-${ts}`
+  const workshopPurchaseId = `mh-test-purchase-workshop-${ts}`
   const retreatPurchaseId = `mh-test-purchase-retreat-${ts}`
 
   async function cleanUp() {
     await supabase.schema('bronze').from('kajabi_purchases')
-      .delete().in('kajabi_purchase_id', [subscriptionPurchaseId, retreatPurchaseId])
+      .delete().in('kajabi_purchase_id', [subscriptionPurchaseId, workshopPurchaseId, retreatPurchaseId])
     await supabase.schema('bronze').from('kajabi_offers')
-      .delete().in('kajabi_offer_id', [subscriptionOfferId, retreatOfferId])
+      .delete().in('kajabi_offer_id', [subscriptionOfferId, workshopOfferId, retreatOfferId])
     await supabase.schema('bronze').from('kajabi_customers')
       .delete().eq('kajabi_customer_id', testCustomerId)
   }
@@ -47,6 +41,12 @@ describe('Member Details - Membership History', () => {
         data: { attributes: { subscription: true } },
       },
       {
+        kajabi_offer_id: workshopOfferId,
+        name: 'Mindset Training for Live Feedback Workshop',
+        status: 'published',
+        data: { attributes: { subscription: true } },
+      },
+      {
         kajabi_offer_id: retreatOfferId,
         name: 'Quill & Cup Retreat Deposit',
         status: 'published',
@@ -65,6 +65,15 @@ describe('Member Details - Membership History', () => {
         data: {},
       },
       {
+        kajabi_purchase_id: workshopPurchaseId,
+        kajabi_customer_id: testCustomerId,
+        kajabi_offer_id: workshopOfferId,
+        status: 'canceled',
+        effective_start_at: '2025-02-21T00:00:00Z',
+        deactivated_at: '2026-05-01T00:00:00Z',
+        data: {},
+      },
+      {
         kajabi_purchase_id: retreatPurchaseId,
         kajabi_customer_id: testCustomerId,
         kajabi_offer_id: retreatOfferId,
@@ -78,69 +87,31 @@ describe('Member Details - Membership History', () => {
 
   afterAll(cleanUp)
 
-  it('excludes one-time purchases (retreat deposits) from membership history', async () => {
-    // Run the same query sequence as page.tsx
-    const { data: purchases } = await supabase
-      .schema('bronze')
-      .from('kajabi_purchases')
-      .select('effective_start_at, deactivated_at, status, kajabi_offer_id')
-      .eq('kajabi_customer_id', testCustomerId)
-      .order('effective_start_at', { ascending: false })
-
-    expect(purchases).not.toBeNull()
-    expect(purchases!.length).toBe(2)
-
-    const offerIds = [...new Set(purchases!.map((p: any) => p.kajabi_offer_id).filter(Boolean))]
-    const { data: offers } = await supabase
-      .schema('bronze')
-      .from('kajabi_offers')
-      .select('kajabi_offer_id, data')
-      .in('kajabi_offer_id', offerIds)
-
-    const subscriptionOfferIds = new Set(
-      (offers || [])
-        .filter((o: any) => o.data?.attributes?.subscription === true)
-        .map((o: any) => o.kajabi_offer_id)
-    )
-
-    const membershipHistory = purchases!.filter((p: any) => subscriptionOfferIds.has(p.kajabi_offer_id))
-
-    expect(membershipHistory).toHaveLength(1)
-    expect(membershipHistory[0].kajabi_offer_id).toBe(subscriptionOfferId)
+  it('includes membership subscription purchases', async () => {
+    const history = await fetchMembershipHistory(supabase, [testCustomerId])
+    const entry = history.find(p => p.kajabi_offer_id === subscriptionOfferId)
+    expect(entry).toBeDefined()
+    expect(entry!.effective_start_at).toBe('2024-01-01T00:00:00+00:00')
+    expect(entry!.status).toBe('active')
   })
 
-  it('includes subscription purchases in membership history', async () => {
-    const { data: purchases } = await supabase
-      .schema('bronze')
-      .from('kajabi_purchases')
-      .select('effective_start_at, deactivated_at, status, kajabi_offer_id')
-      .eq('kajabi_customer_id', testCustomerId)
-      .order('effective_start_at', { ascending: false })
-
-    const offerIds = [...new Set(purchases!.map((p: any) => p.kajabi_offer_id).filter(Boolean))]
-    const { data: offers } = await supabase
-      .schema('bronze')
-      .from('kajabi_offers')
-      .select('kajabi_offer_id, data')
-      .in('kajabi_offer_id', offerIds)
-
-    const subscriptionOfferIds = new Set(
-      (offers || [])
-        .filter((o: any) => o.data?.attributes?.subscription === true)
-        .map((o: any) => o.kajabi_offer_id)
-    )
-
-    const membershipHistory = purchases!.filter((p: any) => subscriptionOfferIds.has(p.kajabi_offer_id))
-
-    const subscriptionEntry = membershipHistory.find((p: any) => p.kajabi_offer_id === subscriptionOfferId)
-    expect(subscriptionEntry).toBeDefined()
-    expect(subscriptionEntry!.effective_start_at).toBe('2024-01-01T00:00:00+00:00')
-    expect(subscriptionEntry!.status).toBe('active')
+  it('excludes workshop offers even when subscription flag is true', async () => {
+    const history = await fetchMembershipHistory(supabase, [testCustomerId])
+    expect(history.find(p => p.kajabi_offer_id === workshopOfferId)).toBeUndefined()
   })
 
-  it('returns empty membership history when customer has only non-subscription purchases', async () => {
+  it('excludes non-subscription offers (retreat deposits)', async () => {
+    const history = await fetchMembershipHistory(supabase, [testCustomerId])
+    expect(history.find(p => p.kajabi_offer_id === retreatOfferId)).toBeUndefined()
+  })
+
+  it('returns empty array for no customer IDs', async () => {
+    const history = await fetchMembershipHistory(supabase, [])
+    expect(history).toHaveLength(0)
+  })
+
+  it('returns empty array when customer has only non-membership purchases', async () => {
     const onlyRetreatCustomerId = `mh-retreat-only-${ts}`
-
     await supabase.schema('bronze').from('kajabi_customers').insert({
       kajabi_customer_id: onlyRetreatCustomerId,
       email: `mh-retreat-only-${ts}@example.com`,
@@ -158,29 +129,8 @@ describe('Member Details - Membership History', () => {
     })
 
     try {
-      const { data: purchases } = await supabase
-        .schema('bronze')
-        .from('kajabi_purchases')
-        .select('effective_start_at, deactivated_at, status, kajabi_offer_id')
-        .eq('kajabi_customer_id', onlyRetreatCustomerId)
-        .order('effective_start_at', { ascending: false })
-
-      const offerIds = [...new Set(purchases!.map((p: any) => p.kajabi_offer_id).filter(Boolean))]
-      const { data: offers } = await supabase
-        .schema('bronze')
-        .from('kajabi_offers')
-        .select('kajabi_offer_id, data')
-        .in('kajabi_offer_id', offerIds)
-
-      const subscriptionOfferIds = new Set(
-        (offers || [])
-          .filter((o: any) => o.data?.attributes?.subscription === true)
-          .map((o: any) => o.kajabi_offer_id)
-      )
-
-      const membershipHistory = purchases!.filter((p: any) => subscriptionOfferIds.has(p.kajabi_offer_id))
-
-      expect(membershipHistory).toHaveLength(0)
+      const history = await fetchMembershipHistory(supabase, [onlyRetreatCustomerId])
+      expect(history).toHaveLength(0)
     } finally {
       await supabase.schema('bronze').from('kajabi_purchases')
         .delete().eq('kajabi_purchase_id', `mh-retreat-only-purchase-${ts}`)
