@@ -5,7 +5,7 @@ import MemberDetails from "./MemberDetails";
 import MergeButton from "./MergeButton";
 import { getUserTimezonePreference } from "@/lib/timezone";
 import { startSudo } from "@/app/actions/sudo";
-import { MEMBERSHIP_PRODUCT_NAMES } from "@/lib/membership";
+import { isMembershipOffer } from "@/lib/membership";
 
 export default async function MemberDetailPage({
   params,
@@ -107,11 +107,7 @@ export default async function MemberDetailPage({
 
         const subscriptionOfferIds = new Set(
           (offers || [])
-            .filter((o: any) => {
-              if (o.data?.attributes?.subscription !== true) return false;
-              const name: string = o.name || '';
-              return MEMBERSHIP_PRODUCT_NAMES.some(n => name.includes(n)) || name.includes('Membership');
-            })
+            .filter((o: any) => o.data?.attributes?.subscription === true && isMembershipOffer(o.name || ''))
             .map((o: any) => o.kajabi_offer_id)
         );
 
