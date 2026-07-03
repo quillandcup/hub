@@ -102,7 +102,7 @@ export default async function MemberDetailPage({
         const { data: offers } = await supabase
           .schema("bronze")
           .from("kajabi_offers")
-          .select("kajabi_offer_id, data")
+          .select("kajabi_offer_id, name, data")
           .in("kajabi_offer_id", offerIds);
 
         const subscriptionOfferIds = new Set(
