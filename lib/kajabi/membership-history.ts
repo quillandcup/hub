@@ -1,7 +1,7 @@
 import { isMembershipOffer } from "@/lib/membership";
 
 export type MembershipPurchase = {
-  effective_start_at: string;
+  created_at_kajabi: string;
   deactivated_at: string | null;
   status: string;
   kajabi_offer_id: string;
@@ -16,7 +16,7 @@ export async function fetchMembershipHistory(
   const { data: purchases } = await supabase
     .schema("bronze")
     .from("kajabi_purchases")
-    .select("effective_start_at, deactivated_at, status, kajabi_offer_id")
+    .select("created_at_kajabi, deactivated_at, status, kajabi_offer_id")
     .in("kajabi_customer_id", customerIds)
     .order("effective_start_at", { ascending: false });
 

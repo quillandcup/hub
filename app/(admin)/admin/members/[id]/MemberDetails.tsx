@@ -73,7 +73,7 @@ export default function MemberDetails({ member, attendanceRecords, hiatusHistory
           {member.status === "inactive" && (() => {
             const lastMembership = membershipHistory.find(p => p.deactivated_at != null);
             if (!lastMembership) return null;
-            const startDate = new Date(lastMembership.effective_start_at);
+            const startDate = new Date(lastMembership.created_at_kajabi);
             const endDate = new Date(lastMembership.deactivated_at);
             const fmt = (d: Date) => d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
             return (
@@ -163,7 +163,7 @@ export default function MemberDetails({ member, attendanceRecords, hiatusHistory
           <div className="p-6">
             <div className="space-y-3">
               {membershipHistory.map((purchase: any, idx: number) => {
-                const startDate = new Date(purchase.effective_start_at);
+                const startDate = new Date(purchase.created_at_kajabi);
                 const endDate = purchase.deactivated_at ? new Date(purchase.deactivated_at) : null;
                 const isActive = !endDate;
                 const fmt = (d: Date) => d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });

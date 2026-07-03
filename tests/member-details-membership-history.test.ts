@@ -60,7 +60,7 @@ describe('fetchMembershipHistory', () => {
         kajabi_customer_id: testCustomerId,
         kajabi_offer_id: subscriptionOfferId,
         status: 'active',
-        effective_start_at: '2024-01-01T00:00:00Z',
+        created_at_kajabi: '2024-01-01T00:00:00Z',
         deactivated_at: null,
         data: {},
       },
@@ -69,7 +69,7 @@ describe('fetchMembershipHistory', () => {
         kajabi_customer_id: testCustomerId,
         kajabi_offer_id: workshopOfferId,
         status: 'canceled',
-        effective_start_at: '2025-02-21T00:00:00Z',
+        created_at_kajabi: '2025-02-21T00:00:00Z',
         deactivated_at: '2026-05-01T00:00:00Z',
         data: {},
       },
@@ -78,7 +78,7 @@ describe('fetchMembershipHistory', () => {
         kajabi_customer_id: testCustomerId,
         kajabi_offer_id: retreatOfferId,
         status: 'active',
-        effective_start_at: '2023-10-20T00:00:00Z',
+        created_at_kajabi: '2023-10-20T00:00:00Z',
         deactivated_at: null,
         data: {},
       },
@@ -91,7 +91,7 @@ describe('fetchMembershipHistory', () => {
     const history = await fetchMembershipHistory(supabase, [testCustomerId])
     const entry = history.find(p => p.kajabi_offer_id === subscriptionOfferId)
     expect(entry).toBeDefined()
-    expect(entry!.effective_start_at).toBe('2024-01-01T00:00:00+00:00')
+    expect(entry!.created_at_kajabi).toBe('2024-01-01T00:00:00+00:00')
     expect(entry!.status).toBe('active')
   })
 
@@ -123,7 +123,7 @@ describe('fetchMembershipHistory', () => {
       kajabi_customer_id: onlyRetreatCustomerId,
       kajabi_offer_id: retreatOfferId,
       status: 'active',
-      effective_start_at: '2023-09-12T00:00:00Z',
+      created_at_kajabi: '2023-09-12T00:00:00Z',
       deactivated_at: null,
       data: {},
     })
