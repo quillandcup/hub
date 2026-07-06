@@ -193,6 +193,17 @@ function ChartCard({
   )
 }
 
+function PrickleTypeTooltip({ active, payload }: { active?: boolean; payload?: { payload: TypeEntry }[] }) {
+  if (!active || !payload?.length) return null
+  const d = payload[0].payload
+  return (
+    <div style={{ ...TOOLTIP_STYLE, padding: "6px 12px" }}>
+      <div>Avg Attendance: {d.avgAttendance}</div>
+      <div>Sessions: {d.sessions}</div>
+    </div>
+  )
+}
+
 function HorizontalBars({
   data,
   dataKey,
@@ -201,6 +212,7 @@ function HorizontalBars({
   labelWidth = 130,
   height = 280,
   tooltipLabel,
+  customTooltip,
 }: {
   data: object[]
   dataKey: string
@@ -209,6 +221,7 @@ function HorizontalBars({
   labelWidth?: number
   height?: number
   tooltipLabel: string
+  customTooltip?: (props: any) => React.ReactNode
 }) {
   return (
     <ResponsiveContainer width="100%" height={height}>
@@ -227,7 +240,9 @@ function HorizontalBars({
           tick={{ fontSize: 11 }}
           tickFormatter={(v: string) => (v.length > 18 ? v.slice(0, 17) + "…" : v)}
         />
-        <Tooltip contentStyle={TOOLTIP_STYLE} />
+        {customTooltip
+          ? <Tooltip content={customTooltip} />
+          : <Tooltip contentStyle={TOOLTIP_STYLE} />}
         <Bar dataKey={dataKey} fill={color} radius={[0, 4, 4, 0]} name={tooltipLabel} />
       </BarChart>
     </ResponsiveContainer>
@@ -278,6 +293,7 @@ export default function FunStatsCharts({
             labelWidth={155}
             height={320}
             tooltipLabel="Avg Attendance"
+            customTooltip={PrickleTypeTooltip}
           />
         </ChartCard>
 
