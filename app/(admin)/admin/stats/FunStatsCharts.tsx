@@ -140,7 +140,7 @@ export default function FunStatsCharts({
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <ChartCard
           title="📚 Prickle Types by Avg Attendance"
-          subtitle="Average members per session (min 5 sessions)"
+          subtitle="Average members per session (min 3 sessions)"
         >
           <HorizontalBars
             data={prickleTypes}

@@ -77,7 +77,7 @@ export function computeTopAttendees(attendance: AttRow[], limit = 10): TopEntry[
 export function computePrickleTypes(
   prickles: PrickleRow[],
   attendanceByPrickle: Map<string, number>,
-  minSessions = 5,
+  minSessions = 3,
   limit = 12
 ): TypeEntry[] {
   const sessions = new Map<string, number>()
