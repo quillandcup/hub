@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { computeOverlapLayout } from "@/lib/calendar-overlap";
 
 export interface Prickle {
   id: string;
@@ -45,33 +46,6 @@ function getAttendanceColor(count: number): string {
   } else {
     return "bg-blue-600 dark:bg-blue-600 text-white border-blue-700 dark:border-blue-400";
   }
-}
-
-// Assign each prickle a column index within its overlap group so they render side by side
-function computeOverlapLayout(prickles: Prickle[]): Map<string, { colIndex: number; colCount: number }> {
-  const result = new Map<string, { colIndex: number; colCount: number }>();
-  if (prickles.length === 0) return result;
-
-  const items = prickles
-    .map(p => ({ id: p.id, start: new Date(p.start_time).getTime(), end: new Date(p.end_time).getTime() }))
-    .sort((a, b) => a.start - b.start);
-
-  // Greedy column assignment: place each prickle in the first column it fits
-  const colEnds: number[] = [];
-  const colOf = new Map<string, number>();
-  for (const { id, start, end } of items) {
-    const col = colEnds.findIndex(t => t <= start);
-    if (col === -1) { colOf.set(id, colEnds.length); colEnds.push(end); }
-    else            { colOf.set(id, col);             colEnds[col] = end; }
-  }
-
-  // colCount for each prickle = highest column index among all prickles that overlap it, plus 1
-  for (const { id, start, end } of items) {
-    const overlapping = items.filter(o => o.start < end && o.end > start);
-    const colCount = Math.max(...overlapping.map(o => colOf.get(o.id) ?? 0)) + 1;
-    result.set(id, { colIndex: colOf.get(id) ?? 0, colCount });
-  }
-  return result;
 }
 
 // Get the position and height for a prickle block in the calendar
