@@ -38,6 +38,15 @@ Currently all inactive members are grouped together. Add granular status to dist
 
 ## Data Import
 
+### 🚨 CRITICAL: Automated Kajabi Bronze Import
+**Problem:** There is no automated import of Kajabi member data into the Bronze layer. The nightly `/api/reconcile/members` cron only reprocesses whatever is already in `kajabi_members` — if no one has manually exported and uploaded a CSV recently, the Silver layer silently reflects stale data. Member status, products, and subscription state can be days or weeks out of date with no warning.
+
+**Kajabi API is not available on current plan**, so the path forward is the Playwright scraper described in Phase 2B below. That plan should be treated as critical infrastructure, not a future enhancement.
+
+**Immediate action required:** Build Phase 2B MVP scraper to run daily via GitHub Actions and unblock the reconciliation cron from being useful.
+
+---
+
 ### Production API-Based Imports (In Progress)
 **Status:** Import pages split - CSV testing separate from production API imports
 
