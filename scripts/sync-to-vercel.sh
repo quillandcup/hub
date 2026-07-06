@@ -66,7 +66,8 @@ for var in \
     GOOGLE_CALENDAR_ID GOOGLE_SERVICE_ACCOUNT_KEY \
     SLACK_BOT_TOKEN \
     STRIPE_API_KEY \
-    SUDO_SECRET; do
+    SUDO_SECRET \
+    CRON_SECRET; do
     sync_env_var "$var" .env.prod production
 done
 

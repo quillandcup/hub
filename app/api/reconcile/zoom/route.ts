@@ -12,8 +12,10 @@ export const maxDuration = 300; // 5 minutes (max for Hobby tier)
  * This catches any webhooks that failed or were missed
  *
  * Scheduled to run daily at 2:30am via Vercel Cron
+ *
+ * Vercel Cron always invokes via GET.
  */
-export async function POST(request: NextRequest) {
+export async function GET(request: NextRequest) {
   const auth = await requireAdmin(request);
   if (!auth.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (auth.forbidden) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
