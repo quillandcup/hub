@@ -47,6 +47,33 @@ function getAttendanceColor(count: number): string {
   }
 }
 
+// Assign each prickle a column index within its overlap group so they render side by side
+function computeOverlapLayout(prickles: Prickle[]): Map<string, { colIndex: number; colCount: number }> {
+  const result = new Map<string, { colIndex: number; colCount: number }>();
+  if (prickles.length === 0) return result;
+
+  const items = prickles
+    .map(p => ({ id: p.id, start: new Date(p.start_time).getTime(), end: new Date(p.end_time).getTime() }))
+    .sort((a, b) => a.start - b.start);
+
+  // Greedy column assignment: place each prickle in the first column it fits
+  const colEnds: number[] = [];
+  const colOf = new Map<string, number>();
+  for (const { id, start, end } of items) {
+    const col = colEnds.findIndex(t => t <= start);
+    if (col === -1) { colOf.set(id, colEnds.length); colEnds.push(end); }
+    else            { colOf.set(id, col);             colEnds[col] = end; }
+  }
+
+  // colCount for each prickle = highest column index among all prickles that overlap it, plus 1
+  for (const { id, start, end } of items) {
+    const overlapping = items.filter(o => o.start < end && o.end > start);
+    const colCount = Math.max(...overlapping.map(o => colOf.get(o.id) ?? 0)) + 1;
+    result.set(id, { colIndex: colOf.get(id) ?? 0, colCount });
+  }
+  return result;
+}
+
 // Get the position and height for a prickle block in the calendar
 function getPricklePosition(startTime: string, endTime: string, timezone: string) {
   const start = new Date(startTime);
@@ -261,9 +288,14 @@ export default function CalendarWeekView({
 
                     {/* Prickle Blocks */}
                     <div className="absolute inset-0 pointer-events-none">
-                      {pricklesByDay[dayIndex].map(prickle => {
+                      {(() => {
+                        const dayPrickles = pricklesByDay[dayIndex];
+                        const overlapLayout = computeOverlapLayout(dayPrickles);
+                        return dayPrickles.map(prickle => {
                         const { top, height } = getPricklePosition(prickle.start_time, prickle.end_time, timezone);
-                        const adjustedTop = top; // No adjustment needed for full 24-hour view
+                        const { colIndex, colCount } = overlapLayout.get(prickle.id) ?? { colIndex: 0, colCount: 1 };
+                        const widthPct = 100 / colCount;
+                        const leftPct = colIndex * widthPct;
 
                         const startTime = new Date(prickle.start_time).toLocaleTimeString("en-US", {
                           timeZone: timezone,
@@ -274,10 +306,12 @@ export default function CalendarWeekView({
                         return (
                           <div key={prickle.id}>
                             <div
-                              className={`absolute left-1 right-1 rounded border-2 p-1.5 overflow-hidden pointer-events-auto transition-opacity cursor-pointer hover:opacity-90 ${getAttendanceColor(prickle.attendance_count)}`}
+                              className={`absolute rounded border-2 p-1.5 overflow-hidden pointer-events-auto transition-opacity cursor-pointer hover:opacity-90 ${getAttendanceColor(prickle.attendance_count)}`}
                               style={{
-                                top: `${adjustedTop}px`,
+                                top: `${top}px`,
                                 height: `${height}px`,
+                                left: `calc(${leftPct}% + 2px)`,
+                                width: `calc(${widthPct}% - 4px)`,
                               }}
                               onClick={() => router.push(`${prickleBasePath}/${prickle.id}`)}
                               onMouseEnter={() => setHoveredPrickle(prickle.id)}
@@ -302,7 +336,7 @@ export default function CalendarWeekView({
                               <div
                                 className="absolute z-50 bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 px-3 py-2 rounded-lg shadow-lg text-xs whitespace-nowrap pointer-events-none"
                                 style={{
-                                  top: `${adjustedTop}px`,
+                                  top: `${top}px`,
                                   ...(dayIndex === 6
                                     ? { right: 'calc(100% + 8px)' }  // Sunday: position left
                                     : { left: 'calc(100% + 8px)' }   // Others: position right
@@ -318,7 +352,8 @@ export default function CalendarWeekView({
                             )}
                           </div>
                         );
-                      })}
+                      });
+                      })()}
                     </div>
                   </div>
                 );
