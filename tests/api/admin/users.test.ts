@@ -95,6 +95,26 @@ describe('Admin Users API', () => {
     expect(typeof found.createdAt).toBe('string')
   })
 
+  it('GET includes allStaff and linked profile fields on each user', async () => {
+    const res = await fetch(`${base}/api/admin/users`, {
+      headers: getTestAuthHeaders(),
+    })
+
+    expect(res.ok).toBe(true)
+    const body = await res.json()
+
+    expect(Array.isArray(body.allStaff)).toBe(true)
+
+    const found = body.users.find((u: any) => u.id === testUserId)
+    expect(found).toBeTruthy()
+    // Fields exist on every user (null when unlinked)
+    expect('staffId' in found).toBe(true)
+    expect('staffName' in found).toBe(true)
+    expect('staffRole' in found).toBe(true)
+    expect('memberId' in found).toBe(true)
+    expect('memberName' in found).toBe(true)
+  })
+
   // ── PATCH /api/admin/users/[id] ───────────────────────────────────────────
 
   it('PATCH updates role', async () => {
@@ -185,6 +205,91 @@ describe('Admin Users API', () => {
 
     expect(profile?.role).toBe('member')
     expect((rows ?? []).map((r) => r.feature_key)).toEqual(['member_overrides'])
+  })
+
+  // ── PATCH staffId ─────────────────────────────────────────────────────────
+
+  describe('PATCH staffId — staff and member linking', () => {
+    const staffEmail = `staff-link-test-${ts}@example.com`
+    let staffRecordId: string
+
+    beforeAll(async () => {
+      // Seed a staff record with no user_id
+      const { data, error } = await supabase
+        .from('staff')
+        .insert({ name: 'Test Staffer', email: staffEmail, role: 'staff' })
+        .select('id')
+        .single()
+      if (error || !data) throw new Error(`Failed to create test staff: ${error?.message}`)
+      staffRecordId = data.id
+
+      // Seed a matching member record so we can verify members.user_id is updated too
+      await supabase.from('members').insert({
+        email: staffEmail,
+        name: 'Test Staffer',
+        joined_at: new Date().toISOString(),
+        status: 'active',
+        source: 'staff',
+      })
+    })
+
+    afterAll(async () => {
+      await supabase.from('staff').delete().eq('id', staffRecordId)
+      await supabase.from('members').delete().eq('email', staffEmail)
+    })
+
+    it('PATCH links user to a staff record and propagates to members', async () => {
+      const res = await fetch(`${base}/api/admin/users/${testUserId}`, {
+        method: 'PATCH',
+        headers: { ...getTestAuthHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ staffId: staffRecordId }),
+      })
+
+      expect(res.ok).toBe(true)
+
+      const [{ data: staffRow }, { data: memberRow }] = await Promise.all([
+        supabase.from('staff').select('user_id').eq('id', staffRecordId).single(),
+        supabase.from('members').select('user_id').eq('email', staffEmail).single(),
+      ])
+
+      expect(staffRow?.user_id).toBe(testUserId)
+      expect(memberRow?.user_id).toBe(testUserId)
+    })
+
+    it('GET reflects the linked staff on the user', async () => {
+      const res = await fetch(`${base}/api/admin/users`, {
+        headers: getTestAuthHeaders(),
+      })
+
+      const body = await res.json()
+      const found = body.users.find((u: any) => u.id === testUserId)
+
+      expect(found.staffId).toBe(staffRecordId)
+      expect(found.staffName).toBe('Test Staffer')
+      expect(found.staffRole).toBe('staff')
+
+      // Staff should no longer appear in allStaff (it's now linked)
+      const inAvailable = body.allStaff.find((s: any) => s.id === staffRecordId)
+      expect(inAvailable?.user_id).toBe(testUserId)
+    })
+
+    it('PATCH with staffId: null unlinks from staff and member', async () => {
+      const res = await fetch(`${base}/api/admin/users/${testUserId}`, {
+        method: 'PATCH',
+        headers: { ...getTestAuthHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ staffId: null }),
+      })
+
+      expect(res.ok).toBe(true)
+
+      const [{ data: staffRow }, { data: memberRow }] = await Promise.all([
+        supabase.from('staff').select('user_id').eq('id', staffRecordId).single(),
+        supabase.from('members').select('user_id').eq('email', staffEmail).single(),
+      ])
+
+      expect(staffRow?.user_id).toBeNull()
+      expect(memberRow?.user_id).toBeNull()
+    })
   })
 
   // ── POST /api/admin/users ──────────────────────────────────────────────────

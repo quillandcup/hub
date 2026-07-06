@@ -4,6 +4,15 @@ import { useState, useEffect, useCallback } from "react";
 import { FEATURE_PREVIEWS } from "@/lib/features";
 
 type Role = "admin" | "assistant" | "member";
+type StaffRole = "owner" | "staff" | "contractor";
+
+interface StaffRecord {
+  id: string;
+  name: string;
+  email: string;
+  role: StaffRole;
+  user_id: string | null;
+}
 
 interface AppUser {
   id: string;
@@ -11,6 +20,11 @@ interface AppUser {
   role: Role;
   features: string[];
   createdAt: string;
+  staffId: string | null;
+  staffName: string | null;
+  staffRole: StaffRole | null;
+  memberId: string | null;
+  memberName: string | null;
 }
 
 const ROLE_LABELS: Record<Role, string> = {
@@ -25,14 +39,28 @@ const ROLE_COLORS: Record<Role, string> = {
   member: "bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300",
 };
 
+const STAFF_ROLE_LABELS: Record<StaffRole, string> = {
+  owner: "Owner",
+  staff: "Staff",
+  contractor: "Contractor",
+};
+
+const STAFF_ROLE_COLORS: Record<StaffRole, string> = {
+  owner: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300",
+  staff: "bg-teal-100 text-teal-800 dark:bg-teal-900/30 dark:text-teal-300",
+  contractor: "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300",
+};
+
 export default function UsersClient({ currentUserId }: { currentUserId: string }) {
   const [users, setUsers] = useState<AppUser[]>([]);
+  const [allStaff, setAllStaff] = useState<StaffRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editRole, setEditRole] = useState<Role>("member");
   const [editFeatures, setEditFeatures] = useState<Set<string>>(new Set());
+  const [editStaffId, setEditStaffId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   const [inviteEmail, setInviteEmail] = useState("");
@@ -51,6 +79,7 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to load users");
       setUsers(data.users);
+      setAllStaff(data.allStaff ?? []);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to load users");
     } finally {
@@ -64,19 +93,28 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
     setEditingId(user.id);
     setEditRole(user.role);
     setEditFeatures(new Set(user.features));
+    setEditStaffId(user.staffId);
   }
 
   function cancelEdit() {
     setEditingId(null);
   }
 
-  async function saveEdit(userId: string) {
+  async function saveEdit(userId: string, originalStaffId: string | null) {
     setSaving(true);
     try {
+      const body: Record<string, unknown> = {
+        role: editRole,
+        features: Array.from(editFeatures),
+      };
+      // Only include staffId if it changed
+      if (editStaffId !== originalStaffId) {
+        body.staffId = editStaffId;
+      }
       const res = await fetch(`/api/admin/users/${userId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ role: editRole, features: Array.from(editFeatures) }),
+        body: JSON.stringify(body),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to save");
@@ -133,6 +171,10 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
     } finally {
       setDeletingId(null);
     }
+  }
+
+  function availableStaffOptions(currentStaffId: string | null): StaffRecord[] {
+    return allStaff.filter((s) => s.user_id === null || s.id === currentStaffId);
   }
 
   return (
@@ -210,6 +252,9 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
                     Role
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                    Linked Profiles
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                     Feature Flags
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
@@ -224,6 +269,7 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
                 {users.map((user) => {
                   const isEditing = editingId === user.id;
                   const isCurrentUser = user.id === currentUserId;
+                  const staffOptions = availableStaffOptions(user.staffId);
 
                   return (
                     <tr key={user.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
@@ -250,6 +296,48 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
                           <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${ROLE_COLORS[user.role]}`}>
                             {ROLE_LABELS[user.role]}
                           </span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4">
+                        {isEditing ? (
+                          <div className="flex flex-col gap-2">
+                            <div>
+                              <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">Staff</label>
+                              <select
+                                value={editStaffId ?? ""}
+                                onChange={(e) => setEditStaffId(e.target.value || null)}
+                                className="px-2 py-1 border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-sm w-full"
+                              >
+                                <option value="">— None —</option>
+                                {staffOptions.map((s) => (
+                                  <option key={s.id} value={s.id}>
+                                    {s.name} ({STAFF_ROLE_LABELS[s.role]})
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                            {user.memberId && (
+                              <div className="text-xs text-slate-500 dark:text-slate-400">
+                                Member: <span className="font-medium text-slate-700 dark:text-slate-300">{user.memberName}</span>
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="flex flex-col gap-1">
+                            {user.staffId ? (
+                              <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${STAFF_ROLE_COLORS[user.staffRole!]}`}>
+                                {user.staffName} · {STAFF_ROLE_LABELS[user.staffRole!]}
+                              </span>
+                            ) : null}
+                            {user.memberId ? (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300">
+                                Member: {user.memberName}
+                              </span>
+                            ) : null}
+                            {!user.staffId && !user.memberId && (
+                              <span className="text-xs text-slate-400 dark:text-slate-500">None</span>
+                            )}
+                          </div>
                         )}
                       </td>
                       <td className="px-6 py-4">
@@ -298,7 +386,7 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
                           {isEditing ? (
                             <>
                               <button
-                                onClick={() => saveEdit(user.id)}
+                                onClick={() => saveEdit(user.id, user.staffId)}
                                 disabled={saving}
                                 className="text-xs px-3 py-1 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded font-medium transition-colors"
                               >

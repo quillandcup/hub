@@ -17,12 +17,19 @@ export async function GET(request: NextRequest) {
 
   const supabase = getServiceClient();
 
-  const [{ data: listData, error: listError }, { data: profiles }, { data: previews }] =
-    await Promise.all([
-      supabase.auth.admin.listUsers({ perPage: 1000 }),
-      supabase.from("user_profiles").select("id, email, role, created_at"),
-      supabase.from("user_feature_previews").select("user_id, feature_key"),
-    ]);
+  const [
+    { data: listData, error: listError },
+    { data: profiles },
+    { data: previews },
+    { data: allStaff },
+    { data: linkedMembers },
+  ] = await Promise.all([
+    supabase.auth.admin.listUsers({ perPage: 1000 }),
+    supabase.from("user_profiles").select("id, email, role, created_at"),
+    supabase.from("user_feature_previews").select("user_id, feature_key"),
+    supabase.from("staff").select("id, name, email, role, user_id"),
+    supabase.from("members").select("id, name, email, user_id").not("user_id", "is", null),
+  ]);
 
   if (listError) {
     return NextResponse.json({ error: listError.message }, { status: 500 });
@@ -34,21 +41,30 @@ export async function GET(request: NextRequest) {
     if (!featureMap.has(row.user_id)) featureMap.set(row.user_id, []);
     featureMap.get(row.user_id)!.push(row.feature_key);
   }
+  const staffByUserId = new Map((allStaff ?? []).filter((s) => s.user_id).map((s) => [s.user_id, s]));
+  const memberByUserId = new Map((linkedMembers ?? []).map((m) => [m.user_id, m]));
 
   const users = (listData?.users ?? []).map((u) => {
     const profile = profileMap.get(u.id);
+    const staff = staffByUserId.get(u.id);
+    const member = memberByUserId.get(u.id);
     return {
       id: u.id,
       email: u.email ?? "",
       role: profile?.role ?? "member",
       features: featureMap.get(u.id) ?? [],
       createdAt: u.created_at,
+      staffId: staff?.id ?? null,
+      staffName: staff?.name ?? null,
+      staffRole: staff?.role ?? null,
+      memberId: member?.id ?? null,
+      memberName: member?.name ?? null,
     };
   });
 
   users.sort((a, b) => a.email.localeCompare(b.email));
 
-  return NextResponse.json({ users });
+  return NextResponse.json({ users, allStaff: allStaff ?? [] });
 }
 
 export async function POST(request: NextRequest) {

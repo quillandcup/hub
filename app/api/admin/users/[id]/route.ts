@@ -19,21 +19,58 @@ export async function PATCH(
   if (auth.forbidden) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const { id } = await params;
-  const { role, features } = await request.json();
+  const body = await request.json();
+  const { role, features, staffId } = body;
 
   const supabase = getServiceClient();
+
+  const tasks: PromiseLike<unknown>[] = [];
+
   if (role !== undefined) {
-    await supabase.from("user_profiles").update({ role }).eq("id", id);
+    tasks.push(supabase.from("user_profiles").update({ role }).eq("id", id));
   }
 
   if (features !== undefined) {
-    await supabase.from("user_feature_previews").delete().eq("user_id", id);
-    if ((features as string[]).length > 0) {
-      await supabase.from("user_feature_previews").insert(
-        (features as string[]).map((key) => ({ user_id: id, feature_key: key }))
-      );
-    }
+    tasks.push(
+      (async () => {
+        await supabase.from("user_feature_previews").delete().eq("user_id", id);
+        if ((features as string[]).length > 0) {
+          await supabase.from("user_feature_previews").insert(
+            (features as string[]).map((key: string) => ({ user_id: id, feature_key: key }))
+          );
+        }
+      })()
+    );
   }
+
+  if ("staffId" in body) {
+    tasks.push(
+      (async () => {
+        // Clear any existing staff link for this user
+        await Promise.all([
+          supabase.from("staff").update({ user_id: null }).eq("user_id", id),
+          supabase.from("members").update({ user_id: null }).eq("user_id", id),
+        ]);
+
+        if (staffId) {
+          const { data: staffRecord } = await supabase
+            .from("staff")
+            .select("email")
+            .eq("id", staffId)
+            .single();
+
+          if (staffRecord) {
+            await Promise.all([
+              supabase.from("staff").update({ user_id: id }).eq("id", staffId),
+              supabase.from("members").update({ user_id: id }).eq("email", staffRecord.email),
+            ]);
+          }
+        }
+      })()
+    );
+  }
+
+  await Promise.all(tasks);
 
   return NextResponse.json({ success: true });
 }
