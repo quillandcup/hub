@@ -20,6 +20,7 @@ interface Props {
   prickleTypes: TypeEntry[]
   hourCoverage: HourEntry[]
   dayOfWeek: DowEntry[]
+  sinceLabel: string
 }
 
 const TOOLTIP_STYLE = {
@@ -239,12 +240,13 @@ export default function FunStatsCharts({
   prickleTypes,
   hourCoverage,
   dayOfWeek,
+  sinceLabel,
 }: Props) {
   return (
     <div className="space-y-6">
       {/* Row 1: Top Hosts + Top Attendees */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <ChartCard title="🏆 Top Hosts" subtitle="Prickles hosted since Jan 1">
+        <ChartCard title="🏆 Top Hosts" subtitle={`Prickles hosted since ${sinceLabel}`}>
           <HorizontalBars
             data={topHosts}
             dataKey="count"
@@ -253,7 +255,7 @@ export default function FunStatsCharts({
           />
         </ChartCard>
 
-        <ChartCard title="🌟 Most Active Members" subtitle="Unique prickles attended since Jan 1">
+        <ChartCard title="🌟 Most Active Members" subtitle={`Unique prickles attended since ${sinceLabel}`}>
           <HorizontalBars
             data={topAttendees}
             dataKey="count"
@@ -279,7 +281,7 @@ export default function FunStatsCharts({
           />
         </ChartCard>
 
-        <ChartCard title="📅 Writing by Day of Week" subtitle="Attended prickles per day, since Jan 1">
+        <ChartCard title="📅 Writing by Day of Week" subtitle={`Attended prickles per day, since ${sinceLabel}`}>
           <ResponsiveContainer width="100%" height={320}>
             <BarChart data={dayOfWeek} margin={{ left: 0, right: 10, top: 4, bottom: 4 }}>
               <CartesianGrid
@@ -299,7 +301,7 @@ export default function FunStatsCharts({
       {/* Hour of Day clock heatmap */}
       <ChartCard
         title="🕐 Writing Throughout the Day (ET)"
-        subtitle="% of days since Jan 1 with at least one attended prickle at each hour"
+        subtitle={`% of days since ${sinceLabel} with at least one attended prickle at each hour`}
       >
         <ClockHeatmap hourCoverage={hourCoverage} />
         <div className="flex items-center justify-center gap-2 mt-2 text-xs text-slate-400 dark:text-slate-500">

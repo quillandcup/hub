@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 import FunStatsCharts from "./FunStatsCharts"
+import DateRangeFilter from "./DateRangeFilter"
 import {
   computeTopHosts,
   computeTopAttendees,
@@ -12,11 +13,24 @@ import {
   type AttRow,
 } from "@/lib/fun-stats"
 
+import { resolveDateRange } from "@/lib/stats-date-range"
+
 export const maxDuration = 60
 
-const SINCE = "2026-01-01T00:00:00Z"
+function formatDateLabel(dateStr: string, style: "long" | "short" = "long"): string {
+  return new Date(dateStr + "T12:00:00Z").toLocaleDateString("en-US", {
+    month: style === "long" ? "long" : "short",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "UTC",
+  })
+}
 
-async function fetchAllPrickles(supabase: Awaited<ReturnType<typeof createClient>>, now: string) {
+async function fetchAllPrickles(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  since: string,
+  until: string
+) {
   const rows: PrickleRow[] = []
   let offset = 0
   const BATCH = 1000
@@ -25,8 +39,8 @@ async function fetchAllPrickles(supabase: Awaited<ReturnType<typeof createClient
     const { data: batch } = await supabase
       .from("prickles")
       .select("id, start_time, members!host(name), prickle_types(name, normalized_name)")
-      .gte("start_time", SINCE)
-      .lte("start_time", now)
+      .gte("start_time", since)
+      .lte("start_time", until)
       .range(offset, offset + BATCH - 1)
     if (batch && batch.length > 0) {
       rows.push(...(batch as unknown as PrickleRow[]))
@@ -39,7 +53,11 @@ async function fetchAllPrickles(supabase: Awaited<ReturnType<typeof createClient
   return rows
 }
 
-async function fetchAllAttendance(supabase: Awaited<ReturnType<typeof createClient>>) {
+async function fetchAllAttendance(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  since: string,
+  until: string
+) {
   const rows: AttRow[] = []
   let offset = 0
   const BATCH = 1000
@@ -48,7 +66,8 @@ async function fetchAllAttendance(supabase: Awaited<ReturnType<typeof createClie
     const { data: batch } = await supabase
       .from("prickle_attendance")
       .select("member_id, prickle_id, join_time, leave_time, members(name)")
-      .gte("join_time", SINCE)
+      .gte("join_time", since)
+      .lte("join_time", until)
       .range(offset, offset + BATCH - 1)
     if (batch && batch.length > 0) {
       rows.push(...(batch as unknown as AttRow[]))
@@ -82,18 +101,29 @@ function StatCard({
   )
 }
 
-export default async function FunStatsPage() {
+export default async function FunStatsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ from?: string; to?: string }>
+}) {
   const supabase = await createClient()
   const {
     data: { user },
   } = await supabase.auth.getUser()
   if (!user) redirect("/login")
 
-  const now = new Date().toISOString()
+  const { from: fromParam, to: toParam } = await searchParams
+  const { from, to, since, until } = resolveDateRange({ from: fromParam, to: toParam })
+
+  const todayDate = new Date().toISOString().slice(0, 10)
+
+  const fromLabel = formatDateLabel(from, "long")
+  const toLabel = to === todayDate ? "today" : formatDateLabel(to, "long")
+  const sinceLabel = formatDateLabel(from, "short")
 
   const [prickles, attendance] = await Promise.all([
-    fetchAllPrickles(supabase, now),
-    fetchAllAttendance(supabase),
+    fetchAllPrickles(supabase, since, until),
+    fetchAllAttendance(supabase, since, until),
   ])
 
   const attendedPrickleIds = new Set(attendance.map((a) => a.prickle_id))
@@ -113,9 +143,10 @@ export default async function FunStatsPage() {
     <div className="container mx-auto px-6 py-8 max-w-5xl">
       <div className="mb-8">
         <h1 className="text-3xl font-bold mb-1">Community Stats</h1>
-        <p className="text-slate-500 dark:text-slate-400 text-sm">
-          Quill &amp; Cup · January 1, 2026 – today
+        <p className="text-slate-500 dark:text-slate-400 text-sm mb-4">
+          Quill &amp; Cup · {fromLabel} – {toLabel}
         </p>
+        <DateRangeFilter from={from} to={to} />
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
@@ -151,6 +182,7 @@ export default async function FunStatsPage() {
         prickleTypes={computePrickleTypes(prickles, attendanceByPrickle)}
         hourCoverage={computeHourCoverage(attendedPrickles)}
         dayOfWeek={computeDayOfWeek(attendedPrickles)}
+        sinceLabel={sinceLabel}
       />
     </div>
   )
