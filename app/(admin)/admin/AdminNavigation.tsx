@@ -52,6 +52,12 @@ const navigation: NavSection[] = [
       { name: "Reconciliation", href: "/admin/reconciliation", icon: "🔄" },
     ],
   },
+  {
+    name: "System",
+    items: [
+      { name: "Users", href: "/admin/users", icon: "🔑" },
+    ],
+  },
 ];
 
 interface AdminNavigationProps {
