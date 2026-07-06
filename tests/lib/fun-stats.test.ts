@@ -343,6 +343,42 @@ describe('computeHourCoverage', () => {
     expect(result[0].pct).toBe(100)
     expect(result[24]).toBeUndefined()
   })
+
+  // Clock-specific: outer ring = AM (hours 0–11), inner ring = PM (hours 12–23)
+
+  it('always produces exactly 12 AM entries and 12 PM entries', () => {
+    const prickles = [makePrickle('p1', MON_7AM_ET)]
+    const result = computeHourCoverage(prickles)
+    expect(result.filter(e => e.hour < 12)).toHaveLength(12)
+    expect(result.filter(e => e.hour >= 12)).toHaveLength(12)
+  })
+
+  it('tracks AM and PM hours at the same clock position independently', () => {
+    // 7pm EST Jan 5 = 2026-01-06T00:00Z (UTC-5); same ET date as MON_7AM_ET
+    const mon7pm_et = '2026-01-06T00:00:00Z' // hour 19, ET date 2026-01-05
+    const prickles = [makePrickle('p1', mon7pm_et)]
+    const result = computeHourCoverage(prickles)
+    expect(result[19].pct).toBe(100) // 7pm → hour 19 covered
+    expect(result[7].pct).toBe(0)    // hour 7 (7am) unaffected by a 7pm prickle
+  })
+
+  it('PM prickle maps to hour 12–23, not 0–11', () => {
+    // 3pm ET in winter = 20:00 UTC
+    const mon3pm = '2026-01-05T20:00:00Z'
+    const prickles = [makePrickle('p1', mon3pm)]
+    const result = computeHourCoverage(prickles)
+    expect(result[15].pct).toBe(100) // hour 15 = 3pm
+    expect(result[3].pct).toBe(0)    // hour 3 (3am) unaffected
+  })
+
+  it('late night prickle maps to hour 23', () => {
+    // 11:30pm ET in winter = 04:30 UTC next day
+    const late_night = '2026-01-06T04:30:00Z' // 11:30pm ET Jan 5
+    const prickles = [makePrickle('p1', late_night)]
+    const result = computeHourCoverage(prickles)
+    expect(result[23].pct).toBe(100)
+    expect(result[11].pct).toBe(0) // 11am unaffected
+  })
 })
 
 // ---------------------------------------------------------------------------

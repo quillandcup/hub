@@ -45,6 +45,86 @@ function formatHour(h: number): string {
   return `${h - 12}p`
 }
 
+function clockFill(pct: number): string {
+  if (pct >= 90) return "#1e3a8a" // blue-900
+  if (pct >= 75) return "#1d4ed8" // blue-700
+  if (pct >= 50) return "#3b82f6" // blue-500
+  if (pct >= 25) return "#93c5fd" // blue-300
+  if (pct > 0)   return "#dbeafe" // blue-100
+  return "#f0f4f8"
+}
+
+function ClockHeatmap({ hourCoverage }: { hourCoverage: HourEntry[] }) {
+  const size = 300
+  const cx = size / 2
+  const cy = size / 2
+  // Outer ring = AM (0–11), inner ring = PM (12–23)
+  const amOuter = 116, amInner = 72
+  const pmOuter = 68, pmInner = 28
+  const labelR = 132
+
+  function polar(r: number, deg: number) {
+    const rad = ((deg - 90) * Math.PI) / 180
+    return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) }
+  }
+
+  function wedge(slot: number, innerR: number, outerR: number): string {
+    const gap = 1.5
+    const a1 = (slot / 12) * 360 + gap / 2
+    const a2 = ((slot + 1) / 12) * 360 - gap / 2
+    const p1 = polar(outerR, a1), p2 = polar(outerR, a2)
+    const p3 = polar(innerR, a2), p4 = polar(innerR, a1)
+    return `M ${p1.x} ${p1.y} A ${outerR} ${outerR} 0 0 1 ${p2.x} ${p2.y} L ${p3.x} ${p3.y} A ${innerR} ${innerR} 0 0 0 ${p4.x} ${p4.y} Z`
+  }
+
+  const cardinals = [
+    { slot: 0, label: "12" },
+    { slot: 3, label: "3" },
+    { slot: 6, label: "6" },
+    { slot: 9, label: "9" },
+  ]
+
+  return (
+    <div className="flex flex-col items-center gap-2">
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+        {/* Ring backgrounds */}
+        <circle cx={cx} cy={cy} r={amOuter + 1} fill="currentColor" className="text-slate-100 dark:text-slate-800" />
+        <circle cx={cx} cy={cy} r={amInner - 3} fill="currentColor" className="text-white dark:text-slate-900" />
+        <circle cx={cx} cy={cy} r={pmOuter} fill="currentColor" className="text-slate-100 dark:text-slate-800" />
+        <circle cx={cx} cy={cy} r={pmInner - 2} fill="currentColor" className="text-white dark:text-slate-900" />
+
+        {/* AM wedges — outer ring */}
+        {hourCoverage.filter(e => e.hour < 12).map(({ hour, pct }) => (
+          <path key={hour} d={wedge(hour, amInner, amOuter)} fill={clockFill(pct)}>
+            <title>{formatHour(hour)}: {pct}%</title>
+          </path>
+        ))}
+
+        {/* PM wedges — inner ring */}
+        {hourCoverage.filter(e => e.hour >= 12).map(({ hour, pct }) => (
+          <path key={hour} d={wedge(hour - 12, pmInner, pmOuter)} fill={clockFill(pct)}>
+            <title>{formatHour(hour)}: {pct}%</title>
+          </path>
+        ))}
+
+        {/* Cardinal tick marks + hour labels */}
+        {cardinals.map(({ slot, label }) => {
+          const angle = (slot / 12) * 360
+          const t1 = polar(amOuter + 1, angle), t2 = polar(amOuter + 8, angle)
+          const lp = polar(labelR, angle)
+          return (
+            <g key={slot}>
+              <line x1={t1.x} y1={t1.y} x2={t2.x} y2={t2.y} stroke="currentColor" strokeWidth={1.5} className="text-slate-400 dark:text-slate-500" />
+              <text x={lp.x} y={lp.y} textAnchor="middle" dominantBaseline="middle" fontSize={12} fontWeight="600" fill="currentColor" className="text-slate-500 dark:text-slate-400">{label}</text>
+            </g>
+          )
+        })}
+      </svg>
+      <p className="text-[10px] text-slate-400 dark:text-slate-500">outer ring = AM · inner ring = PM</p>
+    </div>
+  )
+}
+
 function ChartCard({
   title,
   subtitle,
@@ -169,26 +249,16 @@ export default function FunStatsCharts({
         </ChartCard>
       </div>
 
-      {/* Hour of Day heatmap */}
+      {/* Hour of Day clock heatmap */}
       <ChartCard
         title="🕐 Writing Throughout the Day (ET)"
         subtitle="% of days since Jan 1 with at least one attended prickle at each hour"
       >
-        <div className="grid grid-cols-12 gap-1.5 mt-1">
-          {hourCoverage.map(({ hour, pct }) => (
-            <div
-              key={hour}
-              className={`rounded-lg flex flex-col items-center justify-center py-2 ${heatClass(pct)}`}
-            >
-              <span className="text-[10px] font-medium leading-none">{formatHour(hour)}</span>
-              <span className="text-[11px] font-bold leading-tight mt-0.5">{pct}%</span>
-            </div>
-          ))}
-        </div>
-        <div className="flex items-center justify-end gap-2 mt-3 text-xs text-slate-400 dark:text-slate-500">
+        <ClockHeatmap hourCoverage={hourCoverage} />
+        <div className="flex items-center justify-center gap-2 mt-2 text-xs text-slate-400 dark:text-slate-500">
           <span>Less</span>
-          {[0, 10, 30, 60, 80, 95].map((p) => (
-            <div key={p} className={`w-4 h-4 rounded ${heatClass(p)}`} />
+          {["#f0f4f8", "#dbeafe", "#93c5fd", "#3b82f6", "#1d4ed8", "#1e3a8a"].map((c) => (
+            <div key={c} className="w-4 h-4 rounded border border-slate-200 dark:border-slate-700" style={{ backgroundColor: c }} />
           ))}
           <span>More</span>
         </div>
