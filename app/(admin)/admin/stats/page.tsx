@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
-import FunStatsCharts from "./FunStatsCharts"
+import CommunityStatsCharts from "./CommunityStatsCharts"
 import DateRangeFilter from "./DateRangeFilter"
 import {
   computeTopHosts,
@@ -11,7 +11,7 @@ import {
   computeHeroStats,
   type PrickleRow,
   type AttRow,
-} from "@/lib/fun-stats"
+} from "@/lib/community-stats"
 
 import { resolveDateRange } from "@/lib/stats-date-range"
 
@@ -101,7 +101,7 @@ function StatCard({
   )
 }
 
-export default async function FunStatsPage({
+export default async function CommunityStatsPage({
   searchParams,
 }: {
   searchParams: Promise<{ from?: string; to?: string }>
@@ -176,7 +176,7 @@ export default async function FunStatsPage({
         />
       </div>
 
-      <FunStatsCharts
+      <CommunityStatsCharts
         topHosts={computeTopHosts(prickles)}
         topAttendees={computeTopAttendees(attendance)}
         prickleTypes={computePrickleTypes(prickles, attendanceByPrickle)}

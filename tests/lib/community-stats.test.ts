@@ -12,7 +12,7 @@ import {
   computeHeroStats,
   type PrickleRow,
   type AttRow,
-} from '@/lib/fun-stats'
+} from '@/lib/community-stats'
 
 // Known timestamps for ET timezone assertions
 // Winter (EST, UTC-5): Jan 5 2026 is a Monday

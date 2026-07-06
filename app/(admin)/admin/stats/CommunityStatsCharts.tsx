@@ -11,7 +11,7 @@ import {
   ResponsiveContainer,
 } from "recharts"
 
-import type { TopEntry, TypeEntry, HourEntry, DowEntry } from "@/lib/fun-stats"
+import type { TopEntry, TypeEntry, HourEntry, DowEntry } from "@/lib/community-stats"
 export type { TopEntry, TypeEntry, HourEntry, DowEntry }
 
 interface Props {
@@ -249,7 +249,7 @@ function HorizontalBars({
   )
 }
 
-export default function FunStatsCharts({
+export default function CommunityStatsCharts({
   topHosts,
   topAttendees,
   prickleTypes,
