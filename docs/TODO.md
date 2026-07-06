@@ -624,6 +624,9 @@ Show a `/live` page displaying the currently active prickle and its attendees in
 - [ ] Data hygiene UI (unmatched users matching interface)
 - [ ] Dashboard updates (member profiles show Slack activity, engagement scoring)
 
+### Payment Failure Notifications
+On payment failure, send a Slack DM to the member to prompt them to update their payment method.
+
 ### Activity Feed Expansion (Future)
 Beyond Slack, expand `member_activities` tracking:
 - Whitepaper downloads
