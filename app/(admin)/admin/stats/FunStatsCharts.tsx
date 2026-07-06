@@ -1,5 +1,6 @@
 "use client"
 
+import { useState, useRef } from "react"
 import {
   BarChart,
   Bar,
@@ -55,6 +56,9 @@ function clockFill(pct: number): string {
 }
 
 function ClockHeatmap({ hourCoverage }: { hourCoverage: HourEntry[] }) {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [tooltip, setTooltip] = useState<{ hour: number; pct: number; x: number; y: number } | null>(null)
+
   const size = 300
   const cx = size / 2
   const cy = size / 2
@@ -77,6 +81,19 @@ function ClockHeatmap({ hourCoverage }: { hourCoverage: HourEntry[] }) {
     return `M ${p1.x} ${p1.y} A ${outerR} ${outerR} 0 0 1 ${p2.x} ${p2.y} L ${p3.x} ${p3.y} A ${innerR} ${innerR} 0 0 0 ${p4.x} ${p4.y} Z`
   }
 
+  function onEnter(hour: number, pct: number, e: React.MouseEvent) {
+    const rect = containerRef.current?.getBoundingClientRect()
+    if (!rect) return
+    setTooltip({ hour, pct, x: e.clientX - rect.left, y: e.clientY - rect.top })
+  }
+
+  function onMove(e: React.MouseEvent) {
+    if (!tooltip) return
+    const rect = containerRef.current?.getBoundingClientRect()
+    if (!rect) return
+    setTooltip(t => t ? { ...t, x: e.clientX - rect.left, y: e.clientY - rect.top } : null)
+  }
+
   const cardinals = [
     { slot: 0, label: "12" },
     { slot: 3, label: "3" },
@@ -85,8 +102,14 @@ function ClockHeatmap({ hourCoverage }: { hourCoverage: HourEntry[] }) {
   ]
 
   return (
-    <div className="flex flex-col items-center gap-2">
-      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+    <div ref={containerRef} className="relative flex flex-col items-center gap-2">
+      <svg
+        width={size}
+        height={size}
+        viewBox={`0 0 ${size} ${size}`}
+        onMouseMove={onMove}
+        onMouseLeave={() => setTooltip(null)}
+      >
         {/* Ring backgrounds */}
         <circle cx={cx} cy={cy} r={amOuter + 1} fill="currentColor" className="text-slate-100 dark:text-slate-800" />
         <circle cx={cx} cy={cy} r={amInner - 3} fill="currentColor" className="text-white dark:text-slate-900" />
@@ -95,16 +118,22 @@ function ClockHeatmap({ hourCoverage }: { hourCoverage: HourEntry[] }) {
 
         {/* AM wedges — outer ring */}
         {hourCoverage.filter(e => e.hour < 12).map(({ hour, pct }) => (
-          <path key={hour} d={wedge(hour, amInner, amOuter)} fill={clockFill(pct)}>
-            <title>{formatHour(hour)}: {pct}%</title>
-          </path>
+          <path
+            key={hour}
+            d={wedge(hour, amInner, amOuter)}
+            fill={clockFill(pct)}
+            onMouseEnter={(e) => onEnter(hour, pct, e)}
+          />
         ))}
 
         {/* PM wedges — inner ring */}
         {hourCoverage.filter(e => e.hour >= 12).map(({ hour, pct }) => (
-          <path key={hour} d={wedge(hour - 12, pmInner, pmOuter)} fill={clockFill(pct)}>
-            <title>{formatHour(hour)}: {pct}%</title>
-          </path>
+          <path
+            key={hour}
+            d={wedge(hour - 12, pmInner, pmOuter)}
+            fill={clockFill(pct)}
+            onMouseEnter={(e) => onEnter(hour, pct, e)}
+          />
         ))}
 
         {/* Cardinal tick marks + hour labels */}
@@ -120,6 +149,24 @@ function ClockHeatmap({ hourCoverage }: { hourCoverage: HourEntry[] }) {
           )
         })}
       </svg>
+
+      {tooltip && (
+        <div
+          style={{
+            position: "absolute",
+            left: tooltip.x + 12,
+            top: tooltip.y - 32,
+            ...TOOLTIP_STYLE,
+            padding: "4px 10px",
+            pointerEvents: "none",
+            zIndex: 10,
+            whiteSpace: "nowrap",
+          }}
+        >
+          {formatHour(tooltip.hour)}: {tooltip.pct}%
+        </div>
+      )}
+
       <p className="text-[10px] text-slate-400 dark:text-slate-500">outer ring = AM · inner ring = PM</p>
     </div>
   )
