@@ -139,6 +139,7 @@ export default function CalendarWeekView({
         day: "2-digit",
       });
       const dayDateStr = day.toLocaleDateString("en-US", {
+        timeZone: timezone,
         year: "numeric",
         month: "2-digit",
         day: "2-digit",

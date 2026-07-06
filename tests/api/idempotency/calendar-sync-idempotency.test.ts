@@ -218,6 +218,22 @@ describe('Calendar Sync Idempotency', () => {
     expect(finalCheck).toHaveLength(2)
   })
 
+  it('should use bronze schema for update path (regression guard)', async () => {
+    // Before the fix, the update path called supabase.from("calendar_events").update()
+    // without .schema('bronze'). public.calendar_events doesn't exist, so every
+    // detected change silently failed — the sync always reported 0 updated events.
+    const fs = await import('fs/promises')
+    const path = await import('path')
+    const routePath = path.join(process.cwd(), 'app/api/sync/calendar/route.ts')
+    const src = await fs.readFile(routePath, 'utf-8')
+
+    const totalUpdateCalls = (src.match(/from\("calendar_events"\)\.update\(/g) ?? []).length;
+    const bronzeUpdateCalls = (src.match(/schema\('bronze'\)\.from\("calendar_events"\)\.update\(/g) ?? []).length;
+
+    expect(totalUpdateCalls).toBeGreaterThan(0);
+    expect(bronzeUpdateCalls).toBe(totalUpdateCalls);
+  });
+
   it('should verify unique constraint on google_event_id', async () => {
     // ARRANGE: Try to INSERT (not UPSERT) duplicate google_event_id
     const duplicate = {

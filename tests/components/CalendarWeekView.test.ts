@@ -33,6 +33,24 @@ describe('CalendarWeekView mode prop', () => {
     // Tooltip must not be gated on mode
     expect(src).not.toMatch(/hoveredPrickle === prickle\.id && mode !== "member"/);
   });
+});
+
+describe('CalendarWeekView day-to-prickle timezone matching', () => {
+  it('uses selected timezone for both sides of the day-matching comparison', () => {
+    // Both prickleDateStr and dayDateStr must use the same timezone so prickles
+    // near midnight UTC (e.g. 8pm ET = 2026-06-19T00:00Z) land on the correct
+    // calendar day when the selected timezone differs from the browser's local one.
+    const block = src.match(/pricklesByDay[\s\S]*?prickleDateStr === dayDateStr/)?.[0] ?? '';
+    const count = (block.match(/timeZone: timezone/g) ?? []).length;
+    expect(count).toBe(2);
+  });
+
+  it('dayDateStr includes timeZone option (regression guard)', () => {
+    // Before the fix, dayDateStr called toLocaleDateString without timeZone,
+    // causing it to use the browser's local timezone while prickleDateStr used
+    // the calendar's selected timezone — mismatching for users near midnight UTC.
+    expect(src).toMatch(/dayDateStr = day\.toLocaleDateString\([^)]*\{[^}]*timeZone: timezone/);
+  });
 
   it('hides attendee count label in member mode', () => {
     expect(src).toContain('mode !== "member"');

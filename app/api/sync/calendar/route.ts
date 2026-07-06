@@ -177,7 +177,7 @@ export async function POST(request: NextRequest) {
     // so we do individual updates but in parallel
     if (eventsToUpdate.length > 0) {
       const updatePromises = eventsToUpdate.map(({ id, data }) =>
-        supabase.from("calendar_events").update(data).eq("id", id)
+        supabase.schema('bronze').from("calendar_events").update(data).eq("id", id)
       );
 
       const results = await Promise.all(updatePromises);
