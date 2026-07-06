@@ -38,36 +38,7 @@ Currently all inactive members are grouped together. Add granular status to dist
 
 ## Data Import
 
-### 🚨 CRITICAL: Automated Kajabi Bronze Import
-**Problem:** There is no automated import of Kajabi member data into the Bronze layer. The nightly `/api/reconcile/members` cron only reprocesses whatever is already in `kajabi_members` — if no one has manually exported and uploaded a CSV recently, the Silver layer silently reflects stale data. Member status, products, and subscription state can be days or weeks out of date with no warning.
-
-**Kajabi API is not available on current plan**, so the path forward is the Playwright scraper described in Phase 2B below. That plan should be treated as critical infrastructure, not a future enhancement.
-
-**Immediate action required:** Build Phase 2B MVP scraper to run daily via GitHub Actions and unblock the reconciliation cron from being useful.
-
----
-
-### Production API-Based Imports (In Progress)
-**Status:** Import pages split - CSV testing separate from production API imports
-
-**Current State:**
-- ✅ CSV imports moved to `/data/import/testing`
-- ✅ Production page at `/data/import` ready for API-based imports
-- ⏳ Kajabi API import - TODO
-- ⏳ Slack API import - TODO
-
-**Implementation Tasks:**
-
-**1. Kajabi API Import (`/data/import`)**
-- [ ] Create `KajabiApiImportForm.tsx` component
-- [ ] Use `KAJABI_CLIENT_ID` and `KAJABI_CLIENT_SECRET` from env
-- [ ] Fetch members and subscriptions from Kajabi API
-- [ ] Call existing `/api/import/members` and `/api/import/subscriptions` endpoints
-- [ ] Handle OAuth flow if required
-- [ ] Add date range selector (last 7 days, 30 days, all time)
-- [ ] Replace placeholder in `/data/import/page.tsx`
-
-**2. Slack API Import (`/data/import`)**
+### Slack API Import (`/data/import`)
 - [ ] Create `SlackApiImportForm.tsx` component
 - [ ] Use `SLACK_BOT_TOKEN` from env
 - [ ] Convert `scripts/export-slack-data.ts` logic into API endpoint:
@@ -78,7 +49,7 @@ Currently all inactive members are grouped together. Add granular status to dist
 - [ ] Show progress indicator (Slack API is rate-limited)
 - [ ] Replace placeholder in `/data/import/page.tsx`
 
-**3. Testing Page CSV Imports (Lower Priority)**
+### Testing Page CSV Imports (Lower Priority)
 - [ ] Add Zoom CSV import to `/data/import/testing`
   - Component for uploading meeting/attendee CSV files
   - Parse and call `/api/import/zoom`
@@ -86,135 +57,23 @@ Currently all inactive members are grouped together. Add granular status to dist
   - Component for uploading calendar events CSV
   - Parse and call `/api/import/calendar`
 
-**Benefits:**
-- Eliminate manual CSV export/upload workflow
-- Real-time data sync from source systems
-- Faster iteration in development
-- Production uses live APIs, testing uses static CSVs
+### Kajabi Data Expansion
 
-**Effort:** 4-6 hours total (2-3 hours per API import)
-**Priority:** High (unblock production workflow)
+**Current state:** Kajabi API sync (`/api/sync/kajabi`, runs daily at 3am via Vercel Cron) fetches contacts, customers, purchases, and offers into Bronze, then processes Silver. Goal is to own the full member lifecycle.
 
-### Vision: Kajabi as Single Source of Truth Replica
-**Goal:** Import ALL Kajabi data to own our data completely
-- Build custom analytics impossible in Kajabi
-- Track full member lifecycle (products, transactions, engagement)
-- Enable migration off Kajabi in future if needed
-- See full design: `docs/KAJABI_DATA_MODEL.md`
+**Products catalog (next step)**
+- Create `kajabi_products` table (manual catalog of ~10 known products)
+- Create `member_products` junction table (historical product access)
+- Update member processing to populate `member_products` from `kajabi_purchases` + `kajabi_offers`
+- Known products to seed: Quill & Cup Membership, 180 Program, Mindset Training, Self-Editing Academy, BFF Program, Hedgies on First Orientation, Chicago Retreat
+- Enables product-based queries: "Show all members with 180 Program", "When did member join/leave BFF?"
 
-### Phase 1: Basic Member Data (✅ Current)
-**Status:** Manual CSV exports weekly
-**Data Sources:**
-- Contacts CSV (Kajabi contact ID, email, name, tags, products)
-- Subscriptions CSV (Stripe customer ID, subscription status, offers)
+**Transaction history (future)**
+- Kajabi API: `/v1/transactions` (if available on plan)
+- Bronze table `kajabi_transactions`, Silver rollup for LTV / revenue analytics
 
-**What we track:**
-- Member status (active, inactive, on_hiatus)
-- Current products (denormalized string)
-- External IDs for linking to Kajabi/Stripe
-
-**Limitations:**
-- Products not queryable (need to normalize)
-- No transaction history
-- No historical product access tracking
-- Manual export process
-
-### Phase 2A: Products Catalog (Next - Manual Setup)
-**Goal:** Normalize product data to enable product-based queries
-
-**Tasks:**
-1. Create `kajabi_products` table (manual catalog of ~10 products)
-2. Create `member_products` junction table (historical product access)
-3. Update member processing to parse Products field into `member_products`
-4. Seed known products:
-   - Quill & Cup Membership (subscription)
-   - 180 Program (includes Q&C Membership for 6 months)
-   - Mindset Training
-   - Self-Editing Academy
-   - BFF Program
-   - Hedgies on First Orientation
-   - Chicago Retreat
-
-**Enables:**
-- "Show all members with 180 Program"
-- "When did member join/leave BFF Program?"
-- Product-based segmentation
-
-**Effort:** Low (couple hours)
-**Impact:** High (critical for product analytics)
-
-### Phase 2B: Playwright Scraper (Next - Automation)
-**Goal:** Automate export downloads to eliminate manual work
-
-**Current Plan:**
-- ❌ Kajabi API not available on current plan
-- ✅ Build Playwright scraper to automate export downloads
-- See designs: `docs/KAJABI_SCRAPER_DESIGN.md`, `docs/KAJABI_ZAPIER_ANALYSIS.md`
-
-**Scraper will:**
-1. Login to Kajabi (credentials in GitHub Secrets)
-2. Navigate to export pages
-3. Click "Export All" buttons
-4. Download CSVs (same format as manual exports)
-5. Upload to our app via existing `/api/import/*` endpoints
-6. Trigger processing
-7. Email only on failures
-
-**Phase 2B.1: MVP Scraper (Week 1)**
-- Export Contacts CSV
-- Export Subscriptions CSV
-- Upload both to app
-- Run daily via GitHub Actions (free)
-
-**Phase 2B.2: Add Transactions (Week 2)**
-- Export Transactions CSV (`/sales/transactions`)
-- Create `kajabi_transactions` table
-- Import transaction history
-- Enable LTV calculations, revenue analytics
-
-**Phase 2B.3: Add Offers (Week 3)**
-- Export Offers data (`/sales/offers` - per offer ID)
-- Create `kajabi_offers` table
-- Link offers to products
-- Understand purchase bundles
-
-**Effort:** 2-3 hours to build MVP, 1 hour per additional export
-**Cost:** $0 (GitHub Actions free tier)
-**Impact:** High (eliminate all manual work)
-
-### Phase 3: Lead & Engagement Tracking (Future)
-**Additional exports to consider:**
-
-**Lead Tracking:**
-- Form Submissions (`/marketing/forms` - per form)
-- Opt-in Reports (`/analytics/opt-ins`)
-- Understand lead sources and conversion funnel
-
-**Engagement Tracking:**
-- Product Progress (`/analytics/product-progress`)
-- Course completion rates
-- Student success metrics
-
-**Effort:** Medium (1-2 hours per export type)
-**Priority:** Lower (focus on core member/financial data first)
-
-### Automated Daily Schedule
-**Once scraper is built:**
-
-1. **1:00 AM** - Kajabi scraper runs (GitHub Actions)
-   - Downloads: Contacts, Subscriptions, Transactions, Offers
-   - Uploads to app
-   - Triggers processing
-
-2. **2:00 AM** - Zoom meeting reports (future automation)
-   - Download attendance data
-   - Upload to app
-
-3. **3:00 AM** - All processing complete
-   - Email report with stats
-   - Alert only on failures
-
-**Cost:** $0 (GitHub Actions free tier handles this easily)
+**Lead & engagement tracking (future)**
+- Form submissions, opt-in reports, product progress — lower priority until core member/financial data is solid
 
 ### Schedule Import
 Import Prickles schedule from:

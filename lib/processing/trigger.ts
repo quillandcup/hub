@@ -188,6 +188,29 @@ async function processTable(
 }
 
 /**
+ * Trigger Kajabi API sync (Bronze layer import) then Silver reprocessing.
+ * Called by the member reconciliation cron and the UI sync button.
+ */
+export async function triggerKajabiSync() {
+  const { NextRequest } = await import('next/server');
+  const { POST } = await import('@/app/api/sync/kajabi/route');
+  const req = new NextRequest(new URL('http://internal/api/sync/kajabi'), {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
+    },
+    body: JSON.stringify({}),
+  });
+  const response = await POST(req);
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(`Kajabi sync failed: ${error}`);
+  }
+  return response.json();
+}
+
+/**
  * Trigger Google Calendar sync (Bronze layer import) then Silver reprocessing.
  * Called by the calendar webhook to avoid VERCEL_URL deployment protection issues.
  */
