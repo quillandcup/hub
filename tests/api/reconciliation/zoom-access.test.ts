@@ -48,27 +48,27 @@ describe('Zoom Access', () => {
     inactiveMemberId = inactive!.id
 
     // Ignored name
-    await supabase.from('ignored_zoom_names').insert({ name: names.ignored })
+    await supabase.from('ignored_zoom_names').insert({ zoom_name: names.ignored })
 
     // Zoom attendees (recent)
     await supabase.schema('bronze').from('zoom_attendees').insert([
       // Active member attending — should NOT appear
-      { name: names.activeMember, email: null, meeting_uuid: meetingUuid, join_time: recentJoin, leave_time: recentJoin },
+      { name: names.activeMember, email: null, meeting_id: meetingUuid, meeting_uuid: meetingUuid, join_time: recentJoin, leave_time: recentJoin, duration: 0 },
       // Inactive member attending — should appear in matched_inactive
-      { name: names.inactiveMember, email: null, meeting_uuid: meetingUuid, join_time: recentJoin, leave_time: recentJoin },
+      { name: names.inactiveMember, email: null, meeting_id: meetingUuid, meeting_uuid: meetingUuid, join_time: recentJoin, leave_time: recentJoin, duration: 0 },
       // Unmatched name — should appear in unmatched
-      { name: names.unmatched, email: null, meeting_uuid: meetingUuid, join_time: recentJoin, leave_time: recentJoin },
+      { name: names.unmatched, email: null, meeting_id: meetingUuid, meeting_uuid: meetingUuid, join_time: recentJoin, leave_time: recentJoin, duration: 0 },
       // Ignored name — should NOT appear
-      { name: names.ignored, email: null, meeting_uuid: meetingUuid, join_time: recentJoin, leave_time: recentJoin },
+      { name: names.ignored, email: null, meeting_id: meetingUuid, meeting_uuid: meetingUuid, join_time: recentJoin, leave_time: recentJoin, duration: 0 },
       // Old attendance — should NOT appear (outside 90-day window)
-      { name: names.inactiveMember, email: null, meeting_uuid: `${meetingUuid}-old`, join_time: oldJoin, leave_time: oldJoin },
+      { name: names.inactiveMember, email: null, meeting_id: `${meetingUuid}-old`, meeting_uuid: `${meetingUuid}-old`, join_time: oldJoin, leave_time: oldJoin, duration: 0 },
     ])
   })
 
   afterAll(async () => {
     await supabase.schema('bronze').from('zoom_attendees')
       .delete().ilike('meeting_uuid', `${meetingUuid}%`)
-    await supabase.from('ignored_zoom_names').delete().eq('name', names.ignored)
+    await supabase.from('ignored_zoom_names').delete().eq('zoom_name', names.ignored)
     await supabase.from('members').delete().in('id', [activeMemberId, inactiveMemberId])
   })
 

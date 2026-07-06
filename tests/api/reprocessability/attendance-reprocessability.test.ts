@@ -358,15 +358,16 @@ describe('Attendance Reprocessability', () => {
   it('should create attendance for inactive members (historical accuracy)', async () => {
     // Inactive members attended real meetings while they were active members.
     // Their current status must not erase that history — processing uses all members.
-    const inactiveMeetingUuid = `test-meeting-inactive-${Date.now()}`
+    const inactiveTs = Date.now()
+    const inactiveMeetingUuid = `test-meeting-inactive-${inactiveTs}`
 
     const { data: inactiveMember } = await supabase
       .from('members')
       .insert({
-        name: 'Inactive Test Member',
-        email: `inactive-test-${Date.now()}@example.com`,
+        name: `Inactive Test Member ${inactiveTs}`,
+        email: `inactive-test-${inactiveTs}@example.com`,
         joined_at: '2022-01-01',
-        status: 'cancelled',
+        status: 'inactive',
       })
       .select('id')
       .single()
@@ -384,7 +385,7 @@ describe('Attendance Reprocessability', () => {
     await supabase.schema('bronze').from('zoom_attendees').insert({
       meeting_id: inactiveMeetingUuid,
       meeting_uuid: inactiveMeetingUuid,
-      name: 'Inactive Test Member',
+      name: `Inactive Test Member ${inactiveTs}`,
       email: null,
       join_time: '2099-05-22T10:05:00Z',
       leave_time: '2099-05-22T10:55:00Z',

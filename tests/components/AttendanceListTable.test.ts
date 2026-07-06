@@ -65,7 +65,7 @@ describe('AttendanceListTable', () => {
     });
 
     it('navigates to prickle on row click', () => {
-      expect(src).toContain('router.push(`/prickles/${prickle.id}`)');
+      expect(src).toContain('router.push(`${prickleBasePath}/${prickle.id}`)');
     });
 
     it('marks hosted prickles with a star', () => {

@@ -31,13 +31,20 @@ describe('Member → Attendance cascade', () => {
   beforeAll(async () => {
     await seedReferenceData()
 
-    // Clean up any leftover test data
+    // Clean up any leftover test data (broad bronze sweep + specific meeting)
     await supabase.from('prickle_attendance').delete()
       .lt('join_time', '2099-08-01T00:00:00Z').gt('leave_time', '2099-07-01T00:00:00Z')
     await supabase.from('prickles').delete().eq('source', 'zoom')
       .lt('start_time', '2099-08-01T00:00:00Z').gt('end_time', '2099-07-01T00:00:00Z')
-    await supabase.schema('bronze').from('zoom_attendees').delete().eq('meeting_uuid', meetingUuid)
-    await supabase.schema('bronze').from('zoom_meetings').delete().eq('meeting_uuid', meetingUuid)
+    // Delete all bronze zoom data in the 2099-07 range to prevent leftover cascade-alias records
+    // from previous failed runs from creating spurious attendance records
+    await supabase.schema('bronze').from('zoom_attendees').delete()
+      .lt('join_time', '2099-08-01T00:00:00Z').gt('join_time', '2099-07-01T00:00:00Z')
+    await supabase.schema('bronze').from('zoom_meetings').delete()
+      .lt('start_time', '2099-08-01T00:00:00Z').gt('start_time', '2099-07-01T00:00:00Z')
+    // Clean up any alias members left from prior failed runs
+    await supabase.from('member_name_aliases').delete().ilike('alias', 'Alias Gap Test%')
+    await supabase.from('members').delete().ilike('name', 'Alias Member%')
     await supabase.from('members').delete().eq('email', memberEmail)
 
     // Insert a Zoom meeting with one attendee whose member record does not exist yet

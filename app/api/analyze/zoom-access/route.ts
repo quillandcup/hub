@@ -32,11 +32,11 @@ export async function GET(request: NextRequest) {
       supabase.from("members").select("id, name, email, status"),
       supabase.from("member_name_aliases").select("alias, member_id, source"),
       supabase.from("member_email_aliases").select("alias_email, canonical_email"),
-      supabase.from("ignored_zoom_names").select("name"),
+      supabase.from("ignored_zoom_names").select("zoom_name"),
     ]);
 
     const ignoredNameSet = new Set(
-      (ignoredNames ?? []).map((r) => r.name.toLowerCase())
+      (ignoredNames ?? []).map((r) => r.zoom_name.toLowerCase())
     );
     const memberStatusMap = new Map(
       (members ?? []).map((m) => [m.id, m.status as string])

@@ -95,6 +95,7 @@ describe('Stripe Orphans', () => {
     await supabase.from('member_email_aliases').insert({
       canonical_email: `orphan-alias-canonical-${ts}@example.com`,
       alias_email: aliasEmail,
+      source: 'manual',
     })
   })
 

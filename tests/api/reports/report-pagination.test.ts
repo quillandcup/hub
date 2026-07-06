@@ -19,31 +19,22 @@ describe('Report Route Pagination', () => {
   // names that appear only in rows 1001+ are silently under-counted (or missed).
   //
   // Strategy: insert 334 names × 3 rows = 1002 rows, all with zzz- prefix so
-  // they sort after real data.  Names 0001–0333 fill rows 1–999; name 0334
-  // fills rows 1000–1002.  The route only reports names with count >= 3:
+  // they sort after real data (ORDER BY name).  Names 0001–0333 fill rows 1–999
+  // relative to the test data; name 0334 fills rows 1000–1002.
+  // The route only reports names with count >= 3:
   //   Without pagination: name 0334 appears once → excluded from count
   //   With pagination:    name 0334 appears three times → included in count
-  // We compare count before vs after inserting test data to detect the delta.
+  // The test uses a differential: count(all 1002 rows) - count(999 rows) == 1,
+  // eliminating any dependency on a pre-run baseline.
   describe('GET /api/reports/name-matching — zoom_attendees pagination', () => {
     const NAME_PREFIX = `zzz-nm-pg-${ts}-`
     const UNIQUE_NAMES = 334      // 333 × 3 = 999 rows; name 334 at rows 1000–1002
     const ROWS_PER_NAME = 3       // route threshold: appearances >= 3 to flag a name
 
-    let countBefore = 0
-
     beforeAll(async () => {
       // Ensure no leftover data from a previous failed run
       await supabase.schema('bronze').from('zoom_attendees')
         .delete().like('name', `${NAME_PREFIX}%`)
-
-      // Record the baseline unmatched-name count before inserting test data
-      const baseline = await fetch(`${getTestApiBaseUrl()}/api/reports/name-matching`, {
-        headers: getTestAuthHeaders(),
-      })
-      if (baseline.ok) {
-        const data = await baseline.json()
-        countBefore = data.unmatchedZoomAttendees?.count ?? 0
-      }
 
       // Build 1002 rows: 334 unique names × 3 occurrences each
       const rows: any[] = []
@@ -82,18 +73,44 @@ describe('Report Route Pagination', () => {
         .like('name', `${NAME_PREFIX}%`)
       expect(insertedCount).toBe(UNIQUE_NAMES * ROWS_PER_NAME)
 
-      const response = await fetch(`${getTestApiBaseUrl()}/api/reports/name-matching`, {
+      // Query with all 1002 rows present (name 0334 occupies rows 1000–1002 in ORDER BY name)
+      const responseFull = await fetch(`${getTestApiBaseUrl()}/api/reports/name-matching`, {
         headers: getTestAuthHeaders(),
       })
-      expect(response.ok).toBe(true)
-      const result = await response.json()
+      expect(responseFull.ok).toBe(true)
+      const countFull = (await responseFull.json()).unmatchedZoomAttendees?.count ?? 0
 
-      // The route returns the total count of qualifying unmatched names (>= 3 appearances).
-      // All 334 test names use test-only emails that don't match any member, so all should qualify.
-      //   Without pagination: name 0334 appears only once (row 1000 only) → 333 new names
-      //   With pagination:    name 0334 appears three times (rows 1000–1002) → 334 new names
-      const countAfter = result.unmatchedZoomAttendees?.count ?? 0
-      expect(countAfter).toBe(countBefore + UNIQUE_NAMES)
+      // Remove name 0334's 3 rows so only 999 test rows remain (all within the 1000-row limit)
+      const name0334 = `${NAME_PREFIX}${String(UNIQUE_NAMES).padStart(4, '0')}`
+      await supabase.schema('bronze').from('zoom_attendees').delete().eq('name', name0334)
+
+      // Query with 999 rows (name 0334 absent)
+      const responsePartial = await fetch(`${getTestApiBaseUrl()}/api/reports/name-matching`, {
+        headers: getTestAuthHeaders(),
+      })
+      expect(responsePartial.ok).toBe(true)
+      const countPartial = (await responsePartial.json()).unmatchedZoomAttendees?.count ?? 0
+
+      // Restore name 0334 so afterAll cleanup finds all rows
+      const rows0334: any[] = []
+      for (let j = 0; j < ROWS_PER_NAME; j++) {
+        rows0334.push({
+          meeting_id: `${NAME_PREFIX}${UNIQUE_NAMES}-${j}`,
+          meeting_uuid: `${NAME_PREFIX}${UNIQUE_NAMES}-${j}`,
+          name: name0334,
+          email: `${NAME_PREFIX}${UNIQUE_NAMES}@example.com`,
+          join_time: `2099-07-01T${String(UNIQUE_NAMES % 24).padStart(2, '0')}:${String(j * 10).padStart(2, '0')}:00Z`,
+          leave_time: `2099-07-01T${String(UNIQUE_NAMES % 24).padStart(2, '0')}:${String(j * 10 + 5).padStart(2, '0')}:00Z`,
+          duration: 5,
+        })
+      }
+      await supabase.schema('bronze').from('zoom_attendees').insert(rows0334)
+
+      // Differential: name 0334 sits at rows 1000–1002 (ORDER BY name, zzz- sorts last).
+      // With pagination the route sees all 1002 rows → name 0334 counted.
+      // Without pagination only the first 1000 rows are read → name 0334 missed.
+      // Any other unmatched names in the DB affect both queries equally, so the diff is stable.
+      expect(countFull - countPartial).toBe(1)
     }, 30000)
 
     it('should verify pagination code exists in name-matching route', async () => {

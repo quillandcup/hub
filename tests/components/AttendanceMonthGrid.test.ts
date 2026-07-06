@@ -73,7 +73,7 @@ describe('AttendanceMonthGrid', () => {
     });
 
     it('navigates to prickle on click', () => {
-      expect(src).toContain('router.push(`/prickles/${prickle.id}`)');
+      expect(src).toContain('router.push(`${prickleBasePath}/${prickle.id}`)');
     });
 
     it('marks hosted prickles with a star', () => {

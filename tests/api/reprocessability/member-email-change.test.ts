@@ -205,16 +205,16 @@ describe('Member Email Change', () => {
     // This is the data that would have been lost before the fix.
     const { data: testPrickle } = await supabase.from('prickles').insert({
       type_id: prickleTypeId,
-      start_time: '2099-07-01T10:00:00Z',
-      end_time: '2099-07-01T11:00:00Z',
+      start_time: '2099-09-01T10:00:00Z',
+      end_time: '2099-09-01T11:00:00Z',
       source: 'zoom',
     }).select('id').single()
 
     await supabase.from('prickle_attendance').insert({
       member_id: staleDup!.id,
       prickle_id: testPrickle!.id,
-      join_time: '2099-07-01T10:00:00Z',
-      leave_time: '2099-07-01T11:00:00Z',
+      join_time: '2099-09-01T10:00:00Z',
+      leave_time: '2099-09-01T11:00:00Z',
       confidence_score: 'high',
     })
 

@@ -63,7 +63,7 @@ export async function GET(request: NextRequest) {
         const { data: batch } = await supabase
           .schema("bronze")
           .from("stripe_subscriptions")
-          .select("stripe_subscription_id, stripe_customer_id, status, created_at, data")
+          .select("stripe_subscription_id, stripe_customer_id, status, created_at_stripe, data")
           .eq("status", "active")
           .range(offset, offset + 999);
         if (batch && batch.length > 0) {
@@ -107,7 +107,7 @@ export async function GET(request: NextRequest) {
           stripe_customer_id: sub.stripe_customer_id,
           email: customer.email ?? null,
           name: customer.data?.name ?? null,
-          created_at: sub.created_at ?? null,
+          created_at: sub.created_at_stripe ?? null,
         });
       }
     }
