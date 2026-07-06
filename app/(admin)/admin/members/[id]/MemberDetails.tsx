@@ -71,10 +71,10 @@ export default function MemberDetails({ member, attendanceRecords, hiatusHistory
             <StatusBadge status={member.status} />
           </p>
           {member.status === "inactive" && (() => {
-            const lastMembership = membershipHistory.find(p => p.deactivated_at != null);
+            const lastMembership = membershipHistory.find(p => p.derived_end_at != null);
             if (!lastMembership) return null;
             const startDate = new Date(lastMembership.created_at_kajabi);
-            const endDate = new Date(lastMembership.deactivated_at);
+            const endDate = new Date(lastMembership.derived_end_at);
             const fmt = (d: Date) => d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
             return (
               <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
@@ -164,8 +164,8 @@ export default function MemberDetails({ member, attendanceRecords, hiatusHistory
             <div className="space-y-3">
               {membershipHistory.map((purchase: any, idx: number) => {
                 const startDate = new Date(purchase.created_at_kajabi);
-                const endDate = purchase.deactivated_at ? new Date(purchase.deactivated_at) : null;
-                const isActive = !endDate;
+                const endDate = purchase.derived_end_at ? new Date(purchase.derived_end_at) : null;
+                const isActive = purchase.status === "active";
                 const fmt = (d: Date) => d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 
                 let durationText = "";

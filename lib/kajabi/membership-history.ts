@@ -2,7 +2,7 @@ import { isMembershipOffer } from "@/lib/membership";
 
 export type MembershipPurchase = {
   created_at_kajabi: string;
-  deactivated_at: string | null;
+  derived_end_at: string | null;
   status: string;
   kajabi_offer_id: string;
 };
@@ -18,7 +18,7 @@ export async function fetchMembershipHistory(
     .from("kajabi_purchases")
     .select("created_at_kajabi, deactivated_at, status, kajabi_offer_id")
     .in("kajabi_customer_id", customerIds)
-    .order("effective_start_at", { ascending: false });
+    .order("created_at_kajabi", { ascending: true });
 
   if (!purchases || purchases.length === 0) return [];
 
@@ -37,5 +37,16 @@ export async function fetchMembershipHistory(
       .map((o: any) => o.kajabi_offer_id)
   );
 
-  return purchases.filter((p: any) => membershipOfferIds.has(p.kajabi_offer_id));
+  // Filter to membership purchases (already sorted ascending by created_at_kajabi)
+  const membership = purchases.filter((p: any) => membershipOfferIds.has(p.kajabi_offer_id));
+
+  // Derive end date: use next subscription's billing start, fall back to deactivated_at for the most recent
+  const withDerivedEnds: MembershipPurchase[] = membership.map((p: any, i: number) => ({
+    created_at_kajabi: p.created_at_kajabi,
+    derived_end_at: i < membership.length - 1 ? membership[i + 1].created_at_kajabi : p.deactivated_at,
+    status: p.status,
+    kajabi_offer_id: p.kajabi_offer_id,
+  }));
+
+  return withDerivedEnds.reverse();
 }

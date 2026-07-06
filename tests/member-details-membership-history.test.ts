@@ -93,6 +93,7 @@ describe('fetchMembershipHistory', () => {
     expect(entry).toBeDefined()
     expect(entry!.created_at_kajabi).toBe('2024-01-01T00:00:00+00:00')
     expect(entry!.status).toBe('active')
+    expect(entry!.derived_end_at).toBeNull() // only membership purchase; no next subscription to derive from
   })
 
   it('excludes workshop offers even when subscription flag is true', async () => {
@@ -108,6 +109,57 @@ describe('fetchMembershipHistory', () => {
   it('returns empty array for no customer IDs', async () => {
     const history = await fetchMembershipHistory(supabase, [])
     expect(history).toHaveLength(0)
+  })
+
+  it('derives end date from next subscription start, not deactivated_at', async () => {
+    const earlierPurchaseId = `mh-earlier-sub-${ts}`
+    const laterPurchaseId = `mh-later-sub-${ts}`
+    const multiSubCustomerId = `mh-multi-sub-${ts}`
+
+    await supabase.schema('bronze').from('kajabi_customers').insert({
+      kajabi_customer_id: multiSubCustomerId,
+      email: `mh-multi-sub-${ts}@example.com`,
+      name: 'Multi Sub Member',
+      data: {},
+    })
+    await supabase.schema('bronze').from('kajabi_purchases').insert([
+      {
+        kajabi_purchase_id: earlierPurchaseId,
+        kajabi_customer_id: multiSubCustomerId,
+        kajabi_offer_id: subscriptionOfferId,
+        status: 'canceled',
+        created_at_kajabi: '2022-08-18T00:00:00Z',
+        deactivated_at: '2099-01-01T00:00:00Z', // wrong/irrelevant — should be overridden
+        data: {},
+      },
+      {
+        kajabi_purchase_id: laterPurchaseId,
+        kajabi_customer_id: multiSubCustomerId,
+        kajabi_offer_id: subscriptionOfferId,
+        status: 'active',
+        created_at_kajabi: '2022-12-05T00:00:00Z',
+        deactivated_at: null,
+        data: {},
+      },
+    ])
+
+    try {
+      const history = await fetchMembershipHistory(supabase, [multiSubCustomerId])
+      expect(history).toHaveLength(2)
+
+      const earlier = history.find(p => p.kajabi_purchase_id === earlierPurchaseId || p.created_at_kajabi === '2022-08-18T00:00:00+00:00')
+      const later = history.find(p => p.kajabi_purchase_id === laterPurchaseId || p.created_at_kajabi === '2022-12-05T00:00:00+00:00')
+
+      // Earlier subscription: derived_end_at = later subscription's created_at (not deactivated_at 2099)
+      expect(earlier!.derived_end_at).toBe('2022-12-05T00:00:00+00:00')
+      // Most recent subscription: falls back to deactivated_at (null = active)
+      expect(later!.derived_end_at).toBeNull()
+    } finally {
+      await supabase.schema('bronze').from('kajabi_purchases')
+        .delete().in('kajabi_purchase_id', [earlierPurchaseId, laterPurchaseId])
+      await supabase.schema('bronze').from('kajabi_customers')
+        .delete().eq('kajabi_customer_id', multiSubCustomerId)
+    }
   })
 
   it('returns empty array when customer has only non-membership purchases', async () => {
