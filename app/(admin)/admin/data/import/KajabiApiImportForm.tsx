@@ -15,7 +15,7 @@ export default function KajabiApiImportForm() {
     setResult(null);
 
     try {
-      const response = await fetch("/api/sync/kajabi", {
+      const response = await fetch("/api/import/kajabi", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

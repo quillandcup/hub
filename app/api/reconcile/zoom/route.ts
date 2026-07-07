@@ -1,167 +1,33 @@
 import { requireAdmin } from "@/lib/supabase/api-auth";
-import { createZoomClient } from "@/lib/zoom/client";
-import { triggerReprocessing } from "@/lib/processing/trigger";
+import { triggerZoomImport } from "@/lib/processing/trigger";
 import { NextRequest, NextResponse } from "next/server";
 
 // Extend timeout for reconciliation jobs
 export const maxDuration = 300; // 5 minutes (max for Hobby tier)
 
 /**
- * Daily reconciliation job for Zoom attendance data
- * Fetches ALL Zoom data (last 90 days) and reprocesses Silver layer
- * This catches any webhooks that failed or were missed
+ * Daily reconciliation job for Zoom attendance data.
+ * Thin GET wrapper around triggerZoomImport so Vercel Cron can invoke it
+ * (cron requires GET; the actual logic lives in /api/import/zoom).
  *
- * Scheduled to run daily at 2:30am via Vercel Cron
- *
- * Vercel Cron always invokes via GET.
+ * Scheduled to run daily at 2:30am via Vercel Cron.
  */
 export async function GET(request: NextRequest) {
   const auth = await requireAdmin(request);
   if (!auth.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (auth.forbidden) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  const { supabase } = auth;
 
   try {
-    // Initialize Zoom client (uses credentials from env)
-    const zoom = createZoomClient();
-
-    // Fetch last 90 days (safety margin for reconciliation)
     const now = new Date();
     const fromDate = new Date(now);
     fromDate.setDate(fromDate.getDate() - 90);
-    const toDate = new Date(now);
 
-    // Format dates for Zoom API (YYYY-MM-DD)
-    const fromDateStr = fromDate.toISOString().split('T')[0];
-    const toDateStr = toDate.toISOString().split('T')[0];
-
-    console.log(`[Reconciliation] Fetching Zoom meetings from ${fromDateStr} to ${toDateStr}`);
-
-    // 1. Fetch ALL meetings from Zoom API
-    const meetings = await zoom.listMeetings(fromDateStr, toDateStr);
-
-    console.log(`[Reconciliation] Found ${meetings.length} Zoom meetings`);
-
-    if (!meetings || meetings.length === 0) {
-      return NextResponse.json({
-        success: true,
-        message: "No Zoom meetings found in date range",
-        meetings: 0,
-        attendees: 0,
-      });
-    }
-
-    let totalAttendees = 0;
-    let totalMeetings = 0;
-    const processedMeetings = [];
-
-    // 2. UPSERT to Bronze layer (idempotent)
-    for (const meeting of meetings) {
-      // Insert meeting metadata into zoom_meetings table (bronze)
-      const meetingToInsert = {
-        meeting_uuid: meeting.uuid,
-        meeting_id: meeting.id.toString(),
-        topic: meeting.topic,
-        start_time: meeting.start_time,
-        end_time: meeting.end_time || null,
-        duration_minutes: meeting.duration || null,
-        host_email: meeting.host_email || null,
-        host_name: meeting.host_name || null,
-        participant_count: meeting.participants_count || null,
-        data: meeting,
-      };
-
-      const { error: meetingError } = await supabase
-        .schema('bronze')
-        .from("zoom_meetings")
-        .upsert(meetingToInsert, {
-          onConflict: "meeting_uuid",
-          ignoreDuplicates: false, // Update if exists
-        });
-
-      if (meetingError) {
-        console.error(`[Reconciliation] Error upserting meeting ${meeting.uuid}:`, meetingError);
-        throw meetingError;
-      }
-
-      totalMeetings++;
-
-      // Fetch and insert participants
-      const participants = await zoom.getParticipants(meeting.uuid);
-
-      const attendeesToInsert = participants.map((p) => ({
-        meeting_id: meeting.id.toString(),
-        meeting_uuid: meeting.uuid,
-        topic: meeting.topic,
-        participant_id: p.id,
-        user_id: p.user_id || null,
-        registrant_id: p.registrant_id || null,
-        name: p.name,
-        email: p.user_email || null,
-        join_time: p.join_time,
-        leave_time: p.leave_time,
-        duration: p.duration,
-        attentiveness_score: p.attentiveness_score || null,
-        failover: p.failover || false,
-        status: p.status || null,
-        raw_payload: p,
-      }));
-
-      if (attendeesToInsert.length > 0) {
-        const { error } = await supabase
-          .schema('bronze')
-          .from("zoom_attendees")
-          .upsert(attendeesToInsert, {
-            onConflict: "meeting_uuid,name,join_time",
-            ignoreDuplicates: false, // Update if exists
-          });
-
-        if (error) {
-          console.error(`[Reconciliation] Error upserting attendees for meeting ${meeting.uuid}:`, error);
-          throw error;
-        }
-
-        totalAttendees += attendeesToInsert.length;
-      }
-
-      processedMeetings.push({
-        uuid: meeting.uuid,
-        topic: meeting.topic,
-        start_time: meeting.start_time,
-        participants: participants.length,
-      });
-    }
-
-    console.log(`[Reconciliation] Bronze layer updated: ${totalMeetings} meetings, ${totalAttendees} attendees`);
-
-    // 3. Trigger Silver layer processing
-    console.log(`[Reconciliation] Triggering attendance processing for ${fromDateStr} to ${toDateStr}`);
-
-    // Trigger for both bronze tables that changed
-    const attendeesResult = await triggerReprocessing('zoom_attendees', 'bronze', {
-      dateRange: { from: fromDate, to: toDate }
+    const result = await triggerZoomImport({
+      fromDate: fromDate.toISOString().split('T')[0],
+      toDate: now.toISOString().split('T')[0],
     });
 
-    const meetingsResult = await triggerReprocessing('zoom_meetings', 'bronze', {
-      dateRange: { from: fromDate, to: toDate }
-    });
-
-    console.log(`[Reconciliation] Zoom reconciliation complete`);
-
-    return NextResponse.json({
-      success: true,
-      reconciliation: "zoom",
-      meetings: totalMeetings,
-      attendees: totalAttendees,
-      dateRange: {
-        from: fromDateStr,
-        to: toDateStr,
-      },
-      processing: {
-        zoom_attendees: attendeesResult,
-        zoom_meetings: meetingsResult,
-      },
-    });
+    return NextResponse.json({ success: true, reconciliation: "zoom", ...result });
   } catch (error: any) {
     console.error("[Reconciliation] Error in Zoom reconciliation:", error);
     return NextResponse.json(

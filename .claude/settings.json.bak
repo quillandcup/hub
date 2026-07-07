@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "WorktreeCreate": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -r '.path // .worktree_path // empty' | { read -r p && [ -n \"$p\" ] && cp /Users/cody/git/quillandcup/hub/.env.local \"$p/.env.local\"; } 2>/dev/null || true",
+            "statusMessage": "Copying .env.local to worktree..."
+          }
+        ]
+      }
+    ]
+  }
+}

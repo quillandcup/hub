@@ -193,8 +193,8 @@ async function processTable(
  */
 export async function triggerKajabiSync() {
   const { NextRequest } = await import('next/server');
-  const { POST } = await import('@/app/api/sync/kajabi/route');
-  const req = new NextRequest(new URL('http://internal/api/sync/kajabi'), {
+  const { POST } = await import('@/app/api/import/kajabi/route');
+  const req = new NextRequest(new URL('http://internal/api/import/kajabi'), {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

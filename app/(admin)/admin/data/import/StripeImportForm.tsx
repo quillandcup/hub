@@ -15,7 +15,7 @@ export default function StripeImportForm() {
     setResult(null);
 
     try {
-      const response = await fetch("/api/sync/stripe", {
+      const response = await fetch("/api/import/stripe", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
