@@ -48,7 +48,7 @@ export class ZoomClient {
   private token: string | null = null;
   private userEmail: string;
 
-  constructor(accountId: string, clientId: string, clientSecret: string, userEmail: string = 'owner1@example.com') {
+  constructor(accountId: string, clientId: string, clientSecret: string, userEmail: string) {
     this.accountId = accountId;
     this.clientId = clientId;
     this.clientSecret = clientSecret;
@@ -205,10 +205,11 @@ export function createZoomClient(): ZoomClient {
   const accountId = process.env.ZOOM_ACCOUNT_ID;
   const clientId = process.env.ZOOM_CLIENT_ID;
   const clientSecret = process.env.ZOOM_CLIENT_SECRET;
+  const userEmail = process.env.ZOOM_USER_EMAIL;
 
-  if (!accountId || !clientId || !clientSecret) {
-    throw new Error('Missing Zoom credentials. Please set ZOOM_ACCOUNT_ID, ZOOM_CLIENT_ID, and ZOOM_CLIENT_SECRET in .env.local');
+  if (!accountId || !clientId || !clientSecret || !userEmail) {
+    throw new Error('Missing Zoom credentials. Please set ZOOM_ACCOUNT_ID, ZOOM_CLIENT_ID, ZOOM_CLIENT_SECRET, and ZOOM_USER_EMAIL in .env.local');
   }
 
-  return new ZoomClient(accountId, clientId, clientSecret);
+  return new ZoomClient(accountId, clientId, clientSecret, userEmail);
 }

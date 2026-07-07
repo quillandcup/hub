@@ -131,7 +131,7 @@ describe('findUnmatchedZoomAttendees', () => {
 
     it('excludes staff matched by email even when zoom name differs', () => {
       const zoom = [
-        { name: 'A. Ray', email: 'owner1@example.com' },
+        { name: 'O. One', email: 'owner1@example.com' },
         { name: 'Mystery Person', email: null },
       ]
       const result = findUnmatchedZoomAttendees(zoom, members, aliases, [], staff)
@@ -140,7 +140,7 @@ describe('findUnmatchedZoomAttendees', () => {
     })
 
     it('staff name match is case-insensitive', () => {
-      const zoom = [{ name: 'ania ray', email: null }]
+      const zoom = [{ name: 'owner 1', email: null }]
       expect(findUnmatchedZoomAttendees(zoom, members, aliases, [], staff)).toEqual([])
     })
 
@@ -158,9 +158,9 @@ describe('findUnmatchedZoomAttendees', () => {
     it('does not affect members who happen to share a name with staff', () => {
       const membersWithStaffName: Member[] = [
         ...members,
-        { id: '99', name: 'Owner 1', email: 'ania-member@example.com' },
+        { id: '99', name: 'Owner 1', email: 'owner1-member@example.com' },
       ]
-      const zoom = [{ name: 'Owner 1', email: 'ania-member@example.com' }]
+      const zoom = [{ name: 'Owner 1', email: 'owner1-member@example.com' }]
       // Staff name match would suppress, but member match also fires — either way not in unmatched
       expect(findUnmatchedZoomAttendees(zoom, membersWithStaffName, aliases, [], staff)).toEqual([])
     })

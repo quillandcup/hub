@@ -399,6 +399,15 @@ Show a `/live` page displaying the currently active prickle and its attendees in
 
 ---
 
+## Data Audits
+
+### Access-date vs transaction-date audit (`kajabi_purchases`)
+Find members/purchases where `effective_start_at` is more than ~7 days after the actual transaction date (`created_at_kajabi`). These purchases look like overlapping or out-of-order subscriptions in `detectResubscriptions`, which uses `effective_start_at` as the start of a membership period. A large lag between transaction date and access date can cause legitimate resubscriptions to be missed — e.g. a purchase made in January but access granted in February will appear to overlap with the prior subscription that ends in February, so no gap is detected.
+
+Query: `SELECT * FROM bronze.kajabi_purchases WHERE effective_start_at - created_at_kajabi > interval '7 days'`
+
+---
+
 ## Bug Fixes
 
 ### Bronze-Tier Pagination Gap in `/api/process/members`

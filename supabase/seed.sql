@@ -53,7 +53,7 @@ ON CONFLICT (normalized_name) DO NOTHING;
 
 INSERT INTO members (id, name, email, joined_at, status, plan) VALUES
 ('11111111-1111-1111-1111-111111111111', 'Owner 2', 'owner2@example.com', '2025-01-15', 'active', 'pro'),
-('22222222-2222-2222-2222-222222222222', 'Owner 1 Alt', 'owner1@example.com', '2025-01-20', 'active', 'pro'),
+('22222222-2222-2222-2222-222222222222', 'Owner 1', 'owner1@example.com', '2025-01-20', 'active', 'pro'),
 ('33333333-3333-3333-3333-333333333333', 'Sarah Johnson', 'sarah.j@example.com', '2025-02-01', 'active', 'basic'),
 ('44444444-4444-4444-4444-444444444444', 'Mike Chen', 'mike.chen@example.com', '2025-02-05', 'on_hiatus', 'basic'),
 ('55555555-5555-5555-5555-555555555555', 'Emily Davis', 'emily.d@example.com', '2025-02-10', 'active', 'pro'),
@@ -133,12 +133,12 @@ INSERT INTO bronze.zoom_attendees (meeting_id, meeting_uuid, topic, participant_
 ('83456789012', 'abc123def456==', 'Morning Writing Sprint', 'part_004', 'user_emily', 'Emily Davis', 'emily.d@example.com', '2026-03-10 09:08:00+00', '2026-03-10 10:28:00+00', 80, 92, 'in_meeting'),
 
 -- Session 2 attendees (Evening Creative Flow - March 10)
-('83456789013', 'xyz789ghi012==', 'Evening Creative Flow', 'part_101', 'user_ania', 'Ania', 'owner1@example.com', '2026-03-10 18:02:00+00', '2026-03-10 19:28:00+00', 86, 98, 'in_meeting'),
+('83456789013', 'xyz789ghi012==', 'Evening Creative Flow', 'part_101', 'user_ania', 'Owner 1', 'owner1@example.com', '2026-03-10 18:02:00+00', '2026-03-10 19:28:00+00', 86, 98, 'in_meeting'),
 ('83456789013', 'xyz789ghi012==', 'Evening Creative Flow', 'part_102', NULL, 'Lisa M', NULL, '2026-03-10 18:05:00+00', '2026-03-10 19:25:00+00', 80, 85, 'in_meeting'),
 ('83456789013', 'xyz789ghi012==', 'Evening Creative Flow', 'part_103', 'user_david', 'David Lee', 'david.lee@example.com', '2026-03-10 18:10:00+00', '2026-03-10 19:30:00+00', 80, 90, 'in_meeting'),
 
 -- More attendees for recent sessions (March 17)
-('83456789014', 'mno345pqr678==', 'Morning Writing Sprint', 'part_201', 'user_cody', 'Cody', 'owner2@example.com', '2026-03-17 09:03:00+00', '2026-03-17 10:28:00+00', 85, 94, 'in_meeting'),
+('83456789014', 'mno345pqr678==', 'Morning Writing Sprint', 'part_201', 'user_cody', 'Owner 2 Alt', 'owner2@example.com', '2026-03-17 09:03:00+00', '2026-03-17 10:28:00+00', 85, 94, 'in_meeting'),
 ('83456789014', 'mno345pqr678==', 'Morning Writing Sprint', 'part_202', NULL, 'Sarah Johnson', 'sarah.j@example.com', '2026-03-17 09:12:00+00', '2026-03-17 10:30:00+00', 78, 86, 'in_meeting'),
 ('83456789014', 'mno345pqr678==', 'Morning Writing Sprint', 'part_203', 'user_emily', 'Emily D', 'emily.d@example.com', '2026-03-17 09:06:00+00', '2026-03-17 10:25:00+00', 79, 91, 'in_meeting'),
 ('83456789014', 'mno345pqr678==', 'Morning Writing Sprint', 'part_204', NULL, 'Mike Chen', 'mike.chen@example.com', '2026-03-17 09:20:00+00', '2026-03-17 10:15:00+00', 55, 70, 'in_meeting'),
