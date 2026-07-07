@@ -38,6 +38,7 @@ const navigation: NavSection[] = [
     items: [
       { name: "Calendar View", href: "/admin/calendar", icon: "📅" },
       { name: "Prickle Insights", href: "/admin/insights/prickles", icon: "✍️" },
+      { name: "Resubscriptions", href: "/admin/insights/resubscriptions", icon: "🔄" },
       { name: "Community Stats", href: "/admin/stats", icon: "✨" },
     ],
   },
