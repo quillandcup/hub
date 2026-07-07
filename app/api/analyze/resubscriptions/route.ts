@@ -1,18 +1,13 @@
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { MEMBERSHIP_PRODUCT_NAMES } from "@/lib/membership";
+import { detectResubscriptions } from "@/lib/resubscription-detection";
 import { NextRequest, NextResponse } from "next/server";
-
-export interface ResubscriptionEvent {
-  resubscribedAt: string;
-  cancelledAt: string;
-  gapDays: number;
-}
 
 export interface ResubscribingMember {
   memberId: string | null;
   memberName: string;
   memberEmail: string;
-  resubscriptions: ResubscriptionEvent[];
+  resubscriptions: import("@/lib/resubscription-detection").ResubscriptionEvent[];
   isCurrentlyActive: boolean;
 }
 
@@ -24,7 +19,7 @@ export interface ResubscriptionCohort {
 
 export interface ResubscriptionsResponse {
   totalResubscribingMembers: number;
-  totalResubscriptionEvents: number;
+  totalMembersEver: number;
   members: ResubscribingMember[];
   cohortByMonth: ResubscriptionCohort[];
 }
@@ -137,49 +132,20 @@ export async function GET(request: NextRequest) {
   const resubscribingMembers: ResubscribingMember[] = [];
 
   for (const [customerId, purchases] of byCustomer.entries()) {
-    // Sort by start date, falling back to created_at
-    purchases.sort((a, b) => {
-      const aDate = a.effective_start_at ?? a.created_at_kajabi ?? "";
-      const bDate = b.effective_start_at ?? b.created_at_kajabi ?? "";
-      return aDate.localeCompare(bDate);
-    });
-
-    const resubscriptions: ResubscriptionEvent[] = [];
-
-    // Walk through purchases: if a later purchase starts after a previous was cancelled, it's a resub
-    let latestCancellation: string | null = null;
-
-    for (const purchase of purchases) {
-      const startDate = purchase.effective_start_at ?? purchase.created_at_kajabi;
-      if (!startDate) continue;
-
-      if (latestCancellation && startDate > latestCancellation) {
-        const cancelledAt = latestCancellation;
-        const gapMs = new Date(startDate).getTime() - new Date(cancelledAt).getTime();
-        const gapDays = Math.round(gapMs / (1000 * 60 * 60 * 24));
-        resubscriptions.push({
-          resubscribedAt: startDate,
-          cancelledAt,
-          gapDays,
-        });
-      }
-
-      // Track the latest cancellation seen so far
-      if (purchase.deactivated_at) {
-        if (!latestCancellation || purchase.deactivated_at > latestCancellation) {
-          latestCancellation = purchase.deactivated_at;
-        }
-      }
-    }
-
+    const resubscriptions = detectResubscriptions(purchases);
     if (resubscriptions.length === 0) continue;
 
     const customer = customerMap.get(customerId);
     const email = customer?.email ?? "";
     const memberId = memberByEmail.get(email.toLowerCase()) ?? null;
 
-    // Is their most recent purchase still active?
-    const lastPurchase = purchases[purchases.length - 1];
+    // Sort purchases to find the last one
+    const sorted = [...purchases].sort((a, b) =>
+      (a.effective_start_at ?? a.created_at_kajabi ?? "").localeCompare(
+        b.effective_start_at ?? b.created_at_kajabi ?? ""
+      )
+    );
+    const lastPurchase = sorted[sorted.length - 1];
     const isCurrentlyActive = !lastPurchase.deactivated_at;
 
     resubscribingMembers.push({
@@ -223,14 +189,9 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  const totalEvents = resubscribingMembers.reduce(
-    (sum, m) => sum + m.resubscriptions.length,
-    0
-  );
-
   return NextResponse.json({
     totalResubscribingMembers: resubscribingMembers.length,
-    totalResubscriptionEvents: totalEvents,
+    totalMembersEver: allMembers.length,
     members: resubscribingMembers.sort((a, b) =>
       a.memberName.localeCompare(b.memberName)
     ),

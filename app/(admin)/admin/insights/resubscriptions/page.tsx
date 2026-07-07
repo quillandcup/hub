@@ -6,6 +6,11 @@ import type { ResubscriptionsResponse, ResubscribingMember } from "@/app/api/ana
 
 export const maxDuration = 60;
 
+function pct(num: number, denom: number): string {
+  if (denom === 0) return "—";
+  return `${((num / denom) * 100).toFixed(1)}%`;
+}
+
 async function fetchResubscriptions(): Promise<ResubscriptionsResponse | null> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -127,13 +132,10 @@ export default async function ResubscriptionsPage() {
                 sub="at least once after cancelling"
               />
               <StatCard
-                value={data.totalResubscriptionEvents}
-                label="Total resubscription events"
-                sub={
-                  data.totalResubscribingMembers > 0
-                    ? `avg ${(data.totalResubscriptionEvents / data.totalResubscribingMembers).toFixed(1)} per member`
-                    : undefined
-                }
+                value={pct(data.totalResubscribingMembers, data.totalMembersEver)}
+                label="of all members"
+                sub={`out of ${data.totalMembersEver} total members`}
+                isText
               />
             </div>
 
@@ -199,14 +201,16 @@ function StatCard({
   value,
   label,
   sub,
+  isText,
 }: {
-  value: number;
+  value: number | string;
   label: string;
   sub?: string;
+  isText?: boolean;
 }) {
   return (
     <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-6 text-center">
-      <div className="text-4xl font-bold text-blue-600 dark:text-blue-400 tabular-nums">{value}</div>
+      <div className={`text-4xl font-bold text-blue-600 dark:text-blue-400 ${isText ? "" : "tabular-nums"}`}>{value}</div>
       <div className="text-sm font-medium text-slate-700 dark:text-slate-300 mt-1">{label}</div>
       {sub && <div className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">{sub}</div>}
     </div>
