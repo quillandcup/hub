@@ -139,10 +139,13 @@ export async function fetchResubscriptionsData(
 
   const reverseAliasMap = buildReverseAliasMap(emailAliases);
 
-  // customer_email (lowercase) → customer_id
-  const customerIdByEmail = new Map<string, string>();
+  // customer_email (lowercase) → all customer_ids (one email can have multiple Kajabi records)
+  const customerIdsByEmail = new Map<string, string[]>();
   for (const c of allCustomers) {
-    customerIdByEmail.set(c.email.toLowerCase(), c.kajabi_customer_id);
+    const key = c.email.toLowerCase();
+    const list = customerIdsByEmail.get(key) ?? [];
+    list.push(c.kajabi_customer_id);
+    customerIdsByEmail.set(key, list);
   }
 
   // customer_id → purchases
@@ -161,8 +164,7 @@ export async function fetchResubscriptionsData(
 
     const memberPurchases: Purchase[] = [];
     for (const email of allEmails) {
-      const customerId = customerIdByEmail.get(email);
-      if (customerId) {
+      for (const customerId of customerIdsByEmail.get(email) ?? []) {
         memberPurchases.push(...(purchasesByCustomerId.get(customerId) ?? []));
       }
     }

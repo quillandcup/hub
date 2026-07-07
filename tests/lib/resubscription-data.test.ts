@@ -55,6 +55,22 @@ describe("fetchResubscriptionsData()", () => {
     data: {},
   };
 
+  // Customer E: same email, two separate Kajabi customer records (duplicate accounts).
+  // Cancelled under record E1, resubscribed under record E2.
+  // Without collecting all customer IDs per email, one record overwrites the other.
+  const customerE1 = {
+    kajabi_customer_id: `${PREFIX}cust-e1`,
+    email: `${PREFIX}e@example.com`,
+    name: "Eve Duplicate",
+    data: {},
+  };
+  const customerE2 = {
+    kajabi_customer_id: `${PREFIX}cust-e2`,
+    email: `${PREFIX}e@example.com`, // same email, different Kajabi account
+    name: "Eve Duplicate",
+    data: {},
+  };
+
   beforeAll(async () => {
     await cleanup(supabase);
 
@@ -64,12 +80,13 @@ describe("fetchResubscriptionsData()", () => {
       { name: "Active Betty", email: customerB.email,    status: "active",   joined_at: "2024-03-01" },
       { name: "Gone Carol",   email: customerC.email,    status: "inactive", joined_at: "2023-06-01" },
       { name: "Diana",        email: customerDNew.email, status: "active",   joined_at: "2023-01-01" },
+      { name: "Eve Duplicate", email: customerE1.email,  status: "active",   joined_at: "2023-01-01" },
     ]);
 
     await supabase
       .schema("bronze")
       .from("kajabi_customers")
-      .insert([customerA, customerB, customerC, customerDOld, customerDNew]);
+      .insert([customerA, customerB, customerC, customerDOld, customerDNew, customerE1, customerE2]);
 
     await supabase
       .schema("bronze")
@@ -119,6 +136,22 @@ describe("fetchResubscriptionsData()", () => {
           kajabi_purchase_id: `${PREFIX}p-d2`,
           kajabi_customer_id: customerDNew.kajabi_customer_id,
           effective_start_at: "2024-01-01T00:00:00Z",
+          deactivated_at: null,
+          data: {},
+        },
+        // E1: cancelled under first Kajabi account (same email as E2)
+        {
+          kajabi_purchase_id: `${PREFIX}p-e1`,
+          kajabi_customer_id: customerE1.kajabi_customer_id,
+          effective_start_at: "2022-01-01T00:00:00Z",
+          deactivated_at: "2022-06-01T00:00:00Z",
+          data: {},
+        },
+        // E2: resubscribed under second Kajabi account (same email — duplicate account)
+        {
+          kajabi_purchase_id: `${PREFIX}p-e2`,
+          kajabi_customer_id: customerE2.kajabi_customer_id,
+          effective_start_at: "2023-01-01T00:00:00Z",
           deactivated_at: null,
           data: {},
         },
@@ -185,6 +218,13 @@ describe("fetchResubscriptionsData()", () => {
       prev.setMonth(prev.getMonth() + 1);
       expect(prev.toISOString().slice(0, 7)).toBe(curr.toISOString().slice(0, 7));
     }
+  });
+
+  it("combines purchases across duplicate Kajabi accounts for the same email", async () => {
+    const data = await fetchResubscriptionsData(supabase);
+    const memberE = data.members.find((m) => m.memberEmail === customerE1.email);
+    expect(memberE).toBeDefined();
+    expect(memberE!.resubscriptions).toHaveLength(1);
   });
 
   it("merges purchases across alias emails as a single member", async () => {
