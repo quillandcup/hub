@@ -2,32 +2,14 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import ResubscriptionsChart from "./ResubscriptionsChart";
-import type { ResubscriptionsResponse, ResubscribingMember } from "@/app/api/analyze/resubscriptions/route";
+import { fetchResubscriptionsData } from "@/lib/resubscription-data";
+import type { ResubscribingMember } from "@/lib/resubscription-data";
 
 export const maxDuration = 60;
 
 function pct(num: number, denom: number): string {
   if (denom === 0) return "—";
   return `${((num / denom) * 100).toFixed(1)}%`;
-}
-
-async function fetchResubscriptions(): Promise<ResubscriptionsResponse | null> {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
-
-  const { data: session } = await supabase.auth.getSession();
-  const accessToken = session?.session?.access_token;
-  if (!accessToken) return null;
-
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
-  const res = await fetch(`${baseUrl}/api/analyze/resubscriptions`, {
-    headers: { Authorization: `Bearer ${accessToken}` },
-    cache: "no-store",
-  });
-
-  if (!res.ok) return null;
-  return res.json();
 }
 
 function formatDate(iso: string): string {
@@ -99,7 +81,7 @@ export default async function ResubscriptionsPage() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const data = await fetchResubscriptions();
+  const data = await fetchResubscriptionsData(supabase);
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
@@ -118,12 +100,7 @@ export default async function ResubscriptionsPage() {
       </header>
 
       <main className="container mx-auto px-6 py-8 space-y-8">
-        {!data ? (
-          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-12 text-center text-slate-500 dark:text-slate-400">
-            Failed to load resubscription data.
-          </div>
-        ) : (
-          <>
+        <>
             {/* Stat cards */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <StatCard
@@ -190,8 +167,7 @@ export default async function ResubscriptionsPage() {
                 </div>
               )}
             </div>
-          </>
-        )}
+        </>
       </main>
     </div>
   );
