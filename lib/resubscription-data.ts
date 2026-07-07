@@ -18,7 +18,7 @@ export interface ResubscriptionCohort {
 
 export interface ResubscriptionsData {
   totalResubscribingMembers: number;
-  totalMembersEver: number;
+  totalActiveMembers: number;
   members: ResubscribingMember[];
   cohortByMonth: ResubscriptionCohort[];
 }
@@ -94,8 +94,8 @@ export async function fetchResubscriptionsData(
     }
   }
 
-  // Fetch silver members for ID linkage and total count
-  type Member = { id: string; email: string };
+  // Fetch silver members for ID linkage and active count
+  type Member = { id: string; email: string; status: string };
   const allMembers: Member[] = [];
   offset = 0;
   hasMore = true;
@@ -103,7 +103,7 @@ export async function fetchResubscriptionsData(
   while (hasMore) {
     const { data: batch } = await supabase
       .from("members")
-      .select("id, email")
+      .select("id, email, status")
       .range(offset, offset + BATCH - 1);
 
     if (batch && batch.length > 0) {
@@ -182,9 +182,13 @@ export async function fetchResubscriptionsData(
     }
   }
 
+  const totalActiveMembers = allMembers.filter(
+    (m) => m.status === "active" || m.status === "on_hiatus"
+  ).length;
+
   return {
     totalResubscribingMembers: resubscribingMembers.length,
-    totalMembersEver: allMembers.length,
+    totalActiveMembers,
     members: resubscribingMembers.sort((a, b) => a.memberName.localeCompare(b.memberName)),
     cohortByMonth,
   };

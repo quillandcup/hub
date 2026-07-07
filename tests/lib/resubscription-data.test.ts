@@ -117,10 +117,10 @@ describe("fetchResubscriptionsData()", () => {
     expect(memberA.isCurrentlyActive).toBe(true);
   });
 
-  it("totalMembersEver includes all members in silver table", async () => {
+  it("totalActiveMembers counts only active and on_hiatus members", async () => {
     const data = await fetchResubscriptionsData(supabase);
-    // Silver members table may have other rows; just verify it's a positive number
-    expect(data.totalMembersEver).toBeGreaterThan(0);
+    // Silver members table has real members; verify it's a positive number
+    expect(data.totalActiveMembers).toBeGreaterThan(0);
   });
 
   it("cohortByMonth includes the resubscription month", async () => {

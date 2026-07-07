@@ -109,9 +109,9 @@ export default async function ResubscriptionsPage() {
                 sub="at least once after cancelling"
               />
               <StatCard
-                value={pct(data.totalResubscribingMembers, data.totalMembersEver)}
-                label="of all members"
-                sub={`out of ${data.totalMembersEver} total members`}
+                value={pct(data.totalResubscribingMembers, data.totalActiveMembers)}
+                label="of active members"
+                sub={`out of ${data.totalActiveMembers} active members`}
                 isText
               />
             </div>
