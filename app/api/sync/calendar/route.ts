@@ -28,7 +28,9 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { daysBack = 30, daysForward = 90 } = body;
+    // Accept either explicit fromDate/toDate strings (from the admin form)
+    // or relative daysBack/daysForward (from cron jobs).
+    const { daysBack = 30, daysForward = 90, fromDate: fromDateStr, toDate: toDateStr } = body;
 
     // Use environment variables for calendar config
     const calendarId = process.env.GOOGLE_CALENDAR_ID || "primary";
@@ -36,12 +38,10 @@ export async function POST(request: NextRequest) {
     // Initialize Google Calendar client (uses service account from env)
     const client = new GoogleCalendarClient();
 
-    // Calculate date range (default: 30 days back, 90 days forward)
+    // Calculate date range: explicit strings take precedence over relative days
     const now = new Date();
-    const fromDate = new Date(now);
-    fromDate.setDate(fromDate.getDate() - daysBack);
-    const toDate = new Date(now);
-    toDate.setDate(toDate.getDate() + daysForward);
+    const fromDate = fromDateStr ? new Date(fromDateStr) : (() => { const d = new Date(now); d.setDate(d.getDate() - daysBack); return d; })();
+    const toDate = toDateStr ? new Date(toDateStr) : (() => { const d = new Date(now); d.setDate(d.getDate() + daysForward); return d; })();
 
     const timeMin = fromDate.toISOString();
     const timeMax = toDate.toISOString();
