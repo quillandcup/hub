@@ -115,26 +115,65 @@ export async function fetchResubscriptionsData(
     }
   }
 
+  // Fetch email aliases to resolve merged/renamed member identities
+  // alias_email → canonical_email
+  const aliasToCanonical = new Map<string, string>();
+  offset = 0;
+  hasMore = true;
+
+  while (hasMore) {
+    const { data: batch } = await supabase
+      .from("member_email_aliases")
+      .select("canonical_email, alias_email")
+      .range(offset, offset + BATCH - 1);
+
+    if (batch && batch.length > 0) {
+      for (const { canonical_email, alias_email } of batch as { canonical_email: string; alias_email: string }[]) {
+        aliasToCanonical.set(alias_email.toLowerCase(), canonical_email.toLowerCase());
+      }
+      offset += batch.length;
+      hasMore = batch.length === BATCH;
+    } else {
+      hasMore = false;
+    }
+  }
+
   const customerMap = new Map(allCustomers.map((c) => [c.kajabi_customer_id, c]));
   const memberByEmail = new Map(allMembers.map((m) => [m.email.toLowerCase(), m.id]));
 
-  // Group purchases by customer
-  const byCustomer = new Map<string, Purchase[]>();
+  // Resolve a customer email to its canonical member email (via alias table)
+  function canonicalEmail(email: string): string {
+    const lower = email.toLowerCase();
+    return aliasToCanonical.get(lower) ?? lower;
+  }
+
+  // Group purchases by canonical email so that merged/renamed members are combined
+  type EmailPurchases = { purchases: Purchase[]; customerIds: Set<string> };
+  const byEmail = new Map<string, EmailPurchases>();
+
   for (const purchase of allPurchases) {
-    const list = byCustomer.get(purchase.kajabi_customer_id) ?? [];
-    list.push(purchase);
-    byCustomer.set(purchase.kajabi_customer_id, list);
+    const customer = customerMap.get(purchase.kajabi_customer_id);
+    if (!customer) continue;
+    const key = canonicalEmail(customer.email);
+    if (!byEmail.has(key)) byEmail.set(key, { purchases: [], customerIds: new Set() });
+    const entry = byEmail.get(key)!;
+    entry.purchases.push(purchase);
+    entry.customerIds.add(purchase.kajabi_customer_id);
   }
 
   const resubscribingMembers: ResubscribingMember[] = [];
 
-  for (const [customerId, purchases] of byCustomer.entries()) {
+  for (const [email, { purchases, customerIds }] of byEmail.entries()) {
     const resubscriptions = detectResubscriptions(purchases);
     if (resubscriptions.length === 0) continue;
 
-    const customer = customerMap.get(customerId);
-    const email = customer?.email ?? "";
-    const memberId = memberByEmail.get(email.toLowerCase()) ?? null;
+    // Prefer name from whichever customer record has one
+    const name =
+      Array.from(customerIds)
+        .map((id) => customerMap.get(id)?.name)
+        .find((n) => n) ?? email;
+
+    const memberId = memberByEmail.get(email) ?? null;
 
     const sorted = [...purchases].sort((a, b) =>
       (a.effective_start_at ?? a.created_at_kajabi ?? "").localeCompare(
@@ -145,7 +184,7 @@ export async function fetchResubscriptionsData(
 
     resubscribingMembers.push({
       memberId,
-      memberName: customer?.name ?? email,
+      memberName: name,
       memberEmail: email,
       resubscriptions,
       isCurrentlyActive: !lastPurchase.deactivated_at,
