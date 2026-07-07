@@ -58,6 +58,14 @@ describe("fetchResubscriptionsData()", () => {
   beforeAll(async () => {
     await cleanup(supabase);
 
+    // Silver members — required by the member-centric iteration in fetchResubscriptionsData
+    await supabase.from("members").insert([
+      { name: "Resub Alice",  email: customerA.email,    status: "active",   joined_at: "2024-01-01" },
+      { name: "Active Betty", email: customerB.email,    status: "active",   joined_at: "2024-03-01" },
+      { name: "Gone Carol",   email: customerC.email,    status: "inactive", joined_at: "2023-06-01" },
+      { name: "Diana",        email: customerDNew.email, status: "active",   joined_at: "2023-01-01" },
+    ]);
+
     await supabase
       .schema("bronze")
       .from("kajabi_customers")
@@ -195,18 +203,9 @@ describe("fetchResubscriptionsData()", () => {
 });
 
 async function cleanup(supabase: ReturnType<typeof getTestSupabaseAdminClient>) {
-  await supabase
-    .from("member_email_aliases")
-    .delete()
-    .like("alias_email", `${PREFIX}%`);
-  await supabase
-    .schema("bronze")
-    .from("kajabi_purchases")
-    .delete()
-    .like("kajabi_purchase_id", `${PREFIX}%`);
-  await supabase
-    .schema("bronze")
-    .from("kajabi_customers")
-    .delete()
-    .like("kajabi_customer_id", `${PREFIX}%`);
+  await supabase.from("member_email_aliases").delete().like("alias_email", `${PREFIX}%`);
+  await supabase.schema("bronze").from("kajabi_purchases").delete().like("kajabi_purchase_id", `${PREFIX}%`);
+  await supabase.schema("bronze").from("kajabi_customers").delete().like("kajabi_customer_id", `${PREFIX}%`);
+  // Delete members last (member_email_aliases FK may cascade, purchases don't)
+  await supabase.from("members").delete().like("email", `${PREFIX}%`);
 }
