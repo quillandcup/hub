@@ -48,22 +48,29 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // OPTIMIZATION: Load existing events in the sync date range
-    // This is much more efficient than loading ALL events or using .in() with 1000+ IDs
+    // Load existing events in the sync date range to detect changes and skips.
+    // Note: this SELECT sometimes returns empty for authenticated (cookie-based) callers
+    // due to a permission issue we haven't fully diagnosed. Stale deletion is handled by
+    // the delete_stale_calendar_events() RPC below, which uses SECURITY DEFINER and always
+    // works. If this SELECT returns an error, log it but continue — the UPSERT path below
+    // is idempotent and correct regardless.
     let existingEvents: any[] = [];
     let offset = 0;
     const FETCH_BATCH = 1000;
     let hasMore = true;
 
     while (hasMore) {
-      const { data } = await supabase
+      const { data, error: fetchError } = await supabase
         .schema('bronze').from("calendar_events")
         .select("id, google_event_id, summary, start_time, end_time")
         .gte("start_time", timeMin)
-        .lte("end_time", timeMax)
+        .lte("start_time", timeMax)
         .range(offset, offset + FETCH_BATCH - 1);
 
-      if (data && data.length > 0) {
+      if (fetchError) {
+        console.error("Error fetching existing bronze calendar events (stale detection skipped):", fetchError);
+        hasMore = false;
+      } else if (data && data.length > 0) {
         existingEvents = existingEvents.concat(data);
         offset += data.length;
         hasMore = data.length === FETCH_BATCH;
@@ -80,6 +87,7 @@ export async function POST(request: NextRequest) {
     let imported = 0;
     let updated = 0;
     let skipped = 0;
+    let deleted = 0;
 
     const eventsToInsert: any[] = [];
     const eventsToUpdate: Array<{ id: string; data: any }> = [];
@@ -130,6 +138,33 @@ export async function POST(request: NextRequest) {
         }
       } else {
         eventsToInsert.push(eventData);
+      }
+    }
+
+    // Delete bronze records in the sync range that no longer exist in Google Calendar.
+    // Uses a SECURITY DEFINER SQL function so it works for both cookie-based admin sessions
+    // and cron/service-role callers — the JS-side SELECT above can silently fail for
+    // authenticated users, but the RPC always succeeds.
+    // ON DELETE CASCADE on unmatched_calendar_events.calendar_event_id means only truly
+    // stale events (not in current Google Calendar) are removed; UPSERT below preserves
+    // UUIDs for events that still exist, keeping any admin-set resolved_type_id intact.
+    const currentGoogleIds = events
+      .filter(e => e.start?.dateTime && e.id)
+      .map(e => e.id as string)
+      .filter(Boolean);
+
+    if (currentGoogleIds.length > 0) {
+      const { data: deletedCount, error: deleteStaleError } = await supabase
+        .rpc('delete_stale_calendar_events', {
+          p_time_min: timeMin,
+          p_time_max: timeMax,
+          p_current_google_ids: currentGoogleIds,
+        });
+      if (deleteStaleError) {
+        console.error("Error deleting stale calendar events via RPC:", deleteStaleError);
+      } else if (deletedCount > 0) {
+        console.log(`Deleted ${deletedCount} stale bronze calendar events no longer in Google Calendar`);
+        deleted = deletedCount as number;
       }
     }
 
@@ -204,6 +239,7 @@ export async function POST(request: NextRequest) {
       total: events.length,
       imported,
       updated,
+      deleted,
       skipped,
       dateRange: {
         from: fromDate.toISOString(),

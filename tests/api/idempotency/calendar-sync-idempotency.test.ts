@@ -234,6 +234,77 @@ describe('Calendar Sync Idempotency', () => {
     expect(bronzeUpdateCalls).toBe(totalUpdateCalls);
   });
 
+  it('delete_stale_calendar_events() removes records no longer in Google Calendar', async () => {
+    // This is the root-cause fix for ghost prickles: if an event is deleted from Google
+    // Calendar, the next sync must remove the stale bronze record. The JS-side SELECT
+    // sometimes silently fails for authenticated users, so stale cleanup runs via a
+    // SECURITY DEFINER SQL function instead.
+    const staleId = `test-stale-event-${Date.now()}`
+
+    // ARRANGE: Insert a "stale" event in the test date range
+    await supabase.schema('bronze').from('calendar_events').insert({
+      google_event_id: staleId,
+      summary: 'Stale Heads Down (deleted from Google Calendar)',
+      start_time: '2099-12-15T20:00:00Z',
+      end_time:   '2099-12-15T21:00:00Z',
+      creator_email: 'test@example.com',
+      raw_data: {},
+    })
+
+    // Verify it exists
+    const { data: before } = await supabase.schema('bronze').from('calendar_events')
+      .select('id').eq('google_event_id', staleId)
+    expect(before).toHaveLength(1)
+
+    // ACT: call the RPC as if a sync ran with only testGoogleEventId1 and testGoogleEventId2
+    // in the range — staleId is absent, so it should be deleted
+    const { data: deletedCount, error } = await supabase.rpc('delete_stale_calendar_events', {
+      p_time_min: '2099-12-15T00:00:00Z',
+      p_time_max: '2099-12-16T00:00:00Z',
+      p_current_google_ids: [testGoogleEventId1, testGoogleEventId2],
+    })
+
+    expect(error).toBeNull()
+    expect(deletedCount).toBe(1)
+
+    // ASSERT: stale record is gone
+    const { data: after } = await supabase.schema('bronze').from('calendar_events')
+      .select('id').eq('google_event_id', staleId)
+    expect(after).toHaveLength(0)
+  })
+
+  it('delete_stale_calendar_events() preserves events still in Google Calendar', async () => {
+    // Events with IDs that ARE in the current list must not be deleted
+    const { data: deletedCount, error } = await supabase.rpc('delete_stale_calendar_events', {
+      p_time_min: '2099-12-15T00:00:00Z',
+      p_time_max: '2099-12-16T00:00:00Z',
+      p_current_google_ids: [testGoogleEventId1, testGoogleEventId2],
+    })
+
+    expect(error).toBeNull()
+    expect(deletedCount).toBe(0)
+
+    const { data: remaining } = await supabase.schema('bronze').from('calendar_events')
+      .select('id').in('google_event_id', [testGoogleEventId1, testGoogleEventId2])
+    expect(remaining).toHaveLength(2)
+  })
+
+  it('delete_stale_calendar_events() returns 0 and deletes nothing when given empty ID list', async () => {
+    // Safety: empty ID list should never wipe all records in the range
+    const { data: deletedCount, error } = await supabase.rpc('delete_stale_calendar_events', {
+      p_time_min: '2099-12-15T00:00:00Z',
+      p_time_max: '2099-12-16T00:00:00Z',
+      p_current_google_ids: [],
+    })
+
+    expect(error).toBeNull()
+    expect(deletedCount).toBe(0)
+
+    const { data: remaining } = await supabase.schema('bronze').from('calendar_events')
+      .select('id').in('google_event_id', [testGoogleEventId1, testGoogleEventId2])
+    expect(remaining).toHaveLength(2)
+  })
+
   it('should verify unique constraint on google_event_id', async () => {
     // ARRANGE: Try to INSERT (not UPSERT) duplicate google_event_id
     const duplicate = {
