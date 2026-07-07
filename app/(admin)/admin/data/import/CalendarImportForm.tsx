@@ -103,6 +103,7 @@ export default function CalendarImportForm() {
                 <li>Total events found: {result.total || 0}</li>
                 <li>Imported (new): {result.imported || 0}</li>
                 <li>Updated (changed): {result.updated || 0}</li>
+                <li>Deleted (stale): {result.deleted || 0}</li>
                 <li>Skipped (unchanged/invalid): {result.skipped || 0}</li>
               </ul>
               {result.processing?.processed && result.processing.processed.length > 0 && (
