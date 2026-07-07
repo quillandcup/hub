@@ -57,3 +57,6 @@ next-env.d.ts
 
 # Claude Code
 .claude/worktrees/
+
+# Data exports — contain real member PII, not for version control
+/exports/

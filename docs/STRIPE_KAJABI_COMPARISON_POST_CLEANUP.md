@@ -71,7 +71,7 @@ After cleanup, there remain **~4 members** who are:
 **Root cause:** These are members who canceled in Kajabi but Stripe is still billing them through the end of their current billing period.
 
 **Context:** We identified 27 members with "Stripe active but Kajabi canceled". Of those:
-- 1 reactivated (categunnell) - was an error, should be active
+- 1 reactivated (member38) - was an error, should be active
 - ~22 are correctly paused in Stripe (on hiatus, etc.)
 - **~4 are NOT paused but remain inactive in Kajabi**
 
@@ -158,7 +158,7 @@ After cleanup, there remain **~4 members** who are:
 
 ### Critical Actions (Implemented)
 - ✓ Deactivated 8 members in Kajabi
-- ✓ Reactivated 1 member in Kajabi (categunnell)
+- ✓ Reactivated 1 member in Kajabi (member38)
 - ⏳ PayPal conversions (2 members) - in progress
 - ⏳ Past due follow-ups (2 members) - contacted, awaiting response
 
