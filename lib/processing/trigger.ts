@@ -216,8 +216,8 @@ export async function triggerKajabiSync() {
  */
 export async function triggerCalendarSync(options: { daysBack: number; daysForward: number }) {
   const { NextRequest } = await import('next/server');
-  const { POST } = await import('@/app/api/sync/calendar/route');
-  const req = new NextRequest(new URL('http://internal/api/sync/calendar'), {
+  const { POST } = await import('@/app/api/import/calendar/route');
+  const req = new NextRequest(new URL('http://internal/api/import/calendar'), {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

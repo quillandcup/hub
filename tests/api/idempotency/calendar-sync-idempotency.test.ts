@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { getTestSupabaseAdminClient } from '../../helpers/supabase'
 
 /**
- * Test to verify /api/sync/calendar is idempotent
+ * Test to verify /api/import/calendar is idempotent
  *
  * CRITICAL: Calendar sync must be idempotent - syncing the same date range
  * multiple times should not create duplicate events. This enables safe
@@ -224,7 +224,7 @@ describe('Calendar Sync Idempotency', () => {
     // detected change silently failed — the sync always reported 0 updated events.
     const fs = await import('fs/promises')
     const path = await import('path')
-    const routePath = path.join(process.cwd(), 'app/api/sync/calendar/route.ts')
+    const routePath = path.join(process.cwd(), 'app/api/import/calendar/route.ts')
     const src = await fs.readFile(routePath, 'utf-8')
 
     const totalUpdateCalls = (src.match(/from\("calendar_events"\)\.update\(/g) ?? []).length;

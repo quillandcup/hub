@@ -12,7 +12,7 @@ npm test -- tests/api/idempotency/
 
 ## Idempotency Patterns
 
-### 1. Calendar Sync (`/api/sync/calendar`) - UPSERT Pattern
+### 1. Calendar Import (`/api/import/calendar`) - UPSERT Pattern
 
 **Pattern**: `UPSERT by google_event_id`
 
