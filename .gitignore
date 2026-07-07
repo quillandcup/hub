@@ -60,3 +60,6 @@ next-env.d.ts
 
 # Data exports — contain real member PII, not for version control
 /exports/
+
+# Supabase local data backups — operational snapshots, not source code
+/supabase/local-data/backups/
