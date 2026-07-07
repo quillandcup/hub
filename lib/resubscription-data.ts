@@ -1,5 +1,7 @@
 import { MEMBERSHIP_PRODUCT_NAMES } from "@/lib/membership";
 import { detectResubscriptions } from "@/lib/resubscription-detection";
+import { buildReverseAliasMap, getMemberEmails } from "@/lib/stripe-matching";
+import type { MemberEmailAlias } from "@/lib/member-matching";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export interface ResubscribingMember {
@@ -72,8 +74,8 @@ export async function fetchResubscriptionsData(
     }
   }
 
-  // Fetch customer info for name/email
-  type Customer = { kajabi_customer_id: string; email: string; name: string | null };
+  // Fetch customer info: email → customer_id lookup
+  type Customer = { kajabi_customer_id: string; email: string };
   const allCustomers: Customer[] = [];
   offset = 0;
   hasMore = true;
@@ -82,7 +84,7 @@ export async function fetchResubscriptionsData(
     const { data: batch } = await supabase
       .schema("bronze")
       .from("kajabi_customers")
-      .select("kajabi_customer_id, email, name")
+      .select("kajabi_customer_id, email")
       .range(offset, offset + BATCH - 1);
 
     if (batch && batch.length > 0) {
@@ -94,8 +96,8 @@ export async function fetchResubscriptionsData(
     }
   }
 
-  // Fetch silver members for ID linkage and active count
-  type Member = { id: string; email: string; status: string };
+  // Fetch silver members
+  type Member = { id: string; name: string; email: string; status: string };
   const allMembers: Member[] = [];
   offset = 0;
   hasMore = true;
@@ -103,7 +105,7 @@ export async function fetchResubscriptionsData(
   while (hasMore) {
     const { data: batch } = await supabase
       .from("members")
-      .select("id, email, status")
+      .select("id, name, email, status")
       .range(offset, offset + BATCH - 1);
 
     if (batch && batch.length > 0) {
@@ -115,9 +117,8 @@ export async function fetchResubscriptionsData(
     }
   }
 
-  // Fetch email aliases to resolve merged/renamed member identities
-  // alias_email → canonical_email
-  const aliasToCanonical = new Map<string, string>();
+  // Fetch email aliases and build the standard reverse alias map
+  const emailAliases: MemberEmailAlias[] = [];
   offset = 0;
   hasMore = true;
 
@@ -128,9 +129,7 @@ export async function fetchResubscriptionsData(
       .range(offset, offset + BATCH - 1);
 
     if (batch && batch.length > 0) {
-      for (const { canonical_email, alias_email } of batch as { canonical_email: string; alias_email: string }[]) {
-        aliasToCanonical.set(alias_email.toLowerCase(), canonical_email.toLowerCase());
-      }
+      emailAliases.push(...(batch as MemberEmailAlias[]));
       offset += batch.length;
       hasMore = batch.length === BATCH;
     } else {
@@ -138,44 +137,42 @@ export async function fetchResubscriptionsData(
     }
   }
 
-  const customerMap = new Map(allCustomers.map((c) => [c.kajabi_customer_id, c]));
-  const memberByEmail = new Map(allMembers.map((m) => [m.email.toLowerCase(), m.id]));
+  const reverseAliasMap = buildReverseAliasMap(emailAliases);
 
-  // Resolve a customer email to its canonical member email (via alias table)
-  function canonicalEmail(email: string): string {
-    const lower = email.toLowerCase();
-    return aliasToCanonical.get(lower) ?? lower;
+  // customer_email (lowercase) → customer_id
+  const customerIdByEmail = new Map<string, string>();
+  for (const c of allCustomers) {
+    customerIdByEmail.set(c.email.toLowerCase(), c.kajabi_customer_id);
   }
 
-  // Group purchases by canonical email so that merged/renamed members are combined
-  type EmailPurchases = { purchases: Purchase[]; customerIds: Set<string> };
-  const byEmail = new Map<string, EmailPurchases>();
-
-  for (const purchase of allPurchases) {
-    const customer = customerMap.get(purchase.kajabi_customer_id);
-    if (!customer) continue;
-    const key = canonicalEmail(customer.email);
-    if (!byEmail.has(key)) byEmail.set(key, { purchases: [], customerIds: new Set() });
-    const entry = byEmail.get(key)!;
-    entry.purchases.push(purchase);
-    entry.customerIds.add(purchase.kajabi_customer_id);
+  // customer_id → purchases
+  const purchasesByCustomerId = new Map<string, Purchase[]>();
+  for (const p of allPurchases) {
+    const list = purchasesByCustomerId.get(p.kajabi_customer_id) ?? [];
+    list.push(p);
+    purchasesByCustomerId.set(p.kajabi_customer_id, list);
   }
 
+  // For each silver member, resolve all their emails and aggregate purchases
   const resubscribingMembers: ResubscribingMember[] = [];
 
-  for (const [email, { purchases, customerIds }] of byEmail.entries()) {
-    const resubscriptions = detectResubscriptions(purchases);
+  for (const member of allMembers) {
+    const allEmails = getMemberEmails(member, reverseAliasMap);
+
+    const memberPurchases: Purchase[] = [];
+    for (const email of allEmails) {
+      const customerId = customerIdByEmail.get(email);
+      if (customerId) {
+        memberPurchases.push(...(purchasesByCustomerId.get(customerId) ?? []));
+      }
+    }
+
+    if (memberPurchases.length === 0) continue;
+
+    const resubscriptions = detectResubscriptions(memberPurchases);
     if (resubscriptions.length === 0) continue;
 
-    // Prefer name from whichever customer record has one
-    const name =
-      Array.from(customerIds)
-        .map((id) => customerMap.get(id)?.name)
-        .find((n) => n) ?? email;
-
-    const memberId = memberByEmail.get(email) ?? null;
-
-    const sorted = [...purchases].sort((a, b) =>
+    const sorted = [...memberPurchases].sort((a, b) =>
       (a.effective_start_at ?? a.created_at_kajabi ?? "").localeCompare(
         b.effective_start_at ?? b.created_at_kajabi ?? ""
       )
@@ -183,9 +180,9 @@ export async function fetchResubscriptionsData(
     const lastPurchase = sorted[sorted.length - 1];
 
     resubscribingMembers.push({
-      memberId,
-      memberName: name,
-      memberEmail: email,
+      memberId: member.id,
+      memberName: member.name,
+      memberEmail: member.email,
       resubscriptions,
       isCurrentlyActive: !lastPurchase.deactivated_at,
     });
