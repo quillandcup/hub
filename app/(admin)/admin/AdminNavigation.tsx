@@ -40,6 +40,7 @@ const navigation: NavSection[] = [
       { name: "Prickle Insights", href: "/admin/insights/prickles", icon: "✍️" },
       { name: "Resubscriptions", href: "/admin/insights/resubscriptions", icon: "🔄" },
       { name: "Community Stats", href: "/admin/stats", icon: "✨" },
+      { name: "Slack Engagement", href: "/admin/insights/slack-engagement", icon: "💬" },
     ],
   },
   {
