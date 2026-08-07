@@ -215,6 +215,17 @@ Current webhook tests are unit tests that verify HTTP endpoints and signature va
   - Update policies to restrict based on role
   - Test thoroughly before granting access to non-admins
 
+### Supabase Security Advisories (Skipped)
+Two low-severity advisories from `supabase db advisors --linked --type security` were left unresolved after the 2026-08 RLS/search_path hardening pass (see `supabase/migrations/20260720034138_enable_rls_on_exposed_tables.sql` and `20260807023835_harden_search_path_and_definer_grants.sql`):
+
+- **`anon_security_definer_function_executable` / `authenticated_security_definer_function_executable` on `is_admin()` and `create_user_profile()`** — both are `SECURITY DEFINER` and still grant `EXECUTE` to `anon`/`authenticated`. Not revoked because:
+  - `create_user_profile()` is the `on_auth_user_created` trigger function that provisions a `user_profiles` row on signup — revoking risks breaking signup.
+  - `is_admin()` is called inside the `user_profiles` RLS policies (`USING (is_admin())`) for role `{public}` — revoking `authenticated`/`anon` EXECUTE would likely break those policies for logged-in users, not just tighten anon access.
+  - Real-world risk is low: `is_admin()` just returns a boolean based on `auth.uid()` (returns `false` for anon since `auth.uid()` is null), and `create_user_profile()` is a trigger function that errors if invoked directly outside trigger context.
+  - **If revisited:** switch `is_admin()` to `SECURITY INVOKER` (it only reads `user_profiles`, which already has its own RLS) instead of touching grants, and/or restrict `create_user_profile()`'s grant to just the role Postgres uses to fire the trigger.
+
+- **`auth_leaked_password_protection`** — Supabase Auth's HaveIBeenPwned check is disabled. This is a dashboard toggle, not a migration: **Dashboard → Authentication → Policies → Password Security → enable "Leaked password protection."**
+
 ### Role-Based Access Control (RBAC)
 Define user roles and permissions:
 
