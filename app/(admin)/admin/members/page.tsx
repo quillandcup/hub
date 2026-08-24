@@ -11,12 +11,12 @@ import {
 type SearchParams = Promise<{ [key: string]: string | string[] | undefined }>;
 
 // prickle_attendance can have 10,000+ rows (CLAUDE.md) — paginate.
+// Fetched unfiltered (not `.in("member_id", ...)`) because with the "all"
+// members filter the member ID list can grow long enough to exceed the
+// Supabase gateway's URL length limit, which fails with a 400 Bad Request.
 async function fetchAllAttendance(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  memberIds: string[]
+  supabase: Awaited<ReturnType<typeof createClient>>
 ): Promise<EngagementAttendanceRow[]> {
-  if (memberIds.length === 0) return [];
-
   const BATCH = 1000;
   const rows: EngagementAttendanceRow[] = [];
   let offset = 0;
@@ -26,7 +26,6 @@ async function fetchAllAttendance(
     const { data, error } = await supabase
       .from("prickle_attendance")
       .select("member_id, prickle_id, join_time")
-      .in("member_id", memberIds)
       .order("join_time", { ascending: true })
       .range(offset, offset + BATCH - 1);
 
@@ -85,7 +84,7 @@ export default async function MembersPage({
   // per member, per CLAUDE.md) rather than relying on the static member_metrics /
   // member_engagement seed tables.
   const memberIds = (allMembers ?? []).map((m) => m.id);
-  const attendance = await fetchAllAttendance(supabase, memberIds);
+  const attendance = await fetchAllAttendance(supabase);
   const metricsByMemberId = computeMemberEngagementMetrics(attendance, memberIds);
 
   const membersWithMetrics = (allMembers ?? []).map((m) => {
