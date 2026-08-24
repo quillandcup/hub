@@ -6,6 +6,10 @@ import MergeButton from "./MergeButton";
 import { getUserTimezonePreference } from "@/lib/timezone";
 import { startSudo } from "@/app/actions/sudo";
 import { fetchMembershipHistory } from "@/lib/kajabi/membership-history";
+import {
+  computeMemberEngagementMetrics,
+  type EngagementAttendanceRow,
+} from "@/lib/member-engagement";
 
 export default async function MemberDetailPage({
   params,
@@ -23,18 +27,14 @@ export default async function MemberDetailPage({
     redirect("/login");
   }
 
-  // Fetch member data with metrics and engagement
-  const { data: member } = await supabase
+  // Fetch member data
+  const { data: memberRow } = await supabase
     .from("members")
-    .select(`
-      *,
-      member_metrics(*),
-      member_engagement(*)
-    `)
+    .select("*")
     .eq("id", id)
     .single();
 
-  if (!member) {
+  if (!memberRow) {
     notFound();
   }
 
@@ -56,6 +56,36 @@ export default async function MemberDetailPage({
     `)
     .eq("member_id", id)
     .order("join_time", { ascending: false });
+
+  // Compute real engagement metrics from this member's attendance (DISTINCT
+  // prickle_id per CLAUDE.md) rather than the static member_metrics /
+  // member_engagement seed tables.
+  const attendanceForMetrics: EngagementAttendanceRow[] = (attendance ?? []).map((a: any) => {
+    const prickle = Array.isArray(a.prickles) ? a.prickles[0] : a.prickles;
+    return {
+      member_id: id,
+      prickle_id: prickle?.id ?? a.id,
+      join_time: a.join_time,
+    };
+  });
+  const metrics = computeMemberEngagementMetrics(attendanceForMetrics, [id]).get(id) ?? null;
+  const member = {
+    ...memberRow,
+    member_metrics: metrics
+      ? {
+          last_attended_at: metrics.lastAttendedAt,
+          prickles_last_30_days: metrics.pricklesLast30Days,
+          total_prickles: metrics.totalPrickles,
+          engagement_score: metrics.engagementScore,
+        }
+      : null,
+    member_engagement: metrics
+      ? {
+          risk_level: metrics.riskLevel,
+          engagement_tier: metrics.engagementTier,
+        }
+      : null,
+  };
 
   // Fetch member name aliases
   const { data: aliases } = await supabase

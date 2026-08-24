@@ -3,8 +3,45 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import MemberFilters from "./MemberFilters";
 import MembersTable from "./MembersTable";
+import {
+  computeMemberEngagementMetrics,
+  type EngagementAttendanceRow,
+} from "@/lib/member-engagement";
 
 type SearchParams = Promise<{ [key: string]: string | string[] | undefined }>;
+
+// prickle_attendance can have 10,000+ rows (CLAUDE.md) — paginate.
+async function fetchAllAttendance(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  memberIds: string[]
+): Promise<EngagementAttendanceRow[]> {
+  if (memberIds.length === 0) return [];
+
+  const BATCH = 1000;
+  const rows: EngagementAttendanceRow[] = [];
+  let offset = 0;
+  let hasMore = true;
+
+  while (hasMore) {
+    const { data, error } = await supabase
+      .from("prickle_attendance")
+      .select("member_id, prickle_id, join_time")
+      .in("member_id", memberIds)
+      .order("join_time", { ascending: true })
+      .range(offset, offset + BATCH - 1);
+
+    if (error) throw error;
+    if (data && data.length > 0) {
+      rows.push(...data);
+      offset += data.length;
+      hasMore = data.length === BATCH;
+    } else {
+      hasMore = false;
+    }
+  }
+
+  return rows;
+}
 
 export default async function MembersPage({
   searchParams,
@@ -27,13 +64,7 @@ export default async function MembersPage({
   const search = (params.search as string) || "";
 
   // Build query - apply filters that work on the members table directly
-  let query = supabase
-    .from("members")
-    .select(`
-      *,
-      member_metrics(*),
-      member_engagement(*)
-    `);
+  let query = supabase.from("members").select("*");
 
   if (search) {
     query = query.or(`name.ilike.%${search}%,email.ilike.%${search}%`);
@@ -50,12 +81,40 @@ export default async function MembersPage({
 
   const { data: allMembers } = await query.order("name");
 
-  // Apply engagement filters in memory (these require filtering on joined data)
-  let members = allMembers ?? null;
+  // Compute real engagement metrics from prickle_attendance (DISTINCT prickle_id
+  // per member, per CLAUDE.md) rather than relying on the static member_metrics /
+  // member_engagement seed tables.
+  const memberIds = (allMembers ?? []).map((m) => m.id);
+  const attendance = await fetchAllAttendance(supabase, memberIds);
+  const metricsByMemberId = computeMemberEngagementMetrics(attendance, memberIds);
+
+  const membersWithMetrics = (allMembers ?? []).map((m) => {
+    const metrics = metricsByMemberId.get(m.id) ?? null;
+    return {
+      ...m,
+      member_metrics: metrics
+        ? {
+            last_attended_at: metrics.lastAttendedAt,
+            prickles_last_30_days: metrics.pricklesLast30Days,
+            total_prickles: metrics.totalPrickles,
+            engagement_score: metrics.engagementScore,
+          }
+        : null,
+      member_engagement: metrics
+        ? {
+            risk_level: metrics.riskLevel,
+            engagement_tier: metrics.engagementTier,
+          }
+        : null,
+    };
+  });
+
+  // Apply engagement filters in memory (these require the computed metrics above)
+  let members: typeof membersWithMetrics | null = membersWithMetrics;
   if (filter === "at_risk") {
-    members = allMembers?.filter((m) => m.member_engagement?.risk_level === "high") ?? null;
+    members = membersWithMetrics.filter((m) => m.member_engagement?.risk_level === "high");
   } else if (filter === "highly_engaged") {
-    members = allMembers?.filter((m) => m.member_engagement?.engagement_tier === "highly_engaged") ?? null;
+    members = membersWithMetrics.filter((m) => m.member_engagement?.engagement_tier === "highly_engaged");
   }
 
   return (
