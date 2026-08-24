@@ -24,6 +24,10 @@ export default async function DataHygienePage() {
     { data: oldUnmatchedEvents },
     { data: lastSync },
     { data: lastProcessing },
+    { data: lastSlackSync },
+    { data: lastSlackProcessing },
+    { data: lastKajabiSync },
+    { data: lastKajabiProcessing },
     { count: missingStripeCount },
     { data: membersForDuplicates },
   ] = await Promise.all([
@@ -70,6 +74,38 @@ export default async function DataHygienePage() {
       .select("created_at")
       .eq("source", "zoom")
       .order("created_at", { ascending: false })
+      .limit(1)
+      .single(),
+    // Last Slack sync (bronze import — webhook or bulk import, both set imported_at)
+    supabase
+      .schema('bronze').from("slack_messages")
+      .select("imported_at")
+      .order("imported_at", { ascending: false })
+      .limit(1)
+      .single(),
+    // Last Slack processing (silver — member_activities uses DELETE+INSERT per date range,
+    // so created_at reflects the most recent process/slack run)
+    supabase
+      .from("member_activities")
+      .select("created_at")
+      .eq("source", "slack")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .single(),
+    // Last Kajabi sync (bronze import via Kajabi API)
+    supabase
+      .schema('bronze').from("kajabi_contacts")
+      .select("imported_at")
+      .order("imported_at", { ascending: false })
+      .limit(1)
+      .single(),
+    // Last Kajabi processing (silver — reprocess_members_atomic unconditionally touches
+    // updated_at for every kajabi-sourced member on each run)
+    supabase
+      .from("members")
+      .select("updated_at")
+      .not("kajabi_id", "is", null)
+      .order("updated_at", { ascending: false })
       .limit(1)
       .single(),
     // Active members missing Stripe customer ID
@@ -575,6 +611,38 @@ export default async function DataHygienePage() {
               <span className="font-medium text-slate-900 dark:text-slate-100">
                 {lastProcessing?.created_at
                   ? new Date(lastProcessing.created_at).toLocaleString()
+                  : "Never"}
+              </span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-slate-600 dark:text-slate-400">Last Slack sync:</span>
+              <span className="font-medium text-slate-900 dark:text-slate-100">
+                {lastSlackSync?.imported_at
+                  ? new Date(lastSlackSync.imported_at).toLocaleString()
+                  : "Never"}
+              </span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-slate-600 dark:text-slate-400">Last Slack processing:</span>
+              <span className="font-medium text-slate-900 dark:text-slate-100">
+                {lastSlackProcessing?.created_at
+                  ? new Date(lastSlackProcessing.created_at).toLocaleString()
+                  : "Never"}
+              </span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-slate-600 dark:text-slate-400">Last Kajabi sync:</span>
+              <span className="font-medium text-slate-900 dark:text-slate-100">
+                {lastKajabiSync?.imported_at
+                  ? new Date(lastKajabiSync.imported_at).toLocaleString()
+                  : "Never"}
+              </span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-slate-600 dark:text-slate-400">Last Kajabi processing:</span>
+              <span className="font-medium text-slate-900 dark:text-slate-100">
+                {lastKajabiProcessing?.updated_at
+                  ? new Date(lastKajabiProcessing.updated_at).toLocaleString()
                   : "Never"}
               </span>
             </div>
