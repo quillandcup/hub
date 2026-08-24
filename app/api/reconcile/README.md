@@ -41,12 +41,15 @@ Reconciles Zoom meeting attendance data.
 
 ### `/api/reconcile/members` (3:00am daily)
 
-Reconciles member data from Kajabi imports.
+Reconciles member data from Kajabi.
 
 **What it does:**
-- Checks for latest `bronze.kajabi_members` snapshot
-- Triggers `/api/process/members` to update `members` table
-- Does NOT fetch from external API (Kajabi imports are CSV-based)
+- Fetches contacts, customers, purchases, and offers from the Kajabi API
+- UPSERTs to `bronze.kajabi_contacts`, `kajabi_customers`, `kajabi_purchases`, `kajabi_offers`
+- Triggers `/api/process/members` to update the `members` table
+
+(The `bronze.kajabi_members` table is a legacy CSV-import path, no longer read by
+`/api/process/members`.)
 
 **Schedule:** Daily at 3:00am UTC (30 min after Zoom)
 **Timeout:** 300 seconds (5 minutes)
@@ -150,6 +153,9 @@ Required environment variables:
 - `ZOOM_ACCOUNT_ID` - Zoom API credentials
 - `ZOOM_CLIENT_ID` - Zoom API credentials
 - `ZOOM_CLIENT_SECRET` - Zoom API credentials
+- `KAJABI_CLIENT_ID` - Kajabi API credentials
+- `KAJABI_CLIENT_SECRET` - Kajabi API credentials
+- `KAJABI_SITE_ID` - Kajabi site ID
 - `NEXT_PUBLIC_SUPABASE_URL` - Supabase project URL
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY` - Supabase public API key
 
