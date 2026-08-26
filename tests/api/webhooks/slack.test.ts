@@ -78,37 +78,151 @@ describe('Slack Webhook', () => {
       expect(responseBody.challenge).toBe('test-challenge-string-123')
     })
 
-    it.skip('should upsert message to Bronze layer', async () => {
-      // SKIP: processSlackEvent creates its own Supabase client using process.env vars
-      // not loaded in vitest. Requires integration test setup with real credentials.
-    })
-
-    it.skip('should upsert reaction to Bronze layer', async () => {
-      // SKIP: Same reason as message test.
-    })
-
-    it.skip('should trigger Silver processing after Bronze upsert', async () => {
-      // SKIP: processSlackEvent creates its own Supabase client using process.env vars
-      // that aren't loaded in vitest. The trigger only fires if the Bronze upsert succeeds,
-      // so we can't verify it without real credentials or a full mock of @supabase/supabase-js.
-      // The reprocessing trigger behavior is verified by tests/api/reprocessability/slack.test.ts.
-    })
-
-    it.skip('should be idempotent (duplicate messages upserted, not duplicated)', async () => {
-      // SKIP: Requires database verification - better as integration test
+    it('should upsert message to Bronze layer', async () => {
       const fixture = loadWebhookFixture('slack', 'message-posted.json')
+      const body = JSON.stringify(fixture.body)
+      const timestamp = Math.floor(Date.now() / 1000).toString()
+      const sigBasestring = `v0:${timestamp}:${body}`
+      const signature = 'v0=' + createHmac('sha256', 'test-slack-secret')
+        .update(sigBasestring)
+        .digest('hex')
+
+      const request = new Request('http://localhost:3000/api/webhooks/slack', {
+        method: 'POST',
+        headers: new Headers({
+          'content-type': 'application/json',
+          'x-slack-signature': signature,
+          'x-slack-request-timestamp': timestamp,
+        }),
+        body,
+      })
+
+      const response = await POST(request as unknown as NextRequest)
+      expect(response.status).toBe(200)
+
+      // Regression check for the raw_data/raw_payload column-name bug: the row
+      // must actually land in Bronze, with the NOT NULL raw_payload populated.
+      const { data: row, error } = await supabase
+        .schema('bronze')
+        .from('slack_messages')
+        .select('*')
+        .eq('channel_id', 'C123456')
+        .eq('message_ts', fixture.body.event.ts)
+        .single()
+
+      expect(error).toBeNull()
+      expect(row).toMatchObject({
+        channel_id: 'C123456',
+        message_ts: fixture.body.event.ts,
+        user_id: fixture.body.event.user,
+        text: fixture.body.event.text,
+      })
+      expect(row!.raw_payload).toBeTruthy()
+    })
+
+    it('should upsert reaction to Bronze layer', async () => {
+      const fixture = loadWebhookFixture('slack', 'reaction-added.json')
+      const body = JSON.stringify(fixture.body)
+      const timestamp = Math.floor(Date.now() / 1000).toString()
+      const sigBasestring = `v0:${timestamp}:${body}`
+      const signature = 'v0=' + createHmac('sha256', 'test-slack-secret')
+        .update(sigBasestring)
+        .digest('hex')
+
+      const request = new Request('http://localhost:3000/api/webhooks/slack', {
+        method: 'POST',
+        headers: new Headers({
+          'content-type': 'application/json',
+          'x-slack-signature': signature,
+          'x-slack-request-timestamp': timestamp,
+        }),
+        body,
+      })
+
+      const response = await POST(request as unknown as NextRequest)
+      expect(response.status).toBe(200)
+
+      const { data: row, error } = await supabase
+        .schema('bronze')
+        .from('slack_reactions')
+        .select('*')
+        .eq('channel_id', 'C123456')
+        .eq('message_ts', fixture.body.event.item.ts)
+        .eq('user_id', fixture.body.event.user)
+        .eq('reaction', fixture.body.event.reaction)
+        .single()
+
+      expect(error).toBeNull()
+      expect(row!.raw_payload).toBeTruthy()
+    })
+
+    it('should trigger Silver processing after Bronze upsert', async () => {
+      const fixture = loadWebhookFixture('slack', 'message-posted.json')
+      const body = JSON.stringify(fixture.body)
+      const timestamp = Math.floor(Date.now() / 1000).toString()
+      const sigBasestring = `v0:${timestamp}:${body}`
+      const signature = 'v0=' + createHmac('sha256', 'test-slack-secret')
+        .update(sigBasestring)
+        .digest('hex')
+
+      const request = new Request('http://localhost:3000/api/webhooks/slack', {
+        method: 'POST',
+        headers: new Headers({
+          'content-type': 'application/json',
+          'x-slack-signature': signature,
+          'x-slack-request-timestamp': timestamp,
+        }),
+        body,
+      })
+
+      await POST(request as unknown as NextRequest)
+
+      expect(triggerReprocessing).toHaveBeenCalledWith(
+        'slack_messages',
+        'bronze',
+        expect.objectContaining({
+          dateRange: expect.objectContaining({
+            from: expect.any(Date),
+            to: expect.any(Date),
+          }),
+        })
+      )
+    })
+
+    it('should be idempotent (duplicate messages upserted, not duplicated)', async () => {
+      const fixture = loadWebhookFixture('slack', 'message-posted.json')
+      const body = JSON.stringify(fixture.body)
 
       // Send same webhook twice
       for (let i = 0; i < 2; i++) {
+        const timestamp = Math.floor(Date.now() / 1000).toString()
+        const sigBasestring = `v0:${timestamp}:${body}`
+        const signature = 'v0=' + createHmac('sha256', 'test-slack-secret')
+          .update(sigBasestring)
+          .digest('hex')
+
         const request = new Request('http://localhost:3000/api/webhooks/slack', {
           method: 'POST',
-          headers: new Headers(fixture.headers),
-          body: JSON.stringify(fixture.body),
+          headers: new Headers({
+            'content-type': 'application/json',
+            'x-slack-signature': signature,
+            'x-slack-request-timestamp': timestamp,
+          }),
+          body,
         })
 
         const response = await POST(request as unknown as NextRequest)
         expect(response.status).toBe(200)
       }
+
+      const { count } = await supabase
+        .schema('bronze')
+        .from('slack_messages')
+        .select('*', { count: 'exact', head: true })
+        .eq('channel_id', 'C123456')
+        .eq('message_ts', fixture.body.event.ts)
+
+      expect(count).toBe(1)
     })
 
     it('should still return 200 on Bronze insert errors', async () => {

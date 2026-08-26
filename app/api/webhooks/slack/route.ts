@@ -113,7 +113,7 @@ async function processSlackEvent(event: any) {
   try {
     if (eventType === "message") {
       // UPSERT message to Bronze layer
-      await supabase.schema("bronze").from("slack_messages").upsert(
+      const { error } = await supabase.schema("bronze").from("slack_messages").upsert(
         {
           channel_id: event.channel,
           message_ts: event.ts,
@@ -121,12 +121,17 @@ async function processSlackEvent(event: any) {
           text: event.text,
           thread_ts: event.thread_ts || null,
           occurred_at: new Date(parseFloat(event.ts) * 1000).toISOString(),
-          raw_data: event,
+          raw_payload: event,
         },
         {
           onConflict: "channel_id,message_ts",
         }
       );
+
+      if (error) {
+        console.error("Error upserting Slack message:", error);
+        return;
+      }
 
       console.log("Slack message upserted:", event.ts);
 
@@ -134,14 +139,14 @@ async function processSlackEvent(event: any) {
       triggerSlackProcessing(event.ts);
     } else if (eventType === "reaction_added") {
       // UPSERT reaction to Bronze layer
-      await supabase.schema("bronze").from("slack_reactions").upsert(
+      const { error } = await supabase.schema("bronze").from("slack_reactions").upsert(
         {
           channel_id: event.item.channel,
           message_ts: event.item.ts,
           user_id: event.user,
           reaction: event.reaction,
           occurred_at: new Date(parseFloat(event.event_ts) * 1000).toISOString(),
-          raw_data: event,
+          raw_payload: event,
         },
         {
           // Note: Supabase doesn't support composite unique constraints in upsert
@@ -150,13 +155,18 @@ async function processSlackEvent(event: any) {
         }
       );
 
+      if (error) {
+        console.error("Error upserting Slack reaction:", error);
+        return;
+      }
+
       console.log("Slack reaction upserted:", event.reaction);
 
       // Trigger Silver processing asynchronously
       triggerSlackProcessing(event.item.ts);
     } else if (eventType === "reaction_removed") {
       // DELETE reaction from Bronze layer
-      await supabase
+      const { error } = await supabase
         .schema("bronze")
         .from("slack_reactions")
         .delete()
@@ -164,6 +174,11 @@ async function processSlackEvent(event: any) {
         .eq("message_ts", event.item.ts)
         .eq("user_id", event.user)
         .eq("reaction", event.reaction);
+
+      if (error) {
+        console.error("Error removing Slack reaction:", error);
+        return;
+      }
 
       console.log("Slack reaction removed:", event.reaction);
 

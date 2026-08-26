@@ -1,9 +1,14 @@
+import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import ProcessOrphanedButton from "./ProcessOrphanedButton";
 import ProcessOrphanedMeetingsButton from "./ProcessOrphanedMeetingsButton";
 import { matchAttendeeToMember } from "@/lib/member-matching";
 import { detectDuplicates } from "@/lib/member-duplicates";
+
+export const metadata: Metadata = {
+  title: "Data Hygiene Dashboard",
+};
 
 export const dynamic = "force-dynamic";
 
@@ -24,7 +29,8 @@ export default async function DataHygienePage() {
     { data: oldUnmatchedEvents },
     { data: lastSync },
     { data: lastProcessing },
-    { data: lastSlackSync },
+    { data: lastSlackMessageSync },
+    { data: lastSlackReactionSync },
     { data: lastSlackProcessing },
     { data: lastKajabiSync },
     { data: lastKajabiProcessing },
@@ -76,9 +82,17 @@ export default async function DataHygienePage() {
       .order("created_at", { ascending: false })
       .limit(1)
       .single(),
-    // Last Slack sync (bronze import — webhook or bulk import, both set imported_at)
+    // Last Slack sync (bronze import — webhook or bulk import, both set imported_at).
+    // Checked across both tables since a sync can land only reactions or only
+    // messages depending on what happened in Slack during that window.
     supabase
       .schema('bronze').from("slack_messages")
+      .select("imported_at")
+      .order("imported_at", { ascending: false })
+      .limit(1)
+      .single(),
+    supabase
+      .schema('bronze').from("slack_reactions")
       .select("imported_at")
       .order("imported_at", { ascending: false })
       .limit(1)
@@ -295,6 +309,11 @@ export default async function DataHygienePage() {
       };
     }
   }
+
+  const lastSlackSyncAt = [lastSlackMessageSync?.imported_at, lastSlackReactionSync?.imported_at]
+    .filter((d): d is string => !!d)
+    .sort()
+    .pop();
 
   return (
     <div className="p-6">
@@ -617,8 +636,8 @@ export default async function DataHygienePage() {
             <div className="flex justify-between items-center">
               <span className="text-slate-600 dark:text-slate-400">Last Slack sync:</span>
               <span className="font-medium text-slate-900 dark:text-slate-100">
-                {lastSlackSync?.imported_at
-                  ? new Date(lastSlackSync.imported_at).toLocaleString()
+                {lastSlackSyncAt
+                  ? new Date(lastSlackSyncAt).toLocaleString()
                   : "Never"}
               </span>
             </div>
