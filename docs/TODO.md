@@ -34,6 +34,11 @@ Currently all inactive members are grouped together. Add granular status to dist
 - Could parse Tags for "Offboarding" + historical Products column
 - Consider using `member_hiatus_history` pattern to track `member_product_history`
 
+### Guest Attendance Tracking (Deferred)
+Some people who attend prickles have no Kajabi footprint at all (not a member, trial, or lead) — e.g. a guest brought by a member. Tracking them would mean creating member-like records for people who never appear in any Bronze source.
+
+**Why deferred:** Different problem from member status/matching — the whole pipeline assumes attendees resolve to a `members` row derived from Kajabi. Guests break that assumption and need their own identity/record model rather than a fix to existing matching logic.
+
 ---
 
 ## Data Import
