@@ -333,6 +333,18 @@ Show a `/live` page displaying the currently active prickle and its attendees in
   - Enable "local time" analysis (e.g., "most people write in evenings globally")
   - Show what local time members are attending from
 
+### "helpme" Hidden Debug Shortcut
+Add a hidden keyboard shortcut (typing "helpme", similar to Confluent Cloud's debug overlay) that pops up a small debug panel showing:
+- Environment name, git branch, and short commit SHA (same data already surfaced by `EnvironmentIndicator`/`EnvironmentInfo` in `components/EnvironmentIndicator.tsx` and `lib/config.ts`)
+- The full list of feature flags from `lib/config.ts`'s `features` object (`debugMode`, `analytics`, `showEnvironmentBadge`, `verboseErrors`, and any added later) with their current enabled/disabled state
+
+**Why a keystroke shortcut instead of always-visible UI:** Unlike `EnvironmentIndicator` (which is env-gated and only ever shows in non-production), this should work in production too, so admins/devs can check build/flag state on prod without needing a preview deployment — hence hiding it behind a deliberate keystroke sequence rather than always rendering it.
+
+**Implementation notes:**
+- Needs a small client component listening for the "helpme" keystroke sequence (buffer recent keydown events, reset on non-matching key, trigger on match)
+- Reuse `lib/config.ts`'s `deployment` (branch/commitSha) and `features` objects rather than duplicating that data
+- Since this is meant to work in production, it should not be gated behind `features.showEnvironmentBadge` the way `EnvironmentIndicator` is — consider restricting it to admin users only (auth check) since it may reveal internal build/config info
+
 ### General Improvements
 - Add favicon to the application
 
