@@ -3,6 +3,8 @@
 import { useState } from "react";
 import Link from "next/link";
 import BulkMergeMemberModal from "./BulkMergeMemberModal";
+import { SortableTh } from "@/components/SortableTh";
+import { useTableSort } from "@/lib/hooks/useTableSort";
 
 interface MemberRow {
   id: string;
@@ -51,9 +53,55 @@ function RiskBadge({ risk }: { risk: string }) {
   );
 }
 
+type SortColumn =
+  | "name"
+  | "email"
+  | "status"
+  | "last_attended_at"
+  | "prickles_last_30_days"
+  | "total_prickles"
+  | "engagement_score"
+  | "risk_level";
+
+const RISK_ORDER: Record<string, number> = { low: 0, medium: 1, high: 2 };
+
+function getSortValue(member: MemberRow, column: SortColumn): string | number {
+  switch (column) {
+    case "name":
+      return member.name.toLowerCase();
+    case "email":
+      return member.email.toLowerCase();
+    case "status":
+      return member.status;
+    case "last_attended_at":
+      // Members who never attended sort as oldest in both directions.
+      return member.member_metrics?.last_attended_at
+        ? new Date(member.member_metrics.last_attended_at).getTime()
+        : 0;
+    case "prickles_last_30_days":
+      return member.member_metrics?.prickles_last_30_days ?? 0;
+    case "total_prickles":
+      return member.member_metrics?.total_prickles ?? 0;
+    case "engagement_score":
+      return member.member_metrics?.engagement_score ?? 0;
+    case "risk_level":
+      return RISK_ORDER[member.member_engagement?.risk_level ?? "low"] ?? 0;
+  }
+}
+
 export default function MembersTable({ members }: MembersTableProps) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [mergeModalOpen, setMergeModalOpen] = useState(false);
+  const {
+    sortColumn,
+    sortDirection,
+    handleSort,
+    sortedRows: sortedMembers,
+  } = useTableSort<MemberRow, SortColumn>({
+    rows: members,
+    getSortValue,
+    defaultSort: null,
+  });
 
   const allSelected = members.length > 0 && selectedIds.size === members.length;
   const someSelected = selectedIds.size > 0 && selectedIds.size < members.length;
@@ -122,34 +170,58 @@ export default function MembersTable({ members }: MembersTableProps) {
                   aria-label="Select all"
                 />
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                Name
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                Email
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                Status
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                Last Attended
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                30 Days
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                Total
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                Engagement
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                Risk
-              </th>
+              <SortableTh
+                label="Name"
+                active={sortColumn === "name"}
+                direction={sortDirection}
+                onClick={() => handleSort("name")}
+              />
+              <SortableTh
+                label="Email"
+                active={sortColumn === "email"}
+                direction={sortDirection}
+                onClick={() => handleSort("email")}
+              />
+              <SortableTh
+                label="Status"
+                active={sortColumn === "status"}
+                direction={sortDirection}
+                onClick={() => handleSort("status")}
+              />
+              <SortableTh
+                label="Last Attended"
+                active={sortColumn === "last_attended_at"}
+                direction={sortDirection}
+                onClick={() => handleSort("last_attended_at")}
+              />
+              <SortableTh
+                label="30 Days"
+                active={sortColumn === "prickles_last_30_days"}
+                direction={sortDirection}
+                onClick={() => handleSort("prickles_last_30_days")}
+              />
+              <SortableTh
+                label="Total"
+                active={sortColumn === "total_prickles"}
+                direction={sortDirection}
+                onClick={() => handleSort("total_prickles")}
+              />
+              <SortableTh
+                label="Engagement"
+                active={sortColumn === "engagement_score"}
+                direction={sortDirection}
+                onClick={() => handleSort("engagement_score")}
+              />
+              <SortableTh
+                label="Risk"
+                active={sortColumn === "risk_level"}
+                direction={sortDirection}
+                onClick={() => handleSort("risk_level")}
+              />
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
-            {members.map((member) => (
+            {sortedMembers.map((member) => (
               <tr
                 key={member.id}
                 className={`hover:bg-slate-50 dark:hover:bg-slate-800 ${selectedIds.has(member.id) ? "bg-blue-50 dark:bg-blue-950/20" : ""}`}

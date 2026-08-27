@@ -3,6 +3,8 @@
 import { useState, useMemo } from "react";
 import Link from "next/link";
 import type { TypeStats } from "@/lib/scheduled-prickle-stats";
+import { SortableTh } from "@/components/SortableTh";
+import { useTableSort } from "@/lib/hooks/useTableSort";
 
 // ---------------------------------------------------------------------------
 // Sparkline
@@ -70,19 +72,14 @@ function buildRangeUrl(from?: string, to?: string): string {
 // Component
 // ---------------------------------------------------------------------------
 
-export default function PricklesTable({ rows, from, to }: Props) {
-  const [sortCol, setSortCol] = useState<SortColumn>("sessions");
-  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
-  const [filters, setFilters] = useState<Partial<Record<NumericColumn, string>>>({});
+function getSortValue(row: TypeStats, column: SortColumn): string | number {
+  if (column === "name") return row.typeName;
+  if (column === "lastSession") return row.lastSession;
+  return row[column];
+}
 
-  function handleSort(col: SortColumn) {
-    if (sortCol === col) {
-      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
-    } else {
-      setSortCol(col);
-      setSortDir(col === "name" || col === "lastSession" ? "asc" : "desc");
-    }
-  }
+export default function PricklesTable({ rows, from, to }: Props) {
+  const [filters, setFilters] = useState<Partial<Record<NumericColumn, string>>>({});
 
   const filtered = useMemo(() => {
     return rows.filter((row) => {
@@ -96,36 +93,18 @@ export default function PricklesTable({ rows, from, to }: Props) {
     });
   }, [rows, filters]);
 
-  const sorted = useMemo(() => {
-    return [...filtered].sort((a, b) => {
-      let cmp = 0;
-      if (sortCol === "name") {
-        cmp = a.typeName.localeCompare(b.typeName);
-      } else if (sortCol === "lastSession") {
-        cmp = a.lastSession.localeCompare(b.lastSession);
-      } else {
-        cmp = a[sortCol] - b[sortCol];
-      }
-      return sortDir === "asc" ? cmp : -cmp;
-    });
-  }, [filtered, sortCol, sortDir]);
+  const {
+    sortColumn,
+    sortDirection,
+    handleSort,
+    sortedRows: sorted,
+  } = useTableSort<TypeStats, SortColumn>({
+    rows: filtered,
+    getSortValue,
+    defaultSort: { column: "sessions", direction: "desc" },
+  });
 
   const hasFilters = Object.values(filters).some(Boolean);
-
-  function SortIcon({ col }: { col: SortColumn }) {
-    if (sortCol !== col) {
-      return <span className="ml-1 text-slate-300 dark:text-slate-600">↕</span>;
-    }
-    return (
-      <span className="ml-1 text-blue-500">
-        {sortDir === "asc" ? "↑" : "↓"}
-      </span>
-    );
-  }
-
-  function thClass(align: "left" | "right" = "left") {
-    return `px-6 py-3 text-${align} text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider cursor-pointer select-none hover:text-slate-700 dark:hover:text-slate-200`;
-  }
 
   function filterInput(col: NumericColumn) {
     return (
@@ -161,56 +140,63 @@ export default function PricklesTable({ rows, from, to }: Props) {
         <table className="w-full">
           <thead className="bg-slate-50 dark:bg-slate-800">
             <tr>
-              <th
-                className={thClass("left")}
+              <SortableTh
+                label="Name"
+                align="left"
+                active={sortColumn === "name"}
+                direction={sortDirection}
                 onClick={() => handleSort("name")}
-              >
-                Name <SortIcon col="name" />
-              </th>
-              <th
-                className={thClass("right")}
+              />
+              <SortableTh
+                label="Sessions"
+                align="right"
+                active={sortColumn === "sessions"}
+                direction={sortDirection}
                 onClick={() => handleSort("sessions")}
-              >
-                Sessions <SortIcon col="sessions" />
-                {filterInput("sessions")}
-              </th>
-              <th
-                className={thClass("right")}
+                filter={filterInput("sessions")}
+              />
+              <SortableTh
+                label="Min"
+                align="right"
+                active={sortColumn === "min"}
+                direction={sortDirection}
                 onClick={() => handleSort("min")}
-              >
-                Min <SortIcon col="min" />
-                {filterInput("min")}
-              </th>
-              <th
-                className={thClass("right")}
+                filter={filterInput("min")}
+              />
+              <SortableTh
+                label="Median"
+                align="right"
+                active={sortColumn === "median"}
+                direction={sortDirection}
                 onClick={() => handleSort("median")}
-              >
-                Median <SortIcon col="median" />
-                {filterInput("median")}
-              </th>
-              <th
-                className={thClass("right")}
+                filter={filterInput("median")}
+              />
+              <SortableTh
+                label="Mean"
+                align="right"
+                active={sortColumn === "mean"}
+                direction={sortDirection}
                 onClick={() => handleSort("mean")}
-              >
-                Mean <SortIcon col="mean" />
-                {filterInput("mean")}
-              </th>
-              <th
-                className={thClass("right")}
+                filter={filterInput("mean")}
+              />
+              <SortableTh
+                label="Max"
+                align="right"
+                active={sortColumn === "max"}
+                direction={sortDirection}
                 onClick={() => handleSort("max")}
-              >
-                Max <SortIcon col="max" />
-                {filterInput("max")}
-              </th>
+                filter={filterInput("max")}
+              />
               <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                 Trend
               </th>
-              <th
-                className={thClass("left")}
+              <SortableTh
+                label="Last Session"
+                align="left"
+                active={sortColumn === "lastSession"}
+                direction={sortDirection}
                 onClick={() => handleSort("lastSession")}
-              >
-                Last Session <SortIcon col="lastSession" />
-              </th>
+              />
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
