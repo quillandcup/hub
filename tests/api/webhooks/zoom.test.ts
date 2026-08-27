@@ -4,6 +4,21 @@ import { loadWebhookFixture } from '../../helpers/webhook-helpers'
 import { POST, GET } from '@/app/api/webhooks/zoom/route'
 import { createHmac } from 'crypto'
 
+// The route wraps its delayed fire-and-forget trigger in next/server's after()
+// so Vercel keeps the function alive until it finishes. Tests call the handler
+// directly (no real Next.js request scope), where after() throws "called
+// outside a request scope" — so run the callback the same way Vercel would
+// post-response. The callback's own setTimeout is still subject to fake timers.
+vi.mock('next/server', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('next/server')>()
+  return {
+    ...actual,
+    after: (callback: () => void | Promise<void>) => {
+      void callback()
+    },
+  }
+})
+
 // Mock trigger module — webhook calls triggerZoomImport() directly (no HTTP)
 vi.mock('@/lib/processing/trigger', () => ({
   triggerCalendarSync: vi.fn(() => Promise.resolve({ success: true })),

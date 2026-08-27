@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { triggerCalendarSync } from "@/lib/processing/trigger";
 
 // Webhook should respond quickly
@@ -71,10 +71,18 @@ export async function POST(request: NextRequest) {
     const toDate = new Date(now);
     toDate.setDate(toDate.getDate() + 90);
 
-    // Trigger calendar sync asynchronously (fire-and-forget)
-    triggerCalendarSync({ daysBack: 30, daysForward: 90 })
-      .then(() => console.log("Calendar sync triggered successfully"))
-      .catch((error) => console.error("Error triggering calendar sync:", error));
+    // Trigger calendar sync asynchronously, wrapped in after() so Vercel keeps
+    // the function instance alive until the sync completes, instead of tearing
+    // it down once the response is sent (see docs/TODO.md Bug Fixes for the
+    // 2-month Slack webhook data-loss incident this pattern is meant to avoid).
+    after(async () => {
+      try {
+        await triggerCalendarSync({ daysBack: 30, daysForward: 90 });
+        console.log("Calendar sync triggered successfully");
+      } catch (error) {
+        console.error("Error triggering calendar sync:", error);
+      }
+    });
 
     // Return 200 OK immediately (webhook expects fast response)
     return NextResponse.json({
