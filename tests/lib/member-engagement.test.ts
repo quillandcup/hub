@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest'
-import { computeMemberEngagementMetrics, type EngagementAttendanceRow } from '@/lib/member-engagement'
+import {
+  computeMemberEngagementMetrics,
+  type EngagementAttendanceRow,
+  type EngagementActivityRow,
+} from '@/lib/member-engagement'
 
 const NOW = new Date('2026-08-23T12:00:00Z')
 
@@ -15,6 +19,7 @@ describe('computeMemberEngagementMetrics', () => {
       lastAttendedAt: null,
       pricklesLast30Days: 0,
       totalPrickles: 0,
+      activityPointsLast30Days: 0,
       engagementScore: 0,
       riskLevel: 'high',
       engagementTier: 'at_risk',
@@ -156,5 +161,108 @@ describe('computeMemberEngagementMetrics', () => {
     expect(metrics.get('member-1')?.totalPrickles).toBe(1)
     expect(metrics.get('member-2')?.totalPrickles).toBe(2)
     expect(metrics.has('member-3')).toBe(false)
+  })
+
+  describe('activity points (Slack engagement, Phase 3 combined scoring)', () => {
+    it('gives a member with zero Prickles but recent Slack activity a nonzero score', () => {
+      // e.g. Amanda: rejoined and posted in Slack this week, hasn't attended a
+      // Prickle yet — engagementScore should reflect the Slack signal, not be 0.
+      const activities: EngagementActivityRow[] = [
+        { member_id: 'member-1', engagement_value: 3, occurred_at: daysAgo(5) },
+      ]
+      const metrics = computeMemberEngagementMetrics([], ['member-1'], NOW, activities)
+
+      expect(metrics.get('member-1')?.activityPointsLast30Days).toBe(3)
+      expect(metrics.get('member-1')?.engagementScore).toBe(3)
+    })
+
+    it('is not enough on its own for a single light-touch Slack message to leave at_risk', () => {
+      // One message (worth 1-3 pts per calculateMessageValue) is a much weaker
+      // signal than one Prickle (10 pts) — it shouldn't alone flip the tier.
+      const activities: EngagementActivityRow[] = [
+        { member_id: 'member-1', engagement_value: 3, occurred_at: daysAgo(5) },
+      ]
+      const metrics = computeMemberEngagementMetrics([], ['member-1'], NOW, activities)
+
+      expect(metrics.get('member-1')?.engagementTier).toBe('at_risk')
+    })
+
+    it('moves a member to "active" once sustained Slack activity reaches a Prickle-equivalent (10 pts)', () => {
+      const activities: EngagementActivityRow[] = [
+        { member_id: 'member-1', engagement_value: 5, occurred_at: daysAgo(10) },
+        { member_id: 'member-1', engagement_value: 6, occurred_at: daysAgo(2) },
+      ]
+      const metrics = computeMemberEngagementMetrics([], ['member-1'], NOW, activities)
+
+      expect(metrics.get('member-1')?.engagementScore).toBe(11)
+      expect(metrics.get('member-1')?.engagementTier).toBe('active')
+    })
+
+    it('ignores activity older than 30 days', () => {
+      const activities: EngagementActivityRow[] = [
+        { member_id: 'member-1', engagement_value: 5, occurred_at: daysAgo(45) },
+      ]
+      const metrics = computeMemberEngagementMetrics([], ['member-1'], NOW, activities)
+
+      expect(metrics.get('member-1')?.activityPointsLast30Days).toBe(0)
+      expect(metrics.get('member-1')?.engagementScore).toBe(0)
+    })
+
+    it('sums engagement_value across multiple activities for the same member', () => {
+      const activities: EngagementActivityRow[] = [
+        { member_id: 'member-1', engagement_value: 3, occurred_at: daysAgo(10) },
+        { member_id: 'member-1', engagement_value: 1, occurred_at: daysAgo(2) },
+      ]
+      const metrics = computeMemberEngagementMetrics([], ['member-1'], NOW, activities)
+
+      expect(metrics.get('member-1')?.activityPointsLast30Days).toBe(4)
+      expect(metrics.get('member-1')?.engagementScore).toBe(4)
+    })
+
+    it('adds activity points on top of the Prickle-based score', () => {
+      const attendance: EngagementAttendanceRow[] = [
+        { member_id: 'member-1', prickle_id: 'p1', join_time: daysAgo(1) },
+      ]
+      const activities: EngagementActivityRow[] = [
+        { member_id: 'member-1', engagement_value: 3, occurred_at: daysAgo(1) },
+      ]
+      const metrics = computeMemberEngagementMetrics(attendance, ['member-1'], NOW, activities)
+
+      expect(metrics.get('member-1')?.engagementScore).toBe(13) // 10 (1 prickle) + 3 (Slack)
+    })
+
+    it('still caps the combined score at 100', () => {
+      const attendance: EngagementAttendanceRow[] = Array.from({ length: 10 }, (_, i) => ({
+        member_id: 'member-1',
+        prickle_id: `prickle-${i}`,
+        join_time: daysAgo(1),
+      }))
+      const activities: EngagementActivityRow[] = [
+        { member_id: 'member-1', engagement_value: 50, occurred_at: daysAgo(1) },
+      ]
+      const metrics = computeMemberEngagementMetrics(attendance, ['member-1'], NOW, activities)
+
+      expect(metrics.get('member-1')?.engagementScore).toBe(100)
+    })
+
+    it('does not let Slack-only activity change riskLevel (Prickle-recency based; Phase 4, not this scope)', () => {
+      const activities: EngagementActivityRow[] = [
+        { member_id: 'member-1', engagement_value: 10, occurred_at: daysAgo(1) },
+      ]
+      const metrics = computeMemberEngagementMetrics([], ['member-1'], NOW, activities)
+
+      expect(metrics.get('member-1')?.riskLevel).toBe('high')
+    })
+
+    it('keeps activity points isolated per member', () => {
+      const activities: EngagementActivityRow[] = [
+        { member_id: 'member-1', engagement_value: 5, occurred_at: daysAgo(1) },
+        { member_id: 'member-2', engagement_value: 2, occurred_at: daysAgo(1) },
+      ]
+      const metrics = computeMemberEngagementMetrics([], ['member-1', 'member-2'], NOW, activities)
+
+      expect(metrics.get('member-1')?.activityPointsLast30Days).toBe(5)
+      expect(metrics.get('member-2')?.activityPointsLast30Days).toBe(2)
+    })
   })
 })

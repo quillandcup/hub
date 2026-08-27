@@ -450,7 +450,7 @@ Query: `SELECT * FROM bronze.kajabi_purchases WHERE effective_start_at - created
 - [x] Tests (reprocessability, idempotency, matching) - All 9 tests passing
 - [x] Initial export and import (484 users, 26 channels, 485 messages, 4726 reactions → 111 activities)
 - [ ] Data hygiene UI (unmatched users matching interface)
-- [ ] Dashboard updates (member profiles show Slack activity, engagement scoring)
+- [x] Dashboard updates (member profiles show Slack activity, engagement scoring)
 
 ### Payment Failure Notifications
 On payment failure, send a Slack DM to the member to prompt them to update their payment method.

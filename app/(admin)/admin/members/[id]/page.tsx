@@ -11,6 +11,7 @@ import { fetchMembershipHistory } from "@/lib/kajabi/membership-history";
 import {
   computeMemberEngagementMetrics,
   type EngagementAttendanceRow,
+  type EngagementActivityRow,
 } from "@/lib/member-engagement";
 
 const getMemberRow = cache(async (id: string) => {
@@ -82,7 +83,19 @@ export default async function MemberDetailPage({
       join_time: a.join_time,
     };
   });
-  const metrics = computeMemberEngagementMetrics(attendanceForMetrics, [id]).get(id) ?? null;
+  // Slack (and future) activity feeds the engagement score's activity
+  // component — only the last 30 days are ever used, so scope the query.
+  const now = new Date();
+  const thirtyDaysAgoIso = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
+  const { data: recentActivities } = await supabase
+    .from("member_activities")
+    .select("member_id, engagement_value, occurred_at")
+    .eq("member_id", id)
+    .gte("occurred_at", thirtyDaysAgoIso);
+  const activitiesForMetrics: EngagementActivityRow[] = recentActivities ?? [];
+
+  const metrics =
+    computeMemberEngagementMetrics(attendanceForMetrics, [id], now, activitiesForMetrics).get(id) ?? null;
   const member = {
     ...memberRow,
     member_metrics: metrics

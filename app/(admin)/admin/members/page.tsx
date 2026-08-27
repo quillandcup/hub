@@ -7,6 +7,7 @@ import MembersTable from "./MembersTable";
 import {
   computeMemberEngagementMetrics,
   type EngagementAttendanceRow,
+  type EngagementActivityRow,
 } from "@/lib/member-engagement";
 
 export const metadata: Metadata = {
@@ -32,6 +33,39 @@ async function fetchAllAttendance(
       .from("prickle_attendance")
       .select("member_id, prickle_id, join_time")
       .order("join_time", { ascending: true })
+      .range(offset, offset + BATCH - 1);
+
+    if (error) throw error;
+    if (data && data.length > 0) {
+      rows.push(...data);
+      offset += data.length;
+      hasMore = data.length === BATCH;
+    } else {
+      hasMore = false;
+    }
+  }
+
+  return rows;
+}
+
+// member_activities (Slack messages/reactions today) feeds the engagement
+// score's activity component — only the last 30 days are ever used, so scope
+// the query instead of paginating full history.
+async function fetchRecentActivities(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  sinceIso: string
+): Promise<EngagementActivityRow[]> {
+  const BATCH = 1000;
+  const rows: EngagementActivityRow[] = [];
+  let offset = 0;
+  let hasMore = true;
+
+  while (hasMore) {
+    const { data, error } = await supabase
+      .from("member_activities")
+      .select("member_id, engagement_value, occurred_at")
+      .gte("occurred_at", sinceIso)
+      .order("occurred_at", { ascending: true })
       .range(offset, offset + BATCH - 1);
 
     if (error) throw error;
@@ -82,8 +116,13 @@ export default async function MembersPage({
   // per member, per CLAUDE.md) rather than relying on the static member_metrics /
   // member_engagement seed tables.
   const memberIds = (allMembers ?? []).map((m) => m.id);
-  const attendance = await fetchAllAttendance(supabase);
-  const metricsByMemberId = computeMemberEngagementMetrics(attendance, memberIds);
+  const now = new Date();
+  const thirtyDaysAgoIso = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
+  const [attendance, activities] = await Promise.all([
+    fetchAllAttendance(supabase),
+    fetchRecentActivities(supabase, thirtyDaysAgoIso),
+  ]);
+  const metricsByMemberId = computeMemberEngagementMetrics(attendance, memberIds, now, activities);
 
   const membersWithMetrics = (allMembers ?? []).map((m) => {
     const metrics = metricsByMemberId.get(m.id) ?? null;
