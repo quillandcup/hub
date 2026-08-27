@@ -2,37 +2,31 @@
 
 ## Member Status Refinements
 
-### Fix Hiatus Tracking - TRUST ISSUE
-**Problem:** Hiatus detection doesn't match manual spreadsheet. At-risk members may include people on known hiatus.
+### Fix Hiatus Tracking - Automatic Detection From Kajabi Tags
+**Resolved (partially):** `on_hiatus` used to be effectively non-functional — nothing in
+the automated pipeline ever set it, and even a manually-set value got silently
+overwritten within 24h by the nightly Kajabi sync. Fixed by wiring the existing
+`member_status_overrides` table (previously built but never used) into
+`reprocess_members_atomic`: an admin can now set someone `on_hiatus` via
+`/admin/member-overrides` and it will actually stick across reprocessing runs.
 
-**Current Status Detection Logic:**
-- Active: has "Quill & Cup Membership" product
-- On Hiatus: has "Quill & Cup Member" tag but no product AND no "Offboarding" tag
-- Inactive: has "Offboarding" tag OR neither product nor member tag
-
-**Root Cause:** Missing or inconsistent source data from Kajabi
-- Offboarding tags not consistently applied in Kajabi
-- Manual hiatus spreadsheet may be more accurate than Kajabi tags
-- ~21 members identified as needing Offboarding tag (hiatus ended, didn't resubscribe)
-
-**Action Required:**
-1. Audit Kajabi tagging - ensure SOPs are followed
-2. Compare Kajabi export vs manual hiatus spreadsheet
-3. Determine source of truth (Kajabi or spreadsheet?)
-4. Either: Fix Kajabi tags OR import hiatus data from spreadsheet
-5. Re-import and verify on_hiatus count matches expectations
+**Still open:** there's no *automatic* hiatus detection from Kajabi tags/spreadsheet —
+hiatus is admin-set only, via the overrides UI. If Kajabi tagging (e.g. "Quill & Cup
+Member" + "Offboarding") is reliable enough to trust, a future pass could compute
+`on_hiatus` automatically instead of requiring a manual override per member.
 
 ### Enhanced Inactive Member Classification
-Currently all inactive members are grouped together. Add granular status to distinguish:
-- **Former Member** - Had "Quill & Cup Membership" product in the past but cancelled
-- **Former Trial** - Had trial access but didn't convert to paid membership
-- **Lead** - Never had any product (webinar attendee, waitlist, etc.)
-- **Former BFF** - Completed BFF program but didn't continue with membership
+**Resolved:** `members.status` is now `lead | active | on_hiatus | cancelled` (was a
+flat `active | inactive | on_hiatus`, with `inactive` conflating everyone who wasn't
+currently paying). See `app/api/process/members/route.ts` classification logic:
+- **Lead** — never purchased anything, or only ever had a trial that lapsed before
+  converting (`has_trialed=true` in that case, for "abandoned cart" style outreach)
+- **Cancelled** — had a real (non-trial) subscription that's no longer active
+- `is_trial` — true while `status=active` and currently within a trial window
 
-**Implementation Notes:**
-- May require historical product data or membership history tracking
-- Could parse Tags for "Offboarding" + historical Products column
-- Consider using `member_hiatus_history` pattern to track `member_product_history`
+**Still open:** "Former BFF" (or other single-product-specific former-member labels)
+isn't distinguished — that needs the `member_products` junction table already planned
+under Kajabi Data Expansion below, not a `status` value.
 
 ### Guest Attendance Tracking (Deferred)
 Some people who attend prickles have no Kajabi footprint at all (not a member, trial, or lead) — e.g. a guest brought by a member. Tracking them would mean creating member-like records for people who never appear in any Bronze source.

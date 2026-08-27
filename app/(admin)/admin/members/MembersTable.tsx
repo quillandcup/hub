@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import BulkMergeMemberModal from "./BulkMergeMemberModal";
 import { SortableTh } from "@/components/SortableTh";
+import { MemberStatusBadge } from "@/components/MemberStatusBadge";
 import { useTableSort } from "@/lib/hooks/useTableSort";
 
 interface MemberRow {
@@ -27,18 +28,6 @@ interface MembersTableProps {
   members: MemberRow[];
 }
 
-function StatusBadge({ status }: { status: string }) {
-  const colors: Record<string, string> = {
-    active: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300",
-    inactive: "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300",
-    on_hiatus: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300",
-  };
-  return (
-    <span className={`px-2 py-1 text-xs font-medium rounded-full ${colors[status] ?? colors.inactive}`}>
-      {status.replace("_", " ")}
-    </span>
-  );
-}
 
 function RiskBadge({ risk }: { risk: string }) {
   const colors: Record<string, string> = {
@@ -247,7 +236,7 @@ export default function MembersTable({ members }: MembersTableProps) {
                   <div className="text-sm text-slate-500 dark:text-slate-400">{member.email}</div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
-                  <StatusBadge status={member.status} />
+                  <MemberStatusBadge status={member.status} />
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400">
                   {member.member_metrics?.last_attended_at

@@ -9,6 +9,8 @@ type FilterCounts = {
   at_risk: number;
   highly_engaged: number;
   on_hiatus: number;
+  lead: number;
+  cancelled: number;
   unregistered: number;
 };
 
@@ -30,6 +32,8 @@ export default function MemberFilters({
     { value: "at_risk", label: "At Risk" },
     { value: "highly_engaged", label: "Highly Engaged" },
     { value: "on_hiatus", label: "On Hiatus" },
+    { value: "lead", label: "Leads" },
+    { value: "cancelled", label: "Cancelled" },
     { value: "unregistered", label: "Active, Unregistered" },
   ];
 

@@ -14,7 +14,9 @@ import { getTestSupabaseAdminClient, getTestAuthHeaders } from '../../helpers/su
  *
  * NOTE: The API reads from bronze.kajabi_contacts (not the legacy
  * bronze.kajabi_members table). Members without active purchases are
- * created as 'inactive'.
+ * created as 'lead' (never purchased) or 'cancelled' (had a real
+ * subscription that's no longer active) — see the classification tests
+ * below for the lead/cancelled/trial split.
  */
 describe('Members Reprocessability', () => {
   const supabase = getTestSupabaseAdminClient()
@@ -104,8 +106,8 @@ describe('Members Reprocessability', () => {
     expect(members).toHaveLength(2)
     expect(members?.map(m => m.email)).toContain(testEmail1)
     expect(members?.map(m => m.email)).toContain(testEmail2)
-    // Without active purchases, members are inactive
-    expect(members?.every(m => m.status === 'inactive')).toBe(true)
+    // Without any purchase history, members are leads
+    expect(members?.every(m => m.status === 'lead')).toBe(true)
   })
 
   it('should add new members and update existing ones when reprocessing', async () => {
@@ -224,5 +226,145 @@ describe('Members Reprocessability', () => {
 
     expect(after).toBeTruthy()
     expect(after!.id).toBe(originalId)
+  })
+})
+
+/**
+ * Status classification: lead / active / cancelled, plus is_trial / has_trialed.
+ *
+ * A "real" subscription offer (subscription===true, no trial) counts toward
+ * 'cancelled' once its purchase is deactivated. A trial-enabled subscription
+ * offer only counts once its purchase survives past the trial window before
+ * deactivating — cancelling *during* the trial leaves the contact a 'lead'
+ * (never converted), with has_trialed=true marking that they tried it once.
+ */
+describe('Members Status Classification', () => {
+  const supabase = getTestSupabaseAdminClient()
+  const ts = Date.now()
+
+  const realOfferId = `test-offer-real-${ts}`
+  const trialOfferId = `test-offer-trial-${ts}`
+
+  const emailCancelled = `classify-cancelled-${ts}@example.com`
+  const emailLeadFromTrial = `classify-lead-trial-${ts}@example.com`
+  const emailActiveTrial = `classify-active-trial-${ts}@example.com`
+  const emailConverts = `classify-converts-${ts}@example.com`
+
+  const daysAgo = (n: number) => new Date(Date.now() - n * 24 * 60 * 60 * 1000).toISOString()
+
+  beforeAll(async () => {
+    await supabase.schema('bronze').from('kajabi_offers').upsert([
+      { kajabi_offer_id: realOfferId, name: 'Quill & Cup Membership', trial_period_days: 0, data: { attributes: { subscription: true } } },
+      { kajabi_offer_id: trialOfferId, name: 'Quill & Cup Membership (Trial)', trial_period_days: 14, data: { attributes: { subscription: true } } },
+    ], { onConflict: 'kajabi_offer_id' })
+
+    await supabase.schema('bronze').from('kajabi_contacts').insert([
+      { kajabi_contact_id: `test-contact-cancelled-${ts}`, email: emailCancelled, name: 'Classify Cancelled', created_at_kajabi: daysAgo(400), data: {} },
+      { kajabi_contact_id: `test-contact-lead-trial-${ts}`, email: emailLeadFromTrial, name: 'Classify Lead From Trial', created_at_kajabi: daysAgo(400), data: {} },
+      { kajabi_contact_id: `test-contact-active-trial-${ts}`, email: emailActiveTrial, name: 'Classify Active Trial', created_at_kajabi: daysAgo(5), data: {} },
+      { kajabi_contact_id: `test-contact-converts-${ts}`, email: emailConverts, name: 'Classify Converts', created_at_kajabi: daysAgo(400), data: {} },
+    ])
+
+    await supabase.schema('bronze').from('kajabi_customers').insert([
+      { kajabi_customer_id: `test-cust-cancelled-${ts}`, email: emailCancelled, data: {} },
+      { kajabi_customer_id: `test-cust-lead-trial-${ts}`, email: emailLeadFromTrial, data: {} },
+      { kajabi_customer_id: `test-cust-active-trial-${ts}`, email: emailActiveTrial, data: {} },
+      { kajabi_customer_id: `test-cust-converts-${ts}`, email: emailConverts, data: {} },
+    ])
+
+    await supabase.schema('bronze').from('kajabi_purchases').insert([
+      // Real subscription, cancelled after being billed for a while -> cancelled
+      {
+        kajabi_purchase_id: `test-purchase-cancelled-${ts}`,
+        kajabi_customer_id: `test-cust-cancelled-${ts}`,
+        kajabi_offer_id: realOfferId,
+        status: 'inactive',
+        effective_start_at: daysAgo(200),
+        deactivated_at: daysAgo(30),
+      },
+      // Trial-enabled offer, cancelled DURING the 14-day trial window -> never converted
+      {
+        kajabi_purchase_id: `test-purchase-lead-trial-${ts}`,
+        kajabi_customer_id: `test-cust-lead-trial-${ts}`,
+        kajabi_offer_id: trialOfferId,
+        status: 'inactive',
+        effective_start_at: daysAgo(30),
+        deactivated_at: daysAgo(25), // 5 days into a 14-day trial
+      },
+      // Trial-enabled offer, still active and within the trial window -> currently trialing
+      {
+        kajabi_purchase_id: `test-purchase-active-trial-${ts}`,
+        kajabi_customer_id: `test-cust-active-trial-${ts}`,
+        kajabi_offer_id: trialOfferId,
+        status: 'active',
+        effective_start_at: daysAgo(5),
+        deactivated_at: null,
+      },
+      // Trial-enabled offer, still active but trial window has elapsed -> converted
+      {
+        kajabi_purchase_id: `test-purchase-converts-${ts}`,
+        kajabi_customer_id: `test-cust-converts-${ts}`,
+        kajabi_offer_id: trialOfferId,
+        status: 'active',
+        effective_start_at: daysAgo(30), // 14-day trial ended 16 days ago
+        deactivated_at: null,
+      },
+    ].map(p => ({ ...p, data: {} })))
+  })
+
+  afterAll(async () => {
+    await supabase.schema('bronze').from('kajabi_purchases').delete().ilike('kajabi_purchase_id', `test-purchase-%-${ts}`)
+    await supabase.schema('bronze').from('kajabi_customers').delete().ilike('kajabi_customer_id', `test-cust-%-${ts}`)
+    await supabase.schema('bronze').from('kajabi_contacts').delete().ilike('kajabi_contact_id', `test-contact-%-${ts}`)
+    await supabase.schema('bronze').from('kajabi_offers').delete().in('kajabi_offer_id', [realOfferId, trialOfferId])
+    await supabase.from('members').delete().in('email', [emailCancelled, emailLeadFromTrial, emailActiveTrial, emailConverts])
+  })
+
+  async function reprocess() {
+    const response = await fetch('http://localhost:3000/api/process/members', {
+      method: 'POST',
+      headers: getTestAuthHeaders(),
+    })
+    if (!response.ok) {
+      throw new Error(`API call failed: ${response.status} - ${await response.text()}`)
+    }
+    return response.json()
+  }
+
+  async function fetchMember(email: string) {
+    const { data } = await supabase.from('members').select('*').eq('email', email).single()
+    return data
+  }
+
+  it('classifies a real subscription cancelled after billing as cancelled', async () => {
+    await reprocess()
+    const member = await fetchMember(emailCancelled)
+    expect(member?.status).toBe('cancelled')
+    expect(member?.is_trial).toBe(false)
+    expect(member?.has_trialed).toBe(false)
+  })
+
+  it('classifies a trial cancelled before converting as lead, with has_trialed=true', async () => {
+    await reprocess()
+    const member = await fetchMember(emailLeadFromTrial)
+    expect(member?.status).toBe('lead')
+    expect(member?.is_trial).toBe(false)
+    expect(member?.has_trialed).toBe(true)
+  })
+
+  it('marks a currently active trial as active with is_trial=true', async () => {
+    await reprocess()
+    const member = await fetchMember(emailActiveTrial)
+    expect(member?.status).toBe('active')
+    expect(member?.is_trial).toBe(true)
+    expect(member?.has_trialed).toBe(true)
+  })
+
+  it('flips is_trial=false once an active trial purchase survives past its trial window, keeping has_trialed=true', async () => {
+    await reprocess()
+    const member = await fetchMember(emailConverts)
+    expect(member?.status).toBe('active')
+    expect(member?.is_trial).toBe(false)
+    expect(member?.has_trialed).toBe(true)
   })
 })

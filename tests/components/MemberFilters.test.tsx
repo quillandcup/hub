@@ -17,6 +17,8 @@ const counts = {
   at_risk: 5,
   highly_engaged: 8,
   on_hiatus: 2,
+  lead: 3,
+  cancelled: 4,
   unregistered: 1,
 }
 

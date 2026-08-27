@@ -17,8 +17,9 @@ export default async function DashboardPage() {
 
   const activeMembers = memberStats?.filter(m => m.status === "active").length || 0;
   const onHiatus = memberStats?.filter(m => m.status === "on_hiatus").length || 0;
-  const inactive = memberStats?.filter(m => m.status === "inactive").length || 0;
-  const totalMembers = activeMembers + onHiatus; // Exclude inactive (cancelled members)
+  const leads = memberStats?.filter(m => m.status === "lead").length || 0;
+  const cancelled = memberStats?.filter(m => m.status === "cancelled").length || 0;
+  const totalMembers = activeMembers + onHiatus; // Exclude leads and cancelled (never-converted / former members)
 
   const now = new Date();
   const thirtyDaysAgo = new Date();

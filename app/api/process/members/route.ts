@@ -27,6 +27,16 @@ function toSocialUrl(base: string, handle: string | null | undefined): string | 
   return `${base}/${clean}`
 }
 
+// The end of a purchase's trial window, or null if the offer has no trial
+// (or the purchase is missing the start date needed to compute it).
+function trialEndDate(purchase: any, offer: any): Date | null {
+  const trialDays = offer?.trial_period_days ?? 0;
+  if (trialDays <= 0 || !purchase.effective_start_at) return null;
+  const end = new Date(purchase.effective_start_at);
+  end.setDate(end.getDate() + trialDays);
+  return end;
+}
+
 // Extend timeout — member processing itself is fast (~10s), but we kick off
 // background attendance reprocessing via after() which needs the remainder.
 export const maxDuration = 300;
@@ -178,15 +188,24 @@ export async function POST(request: NextRequest) {
           return offer?.data?.attributes?.subscription === true;
         });
 
-        // Determine if this is a trial user
+        // has_trialed: permanent marker, true if ANY purchase (past or current) was
+        // ever against a trial-enabled offer. Kept even after the trial lapses so
+        // "cold lead" can be distinguished from "warm lead who already tried it"
+        // for outreach (e.g. abandoned-cart style messaging), without re-deriving
+        // it from purchase history each time.
+        const hasTrialed = contactPurchases.some(p => (offerMap.get(p.kajabi_offer_id)?.trial_period_days ?? 0) > 0);
+
         let isTrial = false;
         let plan: string | null = null;
 
         if (activePurchase) {
           const offer = offerMap.get(activePurchase.kajabi_offer_id);
           if (offer) {
-            // Trial detection: offer has trial_period_days > 0
-            isTrial = (offer.trial_period_days && offer.trial_period_days > 0) || false;
+            // Currently trialing = the offer has a trial AND it hasn't elapsed yet.
+            // A converted former trial keeps the same purchase record, so
+            // trial_period_days alone (regardless of elapsed time) isn't enough.
+            const trialEnd = trialEndDate(activePurchase, offer);
+            isTrial = trialEnd !== null && trialEnd > new Date();
 
             // Determine plan from offer name
             const offerName = offer.name || '';
@@ -198,16 +217,26 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        // Determine member status
-        let status: "active" | "inactive" | "on_hiatus";
+        // Determine member status.
+        // Once a purchase survives past its trial window (or never had one), it
+        // counts as a real subscription — cancelling after that always means
+        // "cancelled", never falls back to "lead". A purchase cancelled *during*
+        // its trial window never converted, so it doesn't count toward
+        // "cancelled" — that person is still a "lead" (has_trialed distinguishes
+        // them from someone who never engaged at all).
+        let status: "lead" | "active" | "on_hiatus" | "cancelled";
         if (activePurchase) {
           status = "active";
-        } else if (contactPurchases.length > 0) {
-          // Had purchases but none active subscription = canceled
-          status = "inactive";
         } else {
-          // Never purchased (leads, trial prospects) = inactive
-          status = "inactive";
+          const hadRealSubscription = contactPurchases.some(p => {
+            const offer = offerMap.get(p.kajabi_offer_id);
+            if (offer?.data?.attributes?.subscription !== true) return false;
+            const trialEnd = trialEndDate(p, offer);
+            if (!trialEnd) return true; // no trial at all — billed from day one
+            if (!p.deactivated_at) return true; // can't tell when it ended; assume real rather than misclassify a former member as a lead
+            return new Date(p.deactivated_at) > trialEnd; // survived past the trial window = was actually billed
+          });
+          status = hadRealSubscription ? "cancelled" : "lead";
         }
 
         // Skip if missing required fields
@@ -231,6 +260,8 @@ export async function POST(request: NextRequest) {
           name,
           joined_at: contact.created_at_kajabi.split('T')[0],
           status,
+          is_trial: isTrial,
+          has_trialed: hasTrialed,
           plan,
           source: 'kajabi',
           staff_role: null,
@@ -242,7 +273,6 @@ export async function POST(request: NextRequest) {
           instagram_url: toSocialUrl("https://instagram.com", attrs?.socials?.instagram),
           facebook_url: toSocialUrl("https://facebook.com", attrs?.socials?.facebook),
           twitter_url: toSocialUrl("https://x.com", attrs?.socials?.twitter),
-          _metadata: { isTrial }
         });
       }
     }
@@ -267,6 +297,7 @@ export async function POST(request: NextRequest) {
         member.staff_role = staff.role;
         member.user_id = staff.user_id;
         member.status = 'active'; // Staff are always active
+        member.is_trial = false; // Staff access isn't a Kajabi trial regardless of purchase state
         // Use staff hire date if earlier than Kajabi joined_at
         if (staff.hire_date && staff.hire_date < member.joined_at) {
           member.joined_at = staff.hire_date;
@@ -298,6 +329,8 @@ export async function POST(request: NextRequest) {
         name: staff.name,
         joined_at: staff.hire_date || '2020-01-01',
         status: 'active' as const,
+        is_trial: false,
+        has_trialed: false,
         plan: null,
         source: 'staff',
         staff_role: staff.role,
@@ -309,7 +342,6 @@ export async function POST(request: NextRequest) {
         instagram_url: null,
         facebook_url: null,
         twitter_url: null,
-        _metadata: { isTrial: false }
       });
     }
 
@@ -353,13 +385,17 @@ export async function POST(request: NextRequest) {
       }
     });
 
+    // Note: on_hiatus is always 0 here — hiatus/gift overrides are applied inside
+    // reprocess_members_atomic (from member_status_overrides) after this snapshot
+    // is taken, so this breakdown reflects pre-override Kajabi-derived status only.
     return NextResponse.json({
       success: true,
       processed: allMembers.length,
       statusBreakdown: {
         active: allMembers.filter((m) => m.status === "active").length,
         on_hiatus: allMembers.filter((m) => m.status === "on_hiatus").length,
-        inactive: allMembers.filter((m) => m.status === "inactive").length,
+        cancelled: allMembers.filter((m) => m.status === "cancelled").length,
+        lead: allMembers.filter((m) => m.status === "lead").length,
       },
     });
   } catch (error: any) {

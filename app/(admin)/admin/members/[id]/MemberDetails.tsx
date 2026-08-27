@@ -2,6 +2,7 @@
 
 import { Fragment, useState } from "react";
 import MemberAttendanceView from "@/components/MemberAttendanceView";
+import { MemberStatusBadge } from "@/components/MemberStatusBadge";
 import { slackEmojiToUnicode, formatSlackPermalink } from "@/lib/slack-emoji";
 import { gapLabelsByStintStart } from "@/lib/resubscription-detection";
 
@@ -73,9 +74,9 @@ export default function MemberDetails({ member, attendanceRecords, hiatusHistory
         <div className="bg-white dark:bg-slate-900 rounded-lg shadow p-6">
           <h3 className="text-sm font-medium text-slate-600 dark:text-slate-400">Status</h3>
           <p className="mt-2">
-            <StatusBadge status={member.status} />
+            <MemberStatusBadge status={member.status} />
           </p>
-          {member.status === "inactive" && (() => {
+          {member.status === "cancelled" && (() => {
             const lastMembership = membershipHistory.find(p => p.derived_end_at != null);
             if (!lastMembership) return null;
             const startDate = new Date(lastMembership.created_at_kajabi);
@@ -604,19 +605,6 @@ export default function MemberDetails({ member, attendanceRecords, hiatusHistory
   );
 }
 
-function StatusBadge({ status }: { status: string }) {
-  const colors = {
-    active: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300",
-    inactive: "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300",
-    on_hiatus: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300",
-  };
-
-  return (
-    <span className={`px-2 py-1 text-xs font-medium rounded-full ${colors[status as keyof typeof colors] || colors.active}`}>
-      {status.replace("_", " ")}
-    </span>
-  );
-}
 
 function RiskBadge({ risk }: { risk: string }) {
   const colors = {

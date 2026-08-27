@@ -187,7 +187,7 @@ describe('Member Email Change', () => {
       kajabi_id: staleKajabiId,
       name: 'Stale Dup Member',
       joined_at: '2023-01-01',
-      status: 'inactive',
+      status: 'cancelled',
       source: 'kajabi',
     }).select('id').single()
 
@@ -197,7 +197,7 @@ describe('Member Email Change', () => {
       kajabi_id: staleKajabiId,
       name: 'Stale Dup Member',
       joined_at: '2023-01-01',
-      status: 'inactive',
+      status: 'cancelled',
       source: 'kajabi',
     }).select('id').single()
 

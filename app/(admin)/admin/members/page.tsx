@@ -153,6 +153,8 @@ export default async function MembersPage({
     at_risk: membersWithMetrics.filter((m) => m.member_engagement?.risk_level === "high").length,
     highly_engaged: membersWithMetrics.filter((m) => m.member_engagement?.engagement_tier === "highly_engaged").length,
     on_hiatus: membersWithMetrics.filter((m) => m.status === "on_hiatus").length,
+    lead: membersWithMetrics.filter((m) => m.status === "lead").length,
+    cancelled: membersWithMetrics.filter((m) => m.status === "cancelled").length,
     unregistered: membersWithMetrics.filter((m) => m.status === "active" && m.user_id === null).length,
   };
 
@@ -163,6 +165,10 @@ export default async function MembersPage({
     members = membersWithMetrics.filter((m) => m.status === "active");
   } else if (filter === "on_hiatus") {
     members = membersWithMetrics.filter((m) => m.status === "on_hiatus");
+  } else if (filter === "lead") {
+    members = membersWithMetrics.filter((m) => m.status === "lead");
+  } else if (filter === "cancelled") {
+    members = membersWithMetrics.filter((m) => m.status === "cancelled");
   } else if (filter === "unregistered") {
     members = membersWithMetrics.filter((m) => m.status === "active" && m.user_id === null);
   } else if (filter === "at_risk") {

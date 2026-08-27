@@ -40,7 +40,7 @@ describe('Staff Member Status', () => {
   })
 
   it('staff member with Kajabi contact but no active purchase is active', async () => {
-    // ARRANGE: Kajabi contact (no purchase → would normally be inactive) + staff entry
+    // ARRANGE: Kajabi contact (no purchase → would normally be a lead) + staff entry
     await supabase.schema('bronze').from('kajabi_contacts').insert({
       kajabi_contact_id: `staff-kajabi-${ts}`,
       email: staffWithKajabiEmail,
@@ -95,7 +95,7 @@ describe('Staff Member Status', () => {
     expect(member?.name).toBe('Staff Only')
   })
 
-  it('non-staff Kajabi contact with no active purchase remains inactive', async () => {
+  it('non-staff Kajabi contact with no purchase history is a lead', async () => {
     // ARRANGE: Kajabi contact, no purchase, NOT in staff table
     await supabase.schema('bronze').from('kajabi_contacts').insert({
       kajabi_contact_id: `regular-${ts}`,
@@ -109,14 +109,14 @@ describe('Staff Member Status', () => {
     const result = await processMembers()
     expect(result.success).toBe(true)
 
-    // ASSERT: inactive (no subscription, not staff)
+    // ASSERT: lead (never purchased, not staff)
     const { data: member } = await supabase
       .from('members')
       .select('status, staff_role')
       .eq('email', regularMemberEmail)
       .single()
 
-    expect(member?.status).toBe('inactive')
+    expect(member?.status).toBe('lead')
     expect(member?.staff_role).toBeNull()
   })
 })

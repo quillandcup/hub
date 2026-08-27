@@ -367,7 +367,7 @@ describe('Attendance Reprocessability', () => {
         name: `Inactive Test Member ${inactiveTs}`,
         email: `inactive-test-${inactiveTs}@example.com`,
         joined_at: '2022-01-01',
-        status: 'inactive',
+        status: 'cancelled',
       })
       .select('id')
       .single()

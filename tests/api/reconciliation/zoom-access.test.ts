@@ -43,7 +43,7 @@ describe('Zoom Access', () => {
       name: names.inactiveMember,
       email: `zoom-access-inactive-${ts}@example.com`,
       joined_at: new Date().toISOString(),
-      status: 'inactive',
+      status: 'cancelled',
     }).select('id').single()
     inactiveMemberId = inactive!.id
 

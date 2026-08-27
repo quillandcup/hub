@@ -78,7 +78,7 @@ describe("fetchResubscriptionsData()", () => {
     await supabase.from("members").insert([
       { name: "Resub Alice",  email: customerA.email,    status: "active",   joined_at: "2024-01-01" },
       { name: "Active Betty", email: customerB.email,    status: "active",   joined_at: "2024-03-01" },
-      { name: "Gone Carol",   email: customerC.email,    status: "inactive", joined_at: "2023-06-01" },
+      { name: "Gone Carol",   email: customerC.email,    status: "cancelled", joined_at: "2023-06-01" },
       { name: "Diana",        email: customerDNew.email, status: "active",   joined_at: "2023-01-01" },
       { name: "Eve Duplicate", email: customerE1.email,  status: "active",   joined_at: "2023-01-01" },
     ]);

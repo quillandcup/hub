@@ -268,7 +268,7 @@ describe('Orphaned Meetings Idempotency', () => {
       .insert({
         name: 'Former Member',
         email: 'test-orphan-inactive@example.com',
-        status: 'inactive',
+        status: 'cancelled',
         joined_at: '2022-01-01',
       })
       .select()

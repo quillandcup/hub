@@ -63,6 +63,26 @@ describe('Member Filters', () => {
           engagement_tier: 'active',
         }
       },
+      {
+        name: 'Lead Member',
+        email: `lead-${Date.now()}@example.com`,
+        joined_at: new Date().toISOString(),
+        status: 'lead',
+        engagement: {
+          risk_level: 'low',
+          engagement_tier: 'active',
+        }
+      },
+      {
+        name: 'Cancelled Member',
+        email: `cancelled-${Date.now()}@example.com`,
+        joined_at: new Date().toISOString(),
+        status: 'cancelled',
+        engagement: {
+          risk_level: 'low',
+          engagement_tier: 'active',
+        }
+      },
     ]
 
     // Insert members and their engagement data
@@ -164,7 +184,7 @@ describe('Member Filters', () => {
 
     expect(error).toBeNull()
     expect(members).toBeDefined()
-    expect(members!.length).toBe(4)
+    expect(members!.length).toBe(6)
   })
 
   it('should return only active members when filter=active', async () => {
@@ -204,6 +224,44 @@ describe('Member Filters', () => {
     expect(members!.length).toBe(1)
     expect(members![0].status).toBe('on_hiatus')
     expect(members![0].name).toBe('On Hiatus Member')
+  })
+
+  it('should return only leads when filter=lead', async () => {
+    const { data: members, error } = await supabase
+      .from('members')
+      .select(`
+        *,
+        member_metrics(*),
+        member_engagement(*)
+      `)
+      .in('id', testMemberIds)
+      .eq('status', 'lead')
+      .order('name')
+
+    expect(error).toBeNull()
+    expect(members).toBeDefined()
+    expect(members!.length).toBe(1)
+    expect(members![0].status).toBe('lead')
+    expect(members![0].name).toBe('Lead Member')
+  })
+
+  it('should return only cancelled members when filter=cancelled', async () => {
+    const { data: members, error } = await supabase
+      .from('members')
+      .select(`
+        *,
+        member_metrics(*),
+        member_engagement(*)
+      `)
+      .in('id', testMemberIds)
+      .eq('status', 'cancelled')
+      .order('name')
+
+    expect(error).toBeNull()
+    expect(members).toBeDefined()
+    expect(members!.length).toBe(1)
+    expect(members![0].status).toBe('cancelled')
+    expect(members![0].name).toBe('Cancelled Member')
   })
 
   it('should handle members without engagement data gracefully', async () => {

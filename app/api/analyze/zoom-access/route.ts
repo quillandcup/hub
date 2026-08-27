@@ -11,7 +11,7 @@ const NINETY_DAYS_AGO = () => {
 /**
  * GET /api/analyze/zoom-access
  * Zoom attendees from the last 90 days who either:
- *   - matched to an inactive member (attending after cancellation)
+ *   - matched to a cancelled member (attending after cancellation)
  *   - didn't match any member record (potential non-member)
  */
 export async function GET(request: NextRequest) {
@@ -81,7 +81,7 @@ export async function GET(request: NextRequest) {
 
       if (result && "member_id" in result) {
         const status = memberStatusMap.get(result.member_id);
-        if (status === "inactive") {
+        if (status === "cancelled") {
           if (!inactiveMatchCounts.has(result.member_id)) {
             const member = (members ?? []).find((m) => m.id === result.member_id);
             inactiveMatchCounts.set(result.member_id, {
@@ -106,7 +106,7 @@ export async function GET(request: NextRequest) {
       .map((r) => ({
         member_id: r.member_id,
         member_name: r.member_name,
-        member_status: "inactive",
+        member_status: "cancelled",
         prickle_count: r.meetings.size,
       }))
       .sort((a, b) => b.prickle_count - a.prickle_count);
