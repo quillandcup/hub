@@ -270,6 +270,16 @@ export default async function DashboardPage() {
             description="Active but not attending"
             highlighted
           />
+          <MetricCard
+            label="Leads"
+            value={leads}
+            description="Never converted to paying"
+          />
+          <MetricCard
+            label="Cancelled"
+            value={cancelled}
+            description="Former paying members"
+          />
         </div>
 
         {/* Hedgie Welcome */}
