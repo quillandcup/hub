@@ -47,7 +47,7 @@ describe('Subscription Reconciliation', () => {
     freshKajabiCustomerId: `kjb_cust_fresh_${ts}`,
   }
 
-  let memberIds: Record<string, string> = {}
+  const memberIds: Record<string, string> = {}
   let overrideId: string
 
   beforeAll(async () => {

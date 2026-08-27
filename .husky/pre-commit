@@ -1,0 +1,15 @@
+# Pre-commit hook to run production build
+# This catches TypeScript errors before committing
+
+echo "🔍 Running production build before commit..."
+npm run build
+
+if [ $? -ne 0 ]; then
+  echo ""
+  echo "❌ Build failed! Fix TypeScript errors before committing."
+  echo "   To skip this check, use: git commit --no-verify"
+  exit 1
+fi
+
+echo "✅ Build successful! Proceeding with commit..."
+exit 0
