@@ -35,21 +35,21 @@ describe('suggestMemberMatches', () => {
   })
 
   describe('nickname/first-name input against a long full name', () => {
-    // Regression: a short Slack real_name like "Elze" was scored against the
-    // entire long member name via whole-string edit distance, so the length
-    // mismatch swamped the fact that "elze" is an exact token in the name —
-    // meanwhile unrelated short names (Kelsey, Ellie Z) scored better purely
-    // by being similarly short. Token-level matching fixes this.
+    // Regression: a short Slack real_name (e.g. a single nickname) was scored
+    // against the entire long member name via whole-string edit distance, so
+    // the length mismatch swamped the fact that the nickname is an exact
+    // token in the name — meanwhile unrelated short names scored better
+    // purely by being similarly short. Token-level matching fixes this.
     const longNameMembers: Member[] = [
-      { id: '1', name: 'Elze Albada Jelgersma/Elin Sage', email: 'elin.sage.writer@gmail.com' },
-      { id: '2', name: 'Kelsey Reid', email: 'kelsey@example.com' },
-      { id: '3', name: 'Ellie Z', email: 'elliez@example.com' },
+      { id: '1', name: 'Zora Middlebrook/Zee Vance', email: 'zee.vance.writer@example.com' },
+      { id: '2', name: 'Priya Chen', email: 'priya@example.com' },
+      { id: '3', name: 'Zoe X', email: 'zoex@example.com' },
     ]
 
     it('finds the long name via an exact token match on the short input', () => {
       const suggestions = suggestMemberMatches(
-        'Elze',
-        'elzevera@willowediting.com',
+        'Zora',
+        'zoraeve@example.net',
         longNameMembers
       )
       expect(suggestions[0].member.id).toBe('1')
@@ -58,8 +58,8 @@ describe('suggestMemberMatches', () => {
 
     it('does not surface unrelated short names ahead of the real token match', () => {
       const suggestions = suggestMemberMatches(
-        'Elze',
-        'elzevera@willowediting.com',
+        'Zora',
+        'zoraeve@example.net',
         longNameMembers
       )
       expect(suggestions.some((s) => s.member.id === '2')).toBe(false)
