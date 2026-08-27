@@ -4,6 +4,7 @@ import Link from "next/link";
 import ProcessOrphanedButton from "./ProcessOrphanedButton";
 import ProcessOrphanedMeetingsButton from "./ProcessOrphanedMeetingsButton";
 import { matchAttendeeToMember } from "@/lib/member-matching";
+import { matchSlackUsersToMembers } from "@/lib/slack-matching";
 import { detectDuplicates } from "@/lib/member-duplicates";
 
 export const metadata: Metadata = {
@@ -25,6 +26,8 @@ export default async function DataHygienePage() {
     { count: totalZoomAttendees },
     { count: totalMembers },
     { count: totalAliases },
+    { data: slackUsersForMatching },
+    { data: ignoredSlackUsers },
     { data: pupsWith0Attendees },
     { data: oldUnmatchedEvents },
     { data: lastSync },
@@ -53,6 +56,9 @@ export default async function DataHygienePage() {
     supabase.schema('bronze').from("zoom_attendees").select("*", { count: "exact", head: true }),
     supabase.from("members").select("*", { count: "exact", head: true }),
     supabase.from("member_name_aliases").select("*", { count: "exact", head: true }),
+    // Slack users for unmatched-count (workspace member list stays well under 1000 rows)
+    supabase.schema('bronze').from("slack_users").select("user_id, email, real_name, is_bot"),
+    supabase.from("ignored_slack_users").select("user_id"),
     // Find PUPs with 0 attendees
     supabase
       .from("prickles")
@@ -190,6 +196,18 @@ export default async function DataHygienePage() {
     supabase.from("members").select("id, name, email"),
     supabase.from("member_name_aliases").select("alias, member_id, source"),
   ]);
+
+  // Unmatched Slack users (not matched, not ignored, not bots) — mirrors
+  // /api/reports/unmatched-slack-users and the unmatched-slack hygiene page
+  const slackMatchedUserIds = await matchSlackUsersToMembers(
+    slackUsersForMatching || [],
+    membersForMatching || [],
+    aliasesForMatching || []
+  );
+  const ignoredSlackUserIds = new Set((ignoredSlackUsers || []).map(u => u.user_id));
+  const unmatchedSlackUsersCount = (slackUsersForMatching || []).filter(
+    u => !slackMatchedUserIds.has(u.user_id) && !ignoredSlackUserIds.has(u.user_id) && !u.is_bot
+  ).length;
 
   // Get all zoom_attendees with name/email for matching (paginated — table exceeds 1000 rows)
   const allAttendeesForMatching: { meeting_uuid: string; name: string; email: string | null; join_time: string; leave_time: string }[] = [];
@@ -394,6 +412,35 @@ export default async function DataHygienePage() {
             {unmatchedZoomAttendees > 0 && (
               <p className="text-xs text-orange-600 dark:text-orange-400 mt-2">
                 View unmatched names →
+              </p>
+            )}
+          </Link>
+
+          {/* Slack Users */}
+          <Link
+            href="/admin/hygiene/unmatched-slack"
+            className="block p-6 bg-white dark:bg-slate-900 rounded-lg shadow hover:shadow-lg transition-shadow border border-slate-200 dark:border-slate-800"
+          >
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-sm font-medium text-slate-600 dark:text-slate-400">
+                Slack Users
+              </h3>
+              <span className="text-2xl">💬</span>
+            </div>
+            <p className="text-3xl font-bold text-slate-900 dark:text-slate-100 mb-1">
+              {unmatchedSlackUsersCount}
+            </p>
+            <p className="text-sm text-slate-600 dark:text-slate-400">
+              unmatched Slack user{unmatchedSlackUsersCount !== 1 ? "s" : ""}
+            </p>
+            {unmatchedSlackUsersCount > 0 && (
+              <p className="text-xs text-orange-600 dark:text-orange-400 mt-2">
+                View unmatched users →
+              </p>
+            )}
+            {unmatchedSlackUsersCount === 0 && (
+              <p className="text-xs text-green-600 dark:text-green-400 mt-2">
+                All matched ✓
               </p>
             )}
           </Link>
