@@ -25,6 +25,7 @@ interface AppUser {
   staffRole: StaffRole | null;
   memberId: string | null;
   memberName: string | null;
+  pending: boolean;
 }
 
 const ROLE_LABELS: Record<Role, string> = {
@@ -70,6 +71,9 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
 
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+
+  const [resendingId, setResendingId] = useState<string | null>(null);
+  const [resentId, setResentId] = useState<string | null>(null);
 
   const fetchUsers = useCallback(async () => {
     setLoading(true);
@@ -170,6 +174,21 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
       alert(err instanceof Error ? err.message : "Failed to delete user");
     } finally {
       setDeletingId(null);
+    }
+  }
+
+  async function handleResend(userId: string) {
+    setResendingId(userId);
+    setResentId(null);
+    try {
+      const res = await fetch(`/api/admin/users/${userId}/resend`, { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to resend invite");
+      setResentId(userId);
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : "Failed to resend invite");
+    } finally {
+      setResendingId(null);
     }
   }
 
@@ -408,6 +427,19 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
                               >
                                 Edit
                               </button>
+                              {user.pending && (
+                                <button
+                                  onClick={() => handleResend(user.id)}
+                                  disabled={resendingId === user.id}
+                                  className="text-xs text-blue-600 dark:text-blue-400 hover:underline disabled:opacity-50"
+                                >
+                                  {resendingId === user.id
+                                    ? "Sending..."
+                                    : resentId === user.id
+                                      ? "Sent!"
+                                      : "Resend Invite"}
+                                </button>
+                              )}
                               {!isCurrentUser && (
                                 confirmDeleteId === user.id ? (
                                   <>

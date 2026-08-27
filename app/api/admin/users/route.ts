@@ -59,6 +59,7 @@ export async function GET(request: NextRequest) {
       staffRole: staff?.role ?? null,
       memberId: member?.id ?? null,
       memberName: member?.name ?? null,
+      pending: !u.email_confirmed_at,
     };
   });
 
