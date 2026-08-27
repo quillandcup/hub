@@ -3,8 +3,11 @@ import { createClient } from "@/lib/supabase/server"
 import { redirect, notFound } from "next/navigation"
 import type { Metadata } from "next"
 import { getEffectiveIdentity } from "@/lib/sudo"
+import { getUserTimezonePreference } from "@/lib/timezone"
 import { computeStreaks } from "@/lib/streaks"
 import MemberAvatar from "./MemberAvatar"
+
+const ORG_TIMEZONE = "America/New_York"
 
 function safeUrl(url: string | null): string | null {
   if (!url) return null
@@ -74,10 +77,11 @@ export default async function MemberProfilePage({
     prickles: { start_time: string; prickle_types: { name: string } | null } | null
   }[] = []
   let streakJoinTimes: string[] = []
+  let timeZone = ORG_TIMEZONE
 
   if (isSelf) {
-    // Fetch metrics and history concurrently (both bounded queries)
-    const [{ data: metricsData }, { data: historyData }] = await Promise.all([
+    // Fetch metrics, history, and timezone preference concurrently (all bounded)
+    const [{ data: metricsData }, { data: historyData }, tzPref] = await Promise.all([
       supabase.from("member_metrics").select("*").eq("member_id", id).single(),
       supabase
         .from("prickle_attendance")
@@ -85,7 +89,9 @@ export default async function MemberProfilePage({
         .eq("member_id", id)
         .order("join_time", { ascending: false })
         .limit(50),
+      getUserTimezonePreference(),
     ])
+    timeZone = tzPref === "browser" ? ORG_TIMEZONE : tzPref
     metrics = metricsData
     attendance = (historyData ?? []) as unknown as typeof attendance
 
@@ -109,7 +115,7 @@ export default async function MemberProfilePage({
     }
   }
 
-  const streaks = computeStreaks(streakJoinTimes)
+  const streaks = computeStreaks(streakJoinTimes, new Date(), timeZone)
 
   const joinedYear = new Date(member.joined_at).getFullYear()
   const joinedMonth = new Date(member.joined_at).toLocaleString("en-US", { month: "long" })

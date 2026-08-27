@@ -15,15 +15,26 @@ export interface SisterStreak extends Streaks {
   sharedPrickleIds: string[]
 }
 
-function weekIndex(isoTimestamp: string): number {
+function localCalendarDate(isoTimestamp: string, timeZone: string): Date {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date(isoTimestamp))
+  const year = Number(parts.find(p => p.type === 'year')!.value)
+  const month = Number(parts.find(p => p.type === 'month')!.value)
+  const day = Number(parts.find(p => p.type === 'day')!.value)
+  return new Date(Date.UTC(year, month - 1, day))
+}
+
+function weekIndex(isoTimestamp: string, timeZone: string = 'UTC'): number {
   const MS_PER_WEEK = 7 * 24 * 60 * 60 * 1000
-  const dateObj = new Date(isoTimestamp)
+  const dateObj = localCalendarDate(isoTimestamp, timeZone)
   const dayOfWeek = dateObj.getUTCDay()
   const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1
-  const weekStart = new Date(dateObj)
-  weekStart.setUTCDate(weekStart.getUTCDate() - daysToMonday)
-  weekStart.setUTCHours(0, 0, 0, 0)
-  return Math.floor(weekStart.getTime() / MS_PER_WEEK)
+  dateObj.setUTCDate(dateObj.getUTCDate() - daysToMonday)
+  return Math.floor(dateObj.getTime() / MS_PER_WEEK)
 }
 
 function computeStreaksFromWeeks(sortedWeeks: number[], currentWeek: number): Streaks {
@@ -56,10 +67,14 @@ function computeStreaksFromWeeks(sortedWeeks: number[], currentWeek: number): St
   return { currentStreak, longestStreak }
 }
 
-export function computeStreaks(joinTimes: string[], now: Date = new Date()): Streaks {
+export function computeStreaks(
+  joinTimes: string[],
+  now: Date = new Date(),
+  timeZone: string = 'UTC'
+): Streaks {
   if (joinTimes.length === 0) return { currentStreak: 0, longestStreak: 0 }
-  const weeks = [...new Set(joinTimes.map(weekIndex))].sort((a, b) => a - b)
-  return computeStreaksFromWeeks(weeks, weekIndex(now.toISOString()))
+  const weeks = [...new Set(joinTimes.map(t => weekIndex(t, timeZone)))].sort((a, b) => a - b)
+  return computeStreaksFromWeeks(weeks, weekIndex(now.toISOString(), timeZone))
 }
 
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
@@ -96,21 +111,22 @@ export function computePrickleStreaks(
     prickleTypeName,
     dayOfWeek,
     startHour,
-    ...computeStreaks(joinTimes, now),
+    ...computeStreaks(joinTimes, now, timeZone),
   }))
 }
 
 export function computeSisterStreaks(
   myAttendance: { prickleId: string; joinTime: string }[],
   coAttendance: { memberId: string; memberName: string; prickleId: string; joinTime: string }[],
-  now: Date = new Date()
+  now: Date = new Date(),
+  timeZone: string = 'UTC'
 ): SisterStreak[] {
-  const currentWeek = weekIndex(now.toISOString())
+  const currentWeek = weekIndex(now.toISOString(), timeZone)
 
   // Build map: prickleId -> Set<weekIndex> for current member
   const myPrickleWeeks = new Map<string, Set<number>>()
   for (const r of myAttendance) {
-    const week = weekIndex(r.joinTime)
+    const week = weekIndex(r.joinTime, timeZone)
     const set = myPrickleWeeks.get(r.prickleId) ?? new Set()
     set.add(week)
     myPrickleWeeks.set(r.prickleId, set)
@@ -119,7 +135,7 @@ export function computeSisterStreaks(
   // For each co-member, collect weeks and prickle IDs where they attended a prickle I also attended that week
   const sisterWeeks = new Map<string, { name: string; weeks: Set<number>; prickleIds: Set<string> }>()
   for (const r of coAttendance) {
-    const week = weekIndex(r.joinTime)
+    const week = weekIndex(r.joinTime, timeZone)
     if (!myPrickleWeeks.get(r.prickleId)?.has(week)) continue
     const entry = sisterWeeks.get(r.memberId) ?? { name: r.memberName, weeks: new Set(), prickleIds: new Set() }
     entry.weeks.add(week)

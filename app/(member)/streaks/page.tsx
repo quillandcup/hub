@@ -217,7 +217,7 @@ export default async function StreaksPage() {
   }
 
   // Overall streaks
-  const overall = computeStreaks(myAttendance.map((r) => r.join_time))
+  const overall = computeStreaks(myAttendance.map((r) => r.join_time), new Date(), timeZone)
 
   // Prickle type streaks
   const prickleStreaks: PrickleStreak[] = computePrickleStreaks(
@@ -272,7 +272,9 @@ export default async function StreaksPage() {
       memberName: r.members?.name ?? "Unknown",
       prickleId: r.prickle_id,
       joinTime: r.join_time,
-    }))
+    })),
+    new Date(),
+    timeZone
   )
     .filter((s) => s.longestStreak >= 2)
     .sort((a, b) => b.currentStreak - a.currentStreak || b.longestStreak - a.longestStreak)

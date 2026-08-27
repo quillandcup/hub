@@ -64,6 +64,21 @@ describe('computeStreaks', () => {
       ], fixedNow)
     ).toEqual({ currentStreak: 1, longestStreak: 4 })
   })
+
+  it('buckets weeks by the member local date, not UTC date', () => {
+    // Dec 29, 2025 06:00 UTC is Monday morning in UTC, but 22:00 PST the *prior* Sunday
+    // night in Pacific time — a day-boundary crossing that pushes it into an earlier week bucket.
+    const borderTimestamp = '2025-12-29T06:00:00Z'
+
+    const utcResult = computeStreaks([borderTimestamp], fixedNow, 'UTC')
+    const pacificResult = computeStreaks([borderTimestamp], fixedNow, 'America/Los_Angeles')
+
+    // UTC sees this as Monday Dec 29 — exactly one week before the anchor week: streak still alive.
+    expect(utcResult).toEqual({ currentStreak: 1, longestStreak: 1 })
+    // Pacific sees this as Sunday Dec 28, which falls in the week starting Dec 22 —
+    // two weeks before the anchor week, so the streak has already lapsed.
+    expect(pacificResult).toEqual({ currentStreak: 0, longestStreak: 1 })
+  })
 })
 
 // Fixed prickle start times (same day+hour = same series)
