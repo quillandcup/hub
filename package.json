@@ -19,7 +19,8 @@
     "env:sync": "./scripts/sync-to-vercel.sh",
     "templates:render": "tsx scripts/render-email-templates.ts",
     "templates:sync": "tsx scripts/sync-email-templates.ts .env.prod",
-    "quarantine:remove": "xattr -r -d com.apple.quarantine node_modules"
+    "quarantine:remove": "xattr -r -d com.apple.quarantine node_modules",
+    "prepare": "husky"
   },
   "dependencies": {
     "@slack/web-api": "^7.15.0",
@@ -43,6 +44,7 @@
     "stripe": "^22.1.0"
   },
   "devDependencies": {
+    "@eslint/eslintrc": "^3.3.5",
     "@types/json2csv": "^5.0.7",
     "@types/node": "^22.19.17",
     "@types/react": "^19",
@@ -51,15 +53,15 @@
     "@vitest/ui": "^4.1.2",
     "autoprefixer": "^10.4.20",
     "dotenv-cli": "^11.0.0",
-    "vercel": "^54.0.0",
-    "@eslint/eslintrc": "^3.3.5",
     "eslint": "^9",
     "eslint-config-next": "^15.3.0",
+    "husky": "^9.1.7",
     "msw": "^2.13.6",
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.17",
     "tsx": "^4.21.0",
     "typescript": "^5",
+    "vercel": "^54.0.0",
     "vitest": "^4.1.2"
   }
 }

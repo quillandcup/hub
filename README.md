@@ -12,8 +12,8 @@ Member engagement platform for Quill & Cup — giving members visibility into th
 ### Start Local Development
 
 ```bash
-# 1. Install git hooks (one-time setup)
-./scripts/install-hooks.sh
+# 1. Install dependencies (also installs git hooks via husky)
+npm install
 
 # 2. Start Docker Desktop (open the app)
 
@@ -25,7 +25,7 @@ npm run dev
 ```
 
 **Git Hooks Installed:**
-- `pre-commit` - Runs `npm run build` to catch TypeScript errors before committing
+- `pre-commit` - Runs `npm run build` to catch TypeScript errors before committing (managed by [husky](https://typicode.github.io/husky/), see `.husky/pre-commit`)
 - Skip temporarily with: `git commit --no-verify`
 
 ### Test Auth Flow
