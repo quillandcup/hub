@@ -8,6 +8,11 @@ import ApplyAliasesButton from "./ApplyAliasesButton";
 import ManualReprocessingSection from "./ManualReprocessingSection";
 import KajabiApiImportForm from "./KajabiApiImportForm";
 import StripeImportForm from "./StripeImportForm";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "Import Data",
+};
 
 export default async function ImportPage() {
   const supabase = await createClient();

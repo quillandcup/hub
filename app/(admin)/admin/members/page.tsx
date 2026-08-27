@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
@@ -7,6 +8,10 @@ import {
   computeMemberEngagementMetrics,
   type EngagementAttendanceRow,
 } from "@/lib/member-engagement";
+
+export const metadata: Metadata = {
+  title: "Member Analytics",
+};
 
 type SearchParams = Promise<{ [key: string]: string | string[] | undefined }>;
 

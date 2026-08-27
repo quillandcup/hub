@@ -1,3 +1,4 @@
+import type { Metadata } from "next"
 import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 import CommunityStatsCharts from "./CommunityStatsCharts"
@@ -12,6 +13,10 @@ import {
   type PrickleRow,
   type AttRow,
 } from "@/lib/community-stats"
+
+export const metadata: Metadata = {
+  title: "Community Stats",
+}
 
 import { resolveDateRange } from "@/lib/stats-date-range"
 

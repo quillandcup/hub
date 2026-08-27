@@ -1,6 +1,8 @@
+import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
+import type { Metadata } from "next";
 import MemberDetails from "./MemberDetails";
 import MergeButton from "./MergeButton";
 import { getUserTimezonePreference } from "@/lib/timezone";
@@ -10,6 +12,22 @@ import {
   computeMemberEngagementMetrics,
   type EngagementAttendanceRow,
 } from "@/lib/member-engagement";
+
+const getMemberRow = cache(async (id: string) => {
+  const supabase = await createClient();
+  const { data } = await supabase.from("members").select("*").eq("id", id).single();
+  return data;
+});
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const { id } = await params;
+  const member = await getMemberRow(id);
+  return { title: member?.name ?? "Member" };
+}
 
 export default async function MemberDetailPage({
   params,
@@ -28,11 +46,7 @@ export default async function MemberDetailPage({
   }
 
   // Fetch member data
-  const { data: memberRow } = await supabase
-    .from("members")
-    .select("*")
-    .eq("id", id)
-    .single();
+  const memberRow = await getMemberRow(id);
 
   if (!memberRow) {
     notFound();

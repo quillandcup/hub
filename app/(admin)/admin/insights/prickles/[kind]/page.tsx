@@ -1,6 +1,8 @@
+import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
+import type { Metadata } from "next";
 import {
   computeGroupedPrickleStats,
   type PrickleWithHost,
@@ -108,6 +110,26 @@ function dateOffsetISO(days: number): string {
 // Page
 // ---------------------------------------------------------------------------
 
+const getPrickleType = cache(async (kind: string) => {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("prickle_types")
+    .select("id, name, normalized_name")
+    .eq("normalized_name", kind)
+    .single();
+  return data;
+});
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ kind: string }>;
+}): Promise<Metadata> {
+  const { kind } = await params;
+  const prickleType = await getPrickleType(kind);
+  return { title: prickleType?.name ?? "Prickle Insights" };
+}
+
 export default async function PrickleKindInsightsPage({
   params,
   searchParams,
@@ -128,11 +150,7 @@ export default async function PrickleKindInsightsPage({
 
   if (!user) redirect("/login");
 
-  const { data: prickleType } = await supabase
-    .from("prickle_types")
-    .select("id, name, normalized_name")
-    .eq("normalized_name", kind)
-    .single();
+  const prickleType = await getPrickleType(kind);
 
   if (!prickleType) notFound();
 

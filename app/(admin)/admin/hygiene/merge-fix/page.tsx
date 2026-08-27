@@ -1,10 +1,15 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import type { Metadata } from "next";
 import { detectDuplicates } from "@/lib/member-duplicates";
 import MergeFixClient from "./MergeFixClient";
 import { sortGroupMembers } from "@/lib/merge-fix";
 import type { EnrichedGroup } from "@/lib/merge-fix";
+
+export const metadata: Metadata = {
+  title: "Merge & Fix",
+};
 
 export const dynamic = "force-dynamic";
 

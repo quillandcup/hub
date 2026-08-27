@@ -1,7 +1,29 @@
+import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import type { Metadata } from "next";
 import EditPrickleTypeForm from "./EditPrickleTypeForm";
+
+const getPrickleType = cache(async (id: string) => {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("prickle_types")
+    .select("id, name, normalized_name, description")
+    .eq("id", id)
+    .single();
+  return data;
+});
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const { id } = await params;
+  const prickleType = await getPrickleType(id);
+  return { title: prickleType?.name ? `Edit ${prickleType.name}` : "Edit Prickle Type" };
+}
 
 export default async function EditPrickleTypePage({
   params,
@@ -20,13 +42,9 @@ export default async function EditPrickleTypePage({
   }
 
   // Fetch the prickle type by ID
-  const { data: prickleType, error } = await supabase
-    .from("prickle_types")
-    .select("id, name, normalized_name, description")
-    .eq("id", id)
-    .single();
+  const prickleType = await getPrickleType(id);
 
-  if (error || !prickleType) {
+  if (!prickleType) {
     redirect("/data/prickle-types");
   }
 

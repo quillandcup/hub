@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
@@ -6,6 +7,10 @@ import { fetchResubscriptionsData } from "@/lib/resubscription-data";
 import type { ResubscribingMember } from "@/lib/resubscription-data";
 
 export const maxDuration = 60;
+
+export const metadata: Metadata = {
+  title: "Cancellations & Resubscriptions",
+};
 
 function pct(num: number, denom: number): string {
   if (denom === 0) return "—";

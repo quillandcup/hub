@@ -1,7 +1,12 @@
+import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getUserFeaturePreviews } from "@/lib/features.server";
+
+export const metadata: Metadata = {
+  title: "Hiatus Tracking",
+};
 
 export default async function HiatusTrackingPage() {
   const supabase = await createClient();

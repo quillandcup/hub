@@ -1,7 +1,12 @@
+import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import CalendarWeekView from "@/components/CalendarWeekView";
 import { getUserTimezonePreference } from "@/lib/timezone";
+
+export const metadata: Metadata = {
+  title: "Prickle Calendar",
+};
 
 export default async function CalendarPage({
   searchParams,

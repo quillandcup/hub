@@ -1,8 +1,13 @@
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
+import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
 export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = {
+  title: "External Conflicts",
+};
 
 interface ConflictEntry {
   externalId: string;

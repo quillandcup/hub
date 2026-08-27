@@ -5,7 +5,10 @@ import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 
 export const metadata: Metadata = {
-  title: "Hedgie Hub",
+  title: {
+    default: "Hedgie Hub",
+    template: "%s | Hedgie Hub",
+  },
   description: "Attendance and engagement analytics for Quill & Cup writing sessions",
   icons: {
     icon: '/icon.png',

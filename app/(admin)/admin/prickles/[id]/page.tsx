@@ -1,11 +1,46 @@
+import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import type { Metadata } from "next";
 import PrickleDetails from "@/components/PrickleDetails";
 import { getUserTimezonePreference } from "@/lib/timezone";
 import { findUnmatchedZoomAttendees } from "@/lib/prickle-unmatched";
 import AliasSearchForm from "@/app/(admin)/admin/hygiene/unmatched-zoom/AliasSearchForm";
 import { getScheduleSlot } from "@/lib/scheduled-prickle-stats";
+import { formatPrickleTitle } from "@/lib/formatters";
+
+const getPrickle = cache(async (id: string) => {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("prickles")
+    .select(`
+      id,
+      host:members(id, name),
+      start_time,
+      end_time,
+      source,
+      zoom_meeting_uuid,
+      type_id,
+      prickle_types:type_id(name, description, normalized_name)
+    `)
+    .eq("id", id)
+    .single();
+  return data;
+});
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const { id } = await params;
+  const prickle = await getPrickle(id);
+
+  if (!prickle) return { title: "Prickle" };
+
+  return { title: formatPrickleTitle(prickle) };
+}
 
 export default async function AdminPrickleDetailPage({
   params,
@@ -23,20 +58,7 @@ export default async function AdminPrickleDetailPage({
     redirect("/login");
   }
 
-  const { data: prickle } = await supabase
-    .from("prickles")
-    .select(`
-      id,
-      host:members(id, name),
-      start_time,
-      end_time,
-      source,
-      zoom_meeting_uuid,
-      type_id,
-      prickle_types:type_id(name, description, normalized_name)
-    `)
-    .eq("id", id)
-    .single();
+  const prickle = await getPrickle(id);
 
   if (!prickle) {
     return (

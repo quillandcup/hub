@@ -62,6 +62,37 @@ export function formatTimeRange(start: Date | string, end: Date | string): strin
 }
 
 /**
+ * Format a name as "First L" (first name + last initial)
+ * Example: "Jenn Peterson" -> "Jenn P"
+ */
+export function hostShortName(name: string): string {
+  const parts = name.trim().split(/\s+/);
+  if (parts.length < 2) return parts[0] ?? name;
+  return `${parts[0]} ${parts[parts.length - 1][0]}`;
+}
+
+type NameRef = { name: string } | { name: string }[] | null | undefined;
+
+function unwrapRef<T extends { name: string }>(ref: T | T[] | null | undefined): T | undefined {
+  return Array.isArray(ref) ? ref[0] : ref ?? undefined;
+}
+
+/**
+ * Format a page title for a prickle, e.g. "Monday Progress Prickle with Jenn P"
+ */
+export function formatPrickleTitle(prickle: {
+  start_time: string;
+  host?: NameRef;
+  prickle_types?: NameRef;
+}): string {
+  const host = unwrapRef(prickle.host);
+  const prickleType = unwrapRef(prickle.prickle_types);
+  const weekday = new Date(prickle.start_time).toLocaleDateString("en-US", { weekday: "long" });
+  const typeName = prickleType?.name ?? "Prickle";
+  return host?.name ? `${weekday} ${typeName} with ${hostShortName(host.name)}` : `${weekday} ${typeName}`;
+}
+
+/**
  * Format a relative time
  * Example: "2 hours ago", "in 3 days"
  */

@@ -1,7 +1,12 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { readFileSync } from "fs";
 import { join } from "path";
 import MarkdownRenderer from "./MarkdownRenderer";
+
+export const metadata: Metadata = {
+  title: "PRD",
+};
 
 export default function PRDPage() {
   // Read the PRD markdown file

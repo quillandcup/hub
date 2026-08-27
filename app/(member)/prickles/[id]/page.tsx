@@ -1,11 +1,46 @@
+import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import type { Metadata } from "next";
 import PrickleDetails from "@/components/PrickleDetails";
 import { getUserTimezonePreference } from "@/lib/timezone";
 import { getEffectiveIdentity } from "@/lib/sudo";
 import { findUnmatchedZoomAttendees } from "@/lib/prickle-unmatched";
 import AliasSearchForm from "@/app/(admin)/admin/hygiene/unmatched-zoom/AliasSearchForm";
+import { formatPrickleTitle } from "@/lib/formatters";
+
+const getPrickle = cache(async (id: string) => {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("prickles")
+    .select(`
+      id,
+      host:members(id, name),
+      start_time,
+      end_time,
+      source,
+      zoom_meeting_uuid,
+      type_id,
+      prickle_types:type_id(name, description)
+    `)
+    .eq("id", id)
+    .single();
+  return data;
+});
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const { id } = await params;
+  const prickle = await getPrickle(id);
+
+  if (!prickle) return { title: "Prickle" };
+
+  return { title: formatPrickleTitle(prickle) };
+}
 
 export default async function PrickleDetailPage({
   params,
@@ -23,29 +58,15 @@ export default async function PrickleDetailPage({
     redirect("/login");
   }
 
-  const [profileResult, effectiveIdentity] = await Promise.all([
+  const [profileResult, effectiveIdentity, prickle] = await Promise.all([
     supabase.from("user_profiles").select("role").eq("id", user.id).single(),
     getEffectiveIdentity(user),
+    getPrickle(id),
   ]);
   const isAdmin = profileResult.data?.role === "admin";
   const isActingAsAdmin = isAdmin && !effectiveIdentity?.isSudo;
   const memberBasePath = isActingAsAdmin ? "/admin/members" : "/members";
   const backHref = isActingAsAdmin ? "/admin/calendar" : "/calendar";
-
-  const { data: prickle } = await supabase
-    .from("prickles")
-    .select(`
-      id,
-      host:members(id, name),
-      start_time,
-      end_time,
-      source,
-      zoom_meeting_uuid,
-      type_id,
-      prickle_types:type_id(name, description)
-    `)
-    .eq("id", id)
-    .single();
 
   if (!prickle) {
     return (

@@ -1,8 +1,13 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
+import type { Metadata } from "next";
 import KajabiImportForm from "../KajabiImportForm";
 import SlackImportForm from "../SlackImportForm";
+
+export const metadata: Metadata = {
+  title: "CSV Import (Testing)",
+};
 
 export default async function TestingImportPage() {
   if (process.env.NODE_ENV !== "development") {

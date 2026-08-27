@@ -1,6 +1,11 @@
+import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import { ThemeSwitcher } from "./ThemeSwitcher";
 import { TimezoneSwitcher } from "./TimezoneSwitcher";
+
+export const metadata: Metadata = {
+  title: "Profile Settings",
+};
 
 export default async function ProfilePage() {
   const supabase = await createClient();

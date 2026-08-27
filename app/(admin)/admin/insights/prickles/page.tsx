@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
@@ -8,6 +9,10 @@ import {
   type AttendanceRow,
 } from "@/lib/scheduled-prickle-stats";
 import PricklesTable from "./PricklesTable";
+
+export const metadata: Metadata = {
+  title: "Prickle Insights",
+};
 
 // ---------------------------------------------------------------------------
 // Pagination helpers

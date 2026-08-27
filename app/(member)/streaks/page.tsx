@@ -1,9 +1,14 @@
+import type { Metadata } from "next"
 import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 import Link from "next/link"
 import { getEffectiveIdentity } from "@/lib/sudo"
 import { getUserTimezonePreference } from "@/lib/timezone"
 import { getUserFeaturePreviews } from "@/lib/features.server"
+
+export const metadata: Metadata = {
+  title: "Streaks",
+}
 import {
   computeStreaks,
   computePrickleStreaks,

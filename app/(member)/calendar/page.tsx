@@ -1,7 +1,12 @@
+import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import { getUserTimezonePreference } from "@/lib/timezone";
 import { getEffectiveIdentity } from "@/lib/sudo";
 import MemberCalendarClient from "@/components/MemberCalendarClient";
+
+export const metadata: Metadata = {
+  title: "Calendar",
+};
 
 export default async function MemberCalendarPage({
   searchParams,

@@ -1,6 +1,11 @@
+import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import AliasSearchForm from "./AliasSearchForm";
 import { matchAttendeeToMember } from "@/lib/member-matching";
+
+export const metadata: Metadata = {
+  title: "Unmatched Zoom Names",
+};
 
 export default async function AliasSearchPage() {
   const supabase = await createClient();

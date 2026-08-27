@@ -1,8 +1,13 @@
+import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import MatchingGame from "./MatchingGame";
 import { matchAttendeeToMember } from "@/lib/member-matching";
+
+export const metadata: Metadata = {
+  title: "Name Matching Game",
+};
 
 export default async function NameMatchingReportPage() {
   const supabase = await createClient();

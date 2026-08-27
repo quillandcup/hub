@@ -1,6 +1,11 @@
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
+import type { Metadata } from "next";
 import UnmatchedEventsTable from "../../data/prickle-types/UnmatchedEventsTable";
+
+export const metadata: Metadata = {
+  title: "Unmatched Calendar Events",
+};
 
 export default async function UnmatchedEventsPage() {
   const supabase = await createClient();

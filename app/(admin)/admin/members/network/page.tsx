@@ -1,7 +1,12 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
+import type { Metadata } from "next";
 import NetworkGraph from "./NetworkGraph";
+
+export const metadata: Metadata = {
+  title: "Member Network",
+};
 
 export default async function MemberNetworkPage() {
   const supabase = await createClient();

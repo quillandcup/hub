@@ -1,3 +1,4 @@
+import type { Metadata } from "next"
 import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 import SlackEngagementCharts from "./SlackEngagementCharts"
@@ -17,6 +18,10 @@ import {
 import { resolveDateRange } from "@/lib/stats-date-range"
 
 export const maxDuration = 60
+
+export const metadata: Metadata = {
+  title: "Slack Engagement",
+}
 
 type SupabaseClient = Awaited<ReturnType<typeof createClient>>
 

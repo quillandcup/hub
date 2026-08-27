@@ -1,5 +1,7 @@
+import { cache } from "react"
 import { createClient } from "@/lib/supabase/server"
 import { redirect, notFound } from "next/navigation"
+import type { Metadata } from "next"
 import { getEffectiveIdentity } from "@/lib/sudo"
 import { computeStreaks } from "@/lib/streaks"
 import MemberAvatar from "./MemberAvatar"
@@ -12,6 +14,26 @@ function safeUrl(url: string | null): string | null {
   } catch {
     return null
   }
+}
+
+const getMember = cache(async (id: string) => {
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from("members")
+    .select("id, name, email, joined_at, status, photo_url, bio, instagram_url, facebook_url, twitter_url")
+    .eq("id", id)
+    .single()
+  return data
+})
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>
+}): Promise<Metadata> {
+  const { id } = await params
+  const member = await getMember(id)
+  return { title: member?.name ?? "Member" }
 }
 
 export default async function MemberProfilePage({
@@ -32,11 +54,7 @@ export default async function MemberProfilePage({
 
   const isSelf = effectiveIdentity.memberId === id
 
-  const { data: member } = await supabase
-    .from("members")
-    .select("id, name, email, joined_at, status, photo_url, bio, instagram_url, facebook_url, twitter_url")
-    .eq("id", id)
-    .single()
+  const member = await getMember(id)
 
   if (!member) notFound()
 

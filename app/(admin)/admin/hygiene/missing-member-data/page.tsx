@@ -1,7 +1,12 @@
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
+import type { Metadata } from "next";
 
 export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = {
+  title: "Missing Member Data",
+};
 
 export default async function MissingMemberDataPage() {
   const supabase = await createClient();
