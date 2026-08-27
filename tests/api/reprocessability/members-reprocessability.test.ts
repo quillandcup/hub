@@ -230,13 +230,13 @@ describe('Members Reprocessability', () => {
 })
 
 /**
- * Status classification: lead / active / cancelled, plus is_trial / has_trialed.
+ * Status classification: lead / active / cancelled.
  *
  * A "real" subscription offer (subscription===true, no trial) counts toward
  * 'cancelled' once its purchase is deactivated. A trial-enabled subscription
  * offer only counts once its purchase survives past the trial window before
  * deactivating — cancelling *during* the trial leaves the contact a 'lead'
- * (never converted), with has_trialed=true marking that they tried it once.
+ * (never converted).
  */
 describe('Members Status Classification', () => {
   const supabase = getTestSupabaseAdminClient()
@@ -340,31 +340,23 @@ describe('Members Status Classification', () => {
     await reprocess()
     const member = await fetchMember(emailCancelled)
     expect(member?.status).toBe('cancelled')
-    expect(member?.is_trial).toBe(false)
-    expect(member?.has_trialed).toBe(false)
   })
 
-  it('classifies a trial cancelled before converting as lead, with has_trialed=true', async () => {
+  it('classifies a trial cancelled before converting as lead', async () => {
     await reprocess()
     const member = await fetchMember(emailLeadFromTrial)
     expect(member?.status).toBe('lead')
-    expect(member?.is_trial).toBe(false)
-    expect(member?.has_trialed).toBe(true)
   })
 
-  it('marks a currently active trial as active with is_trial=true', async () => {
+  it('marks a currently active trial as active', async () => {
     await reprocess()
     const member = await fetchMember(emailActiveTrial)
     expect(member?.status).toBe('active')
-    expect(member?.is_trial).toBe(true)
-    expect(member?.has_trialed).toBe(true)
   })
 
-  it('flips is_trial=false once an active trial purchase survives past its trial window, keeping has_trialed=true', async () => {
+  it('keeps an active trial purchase active once it survives past its trial window', async () => {
     await reprocess()
     const member = await fetchMember(emailConverts)
     expect(member?.status).toBe('active')
-    expect(member?.is_trial).toBe(false)
-    expect(member?.has_trialed).toBe(true)
   })
 })

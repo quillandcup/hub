@@ -188,25 +188,11 @@ export async function POST(request: NextRequest) {
           return offer?.data?.attributes?.subscription === true;
         });
 
-        // has_trialed: permanent marker, true if ANY purchase (past or current) was
-        // ever against a trial-enabled offer. Kept even after the trial lapses so
-        // "cold lead" can be distinguished from "warm lead who already tried it"
-        // for outreach (e.g. abandoned-cart style messaging), without re-deriving
-        // it from purchase history each time.
-        const hasTrialed = contactPurchases.some(p => (offerMap.get(p.kajabi_offer_id)?.trial_period_days ?? 0) > 0);
-
-        let isTrial = false;
         let plan: string | null = null;
 
         if (activePurchase) {
           const offer = offerMap.get(activePurchase.kajabi_offer_id);
           if (offer) {
-            // Currently trialing = the offer has a trial AND it hasn't elapsed yet.
-            // A converted former trial keeps the same purchase record, so
-            // trial_period_days alone (regardless of elapsed time) isn't enough.
-            const trialEnd = trialEndDate(activePurchase, offer);
-            isTrial = trialEnd !== null && trialEnd > new Date();
-
             // Determine plan from offer name
             const offerName = offer.name || '';
             if (isMembershipOffer(offerName)) {
@@ -222,8 +208,7 @@ export async function POST(request: NextRequest) {
         // counts as a real subscription — cancelling after that always means
         // "cancelled", never falls back to "lead". A purchase cancelled *during*
         // its trial window never converted, so it doesn't count toward
-        // "cancelled" — that person is still a "lead" (has_trialed distinguishes
-        // them from someone who never engaged at all).
+        // "cancelled" — that person is still a "lead".
         let status: "lead" | "active" | "on_hiatus" | "cancelled";
         if (activePurchase) {
           status = "active";
@@ -260,8 +245,6 @@ export async function POST(request: NextRequest) {
           name,
           joined_at: contact.created_at_kajabi.split('T')[0],
           status,
-          is_trial: isTrial,
-          has_trialed: hasTrialed,
           plan,
           source: 'kajabi',
           staff_role: null,
@@ -297,7 +280,6 @@ export async function POST(request: NextRequest) {
         member.staff_role = staff.role;
         member.user_id = staff.user_id;
         member.status = 'active'; // Staff are always active
-        member.is_trial = false; // Staff access isn't a Kajabi trial regardless of purchase state
         // Use staff hire date if earlier than Kajabi joined_at
         if (staff.hire_date && staff.hire_date < member.joined_at) {
           member.joined_at = staff.hire_date;
@@ -329,8 +311,6 @@ export async function POST(request: NextRequest) {
         name: staff.name,
         joined_at: staff.hire_date || '2020-01-01',
         status: 'active' as const,
-        is_trial: false,
-        has_trialed: false,
         plan: null,
         source: 'staff',
         staff_role: staff.role,
