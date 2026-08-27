@@ -79,7 +79,7 @@ malformed webhook self-heals within 24 hours.
 ## Slack
 
 **Webhook:** `POST /api/webhooks/slack` (HMAC-SHA256 via `x-slack-signature`, 5-minute replay window)<br/>
-**Cron:** none — Slack has no scheduled reconciliation job today (not in `vercel.json`)
+**Cron:** `GET /api/reconcile/slack` — daily at 2:45am, trailing 3-day window
 
 ### Real-time flow
 
@@ -105,33 +105,47 @@ sequenceDiagram
     Process->>Silver: DELETE existing activities in range,<br/>then INSERT fresh (reprocessable)
 ```
 
-### Manual backfill (admin-triggered, not scheduled)
-
-There is no cron for Slack. Historical/bulk import is manual only, via two admin
-routes that both end by calling the same `triggerReprocessing('slack_messages', ...)`
-as the webhook:
-
-- `POST /api/import/slack` — imports a Slack export archive
-- `POST /api/import/slack-api` — backfills via the Slack Web API (users, channels,
-  messages, reactions) for a date range
+### Cron flow
 
 ```mermaid
 sequenceDiagram
     autonumber
-    participant Admin
+    participant Cron as Vercel Cron<br/>(45 2 * * * daily)
+    participant Recon as /api/reconcile/slack
     participant Import as /api/import/slack-api
     participant API as Slack Web API
     participant Bronze as bronze.slack_users/channels/<br/>messages/reactions
     participant Process as /api/process/slack
     participant Silver as member_activities
 
-    Admin->>Import: POST { fromDate, toDate } (admin session)
-    Import->>API: users.list, conversations.list,<br/>conversations.history, reactions.get
+    Cron->>Recon: GET (Authorization: Bearer CRON_SECRET)
+    Recon->>Recon: requireAdmin() — cron secret bypasses role check
+    Recon->>Import: triggerSlackSync({daysBack: 3})
+    Import->>API: users.list, conversations.list,<br/>conversations.history (per channel)
     API-->>Import: users, channels, messages, reactions
     Import->>Bronze: upsert bronze.slack_* tables
     Import->>Process: triggerReprocessing('slack_messages', 'bronze', {dateRange})
     Process->>Silver: DELETE + INSERT member_activities in range
 ```
+
+**Why a cron backstop:** the webhook's Bronze upsert silently failed for two
+months — it wrote a `raw_data` field that didn't match the actual `raw_payload`
+column, and the code never checked the upsert's returned error, so it kept
+logging false "upserted" successes while triggering reprocessing over Bronze
+data that was never written. With no reconciliation job, nothing ever caught
+or self-healed the gap (see commit `6a52822`). The nightly job re-pulls a
+trailing 3-day window — short, since a full Slack API backfill re-scans
+per-channel history and is heavier than Zoom/Calendar's equivalents, but wide
+enough to tolerate a missed run or two before data is permanently lost (Slack
+does not replay events past its own short webhook retry window).
+
+### Manual backfill (admin-triggered, not scheduled)
+
+- `POST /api/import/slack` — imports a Slack export archive (fully manual, no
+  automated equivalent)
+- `POST /api/import/slack-api` — same route the cron calls via `triggerSlackSync()`;
+  the admin "Slack API Import" form can pick a custom `daysBack` (defaults to 30)
+  for a deeper one-off backfill than the cron's 3-day window
 
 ---
 

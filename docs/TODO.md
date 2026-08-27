@@ -428,6 +428,12 @@ Query: `SELECT * FROM bronze.kajabi_purchases WHERE effective_start_at - created
 - **Fix:** Add paginated fetch for all four Bronze sources, then merge results in memory before processing
 - **Why not fixed yet:** Pre-existing in codebase; requires a larger refactor to paginate + merge all four Bronze sources
 
+### Fire-and-forget Silver reprocessing in Zoom/Calendar webhooks (same risk class as the Slack Bronze-write bug)
+- **Where:** `app/api/webhooks/zoom/route.ts` (`triggerZoomImport(...).then().catch()` inside a `setTimeout`), `app/api/webhooks/calendar/route.ts` (`triggerCalendarSync(...).then().catch()`)
+- **Problem:** Both trigger their reprocessing chain without `await`ing it, after the webhook has already sent its `200 OK` response. Vercel can freeze/terminate the function's execution environment as soon as the response goes out, killing the in-flight work mid-request — the same underlying failure mode that let the Slack webhook's Bronze writes fail silently for two months (fixed in commit `6a52822`; that bug also had a second, independent cause — a wrong column name — which is why it was confirmed and this one isn't yet).
+- **Why not fixed yet:** No confirmed data loss observed for Zoom/Calendar; deferred to keep the Slack fix scoped.
+- **Fix:** wrap the trigger calls in Next.js 15's `after()` (from `next/server`, already available on this repo's Next 15.3+) so Vercel keeps the function alive until the background work finishes, instead of racing the response.
+
 ### Member Filters
 - **At-risk and highly-engaged filters don't work**
   - URL: `/dashboard/members?filter=highly_engaged`
