@@ -11,9 +11,13 @@ export default async function DashboardPage() {
   const supabase = await createClient();
 
   // Fetch dashboard metrics
-  const { data: memberStats } = await supabase
+  const { data: memberStats, error: memberStatsError } = await supabase
     .from("members")
     .select("status, has_trialed");
+
+  if (memberStatsError) {
+    console.error("Dashboard: failed to fetch member stats", memberStatsError);
+  }
 
   const activeMembers = memberStats?.filter(m => m.status === "active").length || 0;
   const onHiatus = memberStats?.filter(m => m.status === "on_hiatus").length || 0;
