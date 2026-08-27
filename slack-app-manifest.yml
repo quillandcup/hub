@@ -1,10 +1,10 @@
 display_information:
-  name: Hedgie Hub
+  name: BillieBot
   description: Community engagement tracking and analytics
   background_color: "#4A154B"
 features:
   bot_user:
-    display_name: Hedgie Hub
+    display_name: BillieBot
     always_online: true
 oauth_config:
   scopes:
@@ -27,29 +27,27 @@ oauth_config:
       # Feedback widget notifications
       - chat:write
       - files:write
+  pkce_enabled: false
 settings:
-  # Phase 1: Event subscriptions DISABLED (batch export only)
-  # Phase 2: Uncomment and update request_url with your Vercel domain
-  # event_subscriptions:
-  #   request_url: https://REPLACE_WITH_YOUR_DOMAIN.vercel.app/api/webhooks/slack
-  #   bot_events:
-  #     # Messages
-  #     - message.channels
-  #     - message.groups
-  #     - message.im
-  #     - message.mpim
-  #     # Reactions
-  #     - reaction_added
-  #     - reaction_removed
-  #     # Message changes
-  #     - message.deleted
-  #     - message.changed
-  #     # Channel changes
-  #     - channel_created
-  #     - channel_rename
-  #     - channel_archive
-  #     # User changes
-  #     - user_change
+  event_subscriptions:
+    request_url: https://hub.quillandcup.com/api/webhooks/slack
+    bot_events:
+      # Messages
+      - message.channels
+      - message.groups
+      - message.im
+      - message.mpim
+      # Reactions
+      - reaction_added
+      - reaction_removed
+      # Phase 2 candidates (not yet enabled — uncomment and add live if needed)
+      # - message.deleted
+      # - message.changed
+      # - channel_created
+      # - channel_rename
+      # - channel_archive
+      # - user_change
   org_deploy_enabled: false
   socket_mode_enabled: false
   token_rotation_enabled: false
+  is_mcp_enabled: false
