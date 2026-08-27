@@ -3,6 +3,7 @@ import { requireAdmin } from "@/lib/supabase/api-auth";
 import { isMembershipOffer } from "@/lib/membership";
 import { NextRequest, NextResponse, after } from "next/server";
 import { triggerAttendanceReprocessing } from "@/lib/processing/trigger";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 const KAJABI_CDN = "https://kajabi-storefronts-production.kajabi-cdn.com/kajabi-storefronts-production/"
 
@@ -59,6 +60,40 @@ export const maxDuration = 300;
  * 3. Applies business logic
  * 4. Regenerates members table (UPSERT pattern to preserve UUIDs)
  */
+// Fetches every row from a Bronze table, paginating past Supabase's default
+// 1000-row cap so large tables (e.g. kajabi_contacts, kajabi_purchases) don't
+// get silently truncated. See CLAUDE.md "Database Query Limits".
+async function fetchAllBronzeRows(
+  supabase: SupabaseClient,
+  table: string,
+  columns: string = "*"
+): Promise<any[]> {
+  const BATCH_SIZE = 1000;
+  let allRows: any[] = [];
+  let offset = 0;
+  let hasMore = true;
+
+  while (hasMore) {
+    const { data: batch, error } = await supabase
+      .schema('bronze')
+      .from(table)
+      .select(columns)
+      .range(offset, offset + BATCH_SIZE - 1);
+
+    if (error) throw error;
+
+    if (batch && batch.length > 0) {
+      allRows = allRows.concat(batch);
+      offset += batch.length;
+      hasMore = batch.length === BATCH_SIZE;
+    } else {
+      hasMore = false;
+    }
+  }
+
+  return allRows;
+}
+
 export async function POST(request: NextRequest) {
   const auth = await requireAdmin(request);
   if (!auth.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -66,29 +101,27 @@ export async function POST(request: NextRequest) {
   const { supabase } = auth;
 
   try {
-    // STEP 1: Load Bronze data + Local data
+    // STEP 1: Load Bronze data + Local data.
+    // kajabi_contacts, kajabi_customers, kajabi_purchases, and kajabi_offers can each
+    // exceed Supabase's default 1000-row cap, so they're paginated in parallel loops.
     const [
-      { data: contacts, error: contactsError },
-      { data: customers, error: customersError },
-      { data: purchases, error: purchasesError },
-      { data: offers, error: offersError },
+      contacts,
+      customers,
+      purchases,
+      offers,
       { data: staffMembers, error: staffError },
       { data: emailAliases, error: aliasesError },
       { data: stripeCustomers, error: stripeError }
     ] = await Promise.all([
-      supabase.schema('bronze').from("kajabi_contacts").select("*"),
-      supabase.schema('bronze').from("kajabi_customers").select("*"),
-      supabase.schema('bronze').from("kajabi_purchases").select("*"),
-      supabase.schema('bronze').from("kajabi_offers").select("*"),
+      fetchAllBronzeRows(supabase, "kajabi_contacts"),
+      fetchAllBronzeRows(supabase, "kajabi_customers"),
+      fetchAllBronzeRows(supabase, "kajabi_purchases"),
+      fetchAllBronzeRows(supabase, "kajabi_offers"),
       supabase.from("staff").select("*"),
       supabase.from("member_email_aliases").select("*"),
       supabase.schema('bronze').from("stripe_customers").select("stripe_customer_id, email")
     ]);
 
-    if (contactsError) throw contactsError;
-    if (customersError) throw customersError;
-    if (purchasesError) throw purchasesError;
-    if (offersError) throw offersError;
     if (staffError) throw staffError;
     if (aliasesError) throw aliasesError;
     if (stripeError) throw stripeError;

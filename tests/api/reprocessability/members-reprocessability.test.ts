@@ -360,3 +360,90 @@ describe('Members Status Classification', () => {
     expect(member?.status).toBe('active')
   })
 })
+
+/**
+ * Regression test for the Bronze-tier pagination gap in /api/process/members.
+ *
+ * Supabase silently caps any unpaginated `.select()` at the project's configured
+ * max-rows setting (1000 by default in production; this local dev stack sets
+ * `max_rows = 5000` in supabase/config.toml). The route used to fetch
+ * kajabi_contacts (and kajabi_customers/purchases/offers) with a single unguarded
+ * `.select("*")`, so contacts past that cap were dropped from Silver processing
+ * with no error. This seeds more rows than the local max-rows cap and confirms
+ * every one of them — including the ones past the cutoff — is processed into
+ * `members`, so the test actually reproduces the truncation against this repo's
+ * local Supabase stack rather than passing regardless of the fix.
+ */
+describe('Members Bronze Pagination (>1000 rows)', () => {
+  const supabase = getTestSupabaseAdminClient()
+  const ts = Date.now()
+  const emailPrefix = `pagination-members-${ts}`
+  const ROW_COUNT = 5500
+
+  const emailFor = (i: number) => `${emailPrefix}-${i}@example.com`
+
+  beforeAll(async () => {
+    const contacts = Array.from({ length: ROW_COUNT }, (_, i) => ({
+      kajabi_contact_id: `pagination-contact-${ts}-${i}`,
+      email: emailFor(i),
+      name: `Pagination Test ${i}`,
+      created_at_kajabi: '2022-01-01T00:00:00Z',
+      data: {},
+    }))
+
+    // Insert in chunks of 500 (CLAUDE.md batching guidance)
+    for (let i = 0; i < contacts.length; i += 500) {
+      const { error } = await supabase
+        .schema('bronze').from('kajabi_contacts')
+        .insert(contacts.slice(i, i + 500))
+      if (error) throw error
+    }
+  }, 30000)
+
+  afterAll(async () => {
+    await supabase
+      .schema('bronze').from('kajabi_contacts')
+      .delete()
+      .ilike('email', `${emailPrefix}-%`)
+    await supabase.from('members').delete().ilike('email', `${emailPrefix}-%`)
+  })
+
+  it(
+    'processes every contact, including those past the Supabase query row cap',
+    async () => {
+      const response = await fetch('http://localhost:3000/api/process/members', {
+        method: 'POST',
+        headers: getTestAuthHeaders(),
+      })
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        throw new Error(`API call failed: ${response.status} - ${errorText}`)
+      }
+
+      const result = await response.json()
+      expect(result.success).toBe(true)
+
+      const { count, error: countError } = await supabase
+        .from('members')
+        .select('*', { count: 'exact', head: true })
+        .ilike('email', `${emailPrefix}-%`)
+
+      expect(countError).toBeNull()
+      expect(count).toBe(ROW_COUNT)
+
+      // Specifically confirm a contact past row 1000 — the old truncation point —
+      // made it through processing with its data intact.
+      const pastCutoffIndex = ROW_COUNT - 1
+      const { data: lastMember, error: lastMemberError } = await supabase
+        .from('members')
+        .select('*')
+        .eq('email', emailFor(pastCutoffIndex))
+        .single()
+
+      expect(lastMemberError).toBeNull()
+      expect(lastMember?.name).toBe(`Pagination Test ${pastCutoffIndex}`)
+    },
+    60000
+  )
+})
