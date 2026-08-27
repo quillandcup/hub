@@ -4,6 +4,7 @@ import { getUserFeaturePreviews } from "@/lib/features.server";
 import type { FeatureKey } from "@/lib/features";
 import AdminNavigation from "./admin/AdminNavigation";
 import UserMenu from "@/components/UserMenu";
+import FeedbackWidget from "@/components/FeedbackWidget";
 
 export default async function AdminLayout({
   children,
@@ -81,6 +82,7 @@ export default async function AdminLayout({
           {children}
         </main>
       </div>
+      <FeedbackWidget />
     </div>
   );
 }

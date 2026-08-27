@@ -42,8 +42,8 @@ if [ ! -f .env.devel ]; then
     exit 1
 fi
 
-# Sync Supabase vars from .env.devel to development AND preview
-for var in NEXT_PUBLIC_SUPABASE_URL NEXT_PUBLIC_SUPABASE_ANON_KEY SUPABASE_SERVICE_ROLE_KEY; do
+# Sync devel vars from .env.devel to development AND preview
+for var in NEXT_PUBLIC_SUPABASE_URL NEXT_PUBLIC_SUPABASE_ANON_KEY SUPABASE_SERVICE_ROLE_KEY SLACK_FEEDBACK_CHANNEL_ID; do
     sync_env_var "$var" .env.devel development
     sync_env_var "$var" .env.devel preview
 done
@@ -64,7 +64,7 @@ for var in \
     ZOOM_ACCOUNT_ID ZOOM_CLIENT_ID ZOOM_CLIENT_SECRET ZOOM_WEBHOOK_SECRET_TOKEN ZOOM_USER_EMAIL \
     KAJABI_CLIENT_ID KAJABI_CLIENT_SECRET KAJABI_SITE_ID \
     GOOGLE_CALENDAR_ID GOOGLE_SERVICE_ACCOUNT_KEY \
-    SLACK_BOT_TOKEN \
+    SLACK_BOT_TOKEN SLACK_FEEDBACK_CHANNEL_ID \
     STRIPE_API_KEY \
     SUDO_SECRET \
     CRON_SECRET; do

@@ -24,6 +24,9 @@ oauth_config:
       # Reactions and files
       - reactions:read
       - files:read
+      # Feedback widget notifications
+      - chat:write
+      - files:write
 settings:
   # Phase 1: Event subscriptions DISABLED (batch export only)
   # Phase 2: Uncomment and update request_url with your Vercel domain

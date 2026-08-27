@@ -7,6 +7,7 @@ import MemberNavigation from '@/components/MemberNavigation'
 import UserMenu from '@/components/UserMenu'
 import SudoBanner from '@/components/SudoBanner'
 import { TimezoneInitializer } from '@/components/TimezoneInitializer'
+import FeedbackWidget from '@/components/FeedbackWidget'
 
 export default async function MemberLayout({
   children,
@@ -81,6 +82,7 @@ export default async function MemberLayout({
         </main>
         <TimezoneInitializer storedTimezone={storedTimezone} isSudo={effectiveIdentity.isSudo} />
       </div>
+      <FeedbackWidget />
     </div>
   )
 }

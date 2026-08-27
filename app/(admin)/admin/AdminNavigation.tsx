@@ -58,6 +58,7 @@ const navigation: NavSection[] = [
     name: "System",
     items: [
       { name: "Users", href: "/admin/users", icon: "🔑" },
+      { name: "Feedback", href: "/admin/feedback", icon: "💬" },
     ],
   },
 ];
