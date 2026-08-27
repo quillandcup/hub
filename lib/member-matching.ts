@@ -238,14 +238,27 @@ function levenshteinDistance(a: string, b: string): number {
 }
 
 /**
- * Similarity of two names in [0, 1], based on normalized edit distance
+ * Similarity of two strings in [0, 1], based on normalized edit distance
  */
-function nameSimilarity(a: string, b: string): number {
-  const na = normalizeName(a);
-  const nb = normalizeName(b);
-  const maxLen = Math.max(na.length, nb.length);
+function stringSimilarity(a: string, b: string): number {
+  const maxLen = Math.max(a.length, b.length);
   if (maxLen === 0) return 0;
-  return 1 - levenshteinDistance(na, nb) / maxLen;
+  return 1 - levenshteinDistance(a, b) / maxLen;
+}
+
+/**
+ * Splits a name into lowercase word tokens, treating punctuation (hyphens,
+ * slashes, apostrophes, accented characters normalizeName would otherwise
+ * delete) as a separator rather than deleting it — so "Jelgersma/Elin" keeps
+ * "jelgersma" and "elin" as distinct tokens instead of merging them.
+ */
+function tokenize(name: string): string[] {
+  return name
+    .toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // strip accents: würtz -> wurtz
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .filter(Boolean);
 }
 
 export interface MemberSuggestion {
@@ -257,6 +270,12 @@ export interface MemberSuggestion {
  * Suggests likely member matches for a name/email that didn't match exactly
  * (e.g. for data hygiene UIs where the operator needs candidates to pick from).
  *
+ * Whole-name similarity alone penalizes the common case where the input is
+ * just a first name or nickname ("Elze") and the candidate has a long full
+ * name ("Elze Albada Jelgersma/Elin Sage") — the length mismatch swamps the
+ * edit distance even though one name's tokens are an exact match. So this
+ * also scores at the token level and takes the best of the two views.
+ *
  * Not used by attendance/calendar processing — that pipeline requires exact
  * matches via matchAttendeeToMember and treats ambiguity as unmatched.
  */
@@ -266,11 +285,11 @@ export function suggestMemberMatches(
   members: Member[],
   limit = 3
 ): MemberSuggestion[] {
-  const nameTokens = normalizeName(name).split(' ').filter(Boolean);
+  const normalizedInput = normalizeName(name);
+  const inputTokens = tokenize(name);
   const emailLocalPart = email ? email.split('@')[0].toLowerCase() : null;
 
   const scored: MemberSuggestion[] = [];
-  const normalizedInput = normalizeName(name);
 
   for (const member of members) {
     // Exact normalized-name matches are handled by the primary matcher upstream
@@ -278,29 +297,45 @@ export function suggestMemberMatches(
     // an "unmatched" state — skip so suggestions only ever cover real ambiguity.
     if (normalizedInput && normalizedInput === normalizeName(member.name)) continue;
 
-    let score = name ? nameSimilarity(name, member.name) : 0;
+    const memberTokens = tokenize(member.name);
 
-    const memberTokens = normalizeName(member.name).split(' ').filter(Boolean);
-    if (nameTokens.length > 0 && memberTokens.length > 0) {
-      if (nameTokens[0] === memberTokens[0]) score += 0.15;
-      if (nameTokens[nameTokens.length - 1] === memberTokens[memberTokens.length - 1]) {
-        score += 0.15;
+    // View 1: whole-name similarity (favors two similarly-shaped full names)
+    let score = name ? stringSimilarity(normalizedInput, normalizeName(member.name)) : 0;
+
+    // View 2: best matching token pair (favors a first-name/nickname input
+    // matching one token inside a longer full name)
+    for (const it of inputTokens) {
+      for (const mt of memberTokens) {
+        const tokenScore = it === mt ? 1 : stringSimilarity(it, mt);
+        if (tokenScore > score) score = tokenScore;
+      }
+    }
+
+    // Substring containment, mirroring the plain substring search the operator
+    // sees when typing into the manual member search box
+    if (normalizedInput.length >= 3) {
+      const normalizedMember = normalizeName(member.name);
+      if (
+        normalizedMember.includes(normalizedInput) ||
+        normalizedInput.includes(normalizedMember)
+      ) {
+        score = Math.max(score, 0.9);
       }
     }
 
     if (emailLocalPart) {
       const memberLocalPart = member.email.split('@')[0].toLowerCase();
       if (emailLocalPart === memberLocalPart) {
-        score += 0.3;
+        score = Math.max(score, 0.95);
       } else if (
         memberLocalPart.includes(emailLocalPart) ||
         emailLocalPart.includes(memberLocalPart)
       ) {
-        score += 0.15;
+        score = Math.max(score, 0.6);
       }
     }
 
-    if (score >= 0.35) {
+    if (score >= 0.65) {
       scored.push({ member, score: Math.min(score, 1) });
     }
   }
