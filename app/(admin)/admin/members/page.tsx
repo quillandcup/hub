@@ -67,20 +67,13 @@ export default async function MembersPage({
   const filter = (params.filter as string) || "active";
   const search = (params.search as string) || "";
 
-  // Build query - apply filters that work on the members table directly
+  // Fetch all members matching search (status/engagement filters are applied in
+  // memory below) so we can compute a count for every filter tab, not just the
+  // currently selected one.
   let query = supabase.from("members").select("*");
 
   if (search) {
     query = query.or(`name.ilike.%${search}%,email.ilike.%${search}%`);
-  }
-
-  // Apply status filters (these work on the members table directly)
-  if (filter === "active") {
-    query = query.eq("status", "active");
-  } else if (filter === "on_hiatus") {
-    query = query.eq("status", "on_hiatus");
-  } else if (filter === "unregistered") {
-    query = query.eq("status", "active").is("user_id", null);
   }
 
   const { data: allMembers } = await query.order("name");
@@ -113,9 +106,27 @@ export default async function MembersPage({
     };
   });
 
-  // Apply engagement filters in memory (these require the computed metrics above)
+  // Counts per filter tab, scoped to the current search but ignoring the
+  // currently selected filter, so each tab shows how many results it would return.
+  const filterCounts = {
+    all: membersWithMetrics.length,
+    active: membersWithMetrics.filter((m) => m.status === "active").length,
+    at_risk: membersWithMetrics.filter((m) => m.member_engagement?.risk_level === "high").length,
+    highly_engaged: membersWithMetrics.filter((m) => m.member_engagement?.engagement_tier === "highly_engaged").length,
+    on_hiatus: membersWithMetrics.filter((m) => m.status === "on_hiatus").length,
+    unregistered: membersWithMetrics.filter((m) => m.status === "active" && m.user_id === null).length,
+  };
+
+  // Apply the selected filter in memory (status filters use raw columns,
+  // engagement filters require the computed metrics above)
   let members: typeof membersWithMetrics | null = membersWithMetrics;
-  if (filter === "at_risk") {
+  if (filter === "active") {
+    members = membersWithMetrics.filter((m) => m.status === "active");
+  } else if (filter === "on_hiatus") {
+    members = membersWithMetrics.filter((m) => m.status === "on_hiatus");
+  } else if (filter === "unregistered") {
+    members = membersWithMetrics.filter((m) => m.status === "active" && m.user_id === null);
+  } else if (filter === "at_risk") {
     members = membersWithMetrics.filter((m) => m.member_engagement?.risk_level === "high");
   } else if (filter === "highly_engaged") {
     members = membersWithMetrics.filter((m) => m.member_engagement?.engagement_tier === "highly_engaged");
@@ -136,7 +147,17 @@ export default async function MembersPage({
         <div className="bg-white dark:bg-slate-900 rounded-lg shadow">
           {/* Filters */}
           <div className="p-6 border-b border-slate-200 dark:border-slate-800">
-            <MemberFilters currentFilter={filter} />
+            <MemberFilters currentFilter={filter} counts={filterCounts} />
+          </div>
+
+          {/* Result count */}
+          <div className="px-6 py-3 text-sm text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800">
+            {(members ?? []).length} {(members ?? []).length === 1 ? "member" : "members"}
+            {search && (
+              <>
+                {" "}matching <span className="font-medium text-slate-700 dark:text-slate-300">&ldquo;{search}&rdquo;</span>
+              </>
+            )}
           </div>
 
           {/* Table */}

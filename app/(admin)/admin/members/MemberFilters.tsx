@@ -3,13 +3,28 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
-export default function MemberFilters({ currentFilter }: { currentFilter: string }) {
+type FilterCounts = {
+  all: number;
+  active: number;
+  at_risk: number;
+  highly_engaged: number;
+  on_hiatus: number;
+  unregistered: number;
+};
+
+export default function MemberFilters({
+  currentFilter,
+  counts,
+}: {
+  currentFilter: string;
+  counts: FilterCounts;
+}) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [search, setSearch] = useState(searchParams.get("search") ?? "");
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const filters = [
+  const filters: { value: keyof FilterCounts; label: string }[] = [
     { value: "all", label: "All Members" },
     { value: "active", label: "Active Only" },
     { value: "at_risk", label: "At Risk" },
@@ -56,7 +71,7 @@ export default function MemberFilters({ currentFilter }: { currentFilter: string
               : "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700"
           }`}
         >
-          {filter.label}
+          {filter.label} <span className="opacity-70">({counts[filter.value]})</span>
         </button>
       ))}
       <div className="ml-auto flex items-center gap-1.5 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 px-3 py-2 focus-within:ring-2 focus-within:ring-blue-500">
