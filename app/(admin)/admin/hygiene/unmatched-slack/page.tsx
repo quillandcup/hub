@@ -17,7 +17,7 @@ export default async function UnmatchedSlackUsersPage() {
     { data: aliases },
     { data: ignoredUsers },
   ] = await Promise.all([
-    supabase.schema('bronze').from("slack_users").select("user_id, email, real_name, display_name, is_bot"),
+    supabase.schema('bronze').from("slack_users").select("user_id, email, real_name, display_name, is_bot, is_deleted"),
     supabase.from("members").select("id, name, email").order("name"),
     supabase.from("member_name_aliases").select("alias, member_id, source"),
     supabase.from("ignored_slack_users").select("user_id"),
@@ -70,8 +70,13 @@ export default async function UnmatchedSlackUsersPage() {
       real_name: u.real_name,
       display_name: u.display_name,
       message_count: messageCountByUser.get(u.user_id) || 0,
+      is_deleted: u.is_deleted,
     }))
-    .sort((a, b) => b.message_count - a.message_count); // Sort by activity
+    .sort((a, b) => {
+      // Active Slack accounts first, then by message activity
+      if (a.is_deleted !== b.is_deleted) return a.is_deleted ? 1 : -1;
+      return b.message_count - a.message_count;
+    });
 
   return (
     <div className="container mx-auto px-6 py-8">

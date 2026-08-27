@@ -11,6 +11,7 @@ const unmatchedSlackUsers = [
     real_name: 'Alice Example',
     display_name: 'alice',
     message_count: 12,
+    is_deleted: false,
   },
   {
     slack_user_id: 'U2',
@@ -18,6 +19,7 @@ const unmatchedSlackUsers = [
     real_name: 'Bob Guest',
     display_name: null,
     message_count: 3,
+    is_deleted: true,
   },
 ]
 
@@ -40,6 +42,18 @@ describe('SlackAliasSearchForm', () => {
 
     expect(screen.getByText('Bob Guest')).toBeInTheDocument()
     expect(screen.getByText('3 messages')).toBeInTheDocument()
+  })
+
+  it('shows active/deactivated status badges and a breakdown count', () => {
+    render(<SlackAliasSearchForm unmatchedSlackUsers={unmatchedSlackUsers} allMembers={allMembers} />)
+
+    const aliceRow = screen.getByText('Alice Example').closest('div.p-3') as HTMLElement
+    expect(within(aliceRow).getByText('active')).toBeInTheDocument()
+
+    const bobRow = screen.getByText('Bob Guest').closest('div.p-3') as HTMLElement
+    expect(within(bobRow).getByText('deactivated')).toBeInTheDocument()
+
+    expect(screen.getByText('1 active · 1 deactivated')).toBeInTheDocument()
   })
 
   it('creates an alias and removes the row when a member is selected', async () => {

@@ -10,6 +10,7 @@ interface UnmatchedSlackUser {
   real_name: string | null;
   display_name: string | null;
   message_count: number;
+  is_deleted?: boolean;
 }
 
 interface Member {
@@ -125,6 +126,10 @@ export default function SlackAliasSearchForm({
           <div className="mt-2 text-2xl font-bold text-blue-600 dark:text-blue-400">
             {users.length}
           </div>
+          <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+            {users.filter((u) => !u.is_deleted).length} active ·{" "}
+            {users.filter((u) => u.is_deleted).length} deactivated
+          </div>
         </div>
 
         <div className="divide-y divide-slate-200 dark:divide-slate-800">
@@ -138,9 +143,20 @@ export default function SlackAliasSearchForm({
                 <div className="grid grid-cols-[300px_1fr_auto] gap-4 items-start">
                   {/* Left: Name and metadata */}
                   <div>
-                    <div className="font-semibold text-slate-900 dark:text-slate-100">
-                      {user.real_name || user.display_name || (
-                        <span className="font-mono text-slate-500">{user.slack_user_id}</span>
+                    <div className="flex items-center gap-1.5">
+                      <div className="font-semibold text-slate-900 dark:text-slate-100">
+                        {user.real_name || user.display_name || (
+                          <span className="font-mono text-slate-500">{user.slack_user_id}</span>
+                        )}
+                      </div>
+                      {user.is_deleted ? (
+                        <span className="text-xs px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 rounded">
+                          deactivated
+                        </span>
+                      ) : (
+                        <span className="text-xs px-1.5 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded">
+                          active
+                        </span>
                       )}
                     </div>
                     {user.display_name && user.display_name !== user.real_name && (
