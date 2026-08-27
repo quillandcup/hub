@@ -227,7 +227,7 @@ export async function triggerSlackSync(options?: { daysBack?: number }) {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
     },
-    body: JSON.stringify({ daysBack: options?.daysBack ?? 3 }),
+    body: JSON.stringify({ daysBack: options?.daysBack ?? 90 }),
   });
   const response = await POST(req);
   if (!response.ok) {

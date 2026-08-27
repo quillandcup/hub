@@ -51,9 +51,9 @@ describe('GET /api/reconcile/slack', () => {
         success: true,
         fetched: { users: 40, channels: 8, messages: 120, reactions: 300 },
         imported: { users: 40, channels: 8, messages: 120, reactions: 300 },
-        daysBack: 3,
+        daysBack: 90,
         importTimestamp: '2026-08-26T00:00:00Z',
-        dateRange: { fromDate: '2026-08-23', toDate: '2026-08-26' },
+        dateRange: { fromDate: '2026-05-28', toDate: '2026-08-26' },
         processing: [{ table: 'slack', success: true }],
       })
 
@@ -61,7 +61,7 @@ describe('GET /api/reconcile/slack', () => {
       const body = await response.json()
 
       expect(response.status).toBe(200)
-      expect(triggerSlackSync).toHaveBeenCalledWith({ daysBack: 3 })
+      expect(triggerSlackSync).toHaveBeenCalledWith({ daysBack: 90 })
       expect(body.success).toBe(true)
       expect(body.reconciliation).toBe('slack')
       expect(body.imported.messages).toBe(120)

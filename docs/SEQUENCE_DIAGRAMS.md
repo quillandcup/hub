@@ -79,7 +79,7 @@ malformed webhook self-heals within 24 hours.
 ## Slack
 
 **Webhook:** `POST /api/webhooks/slack` (HMAC-SHA256 via `x-slack-signature`, 5-minute replay window)<br/>
-**Cron:** `GET /api/reconcile/slack` — daily at 2:45am, trailing 3-day window
+**Cron:** `GET /api/reconcile/slack` — daily at 2:45am, trailing 90-day window
 
 ### Real-time flow
 
@@ -120,7 +120,7 @@ sequenceDiagram
 
     Cron->>Recon: GET (Authorization: Bearer CRON_SECRET)
     Recon->>Recon: requireAdmin() — cron secret bypasses role check
-    Recon->>Import: triggerSlackSync({daysBack: 3})
+    Recon->>Import: triggerSlackSync({daysBack: 90})
     Import->>API: users.list, conversations.list,<br/>conversations.history (per channel)
     API-->>Import: users, channels, messages, reactions
     Import->>Bronze: upsert bronze.slack_* tables
@@ -133,19 +133,26 @@ months — it wrote a `raw_data` field that didn't match the actual `raw_payload
 column, and the code never checked the upsert's returned error, so it kept
 logging false "upserted" successes while triggering reprocessing over Bronze
 data that was never written. With no reconciliation job, nothing ever caught
-or self-healed the gap (see commit `6a52822`). The nightly job re-pulls a
-trailing 3-day window — short, since a full Slack API backfill re-scans
-per-channel history and is heavier than Zoom/Calendar's equivalents, but wide
-enough to tolerate a missed run or two before data is permanently lost (Slack
-does not replay events past its own short webhook retry window).
+or self-healed the gap (see commit `6a52822`).
+
+**Why a 90-day window specifically:** this workspace is on Slack's free plan,
+which caps API-visible message history at 90 days — `conversations.history`
+simply can't return anything older, regardless of `daysBack`. That's a hard
+perishability cliff exactly like Zoom's degrading reports or Google's expiring
+push channels, so Slack gets the same generous trailing window those crons
+use (matching Zoom's `daysBack: 90` precedent) rather than a short one: a
+narrower window wouldn't meaningfully reduce the daily cost (the dominant
+cost is the fixed per-channel rate-limit delay, not the day count), and it
+would leave a real gap where undetected drift older than the window becomes
+unrecoverable — which is exactly the failure mode this cron exists to close.
 
 ### Manual backfill (admin-triggered, not scheduled)
 
 - `POST /api/import/slack` — imports a Slack export archive (fully manual, no
   automated equivalent)
 - `POST /api/import/slack-api` — same route the cron calls via `triggerSlackSync()`;
-  the admin "Slack API Import" form can pick a custom `daysBack` (defaults to 30)
-  for a deeper one-off backfill than the cron's 3-day window
+  the admin "Slack API Import" form can pick a custom `daysBack` (defaults to
+  30) for a smaller one-off backfill than the cron's full 90-day window
 
 ---
 

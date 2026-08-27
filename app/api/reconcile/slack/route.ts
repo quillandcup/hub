@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
   try {
     console.log(`[Reconciliation] Starting Slack reconciliation via Slack API`);
 
-    const result = await triggerSlackSync({ daysBack: 3 });
+    const result = await triggerSlackSync({ daysBack: 90 });
 
     console.log(`[Reconciliation] Slack reconciliation complete`);
 
