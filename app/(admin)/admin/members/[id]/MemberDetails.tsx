@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import MemberAttendanceView from "@/components/MemberAttendanceView";
 import { slackEmojiToUnicode, formatSlackPermalink } from "@/lib/slack-emoji";
+import { gapLabelsByStintStart } from "@/lib/resubscription-detection";
 
 interface MemberDetailsProps {
   member: any;
@@ -20,6 +21,10 @@ export default function MemberDetails({ member, attendanceRecords, hiatusHistory
 
   const memberMetrics = member.member_metrics || {};
   const memberEngagement = member.member_engagement || {};
+
+  // Gap before each stint, keyed by that stint's start date, reusing the same
+  // cancel→rejoin detection as the Cancellations & Resubscriptions page.
+  const gapLabelByStart = gapLabelsByStintStart(membershipHistory);
 
   // Slack workspace URL - TODO: move to env variable
   const SLACK_WORKSPACE_URL = 'https://quillandcup.slack.com';
@@ -187,21 +192,28 @@ export default function MemberDetails({ member, attendanceRecords, hiatusHistory
                   }
                 }
 
+                const gapLabel = gapLabelByStart.get(purchase.created_at_kajabi) ?? null;
+
                 return (
-                  <div
-                    key={idx}
-                    className="flex items-center justify-between p-3 rounded-lg border bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700"
-                  >
-                    <div className="flex items-center gap-3 flex-wrap">
-                      <span className="text-sm font-medium text-slate-900 dark:text-slate-100">
-                        {fmt(startDate)} → {endDate ? fmt(endDate) : "Present"}
-                      </span>
-                      <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${isActive ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300" : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400"}`}>
-                        {isActive ? "active" : "cancelled"}
-                      </span>
+                  <Fragment key={idx}>
+                    <div className="flex items-center justify-between p-3 rounded-lg border bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700">
+                      <div className="flex items-center gap-3 flex-wrap">
+                        <span className="text-sm font-medium text-slate-900 dark:text-slate-100">
+                          {fmt(startDate)} → {endDate ? fmt(endDate) : "Present"}
+                        </span>
+                        <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${isActive ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300" : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400"}`}>
+                          {isActive ? "active" : "cancelled"}
+                        </span>
+                      </div>
+                      <span className="text-xs text-slate-500 dark:text-slate-400 ml-4 shrink-0">{durationText}</span>
                     </div>
-                    <span className="text-xs text-slate-500 dark:text-slate-400 ml-4 shrink-0">{durationText}</span>
-                  </div>
+                    {gapLabel && (
+                      <div className="flex items-center gap-2 pl-4 text-xs text-slate-400 dark:text-slate-500">
+                        <span className="inline-block w-px h-3 bg-slate-300 dark:bg-slate-600" />
+                        {gapLabel} before rejoining
+                      </div>
+                    )}
+                  </Fragment>
                 );
               })}
             </div>

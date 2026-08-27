@@ -5,6 +5,7 @@ import Link from "next/link";
 import ResubscriptionsChart from "./ResubscriptionsChart";
 import { fetchResubscriptionsData } from "@/lib/resubscription-data";
 import type { ResubscribingMember } from "@/lib/resubscription-data";
+import { formatGapLabel } from "@/lib/resubscription-detection";
 
 export const maxDuration = 60;
 
@@ -27,10 +28,8 @@ function formatDate(iso: string): string {
 }
 
 function GapBadge({ days }: { days: number }) {
-  const months = Math.round(days / 30);
-  const label = months < 1 ? `${days}d gap` : months === 1 ? "1 mo gap" : `${months} mo gap`;
   return (
-    <span className="text-xs text-slate-400 dark:text-slate-500 ml-2">({label})</span>
+    <span className="text-xs text-slate-400 dark:text-slate-500 ml-2">({formatGapLabel(days)})</span>
   );
 }
 

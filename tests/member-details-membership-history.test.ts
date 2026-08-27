@@ -93,7 +93,7 @@ describe('fetchMembershipHistory', () => {
     expect(entry).toBeDefined()
     expect(entry!.created_at_kajabi).toBe('2024-01-01T00:00:00+00:00')
     expect(entry!.status).toBe('active')
-    expect(entry!.derived_end_at).toBeNull() // only membership purchase; no next subscription to derive from
+    expect(entry!.derived_end_at).toBeNull() // deactivated_at is null; still active
   })
 
   it('excludes workshop offers even when subscription flag is true', async () => {
@@ -111,7 +111,7 @@ describe('fetchMembershipHistory', () => {
     expect(history).toHaveLength(0)
   })
 
-  it('derives end date from next subscription start, not deactivated_at', async () => {
+  it('derives end date from each purchase\'s own deactivated_at, preserving cancel/resubscribe gaps', async () => {
     const earlierPurchaseId = `mh-earlier-sub-${ts}`
     const laterPurchaseId = `mh-later-sub-${ts}`
     const multiSubCustomerId = `mh-multi-sub-${ts}`
@@ -129,7 +129,7 @@ describe('fetchMembershipHistory', () => {
         kajabi_offer_id: subscriptionOfferId,
         status: 'canceled',
         created_at_kajabi: '2022-08-18T00:00:00Z',
-        deactivated_at: '2099-01-01T00:00:00Z', // wrong/irrelevant — should be overridden
+        deactivated_at: '2022-10-01T00:00:00Z', // real cancellation, well before the next purchase starts
         data: {},
       },
       {
@@ -150,9 +150,10 @@ describe('fetchMembershipHistory', () => {
       const earlier = history.find(p => p.kajabi_purchase_id === earlierPurchaseId || p.created_at_kajabi === '2022-08-18T00:00:00+00:00')
       const later = history.find(p => p.kajabi_purchase_id === laterPurchaseId || p.created_at_kajabi === '2022-12-05T00:00:00+00:00')
 
-      // Earlier subscription: derived_end_at = later subscription's created_at (not deactivated_at 2099)
-      expect(earlier!.derived_end_at).toBe('2022-12-05T00:00:00+00:00')
-      // Most recent subscription: falls back to deactivated_at (null = active)
+      // Earlier subscription: derived_end_at = its own deactivated_at, leaving the gap
+      // before the next purchase's created_at (2022-12-05) visible.
+      expect(earlier!.derived_end_at).toBe('2022-10-01T00:00:00+00:00')
+      // Most recent subscription: deactivated_at is null = still active
       expect(later!.derived_end_at).toBeNull()
     } finally {
       await supabase.schema('bronze').from('kajabi_purchases')

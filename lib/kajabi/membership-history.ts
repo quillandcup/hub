@@ -40,10 +40,11 @@ export async function fetchMembershipHistory(
   // Filter to membership purchases (already sorted ascending by created_at_kajabi)
   const membership = purchases.filter((p: any) => membershipOfferIds.has(p.kajabi_offer_id));
 
-  // Derive end date: use next subscription's billing start, fall back to deactivated_at for the most recent
-  const withDerivedEnds: MembershipPurchase[] = membership.map((p: any, i: number) => ({
+  // End date is each purchase's own deactivated_at (null = still active). Chaining to the
+  // next purchase's created_at_kajabi would hide real cancel/resubscribe gaps.
+  const withDerivedEnds: MembershipPurchase[] = membership.map((p: any) => ({
     created_at_kajabi: p.created_at_kajabi,
-    derived_end_at: i < membership.length - 1 ? membership[i + 1].created_at_kajabi : p.deactivated_at,
+    derived_end_at: p.deactivated_at,
     status: p.status,
     kajabi_offer_id: p.kajabi_offer_id,
   }));
