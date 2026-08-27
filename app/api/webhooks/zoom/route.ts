@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { createHmac } from "crypto";
 import { triggerZoomImport } from "@/lib/processing/trigger";
 
@@ -124,11 +124,19 @@ async function processMeetingEvent(payload: any) {
     const toDate = endTime.toISOString().split("T")[0];
 
     // Trigger Zoom import after a short delay to let Zoom finalize meeting data.
-    setTimeout(() => {
-      triggerZoomImport({ fromDate, toDate })
-        .then(() => console.log("Zoom import triggered successfully"))
-        .catch((error) => console.error("Error triggering Zoom import:", error));
-    }, 10000);
+    // Wrapped in after() so Vercel keeps the function instance alive until the
+    // delayed import completes, instead of tearing it down once the response
+    // is sent (see docs/TODO.md Bug Fixes for the 2-month Slack webhook data-loss
+    // incident this pattern is meant to avoid).
+    after(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 10000));
+      try {
+        await triggerZoomImport({ fromDate, toDate });
+        console.log("Zoom import triggered successfully");
+      } catch (error) {
+        console.error("Error triggering Zoom import:", error);
+      }
+    });
   }
 }
 
