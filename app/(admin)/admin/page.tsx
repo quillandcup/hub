@@ -13,7 +13,7 @@ export default async function DashboardPage() {
   // Fetch dashboard metrics
   const { data: memberStats, error: memberStatsError } = await supabase
     .from("members")
-    .select("status, has_trialed");
+    .select("status");
 
   if (memberStatsError) {
     console.error("Dashboard: failed to fetch member stats", memberStatsError);
@@ -22,10 +22,6 @@ export default async function DashboardPage() {
   const activeMembers = memberStats?.filter(m => m.status === "active").length || 0;
   const onHiatus = memberStats?.filter(m => m.status === "on_hiatus").length || 0;
   const leads = memberStats?.filter(m => m.status === "lead").length || 0;
-  // "Lead" conflates two different populations — only the second one actually
-  // "didn't convert" (they tried it); the first never had a funnel to convert from.
-  const coldLeads = memberStats?.filter(m => m.status === "lead" && !m.has_trialed).length || 0;
-  const lapsedTrialLeads = memberStats?.filter(m => m.status === "lead" && m.has_trialed).length || 0;
   const cancelled = memberStats?.filter(m => m.status === "cancelled").length || 0;
   const totalMembers = activeMembers + onHiatus; // Exclude leads and cancelled (never-converted / former members)
 
@@ -281,7 +277,7 @@ export default async function DashboardPage() {
           <MetricCard
             label="Leads"
             value={leads}
-            description={`${coldLeads} never engaged, ${lapsedTrialLeads} tried it`}
+            description="Never converted to paying"
           />
           <MetricCard
             label="Cancelled"
