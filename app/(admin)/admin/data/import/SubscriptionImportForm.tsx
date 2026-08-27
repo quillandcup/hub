@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 
 export default function SubscriptionImportForm() {
   const [isUploading, setIsUploading] = useState(false);
@@ -157,18 +158,18 @@ export default function SubscriptionImportForm() {
           </div>
 
           <div className="mt-4 flex gap-3">
-            <a
+            <Link
               href="/admin/hiatus"
               className="flex-1 text-center bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors"
             >
               View Hiatus Dashboard
-            </a>
-            <a
+            </Link>
+            <Link
               href="/admin/members"
               className="flex-1 text-center bg-slate-600 hover:bg-slate-700 text-white font-medium py-2 px-4 rounded-lg transition-colors"
             >
               View Members
-            </a>
+            </Link>
           </div>
         </div>
       )}

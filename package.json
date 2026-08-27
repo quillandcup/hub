@@ -52,6 +52,7 @@
     "autoprefixer": "^10.4.20",
     "dotenv-cli": "^11.0.0",
     "vercel": "^54.0.0",
+    "@eslint/eslintrc": "^3.3.5",
     "eslint": "^9",
     "eslint-config-next": "^15.3.0",
     "msw": "^2.13.6",
