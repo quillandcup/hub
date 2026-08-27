@@ -18,11 +18,11 @@ describe('Member Matching', () => {
 
   describe('normalizeName', () => {
     it('should lowercase names', () => {
-      expect(normalizeName('Member 33')).toBe('feya rose')
+      expect(normalizeName('Member 33')).toBe('member 33')
     })
 
     it('should remove special characters', () => {
-      expect(normalizeName("Member 13's Name!")).toBe('l m besties name')
+      expect(normalizeName("Member 13's Name!")).toBe('member 13s name')
     })
 
     it('should collapse multiple spaces', () => {
@@ -30,11 +30,11 @@ describe('Member Matching', () => {
     })
 
     it('should trim whitespace', () => {
-      expect(normalizeName('  Member 33  ')).toBe('feya rose')
+      expect(normalizeName('  Member 33  ')).toBe('member 33')
     })
 
     it('should handle all transformations together', () => {
-      expect(normalizeName("  L. M. member13-display's  Name!!  ")).toBe('l m besties name')
+      expect(normalizeName("  L. M. member13-display's  Name!!  ")).toBe('l m member13displays name')
     })
   })
 
@@ -57,13 +57,16 @@ describe('Member Matching', () => {
     it('should match by email case-insensitively', () => {
       const result = matchAttendeeToMember(
         'Wrong Name',
-        'REDACTED@example.com',
+        'MEMBER13@EXAMPLE.COM',
         mockMembers,
         mockAliases
       )
 
-      expect(result).not.toBeNull()
-      expect((result as MatchResult)?.member_id).toBe('1')
+      expect(result).toEqual({
+        member_id: '1',
+        confidence: 'high',
+        method: 'email'
+      })
     })
 
     it('should match by alias when no email', () => {
@@ -97,15 +100,12 @@ describe('Member Matching', () => {
     })
 
     it('should match normalized name with punctuation differences', () => {
-      const result = matchAttendeeToMember(
-        'L. M. member13-display',
-        null,
-        mockMembers,
-        mockAliases
-      )
+      const members: Member[] = [{ id: '7', name: 'Dana Reyes', email: 'dana@example.com' }]
+
+      const result = matchAttendeeToMember('Dana Reyes!!', null, members, [])
 
       expect(result).not.toBeNull()
-      expect((result as MatchResult)?.member_id).toBe('1')
+      expect((result as MatchResult)?.member_id).toBe('7')
       expect((result as MatchResult)?.method).toBe('normalized_name')
     })
 
@@ -173,8 +173,8 @@ describe('Member Matching', () => {
     it('should provide match method for each result', () => {
       const attendees = [
         { name: 'member13-display', email: null }, // alias match
-        { name: 'Member 33', email: 'member33@example.com' }, // email match
-        { name: 'Member 17', email: null }, // normalized name match
+        { name: 'Member 20', email: 'member20@example.com' }, // email match wins over its own alias
+        { name: 'Member 33', email: null }, // normalized name match (no alias defined for this one)
       ]
 
       const result = batchMatchAttendees(attendees, mockMembers, mockAliases)
