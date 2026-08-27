@@ -135,6 +135,8 @@ Required test coverage:
 - `/api/process/attendance` - Test with >1000 records
 - `/api/sync/calendar` - Test pagination
 
+**Component tests**: React Testing Library is available for interactive components (`@testing-library/react`, `@testing-library/user-event`, `@testing-library/jest-dom`). Put `.tsx` test files under `tests/components/`, with `// @vitest-environment jsdom` as the first line. Prefer rendering the component and asserting on the DOM (`render` + `userEvent`/`fireEvent` + `screen`) over the older pattern in some `tests/components/*.test.ts` files of `fs.readFileSync`-ing the source and asserting `expect(src).toContain(...)` — that pattern doesn't verify behavior. See `tests/components/SortableTh.test.tsx` and `tests/components/MembersTable.test.tsx` for the current example.
+
 ## Code Review Checklist
 
 Before committing changes to API routes, verify:
