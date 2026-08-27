@@ -65,4 +65,21 @@ describe('suggestMemberMatches', () => {
       expect(suggestions.some((s) => s.member.id === '2')).toBe(false)
     })
   })
+
+  describe('degenerate single-letter member name', () => {
+    // Regression: substring containment ("does either name contain the
+    // other?") only checked the input's length floor, not the member's. A
+    // member with a malformed single-letter name (real but bad data) is a
+    // "substring" of almost any input that happens to share that letter,
+    // so it scored 0.9 and drowned out actual candidates.
+    const members: Member[] = [
+      { id: '1', name: 'h', email: 'hpatterson@example.com' },
+      { id: '2', name: 'Hana Whitfield', email: 'hana.w@example.com' },
+    ]
+
+    it('does not treat a one-letter member name as a substring match', () => {
+      const suggestions = suggestMemberMatches('Hana Whitfield', null, members)
+      expect(suggestions.some((s) => s.member.id === '1')).toBe(false)
+    })
+  })
 })

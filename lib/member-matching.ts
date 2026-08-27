@@ -312,9 +312,12 @@ export function suggestMemberMatches(
     }
 
     // Substring containment, mirroring the plain substring search the operator
-    // sees when typing into the manual member search box
-    if (normalizedInput.length >= 3) {
-      const normalizedMember = normalizeName(member.name);
+    // sees when typing into the manual member search box. Both sides must
+    // meet the length floor — otherwise a degenerate short member name (e.g.
+    // a real but malformed single-letter name) trivially matches as a
+    // "substring" of almost any input just by sharing one letter.
+    const normalizedMember = normalizeName(member.name);
+    if (normalizedInput.length >= 3 && normalizedMember.length >= 3) {
       if (
         normalizedMember.includes(normalizedInput) ||
         normalizedInput.includes(normalizedMember)
