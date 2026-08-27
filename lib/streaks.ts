@@ -15,6 +15,23 @@ export interface SisterStreak extends Streaks {
   sharedPrickleIds: string[]
 }
 
+export interface RankedStreaks<T> {
+  items: T[]
+  total: number
+}
+
+/**
+ * Filters to streaks with at least a 2-week best run, ranks by current streak
+ * (then longest streak) descending, and caps to `limit` rows. `total` reflects
+ * the ranked-but-uncapped count, so callers can tell whether the list was truncated.
+ */
+export function rankStreaks<T extends Streaks>(streaks: T[], limit: number): RankedStreaks<T> {
+  const ranked = streaks
+    .filter(s => s.longestStreak >= 2)
+    .sort((a, b) => b.currentStreak - a.currentStreak || b.longestStreak - a.longestStreak)
+  return { items: ranked.slice(0, limit), total: ranked.length }
+}
+
 function localCalendarDate(isoTimestamp: string, timeZone: string): Date {
   const parts = new Intl.DateTimeFormat('en-US', {
     timeZone,

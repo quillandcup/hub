@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { computeStreaks, computePrickleStreaks, computeSisterStreaks } from '@/lib/streaks'
+import { computeStreaks, computePrickleStreaks, computeSisterStreaks, rankStreaks, type Streaks } from '@/lib/streaks'
 
 // Helpers: build ISO timestamps N weeks apart from a fixed anchor
 const ANCHOR_MS = new Date('2026-01-05T12:00:00Z').getTime() // a Monday
@@ -231,5 +231,64 @@ describe('computeSisterStreaks', () => {
     expect(result[0]).toMatchObject({ currentStreak: 2, longestStreak: 2 })
     expect(result[0].sharedPrickleIds).toEqual(expect.arrayContaining(['p1', 'p2', 'p3']))
     expect(result[0].sharedPrickleIds).toHaveLength(3)
+  })
+})
+
+describe('rankStreaks', () => {
+  type TestStreak = Streaks & { id: string }
+
+  function streak(id: string, currentStreak: number, longestStreak: number): TestStreak {
+    return { id, currentStreak, longestStreak }
+  }
+
+  it('shows all rows when the count is under the limit', () => {
+    const streaks = [streak('a', 1, 2), streak('b', 0, 3), streak('c', 2, 2)]
+    const result = rankStreaks(streaks, 20)
+    expect(result.total).toBe(3)
+    expect(result.items).toHaveLength(3)
+  })
+
+  it('caps to the limit and reports the uncapped total when the count exceeds it', () => {
+    const streaks = Array.from({ length: 25 }, (_, i) => streak(`m${i}`, i % 3, 2))
+    const result = rankStreaks(streaks, 20)
+    expect(result.total).toBe(25)
+    expect(result.items).toHaveLength(20)
+  })
+
+  it('drops streaks with a best run under 2 weeks before capping or counting', () => {
+    const streaks = [streak('a', 1, 1), streak('b', 3, 3), streak('c', 0, 1)]
+    const result = rankStreaks(streaks, 20)
+    expect(result.total).toBe(1)
+    expect(result.items.map(s => s.id)).toEqual(['b'])
+  })
+
+  it('sorts by current streak descending, then longest streak descending', () => {
+    const streaks = [
+      streak('stale-long', 0, 5),
+      streak('active-short', 1, 2),
+      streak('active-long', 3, 3),
+      streak('stale-short', 0, 2),
+    ]
+    const result = rankStreaks(streaks, 20)
+    expect(result.items.map(s => s.id)).toEqual(['active-long', 'active-short', 'stale-long', 'stale-short'])
+  })
+
+  it('keeps the highest-ranked rows when truncating, deprioritizing stale entries', () => {
+    // Two active streaks, then a pile of stale (currentStreak: 0) entries — the cap
+    // should keep the active ones and only the most-recently-broken stale ones.
+    const active = [streak('active-1', 5, 5), streak('active-2', 2, 2)]
+    // longestStreak descends from 10 to 1 across the 10 stale entries; the last
+    // one (longestStreak: 1) is filtered out by the >=2 rule, leaving 9 + 2 = 11.
+    const stale = Array.from({ length: 10 }, (_, i) => streak(`stale-${i}`, 0, 10 - i))
+    const result = rankStreaks([...stale, ...active], 3)
+    expect(result.total).toBe(11)
+    expect(result.items.map(s => s.id)).toEqual(['active-1', 'active-2', 'stale-0'])
+  })
+
+  it('does not mutate the input array', () => {
+    const streaks = [streak('a', 0, 2), streak('b', 1, 2)]
+    const original = [...streaks]
+    rankStreaks(streaks, 1)
+    expect(streaks).toEqual(original)
   })
 })

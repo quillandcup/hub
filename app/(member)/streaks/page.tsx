@@ -13,11 +13,13 @@ import {
   computeStreaks,
   computePrickleStreaks,
   computeSisterStreaks,
+  rankStreaks,
   type PrickleStreak,
   type SisterStreak,
 } from "@/lib/streaks"
 
 const ORG_TIMEZONE = "America/New_York"
+const STREAK_LIST_LIMIT = 20
 
 function formatHour(hour: number): string {
   if (hour === 0) return '12am'
@@ -220,7 +222,7 @@ export default async function StreaksPage() {
   const overall = computeStreaks(myAttendance.map((r) => r.join_time), new Date(), timeZone)
 
   // Prickle type streaks
-  const prickleStreaks: PrickleStreak[] = computePrickleStreaks(
+  const rankedPrickleStreaks: PrickleStreak[] = computePrickleStreaks(
     myAttendance
       .filter((r) => r.prickles?.prickle_types?.name && r.prickles?.start_time)
       .map((r) => ({
@@ -231,8 +233,10 @@ export default async function StreaksPage() {
     new Date(),
     timeZone
   )
-    .filter((s) => s.longestStreak >= 2)
-    .sort((a, b) => b.currentStreak - a.currentStreak || b.longestStreak - a.longestStreak)
+  const { items: prickleStreaks, total: totalPrickleStreaks } = rankStreaks(
+    rankedPrickleStreaks,
+    STREAK_LIST_LIMIT
+  )
 
   // Sister streaks — fetch co-attendance in batches of 100 prickle IDs
   const myPrickleIds = [...new Set(myAttendance.map((r) => r.prickle_id))]
@@ -265,7 +269,7 @@ export default async function StreaksPage() {
     }
   }
 
-  const sisterStreaks: SisterStreak[] = computeSisterStreaks(
+  const rankedSisterStreaks: SisterStreak[] = computeSisterStreaks(
     myAttendance.map((r) => ({ prickleId: r.prickle_id, joinTime: r.join_time })),
     coAttendance.map((r) => ({
       memberId: r.member_id,
@@ -276,9 +280,10 @@ export default async function StreaksPage() {
     new Date(),
     timeZone
   )
-    .filter((s) => s.longestStreak >= 2)
-    .sort((a, b) => b.currentStreak - a.currentStreak || b.longestStreak - a.longestStreak)
-    .slice(0, 20)
+  const { items: sisterStreaks, total: totalSisterStreaks } = rankStreaks(
+    rankedSisterStreaks,
+    STREAK_LIST_LIMIT
+  )
 
   // Look up Slack user IDs: prefer confirmed alias, fall back to email match
   // TODO: proactively send a Slack bot DM when a sister streak is at risk (no shared prickle yet this week)
@@ -378,6 +383,11 @@ export default async function StreaksPage() {
                 slackDmUrl={slackDmByMemberId.get(s.memberId)}
               />
             ))}
+            {totalSisterStreaks > sisterStreaks.length && (
+              <p className="text-xs text-slate-400 mt-3">
+                Showing top {sisterStreaks.length} of {totalSisterStreaks}.
+              </p>
+            )}
           </div>
         )}
       </div>
@@ -404,6 +414,11 @@ export default async function StreaksPage() {
                 longest={s.longestStreak}
               />
             ))}
+            {totalPrickleStreaks > prickleStreaks.length && (
+              <p className="text-xs text-slate-400 mt-3">
+                Showing top {prickleStreaks.length} of {totalPrickleStreaks}.
+              </p>
+            )}
           </div>
         )}
       </div>
