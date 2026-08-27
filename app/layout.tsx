@@ -3,6 +3,7 @@ import "./globals.css";
 import { ThemeProvider } from "./providers/ThemeProvider";
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/next";
+import { EnvironmentIndicator } from "@/components/EnvironmentIndicator";
 
 export const metadata: Metadata = {
   title: {
@@ -29,6 +30,7 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
+          <EnvironmentIndicator />
           {children}
         </ThemeProvider>
         <Analytics />
