@@ -216,6 +216,100 @@ export function matchAttendeeToMember(
 }
 
 /**
+ * Levenshtein edit distance between two strings
+ */
+function levenshteinDistance(a: string, b: string): number {
+  const m = a.length;
+  const n = b.length;
+  if (m === 0) return n;
+  if (n === 0) return m;
+
+  const dp: number[] = Array.from({ length: n + 1 }, (_, i) => i);
+  for (let i = 1; i <= m; i++) {
+    let prev = dp[0];
+    dp[0] = i;
+    for (let j = 1; j <= n; j++) {
+      const temp = dp[j];
+      dp[j] = a[i - 1] === b[j - 1] ? prev : 1 + Math.min(prev, dp[j], dp[j - 1]);
+      prev = temp;
+    }
+  }
+  return dp[n];
+}
+
+/**
+ * Similarity of two names in [0, 1], based on normalized edit distance
+ */
+function nameSimilarity(a: string, b: string): number {
+  const na = normalizeName(a);
+  const nb = normalizeName(b);
+  const maxLen = Math.max(na.length, nb.length);
+  if (maxLen === 0) return 0;
+  return 1 - levenshteinDistance(na, nb) / maxLen;
+}
+
+export interface MemberSuggestion {
+  member: Member;
+  score: number;
+}
+
+/**
+ * Suggests likely member matches for a name/email that didn't match exactly
+ * (e.g. for data hygiene UIs where the operator needs candidates to pick from).
+ *
+ * Not used by attendance/calendar processing — that pipeline requires exact
+ * matches via matchAttendeeToMember and treats ambiguity as unmatched.
+ */
+export function suggestMemberMatches(
+  name: string,
+  email: string | null,
+  members: Member[],
+  limit = 3
+): MemberSuggestion[] {
+  const nameTokens = normalizeName(name).split(' ').filter(Boolean);
+  const emailLocalPart = email ? email.split('@')[0].toLowerCase() : null;
+
+  const scored: MemberSuggestion[] = [];
+  const normalizedInput = normalizeName(name);
+
+  for (const member of members) {
+    // Exact normalized-name matches are handled by the primary matcher upstream
+    // (matchAttendeeToMember / matchSlackUsersToMembers) and would never reach
+    // an "unmatched" state — skip so suggestions only ever cover real ambiguity.
+    if (normalizedInput && normalizedInput === normalizeName(member.name)) continue;
+
+    let score = name ? nameSimilarity(name, member.name) : 0;
+
+    const memberTokens = normalizeName(member.name).split(' ').filter(Boolean);
+    if (nameTokens.length > 0 && memberTokens.length > 0) {
+      if (nameTokens[0] === memberTokens[0]) score += 0.15;
+      if (nameTokens[nameTokens.length - 1] === memberTokens[memberTokens.length - 1]) {
+        score += 0.15;
+      }
+    }
+
+    if (emailLocalPart) {
+      const memberLocalPart = member.email.split('@')[0].toLowerCase();
+      if (emailLocalPart === memberLocalPart) {
+        score += 0.3;
+      } else if (
+        memberLocalPart.includes(emailLocalPart) ||
+        emailLocalPart.includes(memberLocalPart)
+      ) {
+        score += 0.15;
+      }
+    }
+
+    if (score >= 0.35) {
+      scored.push({ member, score: Math.min(score, 1) });
+    }
+  }
+
+  scored.sort((a, b) => b.score - a.score);
+  return scored.slice(0, limit);
+}
+
+/**
  * Batch match multiple attendees to members
  * Returns both matches and unmatched attendees for reporting
  */

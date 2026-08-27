@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import MemberSearch from "@/components/MemberSearch";
+import { suggestMemberMatches } from "@/lib/member-matching";
 
 interface UnmatchedSlackUser {
   slack_user_id: string;
@@ -37,6 +38,15 @@ export default function SlackAliasSearchForm({
   const [skippingUserId, setSkippingUserId] = useState<string | null>(null);
   const [skipReason, setSkipReason] = useState<Record<string, SkipReason>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const suggestionsByUserId = useMemo(() => {
+    const map = new Map<string, ReturnType<typeof suggestMemberMatches>>();
+    for (const user of users) {
+      const name = user.real_name || user.display_name || "";
+      map.set(user.slack_user_id, suggestMemberMatches(name, user.email, allMembers, 3));
+    }
+    return map;
+  }, [users, allMembers]);
 
   const clearError = (slackUserId: string) => {
     setErrors((prev) => {
@@ -153,17 +163,35 @@ export default function SlackAliasSearchForm({
                     )}
                   </div>
 
-                  {/* Middle: Member search */}
-                  <MemberSearch
-                    members={allMembers}
-                    selectedMemberId={null}
-                    onSelect={(member) => handleSelectMember(user.slack_user_id, member)}
-                    placeholder={
-                      matchingUserId === user.slack_user_id
-                        ? "Matching..."
-                        : "Search for member..."
-                    }
-                  />
+                  {/* Middle: Suggestions + member search */}
+                  <div>
+                    {suggestionsByUserId.get(user.slack_user_id)!.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 mb-1.5">
+                        {suggestionsByUserId.get(user.slack_user_id)!.map(({ member }) => (
+                          <button
+                            key={member.id}
+                            type="button"
+                            onClick={() => handleSelectMember(user.slack_user_id, member)}
+                            disabled={matchingUserId === user.slack_user_id}
+                            className="px-2 py-1 text-xs bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 rounded-full hover:bg-blue-100 dark:hover:bg-blue-900/40 disabled:opacity-50"
+                            title={member.email}
+                          >
+                            {member.name}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    <MemberSearch
+                      members={allMembers}
+                      selectedMemberId={null}
+                      onSelect={(member) => handleSelectMember(user.slack_user_id, member)}
+                      placeholder={
+                        matchingUserId === user.slack_user_id
+                          ? "Matching..."
+                          : "Search for member..."
+                      }
+                    />
+                  </div>
 
                   {/* Right: Skip action */}
                   <div className="flex items-center gap-2">
