@@ -33,6 +33,9 @@ interface AccessSession {
   session_end: string;
   event_count: number;
   pages: string[] | null;
+  auth_session_id: string | null;
+  session_active: boolean;
+  auth_session_created_at: string | null;
 }
 
 const ET_TIME_FORMAT = new Intl.DateTimeFormat("en-US", {
@@ -108,6 +111,9 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
   const [historySessions, setHistorySessions] = useState<AccessSession[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState<string | null>(null);
+
+  const [revoking, setRevoking] = useState(false);
+  const [revokeError, setRevokeError] = useState<string | null>(null);
 
   const fetchUsers = useCallback(async () => {
     setLoading(true);
@@ -211,13 +217,11 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
     }
   }
 
-  async function openHistory(user: AppUser) {
-    setHistoryUser(user);
+  async function loadHistory(userId: string) {
     setHistoryLoading(true);
     setHistoryError(null);
-    setHistorySessions([]);
     try {
-      const res = await fetch(`/api/admin/users/${user.id}/access-history`);
+      const res = await fetch(`/api/admin/users/${userId}/access-history`);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to load access history");
       setHistorySessions(data.sessions);
@@ -228,10 +232,34 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
     }
   }
 
+  function openHistory(user: AppUser) {
+    setHistoryUser(user);
+    setHistorySessions([]);
+    setRevokeError(null);
+    loadHistory(user.id);
+  }
+
   function closeHistory() {
     setHistoryUser(null);
     setHistorySessions([]);
     setHistoryError(null);
+    setRevokeError(null);
+  }
+
+  async function handleRevokeSessions() {
+    if (!historyUser) return;
+    setRevoking(true);
+    setRevokeError(null);
+    try {
+      const res = await fetch(`/api/admin/users/${historyUser.id}/revoke-sessions`, { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to sign out sessions");
+      await loadHistory(historyUser.id);
+    } catch (err: unknown) {
+      setRevokeError(err instanceof Error ? err.message : "Failed to sign out sessions");
+    } finally {
+      setRevoking(false);
+    }
   }
 
   async function handleResend(userId: string) {
@@ -489,7 +517,7 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
                                 onClick={() => openHistory(user)}
                                 className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
                               >
-                                History
+                                Activity
                               </button>
                               {user.pending && (
                                 <button
@@ -555,17 +583,32 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
         >
           <div className="flex items-start justify-between mb-4">
             <div>
-              <h2 className="text-lg font-bold">Access History</h2>
+              <h2 className="text-lg font-bold">Activity</h2>
               <p className="text-sm text-slate-600 dark:text-slate-400">{historyUser.email}</p>
             </div>
-            <button
-              onClick={closeHistory}
-              className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
-              aria-label="Close"
-            >
-              ✕
-            </button>
+            <div className="flex items-center gap-3">
+              {historyUser.id !== currentUserId && (
+                <button
+                  onClick={handleRevokeSessions}
+                  disabled={revoking}
+                  className="text-xs px-3 py-1 bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white rounded font-medium transition-colors"
+                >
+                  {revoking ? "Signing out..." : "Force sign-out"}
+                </button>
+              )}
+              <button
+                onClick={closeHistory}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                aria-label="Close"
+              >
+                ✕
+              </button>
+            </div>
           </div>
+
+          {revokeError && (
+            <p className="mb-4 text-sm text-red-600 dark:text-red-400">{revokeError}</p>
+          )}
 
           {historyLoading && (
             <p className="text-sm text-slate-500 dark:text-slate-400">Loading...</p>
@@ -583,9 +626,27 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
             <ul className="space-y-4">
               {historySessions.map((session, i) => (
                 <li key={i} className="border-l-2 border-blue-400 pl-4">
-                  <div className="text-sm font-medium text-slate-900 dark:text-slate-100">
-                    {formatSessionRange(session.session_start, session.session_end)}
+                  <div className="flex items-center gap-2">
+                    <div className="text-sm font-medium text-slate-900 dark:text-slate-100">
+                      {formatSessionRange(session.session_start, session.session_end)}
+                    </div>
+                    {session.auth_session_id && (
+                      <span
+                        className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                          session.session_active
+                            ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
+                            : "bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300"
+                        }`}
+                      >
+                        {session.session_active ? "Active" : "Signed out"}
+                      </span>
+                    )}
                   </div>
+                  {session.auth_session_created_at && (
+                    <div className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                      Logged in {formatSessionRange(session.auth_session_created_at, session.auth_session_created_at)}
+                    </div>
+                  )}
                   {session.pages && session.pages.length > 0 ? (
                     <ol className="mt-1 text-xs text-slate-500 dark:text-slate-400 list-decimal list-inside space-y-0.5">
                       {session.pages.map((path, j) => (

@@ -85,4 +85,17 @@ describe('Admin User Access History API', () => {
     expect(newestSession.event_count).toBe(1)
     expect(newestSession.pages).toEqual(['/profile'])
   })
+
+  it('reports no linked auth session when events were inserted without a session_id', async () => {
+    const res = await fetch(`${base}/api/admin/users/${testUserId}/access-history`, {
+      headers: getTestAuthHeaders(),
+    })
+
+    const body = await res.json()
+    for (const session of body.sessions) {
+      expect(session.auth_session_id).toBeNull()
+      expect(session.session_active).toBe(false)
+      expect(session.auth_session_created_at).toBeNull()
+    }
+  })
 })

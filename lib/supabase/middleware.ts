@@ -1,6 +1,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, after, type NextRequest } from 'next/server'
 import { withTimeout, AUTH_CHECK_TIMEOUT_MS } from '@/lib/with-timeout'
+import { getSessionIdFromAccessToken } from '@/lib/supabase/session-claims'
 
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })
@@ -23,9 +24,18 @@ export async function updateSession(request: NextRequest) {
   )
 
   let user = null
+  let sessionId: string | null = null
   try {
     const { data } = await withTimeout(supabase.auth.getUser(), AUTH_CHECK_TIMEOUT_MS)
     user = data.user
+    if (user) {
+      // getSession() reads the already-parsed cookie session (no extra
+      // network round trip) — getUser() above is what verifies the token.
+      const { data: sessionData } = await supabase.auth.getSession()
+      if (sessionData.session?.access_token) {
+        sessionId = getSessionIdFromAccessToken(sessionData.session.access_token)
+      }
+    }
   } catch {
     // Supabase unreachable or too slow to respond — treat as unauthenticated
     // rather than hang until Vercel's 25s middleware cap kills the request.
@@ -42,12 +52,14 @@ export async function updateSession(request: NextRequest) {
     request.headers.get('sec-purpose')?.includes('prefetch')
   if (user && !isPrefetch) {
     const userId = user.id
+    const eventSessionId = sessionId
     after(async () => {
       try {
         await supabase.from('access_events').insert({
           user_id: userId,
           path: pathname,
           is_page: !pathname.startsWith('/api/'),
+          session_id: eventSessionId,
         })
       } catch {
         // Best-effort logging — never break the request over this.
