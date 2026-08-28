@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { randomUUID } from "crypto";
 import { WebClient } from "@slack/web-api";
 import { createClient } from "@/lib/supabase/server";
@@ -84,15 +84,19 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Failed to save feedback" }, { status: 500 });
   }
 
-  // Fire-and-forget: a Slack outage shouldn't fail the feedback submission.
-  notifySlack({
-    buffer: screenshotBuffer,
-    message,
-    feedbackType: feedbackType as FeedbackType,
-    pageUrl,
-    user,
-    effectiveIdentity,
-  }).catch((err) => console.error("Feedback Slack notification failed:", err));
+  // Runs after the response is sent, but keeps the function instance alive
+  // until it settles — a plain unawaited call risks the instance freezing
+  // mid-request on Vercel, silently dropping the Slack notification.
+  after(() =>
+    notifySlack({
+      buffer: screenshotBuffer,
+      message,
+      feedbackType: feedbackType as FeedbackType,
+      pageUrl,
+      user,
+      effectiveIdentity,
+    }).catch((err) => console.error("Feedback Slack notification failed:", err))
+  );
 
   return NextResponse.json({ id: row.id, screenshotCaptured: !!screenshotPath });
 }
