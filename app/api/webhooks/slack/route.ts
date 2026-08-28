@@ -135,10 +135,10 @@ async function processSlackEvent(event: any) {
 
       console.log("Slack message upserted:", event.ts);
 
-      // Hedgie Roulette: a genuine human reply (never one from the bot
+      // Wheel of Wonder: a genuine human reply (never one from the bot
       // itself — Slack message events carry a bot_id when the sender is a
       // bot/app) in a channel we opened for a proposed match is what counts
-      // as a "confirmed connection". See app/(member)/roulette/actions.ts.
+      // as a "confirmed connection". See app/(member)/wheel-of-wonder/actions.ts.
       if (!event.bot_id) {
         await confirmRouletteMatch(supabase, event);
       }
@@ -200,9 +200,9 @@ async function processSlackEvent(event: any) {
 }
 
 /**
- * Hedgie Roulette: if this message landed in a channel we opened for a
- * proposed match (see app/(member)/roulette/actions.ts), promote it to
- * confirmed -- a real human reply is what counts as an actual connection.
+ * Wheel of Wonder: if this message landed in a channel we opened for a
+ * proposed match (see app/(member)/wheel-of-wonder/actions.ts), promote it
+ * to confirmed -- a real human reply is what counts as an actual connection.
  * Best-effort resolves who sent it via member_name_aliases (source='slack'),
  * leaving confirmed_by_member_id null if it doesn't resolve cleanly, since
  * that attribution is a nice-to-have, not essential.

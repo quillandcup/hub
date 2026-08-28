@@ -41,6 +41,10 @@ export interface RouletteWinner {
   memberName: string;
   photoUrl: string | null;
   dmUrl: string;
+  /** True if the bot created a 3-person room and already posted the icebreaker into it. */
+  roomCreated: boolean;
+  /** Set only when roomCreated is false — an icebreaker the client should offer to copy next to the DM link. */
+  starterText: string | null;
 }
 
 export interface RouletteSpinResult {
@@ -217,6 +221,7 @@ export async function spinRoulette(): Promise<RouletteSpinResponse> {
   // connection via the Slack Events webhook (app/api/webhooks/slack/route.ts).
   // Any failure here (missing scope, rate limit, etc.) must never break the
   // core roulette experience -- silently fall back to the plain DM link.
+  let roomCreated = false;
   if (teamId && viewerSlackUserId && winner.slackUserId) {
     try {
       const conversation = await slack.conversations.open({
@@ -228,7 +233,7 @@ export async function spinRoulette(): Promise<RouletteSpinResponse> {
       const starter = pickConversationStarter();
       await slack.chat.postMessage({
         channel: channelId,
-        text: `👋 Hey both — Hedgie Roulette matched you two! To break the ice: ${starter}`,
+        text: `👋 Hey you two — the Wheel of Wonder brought you together! I wonder… ${starter}`,
       });
 
       const { error: insertError } = await supabase.from("roulette_matches").insert({
@@ -240,10 +245,17 @@ export async function spinRoulette(): Promise<RouletteSpinResponse> {
       if (insertError) throw insertError;
 
       dmUrl = `slack://channel?team=${teamId}&id=${channelId}`;
+      roomCreated = true;
     } catch (error) {
       console.error("Roulette: failed to create match room, falling back to 1:1 DM link:", error);
     }
   }
+
+  // Slack gives us no way to pre-fill text into a bare DM compose box, so
+  // when we couldn't create (or didn't attempt) the shared room, hand the
+  // client an icebreaker to show as copyable text next to the DM link
+  // instead of leaving the member facing a blank conversation.
+  const starterText = roomCreated ? null : pickConversationStarter();
 
   const reel = buildReel(winner, pool, REEL_SLOT_COUNT).map((c) => ({
     memberId: c.memberId,
@@ -257,6 +269,8 @@ export async function spinRoulette(): Promise<RouletteSpinResponse> {
       memberName: winner.memberName,
       photoUrl: winner.photoUrl,
       dmUrl,
+      roomCreated,
+      starterText,
     },
     reel,
   };

@@ -279,7 +279,7 @@ describe('Slack Webhook', () => {
     })
   })
 
-  describe('Hedgie Roulette confirmation', () => {
+  describe('Wheel of Wonder confirmation', () => {
     const spinnerEmail = 'roulette-spinner-test@example.com'
     const matchedEmail = 'roulette-matched-test@example.com'
     const slackUserId = 'UROULETTETEST1'

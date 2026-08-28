@@ -169,7 +169,7 @@ export default function MemberSlackSearchForm({
           <strong>How to match:</strong> Type in the search box to find the member&apos;s Slack account by
           name or email — selecting one immediately links them. If a member truly isn&apos;t in the Slack
           workspace, invite them there, or make peace with them staying out of Slack-dependent features
-          like Hedgie Roulette.
+          like Wheel of Wonder.
         </p>
       </div>
     </div>
