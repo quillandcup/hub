@@ -23,6 +23,13 @@ export async function updateSession(request: NextRequest) {
     }
   )
 
+  // getUser() here is load-bearing beyond the redirect below: it's what makes
+  // @supabase/ssr refresh an expiring access token and persist the new cookie
+  // via the setAll handler above. Server Components can read cookies but
+  // can't write them, so if this middleware didn't do it, tokens would never
+  // get refreshed-and-persisted and sessions would degrade over time. The
+  // /login redirect further down is a secondary fast-path only -- the real
+  // gate is each protected layout's own uncapped getUser() recheck.
   let user = null
   let sessionId: string | null = null
   let authCheckTimedOut = false
