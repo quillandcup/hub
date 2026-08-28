@@ -337,7 +337,7 @@ export default function MissingHostsClient() {
                 </button>
                 {showDetailedStats && (
                   <div className="mt-3 text-sm space-y-1 font-mono text-gray-700 dark:text-slate-300">
-                    <div>Total calendar prickles: {detailedStats.total.toLocaleString()}</div>
+                    <div>Total calendar Prickles: {detailedStats.total.toLocaleString()}</div>
                     <div>With hosts: {detailedStats.withHost.toLocaleString()} ({detailedStats.withHostRequiring.toLocaleString()} requiring + {detailedStats.withHostNotRequiring.toLocaleString()} not requiring)</div>
                     <div>Without hosts: {detailedStats.withoutHost.toLocaleString()} ({detailedStats.withoutHostRequiring.toLocaleString()} requiring + {detailedStats.withoutHostNotRequiring.toLocaleString()} not requiring)</div>
                     <div className="pt-1 border-t border-gray-200 dark:border-slate-700">Requiring hosts: {(detailedStats.withHostRequiring + detailedStats.withoutHostRequiring).toLocaleString()} ({detailedStats.withHostRequiring.toLocaleString()} with + {detailedStats.withoutHostRequiring.toLocaleString()} without)</div>

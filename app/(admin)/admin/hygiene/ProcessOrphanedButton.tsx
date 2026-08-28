@@ -52,7 +52,7 @@ export default function ProcessOrphanedButton({ orphanedCount, dateRange }: Proc
 
       setResult({
         success: true,
-        message: `✓ Processed ${data.pricklesCreated || 0} prickles, ${data.unmatchedCount || 0} unmatched`,
+        message: `✓ Processed ${data.pricklesCreated || 0} Prickles, ${data.unmatchedCount || 0} unmatched`,
       });
 
       // Refresh page after 2 seconds to show updated counts

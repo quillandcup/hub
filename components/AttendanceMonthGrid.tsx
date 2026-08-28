@@ -143,7 +143,7 @@ export default function AttendanceMonthGrid({
         {selectedDay && selectedAtt.length > 0 && (
           <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
             <h4 className="font-semibold text-slate-900 dark:text-slate-100 mb-3">
-              {formatDate(selectedDay)} ({selectedAtt.length} prickle
+              {formatDate(selectedDay)} ({selectedAtt.length} Prickle
               {selectedAtt.length !== 1 ? "s" : ""})
             </h4>
             <div className="space-y-2">

@@ -364,9 +364,9 @@ export default function Wheel({ confirmedConnectionCount = 0 }: WheelProps) {
       )}
 
       <p className="text-xs text-slate-400 dark:text-slate-500 text-center max-w-sm">
-        The Wheel of Wonder leans toward hedgies who haven&apos;t connected much yet, so newer or
+        The Wheel of Wonder leans toward Hedgies who haven&apos;t connected much yet, so newer or
         quieter folks turn up as matches more often. Posting, reacting, and showing up to a
-        prickle is still the fastest way to build connections on your own.{" "}
+        Prickle is still the fastest way to build connections on your own.{" "}
         <Link href="/network" className="underline hover:text-slate-600 dark:hover:text-slate-300">
           See your connections →
         </Link>

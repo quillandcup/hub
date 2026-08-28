@@ -322,7 +322,7 @@ export default function MemberAttendanceView({
               {selectedDay && selectedDayAttendance.length > 0 && (
                 <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
                   <h4 className="font-semibold text-slate-900 dark:text-slate-100 mb-3">
-                    {formatDate(selectedDay)} ({selectedDayAttendance.length} prickle
+                    {formatDate(selectedDay)} ({selectedDayAttendance.length} Prickle
                     {selectedDayAttendance.length !== 1 ? "s" : ""})
                   </h4>
                   <div className="space-y-2">

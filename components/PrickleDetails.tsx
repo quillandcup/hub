@@ -236,7 +236,7 @@ export default function PrickleDetails({
           </div>
         ) : (
           <div className="p-12 text-center text-slate-500 dark:text-slate-400">
-            No attendance records for this prickle
+            No attendance records for this Prickle
           </div>
         )}
       </div>

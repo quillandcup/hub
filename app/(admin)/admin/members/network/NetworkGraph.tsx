@@ -354,7 +354,7 @@ export default function NetworkGraph({ nodes: initialNodes, edges }: NetworkGrap
               <div>
                 <p className="text-sm text-slate-600 dark:text-slate-400">{selectedNode.email}</p>
                 <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
-                  {selectedNode.totalPrickles} total prickles
+                  {selectedNode.totalPrickles} total Prickles
                 </p>
                 <button
                   onClick={() => router.push(`/admin/members/${selectedNode.id}`)}
@@ -382,7 +382,7 @@ export default function NetworkGraph({ nodes: initialNodes, edges }: NetworkGrap
                         <div className="flex items-center justify-between">
                           <span className="text-sm font-medium">{otherNode.name}</span>
                           <span className="text-xs text-slate-500 dark:text-slate-400">
-                            {conn.weight} prickles
+                            {conn.weight} Prickles
                           </span>
                         </div>
                         <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">

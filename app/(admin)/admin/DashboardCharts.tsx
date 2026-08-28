@@ -98,7 +98,7 @@ export default function DashboardCharts({ weeklyAttendance, dailyHours }: Dashbo
       <div className="bg-white dark:bg-slate-900 rounded-lg shadow p-6">
         <div className="flex items-center mb-4">
           <h2 className="text-xl font-bold">✍️ Community Writing Hours</h2>
-          <InfoTooltip text="Daily total of hours all members spent in prickles. Calculated by summing the duration each person attended (join to leave time). Shows collective creative time across the community." />
+          <InfoTooltip text="Daily total of hours all members spent in Prickles. Calculated by summing the duration each person attended (join to leave time). Shows collective creative time across the community." />
         </div>
         <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
           Total hours spent writing together

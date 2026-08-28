@@ -69,7 +69,7 @@ function HostedTypeRow({ initial }: { initial: HostedVibeInfo }) {
       <textarea
         value={notes}
         onChange={(e) => setNotes(e.target.value)}
-        placeholder="Anything hedgies should know before they join? e.g. 'we check in on goals before writing'"
+        placeholder="Anything Hedgies should know before they join? e.g. 'we check in on goals before writing'"
         rows={2}
         className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-sm"
       />
@@ -95,7 +95,7 @@ export default function HostVibePanel({ hostedVibes }: { hostedVibes: HostedVibe
     <div className="border-t border-slate-200 dark:border-slate-700 pt-6">
       <h2 className="text-lg font-medium text-slate-900 dark:text-slate-100 mb-1">My Prickle Vibe</h2>
       <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
-        Help hedgies know what to expect from the prickles you host — this powers the Prickle Picker.
+        Help Hedgies know what to expect from the Prickles you host — this powers the Prickle Picker.
       </p>
       <div className="space-y-4">
         {hostedVibes.map((h) => (

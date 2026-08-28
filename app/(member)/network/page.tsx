@@ -425,7 +425,7 @@ export default async function NetworkPage() {
               Not connected yet? Looks like you&apos;re ready for new connections!
             </h2>
             <p className="text-sm text-slate-500 dark:text-slate-400 max-w-md mx-auto">
-              Sister streaks form when you and another hedgie show up to the same prickle, week after
+              Sister streaks form when you and another Hedgie show up to the same Prickle, week after
               week. Here are a few ways to get started.
             </p>
           </div>
@@ -438,7 +438,7 @@ export default async function NetworkPage() {
                 </div>
                 <h3 className="font-semibold mb-1">Introduce yourself</h3>
                 <p className="text-sm text-slate-500 dark:text-slate-400 mb-3">
-                  Say hi in #start-here on Slack — it&apos;s the easiest way to get on other hedgies&apos;
+                  Say hi in #start-here on Slack — it&apos;s the easiest way to get on other Hedgies&apos;
                   radar.
                 </p>
                 {slackStartHereUrl && (
@@ -486,9 +486,9 @@ export default async function NetworkPage() {
               <div className="text-2xl mb-2" aria-hidden>
                 ⭐
               </div>
-              <h3 className="font-semibold mb-1">Well-connected hedgies</h3>
+              <h3 className="font-semibold mb-1">Well-connected Hedgies</h3>
               <p className="text-sm text-slate-500 dark:text-slate-400 mb-3">
-                Attend a prickle with one of these regulars:
+                Attend a Prickle with one of these regulars:
               </p>
               {wellConnected.length > 0 ? (
                 <ul className="space-y-2.5">

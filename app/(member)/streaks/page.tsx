@@ -154,7 +154,7 @@ function SisterStreakRow({
       {sharedPrickles.length > 0 && (
         <details className="mt-1.5">
           <summary className="text-xs text-slate-400 cursor-pointer select-none hover:text-slate-600 dark:hover:text-slate-300 w-fit">
-            {sharedPrickles.length} shared {sharedPrickles.length === 1 ? "prickle" : "prickles"}
+            {sharedPrickles.length} shared {sharedPrickles.length === 1 ? "Prickle" : "Prickles"}
           </summary>
           <div className="mt-1.5 flex flex-wrap gap-1.5">
             {sharedPrickles.map((p) => (
@@ -355,7 +355,7 @@ export default async function StreaksPage() {
         </div>
         {overall.currentStreak === 0 && overall.longestStreak > 0 && (
           <p className="text-xs text-slate-400 mt-3">
-            Attend a prickle this week or next to start a new streak.
+            Attend a Prickle this week or next to start a new streak.
           </p>
         )}
       </div>
@@ -366,7 +366,7 @@ export default async function StreaksPage() {
           Sister Streaks
         </h2>
         <p className="text-xs text-slate-400 dark:text-slate-500 mb-4">
-          Members you&apos;ve shown up to the same prickle with, week after week.
+          Members you&apos;ve shown up to the same Prickle with, week after week.
         </p>
         {sisterStreaks.length === 0 ? (
           <p className="text-sm text-slate-500 dark:text-slate-400">
@@ -398,11 +398,11 @@ export default async function StreaksPage() {
           Prickle Streaks
         </h2>
         <p className="text-xs text-slate-400 dark:text-slate-500 mb-4">
-          Your consistency attending the same recurring prickle.
+          Your consistency attending the same recurring Prickle.
         </p>
         {prickleStreaks.length === 0 ? (
           <p className="text-sm text-slate-500 dark:text-slate-400">
-            No prickle streaks yet. Attend the same prickle for 2+ consecutive weeks to start one.
+            No Prickle streaks yet. Attend the same Prickle for 2+ consecutive weeks to start one.
           </p>
         ) : (
           <div>

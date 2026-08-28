@@ -37,7 +37,7 @@ export default async function WheelOfWonderPage() {
         <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Wheel of Wonder</h1>
         <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
           Give the Wheel of Wonder a spin and find out who&apos;s online right now. It leans toward
-          hedgies who could use a new connection.
+          Hedgies who could use a new connection.
         </p>
       </div>
       <div className="flex justify-center">
