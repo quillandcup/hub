@@ -72,6 +72,15 @@ export default function FeedbackClient() {
     load();
   }, [load]);
 
+  useEffect(() => {
+    if (!lightbox) return;
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") setLightbox(null);
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [lightbox]);
+
   async function updateStatus(id: string, status: Status) {
     setSavingId(id);
     setItems((prev) => prev.map((it) => (it.id === id ? { ...it, status } : it)));
