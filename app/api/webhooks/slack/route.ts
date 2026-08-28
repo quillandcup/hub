@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 import { createHmac } from "crypto";
 import { triggerReprocessing } from "@/lib/processing/trigger";
+import { CONNECTION_CONFIRMATION_MESSAGE_THRESHOLD } from "@/lib/roulette";
 
 // Webhook should respond quickly
 export const maxDuration = 60;
@@ -135,12 +136,12 @@ async function processSlackEvent(event: any) {
 
       console.log("Slack message upserted:", event.ts);
 
-      // Wheel of Wonder: a genuine human reply (never one from the bot
-      // itself — Slack message events carry a bot_id when the sender is a
-      // bot/app) in a channel we opened for a proposed match is what counts
-      // as a "confirmed connection". See app/(member)/wheel-of-wonder/actions.ts.
+      // Wheel of Wonder: track messages toward a "confirmed connection"
+      // (never counting the bot's own message — Slack message events carry
+      // a bot_id when the sender is a bot/app). See
+      // app/(member)/wheel-of-wonder/actions.ts.
       if (!event.bot_id) {
-        await confirmRouletteMatch(supabase, event);
+        await trackRouletteExchange(supabase, event);
       }
 
       // Trigger Silver processing asynchronously
@@ -200,18 +201,23 @@ async function processSlackEvent(event: any) {
 }
 
 /**
- * Wheel of Wonder: if this message landed in a channel we opened for a
- * proposed match (see app/(member)/wheel-of-wonder/actions.ts), promote it
- * to confirmed -- a real human reply is what counts as an actual connection.
- * Best-effort resolves who sent it via member_name_aliases (source='slack'),
- * leaving confirmed_by_member_id null if it doesn't resolve cleanly, since
- * that attribution is a nice-to-have, not essential.
+ * Wheel of Wonder: if this message landed in a room we opened for a
+ * proposed match (see app/(member)/wheel-of-wonder/actions.ts), attribute
+ * it to whichever participant sent it -- matched directly against the
+ * Slack user IDs captured at room-creation time, not via
+ * member_name_aliases, so attribution never depends on that resolving
+ * cleanly. Promotes the match to "confirmed" once both people have sent at
+ * least one message and their combined count reaches
+ * CONNECTION_CONFIRMATION_MESSAGE_THRESHOLD -- a single unanswered reply
+ * shouldn't count as a real connection.
  */
-async function confirmRouletteMatch(supabase: any, event: any) {
+async function trackRouletteExchange(supabase: any, event: any) {
   try {
     const { data: match, error: matchError } = await supabase
       .from("roulette_matches")
-      .select("id")
+      .select(
+        "id, spinner_member_id, matched_member_id, spinner_slack_user_id, matched_slack_user_id, spinner_message_count, matched_message_count"
+      )
       .eq("slack_channel_id", event.channel)
       .eq("status", "proposed")
       .maybeSingle();
@@ -222,34 +228,37 @@ async function confirmRouletteMatch(supabase: any, event: any) {
     }
     if (!match) return;
 
-    let confirmedByMemberId: string | null = null;
-    if (event.user) {
-      const { data: alias } = await supabase
-        .from("member_name_aliases")
-        .select("member_id")
-        .eq("source", "slack")
-        .eq("alias", event.user)
-        .maybeSingle();
-      confirmedByMemberId = alias?.member_id ?? null;
+    const isSpinner = event.user && event.user === match.spinner_slack_user_id;
+    const isMatched = event.user && event.user === match.matched_slack_user_id;
+    if (!isSpinner && !isMatched) return; // shouldn't happen -- only 3 people are ever in this room
+
+    const spinnerMessageCount = match.spinner_message_count + (isSpinner ? 1 : 0);
+    const matchedMessageCount = match.matched_message_count + (isMatched ? 1 : 0);
+    const bothSidesParticipated = spinnerMessageCount > 0 && matchedMessageCount > 0;
+    const shouldConfirm =
+      bothSidesParticipated &&
+      spinnerMessageCount + matchedMessageCount >= CONNECTION_CONFIRMATION_MESSAGE_THRESHOLD;
+
+    const update: Record<string, unknown> = {
+      spinner_message_count: spinnerMessageCount,
+      matched_message_count: matchedMessageCount,
+    };
+    if (shouldConfirm) {
+      update.status = "confirmed";
+      update.confirmed_at = new Date().toISOString();
+      update.confirmed_by_member_id = isSpinner ? match.spinner_member_id : match.matched_member_id;
     }
 
-    const { error: updateError } = await supabase
-      .from("roulette_matches")
-      .update({
-        status: "confirmed",
-        confirmed_at: new Date().toISOString(),
-        confirmed_by_member_id: confirmedByMemberId,
-      })
-      .eq("id", match.id);
+    const { error: updateError } = await supabase.from("roulette_matches").update(update).eq("id", match.id);
 
     if (updateError) {
-      console.error("Error confirming roulette match:", updateError);
+      console.error("Error updating roulette match exchange:", updateError);
       return;
     }
 
-    console.log("Roulette match confirmed:", match.id);
+    if (shouldConfirm) console.log("Roulette match confirmed:", match.id);
   } catch (error) {
-    console.error("Error confirming roulette match:", error);
+    console.error("Error tracking roulette exchange:", error);
   }
 }
 

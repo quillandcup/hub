@@ -282,20 +282,22 @@ describe('Slack Webhook', () => {
   describe('Wheel of Wonder confirmation', () => {
     const spinnerEmail = 'roulette-spinner-test@example.com'
     const matchedEmail = 'roulette-matched-test@example.com'
-    const slackUserId = 'UROULETTETEST1'
+    const spinnerSlackUserId = 'UROULETTESPINNER1'
+    const matchedSlackUserId = 'UROULETTEMATCHED1'
     const channelId = 'CROULETTETEST1'
     let spinnerMemberId: string
     let matchedMemberId: string
+    let tsCounter = 0
 
     async function cleanupRouletteFixtures() {
       await supabase.from('roulette_matches').delete().eq('slack_channel_id', channelId)
-      await supabase.from('member_name_aliases').delete().eq('alias', slackUserId)
       await supabase.from('members').delete().eq('email', spinnerEmail)
       await supabase.from('members').delete().eq('email', matchedEmail)
     }
 
     beforeEach(async () => {
       await cleanupRouletteFixtures()
+      tsCounter = 0
 
       const { data: spinner } = await supabase
         .from('members')
@@ -320,27 +322,33 @@ describe('Slack Webhook', () => {
         .select('id')
         .single()
       matchedMemberId = matched!.id
-
-      await supabase.from('member_name_aliases').insert({
-        member_id: matchedMemberId,
-        alias: slackUserId,
-        source: 'slack',
-      })
     })
 
     afterEach(async () => {
       await cleanupRouletteFixtures()
     })
 
-    function buildMessageEvent(overrides: Record<string, any> = {}) {
+    async function insertProposedMatch() {
+      await supabase.from('roulette_matches').insert({
+        spinner_member_id: spinnerMemberId,
+        matched_member_id: matchedMemberId,
+        slack_channel_id: channelId,
+        spinner_slack_user_id: spinnerSlackUserId,
+        matched_slack_user_id: matchedSlackUserId,
+        status: 'proposed',
+      })
+    }
+
+    function buildMessageEvent(userId: string, overrides: Record<string, any> = {}) {
+      tsCounter += 1
       return {
         type: 'event_callback',
         event: {
           type: 'message',
           channel: channelId,
-          user: slackUserId,
+          user: userId,
           text: 'Sounds great, catching up now!',
-          ts: `${Date.now() / 1000}`,
+          ts: `${Date.now() / 1000 + tsCounter}`,
           thread_ts: null,
           ...overrides,
         },
@@ -366,32 +374,58 @@ describe('Slack Webhook', () => {
       })
     }
 
-    it('confirms a proposed match when a human replies in its channel', async () => {
-      await supabase.from('roulette_matches').insert({
-        spinner_member_id: spinnerMemberId,
-        matched_member_id: matchedMemberId,
-        slack_channel_id: channelId,
-        status: 'proposed',
-      })
-
-      const request = signedRequest(buildMessageEvent())
-      const response = await POST(request as unknown as NextRequest)
+    async function sendMessage(userId: string) {
+      const response = await POST(signedRequest(buildMessageEvent(userId)) as unknown as NextRequest)
       expect(response.status).toBe(200)
+    }
 
-      const { data: match } = await supabase
+    async function getMatch() {
+      const { data } = await supabase
         .from('roulette_matches')
-        .select('status, confirmed_at, confirmed_by_member_id')
+        .select('status, confirmed_at, confirmed_by_member_id, spinner_message_count, matched_message_count')
         .eq('slack_channel_id', channelId)
         .single()
+      return data!
+    }
 
-      expect(match!.status).toBe('confirmed')
-      expect(match!.confirmed_at).toBeTruthy()
-      expect(match!.confirmed_by_member_id).toBe(matchedMemberId)
+    it('confirms once both sides have exchanged at least 10 messages total', async () => {
+      await insertProposedMatch()
+
+      // 5 from the spinner, 4 from the matched member — 9 total, both sides
+      // participating, but under threshold.
+      for (let i = 0; i < 5; i++) await sendMessage(spinnerSlackUserId)
+      for (let i = 0; i < 4; i++) await sendMessage(matchedSlackUserId)
+
+      let match = await getMatch()
+      expect(match.status).toBe('proposed')
+      expect(match.spinner_message_count).toBe(5)
+      expect(match.matched_message_count).toBe(4)
+
+      // The 10th message (from the matched member) crosses the threshold.
+      await sendMessage(matchedSlackUserId)
+
+      match = await getMatch()
+      expect(match.status).toBe('confirmed')
+      expect(match.confirmed_at).toBeTruthy()
+      expect(match.confirmed_by_member_id).toBe(matchedMemberId)
+      expect(match.matched_message_count).toBe(5)
+    })
+
+    it('does not confirm past the threshold if only one side has sent messages', async () => {
+      await insertProposedMatch()
+
+      for (let i = 0; i < 10; i++) await sendMessage(spinnerSlackUserId)
+
+      const match = await getMatch()
+      expect(match.status).toBe('proposed')
+      expect(match.spinner_message_count).toBe(10)
+      expect(match.matched_message_count).toBe(0)
+      expect(match.confirmed_at).toBeNull()
     })
 
     it('does nothing when the channel has no proposed match', async () => {
       const request = signedRequest(
-        buildMessageEvent({ channel: 'CNOTAROULETTECHANNEL1' })
+        buildMessageEvent(spinnerSlackUserId, { channel: 'CNOTAROULETTECHANNEL1' })
       )
       const response = await POST(request as unknown as NextRequest)
       expect(response.status).toBe(200)
@@ -405,29 +439,20 @@ describe('Slack Webhook', () => {
       expect(match).toBeNull()
     })
 
-    it('does not confirm a match when the message is from the bot itself', async () => {
-      await supabase.from('roulette_matches').insert({
-        spinner_member_id: spinnerMemberId,
-        matched_member_id: matchedMemberId,
-        slack_channel_id: channelId,
-        status: 'proposed',
-      })
+    it('does not track a message from the bot itself', async () => {
+      await insertProposedMatch()
 
       const request = signedRequest(
-        buildMessageEvent({ bot_id: 'BROULETTEBOT1', user: 'UROULETTEBOTUSER1' })
+        buildMessageEvent(spinnerSlackUserId, { bot_id: 'BROULETTEBOT1', user: 'UROULETTEBOTUSER1' })
       )
       const response = await POST(request as unknown as NextRequest)
       expect(response.status).toBe(200)
 
-      const { data: match } = await supabase
-        .from('roulette_matches')
-        .select('status, confirmed_at, confirmed_by_member_id')
-        .eq('slack_channel_id', channelId)
-        .single()
-
-      expect(match!.status).toBe('proposed')
-      expect(match!.confirmed_at).toBeNull()
-      expect(match!.confirmed_by_member_id).toBeNull()
+      const match = await getMatch()
+      expect(match.status).toBe('proposed')
+      expect(match.spinner_message_count).toBe(0)
+      expect(match.matched_message_count).toBe(0)
+      expect(match.confirmed_at).toBeNull()
     })
   })
 

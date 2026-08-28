@@ -302,7 +302,7 @@ export default function RouletteWheel({ confirmedConnectionCount = 0 }: Roulette
       {phase === "revealed" && winner && (
         <div className="text-center bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-6 max-w-sm">
           <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100 mb-4">
-            I wonder what {winner.memberName}&apos;s working on…
+            Billie would like to (re)introduce {winner.memberName} to you!
           </h2>
 
           {winner.roomCreated ? (

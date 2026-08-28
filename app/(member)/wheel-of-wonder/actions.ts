@@ -233,13 +233,15 @@ export async function spinRoulette(): Promise<RouletteSpinResponse> {
       const starter = pickConversationStarter();
       await slack.chat.postMessage({
         channel: channelId,
-        text: `👋 Hey you two — the Wheel of Wonder brought you together! I wonder… ${starter}`,
+        text: `👋 Billie would like to (re)introduce ${effectiveIdentity.memberName} and ${winner.memberName} — the Wheel of Wonder brought you two together! I wonder… ${starter}`,
       });
 
       const { error: insertError } = await supabase.from("roulette_matches").insert({
         spinner_member_id: effectiveIdentity.memberId,
         matched_member_id: winner.memberId,
         slack_channel_id: channelId,
+        spinner_slack_user_id: viewerSlackUserId,
+        matched_slack_user_id: winner.slackUserId,
         status: "proposed",
       });
       if (insertError) throw insertError;

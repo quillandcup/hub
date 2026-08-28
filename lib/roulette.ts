@@ -3,6 +3,13 @@
 // tested with injected randomness and a fake presence check — the real
 // Slack API call lives in app/(member)/wheel-of-wonder/actions.ts.
 
+// A match counts as a genuine "connection" once both people have sent
+// messages in the shared room and their combined count reaches this —
+// requiring contributions from both sides (not just one person messaging
+// into silence) so the celebration stat reflects real back-and-forth, not
+// a single unanswered reply. See app/api/webhooks/slack/route.ts.
+export const CONNECTION_CONFIRMATION_MESSAGE_THRESHOLD = 10;
+
 export interface RouletteCandidate {
   memberId: string;
   memberName: string;
