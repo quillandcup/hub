@@ -57,7 +57,9 @@
       "Skill(dataviz)",
       "Bash(gh api *)",
       "Bash(npx tsx *)",
-      "Bash(curl -s \"http://127.0.0.1:54324/\")"
+      "Bash(curl -s \"http://127.0.0.1:54324/\")",
+      "mcp__context7__resolve-library-id",
+      "mcp__context7__query-docs"
     ]
   }
 }
