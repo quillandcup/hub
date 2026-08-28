@@ -186,7 +186,7 @@ export default async function StreaksPage() {
     getUserFeaturePreviews(user.id),
   ])
   if (!effectiveIdentity) redirect("/admin")
-  if (!enabledFeatures.includes('streaks')) redirect("/calendar")
+  if (!enabledFeatures.includes('streaks')) redirect("/dashboard")
 
   const memberId = effectiveIdentity.memberId
   const timeZone = tzPref === "browser" ? ORG_TIMEZONE : tzPref

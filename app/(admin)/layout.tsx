@@ -35,7 +35,7 @@ export default async function AdminLayout({
             You don&apos;t have permission to access the admin area.
           </p>
           <a
-            href="/calendar"
+            href="/dashboard"
             className="text-blue-600 dark:text-blue-400 hover:underline"
           >
             ← Return to my view

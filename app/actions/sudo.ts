@@ -58,7 +58,7 @@ export async function startSudo(memberId: string, landingUrl?: string) {
   cookieStore.set('sudo_as', signSudoCookie(user.id, memberId), cookieOpts)
   cookieStore.set('sudo_return_to', returnTo, cookieOpts)
 
-  redirect(sanitizeLandingPath(landingUrl) ?? '/calendar')
+  redirect(sanitizeLandingPath(landingUrl) ?? '/dashboard')
 }
 
 export async function exitSudo() {

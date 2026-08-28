@@ -23,7 +23,7 @@ export default async function PrickleWizardPage() {
     getUserFeaturePreviews(user.id),
   ]);
   if (!effectiveIdentity) redirect("/admin");
-  if (!enabledFeatures.includes("prickle_picker")) redirect("/calendar");
+  if (!enabledFeatures.includes("prickle_picker")) redirect("/dashboard");
 
   let members: { id: string; name: string; email: string }[] = [];
   let offset = 0;

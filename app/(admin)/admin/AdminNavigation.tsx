@@ -104,7 +104,7 @@ export default function AdminNavigation({ enabledFeatures }: AdminNavigationProp
       {/* Back to member view */}
       <div className="px-4 py-2 border-b border-slate-200 dark:border-slate-800 flex-shrink-0">
         <Link
-          href="/calendar"
+          href="/dashboard"
           className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
           title={collapsed ? "My View" : undefined}
         >
