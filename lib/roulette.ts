@@ -90,9 +90,22 @@ export async function pickRouletteMatch(
   return null;
 }
 
+function shuffle<T>(items: T[], rng: () => number): T[] {
+  const shuffled = [...items];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled;
+}
+
 /**
  * Builds the decorative photo reel shown on the wheel: the winner plus a
- * shuffled sample of other candidates to fill out the remaining slots.
+ * sample of other candidates to fill out the remaining slots — each
+ * appearing at most once, since the wheel shows one candidate per slot
+ * simultaneously. Prefers candidates who actually have a photo (a wheel of
+ * "hedgie photos" reads as broken if it's mostly initials placeholders),
+ * only falling back to photo-less candidates if there aren't enough.
  * Purely presentational — has no bearing on who was actually picked.
  */
 export function buildReel(
@@ -102,10 +115,8 @@ export function buildReel(
   rng: () => number = Math.random
 ): RouletteCandidate[] {
   const others = pool.filter((c) => c.memberId !== winner.memberId);
-  const shuffled = [...others];
-  for (let i = shuffled.length - 1; i > 0; i--) {
-    const j = Math.floor(rng() * (i + 1));
-    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-  }
-  return [winner, ...shuffled.slice(0, Math.max(0, slotCount - 1))];
+  const withPhoto = shuffle(others.filter((c) => c.photoUrl), rng);
+  const withoutPhoto = shuffle(others.filter((c) => !c.photoUrl), rng);
+  const ordered = [...withPhoto, ...withoutPhoto];
+  return [winner, ...ordered.slice(0, Math.max(0, slotCount - 1))];
 }

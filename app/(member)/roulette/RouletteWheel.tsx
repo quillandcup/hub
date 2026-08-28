@@ -4,13 +4,16 @@ import { useCallback, useRef, useState } from "react";
 import Link from "next/link";
 import { spinRoulette, type RouletteSpinResponse, type RouletteWinner } from "./actions";
 
-const SLOT_COUNT = 8;
+// Slot count for the idle (pre-spin) placeholder ring. Once real results
+// come back, the wheel shrinks to however many distinct real candidates are
+// actually available (capped at this), rather than padding with repeats or
+// fake entries — see runSpinAnimation.
+const IDLE_SLOT_COUNT = 8;
 const WHEEL_SIZE = 320;
 const AVATAR_SIZE = 64;
 const RADIUS = WHEEL_SIZE / 2 - AVATAR_SIZE / 2 - 8;
 const SPIN_DURATION_MS = 4200;
 const FULL_TURNS = 6;
-const DEGREES_PER_SLOT = 360 / SLOT_COUNT;
 
 interface SlotPhoto {
   memberId: string;
@@ -37,6 +40,15 @@ function getAvatarColor(name: string): string {
 
 function easeOutCubic(x: number): number {
   return 1 - Math.pow(1 - x, 3);
+}
+
+function shuffle<T>(items: T[]): T[] {
+  const copy = [...items];
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy;
 }
 
 function SlotAvatar({ slot, size, dimmed }: { slot: SlotPhoto; size: number; dimmed: boolean }) {
@@ -68,7 +80,7 @@ function SlotAvatar({ slot, size, dimmed }: { slot: SlotPhoto; size: number; dim
 
 export default function RouletteWheel() {
   const [phase, setPhase] = useState<"idle" | "spinning" | "revealed" | "empty" | "error">("idle");
-  const [slots, setSlots] = useState<SlotPhoto[]>(Array(SLOT_COUNT).fill(BLANK_SLOT));
+  const [slots, setSlots] = useState<SlotPhoto[]>(Array(IDLE_SLOT_COUNT).fill(BLANK_SLOT));
   const [winner, setWinner] = useState<RouletteWinner | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [justRevealed, setJustRevealed] = useState(false);
@@ -77,6 +89,7 @@ export default function RouletteWheel() {
   const slotRefs = useRef<(HTMLDivElement | null)[]>([]);
   const slotsRef = useRef<SlotPhoto[]>(slots);
   const animFrameRef = useRef<number | null>(null);
+  const degreesPerSlot = 360 / slots.length;
 
   const applyRotation = useCallback((rotation: number) => {
     if (wheelRef.current) wheelRef.current.style.transform = `rotate(${rotation}deg)`;
@@ -95,22 +108,36 @@ export default function RouletteWheel() {
   const runSpinAnimation = useCallback(
     (result: Extract<RouletteSpinResponse, { winner: RouletteWinner }>) => {
       const decorativePool = result.reel.slice(1);
-      const pickDecorative = (): SlotPhoto =>
-        decorativePool.length > 0
-          ? decorativePool[Math.floor(Math.random() * decorativePool.length)]
-          : { memberId: "reel", memberName: "?", photoUrl: null };
+      const winnerPhoto: SlotPhoto = {
+        memberId: result.winner.memberId,
+        memberName: result.winner.memberName,
+        photoUrl: result.winner.photoUrl,
+      };
 
-      // Seed all 8 slots with decorative photos so the wheel looks alive
-      // from the first frame — the true winner is only revealed on the
-      // final crossing of the noon marker, in slot 0.
-      const seeded = Array.from({ length: SLOT_COUNT }, () => pickDecorative());
+      // Size the wheel to however many distinct real candidates we actually
+      // have (capped at IDLE_SLOT_COUNT) — never pad with repeats or a fake
+      // placeholder just to fill out a fixed slot count.
+      const activeSlotCount = Math.max(1, Math.min(IDLE_SLOT_COUNT, decorativePool.length + 1));
+      const activeDegreesPerSlot = 360 / activeSlotCount;
+
+      // Draws without replacement from a shuffled bag, reshuffling once
+      // exhausted — guarantees no two slots show the same person at once as
+      // long as the bag hasn't had to wrap mid-draw.
+      let bag: SlotPhoto[] = [];
+      const nextDecorative = (): SlotPhoto => {
+        if (decorativePool.length === 0) return winnerPhoto;
+        if (bag.length === 0) bag = shuffle(decorativePool);
+        return bag.shift()!;
+      };
+
+      const seeded = Array.from({ length: activeSlotCount }, () => nextDecorative());
       slotsRef.current = seeded;
       setSlots(seeded);
 
       const totalRotation = FULL_TURNS * 360;
       const startTime = performance.now();
       let lastBoundary = 0;
-      const totalBoundaries = FULL_TURNS * SLOT_COUNT;
+      const totalBoundaries = FULL_TURNS * activeSlotCount;
 
       const step = (now: number) => {
         const elapsed = now - startTime;
@@ -118,20 +145,16 @@ export default function RouletteWheel() {
         const rotation = totalRotation * easeOutCubic(t);
         applyRotation(rotation);
 
-        const boundary = Math.floor(rotation / DEGREES_PER_SLOT);
+        const boundary = Math.floor(rotation / activeDegreesPerSlot);
         if (boundary > lastBoundary) {
           for (let b = lastBoundary + 1; b <= boundary; b++) {
-            const slotIndex = ((SLOT_COUNT - (b % SLOT_COUNT)) % SLOT_COUNT);
+            const slotIndex = (activeSlotCount - (b % activeSlotCount)) % activeSlotCount;
             if (b >= totalBoundaries) {
               // Final crossing — always slot 0 landing at noon. Reveal the
               // real winner instead of another decorative swap.
-              setSlot(0, {
-                memberId: result.winner.memberId,
-                memberName: result.winner.memberName,
-                photoUrl: result.winner.photoUrl,
-              });
+              setSlot(0, winnerPhoto);
             } else {
-              setSlot(slotIndex, pickDecorative());
+              setSlot(slotIndex, nextDecorative());
             }
           }
           lastBoundary = boundary;
@@ -193,7 +216,7 @@ export default function RouletteWheel() {
 
         <div ref={wheelRef} className="absolute inset-0" style={{ transform: "rotate(0deg)" }}>
           {slots.map((slot, i) => {
-            const angle = i * DEGREES_PER_SLOT - 90;
+            const angle = i * degreesPerSlot - 90;
             const x = WHEEL_SIZE / 2 + RADIUS * Math.cos((angle * Math.PI) / 180) - AVATAR_SIZE / 2;
             const y = WHEEL_SIZE / 2 + RADIUS * Math.sin((angle * Math.PI) / 180) - AVATAR_SIZE / 2;
             return (

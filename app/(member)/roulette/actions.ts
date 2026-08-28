@@ -162,15 +162,25 @@ export async function spinRoulette(): Promise<RouletteSpinResponse> {
 
   const slack = new WebClient(slackToken);
 
-  const winner = await pickRouletteMatch(pool, async (candidate) => {
-    try {
-      const presence = await slack.users.getPresence({ user: candidate.slackUserId! });
-      return presence.presence === "active";
-    } catch (error) {
-      console.error(`Roulette presence check failed for ${candidate.memberName}:`, error);
-      return false;
-    }
-  });
+  const winner = await pickRouletteMatch(
+    pool,
+    async (candidate) => {
+      try {
+        const presence = await slack.users.getPresence({ user: candidate.slackUserId! });
+        return presence.presence === "active";
+      } catch (error) {
+        console.error(`Roulette presence check failed for ${candidate.memberName}:`, error);
+        return false;
+      }
+    },
+    // The weighting deliberately favors low-connection/low-activity members,
+    // which also skews toward people less likely to be online right now. A
+    // small attempt cap meant we could give up while someone reachable sat
+    // untried further down the list — the presence check is what actually
+    // guarantees a live match, so try the whole eligible pool before
+    // reporting nobody's around.
+    { maxAttempts: pool.length }
+  );
 
   if (!winner) return { noOneAvailable: true };
 

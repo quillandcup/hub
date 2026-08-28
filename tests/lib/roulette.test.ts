@@ -111,4 +111,17 @@ describe("buildReel", () => {
     const reel = buildReel(winner, pool, 8);
     expect(reel).toHaveLength(2);
   });
+
+  it("fills slots with photo-having candidates before falling back to photo-less ones", () => {
+    const winner = candidate({ memberId: "winner", photoUrl: "winner.jpg" });
+    const pool = [
+      winner,
+      candidate({ memberId: "no-photo-1", photoUrl: null }),
+      candidate({ memberId: "no-photo-2", photoUrl: null }),
+      candidate({ memberId: "has-photo-1", photoUrl: "a.jpg" }),
+      candidate({ memberId: "has-photo-2", photoUrl: "b.jpg" }),
+    ];
+    const reel = buildReel(winner, pool, 3); // winner + 2 slots
+    expect(reel.slice(1).every((c) => c.photoUrl !== null)).toBe(true);
+  });
 });
