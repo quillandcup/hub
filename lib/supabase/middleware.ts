@@ -25,6 +25,7 @@ export async function updateSession(request: NextRequest) {
 
   let user = null
   let sessionId: string | null = null
+  let authCheckTimedOut = false
   try {
     const { data } = await withTimeout(supabase.auth.getUser(), AUTH_CHECK_TIMEOUT_MS)
     user = data.user
@@ -37,8 +38,14 @@ export async function updateSession(request: NextRequest) {
       }
     }
   } catch {
-    // Supabase unreachable or too slow to respond — treat as unauthenticated
-    // rather than hang until Vercel's 25s middleware cap kills the request.
+    // Supabase unreachable or too slow to respond within our short budget --
+    // NOT the same thing as "no session". Don't force the /login redirect
+    // below on this: app/(member)/layout.tsx and app/(admin)/layout.tsx each
+    // independently re-run their own uncapped getUser() check right after
+    // and will redirect correctly if the session really is gone. Treating a
+    // timeout as "logged out" here was kicking users with perfectly valid
+    // sessions to /login on ordinary Supabase latency blips.
+    authCheckTimedOut = true
   }
 
   const { pathname } = request.nextUrl
@@ -74,7 +81,7 @@ export async function updateSession(request: NextRequest) {
     pathname.startsWith('/auth/') ||
     pathname.startsWith('/api/')
 
-  if (!user && !isPublic) {
+  if (!user && !isPublic && !authCheckTimedOut) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     return NextResponse.redirect(url)
