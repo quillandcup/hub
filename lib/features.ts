@@ -1,4 +1,4 @@
-export type FeatureKey = 'streaks' | 'hiatus_tracking' | 'member_overrides';
+export type FeatureKey = 'streaks' | 'hiatus_tracking' | 'member_overrides' | 'prickle_picker';
 
 export interface FeaturePreview {
   key: FeatureKey;
@@ -21,6 +21,11 @@ export const FEATURE_PREVIEWS: FeaturePreview[] = [
     key: 'member_overrides',
     name: 'Member Overrides',
     description: 'Suppress reconciliation mismatches (180 program, hiatus, gifted memberships)',
+  },
+  {
+    key: 'prickle_picker',
+    name: 'Prickle Picker',
+    description: 'A wizard that recommends upcoming prickles based on mood, purpose, and who you want to see',
   },
 ];
 

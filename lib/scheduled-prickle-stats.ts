@@ -57,7 +57,7 @@ export interface GroupStats {
 // Shared helpers
 // ---------------------------------------------------------------------------
 
-function buildAttendanceMap(attendance: AttendanceRow[]): Map<string, Set<string>> {
+export function buildAttendanceMap(attendance: AttendanceRow[]): Map<string, Set<string>> {
   const map = new Map<string, Set<string>>();
   for (const row of attendance) {
     if (!map.has(row.prickle_id)) map.set(row.prickle_id, new Set());

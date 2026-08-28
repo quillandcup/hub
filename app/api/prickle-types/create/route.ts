@@ -12,11 +12,25 @@ export async function POST(request: NextRequest) {
   const { supabase } = auth;
 
   try {
-    const { name, description } = await request.json();
+    const { name, description, purpose, soloTaskFriendly } = await request.json();
 
     if (!name || !name.trim()) {
       return NextResponse.json(
         { error: "Name is required" },
+        { status: 400 }
+      );
+    }
+
+    const VALID_PURPOSES = ["writing", "work", "social", "mixed"];
+    if (purpose !== undefined && !VALID_PURPOSES.includes(purpose)) {
+      return NextResponse.json(
+        { error: `Invalid purpose. Must be one of: ${VALID_PURPOSES.join(", ")}` },
+        { status: 400 }
+      );
+    }
+    if (soloTaskFriendly !== undefined && typeof soloTaskFriendly !== "boolean") {
+      return NextResponse.json(
+        { error: "soloTaskFriendly must be a boolean" },
         { status: 400 }
       );
     }
@@ -49,6 +63,8 @@ export async function POST(request: NextRequest) {
         name: name.trim(),
         normalized_name: normalizedName,
         description: description?.trim() || null,
+        ...(purpose !== undefined ? { purpose } : {}),
+        ...(soloTaskFriendly !== undefined ? { solo_task_friendly: soloTaskFriendly } : {}),
       })
       .select()
       .single();

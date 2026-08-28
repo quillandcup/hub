@@ -2,6 +2,9 @@ import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import { ThemeSwitcher } from "./ThemeSwitcher";
 import { TimezoneSwitcher } from "./TimezoneSwitcher";
+import { getUserFeaturePreviews } from "@/lib/features.server";
+import { getHostedVibes } from "@/app/(member)/prickle-picker/actions";
+import HostVibePanel from "@/components/HostVibePanel";
 
 export const metadata: Metadata = {
   title: "Profile Settings",
@@ -19,11 +22,17 @@ export default async function ProfilePage() {
   // Fetch user profile to get timezone preference
   const { data: profile } = await supabase
     .from("user_profiles")
-    .select("timezone_preference")
+    .select("timezone_preference, role")
     .eq("id", user.id)
     .single();
 
   const timezonePreference = profile?.timezone_preference || "browser";
+
+  // Feature previews are currently admin-only (see MemberLayout), so mirror
+  // that gating here rather than showing the vibe panel to everyone.
+  const isAdmin = profile?.role === "admin";
+  const enabledFeatures = isAdmin ? await getUserFeaturePreviews(user.id) : [];
+  const hostedVibes = enabledFeatures.includes("prickle_picker") ? await getHostedVibes() : [];
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
@@ -66,6 +75,7 @@ export default async function ProfilePage() {
               </div>
             </div>
 
+            <HostVibePanel hostedVibes={hostedVibes} />
           </div>
         </div>
       </main>

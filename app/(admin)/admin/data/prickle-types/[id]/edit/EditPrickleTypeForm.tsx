@@ -3,12 +3,23 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
+type PrickleTypePurpose = "writing" | "work" | "social" | "mixed";
+
+const PURPOSE_OPTIONS: { value: PrickleTypePurpose; label: string; hint: string }[] = [
+  { value: "writing", label: "Writing", hint: "Default" },
+  { value: "work", label: "Non-writing work", hint: "On-topic group work, e.g. goal review" },
+  { value: "social", label: "Social", hint: "Hangout-focused" },
+  { value: "mixed", label: "Mixed", hint: "A bit of everything" },
+];
+
 interface EditPrickleTypeFormProps {
   prickleType: {
     id: string;
     name: string;
     normalized_name: string;
     description: string | null;
+    purpose: PrickleTypePurpose;
+    solo_task_friendly: boolean;
   };
 }
 
@@ -18,6 +29,8 @@ export default function EditPrickleTypeForm({
   const router = useRouter();
   const [name, setName] = useState(prickleType.name);
   const [description, setDescription] = useState(prickleType.description || "");
+  const [purpose, setPurpose] = useState<PrickleTypePurpose>(prickleType.purpose);
+  const [soloTaskFriendly, setSoloTaskFriendly] = useState(prickleType.solo_task_friendly);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -34,6 +47,8 @@ export default function EditPrickleTypeForm({
           typeId: prickleType.id,
           name: name.trim(),
           description: description.trim(),
+          purpose,
+          soloTaskFriendly,
         }),
       });
 
@@ -92,6 +107,45 @@ export default function EditPrickleTypeForm({
             rows={4}
             className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
           />
+        </div>
+
+        {/* Purpose */}
+        <div className="mb-6">
+          <label className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2 block">
+            Purpose
+          </label>
+          <select
+            value={purpose}
+            onChange={(e) => setPurpose(e.target.value as PrickleTypePurpose)}
+            className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+          >
+            {PURPOSE_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label} — {opt.hint}
+              </option>
+            ))}
+          </select>
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            Used by the Prickle Picker to filter recommendations by purpose.
+          </p>
+        </div>
+
+        {/* Solo-task friendliness */}
+        <div className="mb-6">
+          <label className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-300">
+            <input
+              type="checkbox"
+              checked={soloTaskFriendly}
+              onChange={(e) => setSoloTaskFriendly(e.target.checked)}
+              className="rounded border-slate-300 dark:border-slate-600"
+            />
+            Good for bring-your-own-task time
+          </label>
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            Can a hedgie zone out on an unrelated task (especially non-writing work) here? Turn this off for
+            structured/participatory sessions (workshops, sprints, pitches, educational) and very chatty ones
+            (Craft & Chat) — being writing-purpose doesn&apos;t automatically make a slot friendly for this.
+          </p>
         </div>
 
         {/* Actions */}

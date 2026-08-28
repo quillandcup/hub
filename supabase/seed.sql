@@ -25,26 +25,29 @@ TRUNCATE bronze.slack_users CASCADE;
 TRUNCATE members CASCADE;
 
 -- Re-seed prickle_types (wiped by TRUNCATE members CASCADE)
--- Note: migrations normally handle this, but seed.sql wipes it
-INSERT INTO prickle_types (name, normalized_name, description, requires_host, default_host_id)
+-- Note: migrations normally handle this, but seed.sql wipes it.
+-- purpose/solo_task_friendly must be kept in sync with the best-guess mapping
+-- in 20260827000001_add_purpose_to_prickle_types.sql -- this INSERT bypasses
+-- that migration's column defaults, so it needs its own explicit values.
+INSERT INTO prickle_types (name, normalized_name, description, requires_host, default_host_id, purpose, solo_task_friendly)
 VALUES
-  ('Progress Prickle', 'progress', 'General progress prickles', true, NULL),
-  ('Plot or Plan Prickle', 'plot-or-plan', 'Plot or plan sessions', true, NULL),
-  ('Sprint Prickle', 'sprint', 'Focused sprint sessions', true, NULL),
-  ('Heads Down', 'heads-down', 'Deep work sessions', true, NULL),
-  ('Pitch Prickle', 'pitch', 'Pitching and feedback sessions', true, NULL),
-  ('Midnight Crew', 'midnight-crew', 'Late night writing crew', false, NULL),
-  ('Feel Good Friday Prickle', 'feel-good-friday', 'Friday celebration prickles', false, NULL),
-  ('Open Table', 'open-table', 'Open community hangouts', false, NULL),
-  ('Social Media Sunday Prickle', 'social-media-sunday', 'Social media planning', false, NULL),
-  ('Craft & Chat Prickle', 'craft-chat', 'Crafting and conversation', false, NULL),
-  ('Pomodoro', 'pomodoro', 'Pomodoro technique sessions', false, NULL),
-  ('#AuthorLife Heads Down Prickle', 'authorlife-heads-down', 'Author life deep work', false, NULL),
-  ('Monthly Goal Review', 'monthly-goal-review', 'Monthly goal planning', false, NULL),
-  ('Pop-Up Prickle', 'pop-up', 'Spontaneous prickles from Zoom', false, NULL),
-  ('Hedgies on First', 'hedgies-on-first', 'First week community onboarding', false, NULL),
-  ('Members Only Pitch Prickle', 'members-only-pitch', 'Members-only pitching sessions', true, NULL),
-  ('Educational Prickle', 'educational', 'Educational and workshop sessions', true, NULL)
+  ('Progress Prickle', 'progress', 'General progress prickles', true, NULL, 'writing', true),
+  ('Plot or Plan Prickle', 'plot-or-plan', 'Plot or plan sessions', true, NULL, 'writing', true),
+  ('Sprint Prickle', 'sprint', 'Focused sprint sessions', true, NULL, 'writing', false),
+  ('Heads Down', 'heads-down', 'Deep work sessions', true, NULL, 'writing', true),
+  ('Pitch Prickle', 'pitch', 'Pitching and feedback sessions', true, NULL, 'writing', false),
+  ('Midnight Crew', 'midnight-crew', 'Late night writing crew', false, NULL, 'writing', true),
+  ('Feel Good Friday Prickle', 'feel-good-friday', 'Friday celebration prickles', false, NULL, 'social', false),
+  ('Open Table', 'open-table', 'Open community hangouts', false, NULL, 'social', false),
+  ('Social Media Sunday Prickle', 'social-media-sunday', 'Social media planning', false, NULL, 'work', false),
+  ('Craft & Chat Prickle', 'craft-chat', 'Crafting and conversation', false, NULL, 'social', false),
+  ('Pomodoro', 'pomodoro', 'Pomodoro technique sessions', false, NULL, 'writing', true),
+  ('#AuthorLife Heads Down Prickle', 'authorlife-heads-down', 'Author life deep work', false, NULL, 'writing', true),
+  ('Monthly Goal Review', 'monthly-goal-review', 'Monthly goal planning', false, NULL, 'work', false),
+  ('Pop-Up Prickle', 'pop-up', 'Spontaneous prickles from Zoom', false, NULL, 'writing', true),
+  ('Hedgies on First', 'hedgies-on-first', 'First week community onboarding', false, NULL, 'writing', false),
+  ('Members Only Pitch Prickle', 'members-only-pitch', 'Members-only pitching sessions', true, NULL, 'writing', false),
+  ('Educational Prickle', 'educational', 'Educational and workshop sessions', true, NULL, 'writing', false)
 ON CONFLICT (normalized_name) DO NOTHING;
 
 -- =====================================================
@@ -60,7 +63,7 @@ INSERT INTO members (id, name, email, joined_at, status, plan) VALUES
 ('66666666-6666-6666-6666-666666666666', 'James Wilson', 'james.w@example.com', '2025-02-15', 'on_hiatus', 'basic'),
 ('77777777-7777-7777-7777-777777777777', 'Lisa Martinez', 'lisa.m@example.com', '2025-03-01', 'active', 'pro'),
 ('88888888-8888-8888-8888-888888888888', 'David Lee', 'david.lee@example.com', '2025-03-05', 'active', 'basic'),
-('99999999-9999-9999-9999-999999999999', 'Jennifer Brown', 'jennifer.b@example.com', '2024-12-01', 'inactive', 'basic'),
+('99999999-9999-9999-9999-999999999999', 'Jennifer Brown', 'jennifer.b@example.com', '2024-12-01', 'cancelled', 'basic'),
 ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'Robert Taylor', 'robert.t@example.com', '2025-01-01', 'active', 'basic');
 
 -- =====================================================

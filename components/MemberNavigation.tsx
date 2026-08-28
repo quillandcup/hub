@@ -25,9 +25,11 @@ export default function MemberNavigation({ isAdmin, memberId, enabledFeatures }:
 
   const isCalendarActive = pathname === '/calendar';
   const isStreaksActive = pathname === '/streaks';
+  const isPrickerPickerActive = pathname === '/prickle-picker';
   const isProfileActive = pathname === `/members/${memberId}` || pathname.startsWith(`/members/${memberId}/`);
 
   const showStreaks = enabledFeatures.includes('streaks');
+  const showPricklePicker = enabledFeatures.includes('prickle_picker');
 
   return (
     <aside
@@ -78,6 +80,21 @@ export default function MemberNavigation({ isAdmin, memberId, enabledFeatures }:
           >
             <span className="text-lg">🔥</span>
             {!collapsed && <span>Streaks</span>}
+          </Link>
+        )}
+
+        {showPricklePicker && (
+          <Link
+            href="/prickle-picker"
+            className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
+              isPrickerPickerActive
+                ? "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 font-medium"
+                : "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+            }`}
+            title={collapsed ? "Prickle Picker" : undefined}
+          >
+            <span className="text-lg">🧭</span>
+            {!collapsed && <span>Prickle Picker</span>}
           </Link>
         )}
 
