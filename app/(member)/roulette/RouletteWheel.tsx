@@ -164,9 +164,15 @@ export default function RouletteWheel() {
         if (boundary > lastBoundary) {
           for (let b = lastBoundary + 1; b <= boundary; b++) {
             const slotIndex = (activeSlotCount - (b % activeSlotCount)) % activeSlotCount;
-            if (b >= totalBoundaries) {
-              // Final crossing — always slot 0 landing at noon. Reveal the
-              // real winner instead of another decorative swap.
+            // Slot 0 is the one that lands at noon at rest (rotation is an
+            // exact multiple of 360°), and it passes through noon once per
+            // lap. Commit the winner into it starting from its second-to-
+            // last pass — not just the literal final crossing — so it
+            // rides through noon unchanged for the whole final lap (which,
+            // thanks to the ease-out, is over half the animation's real
+            // time) instead of swapping in at the last instant. Without
+            // this, the wheel visibly "changes its mind" right as it stops.
+            if (slotIndex === 0 && b >= totalBoundaries - activeSlotCount) {
               setSlot(0, winnerPhoto);
             } else {
               setSlot(slotIndex, nextDecorative());
