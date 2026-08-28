@@ -4,14 +4,14 @@ import { useState } from "react";
 import Link from "next/link";
 import BulkMergeMemberModal from "./BulkMergeMemberModal";
 import { SortableTh } from "@/components/SortableTh";
-import { MemberStatusBadge } from "@/components/MemberStatusBadge";
+import { MemberStatusBadge, type MemberStatus } from "@/components/MemberStatusBadge";
 import { useTableSort } from "@/lib/hooks/useTableSort";
 
-interface MemberRow {
+export interface MemberRow {
   id: string;
   name: string;
   email: string;
-  status: string;
+  status: MemberStatus;
   member_metrics: {
     last_attended_at: string | null;
     prickles_last_30_days: number | null;

@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import MembersTable from '@/app/(admin)/admin/members/MembersTable'
+import MembersTable, { type MemberRow } from '@/app/(admin)/admin/members/MembersTable'
 
 vi.mock('next/link', () => ({
   default: ({ href, children, ...props }: { href: string; children: ReactNode }) => (
@@ -13,7 +13,7 @@ vi.mock('next/link', () => ({
   ),
 }))
 
-const members = [
+const members: MemberRow[] = [
   {
     id: 'c',
     name: 'Carol',
@@ -44,7 +44,7 @@ const members = [
     id: 'b',
     name: 'Bob',
     email: 'bob@example.com',
-    status: 'inactive',
+    status: 'cancelled',
     member_metrics: {
       last_attended_at: '2024-02-01',
       prickles_last_30_days: 0,
