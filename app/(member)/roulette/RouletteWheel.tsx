@@ -297,8 +297,9 @@ export default function RouletteWheel() {
       )}
 
       <p className="text-xs text-slate-400 dark:text-slate-500 text-center max-w-sm">
-        Want a chance at getting spun more? Post and react in Slack, and show up to a prickle — the
-        wheel leans toward hedgies who haven&apos;t connected much yet.{" "}
+        The wheel leans toward hedgies who haven&apos;t connected much yet, so newer or quieter
+        folks turn up as matches more often. Posting, reacting, and showing up to a prickle is
+        still the fastest way to build connections on your own.{" "}
         <Link href="/network" className="underline hover:text-slate-600 dark:hover:text-slate-300">
           See your connections →
         </Link>
