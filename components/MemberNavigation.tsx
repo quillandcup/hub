@@ -26,10 +26,12 @@ function NavLinks({ memberId, isAdmin, enabledFeatures, pathname, collapsed, onN
   const isStreaksActive = pathname === '/streaks';
   const isPrickerPickerActive = pathname === '/prickle-picker';
   const isNetworkActive = pathname === '/network';
+  const isRouletteActive = pathname === '/roulette';
   const isProfileActive = pathname === `/members/${memberId}` || pathname.startsWith(`/members/${memberId}/`);
 
   const showStreaks = enabledFeatures.includes('streaks');
   const showPricklePicker = enabledFeatures.includes('prickle_picker');
+  const showRoulette = enabledFeatures.includes('hedgie_roulette');
 
   return (
     <>
@@ -107,6 +109,22 @@ function NavLinks({ memberId, isAdmin, enabledFeatures, pathname, collapsed, onN
           <span className="text-lg">🤝</span>
           {!collapsed && <span>Network</span>}
         </Link>
+
+        {showRoulette && (
+          <Link
+            href="/roulette"
+            onClick={onNavigate}
+            className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
+              isRouletteActive
+                ? "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 font-medium"
+                : "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+            }`}
+            title={collapsed ? "Hedgie Roulette" : undefined}
+          >
+            <span className="text-lg">🎡</span>
+            {!collapsed && <span>Hedgie Roulette</span>}
+          </Link>
+        )}
 
         <Link
           href={`/members/${memberId}`}

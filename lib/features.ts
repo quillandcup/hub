@@ -1,4 +1,4 @@
-export type FeatureKey = 'streaks' | 'hiatus_tracking' | 'member_overrides' | 'prickle_picker';
+export type FeatureKey = 'streaks' | 'hiatus_tracking' | 'member_overrides' | 'prickle_picker' | 'hedgie_roulette';
 
 export interface FeaturePreview {
   key: FeatureKey;
@@ -26,6 +26,11 @@ export const FEATURE_PREVIEWS: FeaturePreview[] = [
     key: 'prickle_picker',
     name: 'Prickle Picker',
     description: 'A wizard that recommends upcoming prickles based on mood, purpose, and who you want to see',
+  },
+  {
+    key: 'hedgie_roulette',
+    name: 'Hedgie Roulette',
+    description: 'Spin to get matched with a hedgie who is online in Slack right now',
   },
 ];
 
