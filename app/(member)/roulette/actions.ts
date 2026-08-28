@@ -3,6 +3,7 @@
 import { WebClient } from "@slack/web-api";
 import { createClient } from "@/lib/supabase/server";
 import { getEffectiveIdentity } from "@/lib/sudo";
+import { matchSlackUsersToMembers } from "@/lib/slack-matching";
 import {
   pickRouletteMatch,
   buildReel,
@@ -59,36 +60,54 @@ async function loadCandidatePool(
     Date.now() - SLACK_ACTIVITY_WINDOW_DAYS * 24 * 60 * 60 * 1000
   ).toISOString();
 
-  const [membersResult, attendance, slackActivity, slackAliases] = await Promise.all([
-    supabase
-      .from("members")
-      .select("id, name, photo_url")
-      .eq("status", "active")
-      .neq("id", viewerMemberId),
-    fetchAllPaginated<{ member_id: string; prickle_id: string }>((offset) =>
+  const [membersResult, allMembersForMatching, attendance, slackActivity, slackAliases, slackUsers] =
+    await Promise.all([
       supabase
-        .from("prickle_attendance")
-        .select("member_id, prickle_id")
-        .range(offset, offset + BATCH_SIZE - 1)
-    ),
-    fetchAllPaginated<{ member_id: string }>((offset) =>
-      supabase
-        .from("member_activities")
-        .select("member_id")
-        .eq("source", "slack")
-        .gte("occurred_at", activityWindowStart)
-        .range(offset, offset + BATCH_SIZE - 1)
-    ),
-    fetchAllPaginated<{ member_id: string; alias: string }>((offset) =>
-      supabase
-        .from("member_name_aliases")
-        .select("member_id, alias")
-        .eq("source", "slack")
-        .range(offset, offset + BATCH_SIZE - 1)
-    ),
-  ]);
+        .from("members")
+        .select("id, name, photo_url")
+        .eq("status", "active")
+        .neq("id", viewerMemberId),
+      // matchSlackUsersToMembers needs the full member roster (with email) to
+      // resolve email/name matches, not just the id/photo fields above.
+      supabase.from("members").select("id, name, email"),
+      fetchAllPaginated<{ member_id: string; prickle_id: string }>((offset) =>
+        supabase
+          .from("prickle_attendance")
+          .select("member_id, prickle_id")
+          .range(offset, offset + BATCH_SIZE - 1)
+      ),
+      fetchAllPaginated<{ member_id: string }>((offset) =>
+        supabase
+          .from("member_activities")
+          .select("member_id")
+          .eq("source", "slack")
+          .gte("occurred_at", activityWindowStart)
+          .range(offset, offset + BATCH_SIZE - 1)
+      ),
+      fetchAllPaginated<{ member_id: string; alias: string; source: "zoom" | "slack" }>((offset) =>
+        supabase
+          .from("member_name_aliases")
+          .select("member_id, alias, source")
+          .range(offset, offset + BATCH_SIZE - 1)
+      ),
+      supabase.schema("bronze").from("slack_users").select("user_id, email, real_name"),
+    ]);
 
   const members = membersResult.data ?? [];
+
+  // Same matching logic the Slack data-hygiene pages use (alias > email >
+  // normalized name), not just a raw alias lookup — otherwise a member
+  // matched automatically by email (the common case) would look unreachable
+  // here even though /admin/hygiene considers them linked.
+  const slackUserToMemberId = await matchSlackUsersToMembers(
+    slackUsers.data ?? [],
+    allMembersForMatching.data ?? [],
+    slackAliases
+  );
+  const slackUserIdByMember = new Map<string, string>();
+  for (const [slackUserId, memberId] of slackUserToMemberId) {
+    slackUserIdByMember.set(memberId, slackUserId);
+  }
 
   // Connection count: distinct other members each member has ever shared a
   // prickle with (all-time — a lifetime near-zero count is the clearest
@@ -112,11 +131,6 @@ async function loadCandidatePool(
   const slackActivityCounts = new Map<string, number>();
   for (const row of slackActivity) {
     slackActivityCounts.set(row.member_id, (slackActivityCounts.get(row.member_id) ?? 0) + 1);
-  }
-
-  const slackUserIdByMember = new Map<string, string>();
-  for (const row of slackAliases) {
-    slackUserIdByMember.set(row.member_id, row.alias);
   }
 
   return members.map((m) => ({

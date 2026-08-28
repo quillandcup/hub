@@ -214,6 +214,14 @@ export default async function DataHygienePage() {
     u => !slackMatchedUserIds.has(u.user_id) && !ignoredSlackUserIds.has(u.user_id) && !u.is_bot
   ).length;
 
+  // Reverse direction: active members with no matched Slack user at all —
+  // catches members who never joined Slack (no slack_users row to be
+  // "unmatched" in the first place), which the check above can't see.
+  const slackMatchedMemberIds = new Set(slackMatchedUserIds.values());
+  const membersWithoutSlackCount = (membersForDuplicates || []).filter(
+    m => m.status === "active" && !slackMatchedMemberIds.has(m.id)
+  ).length;
+
   // Get all zoom_attendees with name/email for matching (paginated — table exceeds 1000 rows)
   const allAttendeesForMatching: { meeting_uuid: string; name: string; email: string | null; join_time: string; leave_time: string }[] = [];
   {
@@ -446,6 +454,35 @@ export default async function DataHygienePage() {
             {unmatchedSlackUsersCount === 0 && (
               <p className="text-xs text-green-600 dark:text-green-400 mt-2">
                 All matched ✓
+              </p>
+            )}
+          </Link>
+
+          {/* Members Without Slack (reverse direction) */}
+          <Link
+            href="/admin/hygiene/members-without-slack"
+            className="block p-6 bg-white dark:bg-slate-900 rounded-lg shadow hover:shadow-lg transition-shadow border border-slate-200 dark:border-slate-800"
+          >
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-sm font-medium text-slate-600 dark:text-slate-400">
+                Members Without Slack
+              </h3>
+              <span className="text-2xl">🔁</span>
+            </div>
+            <p className="text-3xl font-bold text-slate-900 dark:text-slate-100 mb-1">
+              {membersWithoutSlackCount}
+            </p>
+            <p className="text-sm text-slate-600 dark:text-slate-400">
+              active member{membersWithoutSlackCount !== 1 ? "s" : ""} with no Slack match
+            </p>
+            {membersWithoutSlackCount > 0 && (
+              <p className="text-xs text-orange-600 dark:text-orange-400 mt-2">
+                View unmatched members →
+              </p>
+            )}
+            {membersWithoutSlackCount === 0 && (
+              <p className="text-xs text-green-600 dark:text-green-400 mt-2">
+                All linked ✓
               </p>
             )}
           </Link>
