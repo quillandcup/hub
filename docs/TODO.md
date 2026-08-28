@@ -74,6 +74,20 @@ Some people who attend prickles have no Kajabi footprint at all (not a member, t
 **Lead & engagement tracking (future)**
 - Form submissions, opt-in reports, product progress — lower priority until core member/financial data is solid
 
+### Multi-Product Support & Badges (Needs Scoping)
+Beyond the core Quill & Cup membership, support these products/programs, each shown as a badge on the member's profile:
+- **The 180 Program** (drafting) — single badge, or milestone badges per phase?
+- **Self-Editing Academy** — single badge
+- **In-Person Retreats** — one badge *per retreat attended* (not just "has attended a retreat")
+- **Virtual Retreats** — one badge per retreat attended, same pattern as in-person
+
+**Depends on:** the `kajabi_products` / `member_products` junction table already planned above — retreat badges specifically need per-instance data (which retreat, which date), so likely also need a `retreats` or `retreat_instances` table rather than just a product flag, since "180 Program" is a single ongoing product but "Retreat" has many distinct occurrences a member could attend more than once.
+
+**Needs scoping before implementation:**
+- Data source for retreat attendance (Kajabi tag per retreat? separate registration table? manual entry?)
+- Badge display: profile-only, or also on admin member list/detail?
+- Whether 180 Program / Self-Editing Academy get a single "enrolled" badge vs. a "completed" badge vs. both
+
 ### Schedule Import
 Import Prickles schedule from:
 - Google Calendar API
