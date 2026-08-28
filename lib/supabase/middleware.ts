@@ -6,6 +6,13 @@ import { getSessionIdFromAccessToken } from '@/lib/supabase/session-claims'
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })
 
+  // GoTrue records auth.sessions.user_agent/ip from whatever hit its own
+  // endpoint — since this refresh call originates from our server, not the
+  // browser, forward the real request's headers so Active Sessions shows
+  // the member's actual device/location rather than Vercel's runtime.
+  const userAgent = request.headers.get('user-agent')
+  const clientIp = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
+
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -18,6 +25,12 @@ export async function updateSession(request: NextRequest) {
           cookiesToSet.forEach(({ name, value, options }) =>
             supabaseResponse.cookies.set(name, value, options)
           )
+        },
+      },
+      global: {
+        headers: {
+          ...(userAgent ? { 'User-Agent': userAgent } : {}),
+          ...(clientIp ? { 'X-Forwarded-For': clientIp } : {}),
         },
       },
     }
