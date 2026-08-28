@@ -28,6 +28,35 @@ interface AppUser {
   pending: boolean;
 }
 
+interface AccessSession {
+  session_start: string;
+  session_end: string;
+  event_count: number;
+  pages: string[] | null;
+}
+
+const ET_TIME_FORMAT = new Intl.DateTimeFormat("en-US", {
+  timeZone: "America/New_York",
+  hour: "numeric",
+  minute: "2-digit",
+  timeZoneName: "short",
+});
+
+const ET_DATE_FORMAT = new Intl.DateTimeFormat("en-US", {
+  timeZone: "America/New_York",
+  weekday: "short",
+  month: "short",
+  day: "numeric",
+});
+
+function formatSessionRange(start: string, end: string): string {
+  const startDate = new Date(start);
+  const endDate = new Date(end);
+  const startLabel = `${ET_DATE_FORMAT.format(startDate)}, ${ET_TIME_FORMAT.format(startDate)}`;
+  if (startDate.getTime() === endDate.getTime()) return startLabel;
+  return `${startLabel} – ${ET_TIME_FORMAT.format(endDate)}`;
+}
+
 const ROLE_LABELS: Record<Role, string> = {
   admin: "Admin",
   assistant: "Assistant",
@@ -74,6 +103,11 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
 
   const [resendingId, setResendingId] = useState<string | null>(null);
   const [resentId, setResentId] = useState<string | null>(null);
+
+  const [historyUser, setHistoryUser] = useState<AppUser | null>(null);
+  const [historySessions, setHistorySessions] = useState<AccessSession[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState<string | null>(null);
 
   const fetchUsers = useCallback(async () => {
     setLoading(true);
@@ -177,6 +211,29 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
     }
   }
 
+  async function openHistory(user: AppUser) {
+    setHistoryUser(user);
+    setHistoryLoading(true);
+    setHistoryError(null);
+    setHistorySessions([]);
+    try {
+      const res = await fetch(`/api/admin/users/${user.id}/access-history`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to load access history");
+      setHistorySessions(data.sessions);
+    } catch (err: unknown) {
+      setHistoryError(err instanceof Error ? err.message : "Failed to load access history");
+    } finally {
+      setHistoryLoading(false);
+    }
+  }
+
+  function closeHistory() {
+    setHistoryUser(null);
+    setHistorySessions([]);
+    setHistoryError(null);
+  }
+
   async function handleResend(userId: string) {
     setResendingId(userId);
     setResentId(null);
@@ -197,6 +254,7 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
   }
 
   return (
+    <>
     <div className="container mx-auto px-6 py-8">
       <div className="mb-6 flex items-start justify-between">
         <div>
@@ -427,6 +485,12 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
                               >
                                 Edit
                               </button>
+                              <button
+                                onClick={() => openHistory(user)}
+                                className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                              >
+                                History
+                              </button>
                               {user.pending && (
                                 <button
                                   onClick={() => handleResend(user.id)}
@@ -479,5 +543,65 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
         )}
       </div>
     </div>
+
+    {historyUser && (
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
+        onClick={closeHistory}
+      >
+        <div
+          className="w-full max-w-2xl max-h-[80vh] overflow-y-auto bg-white dark:bg-slate-900 rounded-lg shadow-xl p-6"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex items-start justify-between mb-4">
+            <div>
+              <h2 className="text-lg font-bold">Access History</h2>
+              <p className="text-sm text-slate-600 dark:text-slate-400">{historyUser.email}</p>
+            </div>
+            <button
+              onClick={closeHistory}
+              className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+              aria-label="Close"
+            >
+              ✕
+            </button>
+          </div>
+
+          {historyLoading && (
+            <p className="text-sm text-slate-500 dark:text-slate-400">Loading...</p>
+          )}
+
+          {historyError && (
+            <p className="text-sm text-red-600 dark:text-red-400">{historyError}</p>
+          )}
+
+          {!historyLoading && !historyError && historySessions.length === 0 && (
+            <p className="text-sm text-slate-500 dark:text-slate-400">No recorded activity yet.</p>
+          )}
+
+          {!historyLoading && !historyError && historySessions.length > 0 && (
+            <ul className="space-y-4">
+              {historySessions.map((session, i) => (
+                <li key={i} className="border-l-2 border-blue-400 pl-4">
+                  <div className="text-sm font-medium text-slate-900 dark:text-slate-100">
+                    {formatSessionRange(session.session_start, session.session_end)}
+                  </div>
+                  {session.pages && session.pages.length > 0 ? (
+                    <ol className="mt-1 text-xs text-slate-500 dark:text-slate-400 list-decimal list-inside space-y-0.5">
+                      {session.pages.map((path, j) => (
+                        <li key={j} className="font-mono">{path}</li>
+                      ))}
+                    </ol>
+                  ) : (
+                    <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">No pages recorded</p>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+    )}
+    </>
   );
 }

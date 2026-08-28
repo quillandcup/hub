@@ -201,6 +201,17 @@ Define user roles and permissions:
 
 ---
 
+## Login & Access History
+
+### Session Replay (PostHog bolt-on)
+Per-user login/access history (`access_events` table + `get_access_sessions()`, surfaced via a "History" view on `/admin/users`) tracks when a user came back and what pages they visited, sourced directly from Supabase — see `supabase/migrations/20260827140000_create_access_events.sql`. That covers "when did they come back" and "what pages did they view," but not literal visual playback of what happened on screen.
+
+**Idea:** Add PostHog's free tier (1M events/mo, session replay included) as a bolt-on for that specific need — `posthog.identify(userId)` client-side, tied to the same Supabase auth id. Not a replacement for the custom table: PostHog's dashboard is a separate view, not integrated into `/admin/users`, and self-hosting PostHog was ruled out as too much infra for this app's all-serverless Vercel+Supabase stack.
+
+**Why deferred:** The custom table already answers the primary ask (login history + page trail inside the existing admin UI) with no new infrastructure or third-party script. Session replay is a nice-to-have for UX debugging, not a blocker.
+
+---
+
 ## Slack Bot Channel Access
 
 ### Auto-invite BillieBot into private channels using a personal Slack token
