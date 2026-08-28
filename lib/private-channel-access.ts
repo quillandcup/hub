@@ -12,13 +12,13 @@ export interface StalePrivateChannel {
 }
 
 /**
- * Flags private channels BillieBot appears to have lost access to.
+ * Flags private channels Billie Bot appears to have lost access to.
  *
  * The nightly Slack importer (`app/api/import/slack-api/route.ts`) upserts
  * every channel it can currently see into bronze.slack_channels, stamping a
  * fresh imported_at on each row. Private channels only show up in that list
- * while BillieBot is still a member (Slack has no "list private channels
- * you're not in" API), so if BillieBot gets removed, that channel's row
+ * while Billie Bot is still a member (Slack has no "list private channels
+ * you're not in" API), so if Billie Bot gets removed, that channel's row
  * simply stops getting refreshed. A private channel whose imported_at lags
  * behind the most recent import batch is exactly that signal — there's no
  * way to auto-rejoin (an app can't invite itself), so this only detects the

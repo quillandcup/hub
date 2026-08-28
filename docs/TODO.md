@@ -223,14 +223,14 @@ Per-user login/access history (`access_events` table + `get_access_sessions()`, 
 
 ## Slack Bot Channel Access
 
-### Auto-invite BillieBot into private channels using a personal Slack token
-BillieBot (this app's own Slack bot) can't invite itself back into a private channel it's been removed from — Slack has no self-invite API, and an app also can't discover private channels it's not currently a member of. `lib/private-channel-access.ts` works around the discovery half by detecting staleness in `bronze.slack_channels.imported_at` (a private channel that stops getting refreshed by the nightly Slack import means BillieBot lost access) and surfacing it on `/admin/hygiene` — but that's alert-only; nothing can currently fix it automatically.
+### Auto-invite Billie Bot into private channels using a personal Slack token
+Billie Bot (this app's own Slack bot) can't invite itself back into a private channel it's been removed from — Slack has no self-invite API, and an app also can't discover private channels it's not currently a member of. `lib/private-channel-access.ts` works around the discovery half by detecting staleness in `bronze.slack_channels.imported_at` (a private channel that stops getting refreshed by the nightly Slack import means Billie Bot lost access) and surfacing it on `/admin/hygiene` — but that's alert-only; nothing can currently fix it automatically.
 
-**Idea:** Use a personal Slack user token (a `xoxp-...` token for Cody's or Ania's own account, pulled from the browser session rather than a proper OAuth flow) to close the gap. A real user's token can see every private channel *they're* personally in via `conversations.list`, and `conversations.invite` only requires the inviter to already be a member — so it could add BillieBot into any private channel the token's owner is in that BillieBot is missing from, without waiting on a human to do it by hand in Slack.
+**Idea:** Use a personal Slack user token (a `xoxp-...` token for Cody's or Ania's own account, pulled from the browser session rather than a proper OAuth flow) to close the gap. A real user's token can see every private channel *they're* personally in via `conversations.list`, and `conversations.invite` only requires the inviter to already be a member — so it could add Billie Bot into any private channel the token's owner is in that Billie Bot is missing from, without waiting on a human to do it by hand in Slack.
 
 **Why this isn't built yet:**
 - Much less automatable than the bot-token flows elsewhere in this app — a personal token isn't provisioned like `SLACK_BOT_TOKEN`; getting one means manually extracting it from the browser, and it's tied to a real account (breaks on password change, "log out everywhere," etc. — no clean rotation story).
-- Only covers private channels the token owner happens to be in, not necessarily every private channel BillieBot should be in.
+- Only covers private channels the token owner happens to be in, not necessarily every private channel Billie Bot should be in.
 - Reads more like a manual/one-off remediation script than infrastructure that belongs on an unattended nightly cron.
 
 **If pursued:** probably a manual/on-demand admin action (e.g. a button on `/admin/hygiene` next to the stale-private-channel list, invoked with a short-lived personal token pasted in at the time) rather than another cron, given the personal-token risk above.

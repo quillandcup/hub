@@ -1,10 +1,10 @@
 display_information:
-  name: BillieBot
+  name: Billie Bot
   description: Community engagement tracking and analytics
   background_color: "#4A154B"
 features:
   bot_user:
-    display_name: BillieBot
+    display_name: Billie Bot
     always_online: true
 oauth_config:
   scopes:

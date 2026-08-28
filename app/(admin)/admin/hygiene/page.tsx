@@ -136,7 +136,7 @@ export default async function DataHygienePage() {
       .is("stripe_customer_id", null),
     // Members for duplicate detection (limit 1000; members table stays small)
     supabase.from("members").select("id, name, email, status").order("name"),
-    // Slack channels BillieBot can currently see (workspace channel count stays well under 1000)
+    // Slack channels Billie Bot can currently see (workspace channel count stays well under 1000)
     supabase.schema('bronze').from("slack_channels").select("channel_id, name, is_private, imported_at"),
   ]);
 
@@ -685,13 +685,13 @@ export default async function DataHygienePage() {
                 <span className="text-xl">🔒</span>
                 <div className="flex-1">
                   <h3 className="font-semibold text-red-900 dark:text-red-100 mb-1">
-                    BillieBot lost access to {stalePrivateChannels.length} private Slack channel
+                    Billie Bot lost access to {stalePrivateChannels.length} private Slack channel
                     {stalePrivateChannels.length !== 1 ? "s" : ""}
                   </h3>
                   <p className="text-sm text-red-800 dark:text-red-200 mb-2">
-                    These channels stopped showing up in the nightly Slack sync — BillieBot was likely
+                    These channels stopped showing up in the nightly Slack sync — Billie Bot was likely
                     removed from them. Apps can&apos;t invite themselves back into a private channel, so
-                    someone who&apos;s already a member needs to manually re-invite BillieBot.
+                    someone who&apos;s already a member needs to manually re-invite Billie Bot.
                   </p>
                   <ul className="text-xs text-red-700 dark:text-red-300 space-y-1">
                     {stalePrivateChannels.map((c) => (
