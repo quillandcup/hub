@@ -168,6 +168,17 @@ Two low-severity advisories from `supabase db advisors --linked --type security`
 
 - **`auth_leaked_password_protection`** — Supabase Auth's HaveIBeenPwned check is disabled. This is a dashboard toggle, not a migration: **Dashboard → Authentication → Policies → Password Security → enable "Leaked password protection."**
 
+### Self-Service Sessions (built) + Long-Lived Login (dashboard-only, not done here)
+A "Active Sessions" panel now exists on `/profile` (`app/(member)/profile/SessionsPanel.tsx` + `getMySessions`/`revokeSession`/`signOutOtherSessions` in `app/(member)/profile/actions.ts`), backed by `get_my_sessions()` / `revoke_my_session()` — `SECURITY DEFINER` RPCs self-scoped to `auth.uid()` in `supabase/migrations/20260827150000_create_session_management_functions.sql`. It lets a member see their own sessions (device/user-agent, IP, created/last-active) and either revoke one (deletes the row from `auth.sessions`, cascading to `auth.refresh_tokens`, functionally identical to GoTrue's own internal `LogoutSession`) or sign out of every *other* session in one action (`supabase.auth.signOut({ scope: 'others' })`, the one bulk primitive Supabase Auth exposes natively). Supabase Auth has no admin/public API to list or revoke one specific session by id — only bulk scope-based `signOut` — so the RPC pair above is the actual mechanism, not a cosmetic wrapper around something Supabase already provides.
+
+**Not done: "stay logged in longer."** This repo's `supabase/config.toml` does have an `[auth]` section (`jwt_expiry`, `enable_refresh_token_rotation`, etc.), but `docs/DEPLOYMENT.md` / `docs/DEPLOYMENT_SETUP.md` only ever run `supabase db push` (migrations) against the hosted project — never `supabase config push` — so nothing here actually syncs `config.toml`'s `[auth]` block to production. Session/JWT lifetime for the live app is governed entirely by the **Supabase Dashboard → Authentication → Sessions** page, which this repo cannot change. If someone wants materially longer-lived logins, the settings to check there (Pro plan and above) are:
+- **Access token (JWT) expiry** — how long an access token is valid before it must silently refresh. Longer isn't really "longer login" by itself (refresh handles that transparently); mostly matters for how fast a revoked session (see above) stops being honored.
+- **Time-box user sessions** — forces re-auth after a fixed duration since sign-in, regardless of activity. If this is set to something short, that's the actual cause of forced re-auth; disabling it (0/unset) is the "permanent login" lever. If it's already unset, sessions already don't expire on a timebox by default.
+- **Inactivity timeout** — forces re-auth after N idle time. Same logic: disable/raise this if members are getting logged out just for being away.
+- **Enforce single session per user** — leave off; nothing in this ask wants to kill a member's other devices on new sign-in.
+
+Whoever has dashboard access should check current values for the three toggles above and adjust as desired — this can't be verified or changed from the repo.
+
 ### Role-Based Access Control (RBAC)
 Define user roles and permissions:
 

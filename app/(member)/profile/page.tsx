@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import { ThemeSwitcher } from "./ThemeSwitcher";
 import { TimezoneSwitcher } from "./TimezoneSwitcher";
+import { SessionsPanel } from "./SessionsPanel";
 import { getUserFeaturePreviews } from "@/lib/features.server";
 import { getHostedVibes } from "@/app/(member)/prickle-picker/actions";
 import HostVibePanel from "@/components/HostVibePanel";
@@ -73,6 +74,10 @@ export default async function ProfilePage() {
 
                 <TimezoneSwitcher initialTimezone={timezonePreference} />
               </div>
+            </div>
+
+            <div className="border-t border-slate-200 dark:border-slate-700 pt-6">
+              <SessionsPanel />
             </div>
 
             <HostVibePanel hostedVibes={hostedVibes} />
