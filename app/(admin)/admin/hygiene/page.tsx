@@ -6,6 +6,7 @@ import ProcessOrphanedMeetingsButton from "./ProcessOrphanedMeetingsButton";
 import { matchAttendeeToMember } from "@/lib/member-matching";
 import { matchSlackUsersToMembers } from "@/lib/slack-matching";
 import { detectDuplicates } from "@/lib/member-duplicates";
+import { findStalePrivateChannels } from "@/lib/private-channel-access";
 
 export const metadata: Metadata = {
   title: "Data Hygiene Dashboard",
@@ -39,6 +40,7 @@ export default async function DataHygienePage() {
     { data: lastKajabiProcessing },
     { count: missingStripeCount },
     { data: membersForDuplicates },
+    { data: slackChannelsForAccessCheck },
   ] = await Promise.all([
     supabase.schema('bronze').from("calendar_events").select("*", { count: "exact", head: true }),
     supabase.from("prickles").select("*", { count: "exact", head: true }).eq("source", "calendar"),
@@ -134,9 +136,12 @@ export default async function DataHygienePage() {
       .is("stripe_customer_id", null),
     // Members for duplicate detection (limit 1000; members table stays small)
     supabase.from("members").select("id, name, email, status").order("name"),
+    // Slack channels BillieBot can currently see (workspace channel count stays well under 1000)
+    supabase.schema('bronze').from("slack_channels").select("channel_id, name, is_private, imported_at"),
   ]);
 
   const duplicateCount = detectDuplicates(membersForDuplicates ?? []).length;
+  const stalePrivateChannels = findStalePrivateChannels(slackChannelsForAccessCheck ?? []);
 
   const calendarMatchRate = totalCalendarEvents && matchedCalendarEvents
     ? Math.round((matchedCalendarEvents / totalCalendarEvents) * 100)
@@ -632,6 +637,32 @@ export default async function DataHygienePage() {
                       dateRange={orphanedMeetingsDateRange}
                     />
                   </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {stalePrivateChannels.length > 0 && (
+            <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+              <div className="flex items-start gap-3">
+                <span className="text-xl">🔒</span>
+                <div className="flex-1">
+                  <h3 className="font-semibold text-red-900 dark:text-red-100 mb-1">
+                    BillieBot lost access to {stalePrivateChannels.length} private Slack channel
+                    {stalePrivateChannels.length !== 1 ? "s" : ""}
+                  </h3>
+                  <p className="text-sm text-red-800 dark:text-red-200 mb-2">
+                    These channels stopped showing up in the nightly Slack sync — BillieBot was likely
+                    removed from them. Apps can&apos;t invite themselves back into a private channel, so
+                    someone who&apos;s already a member needs to manually re-invite BillieBot.
+                  </p>
+                  <ul className="text-xs text-red-700 dark:text-red-300 space-y-1">
+                    {stalePrivateChannels.map((c) => (
+                      <li key={c.channelId}>
+                        #{c.channelName} — last seen {new Date(c.lastSeenAt).toLocaleDateString()}
+                      </li>
+                    ))}
+                  </ul>
                 </div>
               </div>
             </div>
