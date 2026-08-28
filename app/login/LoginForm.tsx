@@ -1,8 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import Link from "next/link";
+
+const LAST_EMAIL_KEY = "hedgiehub:lastEmail";
 
 export default function LoginForm() {
   const [email, setEmail] = useState("");
@@ -10,6 +12,27 @@ export default function LoginForm() {
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   const supabase = createClient();
+
+  // Pre-fill the last-used email after mount so server-rendered and
+  // first-client-rendered markup match (avoids a hydration mismatch).
+  useEffect(() => {
+    try {
+      const lastEmail = window.localStorage.getItem(LAST_EMAIL_KEY);
+      if (lastEmail) setEmail(lastEmail);
+    } catch {
+      // localStorage can throw (private browsing, disabled storage) — no-op.
+    }
+  }, []);
+
+  const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setEmail(value);
+    try {
+      window.localStorage.setItem(LAST_EMAIL_KEY, value);
+    } catch {
+      // localStorage can throw (private browsing, disabled storage) — no-op.
+    }
+  };
 
   const handleMagicLink = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -63,7 +86,7 @@ export default function LoginForm() {
                 id="email"
                 type="email"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={handleEmailChange}
                 placeholder="you@example.com"
                 required
                 className="w-full px-4 py-3 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
