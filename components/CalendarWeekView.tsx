@@ -100,6 +100,13 @@ export default function CalendarWeekView({
   const [showPups, setShowPups] = useState(true);
   const router = useRouter();
 
+  // The preset list above only covers common US timezones. If the user's profile
+  // timezone isn't one of them, add it so the dropdown reflects the timezone
+  // actually in use instead of silently falling back to the first option (ET).
+  const timezoneOptions = TIMEZONES.some((tz) => tz.value === timezone)
+    ? TIMEZONES
+    : [{ value: timezone, label: timezone }, ...TIMEZONES];
+
   // Update timezone when defaultTimezone changes (after browser detection)
   useEffect(() => {
     setTimezone(defaultTimezone);
@@ -192,11 +199,12 @@ export default function CalendarWeekView({
               <div className="flex items-center gap-2">
                 <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Timezone:</span>
                 <select
+                  aria-label="Timezone"
                   value={timezone}
                   onChange={(e) => setTimezone(e.target.value)}
                   className="px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg text-sm text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
-                  {TIMEZONES.map((tz) => (
+                  {timezoneOptions.map((tz) => (
                     <option key={tz.value} value={tz.value}>
                       {tz.label}
                     </option>
