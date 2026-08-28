@@ -24,6 +24,7 @@ export const CONVERSATION_STARTERS: string[] = [
   "What's one piece of writing advice that's stuck with you?",
   "Working on something you can talk about, or is it still under wraps?",
   "What does your dream writing spot look like?",
+  "What's the status of your work-in-progress now?",
 ];
 
 /** Picks one starter at random. rng is injectable for deterministic tests. */
