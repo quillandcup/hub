@@ -135,6 +135,14 @@ async function processSlackEvent(event: any) {
 
       console.log("Slack message upserted:", event.ts);
 
+      // Wheel of Wonder: a genuine human reply (never one from the bot
+      // itself — Slack message events carry a bot_id when the sender is a
+      // bot/app) in a channel we opened for a proposed match is what counts
+      // as a "confirmed connection". See app/(member)/wheel-of-wonder/actions.ts.
+      if (!event.bot_id) {
+        await confirmRouletteMatch(supabase, event);
+      }
+
       // Trigger Silver processing asynchronously
       triggerSlackProcessing(event.ts);
     } else if (eventType === "reaction_added") {
@@ -188,6 +196,60 @@ async function processSlackEvent(event: any) {
   } catch (error: any) {
     console.error("Error processing Slack event:", error);
     // Don't throw - we already returned 200 OK to Slack
+  }
+}
+
+/**
+ * Wheel of Wonder: if this message landed in a channel we opened for a
+ * proposed match (see app/(member)/wheel-of-wonder/actions.ts), promote it
+ * to confirmed -- a real human reply is what counts as an actual connection.
+ * Best-effort resolves who sent it via member_name_aliases (source='slack'),
+ * leaving confirmed_by_member_id null if it doesn't resolve cleanly, since
+ * that attribution is a nice-to-have, not essential.
+ */
+async function confirmRouletteMatch(supabase: any, event: any) {
+  try {
+    const { data: match, error: matchError } = await supabase
+      .from("roulette_matches")
+      .select("id")
+      .eq("slack_channel_id", event.channel)
+      .eq("status", "proposed")
+      .maybeSingle();
+
+    if (matchError) {
+      console.error("Error looking up roulette match for channel:", matchError);
+      return;
+    }
+    if (!match) return;
+
+    let confirmedByMemberId: string | null = null;
+    if (event.user) {
+      const { data: alias } = await supabase
+        .from("member_name_aliases")
+        .select("member_id")
+        .eq("source", "slack")
+        .eq("alias", event.user)
+        .maybeSingle();
+      confirmedByMemberId = alias?.member_id ?? null;
+    }
+
+    const { error: updateError } = await supabase
+      .from("roulette_matches")
+      .update({
+        status: "confirmed",
+        confirmed_at: new Date().toISOString(),
+        confirmed_by_member_id: confirmedByMemberId,
+      })
+      .eq("id", match.id);
+
+    if (updateError) {
+      console.error("Error confirming roulette match:", updateError);
+      return;
+    }
+
+    console.log("Roulette match confirmed:", match.id);
+  } catch (error) {
+    console.error("Error confirming roulette match:", error);
   }
 }
 

@@ -93,12 +93,18 @@ function SlotAvatar({ slot, size, dimmed }: { slot: SlotPhoto; size: number; dim
   );
 }
 
-export default function RouletteWheel() {
+interface RouletteWheelProps {
+  /** Community-wide count of confirmed connections (aggregate only, no per-person breakdown). */
+  confirmedConnectionCount?: number;
+}
+
+export default function RouletteWheel({ confirmedConnectionCount = 0 }: RouletteWheelProps) {
   const [phase, setPhase] = useState<"idle" | "spinning" | "revealed" | "empty" | "error">("idle");
   const [slots, setSlots] = useState<SlotPhoto[]>(Array(IDLE_SLOT_COUNT).fill(BLANK_SLOT));
   const [winner, setWinner] = useState<RouletteWinner | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [justRevealed, setJustRevealed] = useState(false);
+  const [starterCopied, setStarterCopied] = useState(false);
 
   const wheelRef = useRef<HTMLDivElement>(null);
   const slotRefs = useRef<(HTMLDivElement | null)[]>([]);
@@ -197,11 +203,22 @@ export default function RouletteWheel() {
     [applyRotation, setSlot]
   );
 
+  const handleCopyStarter = useCallback(async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setStarterCopied(true);
+      setTimeout(() => setStarterCopied(false), 2000);
+    } catch (error) {
+      console.error("Failed to copy starter text:", error);
+    }
+  }, []);
+
   const handleSpin = useCallback(async () => {
     if (phase === "spinning") return;
     setPhase("spinning");
     setErrorMessage(null);
     setWinner(null);
+    setStarterCopied(false);
     applyRotation(0);
 
     const result = await spinRoulette();
@@ -220,6 +237,12 @@ export default function RouletteWheel() {
 
   return (
     <div className="flex flex-col items-center gap-8">
+      {confirmedConnectionCount > 0 && (
+        <p className="text-sm text-emerald-600 dark:text-emerald-400 font-medium text-center">
+          🎉 {confirmedConnectionCount} new connection{confirmedConnectionCount === 1 ? "" : "s"} made
+          through the Wheel of Wonder.
+        </p>
+      )}
       <div className="relative" style={{ width: WHEEL_SIZE, height: WHEEL_SIZE }}>
         {/* Pointer marking the "noon" landing position */}
         <div
@@ -278,8 +301,31 @@ export default function RouletteWheel() {
 
       {phase === "revealed" && winner && (
         <div className="text-center bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-6 max-w-sm">
-          <p className="text-sm text-slate-500 dark:text-slate-400 mb-1">You matched with</p>
-          <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100 mb-4">{winner.memberName}</h2>
+          <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100 mb-4">
+            I wonder what {winner.memberName}&apos;s working on…
+          </h2>
+
+          {winner.roomCreated ? (
+            <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
+              I already broke the ice for you two — check the room!
+            </p>
+          ) : (
+            winner.starterText && (
+              <div className="mb-4 text-left">
+                <p className="text-xs text-slate-400 dark:text-slate-500 mb-1">Something to open with:</p>
+                <div className="flex items-start gap-2 bg-slate-50 dark:bg-slate-800 rounded-lg p-3">
+                  <p className="text-sm text-slate-700 dark:text-slate-300 flex-1">{winner.starterText}</p>
+                  <button
+                    onClick={() => handleCopyStarter(winner.starterText!)}
+                    className="text-xs px-2 py-1 rounded font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors flex-shrink-0"
+                  >
+                    {starterCopied ? "Copied!" : "Copy"}
+                  </button>
+                </div>
+              </div>
+            )
+          )}
+
           <div className="flex flex-col gap-2 sm:flex-row sm:justify-center">
             <a
               href={winner.dmUrl}
@@ -318,9 +364,9 @@ export default function RouletteWheel() {
       )}
 
       <p className="text-xs text-slate-400 dark:text-slate-500 text-center max-w-sm">
-        The wheel leans toward hedgies who haven&apos;t connected much yet, so newer or quieter
-        folks turn up as matches more often. Posting, reacting, and showing up to a prickle is
-        still the fastest way to build connections on your own.{" "}
+        The Wheel of Wonder leans toward hedgies who haven&apos;t connected much yet, so newer or
+        quieter folks turn up as matches more often. Posting, reacting, and showing up to a
+        prickle is still the fastest way to build connections on your own.{" "}
         <Link href="/network" className="underline hover:text-slate-600 dark:hover:text-slate-300">
           See your connections →
         </Link>

@@ -1,7 +1,7 @@
-// Pure scoring/selection logic for Hedgie Roulette. Kept side-effect free (no
+// Pure scoring/selection logic for Wheel of Wonder. Kept side-effect free (no
 // Supabase/Slack calls) so the weighting and gating behavior can be unit
 // tested with injected randomness and a fake presence check — the real
-// Slack API call lives in app/(member)/roulette/actions.ts.
+// Slack API call lives in app/(member)/wheel-of-wonder/actions.ts.
 
 export interface RouletteCandidate {
   memberId: string;

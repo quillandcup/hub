@@ -6,7 +6,7 @@ import { getUserFeaturePreviews } from "@/lib/features.server";
 import RouletteWheel from "./RouletteWheel";
 
 export const metadata: Metadata = {
-  title: "Hedgie Roulette",
+  title: "Wheel of Wonder",
 };
 
 export const maxDuration = 60;
@@ -18,24 +18,30 @@ export default async function RoulettePage() {
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const [effectiveIdentity, enabledFeatures] = await Promise.all([
+  const [effectiveIdentity, enabledFeatures, confirmedMatchesResult] = await Promise.all([
     getEffectiveIdentity(user),
     getUserFeaturePreviews(user.id),
+    supabase
+      .from("roulette_matches")
+      .select("*", { count: "exact", head: true })
+      .eq("status", "confirmed"),
   ]);
   if (!effectiveIdentity) redirect("/admin");
-  if (!enabledFeatures.includes("hedgie_roulette")) redirect("/dashboard");
+  if (!enabledFeatures.includes("wheel_of_wonder")) redirect("/dashboard");
+
+  const confirmedConnectionCount = confirmedMatchesResult.count ?? 0;
 
   return (
     <div className="container mx-auto px-6 py-8">
       <div className="max-w-xl mx-auto mb-6 text-center">
-        <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Hedgie Roulette</h1>
+        <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Wheel of Wonder</h1>
         <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-          Spin to get matched with a hedgie who&apos;s online in Slack right now. We bias the wheel
-          toward hedgies who could use a new connection.
+          Give the Wheel of Wonder a spin and find out who&apos;s online right now. It leans toward
+          hedgies who could use a new connection.
         </p>
       </div>
       <div className="flex justify-center">
-        <RouletteWheel />
+        <RouletteWheel confirmedConnectionCount={confirmedConnectionCount} />
       </div>
     </div>
   );
