@@ -19,7 +19,9 @@ oauth_config:
       - groups:write.invites
       # DM access
       - im:history
+      - im:write
       - mpim:history
+      - mpim:write
       # User data
       - users:read
       - users:read.email

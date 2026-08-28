@@ -93,7 +93,12 @@ function SlotAvatar({ slot, size, dimmed }: { slot: SlotPhoto; size: number; dim
   );
 }
 
-export default function RouletteWheel() {
+interface RouletteWheelProps {
+  /** Community-wide count of confirmed connections (aggregate only, no per-person breakdown). */
+  confirmedConnectionCount?: number;
+}
+
+export default function RouletteWheel({ confirmedConnectionCount = 0 }: RouletteWheelProps) {
   const [phase, setPhase] = useState<"idle" | "spinning" | "revealed" | "empty" | "error">("idle");
   const [slots, setSlots] = useState<SlotPhoto[]>(Array(IDLE_SLOT_COUNT).fill(BLANK_SLOT));
   const [winner, setWinner] = useState<RouletteWinner | null>(null);
@@ -220,6 +225,12 @@ export default function RouletteWheel() {
 
   return (
     <div className="flex flex-col items-center gap-8">
+      {confirmedConnectionCount > 0 && (
+        <p className="text-sm text-emerald-600 dark:text-emerald-400 font-medium text-center">
+          🎉 {confirmedConnectionCount} new connection{confirmedConnectionCount === 1 ? "" : "s"} made
+          through Hedgie Roulette.
+        </p>
+      )}
       <div className="relative" style={{ width: WHEEL_SIZE, height: WHEEL_SIZE }}>
         {/* Pointer marking the "noon" landing position */}
         <div

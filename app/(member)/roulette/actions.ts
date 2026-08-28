@@ -4,6 +4,7 @@ import { WebClient } from "@slack/web-api";
 import { createClient } from "@/lib/supabase/server";
 import { getEffectiveIdentity } from "@/lib/sudo";
 import { matchSlackUsersToMembers } from "@/lib/slack-matching";
+import { pickConversationStarter } from "@/lib/roulette-starters";
 import {
   pickRouletteMatch,
   buildReel,
@@ -52,10 +53,16 @@ export type RouletteSpinResponse =
   | { error: string }
   | { noOneAvailable: true };
 
+interface CandidatePoolResult {
+  pool: RouletteCandidate[];
+  /** The spinner's own Slack user ID, resolved the same way candidates are — null if unmatched. */
+  viewerSlackUserId: string | null;
+}
+
 async function loadCandidatePool(
   supabase: SupabaseClient,
   viewerMemberId: string
-): Promise<RouletteCandidate[]> {
+): Promise<CandidatePoolResult> {
   const activityWindowStart = new Date(
     Date.now() - SLACK_ACTIVITY_WINDOW_DAYS * 24 * 60 * 60 * 1000
   ).toISOString();
@@ -133,7 +140,7 @@ async function loadCandidatePool(
     slackActivityCounts.set(row.member_id, (slackActivityCounts.get(row.member_id) ?? 0) + 1);
   }
 
-  return members.map((m) => ({
+  const pool = members.map((m) => ({
     memberId: m.id,
     memberName: m.name,
     photoUrl: m.photo_url,
@@ -141,6 +148,14 @@ async function loadCandidatePool(
     connectionCount: connectionsByMember.get(m.id)?.size ?? 0,
     recentSlackActivityCount: slackActivityCounts.get(m.id) ?? 0,
   }));
+
+  return {
+    pool,
+    // allMembersForMatching (unlike the pool source) still includes the
+    // viewer, so their own Slack user ID is resolvable from the same map
+    // before it gets filtered down to candidates.
+    viewerSlackUserId: slackUserIdByMember.get(viewerMemberId) ?? null,
+  };
 }
 
 export async function spinRoulette(): Promise<RouletteSpinResponse> {
@@ -157,7 +172,7 @@ export async function spinRoulette(): Promise<RouletteSpinResponse> {
   const slackToken = process.env.SLACK_BOT_TOKEN;
   if (!slackToken) return { error: "Slack isn't configured for this workspace yet" };
 
-  const pool = await loadCandidatePool(supabase, effectiveIdentity.memberId);
+  const { pool, viewerSlackUserId } = await loadCandidatePool(supabase, effectiveIdentity.memberId);
   if (pool.length === 0) return { noOneAvailable: true };
 
   const slack = new WebClient(slackToken);
@@ -185,13 +200,49 @@ export async function spinRoulette(): Promise<RouletteSpinResponse> {
   if (!winner) return { noOneAvailable: true };
 
   let dmUrl = "https://quillandcup.slack.com";
+  let teamId: string | undefined;
   try {
     const auth = await slack.auth.test();
-    if (auth.team_id) {
-      dmUrl = `slack://user?team=${auth.team_id}&id=${winner.slackUserId}`;
+    teamId = auth.team_id;
+    if (teamId) {
+      dmUrl = `slack://user?team=${teamId}&id=${winner.slackUserId}`;
     }
   } catch (error) {
     console.error("Roulette: failed to resolve Slack team ID for DM link:", error);
+  }
+
+  // Prefer a pre-seeded 3-person room (spinner + winner + bot) over a bare
+  // 1:1 DM link so the match isn't two strangers staring at a blank
+  // conversation, and so a real reply can be detected as a confirmed
+  // connection via the Slack Events webhook (app/api/webhooks/slack/route.ts).
+  // Any failure here (missing scope, rate limit, etc.) must never break the
+  // core roulette experience -- silently fall back to the plain DM link.
+  if (teamId && viewerSlackUserId && winner.slackUserId) {
+    try {
+      const conversation = await slack.conversations.open({
+        users: [viewerSlackUserId, winner.slackUserId].join(","),
+      });
+      const channelId = conversation.channel?.id;
+      if (!channelId) throw new Error("conversations.open returned no channel id");
+
+      const starter = pickConversationStarter();
+      await slack.chat.postMessage({
+        channel: channelId,
+        text: `👋 Hey both — Hedgie Roulette matched you two! To break the ice: ${starter}`,
+      });
+
+      const { error: insertError } = await supabase.from("roulette_matches").insert({
+        spinner_member_id: effectiveIdentity.memberId,
+        matched_member_id: winner.memberId,
+        slack_channel_id: channelId,
+        status: "proposed",
+      });
+      if (insertError) throw insertError;
+
+      dmUrl = `slack://channel?team=${teamId}&id=${channelId}`;
+    } catch (error) {
+      console.error("Roulette: failed to create match room, falling back to 1:1 DM link:", error);
+    }
   }
 
   const reel = buildReel(winner, pool, REEL_SLOT_COUNT).map((c) => ({

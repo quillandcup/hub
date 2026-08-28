@@ -18,12 +18,18 @@ export default async function RoulettePage() {
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const [effectiveIdentity, enabledFeatures] = await Promise.all([
+  const [effectiveIdentity, enabledFeatures, confirmedMatchesResult] = await Promise.all([
     getEffectiveIdentity(user),
     getUserFeaturePreviews(user.id),
+    supabase
+      .from("roulette_matches")
+      .select("*", { count: "exact", head: true })
+      .eq("status", "confirmed"),
   ]);
   if (!effectiveIdentity) redirect("/admin");
   if (!enabledFeatures.includes("hedgie_roulette")) redirect("/dashboard");
+
+  const confirmedConnectionCount = confirmedMatchesResult.count ?? 0;
 
   return (
     <div className="container mx-auto px-6 py-8">
@@ -35,7 +41,7 @@ export default async function RoulettePage() {
         </p>
       </div>
       <div className="flex justify-center">
-        <RouletteWheel />
+        <RouletteWheel confirmedConnectionCount={confirmedConnectionCount} />
       </div>
     </div>
   );
