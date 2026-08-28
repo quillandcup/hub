@@ -16,6 +16,7 @@ const ITEM = {
   admin_notes: null,
   submitter_email: 'member@example.com',
   screenshot_url: 'https://example.com/screenshot.png',
+  member_id: 'm1',
   member: null,
 }
 
@@ -59,5 +60,26 @@ describe('FeedbackClient screenshot lightbox', () => {
     await userEvent.keyboard('{Enter}')
 
     expect(screen.getAllByAltText('Feedback screenshot')).toHaveLength(2)
+  })
+})
+
+describe('FeedbackClient sudo-as-reporter', () => {
+  it('shows a one-click sudo button when the item has a member', async () => {
+    render(<FeedbackClient />)
+
+    const button = await screen.findByRole('button', { name: 'Sudo as reporter' })
+    expect(button.closest('form')).not.toBeNull()
+  })
+
+  it('hides the sudo button when the feedback has no linked member', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ items: [{ ...ITEM, member_id: null }], total: 1 }),
+    }) as any
+
+    render(<FeedbackClient />)
+
+    await waitFor(() => expect(screen.getByText(ITEM.message)).toBeInTheDocument())
+    expect(screen.queryByRole('button', { name: 'Sudo as reporter' })).not.toBeInTheDocument()
   })
 })

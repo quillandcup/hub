@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { startSudo } from "@/app/actions/sudo";
 
 type FeedbackType = "bug" | "data" | "idea";
 type Status = "new" | "acknowledged" | "resolved" | "wontfix";
@@ -17,6 +18,7 @@ interface FeedbackItem {
   admin_notes: string | null;
   submitter_email: string | null;
   screenshot_url: string | null;
+  member_id: string | null;
   member: { name: string; email: string } | null;
 }
 
@@ -186,7 +188,7 @@ export default function FeedbackClient() {
                   </a>
                 </div>
 
-                <div className="flex-shrink-0">
+                <div className="flex-shrink-0 flex flex-col items-end gap-2">
                   <select
                     value={item.status}
                     disabled={savingId === item.id}
@@ -199,6 +201,16 @@ export default function FeedbackClient() {
                       </option>
                     ))}
                   </select>
+                  {item.member_id && (
+                    <form action={startSudo.bind(null, item.member_id, item.page_url)}>
+                      <button
+                        type="submit"
+                        className="text-xs px-2 py-1 rounded-full font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-700 hover:bg-amber-200 dark:hover:bg-amber-900/50 transition-colors whitespace-nowrap"
+                      >
+                        Sudo as reporter
+                      </button>
+                    </form>
+                  )}
                 </div>
               </div>
             ))}

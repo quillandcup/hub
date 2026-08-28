@@ -21,7 +21,23 @@ async function requireAdmin() {
   return { user, supabase }
 }
 
-export async function startSudo(memberId: string) {
+// landingUrl is attacker-influenced (e.g. a feedback item's self-reported
+// page_url), so only the path+search+hash survives — the scheme/host are
+// discarded rather than validated, which rules out an open redirect
+// regardless of what host was supplied.
+function sanitizeLandingPath(url: string | undefined): string | null {
+  if (!url) return null
+  let parsed: URL
+  try {
+    parsed = new URL(url)
+  } catch {
+    return null
+  }
+  const path = `${parsed.pathname}${parsed.search}${parsed.hash}`
+  return path.startsWith('/') && !path.startsWith('//') ? path : null
+}
+
+export async function startSudo(memberId: string, landingUrl?: string) {
   const { user, supabase } = await requireAdmin()
 
   const { data: member } = await supabase
@@ -42,7 +58,7 @@ export async function startSudo(memberId: string) {
   cookieStore.set('sudo_as', signSudoCookie(user.id, memberId), cookieOpts)
   cookieStore.set('sudo_return_to', returnTo, cookieOpts)
 
-  redirect('/calendar')
+  redirect(sanitizeLandingPath(landingUrl) ?? '/calendar')
 }
 
 export async function exitSudo() {
