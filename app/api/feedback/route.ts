@@ -3,6 +3,7 @@ import { randomUUID } from "crypto";
 import { WebClient } from "@slack/web-api";
 import { createClient } from "@/lib/supabase/server";
 import { getEffectiveIdentity, type EffectiveIdentity } from "@/lib/sudo";
+import { withTimeout, AUTH_CHECK_TIMEOUT_MS } from "@/lib/with-timeout";
 
 const FEEDBACK_TYPES = ["bug", "data", "idea"] as const;
 type FeedbackType = (typeof FEEDBACK_TYPES)[number];
@@ -15,9 +16,13 @@ const TYPE_LABELS: Record<FeedbackType, string> = {
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  let user;
+  try {
+    const { data } = await withTimeout(supabase.auth.getUser(), AUTH_CHECK_TIMEOUT_MS);
+    user = data.user;
+  } catch {
+    return NextResponse.json({ error: "Auth check timed out, try again" }, { status: 503 });
+  }
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const formData = await request.formData();

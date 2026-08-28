@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { withTimeout, AUTH_CHECK_TIMEOUT_MS } from '@/lib/with-timeout'
 
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })
@@ -23,10 +24,11 @@ export async function updateSession(request: NextRequest) {
 
   let user = null
   try {
-    const { data } = await supabase.auth.getUser()
+    const { data } = await withTimeout(supabase.auth.getUser(), AUTH_CHECK_TIMEOUT_MS)
     user = data.user
   } catch {
-    // Supabase unreachable — treat as unauthenticated
+    // Supabase unreachable or too slow to respond — treat as unauthenticated
+    // rather than hang until Vercel's 25s middleware cap kills the request.
   }
 
   const { pathname } = request.nextUrl

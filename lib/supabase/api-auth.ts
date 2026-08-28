@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { createClient as createDirectClient } from "@supabase/supabase-js";
 import { NextRequest } from "next/server";
+import { withTimeout, AUTH_CHECK_TIMEOUT_MS } from "@/lib/with-timeout";
 
 /**
  * Creates a Supabase client for API routes.
@@ -33,9 +34,15 @@ export async function createApiAuth(request: NextRequest) {
   }
 
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  let user = null;
+  try {
+    const { data } = await withTimeout(supabase.auth.getUser(), AUTH_CHECK_TIMEOUT_MS);
+    user = data.user;
+  } catch {
+    // Supabase unreachable or too slow — fall through to the documented
+    // "return null for user, caller returns 401" contract instead of
+    // crashing the function with an uncaught rejection.
+  }
 
   return { supabase, user };
 }

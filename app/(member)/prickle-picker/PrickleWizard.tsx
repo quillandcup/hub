@@ -192,6 +192,8 @@ export default function PrickleWizard({ members }: PrickleWizardProps) {
                 {rec.coAttendanceRate !== null && (
                   <span className="px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
                     {Math.round(rec.coAttendanceRate * 100)}% of the time, everyone you picked is there
+                    {rec.sessionCount < 3 &&
+                      ` (based on ${rec.sessionCount} past session${rec.sessionCount === 1 ? "" : "s"})`}
                   </span>
                 )}
                 {rec.vibeNotes && (

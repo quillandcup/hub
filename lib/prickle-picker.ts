@@ -299,7 +299,19 @@ export function getPrickleRecommendations(
     });
   }
 
+  // A proven zero -- the requested people have historically never all shown
+  // up together at this series -- shouldn't be outranked into the results by
+  // vibe/purpose scoring alone. Rank those series behind everything else
+  // (unknown/no-history and nonzero co-attendance) rather than blending them
+  // into one score-sorted list, but still show them if there isn't enough
+  // else to fill the list.
+  const isProvenMismatch = (r: PickerRecommendation) =>
+    withMemberIds.size > 0 && r.sessionCount > 0 && r.coAttendanceRate === 0;
+
   recommendations.sort((a, b) => {
+    const aMismatch = isProvenMismatch(a);
+    const bMismatch = isProvenMismatch(b);
+    if (aMismatch !== bMismatch) return aMismatch ? 1 : -1;
     if (b.score !== a.score) return b.score - a.score;
     return new Date(a.occurrences[0].startTime).getTime() - new Date(b.occurrences[0].startTime).getTime();
   });
