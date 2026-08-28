@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { spinRoulette, type RouletteSpinResponse, type RouletteWinner } from "./actions";
 
@@ -52,6 +52,13 @@ function shuffle<T>(items: T[]): T[] {
 }
 
 function SlotAvatar({ slot, size, dimmed }: { slot: SlotPhoto; size: number; dimmed: boolean }) {
+  // Tracks whether slot.photoUrl actually loaded — a broken/expired/404'd
+  // URL should fall back to initials, not render as an empty colored circle.
+  // Reset whenever the occupant/photo changes (slots get reused for
+  // different candidates as the wheel spins).
+  const [imgFailed, setImgFailed] = useState(false);
+  useEffect(() => setImgFailed(false), [slot.photoUrl]);
+
   if (!slot.memberId) {
     return (
       <div
@@ -60,20 +67,28 @@ function SlotAvatar({ slot, size, dimmed }: { slot: SlotPhoto; size: number; dim
       />
     );
   }
+
+  const showPhoto = !!slot.photoUrl && !imgFailed;
+
   return (
     <div
-      className={`rounded-full flex items-center justify-center flex-shrink-0 text-white font-semibold bg-cover bg-center shadow border-2 border-white dark:border-slate-900 transition-opacity ${getAvatarColor(
+      className={`relative rounded-full flex items-center justify-center flex-shrink-0 text-white font-semibold shadow border-2 border-white dark:border-slate-900 transition-opacity overflow-hidden ${getAvatarColor(
         slot.memberName
       )} ${dimmed ? "opacity-60" : ""}`}
-      style={{
-        width: size,
-        height: size,
-        fontSize: size * 0.32,
-        backgroundImage: slot.photoUrl ? `url(${slot.photoUrl})` : undefined,
-      }}
+      style={{ width: size, height: size, fontSize: size * 0.32 }}
       title={slot.memberName}
     >
-      {!slot.photoUrl && getInitials(slot.memberName)}
+      {!showPhoto && getInitials(slot.memberName)}
+      {slot.photoUrl && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          key={slot.photoUrl}
+          src={slot.photoUrl}
+          alt=""
+          onError={() => setImgFailed(true)}
+          className={`absolute inset-0 w-full h-full object-cover ${showPhoto ? "" : "hidden"}`}
+        />
+      )}
     </div>
   );
 }
