@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
-import { scoreCandidate, weightedDrawOrder, pickRouletteMatch, buildReel, type RouletteCandidate } from "@/lib/roulette";
+import { scoreCandidate, weightedDrawOrder, pickWheelMatch, buildReel, type WheelCandidate } from "@/lib/wheel-of-wonder";
 
-function candidate(overrides: Partial<RouletteCandidate> = {}): RouletteCandidate {
+function candidate(overrides: Partial<WheelCandidate> = {}): WheelCandidate {
   return {
     memberId: "m1",
     memberName: "Hedgie",
@@ -57,11 +57,11 @@ describe("weightedDrawOrder", () => {
   });
 });
 
-describe("pickRouletteMatch", () => {
+describe("pickWheelMatch", () => {
   it("excludes candidates with no mapped Slack user", async () => {
     const candidates = [candidate({ memberId: "no-slack", slackUserId: null })];
     const isReachable = vi.fn().mockResolvedValue(true);
-    const winner = await pickRouletteMatch(candidates, isReachable);
+    const winner = await pickWheelMatch(candidates, isReachable);
     expect(winner).toBeNull();
     expect(isReachable).not.toHaveBeenCalled();
   });
@@ -69,23 +69,23 @@ describe("pickRouletteMatch", () => {
   it("falls through to the next weighted candidate when one isn't reachable", async () => {
     const a = candidate({ memberId: "a", slackUserId: "UA" });
     const b = candidate({ memberId: "b", slackUserId: "UB" });
-    const isReachable = vi.fn(async (c: RouletteCandidate) => c.memberId === "b");
+    const isReachable = vi.fn(async (c: WheelCandidate) => c.memberId === "b");
 
-    const winner = await pickRouletteMatch([a, b], isReachable, { rng: sequenceRng([0.99, 0.99]) });
+    const winner = await pickWheelMatch([a, b], isReachable, { rng: sequenceRng([0.99, 0.99]) });
     expect(winner?.memberId).toBe("b");
   });
 
   it("returns null when nobody is reachable within maxAttempts", async () => {
     const candidates = [candidate({ memberId: "a" }), candidate({ memberId: "b" })];
     const isReachable = vi.fn().mockResolvedValue(false);
-    const winner = await pickRouletteMatch(candidates, isReachable, { maxAttempts: 5 });
+    const winner = await pickWheelMatch(candidates, isReachable, { maxAttempts: 5 });
     expect(winner).toBeNull();
   });
 
   it("caps the number of presence checks at maxAttempts", async () => {
     const candidates = Array.from({ length: 10 }, (_, i) => candidate({ memberId: `m${i}` }));
     const isReachable = vi.fn().mockResolvedValue(false);
-    await pickRouletteMatch(candidates, isReachable, { maxAttempts: 3 });
+    await pickWheelMatch(candidates, isReachable, { maxAttempts: 3 });
     expect(isReachable).toHaveBeenCalledTimes(3);
   });
 });

@@ -280,29 +280,29 @@ describe('Slack Webhook', () => {
   })
 
   describe('Wheel of Wonder confirmation', () => {
-    const spinnerEmail = 'roulette-spinner-test@example.com'
-    const matchedEmail = 'roulette-matched-test@example.com'
-    const spinnerSlackUserId = 'UROULETTESPINNER1'
-    const matchedSlackUserId = 'UROULETTEMATCHED1'
-    const channelId = 'CROULETTETEST1'
+    const spinnerEmail = 'wheel-spinner-test@example.com'
+    const matchedEmail = 'wheel-matched-test@example.com'
+    const spinnerSlackUserId = 'UWHEELSPINNER1'
+    const matchedSlackUserId = 'UWHEELMATCHED1'
+    const channelId = 'CWHEELTEST1'
     let spinnerMemberId: string
     let matchedMemberId: string
     let tsCounter = 0
 
-    async function cleanupRouletteFixtures() {
-      await supabase.from('roulette_matches').delete().eq('slack_channel_id', channelId)
+    async function cleanupWheelFixtures() {
+      await supabase.from('wheel_of_wonder_matches').delete().eq('slack_channel_id', channelId)
       await supabase.from('members').delete().eq('email', spinnerEmail)
       await supabase.from('members').delete().eq('email', matchedEmail)
     }
 
     beforeEach(async () => {
-      await cleanupRouletteFixtures()
+      await cleanupWheelFixtures()
       tsCounter = 0
 
       const { data: spinner } = await supabase
         .from('members')
         .insert({
-          name: 'Roulette Spinner Test',
+          name: 'Wheel Spinner Test',
           email: spinnerEmail,
           joined_at: new Date('2022-01-01').toISOString(),
           status: 'active',
@@ -314,7 +314,7 @@ describe('Slack Webhook', () => {
       const { data: matched } = await supabase
         .from('members')
         .insert({
-          name: 'Roulette Matched Test',
+          name: 'Wheel Matched Test',
           email: matchedEmail,
           joined_at: new Date('2022-01-01').toISOString(),
           status: 'active',
@@ -325,11 +325,11 @@ describe('Slack Webhook', () => {
     })
 
     afterEach(async () => {
-      await cleanupRouletteFixtures()
+      await cleanupWheelFixtures()
     })
 
     async function insertProposedMatch() {
-      await supabase.from('roulette_matches').insert({
+      await supabase.from('wheel_of_wonder_matches').insert({
         spinner_member_id: spinnerMemberId,
         matched_member_id: matchedMemberId,
         slack_channel_id: channelId,
@@ -381,7 +381,7 @@ describe('Slack Webhook', () => {
 
     async function getMatch() {
       const { data } = await supabase
-        .from('roulette_matches')
+        .from('wheel_of_wonder_matches')
         .select('status, confirmed_at, confirmed_by_member_id, spinner_message_count, matched_message_count')
         .eq('slack_channel_id', channelId)
         .single()
@@ -425,15 +425,15 @@ describe('Slack Webhook', () => {
 
     it('does nothing when the channel has no proposed match', async () => {
       const request = signedRequest(
-        buildMessageEvent(spinnerSlackUserId, { channel: 'CNOTAROULETTECHANNEL1' })
+        buildMessageEvent(spinnerSlackUserId, { channel: 'CNOTAWHEELCHANNEL1' })
       )
       const response = await POST(request as unknown as NextRequest)
       expect(response.status).toBe(200)
 
       const { data: match } = await supabase
-        .from('roulette_matches')
+        .from('wheel_of_wonder_matches')
         .select('id')
-        .eq('slack_channel_id', 'CNOTAROULETTECHANNEL1')
+        .eq('slack_channel_id', 'CNOTAWHEELCHANNEL1')
         .maybeSingle()
 
       expect(match).toBeNull()
@@ -443,7 +443,7 @@ describe('Slack Webhook', () => {
       await insertProposedMatch()
 
       const request = signedRequest(
-        buildMessageEvent(spinnerSlackUserId, { bot_id: 'BROULETTEBOT1', user: 'UROULETTEBOTUSER1' })
+        buildMessageEvent(spinnerSlackUserId, { bot_id: 'BWHEELBOT1', user: 'UWHEELBOTUSER1' })
       )
       const response = await POST(request as unknown as NextRequest)
       expect(response.status).toBe(200)

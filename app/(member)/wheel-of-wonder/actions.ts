@@ -4,12 +4,12 @@ import { WebClient } from "@slack/web-api";
 import { createClient } from "@/lib/supabase/server";
 import { getEffectiveIdentity } from "@/lib/sudo";
 import { matchSlackUsersToMembers } from "@/lib/slack-matching";
-import { pickConversationStarter } from "@/lib/roulette-starters";
+import { pickConversationStarter } from "@/lib/wheel-of-wonder-starters";
 import {
-  pickRouletteMatch,
+  pickWheelMatch,
   buildReel,
-  type RouletteCandidate,
-} from "@/lib/roulette";
+  type WheelCandidate,
+} from "@/lib/wheel-of-wonder";
 
 const BATCH_SIZE = 1000;
 const SLACK_ACTIVITY_WINDOW_DAYS = 45;
@@ -36,7 +36,7 @@ async function fetchAllPaginated<T>(
   return all;
 }
 
-export interface RouletteWinner {
+export interface WheelWinner {
   memberId: string;
   memberName: string;
   photoUrl: string | null;
@@ -47,18 +47,18 @@ export interface RouletteWinner {
   starterText: string | null;
 }
 
-export interface RouletteSpinResult {
-  winner: RouletteWinner;
+export interface WheelSpinResult {
+  winner: WheelWinner;
   reel: { memberId: string; memberName: string; photoUrl: string | null }[];
 }
 
-export type RouletteSpinResponse =
-  | RouletteSpinResult
+export type WheelSpinResponse =
+  | WheelSpinResult
   | { error: string }
   | { noOneAvailable: true };
 
 interface CandidatePoolResult {
-  pool: RouletteCandidate[];
+  pool: WheelCandidate[];
   /** The spinner's own Slack user ID, resolved the same way candidates are — null if unmatched. */
   viewerSlackUserId: string | null;
 }
@@ -162,7 +162,7 @@ async function loadCandidatePool(
   };
 }
 
-export async function spinRoulette(): Promise<RouletteSpinResponse> {
+export async function spinWheel(): Promise<WheelSpinResponse> {
   const supabase = await createClient();
 
   const {
@@ -181,14 +181,14 @@ export async function spinRoulette(): Promise<RouletteSpinResponse> {
 
   const slack = new WebClient(slackToken);
 
-  const winner = await pickRouletteMatch(
+  const winner = await pickWheelMatch(
     pool,
     async (candidate) => {
       try {
         const presence = await slack.users.getPresence({ user: candidate.slackUserId! });
         return presence.presence === "active";
       } catch (error) {
-        console.error(`Roulette presence check failed for ${candidate.memberName}:`, error);
+        console.error(`Wheel of Wonder presence check failed for ${candidate.memberName}:`, error);
         return false;
       }
     },
@@ -212,7 +212,7 @@ export async function spinRoulette(): Promise<RouletteSpinResponse> {
       dmUrl = `slack://user?team=${teamId}&id=${winner.slackUserId}`;
     }
   } catch (error) {
-    console.error("Roulette: failed to resolve Slack team ID for DM link:", error);
+    console.error("Wheel of Wonder: failed to resolve Slack team ID for DM link:", error);
   }
 
   // Prefer a pre-seeded 3-person room (spinner + winner + bot) over a bare
@@ -220,7 +220,7 @@ export async function spinRoulette(): Promise<RouletteSpinResponse> {
   // conversation, and so a real reply can be detected as a confirmed
   // connection via the Slack Events webhook (app/api/webhooks/slack/route.ts).
   // Any failure here (missing scope, rate limit, etc.) must never break the
-  // core roulette experience -- silently fall back to the plain DM link.
+  // core Wheel of Wonder experience -- silently fall back to the plain DM link.
   let roomCreated = false;
   if (teamId && viewerSlackUserId && winner.slackUserId) {
     try {
@@ -236,7 +236,7 @@ export async function spinRoulette(): Promise<RouletteSpinResponse> {
         text: `👋 Billie would like to (re)introduce ${effectiveIdentity.memberName} and ${winner.memberName} — the Wheel of Wonder brought you two together! I wonder… ${starter}`,
       });
 
-      const { error: insertError } = await supabase.from("roulette_matches").insert({
+      const { error: insertError } = await supabase.from("wheel_of_wonder_matches").insert({
         spinner_member_id: effectiveIdentity.memberId,
         matched_member_id: winner.memberId,
         slack_channel_id: channelId,
@@ -249,7 +249,7 @@ export async function spinRoulette(): Promise<RouletteSpinResponse> {
       dmUrl = `slack://channel?team=${teamId}&id=${channelId}`;
       roomCreated = true;
     } catch (error) {
-      console.error("Roulette: failed to create match room, falling back to 1:1 DM link:", error);
+      console.error("Wheel of Wonder: failed to create match room, falling back to 1:1 DM link:", error);
     }
   }
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { CONVERSATION_STARTERS, pickConversationStarter } from "@/lib/roulette-starters";
+import { CONVERSATION_STARTERS, pickConversationStarter } from "@/lib/wheel-of-wonder-starters";
 
 describe("CONVERSATION_STARTERS", () => {
   it("has at least 10 distinct, non-empty prompts", () => {

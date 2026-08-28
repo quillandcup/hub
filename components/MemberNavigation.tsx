@@ -26,12 +26,12 @@ function NavLinks({ memberId, isAdmin, enabledFeatures, pathname, collapsed, onN
   const isStreaksActive = pathname === '/streaks';
   const isPrickerPickerActive = pathname === '/prickle-picker';
   const isNetworkActive = pathname === '/network';
-  const isRouletteActive = pathname === '/wheel-of-wonder';
+  const isWheelActive = pathname === '/wheel-of-wonder';
   const isProfileActive = pathname === `/members/${memberId}` || pathname.startsWith(`/members/${memberId}/`);
 
   const showStreaks = enabledFeatures.includes('streaks');
   const showPricklePicker = enabledFeatures.includes('prickle_picker');
-  const showRoulette = enabledFeatures.includes('wheel_of_wonder');
+  const showWheel = enabledFeatures.includes('wheel_of_wonder');
 
   return (
     <>
@@ -110,12 +110,12 @@ function NavLinks({ memberId, isAdmin, enabledFeatures, pathname, collapsed, onN
           {!collapsed && <span>Network</span>}
         </Link>
 
-        {showRoulette && (
+        {showWheel && (
           <Link
             href="/wheel-of-wonder"
             onClick={onNavigate}
             className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
-              isRouletteActive
+              isWheelActive
                 ? "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 font-medium"
                 : "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
             }`}

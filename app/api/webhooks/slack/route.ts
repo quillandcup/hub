@@ -2,7 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 import { createHmac } from "crypto";
 import { triggerReprocessing } from "@/lib/processing/trigger";
-import { CONNECTION_CONFIRMATION_MESSAGE_THRESHOLD } from "@/lib/roulette";
+import { CONNECTION_CONFIRMATION_MESSAGE_THRESHOLD } from "@/lib/wheel-of-wonder";
 
 // Webhook should respond quickly
 export const maxDuration = 60;
@@ -141,7 +141,7 @@ async function processSlackEvent(event: any) {
       // a bot_id when the sender is a bot/app). See
       // app/(member)/wheel-of-wonder/actions.ts.
       if (!event.bot_id) {
-        await trackRouletteExchange(supabase, event);
+        await trackWheelExchange(supabase, event);
       }
 
       // Trigger Silver processing asynchronously
@@ -211,10 +211,10 @@ async function processSlackEvent(event: any) {
  * CONNECTION_CONFIRMATION_MESSAGE_THRESHOLD -- a single unanswered reply
  * shouldn't count as a real connection.
  */
-async function trackRouletteExchange(supabase: any, event: any) {
+async function trackWheelExchange(supabase: any, event: any) {
   try {
     const { data: match, error: matchError } = await supabase
-      .from("roulette_matches")
+      .from("wheel_of_wonder_matches")
       .select(
         "id, spinner_member_id, matched_member_id, spinner_slack_user_id, matched_slack_user_id, spinner_message_count, matched_message_count"
       )
@@ -223,7 +223,7 @@ async function trackRouletteExchange(supabase: any, event: any) {
       .maybeSingle();
 
     if (matchError) {
-      console.error("Error looking up roulette match for channel:", matchError);
+      console.error("Error looking up Wheel of Wonder match for channel:", matchError);
       return;
     }
     if (!match) return;
@@ -249,16 +249,16 @@ async function trackRouletteExchange(supabase: any, event: any) {
       update.confirmed_by_member_id = isSpinner ? match.spinner_member_id : match.matched_member_id;
     }
 
-    const { error: updateError } = await supabase.from("roulette_matches").update(update).eq("id", match.id);
+    const { error: updateError } = await supabase.from("wheel_of_wonder_matches").update(update).eq("id", match.id);
 
     if (updateError) {
-      console.error("Error updating roulette match exchange:", updateError);
+      console.error("Error updating Wheel of Wonder match exchange:", updateError);
       return;
     }
 
-    if (shouldConfirm) console.log("Roulette match confirmed:", match.id);
+    if (shouldConfirm) console.log("Wheel of Wonder match confirmed:", match.id);
   } catch (error) {
-    console.error("Error tracking roulette exchange:", error);
+    console.error("Error tracking Wheel of Wonder exchange:", error);
   }
 }
 

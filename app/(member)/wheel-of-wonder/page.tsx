@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { getEffectiveIdentity } from "@/lib/sudo";
 import { getUserFeaturePreviews } from "@/lib/features.server";
-import RouletteWheel from "./RouletteWheel";
+import Wheel from "./Wheel";
 
 export const metadata: Metadata = {
   title: "Wheel of Wonder",
@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 
 export const maxDuration = 60;
 
-export default async function RoulettePage() {
+export default async function WheelOfWonderPage() {
   const supabase = await createClient();
   const {
     data: { user },
@@ -22,7 +22,7 @@ export default async function RoulettePage() {
     getEffectiveIdentity(user),
     getUserFeaturePreviews(user.id),
     supabase
-      .from("roulette_matches")
+      .from("wheel_of_wonder_matches")
       .select("*", { count: "exact", head: true })
       .eq("status", "confirmed"),
   ]);
@@ -41,7 +41,7 @@ export default async function RoulettePage() {
         </p>
       </div>
       <div className="flex justify-center">
-        <RouletteWheel confirmedConnectionCount={confirmedConnectionCount} />
+        <Wheel confirmedConnectionCount={confirmedConnectionCount} />
       </div>
     </div>
   );

@@ -10,7 +10,7 @@
 // a single unanswered reply. See app/api/webhooks/slack/route.ts.
 export const CONNECTION_CONFIRMATION_MESSAGE_THRESHOLD = 10;
 
-export interface RouletteCandidate {
+export interface WheelCandidate {
   memberId: string;
   memberName: string;
   photoUrl: string | null;
@@ -29,9 +29,9 @@ const BASE_WEIGHT = 0.15;
 
 /**
  * Higher for members with fewer connections and less recent Slack activity —
- * these are the re-engagement candidates the roulette should favor.
+ * these are the re-engagement candidates the wheel should favor.
  */
-export function scoreCandidate(candidate: RouletteCandidate): number {
+export function scoreCandidate(candidate: WheelCandidate): number {
   const connectionDeficit = 1 / (1 + candidate.connectionCount);
   const engagementDeficit = 1 / (1 + candidate.recentSlackActivityCount);
   return connectionDeficit + engagementDeficit + BASE_WEIGHT;
@@ -43,11 +43,11 @@ export function scoreCandidate(candidate: RouletteCandidate): number {
  * in turn (e.g. until one passes a live reachability check).
  */
 export function weightedDrawOrder(
-  candidates: RouletteCandidate[],
+  candidates: WheelCandidate[],
   rng: () => number = Math.random
-): RouletteCandidate[] {
+): WheelCandidate[] {
   const pool = candidates.map((c) => ({ c, w: scoreCandidate(c) }));
-  const order: RouletteCandidate[] = [];
+  const order: WheelCandidate[] = [];
 
   while (pool.length > 0) {
     const total = pool.reduce((sum, p) => sum + p.w, 0);
@@ -67,7 +67,7 @@ export function weightedDrawOrder(
   return order;
 }
 
-export interface PickRouletteMatchOptions {
+export interface PickWheelMatchOptions {
   /** How many weighted draws to try before giving up. Default 6. */
   maxAttempts?: number;
   rng?: () => number;
@@ -82,12 +82,12 @@ export interface PickRouletteMatchOptions {
  * Returns null if nobody currently reachable turns up within maxAttempts —
  * callers should treat that as "no one's around right now," not an error.
  */
-export async function pickRouletteMatch(
-  candidates: RouletteCandidate[],
-  isReachable: (candidate: RouletteCandidate) => Promise<boolean>,
-  options: PickRouletteMatchOptions = {}
-): Promise<RouletteCandidate | null> {
-  const eligible = candidates.filter((c): c is RouletteCandidate & { slackUserId: string } => c.slackUserId !== null);
+export async function pickWheelMatch(
+  candidates: WheelCandidate[],
+  isReachable: (candidate: WheelCandidate) => Promise<boolean>,
+  options: PickWheelMatchOptions = {}
+): Promise<WheelCandidate | null> {
+  const eligible = candidates.filter((c): c is WheelCandidate & { slackUserId: string } => c.slackUserId !== null);
   const order = weightedDrawOrder(eligible, options.rng ?? Math.random);
   const maxAttempts = options.maxAttempts ?? 6;
 
@@ -116,11 +116,11 @@ function shuffle<T>(items: T[], rng: () => number): T[] {
  * Purely presentational — has no bearing on who was actually picked.
  */
 export function buildReel(
-  winner: RouletteCandidate,
-  pool: RouletteCandidate[],
+  winner: WheelCandidate,
+  pool: WheelCandidate[],
   slotCount: number,
   rng: () => number = Math.random
-): RouletteCandidate[] {
+): WheelCandidate[] {
   const others = pool.filter((c) => c.memberId !== winner.memberId);
   const withPhoto = shuffle(others.filter((c) => c.photoUrl), rng);
   const withoutPhoto = shuffle(others.filter((c) => !c.photoUrl), rng);

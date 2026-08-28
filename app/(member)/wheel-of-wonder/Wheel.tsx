@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { spinRoulette, type RouletteSpinResponse, type RouletteWinner } from "./actions";
+import { spinWheel, type WheelSpinResponse, type WheelWinner } from "./actions";
 
 // Slot count for the idle (pre-spin) placeholder ring. Once real results
 // come back, the wheel shrinks to however many distinct real candidates are
@@ -93,15 +93,15 @@ function SlotAvatar({ slot, size, dimmed }: { slot: SlotPhoto; size: number; dim
   );
 }
 
-interface RouletteWheelProps {
+interface WheelProps {
   /** Community-wide count of confirmed connections (aggregate only, no per-person breakdown). */
   confirmedConnectionCount?: number;
 }
 
-export default function RouletteWheel({ confirmedConnectionCount = 0 }: RouletteWheelProps) {
+export default function Wheel({ confirmedConnectionCount = 0 }: WheelProps) {
   const [phase, setPhase] = useState<"idle" | "spinning" | "revealed" | "empty" | "error">("idle");
   const [slots, setSlots] = useState<SlotPhoto[]>(Array(IDLE_SLOT_COUNT).fill(BLANK_SLOT));
-  const [winner, setWinner] = useState<RouletteWinner | null>(null);
+  const [winner, setWinner] = useState<WheelWinner | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [justRevealed, setJustRevealed] = useState(false);
   const [starterCopied, setStarterCopied] = useState(false);
@@ -127,7 +127,7 @@ export default function RouletteWheel({ confirmedConnectionCount = 0 }: Roulette
   }, []);
 
   const runSpinAnimation = useCallback(
-    (result: Extract<RouletteSpinResponse, { winner: RouletteWinner }>) => {
+    (result: Extract<WheelSpinResponse, { winner: WheelWinner }>) => {
       const decorativePool = result.reel.slice(1);
       const winnerPhoto: SlotPhoto = {
         memberId: result.winner.memberId,
@@ -221,7 +221,7 @@ export default function RouletteWheel({ confirmedConnectionCount = 0 }: Roulette
     setStarterCopied(false);
     applyRotation(0);
 
-    const result = await spinRoulette();
+    const result = await spinWheel();
 
     if ("error" in result) {
       setPhase("error");
