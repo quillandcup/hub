@@ -19,5 +19,5 @@ export default async function Home() {
     redirect("/admin");
   }
 
-  redirect("/calendar");
+  redirect("/dashboard");
 }
