@@ -236,6 +236,13 @@ export async function spinWheel(): Promise<WheelSpinResponse> {
         text: `👋 Billie would like to (re)introduce ${effectiveIdentity.memberName} and ${winner.memberName} — the Wheel of Wonder brought you two together! I wonder… ${starter}`,
       });
 
+      // The room already exists and has the icebreaker in it at this point --
+      // point the member there regardless of whether the tracking insert
+      // below succeeds, so a DB hiccup can't strand them on the 1:1 DM link
+      // while a populated room sits unlinked in the background.
+      dmUrl = `slack://channel?team=${teamId}&id=${channelId}`;
+      roomCreated = true;
+
       const { error: insertError } = await supabase.from("wheel_of_wonder_matches").insert({
         spinner_member_id: effectiveIdentity.memberId,
         matched_member_id: winner.memberId,
@@ -245,11 +252,13 @@ export async function spinWheel(): Promise<WheelSpinResponse> {
         status: "proposed",
       });
       if (insertError) throw insertError;
-
-      dmUrl = `slack://channel?team=${teamId}&id=${channelId}`;
-      roomCreated = true;
     } catch (error) {
-      console.error("Wheel of Wonder: failed to create match room, falling back to 1:1 DM link:", error);
+      console.error(
+        roomCreated
+          ? "Wheel of Wonder: match room created but tracking insert failed (webhook won't detect a confirmed connection for this room):"
+          : "Wheel of Wonder: failed to create match room, falling back to 1:1 DM link:",
+        error
+      );
     }
   }
 
