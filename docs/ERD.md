@@ -230,7 +230,19 @@ erDiagram
         text description
         boolean requires_host
         uuid default_host_id FK "members, ON DELETE SET NULL"
+        text purpose "writing | work | social | mixed"
+        boolean solo_task_friendly "can a member bring an unrelated task here?"
         timestamptz created_at
+    }
+
+    prickle_host_vibes {
+        uuid id PK
+        uuid type_id FK "prickle_types, ON DELETE CASCADE"
+        uuid host_id FK "members, ON DELETE CASCADE, UK with type_id"
+        text vibe "focused | balanced | chatty"
+        text notes
+        uuid updated_by FK "auth.users, ON DELETE SET NULL"
+        timestamptz updated_at
     }
 
     member_name_aliases {
@@ -437,6 +449,8 @@ erDiagram
     prickles ||--o{ prickle_attendance : "had attendees"
     members ||--o{ prickle_types : "default host for (optional)"
     prickle_types ||--o{ prickles : "categorized as"
+    prickle_types ||--o{ prickle_host_vibes : "vibe tagged per host"
+    members ||--o{ prickle_host_vibes : "self-tags own hosted slots"
     members ||--o{ member_name_aliases : "has aliases"
     members ||--o{ member_hiatus_history : "has hiatuses"
     members ||--o{ member_status_overrides : "has overrides"
@@ -490,3 +504,5 @@ erDiagram
 - **`prickles.type` (free text) coexists with `prickles.type_id` (FK).** `type` was superseded by `type_id` + `prickle_types` in `20260405070000` but never dropped. Current processing code only writes `type_id`.
 - **`member_email_aliases` vs `member_name_aliases` are two different tables**, not a rename — `member_email_aliases` dedupes Kajabi contacts by email during member processing; `member_name_aliases` maps Zoom/Slack display names to a member for attendance/activity matching. Both are Local, both are hand-maintained (plus some auto-inserts from `reprocess_members_atomic` on email change).
 - **No table is named `attendance` anymore** — it was renamed to `prickle_attendance` in `20260422000001`. `CLAUDE.md`'s attendance-design rules still apply verbatim to `prickle_attendance`.
+- **`prickle_types.purpose` and `.solo_task_friendly` are independent, not redundant.** `purpose` is the type's theme (Monthly Goal Review is `work`); `solo_task_friendly` is whether a member can quietly bring an unrelated task there instead. They diverge in both directions: Sprint Prickle is `writing`-purpose but not friendly (it's an active word-war), while a hypothetical open co-working session could be `work`-purpose and friendly. Used by the Prickle Picker (`lib/prickle-picker.ts`).
+- **`prickle_host_vibes` has no RLS restricting writes to the tagging member** — it uses the same permissive `authenticated`-role policy as every other table here. Authorization (a host can only tag her own `(type, host)` pairs) is enforced in the server action (`app/(member)/prickle-picker/actions.ts`'s `saveHostVibe`) by deriving `host_id` from `getEffectiveIdentity` rather than accepting it as input.

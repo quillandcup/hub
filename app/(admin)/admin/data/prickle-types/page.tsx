@@ -6,13 +6,44 @@ export const metadata: Metadata = {
   title: "Prickle Types",
 };
 
+const PURPOSE_STYLES: Record<string, string> = {
+  writing: "bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300",
+  work: "bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300",
+  social: "bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300",
+  mixed: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
+};
+
+function PurposeBadge({ purpose }: { purpose: string }) {
+  return (
+    <span
+      className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium capitalize ${
+        PURPOSE_STYLES[purpose] ?? PURPOSE_STYLES.mixed
+      }`}
+    >
+      {purpose}
+    </span>
+  );
+}
+
+function SoloTaskFriendlyBadge({ soloTaskFriendly }: { soloTaskFriendly: boolean }) {
+  return soloTaskFriendly ? (
+    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
+      Yes
+    </span>
+  ) : (
+    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+      No
+    </span>
+  );
+}
+
 export default async function PrickleTypesPage() {
   const supabase = await createClient();
 
   // Fetch all prickle types
   const { data: prickleTypes } = await supabase
     .from("prickle_types")
-    .select("id, name, normalized_name, description")
+    .select("id, name, normalized_name, description, purpose, solo_task_friendly")
     .order("name");
 
   return (
@@ -50,6 +81,12 @@ export default async function PrickleTypesPage() {
                   Description
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                  Purpose
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                  BYO-Task Friendly
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                   Actions
                 </th>
               </tr>
@@ -71,6 +108,12 @@ export default async function PrickleTypesPage() {
                     <div className="text-sm text-slate-600 dark:text-slate-400 truncate" title={type.description ?? ""}>
                       {type.description ?? <span className="text-slate-400 dark:text-slate-600 italic">—</span>}
                     </div>
+                  </td>
+                  <td className="px-6 py-4">
+                    <PurposeBadge purpose={type.purpose} />
+                  </td>
+                  <td className="px-6 py-4">
+                    <SoloTaskFriendlyBadge soloTaskFriendly={type.solo_task_friendly} />
                   </td>
                   <td className="px-6 py-4">
                     <Link
