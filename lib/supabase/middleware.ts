@@ -1,5 +1,5 @@
 import { createServerClient } from '@supabase/ssr'
-import { NextResponse, type NextRequest } from 'next/server'
+import { NextResponse, after, type NextRequest } from 'next/server'
 import { withTimeout, AUTH_CHECK_TIMEOUT_MS } from '@/lib/with-timeout'
 
 export async function updateSession(request: NextRequest) {
@@ -32,6 +32,28 @@ export async function updateSession(request: NextRequest) {
   }
 
   const { pathname } = request.nextUrl
+
+  // Log access events for signed-in users (login/session history, admin-only
+  // view). Skip Next.js prefetch requests (Link hover, etc.) — those aren't
+  // real visits and would pollute both the page trail and session gaps.
+  const isPrefetch =
+    request.headers.get('next-router-prefetch') === '1' ||
+    request.headers.get('purpose') === 'prefetch' ||
+    request.headers.get('sec-purpose')?.includes('prefetch')
+  if (user && !isPrefetch) {
+    const userId = user.id
+    after(async () => {
+      try {
+        await supabase.from('access_events').insert({
+          user_id: userId,
+          path: pathname,
+          is_page: !pathname.startsWith('/api/'),
+        })
+      } catch {
+        // Best-effort logging — never break the request over this.
+      }
+    })
+  }
 
   // Public routes — no auth required
   // API routes handle their own auth via requireAdmin/createApiAuth
