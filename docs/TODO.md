@@ -240,9 +240,10 @@ Billie Bot (this app's own Slack bot) can't invite itself back into a private ch
 ## Gamification / Badges
 
 ### Community Builder Leaderboard
-Recognize members who contribute most to community engagement — inspired by Long Angle's leaderboard (https://my.longangle.com/leaderboard).
+Recognize members who contribute most to community engagement — inspired by Long Angle's leaderboard (https://my.longangle.com/leaderboard). **Note:** Long Angle's own leaderboard ranks by number of members invited/referred, not general engagement — worth deciding whether to mirror that directly (an invites leaderboard) or broaden to community engagement generally.
 
 Possible signals to rank on:
+- Invites/referrals sent (Long Angle's actual model)
 - Prickle attendance count or total hours
 - Slack messages/reactions
 - PUPs started or hosted
@@ -520,3 +521,18 @@ Beyond Slack, expand `member_activities` tracking:
 
 ### Engagement Scoring
 Refine `engagement_score` calculation based on activity types and recency
+
+---
+
+## Writing Projects Tracking
+
+Full roadmap: `docs/superpowers/specs/writing-projects-tracking.md`. Core single-author flow (log progress against a project/goal, prickle-linked nudges, streak/chart stats) is scoped there phase-by-phase.
+
+### Collaborative / Multi-Author Projects (Deferred — needs scoping)
+Some members write as part of a group — e.g. Ania is one of ~7 authors writing separate novellas set in the same shared town, with intertwining characters (a shared-universe anthology). The core writing-projects data model is single-owner only and doesn't account for this.
+
+Two genuinely different problems, not yet scoped:
+- **Shared universe / collection** — each author owns their own separate project; projects group into a collection with mutual visibility across co-authors. Likely fit for Ania's case (separate books, shared setting) — lower complexity, no changes to the single-owner entry/RLS model, just a grouping layer.
+- **True co-authored project** — multiple people log progress against one shared manuscript/project with a combined total. Needed only if some future project is genuinely one shared document rather than separate books. Bigger change: `writing_projects` needs multiple owners (collaborator join table), and the "member can only read/write their own rows" RLS assumption needs rework.
+
+**Why deferred:** get the single-author loop (log → nudge → streak/chart) shipped and proven first; scope collaboration once that foundation exists rather than designing it speculatively now.
