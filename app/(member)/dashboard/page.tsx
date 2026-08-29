@@ -5,6 +5,8 @@ import Link from "next/link"
 import { getEffectiveIdentity } from "@/lib/sudo"
 import { getUserTimezonePreference } from "@/lib/timezone"
 import { hostShortName } from "@/lib/formatters"
+import { getStarredGoals } from "../writing/actions"
+import GoalProgressBar from "@/components/writing/GoalProgressBar"
 import {
   computePrickleStreaks,
   computeSisterStreaks,
@@ -162,7 +164,10 @@ export default async function DashboardPage() {
   const windowStart = now.toISOString()
   const windowEnd = new Date(now.getTime() + UPCOMING_WINDOW_DAYS * 24 * 60 * 60 * 1000).toISOString()
 
-  const upcoming = await fetchUpcomingPrickles(supabase, windowStart, windowEnd, timeZone)
+  const [upcoming, starredGoals] = await Promise.all([
+    fetchUpcomingPrickles(supabase, windowStart, windowEnd, timeZone),
+    getStarredGoals(),
+  ])
 
   // ---- This member's attendance history, used for both prickle streaks and
   // sister-streak co-attendance below. ----
@@ -350,6 +355,36 @@ export default async function DashboardPage() {
       <p className="text-sm text-slate-500 dark:text-slate-400 mb-8">
         Here&apos;s what&apos;s coming up in the next {UPCOMING_WINDOW_DAYS} days.
       </p>
+
+      {starredGoals.length > 0 && (
+        <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 p-6 mb-6">
+          <h2 className="text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-4">
+            Writing Goals
+          </h2>
+          <div className="space-y-4">
+            {starredGoals.map((goal) => (
+              <div key={goal.id}>
+                <Link
+                  href={`/writing/${goal.projectId}`}
+                  className="text-sm font-medium text-slate-900 dark:text-slate-100 hover:text-blue-600 dark:hover:text-blue-400"
+                >
+                  {goal.projectTitle}
+                </Link>
+                <div className="mt-1">
+                  <GoalProgressBar
+                    measure={goal.measure}
+                    current={goal.current}
+                    target={goal.targetAmount}
+                    percent={goal.percent}
+                    parTarget={goal.parTarget}
+                    onPace={goal.onPace}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {upcoming.length === 0 ? (
         <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 p-6 text-center">

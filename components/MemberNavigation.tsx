@@ -28,6 +28,7 @@ function NavLinks({ memberId, isAdmin, enabledFeatures, pathname, collapsed, onN
   const isNetworkActive = pathname === '/network';
   const isWheelActive = pathname === '/wheel-of-wonder';
   const isHostingActive = pathname === '/hosting';
+  const isWritingActive = pathname === '/writing' || pathname.startsWith('/writing/');
   const isProfileActive = pathname === `/members/${memberId}` || pathname.startsWith(`/members/${memberId}/`);
 
   const showStreaks = enabledFeatures.includes('streaks');
@@ -126,6 +127,20 @@ function NavLinks({ memberId, isAdmin, enabledFeatures, pathname, collapsed, onN
             {!collapsed && <span>Wheel of Wonder</span>}
           </Link>
         )}
+
+        <Link
+          href="/writing"
+          onClick={onNavigate}
+          className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
+            isWritingActive
+              ? "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 font-medium"
+              : "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+          }`}
+          title={collapsed ? "Writing Projects" : undefined}
+        >
+          <span className="text-lg">📝</span>
+          {!collapsed && <span>Writing Projects</span>}
+        </Link>
 
         <Link
           href="/hosting"
