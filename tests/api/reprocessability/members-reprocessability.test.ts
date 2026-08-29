@@ -447,3 +447,139 @@ describe('Members Bronze Pagination (>1000 rows)', () => {
     60000
   )
 })
+
+/**
+ * Member tenure fields (first_joined_at, most_recent_joined_at,
+ * total_active_months) computed during reprocessing — see
+ * lib/member-tenure.ts. Covers a real cancel/resubscribe gap and a hiatus
+ * override (member_status_overrides) excluding time from the total and
+ * resetting most_recent_joined_at once it ends.
+ */
+describe('Member Tenure computed during reprocessing', () => {
+  const supabase = getTestSupabaseAdminClient()
+  const ts = Date.now()
+  const now = Date.now()
+  const daysAgo = (n: number) => new Date(now - n * 24 * 60 * 60 * 1000).toISOString()
+  const dateOnly = (iso: string) => iso.split('T')[0]
+
+  const membershipOfferId = `tenure-offer-${ts}`
+  const emailResub = `tenure-resub-${ts}@example.com`
+  const emailHiatus = `tenure-hiatus-${ts}@example.com`
+
+  const overrideIds: string[] = []
+
+  async function reprocess() {
+    const response = await fetch('http://localhost:3000/api/process/members', {
+      method: 'POST',
+      headers: getTestAuthHeaders(),
+    })
+    if (!response.ok) {
+      throw new Error(`API call failed: ${response.status} - ${await response.text()}`)
+    }
+    return response.json()
+  }
+
+  async function fetchMember(email: string) {
+    const { data } = await supabase.from('members').select('*').eq('email', email).single()
+    return data
+  }
+
+  beforeAll(async () => {
+    await supabase.schema('bronze').from('kajabi_offers').upsert([
+      { kajabi_offer_id: membershipOfferId, name: 'Quill & Cup Membership', trial_period_days: 0, data: { attributes: { subscription: true } } },
+    ], { onConflict: 'kajabi_offer_id' })
+
+    await supabase.schema('bronze').from('kajabi_contacts').insert([
+      { kajabi_contact_id: `tenure-contact-resub-${ts}`, email: emailResub, name: 'Tenure Resub', created_at_kajabi: daysAgo(400), data: {} },
+      { kajabi_contact_id: `tenure-contact-hiatus-${ts}`, email: emailHiatus, name: 'Tenure Hiatus', created_at_kajabi: daysAgo(400), data: {} },
+    ])
+    await supabase.schema('bronze').from('kajabi_customers').insert([
+      { kajabi_customer_id: `tenure-cust-resub-${ts}`, email: emailResub, data: {} },
+      { kajabi_customer_id: `tenure-cust-hiatus-${ts}`, email: emailHiatus, data: {} },
+    ])
+    await supabase.schema('bronze').from('kajabi_purchases').insert([
+      // Cancelled ~200d ago, resubscribed ~100d ago — a real gap.
+      {
+        kajabi_purchase_id: `tenure-p1-${ts}`,
+        kajabi_customer_id: `tenure-cust-resub-${ts}`,
+        kajabi_offer_id: membershipOfferId,
+        status: 'inactive',
+        created_at_kajabi: daysAgo(300),
+        effective_start_at: daysAgo(300),
+        deactivated_at: daysAgo(200),
+        data: {},
+      },
+      {
+        kajabi_purchase_id: `tenure-p2-${ts}`,
+        kajabi_customer_id: `tenure-cust-resub-${ts}`,
+        kajabi_offer_id: membershipOfferId,
+        status: 'active',
+        created_at_kajabi: daysAgo(100),
+        effective_start_at: daysAgo(100),
+        deactivated_at: null,
+        data: {},
+      },
+      // Single continuous membership — never cancelled in Kajabi.
+      {
+        kajabi_purchase_id: `tenure-p3-${ts}`,
+        kajabi_customer_id: `tenure-cust-hiatus-${ts}`,
+        kajabi_offer_id: membershipOfferId,
+        status: 'active',
+        created_at_kajabi: daysAgo(300),
+        effective_start_at: daysAgo(300),
+        deactivated_at: null,
+        data: {},
+      },
+    ])
+  })
+
+  afterAll(async () => {
+    if (overrideIds.length > 0) {
+      await supabase.from('member_status_overrides').delete().in('id', overrideIds)
+    }
+    await supabase.schema('bronze').from('kajabi_purchases').delete().ilike('kajabi_purchase_id', `tenure-p%-${ts}`)
+    await supabase.schema('bronze').from('kajabi_customers').delete().ilike('kajabi_customer_id', `tenure-cust-%-${ts}`)
+    await supabase.schema('bronze').from('kajabi_contacts').delete().ilike('kajabi_contact_id', `tenure-contact-%-${ts}`)
+    await supabase.schema('bronze').from('kajabi_offers').delete().eq('kajabi_offer_id', membershipOfferId)
+    await supabase.from('members').delete().in('email', [emailResub, emailHiatus])
+  })
+
+  it('computes first/most-recent joined and total active months across a cancel+resubscribe', async () => {
+    await reprocess()
+    const member = await fetchMember(emailResub)
+
+    expect(member?.first_joined_at).toBe(dateOnly(daysAgo(300)))
+    expect(member?.most_recent_joined_at).toBe(dateOnly(daysAgo(100)))
+    // ~100 active days in the first stint + ~100 so far in the second = ~200 days
+    expect(member?.total_active_months).toBeGreaterThanOrEqual(6)
+    expect(member?.total_active_months).toBeLessThanOrEqual(7)
+  })
+
+  it('excludes hiatus time from total_active_months and resets most_recent_joined_at once the hiatus ends', async () => {
+    await reprocess()
+    const before = await fetchMember(emailHiatus)
+    expect(before?.first_joined_at).toBe(dateOnly(daysAgo(300)))
+    expect(before?.most_recent_joined_at).toBe(dateOnly(daysAgo(300))) // no gap yet — same as first join
+
+    const { data: override, error } = await supabase
+      .from('member_status_overrides')
+      .insert({
+        member_id: before!.id,
+        override_type: 'hiatus',
+        reason: 'tenure-test ended hiatus',
+        starts_at: daysAgo(60),
+        expires_at: daysAgo(30),
+      })
+      .select('id')
+      .single()
+    expect(error).toBeNull()
+    overrideIds.push(override!.id)
+
+    await reprocess()
+    const after = await fetchMember(emailHiatus)
+
+    expect(after?.first_joined_at).toBe(dateOnly(daysAgo(300))) // unaffected by hiatus
+    expect(after?.most_recent_joined_at).toBe(dateOnly(daysAgo(30))) // reset to hiatus end
+    expect(after!.total_active_months).toBeLessThan(before!.total_active_months) // ~30 hiatus days excluded
+  })
+})

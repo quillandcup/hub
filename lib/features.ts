@@ -1,4 +1,4 @@
-export type FeatureKey = 'streaks' | 'hiatus_tracking' | 'member_overrides' | 'prickle_picker' | 'wheel_of_wonder';
+export type FeatureKey = 'streaks' | 'hiatus_tracking' | 'member_overrides' | 'prickle_picker' | 'wheel_of_wonder' | 'hedgieversaries';
 
 export interface FeaturePreview {
   key: FeatureKey;
@@ -31,6 +31,11 @@ export const FEATURE_PREVIEWS: FeaturePreview[] = [
     key: 'wheel_of_wonder',
     name: 'Wheel of Wonder',
     description: 'Spin to get matched with a hedgie who’s online in Slack right now',
+  },
+  {
+    key: 'hedgieversaries',
+    name: 'Hedgieversaries',
+    description: 'Track member Hedgieversary milestones — replaces the manual spreadsheet',
   },
 ];
 

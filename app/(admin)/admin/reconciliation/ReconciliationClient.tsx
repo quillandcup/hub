@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import MemberOverrideForm from "@/components/MemberOverrideForm";
 
 interface ReconciliationSummary {
   total_members: number;
@@ -18,8 +19,11 @@ interface MemberReconciliation {
   expected_kajabi_state: string;
   actual_kajabi_state: string;
   stripe_state: string;
+  override_id: string | null;
   override_type: string | null;
   override_reason: string | null;
+  override_notes: string | null;
+  override_expires_at: string | null;
   has_discrepancy: boolean;
 }
 
@@ -82,6 +86,7 @@ export default function ReconciliationClient() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filterDiscrepancies, setFilterDiscrepancies] = useState(true);
+  const [editingMemberId, setEditingMemberId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchAll();
@@ -104,6 +109,11 @@ export default function ReconciliationClient() {
       console.error("Error fetching reconciliation:", err);
       setError(err.message);
     }
+  };
+
+  const handleOverrideSaved = () => {
+    setEditingMemberId(null);
+    fetchReconciliation();
   };
 
   const fetchSlackData = async () => {
@@ -378,9 +388,27 @@ export default function ReconciliationClient() {
                               {member.override_reason}
                             </div>
                           )}
+                          <button
+                            onClick={() =>
+                              setEditingMemberId(editingMemberId === member.member_id ? null : member.member_id)
+                            }
+                            className="mt-1 text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                          >
+                            {editingMemberId === member.member_id ? "Cancel" : "Edit"}
+                          </button>
                         </div>
                       ) : (
-                        <span className="text-gray-400 dark:text-gray-500 text-sm">None</span>
+                        <div>
+                          <span className="text-gray-400 dark:text-gray-500 text-sm">None</span>
+                          <button
+                            onClick={() =>
+                              setEditingMemberId(editingMemberId === member.member_id ? null : member.member_id)
+                            }
+                            className="block mt-1 text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                          >
+                            {editingMemberId === member.member_id ? "Cancel" : "Explain"}
+                          </button>
+                        </div>
                       )}
                     </td>
                     <td className="px-4 py-3">
@@ -396,6 +424,33 @@ export default function ReconciliationClient() {
                 );
               })
             )}
+            {filteredMembers
+              .filter((m) => m.member_id === editingMemberId)
+              .map((member) => (
+                <tr key={`${member.member_id}-form`} className="bg-blue-50/50 dark:bg-blue-950/10">
+                  <td colSpan={slackData ? 7 : 6} className="px-4 py-4">
+                    <div className="max-w-md">
+                      <MemberOverrideForm
+                        memberId={member.member_id}
+                        memberName={member.member_name}
+                        existing={
+                          member.override_id
+                            ? {
+                                id: member.override_id,
+                                override_type: member.override_type as "hiatus" | "gift" | "special",
+                                reason: member.override_reason ?? "",
+                                notes: member.override_notes,
+                                expires_at: member.override_expires_at,
+                              }
+                            : null
+                        }
+                        onSaved={handleOverrideSaved}
+                        onCancel={() => setEditingMemberId(null)}
+                      />
+                    </div>
+                  </td>
+                </tr>
+              ))}
           </tbody>
         </table>
       </div>

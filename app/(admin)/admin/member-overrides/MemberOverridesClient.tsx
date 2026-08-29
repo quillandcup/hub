@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import MemberOverrideForm, { type MemberOverrideFields } from "@/components/MemberOverrideForm";
 
 interface Member {
   id: string;
@@ -8,14 +9,9 @@ interface Member {
   email: string;
 }
 
-interface MemberOverride {
-  id: string;
+interface MemberOverride extends MemberOverrideFields {
   member_id: string;
-  override_type: "hiatus" | "gift" | "special";
-  reason: string;
-  notes: string | null;
   starts_at: string;
-  expires_at: string | null;
   created_at: string;
   member: Member;
 }
@@ -27,14 +23,11 @@ export default function MemberOverridesClient() {
   const [showForm, setShowForm] = useState(false);
   const [editingOverride, setEditingOverride] = useState<MemberOverride | null>(null);
 
-  // Form state
-  const [formData, setFormData] = useState({
-    member_email: "",
-    override_type: "gift" as "hiatus" | "gift" | "special",
-    reason: "",
-    notes: "",
-    expires_at: "",
-  });
+  // Email lookup — resolves to a member before the shared form (which just
+  // needs a memberId) can render.
+  const [memberEmailInput, setMemberEmailInput] = useState("");
+  const [resolvedMember, setResolvedMember] = useState<Member | null>(null);
+  const [lookupError, setLookupError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchOverrides();
@@ -59,79 +52,30 @@ export default function MemberOverridesClient() {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleLookup = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null);
-
+    setLookupError(null);
     try {
-      // First, look up member by email
-      const membersResponse = await fetch(
-        `/api/members?email=${encodeURIComponent(formData.member_email)}`
-      );
-      const membersData = await membersResponse.json();
-
-      if (!membersResponse.ok || !membersData.members || membersData.members.length === 0) {
+      const response = await fetch(`/api/members?email=${encodeURIComponent(memberEmailInput)}`);
+      const data = await response.json();
+      if (!response.ok || !data.members || data.members.length === 0) {
         throw new Error("Member not found with that email address");
       }
-
-      const member = membersData.members[0];
-
-      const payload = {
-        member_id: member.id,
-        override_type: formData.override_type,
-        reason: formData.reason,
-        notes: formData.notes || null,
-        expires_at: formData.expires_at || null,
-      };
-
-      let response;
-      if (editingOverride) {
-        response = await fetch(`/api/member-overrides/${editingOverride.id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        });
-      } else {
-        response = await fetch("/api/member-overrides", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        });
-      }
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to save override");
-      }
-
-      // Reset form and refresh list
-      setFormData({
-        member_email: "",
-        override_type: "gift",
-        reason: "",
-        notes: "",
-        expires_at: "",
-      });
-      setShowForm(false);
-      setEditingOverride(null);
-      fetchOverrides();
+      setResolvedMember(data.members[0]);
     } catch (err: any) {
-      console.error("Error saving override:", err);
-      setError(err.message);
+      setLookupError(err.message);
     }
   };
 
   const handleEdit = (override: MemberOverride) => {
     setEditingOverride(override);
-    setFormData({
-      member_email: override.member.email,
-      override_type: override.override_type,
-      reason: override.reason,
-      notes: override.notes || "",
-      expires_at: override.expires_at || "",
-    });
+    setResolvedMember(override.member);
     setShowForm(true);
+  };
+
+  const handleSaved = () => {
+    handleCancel();
+    fetchOverrides();
   };
 
   const handleDelete = async (id: string) => {
@@ -159,13 +103,9 @@ export default function MemberOverridesClient() {
   const handleCancel = () => {
     setShowForm(false);
     setEditingOverride(null);
-    setFormData({
-      member_email: "",
-      override_type: "gift",
-      reason: "",
-      notes: "",
-      expires_at: "",
-    });
+    setResolvedMember(null);
+    setMemberEmailInput("");
+    setLookupError(null);
     setError(null);
   };
 
@@ -204,110 +144,47 @@ export default function MemberOverridesClient() {
       )}
 
       {showForm && (
-        <div className="mb-6 p-6 border border-gray-200 rounded bg-gray-50">
+        <div className="mb-6 p-6 border border-gray-200 rounded bg-gray-50 dark:bg-slate-900 dark:border-slate-700">
           <h2 className="text-lg font-semibold mb-4">
             {editingOverride ? "Edit Override" : "Add New Override"}
           </h2>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium mb-1">
-                Member Email
-              </label>
-              <input
-                type="email"
-                value={formData.member_email}
-                onChange={(e) =>
-                  setFormData({ ...formData, member_email: e.target.value })
-                }
-                className="w-full px-3 py-2 border border-gray-300 rounded"
-                required
-                disabled={!!editingOverride}
-              />
-            </div>
 
-            <div>
-              <label className="block text-sm font-medium mb-1">
-                Override Type
-              </label>
-              <select
-                value={formData.override_type}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    override_type: e.target.value as "hiatus" | "gift" | "special",
-                  })
-                }
-                className="w-full px-3 py-2 border border-gray-300 rounded"
-                required
-              >
-                <option value="gift">Gift (180 program, hosting, compensation)</option>
-                <option value="hiatus">Hiatus</option>
-                <option value="special">Special Case</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-1">Reason</label>
-              <input
-                type="text"
-                value={formData.reason}
-                onChange={(e) =>
-                  setFormData({ ...formData, reason: e.target.value })
-                }
-                className="w-full px-3 py-2 border border-gray-300 rounded"
-                placeholder="e.g., 180 program, Mika affiliates compensation"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-1">
-                Notes (optional)
-              </label>
-              <textarea
-                value={formData.notes}
-                onChange={(e) =>
-                  setFormData({ ...formData, notes: e.target.value })
-                }
-                className="w-full px-3 py-2 border border-gray-300 rounded"
-                rows={2}
-                placeholder="Additional context or details"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-1">
-                Expires At (optional)
-              </label>
-              <input
-                type="date"
-                value={formData.expires_at}
-                onChange={(e) =>
-                  setFormData({ ...formData, expires_at: e.target.value })
-                }
-                className="w-full px-3 py-2 border border-gray-300 rounded"
-              />
-              <p className="text-sm text-gray-500 mt-1">
-                Leave blank for no expiration
-              </p>
-            </div>
-
-            <div className="flex gap-2">
-              <button
-                type="submit"
-                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-              >
-                {editingOverride ? "Update" : "Create"} Override
-              </button>
-              <button
-                type="button"
-                onClick={handleCancel}
-                className="px-4 py-2 bg-gray-300 text-gray-800 rounded hover:bg-gray-400"
-              >
-                Cancel
-              </button>
-            </div>
-          </form>
+          {!resolvedMember ? (
+            <form onSubmit={handleLookup} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-1">Member Email</label>
+                <input
+                  type="email"
+                  value={memberEmailInput}
+                  onChange={(e) => setMemberEmailInput(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded"
+                  required
+                  autoFocus
+                />
+                {lookupError && <p className="mt-1 text-sm text-red-600">{lookupError}</p>}
+              </div>
+              <div className="flex gap-2">
+                <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+                  Find Member
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCancel}
+                  className="px-4 py-2 bg-gray-300 text-gray-800 rounded hover:bg-gray-400"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          ) : (
+            <MemberOverrideForm
+              memberId={resolvedMember.id}
+              memberName={resolvedMember.name}
+              existing={editingOverride}
+              onSaved={handleSaved}
+              onCancel={handleCancel}
+            />
+          )}
         </div>
       )}
 

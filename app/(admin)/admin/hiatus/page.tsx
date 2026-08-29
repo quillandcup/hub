@@ -3,10 +3,26 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getUserFeaturePreviews } from "@/lib/features.server";
+import { computeHiatusTouchpoint } from "@/lib/hiatus-touchpoints";
 
 export const metadata: Metadata = {
   title: "Hiatus Tracking",
 };
+
+interface HiatusOverrideRow {
+  id: string;
+  override_type: string;
+  starts_at: string;
+  expires_at: string | null;
+}
+
+interface MemberRow {
+  id: string;
+  name: string;
+  email: string;
+  status: string;
+  member_status_overrides: HiatusOverrideRow[] | null;
+}
 
 export default async function HiatusTrackingPage() {
   const supabase = await createClient();
@@ -22,97 +38,68 @@ export default async function HiatusTrackingPage() {
   const enabledFeatures = await getUserFeaturePreviews(user.id);
   if (!enabledFeatures.includes('hiatus_tracking')) redirect("/admin");
 
-  // Fetch all members currently on hiatus with their hiatus history
-  const { data: onHiatusMembers } = await supabase
+  // Fetch all members currently on hiatus, with their hiatus overrides.
+  // member_status_overrides (override_type='hiatus') is the live source of
+  // truth — member_hiatus_history has no writer (see
+  // supabase/migrations/20260828170000_add_member_tenure_fields.sql).
+  const { data: onHiatusMembersRaw } = await supabase
     .from("members")
     .select(`
       id,
       name,
       email,
       status,
-      member_hiatus_history(*)
+      member_status_overrides(id, override_type, starts_at, expires_at)
     `)
     .eq("status", "on_hiatus")
     .order("name");
 
-  // Fetch members returning soon (hiatus ending in next 30 days)
-  const thirtyDaysFromNow = new Date();
-  thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
+  const now = new Date();
 
-  const { data: returningSoonMembers } = await supabase
-    .from("member_hiatus_history")
-    .select(`
-      id,
-      start_date,
-      end_date,
-      member:members(id, name, email, status)
-    `)
-    .not("end_date", "is", null)
-    .lte("end_date", thirtyDaysFromNow.toISOString().split("T")[0])
-    .gte("end_date", new Date().toISOString().split("T")[0])
-    .order("end_date", { ascending: true });
+  const onHiatusMembers = (onHiatusMembersRaw || []) as unknown as MemberRow[];
 
-  // Process on-hiatus members with progress calculation
-  const hiatusData = (onHiatusMembers || [])
-    .map((member: any) => {
-      // Find current (ongoing) hiatus
-      const currentHiatus = member.member_hiatus_history?.find((h: any) => !h.end_date);
+  // For each on-hiatus member, find their currently-active hiatus override
+  // (starts_at in the past, expires_at null or still in the future).
+  const hiatusData = onHiatusMembers
+    .map((member) => {
+      const currentHiatus = (member.member_status_overrides || [])
+        .filter((o) => o.override_type === "hiatus")
+        .filter((o) => new Date(o.starts_at) <= now && (!o.expires_at || new Date(o.expires_at) >= now))
+        .sort((a, b) => new Date(b.starts_at).getTime() - new Date(a.starts_at).getTime())[0];
 
-      if (!currentHiatus) return null; // Skip if no current hiatus
+      if (!currentHiatus) return null;
 
-      const startDate = new Date(currentHiatus.start_date);
-      const now = new Date();
+      const touchpoint = computeHiatusTouchpoint(currentHiatus.starts_at, currentHiatus.expires_at, now);
+      const startDate = new Date(currentHiatus.starts_at);
       const daysSinceStart = Math.floor((now.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
-      const monthsSinceStart = daysSinceStart / 30;
 
-      // Assume 12-month default hiatus length for progress calculation
-      const estimatedLength = 12; // months
-      const progressPercent = Math.min((monthsSinceStart / estimatedLength) * 100, 100);
-
-      let progressLabel = "";
-      let nextContactDays = 0;
-
-      if (progressPercent < 25) {
-        progressLabel = "25%";
-        nextContactDays = Math.ceil((estimatedLength * 0.25 * 30) - daysSinceStart);
-      } else if (progressPercent < 50) {
-        progressLabel = "50%";
-        nextContactDays = Math.ceil((estimatedLength * 0.50 * 30) - daysSinceStart);
-      } else if (progressPercent < 75) {
-        progressLabel = "75%";
-        nextContactDays = Math.ceil((estimatedLength * 0.75 * 30) - daysSinceStart);
-      } else {
-        progressLabel = "90%+";
-        nextContactDays = 0; // Contact soon/overdue
-      }
-
-      const nextContactDate = new Date(now);
-      nextContactDate.setDate(nextContactDate.getDate() + nextContactDays);
-
-      return {
-        member,
-        currentHiatus,
-        startDate,
-        daysSinceStart,
-        monthsSinceStart,
-        progressPercent,
-        progressLabel,
-        nextContactDate,
-        nextContactDays,
-      };
+      return { member, hiatus: currentHiatus, touchpoint, startDate, daysSinceStart };
     })
-    .filter(Boolean) // Remove nulls
-    .sort((a, b) => a!.nextContactDate.getTime() - b!.nextContactDate.getTime()); // Sort by next contact date
+    .filter((x): x is NonNullable<typeof x> => x !== null);
 
-  // Group by next contact month
-  const groupedByMonth = new Map<string, any[]>();
+  // Upcoming touchpoints — hiatuses with a known end date and a touchpoint
+  // still ahead, sorted chronologically by that date. Mirrors the "Next
+  // Month" tracking sheet this page replaces.
+  const upcomingTouchpoints = hiatusData
+    .filter((item) => item.touchpoint.nextTouchpoint !== null)
+    .sort(
+      (a, b) =>
+        new Date(a.touchpoint.nextTouchpoint!.date).getTime() -
+        new Date(b.touchpoint.nextTouchpoint!.date).getTime()
+    );
 
-  for (const item of hiatusData) {
-    if (!item) continue;
-    const monthKey = item.nextContactDate.toLocaleDateString("en-US", { month: "short" });
-    if (!groupedByMonth.has(monthKey)) {
-      groupedByMonth.set(monthKey, []);
-    }
+  // Returning soon — past the 75% mark of a known-duration hiatus, sorted
+  // by expected end date. Indefinite hiatuses (no expires_at) never appear
+  // here — there's no date to sort by.
+  const returningSoon = hiatusData
+    .filter((item) => item.touchpoint.isPastAllTouchpoints && item.hiatus.expires_at)
+    .sort((a, b) => new Date(a.hiatus.expires_at!).getTime() - new Date(b.hiatus.expires_at!).getTime());
+
+  // Group upcoming touchpoints by month for display, same as before.
+  const groupedByMonth = new Map<string, typeof upcomingTouchpoints>();
+  for (const item of upcomingTouchpoints) {
+    const monthKey = new Date(item.touchpoint.nextTouchpoint!.date).toLocaleDateString("en-US", { month: "short" });
+    if (!groupedByMonth.has(monthKey)) groupedByMonth.set(monthKey, []);
     groupedByMonth.get(monthKey)!.push(item);
   }
 
@@ -139,26 +126,29 @@ export default async function HiatusTrackingPage() {
           <div className="bg-white dark:bg-slate-900 rounded-lg shadow p-6">
             <h3 className="text-sm font-medium text-slate-600 dark:text-slate-400">Returning Soon</h3>
             <p className="mt-2 text-3xl font-bold text-slate-900 dark:text-slate-100">
-              {returningSoonMembers?.length || 0}
+              {returningSoon.length}
             </p>
-            <p className="text-xs text-slate-500 dark:text-slate-500 mt-1">Within 30 days</p>
+            <p className="text-xs text-slate-500 dark:text-slate-500 mt-1">Beyond 75%</p>
           </div>
           <div className="bg-white dark:bg-slate-900 rounded-lg shadow p-6">
-            <h3 className="text-sm font-medium text-slate-600 dark:text-slate-400">Next Follow-up</h3>
+            <h3 className="text-sm font-medium text-slate-600 dark:text-slate-400">Next Touchpoint</h3>
             <p className="mt-2 text-xl font-bold text-slate-900 dark:text-slate-100">
-              {hiatusData.length > 0
-                ? hiatusData[0]!.nextContactDate.toLocaleDateString("en-US", { month: "short", day: "numeric" })
+              {upcomingTouchpoints.length > 0
+                ? new Date(upcomingTouchpoints[0].touchpoint.nextTouchpoint!.date).toLocaleDateString("en-US", {
+                    month: "short",
+                    day: "numeric",
+                  })
                 : "None"}
             </p>
-            {hiatusData.length > 0 && (
+            {upcomingTouchpoints.length > 0 && (
               <p className="text-xs text-slate-500 dark:text-slate-500 mt-1">
-                {hiatusData[0]!.member.name}
+                {upcomingTouchpoints[0].member.name}
               </p>
             )}
           </div>
         </div>
 
-        {/* Current Hiatuses - Grouped by Next Contact Month */}
+        {/* Upcoming Touchpoints - Grouped by Month */}
         {Array.from(groupedByMonth.entries()).map(([month, items]) => (
           <div key={month} className="bg-white dark:bg-slate-900 rounded-lg shadow">
             <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800">
@@ -186,10 +176,14 @@ export default async function HiatusTrackingPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
-                  {items.map((item: any) => (
+                  {items.map((item) => (
                     <tr key={item.member.id} className="hover:bg-slate-50 dark:hover:bg-slate-800">
                       <td className="px-6 py-4 text-sm text-slate-700 dark:text-slate-300">
-                        {item.nextContactDate.toLocaleDateString("en-US", { month: "numeric", day: "numeric", year: "2-digit" })}
+                        {new Date(item.touchpoint.nextTouchpoint!.date).toLocaleDateString("en-US", {
+                          month: "numeric",
+                          day: "numeric",
+                          year: "2-digit",
+                        })}
                       </td>
                       <td className="px-6 py-4">
                         <Link
@@ -201,14 +195,14 @@ export default async function HiatusTrackingPage() {
                       </td>
                       <td className="px-6 py-4">
                         <span className="px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300">
-                          Hiatus {item.progressLabel}
+                          Hiatus {item.touchpoint.nextTouchpoint!.pct}%
                         </span>
                       </td>
                       <td className="px-6 py-4 text-sm text-slate-700 dark:text-slate-300">
                         {item.startDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
                       </td>
                       <td className="px-6 py-4 text-sm text-slate-700 dark:text-slate-300">
-                        {Math.floor(item.monthsSinceStart)} months
+                        {Math.floor(item.daysSinceStart / 30)} months
                       </td>
                     </tr>
                   ))}
@@ -219,7 +213,7 @@ export default async function HiatusTrackingPage() {
         ))}
 
         {/* Returning Soon */}
-        {returningSoonMembers && returningSoonMembers.length > 0 && (
+        {returningSoon.length > 0 && (
           <div className="bg-white dark:bg-slate-900 rounded-lg shadow">
             <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800">
               <h2 className="text-xl font-bold">Returning Soon - Beyond 75%</h2>
@@ -237,19 +231,23 @@ export default async function HiatusTrackingPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
-                  {returningSoonMembers.map((record: any) => (
-                    <tr key={record.id} className="hover:bg-slate-50 dark:hover:bg-slate-800">
+                  {returningSoon.map((item) => (
+                    <tr key={item.hiatus.id} className="hover:bg-slate-50 dark:hover:bg-slate-800">
                       <td className="px-6 py-4">
                         <span className="inline-block px-3 py-1 text-sm font-semibold rounded bg-blue-100 dark:bg-blue-900 text-blue-900 dark:text-blue-100">
-                          {new Date(record.end_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                          {new Date(item.hiatus.expires_at!).toLocaleDateString("en-US", {
+                            month: "short",
+                            day: "numeric",
+                            year: "numeric",
+                          })}
                         </span>
                       </td>
                       <td className="px-6 py-4">
                         <Link
-                          href={`/admin/members/${record.member.id}`}
+                          href={`/admin/members/${item.member.id}`}
                           className="text-sm font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 hover:underline"
                         >
-                          {record.member.name}
+                          {item.member.name}
                         </Link>
                       </td>
                     </tr>

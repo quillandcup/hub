@@ -126,16 +126,6 @@ export default function ManualReprocessingSection() {
           error={errors["/api/process/attendance"]}
           onProcess={() => handleProcess("/api/process/attendance", true)}
         />
-
-        <ProcessButton
-          label="Reprocess Hiatus Tracking"
-          endpoint="/api/process/hiatus"
-          requiresDateRange={false}
-          loading={loading["/api/process/hiatus"]}
-          result={results["/api/process/hiatus"]}
-          error={errors["/api/process/hiatus"]}
-          onProcess={() => handleProcess("/api/process/hiatus", false)}
-        />
       </div>
     </div>
   );

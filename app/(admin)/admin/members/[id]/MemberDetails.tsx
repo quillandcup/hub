@@ -5,6 +5,7 @@ import MemberAttendanceView from "@/components/MemberAttendanceView";
 import { MemberStatusBadge } from "@/components/MemberStatusBadge";
 import { slackEmojiToUnicode, formatSlackPermalink } from "@/lib/slack-emoji";
 import { gapLabelsByStintStart } from "@/lib/resubscription-detection";
+import { parseDateOnly } from "@/lib/member-tenure";
 
 interface MemberDetailsProps {
   member: any;
@@ -157,6 +158,34 @@ export default function MemberDetails({ member, attendanceRecords, hiatusHistory
               </span>
             </div>
           )}
+        </div>
+
+        <div className="bg-white dark:bg-slate-900 rounded-lg shadow p-6">
+          <h3 className="text-sm font-medium text-slate-600 dark:text-slate-400">First Joined</h3>
+          <p className="mt-2 text-2xl font-bold text-slate-900 dark:text-slate-100">
+            {member.first_joined_at
+              ? parseDateOnly(member.first_joined_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+              : "—"}
+          </p>
+        </div>
+
+        <div className="bg-white dark:bg-slate-900 rounded-lg shadow p-6">
+          <h3 className="text-sm font-medium text-slate-600 dark:text-slate-400">Most Recent Joined</h3>
+          <p className="mt-2 text-2xl font-bold text-slate-900 dark:text-slate-100">
+            {member.most_recent_joined_at
+              ? parseDateOnly(member.most_recent_joined_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+              : "—"}
+          </p>
+          {member.most_recent_joined_at && member.most_recent_joined_at !== member.first_joined_at && (
+            <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">Welcome back</p>
+          )}
+        </div>
+
+        <div className="bg-white dark:bg-slate-900 rounded-lg shadow p-6">
+          <h3 className="text-sm font-medium text-slate-600 dark:text-slate-400">Total Active Months</h3>
+          <p className="mt-2 text-2xl font-bold text-slate-900 dark:text-slate-100">
+            {member.total_active_months ?? 0}
+          </p>
         </div>
       </div>
 

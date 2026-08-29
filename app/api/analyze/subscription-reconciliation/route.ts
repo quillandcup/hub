@@ -302,8 +302,11 @@ export async function GET(request: NextRequest) {
           expected_kajabi_state: expectedState,
           actual_kajabi_state: kajabiState,
           stripe_state: stripeState,
+          override_id: override?.id || null,
           override_type: override?.override_type || null,
           override_reason: override?.reason || null,
+          override_notes: override?.notes || null,
+          override_expires_at: override?.expires_at || null,
           has_discrepancy: hasDiscrepancy,
           has_data: hasData,
         };

@@ -54,34 +54,50 @@ ON CONFLICT (normalized_name) DO NOTHING;
 -- MEMBERS (Bronze)
 -- =====================================================
 
-INSERT INTO members (id, name, email, joined_at, status, plan) VALUES
-('11111111-1111-1111-1111-111111111111', 'Owner 2', 'owner2@example.com', '2025-01-15', 'active', 'pro'),
-('22222222-2222-2222-2222-222222222222', 'Owner 1', 'owner1@example.com', '2025-01-20', 'active', 'pro'),
-('33333333-3333-3333-3333-333333333333', 'Sarah Johnson', 'sarah.j@example.com', '2025-02-01', 'active', 'basic'),
-('44444444-4444-4444-4444-444444444444', 'Mike Chen', 'mike.chen@example.com', '2025-02-05', 'on_hiatus', 'basic'),
-('55555555-5555-5555-5555-555555555555', 'Emily Davis', 'emily.d@example.com', '2025-02-10', 'active', 'pro'),
-('66666666-6666-6666-6666-666666666666', 'James Wilson', 'james.w@example.com', '2025-02-15', 'on_hiatus', 'basic'),
-('77777777-7777-7777-7777-777777777777', 'Lisa Martinez', 'lisa.m@example.com', '2025-03-01', 'active', 'pro'),
-('88888888-8888-8888-8888-888888888888', 'David Lee', 'david.lee@example.com', '2025-03-05', 'active', 'basic'),
-('99999999-9999-9999-9999-999999999999', 'Jennifer Brown', 'jennifer.b@example.com', '2024-12-01', 'cancelled', 'basic'),
-('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'Robert Taylor', 'robert.t@example.com', '2025-01-01', 'active', 'basic');
+-- first_joined_at / most_recent_joined_at / total_active_months are normally
+-- computed by /api/process/members from real Kajabi purchase history (see
+-- lib/member-tenure.ts) — these seed members have no Bronze Kajabi data at
+-- all, so that pipeline never touches them and those fields would otherwise
+-- stay NULL forever (which is what made /admin/hedgieversaries show empty
+-- despite having "active" members). Values below are hand-set,
+-- illustrative approximations for local dev, not pipeline-derived.
+-- Sarah and Emily's most_recent_joined_at intentionally matches their past
+-- hiatus's end date below (member_status_overrides) — an ended hiatus
+-- resets most_recent_joined_at, demonstrating the "welcome back" feature.
+INSERT INTO members (id, name, email, joined_at, status, plan, first_joined_at, most_recent_joined_at, total_active_months) VALUES
+('11111111-1111-1111-1111-111111111111', 'Owner 2', 'owner2@example.com', '2025-01-15', 'active', 'pro', '2025-01-15', '2025-01-15', 19),
+('22222222-2222-2222-2222-222222222222', 'Owner 1', 'owner1@example.com', '2025-01-20', 'active', 'pro', '2025-01-20', '2025-01-20', 19),
+('33333333-3333-3333-3333-333333333333', 'Sarah Johnson', 'sarah.j@example.com', '2025-02-01', 'active', 'basic', '2025-02-01', (current_date - 120), 18),
+('44444444-4444-4444-4444-444444444444', 'Mike Chen', 'mike.chen@example.com', '2025-02-05', 'on_hiatus', 'basic', '2025-02-05', '2025-02-05', 17),
+('55555555-5555-5555-5555-555555555555', 'Emily Davis', 'emily.d@example.com', '2025-02-10', 'active', 'pro', '2025-02-10', (current_date - 220), 18),
+('66666666-6666-6666-6666-666666666666', 'James Wilson', 'james.w@example.com', '2025-02-15', 'on_hiatus', 'basic', '2025-02-15', '2025-02-15', 16),
+('77777777-7777-7777-7777-777777777777', 'Lisa Martinez', 'lisa.m@example.com', '2025-03-01', 'active', 'pro', '2025-03-01', '2025-03-01', 18),
+('88888888-8888-8888-8888-888888888888', 'David Lee', 'david.lee@example.com', '2025-03-05', 'active', 'basic', '2025-03-05', '2025-03-05', 17),
+('99999999-9999-9999-9999-999999999999', 'Jennifer Brown', 'jennifer.b@example.com', '2024-12-01', 'cancelled', 'basic', '2024-12-01', '2024-12-01', 21),
+('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'Robert Taylor', 'robert.t@example.com', '2025-01-01', 'active', 'basic', '2025-01-01', '2025-01-01', 20);
 
 -- =====================================================
--- HEDGIE HIATUS HISTORY (Bronze)
+-- MEMBER STATUS OVERRIDES — hiatus (Local layer)
 -- =====================================================
+-- member_status_overrides (override_type='hiatus') is the live source of
+-- truth for hiatus tracking — member_hiatus_history has no writer anymore
+-- (see supabase/migrations/20260828170000_add_member_tenure_fields.sql).
+-- /admin/hiatus, the member detail page, and tenure calculations all read
+-- from here. Dates are relative to now() (not fixed calendar dates) so
+-- Mike/James stay "currently mid-hiatus" and Sarah/Emily stay "returned a
+-- while ago" no matter when this seed is run, instead of drifting stale.
+INSERT INTO member_status_overrides (member_id, override_type, reason, notes, starts_at, expires_at) VALUES
+-- Mike: ~50% through a 90-day hiatus — shows up in "Upcoming touchpoints"
+('44444444-4444-4444-4444-444444444444', 'hiatus', 'Taking time off to focus on novel', 'Will return for upcoming sessions', now() - interval '45 days', now() + interval '45 days'),
 
-INSERT INTO member_hiatus_history (member_id, start_date, end_date, reason, notes) VALUES
--- Mike's current hiatus
-('44444444-4444-4444-4444-444444444444', '2026-03-15', '2026-04-30', 'Taking time off to focus on novel', 'Will return for May sessions'),
+-- James: beyond 75% through a 100-day sabbatical — shows up in "Returning Soon"
+('66666666-6666-6666-6666-666666666666', 'hiatus', 'Personal sabbatical', 'Expecting first child', now() - interval '80 days', now() + interval '20 days'),
 
--- James' current hiatus
-('66666666-6666-6666-6666-666666666666', '2026-02-01', '2026-05-01', 'Personal sabbatical', 'Expecting first child'),
+-- Sarah: hiatus ended a few months ago — demonstrates "welcome back"
+('33333333-3333-3333-3333-333333333333', 'hiatus', 'Holiday break', 'Returned early', now() - interval '150 days', now() - interval '120 days'),
 
--- Sarah's past hiatus (ended)
-('33333333-3333-3333-3333-333333333333', '2025-12-01', '2026-01-31', 'Holiday break', 'Returned Feb 1'),
-
--- Emily's past hiatus (ended)
-('55555555-5555-5555-5555-555555555555', '2025-11-15', '2025-12-15', 'Work deadline', 'Book manuscript deadline');
+-- Emily: an older, already-ended hiatus
+('55555555-5555-5555-5555-555555555555', 'hiatus', 'Work deadline', 'Book manuscript deadline', now() - interval '250 days', now() - interval '220 days');
 
 -- =====================================================
 -- PRICKLES (Silver)

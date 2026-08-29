@@ -128,12 +128,17 @@ export default async function MemberDetailPage({
     .eq("canonical_email", member.email)
     .order("alias_email");
 
-  // Fetch hiatus history
-  const { data: hiatusHistory } = await supabase
-    .from("member_hiatus_history")
-    .select("*")
+  // Fetch hiatus history — member_status_overrides (override_type='hiatus')
+  // is the live source of truth; member_hiatus_history has no writer (see
+  // supabase/migrations/20260828170000_add_member_tenure_fields.sql).
+  // Aliased to the shape MemberDetails.tsx already renders.
+  const { data: hiatusOverrides } = await supabase
+    .from("member_status_overrides")
+    .select("id, start_date:starts_at, end_date:expires_at, reason, notes")
     .eq("member_id", id)
-    .order("start_date", { ascending: false });
+    .eq("override_type", "hiatus")
+    .order("starts_at", { ascending: false });
+  const hiatusHistory = hiatusOverrides || [];
 
   // Fetch Kajabi membership history — query all customer IDs across primary + alias emails
   const allEmails = [member.email, ...(emailAliases || []).map((a: any) => a.alias_email)];

@@ -1,6 +1,8 @@
 import { createHash } from "crypto";
 import { requireAdmin } from "@/lib/supabase/api-auth";
-import { isMembershipOffer } from "@/lib/membership";
+import { isMembershipOffer, trialEndDate } from "@/lib/membership";
+import { buildMembershipStints } from "@/lib/kajabi/membership-history";
+import { computeMemberTenure, computeActiveDays, type HiatusWindow } from "@/lib/member-tenure";
 import { NextRequest, NextResponse, after } from "next/server";
 import { triggerAttendanceReprocessing } from "@/lib/processing/trigger";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -26,16 +28,6 @@ function toSocialUrl(base: string, handle: string | null | undefined): string | 
   const clean = trimmed.replace(/^[@/\s]+/, "").replace(/\/+$/, "")
   if (!clean) return null
   return `${base}/${clean}`
-}
-
-// The end of a purchase's trial window, or null if the offer has no trial
-// (or the purchase is missing the start date needed to compute it).
-function trialEndDate(purchase: any, offer: any): Date | null {
-  const trialDays = offer?.trial_period_days ?? 0;
-  if (trialDays <= 0 || !purchase.effective_start_at) return null;
-  const end = new Date(purchase.effective_start_at);
-  end.setDate(end.getDate() + trialDays);
-  return end;
 }
 
 // Extend timeout — member processing itself is fast (~10s), but we kick off
@@ -94,6 +86,39 @@ async function fetchAllBronzeRows(
   return allRows;
 }
 
+// Same pagination as fetchAllBronzeRows, for public-schema (Local/Silver)
+// tables that can also grow past 1000 rows — used here for `members` and
+// `member_status_overrides`.
+async function fetchAllPublicRows(
+  supabase: SupabaseClient,
+  table: string,
+  columns: string = "*",
+  filter?: (query: any) => any
+): Promise<any[]> {
+  const BATCH_SIZE = 1000;
+  let allRows: any[] = [];
+  let offset = 0;
+  let hasMore = true;
+
+  while (hasMore) {
+    let query = supabase.from(table).select(columns);
+    if (filter) query = filter(query);
+    const { data: batch, error } = await query.range(offset, offset + BATCH_SIZE - 1);
+
+    if (error) throw error;
+
+    if (batch && batch.length > 0) {
+      allRows = allRows.concat(batch);
+      offset += batch.length;
+      hasMore = batch.length === BATCH_SIZE;
+    } else {
+      hasMore = false;
+    }
+  }
+
+  return allRows;
+}
+
 export async function POST(request: NextRequest) {
   const auth = await requireAdmin(request);
   if (!auth.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -111,7 +136,9 @@ export async function POST(request: NextRequest) {
       offers,
       { data: staffMembers, error: staffError },
       { data: emailAliases, error: aliasesError },
-      { data: stripeCustomers, error: stripeError }
+      { data: stripeCustomers, error: stripeError },
+      existingMembers,
+      hiatusOverrides,
     ] = await Promise.all([
       fetchAllBronzeRows(supabase, "kajabi_contacts"),
       fetchAllBronzeRows(supabase, "kajabi_customers"),
@@ -119,7 +146,11 @@ export async function POST(request: NextRequest) {
       fetchAllBronzeRows(supabase, "kajabi_offers"),
       supabase.from("staff").select("*"),
       supabase.from("member_email_aliases").select("*"),
-      supabase.schema('bronze').from("stripe_customers").select("stripe_customer_id, email")
+      supabase.schema('bronze').from("stripe_customers").select("stripe_customer_id, email"),
+      fetchAllPublicRows(supabase, "members", "id, email"),
+      fetchAllPublicRows(supabase, "member_status_overrides", "member_id, starts_at, expires_at", (q) =>
+        q.eq("override_type", "hiatus")
+      ),
     ]);
 
     if (staffError) throw staffError;
@@ -134,6 +165,8 @@ export async function POST(request: NextRequest) {
       staff_count: staffMembers?.length || 0,
       email_aliases_count: emailAliases?.length || 0,
       stripe_customers_count: stripeCustomers?.length || 0,
+      existing_members_count: existingMembers?.length || 0,
+      hiatus_overrides_count: hiatusOverrides?.length || 0,
     });
 
     // STEP 2: Build lookup maps
@@ -149,6 +182,22 @@ export async function POST(request: NextRequest) {
     function resolveEmail(email: string): string {
       const normalized = email.toLowerCase();
       return aliasMap.get(normalized) || normalized;
+    }
+
+    // Hiatus windows for tenure calculations (lib/member-tenure.ts): resolve
+    // member_status_overrides.member_id (our internal UUID) to the email
+    // this run's tenure computation is keyed by, via the members table.
+    const emailByMemberId = new Map<string, string>();
+    for (const m of existingMembers || []) {
+      if (m.email) emailByMemberId.set(m.id, resolveEmail(m.email));
+    }
+    const hiatusWindowsByEmail = new Map<string, HiatusWindow[]>();
+    for (const override of hiatusOverrides || []) {
+      const email = emailByMemberId.get(override.member_id);
+      if (!email) continue;
+      const windows = hiatusWindowsByEmail.get(email) ?? [];
+      windows.push({ startsAt: override.starts_at, endsAt: override.expires_at });
+      hiatusWindowsByEmail.set(email, windows);
     }
 
     // Offer lookup by ID
@@ -272,11 +321,17 @@ export async function POST(request: NextRequest) {
         const customer = customerByEmail.get(email);
         const attrs = customer?.data?.attributes;
 
+        const stints = buildMembershipStints(contactPurchases, offerMap);
+        const tenure = computeMemberTenure(stints, hiatusWindowsByEmail.get(email) ?? [], new Date());
+
         kajabiMembers.push({
           email,
           _originalEmail: contact.email.toLowerCase(),
           name,
           joined_at: contact.created_at_kajabi.split('T')[0],
+          first_joined_at: tenure.firstJoinedAt,
+          most_recent_joined_at: tenure.mostRecentJoinedAt,
+          total_active_months: tenure.totalActiveMonths,
           status,
           plan,
           source: 'kajabi',
@@ -317,6 +372,10 @@ export async function POST(request: NextRequest) {
         if (staff.hire_date && staff.hire_date < member.joined_at) {
           member.joined_at = staff.hire_date;
         }
+        if (staff.hire_date && (!member.first_joined_at || staff.hire_date < member.first_joined_at)) {
+          member.first_joined_at = staff.hire_date;
+          if (!member.most_recent_joined_at) member.most_recent_joined_at = staff.hire_date;
+        }
         // Mark as processed
         staffByEmail.delete(member.email);
       }
@@ -339,10 +398,18 @@ export async function POST(request: NextRequest) {
 
     // Add staff members who have NO Kajabi record — always active
     for (const [email, staff] of staffByEmail) {
+      const staffJoinedAt = staff.hire_date || '2020-01-01';
+      const staffHiatusWindows = hiatusWindowsByEmail.get(email) ?? [];
+      const now = new Date();
       membersByEmail.set(email, {
         email,
         name: staff.name,
-        joined_at: staff.hire_date || '2020-01-01',
+        joined_at: staffJoinedAt,
+        first_joined_at: staffJoinedAt,
+        most_recent_joined_at: staffJoinedAt,
+        total_active_months: Math.floor(
+          computeActiveDays(staffJoinedAt, now.toISOString(), staffHiatusWindows, now) / 30
+        ),
         status: 'active' as const,
         plan: null,
         source: 'staff',
