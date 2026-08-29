@@ -77,6 +77,8 @@ export default function HostsClient({ prickleTypes }: { prickleTypes: PrickleTyp
   const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(EMPTY_NEW_FORM);
+  const [bootstrapping, setBootstrapping] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
 
   const month = tab === "current" ? CURRENT_MONTH : NEXT_MONTH;
 
@@ -151,6 +153,32 @@ export default function HostsClient({ prickleTypes }: { prickleTypes: PrickleTyp
       return;
     }
     fetchAll();
+  }
+
+  async function handleBootstrap() {
+    setError(null);
+    setMessage(null);
+    setBootstrapping(true);
+    try {
+      const res = await fetch("/api/prickle-schedules/bootstrap", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ month: CURRENT_MONTH }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error || "Failed to bootstrap from calendar");
+      setMessage(
+        `Bootstrapped ${body.created} schedule${body.created === 1 ? "" : "s"} from the calendar` +
+          (body.skippedExisting ? `, skipped ${body.skippedExisting} already there` : "") +
+          (body.copiedToNextMonth ? `, copied ${body.copiedToNextMonth} to next month` : "") +
+          "."
+      );
+      fetchAll();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setBootstrapping(false);
+    }
   }
 
   async function handleToggleLock() {
@@ -255,6 +283,12 @@ export default function HostsClient({ prickleTypes }: { prickleTypes: PrickleTyp
         </div>
       )}
 
+      {message && (
+        <div className="mb-4 p-4 bg-emerald-50 border border-emerald-200 rounded">
+          <p className="text-emerald-800">{message}</p>
+        </div>
+      )}
+
       <div className="flex items-center justify-between mb-4">
         <div className="flex gap-2">
           {!showForm && (
@@ -263,6 +297,16 @@ export default function HostsClient({ prickleTypes }: { prickleTypes: PrickleTyp
               className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
             >
               Add Schedule
+            </button>
+          )}
+          {tab === "current" && (
+            <button
+              onClick={handleBootstrap}
+              disabled={bootstrapping}
+              className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50"
+              title="Create confirmed schedules from who's already hosting on the calendar this month, then copy them to next month"
+            >
+              {bootstrapping ? "Bootstrapping…" : "Bootstrap from calendar"}
             </button>
           )}
         </div>

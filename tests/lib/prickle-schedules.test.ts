@@ -5,6 +5,7 @@ import {
   getNextMonthStart,
   isMonthLocked,
   generateScheduleInstanceDates,
+  inferRecurrenceFromDates,
   summarizeMonth,
   validateScheduleInput,
   formatScheduleLabel,
@@ -172,6 +173,48 @@ describe("generateScheduleInstanceDates", () => {
       monthEnd
     );
     expect(dates).toEqual([]);
+  });
+});
+
+describe("inferRecurrenceFromDates", () => {
+  // September 2026: Fridays fall on 4, 11, 18, 25 (4 occurrences)
+  const monthStart = new Date("2026-09-01T00:00:00Z");
+  const monthEnd = new Date("2026-09-30T00:00:00Z");
+  const fri = (day: number) => new Date(`2026-09-${String(day).padStart(2, "0")}T00:00:00Z`);
+
+  it("returns null for no dates", () => {
+    expect(inferRecurrenceFromDates([], monthStart, monthEnd)).toBeNull();
+  });
+
+  it("returns null when the dates don't share a weekday", () => {
+    expect(inferRecurrenceFromDates([fri(4), new Date("2026-09-05T00:00:00Z")], monthStart, monthEnd)).toBeNull();
+  });
+
+  it("infers weekly when every matching weekday in the month is present", () => {
+    expect(inferRecurrenceFromDates([fri(4), fri(11), fri(18), fri(25)], monthStart, monthEnd)).toEqual({
+      recurrenceType: "weekly",
+      dayOfWeek: 5,
+      weekOfMonth: null,
+      recurrenceAnchorDate: null,
+    });
+  });
+
+  it("infers biweekly, anchored to the earliest occurrence, for a partial alternating set", () => {
+    expect(inferRecurrenceFromDates([fri(18), fri(4)], monthStart, monthEnd)).toEqual({
+      recurrenceType: "biweekly",
+      dayOfWeek: 5,
+      weekOfMonth: null,
+      recurrenceAnchorDate: "2026-09-04",
+    });
+  });
+
+  it("infers monthly, at the matching week-of-month, for a single occurrence", () => {
+    expect(inferRecurrenceFromDates([fri(11)], monthStart, monthEnd)).toEqual({
+      recurrenceType: "monthly",
+      dayOfWeek: 5,
+      weekOfMonth: 2,
+      recurrenceAnchorDate: null,
+    });
   });
 });
 
