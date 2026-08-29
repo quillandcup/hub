@@ -41,6 +41,7 @@ const navigation: NavSection[] = [
       { name: "Resubscriptions", href: "/admin/insights/resubscriptions", icon: "🔄" },
       { name: "Community Stats", href: "/admin/stats", icon: "✨" },
       { name: "Slack Engagement", href: "/admin/insights/slack-engagement", icon: "💬" },
+      { name: "Hosts", href: "/admin/hosts", icon: "🎙️" },
     ],
   },
   {
