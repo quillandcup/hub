@@ -304,6 +304,11 @@ Show a `/live` page displaying the currently active prickle and its attendees in
 
 ## UI Enhancements
 
+### Custom Date Picker (Needs Scoping)
+Every date field in the app (`<input type="date">` — e.g. Writing Projects' Log Progress date, goal start/end dates) uses the browser's native date picker. Feedback: the native picker's up/down arrows for month navigation aren't intuitive — unclear which direction is "forward" in time. Left/right arrows (with the month view sliding left/right on change, not up/down as it does now) would read more clearly.
+
+**Why not a quick fix:** the native picker is rendered entirely by the browser itself, outside the page's DOM — there's no CSS/JS hook to restyle its arrows, direction, or transitions. Fixing this means replacing `<input type="date">` with a custom-built calendar component (a library like `react-datepicker`, or hand-rolled) everywhere a date is picked, which gives up the native input's free accessibility, mobile keyboard integration, and OS-consistent look. Scope as a real component-replacement project, not a style tweak, before starting.
+
 ### Navigation & Layout
 - **User settings - additional preferences**
   - Preferred theme (dark/light/device default)
