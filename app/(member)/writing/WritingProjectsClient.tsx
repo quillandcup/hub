@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import NewProjectModal from "@/components/writing/NewProjectModal";
 import LogProgressModal from "@/components/writing/LogProgressModal";
-import GoalProgressBar from "@/components/writing/GoalProgressBar";
+import GoalDisplay from "@/components/writing/GoalDisplay";
 import { MEASURE_LABELS } from "@/lib/writing-projects";
 import type { WritingProjectRow } from "./actions";
 
@@ -102,15 +102,7 @@ export default function WritingProjectsClient({ initialProjects }: WritingProjec
             {project.goals.length > 0 && (
               <div className="mt-4 space-y-3">
                 {project.goals.map((goal) => (
-                  <GoalProgressBar
-                    key={goal.id}
-                    measure={goal.measure}
-                    current={goal.current}
-                    target={goal.targetAmount}
-                    percent={goal.percent}
-                    parTarget={goal.parTarget}
-                    onPace={goal.onPace}
-                  />
+                  <GoalDisplay key={goal.id} goal={goal} />
                 ))}
               </div>
             )}

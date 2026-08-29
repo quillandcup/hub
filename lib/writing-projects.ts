@@ -115,3 +115,91 @@ function daysBetween(fromIso: string, toIso: string): number {
 function isoDate(date: Date): string {
   return date.toISOString().slice(0, 10);
 }
+
+export type HabitPeriod = "day" | "week" | "month";
+
+export interface HabitProgressInput {
+  entries: { entryDate: string; amount: number }[]; // already filtered to this goal's measure (and project, if scoped)
+  period: HabitPeriod;
+  /** null means "logged something counts" -- any activity in the period is a hit. */
+  threshold: number | null;
+  now: Date;
+}
+
+export interface HabitProgress {
+  currentStreak: number;
+  longestStreak: number;
+  /** Average length of completed hit-runs (mirrors TrackBear's "typical streak length"). */
+  typicalStreak: number;
+  /** Hit periods / periods tracked (from the first-ever entry's period through the current period), 0-100. */
+  hitRatePercent: number;
+}
+
+/** Monday-start week index / day index / month index -- an integer that increments by exactly 1 per period, so consecutive periods differ by 1 regardless of period type. */
+function periodIndex(entryDateIso: string, period: HabitPeriod): number {
+  const [y, m, d] = entryDateIso.split("-").map(Number);
+  const utcMs = Date.UTC(y, m - 1, d);
+  if (period === "month") return y * 12 + (m - 1);
+  if (period === "day") return Math.floor(utcMs / (24 * 60 * 60 * 1000));
+
+  // week: normalize to that week's Monday before indexing, so any day in the
+  // same ISO week maps to the same index.
+  const date = new Date(utcMs);
+  const dayOfWeek = date.getUTCDay();
+  const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+  date.setUTCDate(date.getUTCDate() - daysToMonday);
+  return Math.floor(date.getTime() / (7 * 24 * 60 * 60 * 1000));
+}
+
+/**
+ * A period is a "hit" if its total logged amount meets the threshold (or, with no threshold, if
+ * anything was logged at all). Per-period totals sum every entry's `amount` at face value
+ * (delta and set_total alike) -- unlike the project's all-time cumulative total, a habit period
+ * asks "how much did they log this period," not "what's the running total," so set_total's
+ * replace-the-total semantics don't apply here.
+ */
+export function computeHabitGoalProgress(input: HabitProgressInput): HabitProgress {
+  const { entries, period, threshold, now } = input;
+  const empty: HabitProgress = { currentStreak: 0, longestStreak: 0, typicalStreak: 0, hitRatePercent: 0 };
+  if (entries.length === 0) return empty;
+
+  const totalsByPeriod = new Map<number, number>();
+  for (const e of entries) {
+    const idx = periodIndex(e.entryDate, period);
+    totalsByPeriod.set(idx, (totalsByPeriod.get(idx) ?? 0) + e.amount);
+  }
+
+  const hitPeriods = [...totalsByPeriod.entries()]
+    .filter(([, total]) => (threshold == null ? true : total >= threshold))
+    .map(([idx]) => idx)
+    .sort((a, b) => a - b);
+  if (hitPeriods.length === 0) return empty;
+
+  const runs: number[] = [];
+  let runLength = 1;
+  for (let i = 1; i < hitPeriods.length; i++) {
+    if (hitPeriods[i] === hitPeriods[i - 1] + 1) {
+      runLength++;
+    } else {
+      runs.push(runLength);
+      runLength = 1;
+    }
+  }
+  runs.push(runLength);
+
+  const longestStreak = Math.max(...runs);
+  const typicalStreak = runs.reduce((a, b) => a + b, 0) / runs.length;
+
+  const currentPeriod = periodIndex(isoDate(now), period);
+  const lastHitPeriod = hitPeriods[hitPeriods.length - 1];
+  // The current period isn't over yet, so being one period behind (haven't logged
+  // this period yet, but did last period) doesn't break the streak -- same grace
+  // window as lib/streaks.ts's attendance-streak logic.
+  const currentStreak = lastHitPeriod >= currentPeriod - 1 ? runs[runs.length - 1] : 0;
+
+  const firstPeriod = Math.min(...totalsByPeriod.keys());
+  const periodsTracked = currentPeriod - firstPeriod + 1;
+  const hitRatePercent = (hitPeriods.length / periodsTracked) * 100;
+
+  return { currentStreak, longestStreak, typicalStreak, hitRatePercent };
+}

@@ -6,19 +6,25 @@ import { revalidatePath } from "next/cache";
 import {
   WRITING_MEASURES,
   computeCumulativeTotal,
+  computeCumulativeSeries,
   computeGoalProgress,
+  computeHabitGoalProgress,
   type WritingMeasure,
   type EntryMode,
+  type HabitPeriod,
 } from "@/lib/writing-projects";
 
 const PHASES = ["planning", "drafting", "revising", "on_hold", "complete", "abandoned"] as const;
 type Phase = (typeof PHASES)[number];
+
+const HABIT_PERIODS: HabitPeriod[] = ["day", "week", "month"];
 
 export interface WritingProjectRow {
   id: string;
   title: string;
   phase: Phase;
   createdAt: string;
+  showOnProfile: boolean;
   totalsByMeasure: Partial<Record<WritingMeasure, number>>;
   goals: GoalRow[];
 }
@@ -31,22 +37,39 @@ export interface EntryRow {
   mode: EntryMode;
   amount: number;
   note: string | null;
+  tags: string[];
   createdAt: string;
 }
 
-export interface GoalRow {
+interface GoalRowBase {
   id: string;
   projectId: string;
   measure: WritingMeasure;
+  isStarred: boolean;
+}
+
+export interface TargetGoalRow extends GoalRowBase {
+  kind: "target";
   targetAmount: number;
   startDate: string | null;
   endDate: string | null;
-  isStarred: boolean;
   current: number;
   percent: number;
   parTarget: number | null;
   onPace: boolean | null;
 }
+
+export interface HabitGoalRow extends GoalRowBase {
+  kind: "habit";
+  habitPeriod: HabitPeriod;
+  habitThreshold: number | null;
+  currentStreak: number;
+  longestStreak: number;
+  typicalStreak: number;
+  hitRatePercent: number;
+}
+
+export type GoalRow = TargetGoalRow | HabitGoalRow;
 
 type IdentityContext =
   | { error: string }
@@ -77,19 +100,20 @@ export async function getMyProjects(): Promise<WritingProjectRow[]> {
   const [{ data: projects }, { data: entries }, { data: goals }] = await Promise.all([
     supabase
       .from("writing_projects")
-      .select("id, title, phase, created_at")
+      .select("id, title, phase, created_at, show_on_profile")
       .eq("member_id", effectiveIdentity.memberId)
       .is("archived_at", null)
       .order("created_at", { ascending: false }),
     supabase
       .from("writing_progress_entries")
-      .select("id, project_id, entry_date, measure, mode, amount, note, created_at")
+      .select("id, project_id, entry_date, measure, mode, amount, note, tags, created_at")
       .eq("member_id", effectiveIdentity.memberId),
     supabase
       .from("writing_goals")
-      .select("id, project_id, measure, target_amount, start_date, end_date, is_starred")
-      .eq("member_id", effectiveIdentity.memberId)
-      .eq("goal_type", "target"),
+      .select(
+        "id, project_id, goal_type, measure, target_amount, start_date, end_date, habit_period, habit_threshold, is_starred"
+      )
+      .eq("member_id", effectiveIdentity.memberId),
   ]);
 
   return buildProjectRows(projects ?? [], entries ?? [], goals ?? []);
@@ -105,58 +129,110 @@ export async function getProject(
   const [{ data: projectRow }, { data: entryRows }, { data: goalRows }] = await Promise.all([
     supabase
       .from("writing_projects")
-      .select("id, title, phase, created_at")
+      .select("id, title, phase, created_at, show_on_profile")
       .eq("id", projectId)
       .eq("member_id", effectiveIdentity.memberId)
       .single(),
     supabase
       .from("writing_progress_entries")
-      .select("id, project_id, entry_date, measure, mode, amount, note, created_at")
+      .select("id, project_id, entry_date, measure, mode, amount, note, tags, created_at")
       .eq("project_id", projectId)
       .eq("member_id", effectiveIdentity.memberId)
       .order("entry_date", { ascending: false })
       .order("created_at", { ascending: false }),
     supabase
       .from("writing_goals")
-      .select("id, project_id, measure, target_amount, start_date, end_date, is_starred")
+      .select(
+        "id, project_id, goal_type, measure, target_amount, start_date, end_date, habit_period, habit_threshold, is_starred"
+      )
       .eq("project_id", projectId)
-      .eq("member_id", effectiveIdentity.memberId)
-      .eq("goal_type", "target"),
+      .eq("member_id", effectiveIdentity.memberId),
   ]);
 
   if (!projectRow) return { error: "Project not found" };
 
-  const [{ project }] = buildProjectRows([projectRow], entryRows ?? [], goalRows ?? []).map((p) => ({
-    project: p,
-  }));
-
+  const [project] = buildProjectRows([projectRow], entryRows ?? [], goalRows ?? []);
   const entries: EntryRow[] = (entryRows ?? []).map(toEntryRow);
 
   return { project, entries };
 }
 
-function buildProjectRows(
-  projects: { id: string; title: string; phase: string; created_at: string }[],
-  entries: {
-    id: string;
-    project_id: string;
-    entry_date: string;
-    measure: string;
-    mode: string;
-    amount: number;
-    note: string | null;
-    created_at: string;
-  }[],
-  goals: {
-    id: string;
-    project_id: string;
-    measure: string;
-    target_amount: number;
-    start_date: string | null;
-    end_date: string | null;
-    is_starred: boolean;
-  }[]
-): WritingProjectRow[] {
+interface RawProject {
+  id: string;
+  title: string;
+  phase: string;
+  created_at: string;
+  show_on_profile: boolean;
+}
+
+interface RawEntry {
+  id: string;
+  project_id: string;
+  entry_date: string;
+  measure: string;
+  mode: string;
+  amount: number;
+  note: string | null;
+  tags: string[] | null;
+  created_at: string;
+}
+
+interface RawGoal {
+  id: string;
+  project_id: string;
+  goal_type: string;
+  measure: string;
+  target_amount: number | null;
+  start_date: string | null;
+  end_date: string | null;
+  habit_period: string | null;
+  habit_threshold: number | null;
+  is_starred: boolean;
+}
+
+function buildGoalRow(g: RawGoal, projectEntries: RawEntry[], now: Date): GoalRow {
+  const measureEntries = projectEntries.filter((e) => e.measure === g.measure);
+  const base = { id: g.id, projectId: g.project_id, measure: g.measure as WritingMeasure, isStarred: g.is_starred };
+
+  if (g.goal_type === "habit") {
+    const progress = computeHabitGoalProgress({
+      entries: measureEntries.map((e) => ({ entryDate: e.entry_date, amount: e.amount })),
+      period: (g.habit_period as HabitPeriod) ?? "week",
+      threshold: g.habit_threshold,
+      now,
+    });
+    return {
+      ...base,
+      kind: "habit",
+      habitPeriod: (g.habit_period as HabitPeriod) ?? "week",
+      habitThreshold: g.habit_threshold,
+      ...progress,
+    };
+  }
+
+  const progress = computeGoalProgress({
+    entries: measureEntries.map((e) => ({
+      entryDate: e.entry_date,
+      createdAt: e.created_at,
+      mode: e.mode as EntryMode,
+      amount: e.amount,
+    })),
+    targetAmount: g.target_amount ?? 0,
+    startDate: g.start_date,
+    endDate: g.end_date,
+    now,
+  });
+  return {
+    ...base,
+    kind: "target",
+    targetAmount: g.target_amount ?? 0,
+    startDate: g.start_date,
+    endDate: g.end_date,
+    ...progress,
+  };
+}
+
+function buildProjectRows(projects: RawProject[], entries: RawEntry[], goals: RawGoal[]): WritingProjectRow[] {
   const now = new Date();
 
   return projects.map((project) => {
@@ -176,58 +252,23 @@ function buildProjectRows(
       );
     }
 
-    const projectGoals: GoalRow[] = goals
+    const projectGoals = goals
       .filter((g) => g.project_id === project.id)
-      .map((g) => {
-        const measureEntries = projectEntries.filter((e) => e.measure === g.measure);
-        const progress = computeGoalProgress({
-          entries: measureEntries.map((e) => ({
-            entryDate: e.entry_date,
-            createdAt: e.created_at,
-            mode: e.mode as EntryMode,
-            amount: e.amount,
-          })),
-          targetAmount: g.target_amount,
-          startDate: g.start_date,
-          endDate: g.end_date,
-          now,
-        });
-        return {
-          id: g.id,
-          projectId: g.project_id,
-          measure: g.measure as WritingMeasure,
-          targetAmount: g.target_amount,
-          startDate: g.start_date,
-          endDate: g.end_date,
-          isStarred: g.is_starred,
-          current: progress.current,
-          percent: progress.percent,
-          parTarget: progress.parTarget,
-          onPace: progress.onPace,
-        };
-      });
+      .map((g) => buildGoalRow(g, projectEntries, now));
 
     return {
       id: project.id,
       title: project.title,
       phase: project.phase as Phase,
       createdAt: project.created_at,
+      showOnProfile: project.show_on_profile,
       totalsByMeasure,
       goals: projectGoals,
     };
   });
 }
 
-function toEntryRow(e: {
-  id: string;
-  project_id: string;
-  entry_date: string;
-  measure: string;
-  mode: string;
-  amount: number;
-  note: string | null;
-  created_at: string;
-}): EntryRow {
+function toEntryRow(e: RawEntry): EntryRow {
   return {
     id: e.id,
     projectId: e.project_id,
@@ -236,6 +277,7 @@ function toEntryRow(e: {
     mode: e.mode as EntryMode,
     amount: e.amount,
     note: e.note,
+    tags: e.tags ?? [],
     createdAt: e.created_at,
   };
 }
@@ -264,6 +306,27 @@ export async function createProject(
   return { success: true, id: data.id };
 }
 
+export async function toggleProjectVisibility(
+  projectId: string,
+  showOnProfile: boolean
+): Promise<{ success: true } | { error: string }> {
+  const ctx = await requireIdentity();
+  if ("error" in ctx) return ctx;
+  const { supabase, effectiveIdentity } = ctx;
+
+  const { error } = await supabase
+    .from("writing_projects")
+    .update({ show_on_profile: showOnProfile })
+    .eq("id", projectId)
+    .eq("member_id", effectiveIdentity.memberId);
+
+  if (error) return { error: error.message };
+
+  revalidatePath(`/writing/${projectId}`);
+  revalidatePath(`/members/${effectiveIdentity.memberId}`);
+  return { success: true };
+}
+
 export interface LogProgressInput {
   projectId: string;
   entryDate: string;
@@ -271,6 +334,7 @@ export interface LogProgressInput {
   mode: EntryMode;
   amount: number;
   note?: string;
+  tags?: string[];
 }
 
 async function assertOwnsProject(
@@ -304,6 +368,11 @@ function validateEntryInput(input: {
   return null;
 }
 
+function normalizeTags(tags: string[] | undefined): string[] {
+  if (!tags) return [];
+  return [...new Set(tags.map((t) => t.trim().toLowerCase()).filter(Boolean))];
+}
+
 export async function logProgress(
   input: LogProgressInput
 ): Promise<{ success: true; id: string } | { error: string }> {
@@ -327,6 +396,7 @@ export async function logProgress(
       mode: input.mode,
       amount: input.amount,
       note: input.note?.trim() || null,
+      tags: normalizeTags(input.tags),
     })
     .select("id")
     .single();
@@ -340,7 +410,7 @@ export async function logProgress(
 }
 
 export type UpdateEntryInput = Partial<
-  Pick<LogProgressInput, "entryDate" | "measure" | "mode" | "amount" | "note">
+  Pick<LogProgressInput, "entryDate" | "measure" | "mode" | "amount" | "note" | "tags">
 >;
 
 export async function updateEntry(
@@ -376,6 +446,7 @@ export async function updateEntry(
   if (patch.mode !== undefined) updates.mode = patch.mode;
   if (patch.amount !== undefined) updates.amount = patch.amount;
   if (patch.note !== undefined) updates.note = patch.note.trim() || null;
+  if (patch.tags !== undefined) updates.tags = normalizeTags(patch.tags);
 
   const { error } = await supabase
     .from("writing_progress_entries")
@@ -423,9 +494,14 @@ export async function deleteEntry(entryId: string): Promise<{ success: true } | 
 export interface CreateGoalInput {
   projectId: string;
   measure: WritingMeasure;
-  targetAmount: number;
+  goalType: "target" | "habit";
+  // target
+  targetAmount?: number;
   startDate?: string | null;
   endDate?: string | null;
+  // habit
+  habitPeriod?: HabitPeriod;
+  habitThreshold?: number | null;
 }
 
 export async function createGoal(
@@ -437,24 +513,31 @@ export async function createGoal(
 
   if (!input.projectId) return { error: "projectId is required" };
   if (!WRITING_MEASURES.includes(input.measure)) return { error: "Invalid measure" };
-  if (!input.targetAmount || input.targetAmount <= 0) return { error: "targetAmount must be greater than 0" };
 
   const ownershipError = await assertOwnsProject(supabase, effectiveIdentity.memberId, input.projectId);
   if (ownershipError) return { error: ownershipError };
 
-  const { data, error } = await supabase
-    .from("writing_goals")
-    .insert({
-      member_id: effectiveIdentity.memberId,
-      project_id: input.projectId,
-      goal_type: "target",
-      measure: input.measure,
-      target_amount: input.targetAmount,
-      start_date: input.startDate || null,
-      end_date: input.endDate || null,
-    })
-    .select("id")
-    .single();
+  const insert: Record<string, unknown> = {
+    member_id: effectiveIdentity.memberId,
+    project_id: input.projectId,
+    goal_type: input.goalType,
+    measure: input.measure,
+  };
+
+  if (input.goalType === "habit") {
+    if (!input.habitPeriod || !HABIT_PERIODS.includes(input.habitPeriod)) {
+      return { error: "habitPeriod must be one of: " + HABIT_PERIODS.join(", ") };
+    }
+    insert.habit_period = input.habitPeriod;
+    insert.habit_threshold = input.habitThreshold || null;
+  } else {
+    if (!input.targetAmount || input.targetAmount <= 0) return { error: "targetAmount must be greater than 0" };
+    insert.target_amount = input.targetAmount;
+    insert.start_date = input.startDate || null;
+    insert.end_date = input.endDate || null;
+  }
+
+  const { data, error } = await supabase.from("writing_goals").insert(insert).select("id").single();
 
   if (error || !data) return { error: error?.message ?? "Failed to create goal" };
 
@@ -493,9 +576,10 @@ export async function getStarredGoals(): Promise<(GoalRow & { projectTitle: stri
 
   const { data: goals } = await supabase
     .from("writing_goals")
-    .select("id, project_id, measure, target_amount, start_date, end_date, is_starred, writing_projects(title)")
+    .select(
+      "id, project_id, goal_type, measure, target_amount, start_date, end_date, habit_period, habit_threshold, is_starred, writing_projects(title)"
+    )
     .eq("member_id", effectiveIdentity.memberId)
-    .eq("goal_type", "target")
     .eq("is_starred", true);
 
   if (!goals || goals.length === 0) return [];
@@ -503,7 +587,7 @@ export async function getStarredGoals(): Promise<(GoalRow & { projectTitle: stri
   const projectIds = [...new Set(goals.map((g) => g.project_id))];
   const { data: entries } = await supabase
     .from("writing_progress_entries")
-    .select("project_id, entry_date, measure, mode, amount, created_at")
+    .select("id, project_id, entry_date, measure, mode, amount, note, tags, created_at")
     .eq("member_id", effectiveIdentity.memberId)
     .in("project_id", projectIds);
 
@@ -511,34 +595,73 @@ export async function getStarredGoals(): Promise<(GoalRow & { projectTitle: stri
 
   return goals.map((g) => {
     const project = Array.isArray(g.writing_projects) ? g.writing_projects[0] : g.writing_projects;
-    const measureEntries = (entries ?? []).filter(
-      (e) => e.project_id === g.project_id && e.measure === g.measure
-    );
-    const progress = computeGoalProgress({
-      entries: measureEntries.map((e) => ({
-        entryDate: e.entry_date,
-        createdAt: e.created_at,
-        mode: e.mode as EntryMode,
-        amount: e.amount,
-      })),
-      targetAmount: g.target_amount,
-      startDate: g.start_date,
-      endDate: g.end_date,
-      now,
-    });
-    return {
-      id: g.id,
-      projectId: g.project_id,
-      projectTitle: project?.title ?? "Untitled project",
-      measure: g.measure as WritingMeasure,
-      targetAmount: g.target_amount,
-      startDate: g.start_date,
-      endDate: g.end_date,
-      isStarred: g.is_starred,
-      current: progress.current,
-      percent: progress.percent,
-      parTarget: progress.parTarget,
-      onPace: progress.onPace,
-    };
+    const projectEntries = (entries ?? []).filter((e) => e.project_id === g.project_id);
+    return { ...buildGoalRow(g, projectEntries, now), projectTitle: project?.title ?? "Untitled project" };
   });
+}
+
+/** Cumulative-total series for a project's measure, for the project detail page's chart. */
+export async function getProjectSeries(
+  projectId: string,
+  measure: WritingMeasure
+): Promise<{ entryDate: string; total: number }[]> {
+  const ctx = await requireIdentity();
+  if ("error" in ctx) return [];
+  const { supabase, effectiveIdentity } = ctx;
+
+  const { data: entries } = await supabase
+    .from("writing_progress_entries")
+    .select("entry_date, mode, amount, created_at")
+    .eq("project_id", projectId)
+    .eq("member_id", effectiveIdentity.memberId)
+    .eq("measure", measure);
+
+  return computeCumulativeSeries(
+    (entries ?? []).map((e) => ({
+      entryDate: e.entry_date,
+      createdAt: e.created_at,
+      mode: e.mode as EntryMode,
+      amount: e.amount,
+    }))
+  );
+}
+
+/** A member's opted-in project (highest total, if more than one) for surfacing on their public profile. */
+export async function getProfileWritingSummary(
+  memberId: string
+): Promise<{ projectTitle: string; measure: WritingMeasure; total: number } | null> {
+  const supabase = await createClient();
+
+  const { data: projects } = await supabase
+    .from("writing_projects")
+    .select("id, title")
+    .eq("member_id", memberId)
+    .eq("show_on_profile", true)
+    .is("archived_at", null);
+
+  if (!projects || projects.length === 0) return null;
+
+  const projectIds = projects.map((p) => p.id);
+  const { data: entries } = await supabase
+    .from("writing_progress_entries")
+    .select("project_id, entry_date, measure, mode, amount, created_at")
+    .in("project_id", projectIds);
+
+  let best: { projectTitle: string; measure: WritingMeasure; total: number } | null = null;
+  for (const project of projects) {
+    for (const measure of WRITING_MEASURES) {
+      const measureEntries = (entries ?? []).filter((e) => e.project_id === project.id && e.measure === measure);
+      if (measureEntries.length === 0) continue;
+      const total = computeCumulativeTotal(
+        measureEntries.map((e) => ({
+          entryDate: e.entry_date,
+          createdAt: e.created_at,
+          mode: e.mode as EntryMode,
+          amount: e.amount,
+        }))
+      );
+      if (!best || total > best.total) best = { projectTitle: project.title, measure, total };
+    }
+  }
+  return best;
 }

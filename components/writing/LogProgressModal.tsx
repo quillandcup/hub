@@ -33,6 +33,7 @@ export default function LogProgressModal({
   const [mode, setMode] = useState<EntryMode>(editingEntry?.mode ?? "delta");
   const [amount, setAmount] = useState(editingEntry ? String(editingEntry.amount) : "");
   const [note, setNote] = useState(editingEntry?.note ?? "");
+  const [tagsInput, setTagsInput] = useState(editingEntry?.tags.join(", ") ?? "");
   const [isPending, setIsPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -50,10 +51,12 @@ export default function LogProgressModal({
       return;
     }
 
+    const tags = tagsInput.split(",").map((t) => t.trim()).filter(Boolean);
+
     setIsPending(true);
     const result = editingEntry
-      ? await updateEntry(editingEntry.id, { entryDate, measure, mode, amount: parsedAmount, note })
-      : await logProgress({ projectId, entryDate, measure, mode, amount: parsedAmount, note });
+      ? await updateEntry(editingEntry.id, { entryDate, measure, mode, amount: parsedAmount, note, tags })
+      : await logProgress({ projectId, entryDate, measure, mode, amount: parsedAmount, note, tags });
     setIsPending(false);
 
     if ("error" in result) {
@@ -166,6 +169,19 @@ export default function LogProgressModal({
             onChange={(e) => setNote(e.target.value)}
             maxLength={140}
             placeholder="What did you work on?"
+            className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-sm"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+            Tags <span className="text-slate-400 font-normal">(optional, comma-separated)</span>
+          </label>
+          <input
+            type="text"
+            value={tagsInput}
+            onChange={(e) => setTagsInput(e.target.value)}
+            placeholder="e.g. editing, chapter 3"
             className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-sm"
           />
         </div>

@@ -3,6 +3,7 @@ import {
   computeCumulativeTotal,
   computeCumulativeSeries,
   computeGoalProgress,
+  computeHabitGoalProgress,
   type ProgressEntryInput,
 } from "@/lib/writing-projects";
 
@@ -147,5 +148,109 @@ describe("computeGoalProgress", () => {
     });
     expect(progress.parTarget).toBe(50000);
     expect(progress.onPace).toBe(false);
+  });
+});
+
+describe("computeHabitGoalProgress", () => {
+  const now = new Date("2026-08-16T12:00:00Z"); // a Sunday
+
+  it("returns all zeros for no entries", () => {
+    const progress = computeHabitGoalProgress({ entries: [], period: "day", threshold: null, now });
+    expect(progress).toEqual({ currentStreak: 0, longestStreak: 0, typicalStreak: 0, hitRatePercent: 0 });
+  });
+
+  it("counts a run of consecutive days ending today as the current streak", () => {
+    const progress = computeHabitGoalProgress({
+      entries: [
+        { entryDate: "2026-08-14", amount: 1 },
+        { entryDate: "2026-08-15", amount: 1 },
+        { entryDate: "2026-08-16", amount: 1 },
+      ],
+      period: "day",
+      threshold: null,
+      now,
+    });
+    expect(progress.currentStreak).toBe(3);
+    expect(progress.longestStreak).toBe(3);
+  });
+
+  it("grants a grace day -- a streak ending yesterday is still active today (today isn't over)", () => {
+    const progress = computeHabitGoalProgress({
+      entries: [
+        { entryDate: "2026-08-14", amount: 1 },
+        { entryDate: "2026-08-15", amount: 1 },
+      ],
+      period: "day",
+      threshold: null,
+      now,
+    });
+    expect(progress.currentStreak).toBe(2);
+  });
+
+  it("breaks the current streak once more than a full period has elapsed since the last hit", () => {
+    const progress = computeHabitGoalProgress({
+      entries: [
+        { entryDate: "2026-08-10", amount: 1 },
+        { entryDate: "2026-08-11", amount: 1 },
+        { entryDate: "2026-08-14", amount: 1 }, // isolated -- 2 days before "now"
+      ],
+      period: "day",
+      threshold: null,
+      now,
+    });
+    expect(progress.currentStreak).toBe(0);
+    expect(progress.longestStreak).toBe(2);
+  });
+
+  it("only counts a period as a hit when its total meets the threshold", () => {
+    // now (Aug 16, a Sunday) falls in the Mon Aug10-Sun Aug16 week.
+    const progress = computeHabitGoalProgress({
+      entries: [
+        // week of Aug 3-9: totals 1500, hits the 1000 threshold
+        { entryDate: "2026-08-03", amount: 800 },
+        { entryDate: "2026-08-05", amount: 700 },
+        // week of Aug 10-16 (the current week, still in progress): totals 800, misses
+        { entryDate: "2026-08-11", amount: 800 },
+      ],
+      period: "week",
+      threshold: 1000,
+      now,
+    });
+    expect(progress.longestStreak).toBe(1);
+    // The only hit week is the one immediately before the current (still in-progress,
+    // missed-so-far) week -- same grace window as the daily case above.
+    expect(progress.currentStreak).toBe(1);
+  });
+
+  it("typicalStreak averages the length of all completed hit-runs", () => {
+    const progress = computeHabitGoalProgress({
+      entries: [
+        { entryDate: "2026-01-01", amount: 1 },
+        { entryDate: "2026-01-02", amount: 1 },
+        { entryDate: "2026-01-03", amount: 1 }, // run of 3
+        { entryDate: "2026-01-10", amount: 1 }, // run of 1
+      ],
+      period: "day",
+      threshold: null,
+      now, // far past both runs -- current streak is 0
+    });
+    expect(progress.currentStreak).toBe(0);
+    expect(progress.longestStreak).toBe(3);
+    expect(progress.typicalStreak).toBe(2); // (3 + 1) / 2
+  });
+
+  it("computes hitRatePercent as hit periods over periods tracked since the first entry", () => {
+    // 5 daily periods tracked (Aug 12-16), 3 of them hit (12, 13, 16), 2 missed (14, 15)
+    const progress = computeHabitGoalProgress({
+      entries: [
+        { entryDate: "2026-08-12", amount: 1 },
+        { entryDate: "2026-08-13", amount: 1 },
+        { entryDate: "2026-08-16", amount: 1 },
+      ],
+      period: "day",
+      threshold: null,
+      now,
+    });
+    expect(progress.hitRatePercent).toBe(60);
   });
 });

@@ -6,6 +6,10 @@ import { getEffectiveIdentity } from "@/lib/sudo"
 import { getUserTimezonePreference } from "@/lib/timezone"
 import { computeStreaks } from "@/lib/streaks"
 import MemberAvatar from "./MemberAvatar"
+import WelcomeBackBanner from "./WelcomeBackBanner"
+import { parseDateOnly } from "@/lib/member-tenure"
+import { getProfileWritingSummary } from "@/app/(member)/writing/actions"
+import { MEASURE_LABELS } from "@/lib/writing-projects"
 
 const ORG_TIMEZONE = "America/New_York"
 
@@ -23,7 +27,9 @@ const getMember = cache(async (id: string) => {
   const supabase = await createClient()
   const { data } = await supabase
     .from("members")
-    .select("id, name, email, joined_at, status, photo_url, bio, instagram_url, facebook_url, twitter_url")
+    .select(
+      "id, name, email, joined_at, first_joined_at, most_recent_joined_at, total_active_months, status, photo_url, bio, instagram_url, facebook_url, twitter_url"
+    )
     .eq("id", id)
     .single()
   return data
@@ -60,6 +66,8 @@ export default async function MemberProfilePage({
   const member = await getMember(id)
 
   if (!member) notFound()
+
+  const writingSummary = await getProfileWritingSummary(id)
 
   let metrics: {
     member_id: string
@@ -117,8 +125,29 @@ export default async function MemberProfilePage({
 
   const streaks = computeStreaks(streakJoinTimes, new Date(), timeZone)
 
-  const joinedYear = new Date(member.joined_at).getFullYear()
-  const joinedMonth = new Date(member.joined_at).toLocaleString("en-US", { month: "long" })
+  // No fallback to joined_at (Kajabi contact creation) — a lead who never
+  // had a real subscription has no first_joined_at, and isn't a member, so
+  // shows no "Member since" line at all.
+  const firstJoinedDate = member.first_joined_at ? parseDateOnly(member.first_joined_at) : null
+  const formatMonthYear = (d: Date) =>
+    `${d.toLocaleString("en-US", { month: "long" })} ${d.getFullYear()}`
+
+  const isRejoin = !!(
+    member.most_recent_joined_at && member.most_recent_joined_at !== member.first_joined_at
+  )
+  const mostRecentJoinedDate = member.most_recent_joined_at ? parseDateOnly(member.most_recent_joined_at) : null
+  const daysSinceRejoin = mostRecentJoinedDate
+    ? Math.floor((Date.now() - mostRecentJoinedDate.getTime()) / (1000 * 60 * 60 * 24))
+    : Infinity
+  const showWelcomeBack = isRejoin && daysSinceRejoin <= 30
+
+  const totalActiveMonths = member.total_active_months ?? 0
+  const hedgieYears = Math.floor(totalActiveMonths / 12)
+  const hedgieMonthsRemainder = totalActiveMonths % 12
+  const hedgieversaryLabel =
+    hedgieYears > 0
+      ? `${hedgieYears}-year Hedgieversary${hedgieMonthsRemainder > 0 ? ` + ${hedgieMonthsRemainder} mo` : ""}`
+      : `${totalActiveMonths} ${totalActiveMonths === 1 ? "month" : "months"} as a Hedgie`
 
   const statusColors: Record<string, string> = {
     active: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
@@ -143,11 +172,23 @@ export default async function MemberProfilePage({
         <MemberAvatar name={member.name} photoUrl={safePhoto} size={56} />
         <div>
           <h1 className="text-3xl font-bold">{member.name}</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-            Member since {joinedMonth} {joinedYear}
-          </p>
+          {firstJoinedDate && (
+            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+              Member since {formatMonthYear(firstJoinedDate)}
+              {totalActiveMonths > 0 && <span className="mx-1.5">·</span>}
+              {totalActiveMonths > 0 && <span>{hedgieversaryLabel}</span>}
+            </p>
+          )}
         </div>
       </div>
+
+      {showWelcomeBack && mostRecentJoinedDate && (
+        <WelcomeBackBanner
+          memberId={member.id}
+          rejoinedAt={member.most_recent_joined_at!}
+          monthLabel={formatMonthYear(mostRecentJoinedDate)}
+        />
+      )}
 
       {/* Bio */}
       {member.bio && (
@@ -211,6 +252,21 @@ export default async function MemberProfilePage({
           <span className="text-slate-500 dark:text-slate-400">prickles attended</span>
         </div>
       </div>
+
+      {/* Tier 3: visible to all -- only shown if the member opted a project in via "Show on my profile" */}
+      {writingSummary && (
+        <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 p-6 mb-6">
+          <h2 className="text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-4">
+            Writing Progress
+          </h2>
+          <div className="flex items-center gap-2">
+            <span className="text-3xl font-bold">{writingSummary.total.toLocaleString()}</span>
+            <span className="text-slate-500 dark:text-slate-400">
+              {MEASURE_LABELS[writingSummary.measure].toLowerCase()} on {writingSummary.projectTitle}
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* Tier 2: self only */}
       {isSelf && (

@@ -6,7 +6,7 @@ import { getEffectiveIdentity } from "@/lib/sudo"
 import { getUserTimezonePreference } from "@/lib/timezone"
 import { hostShortName } from "@/lib/formatters"
 import { getStarredGoals } from "../writing/actions"
-import GoalProgressBar from "@/components/writing/GoalProgressBar"
+import GoalDisplay from "@/components/writing/GoalDisplay"
 import {
   computePrickleStreaks,
   computeSisterStreaks,
@@ -371,14 +371,7 @@ export default async function DashboardPage() {
                   {goal.projectTitle}
                 </Link>
                 <div className="mt-1">
-                  <GoalProgressBar
-                    measure={goal.measure}
-                    current={goal.current}
-                    target={goal.targetAmount}
-                    percent={goal.percent}
-                    parTarget={goal.parTarget}
-                    onPace={goal.onPace}
-                  />
+                  <GoalDisplay goal={goal} />
                 </div>
               </div>
             ))}
