@@ -1,7 +1,7 @@
 import { createHash } from "crypto";
 import { requireAdmin } from "@/lib/supabase/api-auth";
-import { isMembershipOffer, trialEndDate } from "@/lib/membership";
-import { buildMembershipStints, fetchStripeTrialInfoByKajabiCustomerId } from "@/lib/kajabi/membership-history";
+import { isMembershipOffer } from "@/lib/membership";
+import { buildMembershipStints, fetchStripeTrialInfoByEmail, isRealMembershipStint } from "@/lib/kajabi/membership-history";
 import { computeMemberTenure, computeActiveDays, type HiatusWindow } from "@/lib/member-tenure";
 import { NextRequest, NextResponse, after } from "next/server";
 import { triggerAttendanceReprocessing } from "@/lib/processing/trigger";
@@ -159,14 +159,12 @@ export async function POST(request: NextRequest) {
     if (aliasesError) throw aliasesError;
     if (stripeError) throw stripeError;
 
-    // Stripe subscriptions' real trial-conversion dates, keyed by Kajabi
-    // customer ID — see lib/kajabi/membership-history.ts for why this
-    // matters (Kajabi's created_at_kajabi is when a trial *started*, not
-    // when it converted to a real transaction).
-    const stripeTrialInfoByKajabiCustomerId = await fetchStripeTrialInfoByKajabiCustomerId(
-      supabase,
-      [...new Set((purchases || []).map((p: any) => p.kajabi_customer_id).filter(Boolean))]
-    );
+    // Stripe subscriptions' real trial-conversion dates, keyed by canonical
+    // email — see lib/kajabi/membership-history.ts for why this matters
+    // (Kajabi's created_at_kajabi is when a trial *started*, not when it
+    // converted to a real transaction) and why it's keyed by email rather
+    // than Kajabi customer ID (survives Kajabi-side contact merges).
+    const stripeTrialInfoByEmail = await fetchStripeTrialInfoByEmail(supabase, emailAliases || []);
 
     console.log('[DEBUG] Bronze sources:', {
       contacts_count: contacts?.length || 0,
@@ -317,14 +315,9 @@ export async function POST(request: NextRequest) {
         if (activePurchase) {
           status = "active";
         } else {
-          const hadRealSubscription = contactPurchases.some(p => {
-            const offer = offerMap.get(p.kajabi_offer_id);
-            if (offer?.data?.attributes?.subscription !== true) return false;
-            const trialEnd = trialEndDate(p, offer);
-            if (!trialEnd) return true; // no trial at all — billed from day one
-            if (!p.deactivated_at) return true; // can't tell when it ended; assume real rather than misclassify a former member as a lead
-            return new Date(p.deactivated_at) > trialEnd; // survived past the trial window = was actually billed
-          });
+          const hadRealSubscription = contactPurchases.some(p =>
+            isRealMembershipStint(p, offerMap.get(p.kajabi_offer_id), email, stripeTrialInfoByEmail)
+          );
           status = hadRealSubscription ? "cancelled" : "lead";
         }
 
@@ -343,7 +336,7 @@ export async function POST(request: NextRequest) {
         const customer = customerByEmail.get(email);
         const attrs = customer?.data?.attributes;
 
-        const stints = buildMembershipStints(contactPurchases, offerMap, stripeTrialInfoByKajabiCustomerId);
+        const stints = buildMembershipStints(contactPurchases, offerMap, email, stripeTrialInfoByEmail);
         const tenure = computeMemberTenure(stints, hiatusWindowsByEmail.get(email) ?? [], new Date());
 
         // A legacy join-date override always wins over the computed value —

@@ -16,7 +16,13 @@ type RawPurchase = {
   kajabi_customer_id?: string;
 };
 
-// A Stripe subscription's real conversion date, keyed by Kajabi customer ID.
+// A Stripe subscription's real conversion date, keyed by the member's
+// canonical email (not Kajabi customer ID — when Kajabi merges two contacts,
+// the surviving purchase gets reassigned to the new customer ID, but the old
+// Stripe customer's metadata still points at the now-orphaned old ID, so a
+// customer-ID-keyed lookup silently loses that history. Email survives the
+// merge because both the old and new Stripe customers still carry their own
+// real email, and member_email_aliases links them to one canonical email).
 // trialEnd is set ONLY when the subscription actually shows a trial_start +
 // trial_end pair — billing_cycle_anchor alone isn't trustworthy as a join
 // date since it can be reset later by plan changes/pauses unrelated to
@@ -34,37 +40,17 @@ type OfferInfo = {
   trial_period_days?: number | null;
 };
 
-// A purchase counts as a real membership stint if it's a Quill & Cup
-// membership subscription AND it wasn't cancelled during its trial window
-// (a trial that never converted was never actually a member — same
-// distinction app/api/process/members/route.ts's status classification
-// already makes via trialEndDate, just applied per-purchase here so a
-// trial-only lead never gets a first_joined_at / shows up in "Membership
-// History").
-function isRealMembershipStint(purchase: RawPurchase, offer: OfferInfo | undefined): boolean {
-  if (offer?.data?.attributes?.subscription !== true) return false;
-  if (!isMembershipOffer(offer.name || "")) return false;
-  const trialEnd = trialEndDate(purchase, offer);
-  if (!trialEnd) return true; // no trial at all — billed from day one
-  if (!purchase.deactivated_at) return true; // still active — already past/within a converting trial
-  return new Date(purchase.deactivated_at) > trialEnd; // survived past the trial window = was actually billed
-}
-
 const TRIAL_MATCH_TOLERANCE_MS = 5 * 60 * 1000;
 
-// Kajabi's created_at_kajabi is when the subscription/trial was *created* —
-// but the join date this app has always tracked is the first real
-// transaction, which for a trialed signup happens when the trial converts,
-// days later. Find the Stripe subscription created around the same instant
-// as this purchase (they're created within seconds of each other in
-// practice) and, if it shows a real trial, use its trial-end date instead.
-function resolveJoinDate(
+// Finds the Stripe subscription created around the same instant as a Kajabi
+// purchase (they're created within seconds of each other in practice).
+function findMatchingStripeInfo(
   rawDate: string,
-  customerId: string | undefined,
-  stripeInfoByCustomerId: Map<string, StripeTrialInfo[]> | undefined
-): string {
-  const candidates = customerId ? stripeInfoByCustomerId?.get(customerId) : undefined;
-  if (!candidates || candidates.length === 0) return rawDate;
+  canonicalEmail: string | undefined,
+  stripeInfoByEmail: Map<string, StripeTrialInfo[]> | undefined
+): StripeTrialInfo | null {
+  const candidates = canonicalEmail ? stripeInfoByEmail?.get(canonicalEmail) : undefined;
+  if (!candidates || candidates.length === 0) return null;
 
   const rawMs = new Date(rawDate).getTime();
   let best: StripeTrialInfo | null = null;
@@ -77,7 +63,50 @@ function resolveJoinDate(
     }
   }
 
-  return best && bestDiffMs <= TRIAL_MATCH_TOLERANCE_MS && best.trialEnd ? best.trialEnd : rawDate;
+  return best && bestDiffMs <= TRIAL_MATCH_TOLERANCE_MS ? best : null;
+}
+
+// A purchase counts as a real membership stint if it's a Quill & Cup
+// membership subscription AND it wasn't cancelled during its trial window
+// (a trial that never converted was never actually a member — same
+// distinction app/api/process/members/route.ts's status classification
+// makes, via this same function, so a trial-only lead never gets a
+// first_joined_at / shows up in "Membership History").
+//
+// Trial detection prefers the matching Stripe subscription's real
+// trial_start/trial_end over the Kajabi offer's trial_period_days: Kajabi's
+// API doesn't expose trial terms on the offer object at all (confirmed
+// always null against production data), so relying on it alone means every
+// purchase looks "billed from day one" — even ones that were pure trials,
+// never converted, and never charged.
+export function isRealMembershipStint(
+  purchase: RawPurchase,
+  offer: OfferInfo | undefined,
+  canonicalEmail?: string,
+  stripeInfoByEmail?: Map<string, StripeTrialInfo[]>
+): boolean {
+  if (offer?.data?.attributes?.subscription !== true) return false;
+  if (!isMembershipOffer(offer.name || "")) return false;
+  const rawDate = purchase.created_at_kajabi ?? purchase.effective_start_at ?? null;
+  const matched = rawDate ? findMatchingStripeInfo(rawDate, canonicalEmail, stripeInfoByEmail) : null;
+  const trialEnd = matched?.trialEnd ? new Date(matched.trialEnd) : trialEndDate(purchase, offer);
+  if (!trialEnd) return true; // no trial at all — billed from day one
+  if (!purchase.deactivated_at) return true; // still active — already past/within a converting trial
+  return new Date(purchase.deactivated_at) > trialEnd; // survived past the trial window = was actually billed
+}
+
+// Kajabi's created_at_kajabi is when the subscription/trial was *created* —
+// but the join date this app has always tracked is the first real
+// transaction, which for a trialed signup happens when the trial converts,
+// days later. Use the matching Stripe subscription's trial-end date when it
+// shows a real trial.
+function resolveJoinDate(
+  rawDate: string,
+  canonicalEmail: string | undefined,
+  stripeInfoByEmail: Map<string, StripeTrialInfo[]> | undefined
+): string {
+  const matched = findMatchingStripeInfo(rawDate, canonicalEmail, stripeInfoByEmail);
+  return matched?.trialEnd ?? rawDate;
 }
 
 // Filters purchases down to real membership-subscription stints and derives
@@ -90,9 +119,12 @@ function resolveJoinDate(
 export function buildMembershipStints(
   purchases: RawPurchase[],
   offerMap: Map<string, OfferInfo>,
-  stripeInfoByKajabiCustomerId?: Map<string, StripeTrialInfo[]>
+  canonicalEmail?: string,
+  stripeInfoByEmail?: Map<string, StripeTrialInfo[]>
 ): MembershipPurchase[] {
-  const membership = purchases.filter((p) => isRealMembershipStint(p, offerMap.get(p.kajabi_offer_id)));
+  const membership = purchases.filter((p) =>
+    isRealMembershipStint(p, offerMap.get(p.kajabi_offer_id), canonicalEmail, stripeInfoByEmail)
+  );
 
   // End date is each purchase's own deactivated_at (null = still active). Chaining to the
   // next purchase's created_at_kajabi would hide real cancel/resubscribe gaps.
@@ -102,9 +134,7 @@ export function buildMembershipStints(
     .map((p) => {
       const rawDate = p.created_at_kajabi ?? p.effective_start_at ?? null;
       return {
-        created_at_kajabi: rawDate
-          ? resolveJoinDate(rawDate, p.kajabi_customer_id, stripeInfoByKajabiCustomerId)
-          : null,
+        created_at_kajabi: rawDate ? resolveJoinDate(rawDate, canonicalEmail, stripeInfoByEmail) : null,
         derived_end_at: p.deactivated_at,
         status: p.status,
         kajabi_offer_id: p.kajabi_offer_id,
@@ -114,30 +144,39 @@ export function buildMembershipStints(
     .sort((a, b) => a.created_at_kajabi.localeCompare(b.created_at_kajabi));
 }
 
-// Fetches Stripe subscriptions' real conversion dates for a set of Kajabi
-// customer IDs. Links via stripe_customers.data.metadata.kjb_member_id — a
-// direct ID Kajabi's own Stripe integration writes back — rather than email,
-// which can differ or alias across the two systems.
-export async function fetchStripeTrialInfoByKajabiCustomerId(
+// Fetches Stripe subscriptions' real conversion dates, keyed by canonical
+// email. Matches Stripe customers by their own email column (set at import
+// time from the Stripe API) rather than stripe_customers.data.metadata.
+// kjb_member_id: that metadata is written once at Stripe-customer-creation
+// time and never updated, so after a Kajabi-side contact merge it still
+// points at the old, orphaned Kajabi customer ID. Email survives the merge
+// and, combined with member_email_aliases, correctly groups a merged
+// person's old AND new Stripe subscriptions under one canonical email.
+export async function fetchStripeTrialInfoByEmail(
   supabase: any,
-  kajabiCustomerIds: string[]
+  emailAliases: { alias_email: string; canonical_email: string }[]
 ): Promise<Map<string, StripeTrialInfo[]>> {
   const result = new Map<string, StripeTrialInfo[]>();
-  if (kajabiCustomerIds.length === 0) return result;
 
-  const kajabiCustomerIdSet = new Set(kajabiCustomerIds);
-  const stripeCustomers = await fetchAllBronzeRows(supabase, "stripe_customers", "stripe_customer_id, data");
-
-  const stripeCustomerIdByKajabiCustomerId = new Map<string, string>();
-  for (const c of stripeCustomers) {
-    const kajabiCustomerId = c.data?.metadata?.kjb_member_id;
-    if (kajabiCustomerId && kajabiCustomerIdSet.has(kajabiCustomerId)) {
-      stripeCustomerIdByKajabiCustomerId.set(kajabiCustomerId, c.stripe_customer_id);
-    }
+  const aliasMap = new Map<string, string>();
+  for (const a of emailAliases) {
+    aliasMap.set(a.alias_email.toLowerCase(), a.canonical_email.toLowerCase());
   }
-  if (stripeCustomerIdByKajabiCustomerId.size === 0) return result;
+  const resolveEmail = (email: string) => aliasMap.get(email.toLowerCase()) ?? email.toLowerCase();
 
-  const stripeCustomerIds = [...new Set(stripeCustomerIdByKajabiCustomerId.values())];
+  const stripeCustomers = await fetchAllBronzeRows(supabase, "stripe_customers", "stripe_customer_id, email");
+  if (stripeCustomers.length === 0) return result;
+
+  const stripeCustomerIdsByCanonicalEmail = new Map<string, string[]>();
+  for (const c of stripeCustomers) {
+    if (!c.email) continue;
+    const canonical = resolveEmail(c.email);
+    const list = stripeCustomerIdsByCanonicalEmail.get(canonical) ?? [];
+    list.push(c.stripe_customer_id);
+    stripeCustomerIdsByCanonicalEmail.set(canonical, list);
+  }
+
+  const stripeCustomerIds = stripeCustomers.map((c) => c.stripe_customer_id);
   const stripeSubscriptions = await fetchAllBronzeRows(
     supabase,
     "stripe_subscriptions",
@@ -157,9 +196,9 @@ export async function fetchStripeTrialInfoByKajabiCustomerId(
     subscriptionsByStripeCustomerId.set(s.stripe_customer_id, list);
   }
 
-  for (const [kajabiCustomerId, stripeCustomerId] of stripeCustomerIdByKajabiCustomerId) {
-    const subs = subscriptionsByStripeCustomerId.get(stripeCustomerId);
-    if (subs) result.set(kajabiCustomerId, subs);
+  for (const [canonicalEmail, customerIds] of stripeCustomerIdsByCanonicalEmail) {
+    const combined = customerIds.flatMap((id) => subscriptionsByStripeCustomerId.get(id) ?? []);
+    if (combined.length > 0) result.set(canonicalEmail, combined);
   }
 
   return result;
@@ -228,7 +267,26 @@ export async function fetchMembershipHistory(
     ])
   );
 
-  const stripeInfoByKajabiCustomerId = await fetchStripeTrialInfoByKajabiCustomerId(supabase, customerIds);
+  const { data: customers } = await supabase
+    .schema("bronze")
+    .from("kajabi_customers")
+    .select("kajabi_customer_id, email")
+    .in("kajabi_customer_id", customerIds);
 
-  return buildMembershipStints(purchases, offerMap, stripeInfoByKajabiCustomerId).reverse();
+  const { data: emailAliases } = await supabase
+    .from("member_email_aliases")
+    .select("alias_email, canonical_email");
+
+  const aliasMap = new Map<string, string>();
+  for (const a of emailAliases || []) {
+    aliasMap.set(a.alias_email.toLowerCase(), a.canonical_email.toLowerCase());
+  }
+  const firstEmail = customers?.find((c: any) => c.email)?.email;
+  const canonicalEmail = firstEmail
+    ? aliasMap.get(firstEmail.toLowerCase()) ?? firstEmail.toLowerCase()
+    : undefined;
+
+  const stripeInfoByEmail = await fetchStripeTrialInfoByEmail(supabase, emailAliases || []);
+
+  return buildMembershipStints(purchases, offerMap, canonicalEmail, stripeInfoByEmail).reverse();
 }
