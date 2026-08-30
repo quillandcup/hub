@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { computeStreaks, computePrickleStreaks, computeSisterStreaks, rankStreaks, type Streaks } from '@/lib/streaks'
+import { computeStreaks, computePrickleStreaks, computeSisterStreaks, isEstablishedSisterStreak, rankStreaks, type Streaks } from '@/lib/streaks'
 
 // Helpers: build ISO timestamps N weeks apart from a fixed anchor
 const ANCHOR_MS = new Date('2026-01-05T12:00:00Z').getTime() // a Monday
@@ -231,6 +231,15 @@ describe('computeSisterStreaks', () => {
     expect(result[0]).toMatchObject({ currentStreak: 2, longestStreak: 2 })
     expect(result[0].sharedPrickleIds).toEqual(expect.arrayContaining(['p1', 'p2', 'p3']))
     expect(result[0].sharedPrickleIds).toHaveLength(3)
+  })
+})
+
+describe('isEstablishedSisterStreak', () => {
+  it('requires a best run of at least 2 weeks, regardless of current streak', () => {
+    expect(isEstablishedSisterStreak({ currentStreak: 1, longestStreak: 1 })).toBe(false)
+    expect(isEstablishedSisterStreak({ currentStreak: 0, longestStreak: 1 })).toBe(false)
+    expect(isEstablishedSisterStreak({ currentStreak: 1, longestStreak: 2 })).toBe(true)
+    expect(isEstablishedSisterStreak({ currentStreak: 0, longestStreak: 2 })).toBe(true)
   })
 })
 
