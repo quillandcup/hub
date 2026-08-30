@@ -583,3 +583,213 @@ describe('Member Tenure computed during reprocessing', () => {
     expect(after!.total_active_months).toBeLessThan(before!.total_active_months) // ~30 hiatus days excluded
   })
 })
+
+describe('Stripe trial-conversion date correction during reprocessing', () => {
+  const supabase = getTestSupabaseAdminClient()
+  const ts = Date.now()
+  const now = Date.now()
+  const daysAgo = (n: number) => new Date(now - n * 24 * 60 * 60 * 1000).toISOString()
+  const dateOnly = (iso: string) => iso.split('T')[0]
+
+  const membershipOfferId = `stripe-trial-offer-${ts}`
+  const emailTrial = `stripe-trial-${ts}@example.com`
+  const emailNoTrial = `stripe-no-trial-${ts}@example.com`
+  const kajabiCustomerIdTrial = `stripe-trial-cust-${ts}`
+  const kajabiCustomerIdNoTrial = `stripe-no-trial-cust-${ts}`
+  const stripeCustomerIdTrial = `cus_test_trial_${ts}`
+  const stripeCustomerIdNoTrial = `cus_test_no_trial_${ts}`
+
+  const purchaseCreatedAt = daysAgo(300)
+  const trialEndAt = daysAgo(293) // 7-day trial
+
+  async function reprocess() {
+    const response = await fetch('http://localhost:3000/api/process/members', {
+      method: 'POST',
+      headers: getTestAuthHeaders(),
+    })
+    if (!response.ok) {
+      throw new Error(`API call failed: ${response.status} - ${await response.text()}`)
+    }
+    return response.json()
+  }
+
+  async function fetchMember(email: string) {
+    const { data } = await supabase.from('members').select('*').eq('email', email).single()
+    return data
+  }
+
+  beforeAll(async () => {
+    await supabase.schema('bronze').from('kajabi_offers').upsert([
+      { kajabi_offer_id: membershipOfferId, name: 'Quill & Cup Membership', trial_period_days: 0, data: { attributes: { subscription: true } } },
+    ], { onConflict: 'kajabi_offer_id' })
+
+    await supabase.schema('bronze').from('kajabi_contacts').insert([
+      { kajabi_contact_id: `stripe-trial-contact-${ts}`, email: emailTrial, name: 'Stripe Trial Member', created_at_kajabi: purchaseCreatedAt, data: {} },
+      { kajabi_contact_id: `stripe-no-trial-contact-${ts}`, email: emailNoTrial, name: 'Stripe No Trial Member', created_at_kajabi: purchaseCreatedAt, data: {} },
+    ])
+    await supabase.schema('bronze').from('kajabi_customers').insert([
+      { kajabi_customer_id: kajabiCustomerIdTrial, email: emailTrial, data: {} },
+      { kajabi_customer_id: kajabiCustomerIdNoTrial, email: emailNoTrial, data: {} },
+    ])
+    await supabase.schema('bronze').from('kajabi_purchases').insert([
+      {
+        kajabi_purchase_id: `stripe-trial-purchase-${ts}`,
+        kajabi_customer_id: kajabiCustomerIdTrial,
+        kajabi_offer_id: membershipOfferId,
+        status: 'active',
+        created_at_kajabi: purchaseCreatedAt,
+        effective_start_at: purchaseCreatedAt,
+        deactivated_at: null,
+        data: {},
+      },
+      {
+        kajabi_purchase_id: `stripe-no-trial-purchase-${ts}`,
+        kajabi_customer_id: kajabiCustomerIdNoTrial,
+        kajabi_offer_id: membershipOfferId,
+        status: 'active',
+        created_at_kajabi: purchaseCreatedAt,
+        effective_start_at: purchaseCreatedAt,
+        deactivated_at: null,
+        data: {},
+      },
+    ])
+
+    // Trial member: Stripe subscription created at the same instant as the
+    // Kajabi purchase, but with a real 7-day trial — first_joined_at should
+    // land on trial_end, not the purchase's created_at_kajabi.
+    await supabase.schema('bronze').from('stripe_customers').insert([
+      { stripe_customer_id: stripeCustomerIdTrial, email: emailTrial, created_at_stripe: purchaseCreatedAt, data: { metadata: { kjb_member_id: kajabiCustomerIdTrial } } },
+      { stripe_customer_id: stripeCustomerIdNoTrial, email: emailNoTrial, created_at_stripe: purchaseCreatedAt, data: { metadata: { kjb_member_id: kajabiCustomerIdNoTrial } } },
+    ])
+    await supabase.schema('bronze').from('stripe_subscriptions').insert([
+      {
+        stripe_subscription_id: `sub_test_trial_${ts}`,
+        stripe_customer_id: stripeCustomerIdTrial,
+        status: 'active',
+        created_at_stripe: purchaseCreatedAt,
+        data: {
+          trial_start: Math.floor(new Date(purchaseCreatedAt).getTime() / 1000),
+          trial_end: Math.floor(new Date(trialEndAt).getTime() / 1000),
+          billing_cycle_anchor: Math.floor(new Date(trialEndAt).getTime() / 1000),
+        },
+      },
+      // No-trial member: same billing_cycle_anchor as created (no trial_start/trial_end) —
+      // must NOT shift first_joined_at, since billing_cycle_anchor alone isn't trustworthy.
+      {
+        stripe_subscription_id: `sub_test_no_trial_${ts}`,
+        stripe_customer_id: stripeCustomerIdNoTrial,
+        status: 'active',
+        created_at_stripe: purchaseCreatedAt,
+        data: {
+          billing_cycle_anchor: Math.floor(new Date(purchaseCreatedAt).getTime() / 1000),
+        },
+      },
+    ])
+  })
+
+  afterAll(async () => {
+    await supabase.schema('bronze').from('stripe_subscriptions').delete().in('stripe_customer_id', [stripeCustomerIdTrial, stripeCustomerIdNoTrial])
+    await supabase.schema('bronze').from('stripe_customers').delete().in('stripe_customer_id', [stripeCustomerIdTrial, stripeCustomerIdNoTrial])
+    await supabase.schema('bronze').from('kajabi_purchases').delete().ilike('kajabi_purchase_id', `stripe-%-purchase-${ts}`)
+    await supabase.schema('bronze').from('kajabi_customers').delete().in('kajabi_customer_id', [kajabiCustomerIdTrial, kajabiCustomerIdNoTrial])
+    await supabase.schema('bronze').from('kajabi_contacts').delete().ilike('kajabi_contact_id', `stripe-%-contact-${ts}`)
+    await supabase.schema('bronze').from('kajabi_offers').delete().eq('kajabi_offer_id', membershipOfferId)
+    await supabase.from('members').delete().in('email', [emailTrial, emailNoTrial])
+  })
+
+  it('uses the Stripe trial-end date as first_joined_at when the subscription had a real trial', async () => {
+    await reprocess()
+    const member = await fetchMember(emailTrial)
+    expect(member?.first_joined_at).toBe(dateOnly(trialEndAt))
+  })
+
+  it('leaves first_joined_at at the Kajabi purchase date when there was no trial, even if billing_cycle_anchor is present', async () => {
+    await reprocess()
+    const member = await fetchMember(emailNoTrial)
+    expect(member?.first_joined_at).toBe(dateOnly(purchaseCreatedAt))
+  })
+})
+
+describe('Legacy join-date overrides during reprocessing', () => {
+  const supabase = getTestSupabaseAdminClient()
+  const ts = Date.now()
+  const now = Date.now()
+  const daysAgo = (n: number) => new Date(now - n * 24 * 60 * 60 * 1000).toISOString()
+  const dateOnly = (iso: string) => iso.split('T')[0]
+
+  const membershipOfferId = `join-override-offer-${ts}`
+  const email = `join-override-${ts}@example.com`
+  const kajabiContactId = `join-override-contact-${ts}`
+  const kajabiCustomerId = `join-override-cust-${ts}`
+
+  const kajabiJoinedAt = daysAgo(300)
+  const legacyJoinedAt = dateOnly(daysAgo(700)) // predates anything Kajabi knows about
+
+  async function reprocess() {
+    const response = await fetch('http://localhost:3000/api/process/members', {
+      method: 'POST',
+      headers: getTestAuthHeaders(),
+    })
+    if (!response.ok) {
+      throw new Error(`API call failed: ${response.status} - ${await response.text()}`)
+    }
+    return response.json()
+  }
+
+  async function fetchMember() {
+    const { data } = await supabase.from('members').select('*').eq('email', email).single()
+    return data
+  }
+
+  beforeAll(async () => {
+    await supabase.schema('bronze').from('kajabi_offers').upsert([
+      { kajabi_offer_id: membershipOfferId, name: 'Quill & Cup Membership', trial_period_days: 0, data: { attributes: { subscription: true } } },
+    ], { onConflict: 'kajabi_offer_id' })
+    await supabase.schema('bronze').from('kajabi_contacts').insert({
+      kajabi_contact_id: kajabiContactId, email, name: 'Join Override Member', created_at_kajabi: kajabiJoinedAt, data: {},
+    })
+    await supabase.schema('bronze').from('kajabi_customers').insert({
+      kajabi_customer_id: kajabiCustomerId, email, data: {},
+    })
+    await supabase.schema('bronze').from('kajabi_purchases').insert({
+      kajabi_purchase_id: `join-override-purchase-${ts}`,
+      kajabi_customer_id: kajabiCustomerId,
+      kajabi_offer_id: membershipOfferId,
+      status: 'active',
+      created_at_kajabi: kajabiJoinedAt,
+      effective_start_at: kajabiJoinedAt,
+      deactivated_at: null,
+      data: {},
+    })
+  })
+
+  afterAll(async () => {
+    await supabase.schema('bronze').from('kajabi_purchases').delete().eq('kajabi_purchase_id', `join-override-purchase-${ts}`)
+    await supabase.schema('bronze').from('kajabi_customers').delete().eq('kajabi_customer_id', kajabiCustomerId)
+    await supabase.schema('bronze').from('kajabi_contacts').delete().eq('kajabi_contact_id', kajabiContactId)
+    await supabase.schema('bronze').from('kajabi_offers').delete().eq('kajabi_offer_id', membershipOfferId)
+    await supabase.from('members').delete().eq('email', email)
+  })
+
+  it('keeps using the Kajabi-derived date when there is no override', async () => {
+    await reprocess()
+    const member = await fetchMember()
+    expect(member?.first_joined_at).toBe(dateOnly(kajabiJoinedAt))
+  })
+
+  it('uses member_join_date_overrides.first_joined_at once an override exists, surviving reprocessing', async () => {
+    const member = await fetchMember()
+    await supabase.from('member_join_date_overrides').insert({
+      member_id: member!.id,
+      first_joined_at: legacyJoinedAt,
+      reason: 'test: pre-Kajabi legacy join',
+    })
+
+    await reprocess()
+    const after = await fetchMember()
+    expect(after?.first_joined_at).toBe(legacyJoinedAt)
+    expect(after?.most_recent_joined_at).toBe(legacyJoinedAt) // no independent rejoin detected — pulled forward too
+
+    await supabase.from('member_join_date_overrides').delete().eq('member_id', member!.id)
+  })
+})

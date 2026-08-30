@@ -1,7 +1,7 @@
 import { createHash } from "crypto";
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { isMembershipOffer, trialEndDate } from "@/lib/membership";
-import { buildMembershipStints } from "@/lib/kajabi/membership-history";
+import { buildMembershipStints, fetchStripeTrialInfoByKajabiCustomerId } from "@/lib/kajabi/membership-history";
 import { computeMemberTenure, computeActiveDays, type HiatusWindow } from "@/lib/member-tenure";
 import { NextRequest, NextResponse, after } from "next/server";
 import { triggerAttendanceReprocessing } from "@/lib/processing/trigger";
@@ -139,6 +139,7 @@ export async function POST(request: NextRequest) {
       { data: stripeCustomers, error: stripeError },
       existingMembers,
       hiatusOverrides,
+      joinDateOverrides,
     ] = await Promise.all([
       fetchAllBronzeRows(supabase, "kajabi_contacts"),
       fetchAllBronzeRows(supabase, "kajabi_customers"),
@@ -151,11 +152,21 @@ export async function POST(request: NextRequest) {
       fetchAllPublicRows(supabase, "member_status_overrides", "member_id, starts_at, expires_at", (q) =>
         q.eq("override_type", "hiatus")
       ),
+      fetchAllPublicRows(supabase, "member_join_date_overrides", "member_id, first_joined_at"),
     ]);
 
     if (staffError) throw staffError;
     if (aliasesError) throw aliasesError;
     if (stripeError) throw stripeError;
+
+    // Stripe subscriptions' real trial-conversion dates, keyed by Kajabi
+    // customer ID — see lib/kajabi/membership-history.ts for why this
+    // matters (Kajabi's created_at_kajabi is when a trial *started*, not
+    // when it converted to a real transaction).
+    const stripeTrialInfoByKajabiCustomerId = await fetchStripeTrialInfoByKajabiCustomerId(
+      supabase,
+      [...new Set((purchases || []).map((p: any) => p.kajabi_customer_id).filter(Boolean))]
+    );
 
     console.log('[DEBUG] Bronze sources:', {
       contacts_count: contacts?.length || 0,
@@ -167,6 +178,7 @@ export async function POST(request: NextRequest) {
       stripe_customers_count: stripeCustomers?.length || 0,
       existing_members_count: existingMembers?.length || 0,
       hiatus_overrides_count: hiatusOverrides?.length || 0,
+      join_date_overrides_count: joinDateOverrides?.length || 0,
     });
 
     // STEP 2: Build lookup maps
@@ -198,6 +210,16 @@ export async function POST(request: NextRequest) {
       const windows = hiatusWindowsByEmail.get(email) ?? [];
       windows.push({ startsAt: override.starts_at, endsAt: override.expires_at });
       hiatusWindowsByEmail.set(email, windows);
+    }
+
+    // Legacy join-date corrections (member_join_date_overrides — see that
+    // migration's comment): resolved to email the same way as hiatus windows
+    // above, so they survive re-running this reprocess.
+    const joinDateOverrideByEmail = new Map<string, string>();
+    for (const override of joinDateOverrides || []) {
+      const email = emailByMemberId.get(override.member_id);
+      if (!email) continue;
+      joinDateOverrideByEmail.set(email, override.first_joined_at);
     }
 
     // Offer lookup by ID
@@ -321,16 +343,29 @@ export async function POST(request: NextRequest) {
         const customer = customerByEmail.get(email);
         const attrs = customer?.data?.attributes;
 
-        const stints = buildMembershipStints(contactPurchases, offerMap);
+        const stints = buildMembershipStints(contactPurchases, offerMap, stripeTrialInfoByKajabiCustomerId);
         const tenure = computeMemberTenure(stints, hiatusWindowsByEmail.get(email) ?? [], new Date());
+
+        // A legacy join-date override always wins over the computed value —
+        // it exists specifically because Kajabi has no record of the true
+        // date. If tenure didn't independently detect a rejoin (most-recent
+        // still equals the un-overridden first-joined), pull most-recent
+        // forward too — they've been continuously active since the real
+        // join date, not just since Kajabi's earliest record of them.
+        const joinDateOverride = joinDateOverrideByEmail.get(email);
+        const firstJoinedAt = joinDateOverride ?? tenure.firstJoinedAt;
+        const mostRecentJoinedAt =
+          joinDateOverride && tenure.mostRecentJoinedAt === tenure.firstJoinedAt
+            ? joinDateOverride
+            : tenure.mostRecentJoinedAt;
 
         kajabiMembers.push({
           email,
           _originalEmail: contact.email.toLowerCase(),
           name,
           joined_at: contact.created_at_kajabi.split('T')[0],
-          first_joined_at: tenure.firstJoinedAt,
-          most_recent_joined_at: tenure.mostRecentJoinedAt,
+          first_joined_at: firstJoinedAt,
+          most_recent_joined_at: mostRecentJoinedAt,
           total_active_months: tenure.totalActiveMonths,
           status,
           plan,
