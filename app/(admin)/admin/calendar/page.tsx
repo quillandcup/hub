@@ -158,16 +158,18 @@ export default async function CalendarPage({
           </div>
         </div>
       </div>
-      <CalendarWeekView
-        prickles={pricklesWithCount}
-        weekStartDate={{
-          year: weekStart.getFullYear(),
-          month: weekStart.getMonth(),
-          day: weekStart.getDate()
-        }}
-        userTimezonePreference={userTimezone}
-        prickleBasePath="/admin/prickles"
-      />
+      <div className="overflow-x-auto -mx-6 px-6 sm:mx-0 sm:px-0">
+        <CalendarWeekView
+          prickles={pricklesWithCount}
+          weekStartDate={{
+            year: weekStart.getFullYear(),
+            month: weekStart.getMonth(),
+            day: weekStart.getDate()
+          }}
+          userTimezonePreference={userTimezone}
+          prickleBasePath="/admin/prickles"
+        />
+      </div>
     </div>
   );
 }

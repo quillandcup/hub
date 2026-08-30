@@ -195,8 +195,14 @@ export default function CalendarWeekView({
   // Hours to display (full 24 hours: 12 AM to 11 PM)
   const hours = Array.from({ length: 24 }, (_, i) => i);
 
+  // Time column is fixed-width (just needs to fit "12 AM"/"12 PM"); day columns
+  // share the rest and can shrink down to a readable minimum before the grid's
+  // intrinsic min-width kicks in and the container scrolls horizontally on its
+  // own (bounded to the calendar, not the whole page).
+  const gridColsClass = "grid-cols-[2.75rem_repeat(7,minmax(4rem,1fr))] sm:grid-cols-[4rem_repeat(7,1fr)]";
+
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-lg shadow overflow-clip min-w-[1000px]">
+    <div className="bg-white dark:bg-slate-900 rounded-lg shadow overflow-clip">
       {/* Legend */}
       {mode !== "member" && (
         <div className="p-4 border-b border-slate-200 dark:border-slate-800">
@@ -253,21 +259,22 @@ export default function CalendarWeekView({
       )}
 
       {/* Calendar Grid */}
-      <div className="min-w-[1000px]">
+      <div>
           {/* Day Headers — sticky so they stay visible while time rows scroll */}
-          <div className="sticky top-0 z-20 grid grid-cols-8 border-b border-slate-200 dark:border-slate-800">
+          <div className={`sticky top-0 z-20 grid ${gridColsClass} border-b border-slate-200 dark:border-slate-800`}>
             <div className="p-2 bg-slate-50 dark:bg-slate-800"></div>
             {days.map((day, i) => {
               const isToday = day.toDateString() === new Date().toDateString();
               return (
                 <div
                   key={i}
-                  className={`p-3 text-center border-l border-slate-200 dark:border-slate-800 ${
+                  className={`p-1 sm:p-3 text-center border-l border-slate-200 dark:border-slate-800 ${
                     isToday ? "bg-blue-50 dark:bg-blue-950" : "bg-slate-50 dark:bg-slate-800"
                   }`}
                 >
-                  <div className={`text-sm font-semibold ${isToday ? "text-blue-600 dark:text-blue-400" : "text-slate-700 dark:text-slate-300"}`}>
-                    {dayNames[day.getDay()]}
+                  <div className={`text-xs sm:text-sm font-semibold ${isToday ? "text-blue-600 dark:text-blue-400" : "text-slate-700 dark:text-slate-300"}`}>
+                    <span className="sm:hidden">{dayNames[day.getDay()].slice(0, 3)}</span>
+                    <span className="hidden sm:inline">{dayNames[day.getDay()]}</span>
                   </div>
                   <div className={`text-xs ${isToday ? "text-blue-500 dark:text-blue-500" : "text-slate-500 dark:text-slate-400"}`}>
                     {day.getMonth() + 1}/{day.getDate()}
@@ -279,14 +286,19 @@ export default function CalendarWeekView({
 
           {/* Time Grid */}
           <div className="relative">
-            <div className="grid grid-cols-8">
+            <div className={`grid ${gridColsClass}`}>
               {/* Time Labels */}
               <div>
-                {hours.map(hour => (
-                  <div key={hour} data-hour={hour} className="h-[60px] border-b border-slate-200 dark:border-slate-800 p-2 text-xs text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800">
-                    {hour === 0 ? "12 AM" : hour < 12 ? `${hour} AM` : hour === 12 ? "12 PM" : `${hour - 12} PM`}
-                  </div>
-                ))}
+                {hours.map(hour => {
+                  const period = hour < 12 ? "AM" : "PM";
+                  const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
+                  return (
+                    <div key={hour} data-hour={hour} className="h-[60px] border-b border-slate-200 dark:border-slate-800 px-1 py-2 sm:p-2 text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800 whitespace-nowrap">
+                      <span className="sm:hidden">{displayHour}{period[0]}</span>
+                      <span className="hidden sm:inline">{displayHour} {period}</span>
+                    </div>
+                  );
+                })}
               </div>
 
               {/* Day Columns */}
