@@ -7,6 +7,7 @@ import { getUserTimezonePreference } from "@/lib/timezone"
 import { hostShortName } from "@/lib/formatters"
 import { getStarredGoals } from "../writing/actions"
 import GoalDisplay from "@/components/writing/GoalDisplay"
+import ReasonBadges from "@/components/ReasonBadges"
 import {
   computePrickleStreaks,
   computeSisterStreaks,
@@ -107,7 +108,25 @@ type UpcomingPrickle = {
 
 interface HighlightReason {
   kind: "hosting" | "streak" | "lostStreak" | "sister"
-  label: string
+  tooltip: string[]
+}
+
+type SisterSignal = {
+  name: string
+  attendedCount: number
+  totalOccurrences: number
+  currentStreak: number
+}
+
+function sisterReasonText(signal: SisterSignal): string {
+  const { attendedCount, totalOccurrences, currentStreak } = signal
+  const name = hostShortName(signal.name)
+  if (attendedCount === totalOccurrences && totalOccurrences > 0) {
+    return currentStreak > 1
+      ? `${name} hasn't missed the last ${totalOccurrences} · ${currentStreak}-week streak with you`
+      : `${name} hasn't missed the last ${totalOccurrences}`
+  }
+  return `${name} came ${attendedCount} of the last ${totalOccurrences}`
 }
 
 async function fetchUpcomingPrickles(
@@ -261,7 +280,7 @@ export default async function DashboardPage() {
   // sisters who attended EVERY recent occurrence on record (not just one of
   // the last 2) -- used to decide whether the signal is strong enough to
   // outrank a personal lost streak, not just to earn a badge. ----
-  const sistersBySeries = new Map<string, string[]>()
+  const sistersBySeries = new Map<string, SisterSignal[]>()
   const highLikelihoodSistersBySeries = new Map<string, { names: string[]; maxStreak: number }>()
   if (activeSisters.length > 0 && upcoming.length > 0) {
     const seriesKeysInUpcoming = new Set(upcoming.map((p) => p.seriesKey))
@@ -323,21 +342,28 @@ export default async function DashboardPage() {
       }
 
       for (const [seriesKey, occurrenceIds] of seriesOccurrences) {
-        const names: string[] = []
+        const signals: SisterSignal[] = []
         const highLikelihoodNames: string[] = []
         let maxStreak = 0
         for (const sister of activeSisters) {
           const attendedIds = attendedPrickleIdsByMember.get(sister.memberId)
           if (!attendedIds) continue
           const attendedCount = occurrenceIds.filter((id) => attendedIds.has(id)).length
-          if (attendedCount > 0) names.push(sister.memberName)
+          if (attendedCount > 0) {
+            signals.push({
+              name: sister.memberName,
+              attendedCount,
+              totalOccurrences: occurrenceIds.length,
+              currentStreak: sister.currentStreak,
+            })
+          }
           // High likelihood: attended every recent occurrence we have on record.
           if (attendedCount === occurrenceIds.length) {
             highLikelihoodNames.push(sister.memberName)
             maxStreak = Math.max(maxStreak, sister.currentStreak)
           }
         }
-        if (names.length > 0) sistersBySeries.set(seriesKey, names)
+        if (signals.length > 0) sistersBySeries.set(seriesKey, signals)
         if (highLikelihoodNames.length > 0) {
           highLikelihoodSistersBySeries.set(seriesKey, { names: highLikelihoodNames, maxStreak })
         }
@@ -358,26 +384,22 @@ export default async function DashboardPage() {
     let sortValue = new Date(p.startTime).getTime()
 
     if (p.hostId === memberId) {
-      reasons.push({ kind: "hosting", label: "You're hosting" })
+      reasons.push({ kind: "hosting", tooltip: ["You're hosting this one"] })
       priority = 0
     }
 
     const streakWeeks = activeStreakBySeries.get(p.seriesKey)
     if (streakWeeks) {
-      reasons.push({ kind: "streak", label: `${streakWeeks}-week streak here` })
+      reasons.push({ kind: "streak", tooltip: [`${streakWeeks}-week streak here`] })
       if (priority > 1) {
         priority = 1
         sortValue = -streakWeeks
       }
     }
 
-    const sisterNames = sistersBySeries.get(p.seriesKey)
-    if (sisterNames && sisterNames.length > 0) {
-      const label =
-        sisterNames.length <= 2
-          ? `${sisterNames.map(hostShortName).join(" & ")} usually shows up`
-          : `${sisterNames.slice(0, 2).map(hostShortName).join(", ")} +${sisterNames.length - 2} usually show up`
-      reasons.push({ kind: "sister", label })
+    const sisterSignals = sistersBySeries.get(p.seriesKey)
+    if (sisterSignals && sisterSignals.length > 0) {
+      reasons.push({ kind: "sister", tooltip: sisterSignals.slice(0, 3).map(sisterReasonText) })
     }
 
     const highLikelihoodSister = highLikelihoodSistersBySeries.get(p.seriesKey)
@@ -388,7 +410,7 @@ export default async function DashboardPage() {
 
     const lostStreakWeeks = lostStreakBySeries.get(p.seriesKey)
     if (lostStreakWeeks) {
-      reasons.push({ kind: "lostStreak", label: `Lost a ${lostStreakWeeks}-week streak here` })
+      reasons.push({ kind: "lostStreak", tooltip: [`Lost a ${lostStreakWeeks}-week streak here`] })
       if (priority > 3) {
         priority = 3
         sortValue = -lostStreakWeeks
@@ -447,14 +469,9 @@ export default async function DashboardPage() {
         </div>
       ) : (
         <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 p-6">
-          <h2 className="text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
+          <h2 className="text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-4">
             Upcoming Prickles
           </h2>
-          <p className="text-xs text-slate-400 dark:text-slate-500 mb-4">
-            Sorted for you: hosting duties first, then active streaks, then sisters who reliably show up,
-            then streaks you&apos;ve lost. &quot;Likely to attend&quot; is a pattern from past history, not
-            a confirmed RSVP.
-          </p>
           <div>
             {displayedUpcoming.map(({ prickle, reasons }) => (
               <UpcomingRow key={prickle.id} prickle={prickle} reasons={reasons} timeZone={timeZone} />
@@ -464,13 +481,6 @@ export default async function DashboardPage() {
       )}
     </div>
   )
-}
-
-const REASON_ICON: Record<HighlightReason["kind"], string> = {
-  hosting: "🎤",
-  streak: "🔥",
-  lostStreak: "💔",
-  sister: "🤝",
 }
 
 function UpcomingRow({
@@ -498,19 +508,7 @@ function UpcomingRow({
           {formatUpcomingTime(prickle.startTime, timeZone)}
         </p>
       </div>
-      {reasons.length > 0 && (
-        <div className="flex flex-wrap gap-1.5 mt-2">
-          {reasons.map((r) => (
-            <span
-              key={r.kind}
-              className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400"
-            >
-              <span aria-hidden>{REASON_ICON[r.kind]}</span>
-              {r.label}
-            </span>
-          ))}
-        </div>
-      )}
+      <ReasonBadges reasons={reasons} />
     </Link>
   )
 }
