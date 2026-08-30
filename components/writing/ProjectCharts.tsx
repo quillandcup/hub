@@ -112,15 +112,15 @@ export default function ProjectCharts({ entries }: ProjectChartsProps) {
         </AreaChart>
       </ResponsiveContainer>
 
-      <div className="mt-6 overflow-x-auto">
-        <div className="flex gap-1 w-max">
+      <div className="mt-6 flex flex-col items-center">
+        <div className="flex gap-1.5">
           {heatmapWeeks.map((week, wi) => (
-            <div key={wi} className="flex flex-col gap-1">
+            <div key={wi} className="flex flex-col gap-1.5">
               {week.map((day) => (
                 <div
                   key={day.date}
                   title={`${day.date}: ${day.total.toLocaleString()} ${MEASURE_LABELS[activeMeasure].toLowerCase()}`}
-                  className={`w-3 h-3 rounded-sm ${heatmapColor(day.total, maxDayTotal)}`}
+                  className={`w-5 h-5 rounded-sm ${heatmapColor(day.total, maxDayTotal)}`}
                 />
               ))}
             </div>
