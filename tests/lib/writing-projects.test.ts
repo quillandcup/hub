@@ -81,6 +81,18 @@ describe("computeCumulativeSeries", () => {
       { entryDate: "2026-08-02", total: 1200 },
     ]);
   });
+
+  it("collapses multiple same-day entries into one point holding that day's final total", () => {
+    const series = computeCumulativeSeries([
+      entry({ entryDate: "2026-08-01", createdAt: "2026-08-01T09:00:00Z", amount: 500 }),
+      entry({ entryDate: "2026-08-01", createdAt: "2026-08-01T10:00:00Z", amount: 250 }),
+      entry({ entryDate: "2026-08-02", createdAt: "2026-08-02T09:00:00Z", amount: 700 }),
+    ]);
+    expect(series).toEqual([
+      { entryDate: "2026-08-01", total: 750 },
+      { entryDate: "2026-08-02", total: 1450 },
+    ]);
+  });
 });
 
 describe("computeGoalProgress", () => {

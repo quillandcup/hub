@@ -40,16 +40,23 @@ export function computeCumulativeTotal(entries: ProgressEntryInput[]): number {
   return running;
 }
 
-/** Same replay as computeCumulativeTotal, but returns the running total after each entry (chronological order) -- for a cumulative chart. */
+/**
+ * Same replay as computeCumulativeTotal, but returns the running total as of each date
+ * (chronological order) -- for a cumulative chart. Multiple entries on the same date collapse
+ * into a single point holding that day's final total, since a per-date chart axis can't
+ * usefully distinguish same-day points anyway.
+ */
 export function computeCumulativeSeries(
   entries: ProgressEntryInput[]
 ): { entryDate: string; total: number }[] {
   const sorted = [...entries].sort(compareByDateThenCreatedAt);
   let running = 0;
-  return sorted.map((entry) => {
+  const byDate = new Map<string, number>();
+  for (const entry of sorted) {
     running = entry.mode === "set_total" ? entry.amount : running + entry.amount;
-    return { entryDate: entry.entryDate, total: running };
-  });
+    byDate.set(entry.entryDate, running);
+  }
+  return [...byDate.entries()].map(([entryDate, total]) => ({ entryDate, total }));
 }
 
 function compareByDateThenCreatedAt(a: ProgressEntryInput, b: ProgressEntryInput): number {
