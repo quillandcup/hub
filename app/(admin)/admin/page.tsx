@@ -34,18 +34,24 @@ export default async function DashboardPage() {
     .from("prickle_attendance")
     .select("*", { count: "exact", head: true });
 
-  // At-risk: active members with no attendance in last 30 days
+  // At-risk: active members with no attendance in last 30 days. Staff-only
+  // accounts (source='staff', no paying Kajabi subscription) are excluded —
+  // staff who are ALSO paying members keep source='kajabi' and stay eligible.
   const { data: atRiskMembers } = await supabase
     .from("members")
     .select(`
       id,
       name,
       email,
+      source,
       prickle_attendance(join_time)
     `)
     .eq("status", "active");
 
-  const atRisk = atRiskMembers?.filter(m => {
+  const isAtRisk = (m: { source: string; prickle_attendance?: { join_time: string }[] | null }) => {
+    if (m.source === "staff") {
+      return false;
+    }
     // No attendance at all, or no recent attendance
     if (!m.prickle_attendance || m.prickle_attendance.length === 0) {
       return true;
@@ -54,7 +60,9 @@ export default async function DashboardPage() {
       new Date(a.join_time) >= thirtyDaysAgo
     );
     return !hasRecentAttendance;
-  }).length || 0;
+  };
+
+  const atRisk = atRiskMembers?.filter(isAtRisk).length || 0;
 
   // Top 10 most active members (all time)
   // Fetch all attendance records (just member_id) with pagination
@@ -111,16 +119,7 @@ export default async function DashboardPage() {
     .filter((m): m is { id: string; name: string; email: string; count: number } => m !== null);
 
   // At-risk members list (active with no attendance in 30 days)
-  const atRiskMembersList = atRiskMembers?.filter(m => {
-    // No attendance at all, or no recent attendance
-    if (!m.prickle_attendance || m.prickle_attendance.length === 0) {
-      return true;
-    }
-    const hasRecentAttendance = m.prickle_attendance.some((a: any) =>
-      new Date(a.join_time) >= thirtyDaysAgo
-    );
-    return !hasRecentAttendance;
-  }).slice(0, 10) || [];
+  const atRiskMembersList = atRiskMembers?.filter(isAtRisk).slice(0, 10) || [];
 
   // Writing Hours Last 30 Days - median per active member
   const { data: last30DaysAttendance } = await supabase

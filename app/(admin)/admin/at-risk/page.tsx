@@ -26,6 +26,7 @@ export default async function AtRiskPage() {
       name,
       email,
       joined_at,
+      source,
       prickle_attendance(join_time)
     `)
     .eq("status", "active")
@@ -34,8 +35,14 @@ export default async function AtRiskPage() {
   const thirtyDaysAgo = new Date();
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-  // Filter for at-risk members
+  // Filter for at-risk members. Staff-only accounts (source='staff', no
+  // paying Kajabi subscription) are excluded — we're not worried about them
+  // churning. Staff who are ALSO paying members keep source='kajabi' (with
+  // staff_role set) and are still eligible.
   const atRiskMembers = activeMembers?.filter(m => {
+    if (m.source === "staff") {
+      return false;
+    }
     // No attendance at all, or no recent attendance
     if (!m.prickle_attendance || m.prickle_attendance.length === 0) {
       return true;
