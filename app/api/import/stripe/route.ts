@@ -69,8 +69,12 @@ export async function POST(request: NextRequest) {
     }
 
     // 3. Fetch and import subscriptions (all statuses to understand full picture)
+    // Stripe's list endpoint excludes canceled subscriptions unless status is
+    // explicitly "all" — omitting it silently drops every cancelled member's
+    // subscription (and their real trial_start/trial_end), which is most of
+    // the membership base.
     console.log("Fetching subscriptions from Stripe API...");
-    const subscriptions = await stripe.fetchAllSubscriptions(); // Gets all, not just active
+    const subscriptions = await stripe.fetchAllSubscriptions("all");
 
     const subscriptionRecords = subscriptions.map(subscription => ({
       stripe_subscription_id: subscription.id,

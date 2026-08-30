@@ -56,7 +56,7 @@ export class StripeClientWrapper {
   /**
    * Fetch all subscriptions (optionally filtered by status)
    */
-  async fetchAllSubscriptions(status?: Stripe.Subscription.Status): Promise<Stripe.Subscription[]> {
+  async fetchAllSubscriptions(status?: Stripe.SubscriptionListParams.Status): Promise<Stripe.Subscription[]> {
     console.log(`[Stripe API] Fetching subscriptions${status ? ` with status=${status}` : ''}...`);
 
     const subscriptions = await fetchAll(
