@@ -9,6 +9,7 @@ import {
   summarizeMonth,
   validateScheduleInput,
   formatScheduleLabel,
+  zonedTimeToUtc,
 } from "@/lib/prickle-schedules";
 
 describe("month boundaries", () => {
@@ -322,5 +323,22 @@ describe("formatScheduleLabel", () => {
     });
     expect(label).toContain("Community Potluck");
     expect(label).toContain("Sep 12");
+  });
+});
+
+describe("zonedTimeToUtc", () => {
+  it("converts a winter (EST, UTC-5) wall-clock time to the correct UTC instant", () => {
+    const result = zonedTimeToUtc("2026-01-15", "19:00", "America/New_York");
+    expect(result.toISOString()).toBe("2026-01-16T00:00:00.000Z");
+  });
+
+  it("converts a summer (EDT, UTC-4) wall-clock time to the correct UTC instant", () => {
+    const result = zonedTimeToUtc("2026-07-15", "19:00", "America/New_York");
+    expect(result.toISOString()).toBe("2026-07-15T23:00:00.000Z");
+  });
+
+  it("passes a UTC wall-clock time through unchanged", () => {
+    const result = zonedTimeToUtc("2026-06-01", "12:00", "UTC");
+    expect(result.toISOString()).toBe("2026-06-01T12:00:00.000Z");
   });
 });

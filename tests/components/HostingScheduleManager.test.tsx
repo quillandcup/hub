@@ -3,19 +3,27 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import HostingScheduleManager from "@/app/(member)/hosting/HostingScheduleManager";
-import { requestToHost, updateMySchedule, withdrawMySchedule } from "@/app/(member)/hosting/actions";
+import { requestToHost, updateMySchedule, withdrawMySchedule, getHostingCalendarContext } from "@/app/(member)/hosting/actions";
 import type { MyScheduleRow } from "@/app/(member)/hosting/actions";
 
 vi.mock("@/app/(member)/hosting/actions", () => ({
   requestToHost: vi.fn(),
   updateMySchedule: vi.fn(),
   withdrawMySchedule: vi.fn(),
+  getHostingCalendarContext: vi.fn(),
+}));
+
+// HostingCalendarPicker renders CalendarWeekView, which calls useRouter().
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: () => {} }),
 }));
 
 beforeEach(() => {
   vi.mocked(requestToHost).mockReset();
   vi.mocked(updateMySchedule).mockReset();
   vi.mocked(withdrawMySchedule).mockReset();
+  vi.mocked(getHostingCalendarContext).mockReset();
+  vi.mocked(getHostingCalendarContext).mockResolvedValue({ prickles: [], proposedSlots: [] });
   // handleChanged() calls window.location.reload(); stub it so jsdom doesn't
   // throw "Not implemented: navigation".
   // @ts-expect-error -- test stub

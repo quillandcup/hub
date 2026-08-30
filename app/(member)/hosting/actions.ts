@@ -4,11 +4,14 @@ import { createClient } from "@/lib/supabase/server";
 import { getEffectiveIdentity } from "@/lib/sudo";
 import { revalidatePath } from "next/cache";
 import {
+  generateScheduleInstanceDates,
+  getMonthEnd,
   getMonthStart,
   getNextMonthStart,
   isMonthLocked,
   seedNextMonthSchedules,
   validateScheduleInput,
+  zonedTimeToUtc,
   type RecurrenceType,
 } from "@/lib/prickle-schedules";
 
@@ -86,6 +89,109 @@ export async function getMySchedules(): Promise<MyScheduleRow[]> {
     notes: row.notes,
     carriedForwardFrom: row.carried_forward_from,
   }));
+}
+
+export interface HostingCalendarPrickle {
+  id: string;
+  host: string;
+  start_time: string;
+  end_time: string;
+  prickle_type: string;
+  attendance_count: number;
+}
+
+export interface HostingProposedSlot {
+  id: string;
+  label: string;
+  startTime: string;
+  endTime: string;
+  status: "proposed" | "confirmed";
+}
+
+export interface HostingCalendarContext {
+  prickles: HostingCalendarPrickle[];
+  proposedSlots: HostingProposedSlot[];
+}
+
+const DEFAULT_SLOT_DURATION_MINUTES = 60;
+
+/**
+ * Calendar context for `month`, used by the hosting-request slot picker so
+ * members can see what's already taken before requesting a time. Combines
+ * two sources: real calendar prickles (from Google Calendar sync, source of
+ * truth for what's actually happening) and other hosts' proposed/confirmed
+ * prickle_schedules for the month, expanded into concrete dates. Proposed
+ * schedules don't carry a duration, so their blocks default to one hour --
+ * informational only, not used for any conflict enforcement.
+ */
+export async function getHostingCalendarContext(month: string): Promise<HostingCalendarContext> {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { prickles: [], proposedSlots: [] };
+
+  const monthStart = new Date(`${month}T00:00:00Z`);
+  const monthEnd = getMonthEnd(monthStart);
+  const rangeEnd = new Date(monthEnd.getTime() + 24 * 60 * 60 * 1000);
+
+  const [{ data: prickleRows }, { data: scheduleRows }] = await Promise.all([
+    supabase
+      .from("prickles")
+      .select("id, host:members(name), start_time, end_time, prickle_types(name)")
+      .gte("start_time", monthStart.toISOString())
+      .lt("start_time", rangeEnd.toISOString())
+      .order("start_time"),
+    supabase
+      .from("prickle_schedules")
+      .select(
+        "id, recurrence_type, day_of_week, recurrence_anchor_date, week_of_month, event_date, start_time_local, timezone, status, prickle_types(name), member:members(name)"
+      )
+      .eq("month", month)
+      .in("status", ["proposed", "confirmed"])
+      .is("deleted_at", null),
+  ]);
+
+  const prickles: HostingCalendarPrickle[] = (prickleRows ?? []).map((row: any) => ({
+    id: row.id,
+    host: row.host?.name ?? "",
+    start_time: row.start_time,
+    end_time: row.end_time,
+    prickle_type: row.prickle_types?.name ?? "Prickle",
+    attendance_count: 0,
+  }));
+
+  const proposedSlots: HostingProposedSlot[] = [];
+  for (const row of (scheduleRows ?? []) as any[]) {
+    const dates = generateScheduleInstanceDates(
+      {
+        recurrenceType: row.recurrence_type,
+        dayOfWeek: row.day_of_week,
+        recurrenceAnchorDate: row.recurrence_anchor_date,
+        weekOfMonth: row.week_of_month,
+        eventDate: row.event_date,
+        startTimeLocal: row.start_time_local,
+        timezone: row.timezone,
+      },
+      monthStart,
+      monthEnd
+    );
+    for (const date of dates) {
+      const dateStr = date.toISOString().slice(0, 10);
+      const start = zonedTimeToUtc(dateStr, row.start_time_local.slice(0, 5), row.timezone);
+      const end = new Date(start.getTime() + DEFAULT_SLOT_DURATION_MINUTES * 60000);
+      proposedSlots.push({
+        id: `${row.id}-${dateStr}`,
+        label: `${row.prickle_types?.name ?? "Prickle"} — ${row.member?.name ?? "a host"}`,
+        startTime: start.toISOString(),
+        endTime: end.toISOString(),
+        status: row.status,
+      });
+    }
+  }
+
+  return { prickles, proposedSlots };
 }
 
 export interface RequestToHostInput {

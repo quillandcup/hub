@@ -16,12 +16,37 @@ export interface Prickle {
   host_late?: boolean;
 }
 
+// A non-navigable, informational block (e.g. another host's proposed/confirmed
+// hosting slot) shown for context. Rendered distinctly from real prickles and
+// never intercepts clicks -- clicks pass through to the empty-slot grid cell
+// beneath it.
+export interface ProposedSlot {
+  id: string;
+  label: string;
+  startTime: string;
+  endTime: string;
+  status: "proposed" | "confirmed";
+}
+
+export interface SlotClick {
+  date: Date; // calendar date clicked (year/month/day), time-of-day ignored
+  hour: number;
+  minute: number;
+}
+
 interface CalendarWeekViewProps {
   prickles: Prickle[];
   weekStartDate: { year: number; month: number; day: number }; // Date components to avoid timezone issues
   userTimezonePreference?: string; // User's timezone preference from profile
   mode?: "admin" | "member";
   prickleBasePath?: string;
+  proposedSlots?: ProposedSlot[];
+  // When provided, clicking an empty grid cell fires this instead of the
+  // calendar being read-only context. Also disables click-to-navigate on
+  // existing prickle blocks, since a form using this to pick a time shouldn't
+  // navigate the user away and lose their in-progress input.
+  onSlotClick?: (slot: SlotClick) => void;
+  selectedSlot?: SlotClick | null;
 }
 
 // Common timezones for the dropdown
@@ -70,12 +95,34 @@ function getPricklePosition(startTime: string, endTime: string, timezone: string
   return { top, height };
 }
 
+// Whether an ISO timestamp falls on the same calendar day as `day`, both
+// read in `timezone`. Shared by prickle and proposed-slot day-grouping so the
+// two layers can never disagree about which column an item belongs in.
+function isSameCalendarDay(isoTimestamp: string, day: Date, timezone: string): boolean {
+  const itemDateStr = new Date(isoTimestamp).toLocaleDateString("en-US", {
+    timeZone: timezone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+  const dayDateStr = day.toLocaleDateString("en-US", {
+    timeZone: timezone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+  return itemDateStr === dayDateStr;
+}
+
 export default function CalendarWeekView({
   prickles,
   weekStartDate,
   userTimezonePreference = "browser",
   mode = "admin",
   prickleBasePath = "/prickles",
+  proposedSlots,
+  onSlotClick,
+  selectedSlot,
 }: CalendarWeekViewProps) {
   // Reconstruct Date from components to avoid timezone serialization issues
   // Using date components (not timestamps) ensures consistent day-of-week on server and client
@@ -136,25 +183,14 @@ export default function CalendarWeekView({
   const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
   // Group prickles by day (in the selected timezone)
-  const pricklesByDay = days.map(day => {
-    return filteredPrickles.filter(p => {
-      const prickleStart = new Date(p.start_time);
-      // Get the date in the selected timezone
-      const prickleDateStr = prickleStart.toLocaleDateString("en-US", {
-        timeZone: timezone,
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-      });
-      const dayDateStr = day.toLocaleDateString("en-US", {
-        timeZone: timezone,
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-      });
-      return prickleDateStr === dayDateStr;
-    });
-  });
+  const pricklesByDay = days.map(day =>
+    filteredPrickles.filter(p => isSameCalendarDay(p.start_time, day, timezone))
+  );
+
+  // Group context-only proposed slots by day (in the selected timezone)
+  const proposedSlotsByDay = days.map(day =>
+    (proposedSlots ?? []).filter(s => isSameCalendarDay(s.startTime, day, timezone))
+  );
 
   // Hours to display (full 24 hours: 12 AM to 11 PM)
   const hours = Array.from({ length: 24 }, (_, i) => i);
@@ -264,9 +300,46 @@ export default function CalendarWeekView({
                         key={hour}
                         className={`h-[60px] border-b border-slate-200 dark:border-slate-800 ${
                           isToday ? "bg-blue-50/30 dark:bg-blue-950/20" : ""
-                        }`}
+                        } ${onSlotClick ? "cursor-pointer hover:bg-blue-100/60 dark:hover:bg-blue-900/30" : ""}`}
+                        onClick={onSlotClick ? (e) => {
+                          const rect = e.currentTarget.getBoundingClientRect();
+                          const fractionOfHour = (e.clientY - rect.top) / rect.height;
+                          const minute = Math.min(45, Math.max(0, Math.round(fractionOfHour * 4) * 15));
+                          onSlotClick({ date: day, hour, minute });
+                        } : undefined}
                       ></div>
                     ))}
+
+                    {/* Proposed/confirmed hosting slots — context only, never intercepts clicks */}
+                    {proposedSlotsByDay[dayIndex].length > 0 && (
+                      <div className="absolute inset-0 pointer-events-none">
+                        {proposedSlotsByDay[dayIndex].map(slot => {
+                          const { top, height } = getPricklePosition(slot.startTime, slot.endTime, timezone);
+                          return (
+                            <div
+                              key={slot.id}
+                              title={`${slot.label} (${slot.status})`}
+                              className={`absolute left-1 right-1 rounded border-2 border-dashed p-1 overflow-hidden text-xs ${
+                                slot.status === "confirmed"
+                                  ? "border-purple-400 bg-purple-50/70 text-purple-700 dark:border-purple-600 dark:bg-purple-950/40 dark:text-purple-300"
+                                  : "border-amber-400 bg-amber-50/70 text-amber-700 dark:border-amber-600 dark:bg-amber-950/40 dark:text-amber-300"
+                              }`}
+                              style={{ top: `${top}px`, height: `${height}px` }}
+                            >
+                              <div className="font-semibold truncate">{slot.label}</div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {/* Selected slot highlight (slot-picking mode only) */}
+                    {onSlotClick && selectedSlot && selectedSlot.date.toDateString() === day.toDateString() && (
+                      <div
+                        className="absolute inset-x-1 rounded border-2 border-blue-500 bg-blue-500/10 pointer-events-none z-10"
+                        style={{ top: `${selectedSlot.hour * 60 + selectedSlot.minute}px`, height: "60px" }}
+                      />
+                    )}
 
                     {/* Prickle Blocks */}
                     <div className="absolute inset-0 pointer-events-none">
@@ -288,14 +361,14 @@ export default function CalendarWeekView({
                         return (
                           <div key={prickle.id}>
                             <div
-                              className={`absolute rounded border-2 p-1.5 overflow-hidden pointer-events-auto transition-opacity cursor-pointer hover:opacity-90 ${getAttendanceColor(prickle.attendance_count)}`}
+                              className={`absolute rounded border-2 p-1.5 overflow-hidden pointer-events-auto transition-opacity hover:opacity-90 ${onSlotClick ? "cursor-default" : "cursor-pointer"} ${getAttendanceColor(prickle.attendance_count)}`}
                               style={{
                                 top: `${top}px`,
                                 height: `${height}px`,
                                 left: `calc(${leftPct}% + 2px)`,
                                 width: `calc(${widthPct}% - 4px)`,
                               }}
-                              onClick={() => router.push(`${prickleBasePath}/${prickle.id}`)}
+                              onClick={onSlotClick ? undefined : () => router.push(`${prickleBasePath}/${prickle.id}`)}
                               onMouseEnter={() => setHoveredPrickle(prickle.id)}
                               onMouseLeave={() => setHoveredPrickle(null)}
                             >
