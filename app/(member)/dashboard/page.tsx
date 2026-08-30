@@ -11,6 +11,7 @@ import ReasonBadges from "@/components/ReasonBadges"
 import {
   computePrickleStreaks,
   computeSisterStreaks,
+  isEstablishedSisterStreak,
   type PrickleStreak,
   type SisterStreak,
 } from "@/lib/streaks"
@@ -267,7 +268,9 @@ export default async function DashboardPage() {
     now,
     timeZone
   )
-  const activeSisters = sisterStreaks.filter((s) => s.currentStreak > 0)
+  const activeSisters = sisterStreaks.filter(
+    (s) => s.currentStreak > 0 && isEstablishedSisterStreak(s)
+  )
 
   // ---- Sister-likely-attending: lightweight historical-pattern heuristic.
   // For each upcoming series a sister-streak sister might show up to, check

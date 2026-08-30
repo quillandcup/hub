@@ -21,13 +21,24 @@ export interface RankedStreaks<T> {
 }
 
 /**
+ * A streak only counts as an established "sister" relationship once it has
+ * had at least one real 2-consecutive-week run of shared attendance. This is
+ * the single source of truth for that threshold -- every feature that surfaces
+ * "sisters" (Streaks page, Network page, dashboard sister-likely-attending
+ * signal) must use it so they agree on who qualifies.
+ */
+export function isEstablishedSisterStreak(s: Streaks): boolean {
+  return s.longestStreak >= 2
+}
+
+/**
  * Filters to streaks with at least a 2-week best run, ranks by current streak
  * (then longest streak) descending, and caps to `limit` rows. `total` reflects
  * the ranked-but-uncapped count, so callers can tell whether the list was truncated.
  */
 export function rankStreaks<T extends Streaks>(streaks: T[], limit: number): RankedStreaks<T> {
   const ranked = streaks
-    .filter(s => s.longestStreak >= 2)
+    .filter(isEstablishedSisterStreak)
     .sort((a, b) => b.currentStreak - a.currentStreak || b.longestStreak - a.longestStreak)
   return { items: ranked.slice(0, limit), total: ranked.length }
 }
