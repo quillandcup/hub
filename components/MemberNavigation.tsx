@@ -212,7 +212,7 @@ export default function MemberNavigation({ isAdmin, memberId, enabledFeatures }:
       {/* Mobile hamburger button — no permanent space, just a fixed trigger */}
       <button
         onClick={() => setMobileOpen(true)}
-        className="md:hidden fixed top-4 left-4 z-40 p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm text-slate-700 dark:text-slate-300"
+        className="md:hidden fixed top-4 left-4 z-50 p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm text-slate-700 dark:text-slate-300"
         aria-label="Open navigation menu"
       >
         <span className="text-lg leading-none">☰</span>
