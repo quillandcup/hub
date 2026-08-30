@@ -8,7 +8,9 @@ import {
   summarizeMonth,
   type RecurrenceType,
 } from "@/lib/prickle-schedules";
+import type { SlotClick } from "@/components/CalendarWeekView";
 import { requestToHost, updateMySchedule, withdrawMySchedule, type MyScheduleRow } from "./actions";
+import HostingCalendarPicker from "./HostingCalendarPicker";
 
 interface PrickleType {
   id: string;
@@ -72,6 +74,30 @@ function ScheduleForm({
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [pickedSlot, setPickedSlot] = useState<SlotClick | null>(null);
+
+  function toIsoDateLocal(d: Date): string {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  }
+
+  function handleSlotPick(slot: SlotClick) {
+    setPickedSlot(slot);
+    const startTimeLocal = `${String(slot.hour).padStart(2, "0")}:${String(slot.minute).padStart(2, "0")}`;
+    setForm((f) => {
+      const next = { ...f, startTimeLocal };
+      if (f.recurrenceType === "weekly") {
+        next.dayOfWeek = slot.date.getDay();
+      } else if (f.recurrenceType === "biweekly") {
+        next.firstDate = toIsoDateLocal(slot.date);
+      } else if (f.recurrenceType === "monthly") {
+        next.dayOfWeek = slot.date.getDay();
+        next.weekOfMonth = Math.floor((slot.date.getDate() - 1) / 7) + 1;
+      } else if (f.recurrenceType === "one_off") {
+        next.eventDate = toIsoDateLocal(slot.date);
+      }
+      return next;
+    });
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -126,6 +152,8 @@ function ScheduleForm({
       className="mb-6 p-6 border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-900 space-y-4"
     >
       <h3 className="font-medium text-slate-900 dark:text-slate-100">Request to host for {monthLabel(month)}</h3>
+
+      <HostingCalendarPicker month={month} onPick={handleSlotPick} selectedSlot={pickedSlot} />
 
       <div>
         <label htmlFor="hosting-type" className="block text-sm font-medium mb-1 text-slate-700 dark:text-slate-300">

@@ -51,6 +51,38 @@ function isoDate(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
 
+function timezoneOffsetMinutes(instant: Date, timeZone: string): number {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    hourCycle: "h23",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  }).formatToParts(instant);
+  const get = (type: string) => Number(parts.find((p) => p.type === type)!.value);
+  const asUtc = Date.UTC(get("year"), get("month") - 1, get("day"), get("hour"), get("minute"), get("second"));
+  return (asUtc - instant.getTime()) / 60000;
+}
+
+/**
+ * Converts a wall-clock date + "HH:MM" time in `timeZone` into the UTC instant
+ * it represents (e.g. "2026-09-15" + "19:00" + "America/New_York" -> the UTC
+ * timestamp for 7pm ET that day, accounting for DST). No timezone library is
+ * available in this repo, so this uses the standard offset-lookup trick:
+ * guess the instant assuming UTC, read back what wall-clock time that instant
+ * has in `timeZone`, and correct by the difference.
+ */
+export function zonedTimeToUtc(dateStr: string, timeLocal: string, timeZone: string): Date {
+  const [year, month, day] = dateStr.split("-").map(Number);
+  const [hour, minute] = timeLocal.split(":").map(Number);
+  const naiveUtc = Date.UTC(year, month - 1, day, hour, minute);
+  const offsetMinutes = timezoneOffsetMinutes(new Date(naiveUtc), timeZone);
+  return new Date(naiveUtc - offsetMinutes * 60000);
+}
+
 /**
  * Effective lock state for `month`: an explicit override wins; otherwise a
  * month is locked once it has started (month <= the current month) and open
