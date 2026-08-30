@@ -34,141 +34,155 @@ function NavLinks({ memberId, isAdmin, enabledFeatures, pathname, collapsed, onN
   const showStreaks = enabledFeatures.includes('streaks');
   const showPricklePicker = enabledFeatures.includes('prickle_picker');
   const showWheel = enabledFeatures.includes('wheel_of_wonder');
+  const hasGrowItems = showStreaks || showPricklePicker || showWheel;
+
+  const linkClass = (active: boolean) =>
+    `flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
+      active
+        ? "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 font-medium"
+        : "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+    }`;
 
   return (
     <>
-      <nav className="p-4 flex-1 space-y-1">
-        <Link
-          href="/dashboard"
-          onClick={onNavigate}
-          className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
-            isDashboardActive
-              ? "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 font-medium"
-              : "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
-          }`}
-          title={collapsed ? "Dashboard" : undefined}
-        >
-          <span className="text-lg">🏠</span>
-          {!collapsed && <span>Dashboard</span>}
-        </Link>
+      <nav className="p-4 overflow-y-auto flex-1">
+        {/* Overview */}
+        <div className="mb-6">
+          {!collapsed && (
+            <h2 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2 px-3">
+              Overview
+            </h2>
+          )}
+          <div className="space-y-1">
+            <Link
+              href="/dashboard"
+              onClick={onNavigate}
+              className={linkClass(isDashboardActive)}
+              title={collapsed ? "Dashboard" : undefined}
+            >
+              <span className="text-lg">🏠</span>
+              {!collapsed && <span>Dashboard</span>}
+            </Link>
 
-        <Link
-          href="/calendar"
-          onClick={onNavigate}
-          className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
-            isCalendarActive
-              ? "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 font-medium"
-              : "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
-          }`}
-          title={collapsed ? "My Calendar" : undefined}
-        >
-          <span className="text-lg">📅</span>
-          {!collapsed && <span>My Calendar</span>}
-        </Link>
+            <Link
+              href="/calendar"
+              onClick={onNavigate}
+              className={linkClass(isCalendarActive)}
+              title={collapsed ? "My Calendar" : undefined}
+            >
+              <span className="text-lg">📅</span>
+              {!collapsed && <span>My Calendar</span>}
+            </Link>
+          </div>
+        </div>
 
-        {showStreaks && (
-          <Link
-            href="/streaks"
-            onClick={onNavigate}
-            className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
-              isStreaksActive
-                ? "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 font-medium"
-                : "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
-            }`}
-            title={collapsed ? "Streaks" : undefined}
-          >
-            <span className="text-lg">🔥</span>
-            {!collapsed && <span>Streaks</span>}
-          </Link>
+        {/* Grow — feature-flagged discovery/gamification pages */}
+        {hasGrowItems && (
+          <div className="mb-6">
+            {!collapsed && (
+              <h2 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2 px-3">
+                Grow
+              </h2>
+            )}
+            <div className="space-y-1">
+              {showStreaks && (
+                <Link
+                  href="/streaks"
+                  onClick={onNavigate}
+                  className={linkClass(isStreaksActive)}
+                  title={collapsed ? "Streaks" : undefined}
+                >
+                  <span className="text-lg">🔥</span>
+                  {!collapsed && <span>Streaks</span>}
+                </Link>
+              )}
+
+              {showPricklePicker && (
+                <Link
+                  href="/prickle-picker"
+                  onClick={onNavigate}
+                  className={linkClass(isPrickerPickerActive)}
+                  title={collapsed ? "Prickle Picker" : undefined}
+                >
+                  <span className="text-lg">🧭</span>
+                  {!collapsed && <span>Prickle Picker</span>}
+                </Link>
+              )}
+
+              {showWheel && (
+                <Link
+                  href="/wheel-of-wonder"
+                  onClick={onNavigate}
+                  className={linkClass(isWheelActive)}
+                  title={collapsed ? "Wheel of Wonder" : undefined}
+                >
+                  <span className="text-lg">🎡</span>
+                  {!collapsed && <span>Wheel of Wonder</span>}
+                </Link>
+              )}
+            </div>
+          </div>
         )}
 
-        {showPricklePicker && (
-          <Link
-            href="/prickle-picker"
-            onClick={onNavigate}
-            className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
-              isPrickerPickerActive
-                ? "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 font-medium"
-                : "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
-            }`}
-            title={collapsed ? "Prickle Picker" : undefined}
-          >
-            <span className="text-lg">🧭</span>
-            {!collapsed && <span>Prickle Picker</span>}
-          </Link>
-        )}
+        {/* Community */}
+        <div className="mb-6">
+          {!collapsed && (
+            <h2 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2 px-3">
+              Community
+            </h2>
+          )}
+          <div className="space-y-1">
+            <Link
+              href="/network"
+              onClick={onNavigate}
+              className={linkClass(isNetworkActive)}
+              title={collapsed ? "Network" : undefined}
+            >
+              <span className="text-lg">🤝</span>
+              {!collapsed && <span>Network</span>}
+            </Link>
 
-        <Link
-          href="/network"
-          onClick={onNavigate}
-          className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
-            isNetworkActive
-              ? "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 font-medium"
-              : "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
-          }`}
-          title={collapsed ? "Network" : undefined}
-        >
-          <span className="text-lg">🤝</span>
-          {!collapsed && <span>Network</span>}
-        </Link>
+            <Link
+              href="/writing"
+              onClick={onNavigate}
+              className={linkClass(isWritingActive)}
+              title={collapsed ? "Writing Projects" : undefined}
+            >
+              <span className="text-lg">📝</span>
+              {!collapsed && <span>Writing Projects</span>}
+            </Link>
 
-        {showWheel && (
-          <Link
-            href="/wheel-of-wonder"
-            onClick={onNavigate}
-            className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
-              isWheelActive
-                ? "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 font-medium"
-                : "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
-            }`}
-            title={collapsed ? "Wheel of Wonder" : undefined}
-          >
-            <span className="text-lg">🎡</span>
-            {!collapsed && <span>Wheel of Wonder</span>}
-          </Link>
-        )}
+            <Link
+              href="/hosting"
+              onClick={onNavigate}
+              className={linkClass(isHostingActive)}
+              title={collapsed ? "Hosting" : undefined}
+            >
+              <span className="text-lg">🎙️</span>
+              {!collapsed && <span>Hosting</span>}
+            </Link>
+          </div>
+        </div>
 
-        <Link
-          href="/writing"
-          onClick={onNavigate}
-          className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
-            isWritingActive
-              ? "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 font-medium"
-              : "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
-          }`}
-          title={collapsed ? "Writing Projects" : undefined}
-        >
-          <span className="text-lg">📝</span>
-          {!collapsed && <span>Writing Projects</span>}
-        </Link>
-
-        <Link
-          href="/hosting"
-          onClick={onNavigate}
-          className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
-            isHostingActive
-              ? "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 font-medium"
-              : "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
-          }`}
-          title={collapsed ? "Hosting" : undefined}
-        >
-          <span className="text-lg">🎙️</span>
-          {!collapsed && <span>Hosting</span>}
-        </Link>
-
-        <Link
-          href={`/members/${memberId}`}
-          onClick={onNavigate}
-          className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
-            isProfileActive
-              ? "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 font-medium"
-              : "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
-          }`}
-          title={collapsed ? "My Profile" : undefined}
-        >
-          <span className="text-lg">👤</span>
-          {!collapsed && <span>My Profile</span>}
-        </Link>
+        {/* Me */}
+        <div className="mb-6">
+          {!collapsed && (
+            <h2 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2 px-3">
+              Me
+            </h2>
+          )}
+          <div className="space-y-1">
+            <Link
+              href={`/members/${memberId}`}
+              onClick={onNavigate}
+              className={linkClass(isProfileActive)}
+              title={collapsed ? "My Profile" : undefined}
+            >
+              <span className="text-lg">👤</span>
+              {!collapsed && <span>My Profile</span>}
+            </Link>
+          </div>
+        </div>
       </nav>
 
       {/* Admin Portal — fixed at bottom, admin-only */}

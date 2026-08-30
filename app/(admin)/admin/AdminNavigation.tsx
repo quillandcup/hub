@@ -15,6 +15,8 @@ interface NavItem {
 interface NavSection {
   name: string;
   items: NavItem[];
+  /** Rarely-used maintenance/data-hygiene tooling — rendered collapsed by default to keep daily-use pages front and center. */
+  collapsible?: boolean;
 }
 
 const navigation: NavSection[] = [
@@ -47,7 +49,8 @@ const navigation: NavSection[] = [
     ],
   },
   {
-    name: "Data Management",
+    name: "Advanced",
+    collapsible: true,
     items: [
       { name: "Health Check", href: "/admin/hygiene", icon: "🏥" },
       { name: "Import Data", href: "/admin/data/import", icon: "📥" },
@@ -55,11 +58,6 @@ const navigation: NavSection[] = [
       { name: "Name Aliases", href: "/admin/data/aliases", icon: "👤" },
       { name: "Member Overrides", href: "/admin/member-overrides", icon: "🎁", feature: "member_overrides" },
       { name: "Reconciliation", href: "/admin/reconciliation", icon: "🔄" },
-    ],
-  },
-  {
-    name: "System",
-    items: [
       { name: "Users", href: "/admin/users", icon: "🔑" },
       { name: "Feedback", href: "/admin/feedback", icon: "💬" },
     ],
@@ -96,6 +94,54 @@ function NavLinks({ enabledFeatures, pathname, collapsed, onNavigate }: NavLinks
             (item) => !item.feature || enabledFeatures.includes(item.feature)
           );
           if (visibleItems.length === 0) return null;
+
+          const containsActiveItem = visibleItems.some(
+            (item) =>
+              pathname === item.href ||
+              (item.href !== "/admin" && pathname?.startsWith(item.href))
+          );
+
+          const list = (
+            <ul className="space-y-1">
+              {visibleItems.map((item) => {
+                const isActive =
+                  pathname === item.href ||
+                  (item.href !== "/admin" && pathname?.startsWith(item.href));
+                return (
+                  <li key={item.href}>
+                    <Link
+                      href={item.href}
+                      onClick={onNavigate}
+                      className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
+                        isActive
+                          ? "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 font-medium"
+                          : "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                      }`}
+                      title={collapsed ? item.name : undefined}
+                    >
+                      {item.icon && <span className="text-lg">{item.icon}</span>}
+                      {!collapsed && <span>{item.name}</span>}
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          );
+
+          // Collapsible ("Advanced") sections only fold when the sidebar is
+          // expanded — in icon-only mode every item stays reachable at a glance.
+          if (section.collapsible && !collapsed) {
+            return (
+              <details key={section.name} className="mb-6 group" open={containsActiveItem}>
+                <summary className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2 px-3 cursor-pointer select-none list-none flex items-center gap-1 hover:text-slate-700 dark:hover:text-slate-200">
+                  <span className="inline-block transition-transform group-open:rotate-90">▸</span>
+                  {section.name}
+                </summary>
+                {list}
+              </details>
+            );
+          }
+
           return (
             <div key={section.name} className="mb-6">
               {!collapsed && (
@@ -103,30 +149,7 @@ function NavLinks({ enabledFeatures, pathname, collapsed, onNavigate }: NavLinks
                   {section.name}
                 </h2>
               )}
-              <ul className="space-y-1">
-                {visibleItems.map((item) => {
-                  const isActive =
-                    pathname === item.href ||
-                    (item.href !== "/admin" && pathname?.startsWith(item.href));
-                  return (
-                    <li key={item.href}>
-                      <Link
-                        href={item.href}
-                        onClick={onNavigate}
-                        className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
-                          isActive
-                            ? "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 font-medium"
-                            : "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
-                        }`}
-                        title={collapsed ? item.name : undefined}
-                      >
-                        {item.icon && <span className="text-lg">{item.icon}</span>}
-                        {!collapsed && <span>{item.name}</span>}
-                      </Link>
-                    </li>
-                  );
-                })}
-              </ul>
+              {list}
             </div>
           );
         })}
