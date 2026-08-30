@@ -13,10 +13,13 @@ import {
 import {
   createGoal,
   deleteEntry,
+  deleteGoal,
   toggleGoalStar,
   toggleProjectVisibility,
+  updateGoal,
   type WritingProjectRow,
   type EntryRow,
+  type GoalRow,
 } from "../actions";
 
 interface ProjectDetailClientProps {
@@ -28,6 +31,7 @@ export default function ProjectDetailClient({ project, entries }: ProjectDetailC
   const [showLogProgress, setShowLogProgress] = useState(false);
   const [editingEntry, setEditingEntry] = useState<EntryRow | null>(null);
   const [showNewGoal, setShowNewGoal] = useState(false);
+  const [editingGoal, setEditingGoal] = useState<GoalRow | null>(null);
   const [showOnProfile, setShowOnProfile] = useState(project.showOnProfile);
   const [visibilityPending, setVisibilityPending] = useState(false);
 
@@ -39,6 +43,15 @@ export default function ProjectDetailClient({ project, entries }: ProjectDetailC
 
   async function handleDelete(entryId: string) {
     const result = await deleteEntry(entryId);
+    if ("error" in result) {
+      alert(result.error);
+      return;
+    }
+    handleChanged();
+  }
+
+  async function handleDeleteGoal(goalId: string) {
+    const result = await deleteGoal(goalId);
     if ("error" in result) {
       alert(result.error);
       return;
@@ -82,32 +95,69 @@ export default function ProjectDetailClient({ project, entries }: ProjectDetailC
       {project.goals.length > 0 && (
         <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 p-5 space-y-4">
           <h2 className="text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide">Goals</h2>
-          {project.goals.map((goal) => (
-            <div key={goal.id} className="flex items-start gap-3">
-              <button
-                type="button"
-                onClick={async () => {
-                  const result = await toggleGoalStar(goal.id, !goal.isStarred);
-                  if ("error" in result) alert(result.error);
-                  else handleChanged();
+          {project.goals.map((goal) =>
+            editingGoal?.id === goal.id ? (
+              <GoalForm
+                key={goal.id}
+                projectId={project.id}
+                goal={editingGoal}
+                onSaved={() => {
+                  setEditingGoal(null);
+                  handleChanged();
                 }}
-                title={goal.isStarred ? "Unstar (remove from dashboard)" : "Star (show on dashboard)"}
-                className="flex-shrink-0 mt-1 text-lg leading-none"
-              >
-                {goal.isStarred ? "⭐" : "☆"}
-              </button>
-              <div className="flex-1">
-                <GoalDisplay goal={goal} />
+                onCancel={() => setEditingGoal(null)}
+              />
+            ) : (
+              <div key={goal.id} className="flex items-start gap-3">
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const result = await toggleGoalStar(goal.id, !goal.isStarred);
+                    if ("error" in result) alert(result.error);
+                    else handleChanged();
+                  }}
+                  title={goal.isStarred ? "Unstar (remove from dashboard)" : "Star (show on dashboard)"}
+                  className="flex-shrink-0 mt-1 text-lg leading-none"
+                >
+                  {goal.isStarred ? "⭐" : "☆"}
+                </button>
+                <div className="flex-1">
+                  <GoalDisplay goal={goal} />
+                </div>
+                <div className="flex-shrink-0 flex items-center gap-3 mt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingGoal(goal);
+                      setShowNewGoal(false);
+                    }}
+                    className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+                    aria-label="Edit goal"
+                  >
+                    ✏️
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteGoal(goal.id)}
+                    className="text-slate-400 hover:text-red-600 dark:hover:text-red-400"
+                    aria-label="Delete goal"
+                  >
+                    🗑️
+                  </button>
+                </div>
               </div>
-            </div>
-          ))}
+            )
+          )}
         </div>
       )}
 
       <div className="flex items-center justify-between">
         <button
           type="button"
-          onClick={() => setShowNewGoal((v) => !v)}
+          onClick={() => {
+            setShowNewGoal((v) => !v);
+            setEditingGoal(null);
+          }}
           className="text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 font-medium"
         >
           {showNewGoal ? "Cancel" : "+ Add a goal"}
@@ -121,7 +171,7 @@ export default function ProjectDetailClient({ project, entries }: ProjectDetailC
         </button>
       </div>
 
-      {showNewGoal && <NewGoalForm projectId={project.id} onCreated={handleChanged} />}
+      {showNewGoal && <GoalForm projectId={project.id} onSaved={handleChanged} onCancel={() => setShowNewGoal(false)} />}
 
       {entries.length > 0 && <ProjectCharts entries={entries} />}
 
@@ -213,14 +263,27 @@ const HABIT_PERIODS: { value: HabitPeriod; label: string }[] = [
   { value: "month", label: "Month" },
 ];
 
-function NewGoalForm({ projectId, onCreated }: { projectId: string; onCreated: () => void }) {
-  const [goalType, setGoalType] = useState<"target" | "habit">("target");
-  const [measure, setMeasure] = useState<WritingMeasure>("words");
-  const [targetAmount, setTargetAmount] = useState("");
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
-  const [habitPeriod, setHabitPeriod] = useState<HabitPeriod>("week");
-  const [habitThreshold, setHabitThreshold] = useState("");
+function GoalForm({
+  projectId,
+  goal,
+  onSaved,
+  onCancel,
+}: {
+  projectId: string;
+  goal?: GoalRow;
+  onSaved: () => void;
+  onCancel?: () => void;
+}) {
+  const isEditing = !!goal;
+  const [goalType, setGoalType] = useState<"target" | "habit">(goal?.kind ?? "target");
+  const [measure, setMeasure] = useState<WritingMeasure>(goal?.measure ?? "words");
+  const [targetAmount, setTargetAmount] = useState(goal?.kind === "target" ? String(goal.targetAmount) : "");
+  const [startDate, setStartDate] = useState(goal?.kind === "target" ? goal.startDate ?? "" : "");
+  const [endDate, setEndDate] = useState(goal?.kind === "target" ? goal.endDate ?? "" : "");
+  const [habitPeriod, setHabitPeriod] = useState<HabitPeriod>(goal?.kind === "habit" ? goal.habitPeriod : "week");
+  const [habitThreshold, setHabitThreshold] = useState(
+    goal?.kind === "habit" && goal.habitThreshold != null ? String(goal.habitThreshold) : ""
+  );
   const [isPending, setIsPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -236,29 +299,31 @@ function NewGoalForm({ projectId, onCreated }: { projectId: string; onCreated: (
             if (!targetAmount.trim() || Number.isNaN(parsed) || parsed <= 0) {
               return { error: "Enter a target amount greater than 0" };
             }
-            return createGoal({
-              projectId,
+            const payload = {
               measure,
-              goalType: "target",
+              goalType: "target" as const,
               targetAmount: parsed,
               startDate: startDate || null,
               endDate: endDate || null,
-            });
+            };
+            return isEditing ? updateGoal(goal.id, payload) : createGoal({ projectId, ...payload });
           })()
-        : await createGoal({
-            projectId,
-            measure,
-            goalType: "habit",
-            habitPeriod,
-            habitThreshold: habitThreshold.trim() ? Number(habitThreshold) : null,
-          });
+        : await (() => {
+            const payload = {
+              measure,
+              goalType: "habit" as const,
+              habitPeriod,
+              habitThreshold: habitThreshold.trim() ? Number(habitThreshold) : null,
+            };
+            return isEditing ? updateGoal(goal.id, payload) : createGoal({ projectId, ...payload });
+          })();
     setIsPending(false);
 
     if ("error" in result) {
       setError(result.error);
       return;
     }
-    onCreated();
+    onSaved();
   }
 
   return (
@@ -376,13 +441,22 @@ function NewGoalForm({ projectId, onCreated }: { projectId: string; onCreated: (
 
       {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
 
-      <div className="flex justify-end">
+      <div className="flex justify-end gap-2">
+        {onCancel && (
+          <button
+            type="button"
+            onClick={onCancel}
+            className="px-4 py-2 text-sm text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100"
+          >
+            Cancel
+          </button>
+        )}
         <button
           type="submit"
           disabled={isPending}
           className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
-          {isPending ? "Adding..." : "Add goal"}
+          {isEditing ? (isPending ? "Saving..." : "Save changes") : isPending ? "Adding..." : "Add goal"}
         </button>
       </div>
     </form>

@@ -547,6 +547,99 @@ export async function createGoal(
   return { success: true, id: data.id };
 }
 
+export type UpdateGoalInput = Partial<
+  Pick<CreateGoalInput, "measure" | "goalType" | "targetAmount" | "startDate" | "endDate" | "habitPeriod" | "habitThreshold">
+>;
+
+export async function updateGoal(
+  goalId: string,
+  patch: UpdateGoalInput
+): Promise<{ success: true } | { error: string }> {
+  const ctx = await requireIdentity();
+  if ("error" in ctx) return ctx;
+  const { supabase, effectiveIdentity } = ctx;
+
+  const { data: existing } = await supabase
+    .from("writing_goals")
+    .select(
+      "id, project_id, member_id, goal_type, measure, target_amount, start_date, end_date, habit_period, habit_threshold"
+    )
+    .eq("id", goalId)
+    .single();
+
+  if (!existing || existing.member_id !== effectiveIdentity.memberId) {
+    return { error: "Goal not found" };
+  }
+
+  const goalType = patch.goalType ?? (existing.goal_type as "target" | "habit");
+  const measure = patch.measure ?? (existing.measure as WritingMeasure);
+  if (!WRITING_MEASURES.includes(measure)) return { error: "Invalid measure" };
+
+  const updates: Record<string, unknown> = { goal_type: goalType, measure };
+
+  if (goalType === "habit") {
+    const habitPeriod = patch.habitPeriod ?? (existing.habit_period as HabitPeriod | null);
+    if (!habitPeriod || !HABIT_PERIODS.includes(habitPeriod)) {
+      return { error: "habitPeriod must be one of: " + HABIT_PERIODS.join(", ") };
+    }
+    updates.habit_period = habitPeriod;
+    updates.habit_threshold = patch.habitThreshold !== undefined ? patch.habitThreshold || null : existing.habit_threshold;
+    updates.target_amount = null;
+    updates.start_date = null;
+    updates.end_date = null;
+  } else {
+    const targetAmount = patch.targetAmount !== undefined ? patch.targetAmount : existing.target_amount;
+    if (!targetAmount || targetAmount <= 0) return { error: "targetAmount must be greater than 0" };
+    updates.target_amount = targetAmount;
+    updates.start_date = patch.startDate !== undefined ? patch.startDate || null : existing.start_date;
+    updates.end_date = patch.endDate !== undefined ? patch.endDate || null : existing.end_date;
+    updates.habit_period = null;
+    updates.habit_threshold = null;
+  }
+
+  const { error } = await supabase
+    .from("writing_goals")
+    .update(updates)
+    .eq("id", goalId)
+    .eq("member_id", effectiveIdentity.memberId);
+
+  if (error) return { error: error.message };
+
+  revalidatePath("/writing");
+  revalidatePath(`/writing/${existing.project_id}`);
+  revalidatePath("/dashboard");
+  return { success: true };
+}
+
+export async function deleteGoal(goalId: string): Promise<{ success: true } | { error: string }> {
+  const ctx = await requireIdentity();
+  if ("error" in ctx) return ctx;
+  const { supabase, effectiveIdentity } = ctx;
+
+  const { data: existing } = await supabase
+    .from("writing_goals")
+    .select("id, project_id, member_id")
+    .eq("id", goalId)
+    .single();
+
+  if (!existing || existing.member_id !== effectiveIdentity.memberId) {
+    return { error: "Goal not found" };
+  }
+
+  const { error } = await supabase
+    .from("writing_goals")
+    .delete()
+    .eq("id", goalId)
+    .eq("member_id", effectiveIdentity.memberId);
+
+  if (error) return { error: error.message };
+
+  revalidatePath("/writing");
+  revalidatePath(`/writing/${existing.project_id}`);
+  revalidatePath("/dashboard");
+  return { success: true };
+}
+
 export async function toggleGoalStar(
   goalId: string,
   isStarred: boolean
