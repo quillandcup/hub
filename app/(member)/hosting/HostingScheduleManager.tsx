@@ -60,6 +60,78 @@ const EMPTY_FORM: FormState = {
   notes: "",
 };
 
+const RECURRENCE_OPTIONS: { value: RecurrenceType; label: string }[] = [
+  { value: "weekly", label: "Every week" },
+  { value: "biweekly", label: "Every other week" },
+  { value: "monthly", label: "Once a month" },
+  { value: "one_off", label: "Just once" },
+];
+
+const ORDINAL_LABELS = ["", "1st", "2nd", "3rd", "4th", "5th"];
+
+function recurrenceInstruction(type: RecurrenceType): string {
+  switch (type) {
+    case "weekly":
+      return "📅 Click the day & time you'll host every week.";
+    case "biweekly":
+      return "📅 Click the day & time you'll host first — you'll repeat every other week from there.";
+    case "monthly":
+      return "📅 Click the day & time you'll host once a month (e.g. the 2nd Tuesday).";
+    case "one_off":
+      return "📅 Click the one date & time you'll host.";
+  }
+}
+
+function formatTimeLabel(hhmm: string): string {
+  const [h, m] = hhmm.split(":").map(Number);
+  if (Number.isNaN(h) || Number.isNaN(m)) return hhmm;
+  const d = new Date(2000, 0, 1, h, m);
+  return new Intl.DateTimeFormat("en-US", {
+    hour: "numeric",
+    minute: m === 0 ? undefined : "2-digit",
+    hour12: true,
+  }).format(d);
+}
+
+function formatDateLabel(iso: string): string {
+  if (!iso) return "";
+  const d = new Date(`${iso}T00:00:00Z`);
+  return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", timeZone: "UTC" }).format(d);
+}
+
+/** Human sentence describing the currently-picked slot, so the calendar click and the fields visibly agree. */
+function describeSelection(form: FormState): string | null {
+  const time = formatTimeLabel(form.startTimeLocal);
+  switch (form.recurrenceType) {
+    case "weekly":
+      return `Every ${DAY_NAMES[form.dayOfWeek]} at ${time}`;
+    case "biweekly":
+      return form.firstDate ? `Every other ${DAY_NAMES[form.dayOfWeek]} at ${time}, starting ${formatDateLabel(form.firstDate)}` : null;
+    case "monthly":
+      return `The ${ORDINAL_LABELS[form.weekOfMonth]} ${DAY_NAMES[form.dayOfWeek]} of the month at ${time}`;
+    case "one_off":
+      return form.eventDate ? `Just once, on ${formatDateLabel(form.eventDate)} at ${time}` : null;
+  }
+}
+
+function toIsoDateLocal(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+/** Re-derives the type-specific fields (day/week/date) for `recurrenceType` from a single picked calendar date — the source of truth for both the initial pick and any later "how often" change. */
+function deriveFieldsFromDate(date: Date, recurrenceType: RecurrenceType): Partial<FormState> {
+  switch (recurrenceType) {
+    case "weekly":
+      return { dayOfWeek: date.getDay() };
+    case "biweekly":
+      return { firstDate: toIsoDateLocal(date) };
+    case "monthly":
+      return { dayOfWeek: date.getDay(), weekOfMonth: Math.floor((date.getDate() - 1) / 7) + 1 };
+    case "one_off":
+      return { eventDate: toIsoDateLocal(date) };
+  }
+}
+
 function ScheduleForm({
   prickleTypes,
   month,
@@ -75,26 +147,19 @@ function ScheduleForm({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pickedSlot, setPickedSlot] = useState<SlotClick | null>(null);
-
-  function toIsoDateLocal(d: Date): string {
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-  }
+  const [manualOpen, setManualOpen] = useState(true);
 
   function handleSlotPick(slot: SlotClick) {
     setPickedSlot(slot);
+    setManualOpen(false);
     const startTimeLocal = `${String(slot.hour).padStart(2, "0")}:${String(slot.minute).padStart(2, "0")}`;
+    setForm((f) => ({ ...f, startTimeLocal, ...deriveFieldsFromDate(slot.date, f.recurrenceType) }));
+  }
+
+  function handleRecurrenceChange(recurrenceType: RecurrenceType) {
     setForm((f) => {
-      const next = { ...f, startTimeLocal };
-      if (f.recurrenceType === "weekly") {
-        next.dayOfWeek = slot.date.getDay();
-      } else if (f.recurrenceType === "biweekly") {
-        next.firstDate = toIsoDateLocal(slot.date);
-      } else if (f.recurrenceType === "monthly") {
-        next.dayOfWeek = slot.date.getDay();
-        next.weekOfMonth = Math.floor((slot.date.getDate() - 1) / 7) + 1;
-      } else if (f.recurrenceType === "one_off") {
-        next.eventDate = toIsoDateLocal(slot.date);
-      }
+      const next = { ...f, recurrenceType };
+      if (pickedSlot) Object.assign(next, deriveFieldsFromDate(pickedSlot.date, recurrenceType));
       return next;
     });
   }
@@ -153,7 +218,37 @@ function ScheduleForm({
     >
       <h3 className="font-medium text-slate-900 dark:text-slate-100">Request to host for {monthLabel(month)}</h3>
 
+      <div>
+        <p className="text-sm font-medium mb-2 text-slate-700 dark:text-slate-300">How often will you host?</p>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          {RECURRENCE_OPTIONS.map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => handleRecurrenceChange(opt.value)}
+              className={`px-3 py-2 rounded-lg text-sm font-medium border transition-colors ${
+                form.recurrenceType === opt.value
+                  ? "bg-blue-600 border-blue-600 text-white"
+                  : "bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700"
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <p className="rounded-lg bg-blue-50 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-800 px-3 py-2 text-sm text-blue-800 dark:text-blue-300">
+        {recurrenceInstruction(form.recurrenceType)}
+      </p>
+
       <HostingCalendarPicker month={month} onPick={handleSlotPick} selectedSlot={pickedSlot} />
+
+      {pickedSlot && describeSelection(form) && (
+        <p className="rounded-lg border border-emerald-300 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-900/10 px-3 py-2 text-sm text-emerald-800 dark:text-emerald-400">
+          ✓ You&apos;ll host <strong>{describeSelection(form)}</strong>. Click a different slot above to change it.
+        </p>
+      )}
 
       <div>
         <label htmlFor="hosting-type" className="block text-sm font-medium mb-1 text-slate-700 dark:text-slate-300">
@@ -176,112 +271,109 @@ function ScheduleForm({
       </div>
 
       <div>
-        <label htmlFor="hosting-recurrence" className="block text-sm font-medium mb-1 text-slate-700 dark:text-slate-300">
-          How often
-        </label>
-        <select
-          id="hosting-recurrence"
-          value={form.recurrenceType}
-          onChange={(e) => setForm({ ...form, recurrenceType: e.target.value as RecurrenceType })}
-          className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+        <button
+          type="button"
+          onClick={() => setManualOpen((v) => !v)}
+          className="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 underline"
         >
-          <option value="weekly">Every week</option>
-          <option value="biweekly">Every other week</option>
-          <option value="monthly">Once a month</option>
-          <option value="one_off">Just once</option>
-        </select>
+          {manualOpen ? "Hide manual entry" : pickedSlot ? "Adjust the exact day/time manually" : "Prefer to enter it manually?"}
+        </button>
+
+        {manualOpen && (
+          <div className="mt-3 space-y-4 border-t border-slate-200 dark:border-slate-700 pt-4">
+            {form.recurrenceType === "weekly" && (
+              <div>
+                <label htmlFor="hosting-day-weekly" className="block text-sm font-medium mb-1 text-slate-700 dark:text-slate-300">
+                  Day
+                </label>
+                <select
+                  id="hosting-day-weekly"
+                  value={form.dayOfWeek}
+                  onChange={(e) => setForm({ ...form, dayOfWeek: Number(e.target.value) })}
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+                >
+                  {DAY_NAMES.map((d, i) => (
+                    <option key={d} value={i}>
+                      {d}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {form.recurrenceType === "biweekly" && (
+              <div>
+                <label htmlFor="hosting-first-date" className="block text-sm font-medium mb-1 text-slate-700 dark:text-slate-300">
+                  First date you&apos;ll host (repeats every other week from here)
+                </label>
+                <input
+                  id="hosting-first-date"
+                  type="date"
+                  value={form.firstDate}
+                  onChange={(e) => setForm({ ...form, firstDate: e.target.value })}
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+                  required
+                />
+              </div>
+            )}
+
+            {form.recurrenceType === "monthly" && (
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label htmlFor="hosting-week-monthly" className="block text-sm font-medium mb-1 text-slate-700 dark:text-slate-300">
+                    Week
+                  </label>
+                  <select
+                    id="hosting-week-monthly"
+                    value={form.weekOfMonth}
+                    onChange={(e) => setForm({ ...form, weekOfMonth: Number(e.target.value) })}
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+                  >
+                    <option value={1}>1st</option>
+                    <option value={2}>2nd</option>
+                    <option value={3}>3rd</option>
+                    <option value={4}>4th</option>
+                    <option value={5}>5th</option>
+                  </select>
+                </div>
+                <div>
+                  <label htmlFor="hosting-day-monthly" className="block text-sm font-medium mb-1 text-slate-700 dark:text-slate-300">
+                    Day
+                  </label>
+                  <select
+                    id="hosting-day-monthly"
+                    value={form.dayOfWeek}
+                    onChange={(e) => setForm({ ...form, dayOfWeek: Number(e.target.value) })}
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+                  >
+                    {DAY_NAMES.map((d, i) => (
+                      <option key={d} value={i}>
+                        {d}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            )}
+
+            {form.recurrenceType === "one_off" && (
+              <div>
+                <label htmlFor="hosting-event-date" className="block text-sm font-medium mb-1 text-slate-700 dark:text-slate-300">
+                  Event date
+                </label>
+                <input
+                  id="hosting-event-date"
+                  type="date"
+                  value={form.eventDate}
+                  onChange={(e) => setForm({ ...form, eventDate: e.target.value })}
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+                  required
+                />
+              </div>
+            )}
+          </div>
+        )}
       </div>
-
-      {form.recurrenceType === "weekly" && (
-        <div>
-          <label htmlFor="hosting-day-weekly" className="block text-sm font-medium mb-1 text-slate-700 dark:text-slate-300">
-            Day
-          </label>
-          <select
-            id="hosting-day-weekly"
-            value={form.dayOfWeek}
-            onChange={(e) => setForm({ ...form, dayOfWeek: Number(e.target.value) })}
-            className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
-          >
-            {DAY_NAMES.map((d, i) => (
-              <option key={d} value={i}>
-                {d}
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
-
-      {form.recurrenceType === "biweekly" && (
-        <div>
-          <label htmlFor="hosting-first-date" className="block text-sm font-medium mb-1 text-slate-700 dark:text-slate-300">
-            First date you&apos;ll host (repeats every other week from here)
-          </label>
-          <input
-            id="hosting-first-date"
-            type="date"
-            value={form.firstDate}
-            onChange={(e) => setForm({ ...form, firstDate: e.target.value })}
-            className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
-            required
-          />
-        </div>
-      )}
-
-      {form.recurrenceType === "monthly" && (
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label htmlFor="hosting-week-monthly" className="block text-sm font-medium mb-1 text-slate-700 dark:text-slate-300">
-              Week
-            </label>
-            <select
-              id="hosting-week-monthly"
-              value={form.weekOfMonth}
-              onChange={(e) => setForm({ ...form, weekOfMonth: Number(e.target.value) })}
-              className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
-            >
-              <option value={1}>1st</option>
-              <option value={2}>2nd</option>
-              <option value={3}>3rd</option>
-              <option value={4}>4th</option>
-              <option value={5}>5th</option>
-            </select>
-          </div>
-          <div>
-            <label htmlFor="hosting-day-monthly" className="block text-sm font-medium mb-1 text-slate-700 dark:text-slate-300">
-              Day
-            </label>
-            <select
-              id="hosting-day-monthly"
-              value={form.dayOfWeek}
-              onChange={(e) => setForm({ ...form, dayOfWeek: Number(e.target.value) })}
-              className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
-            >
-              {DAY_NAMES.map((d, i) => (
-                <option key={d} value={i}>
-                  {d}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-      )}
-
-      {form.recurrenceType === "one_off" && (
-        <div>
-          <label htmlFor="hosting-event-date" className="block text-sm font-medium mb-1 text-slate-700 dark:text-slate-300">
-            Event date
-          </label>
-          <input
-            id="hosting-event-date"
-            type="date"
-            value={form.eventDate}
-            onChange={(e) => setForm({ ...form, eventDate: e.target.value })}
-            className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
-            required
-          />
-        </div>
-      )}
 
       <div>
         <label htmlFor="hosting-start-time" className="block text-sm font-medium mb-1 text-slate-700 dark:text-slate-300">
