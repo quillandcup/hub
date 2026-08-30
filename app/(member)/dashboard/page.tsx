@@ -120,8 +120,7 @@ type SisterSignal = {
 }
 
 function sisterReasonText(signal: SisterSignal): string {
-  const { attendedCount, totalOccurrences, currentStreak } = signal
-  const name = hostShortName(signal.name)
+  const { attendedCount, totalOccurrences, currentStreak, name } = signal
   if (attendedCount === totalOccurrences && totalOccurrences > 0) {
     return currentStreak > 1
       ? `${name} hasn't missed the last ${totalOccurrences} · ${currentStreak}-week streak with you`
