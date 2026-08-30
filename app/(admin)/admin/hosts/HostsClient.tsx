@@ -51,9 +51,9 @@ function monthLabel(month: string): string {
 }
 
 const STATUS_STYLES: Record<ScheduleStatus, string> = {
-  proposed: "bg-amber-100 text-amber-800",
-  confirmed: "bg-emerald-100 text-emerald-800",
-  declined: "bg-slate-200 text-slate-600",
+  proposed: "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-300",
+  confirmed: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-300",
+  declined: "bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300",
 };
 
 const EMPTY_NEW_FORM = {
@@ -252,17 +252,19 @@ export default function HostsClient({ prickleTypes }: { prickleTypes: PrickleTyp
   return (
     <div className="p-8">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold mb-2">Hosts</h1>
-        <p className="text-gray-600">
+        <h1 className="text-2xl font-bold mb-2 dark:text-slate-100">Hosts</h1>
+        <p className="text-gray-600 dark:text-slate-400">
           Review and confirm who&apos;s hosting which prickle, month by month.
         </p>
       </div>
 
-      <div className="flex items-center gap-4 mb-6 border-b border-gray-200">
+      <div className="flex items-center gap-4 mb-6 border-b border-gray-200 dark:border-slate-800">
         <button
           onClick={() => setTab("current")}
           className={`pb-2 px-1 border-b-2 font-medium text-sm ${
-            tab === "current" ? "border-blue-600 text-blue-600" : "border-transparent text-gray-500"
+            tab === "current"
+              ? "border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400"
+              : "border-transparent text-gray-500 dark:text-slate-400"
           }`}
         >
           Current Month ({monthLabel(CURRENT_MONTH)})
@@ -270,7 +272,9 @@ export default function HostsClient({ prickleTypes }: { prickleTypes: PrickleTyp
         <button
           onClick={() => setTab("next")}
           className={`pb-2 px-1 border-b-2 font-medium text-sm ${
-            tab === "next" ? "border-blue-600 text-blue-600" : "border-transparent text-gray-500"
+            tab === "next"
+              ? "border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400"
+              : "border-transparent text-gray-500 dark:text-slate-400"
           }`}
         >
           Next Month ({monthLabel(NEXT_MONTH)})
@@ -278,14 +282,14 @@ export default function HostsClient({ prickleTypes }: { prickleTypes: PrickleTyp
       </div>
 
       {error && (
-        <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded">
-          <p className="text-red-800">{error}</p>
+        <div className="mb-4 p-4 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded">
+          <p className="text-red-800 dark:text-red-300">{error}</p>
         </div>
       )}
 
       {message && (
-        <div className="mb-4 p-4 bg-emerald-50 border border-emerald-200 rounded">
-          <p className="text-emerald-800">{message}</p>
+        <div className="mb-4 p-4 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 rounded">
+          <p className="text-emerald-800 dark:text-emerald-300">{message}</p>
         </div>
       )}
 
@@ -314,8 +318,8 @@ export default function HostsClient({ prickleTypes }: { prickleTypes: PrickleTyp
           onClick={handleToggleLock}
           className={`px-3 py-1.5 rounded text-sm font-medium border ${
             locked[month]
-              ? "bg-emerald-50 border-emerald-300 text-emerald-700 hover:bg-emerald-100"
-              : "bg-slate-100 border-slate-300 text-slate-700 hover:bg-slate-200"
+              ? "bg-emerald-50 border-emerald-300 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:border-emerald-800 dark:text-emerald-300 dark:hover:bg-emerald-900/40"
+              : "bg-slate-100 border-slate-300 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700"
           }`}
         >
           {locked[month] ? "🔓 Unlock month" : "🔒 Lock month"}
@@ -323,26 +327,26 @@ export default function HostsClient({ prickleTypes }: { prickleTypes: PrickleTyp
       </div>
 
       {showForm && (
-        <form onSubmit={handleCreate} className="mb-6 p-6 border border-gray-200 rounded bg-gray-50 space-y-4">
-          <h2 className="text-lg font-semibold">Add Schedule for {monthLabel(month)}</h2>
+        <form onSubmit={handleCreate} className="mb-6 p-6 border border-gray-200 dark:border-slate-700 rounded bg-gray-50 dark:bg-slate-800/50 space-y-4">
+          <h2 className="text-lg font-semibold dark:text-slate-100">Add Schedule for {monthLabel(month)}</h2>
 
           <div>
-            <label className="block text-sm font-medium mb-1">Host Email</label>
+            <label className="block text-sm font-medium mb-1 dark:text-slate-300">Host Email</label>
             <input
               type="email"
               value={form.hostEmail}
               onChange={(e) => setForm({ ...form, hostEmail: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 rounded"
               required
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1">Prickle Type</label>
+            <label className="block text-sm font-medium mb-1 dark:text-slate-300">Prickle Type</label>
             <select
               value={form.typeId}
               onChange={(e) => setForm({ ...form, typeId: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 rounded"
               required
             >
               <option value="">Select a type…</option>
@@ -355,11 +359,11 @@ export default function HostsClient({ prickleTypes }: { prickleTypes: PrickleTyp
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1">How often</label>
+            <label className="block text-sm font-medium mb-1 dark:text-slate-300">How often</label>
             <select
               value={form.recurrenceType}
               onChange={(e) => setForm({ ...form, recurrenceType: e.target.value as RecurrenceType })}
-              className="w-full px-3 py-2 border border-gray-300 rounded"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 rounded"
             >
               <option value="weekly">Every week</option>
               <option value="biweekly">Every other week</option>
@@ -370,11 +374,11 @@ export default function HostsClient({ prickleTypes }: { prickleTypes: PrickleTyp
 
           {form.recurrenceType === "weekly" && (
             <div>
-              <label className="block text-sm font-medium mb-1">Day</label>
+              <label className="block text-sm font-medium mb-1 dark:text-slate-300">Day</label>
               <select
                 value={form.dayOfWeek}
                 onChange={(e) => setForm({ ...form, dayOfWeek: Number(e.target.value) })}
-                className="w-full px-3 py-2 border border-gray-300 rounded"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 rounded"
               >
                 {DAY_NAMES.map((d, i) => (
                   <option key={d} value={i}>
@@ -387,12 +391,12 @@ export default function HostsClient({ prickleTypes }: { prickleTypes: PrickleTyp
 
           {form.recurrenceType === "biweekly" && (
             <div>
-              <label className="block text-sm font-medium mb-1">First date</label>
+              <label className="block text-sm font-medium mb-1 dark:text-slate-300">First date</label>
               <input
                 type="date"
                 value={form.firstDate}
                 onChange={(e) => setForm({ ...form, firstDate: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 rounded"
                 required
               />
             </div>
@@ -401,11 +405,11 @@ export default function HostsClient({ prickleTypes }: { prickleTypes: PrickleTyp
           {form.recurrenceType === "monthly" && (
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-sm font-medium mb-1">Week</label>
+                <label className="block text-sm font-medium mb-1 dark:text-slate-300">Week</label>
                 <select
                   value={form.weekOfMonth}
                   onChange={(e) => setForm({ ...form, weekOfMonth: Number(e.target.value) })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 rounded"
                 >
                   {[1, 2, 3, 4, 5].map((n) => (
                     <option key={n} value={n}>
@@ -415,11 +419,11 @@ export default function HostsClient({ prickleTypes }: { prickleTypes: PrickleTyp
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">Day</label>
+                <label className="block text-sm font-medium mb-1 dark:text-slate-300">Day</label>
                 <select
                   value={form.dayOfWeek}
                   onChange={(e) => setForm({ ...form, dayOfWeek: Number(e.target.value) })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 rounded"
                 >
                   {DAY_NAMES.map((d, i) => (
                     <option key={d} value={i}>
@@ -433,39 +437,39 @@ export default function HostsClient({ prickleTypes }: { prickleTypes: PrickleTyp
 
           {form.recurrenceType === "one_off" && (
             <div>
-              <label className="block text-sm font-medium mb-1">Event date</label>
+              <label className="block text-sm font-medium mb-1 dark:text-slate-300">Event date</label>
               <input
                 type="date"
                 value={form.eventDate}
                 onChange={(e) => setForm({ ...form, eventDate: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 rounded"
                 required
               />
             </div>
           )}
 
           <div>
-            <label className="block text-sm font-medium mb-1">Start time</label>
+            <label className="block text-sm font-medium mb-1 dark:text-slate-300">Start time</label>
             <input
               type="time"
               value={form.startTimeLocal}
               onChange={(e) => setForm({ ...form, startTimeLocal: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 rounded"
               required
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1">Notes (optional)</label>
+            <label className="block text-sm font-medium mb-1 dark:text-slate-300">Notes (optional)</label>
             <textarea
               value={form.notes}
               onChange={(e) => setForm({ ...form, notes: e.target.value })}
               rows={2}
-              className="w-full px-3 py-2 border border-gray-300 rounded"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 rounded"
             />
           </div>
 
-          <label className="flex items-center gap-2 text-sm">
+          <label className="flex items-center gap-2 text-sm dark:text-slate-300">
             <input
               type="checkbox"
               checked={form.confirmImmediately}
@@ -484,7 +488,7 @@ export default function HostsClient({ prickleTypes }: { prickleTypes: PrickleTyp
                 setShowForm(false);
                 setForm(EMPTY_NEW_FORM);
               }}
-              className="px-4 py-2 bg-gray-300 text-gray-800 rounded hover:bg-gray-400"
+              className="px-4 py-2 bg-gray-300 text-gray-800 rounded hover:bg-gray-400 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600"
             >
               Cancel
             </button>
@@ -492,38 +496,38 @@ export default function HostsClient({ prickleTypes }: { prickleTypes: PrickleTyp
         </form>
       )}
 
-      <div className="border border-gray-200 rounded overflow-hidden">
+      <div className="border border-gray-200 dark:border-slate-700 rounded overflow-hidden">
         <table className="w-full">
-          <thead className="bg-gray-50">
+          <thead className="bg-gray-50 dark:bg-slate-800">
             <tr>
-              <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Host</th>
-              <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Schedule</th>
-              <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Status</th>
-              <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Actions</th>
+              <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-slate-300">Host</th>
+              <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-slate-300">Schedule</th>
+              <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-slate-300">Status</th>
+              <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-slate-300">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-200">
+          <tbody className="divide-y divide-gray-200 dark:divide-slate-700">
             {loading ? (
               <tr>
-                <td colSpan={4} className="px-4 py-8 text-center text-gray-500">
+                <td colSpan={4} className="px-4 py-8 text-center text-gray-500 dark:text-slate-400">
                   Loading…
                 </td>
               </tr>
             ) : monthSchedules.length === 0 ? (
               <tr>
-                <td colSpan={4} className="px-4 py-8 text-center text-gray-500">
+                <td colSpan={4} className="px-4 py-8 text-center text-gray-500 dark:text-slate-400">
                   No schedules for this month yet.
                 </td>
               </tr>
             ) : (
               monthSchedules.map((s) => (
-                <tr key={s.id} className="hover:bg-gray-50">
+                <tr key={s.id} className="hover:bg-gray-50 dark:hover:bg-slate-800">
                   <td className="px-4 py-3">
-                    <div className="font-medium">{s.member.name}</div>
-                    <div className="text-sm text-gray-600">{s.member.email}</div>
+                    <div className="font-medium dark:text-slate-100">{s.member.name}</div>
+                    <div className="text-sm text-gray-600 dark:text-slate-400">{s.member.email}</div>
                   </td>
                   <td className="px-4 py-3">
-                    <div className="text-sm">
+                    <div className="text-sm dark:text-slate-200">
                       {formatScheduleLabel(s.prickle_type.name, {
                         recurrenceType: s.recurrence_type,
                         dayOfWeek: s.day_of_week,
@@ -535,9 +539,9 @@ export default function HostsClient({ prickleTypes }: { prickleTypes: PrickleTyp
                       })}
                     </div>
                     {s.carried_forward_from && (
-                      <div className="text-xs text-gray-400">carried forward from last month</div>
+                      <div className="text-xs text-gray-400 dark:text-slate-500">carried forward from last month</div>
                     )}
-                    {s.notes && <div className="text-xs text-gray-500 mt-1">{s.notes}</div>}
+                    {s.notes && <div className="text-xs text-gray-500 dark:text-slate-400 mt-1">{s.notes}</div>}
                   </td>
                   <td className="px-4 py-3">
                     <span className={`px-2 py-1 text-xs rounded ${STATUS_STYLES[s.status]}`}>{s.status}</span>
@@ -545,16 +549,16 @@ export default function HostsClient({ prickleTypes }: { prickleTypes: PrickleTyp
                   <td className="px-4 py-3">
                     <div className="flex gap-2 flex-wrap">
                       {s.status !== "confirmed" && (
-                        <button onClick={() => handleConfirm(s.id)} className="text-emerald-600 hover:text-emerald-800 text-sm">
+                        <button onClick={() => handleConfirm(s.id)} className="text-emerald-600 hover:text-emerald-800 dark:text-emerald-400 dark:hover:text-emerald-300 text-sm">
                           Confirm
                         </button>
                       )}
                       {s.status !== "declined" && (
-                        <button onClick={() => handleDecline(s.id)} className="text-amber-600 hover:text-amber-800 text-sm">
+                        <button onClick={() => handleDecline(s.id)} className="text-amber-600 hover:text-amber-800 dark:text-amber-400 dark:hover:text-amber-300 text-sm">
                           Decline
                         </button>
                       )}
-                      <button onClick={() => handleRemove(s.id)} className="text-red-600 hover:text-red-800 text-sm">
+                      <button onClick={() => handleRemove(s.id)} className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 text-sm">
                         Remove
                       </button>
                     </div>
