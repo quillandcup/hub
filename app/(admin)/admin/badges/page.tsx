@@ -75,11 +75,14 @@ export default async function BadgesPage() {
                 const typeLevels = (levelsByType.get(type.id) ?? []) as any[];
                 return (
                   <div key={type.id} className="px-6 py-4 flex items-center justify-between gap-4">
-                    <div className="flex items-center gap-3 min-w-0">
+                    <Link
+                      href={`/admin/badges/${type.id}/recipients`}
+                      className="flex items-center gap-3 min-w-0 group"
+                    >
                       <span className="text-2xl flex-shrink-0">{type.icon}</span>
                       <div className="min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-sm font-medium text-slate-900 dark:text-slate-100">
+                          <span className="text-sm font-medium text-slate-900 dark:text-slate-100 group-hover:underline">
                             {type.name}
                           </span>
                           {type.is_automatic && (
@@ -99,7 +102,7 @@ export default async function BadgesPage() {
                           </p>
                         )}
                       </div>
-                    </div>
+                    </Link>
                     <div className="flex items-center gap-4 flex-shrink-0">
                       <span className="text-xs text-slate-500 dark:text-slate-400">
                         {type.is_automatic

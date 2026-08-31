@@ -4,9 +4,12 @@ import {
   isFoundingHedgie,
   quarterKey,
   computeEarnedBadges,
+  computeBadgeRecipients,
   type BadgeType,
   type BadgeLevel,
   type AutomaticBadgeMetrics,
+  type RecipientMember,
+  type BulkAutomaticMetrics,
 } from "@/lib/badges";
 
 const levels: BadgeLevel[] = [
@@ -249,5 +252,133 @@ describe("computeEarnedBadges", () => {
   it("omits badge types with no awards and no automatic match", () => {
     const earned = computeEarnedBadges([hedgieMentor, retreat], levelsByBadgeType, [], NO_METRICS);
     expect(earned).toHaveLength(0);
+  });
+});
+
+describe("computeBadgeRecipients", () => {
+  const prickleMilestones: BadgeType = {
+    id: "bt-milestones",
+    key: "prickle_milestones",
+    name: "Prickle Milestones",
+    description: null,
+    icon: "🌵",
+    category: "milestone",
+    has_levels: true,
+    is_automatic: true,
+  };
+  const foundingHedgie: BadgeType = {
+    id: "bt-founding",
+    key: "founding_hedgie",
+    name: "Founding Hedgie",
+    description: null,
+    icon: "🦔",
+    category: "special",
+    has_levels: false,
+    is_automatic: true,
+  };
+  const hostess: BadgeType = {
+    id: "bt-hostess",
+    key: "hostess",
+    name: "Hostess",
+    description: null,
+    icon: "🎙️",
+    category: "community",
+    has_levels: true,
+    is_automatic: true,
+  };
+  const hedgieMentor: BadgeType = {
+    id: "bt-mentor",
+    key: "hedgie_mentor",
+    name: "Hedgie Mentor",
+    description: null,
+    icon: "🧭",
+    category: "community",
+    has_levels: true,
+    is_automatic: false,
+  };
+
+  const milestoneLevels: BadgeLevel[] = [
+    { id: "m1", badge_type_id: "bt-milestones", level: 1, name: "First Prickle", threshold: 1 },
+    { id: "m2", badge_type_id: "bt-milestones", level: 2, name: "10 Prickles", threshold: 10 },
+  ];
+  const hostessLevels: BadgeLevel[] = [
+    { id: "h1", badge_type_id: "bt-hostess", level: 1, name: "Hostess", threshold: 1 },
+    { id: "h2", badge_type_id: "bt-hostess", level: 2, name: "5x Hostess", threshold: 5 },
+  ];
+  const mentorLevels: BadgeLevel[] = [
+    { id: "me1", badge_type_id: "bt-mentor", level: 1, name: "Hedgie Mentor", threshold: 1 },
+    { id: "me2", badge_type_id: "bt-mentor", level: 2, name: "2x Hedgie Mentor", threshold: 2 },
+  ];
+
+  const members: RecipientMember[] = [
+    { id: "mem-alice", name: "Alice", email: "alice@example.com", firstJoinedAt: "2021-06-15" },
+    { id: "mem-bob", name: "Bob", email: "bob@example.com", firstJoinedAt: "2023-01-01" },
+    { id: "mem-carol", name: "Carol", email: "carol@example.com", firstJoinedAt: "2022-06-01" },
+  ];
+
+  const NO_BULK_METRICS: BulkAutomaticMetrics = {
+    attendedPrickleCountsByMember: new Map(),
+    hostedQuarterCountsByMember: new Map(),
+    publishedBookCountsByMember: new Map(),
+  };
+
+  it("lists every member who meets an automatic milestone threshold, sorted by name", () => {
+    const recipients = computeBadgeRecipients(prickleMilestones, milestoneLevels, members, [], {
+      ...NO_BULK_METRICS,
+      attendedPrickleCountsByMember: new Map([
+        ["mem-bob", 12],
+        ["mem-alice", 1],
+      ]),
+    });
+    expect(recipients.map((r) => r.memberName)).toEqual(["Alice", "Bob"]);
+    expect(recipients[0].levelName).toBe("First Prickle");
+    expect(recipients[1].levelName).toBe("10 Prickles");
+  });
+
+  it("omits members below the first automatic threshold", () => {
+    const recipients = computeBadgeRecipients(hostess, hostessLevels, members, [], {
+      ...NO_BULK_METRICS,
+      hostedQuarterCountsByMember: new Map([["mem-alice", 0]]),
+    });
+    expect(recipients).toHaveLength(0);
+  });
+
+  it("computes Founding Hedgie recipients from join date alone, no metrics needed", () => {
+    const recipients = computeBadgeRecipients(foundingHedgie, [], members, [], NO_BULK_METRICS);
+    expect(recipients.map((r) => r.memberName)).toEqual(["Alice"]);
+    expect(recipients[0].firstAwardedAt).toBe("2021-06-15");
+  });
+
+  it("drops a metric entry for a member id that no longer exists", () => {
+    const recipients = computeBadgeRecipients(prickleMilestones, milestoneLevels, members, [], {
+      ...NO_BULK_METRICS,
+      attendedPrickleCountsByMember: new Map([["mem-deleted", 50]]),
+    });
+    expect(recipients).toHaveLength(0);
+  });
+
+  it("groups manual awards by member and derives their level from occurrence count", () => {
+    const recipients = computeBadgeRecipients(
+      hedgieMentor,
+      mentorLevels,
+      members,
+      [
+        { member_id: "mem-carol", occurred_at: "2025-01-01", note: "Person A" },
+        { member_id: "mem-carol", occurred_at: "2025-04-01", note: "Person B" },
+        { member_id: "mem-alice", occurred_at: "2025-02-01", note: null },
+      ],
+      NO_BULK_METRICS
+    );
+    expect(recipients.map((r) => r.memberName)).toEqual(["Alice", "Carol"]);
+    const carol = recipients.find((r) => r.memberName === "Carol")!;
+    expect(carol.levelName).toBe("2x Hedgie Mentor");
+    expect(carol.occurrences).toBe(2);
+    expect(carol.firstAwardedAt).toBe("2025-01-01");
+    expect(carol.lastAwardedAt).toBe("2025-04-01");
+  });
+
+  it("returns no recipients for a manual badge type with no awards", () => {
+    const recipients = computeBadgeRecipients(hedgieMentor, mentorLevels, members, [], NO_BULK_METRICS);
+    expect(recipients).toHaveLength(0);
   });
 });
