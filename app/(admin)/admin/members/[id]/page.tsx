@@ -5,6 +5,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import MemberDetails from "./MemberDetails";
 import MergeButton from "./MergeButton";
+import MemberBadgesPanel from "./MemberBadgesPanel";
 import { getUserTimezonePreference } from "@/lib/timezone";
 import { startSudo } from "@/app/actions/sudo";
 import { fetchMembershipHistory } from "@/lib/kajabi/membership-history";
@@ -13,6 +14,7 @@ import {
   type EngagementAttendanceRow,
   type EngagementActivityRow,
 } from "@/lib/member-engagement";
+import { getMemberBadges } from "@/lib/badges";
 
 const getMemberRow = cache(async (id: string) => {
   const supabase = await createClient();
@@ -163,6 +165,25 @@ export default async function MemberDetailPage({
   // Get user's timezone preference
   const userTimezone = await getUserTimezonePreference();
 
+  const [earnedBadges, { data: awardableBadgeTypes }, { data: rawAwards }] = await Promise.all([
+    getMemberBadges(supabase, id, metrics?.totalPrickles ?? 0, memberRow.first_joined_at),
+    supabase.from("badge_types").select("id, name, icon").eq("is_automatic", false).order("name"),
+    supabase
+      .from("member_badges")
+      .select("id, badge_type_id, occurred_at, note, badge_types(name, icon)")
+      .eq("member_id", id)
+      .order("occurred_at", { ascending: false }),
+  ]);
+
+  const awards = (rawAwards ?? []).map((row: any) => ({
+    id: row.id,
+    badgeTypeId: row.badge_type_id,
+    badgeTypeName: row.badge_types?.name ?? "Badge",
+    badgeTypeIcon: row.badge_types?.icon ?? "🏅",
+    occurredAt: row.occurred_at,
+    note: row.note,
+  }));
+
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
       <header className="border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
@@ -262,7 +283,7 @@ export default async function MemberDetailPage({
         </div>
       </header>
 
-      <main className="container mx-auto px-6 py-8">
+      <main className="container mx-auto px-6 py-8 space-y-6">
         <MemberDetails
           member={member}
           attendanceRecords={attendance || []}
@@ -270,6 +291,12 @@ export default async function MemberDetailPage({
           slackActivities={slackActivities || []}
           userTimezonePreference={userTimezone}
           membershipHistory={membershipHistory}
+        />
+        <MemberBadgesPanel
+          memberId={id}
+          earnedBadges={earnedBadges}
+          awardableBadgeTypes={awardableBadgeTypes ?? []}
+          awards={awards}
         />
       </main>
     </div>

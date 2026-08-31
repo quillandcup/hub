@@ -10,18 +10,11 @@ import WelcomeBackBanner from "./WelcomeBackBanner"
 import { parseDateOnly } from "@/lib/member-tenure"
 import { getProfileWritingSummary } from "@/app/(member)/writing/actions"
 import { MEASURE_LABELS } from "@/lib/writing-projects"
+import { getMemberBadges } from "@/lib/badges"
+import BadgeChip from "@/components/BadgeChip"
+import { safeUrl } from "@/lib/url"
 
 const ORG_TIMEZONE = "America/New_York"
-
-function safeUrl(url: string | null): string | null {
-  if (!url) return null
-  try {
-    const parsed = new URL(url)
-    return parsed.protocol === "https:" || parsed.protocol === "http:" ? url : null
-  } catch {
-    return null
-  }
-}
 
 const getMember = cache(async (id: string) => {
   const supabase = await createClient()
@@ -87,10 +80,18 @@ export default async function MemberProfilePage({
   let streakJoinTimes: string[] = []
   let timeZone = ORG_TIMEZONE
 
+  // Metrics (total prickles attended) feed both the Tier 3 "Community Stats" card and the
+  // Badges section below, so they're fetched regardless of viewer -- not just for isSelf.
+  const { data: metricsData } = await supabase
+    .from("member_metrics")
+    .select("*")
+    .eq("member_id", id)
+    .single()
+  metrics = metricsData
+
   if (isSelf) {
-    // Fetch metrics, history, and timezone preference concurrently (all bounded)
-    const [{ data: metricsData }, { data: historyData }, tzPref] = await Promise.all([
-      supabase.from("member_metrics").select("*").eq("member_id", id).single(),
+    // Fetch history and timezone preference concurrently (all bounded)
+    const [{ data: historyData }, tzPref] = await Promise.all([
       supabase
         .from("prickle_attendance")
         .select("id, join_time, leave_time, prickles(start_time, prickle_types(name))")
@@ -100,7 +101,6 @@ export default async function MemberProfilePage({
       getUserTimezonePreference(),
     ])
     timeZone = tzPref === "browser" ? ORG_TIMEZONE : tzPref
-    metrics = metricsData
     attendance = (historyData ?? []) as unknown as typeof attendance
 
     // Paginate all join_times for streak computation (sequential by nature)
@@ -122,6 +122,13 @@ export default async function MemberProfilePage({
       }
     }
   }
+
+  const earnedBadges = await getMemberBadges(
+    supabase,
+    id,
+    metrics?.total_sessions ?? 0,
+    member.first_joined_at
+  )
 
   const streaks = computeStreaks(streakJoinTimes, new Date(), timeZone)
 
@@ -252,6 +259,20 @@ export default async function MemberProfilePage({
           <span className="text-slate-500 dark:text-slate-400">prickles attended</span>
         </div>
       </div>
+
+      {/* Tier 3: visible to all */}
+      {earnedBadges.length > 0 && (
+        <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 p-6 mb-6">
+          <h2 className="text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-4">
+            Badges
+          </h2>
+          <div className="flex flex-wrap gap-2">
+            {earnedBadges.map((badge) => (
+              <BadgeChip key={badge.badgeType.id} badge={badge} />
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Tier 3: visible to all -- only shown if the member opted a project in via "Show on my profile" */}
       {writingSummary && (

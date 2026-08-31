@@ -35,6 +35,7 @@ const navigation: NavSection[] = [
       { name: "Hedgieversaries", href: "/admin/hedgieversaries", icon: "🎂", feature: "hedgieversaries" },
       { name: "Network", href: "/admin/members/network", icon: "🕸️" },
       { name: "Wheel of Wonder", href: "/admin/wheel-of-wonder", icon: "🎡", feature: "wheel_of_wonder" },
+      { name: "Badges", href: "/admin/badges", icon: "🏅" },
     ],
   },
   {
