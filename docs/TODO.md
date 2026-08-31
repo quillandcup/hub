@@ -541,3 +541,17 @@ Two genuinely different problems, not yet scoped:
 - **True co-authored project** — multiple people log progress against one shared manuscript/project with a combined total. Needed only if some future project is genuinely one shared document rather than separate books. Bigger change: `writing_projects` needs multiple owners (collaborator join table), and the "member can only read/write their own rows" RLS assumption needs rework.
 
 **Why deferred:** get the single-author loop (log → nudge → streak/chart) shipped and proven first; scope collaboration once that foundation exists rather than designing it speculatively now.
+
+### Point-in-Time Goal Versioning (Deferred)
+`writing_goals` rows are edited in place — `computeHabitGoalProgress`/`computeGoalProgress` always evaluate a goal's *current* definition (period, threshold, measure) against its *full* entry history. Editing period or threshold on an existing goal retroactively reshapes how every past period scores, with no record of what the goal used to say.
+
+One specific case of this — changing a `measure='prickles'` goal's anchor (the real scheduled slot it's tracking, e.g. a host's Progress Prickle) — is already fixed without full versioning: `updateGoal` archives the old row (freezing its streak/history exactly as earned) and forks a new one under the new anchor, rather than mutating in place. See `app/(member)/writing/actions.ts` (`buildGoalFields`/`resolveAnchor`/the `anchorChanged` branch) and the "Archiving on anchor change" section of the plan that introduced it.
+
+**Still open:** the general case — editing threshold/period on any goal, or changing measure on a goal that isn't `prickles` — still silently rewrites history. Real point-in-time versioning (a goal "changed as of" record, with past periods evaluated against whatever was true then) would fix this properly but is a meaningfully bigger feature than the narrow anchor-change fix above.
+
+**Why deferred:** the anchor-change case was the one with a concrete, reported failure mode (an editing member silently loses an earned streak); the general case is a known gap but hasn't caused a reported problem yet, and versioning every field is real design work (schema for change history, UI for "goal changed on this date," how charts/exports treat a versioned goal) beyond what's warranted to build speculatively.
+
+### Browse Past/Archived Projects (Deferred)
+`writing_projects` already has `phase IN ('complete', 'abandoned')` and `archived_at`, but there's no UI to list/browse projects in those states — `getMyProjects()` only returns `archived_at IS NULL` projects, so a completed or abandoned project effectively disappears from `/writing` once marked as such.
+
+**Why deferred:** the data model already supports this; it's purely a missing browsing surface, not a schema gap. Distinct from goal-level "Past goals" (`getArchivedGoals`, shipped alongside the `prickles` measure — see `app/(member)/writing/[id]/ProjectDetailClient.tsx`), which covers archived *goals* within a project, not archived *projects* themselves.

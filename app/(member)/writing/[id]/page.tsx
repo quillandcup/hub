@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getEffectiveIdentity } from "@/lib/sudo";
-import { getProject } from "../actions";
+import { getProject, getArchivedGoals } from "../actions";
 import ProjectDetailClient from "./ProjectDetailClient";
 
 export async function generateMetadata({
@@ -48,6 +48,8 @@ export default async function WritingProjectDetailPage({
     );
   }
 
+  const archivedGoals = await getArchivedGoals(id);
+
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
       <header className="border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
@@ -60,7 +62,7 @@ export default async function WritingProjectDetailPage({
       </header>
 
       <main className="container mx-auto px-6 py-8">
-        <ProjectDetailClient project={result.project} entries={result.entries} />
+        <ProjectDetailClient project={result.project} entries={result.entries} archivedGoals={archivedGoals} />
       </main>
     </div>
   );

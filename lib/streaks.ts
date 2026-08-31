@@ -119,6 +119,11 @@ function getLocalDayAndHour(date: Date, timeZone: string): { dayOfWeek: string; 
   return { dayOfWeek, startHour: parseInt(hourStr, 10) % 24 }
 }
 
+/** Key identifying a recurring series (type + day-of-week + hour), used to match a member's own streaks against other type/day/hour lookups (e.g. upcoming prickles, prickle_schedules rows). */
+export function seriesKeyFor(typeName: string, dayOfWeek: string, startHour: number): string {
+  return `${typeName}|${dayOfWeek}|${startHour}`
+}
+
 export function computePrickleStreaks(
   records: { prickleTypeName: string; joinTime: string; prickleStartTime: string }[],
   now: Date = new Date(),

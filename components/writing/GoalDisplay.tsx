@@ -14,6 +14,7 @@ export default function GoalDisplay({ goal }: { goal: GoalRow }) {
         longestStreak={goal.longestStreak}
         typicalStreak={goal.typicalStreak}
         hitRatePercent={goal.hitRatePercent}
+        anchorLabel={goal.anchorLabel}
       />
     );
   }

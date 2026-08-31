@@ -1,7 +1,8 @@
-export type WritingMeasure = "words" | "time_minutes" | "pages" | "chapters" | "scenes" | "lines";
+export type WritingMeasure = "prickles" | "words" | "time_minutes" | "pages" | "chapters" | "scenes" | "lines";
 export type EntryMode = "delta" | "set_total";
 
 export const WRITING_MEASURES: WritingMeasure[] = [
+  "prickles",
   "words",
   "time_minutes",
   "pages",
@@ -11,6 +12,7 @@ export const WRITING_MEASURES: WritingMeasure[] = [
 ];
 
 export const MEASURE_LABELS: Record<WritingMeasure, string> = {
+  prickles: "Prickles attended",
   words: "Words",
   time_minutes: "Time (minutes)",
   pages: "Pages",
@@ -121,6 +123,49 @@ function daysBetween(fromIso: string, toIso: string): number {
 
 function isoDate(date: Date): string {
   return date.toISOString().slice(0, 10);
+}
+
+export interface PrickleAttendanceRow {
+  typeId: string;
+  hostId: string | null;
+  localDate: string; // YYYY-MM-DD, already resolved to the member's local calendar date
+}
+
+/** A prickles-measure goal's frozen anchor snapshot (see writing_goals.anchor_* columns) -- never a live prickle_schedules lookup. */
+export interface PrickleGoalAnchor {
+  typeId: string | null;
+  hostId: string | null;
+  dayOfWeek: number | null; // 0=Sunday..6=Saturday
+}
+
+function localDateDayOfWeek(localDate: string): number {
+  return new Date(`${localDate}T00:00:00Z`).getUTCDay();
+}
+
+/**
+ * Filters a member's prickle attendance down to what a prickles-measure habit goal should
+ * count, then groups by date -- output feeds directly into computeHabitGoalProgress unchanged.
+ * Each anchor field applies independently when set; all three null means "any (writing-purpose)
+ * prickle attended counts" -- purpose filtering itself happens upstream, at the query that
+ * produces `attendance` (see getMyPrickleAttendance), not here.
+ */
+export function derivePrickleHabitEntries(
+  attendance: PrickleAttendanceRow[],
+  anchor: PrickleGoalAnchor
+): { entryDate: string; amount: number }[] {
+  const matching = attendance.filter((row) => {
+    if (anchor.typeId != null && row.typeId !== anchor.typeId) return false;
+    if (anchor.hostId != null && row.hostId !== anchor.hostId) return false;
+    if (anchor.dayOfWeek != null && localDateDayOfWeek(row.localDate) !== anchor.dayOfWeek) return false;
+    return true;
+  });
+
+  const totalsByDate = new Map<string, number>();
+  for (const row of matching) {
+    totalsByDate.set(row.localDate, (totalsByDate.get(row.localDate) ?? 0) + 1);
+  }
+
+  return [...totalsByDate.entries()].map(([entryDate, amount]) => ({ entryDate, amount }));
 }
 
 export type HabitPeriod = "day" | "week" | "month";

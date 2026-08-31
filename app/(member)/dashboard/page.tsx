@@ -12,6 +12,7 @@ import {
   computePrickleStreaks,
   computeSisterStreaks,
   isEstablishedSisterStreak,
+  seriesKeyFor,
   type PrickleStreak,
   type SisterStreak,
 } from "@/lib/streaks"
@@ -70,10 +71,6 @@ function getLocalDayAndHour(iso: string, timeZone: string): { dayOfWeek: string;
   const dayOfWeek = parts.find((p) => p.type === "weekday")?.value ?? ""
   const hourStr = parts.find((p) => p.type === "hour")?.value ?? "0"
   return { dayOfWeek, startHour: parseInt(hourStr, 10) % 24 }
-}
-
-function seriesKeyFor(typeName: string, dayOfWeek: string, startHour: number): string {
-  return `${typeName}|${dayOfWeek}|${startHour}`
 }
 
 function formatUpcomingTime(iso: string, timeZone: string): string {

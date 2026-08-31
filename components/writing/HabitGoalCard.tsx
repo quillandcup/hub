@@ -8,6 +8,7 @@ interface HabitGoalCardProps {
   longestStreak: number;
   typicalStreak: number;
   hitRatePercent: number;
+  anchorLabel?: string | null;
 }
 
 const PERIOD_LABELS: Record<HabitPeriod, string> = { day: "day", week: "week", month: "month" };
@@ -20,6 +21,7 @@ export default function HabitGoalCard({
   longestStreak,
   typicalStreak,
   hitRatePercent,
+  anchorLabel,
 }: HabitGoalCardProps) {
   const periodLabel = PERIOD_LABELS[habitPeriod];
   const goalText = habitThreshold
@@ -29,6 +31,9 @@ export default function HabitGoalCard({
   return (
     <div>
       <p className="text-sm text-slate-600 dark:text-slate-400">{goalText}</p>
+      {anchorLabel && (
+        <p className="text-xs text-slate-500 dark:text-slate-500 mt-0.5">Anchored to: {anchorLabel}</p>
+      )}
       <div className="flex flex-wrap gap-x-6 gap-y-1 mt-2 text-sm">
         <span className="flex items-center gap-1">
           <span aria-hidden>🔥</span>

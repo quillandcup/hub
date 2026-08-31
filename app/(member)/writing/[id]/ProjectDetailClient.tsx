@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import LogProgressModal from "@/components/writing/LogProgressModal";
 import GoalDisplay from "@/components/writing/GoalDisplay";
 import ProjectCharts from "@/components/writing/ProjectCharts";
+import ReasonBadges from "@/components/ReasonBadges";
 import {
   WRITING_MEASURES,
   MEASURE_LABELS,
@@ -11,12 +12,15 @@ import {
   type HabitPeriod,
 } from "@/lib/writing-projects";
 import {
+  archiveGoal,
   createGoal,
   deleteEntry,
   deleteGoal,
+  getPrickleAnchorOptions,
   toggleGoalStar,
   toggleProjectVisibility,
   updateGoal,
+  type AnchorOption,
   type WritingProjectRow,
   type EntryRow,
   type GoalRow,
@@ -25,9 +29,10 @@ import {
 interface ProjectDetailClientProps {
   project: WritingProjectRow;
   entries: EntryRow[];
+  archivedGoals: GoalRow[];
 }
 
-export default function ProjectDetailClient({ project, entries }: ProjectDetailClientProps) {
+export default function ProjectDetailClient({ project, entries, archivedGoals }: ProjectDetailClientProps) {
   const [showLogProgress, setShowLogProgress] = useState(false);
   const [editingEntry, setEditingEntry] = useState<EntryRow | null>(null);
   const [showNewGoal, setShowNewGoal] = useState(false);
@@ -52,6 +57,15 @@ export default function ProjectDetailClient({ project, entries }: ProjectDetailC
 
   async function handleDeleteGoal(goalId: string) {
     const result = await deleteGoal(goalId);
+    if ("error" in result) {
+      alert(result.error);
+      return;
+    }
+    handleChanged();
+  }
+
+  async function handleArchiveGoal(goalId: string) {
+    const result = await archiveGoal(goalId);
     if ("error" in result) {
       alert(result.error);
       return;
@@ -138,6 +152,15 @@ export default function ProjectDetailClient({ project, entries }: ProjectDetailC
                   </button>
                   <button
                     type="button"
+                    onClick={() => handleArchiveGoal(goal.id)}
+                    className="text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400"
+                    aria-label="Mark as done"
+                    title="Mark as done (keeps the record, removes from active goals)"
+                  >
+                    ✅
+                  </button>
+                  <button
+                    type="button"
                     onClick={() => handleDeleteGoal(goal.id)}
                     className="text-slate-400 hover:text-red-600 dark:hover:text-red-400"
                     aria-label="Delete goal"
@@ -148,6 +171,17 @@ export default function ProjectDetailClient({ project, entries }: ProjectDetailC
               </div>
             )
           )}
+        </div>
+      )}
+
+      {archivedGoals.length > 0 && (
+        <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 p-5 space-y-4">
+          <h2 className="text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide">Past goals</h2>
+          {archivedGoals.map((goal) => (
+            <div key={goal.id}>
+              <GoalDisplay goal={goal} />
+            </div>
+          ))}
         </div>
       )}
 
@@ -276,7 +310,9 @@ function GoalForm({
 }) {
   const isEditing = !!goal;
   const [goalType, setGoalType] = useState<"target" | "habit">(goal?.kind ?? "target");
-  const [measure, setMeasure] = useState<WritingMeasure>(goal?.measure ?? "words");
+  // Prickles is the default for new goals -- it's the input (attending), word/page/etc counts
+  // are outputs, so the form leads with the thing that causes the others.
+  const [measure, setMeasure] = useState<WritingMeasure>(goal?.measure ?? "prickles");
   const [targetAmount, setTargetAmount] = useState(goal?.kind === "target" ? String(goal.targetAmount) : "");
   const [startDate, setStartDate] = useState(goal?.kind === "target" ? goal.startDate ?? "" : "");
   const [endDate, setEndDate] = useState(goal?.kind === "target" ? goal.endDate ?? "" : "");
@@ -284,12 +320,19 @@ function GoalForm({
   const [habitThreshold, setHabitThreshold] = useState(
     goal?.kind === "habit" && goal.habitThreshold != null ? String(goal.habitThreshold) : ""
   );
+  // undefined = anchor not touched by this edit -- server keeps whatever's already stored.
+  // Editing a goal that already has an anchor starts collapsed (see AnchorPicker below) so a
+  // threshold/period-only edit can't accidentally re-derive/clear the anchor.
+  const [anchorScheduleId, setAnchorScheduleId] = useState<string | null | undefined>(undefined);
+  const [anchorTouched, setAnchorTouched] = useState(false);
   const [isPending, setIsPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+
+    const anchorPayload = measure === "prickles" && (!isEditing || anchorTouched) ? anchorScheduleId ?? null : undefined;
 
     setIsPending(true);
     const result =
@@ -305,6 +348,7 @@ function GoalForm({
               targetAmount: parsed,
               startDate: startDate || null,
               endDate: endDate || null,
+              anchorScheduleId: anchorPayload,
             };
             return isEditing ? updateGoal(goal.id, payload) : createGoal({ projectId, ...payload });
           })()
@@ -314,6 +358,7 @@ function GoalForm({
               goalType: "habit" as const,
               habitPeriod,
               habitThreshold: habitThreshold.trim() ? Number(habitThreshold) : null,
+              anchorScheduleId: anchorPayload,
             };
             return isEditing ? updateGoal(goal.id, payload) : createGoal({ projectId, ...payload });
           })();
@@ -439,6 +484,34 @@ function GoalForm({
         </div>
       )}
 
+      {measure === "prickles" &&
+        (isEditing && !anchorTouched ? (
+          <div className="text-sm text-slate-600 dark:text-slate-400">
+            {goal?.anchorLabel ? (
+              <>
+                Anchored to: <span className="font-medium text-slate-900 dark:text-slate-100">{goal.anchorLabel}</span>
+              </>
+            ) : (
+              "Counts any writing prickle attended"
+            )}{" "}
+            <button
+              type="button"
+              onClick={() => setAnchorTouched(true)}
+              className="text-blue-600 hover:text-blue-800 dark:text-blue-400 underline"
+            >
+              Change
+            </button>
+          </div>
+        ) : (
+          <AnchorPicker
+            value={anchorScheduleId ?? null}
+            onChange={(id) => {
+              setAnchorScheduleId(id);
+              setAnchorTouched(true);
+            }}
+          />
+        ))}
+
       {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
 
       <div className="flex justify-end gap-2">
@@ -460,5 +533,75 @@ function GoalForm({
         </button>
       </div>
     </form>
+  );
+}
+
+/**
+ * Ranked, searchable, badged picker over this month/next month's confirmed writing-purpose
+ * prickle_schedules -- with 50+ options in a given month, a plain <select> doesn't scale.
+ * Ranking/badges are computed server-side (getPrickleAnchorOptions) reusing the exact same
+ * hosting/streak/lostStreak priority scheme and ReasonBadges component as the dashboard's
+ * "Upcoming Prickles" list -- this only does client-side text filtering over the already-ranked
+ * list, since a month or two of schedules is small enough to filter instantly in the browser.
+ */
+function AnchorPicker({ value, onChange }: { value: string | null; onChange: (id: string | null) => void }) {
+  const [options, setOptions] = useState<AnchorOption[] | null>(null);
+  const [search, setSearch] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    getPrickleAnchorOptions().then((opts) => {
+      if (!cancelled) setOptions(opts);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const filtered = options?.filter((o) => o.label.toLowerCase().includes(search.toLowerCase())) ?? [];
+
+  return (
+    <div>
+      <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+        Which prickle? <span className="text-slate-400 font-normal">(optional -- leave on &quot;any writing prickle&quot; to count any)</span>
+      </label>
+      <input
+        type="search"
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        placeholder="Search by type or host…"
+        className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-sm mb-2"
+      />
+      <div className="max-h-64 overflow-y-auto border border-slate-200 dark:border-slate-700 rounded-lg divide-y divide-slate-100 dark:divide-slate-800">
+        <button
+          type="button"
+          onClick={() => onChange(null)}
+          className={`w-full flex items-center justify-between gap-2 px-3 py-2 text-sm text-left ${
+            value === null ? "bg-blue-50 dark:bg-blue-900/20" : "hover:bg-slate-50 dark:hover:bg-slate-800"
+          }`}
+        >
+          <span className="text-slate-900 dark:text-slate-100">Any writing prickle</span>
+        </button>
+        {options === null ? (
+          <p className="px-3 py-2 text-sm text-slate-500 dark:text-slate-400">Loading…</p>
+        ) : filtered.length === 0 ? (
+          <p className="px-3 py-2 text-sm text-slate-500 dark:text-slate-400">No matching scheduled prickles.</p>
+        ) : (
+          filtered.map((o) => (
+            <button
+              key={o.scheduleId}
+              type="button"
+              onClick={() => onChange(o.scheduleId)}
+              className={`w-full flex items-center justify-between gap-2 px-3 py-2 text-sm text-left ${
+                value === o.scheduleId ? "bg-blue-50 dark:bg-blue-900/20" : "hover:bg-slate-50 dark:hover:bg-slate-800"
+              }`}
+            >
+              <span className="text-slate-900 dark:text-slate-100">{o.label}</span>
+              <ReasonBadges reasons={o.reasons} />
+            </button>
+          ))
+        )}
+      </div>
+    </div>
   );
 }

@@ -4,7 +4,9 @@ import {
   computeCumulativeSeries,
   computeGoalProgress,
   computeHabitGoalProgress,
+  derivePrickleHabitEntries,
   type ProgressEntryInput,
+  type PrickleAttendanceRow,
 } from "@/lib/writing-projects";
 
 function entry(overrides: Partial<ProgressEntryInput> = {}): ProgressEntryInput {
@@ -264,5 +266,65 @@ describe("computeHabitGoalProgress", () => {
       now,
     });
     expect(progress.hitRatePercent).toBe(60);
+  });
+});
+
+function attendance(overrides: Partial<PrickleAttendanceRow> = {}): PrickleAttendanceRow {
+  return { typeId: "type-progress", hostId: "host-1", localDate: "2026-08-03", ...overrides };
+}
+
+describe("derivePrickleHabitEntries", () => {
+  it("counts everything when the anchor is fully unset (any writing prickle counts)", () => {
+    const rows = [attendance({ localDate: "2026-08-03" }), attendance({ localDate: "2026-08-10" })];
+    const result = derivePrickleHabitEntries(rows, { typeId: null, hostId: null, dayOfWeek: null });
+    expect(result).toEqual(
+      expect.arrayContaining([
+        { entryDate: "2026-08-03", amount: 1 },
+        { entryDate: "2026-08-10", amount: 1 },
+      ])
+    );
+    expect(result).toHaveLength(2);
+  });
+
+  it("filters by typeId alone", () => {
+    const rows = [attendance({ typeId: "type-progress" }), attendance({ typeId: "type-sprint", localDate: "2026-08-04" })];
+    const result = derivePrickleHabitEntries(rows, { typeId: "type-progress", hostId: null, dayOfWeek: null });
+    expect(result).toEqual([{ entryDate: "2026-08-03", amount: 1 }]);
+  });
+
+  it("filters by hostId alone", () => {
+    const rows = [attendance({ hostId: "host-1" }), attendance({ hostId: "host-2", localDate: "2026-08-04" })];
+    const result = derivePrickleHabitEntries(rows, { typeId: null, hostId: "host-1", dayOfWeek: null });
+    expect(result).toEqual([{ entryDate: "2026-08-03", amount: 1 }]);
+  });
+
+  it("filters by dayOfWeek alone, derived from each row's local date", () => {
+    // 2026-08-03 is a Monday (dayOfWeek 1), 2026-08-04 is a Tuesday (dayOfWeek 2).
+    const rows = [attendance({ localDate: "2026-08-03" }), attendance({ localDate: "2026-08-04" })];
+    const result = derivePrickleHabitEntries(rows, { typeId: null, hostId: null, dayOfWeek: 1 });
+    expect(result).toEqual([{ entryDate: "2026-08-03", amount: 1 }]);
+  });
+
+  it("applies type/host/day filters together (AND, not OR) -- this is the 'Jenn's Progress Prickle' case", () => {
+    const rows = [
+      attendance({ typeId: "type-progress", hostId: "host-1", localDate: "2026-08-03" }), // matches all three
+      attendance({ typeId: "type-progress", hostId: "host-2", localDate: "2026-08-03" }), // wrong host
+      attendance({ typeId: "type-sprint", hostId: "host-1", localDate: "2026-08-03" }), // wrong type
+      attendance({ typeId: "type-progress", hostId: "host-1", localDate: "2026-08-04" }), // wrong day
+    ];
+    const result = derivePrickleHabitEntries(rows, { typeId: "type-progress", hostId: "host-1", dayOfWeek: 1 });
+    expect(result).toEqual([{ entryDate: "2026-08-03", amount: 1 }]);
+  });
+
+  it("groups multiple matching prickles on the same date into one entry with amount > 1", () => {
+    const rows = [attendance({ localDate: "2026-08-03" }), attendance({ localDate: "2026-08-03" })];
+    const result = derivePrickleHabitEntries(rows, { typeId: null, hostId: null, dayOfWeek: null });
+    expect(result).toEqual([{ entryDate: "2026-08-03", amount: 2 }]);
+  });
+
+  it("returns an empty array when nothing matches", () => {
+    const rows = [attendance({ typeId: "type-progress" })];
+    const result = derivePrickleHabitEntries(rows, { typeId: "type-sprint", hostId: null, dayOfWeek: null });
+    expect(result).toEqual([]);
   });
 });
