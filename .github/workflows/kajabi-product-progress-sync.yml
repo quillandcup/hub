@@ -1,0 +1,60 @@
+name: Kajabi Product Progress Sync
+
+# Downloads Kajabi's Product Progress export (course completion/engagement
+# data -- no API exists for it) and uploads it to
+# /api/import/kajabi-product-progress. Runs daily, same cadence as the other
+# engagement-gathering jobs (see docs/CRONJOBS.md). Uses GitHub Actions
+# rather than Vercel Cron because it needs a real browser (Playwright);
+# Vercel's serverless functions can't run one.
+#
+# See docs/KAJABI_PRODUCT_PROGRESS_SYNC.md for required secrets and how to
+# refresh KAJABI_SESSION_STATE when it expires.
+
+on:
+  schedule:
+    - cron: "0 6 * * *" # Daily 6am UTC
+  workflow_dispatch: {}
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Decode Kajabi session state
+        env:
+          KAJABI_SESSION_STATE: ${{ secrets.KAJABI_SESSION_STATE }}
+        run: echo "$KAJABI_SESSION_STATE" | base64 -d > kajabi-session.json
+
+      - name: Export Kajabi Product Progress
+        env:
+          KAJABI_SESSION_STATE_PATH: kajabi-session.json
+          HEADLESS: "true"
+        run: npm run kajabi:export
+
+      - name: Upload to app
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: npm run kajabi:upload
+
+      - name: Notify Slack on failure
+        if: failure()
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          SLACK_ALERT_CHANNEL_ID: ${{ secrets.SLACK_ALERT_CHANNEL_ID }}
+        run: |
+          curl -sS -X POST https://slack.com/api/chat.postMessage \
+            -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "{\"channel\": \"$SLACK_ALERT_CHANNEL_ID\", \"text\": \":warning: Kajabi Product Progress sync failed. Likely cause: the Kajabi session expired. See docs/KAJABI_PRODUCT_PROGRESS_SYNC.md to refresh KAJABI_SESSION_STATE. Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\"}"

@@ -160,6 +160,20 @@ export default async function MemberDetailPage({
     .order("occurred_at", { ascending: false })
     .limit(50);
 
+  // Fetch course progress (Kajabi Product Progress export) — latest snapshot
+  // per product across the member's primary + alias emails. Small per-member
+  // dataset (a handful of products), so no pagination loop needed.
+  const { data: progressSnapshots } = await supabase
+    .schema("bronze")
+    .from("kajabi_product_progress")
+    .select("*")
+    .in("member_email", allEmails.map((e) => e.toLowerCase()))
+    .order("imported_at", { ascending: false });
+
+  const courseProgress = Array.from(
+    new Map((progressSnapshots || []).map((row: any) => [row.product_name, row])).values()
+  );
+
   // Get user's timezone preference
   const userTimezone = await getUserTimezonePreference();
 
@@ -270,6 +284,7 @@ export default async function MemberDetailPage({
           slackActivities={slackActivities || []}
           userTimezonePreference={userTimezone}
           membershipHistory={membershipHistory}
+          courseProgress={courseProgress}
         />
       </main>
     </div>

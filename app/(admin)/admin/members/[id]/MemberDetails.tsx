@@ -14,9 +14,10 @@ interface MemberDetailsProps {
   slackActivities: any[];
   userTimezonePreference?: string; // User's timezone preference from profile
   membershipHistory: any[];
+  courseProgress?: any[];
 }
 
-export default function MemberDetails({ member, attendanceRecords, hiatusHistory, slackActivities, userTimezonePreference = "browser", membershipHistory }: MemberDetailsProps) {
+export default function MemberDetails({ member, attendanceRecords, hiatusHistory, slackActivities, userTimezonePreference = "browser", membershipHistory, courseProgress = [] }: MemberDetailsProps) {
   const [slackActivityFilter, setSlackActivityFilter] = useState<"all" | "messages" | "reactions">("all");
   const [slackChannelFilter, setSlackChannelFilter] = useState<string | null>(null);
   const [showAllSlackActivities, setShowAllSlackActivities] = useState(false);
@@ -339,6 +340,49 @@ export default function MemberDetails({ member, attendanceRecords, hiatusHistory
                 );
               })}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Course Progress (Kajabi Product Progress export) */}
+      {courseProgress.length > 0 && (
+        <div className="bg-white dark:bg-slate-900 rounded-lg shadow">
+          <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800">
+            <h2 className="text-xl font-bold">Course Progress</h2>
+          </div>
+          <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+            {courseProgress.map((progress: any) => (
+              <div
+                key={progress.product_name}
+                className="border border-slate-200 dark:border-slate-700 rounded-lg p-4"
+              >
+                <div className="flex items-center justify-between">
+                  <h3 className="font-medium">{progress.product_name}</h3>
+                  {progress.completion_percentage !== null && (
+                    <span className="text-sm font-semibold text-blue-600 dark:text-blue-400">
+                      {progress.completion_percentage}%
+                    </span>
+                  )}
+                </div>
+                {progress.completion_percentage !== null && (
+                  <div className="mt-2 h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-blue-500 dark:bg-blue-600"
+                      style={{ width: `${Math.min(100, Math.max(0, progress.completion_percentage))}%` }}
+                    />
+                  </div>
+                )}
+                <div className="mt-2 text-xs text-slate-500 dark:text-slate-400 flex flex-wrap gap-x-3 gap-y-1">
+                  {progress.lessons_completed !== null && progress.total_lessons !== null && (
+                    <span>{progress.lessons_completed} / {progress.total_lessons} lessons</span>
+                  )}
+                  {progress.last_activity_at && (
+                    <span>Last activity: {new Date(progress.last_activity_at).toLocaleDateString()}</span>
+                  )}
+                  <span>As of {new Date(progress.imported_at).toLocaleDateString()}</span>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}

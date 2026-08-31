@@ -19,6 +19,8 @@
     "env:sync": "./scripts/sync-to-vercel.sh",
     "templates:render": "tsx scripts/render-email-templates.ts",
     "templates:sync": "tsx scripts/sync-email-templates.ts .env.prod",
+    "kajabi:export": "tsx scripts/kajabi-export.ts",
+    "kajabi:upload": "tsx scripts/upload-kajabi-product-progress.ts",
     "quarantine:remove": "xattr -r -d com.apple.quarantine node_modules",
     "prepare": "husky"
   },
@@ -42,7 +44,8 @@
     "recharts": "^3.8.1",
     "rehype-raw": "^7.0.0",
     "remark-gfm": "^4.0.1",
-    "stripe": "^22.1.0"
+    "stripe": "^22.1.0",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.5",
@@ -62,6 +65,7 @@
     "husky": "^9.1.7",
     "jsdom": "^30.0.1",
     "msw": "^2.13.6",
+    "playwright": "^1.62.1",
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.17",
     "tsx": "^4.21.0",
