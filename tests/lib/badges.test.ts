@@ -2,9 +2,11 @@ import { describe, it, expect } from "vitest";
 import {
   deriveLevel,
   isFoundingHedgie,
+  quarterKey,
   computeEarnedBadges,
   type BadgeType,
   type BadgeLevel,
+  type AutomaticBadgeMetrics,
 } from "@/lib/badges";
 
 const levels: BadgeLevel[] = [
@@ -12,6 +14,13 @@ const levels: BadgeLevel[] = [
   { id: "l2", badge_type_id: "t1", level: 2, name: "Silver", threshold: 10 },
   { id: "l3", badge_type_id: "t1", level: 3, name: "Gold", threshold: 100 },
 ];
+
+const NO_METRICS: AutomaticBadgeMetrics = {
+  totalPricklesAttended: 0,
+  firstJoinedAt: null,
+  hostedQuarterCount: 0,
+  publishedBookCount: 0,
+};
 
 describe("deriveLevel", () => {
   it("returns null when no threshold is met", () => {
@@ -55,6 +64,15 @@ describe("isFoundingHedgie", () => {
   });
 });
 
+describe("quarterKey", () => {
+  it("buckets a timestamp into its UTC calendar quarter", () => {
+    expect(quarterKey("2025-01-15T12:00:00Z")).toBe("2025-Q1");
+    expect(quarterKey("2025-04-01T00:00:00Z")).toBe("2025-Q2");
+    expect(quarterKey("2025-09-30T23:59:59Z")).toBe("2025-Q3");
+    expect(quarterKey("2025-12-31T23:59:59Z")).toBe("2025-Q4");
+  });
+});
+
 describe("computeEarnedBadges", () => {
   const prickleMilestones: BadgeType = {
     id: "bt-milestones",
@@ -84,6 +102,26 @@ describe("computeEarnedBadges", () => {
     icon: "🎙️",
     category: "community",
     has_levels: true,
+    is_automatic: true,
+  };
+  const publishedAuthor: BadgeType = {
+    id: "bt-author",
+    key: "published_author",
+    name: "Published Author",
+    description: null,
+    icon: "📚",
+    category: "community",
+    has_levels: true,
+    is_automatic: true,
+  };
+  const hedgieMentor: BadgeType = {
+    id: "bt-mentor",
+    key: "hedgie_mentor",
+    name: "Hedgie Mentor",
+    description: null,
+    icon: "🧭",
+    category: "community",
+    has_levels: true,
     is_automatic: false,
   };
   const retreat: BadgeType = {
@@ -105,10 +143,20 @@ describe("computeEarnedBadges", () => {
     { id: "h1", badge_type_id: "bt-hostess", level: 1, name: "Hostess", threshold: 1 },
     { id: "h2", badge_type_id: "bt-hostess", level: 2, name: "5x Hostess", threshold: 5 },
   ];
+  const authorLevels: BadgeLevel[] = [
+    { id: "a1", badge_type_id: "bt-author", level: 1, name: "Published Author", threshold: 1 },
+    { id: "a2", badge_type_id: "bt-author", level: 2, name: "3x Published Author", threshold: 3 },
+  ];
+  const mentorLevels: BadgeLevel[] = [
+    { id: "me1", badge_type_id: "bt-mentor", level: 1, name: "Hedgie Mentor", threshold: 1 },
+    { id: "me2", badge_type_id: "bt-mentor", level: 2, name: "2x Hedgie Mentor", threshold: 2 },
+  ];
 
   const levelsByBadgeType = new Map<string, BadgeLevel[]>([
     ["bt-milestones", milestoneLevels],
     ["bt-hostess", hostessLevels],
+    ["bt-author", authorLevels],
+    ["bt-mentor", mentorLevels],
   ]);
 
   it("computes automatic prickle-milestone badges from attendance count, never reading member_badges", () => {
@@ -116,8 +164,7 @@ describe("computeEarnedBadges", () => {
       [prickleMilestones],
       levelsByBadgeType,
       [{ badge_type_id: "bt-milestones", occurred_at: "2020-01-01", note: null }], // should be ignored
-      12,
-      null
+      { ...NO_METRICS, totalPricklesAttended: 12 }
     );
     expect(earned).toHaveLength(1);
     expect(earned[0].levelName).toBe("10 Prickles");
@@ -125,29 +172,63 @@ describe("computeEarnedBadges", () => {
   });
 
   it("omits the automatic milestone badge below the first threshold", () => {
-    const earned = computeEarnedBadges([prickleMilestones], levelsByBadgeType, [], 0, null);
+    const earned = computeEarnedBadges([prickleMilestones], levelsByBadgeType, [], NO_METRICS);
     expect(earned).toHaveLength(0);
   });
 
   it("computes the automatic Founding Hedgie badge from join date", () => {
-    const earned = computeEarnedBadges([foundingHedgie], levelsByBadgeType, [], 0, "2021-05-01");
+    const earned = computeEarnedBadges([foundingHedgie], levelsByBadgeType, [], {
+      ...NO_METRICS,
+      firstJoinedAt: "2021-05-01",
+    });
     expect(earned).toHaveLength(1);
     expect(earned[0].levelName).toBe("Founding Hedgie");
   });
 
-  it("derives a manual leveled badge's level from the number of awarded occurrences", () => {
+  it("computes the automatic Hostess badge from hosted-quarter count, never reading member_badges", () => {
     const earned = computeEarnedBadges(
       [hostess],
       levelsByBadgeType,
-      [
-        { badge_type_id: "bt-hostess", occurred_at: "2025-01-01", note: "Q1" },
-        { badge_type_id: "bt-hostess", occurred_at: "2025-04-01", note: "Q2" },
-      ],
-      0,
-      null
+      [{ badge_type_id: "bt-hostess", occurred_at: "2020-01-01", note: "stale manual row" }],
+      { ...NO_METRICS, hostedQuarterCount: 5 }
     );
     expect(earned).toHaveLength(1);
-    expect(earned[0].levelName).toBe("Hostess"); // 2 occurrences, below the 5x threshold
+    expect(earned[0].levelName).toBe("5x Hostess");
+    expect(earned[0].occurrences).toBe(5);
+  });
+
+  it("omits the automatic Hostess badge when the member has never hosted", () => {
+    const earned = computeEarnedBadges([hostess], levelsByBadgeType, [], NO_METRICS);
+    expect(earned).toHaveLength(0);
+  });
+
+  it("computes the automatic Published Author badge from the member's book count", () => {
+    const earned = computeEarnedBadges([publishedAuthor], levelsByBadgeType, [], {
+      ...NO_METRICS,
+      publishedBookCount: 3,
+    });
+    expect(earned).toHaveLength(1);
+    expect(earned[0].levelName).toBe("3x Published Author");
+    expect(earned[0].occurrences).toBe(3);
+  });
+
+  it("omits the automatic Published Author badge with zero books", () => {
+    const earned = computeEarnedBadges([publishedAuthor], levelsByBadgeType, [], NO_METRICS);
+    expect(earned).toHaveLength(0);
+  });
+
+  it("derives a manual leveled badge's level from the number of awarded occurrences", () => {
+    const earned = computeEarnedBadges(
+      [hedgieMentor],
+      levelsByBadgeType,
+      [
+        { badge_type_id: "bt-mentor", occurred_at: "2025-01-01", note: "Person A" },
+        { badge_type_id: "bt-mentor", occurred_at: "2025-04-01", note: "Person B" },
+      ],
+      NO_METRICS
+    );
+    expect(earned).toHaveLength(1);
+    expect(earned[0].levelName).toBe("2x Hedgie Mentor");
     expect(earned[0].occurrences).toBe(2);
     expect(earned[0].firstAwardedAt).toBe("2025-01-01");
     expect(earned[0].lastAwardedAt).toBe("2025-04-01");
@@ -158,8 +239,7 @@ describe("computeEarnedBadges", () => {
       [retreat],
       levelsByBadgeType,
       [{ badge_type_id: "bt-retreat", occurred_at: "2025-10-01", note: null }],
-      0,
-      null
+      NO_METRICS
     );
     expect(earned).toHaveLength(1);
     expect(earned[0].levelName).toBe("Fall 2025 Virtual Retreat");
@@ -167,7 +247,7 @@ describe("computeEarnedBadges", () => {
   });
 
   it("omits badge types with no awards and no automatic match", () => {
-    const earned = computeEarnedBadges([hostess, retreat], levelsByBadgeType, [], 0, null);
+    const earned = computeEarnedBadges([hedgieMentor, retreat], levelsByBadgeType, [], NO_METRICS);
     expect(earned).toHaveLength(0);
   });
 });

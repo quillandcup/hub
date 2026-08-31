@@ -29,6 +29,7 @@ function NavLinks({ memberId, isAdmin, enabledFeatures, pathname, collapsed, onN
   const isWheelActive = pathname === '/wheel-of-wonder';
   const isHostingActive = pathname === '/hosting';
   const isWritingActive = pathname === '/writing' || pathname.startsWith('/writing/');
+  const isBookshelfActive = pathname === '/bookshelf';
   const isProfileActive = pathname === `/members/${memberId}` || pathname.startsWith(`/members/${memberId}/`);
 
   const showStreaks = enabledFeatures.includes('streaks');
@@ -160,6 +161,16 @@ function NavLinks({ memberId, isAdmin, enabledFeatures, pathname, collapsed, onN
             >
               <span className="text-lg">🎙️</span>
               {!collapsed && <span>Hosting</span>}
+            </Link>
+
+            <Link
+              href="/bookshelf"
+              onClick={onNavigate}
+              className={linkClass(isBookshelfActive)}
+              title={collapsed ? "Bookshelf" : undefined}
+            >
+              <span className="text-lg">🐚</span>
+              {!collapsed && <span>Bookshelf</span>}
             </Link>
           </div>
         </div>

@@ -12,18 +12,9 @@ import { getProfileWritingSummary } from "@/app/(member)/writing/actions"
 import { MEASURE_LABELS } from "@/lib/writing-projects"
 import { getMemberBadges } from "@/lib/badges"
 import BadgeChip from "@/components/BadgeChip"
+import { safeUrl } from "@/lib/url"
 
 const ORG_TIMEZONE = "America/New_York"
-
-function safeUrl(url: string | null): string | null {
-  if (!url) return null
-  try {
-    const parsed = new URL(url)
-    return parsed.protocol === "https:" || parsed.protocol === "http:" ? url : null
-  } catch {
-    return null
-  }
-}
 
 const getMember = cache(async (id: string) => {
   const supabase = await createClient()

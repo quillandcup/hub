@@ -32,6 +32,18 @@ export interface EarnedBadge {
   note: string | null;
 }
 
+/**
+ * Inputs to every is_automatic badge type's computation, gathered once per member so
+ * computeEarnedBadges can stay a pure function. Adding a new automatic badge means adding a
+ * field here, a case in computeEarnedBadges, and (if it needs a query) a getter below.
+ */
+export interface AutomaticBadgeMetrics {
+  totalPricklesAttended: number;
+  firstJoinedAt: string | null;
+  hostedQuarterCount: number;
+  publishedBookCount: number;
+}
+
 /** The highest level whose threshold is met by `occurrences`, or null if none is met yet
  * (e.g. a leveled badge type with no threshold=1 level, and zero occurrences so far). */
 export function deriveLevel(levels: BadgeLevel[], occurrences: number): BadgeLevel | null {
@@ -53,20 +65,45 @@ export function isFoundingHedgie(firstJoinedAt: string | null): boolean {
   return year === 2021 || (year === 2022 && month <= 2);
 }
 
+// "YYYY-Qn" for a timestamptz, in UTC -- used to count distinct quarters hosted for the
+// automatic Hostess badge. UTC (rather than org-local time) keeps this deterministic regardless
+// of where it runs; a prickle within a few hours of a quarter boundary landing in the "wrong"
+// quarter doesn't change which levels a host has reached.
+export function quarterKey(isoTimestamp: string): string {
+  const d = new Date(isoTimestamp);
+  const quarter = Math.floor(d.getUTCMonth() / 3) + 1;
+  return `${d.getUTCFullYear()}-Q${quarter}`;
+}
+
+function pushAutomaticLeveled(
+  earned: EarnedBadge[],
+  badgeType: BadgeType,
+  levels: BadgeLevel[],
+  occurrences: number
+) {
+  const level = deriveLevel(levels, occurrences);
+  if (!level) return;
+  earned.push({
+    badgeType,
+    levelName: level.name,
+    level: level.level,
+    occurrences,
+    firstAwardedAt: null,
+    lastAwardedAt: null,
+    note: null,
+  });
+}
+
 /**
  * Merges manually-awarded badges (member_badges rows) with the automatically-computed ones
- * (prickle milestones, Founding Hedgie) into one earned-badges list, ready to render.
- *
- * `totalPricklesAttended` and `firstJoinedAt` feed the automatic badges -- callers already have
- * these on hand (member_metrics.total_sessions, members.first_joined_at) so this stays a pure
- * function rather than issuing its own queries for them.
+ * (prickle milestones, Founding Hedgie, Hostess, Published Author) into one earned-badges list,
+ * ready to render.
  */
 export function computeEarnedBadges(
   badgeTypes: BadgeType[],
   levelsByBadgeType: Map<string, BadgeLevel[]>,
   awards: { badge_type_id: string; occurred_at: string; note: string | null }[],
-  totalPricklesAttended: number,
-  firstJoinedAt: string | null
+  metrics: AutomaticBadgeMetrics
 ): EarnedBadge[] {
   const earned: EarnedBadge[] = [];
 
@@ -81,31 +118,29 @@ export function computeEarnedBadges(
     const levels = levelsByBadgeType.get(badgeType.id) ?? [];
 
     if (badgeType.is_automatic) {
-      if (badgeType.key === "prickle_milestones") {
-        const level = deriveLevel(levels, totalPricklesAttended);
-        if (level) {
-          earned.push({
-            badgeType,
-            levelName: level.name,
-            level: level.level,
-            occurrences: totalPricklesAttended,
-            firstAwardedAt: null,
-            lastAwardedAt: null,
-            note: null,
-          });
-        }
-      } else if (badgeType.key === "founding_hedgie") {
-        if (isFoundingHedgie(firstJoinedAt)) {
-          earned.push({
-            badgeType,
-            levelName: badgeType.name,
-            level: null,
-            occurrences: 1,
-            firstAwardedAt: firstJoinedAt,
-            lastAwardedAt: firstJoinedAt,
-            note: null,
-          });
-        }
+      switch (badgeType.key) {
+        case "prickle_milestones":
+          pushAutomaticLeveled(earned, badgeType, levels, metrics.totalPricklesAttended);
+          break;
+        case "hostess":
+          pushAutomaticLeveled(earned, badgeType, levels, metrics.hostedQuarterCount);
+          break;
+        case "published_author":
+          pushAutomaticLeveled(earned, badgeType, levels, metrics.publishedBookCount);
+          break;
+        case "founding_hedgie":
+          if (isFoundingHedgie(metrics.firstJoinedAt)) {
+            earned.push({
+              badgeType,
+              levelName: badgeType.name,
+              level: null,
+              occurrences: 1,
+              firstAwardedAt: metrics.firstJoinedAt,
+              lastAwardedAt: metrics.firstJoinedAt,
+              note: null,
+            });
+          }
+          break;
       }
       continue;
     }
@@ -143,22 +178,66 @@ export function computeEarnedBadges(
   return earned;
 }
 
-/** Fetches every badge_type + badge_levels once (shared across all members on a page) plus
- * this member's manual award rows, and merges them into their earned badges. */
+/** Distinct calendar quarters (UTC) in which `memberId` hosted at least one prickle, from
+ * prickles.host -- real hosting history, not member_badges. Paginated per CLAUDE.md, though a
+ * single host's row count is well under the 1000-row default limit in practice. */
+export async function getHostedQuarterCount(
+  supabase: SupabaseClient,
+  memberId: string
+): Promise<number> {
+  const quarters = new Set<string>();
+  const BATCH_SIZE = 1000;
+  let offset = 0;
+  let hasMore = true;
+  while (hasMore) {
+    const { data: batch } = await supabase
+      .from("prickles")
+      .select("start_time")
+      .eq("host", memberId)
+      .range(offset, offset + BATCH_SIZE - 1);
+    if (batch && batch.length > 0) {
+      for (const row of batch as { start_time: string }[]) quarters.add(quarterKey(row.start_time));
+      offset += batch.length;
+      hasMore = batch.length === BATCH_SIZE;
+    } else {
+      hasMore = false;
+    }
+  }
+  return quarters.size;
+}
+
+/** Number of books `memberId` has logged on the Hedgie Bookshelf (member_books). */
+export async function getPublishedBookCount(
+  supabase: SupabaseClient,
+  memberId: string
+): Promise<number> {
+  const { count } = await supabase
+    .from("member_books")
+    .select("id", { count: "exact", head: true })
+    .eq("member_id", memberId);
+  return count ?? 0;
+}
+
+/** Fetches every badge_type + badge_levels once (shared across all members on a page), this
+ * member's manual award rows, and the query-backed automatic metrics (hosted quarters,
+ * published books), then merges them into their earned badges. */
 export async function getMemberBadges(
   supabase: SupabaseClient,
   memberId: string,
   totalPricklesAttended: number,
   firstJoinedAt: string | null
 ): Promise<EarnedBadge[]> {
-  const [{ data: badgeTypes }, { data: levels }, { data: awards }] = await Promise.all([
-    supabase.from("badge_types").select("*").order("category").order("name"),
-    supabase.from("badge_levels").select("*").order("level"),
-    supabase
-      .from("member_badges")
-      .select("badge_type_id, occurred_at, note")
-      .eq("member_id", memberId),
-  ]);
+  const [{ data: badgeTypes }, { data: levels }, { data: awards }, hostedQuarterCount, publishedBookCount] =
+    await Promise.all([
+      supabase.from("badge_types").select("*").order("category").order("name"),
+      supabase.from("badge_levels").select("*").order("level"),
+      supabase
+        .from("member_badges")
+        .select("badge_type_id, occurred_at, note")
+        .eq("member_id", memberId),
+      getHostedQuarterCount(supabase, memberId),
+      getPublishedBookCount(supabase, memberId),
+    ]);
 
   const levelsByBadgeType = new Map<string, BadgeLevel[]>();
   for (const level of (levels ?? []) as BadgeLevel[]) {
@@ -171,7 +250,6 @@ export async function getMemberBadges(
     (badgeTypes ?? []) as BadgeType[],
     levelsByBadgeType,
     (awards ?? []) as { badge_type_id: string; occurred_at: string; note: string | null }[],
-    totalPricklesAttended,
-    firstJoinedAt
+    { totalPricklesAttended, firstJoinedAt, hostedQuarterCount, publishedBookCount }
   );
 }

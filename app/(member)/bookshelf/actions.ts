@@ -1,0 +1,142 @@
+"use server";
+
+import { createClient } from "@/lib/supabase/server";
+import { getEffectiveIdentity } from "@/lib/sudo";
+import { revalidatePath } from "next/cache";
+import { safeUrl } from "@/lib/url";
+
+export interface BookInput {
+  title: string;
+  description?: string;
+  coverUrl?: string;
+  purchaseUrl?: string;
+  publishedDate: string;
+}
+
+export interface MyBookRow {
+  id: string;
+  title: string;
+  description: string | null;
+  coverUrl: string | null;
+  purchaseUrl: string | null;
+  publishedDate: string;
+}
+
+type IdentityContext =
+  | { error: string }
+  | {
+      supabase: Awaited<ReturnType<typeof createClient>>;
+      effectiveIdentity: NonNullable<Awaited<ReturnType<typeof getEffectiveIdentity>>>;
+    };
+
+async function requireIdentity(): Promise<IdentityContext> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated" };
+
+  const effectiveIdentity = await getEffectiveIdentity(user);
+  if (!effectiveIdentity) return { error: "No member record" };
+
+  return { supabase, effectiveIdentity };
+}
+
+function validate(input: BookInput): string | null {
+  if (!input.title?.trim()) return "Title is required";
+  if (!input.publishedDate) return "Publication date is required";
+  return null;
+}
+
+/** The acting member's own books, for the "My Books" panel on the Bookshelf page. */
+export async function getMyBooks(): Promise<MyBookRow[]> {
+  const ctx = await requireIdentity();
+  if ("error" in ctx) return [];
+  const { supabase, effectiveIdentity } = ctx;
+
+  const { data } = await supabase
+    .from("member_books")
+    .select("id, title, description, cover_url, purchase_url, published_date")
+    .eq("member_id", effectiveIdentity.memberId)
+    .order("published_date", { ascending: false });
+
+  return (data ?? []).map((row) => ({
+    id: row.id,
+    title: row.title,
+    description: row.description,
+    coverUrl: row.cover_url,
+    purchaseUrl: row.purchase_url,
+    publishedDate: row.published_date,
+  }));
+}
+
+export async function addBook(input: BookInput): Promise<{ success: true } | { error: string }> {
+  const ctx = await requireIdentity();
+  if ("error" in ctx) return ctx;
+  const { supabase, effectiveIdentity } = ctx;
+
+  const validationError = validate(input);
+  if (validationError) return { error: validationError };
+
+  const { error } = await supabase.from("member_books").insert({
+    member_id: effectiveIdentity.memberId,
+    title: input.title.trim(),
+    description: input.description?.trim() || null,
+    cover_url: safeUrl(input.coverUrl),
+    purchase_url: safeUrl(input.purchaseUrl),
+    published_date: input.publishedDate,
+  });
+
+  if (error) return { error: error.message };
+
+  revalidatePath("/bookshelf");
+  revalidatePath(`/members/${effectiveIdentity.memberId}`);
+  return { success: true };
+}
+
+export async function updateBook(
+  bookId: string,
+  input: BookInput
+): Promise<{ success: true } | { error: string }> {
+  const ctx = await requireIdentity();
+  if ("error" in ctx) return ctx;
+  const { supabase, effectiveIdentity } = ctx;
+
+  const validationError = validate(input);
+  if (validationError) return { error: validationError };
+
+  // RLS scopes this to the acting member's own rows (or an admin's, during sudo) -- a
+  // zero-row result means the id didn't belong to them, not a silent no-op.
+  const { data, error } = await supabase
+    .from("member_books")
+    .update({
+      title: input.title.trim(),
+      description: input.description?.trim() || null,
+      cover_url: safeUrl(input.coverUrl),
+      purchase_url: safeUrl(input.purchaseUrl),
+      published_date: input.publishedDate,
+    })
+    .eq("id", bookId)
+    .select("id")
+    .single();
+
+  if (error || !data) return { error: error?.message ?? "Book not found" };
+
+  revalidatePath("/bookshelf");
+  revalidatePath(`/members/${effectiveIdentity.memberId}`);
+  return { success: true };
+}
+
+export async function deleteBook(bookId: string): Promise<{ success: true } | { error: string }> {
+  const ctx = await requireIdentity();
+  if ("error" in ctx) return ctx;
+  const { supabase, effectiveIdentity } = ctx;
+
+  const { data, error } = await supabase.from("member_books").delete().eq("id", bookId).select("id").single();
+
+  if (error || !data) return { error: error?.message ?? "Book not found" };
+
+  revalidatePath("/bookshelf");
+  revalidatePath(`/members/${effectiveIdentity.memberId}`);
+  return { success: true };
+}
