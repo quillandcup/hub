@@ -102,7 +102,9 @@ export default async function BadgesPage() {
                     </div>
                     <div className="flex items-center gap-4 flex-shrink-0">
                       <span className="text-xs text-slate-500 dark:text-slate-400">
-                        {awardCountByType.get(type.id) ?? 0} awarded
+                        {type.is_automatic
+                          ? "computed automatically"
+                          : `${awardCountByType.get(type.id) ?? 0} awarded`}
                       </span>
                       <Link
                         href={`/admin/badges/${type.id}/edit`}
