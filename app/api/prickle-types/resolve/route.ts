@@ -83,7 +83,7 @@ export async function POST(request: NextRequest) {
       // Load members and aliases for matching
       const [{ data: members }, { data: aliases }] = await Promise.all([
         supabase.from("members").select("id, name, email").eq("status", "active"),
-        supabase.from("member_name_aliases").select("alias, member_id, source"),
+        supabase.from("member_name_aliases").select("alias, member_id, source").eq("active", true),
       ]);
 
       // Try to match the host name to a member using centralized matching

@@ -146,7 +146,7 @@ export async function POST(request: NextRequest) {
       fetchAllBronzeRows(supabase, "kajabi_purchases"),
       fetchAllBronzeRows(supabase, "kajabi_offers"),
       supabase.from("staff").select("*"),
-      supabase.from("member_email_aliases").select("*"),
+      supabase.from("member_email_aliases").select("*").eq("active", true),
       supabase.schema('bronze').from("stripe_customers").select("stripe_customer_id, email"),
       fetchAllPublicRows(supabase, "members", "id, email"),
       fetchAllPublicRows(supabase, "member_status_overrides", "member_id, starts_at, expires_at", (q) =>

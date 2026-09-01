@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { ThemeSwitcher } from "./ThemeSwitcher";
 import { TimezoneSwitcher } from "./TimezoneSwitcher";
 import { SessionsPanel } from "./SessionsPanel";
+import { IdentityPanel } from "./IdentityPanel";
 import { getUserFeaturePreviews } from "@/lib/features.server";
 import { getHostedVibes } from "@/app/(member)/prickle-picker/actions";
 import HostVibePanel from "@/components/HostVibePanel";
@@ -63,6 +64,13 @@ export default async function SettingsPage() {
                   </p>
                 </div>
               </div>
+            </div>
+
+            <div className="border-t border-slate-200 dark:border-slate-700 pt-6">
+              <h2 className="text-lg font-medium text-slate-900 dark:text-slate-100 mb-4">
+                Identity
+              </h2>
+              <IdentityPanel />
             </div>
 
             <div className="border-t border-slate-200 dark:border-slate-700 pt-6">

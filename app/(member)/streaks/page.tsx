@@ -295,7 +295,8 @@ export default async function StreaksPage() {
         .from("member_name_aliases")
         .select("member_id, alias")
         .in("member_id", sisterMemberIds)
-        .eq("source", "slack"),
+        .eq("source", "slack")
+        .eq("active", true),
       supabase
         .from("members")
         .select("id, email")
