@@ -99,6 +99,7 @@ async function loadCandidatePool(
         supabase
           .from("member_name_aliases")
           .select("member_id, alias, source")
+          .eq("active", true)
           .range(offset, offset + BATCH_SIZE - 1)
       ),
       supabase.schema("bronze").from("slack_users").select("user_id, email, real_name"),
