@@ -42,7 +42,7 @@ const VALID_INPUT: BookInput = {
   publishedDate: "2026-03-15",
   description: "  A tale.  ",
   coverUrl: "https://example.com/cover.jpg",
-  purchaseUrl: "javascript:alert(1)",
+  purchaseUrl: "https://example.com/buy",
   format: "print",
 };
 
@@ -126,7 +126,7 @@ describe("getMyBooks", () => {
             title: "My Book",
             description: "A tale.",
             cover_url: "https://example.com/cover.jpg",
-            purchase_url: null,
+            purchase_url: "https://example.com/buy",
             published_date: "2026-03-15",
             price: 17.99,
             genre: "Fantasy",
@@ -146,7 +146,7 @@ describe("getMyBooks", () => {
         title: "My Book",
         description: "A tale.",
         coverUrl: "https://example.com/cover.jpg",
-        purchaseUrl: null,
+        purchaseUrl: "https://example.com/buy",
         publishedDate: "2026-03-15",
         price: 17.99,
         genre: "Fantasy",
@@ -187,7 +187,37 @@ describe("addBook", () => {
     expect(mock.__insert).not.toHaveBeenCalled();
   });
 
-  it("scopes the insert to the acting member, trims text, and drops unsafe URLs", async () => {
+  it("rejects a missing cover image before touching the database", async () => {
+    const mock = makeSupabaseMock();
+    vi.mocked(createClient).mockResolvedValue(mock as any);
+    vi.mocked(getEffectiveIdentity).mockResolvedValue(IDENTITY);
+
+    const result = await addBook({ ...VALID_INPUT, coverUrl: "" });
+    expect(result).toEqual({ error: "Cover image is required" });
+    expect(mock.__insert).not.toHaveBeenCalled();
+  });
+
+  it("rejects a missing purchase link before touching the database", async () => {
+    const mock = makeSupabaseMock();
+    vi.mocked(createClient).mockResolvedValue(mock as any);
+    vi.mocked(getEffectiveIdentity).mockResolvedValue(IDENTITY);
+
+    const result = await addBook({ ...VALID_INPUT, purchaseUrl: "" });
+    expect(result).toEqual({ error: "Where to buy it is required" });
+    expect(mock.__insert).not.toHaveBeenCalled();
+  });
+
+  it("rejects an unsafe purchase link before touching the database", async () => {
+    const mock = makeSupabaseMock();
+    vi.mocked(createClient).mockResolvedValue(mock as any);
+    vi.mocked(getEffectiveIdentity).mockResolvedValue(IDENTITY);
+
+    const result = await addBook({ ...VALID_INPUT, purchaseUrl: "javascript:alert(1)" });
+    expect(result).toEqual({ error: "Enter a valid link (starting with https://) for where to buy it" });
+    expect(mock.__insert).not.toHaveBeenCalled();
+  });
+
+  it("scopes the insert to the acting member and trims text", async () => {
     const mock = makeSupabaseMock();
     vi.mocked(createClient).mockResolvedValue(mock as any);
     vi.mocked(getEffectiveIdentity).mockResolvedValue(IDENTITY);
@@ -199,7 +229,7 @@ describe("addBook", () => {
       title: "My Book",
       description: "A tale.",
       cover_url: "https://example.com/cover.jpg",
-      purchase_url: null, // javascript: URL is rejected by safeUrl
+      purchase_url: "https://example.com/buy",
       published_date: "2026-03-15",
       price: null,
       genre: null,
@@ -270,7 +300,7 @@ describe("updateBook", () => {
     const result = await updateBook("book-1", VALID_INPUT);
     expect(result).toEqual({ success: true });
     expect(mock.__update).toHaveBeenCalledWith(
-      expect.objectContaining({ title: "My Book", purchase_url: null })
+      expect.objectContaining({ title: "My Book", purchase_url: "https://example.com/buy" })
     );
     expect(revalidatePath).toHaveBeenCalledWith("/bookshelf");
     expect(revalidatePath).toHaveBeenCalledWith("/members/member-1");
