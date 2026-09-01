@@ -1,5 +1,5 @@
 #!/bin/bash
-# Sync local secret values into Supabase Vault (database-level secrets read by SQL --
+# Sync production secret values into Supabase Vault (database-level secrets read by SQL --
 # PL/pgSQL functions, triggers, pg_cron jobs -- via vault.decrypted_secrets).
 #
 # NOT the same as:
@@ -9,40 +9,26 @@
 #     doesn't use Edge Functions for anything Vault-secret-related; if that changes, it's a
 #     separate mechanism from this script.
 #
+# Always targets the linked project (same assumption as sync-to-vercel.sh, which always targets
+# the linked Vercel project -- run `supabase link` first if you haven't). There's no local-Vault
+# equivalent worth a flag here: these are all production-only secrets (same class as CRON_SECRET
+# in sync-to-vercel.sh), sourced from .env.prod, not something a separate dev Supabase project
+# would ever need -- there isn't one today anyway (see docs/TODO.md Multi-Environment Setup).
+#
 # Vault secrets are looked up by NAME (vault.decrypted_secrets.name), which is independent of
 # the env var name used to source the value here -- each sync_vault_secret call below maps one
 # to the other explicitly.
-#
-# Usage: ./scripts/sync-vault-secrets.sh [local|linked]
-#   local  - the local Supabase instance (`supabase start`) -- useful for verifying a new
-#            secret's wiring end-to-end before touching production.
-#   linked - the linked (production) Supabase project, via the Management API.
 
 set -e
 
-TARGET="${1:-local}"
-
-if [ "$TARGET" != "local" ] && [ "$TARGET" != "linked" ]; then
-    echo "Usage: $0 [local|linked]"
-    echo "  local  - sync into the local Supabase instance"
-    echo "  linked - sync into the linked (production) Supabase project"
-    exit 1
-fi
-
-DB_FLAG="--${TARGET}"
-
-if [ "$TARGET" = "local" ]; then
-    ENV_FILE=.env.local
-else
-    ENV_FILE=.env.prod
-fi
+ENV_FILE=.env.prod
 
 if [ ! -f "$ENV_FILE" ]; then
     echo "❌ ${ENV_FILE} not found!"
     exit 1
 fi
 
-echo "🔐 Syncing Vault secrets to Supabase (${TARGET}, source: ${ENV_FILE})..."
+echo "🔐 Syncing Vault secrets to Supabase (linked project, source: ${ENV_FILE})..."
 echo ""
 
 # Idempotent: updates the existing secret in place (preserving its id) if one with this name
@@ -82,7 +68,7 @@ end \$sync\$;
 SQL
 )
 
-    npx supabase db query "$DB_FLAG" "$sql"
+    npx supabase db query --linked "$sql"
 }
 
 # --- Secrets to sync -----------------------------------------------------------------------
@@ -95,4 +81,4 @@ sync_vault_secret CRON_INTERNAL_SECRET "$ENV_FILE" writing_nudge_cron_secret \
 echo ""
 echo "✅ Vault secrets synced!"
 echo ""
-echo "Verify: npx supabase db query ${DB_FLAG} \"select name, created_at, updated_at from vault.decrypted_secrets order by name;\""
+echo "Verify: npx supabase db query --linked \"select name, created_at, updated_at from vault.decrypted_secrets order by name;\""
