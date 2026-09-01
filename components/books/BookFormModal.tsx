@@ -2,7 +2,13 @@
 
 import { useState } from "react";
 import Modal from "@/components/Modal";
-import { addBook, updateBook, type BookInput, type MyBookRow } from "@/app/(member)/bookshelf/actions";
+import {
+  addBook,
+  updateBook,
+  type BookFormat,
+  type BookInput,
+  type MyBookRow,
+} from "@/app/(member)/bookshelf/actions";
 
 interface BookFormModalProps {
   isOpen: boolean;
@@ -18,6 +24,9 @@ export default function BookFormModal({ isOpen, onClose, onSaved, book }: BookFo
   const [coverUrl, setCoverUrl] = useState(book?.coverUrl ?? "");
   const [purchaseUrl, setPurchaseUrl] = useState(book?.purchaseUrl ?? "");
   const [publishedDate, setPublishedDate] = useState(book?.publishedDate ?? "");
+  const [price, setPrice] = useState(book?.price != null ? String(book.price) : "");
+  const [genre, setGenre] = useState(book?.genre ?? "");
+  const [format, setFormat] = useState<BookFormat>(book?.format ?? "print");
   const [isPending, setIsPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -31,6 +40,9 @@ export default function BookFormModal({ isOpen, onClose, onSaved, book }: BookFo
       coverUrl,
       purchaseUrl,
       publishedDate,
+      price: price.trim() === "" ? null : Number(price),
+      genre,
+      format,
     };
 
     setIsPending(true);
@@ -67,6 +79,47 @@ export default function BookFormModal({ isOpen, onClose, onSaved, book }: BookFo
             type="date"
             value={publishedDate}
             onChange={(e) => setPublishedDate(e.target.value)}
+            className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-sm"
+          />
+        </div>
+
+        <div className="flex gap-4">
+          <div className="flex-1">
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Format</label>
+            <select
+              value={format}
+              onChange={(e) => setFormat(e.target.value as BookFormat)}
+              className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-sm"
+            >
+              <option value="print">Print</option>
+              <option value="ebook">Ebook</option>
+            </select>
+          </div>
+          <div className="flex-1">
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+              Price (optional)
+            </label>
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              value={price}
+              onChange={(e) => setPrice(e.target.value)}
+              placeholder="17.99"
+              className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-sm"
+            />
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+            Genre (optional)
+          </label>
+          <input
+            type="text"
+            value={genre}
+            onChange={(e) => setGenre(e.target.value)}
+            placeholder="Romance, Fantasy, Mystery..."
             className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-sm"
           />
         </div>

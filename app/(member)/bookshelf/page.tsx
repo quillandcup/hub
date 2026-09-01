@@ -15,7 +15,7 @@ export default async function BookshelfPage() {
     supabase
       .from("member_books")
       .select(
-        "id, member_id, title, description, cover_url, purchase_url, published_date, members(name)"
+        "id, member_id, title, description, cover_url, purchase_url, published_date, price, genre, format, members(name)"
       )
       .order("published_date", { ascending: false }),
     getMyBooks(),
@@ -30,6 +30,9 @@ export default async function BookshelfPage() {
     coverUrl: safeUrl(row.cover_url),
     purchaseUrl: safeUrl(row.purchase_url),
     publishedDate: row.published_date,
+    price: row.price,
+    genre: row.genre,
+    format: row.format,
   }));
 
   return <BookshelfClient shelf={shelf} initialMyBooks={myBooks} />;

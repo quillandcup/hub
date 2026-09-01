@@ -5,12 +5,17 @@ import { getEffectiveIdentity } from "@/lib/sudo";
 import { revalidatePath } from "next/cache";
 import { safeUrl } from "@/lib/url";
 
+export type BookFormat = "print" | "ebook";
+
 export interface BookInput {
   title: string;
   description?: string;
   coverUrl?: string;
   purchaseUrl?: string;
   publishedDate: string;
+  price?: number | null;
+  genre?: string;
+  format: BookFormat;
 }
 
 export interface MyBookRow {
@@ -20,6 +25,9 @@ export interface MyBookRow {
   coverUrl: string | null;
   purchaseUrl: string | null;
   publishedDate: string;
+  price: number | null;
+  genre: string | null;
+  format: BookFormat;
 }
 
 type IdentityContext =
@@ -56,7 +64,7 @@ export async function getMyBooks(): Promise<MyBookRow[]> {
 
   const { data } = await supabase
     .from("member_books")
-    .select("id, title, description, cover_url, purchase_url, published_date")
+    .select("id, title, description, cover_url, purchase_url, published_date, price, genre, format")
     .eq("member_id", effectiveIdentity.memberId)
     .order("published_date", { ascending: false });
 
@@ -67,6 +75,9 @@ export async function getMyBooks(): Promise<MyBookRow[]> {
     coverUrl: row.cover_url,
     purchaseUrl: row.purchase_url,
     publishedDate: row.published_date,
+    price: row.price,
+    genre: row.genre,
+    format: row.format,
   }));
 }
 
@@ -85,6 +96,9 @@ export async function addBook(input: BookInput): Promise<{ success: true } | { e
     cover_url: safeUrl(input.coverUrl),
     purchase_url: safeUrl(input.purchaseUrl),
     published_date: input.publishedDate,
+    price: input.price ?? null,
+    genre: input.genre?.trim() || null,
+    format: input.format,
   });
 
   if (error) return { error: error.message };
@@ -115,6 +129,9 @@ export async function updateBook(
       cover_url: safeUrl(input.coverUrl),
       purchase_url: safeUrl(input.purchaseUrl),
       published_date: input.publishedDate,
+      price: input.price ?? null,
+      genre: input.genre?.trim() || null,
+      format: input.format,
     })
     .eq("id", bookId)
     .select("id")
