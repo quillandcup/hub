@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import { getMyBooks } from "./actions";
 import BookshelfClient, { type ShelfBook } from "./BookshelfClient";
-import { safeUrl } from "@/lib/url";
 
 export const metadata: Metadata = {
   title: "Hedgie Bookshelf",
@@ -27,8 +26,8 @@ export default async function BookshelfPage() {
     memberName: row.members?.name ?? "A Hedgie",
     title: row.title,
     description: row.description,
-    coverUrl: safeUrl(row.cover_url),
-    purchaseUrl: safeUrl(row.purchase_url),
+    coverUrl: row.cover_url,
+    purchaseUrl: row.purchase_url,
     publishedDate: row.published_date,
     price: row.price,
     genre: row.genre,

@@ -12,8 +12,8 @@ export interface ShelfBook {
   memberName: string;
   title: string;
   description: string | null;
-  coverUrl: string | null;
-  purchaseUrl: string | null;
+  coverUrl: string;
+  purchaseUrl: string;
   publishedDate: string;
   price: number | null;
   genre: string | null;
@@ -134,27 +134,17 @@ export default function BookshelfClient({ shelf, initialMyBooks }: BookshelfClie
               key={book.id}
               className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 p-4 flex gap-4"
             >
-              {book.coverUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element -- member-supplied external URLs, not optimizable by next/image
-                <img
-                  src={book.coverUrl}
-                  alt={`Cover of ${book.title}`}
-                  className="w-16 h-24 object-cover rounded flex-shrink-0 bg-slate-100 dark:bg-slate-800"
-                />
-              ) : (
-                <div className="w-16 h-24 flex-shrink-0 rounded bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-2xl">
-                  📖
-                </div>
-              )}
+              {/* eslint-disable-next-line @next/next/no-img-element -- fixed-size (145x215) uploads served from Supabase Storage, not optimizable by next/image */}
+              <img
+                src={book.coverUrl}
+                alt={`Cover of ${book.title}`}
+                className="w-16 h-24 object-cover rounded flex-shrink-0 bg-slate-100 dark:bg-slate-800"
+              />
               <div className="min-w-0">
                 <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-                  {book.purchaseUrl ? (
-                    <a href={book.purchaseUrl} target="_blank" rel="noopener noreferrer" className="hover:underline">
-                      {book.title}
-                    </a>
-                  ) : (
-                    book.title
-                  )}
+                  <a href={book.purchaseUrl} target="_blank" rel="noopener noreferrer" className="hover:underline">
+                    {book.title}
+                  </a>
                 </h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                   by{" "}
