@@ -21,6 +21,52 @@ export const MEASURE_LABELS: Record<WritingMeasure, string> = {
   lines: "Lines",
 };
 
+/**
+ * Preset amounts for the post-prickle quick-log Slack DM's one-tap dropdown (Phase 1, item 10).
+ * 'prickles' is intentionally absent -- that measure is computed live from prickle_attendance
+ * (see derivePrickleHabitEntries below), never manually logged, so there's nothing to quick-log
+ * for it. The DM always targets one of the other six measures instead (see
+ * app/api/webhooks/slack/interactions/route.ts).
+ */
+export const MEASURE_QUICK_LOG_PRESETS: Partial<Record<WritingMeasure, { label: string; amount: number }[]>> = {
+  words: [
+    { label: "0–250 words", amount: 0 },
+    { label: "250–500 words", amount: 250 },
+    { label: "500–1000 words", amount: 500 },
+    { label: "1000+ words", amount: 1000 },
+  ],
+  time_minutes: [
+    { label: "0–15 min", amount: 0 },
+    { label: "15–30 min", amount: 15 },
+    { label: "30–60 min", amount: 30 },
+    { label: "60+ min", amount: 60 },
+  ],
+  pages: [
+    { label: "1 page", amount: 1 },
+    { label: "2 pages", amount: 2 },
+    { label: "3 pages", amount: 3 },
+    { label: "4+ pages", amount: 4 },
+  ],
+  chapters: [
+    { label: "1 chapter", amount: 1 },
+    { label: "2 chapters", amount: 2 },
+    { label: "3 chapters", amount: 3 },
+    { label: "4+ chapters", amount: 4 },
+  ],
+  scenes: [
+    { label: "1 scene", amount: 1 },
+    { label: "2 scenes", amount: 2 },
+    { label: "3 scenes", amount: 3 },
+    { label: "4+ scenes", amount: 4 },
+  ],
+  lines: [
+    { label: "1 line", amount: 1 },
+    { label: "2 lines", amount: 2 },
+    { label: "3 lines", amount: 3 },
+    { label: "4+ lines", amount: 4 },
+  ],
+};
+
 export interface ProgressEntryInput {
   entryDate: string; // YYYY-MM-DD
   createdAt: string; // ISO timestamp, tiebreaker for same-day entries

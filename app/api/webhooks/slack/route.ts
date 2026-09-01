@@ -1,8 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
-import { createHmac } from "crypto";
 import { triggerReprocessing } from "@/lib/processing/trigger";
 import { CONNECTION_CONFIRMATION_MESSAGE_THRESHOLD } from "@/lib/wheel-of-wonder";
+import { verifySlackSignature } from "@/lib/slack-signature";
 
 // Webhook should respond quickly
 export const maxDuration = 60;
@@ -40,24 +40,14 @@ export async function POST(request: NextRequest) {
 
     // Verify signature if signing secret is configured
     const signingSecret = process.env.SLACK_SIGNING_SECRET;
-    if (signingSecret && signature && timestamp) {
-      // Verify request is not too old (prevent replay attacks)
-      const requestTimestamp = parseInt(timestamp);
-      const now = Math.floor(Date.now() / 1000);
-      if (Math.abs(now - requestTimestamp) > 60 * 5) {
+    const sigResult = verifySlackSignature(body, signature, timestamp, signingSecret);
+    if (!sigResult.valid) {
+      if (sigResult.reason === "too_old") {
         console.error("Slack webhook timestamp too old");
         return NextResponse.json({ error: "Request too old" }, { status: 401 });
       }
-
-      const sigBasestring = `v0:${timestamp}:${body}`;
-      const mySignature = 'v0=' + createHmac('sha256', signingSecret)
-        .update(sigBasestring)
-        .digest('hex');
-
-      if (signature !== mySignature) {
-        console.error("Invalid Slack webhook signature");
-        return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
-      }
+      console.error("Invalid Slack webhook signature");
+      return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
     }
 
     // Handle URL verification challenge (first-time setup)

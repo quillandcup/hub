@@ -45,6 +45,7 @@ export interface EntryRow {
   note: string | null;
   tags: string[];
   createdAt: string;
+  prickleId: string | null;
 }
 
 interface GoalRowBase {
@@ -298,7 +299,7 @@ export async function getProject(
       .single(),
     supabase
       .from("writing_progress_entries")
-      .select("id, project_id, entry_date, measure, mode, amount, note, tags, created_at")
+      .select("id, project_id, entry_date, measure, mode, amount, note, tags, created_at, prickle_id")
       .eq("project_id", projectId)
       .eq("member_id", effectiveIdentity.memberId)
       .order("entry_date", { ascending: false })
@@ -338,6 +339,7 @@ interface RawEntry {
   note: string | null;
   tags: string[] | null;
   created_at: string;
+  prickle_id?: string | null;
 }
 
 interface RawGoal {
@@ -485,6 +487,7 @@ function toEntryRow(e: RawEntry): EntryRow {
     note: e.note,
     tags: e.tags ?? [],
     createdAt: e.created_at,
+    prickleId: e.prickle_id ?? null,
   };
 }
 
@@ -541,6 +544,7 @@ export interface LogProgressInput {
   amount: number;
   note?: string;
   tags?: string[];
+  prickleId?: string;
 }
 
 async function assertOwnsProject(
@@ -603,11 +607,28 @@ export async function logProgress(
       amount: input.amount,
       note: input.note?.trim() || null,
       tags: normalizeTags(input.tags),
+      prickle_id: input.prickleId ?? null,
     })
     .select("id")
     .single();
 
   if (error || !data) return { error: error?.message ?? "Failed to log progress" };
+
+  // Phase 1, item 11: every progress entry is also an engagement signal -- see the identical
+  // insert in app/api/webhooks/slack/interactions/route.ts's writing_quick_log flow, which
+  // is a different entry point into the same writing_progress_entries table. Best-effort: a
+  // failure here must never fail the entry that was already successfully saved.
+  const { error: activityError } = await supabase.from("member_activities").insert({
+    member_id: effectiveIdentity.memberId,
+    activity_type: "writing_progress_logged",
+    activity_category: "writing",
+    title: "Logged writing progress",
+    related_id: data.id,
+    engagement_value: 5,
+    occurred_at: new Date().toISOString(),
+    source: "writing_progress",
+  });
+  if (activityError) console.error("logProgress: failed to insert member_activities row", activityError);
 
   revalidatePath("/writing");
   revalidatePath(`/writing/${input.projectId}`);
@@ -690,6 +711,16 @@ export async function deleteEntry(entryId: string): Promise<{ success: true } | 
     .eq("member_id", effectiveIdentity.memberId);
 
   if (error) return { error: error.message };
+
+  // Phase 1, item 11: don't let a deleted (e.g. bogus) entry permanently inflate engagement.
+  // Best-effort: the entry itself is already gone, so a failure here must not turn this into
+  // an error response.
+  const { error: activityDeleteError } = await supabase
+    .from("member_activities")
+    .delete()
+    .eq("related_id", entryId)
+    .eq("source", "writing_progress");
+  if (activityDeleteError) console.error("deleteEntry: failed to delete member_activities row", activityDeleteError);
 
   revalidatePath("/writing");
   revalidatePath(`/writing/${existing.project_id}`);

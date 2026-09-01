@@ -3,6 +3,11 @@
 import { useState } from "react";
 import Modal from "@/components/Modal";
 import { WRITING_MEASURES, MEASURE_LABELS, type WritingMeasure, type EntryMode } from "@/lib/writing-projects";
+
+// 'prickles' is computed live from attendance (see derivePrickleHabitEntries in
+// lib/writing-projects.ts) -- writing_progress_entries.measure's CHECK constraint doesn't allow
+// it, so it must never appear as a manually-loggable option here.
+const LOGGABLE_MEASURES = WRITING_MEASURES.filter((m) => m !== "prickles");
 import { logProgress, updateEntry, type EntryRow } from "@/app/(member)/writing/actions";
 
 interface LogProgressModalProps {
@@ -13,6 +18,9 @@ interface LogProgressModalProps {
   /** Present when editing an existing entry instead of logging a new one. */
   editingEntry?: EntryRow;
   onSaved: () => void;
+  /** Attaches the new entry to a prickle (creation only -- see item 7). */
+  prickleId?: string;
+  defaultEntryDate?: string;
 }
 
 function todayIso(): string {
@@ -26,9 +34,11 @@ export default function LogProgressModal({
   defaultProjectId,
   editingEntry,
   onSaved,
+  prickleId,
+  defaultEntryDate,
 }: LogProgressModalProps) {
   const [projectId, setProjectId] = useState(editingEntry?.projectId ?? defaultProjectId ?? projects[0]?.id ?? "");
-  const [entryDate, setEntryDate] = useState(editingEntry?.entryDate ?? todayIso());
+  const [entryDate, setEntryDate] = useState(editingEntry?.entryDate ?? defaultEntryDate ?? todayIso());
   const [measure, setMeasure] = useState<WritingMeasure>(editingEntry?.measure ?? "words");
   const [mode, setMode] = useState<EntryMode>(editingEntry?.mode ?? "delta");
   const [amount, setAmount] = useState(editingEntry ? String(editingEntry.amount) : "");
@@ -56,7 +66,16 @@ export default function LogProgressModal({
     setIsPending(true);
     const result = editingEntry
       ? await updateEntry(editingEntry.id, { entryDate, measure, mode, amount: parsedAmount, note, tags })
-      : await logProgress({ projectId, entryDate, measure, mode, amount: parsedAmount, note, tags });
+      : await logProgress({
+          projectId,
+          entryDate,
+          measure,
+          mode,
+          amount: parsedAmount,
+          note,
+          tags,
+          ...(prickleId ? { prickleId } : {}),
+        });
     setIsPending(false);
 
     if ("error" in result) {
@@ -95,7 +114,7 @@ export default function LogProgressModal({
               onChange={(e) => setMeasure(e.target.value as WritingMeasure)}
               className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-sm"
             >
-              {WRITING_MEASURES.map((m) => (
+              {LOGGABLE_MEASURES.map((m) => (
                 <option key={m} value={m}>
                   {MEASURE_LABELS[m]}
                 </option>

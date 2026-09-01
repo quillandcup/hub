@@ -1,7 +1,9 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse, after } from "next/server";
 import { createHmac } from "crypto";
+import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { triggerZoomImport } from "@/lib/processing/trigger";
+import { sendPostPricklePrompts } from "@/lib/writing-nudges";
 
 // Webhook should respond quickly
 export const maxDuration = 60;
@@ -135,6 +137,36 @@ async function processMeetingEvent(payload: any) {
         console.log("Zoom import triggered successfully");
       } catch (error) {
         console.error("Error triggering Zoom import:", error);
+        return;
+      }
+
+      // Writing Projects Phase 1, item 10: only on the real meeting-end event (not every
+      // participant_left, which can fire multiple times per meeting) and only after
+      // triggerZoomImport above has resolved, since prickle_attendance must exist first --
+      // sendPostPricklePrompts reads attendance directly.
+      if (eventType === "meeting.ended") {
+        try {
+          const supabase = createSupabaseClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL!,
+            process.env.SUPABASE_SERVICE_ROLE_KEY!,
+            { auth: { autoRefreshToken: false, persistSession: false } }
+          );
+          // zoom_meeting_uuid alone is the right key here -- it's unique per meeting instance,
+          // and fromDate/toDate above are day-granularity strings meant for the Zoom import API,
+          // not safe timestamp bounds (a same-day meeting's start_time would compare against
+          // midnight, not the actual day span).
+          const { data: prickles } = await supabase
+            .from("prickles")
+            .select("id")
+            .eq("zoom_meeting_uuid", meetingData.uuid);
+
+          for (const prickle of prickles ?? []) {
+            const sent = await sendPostPricklePrompts(supabase, prickle.id);
+            console.log(`Post-prickle prompts sent for prickle ${prickle.id}: ${sent}`);
+          }
+        } catch (error) {
+          console.error("Error sending post-prickle prompts:", error);
+        }
       }
     });
   }

@@ -67,9 +67,14 @@ for var in \
     SLACK_BOT_TOKEN SLACK_FEEDBACK_CHANNEL_ID \
     STRIPE_API_KEY \
     SUDO_SECRET \
-    CRON_SECRET; do
+    CRON_SECRET \
+    CRON_INTERNAL_SECRET; do
     sync_env_var "$var" .env.prod production
 done
+
+echo ""
+echo "Note: CRON_INTERNAL_SECRET also needs to exist in Supabase Vault (pg_cron reads it from"
+echo "there, not from Vercel) -- run scripts/sync-vault-secrets.sh linked after this."
 
 echo ""
 echo "=== Validating environment variables ==="

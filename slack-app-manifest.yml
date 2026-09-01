@@ -33,6 +33,9 @@ oauth_config:
       - files:write
   pkce_enabled: false
 settings:
+  interactivity:
+    is_enabled: true
+    request_url: https://hub.quillandcup.com/api/webhooks/slack/interactions
   event_subscriptions:
     request_url: https://hub.quillandcup.com/api/webhooks/slack
     bot_events:
