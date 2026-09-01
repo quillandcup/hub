@@ -5,9 +5,29 @@ import {
   computeGoalProgress,
   computeHabitGoalProgress,
   derivePrickleHabitEntries,
+  MEASURE_QUICK_LOG_PRESETS,
+  WRITING_MEASURES,
   type ProgressEntryInput,
   type PrickleAttendanceRow,
 } from "@/lib/writing-projects";
+
+describe("MEASURE_QUICK_LOG_PRESETS", () => {
+  it("has a non-empty preset list for every loggable measure except 'prickles'", () => {
+    for (const measure of WRITING_MEASURES) {
+      if (measure === "prickles") {
+        expect(MEASURE_QUICK_LOG_PRESETS[measure]).toBeUndefined();
+        continue;
+      }
+      const presets = MEASURE_QUICK_LOG_PRESETS[measure];
+      expect(presets).toBeDefined();
+      expect(presets!.length).toBeGreaterThan(0);
+      for (const preset of presets!) {
+        expect(preset.label.length).toBeGreaterThan(0);
+        expect(preset.amount).toBeGreaterThanOrEqual(0);
+      }
+    }
+  });
+});
 
 function entry(overrides: Partial<ProgressEntryInput> = {}): ProgressEntryInput {
   return {

@@ -9,6 +9,7 @@ import { getEffectiveIdentity } from "@/lib/sudo";
 import { findUnmatchedZoomAttendees } from "@/lib/prickle-unmatched";
 import AliasSearchForm from "@/app/(admin)/admin/hygiene/unmatched-zoom/AliasSearchForm";
 import { formatPrickleTitle } from "@/lib/formatters";
+import { getMyProjects } from "@/app/(member)/writing/actions";
 
 const getPrickle = cache(async (id: string) => {
   const supabase = await createClient();
@@ -58,10 +59,11 @@ export default async function PrickleDetailPage({
     redirect("/login");
   }
 
-  const [profileResult, effectiveIdentity, prickle] = await Promise.all([
+  const [profileResult, effectiveIdentity, prickle, myProjects] = await Promise.all([
     supabase.from("user_profiles").select("role").eq("id", user.id).single(),
     getEffectiveIdentity(user),
     getPrickle(id),
+    getMyProjects(),
   ]);
   const isAdmin = profileResult.data?.role === "admin";
   const isActingAsAdmin = isAdmin && !effectiveIdentity?.isSudo;
@@ -185,6 +187,8 @@ export default async function PrickleDetailPage({
             userTimezonePreference={userTimezone}
             memberBasePath={memberBasePath}
             showMemberEmails={isActingAsAdmin}
+            viewerMemberId={effectiveIdentity?.memberId ?? null}
+            viewerProjects={myProjects.map((p) => ({ id: p.id, title: p.title }))}
           />
           {isActingAsAdmin && unmatchedZoomAttendees.length > 0 && (
             <AliasSearchForm

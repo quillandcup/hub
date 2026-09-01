@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import LogProgressModal from "@/components/writing/LogProgressModal";
 
 const TIMEZONES = [
   { value: "America/New_York", label: "Eastern (ET)" },
@@ -20,6 +22,8 @@ interface PrickleDetailsProps {
   memberBasePath: string;
   showMemberEmails: boolean;
   insightsSlotUrl?: string;
+  viewerMemberId?: string | null;
+  viewerProjects?: { id: string; title: string }[];
 }
 
 export default function PrickleDetails({
@@ -31,7 +35,11 @@ export default function PrickleDetails({
   memberBasePath,
   showMemberEmails,
   insightsSlotUrl,
+  viewerMemberId = null,
+  viewerProjects = [],
 }: PrickleDetailsProps) {
+  const router = useRouter();
+  const [isLogModalOpen, setIsLogModalOpen] = useState(false);
   const [detectedTimezone, setDetectedTimezone] = useState<string | null>(null);
   useEffect(() => {
     if (userTimezonePreference === "browser") {
@@ -57,6 +65,7 @@ export default function PrickleDetails({
   const durationMinutes = Math.round((endTime.getTime() - startTime.getTime()) / 60000);
 
   const uniqueMembers = new Set(attendanceRecords.map(r => r.member_id || r.members?.id)).size;
+  const defaultEntryDate = startTime.toISOString().slice(0, 10);
 
   const formatTime = (date: Date) => {
     return date.toLocaleTimeString("en-US", {
@@ -206,6 +215,8 @@ export default function PrickleDetails({
                   const joinTime = new Date(record.join_time);
                   const leaveTime = new Date(record.leave_time);
                   const attendDuration = Math.round((leaveTime.getTime() - joinTime.getTime()) / 60000);
+                  const isViewerRow =
+                    viewerMemberId !== null && (record.member_id || record.members?.id) === viewerMemberId;
 
                   return (
                     <tr key={record.id} className="hover:bg-slate-50 dark:hover:bg-slate-800">
@@ -216,6 +227,26 @@ export default function PrickleDetails({
                         {showMemberEmails && (
                           <div className="text-xs text-slate-500 dark:text-slate-400">
                             {member.email}
+                          </div>
+                        )}
+                        {isViewerRow && (
+                          <div className="mt-1">
+                            {viewerProjects.length > 0 ? (
+                              <button
+                                type="button"
+                                onClick={() => setIsLogModalOpen(true)}
+                                className="text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400 hover:underline"
+                              >
+                                What did you write here?
+                              </button>
+                            ) : (
+                              <Link
+                                href="/writing"
+                                className="text-xs text-slate-500 dark:text-slate-400 hover:underline"
+                              >
+                                Start tracking your writing →
+                              </Link>
+                            )}
                           </div>
                         )}
                       </td>
@@ -240,6 +271,17 @@ export default function PrickleDetails({
           </div>
         )}
       </div>
+
+      {viewerMemberId && viewerProjects.length > 0 && (
+        <LogProgressModal
+          isOpen={isLogModalOpen}
+          onClose={() => setIsLogModalOpen(false)}
+          projects={viewerProjects}
+          prickleId={prickle.id}
+          defaultEntryDate={defaultEntryDate}
+          onSaved={() => router.refresh()}
+        />
+      )}
     </div>
   );
 }
