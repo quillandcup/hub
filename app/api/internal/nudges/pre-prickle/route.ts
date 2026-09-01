@@ -11,7 +11,7 @@ import {
 } from "@/lib/writing-nudges";
 
 // Triggered every 5 minutes by the Supabase pg_cron job in
-// supabase/migrations/20260831140000_enable_pg_cron_pre_prickle_nudges.sql.
+// supabase/migrations/20260831170001_enable_pg_cron_pre_prickle_nudges.sql.
 export const maxDuration = 60;
 
 /**

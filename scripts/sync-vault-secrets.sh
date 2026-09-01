@@ -76,7 +76,7 @@ SQL
 # place Vault secret names/sources are defined, same spirit as sync-to-vercel.sh's var list.
 
 sync_vault_secret CRON_INTERNAL_SECRET "$ENV_FILE" writing_nudge_cron_secret \
-    "pg_cron -> /api/internal/nudges/pre-prickle auth (supabase/migrations/20260831140000_enable_pg_cron_pre_prickle_nudges.sql)"
+    "pg_cron -> /api/internal/nudges/pre-prickle auth (supabase/migrations/20260831170001_enable_pg_cron_pre_prickle_nudges.sql)"
 
 echo ""
 echo "✅ Vault secrets synced!"
