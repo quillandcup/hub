@@ -19,10 +19,17 @@ interface LevelInput {
   threshold: string; // kept as string for the input; parsed on submit
 }
 
+// Client-only identity for a level row, stable across reorders/renumbering so drag-and-drop
+// and React's reconciliation can track "this row" independent of its current `level` number.
+interface LevelState extends LevelInput {
+  key: string;
+}
+
 interface BadgeTypeFormProps {
   mode: "create" | "edit";
   badgeTypeId?: string;
   isAutomatic?: boolean;
+  awardCount?: number;
   initial?: {
     name: string;
     description: string;
@@ -33,21 +40,35 @@ interface BadgeTypeFormProps {
   };
 }
 
-function emptyLevel(level: number): LevelInput {
-  return { level, name: "", threshold: "" };
+function makeKey(): string {
+  return typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2);
 }
 
-export default function BadgeTypeForm({ mode, badgeTypeId, isAutomatic, initial }: BadgeTypeFormProps) {
+function emptyLevel(level: number): LevelState {
+  return { key: makeKey(), level, name: "", threshold: "" };
+}
+
+export default function BadgeTypeForm({
+  mode,
+  badgeTypeId,
+  isAutomatic,
+  awardCount,
+  initial,
+}: BadgeTypeFormProps) {
   const router = useRouter();
   const [name, setName] = useState(initial?.name ?? "");
   const [description, setDescription] = useState(initial?.description ?? "");
   const [icon, setIcon] = useState(initial?.icon ?? "🏅");
   const [category, setCategory] = useState<Category>(initial?.category ?? "community");
   const [hasLevels, setHasLevels] = useState(initial?.hasLevels ?? false);
-  const [levels, setLevels] = useState<LevelInput[]>(
-    initial?.levels && initial.levels.length > 0 ? initial.levels : [emptyLevel(1)]
+  const [levels, setLevels] = useState<LevelState[]>(
+    initial?.levels && initial.levels.length > 0
+      ? initial.levels.map((l) => ({ ...l, key: makeKey() }))
+      : [emptyLevel(1)]
   );
+  const [dragKey, setDragKey] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const addLevel = () => setLevels((prev) => [...prev, emptyLevel(prev.length + 1)]);
@@ -55,6 +76,43 @@ export default function BadgeTypeForm({ mode, badgeTypeId, isAutomatic, initial 
     setLevels((prev) => prev.filter((_, i) => i !== index).map((l, i) => ({ ...l, level: i + 1 })));
   const updateLevel = (index: number, patch: Partial<LevelInput>) =>
     setLevels((prev) => prev.map((l, i) => (i === index ? { ...l, ...patch } : l)));
+
+  const reorderLevels = (overKey: string) => {
+    if (!dragKey || dragKey === overKey) return;
+    setLevels((prev) => {
+      const fromIndex = prev.findIndex((l) => l.key === dragKey);
+      const toIndex = prev.findIndex((l) => l.key === overKey);
+      if (fromIndex === -1 || toIndex === -1 || fromIndex === toIndex) return prev;
+      const next = [...prev];
+      const [moved] = next.splice(fromIndex, 1);
+      next.splice(toIndex, 0, moved);
+      return next.map((l, i) => ({ ...l, level: i + 1 }));
+    });
+  };
+
+  const handleDelete = async () => {
+    if (!badgeTypeId) return;
+    const confirmMessage =
+      awardCount && awardCount > 0
+        ? `"${name}" has been awarded to ${awardCount} member${awardCount === 1 ? "" : "s"}. Deleting it permanently removes those awards too. Delete anyway?`
+        : `Delete "${name}"? This can't be undone.`;
+    if (!confirm(confirmMessage)) return;
+
+    setDeleting(true);
+    setError(null);
+    try {
+      const response = await fetch(`/api/badge-types/${badgeTypeId}`, { method: "DELETE" });
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || "Failed to delete badge");
+      }
+      router.push("/admin/badges");
+      router.refresh();
+    } catch (err: any) {
+      setError(err.message);
+      setDeleting(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -193,7 +251,24 @@ export default function BadgeTypeForm({ mode, badgeTypeId, isAutomatic, initial 
               Levels (lowest to highest)
             </label>
             {levels.map((level, index) => (
-              <div key={index} className="flex items-center gap-3">
+              <div
+                key={level.key}
+                className={`flex items-center gap-3 ${dragKey === level.key ? "opacity-40" : ""}`}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  reorderLevels(level.key);
+                }}
+                onDrop={(e) => e.preventDefault()}
+              >
+                <span
+                  draggable
+                  onDragStart={() => setDragKey(level.key)}
+                  onDragEnd={() => setDragKey(null)}
+                  className="text-slate-400 dark:text-slate-500 cursor-grab active:cursor-grabbing select-none px-1"
+                  title="Drag to reorder"
+                >
+                  ⠿
+                </span>
                 <span className="text-xs text-slate-500 dark:text-slate-400 w-6">#{level.level}</span>
                 <input
                   type="text"
@@ -232,22 +307,39 @@ export default function BadgeTypeForm({ mode, badgeTypeId, isAutomatic, initial 
           </div>
         )}
 
-        <div className="flex gap-4">
-          <button
-            type="submit"
-            disabled={loading}
-            className="px-6 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg font-medium transition-colors"
-          >
-            {loading ? "Saving..." : mode === "create" ? "Create Badge" : "Save Changes"}
-          </button>
-          <button
-            type="button"
-            onClick={() => router.push("/admin/badges")}
-            disabled={loading}
-            className="px-6 py-2 bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 disabled:bg-slate-300 text-slate-700 dark:text-slate-300 rounded-lg font-medium transition-colors"
-          >
-            Cancel
-          </button>
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex gap-4">
+            <button
+              type="submit"
+              disabled={loading || deleting}
+              className="px-6 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg font-medium transition-colors"
+            >
+              {loading ? "Saving..." : mode === "create" ? "Create Badge" : "Save Changes"}
+            </button>
+            <button
+              type="button"
+              onClick={() => router.push("/admin/badges")}
+              disabled={loading || deleting}
+              className="px-6 py-2 bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 disabled:bg-slate-300 text-slate-700 dark:text-slate-300 rounded-lg font-medium transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+          {mode === "edit" && (
+            <button
+              type="button"
+              onClick={handleDelete}
+              disabled={loading || deleting || isAutomatic}
+              title={
+                isAutomatic
+                  ? "Automatic badges are computed in code (lib/badges.ts) and can't be deleted from here."
+                  : undefined
+              }
+              className="px-4 py-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg text-sm font-medium transition-colors"
+            >
+              {deleting ? "Deleting..." : "Delete Badge"}
+            </button>
+          )}
         </div>
       </form>
     </div>

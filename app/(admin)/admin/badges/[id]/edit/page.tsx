@@ -19,9 +19,10 @@ export default async function EditBadgePage({ params }: { params: Promise<{ id: 
   const { id } = await params;
   const supabase = await createClient();
 
-  const [{ data: badgeType }, { data: levels }] = await Promise.all([
+  const [{ data: badgeType }, { data: levels }, { count: awardCount }] = await Promise.all([
     supabase.from("badge_types").select("*").eq("id", id).single(),
     supabase.from("badge_levels").select("*").eq("badge_type_id", id).order("level"),
+    supabase.from("member_badges").select("id", { count: "exact", head: true }).eq("badge_type_id", id),
   ]);
 
   if (!badgeType) notFound();
@@ -46,6 +47,7 @@ export default async function EditBadgePage({ params }: { params: Promise<{ id: 
             mode="edit"
             badgeTypeId={badgeType.id}
             isAutomatic={badgeType.is_automatic}
+            awardCount={awardCount ?? 0}
             initial={{
               name: badgeType.name,
               description: badgeType.description ?? "",

@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { getBadgeRecipients, type BadgeLevel, type BadgeType } from "@/lib/badges";
+import BadgeRecipientsTable from "./BadgeRecipientsTable";
 
 export async function generateMetadata({
   params,
@@ -68,50 +69,10 @@ export default async function BadgeRecipientsPage({ params }: { params: Promise<
               No members have earned this badge yet.
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
-                <thead className="bg-slate-50 dark:bg-slate-800/50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                      Member
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                      Level
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                      Occurrences
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                      {badgeType.is_automatic ? "First eligible" : "First awarded"}
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
-                  {recipients.map((recipient) => (
-                    <tr key={recipient.memberId}>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <Link
-                          href={`/admin/members/${recipient.memberId}`}
-                          className="text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline"
-                        >
-                          {recipient.memberName}
-                        </Link>
-                        <div className="text-sm text-slate-500 dark:text-slate-400">{recipient.memberEmail}</div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700 dark:text-slate-300">
-                        {recipient.levelName}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700 dark:text-slate-300">
-                        {recipient.occurrences}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400">
-                        {recipient.firstAwardedAt ?? "—"}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <BadgeRecipientsTable
+              recipients={recipients}
+              firstAwardedLabel={badgeType.is_automatic ? "First eligible" : "First awarded"}
+            />
           )}
         </div>
       </main>
