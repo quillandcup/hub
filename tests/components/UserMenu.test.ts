@@ -6,12 +6,12 @@ describe('UserMenu Component', () => {
   const userMenuPath = path.join(process.cwd(), 'components/UserMenu.tsx');
   const userMenuContent = fs.readFileSync(userMenuPath, 'utf-8');
 
-  it('should have a Profile link', () => {
-    expect(userMenuContent).toContain('Profile');
+  it('should have a Settings link', () => {
+    expect(userMenuContent).toContain('Settings');
   });
 
-  it('should link Profile to /profile', () => {
-    expect(userMenuContent).toContain('href="/profile"');
+  it('should link Settings to /settings', () => {
+    expect(userMenuContent).toContain('href="/settings"');
   });
 
   it('should include SignOutButton', () => {

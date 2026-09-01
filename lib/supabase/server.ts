@@ -7,7 +7,7 @@ export async function createClient() {
   // GoTrue records auth.sessions.user_agent/ip from whatever hit its own
   // endpoint — which, in this SSR architecture, is always this Next.js
   // server, not the visitor's browser. Forward the original request's
-  // headers so Active Sessions (app/(member)/profile) shows the member's
+  // headers so Active Sessions (app/(member)/settings) shows the member's
   // real device/location instead of Vercel's own runtime identity.
   const headerStore = await headers()
   const userAgent = headerStore.get('user-agent')

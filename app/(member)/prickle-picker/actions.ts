@@ -279,6 +279,6 @@ export async function saveHostVibe(
 
   if (error) return { error: error.message };
 
-  revalidatePath("/profile");
+  revalidatePath("/settings");
   return { success: true };
 }

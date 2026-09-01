@@ -3,18 +3,18 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-vi.mock("@/app/(member)/profile/actions", () => ({
+vi.mock("@/app/(member)/settings/actions", () => ({
   getMySessions: vi.fn(),
   revokeSession: vi.fn(),
   signOutOtherSessions: vi.fn(),
 }));
 
-import { SessionsPanel } from "@/app/(member)/profile/SessionsPanel";
+import { SessionsPanel } from "@/app/(member)/settings/SessionsPanel";
 import {
   getMySessions,
   revokeSession,
   signOutOtherSessions,
-} from "@/app/(member)/profile/actions";
+} from "@/app/(member)/settings/actions";
 
 const currentSession = {
   id: "session-current",

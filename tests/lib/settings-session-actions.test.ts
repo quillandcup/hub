@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // These actions are the RPC-calling server logic backing the self-service
-// "Active Sessions" panel on /profile. They must always resolve the real
+// "Active Sessions" panel on /settings. They must always resolve the real
 // authenticated auth user (supabase.auth.getUser()) — never
 // getEffectiveIdentity — because Supabase Auth sessions belong to
 // auth.users, not to the members table, and a sudo'd admin must never end
@@ -22,7 +22,7 @@ import {
   getMySessions,
   revokeSession,
   signOutOtherSessions,
-} from "@/app/(member)/profile/actions";
+} from "@/app/(member)/settings/actions";
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 
@@ -96,7 +96,7 @@ describe("revokeSession", () => {
       target_session_id: "session-1",
     });
     expect(result).toEqual({ success: true });
-    expect(revalidatePath).toHaveBeenCalledWith("/profile");
+    expect(revalidatePath).toHaveBeenCalledWith("/settings");
   });
 
   it("reports a friendly error when the RPC deletes nothing (not found / not owned)", async () => {
@@ -136,7 +136,7 @@ describe("signOutOtherSessions", () => {
     const result = await signOutOtherSessions();
     expect(mockSupabase.auth.signOut).toHaveBeenCalledWith({ scope: "others" });
     expect(result).toEqual({ success: true });
-    expect(revalidatePath).toHaveBeenCalledWith("/profile");
+    expect(revalidatePath).toHaveBeenCalledWith("/settings");
   });
 
   it("surfaces a signOut error", async () => {

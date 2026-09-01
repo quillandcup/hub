@@ -8,10 +8,10 @@ import { getHostedVibes } from "@/app/(member)/prickle-picker/actions";
 import HostVibePanel from "@/components/HostVibePanel";
 
 export const metadata: Metadata = {
-  title: "Profile Settings",
+  title: "Settings",
 };
 
-export default async function ProfilePage() {
+export default async function SettingsPage() {
   const supabase = await createClient();
 
   const {
@@ -39,7 +39,7 @@ export default async function ProfilePage() {
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
       <header className="border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
         <div className="container mx-auto px-6 py-4">
-          <h1 className="text-2xl font-bold">Profile Settings</h1>
+          <h1 className="text-2xl font-bold">Settings</h1>
           <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
             Manage your account preferences and settings
           </p>

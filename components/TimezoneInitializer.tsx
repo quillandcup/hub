@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { updateTimezonePreference } from "@/app/(member)/profile/actions"
+import { updateTimezonePreference } from "@/app/(member)/settings/actions"
 
 function formatTzDisplay(tz: string): string {
   const now = new Date()
