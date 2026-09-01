@@ -53,13 +53,13 @@ describe("isFoundingHedgie", () => {
     expect(isFoundingHedgie("2021-06-15")).toBe(true);
   });
 
-  it("is true for joins through March of 2022", () => {
+  it("is true for joins through January of 2022", () => {
     expect(isFoundingHedgie("2022-01-01")).toBe(true);
-    expect(isFoundingHedgie("2022-03-31")).toBe(true);
+    expect(isFoundingHedgie("2022-01-31")).toBe(true);
   });
 
-  it("is false starting April 2022", () => {
-    expect(isFoundingHedgie("2022-04-01")).toBe(false);
+  it("is false starting February 2022", () => {
+    expect(isFoundingHedgie("2022-02-01")).toBe(false);
   });
 
   it("is false for null (never had a real subscription)", () => {

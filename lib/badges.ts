@@ -55,14 +55,14 @@ export function deriveLevel(levels: BadgeLevel[], occurrences: number): BadgeLev
   return best;
 }
 
-// "Founding Hedgie" covers members who joined during 2021 or the first quarter of 2022 --
+// "Founding Hedgie" covers members who joined during 2021 or through the end of January 2022 --
 // the org's founding era, per the badge spec ("those who joined in 2021 and maybe early 2022").
 export function isFoundingHedgie(firstJoinedAt: string | null): boolean {
   if (!firstJoinedAt) return false;
   const d = parseDateOnly(firstJoinedAt);
   const year = d.getFullYear();
   const month = d.getMonth(); // 0-indexed
-  return year === 2021 || (year === 2022 && month <= 2);
+  return year === 2021 || (year === 2022 && month === 0);
 }
 
 // "YYYY-Qn" for a timestamptz, in UTC -- used to count distinct quarters hosted for the
