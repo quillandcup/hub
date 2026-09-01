@@ -43,6 +43,7 @@ const VALID_INPUT: BookInput = {
   description: "  A tale.  ",
   coverUrl: "https://example.com/cover.jpg",
   purchaseUrl: "javascript:alert(1)",
+  format: "print",
 };
 
 function makeSupabaseMock({
@@ -127,6 +128,9 @@ describe("getMyBooks", () => {
             cover_url: "https://example.com/cover.jpg",
             purchase_url: null,
             published_date: "2026-03-15",
+            price: 17.99,
+            genre: "Fantasy",
+            format: "ebook",
           },
         ],
         error: null,
@@ -144,6 +148,9 @@ describe("getMyBooks", () => {
         coverUrl: "https://example.com/cover.jpg",
         purchaseUrl: null,
         publishedDate: "2026-03-15",
+        price: 17.99,
+        genre: "Fantasy",
+        format: "ebook",
       },
     ]);
   });
@@ -194,6 +201,9 @@ describe("addBook", () => {
       cover_url: "https://example.com/cover.jpg",
       purchase_url: null, // javascript: URL is rejected by safeUrl
       published_date: "2026-03-15",
+      price: null,
+      genre: null,
+      format: "print",
     });
     expect(revalidatePath).toHaveBeenCalledWith("/bookshelf");
     expect(revalidatePath).toHaveBeenCalledWith("/members/member-1");

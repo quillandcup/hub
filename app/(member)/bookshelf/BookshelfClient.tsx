@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import BookFormModal from "@/components/books/BookFormModal";
-import { deleteBook, type MyBookRow } from "./actions";
+import { deleteBook, type BookFormat, type MyBookRow } from "./actions";
 
 export interface ShelfBook {
   id: string;
@@ -15,6 +15,9 @@ export interface ShelfBook {
   coverUrl: string | null;
   purchaseUrl: string | null;
   publishedDate: string;
+  price: number | null;
+  genre: string | null;
+  format: BookFormat;
 }
 
 interface BookshelfClientProps {
@@ -27,6 +30,10 @@ function formatDate(dateOnly: string): string {
     month: "long",
     year: "numeric",
   });
+}
+
+function formatPrice(price: number | null): string | null {
+  return price == null ? null : `$${price.toFixed(2)}`;
 }
 
 export default function BookshelfClient({ shelf, initialMyBooks }: BookshelfClientProps) {
@@ -88,7 +95,8 @@ export default function BookshelfClient({ shelf, initialMyBooks }: BookshelfClie
                     {book.title}
                   </p>
                   <p className="text-xs text-slate-500 dark:text-slate-400">
-                    {formatDate(book.publishedDate)}
+                    {formatDate(book.publishedDate)} · <span className="capitalize">{book.format}</span>
+                    {formatPrice(book.price) && ` · ${formatPrice(book.price)}`}
                   </p>
                 </div>
                 <div className="flex items-center gap-3 flex-shrink-0">
@@ -154,6 +162,11 @@ export default function BookshelfClient({ shelf, initialMyBooks }: BookshelfClie
                     {book.memberName}
                   </Link>{" "}
                   · {formatDate(book.publishedDate)}
+                </p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 flex flex-wrap gap-x-2 gap-y-0.5">
+                  <span className="capitalize">{book.format}</span>
+                  {book.genre && <span>· {book.genre}</span>}
+                  {formatPrice(book.price) && <span>· {formatPrice(book.price)}</span>}
                 </p>
                 {book.description && (
                   <p className="text-xs text-slate-600 dark:text-slate-400 mt-2 line-clamp-3">
