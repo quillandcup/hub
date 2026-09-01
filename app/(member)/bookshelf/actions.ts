@@ -10,8 +10,8 @@ export type BookFormat = "print" | "ebook";
 export interface BookInput {
   title: string;
   description?: string;
-  coverUrl?: string;
-  purchaseUrl?: string;
+  coverUrl: string;
+  purchaseUrl: string;
   publishedDate: string;
   price?: number | null;
   genre?: string;
@@ -22,8 +22,8 @@ export interface MyBookRow {
   id: string;
   title: string;
   description: string | null;
-  coverUrl: string | null;
-  purchaseUrl: string | null;
+  coverUrl: string;
+  purchaseUrl: string;
   publishedDate: string;
   price: number | null;
   genre: string | null;
@@ -53,6 +53,10 @@ async function requireIdentity(): Promise<IdentityContext> {
 function validate(input: BookInput): string | null {
   if (!input.title?.trim()) return "Title is required";
   if (!input.publishedDate) return "Publication date is required";
+  if (!input.coverUrl?.trim()) return "Cover image is required";
+  if (!safeUrl(input.coverUrl)) return "Cover image failed to upload correctly — try again";
+  if (!input.purchaseUrl?.trim()) return "Where to buy it is required";
+  if (!safeUrl(input.purchaseUrl)) return "Enter a valid link (starting with https://) for where to buy it";
   return null;
 }
 
