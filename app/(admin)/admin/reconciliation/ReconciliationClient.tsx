@@ -24,6 +24,7 @@ interface MemberReconciliation {
   override_reason: string | null;
   override_notes: string | null;
   override_expires_at: string | null;
+  is_on_hiatus: boolean;
   has_discrepancy: boolean;
 }
 
@@ -376,7 +377,7 @@ export default function ReconciliationClient() {
                             className={`px-2 py-1 text-xs rounded font-medium ${
                               member.override_type === "gift"
                                 ? "bg-purple-100 dark:bg-purple-900/40 text-purple-800 dark:text-purple-300"
-                                : member.override_type === "hiatus"
+                                : member.override_type === "180_program"
                                 ? "bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-300"
                                 : "bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300"
                             }`}
@@ -396,6 +397,20 @@ export default function ReconciliationClient() {
                           >
                             {editingMemberId === member.member_id ? "Cancel" : "Edit"}
                           </button>
+                        </div>
+                      ) : member.is_on_hiatus ? (
+                        <div>
+                          <span className="px-2 py-1 text-xs rounded font-medium bg-yellow-100 dark:bg-yellow-900/40 text-yellow-800 dark:text-yellow-300">
+                            hiatus
+                          </span>
+                          <div className="mt-1">
+                            <a
+                              href={`/admin/members/${member.member_id}`}
+                              className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                            >
+                              Manage on member page →
+                            </a>
+                          </div>
                         </div>
                       ) : (
                         <div>
@@ -437,7 +452,7 @@ export default function ReconciliationClient() {
                           member.override_id
                             ? {
                                 id: member.override_id,
-                                override_type: member.override_type as "hiatus" | "gift" | "special",
+                                override_type: member.override_type as "gift" | "special" | "180_program",
                                 reason: member.override_reason ?? "",
                                 notes: member.override_notes,
                                 expires_at: member.override_expires_at,

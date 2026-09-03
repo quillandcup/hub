@@ -6,6 +6,7 @@ import { MemberStatusBadge } from "@/components/MemberStatusBadge";
 import { slackEmojiToUnicode, formatSlackPermalink } from "@/lib/slack-emoji";
 import { gapLabelsByStintStart } from "@/lib/resubscription-detection";
 import { parseDateOnly } from "@/lib/member-tenure";
+import MemberHiatusPanel from "./MemberHiatusPanel";
 
 interface MemberDetailsProps {
   member: any;
@@ -44,29 +45,6 @@ export default function MemberDetails({ member, attendanceRecords, hiatusHistory
     }).length,
     lastActivity: slackActivities.length > 0 ? new Date(slackActivities[0].occurred_at) : null,
   };
-
-  // Calculate current hiatus progress if on hiatus
-  const currentHiatus = hiatusHistory.find(h => h.end_date === null);
-  let hiatusProgress = null;
-  if (currentHiatus) {
-    const startDate = new Date(currentHiatus.start_date);
-    const now = new Date();
-    const daysSinceStart = Math.floor((now.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
-    const monthsSinceStart = daysSinceStart / 30; // Rough estimate
-
-    // Only show progress after at least 1 month (30 days)
-    if (daysSinceStart >= 30) {
-      if (monthsSinceStart < 6) {
-        hiatusProgress = "25%";
-      } else if (monthsSinceStart < 9) {
-        hiatusProgress = "50%";
-      } else if (monthsSinceStart < 12) {
-        hiatusProgress = "75%";
-      } else {
-        hiatusProgress = "90%+";
-      }
-    }
-  }
 
   return (
     <div className="space-y-6">
@@ -260,88 +238,7 @@ export default function MemberDetails({ member, attendanceRecords, hiatusHistory
       />
 
       {/* Hiatus History */}
-      {hiatusHistory.length > 0 && (
-        <div className="bg-white dark:bg-slate-900 rounded-lg shadow">
-          <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800">
-            <h2 className="text-xl font-bold">Hiatus History</h2>
-          </div>
-          <div className="p-6">
-            <div className="space-y-4">
-              {hiatusHistory.map((hiatus: any, idx: number) => {
-                const startDate = new Date(hiatus.start_date);
-                const endDate = hiatus.end_date ? new Date(hiatus.end_date) : null;
-                const isOngoing = !endDate;
-
-                let durationText = "";
-                if (endDate) {
-                  const durationDays = Math.floor((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
-                  const durationMonths = Math.floor(durationDays / 30);
-                  if (durationMonths > 0) {
-                    durationText = `${durationMonths} month${durationMonths > 1 ? 's' : ''}`;
-                  } else {
-                    durationText = `${durationDays} day${durationDays > 1 ? 's' : ''}`;
-                  }
-                } else {
-                  const daysSoFar = Math.floor((new Date().getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
-                  const monthsSoFar = Math.floor(daysSoFar / 30);
-                  if (monthsSoFar > 0) {
-                    durationText = `${monthsSoFar} month${monthsSoFar > 1 ? 's' : ''} so far`;
-                  } else {
-                    durationText = `${daysSoFar} day${daysSoFar > 1 ? 's' : ''} so far`;
-                  }
-                }
-
-                return (
-                  <div
-                    key={hiatus.id}
-                    className={`p-4 rounded-lg border ${
-                      isOngoing
-                        ? "bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800"
-                        : "bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700"
-                    }`}
-                  >
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-2 flex-wrap">
-                          <span className="text-sm font-medium text-slate-900 dark:text-slate-100">
-                            {startDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
-                            {" → "}
-                            {endDate ? (
-                              <span className="px-2 py-0.5 rounded bg-blue-100 dark:bg-blue-900 text-blue-900 dark:text-blue-100 font-semibold">
-                                {endDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
-                              </span>
-                            ) : (
-                              "Ongoing"
-                            )}
-                          </span>
-                          {isOngoing && hiatusProgress && (
-                            <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-yellow-200 dark:bg-yellow-800 text-yellow-900 dark:text-yellow-100">
-                              {hiatusProgress}
-                            </span>
-                          )}
-                        </div>
-                        <div className="text-sm text-slate-600 dark:text-slate-400">
-                          Duration: {durationText}
-                        </div>
-                        {hiatus.reason && (
-                          <div className="text-sm text-slate-600 dark:text-slate-400 mt-1">
-                            {hiatus.reason}
-                          </div>
-                        )}
-                      </div>
-                      {isOngoing && (
-                        <span className="px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300">
-                          Current
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      )}
+      <MemberHiatusPanel memberId={member.id} hiatusHistory={hiatusHistory} />
 
       {/* Slack Activity */}
       <div className="bg-white dark:bg-slate-900 rounded-lg shadow">

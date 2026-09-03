@@ -13,52 +13,35 @@ export async function PATCH(
   try {
     const { id } = await params;
     const body = await request.json();
-    const { override_type, reason, notes, starts_at, expires_at } = body;
-
-    if (override_type && !['gift', 'special', '180_program'].includes(override_type)) {
-      return NextResponse.json(
-        { error: "override_type must be one of: gift, special, 180_program" },
-        { status: 400 }
-      );
-    }
+    const { start_date, end_date, reason, notes } = body;
 
     const updates: any = {};
-    if (override_type !== undefined) updates.override_type = override_type;
+    if (start_date !== undefined) updates.start_date = start_date;
+    if (end_date !== undefined) updates.end_date = end_date;
     if (reason !== undefined) updates.reason = reason;
     if (notes !== undefined) updates.notes = notes;
-    if (starts_at !== undefined) updates.starts_at = starts_at;
-    if (expires_at !== undefined) updates.expires_at = expires_at;
 
-    const { data: override, error } = await supabase
-      .from("member_status_overrides")
+    const { data: hiatus, error } = await supabase
+      .from("member_hiatus_history")
       .update(updates)
       .eq("id", id)
-      .select(`
-        *,
-        member:members(id, name, email)
-      `)
+      .select("*")
       .single();
 
     if (error) {
-      console.error("Error updating member override:", error);
-      return NextResponse.json(
-        { error: error.message },
-        { status: 500 }
-      );
+      console.error("Error updating member hiatus:", error);
+      return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    if (!override) {
-      return NextResponse.json(
-        { error: "Override not found" },
-        { status: 404 }
-      );
+    if (!hiatus) {
+      return NextResponse.json({ error: "Hiatus not found" }, { status: 404 });
     }
 
-    return NextResponse.json({ override });
+    return NextResponse.json({ hiatus });
   } catch (error: any) {
     console.error("Error processing request:", error);
     return NextResponse.json(
-      { error: error.message || "Failed to update override" },
+      { error: error.message || "Failed to update hiatus" },
       { status: 500 }
     );
   }
@@ -76,24 +59,18 @@ export async function DELETE(
   try {
     const { id } = await params;
 
-    const { error } = await supabase
-      .from("member_status_overrides")
-      .delete()
-      .eq("id", id);
+    const { error } = await supabase.from("member_hiatus_history").delete().eq("id", id);
 
     if (error) {
-      console.error("Error deleting member override:", error);
-      return NextResponse.json(
-        { error: error.message },
-        { status: 500 }
-      );
+      console.error("Error deleting member hiatus:", error);
+      return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
     return NextResponse.json({ success: true });
   } catch (error: any) {
     console.error("Error processing request:", error);
     return NextResponse.json(
-      { error: error.message || "Failed to delete override" },
+      { error: error.message || "Failed to delete hiatus" },
       { status: 500 }
     );
   }

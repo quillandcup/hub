@@ -190,6 +190,20 @@ export async function GET(request: NextRequest) {
         .from("member_status_overrides")
         .select("*");
 
+      // Hiatus is tracked separately (member_hiatus_history) — only active
+      // windows matter here, purely for the "why is this member's expected
+      // state inactive" display below (editing hiatus happens on the member
+      // detail page, not this reconciliation view).
+      const { data: activeHiatuses } = await supabase
+        .from("member_hiatus_history")
+        .select("member_id, start_date, end_date")
+        .lte("start_date", new Date().toISOString().slice(0, 10));
+      const onHiatusMemberIds = new Set(
+        (activeHiatuses || [])
+          .filter((h) => !h.end_date || h.end_date >= new Date().toISOString().slice(0, 10))
+          .map((h) => h.member_id)
+      );
+
       // Load email aliases for cross-email member matching
       const { data: emailAliases } = await supabase
         .from("member_email_aliases")
@@ -292,8 +306,10 @@ export async function GET(request: NextRequest) {
         const hasDiscrepancy = expectedState === "active" && kajabiState !== "active"
           || expectedState === "inactive" && kajabiState === "active";
 
+        const isOnHiatus = onHiatusMemberIds.has(member.id);
+
         // Check if this member has data in at least one system
-        const hasData = !!kajabiPurchase || !!stripeSubscription || !!override;
+        const hasData = !!kajabiPurchase || !!stripeSubscription || !!override || isOnHiatus;
 
         return {
           member_id: member.id,
@@ -307,6 +323,7 @@ export async function GET(request: NextRequest) {
           override_reason: override?.reason || null,
           override_notes: override?.notes || null,
           override_expires_at: override?.expires_at || null,
+          is_on_hiatus: isOnHiatus,
           has_discrepancy: hasDiscrepancy,
           has_data: hasData,
         };

@@ -62,7 +62,7 @@ ON CONFLICT (normalized_name) DO NOTHING;
 -- despite having "active" members). Values below are hand-set,
 -- illustrative approximations for local dev, not pipeline-derived.
 -- Sarah and Emily's most_recent_joined_at intentionally matches their past
--- hiatus's end date below (member_status_overrides) — an ended hiatus
+-- hiatus's end date below (member_hiatus_history) — an ended hiatus
 -- resets most_recent_joined_at, demonstrating the "welcome back" feature.
 INSERT INTO members (id, name, email, joined_at, status, plan, first_joined_at, most_recent_joined_at, total_active_months) VALUES
 ('11111111-1111-1111-1111-111111111111', 'Owner 2', 'owner2@example.com', '2025-01-15', 'active', 'pro', '2025-01-15', '2025-01-15', 19),
@@ -77,27 +77,25 @@ INSERT INTO members (id, name, email, joined_at, status, plan, first_joined_at, 
 ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'Robert Taylor', 'robert.t@example.com', '2025-01-01', 'active', 'basic', '2025-01-01', '2025-01-01', 20);
 
 -- =====================================================
--- MEMBER STATUS OVERRIDES — hiatus (Local layer)
+-- MEMBER HIATUS HISTORY (Local layer)
 -- =====================================================
--- member_status_overrides (override_type='hiatus') is the live source of
--- truth for hiatus tracking — member_hiatus_history has no writer anymore
--- (see supabase/migrations/20260828170000_add_member_tenure_fields.sql).
+-- member_hiatus_history is the live source of truth for hiatus tracking.
 -- /admin/hiatus, the member detail page, and tenure calculations all read
 -- from here. Dates are relative to now() (not fixed calendar dates) so
 -- Mike/James stay "currently mid-hiatus" and Sarah/Emily stay "returned a
 -- while ago" no matter when this seed is run, instead of drifting stale.
-INSERT INTO member_status_overrides (member_id, override_type, reason, notes, starts_at, expires_at) VALUES
+INSERT INTO member_hiatus_history (member_id, start_date, end_date, reason, notes) VALUES
 -- Mike: ~50% through a 90-day hiatus — shows up in "Upcoming touchpoints"
-('44444444-4444-4444-4444-444444444444', 'hiatus', 'Taking time off to focus on novel', 'Will return for upcoming sessions', now() - interval '45 days', now() + interval '45 days'),
+('44444444-4444-4444-4444-444444444444', (now() - interval '45 days')::date, (now() + interval '45 days')::date, 'Taking time off to focus on novel', 'Will return for upcoming sessions'),
 
 -- James: beyond 75% through a 100-day sabbatical — shows up in "Returning Soon"
-('66666666-6666-6666-6666-666666666666', 'hiatus', 'Personal sabbatical', 'Expecting first child', now() - interval '80 days', now() + interval '20 days'),
+('66666666-6666-6666-6666-666666666666', (now() - interval '80 days')::date, (now() + interval '20 days')::date, 'Personal sabbatical', 'Expecting first child'),
 
 -- Sarah: hiatus ended a few months ago — demonstrates "welcome back"
-('33333333-3333-3333-3333-333333333333', 'hiatus', 'Holiday break', 'Returned early', now() - interval '150 days', now() - interval '120 days'),
+('33333333-3333-3333-3333-333333333333', (now() - interval '150 days')::date, (now() - interval '120 days')::date, 'Holiday break', 'Returned early'),
 
 -- Emily: an older, already-ended hiatus
-('55555555-5555-5555-5555-555555555555', 'hiatus', 'Work deadline', 'Book manuscript deadline', now() - interval '250 days', now() - interval '220 days');
+('55555555-5555-5555-5555-555555555555', (now() - interval '250 days')::date, (now() - interval '220 days')::date, 'Work deadline', 'Book manuscript deadline');
 
 -- =====================================================
 -- PRICKLES (Silver)

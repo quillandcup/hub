@@ -124,7 +124,7 @@ export default function MemberOverridesClient() {
         <h1 className="text-2xl font-bold mb-2">Member Status Overrides</h1>
         <p className="text-gray-600">
           Manage special cases where member status differs from default rules
-          (hiatus, gifts, 180 program, etc.)
+          (gifts, 180 program, etc.) Hiatus is tracked separately, per-member.
         </p>
       </div>
 
@@ -230,8 +230,8 @@ export default function MemberOverridesClient() {
                       className={`px-2 py-1 text-xs rounded ${
                         override.override_type === "gift"
                           ? "bg-green-100 text-green-800"
-                          : override.override_type === "hiatus"
-                          ? "bg-yellow-100 text-yellow-800"
+                          : override.override_type === "180_program"
+                          ? "bg-purple-100 text-purple-800"
                           : "bg-blue-100 text-blue-800"
                       }`}
                     >

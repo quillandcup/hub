@@ -9,11 +9,10 @@ export const metadata: Metadata = {
   title: "Hiatus Tracking",
 };
 
-interface HiatusOverrideRow {
+interface HiatusRow {
   id: string;
-  override_type: string;
-  starts_at: string;
-  expires_at: string | null;
+  start_date: string;
+  end_date: string | null;
 }
 
 interface MemberRow {
@@ -21,7 +20,7 @@ interface MemberRow {
   name: string;
   email: string;
   status: string;
-  member_status_overrides: HiatusOverrideRow[] | null;
+  member_hiatus_history: HiatusRow[] | null;
 }
 
 export default async function HiatusTrackingPage() {
@@ -38,10 +37,8 @@ export default async function HiatusTrackingPage() {
   const enabledFeatures = await getUserFeaturePreviews(user.id);
   if (!enabledFeatures.includes('hiatus_tracking')) redirect("/admin");
 
-  // Fetch all members currently on hiatus, with their hiatus overrides.
-  // member_status_overrides (override_type='hiatus') is the live source of
-  // truth — member_hiatus_history has no writer (see
-  // supabase/migrations/20260828170000_add_member_tenure_fields.sql).
+  // Fetch all members currently on hiatus, with their hiatus history.
+  // member_hiatus_history is the live source of truth for hiatus tracking.
   const { data: onHiatusMembersRaw } = await supabase
     .from("members")
     .select(`
@@ -49,7 +46,7 @@ export default async function HiatusTrackingPage() {
       name,
       email,
       status,
-      member_status_overrides(id, override_type, starts_at, expires_at)
+      member_hiatus_history(id, start_date, end_date)
     `)
     .eq("status", "on_hiatus")
     .order("name");
@@ -58,19 +55,18 @@ export default async function HiatusTrackingPage() {
 
   const onHiatusMembers = (onHiatusMembersRaw || []) as unknown as MemberRow[];
 
-  // For each on-hiatus member, find their currently-active hiatus override
-  // (starts_at in the past, expires_at null or still in the future).
+  // For each on-hiatus member, find their currently-active hiatus period
+  // (start_date in the past, end_date null or still in the future).
   const hiatusData = onHiatusMembers
     .map((member) => {
-      const currentHiatus = (member.member_status_overrides || [])
-        .filter((o) => o.override_type === "hiatus")
-        .filter((o) => new Date(o.starts_at) <= now && (!o.expires_at || new Date(o.expires_at) >= now))
-        .sort((a, b) => new Date(b.starts_at).getTime() - new Date(a.starts_at).getTime())[0];
+      const currentHiatus = (member.member_hiatus_history || [])
+        .filter((h) => new Date(h.start_date) <= now && (!h.end_date || new Date(h.end_date) >= now))
+        .sort((a, b) => new Date(b.start_date).getTime() - new Date(a.start_date).getTime())[0];
 
       if (!currentHiatus) return null;
 
-      const touchpoint = computeHiatusTouchpoint(currentHiatus.starts_at, currentHiatus.expires_at, now);
-      const startDate = new Date(currentHiatus.starts_at);
+      const touchpoint = computeHiatusTouchpoint(currentHiatus.start_date, currentHiatus.end_date, now);
+      const startDate = new Date(currentHiatus.start_date);
       const daysSinceStart = Math.floor((now.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
 
       return { member, hiatus: currentHiatus, touchpoint, startDate, daysSinceStart };
@@ -89,11 +85,11 @@ export default async function HiatusTrackingPage() {
     );
 
   // Returning soon — past the 75% mark of a known-duration hiatus, sorted
-  // by expected end date. Indefinite hiatuses (no expires_at) never appear
+  // by expected end date. Indefinite hiatuses (no end_date) never appear
   // here — there's no date to sort by.
   const returningSoon = hiatusData
-    .filter((item) => item.touchpoint.isPastAllTouchpoints && item.hiatus.expires_at)
-    .sort((a, b) => new Date(a.hiatus.expires_at!).getTime() - new Date(b.hiatus.expires_at!).getTime());
+    .filter((item) => item.touchpoint.isPastAllTouchpoints && item.hiatus.end_date)
+    .sort((a, b) => new Date(a.hiatus.end_date!).getTime() - new Date(b.hiatus.end_date!).getTime());
 
   // Group upcoming touchpoints by month for display, same as before.
   const groupedByMonth = new Map<string, typeof upcomingTouchpoints>();
@@ -235,7 +231,7 @@ export default async function HiatusTrackingPage() {
                     <tr key={item.hiatus.id} className="hover:bg-slate-50 dark:hover:bg-slate-800">
                       <td className="px-6 py-4">
                         <span className="inline-block px-3 py-1 text-sm font-semibold rounded bg-blue-100 dark:bg-blue-900 text-blue-900 dark:text-blue-100">
-                          {new Date(item.hiatus.expires_at!).toLocaleDateString("en-US", {
+                          {new Date(item.hiatus.end_date!).toLocaleDateString("en-US", {
                             month: "short",
                             day: "numeric",
                             year: "numeric",
