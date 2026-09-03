@@ -43,9 +43,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!['hiatus', 'gift', 'special'].includes(override_type)) {
+    if (!['hiatus', 'gift', 'special', '180_program'].includes(override_type)) {
       return NextResponse.json(
-        { error: "override_type must be one of: hiatus, gift, special" },
+        { error: "override_type must be one of: hiatus, gift, special, 180_program" },
         { status: 400 }
       );
     }

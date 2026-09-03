@@ -54,10 +54,10 @@ export default function HedgieversariesTable({ rows }: { rows: HedgieversaryRow[
         <thead className="bg-slate-50 dark:bg-slate-800">
           <tr>
             <SortableTh label="Hedgie" active={sortColumn === "name"} direction={sortDirection} onClick={() => handleSort("name")} />
+            <SortableTh label="Next Hedgieversary" active={sortColumn === "nextDate"} direction={sortDirection} onClick={() => handleSort("nextDate")} />
             <SortableTh label="First Joined" active={sortColumn === "firstJoinedAt"} direction={sortDirection} onClick={() => handleSort("firstJoinedAt")} />
             <SortableTh label="Most Recent Joined" active={sortColumn === "mostRecentJoinedAt"} direction={sortDirection} onClick={() => handleSort("mostRecentJoinedAt")} />
             <SortableTh label="Total Active Months" active={sortColumn === "totalActiveMonths"} direction={sortDirection} onClick={() => handleSort("totalActiveMonths")} />
-            <SortableTh label="Next Hedgieversary" active={sortColumn === "nextDate"} direction={sortDirection} onClick={() => handleSort("nextDate")} />
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
@@ -73,6 +73,18 @@ export default function HedgieversariesTable({ rows }: { rows: HedgieversaryRow[
                     {row.name}
                   </Link>
                 </td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  {row.nextDate ? (
+                    <span className="inline-flex items-center gap-2">
+                      <span className="text-sm font-medium text-slate-900 dark:text-slate-100">{fmt(row.nextDate)}</span>
+                      <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300">
+                        {row.milestoneMonths != null ? milestoneLabel(row.milestoneMonths) : ""}
+                      </span>
+                    </span>
+                  ) : (
+                    <span className="text-sm text-slate-400 dark:text-slate-500">TBD (on hiatus)</span>
+                  )}
+                </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700 dark:text-slate-300">
                   {fmt(row.firstJoinedAt)}
                 </td>
@@ -86,18 +98,6 @@ export default function HedgieversariesTable({ rows }: { rows: HedgieversaryRow[
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700 dark:text-slate-300">
                   {row.totalActiveMonths}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  {row.nextDate ? (
-                    <span className="inline-flex items-center gap-2">
-                      <span className="text-sm font-medium text-slate-900 dark:text-slate-100">{fmt(row.nextDate)}</span>
-                      <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300">
-                        {row.milestoneMonths != null ? milestoneLabel(row.milestoneMonths) : ""}
-                      </span>
-                    </span>
-                  ) : (
-                    <span className="text-sm text-slate-400 dark:text-slate-500">TBD (on hiatus)</span>
-                  )}
                 </td>
               </tr>
             );
