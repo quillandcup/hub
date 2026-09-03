@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { computeCumulativeSeries, MEASURE_LABELS, type WritingMeasure } from "@/lib/writing-projects";
-import type { EntryRow } from "@/app/(member)/writing/actions";
+import type { EntryRow } from "@/app/(member)/projects/actions";
 
 const HEATMAP_WEEKS = 12;
 const DAY_MS = 24 * 60 * 60 * 1000;

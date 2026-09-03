@@ -9,6 +9,7 @@ import {
   type BookInput,
   type MyBookRow,
 } from "@/app/(member)/bookshelf/actions";
+import { publishProject } from "@/app/(member)/projects/actions";
 import {
   describeBookCoverRequirements,
   validateBookCoverDimensions,
@@ -19,8 +20,12 @@ interface BookFormModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSaved: () => void;
-  /** Present for edit, absent for add. */
+  /** Present for edit, absent for add/publish. */
   book?: MyBookRow;
+  /** Present when publishing a project (no `book`) -- prefills the title and routes the submit
+   * through publishProject instead of addBook. Absent for a plain standalone add/edit. */
+  projectId?: string;
+  projectTitle?: string;
 }
 
 /** Reads the pixel dimensions of an image file in the browser, without uploading it. */
@@ -40,8 +45,15 @@ function readImageDimensions(file: File): Promise<{ width: number; height: numbe
   });
 }
 
-export default function BookFormModal({ isOpen, onClose, onSaved, book }: BookFormModalProps) {
-  const [title, setTitle] = useState(book?.title ?? "");
+export default function BookFormModal({
+  isOpen,
+  onClose,
+  onSaved,
+  book,
+  projectId,
+  projectTitle,
+}: BookFormModalProps) {
+  const [title, setTitle] = useState(book?.title ?? projectTitle ?? "");
   const [description, setDescription] = useState(book?.description ?? "");
   const [coverUrl, setCoverUrl] = useState(book?.coverUrl ?? "");
   const [coverError, setCoverError] = useState<string | null>(null);
@@ -114,7 +126,11 @@ export default function BookFormModal({ isOpen, onClose, onSaved, book }: BookFo
     };
 
     setIsPending(true);
-    const result = book ? await updateBook(book.id, input) : await addBook(input);
+    const result = book
+      ? await updateBook(book.id, input)
+      : projectId
+        ? await publishProject(projectId, input)
+        : await addBook(input);
     setIsPending(false);
 
     if ("error" in result) {
@@ -125,8 +141,12 @@ export default function BookFormModal({ isOpen, onClose, onSaved, book }: BookFo
     onClose();
   }
 
+  const modalTitle = book ? "Edit Book" : projectId ? `Publish "${projectTitle}"` : "Add a Book";
+  const submitLabel = book ? "Save changes" : projectId ? "Publish" : "Add book";
+  const pendingLabel = book ? "Saving..." : projectId ? "Publishing..." : "Adding...";
+
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={book ? "Edit Book" : "Add a Book"} maxWidth="sm">
+    <Modal isOpen={isOpen} onClose={onClose} title={modalTitle} maxWidth="sm">
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Title *</label>
@@ -261,7 +281,7 @@ export default function BookFormModal({ isOpen, onClose, onSaved, book }: BookFo
             disabled={isPending || isUploadingCover || !coverUrl}
             className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg text-sm font-medium"
           >
-            {isPending ? "Saving..." : book ? "Save changes" : "Add book"}
+            {isPending ? pendingLabel : submitLabel}
           </button>
         </div>
       </form>

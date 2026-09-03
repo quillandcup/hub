@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // Mirrors tests/lib/hosting-actions.test.ts's mocked-Supabase-chain approach. Focused on the
-// new prickles-measure anchor behavior in app/(member)/writing/actions.ts: resolving
+// new prickles-measure anchor behavior in app/(member)/projects/actions.ts: resolving
 // anchorScheduleId server-side into a snapshot (never trusting client-provided type/host/day),
 // and the archive-and-fork behavior on updateGoal when a goal's anchor changes -- the fix for a
 // real "editing a goal's anchor silently erases its earned streak" bug (see the plan file /
@@ -20,7 +20,7 @@ vi.mock("next/cache", () => ({
   revalidatePath: vi.fn(),
 }));
 
-import { createGoal, updateGoal } from "@/app/(member)/writing/actions";
+import { createGoal, updateGoal } from "@/app/(member)/projects/actions";
 import { createClient } from "@/lib/supabase/server";
 import { getEffectiveIdentity } from "@/lib/sudo";
 

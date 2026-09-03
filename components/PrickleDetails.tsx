@@ -241,7 +241,7 @@ export default function PrickleDetails({
                               </button>
                             ) : (
                               <Link
-                                href="/writing"
+                                href="/projects"
                                 className="text-xs text-slate-500 dark:text-slate-400 hover:underline"
                               >
                                 Start tracking your writing →

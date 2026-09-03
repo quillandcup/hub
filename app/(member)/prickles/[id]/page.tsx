@@ -9,7 +9,7 @@ import { getEffectiveIdentity } from "@/lib/sudo";
 import { findUnmatchedZoomAttendees } from "@/lib/prickle-unmatched";
 import AliasSearchForm from "@/app/(admin)/admin/hygiene/unmatched-zoom/AliasSearchForm";
 import { formatPrickleTitle } from "@/lib/formatters";
-import { getMyProjects } from "@/app/(member)/writing/actions";
+import { getMyProjects } from "@/app/(member)/projects/actions";
 
 const getPrickle = cache(async (id: string) => {
   const supabase = await createClient();

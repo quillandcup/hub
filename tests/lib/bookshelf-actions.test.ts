@@ -131,6 +131,7 @@ describe("getMyBooks", () => {
             price: 17.99,
             genre: "Fantasy",
             format: "ebook",
+            project_id: "project-1",
           },
         ],
         error: null,
@@ -151,6 +152,7 @@ describe("getMyBooks", () => {
         price: 17.99,
         genre: "Fantasy",
         format: "ebook",
+        projectId: "project-1",
       },
     ]);
   });
@@ -236,6 +238,7 @@ describe("addBook", () => {
       format: "print",
     });
     expect(revalidatePath).toHaveBeenCalledWith("/bookshelf");
+    expect(revalidatePath).toHaveBeenCalledWith("/projects");
     expect(revalidatePath).toHaveBeenCalledWith("/members/member-1");
   });
 
@@ -303,6 +306,7 @@ describe("updateBook", () => {
       expect.objectContaining({ title: "My Book", purchase_url: "https://example.com/buy" })
     );
     expect(revalidatePath).toHaveBeenCalledWith("/bookshelf");
+    expect(revalidatePath).toHaveBeenCalledWith("/projects");
     expect(revalidatePath).toHaveBeenCalledWith("/members/member-1");
   });
 
@@ -345,6 +349,7 @@ describe("deleteBook", () => {
     const result = await deleteBook("book-1");
     expect(result).toEqual({ success: true });
     expect(revalidatePath).toHaveBeenCalledWith("/bookshelf");
+    expect(revalidatePath).toHaveBeenCalledWith("/projects");
     expect(revalidatePath).toHaveBeenCalledWith("/members/member-1");
   });
 

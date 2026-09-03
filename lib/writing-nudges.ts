@@ -3,7 +3,7 @@ import { sendSlackDM } from "@/lib/slack";
 import { MEASURE_QUICK_LOG_PRESETS, type WritingMeasure } from "@/lib/writing-projects";
 
 // Mirrors the same fallback convention used in app/(member)/dashboard/page.tsx,
-// app/(member)/writing/actions.ts, and app/(member)/streaks/page.tsx.
+// app/(member)/projects/actions.ts, and app/(member)/streaks/page.tsx.
 export const ORG_TIMEZONE = "America/New_York";
 
 const BATCH_SIZE = 1000;

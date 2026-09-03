@@ -79,7 +79,7 @@ async function handleWritingQuickLog(payload: any, action: any) {
 
   // Never trust the project id embedded in the action value alone -- verify it's still this
   // member's project before writing anything (same principle as assertOwnsProject in
-  // app/(member)/writing/actions.ts).
+  // app/(member)/projects/actions.ts).
   const { data: project } = await supabase
     .from("writing_projects")
     .select("id")
@@ -111,7 +111,7 @@ async function handleWritingQuickLog(payload: any, action: any) {
   }
 
   // Phase 1, item 11: same engagement signal as a manual log (see
-  // app/(member)/writing/actions.ts logProgress) -- this is just a different entry point into
+  // app/(member)/projects/actions.ts logProgress) -- this is just a different entry point into
   // the same writing_progress_entries table.
   const { error: activityError } = await supabase.from("member_activities").insert({
     member_id: memberId,

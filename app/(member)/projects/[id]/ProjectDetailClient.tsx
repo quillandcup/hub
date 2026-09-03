@@ -1,10 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import LogProgressModal from "@/components/writing/LogProgressModal";
 import GoalDisplay from "@/components/writing/GoalDisplay";
 import ProjectCharts from "@/components/writing/ProjectCharts";
 import ReasonBadges from "@/components/ReasonBadges";
+import BookFormModal from "@/components/books/BookFormModal";
+import { deleteBook } from "@/app/(member)/bookshelf/actions";
 import {
   WRITING_MEASURES,
   MEASURE_LABELS,
@@ -39,10 +42,13 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
   const [editingGoal, setEditingGoal] = useState<GoalRow | null>(null);
   const [showOnProfile, setShowOnProfile] = useState(project.showOnProfile);
   const [visibilityPending, setVisibilityPending] = useState(false);
+  const [showPublish, setShowPublish] = useState(false);
+  const [showEditBook, setShowEditBook] = useState(false);
+  const [removingBook, setRemovingBook] = useState(false);
 
   function handleChanged() {
     // Server actions already revalidatePath(); a full page refresh picks up
-    // fresh server data (same approach as WritingProjectsClient/HostingScheduleManager).
+    // fresh server data (same approach as ProjectsClient/HostingScheduleManager).
     window.location.reload();
   }
 
@@ -85,6 +91,19 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
     setShowOnProfile(next);
   }
 
+  async function handleRemoveBook() {
+    if (!project.book) return;
+    if (!confirm(`Remove "${project.book.title}" from the Bookshelf?`)) return;
+    setRemovingBook(true);
+    const result = await deleteBook(project.book.id);
+    setRemovingBook(false);
+    if ("error" in result) {
+      alert(result.error);
+      return;
+    }
+    handleChanged();
+  }
+
   return (
     <div className="max-w-3xl mx-auto space-y-6">
       <div className="flex items-center justify-between text-sm">
@@ -99,12 +118,73 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
           Show on my profile
         </label>
         <a
-          href={`/api/writing/export?projectId=${project.id}`}
+          href={`/api/projects/export?projectId=${project.id}`}
           className="text-blue-600 hover:text-blue-700 dark:text-blue-400"
         >
           ⬇ Export CSV
         </a>
       </div>
+
+      {project.book ? (
+        <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 p-5 flex gap-4">
+          {/* eslint-disable-next-line @next/next/no-img-element -- fixed-size Supabase Storage upload, not optimizable by next/image */}
+          <img
+            src={project.book.coverUrl}
+            alt={`Cover of ${project.book.title}`}
+            className="w-16 h-24 object-cover rounded flex-shrink-0 bg-slate-100 dark:bg-slate-800"
+          />
+          <div className="min-w-0 flex-1">
+            <h2 className="text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
+              Published
+            </h2>
+            <a
+              href={project.book.purchaseUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-sm font-semibold text-slate-900 dark:text-slate-100 hover:underline"
+            >
+              {project.book.title}
+            </a>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 flex flex-wrap gap-x-2 gap-y-0.5">
+              <span className="capitalize">{project.book.format}</span>
+              {project.book.genre && <span>· {project.book.genre}</span>}
+              {project.book.price != null && <span>· ${project.book.price.toFixed(2)}</span>}
+            </p>
+            <p className="text-xs mt-2">
+              <Link href="/bookshelf" className="text-blue-600 hover:text-blue-700 dark:text-blue-400">
+                View on the Bookshelf
+              </Link>
+            </p>
+          </div>
+          <div className="flex-shrink-0 flex flex-col items-end gap-2 text-xs">
+            <button
+              type="button"
+              onClick={() => setShowEditBook(true)}
+              className="text-blue-600 dark:text-blue-400 hover:underline"
+            >
+              Edit
+            </button>
+            <button
+              type="button"
+              onClick={handleRemoveBook}
+              disabled={removingBook}
+              className="text-red-600 dark:text-red-400 hover:underline disabled:opacity-50"
+            >
+              {removingBook ? "Removing..." : "Remove"}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={() => setShowPublish(true)}
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium"
+          >
+            🚀 Publish
+          </button>
+        </div>
+      )}
 
       {project.goals.length > 0 && (
         <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 p-5 space-y-4">
@@ -285,6 +365,25 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
           projects={[{ id: project.id, title: project.title }]}
           editingEntry={editingEntry}
           onSaved={handleChanged}
+        />
+      )}
+
+      {showPublish && (
+        <BookFormModal
+          isOpen={showPublish}
+          onClose={() => setShowPublish(false)}
+          onSaved={handleChanged}
+          projectId={project.id}
+          projectTitle={project.title}
+        />
+      )}
+
+      {showEditBook && project.book && (
+        <BookFormModal
+          isOpen={showEditBook}
+          onClose={() => setShowEditBook(false)}
+          onSaved={handleChanged}
+          book={project.book}
         />
       )}
     </div>

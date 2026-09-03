@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Modal from "@/components/Modal";
-import { createProject } from "@/app/(member)/writing/actions";
+import { createProject } from "@/app/(member)/projects/actions";
 
 interface NewProjectModalProps {
   isOpen: boolean;
@@ -47,7 +47,7 @@ export default function NewProjectModal({ isOpen, onClose, onCreated }: NewProje
   }
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="New Writing Project" maxWidth="sm">
+    <Modal isOpen={isOpen} onClose={onClose} title="New Project" maxWidth="sm">
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Title</label>

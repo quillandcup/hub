@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getEffectiveIdentity } from "@/lib/sudo";
 import { revalidatePath } from "next/cache";
 import { safeUrl } from "@/lib/url";
+import { validateBookInput } from "@/lib/bookValidation";
 
 export type BookFormat = "print" | "ebook";
 
@@ -28,6 +29,8 @@ export interface MyBookRow {
   price: number | null;
   genre: string | null;
   format: BookFormat;
+  /** The Projects entry this book was published from, or null for a standalone/legacy book. */
+  projectId: string | null;
 }
 
 type IdentityContext =
@@ -50,17 +53,8 @@ async function requireIdentity(): Promise<IdentityContext> {
   return { supabase, effectiveIdentity };
 }
 
-function validate(input: BookInput): string | null {
-  if (!input.title?.trim()) return "Title is required";
-  if (!input.publishedDate) return "Publication date is required";
-  if (!input.coverUrl?.trim()) return "Cover image is required";
-  if (!safeUrl(input.coverUrl)) return "Cover image failed to upload correctly — try again";
-  if (!input.purchaseUrl?.trim()) return "Where to buy it is required";
-  if (!safeUrl(input.purchaseUrl)) return "Enter a valid link (starting with https://) for where to buy it";
-  return null;
-}
 
-/** The acting member's own books, for the "My Books" panel on the Bookshelf page. */
+/** The acting member's own books, for the "My Books" panel on the Projects page. */
 export async function getMyBooks(): Promise<MyBookRow[]> {
   const ctx = await requireIdentity();
   if ("error" in ctx) return [];
@@ -68,7 +62,7 @@ export async function getMyBooks(): Promise<MyBookRow[]> {
 
   const { data } = await supabase
     .from("member_books")
-    .select("id, title, description, cover_url, purchase_url, published_date, price, genre, format")
+    .select("id, title, description, cover_url, purchase_url, published_date, price, genre, format, project_id")
     .eq("member_id", effectiveIdentity.memberId)
     .order("published_date", { ascending: false });
 
@@ -82,6 +76,7 @@ export async function getMyBooks(): Promise<MyBookRow[]> {
     price: row.price,
     genre: row.genre,
     format: row.format,
+    projectId: row.project_id,
   }));
 }
 
@@ -90,7 +85,7 @@ export async function addBook(input: BookInput): Promise<{ success: true } | { e
   if ("error" in ctx) return ctx;
   const { supabase, effectiveIdentity } = ctx;
 
-  const validationError = validate(input);
+  const validationError = validateBookInput(input);
   if (validationError) return { error: validationError };
 
   const { error } = await supabase.from("member_books").insert({
@@ -108,6 +103,7 @@ export async function addBook(input: BookInput): Promise<{ success: true } | { e
   if (error) return { error: error.message };
 
   revalidatePath("/bookshelf");
+  revalidatePath("/projects");
   revalidatePath(`/members/${effectiveIdentity.memberId}`);
   return { success: true };
 }
@@ -120,7 +116,7 @@ export async function updateBook(
   if ("error" in ctx) return ctx;
   const { supabase, effectiveIdentity } = ctx;
 
-  const validationError = validate(input);
+  const validationError = validateBookInput(input);
   if (validationError) return { error: validationError };
 
   // RLS scopes this to the acting member's own rows (or an admin's, during sudo) -- a
@@ -144,6 +140,7 @@ export async function updateBook(
   if (error || !data) return { error: error?.message ?? "Book not found" };
 
   revalidatePath("/bookshelf");
+  revalidatePath("/projects");
   revalidatePath(`/members/${effectiveIdentity.memberId}`);
   return { success: true };
 }
@@ -158,6 +155,7 @@ export async function deleteBook(bookId: string): Promise<{ success: true } | { 
   if (error || !data) return { error: error?.message ?? "Book not found" };
 
   revalidatePath("/bookshelf");
+  revalidatePath("/projects");
   revalidatePath(`/members/${effectiveIdentity.memberId}`);
   return { success: true };
 }

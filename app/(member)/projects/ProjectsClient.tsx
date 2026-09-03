@@ -5,6 +5,7 @@ import Link from "next/link";
 import NewProjectModal from "@/components/writing/NewProjectModal";
 import LogProgressModal from "@/components/writing/LogProgressModal";
 import GoalDisplay from "@/components/writing/GoalDisplay";
+import BookFormModal from "@/components/books/BookFormModal";
 import { MEASURE_LABELS } from "@/lib/writing-projects";
 import type { WritingProjectRow } from "./actions";
 
@@ -14,19 +15,21 @@ const PHASE_LABELS: Record<string, string> = {
   revising: "Revising",
   on_hold: "On hold",
   complete: "Complete",
+  published: "Published",
   abandoned: "Abandoned",
 };
 
-interface WritingProjectsClientProps {
+interface ProjectsClientProps {
   initialProjects: WritingProjectRow[];
 }
 
-export default function WritingProjectsClient({ initialProjects }: WritingProjectsClientProps) {
+export default function ProjectsClient({ initialProjects }: ProjectsClientProps) {
   const [showNewProject, setShowNewProject] = useState(false);
   const [logProgressFor, setLogProgressFor] = useState<string | null>(null);
+  const [publishing, setPublishing] = useState<WritingProjectRow | null>(null);
 
   function handleChanged() {
-    // Server actions already revalidatePath('/writing'); a full page refresh
+    // Server actions already revalidatePath('/projects'); a full page refresh
     // picks up fresh server data (same approach as HostingScheduleManager).
     window.location.reload();
   }
@@ -72,20 +75,34 @@ export default function WritingProjectsClient({ initialProjects }: WritingProjec
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">
                 <Link
-                  href={`/writing/${project.id}`}
+                  href={`/projects/${project.id}`}
                   className="text-lg font-semibold text-slate-900 dark:text-slate-100 hover:text-blue-600 dark:hover:text-blue-400"
                 >
                   {project.title}
                 </Link>
-                <p className="text-xs text-slate-400 mt-0.5">{PHASE_LABELS[project.phase] ?? project.phase}</p>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  {PHASE_LABELS[project.phase] ?? project.phase}
+                  {project.book && <span className="ml-2">📚 Published</span>}
+                </p>
               </div>
-              <button
-                type="button"
-                onClick={() => setLogProgressFor(project.id)}
-                className="flex-shrink-0 px-3 py-1.5 text-sm bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg font-medium"
-              >
-                + Log progress
-              </button>
+              <div className="flex-shrink-0 flex items-center gap-2">
+                {!project.book && (
+                  <button
+                    type="button"
+                    onClick={() => setPublishing(project)}
+                    className="px-3 py-1.5 text-sm bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg font-medium"
+                  >
+                    🚀 Publish
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setLogProgressFor(project.id)}
+                  className="px-3 py-1.5 text-sm bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg font-medium"
+                >
+                  + Log progress
+                </button>
+              </div>
             </div>
 
             {Object.keys(project.totalsByMeasure).length > 0 && (
@@ -119,6 +136,16 @@ export default function WritingProjectsClient({ initialProjects }: WritingProjec
           projects={initialProjects.map((p) => ({ id: p.id, title: p.title }))}
           defaultProjectId={logProgressFor}
           onSaved={handleChanged}
+        />
+      )}
+
+      {publishing && (
+        <BookFormModal
+          isOpen={!!publishing}
+          onClose={() => setPublishing(null)}
+          onSaved={handleChanged}
+          projectId={publishing.id}
+          projectTitle={publishing.title}
         />
       )}
     </div>

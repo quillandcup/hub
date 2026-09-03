@@ -1,6 +1,6 @@
 import GoalProgressBar from "./GoalProgressBar";
 import HabitGoalCard from "./HabitGoalCard";
-import type { GoalRow } from "@/app/(member)/writing/actions";
+import type { GoalRow } from "@/app/(member)/projects/actions";
 
 /** Renders a target goal's progress bar or a habit goal's streak card, based on `goal.kind`. */
 export default function GoalDisplay({ goal }: { goal: GoalRow }) {

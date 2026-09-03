@@ -3,6 +3,9 @@
 import { createClient } from "@/lib/supabase/server";
 import { getEffectiveIdentity } from "@/lib/sudo";
 import { revalidatePath } from "next/cache";
+import { safeUrl } from "@/lib/url";
+import { validateBookInput } from "@/lib/bookValidation";
+import { getMyBooks, type BookInput, type MyBookRow } from "@/app/(member)/bookshelf/actions";
 import {
   WRITING_MEASURES,
   computeCumulativeTotal,
@@ -19,7 +22,7 @@ import { computePrickleStreaks, seriesKeyFor } from "@/lib/streaks";
 import { getUserTimezonePreference } from "@/lib/timezone";
 import { DAY_NAMES, formatScheduleLabel, getMonthStart, getNextMonthStart } from "@/lib/prickle-schedules";
 
-const PHASES = ["planning", "drafting", "revising", "on_hold", "complete", "abandoned"] as const;
+const PHASES = ["planning", "drafting", "revising", "on_hold", "complete", "published", "abandoned"] as const;
 type Phase = (typeof PHASES)[number];
 
 const HABIT_PERIODS: HabitPeriod[] = ["day", "week", "month"];
@@ -33,6 +36,8 @@ export interface WritingProjectRow {
   showOnProfile: boolean;
   totalsByMeasure: Partial<Record<WritingMeasure, number>>;
   goals: GoalRow[];
+  /** The linked Bookshelf entry once this project has been published, else null. */
+  book: MyBookRow | null;
 }
 
 export interface EntryRow {
@@ -261,7 +266,7 @@ export async function getMyProjects(): Promise<WritingProjectRow[]> {
   if ("error" in ctx) return [];
   const { supabase, effectiveIdentity } = ctx;
 
-  const [{ data: projects }, { data: entries }, { data: goals }, attendance] = await Promise.all([
+  const [{ data: projects }, { data: entries }, { data: goals }, attendance, books] = await Promise.all([
     supabase
       .from("writing_projects")
       .select("id, title, phase, created_at, show_on_profile")
@@ -278,9 +283,10 @@ export async function getMyProjects(): Promise<WritingProjectRow[]> {
       .eq("member_id", effectiveIdentity.memberId)
       .is("archived_at", null),
     getMyPrickleAttendance(),
+    getMyBooks(),
   ]);
 
-  return buildProjectRows(projects ?? [], entries ?? [], (goals ?? []) as unknown as RawGoal[], attendance);
+  return buildProjectRows(projects ?? [], entries ?? [], (goals ?? []) as unknown as RawGoal[], attendance, books);
 }
 
 export async function getProject(
@@ -290,7 +296,7 @@ export async function getProject(
   if ("error" in ctx) return ctx;
   const { supabase, effectiveIdentity } = ctx;
 
-  const [{ data: projectRow }, { data: entryRows }, { data: goalRows }, attendance] = await Promise.all([
+  const [{ data: projectRow }, { data: entryRows }, { data: goalRows }, attendance, books] = await Promise.all([
     supabase
       .from("writing_projects")
       .select("id, title, phase, created_at, show_on_profile")
@@ -311,11 +317,12 @@ export async function getProject(
       .eq("member_id", effectiveIdentity.memberId)
       .is("archived_at", null),
     getMyPrickleAttendance(),
+    getMyBooks(),
   ]);
 
   if (!projectRow) return { error: "Project not found" };
 
-  const [project] = buildProjectRows([projectRow], entryRows ?? [], (goalRows ?? []) as unknown as RawGoal[], attendance);
+  const [project] = buildProjectRows([projectRow], entryRows ?? [], (goalRows ?? []) as unknown as RawGoal[], attendance, books);
   const entries: EntryRow[] = (entryRows ?? []).map(toEntryRow);
 
   return { project, entries };
@@ -439,7 +446,8 @@ function buildProjectRows(
   projects: RawProject[],
   entries: RawEntry[],
   goals: RawGoal[],
-  attendance: PrickleAttendanceRow[]
+  attendance: PrickleAttendanceRow[],
+  books: MyBookRow[]
 ): WritingProjectRow[] {
   const now = new Date();
 
@@ -472,6 +480,7 @@ function buildProjectRows(
       showOnProfile: project.show_on_profile,
       totalsByMeasure,
       goals: projectGoals,
+      book: books.find((b) => b.projectId === project.id) ?? null,
     };
   });
 }
@@ -511,7 +520,7 @@ export async function createProject(
 
   if (error || !data) return { error: error?.message ?? "Failed to create project" };
 
-  revalidatePath("/writing");
+  revalidatePath("/projects");
   return { success: true, id: data.id };
 }
 
@@ -531,7 +540,7 @@ export async function toggleProjectVisibility(
 
   if (error) return { error: error.message };
 
-  revalidatePath(`/writing/${projectId}`);
+  revalidatePath(`/projects/${projectId}`);
   revalidatePath(`/members/${effectiveIdentity.memberId}`);
   return { success: true };
 }
@@ -559,6 +568,58 @@ async function assertOwnsProject(
     .eq("member_id", memberId)
     .single();
   return data ? null : "Project not found";
+}
+
+/**
+ * Marks a project published in the same step as collecting its Bookshelf details -- the
+ * "Publish" action on the Projects UI. A project can never end up phase='published' without a
+ * linked member_books row: there's no other way to set this phase (see PHASES/the plan doc).
+ */
+export async function publishProject(
+  projectId: string,
+  book: BookInput
+): Promise<{ success: true } | { error: string }> {
+  const ctx = await requireIdentity();
+  if ("error" in ctx) return ctx;
+  const { supabase, effectiveIdentity } = ctx;
+
+  const ownershipError = await assertOwnsProject(supabase, effectiveIdentity.memberId, projectId);
+  if (ownershipError) return { error: ownershipError };
+
+  const validationError = validateBookInput(book);
+  if (validationError) return { error: validationError };
+
+  const { error: insertError } = await supabase.from("member_books").insert({
+    member_id: effectiveIdentity.memberId,
+    project_id: projectId,
+    title: book.title.trim(),
+    description: book.description?.trim() || null,
+    cover_url: safeUrl(book.coverUrl),
+    purchase_url: safeUrl(book.purchaseUrl),
+    published_date: book.publishedDate,
+    price: book.price ?? null,
+    genre: book.genre?.trim() || null,
+    format: book.format,
+  });
+
+  if (insertError) {
+    if (insertError.code === "23505") return { error: "This project has already been published." };
+    return { error: insertError.message };
+  }
+
+  const { error: updateError } = await supabase
+    .from("writing_projects")
+    .update({ phase: "published" })
+    .eq("id", projectId)
+    .eq("member_id", effectiveIdentity.memberId);
+
+  if (updateError) return { error: updateError.message };
+
+  revalidatePath("/projects");
+  revalidatePath(`/projects/${projectId}`);
+  revalidatePath("/bookshelf");
+  revalidatePath(`/members/${effectiveIdentity.memberId}`);
+  return { success: true };
 }
 
 function validateEntryInput(input: {
@@ -630,8 +691,8 @@ export async function logProgress(
   });
   if (activityError) console.error("logProgress: failed to insert member_activities row", activityError);
 
-  revalidatePath("/writing");
-  revalidatePath(`/writing/${input.projectId}`);
+  revalidatePath("/projects");
+  revalidatePath(`/projects/${input.projectId}`);
   revalidatePath("/dashboard");
   return { success: true, id: data.id };
 }
@@ -683,8 +744,8 @@ export async function updateEntry(
 
   if (error) return { error: error.message };
 
-  revalidatePath("/writing");
-  revalidatePath(`/writing/${existing.project_id}`);
+  revalidatePath("/projects");
+  revalidatePath(`/projects/${existing.project_id}`);
   revalidatePath("/dashboard");
   return { success: true };
 }
@@ -722,8 +783,8 @@ export async function deleteEntry(entryId: string): Promise<{ success: true } | 
     .eq("source", "writing_progress");
   if (activityDeleteError) console.error("deleteEntry: failed to delete member_activities row", activityDeleteError);
 
-  revalidatePath("/writing");
-  revalidatePath(`/writing/${existing.project_id}`);
+  revalidatePath("/projects");
+  revalidatePath(`/projects/${existing.project_id}`);
   revalidatePath("/dashboard");
   return { success: true };
 }
@@ -862,8 +923,8 @@ export async function createGoal(
 
   if (error || !data) return { error: error?.message ?? "Failed to create goal" };
 
-  revalidatePath("/writing");
-  revalidatePath(`/writing/${input.projectId}`);
+  revalidatePath("/projects");
+  revalidatePath(`/projects/${input.projectId}`);
   revalidatePath("/dashboard");
   return { success: true, id: data.id };
 }
@@ -970,8 +1031,8 @@ export async function updateGoal(
       .single();
     if (insertError || !inserted) return { error: insertError?.message ?? "Failed to create new goal" };
 
-    revalidatePath("/writing");
-    revalidatePath(`/writing/${existing.project_id}`);
+    revalidatePath("/projects");
+    revalidatePath(`/projects/${existing.project_id}`);
     revalidatePath("/dashboard");
     return { success: true, newGoalId: inserted.id };
   }
@@ -984,8 +1045,8 @@ export async function updateGoal(
 
   if (error) return { error: error.message };
 
-  revalidatePath("/writing");
-  revalidatePath(`/writing/${existing.project_id}`);
+  revalidatePath("/projects");
+  revalidatePath(`/projects/${existing.project_id}`);
   revalidatePath("/dashboard");
   return { success: true };
 }
@@ -1013,8 +1074,8 @@ export async function deleteGoal(goalId: string): Promise<{ success: true } | { 
 
   if (error) return { error: error.message };
 
-  revalidatePath("/writing");
-  revalidatePath(`/writing/${existing.project_id}`);
+  revalidatePath("/projects");
+  revalidatePath(`/projects/${existing.project_id}`);
   revalidatePath("/dashboard");
   return { success: true };
 }
@@ -1049,8 +1110,8 @@ export async function archiveGoal(goalId: string): Promise<{ success: true } | {
 
   if (error) return { error: error.message };
 
-  revalidatePath("/writing");
-  revalidatePath(`/writing/${existing.project_id}`);
+  revalidatePath("/projects");
+  revalidatePath(`/projects/${existing.project_id}`);
   revalidatePath("/dashboard");
   return { success: true };
 }
@@ -1096,7 +1157,7 @@ export async function toggleGoalStar(
 
   if (error) return { error: error.message };
 
-  revalidatePath("/writing");
+  revalidatePath("/projects");
   revalidatePath("/dashboard");
   return { success: true };
 }

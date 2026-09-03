@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
-import { getMyBooks } from "./actions";
 import BookshelfClient, { type ShelfBook } from "./BookshelfClient";
 
 export const metadata: Metadata = {
@@ -10,15 +9,12 @@ export const metadata: Metadata = {
 export default async function BookshelfPage() {
   const supabase = await createClient();
 
-  const [{ data: books }, myBooks] = await Promise.all([
-    supabase
-      .from("member_books")
-      .select(
-        "id, member_id, title, description, cover_url, purchase_url, published_date, price, genre, format, members(name)"
-      )
-      .order("published_date", { ascending: false }),
-    getMyBooks(),
-  ]);
+  const { data: books } = await supabase
+    .from("member_books")
+    .select(
+      "id, member_id, title, description, cover_url, purchase_url, published_date, price, genre, format, members(name)"
+    )
+    .order("published_date", { ascending: false });
 
   const shelf: ShelfBook[] = (books ?? []).map((row: any) => ({
     id: row.id,
@@ -34,5 +30,5 @@ export default async function BookshelfPage() {
     format: row.format,
   }));
 
-  return <BookshelfClient shelf={shelf} initialMyBooks={myBooks} />;
+  return <BookshelfClient shelf={shelf} />;
 }

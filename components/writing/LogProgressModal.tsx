@@ -8,7 +8,7 @@ import { WRITING_MEASURES, MEASURE_LABELS, type WritingMeasure, type EntryMode }
 // lib/writing-projects.ts) -- writing_progress_entries.measure's CHECK constraint doesn't allow
 // it, so it must never appear as a manually-loggable option here.
 const LOGGABLE_MEASURES = WRITING_MEASURES.filter((m) => m !== "prickles");
-import { logProgress, updateEntry, type EntryRow } from "@/app/(member)/writing/actions";
+import { logProgress, updateEntry, type EntryRow } from "@/app/(member)/projects/actions";
 
 interface LogProgressModalProps {
   isOpen: boolean;

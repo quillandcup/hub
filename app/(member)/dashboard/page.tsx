@@ -5,7 +5,7 @@ import Link from "next/link"
 import { getEffectiveIdentity } from "@/lib/sudo"
 import { getUserTimezonePreference } from "@/lib/timezone"
 import { hostShortName } from "@/lib/formatters"
-import { getStarredGoals } from "../writing/actions"
+import { getStarredGoals } from "../projects/actions"
 import GoalDisplay from "@/components/writing/GoalDisplay"
 import ReasonBadges from "@/components/ReasonBadges"
 import {
@@ -440,7 +440,7 @@ export default async function DashboardPage() {
             {starredGoals.map((goal) => (
               <div key={goal.id}>
                 <Link
-                  href={`/writing/${goal.projectId}`}
+                  href={`/projects/${goal.projectId}`}
                   className="text-sm font-medium text-slate-900 dark:text-slate-100 hover:text-blue-600 dark:hover:text-blue-400"
                 >
                   {goal.projectTitle}

@@ -28,7 +28,7 @@ function NavLinks({ memberId, isAdmin, enabledFeatures, pathname, collapsed, onN
   const isNetworkActive = pathname === '/network';
   const isWheelActive = pathname === '/wheel-of-wonder';
   const isHostingActive = pathname === '/hosting';
-  const isWritingActive = pathname === '/writing' || pathname.startsWith('/writing/');
+  const isProjectsActive = pathname === '/projects' || pathname.startsWith('/projects/');
   const isBookshelfActive = pathname === '/bookshelf';
   const isProfileActive = pathname === `/members/${memberId}` || pathname.startsWith(`/members/${memberId}/`);
 
@@ -144,13 +144,13 @@ function NavLinks({ memberId, isAdmin, enabledFeatures, pathname, collapsed, onN
             </Link>
 
             <Link
-              href="/writing"
+              href="/projects"
               onClick={onNavigate}
-              className={linkClass(isWritingActive)}
-              title={collapsed ? "Writing Projects" : undefined}
+              className={linkClass(isProjectsActive)}
+              title={collapsed ? "Projects" : undefined}
             >
               <span className="text-lg">📝</span>
-              {!collapsed && <span>Writing Projects</span>}
+              {!collapsed && <span>Projects</span>}
             </Link>
 
             <Link
