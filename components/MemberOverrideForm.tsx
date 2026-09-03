@@ -4,7 +4,7 @@ import { useState } from "react";
 
 export interface MemberOverrideFields {
   id: string;
-  override_type: "hiatus" | "gift" | "special";
+  override_type: "gift" | "special" | "180_program";
   reason: string;
   notes: string | null;
   expires_at: string | null;
@@ -18,8 +18,11 @@ interface MemberOverrideFormProps {
   onCancel: () => void;
 }
 
-// Shared create/edit form for member_status_overrides (hiatus/gift/special),
-// used both by /admin/member-overrides (after its own email lookup resolves
+// Shared create/edit form for member_status_overrides (gift/special/180_program).
+// Hiatus has its own dedicated table and UI (MemberHiatusPanel, on the
+// member detail page) — it's common enough to deserve first-class tracking
+// rather than living in this generic exceptions bucket.
+// Used both by /admin/member-overrides (after its own email lookup resolves
 // a memberId) and /admin/reconciliation (which already knows the member).
 // POSTs/PATCHes the same /api/member-overrides endpoints either way.
 export default function MemberOverrideForm({
@@ -30,7 +33,7 @@ export default function MemberOverrideForm({
   onCancel,
 }: MemberOverrideFormProps) {
   const [formData, setFormData] = useState({
-    override_type: existing?.override_type ?? ("gift" as "hiatus" | "gift" | "special"),
+    override_type: existing?.override_type ?? ("gift" as "gift" | "special" | "180_program"),
     reason: existing?.reason ?? "",
     notes: existing?.notes ?? "",
     expires_at: existing?.expires_at ? existing.expires_at.split("T")[0] : "",
@@ -94,13 +97,13 @@ export default function MemberOverrideForm({
         <select
           value={formData.override_type}
           onChange={(e) =>
-            setFormData({ ...formData, override_type: e.target.value as "hiatus" | "gift" | "special" })
+            setFormData({ ...formData, override_type: e.target.value as "gift" | "special" | "180_program" })
           }
           className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 dark:bg-slate-800 dark:text-gray-100 rounded"
           required
         >
-          <option value="gift">Gift (180 program, hosting, compensation)</option>
-          <option value="hiatus">Hiatus</option>
+          <option value="gift">Gift (hosting, compensation)</option>
+          <option value="180_program">180 Program</option>
           <option value="special">Special Case</option>
         </select>
       </div>

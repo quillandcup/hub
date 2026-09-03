@@ -1,8 +1,7 @@
 // Hiatus outreach touchpoint tracking — replicates the "Hiatus 25% / 50% /
-// 75%" columns from the spreadsheet this replaces. member_status_overrides
-// already has everything needed: starts_at is the hiatus start, and
-// expires_at (the existing "Expires At (optional)" field on the override
-// form) is the planned/expected end. An indefinite hiatus (expires_at null)
+// 75%" columns from the spreadsheet this replaces. member_hiatus_history
+// already has everything needed: start_date is the hiatus start, and
+// end_date is the planned/expected end. An indefinite hiatus (end_date null)
 // has no known duration, so no percentage/touchpoint is computable for it.
 
 export interface HiatusTouchpoint {

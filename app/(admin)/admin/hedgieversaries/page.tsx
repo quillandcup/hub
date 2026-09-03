@@ -55,25 +55,23 @@ export default async function HedgieversariesPage() {
   // Only current members (active or on_hiatus) with a real first join date —
   // cancelled former members and leads don't get a Hedgieversary to
   // celebrate here.
-  const [members, hiatusOverrides] = await Promise.all([
+  const [members, hiatusHistory] = await Promise.all([
     fetchAllRows(
       supabase,
       "members",
       "id, name, email, status, first_joined_at, most_recent_joined_at, total_active_months",
       (q) => q.in("status", ["active", "on_hiatus"]).not("first_joined_at", "is", null)
     ),
-    fetchAllRows(supabase, "member_status_overrides", "member_id, starts_at, expires_at", (q) =>
-      q.eq("override_type", "hiatus")
-    ),
+    fetchAllRows(supabase, "member_hiatus_history", "member_id, start_date, end_date"),
   ]);
 
   const now = new Date();
 
   const hiatusWindowsByMember = new Map<string, HiatusWindow[]>();
-  for (const override of hiatusOverrides) {
-    const windows = hiatusWindowsByMember.get(override.member_id) ?? [];
-    windows.push({ startsAt: override.starts_at, endsAt: override.expires_at });
-    hiatusWindowsByMember.set(override.member_id, windows);
+  for (const hiatus of hiatusHistory) {
+    const windows = hiatusWindowsByMember.get(hiatus.member_id) ?? [];
+    windows.push({ startsAt: hiatus.start_date, endsAt: hiatus.end_date });
+    hiatusWindowsByMember.set(hiatus.member_id, windows);
   }
 
   const rows: HedgieversaryRow[] = members.map((m) => {

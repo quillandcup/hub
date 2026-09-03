@@ -139,7 +139,7 @@ describe('Member Overrides API', () => {
   it('DELETE removes the override', async () => {
     const { data: created } = await supabase
       .from('member_status_overrides')
-      .insert({ member_id: memberId, override_type: 'hiatus', reason: 'to be deleted' })
+      .insert({ member_id: memberId, override_type: 'special', reason: 'to be deleted' })
       .select('id')
       .single()
 
