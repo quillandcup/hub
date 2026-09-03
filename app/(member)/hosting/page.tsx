@@ -3,8 +3,9 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { getEffectiveIdentity } from "@/lib/sudo";
 import { getMonthStart, getNextMonthStart, isMonthLocked } from "@/lib/prickle-schedules";
-import { getMySchedules } from "./actions";
+import { getMySchedules, getMyHostingStats } from "./actions";
 import HostingScheduleManager from "./HostingScheduleManager";
+import HostingStats from "./HostingStats";
 
 export const metadata: Metadata = {
   title: "Hosting",
@@ -25,10 +26,11 @@ export default async function HostingPage() {
   const currentMonth = getMonthStart(now).toISOString().slice(0, 10);
   const nextMonth = getNextMonthStart(now).toISOString().slice(0, 10);
 
-  const [{ data: prickleTypes }, schedules, { data: lockRows }] = await Promise.all([
+  const [{ data: prickleTypes }, schedules, { data: lockRows }, hostingStats] = await Promise.all([
     supabase.from("prickle_types").select("id, name").eq("requires_host", true).order("name"),
     getMySchedules(),
     supabase.from("prickle_schedule_locks").select("month, locked").in("month", [currentMonth, nextMonth]),
+    getMyHostingStats(),
   ]);
 
   const overrides = (lockRows ?? []).map((r) => ({ month: r.month as string, locked: r.locked as boolean }));
@@ -47,6 +49,7 @@ export default async function HostingPage() {
       </header>
 
       <main className="container mx-auto px-6 py-8">
+        <HostingStats stats={hostingStats} />
         <HostingScheduleManager
           initialSchedules={schedules}
           prickleTypes={prickleTypes ?? []}

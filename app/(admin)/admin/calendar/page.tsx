@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import CalendarWeekView from "@/components/CalendarWeekView";
 import { getUserTimezonePreference } from "@/lib/timezone";
+import { computeHostPunctuality } from "@/lib/hosting-stats";
 
 export const metadata: Metadata = {
   title: "Prickle Calendar",
@@ -87,26 +88,25 @@ export default async function CalendarPage({
     // Handle host as array or object (Supabase foreign key can return either)
     const host = Array.isArray(prickle.host) ? prickle.host[0] : prickle.host;
     const hostId = host?.id;
-    let hostAttendance = null;
     let hostMissing = false;
     let hostLate = false;
 
     if (hostId) {
-      // Find host's attendance record
-      hostAttendance = prickle.prickle_attendance?.find((a: any) => a.member_id === hostId);
-
-      if (!hostAttendance) {
-        hostMissing = true;
-      } else {
-        // Check if host was late (>5 minutes)
-        const prickleStart = new Date(prickle.start_time);
-        const hostJoin = new Date(hostAttendance.join_time);
-        const lateThresholdMs = 5 * 60 * 1000; // 5 minutes
-
-        if (hostJoin.getTime() - prickleStart.getTime() > lateThresholdMs) {
-          hostLate = true;
-        }
-      }
+      // A host can leave/rejoin (multiple attendance rows per prickle), so punctuality is judged
+      // by their earliest join_time, not just whichever record comes back first.
+      const hostAttendanceRecords = (prickle.prickle_attendance ?? []).filter(
+        (a: any) => a.member_id === hostId
+      );
+      const earliestJoinTime =
+        hostAttendanceRecords.length > 0
+          ? hostAttendanceRecords.reduce(
+              (min: string, a: any) => (a.join_time < min ? a.join_time : min),
+              hostAttendanceRecords[0].join_time
+            )
+          : null;
+      const punctuality = computeHostPunctuality(prickle.start_time, earliestJoinTime);
+      hostMissing = punctuality === "missing";
+      hostLate = punctuality === "late";
     }
 
     return {
