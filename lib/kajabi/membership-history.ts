@@ -32,6 +32,7 @@ type RawPurchase = {
 export type StripeTrialInfo = {
   createdAtStripe: string;
   trialEnd: string | null;
+  canceledAt: string | null;
 };
 
 type OfferInfo = {
@@ -91,8 +92,22 @@ export function isRealMembershipStint(
   const matched = rawDate ? findMatchingStripeInfo(rawDate, canonicalEmail, stripeInfoByEmail) : null;
   const trialEnd = matched?.trialEnd ? new Date(matched.trialEnd) : trialEndDate(purchase, offer);
   if (!trialEnd) return true; // no trial at all — billed from day one
-  if (!purchase.deactivated_at) return true; // still active — already past/within a converting trial
-  return new Date(purchase.deactivated_at) > trialEnd; // survived past the trial window = was actually billed
+
+  // Prefer Stripe's own canceled_at over Kajabi's deactivated_at as the
+  // cancellation signal: confirmed against production data that Kajabi
+  // keeps a mid-trial cancellation "active" until the trial's natural end
+  // and only sets deactivated_at then (typically seconds to minutes after
+  // trialEnd), regardless of when the customer actually canceled — so
+  // deactivated_at alone makes almost any mid-trial cancellation look like
+  // it "survived past the trial." Stripe's canceled_at reflects the real
+  // cancellation moment.
+  const cancelSignal = matched?.canceledAt
+    ? new Date(matched.canceledAt)
+    : purchase.deactivated_at
+      ? new Date(purchase.deactivated_at)
+      : null;
+  if (!cancelSignal) return true; // still active — already past/within a converting trial
+  return cancelSignal > trialEnd; // survived past the trial window = was actually billed
 }
 
 // Kajabi's created_at_kajabi is when the subscription/trial was *created* —
@@ -180,7 +195,7 @@ export async function fetchStripeTrialInfoByEmail(
   const stripeSubscriptions = await fetchAllBronzeRows(
     supabase,
     "stripe_subscriptions",
-    "stripe_customer_id, created_at_stripe, data",
+    "stripe_customer_id, created_at_stripe, canceled_at, data",
     (q) => q.in("stripe_customer_id", stripeCustomerIds)
   );
 
@@ -192,6 +207,7 @@ export async function fetchStripeTrialInfoByEmail(
     list.push({
       createdAtStripe: s.created_at_stripe,
       trialEnd: trialStart && trialEnd ? new Date(trialEnd * 1000).toISOString() : null,
+      canceledAt: s.canceled_at ?? null,
     });
     subscriptionsByStripeCustomerId.set(s.stripe_customer_id, list);
   }
