@@ -33,6 +33,16 @@ Some people who attend prickles have no Kajabi footprint at all (not a member, t
 
 **Why deferred:** Different problem from member status/matching — the whole pipeline assumes attendees resolve to a `members` row derived from Kajabi. Guests break that assumption and need their own identity/record model rather than a fix to existing matching logic.
 
+### 180 Program Cohort Tracking + Revenue Leakage Report (Deferred)
+The 180 Program is a one-time cohort purchase that includes 6 months of membership access. Everyone in a cohort gets the same access-end date regardless of when during "launch week" they individually signed up. `isRealMembershipStint` requires a recurring subscription, so a 180-Program-only purchase is never recognized as membership on its own — as a stopgap, affected members get a `member_status_overrides` row with the new `180_program` type (`starts_at`/`expires_at` = their cohort's window, hand-entered from the Hedgieversary Registry) so their status/join date stick across reprocessing.
+
+**Still open — the actual operational problem:** staff often forget to prompt 180 Program members to sign up for real paid membership once their included 6 months end, so they keep participating in Slack/Prickles for free indefinitely. This is real revenue leakage. Fixing it properly needs:
+- A table tracking each 180 Program cohort's official start/end dates (not per-purchase — the whole cohort shares one end date)
+- Logic to compute each purchaser's actual included-membership window from their cohort, not just a hand-entered override per person
+- A report/alert flagging 180 Program members whose window has lapsed without converting to paid membership, so staff can follow up
+
+**Why deferred:** the manual per-member override closes the immediate visible gap (join date and Hedgieversary tracking), but the cohort-window computation and leakage report are a real feature needing design (where do cohort dates live? how do purchases map to a cohort?), not a quick fix.
+
 ---
 
 ## Data Import
@@ -308,6 +318,11 @@ Show a `/live` page displaying the currently active prickle and its attendees in
 Every date field in the app (`<input type="date">` — e.g. Writing Projects' Log Progress date, goal start/end dates) uses the browser's native date picker. Feedback: the native picker's up/down arrows for month navigation aren't intuitive — unclear which direction is "forward" in time. Left/right arrows (with the month view sliding left/right on change, not up/down as it does now) would read more clearly.
 
 **Why not a quick fix:** the native picker is rendered entirely by the browser itself, outside the page's DOM — there's no CSS/JS hook to restyle its arrows, direction, or transitions. Fixing this means replacing `<input type="date">` with a custom-built calendar component (a library like `react-datepicker`, or hand-rolled) everywhere a date is picked, which gives up the native input's free accessibility, mobile keyboard integration, and OS-consistent look. Scope as a real component-replacement project, not a style tweak, before starting.
+
+### Drag-and-Drop Table Column Reordering (Not Persisted)
+Every admin table (Hedgieversaries, Members, etc.) has a fixed column order set in code — on mobile, whichever columns come first are the only ones visible without scrolling, so getting the "right" default order matters but can't cover every viewer's priorities. Letting users drag-and-drop reorder columns in the standard table widget (session-only, not persisted per-user) would let each viewer put what they care about first without a code change per table.
+
+**Scope:** this is a shared table component enhancement (wherever `SortableTh`/the standard table widget lives), not a one-off per page — worth building once and getting for free everywhere.
 
 ### Navigation & Layout
 - **User settings - additional preferences**
