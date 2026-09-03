@@ -403,6 +403,11 @@ export async function getMyHostingStats(): Promise<HostingStats> {
 
   const memberId = effectiveIdentity.memberId;
 
+  // Only prickles that have actually started count as "hosted" -- future scheduled prickles
+  // (already synced from the calendar) haven't happened yet, so they shouldn't count toward
+  // totals, no-show counts, or "most recent hosted".
+  const nowIso = new Date().toISOString();
+
   type HostedPrickleRow = { id: string; start_time: string; prickle_types: { name: string } | null };
   let hostedPrickles: HostedPrickleRow[] = [];
   {
@@ -413,6 +418,7 @@ export async function getMyHostingStats(): Promise<HostingStats> {
         .from("prickles")
         .select("id, start_time, prickle_types:type_id(name)")
         .eq("host", memberId)
+        .lte("start_time", nowIso)
         .range(offset, offset + BATCH_SIZE - 1);
       if (batch && batch.length > 0) {
         hostedPrickles = hostedPrickles.concat(batch as unknown as HostedPrickleRow[]);

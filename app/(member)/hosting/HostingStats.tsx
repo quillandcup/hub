@@ -54,7 +54,7 @@ export default function HostingStats({ stats }: { stats: HostingStatsData }) {
     stats;
 
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 p-6 mb-6">
+    <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 p-4 sm:p-6 mb-6">
       <h2 className="text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-4">
         Your Hosting Stats
       </h2>
@@ -65,7 +65,7 @@ export default function HostingStats({ stats }: { stats: HostingStatsData }) {
         </p>
       ) : (
         <>
-          <div className="flex items-center gap-8 flex-wrap">
+          <div className="flex items-center gap-6 sm:gap-8 flex-wrap">
             <StatTile value={String(totalHosted)} label={totalHosted === 1 ? "prickle hosted" : "prickles hosted"} />
             <StatTile
               value={onTimeRate === null ? "—" : `${Math.round(onTimeRate * 100)}%`}
@@ -76,40 +76,49 @@ export default function HostingStats({ stats }: { stats: HostingStatsData }) {
             )}
           </div>
 
-          <div className="flex items-center gap-4 mt-5 pt-5 border-t border-slate-100 dark:border-slate-800 text-sm">
-            <span className="text-slate-600 dark:text-slate-300">
-              <span className="font-semibold">{onTimeCount}</span> on time
-            </span>
-            <span className="text-slate-300 dark:text-slate-700">·</span>
-            <span className="text-slate-600 dark:text-slate-300">
-              <span className="font-semibold">{lateCount}</span> {lateCount === 1 ? "was" : "were"} late (&gt;5 min)
-            </span>
-            <span className="text-slate-300 dark:text-slate-700">·</span>
-            <span className="text-slate-600 dark:text-slate-300">
-              <span className="font-semibold">{missingCount}</span> no-show
-            </span>
-          </div>
+          {/* Collapsed by default -- the breakdown/trend/type sections below eat a lot of
+              vertical space on mobile and push the operational schedule manager below the
+              fold, so they're opt-in via disclosure rather than always rendered open. */}
+          <details className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800">
+            <summary className="text-xs text-slate-400 cursor-pointer select-none hover:text-slate-600 dark:hover:text-slate-300 w-fit">
+              More stats
+            </summary>
 
-          <div className="mt-5 pt-5 border-t border-slate-100 dark:border-slate-800">
-            <p className="text-xs text-slate-400 dark:text-slate-500 mb-2">Hosted per month, last 12 months</p>
-            <Sparkline values={monthlyTrend} />
-          </div>
-
-          {byType.length > 1 && (
-            <div className="mt-5 pt-5 border-t border-slate-100 dark:border-slate-800">
-              <p className="text-xs text-slate-400 dark:text-slate-500 mb-2">By prickle type</p>
-              <div className="flex flex-wrap gap-1.5">
-                {byType.map((t) => (
-                  <span
-                    key={t.typeName}
-                    className="text-xs bg-slate-100 dark:bg-slate-800 rounded px-2 py-0.5 text-slate-600 dark:text-slate-300"
-                  >
-                    {t.typeName} · {t.count}
-                  </span>
-                ))}
-              </div>
+            <div className="flex items-center gap-4 mt-4 text-sm flex-wrap">
+              <span className="text-slate-600 dark:text-slate-300">
+                <span className="font-semibold">{onTimeCount}</span> on time
+              </span>
+              <span className="text-slate-300 dark:text-slate-700">·</span>
+              <span className="text-slate-600 dark:text-slate-300">
+                <span className="font-semibold">{lateCount}</span> {lateCount === 1 ? "was" : "were"} late (&gt;5 min)
+              </span>
+              <span className="text-slate-300 dark:text-slate-700">·</span>
+              <span className="text-slate-600 dark:text-slate-300">
+                <span className="font-semibold">{missingCount}</span> no-show
+              </span>
             </div>
-          )}
+
+            <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800">
+              <p className="text-xs text-slate-400 dark:text-slate-500 mb-2">Hosted per month, last 12 months</p>
+              <Sparkline values={monthlyTrend} />
+            </div>
+
+            {byType.length > 1 && (
+              <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800">
+                <p className="text-xs text-slate-400 dark:text-slate-500 mb-2">By prickle type</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {byType.map((t) => (
+                    <span
+                      key={t.typeName}
+                      className="text-xs bg-slate-100 dark:bg-slate-800 rounded px-2 py-0.5 text-slate-600 dark:text-slate-300"
+                    >
+                      {t.typeName} · {t.count}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </details>
         </>
       )}
     </div>
