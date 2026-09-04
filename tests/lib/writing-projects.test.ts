@@ -1,15 +1,43 @@
 import { describe, it, expect } from "vitest";
 import {
+  applyStartingBalance,
   computeCumulativeTotal,
   computeCumulativeSeries,
   computeGoalProgress,
   computeHabitGoalProgress,
   derivePrickleHabitEntries,
   MEASURE_QUICK_LOG_PRESETS,
+  PROJECT_PHASES,
+  PHASE_LABELS,
   WRITING_MEASURES,
   type ProgressEntryInput,
   type PrickleAttendanceRow,
 } from "@/lib/writing-projects";
+
+describe("PROJECT_PHASES", () => {
+  it("includes 'outlining' between 'planning' and 'drafting', and keeps 'complete' unrenamed", () => {
+    expect(PROJECT_PHASES.indexOf("outlining")).toBeGreaterThan(PROJECT_PHASES.indexOf("planning"));
+    expect(PROJECT_PHASES.indexOf("outlining")).toBeLessThan(PROJECT_PHASES.indexOf("drafting"));
+    expect(PROJECT_PHASES).toContain("complete");
+    expect(PROJECT_PHASES).not.toContain("finished");
+  });
+
+  it("has a label for every phase", () => {
+    for (const phase of PROJECT_PHASES) {
+      expect(PHASE_LABELS[phase]).toBeTruthy();
+    }
+  });
+});
+
+describe("applyStartingBalance", () => {
+  it("adds the starting balance to the total", () => {
+    expect(applyStartingBalance(100, 50)).toBe(150);
+  });
+
+  it("treats an undefined starting balance as 0", () => {
+    expect(applyStartingBalance(100, undefined)).toBe(100);
+  });
+});
 
 describe("MEASURE_QUICK_LOG_PRESETS", () => {
   it("has a non-empty preset list for every loggable measure except 'prickles'", () => {

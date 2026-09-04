@@ -26,6 +26,11 @@ interface BookFormModalProps {
    * through publishProject instead of addBook. Absent for a plain standalone add/edit. */
   projectId?: string;
   projectTitle?: string;
+  /** Prefills description/cover from the project's own (pre-publish) values when publishing, so a
+   * member who already filled these in via "Edit details" doesn't have to redo them. Ignored when
+   * `book` is present (editing an existing Bookshelf entry always starts from the book's values). */
+  initialDescription?: string;
+  initialCoverUrl?: string;
 }
 
 /** Reads the pixel dimensions of an image file in the browser, without uploading it. */
@@ -52,10 +57,12 @@ export default function BookFormModal({
   book,
   projectId,
   projectTitle,
+  initialDescription,
+  initialCoverUrl,
 }: BookFormModalProps) {
   const [title, setTitle] = useState(book?.title ?? projectTitle ?? "");
-  const [description, setDescription] = useState(book?.description ?? "");
-  const [coverUrl, setCoverUrl] = useState(book?.coverUrl ?? "");
+  const [description, setDescription] = useState(book?.description ?? initialDescription ?? "");
+  const [coverUrl, setCoverUrl] = useState(book?.coverUrl ?? initialCoverUrl ?? "");
   const [coverError, setCoverError] = useState<string | null>(null);
   const [isUploadingCover, setIsUploadingCover] = useState(false);
   const [purchaseUrl, setPurchaseUrl] = useState(book?.purchaseUrl ?? "");

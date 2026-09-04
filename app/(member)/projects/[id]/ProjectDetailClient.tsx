@@ -7,6 +7,7 @@ import GoalDisplay from "@/components/writing/GoalDisplay";
 import ProjectCharts from "@/components/writing/ProjectCharts";
 import ReasonBadges from "@/components/ReasonBadges";
 import BookFormModal from "@/components/books/BookFormModal";
+import ProjectDetailsModal from "@/components/writing/ProjectDetailsModal";
 import { deleteBook } from "@/app/(member)/bookshelf/actions";
 import {
   WRITING_MEASURES,
@@ -49,6 +50,7 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
   const [phasePending, setPhasePending] = useState(false);
   const [showPublish, setShowPublish] = useState(false);
   const [showEditBook, setShowEditBook] = useState(false);
+  const [showEditDetails, setShowEditDetails] = useState(false);
   const [removingBook, setRemovingBook] = useState(false);
 
   function handleChanged() {
@@ -153,6 +155,13 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
               </select>
             </label>
           )}
+          <button
+            type="button"
+            onClick={() => setShowEditDetails(true)}
+            className="text-blue-600 hover:text-blue-700 dark:text-blue-400"
+          >
+            ✏️ Edit details
+          </button>
         </div>
         <a
           href={`/api/projects/export?projectId=${project.id}`}
@@ -212,11 +221,28 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
           </div>
         </div>
       ) : (
-        <div className="flex justify-end">
+        <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 p-5 flex items-center gap-4">
+          {project.coverUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element -- fixed-size Supabase Storage upload, not optimizable by next/image
+            <img
+              src={project.coverUrl}
+              alt={`Cover of ${project.title}`}
+              className="w-16 h-24 object-cover rounded flex-shrink-0 bg-slate-100 dark:bg-slate-800"
+            />
+          ) : (
+            <div className="w-16 h-24 rounded flex-shrink-0 bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-2xl">
+              📖
+            </div>
+          )}
+          <p className="flex-1 text-sm text-slate-500 dark:text-slate-400">
+            {project.coverUrl
+              ? "Not published yet."
+              : "No cover yet — add one from Edit details, or wait until you publish."}
+          </p>
           <button
             type="button"
             onClick={() => setShowPublish(true)}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium"
+            className="flex-shrink-0 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium"
           >
             🚀 Publish
           </button>
@@ -407,6 +433,8 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
           onSaved={handleChanged}
           projectId={project.id}
           projectTitle={project.title}
+          initialDescription={project.description ?? undefined}
+          initialCoverUrl={project.coverUrl ?? undefined}
         />
       )}
 
@@ -416,6 +444,15 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
           onClose={() => setShowEditBook(false)}
           onSaved={handleChanged}
           book={project.book}
+        />
+      )}
+
+      {showEditDetails && (
+        <ProjectDetailsModal
+          isOpen={showEditDetails}
+          onClose={() => setShowEditDetails(false)}
+          onSaved={handleChanged}
+          project={project}
         />
       )}
     </div>

@@ -10,6 +10,7 @@ import {
   WRITING_MEASURES,
   PROJECT_PHASES,
   MANUALLY_SETTABLE_PHASES,
+  applyStartingBalance,
   computeCumulativeTotal,
   computeCumulativeSeries,
   computeGoalProgress,
@@ -28,6 +29,14 @@ import { DAY_NAMES, formatScheduleLabel, getMonthStart, getNextMonthStart } from
 const PHASES = PROJECT_PHASES;
 type Phase = ProjectPhase;
 
+/** Measures a starting balance can be recorded against -- excludes 'prickles', which is always
+ * computed live from attendance and never manually logged or carried over (see
+ * writing_project_starting_balances' CHECK constraint). */
+const STARTING_BALANCE_MEASURES = WRITING_MEASURES.filter((m) => m !== "prickles") as Exclude<
+  WritingMeasure,
+  "prickles"
+>[];
+
 const HABIT_PERIODS: HabitPeriod[] = ["day", "week", "month"];
 const ORG_TIMEZONE = "America/New_York"; // mirrors the same fallback convention used in app/(member)/dashboard/page.tsx
 
@@ -37,6 +46,10 @@ export interface WritingProjectRow {
   phase: Phase;
   createdAt: string;
   showOnProfile: boolean;
+  coverUrl: string | null;
+  description: string | null;
+  /** How much the member already had before tracking here, by measure -- offsets totalsByMeasure and the chart, not goal progress. */
+  startingBalances: Partial<Record<WritingMeasure, number>>;
   totalsByMeasure: Partial<Record<WritingMeasure, number>>;
   goals: GoalRow[];
   /** The linked Bookshelf entry once this project has been published, else null. */
@@ -269,27 +282,39 @@ export async function getMyProjects(): Promise<WritingProjectRow[]> {
   if ("error" in ctx) return [];
   const { supabase, effectiveIdentity } = ctx;
 
-  const [{ data: projects }, { data: entries }, { data: goals }, attendance, books] = await Promise.all([
-    supabase
-      .from("writing_projects")
-      .select("id, title, phase, created_at, show_on_profile")
-      .eq("member_id", effectiveIdentity.memberId)
-      .is("archived_at", null)
-      .order("created_at", { ascending: false }),
-    supabase
-      .from("writing_progress_entries")
-      .select("id, project_id, entry_date, measure, mode, amount, note, tags, created_at")
-      .eq("member_id", effectiveIdentity.memberId),
-    supabase
-      .from("writing_goals")
-      .select(GOAL_SELECT_COLUMNS)
-      .eq("member_id", effectiveIdentity.memberId)
-      .is("archived_at", null),
-    getMyPrickleAttendance(),
-    getMyBooks(),
-  ]);
+  const [{ data: projects }, { data: entries }, { data: goals }, { data: startingBalances }, attendance, books] =
+    await Promise.all([
+      supabase
+        .from("writing_projects")
+        .select("id, title, phase, created_at, show_on_profile, cover_url, description")
+        .eq("member_id", effectiveIdentity.memberId)
+        .is("archived_at", null)
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("writing_progress_entries")
+        .select("id, project_id, entry_date, measure, mode, amount, note, tags, created_at")
+        .eq("member_id", effectiveIdentity.memberId),
+      supabase
+        .from("writing_goals")
+        .select(GOAL_SELECT_COLUMNS)
+        .eq("member_id", effectiveIdentity.memberId)
+        .is("archived_at", null),
+      supabase
+        .from("writing_project_starting_balances")
+        .select("project_id, measure, amount")
+        .eq("member_id", effectiveIdentity.memberId),
+      getMyPrickleAttendance(),
+      getMyBooks(),
+    ]);
 
-  return buildProjectRows(projects ?? [], entries ?? [], (goals ?? []) as unknown as RawGoal[], attendance, books);
+  return buildProjectRows(
+    projects ?? [],
+    entries ?? [],
+    (goals ?? []) as unknown as RawGoal[],
+    startingBalances ?? [],
+    attendance,
+    books
+  );
 }
 
 export async function getProject(
@@ -299,33 +324,46 @@ export async function getProject(
   if ("error" in ctx) return ctx;
   const { supabase, effectiveIdentity } = ctx;
 
-  const [{ data: projectRow }, { data: entryRows }, { data: goalRows }, attendance, books] = await Promise.all([
-    supabase
-      .from("writing_projects")
-      .select("id, title, phase, created_at, show_on_profile")
-      .eq("id", projectId)
-      .eq("member_id", effectiveIdentity.memberId)
-      .single(),
-    supabase
-      .from("writing_progress_entries")
-      .select("id, project_id, entry_date, measure, mode, amount, note, tags, created_at, prickle_id")
-      .eq("project_id", projectId)
-      .eq("member_id", effectiveIdentity.memberId)
-      .order("entry_date", { ascending: false })
-      .order("created_at", { ascending: false }),
-    supabase
-      .from("writing_goals")
-      .select(GOAL_SELECT_COLUMNS)
-      .eq("project_id", projectId)
-      .eq("member_id", effectiveIdentity.memberId)
-      .is("archived_at", null),
-    getMyPrickleAttendance(),
-    getMyBooks(),
-  ]);
+  const [{ data: projectRow }, { data: entryRows }, { data: goalRows }, { data: startingBalances }, attendance, books] =
+    await Promise.all([
+      supabase
+        .from("writing_projects")
+        .select("id, title, phase, created_at, show_on_profile, cover_url, description")
+        .eq("id", projectId)
+        .eq("member_id", effectiveIdentity.memberId)
+        .single(),
+      supabase
+        .from("writing_progress_entries")
+        .select("id, project_id, entry_date, measure, mode, amount, note, tags, created_at, prickle_id")
+        .eq("project_id", projectId)
+        .eq("member_id", effectiveIdentity.memberId)
+        .order("entry_date", { ascending: false })
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("writing_goals")
+        .select(GOAL_SELECT_COLUMNS)
+        .eq("project_id", projectId)
+        .eq("member_id", effectiveIdentity.memberId)
+        .is("archived_at", null),
+      supabase
+        .from("writing_project_starting_balances")
+        .select("project_id, measure, amount")
+        .eq("project_id", projectId)
+        .eq("member_id", effectiveIdentity.memberId),
+      getMyPrickleAttendance(),
+      getMyBooks(),
+    ]);
 
   if (!projectRow) return { error: "Project not found" };
 
-  const [project] = buildProjectRows([projectRow], entryRows ?? [], (goalRows ?? []) as unknown as RawGoal[], attendance, books);
+  const [project] = buildProjectRows(
+    [projectRow],
+    entryRows ?? [],
+    (goalRows ?? []) as unknown as RawGoal[],
+    startingBalances ?? [],
+    attendance,
+    books
+  );
   const entries: EntryRow[] = (entryRows ?? []).map(toEntryRow);
 
   return { project, entries };
@@ -337,6 +375,14 @@ interface RawProject {
   phase: string;
   created_at: string;
   show_on_profile: boolean;
+  cover_url: string | null;
+  description: string | null;
+}
+
+interface RawStartingBalance {
+  project_id: string;
+  measure: string;
+  amount: number;
 }
 
 interface RawEntry {
@@ -449,6 +495,7 @@ function buildProjectRows(
   projects: RawProject[],
   entries: RawEntry[],
   goals: RawGoal[],
+  startingBalances: RawStartingBalance[],
   attendance: PrickleAttendanceRow[],
   books: MyBookRow[]
 ): WritingProjectRow[] {
@@ -457,11 +504,17 @@ function buildProjectRows(
   return projects.map((project) => {
     const projectEntries = entries.filter((e) => e.project_id === project.id);
 
+    const projectStartingBalances: Partial<Record<WritingMeasure, number>> = {};
+    for (const sb of startingBalances) {
+      if (sb.project_id === project.id) projectStartingBalances[sb.measure as WritingMeasure] = sb.amount;
+    }
+
     const totalsByMeasure: Partial<Record<WritingMeasure, number>> = {};
     for (const measure of WRITING_MEASURES) {
       const measureEntries = projectEntries.filter((e) => e.measure === measure);
-      if (measureEntries.length === 0) continue;
-      totalsByMeasure[measure] = computeCumulativeTotal(
+      const startingBalance = projectStartingBalances[measure];
+      if (measureEntries.length === 0 && startingBalance === undefined) continue;
+      const loggedTotal = computeCumulativeTotal(
         measureEntries.map((e) => ({
           entryDate: e.entry_date,
           createdAt: e.created_at,
@@ -469,6 +522,7 @@ function buildProjectRows(
           amount: e.amount,
         }))
       );
+      totalsByMeasure[measure] = applyStartingBalance(loggedTotal, startingBalance);
     }
 
     const projectGoals = goals
@@ -481,6 +535,9 @@ function buildProjectRows(
       phase: project.phase as Phase,
       createdAt: project.created_at,
       showOnProfile: project.show_on_profile,
+      coverUrl: project.cover_url,
+      description: project.description,
+      startingBalances: projectStartingBalances,
       totalsByMeasure,
       goals: projectGoals,
       book: books.find((b) => b.projectId === project.id) ?? null,
@@ -525,6 +582,99 @@ export async function createProject(
 
   revalidatePath("/projects");
   return { success: true, id: data.id };
+}
+
+export async function updateProjectDetails(
+  projectId: string,
+  fields: { title: string; description: string }
+): Promise<{ success: true } | { error: string }> {
+  const ctx = await requireIdentity();
+  if ("error" in ctx) return ctx;
+  const { supabase, effectiveIdentity } = ctx;
+
+  const trimmedTitle = fields.title.trim();
+  if (!trimmedTitle) return { error: "Title is required" };
+
+  const { error } = await supabase
+    .from("writing_projects")
+    .update({ title: trimmedTitle, description: fields.description.trim() || null })
+    .eq("id", projectId)
+    .eq("member_id", effectiveIdentity.memberId);
+
+  if (error) return { error: error.message };
+
+  revalidatePath("/projects");
+  revalidatePath(`/projects/${projectId}`);
+  return { success: true };
+}
+
+/** Sets or clears (coverUrl: null) a project's pre-publish cover. The upload itself happens via
+ * /api/bookshelf/cover (the same route/bucket/spec member_books covers use); this just saves the
+ * resulting URL, same upload-then-save-URL split BookFormModal already uses. */
+export async function updateProjectCover(
+  projectId: string,
+  coverUrl: string | null
+): Promise<{ success: true } | { error: string }> {
+  const ctx = await requireIdentity();
+  if ("error" in ctx) return ctx;
+  const { supabase, effectiveIdentity } = ctx;
+
+  const { error } = await supabase
+    .from("writing_projects")
+    .update({ cover_url: coverUrl })
+    .eq("id", projectId)
+    .eq("member_id", effectiveIdentity.memberId);
+
+  if (error) return { error: error.message };
+
+  revalidatePath("/projects");
+  revalidatePath(`/projects/${projectId}`);
+  return { success: true };
+}
+
+/** Replaces a project's starting balances -- how much the member already had before tracking
+ * here, per measure. A measure omitted or set to 0/blank clears its row entirely. */
+export async function setStartingBalances(
+  projectId: string,
+  balances: Partial<Record<Exclude<WritingMeasure, "prickles">, number>>
+): Promise<{ success: true } | { error: string }> {
+  const ctx = await requireIdentity();
+  if ("error" in ctx) return ctx;
+  const { supabase, effectiveIdentity } = ctx;
+
+  const ownershipError = await assertOwnsProject(supabase, effectiveIdentity.memberId, projectId);
+  if (ownershipError) return { error: ownershipError };
+
+  const isSet = (m: (typeof STARTING_BALANCE_MEASURES)[number]) => (balances[m] ?? 0) > 0;
+  const toSet = STARTING_BALANCE_MEASURES.filter(isSet);
+  const toClear = STARTING_BALANCE_MEASURES.filter((m) => !isSet(m));
+
+  if (toSet.length > 0) {
+    const { error: upsertError } = await supabase.from("writing_project_starting_balances").upsert(
+      toSet.map((measure) => ({
+        project_id: projectId,
+        member_id: effectiveIdentity.memberId,
+        measure,
+        amount: balances[measure]!,
+      })),
+      { onConflict: "project_id,measure" }
+    );
+    if (upsertError) return { error: upsertError.message };
+  }
+
+  if (toClear.length > 0) {
+    const { error: deleteError } = await supabase
+      .from("writing_project_starting_balances")
+      .delete()
+      .eq("project_id", projectId)
+      .eq("member_id", effectiveIdentity.memberId)
+      .in("measure", toClear);
+    if (deleteError) return { error: deleteError.message };
+  }
+
+  revalidatePath("/projects");
+  revalidatePath(`/projects/${projectId}`);
+  return { success: true };
 }
 
 export async function toggleProjectVisibility(
@@ -1236,14 +1386,23 @@ export async function getProjectSeries(
   if ("error" in ctx) return [];
   const { supabase, effectiveIdentity } = ctx;
 
-  const { data: entries } = await supabase
-    .from("writing_progress_entries")
-    .select("entry_date, mode, amount, created_at")
-    .eq("project_id", projectId)
-    .eq("member_id", effectiveIdentity.memberId)
-    .eq("measure", measure);
+  const [{ data: entries }, { data: startingBalanceRow }] = await Promise.all([
+    supabase
+      .from("writing_progress_entries")
+      .select("entry_date, mode, amount, created_at")
+      .eq("project_id", projectId)
+      .eq("member_id", effectiveIdentity.memberId)
+      .eq("measure", measure),
+    supabase
+      .from("writing_project_starting_balances")
+      .select("amount")
+      .eq("project_id", projectId)
+      .eq("member_id", effectiveIdentity.memberId)
+      .eq("measure", measure)
+      .maybeSingle(),
+  ]);
 
-  return computeCumulativeSeries(
+  const series = computeCumulativeSeries(
     (entries ?? []).map((e) => ({
       entryDate: e.entry_date,
       createdAt: e.created_at,
@@ -1251,6 +1410,9 @@ export async function getProjectSeries(
       amount: e.amount,
     }))
   );
+
+  const startingBalance = startingBalanceRow?.amount;
+  return series.map((point) => ({ ...point, total: applyStartingBalance(point.total, startingBalance) }));
 }
 
 /** A member's opted-in project (highest total, if more than one) for surfacing on their public profile. */
