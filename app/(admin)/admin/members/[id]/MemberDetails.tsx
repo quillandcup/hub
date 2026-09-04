@@ -125,20 +125,6 @@ export default function MemberDetails({
 
       {activeTab === "overview" && (
         <div className="space-y-6">
-          <MemberTimelinePanel
-            memberId={member.id}
-            hiatusHistory={hiatusHistory}
-            membershipHistory={membershipHistory}
-            firstJoinedAt={member.first_joined_at}
-          />
-
-          <MemberBadgesPanel
-            memberId={member.id}
-            earnedBadges={earnedBadges}
-            awardableBadgeTypes={awardableBadgeTypes}
-            awards={awards}
-          />
-
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <SummaryCard
               title="Attendance"
@@ -174,6 +160,20 @@ export default function MemberDetails({
               )}
             </SummaryCard>
           </div>
+
+          <MemberTimelinePanel
+            memberId={member.id}
+            hiatusHistory={hiatusHistory}
+            membershipHistory={membershipHistory}
+            firstJoinedAt={member.first_joined_at}
+          />
+
+          <MemberBadgesPanel
+            memberId={member.id}
+            earnedBadges={earnedBadges}
+            awardableBadgeTypes={awardableBadgeTypes}
+            awards={awards}
+          />
         </div>
       )}
 
