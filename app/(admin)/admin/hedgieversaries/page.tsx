@@ -80,7 +80,7 @@ export default async function HedgieversariesPage() {
     const isOnIndefiniteHiatus = windows.some(
       (w) => !w.endsAt && new Date(w.startsAt).getTime() <= now.getTime()
     );
-    const { nextDate, milestoneMonths } = nextHedgieversaryDate(
+    const { nextDate, milestoneMonths, recentDate, recentMilestoneMonths } = nextHedgieversaryDate(
       m.first_joined_at,
       cumulativeHiatusMonths,
       isOnIndefiniteHiatus,
@@ -96,6 +96,8 @@ export default async function HedgieversariesPage() {
       totalActiveMonths: m.total_active_months ?? 0,
       nextDate,
       milestoneMonths,
+      recentDate,
+      recentMilestoneMonths,
       cumulativeHiatusMonths,
       hiatusWindows: windows,
     };

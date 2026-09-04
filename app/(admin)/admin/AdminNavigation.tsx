@@ -29,6 +29,7 @@ const navigation: NavSection[] = [
   {
     name: "Members",
     items: [
+      { name: "Work Queue", href: "/admin/work-queue", icon: "✅", feature: "work_queue" },
       { name: "All Members", href: "/admin/members", icon: "👥" },
       { name: "At-Risk Members", href: "/admin/at-risk", icon: "⚠️" },
       { name: "Hiatus Tracking", href: "/admin/hiatus", icon: "⏸️", feature: "hiatus_tracking" },

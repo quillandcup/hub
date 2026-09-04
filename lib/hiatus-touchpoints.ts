@@ -46,3 +46,30 @@ export function computeHiatusTouchpoint(
     isPastAllTouchpoints: percentElapsed >= 75,
   };
 }
+
+export interface HiatusTouchpointMark {
+  pct: 25 | 50 | 75;
+  date: string; // ISO timestamp
+}
+
+// All three touchpoint dates for a known-duration hiatus window, regardless
+// of whether they've been reached yet — unlike computeHiatusTouchpoint's
+// "next only" view (for the at-a-glance /admin/hiatus display), this is the
+// raw material for a work queue that tracks each mark independently
+// (lib/admin-work-queue.ts), since 25/50/75% may need separate follow-ups.
+export function computeAllHiatusTouchpoints(
+  startsAt: string,
+  expiresAt: string | null
+): HiatusTouchpointMark[] {
+  if (!expiresAt) return [];
+
+  const startMs = new Date(startsAt).getTime();
+  const endMs = new Date(expiresAt).getTime();
+  const totalMs = endMs - startMs;
+  if (totalMs <= 0) return [];
+
+  return TOUCHPOINT_PERCENTS.map((pct) => ({
+    pct,
+    date: new Date(startMs + totalMs * (pct / 100)).toISOString(),
+  }));
+}

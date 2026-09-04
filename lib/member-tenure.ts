@@ -161,9 +161,16 @@ function addMonthsClamped(date: Date, months: number): Date {
   return new Date(Date.UTC(targetYear, targetMonth, Math.min(day, daysInTargetMonth)));
 }
 
+// How long after a milestone date passes it's still worth surfacing as
+// "recently reached" — mirrors the 90-day Welcome Back window already used
+// on this page for rejoins.
+const RECENT_MILESTONE_WINDOW_DAYS = 90;
+
 export interface NextHedgieversary {
   nextDate: string | null; // date-only, or null when TBD (ongoing indefinite hiatus)
   milestoneMonths: number | null; // 6, 12, 24, 36, ...
+  recentDate: string | null; // the milestone immediately before nextDate, if it landed within RECENT_MILESTONE_WINDOW_DAYS of asOf
+  recentMilestoneMonths: number | null;
 }
 
 // The next Hedgieversary milestone date for a member — first-joined date
@@ -172,6 +179,12 @@ export interface NextHedgieversary {
 // matching how the spreadsheet this replaces computes "Next Date". A member
 // currently on an indefinite hiatus (no known end date) has no predictable
 // date — return TBD rather than guessing.
+//
+// cumulativeHiatusMonths is a rounded whole-month estimate, so a milestone
+// can land just barely in the past (rounding put it a few days behind
+// "today") with nothing ever having surfaced it as reached. Rather than
+// silently jumping straight to the following year's milestone, also report
+// that just-passed one as `recentDate` when it's within the window above.
 export function nextHedgieversaryDate(
   firstJoinedAt: string,
   cumulativeHiatusMonths: number,
@@ -179,20 +192,70 @@ export function nextHedgieversaryDate(
   asOf: Date
 ): NextHedgieversary {
   if (isOnIndefiniteHiatus) {
-    return { nextDate: null, milestoneMonths: null };
+    return { nextDate: null, milestoneMonths: null, recentDate: null, recentMilestoneMonths: null };
   }
 
   const start = new Date(`${firstJoinedAt}T00:00:00Z`);
   const MAX_MONTHS = 50 * 12; // 50 years — safety bound, not a real limit
 
   let milestone = 6;
+  let lastPast: { date: Date; milestone: number } | null = null;
   while (milestone <= MAX_MONTHS) {
     const candidate = addMonthsClamped(start, milestone + cumulativeHiatusMonths);
     if (candidate.getTime() > asOf.getTime()) {
-      return { nextDate: toDateOnly(candidate.toISOString()), milestoneMonths: milestone };
+      const isRecent =
+        lastPast != null &&
+        (asOf.getTime() - lastPast.date.getTime()) / MS_PER_DAY <= RECENT_MILESTONE_WINDOW_DAYS;
+      return {
+        nextDate: toDateOnly(candidate.toISOString()),
+        milestoneMonths: milestone,
+        recentDate: isRecent ? toDateOnly(lastPast!.date.toISOString()) : null,
+        recentMilestoneMonths: isRecent ? lastPast!.milestone : null,
+      };
     }
+    lastPast = { date: candidate, milestone };
     milestone = milestone === 6 ? 12 : milestone + 12;
   }
 
-  return { nextDate: null, milestoneMonths: null };
+  return { nextDate: null, milestoneMonths: null, recentDate: null, recentMilestoneMonths: null };
+}
+
+// Display label for a milestone month count, e.g. 6 -> "6-Month", 36 -> "3-Year".
+export function milestoneLabel(months: number): string {
+  return months < 12 ? `${months}-Month` : `${Math.round(months / 12)}-Year`;
+}
+
+export interface HedgieversaryMilestone {
+  date: string; // date-only
+  milestoneMonths: number;
+}
+
+// Every Hedgieversary milestone reached, or due within `lookaheadDays`, as of
+// `asOf` — the backlog + near-term preview for the celebration work queue
+// (lib/admin-work-queue.ts). Unlike nextHedgieversaryDate above (which only
+// ever reports the single next upcoming milestone), this returns every
+// milestone in range, so a queue that's fallen behind surfaces all of them
+// instead of just the latest.
+export function hedgieversaryMilestonesInWindow(
+  firstJoinedAt: string,
+  cumulativeHiatusMonths: number,
+  isOnIndefiniteHiatus: boolean,
+  asOf: Date,
+  lookaheadDays: number
+): HedgieversaryMilestone[] {
+  if (isOnIndefiniteHiatus) return [];
+
+  const start = new Date(`${firstJoinedAt}T00:00:00Z`);
+  const windowEndMs = asOf.getTime() + lookaheadDays * MS_PER_DAY;
+  const MAX_MONTHS = 50 * 12; // 50 years — safety bound, not a real limit
+
+  const results: HedgieversaryMilestone[] = [];
+  let milestone = 6;
+  while (milestone <= MAX_MONTHS) {
+    const candidate = addMonthsClamped(start, milestone + cumulativeHiatusMonths);
+    if (candidate.getTime() > windowEndMs) break;
+    results.push({ date: toDateOnly(candidate.toISOString()), milestoneMonths: milestone });
+    milestone = milestone === 6 ? 12 : milestone + 12;
+  }
+  return results;
 }

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { SortableTh } from "@/components/SortableTh";
 import { useTableSort } from "@/lib/hooks/useTableSort";
-import { parseDateOnly } from "@/lib/member-tenure";
+import { parseDateOnly, milestoneLabel } from "@/lib/member-tenure";
 
 export interface HedgieversaryRow {
   id: string;
@@ -14,6 +14,8 @@ export interface HedgieversaryRow {
   totalActiveMonths: number;
   nextDate: string | null; // null = TBD (currently on an indefinite hiatus)
   milestoneMonths: number | null;
+  recentDate: string | null; // a milestone reached within the last 90 days, if any
+  recentMilestoneMonths: number | null;
   cumulativeHiatusMonths: number;
   hiatusWindows: { startsAt: string; endsAt: string | null }[];
 }
@@ -24,10 +26,6 @@ type SortColumn = "name" | "firstJoinedAt" | "mostRecentJoinedAt" | "totalActive
 // otherwise every past rejoiner carries the badge forever.
 const WELCOME_BACK_WINDOW_DAYS = 90;
 const MS_PER_DAY = 1000 * 60 * 60 * 24;
-
-function milestoneLabel(months: number): string {
-  return months < 12 ? `${months}-Month` : `${Math.round(months / 12)}-Year`;
-}
 
 function getSortValue(row: HedgieversaryRow, column: SortColumn): string | number {
   switch (column) {
@@ -97,6 +95,16 @@ export default function HedgieversariesTable({ rows, asOf }: { rows: Hedgieversa
                     </span>
                   ) : (
                     <span className="text-sm text-slate-400 dark:text-slate-500">TBD (on hiatus)</span>
+                  )}
+                  {row.recentDate && row.recentMilestoneMonths != null && (
+                    <div className="mt-1">
+                      <span
+                        className="px-2 py-0.5 text-xs font-medium rounded-full bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300"
+                        title={`Reached ${fmt(row.recentDate)}`}
+                      >
+                        {milestoneLabel(row.recentMilestoneMonths)} reached {fmt(row.recentDate)}
+                      </span>
+                    </div>
                   )}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700 dark:text-slate-300">

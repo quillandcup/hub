@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { computeHiatusTouchpoint } from "@/lib/hiatus-touchpoints";
+import { computeHiatusTouchpoint, computeAllHiatusTouchpoints } from "@/lib/hiatus-touchpoints";
 
 const START = "2024-01-01T00:00:00Z";
 const startMs = new Date(START).getTime();
@@ -59,5 +59,24 @@ describe("computeHiatusTouchpoint", () => {
   it("treats an invalid window (expires_at <= starts_at) the same as indefinite", () => {
     const result = computeHiatusTouchpoint(START, START, daysAfterStart(1));
     expect(result).toEqual({ percentElapsed: null, nextTouchpoint: null, isPastAllTouchpoints: false });
+  });
+});
+
+describe("computeAllHiatusTouchpoints", () => {
+  it("returns all three marks regardless of asOf", () => {
+    const result = computeAllHiatusTouchpoints(START, END);
+    expect(result).toEqual([
+      { pct: 25, date: daysAfterStart(25).toISOString() },
+      { pct: 50, date: daysAfterStart(50).toISOString() },
+      { pct: 75, date: daysAfterStart(75).toISOString() },
+    ]);
+  });
+
+  it("returns an empty list for an indefinite hiatus", () => {
+    expect(computeAllHiatusTouchpoints(START, null)).toEqual([]);
+  });
+
+  it("returns an empty list for an invalid window", () => {
+    expect(computeAllHiatusTouchpoints(START, START)).toEqual([]);
   });
 });

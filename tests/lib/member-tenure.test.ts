@@ -4,6 +4,8 @@ import {
   computeMemberTenure,
   computeCumulativeHiatusMonths,
   nextHedgieversaryDate,
+  hedgieversaryMilestonesInWindow,
+  milestoneLabel,
 } from "@/lib/member-tenure";
 import type { HiatusWindow } from "@/lib/member-tenure";
 import type { MembershipPurchase } from "@/lib/kajabi/membership-history";
@@ -138,33 +140,107 @@ describe("computeCumulativeHiatusMonths", () => {
 describe("nextHedgieversaryDate", () => {
   it("lands on the 6-month mark before any yearly milestone", () => {
     const result = nextHedgieversaryDate("2024-01-01", 0, false, new Date("2024-03-01"));
-    expect(result).toEqual({ nextDate: "2024-07-01", milestoneMonths: 6 });
+    expect(result).toEqual({
+      nextDate: "2024-07-01",
+      milestoneMonths: 6,
+      recentDate: null,
+      recentMilestoneMonths: null,
+    });
   });
 
-  it("steps to the next yearly milestone once the 6-month mark has passed", () => {
+  it("steps to the next yearly milestone once the 6-month mark has passed, flagging it as recent", () => {
+    // asOf is only 31 days after the 6-month mark (2024-07-01) — within the
+    // 90-day recent window, so it's surfaced as recentDate rather than
+    // silently dropped in favor of the 1-year mark.
     const result = nextHedgieversaryDate("2024-01-01", 0, false, new Date("2024-08-01"));
-    expect(result).toEqual({ nextDate: "2025-01-01", milestoneMonths: 12 });
+    expect(result).toEqual({
+      nextDate: "2025-01-01",
+      milestoneMonths: 12,
+      recentDate: "2024-07-01",
+      recentMilestoneMonths: 6,
+    });
+  });
+
+  it("does not flag a milestone as recent once it's outside the window", () => {
+    // 1-year mark (2025-01-01) is 120 days before asOf — past the 90-day
+    // recent window, so it's not surfaced alongside the 2-year mark.
+    const result = nextHedgieversaryDate("2024-01-01", 0, false, new Date("2025-05-01"));
+    expect(result.recentDate).toBeNull();
+    expect(result.recentMilestoneMonths).toBeNull();
   });
 
   it("steps to the 2-year mark once the 1-year mark has passed", () => {
     const result = nextHedgieversaryDate("2024-01-01", 0, false, new Date("2025-02-01"));
-    expect(result).toEqual({ nextDate: "2026-01-01", milestoneMonths: 24 });
+    expect(result.nextDate).toBe("2026-01-01");
+    expect(result.milestoneMonths).toBe(24);
   });
 
   it("shifts the milestone date forward by cumulative hiatus months", () => {
     // 3 months of hiatus pushes the 6-month mark from 2024-07-01 to 2024-10-01
     const result = nextHedgieversaryDate("2024-01-01", 3, false, new Date("2024-03-01"));
-    expect(result).toEqual({ nextDate: "2024-10-01", milestoneMonths: 6 });
+    expect(result.nextDate).toBe("2024-10-01");
+    expect(result.milestoneMonths).toBe(6);
+    expect(result.recentDate).toBeNull();
   });
 
   it("returns TBD (null) for a member currently on an indefinite hiatus", () => {
     const result = nextHedgieversaryDate("2024-01-01", 0, true, new Date("2024-03-01"));
-    expect(result).toEqual({ nextDate: null, milestoneMonths: null });
+    expect(result).toEqual({
+      nextDate: null,
+      milestoneMonths: null,
+      recentDate: null,
+      recentMilestoneMonths: null,
+    });
   });
 
   it("clamps day-of-month instead of overflowing into the next month", () => {
     // Aug 31 + 6 months = Feb 28/29, not Mar 3 (2025 isn't a leap year)
     const result = nextHedgieversaryDate("2024-08-31", 0, false, new Date("2025-01-01"));
-    expect(result).toEqual({ nextDate: "2025-02-28", milestoneMonths: 6 });
+    expect(result.nextDate).toBe("2025-02-28");
+    expect(result.milestoneMonths).toBe(6);
+  });
+});
+
+describe("milestoneLabel", () => {
+  it("labels sub-year milestones in months", () => {
+    expect(milestoneLabel(6)).toBe("6-Month");
+  });
+
+  it("labels year-plus milestones in years", () => {
+    expect(milestoneLabel(12)).toBe("1-Year");
+    expect(milestoneLabel(36)).toBe("3-Year");
+  });
+});
+
+describe("hedgieversaryMilestonesInWindow", () => {
+  it("returns every milestone reached, not just the latest", () => {
+    // First joined 2024-01-01, asOf 2025-06-15 — both the 6mo and 1yr marks
+    // have passed (the next, 2yr, hasn't); a member who's fallen behind on
+    // celebrations needs both surfaced, not only the most recent.
+    const result = hedgieversaryMilestonesInWindow("2024-01-01", 0, false, new Date("2025-06-15"), 0);
+    expect(result).toEqual([
+      { date: "2024-07-01", milestoneMonths: 6 },
+      { date: "2025-01-01", milestoneMonths: 12 },
+    ]);
+  });
+
+  it("includes a near-future milestone within the lookahead window", () => {
+    const result = hedgieversaryMilestonesInWindow("2024-01-01", 0, false, new Date("2024-06-20"), 14);
+    expect(result).toEqual([{ date: "2024-07-01", milestoneMonths: 6 }]);
+  });
+
+  it("excludes a milestone beyond the lookahead window", () => {
+    const result = hedgieversaryMilestonesInWindow("2024-01-01", 0, false, new Date("2024-06-01"), 14);
+    expect(result).toEqual([]);
+  });
+
+  it("returns nothing for an indefinite hiatus", () => {
+    const result = hedgieversaryMilestonesInWindow("2024-01-01", 0, true, new Date("2025-06-01"), 0);
+    expect(result).toEqual([]);
+  });
+
+  it("shifts every milestone by cumulative hiatus months", () => {
+    const result = hedgieversaryMilestonesInWindow("2024-01-01", 3, false, new Date("2024-10-05"), 0);
+    expect(result).toEqual([{ date: "2024-10-01", milestoneMonths: 6 }]);
   });
 });
