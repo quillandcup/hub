@@ -19,7 +19,7 @@ interface MemberOverrideFormProps {
 }
 
 // Shared create/edit form for member_status_overrides (gift/special/180_program).
-// Hiatus has its own dedicated table and UI (MemberHiatusPanel, on the
+// Hiatus has its own dedicated table and UI (MemberTimelinePanel, on the
 // member detail page) — it's common enough to deserve first-class tracking
 // rather than living in this generic exceptions bucket.
 // Used both by /admin/member-overrides (after its own email lookup resolves
