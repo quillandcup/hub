@@ -200,6 +200,10 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
                   handleChanged();
                 }}
                 onCancel={() => setEditingGoal(null)}
+                onArchive={() => {
+                  setEditingGoal(null);
+                  handleArchiveGoal(goal.id);
+                }}
               />
             ) : (
               <div key={goal.id} className="flex items-start gap-3">
@@ -229,15 +233,6 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
                     aria-label="Edit goal"
                   >
                     ✏️
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleArchiveGoal(goal.id)}
-                    className="text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400"
-                    aria-label="Mark as done"
-                    title="Mark as done (keeps the record, removes from active goals)"
-                  >
-                    ✅
                   </button>
                   <button
                     type="button"
@@ -401,11 +396,13 @@ function GoalForm({
   goal,
   onSaved,
   onCancel,
+  onArchive,
 }: {
   projectId: string;
   goal?: GoalRow;
   onSaved: () => void;
   onCancel?: () => void;
+  onArchive?: () => void;
 }) {
   const isEditing = !!goal;
   const [goalType, setGoalType] = useState<"target" | "habit">(goal?.kind ?? "target");
@@ -613,23 +610,37 @@ function GoalForm({
 
       {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
 
-      <div className="flex justify-end gap-2">
-        {onCancel && (
+      <div className="flex items-center justify-between gap-2">
+        {isEditing && onArchive ? (
           <button
             type="button"
-            onClick={onCancel}
-            className="px-4 py-2 text-sm text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100"
+            onClick={onArchive}
+            className="text-sm text-slate-500 hover:text-emerald-600 dark:text-slate-400 dark:hover:text-emerald-400"
+            title="Mark as done (keeps the record, removes from active goals)"
           >
-            Cancel
+            ✅ Mark as done
           </button>
+        ) : (
+          <span />
         )}
-        <button
-          type="submit"
-          disabled={isPending}
-          className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-        >
-          {isEditing ? (isPending ? "Saving..." : "Save changes") : isPending ? "Adding..." : "Add goal"}
-        </button>
+        <div className="flex gap-2">
+          {onCancel && (
+            <button
+              type="button"
+              onClick={onCancel}
+              className="px-4 py-2 text-sm text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100"
+            >
+              Cancel
+            </button>
+          )}
+          <button
+            type="submit"
+            disabled={isPending}
+            className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {isEditing ? (isPending ? "Saving..." : "Save changes") : isPending ? "Adding..." : "Add goal"}
+          </button>
+        </div>
       </div>
     </form>
   );
