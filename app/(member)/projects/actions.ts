@@ -5,6 +5,7 @@ import { getEffectiveIdentity } from "@/lib/sudo";
 import { revalidatePath } from "next/cache";
 import { safeUrl } from "@/lib/url";
 import { validateBookInput } from "@/lib/bookValidation";
+import { notifyStaffNewBook } from "@/lib/slack";
 import { getMyBooks, type BookInput, type MyBookRow } from "@/app/(member)/bookshelf/actions";
 import {
   WRITING_MEASURES,
@@ -795,6 +796,14 @@ export async function publishProject(
     .eq("member_id", effectiveIdentity.memberId);
 
   if (updateError) return { error: updateError.message };
+
+  // Fire-and-forget: a Slack outage must never block the publish from succeeding.
+  notifyStaffNewBook({
+    title: book.title.trim(),
+    memberId: effectiveIdentity.memberId,
+    memberName: effectiveIdentity.memberName,
+    purchaseUrl: safeUrl(book.purchaseUrl),
+  }).catch((err) => console.error("New book Slack notification failed:", err));
 
   revalidatePath("/projects");
   revalidatePath(`/projects/${projectId}`);

@@ -155,6 +155,25 @@ export default function BookFormModal({
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={modalTitle} maxWidth="sm">
       <form onSubmit={handleSubmit} className="space-y-4">
+        {!projectId && (
+          <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 px-4 py-3 text-sm text-amber-900 dark:text-amber-300 space-y-1">
+            <p>
+              To be included, this book must have been substantially written as part of your Quill &amp; Cup
+              experience. Although this is hard to provide hard-and-fast rules for, here are some
+              definitions-by-example:
+            </p>
+            <ul className="list-disc list-inside space-y-0.5">
+              <li>If you joined with an idea and 10,000 words that eventually grew to 100,000 words...</li>
+              <li>If you had a completed draft before joining and revised through two more drafts...</li>
+              <li>If you had a published manuscript but rewrote within BFFship before re-publishing...</li>
+            </ul>
+            <p>
+              Ultimately, if you feel like this book would not have been possible without Q&amp;C, we want to
+              highlight it!
+            </p>
+          </div>
+        )}
+
         <div>
           <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Title *</label>
           <input

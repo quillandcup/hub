@@ -22,6 +22,7 @@ beforeEach(() => {
   delete process.env.SLACK_TEST_MODE;
   delete process.env.SLACK_DEV_USER_ID;
   delete process.env.VERCEL_ENV;
+  delete process.env.SLACK_NEW_BOOKS_CHANNEL_ID;
 });
 
 afterEach(() => {
@@ -100,5 +101,72 @@ describe("sendSlackDM", () => {
     await sendSlackDM({ slackUserId: "U_REAL_MEMBER", text: "hello" });
 
     expect(postMessage).not.toHaveBeenCalled();
+  });
+});
+
+describe("notifyStaffNewBook", () => {
+  it("no-ops when SLACK_NEW_BOOKS_CHANNEL_ID is unset", async () => {
+    const { notifyStaffNewBook } = await importSlackModule();
+
+    await notifyStaffNewBook({
+      title: "My Book",
+      memberId: "member-1",
+      memberName: "Member One",
+      purchaseUrl: "https://example.com/buy",
+    });
+
+    expect(postMessage).not.toHaveBeenCalled();
+  });
+
+  it("no-ops when SLACK_BOT_TOKEN is unset", async () => {
+    delete process.env.SLACK_BOT_TOKEN;
+    process.env.SLACK_NEW_BOOKS_CHANNEL_ID = "C_NEW_BOOKS";
+    const { notifyStaffNewBook } = await importSlackModule();
+
+    await notifyStaffNewBook({
+      title: "My Book",
+      memberId: "member-1",
+      memberName: "Member One",
+      purchaseUrl: "https://example.com/buy",
+    });
+
+    expect(postMessage).not.toHaveBeenCalled();
+  });
+
+  it("posts to the configured channel with title, member name, and links when both env vars are set", async () => {
+    process.env.SLACK_NEW_BOOKS_CHANNEL_ID = "C_NEW_BOOKS";
+    const { notifyStaffNewBook } = await importSlackModule();
+
+    await notifyStaffNewBook({
+      title: "My Book",
+      memberId: "member-1",
+      memberName: "Member One",
+      purchaseUrl: "https://example.com/buy",
+    });
+
+    expect(postMessage).toHaveBeenCalledTimes(1);
+    const call = postMessage.mock.calls[0][0];
+    expect(call.channel).toBe("C_NEW_BOOKS");
+    expect(call.text).toContain("My Book");
+    expect(call.text).toContain("Member One");
+    expect(call.text).toContain("https://example.com/buy");
+    expect(call.text).toContain("/admin/members/member-1");
+  });
+
+  it("still links to the member when no purchase URL is available", async () => {
+    process.env.SLACK_NEW_BOOKS_CHANNEL_ID = "C_NEW_BOOKS";
+    const { notifyStaffNewBook } = await importSlackModule();
+
+    await notifyStaffNewBook({
+      title: "My Book",
+      memberId: "member-1",
+      memberName: "Member One",
+      purchaseUrl: null,
+    });
+
+    expect(postMessage).toHaveBeenCalledTimes(1);
+    const call = postMessage.mock.calls[0][0];
+    expect(call.text).not.toContain("Where to buy");
+    expect(call.text).toContain("/admin/members/member-1");
   });
 });
