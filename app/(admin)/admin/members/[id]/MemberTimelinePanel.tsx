@@ -16,6 +16,7 @@ interface MemberTimelinePanelProps {
   memberId: string;
   hiatusHistory: HiatusRow[];
   membershipHistory: any[];
+  firstJoinedAt?: string | null;
 }
 
 type TimelineEvent =
@@ -35,6 +36,7 @@ type TimelineEvent =
       endDate: Date | null;
       reason: string | null;
       notes: string | null;
+      activeLabel: string | null;
     };
 
 function todayDateOnly(): string {
@@ -52,7 +54,36 @@ function durationText(startDate: Date, endDate: Date | null): string {
 
 const fmt = (d: Date) => d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 
-export default function MemberTimelinePanel({ memberId, hiatusHistory, membershipHistory }: MemberTimelinePanelProps) {
+function formatActiveLabel(days: number): string {
+  const months = Math.round(days / 30);
+  if (months < 1) return `${days}d active`;
+  if (months === 1) return "1 mo active";
+  return `${months} mo active`;
+}
+
+function isGenericBackfillNote(notes: string | null): boolean {
+  return !!notes && notes.toLowerCase().includes("backfilled from hedgieversary");
+}
+
+// Mirrors gapLabelsByStintStart: labels the active stretch immediately
+// before each hiatus began, using the previous hiatus's end (or first join,
+// for the earliest hiatus) as the boundary.
+function activeLabelsByHiatusStart(hiatusHistory: HiatusRow[], firstJoinedAt: string | null): Map<string, string> {
+  const sorted = [...hiatusHistory].sort((a, b) => a.start_date.localeCompare(b.start_date));
+  const map = new Map<string, string>();
+  sorted.forEach((hiatus, i) => {
+    const previousEnd = i === 0 ? firstJoinedAt : sorted[i - 1].end_date;
+    if (!previousEnd) return;
+    const days = Math.floor(
+      (new Date(hiatus.start_date).getTime() - new Date(previousEnd).getTime()) / (1000 * 60 * 60 * 24)
+    );
+    if (days < 0) return;
+    map.set(hiatus.start_date, formatActiveLabel(days));
+  });
+  return map;
+}
+
+export default function MemberTimelinePanel({ memberId, hiatusHistory, membershipHistory, firstJoinedAt = null }: MemberTimelinePanelProps) {
   const router = useRouter();
   const [showForm, setShowForm] = useState(false);
   const [startDate, setStartDate] = useState(todayDateOnly());
@@ -65,6 +96,7 @@ export default function MemberTimelinePanel({ memberId, hiatusHistory, membershi
 
   const currentHiatus = hiatusHistory.find((h) => h.end_date === null);
   const gapLabelByStart = gapLabelsByStintStart(membershipHistory);
+  const activeLabelByHiatusStart = activeLabelsByHiatusStart(hiatusHistory, firstJoinedAt);
 
   const events: TimelineEvent[] = [
     ...membershipHistory.map((purchase: any): TimelineEvent => ({
@@ -83,6 +115,7 @@ export default function MemberTimelinePanel({ memberId, hiatusHistory, membershi
       endDate: hiatus.end_date ? new Date(hiatus.end_date) : null,
       reason: hiatus.reason,
       notes: hiatus.notes,
+      activeLabel: activeLabelByHiatusStart.get(hiatus.start_date) ?? null,
     })),
   ].sort((a, b) => b.startDate.getTime() - a.startDate.getTime());
 
@@ -288,49 +321,28 @@ export default function MemberTimelinePanel({ memberId, hiatusHistory, membershi
               }
 
               const isOngoing = !event.endDate;
+              const showNotes = event.reason || (event.notes && !isGenericBackfillNote(event.notes));
               return (
-                <div
-                  key={event.key}
-                  className={`p-4 rounded-lg border ${
-                    isOngoing
-                      ? "bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800"
-                      : "bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700"
-                  }`}
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1 flex-wrap">
-                        <span className="px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide rounded bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400">
-                          Hiatus
-                        </span>
-                        <span className="text-sm font-medium text-slate-900 dark:text-slate-100">
-                          {fmt(event.startDate)}
-                          {" → "}
-                          {event.endDate ? (
-                            <span className="px-2 py-0.5 rounded bg-blue-100 dark:bg-blue-900 text-blue-900 dark:text-blue-100 font-semibold">
-                              {fmt(event.endDate)}
-                            </span>
-                          ) : (
-                            "Ongoing"
-                          )}
-                        </span>
-                        {isOngoing && (
-                          <span className="px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300">
-                            Current
-                          </span>
-                        )}
-                      </div>
-                      <div className="text-sm text-slate-600 dark:text-slate-400">
-                        Duration: {durationText(event.startDate, event.endDate)}
-                      </div>
-                      {event.reason && (
-                        <div className="text-sm text-slate-600 dark:text-slate-400 mt-1">{event.reason}</div>
-                      )}
-                      {event.notes && (
-                        <div className="text-xs text-slate-500 dark:text-slate-500 mt-1">{event.notes}</div>
-                      )}
+                <div key={event.key}>
+                  <div
+                    className={`flex items-center justify-between p-3 rounded-lg border ${
+                      isOngoing
+                        ? "bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800"
+                        : "bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700"
+                    }`}
+                  >
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <span className="text-sm font-medium text-slate-900 dark:text-slate-100">
+                        {fmt(event.startDate)} → {event.endDate ? fmt(event.endDate) : "Ongoing"}
+                      </span>
+                      <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-300">
+                        {isOngoing ? "on hiatus" : "hiatus"}
+                      </span>
                     </div>
-                    <div className="flex flex-col items-end gap-2 flex-shrink-0">
+                    <div className="flex items-center gap-3 shrink-0">
+                      <span className="text-xs text-slate-500 dark:text-slate-400">
+                        {durationText(event.startDate, event.endDate)}
+                      </span>
                       {isOngoing && (
                         <button
                           onClick={() => handleEndNow(event.id)}
@@ -349,6 +361,18 @@ export default function MemberTimelinePanel({ memberId, hiatusHistory, membershi
                       </button>
                     </div>
                   </div>
+                  {showNotes && (
+                    <div className="pl-3 pt-1 flex flex-wrap gap-x-2 text-xs text-slate-500 dark:text-slate-500">
+                      {event.reason && <span>{event.reason}</span>}
+                      {event.notes && !isGenericBackfillNote(event.notes) && <span>{event.notes}</span>}
+                    </div>
+                  )}
+                  {event.activeLabel && (
+                    <div className="flex items-center gap-2 pl-4 mt-1 text-xs text-slate-400 dark:text-slate-500">
+                      <span className="inline-block w-px h-3 bg-slate-300 dark:bg-slate-600" />
+                      {event.activeLabel} before hiatus
+                    </div>
+                  )}
                 </div>
               );
             })}

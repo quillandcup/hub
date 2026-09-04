@@ -6,6 +6,8 @@ import { MemberStatusBadge } from "@/components/MemberStatusBadge";
 import { parseDateOnly } from "@/lib/member-tenure";
 import MemberTimelinePanel from "./MemberTimelinePanel";
 import MemberSlackActivityPanel, { computeSlackSummary } from "./MemberSlackActivityPanel";
+import MemberBadgesPanel from "./MemberBadgesPanel";
+import type { EarnedBadge } from "@/lib/badges";
 
 interface MemberDetailsProps {
   member: any;
@@ -14,16 +16,43 @@ interface MemberDetailsProps {
   slackActivities: any[];
   userTimezonePreference?: string; // User's timezone preference from profile
   membershipHistory: any[];
+  earnedBadges: EarnedBadge[];
+  awardableBadgeTypes: { id: string; name: string; icon: string }[];
+  awards: {
+    id: string;
+    badgeTypeId: string;
+    badgeTypeName: string;
+    badgeTypeIcon: string;
+    occurredAt: string;
+    note: string | null;
+  }[];
 }
 
 type Tab = "overview" | "attendance" | "slack";
 
-export default function MemberDetails({ member, attendanceRecords, hiatusHistory, slackActivities, userTimezonePreference = "browser", membershipHistory }: MemberDetailsProps) {
+export default function MemberDetails({
+  member,
+  attendanceRecords,
+  hiatusHistory,
+  slackActivities,
+  userTimezonePreference = "browser",
+  membershipHistory,
+  earnedBadges,
+  awardableBadgeTypes,
+  awards,
+}: MemberDetailsProps) {
   const [activeTab, setActiveTab] = useState<Tab>("overview");
 
   const memberMetrics = member.member_metrics || {};
   const memberEngagement = member.member_engagement || {};
   const slackSummary = computeSlackSummary(slackActivities);
+
+  const isRejoin = !!(member.most_recent_joined_at && member.most_recent_joined_at !== member.first_joined_at);
+  const mostRecentJoinedDate = member.most_recent_joined_at ? parseDateOnly(member.most_recent_joined_at) : null;
+  const daysSinceRejoin = mostRecentJoinedDate
+    ? Math.floor((Date.now() - mostRecentJoinedDate.getTime()) / (1000 * 60 * 60 * 24))
+    : Infinity;
+  const showWelcomeBack = isRejoin && daysSinceRejoin <= 30;
 
   const tabs: { id: Tab; label: string }[] = [
     { id: "overview", label: "Overview" },
@@ -35,7 +64,7 @@ export default function MemberDetails({ member, attendanceRecords, hiatusHistory
     <div className="space-y-6">
       {/* Condensed stat strip */}
       <div className="bg-white dark:bg-slate-900 rounded-lg shadow px-6 py-4">
-        <div className="flex flex-wrap items-center gap-x-8 gap-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
           <StatItem label="Status">
             <MemberStatusBadge status={member.status} />
           </StatItem>
@@ -63,7 +92,7 @@ export default function MemberDetails({ member, attendanceRecords, hiatusHistory
                 ? parseDateOnly(member.first_joined_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
                 : "—"}
             </span>
-            {member.most_recent_joined_at && member.most_recent_joined_at !== member.first_joined_at && (
+            {showWelcomeBack && (
               <span className="text-xs text-amber-600 dark:text-amber-400">Welcome back</span>
             )}
           </StatItem>
@@ -100,6 +129,14 @@ export default function MemberDetails({ member, attendanceRecords, hiatusHistory
             memberId={member.id}
             hiatusHistory={hiatusHistory}
             membershipHistory={membershipHistory}
+            firstJoinedAt={member.first_joined_at}
+          />
+
+          <MemberBadgesPanel
+            memberId={member.id}
+            earnedBadges={earnedBadges}
+            awardableBadgeTypes={awardableBadgeTypes}
+            awards={awards}
           />
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

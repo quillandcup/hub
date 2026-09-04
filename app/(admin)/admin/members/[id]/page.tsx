@@ -5,7 +5,6 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import MemberDetails from "./MemberDetails";
 import MergeButton from "./MergeButton";
-import MemberBadgesPanel from "./MemberBadgesPanel";
 import { getUserTimezonePreference } from "@/lib/timezone";
 import { startSudo } from "@/app/actions/sudo";
 import { fetchMembershipHistory } from "@/lib/kajabi/membership-history";
@@ -288,9 +287,6 @@ export default async function MemberDetailPage({
           slackActivities={slackActivities || []}
           userTimezonePreference={userTimezone}
           membershipHistory={membershipHistory}
-        />
-        <MemberBadgesPanel
-          memberId={id}
           earnedBadges={earnedBadges}
           awardableBadgeTypes={awardableBadgeTypes ?? []}
           awards={awards}
