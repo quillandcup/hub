@@ -96,6 +96,8 @@ export default async function HedgieversariesPage() {
       totalActiveMonths: m.total_active_months ?? 0,
       nextDate,
       milestoneMonths,
+      cumulativeHiatusMonths,
+      hiatusWindows: windows,
     };
   });
 
@@ -113,7 +115,7 @@ export default async function HedgieversariesPage() {
 
       <main className="container mx-auto px-6 py-8">
         <div className="bg-white dark:bg-slate-900 rounded-lg shadow">
-          <HedgieversariesTable rows={rows} />
+          <HedgieversariesTable rows={rows} asOf={now.toISOString()} />
         </div>
       </main>
     </div>
