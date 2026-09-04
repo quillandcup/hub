@@ -89,6 +89,30 @@ export async function POST(request: NextRequest) {
     }
     await Promise.all(aliasOps);
 
+    // Handle program-cohort enrollments carefully — (member_id, cohort_id) is UNIQUE,
+    // so a secondary enrolled in the same cohort as the primary would collide.
+    const [{ data: primaryEnrollments }, { data: secondaryEnrollments }] = await Promise.all([
+      supabase.from("member_program_enrollments").select("cohort_id").eq("member_id", primaryId),
+      supabase.from("member_program_enrollments").select("id, cohort_id").eq("member_id", secondaryId),
+    ]);
+
+    const primaryCohortSet = new Set((primaryEnrollments || []).map((e) => e.cohort_id));
+    const conflictingEnrollments = (secondaryEnrollments || []).filter((e) => primaryCohortSet.has(e.cohort_id));
+    const nonConflictingEnrollments = (secondaryEnrollments || []).filter((e) => !primaryCohortSet.has(e.cohort_id));
+
+    const enrollmentOps: Promise<unknown>[] = [];
+    if (conflictingEnrollments.length > 0) {
+      enrollmentOps.push(run(
+        supabase.from("member_program_enrollments").delete().in("id", conflictingEnrollments.map((e) => e.id))
+      ));
+    }
+    if (nonConflictingEnrollments.length > 0) {
+      enrollmentOps.push(run(
+        supabase.from("member_program_enrollments").update({ member_id: primaryId }).in("id", nonConflictingEnrollments.map((e) => e.id))
+      ));
+    }
+    await Promise.all(enrollmentOps);
+
     // Update ambiguous_zoom_names.candidate_member_ids arrays — Supabase JS can't do
     // in-place array element replacement, so we fetch affected rows and patch each one.
     const { data: ambiguousWithSecondary } = await supabase

@@ -33,6 +33,7 @@ const navigation: NavSection[] = [
       { name: "At-Risk Members", href: "/admin/at-risk", icon: "⚠️" },
       { name: "Hiatus Tracking", href: "/admin/hiatus", icon: "⏸️", feature: "hiatus_tracking" },
       { name: "Hedgieversaries", href: "/admin/hedgieversaries", icon: "🎂", feature: "hedgieversaries" },
+      { name: "Programs", href: "/admin/programs", icon: "🎓", feature: "program_cohorts" },
       { name: "Network", href: "/admin/members/network", icon: "🕸️" },
       { name: "Wheel of Wonder", href: "/admin/wheel-of-wonder", icon: "🎡", feature: "wheel_of_wonder" },
       { name: "Badges", href: "/admin/badges", icon: "🏅" },

@@ -33,15 +33,13 @@ Some people who attend prickles have no Kajabi footprint at all (not a member, t
 
 **Why deferred:** Different problem from member status/matching — the whole pipeline assumes attendees resolve to a `members` row derived from Kajabi. Guests break that assumption and need their own identity/record model rather than a fix to existing matching logic.
 
-### 180 Program Cohort Tracking + Revenue Leakage Report (Deferred)
-The 180 Program is a one-time cohort purchase that includes 6 months of membership access. Everyone in a cohort gets the same access-end date regardless of when during "launch week" they individually signed up. `isRealMembershipStint` requires a recurring subscription, so a 180-Program-only purchase is never recognized as membership on its own — as a stopgap, affected members get a `member_status_overrides` row with the new `180_program` type (`starts_at`/`expires_at` = their cohort's window, hand-entered from the Hedgieversary Registry) so their status/join date stick across reprocessing.
+### Program Cohort Tracking + Revenue Leakage Report (Resolved, with follow-ups)
+**Resolved:** replaced the old `member_status_overrides` `override_type='180_program'` stopgap with real generic cohort tracking — `programs` / `program_cohorts` / `member_program_enrollments` tables (`supabase/migrations/20260903000000_create_program_cohort_tracking.sql`), driving member status via `reprocess_members_atomic` Steps 4c/4d (`20260903000001_apply_program_enrollments_in_reprocess.sql`). A cohort's start/end dates live once and apply to everyone enrolled in it; a member can enroll in more than one cohort over time (e.g. an alumna repeating the 180 Program). Admin UI at `/admin/programs` (feature flag `program_cohorts`) manages programs/cohorts/enrollments and shows a leakage report — members whose most recent cohort lapsed without their status converting to `active` — per program. Seeded with the two known real programs: **180 Program** and **Self-Editing Academy**.
 
-**Still open — the actual operational problem:** staff often forget to prompt 180 Program members to sign up for real paid membership once their included 6 months end, so they keep participating in Slack/Prickles for free indefinitely. This is real revenue leakage. Fixing it properly needs:
-- A table tracking each 180 Program cohort's official start/end dates (not per-purchase — the whole cohort shares one end date)
-- Logic to compute each purchaser's actual included-membership window from their cohort, not just a hand-entered override per person
-- A report/alert flagging 180 Program members whose window has lapsed without converting to paid membership, so staff can follow up
-
-**Why deferred:** the manual per-member override closes the immediate visible gap (join date and Hedgieversary tracking), but the cohort-window computation and leakage report are a real feature needing design (where do cohort dates live? how do purchases map to a cohort?), not a quick fix.
+**Still open:**
+- **Automatic Kajabi-purchase-to-cohort mapping.** `programs.kajabi_offer_names` captures the known offer titles (180 Program: `"Q&C 180 Program"` / alumna repeat-purchase offer `"You did it once. Let's 180. Again!"` internally titled `"Q&C 180 Program Alumna"`) but nothing yet reads it — enrollment is still manual. Building real auto-detection needs purchase-date-to-cohort matching logic and handling repeat/alumna purchases, which wasn't reliable enough to build blind.
+- **Self-Editing Academy's level-within-cohort progression.** The cohort moves together through 3 levels, plus a flexible "stay in the previous level" option — rules are TBD, needs a conversation with Ania before modeling. Today's schema only tracks one shared cohort window, not levels.
+- **Broader direction (not scoped yet):** first-class local data for `courses` (evergreen and cohort-based), `events` (in-person/virtual retreats, paid public prickles), and other Kajabi "products," plus a sync pipeline to import and keep them current from Kajabi — part of an eventual move away from Kajabi as the source of truth.
 
 ---
 

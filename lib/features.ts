@@ -1,4 +1,4 @@
-export type FeatureKey = 'streaks' | 'hiatus_tracking' | 'member_overrides' | 'prickle_picker' | 'wheel_of_wonder' | 'hedgieversaries';
+export type FeatureKey = 'streaks' | 'hiatus_tracking' | 'member_overrides' | 'prickle_picker' | 'wheel_of_wonder' | 'hedgieversaries' | 'program_cohorts';
 
 export interface FeaturePreview {
   key: FeatureKey;
@@ -36,6 +36,11 @@ export const FEATURE_PREVIEWS: FeaturePreview[] = [
     key: 'hedgieversaries',
     name: 'Hedgieversaries',
     description: 'Track member Hedgieversary milestones — replaces the manual spreadsheet',
+  },
+  {
+    key: 'program_cohorts',
+    name: 'Programs',
+    description: 'Manage cohort-based program enrollment (180 Program, Self-Editing Academy, ...) and see who hasn\'t converted after their window lapsed',
   },
 ];
 
