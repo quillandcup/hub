@@ -265,6 +265,17 @@ Considerations:
 - Time window options (all-time, last 30/90 days, current month)
 - Opt-out mechanism so members who don't want to appear can hide themselves
 
+### Verified Service Provider (VSP) Badges (Needs Scoping)
+Ania wants a badge recognizing members who are verified service providers to the community, abbreviated per category — e.g. "VSP Editor", "VSP Coach" — rather than one generic "VSP" badge.
+
+**What already exists (reusable):** the full badge pipeline from the Multi-Product Support & Badges work above — `badge_types`/`badge_levels`/`member_badges` schema (`supabase/migrations/20260831000001_create_badges.sql`), `lib/badges.ts` (earned-badge computation, manual vs. automatic), `components/BadgeChip.tsx`, and the `/admin/badges` CRUD UI. No VSP-specific code exists yet — this would be a new `badge_types.category` value plus one or more seed rows, not new plumbing.
+
+**Needs scoping before implementation:**
+- `badge_types.category` is currently a `CHECK` constrained to `('milestone','community','course','retreat','special')` — needs a new value (e.g. `service_provider`) added to the constraint, or decide `special` is close enough to reuse
+- One badge type per category (`VSP Editor`, `VSP Coach`, ...) vs. a single "VSP" badge type with a category sub-label — affects whether this is a handful of new `badge_types` rows or a schema change to `member_badges`/`badge_types` to carry a free-form category alongside the type
+- Verification process: who marks a member as a verified provider, and for which categories — likely manual (`is_automatic=false`) like other non-criteria badges, awarded via the existing `/admin/badges/[id]/recipients` flow, but the list of valid categories needs to come from Ania
+- Display: profile-only, or also surfaced on admin member list/detail and the community directory (if one exists)?
+
 ### PUP-Starter Badge
 Recognize members who drive spontaneous collaboration by being the first to join (or most frequently starting) Pop-Up Prickles.
 
@@ -547,6 +558,19 @@ Refine `engagement_score` calculation based on activity types and recency
 ## Writing Projects Tracking
 
 Full roadmap: `docs/superpowers/specs/writing-projects-tracking.md`. Core single-author flow (log progress against a project/goal, prickle-linked nudges, streak/chart stats) is scoped there phase-by-phase.
+
+### In-App Pipeline Visualization + Next-Stage Nudges (Needs Scoping)
+Show each member, on their own writing project, a visual of where they sit in the overall Quill & Cup pipeline (idea → draft → self-edit → feedback → publish → launch/sell) — both to make the system visible ("we have a system, and you're on it") and to nudge them toward the next stage as they approach it, which doubles as adoption/revenue for the programs at each stage as they get built.
+
+**Reference diagram:** `docs/pipeline-map.html` (open directly in a browser) is a first pass at the pipeline as a whole — stages, what's live vs. hired-out vs. still on the roadmap, and the parallel/fork points (Self-Edit Academy vs. hiring a Developmental Editor; Self-Publish vs. Query & Submit, with ARC Readers running alongside both rather than after them). It's a static reference/design source, not app code — treat it as the shape to translate into an in-app, per-project version, not something to embed as-is.
+
+**This is a product/business decision as much as a build, not just a tech task:** most of the pipeline stages aren't Quill & Cup programs yet (Beta Readers, Self-Publishing Course, Trad Publishing/Query Course, and arguably Line & Copy Edit) — building the in-app visualization is a relatively contained UI feature, but *nudging members toward a stage* only pays off once that stage is a real, staffed program. Sequencing (visualize the roadmap now vs. wait until each program exists) is a call for Cody/Ania, not something to default on.
+
+**Needs scoping before implementation:**
+- Where a member's project maps onto the pipeline — is stage inferred automatically from project `phase`/goals (see Point-in-Time Goal Versioning and Browse Past/Archived Projects below for how `writing_projects`/`writing_goals` currently model state), or set explicitly by the member/staff?
+- What a "nudge" actually is — a banner on `/writing`, a Slack DM (ties into the Messaging Abstraction Layer under CRM Features), an email, or just a visual marker with no push?
+- Whether the visualization is linear per project or needs to show the same fork/parallel structure as the reference diagram (e.g. a member who hired a Developmental Editor shouldn't be nudged toward Self-Edit Academy)
+- How stages that don't exist yet as programs should render — greyed out/"coming soon," or hidden until built?
 
 ### Collaborative / Multi-Author Projects (Deferred — needs scoping)
 Some members write as part of a group — e.g. Ania is one of ~7 authors writing separate novellas set in the same shared town, with intertwining characters (a shared-universe anthology). The core writing-projects data model is single-owner only and doesn't account for this.
