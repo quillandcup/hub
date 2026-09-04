@@ -73,16 +73,16 @@ export default async function HiatusTrackingPage() {
       if (!currentHiatus) return null;
 
       const touchpoint = computeHiatusTouchpoint(currentHiatus.start_date, currentHiatus.end_date, now);
-      const startDate = new Date(currentHiatus.start_date);
-      const daysSinceStart = Math.floor((now.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
 
-      return { member, hiatus: currentHiatus, touchpoint, startDate, daysSinceStart };
+      return { member, hiatus: currentHiatus, touchpoint };
     })
     .filter((x): x is NonNullable<typeof x> => x !== null);
 
   // Upcoming touchpoints — hiatuses with a known end date and a touchpoint
-  // still ahead, sorted chronologically by that date. Mirrors the "Next
-  // Month" tracking sheet this page replaces.
+  // still ahead, sorted chronologically by that date. Only consumed here for
+  // the "Next Touchpoint" stat below; the full list now lives in the Hiatus
+  // Nudges section of /admin/work-queue (lib/admin-work-queue.ts), which
+  // adds checkbox completion tracking this page never had.
   const upcomingTouchpoints = hiatusData
     .filter((item) => item.touchpoint.nextTouchpoint !== null)
     .sort(
@@ -107,14 +107,6 @@ export default async function HiatusTrackingPage() {
       return daysUntilEnd <= RETURNING_SOON_WINDOW_DAYS;
     })
     .sort((a, b) => new Date(a.hiatus.end_date!).getTime() - new Date(b.hiatus.end_date!).getTime());
-
-  // Group upcoming touchpoints by month for display, same as before.
-  const groupedByMonth = new Map<string, typeof upcomingTouchpoints>();
-  for (const item of upcomingTouchpoints) {
-    const monthKey = new Date(item.touchpoint.nextTouchpoint!.date).toLocaleDateString("en-US", { month: "short" });
-    if (!groupedByMonth.has(monthKey)) groupedByMonth.set(monthKey, []);
-    groupedByMonth.get(monthKey)!.push(item);
-  }
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
@@ -160,70 +152,6 @@ export default async function HiatusTrackingPage() {
             )}
           </div>
         </div>
-
-        {/* Upcoming Touchpoints - Grouped by Month */}
-        {Array.from(groupedByMonth.entries()).map(([month, items]) => (
-          <div key={month} className="bg-white dark:bg-slate-900 rounded-lg shadow">
-            <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800">
-              <h2 className="text-xl font-bold">{month}</h2>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-slate-50 dark:bg-slate-800">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                      Next Date
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                      Hedgie
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                      Hiatus Event
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                      Started
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                      Duration
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
-                  {items.map((item) => (
-                    <tr key={item.member.id} className="hover:bg-slate-50 dark:hover:bg-slate-800">
-                      <td className="px-6 py-4 text-sm text-slate-700 dark:text-slate-300">
-                        {new Date(item.touchpoint.nextTouchpoint!.date).toLocaleDateString("en-US", {
-                          month: "numeric",
-                          day: "numeric",
-                          year: "2-digit",
-                        })}
-                      </td>
-                      <td className="px-6 py-4">
-                        <Link
-                          href={`/admin/members/${item.member.id}`}
-                          className="text-sm font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 hover:underline"
-                        >
-                          {item.member.name}
-                        </Link>
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className="px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300">
-                          Hiatus {item.touchpoint.nextTouchpoint!.pct}%
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-sm text-slate-700 dark:text-slate-300">
-                        {item.startDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-slate-700 dark:text-slate-300">
-                        {Math.floor(item.daysSinceStart / 30)} months
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        ))}
 
         {/* Returning Soon */}
         {returningSoon.length > 0 && (
