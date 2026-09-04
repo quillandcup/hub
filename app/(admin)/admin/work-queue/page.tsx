@@ -9,6 +9,8 @@ import {
   completionKey,
   type HiatusInput,
   type MemberInput,
+  type CompletionLookup,
+  type CompletionStatus,
 } from "@/lib/admin-work-queue";
 import type { HiatusWindow } from "@/lib/member-tenure";
 import WorkQueueSections from "./WorkQueueSections";
@@ -71,7 +73,11 @@ export default async function WorkQueuePage() {
       (q) => q.in("status", ["active", "on_hiatus"])
     ),
     fetchAllRows(supabase, "member_hiatus_history", "id, member_id, start_date, end_date"),
-    fetchAllRows(supabase, "admin_work_queue_completions", "queue_type, member_id, occurrence_key"),
+    fetchAllRows(
+      supabase,
+      "admin_work_queue_completions",
+      "queue_type, member_id, occurrence_key, status, postponed_until"
+    ),
   ]);
 
   const now = new Date();
@@ -87,8 +93,11 @@ export default async function WorkQueuePage() {
     hiatusWindowsByMember.set(hiatus.member_id, windows);
   }
 
-  const completed = new Set(
-    completions.map((c) => completionKey(c.queue_type, c.member_id, c.occurrence_key))
+  const completed: CompletionLookup = new Map(
+    completions.map((c) => [
+      completionKey(c.queue_type, c.member_id, c.occurrence_key),
+      { status: c.status as CompletionStatus, postponedUntil: c.postponed_until },
+    ])
   );
 
   const welcomeBackQueue = buildWelcomeBackQueue(hiatusInputs, membersById, completed, now);

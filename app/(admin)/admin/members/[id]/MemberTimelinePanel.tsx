@@ -12,11 +12,23 @@ interface HiatusRow {
   notes: string | null;
 }
 
+// A member_status_overrides row of type '180_program' — see
+// components/MemberOverrideForm.tsx / app/api/member-overrides for the
+// shape. starts_at/expires_at are timestamptz; expires_at null means the
+// program window is still open (no known end).
+interface ProgramOverrideRow {
+  id: string;
+  starts_at: string;
+  expires_at: string | null;
+  reason: string | null;
+}
+
 interface MemberTimelinePanelProps {
   memberId: string;
   hiatusHistory: HiatusRow[];
   membershipHistory: any[];
   firstJoinedAt?: string | null;
+  programOverrides?: ProgramOverrideRow[];
 }
 
 type TimelineEvent =
@@ -37,6 +49,13 @@ type TimelineEvent =
       reason: string | null;
       notes: string | null;
       activeLabel: string | null;
+    }
+  | {
+      kind: "program";
+      key: string;
+      startDate: Date;
+      endDate: Date | null;
+      reason: string | null;
     };
 
 function todayDateOnly(): string {
@@ -53,6 +72,7 @@ function durationText(startDate: Date, endDate: Date | null): string {
 }
 
 const fmt = (d: Date) => d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+const fmtMonthYear = (d: Date) => d.toLocaleDateString("en-US", { month: "short", year: "numeric" });
 
 function formatActiveLabel(days: number): string {
   const months = Math.round(days / 30);
@@ -79,7 +99,13 @@ function activeLabelsByHiatusStart(hiatusHistory: HiatusRow[], firstJoinedAt: st
   return map;
 }
 
-export default function MemberTimelinePanel({ memberId, hiatusHistory, membershipHistory, firstJoinedAt = null }: MemberTimelinePanelProps) {
+export default function MemberTimelinePanel({
+  memberId,
+  hiatusHistory,
+  membershipHistory,
+  firstJoinedAt = null,
+  programOverrides = [],
+}: MemberTimelinePanelProps) {
   const router = useRouter();
   const [showForm, setShowForm] = useState(false);
   const [startDate, setStartDate] = useState(todayDateOnly());
@@ -112,6 +138,13 @@ export default function MemberTimelinePanel({ memberId, hiatusHistory, membershi
       reason: hiatus.reason,
       notes: hiatus.notes,
       activeLabel: activeLabelByHiatusStart.get(hiatus.start_date) ?? null,
+    })),
+    ...programOverrides.map((override): TimelineEvent => ({
+      kind: "program",
+      key: `program-${override.id}`,
+      startDate: new Date(override.starts_at),
+      endDate: override.expires_at ? new Date(override.expires_at) : null,
+      reason: override.reason,
     })),
   ].sort((a, b) => b.startDate.getTime() - a.startDate.getTime());
 
@@ -280,10 +313,30 @@ export default function MemberTimelinePanel({ memberId, hiatusHistory, membershi
         )}
 
         {events.length === 0 && !showForm ? (
-          <p className="text-sm text-slate-500 dark:text-slate-400">No membership or hiatus history.</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400">No membership, hiatus, or program history.</p>
         ) : (
           <div className="space-y-3">
             {events.map((event) => {
+              if (event.kind === "program") {
+                return (
+                  <div key={event.key}>
+                    <div className="flex items-center justify-between p-3 rounded-lg border bg-indigo-50/60 dark:bg-indigo-950/20 border-indigo-200 dark:border-indigo-900">
+                      <div className="flex items-center gap-3 flex-wrap">
+                        <span className="text-sm font-medium text-slate-900 dark:text-slate-100">
+                          180 Program: {fmtMonthYear(event.startDate)} –{" "}
+                          {event.endDate ? fmtMonthYear(event.endDate) : "Present"}
+                        </span>
+                      </div>
+                      {event.reason && (
+                        <span className="text-xs text-slate-500 dark:text-slate-400 ml-4 shrink-0">
+                          {event.reason}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              }
+
               if (event.kind === "membership") {
                 return (
                   <div key={event.key}>
@@ -316,7 +369,14 @@ export default function MemberTimelinePanel({ memberId, hiatusHistory, membershi
                 );
               }
 
-              const isOngoing = !event.endDate;
+              // "Ongoing" means the hiatus hasn't ended yet — either it has
+              // no end date at all (indefinite), or its end date is still
+              // in the future (an admin can set a planned return date up
+              // front when starting a hiatus, via the End date field
+              // above). Comparing date-only strings sidesteps timezone
+              // drift from parsing "YYYY-MM-DD" as UTC midnight.
+              const endDateOnly = event.endDate ? event.endDate.toISOString().slice(0, 10) : null;
+              const isOngoing = endDateOnly === null || endDateOnly > todayDateOnly();
               const showNotes = event.reason || event.notes;
               return (
                 <div key={event.key}>
@@ -345,7 +405,7 @@ export default function MemberTimelinePanel({ memberId, hiatusHistory, membershi
                           disabled={busyId === event.id}
                           className="text-xs text-blue-600 dark:text-blue-400 hover:underline disabled:opacity-50"
                         >
-                          {busyId === event.id ? "Ending..." : "End Now"}
+                          {busyId === event.id ? "Ending..." : endDateOnly ? "Return Early" : "End Now"}
                         </button>
                       )}
                       <button

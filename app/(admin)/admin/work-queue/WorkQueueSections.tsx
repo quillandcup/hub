@@ -40,6 +40,137 @@ function fmt(dateOnly: string): string {
   return parseDateOnly(dateOnly).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
+function todayDateOnly(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function rowKey(item: WorkQueueItem): string {
+  return `${item.queueType}:${item.memberId}:${item.occurrenceKey}`;
+}
+
+interface QueueRowProps {
+  item: WorkQueueItem;
+  busyKey: string | null;
+  onMarkDone: (item: WorkQueueItem) => void;
+  onOptOut: (item: WorkQueueItem) => void;
+  onPostpone: (item: WorkQueueItem, until: string) => void;
+  onExtend: (item: WorkQueueItem, newEndDate: string) => void;
+}
+
+// One queue row. Actions are branched on item.queueType — Hedgieversary
+// gets Opt Out + Postpone, Welcome Back gets Extend, Hiatus Nudge keeps
+// just Mark Done. Postpone/Extend share an inline date picker, since both
+// are "pick a date, then submit" flows.
+function QueueRow({ item, busyKey, onMarkDone, onOptOut, onPostpone, onExtend }: QueueRowProps) {
+  const key = rowKey(item);
+  const isBusy = busyKey === key;
+  const meta = SECTION_META[item.queueType];
+  const [picker, setPicker] = useState<"postpone" | "extend" | null>(null);
+  const [pickerDate, setPickerDate] = useState(item.deadline);
+
+  const openPicker = (kind: "postpone" | "extend") => {
+    setPickerDate(item.deadline);
+    setPicker(kind);
+  };
+  const closePicker = () => setPicker(null);
+
+  const confirmPicker = () => {
+    if (picker === "postpone") onPostpone(item, pickerDate);
+    else if (picker === "extend") onExtend(item, pickerDate);
+    setPicker(null);
+  };
+
+  // Postpone can't move an occurrence into the past; Extend should push the
+  // hiatus end date forward, not earlier than where it already is.
+  const minDate = picker === "extend" ? item.deadline : todayDateOnly();
+
+  return (
+    <tr className="hover:bg-slate-50 dark:hover:bg-slate-800">
+      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700 dark:text-slate-300">{fmt(item.deadline)}</td>
+      <td className="px-6 py-4 whitespace-nowrap">
+        <Link
+          href={`/admin/members/${item.memberId}`}
+          className="text-sm font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 hover:underline"
+        >
+          {item.memberName}
+        </Link>
+      </td>
+      <td className="px-6 py-4 whitespace-nowrap">
+        <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${meta.badgeClass}`}>{item.label}</span>
+        {item.queueType === "hiatus_nudge" && (
+          <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            Expected back: {item.expectedReturnDate ? fmt(item.expectedReturnDate) : "Indefinite"}
+          </div>
+        )}
+      </td>
+      <td className="px-6 py-4 whitespace-nowrap text-right">
+        {picker ? (
+          <div className="flex items-center justify-end gap-2">
+            <input
+              type="date"
+              value={pickerDate}
+              min={minDate}
+              onChange={(e) => setPickerDate(e.target.value)}
+              className="px-2 py-1 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 text-sm"
+            />
+            <button
+              onClick={confirmPicker}
+              disabled={isBusy}
+              className="px-3 py-1.5 text-sm font-medium bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg transition-colors"
+            >
+              {isBusy ? "Saving..." : "Confirm"}
+            </button>
+            <button
+              onClick={closePicker}
+              disabled={isBusy}
+              className="px-3 py-1.5 text-sm font-medium bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-lg hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors disabled:opacity-50"
+            >
+              Cancel
+            </button>
+          </div>
+        ) : (
+          <div className="flex items-center justify-end gap-2">
+            {item.queueType === "welcome_back" && (
+              <button
+                onClick={() => openPicker("extend")}
+                disabled={isBusy}
+                className="px-3 py-1.5 text-sm font-medium bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg transition-colors disabled:opacity-50"
+              >
+                Extend
+              </button>
+            )}
+            {item.queueType === "hedgieversary" && (
+              <>
+                <button
+                  onClick={() => openPicker("postpone")}
+                  disabled={isBusy}
+                  className="px-3 py-1.5 text-sm font-medium bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg transition-colors disabled:opacity-50"
+                >
+                  Postpone
+                </button>
+                <button
+                  onClick={() => onOptOut(item)}
+                  disabled={isBusy}
+                  className="px-3 py-1.5 text-sm font-medium bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg transition-colors disabled:opacity-50"
+                >
+                  Opt Out
+                </button>
+              </>
+            )}
+            <button
+              onClick={() => onMarkDone(item)}
+              disabled={isBusy}
+              className="px-3 py-1.5 text-sm font-medium bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg transition-colors"
+            >
+              {isBusy ? "Saving..." : "Mark Done"}
+            </button>
+          </div>
+        )}
+      </td>
+    </tr>
+  );
+}
+
 function QueueSection({ items }: { items: WorkQueueItem[] }) {
   const router = useRouter();
   const [busyKey, setBusyKey] = useState<string | null>(null);
@@ -49,8 +180,12 @@ function QueueSection({ items }: { items: WorkQueueItem[] }) {
   if (items.length === 0) return null;
   const meta = SECTION_META[items[0].queueType];
 
-  const markDone = async (item: WorkQueueItem) => {
-    const key = `${item.queueType}:${item.memberId}:${item.occurrenceKey}`;
+  const complete = async (
+    item: WorkQueueItem,
+    status: "completed" | "opted_out" | "postponed",
+    postponedUntil?: string
+  ) => {
+    const key = rowKey(item);
     setBusyKey(key);
     setError(null);
     try {
@@ -61,11 +196,41 @@ function QueueSection({ items }: { items: WorkQueueItem[] }) {
           queue_type: item.queueType,
           member_id: item.memberId,
           occurrence_key: item.occurrenceKey,
+          status,
+          ...(postponedUntil ? { postponedUntil } : {}),
         }),
       });
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Failed to mark done");
+      if (!response.ok) throw new Error(data.error || "Failed to update work queue item");
       setUndoable({ id: data.completion.id, key });
+      router.refresh();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setBusyKey(null);
+    }
+  };
+
+  const markDone = (item: WorkQueueItem) => complete(item, "completed");
+  const optOut = (item: WorkQueueItem) => complete(item, "opted_out");
+  const postpone = (item: WorkQueueItem, until: string) => complete(item, "postponed", until);
+
+  // Extend reuses the existing hiatus PATCH endpoint directly — no
+  // admin_work_queue_completions row at all. Since Welcome Back items are
+  // recomputed live from member_hiatus_history, moving the hiatus's
+  // end_date later naturally moves (or removes) the item.
+  const extend = async (item: WorkQueueItem, newEndDate: string) => {
+    const key = rowKey(item);
+    setBusyKey(key);
+    setError(null);
+    try {
+      const response = await fetch(`/api/member-hiatus/${item.occurrenceKey}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ end_date: newEndDate }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Failed to extend hiatus");
       router.refresh();
     } catch (err: any) {
       setError(err.message);
@@ -137,38 +302,17 @@ function QueueSection({ items }: { items: WorkQueueItem[] }) {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
-            {items.map((item) => {
-              const key = `${item.queueType}:${item.memberId}:${item.occurrenceKey}`;
-              return (
-                <tr key={key} className="hover:bg-slate-50 dark:hover:bg-slate-800">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700 dark:text-slate-300">
-                    {fmt(item.deadline)}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <Link
-                      href={`/admin/members/${item.memberId}`}
-                      className="text-sm font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 hover:underline"
-                    >
-                      {item.memberName}
-                    </Link>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${meta.badgeClass}`}>
-                      {item.label}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right">
-                    <button
-                      onClick={() => markDone(item)}
-                      disabled={busyKey === key}
-                      className="px-3 py-1.5 text-sm font-medium bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg transition-colors"
-                    >
-                      {busyKey === key ? "Saving..." : "Mark Done"}
-                    </button>
-                  </td>
-                </tr>
-              );
-            })}
+            {items.map((item) => (
+              <QueueRow
+                key={rowKey(item)}
+                item={item}
+                busyKey={busyKey}
+                onMarkDone={markDone}
+                onOptOut={optOut}
+                onPostpone={postpone}
+                onExtend={extend}
+              />
+            ))}
           </tbody>
         </table>
       </div>
