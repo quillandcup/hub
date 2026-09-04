@@ -67,6 +67,7 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
   }
 
   async function handleDeleteGoal(goalId: string) {
+    if (!confirm("Delete this goal? This can't be undone.")) return;
     const result = await deleteGoal(goalId);
     if ("error" in result) {
       alert(result.error);
