@@ -566,10 +566,17 @@ Show each member, on their own writing project, a visual of where they sit in th
 
 **This is a product/business decision as much as a build, not just a tech task:** most of the pipeline stages aren't Quill & Cup programs yet (Beta Readers, Self-Publishing Course, Trad Publishing/Query Course, and arguably Line & Copy Edit) — building the in-app visualization is a relatively contained UI feature, but *nudging members toward a stage* only pays off once that stage is a real, staffed program. Sequencing (visualize the roadmap now vs. wait until each program exists) is a call for Cody/Ania, not something to default on.
 
-**Needs scoping before implementation:**
-- Where a member's project maps onto the pipeline — is stage inferred automatically from project `phase`/goals (see Point-in-Time Goal Versioning and Browse Past/Archived Projects below for how `writing_projects`/`writing_goals` currently model state), or set explicitly by the member/staff?
+**How `writing_projects.phase` maps to the pipeline (resolved — see "How this maps to the app" section in `docs/pipeline-map.html` for the full reasoning):** the mapping is intentionally many-to-one, not something to fix by adding more phase values.
+- `planning`/`outlining`/`drafting` → Draft (180 Program)
+- `revising` → covers four diagram stages at once (Self-Edit Academy, Developmental Edit, Beta Readers, Line & Copy Edit) — `phase` can't and shouldn't try to distinguish these
+- `complete` → both publishing forks (Self-Publish, Query & Submit), before either resolves
+- `published` → Launch & Sell
+- `on_hold`/`abandoned` → not pipeline positions; pause/exit flags that apply at any stage
+- **Why not split `phase` further:** `phase` answers "how far along is the manuscript" (member-set from a simple dropdown); the pipeline answers "which program or vendor are you using," which has forks (DIY vs. hired, self-publish vs. query) a linear enum can't represent without conflating progress with vendor choice. Disambiguating which node a `revising` project is actually on belongs to program-enrollment data — the `member_products` table already planned above under Kajabi Data Expansion — once it exists, not a bigger phase list.
+
+**Still needs scoping before implementation:**
 - What a "nudge" actually is — a banner on `/writing`, a Slack DM (ties into the Messaging Abstraction Layer under CRM Features), an email, or just a visual marker with no push?
-- Whether the visualization is linear per project or needs to show the same fork/parallel structure as the reference diagram (e.g. a member who hired a Developmental Editor shouldn't be nudged toward Self-Edit Academy)
+- Whether the visualization is linear per project or needs to show the same fork/parallel structure as the reference diagram (e.g. a member who hired a Developmental Editor shouldn't be nudged toward Self-Edit Academy) — likely blocked on `member_products` existing, per above
 - How stages that don't exist yet as programs should render — greyed out/"coming soon," or hidden until built?
 
 ### Collaborative / Multi-Author Projects (Deferred — needs scoping)

@@ -181,6 +181,11 @@
   .node__desc{
     font-size:.8rem;line-height:1.42;color:var(--fg-muted);margin:0;
   }
+  .node__phase{
+    display:block;margin-top:.5rem;
+    font-family:'IBM Plex Mono',ui-monospace,monospace;
+    font-size:.6rem;letter-spacing:.03em;color:var(--fg-muted);opacity:.7;
+  }
 
   .support-node{
     position:absolute;transform:translate(-50%,-50%);
@@ -214,6 +219,28 @@
     display:block;margin:.1rem 0 .35rem;
   }
   .support-node__desc{font-size:.7rem;line-height:1.35;color:var(--fg-muted);margin:0;}
+  .support-node__phase{
+    display:block;margin-top:.35rem;
+    font-family:'IBM Plex Mono',ui-monospace,monospace;
+    font-size:.56rem;letter-spacing:.03em;color:var(--fg-muted);opacity:.7;
+  }
+
+  .phase-note{margin:0 0 2.5rem;padding-top:1.6rem;border-top:1px solid var(--border);}
+  .phase-note__title{
+    font-family:'Fraunces',Georgia,serif;font-weight:600;
+    font-size:1.3rem;margin:0 0 .7rem;text-wrap:balance;
+  }
+  .phase-note p{
+    font-size:.92rem;line-height:1.6;color:var(--fg-muted);
+    max-width:68ch;margin:0 0 .9rem;
+  }
+  .phase-note p:last-child{margin-bottom:0;}
+  .phase-note code{
+    font-family:'IBM Plex Mono',ui-monospace,monospace;
+    font-size:.85em;color:var(--fg);
+    background:var(--accent-community-soft);
+    padding:.05rem .3rem;border-radius:4px;
+  }
 
   .flow-live{fill:none;stroke:var(--accent-live);stroke-width:2.5;stroke-linecap:round;}
   .flow-planned{fill:none;stroke:var(--accent-planned);stroke-width:2.5;stroke-linecap:round;stroke-dasharray:7 7;}
@@ -323,12 +350,13 @@
         </div>
 
         <div class="start-dot"></div>
-        <div class="start-label">Blank page — where every book starts</div>
+        <div class="start-label">Blank page — where every book starts<br><span style="font-family:'IBM Plex Mono',monospace;font-style:normal;font-size:.62rem;opacity:.7;">app phase · planning</span></div>
 
         <div class="support-node" style="left:300px;top:66px;">
           <div class="support-node__top"><p class="support-node__title">BFF</p><span class="support-node__status">Live</span></div>
           <span class="support-node__sub">Best Feedback Friends</span>
           <p class="support-node__desc">Critique partners trading chapters through Draft and Self-Edit — not the Developmental Editor route.</p>
+          <span class="support-node__phase">app phase · drafting, revising</span>
         </div>
 
         <div class="node node--live" style="left:280px;top:250px;">
@@ -336,6 +364,7 @@
           <h3 class="node__title">Draft</h3>
           <p class="node__program">180 Program</p>
           <p class="node__desc">180 days of daily sprints and weekly prompts, turning a spark into a finished manuscript.</p>
+          <span class="node__phase">app phase · outlining, drafting</span>
         </div>
 
         <div class="node node--live" style="left:560px;top:140px;">
@@ -343,6 +372,7 @@
           <h3 class="node__title">Self-Edit</h3>
           <p class="node__program">Self-Editing Academy</p>
           <p class="node__desc">A self-taught pass at structure and story — the DIY alternative to hiring a developmental editor.</p>
+          <span class="node__phase">app phase · revising</span>
         </div>
 
         <div class="node node--external" style="left:560px;top:360px;">
@@ -350,6 +380,7 @@
           <h3 class="node__title">Developmental Edit</h3>
           <p class="node__program">Hired independently</p>
           <p class="node__desc">Or skip the DIY route and pay a professional to reshape structure and story for you.</p>
+          <span class="node__phase">app phase · revising</span>
         </div>
 
         <div class="node node--planned" style="left:840px;top:250px;">
@@ -357,6 +388,7 @@
           <h3 class="node__title">Get Feedback</h3>
           <p class="node__program">Beta Readers</p>
           <p class="node__desc">A structured beta-read program — full manuscripts in front of real readers, whichever edit path got you here.</p>
+          <span class="node__phase">app phase · revising</span>
         </div>
 
         <div class="node node--external" style="left:1120px;top:250px;">
@@ -364,6 +396,7 @@
           <h3 class="node__title">Line &amp; Copy Edit</h3>
           <p class="node__program">Hired independently</p>
           <p class="node__desc">Sharpen the voice, then polish the prose — the pass that comes after beta reads.</p>
+          <span class="node__phase">app phase · revising</span>
         </div>
 
         <div class="node node--planned" style="left:1400px;top:105px;">
@@ -371,6 +404,7 @@
           <h3 class="node__title">Self-Publish</h3>
           <p class="node__program">Self-Publishing Course</p>
           <p class="node__desc">Formatting, covers, and launch mechanics for writers publishing on their own terms.</p>
+          <span class="node__phase">app phase · complete → published</span>
         </div>
 
         <div class="node node--planned" style="left:1400px;top:395px;">
@@ -378,12 +412,14 @@
           <h3 class="node__title">Query &amp; Submit</h3>
           <p class="node__program">Trad Publishing Course</p>
           <p class="node__desc">Query letters, comp titles, and agent research for writers chasing a traditional deal.</p>
+          <span class="node__phase">app phase · complete → published</span>
         </div>
 
         <div class="support-node support-node--planned" style="left:1400px;top:250px;">
           <div class="support-node__top"><p class="support-node__title">Build Buzz</p><span class="support-node__status">Roadmap</span></div>
           <span class="support-node__sub">ARC Readers</span>
           <p class="support-node__desc">Copies go out early; feedback folds back into whichever version is still in progress.</p>
+          <span class="support-node__phase">app phase · complete</span>
         </div>
 
         <div class="node node--planned" style="left:1680px;top:250px;">
@@ -391,6 +427,7 @@
           <h3 class="node__title">Launch &amp; Sell</h3>
           <p class="node__program">Marketing</p>
           <p class="node__desc">Then: the shelf, the storefront, and the next spark.</p>
+          <span class="node__phase">app phase · published</span>
         </div>
       </div>
     </div>
@@ -398,6 +435,12 @@
   </figure>
 
   <p class="closing">Community threads through every stage above — critique swaps, co-writing sessions, and company at the desk, from the first blank page to the next one. It isn't a stop on the road. It's the road.</p>
+
+  <section class="phase-note">
+    <h2 class="phase-note__title">How this maps to the app</h2>
+    <p>The small <code>app phase</code> tags above are Hedgie Hub's actual <code>writing_projects.phase</code> values (<code>planning</code>, <code>outlining</code>, <code>drafting</code>, <code>revising</code>, <code>complete</code>, <code>published</code> — plus <code>on_hold</code> and <code>abandoned</code>, which aren't pipeline positions at all; they're pause/exit flags that can apply at any stage above). The correspondence isn't one-to-one: <code>revising</code> alone covers four stages here — Self-Edit, Developmental Edit, Beta Readers, and Line &amp; Copy Edit — and <code>complete</code> covers both publishing forks before either resolves to <code>published</code>.</p>
+    <p>That's not a gap to close by splitting <code>phase</code> into more values. <code>phase</code> answers "how far along is the manuscript" — a thing a member can honestly self-report from a dropdown. This diagram answers a different question, "which program or vendor are you using right now," which is exactly why it has forks (DIY vs. hired, self-publish vs. query) that a linear phase enum can't represent without conflating progress with vendor choice. The more honest place to resolve which node a <code>revising</code> project is actually on is program-enrollment data — the <code>member_products</code> table already planned in <code>docs/TODO.md</code> — once it exists, not a bigger phase list members have to interpret correctly every time they update a project.</p>
+  </section>
 
   <div class="page-footer">Quill &amp; Cup — pipeline map</div>
 </div>
