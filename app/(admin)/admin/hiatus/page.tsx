@@ -9,6 +9,13 @@ export const metadata: Metadata = {
   title: "Hiatus Tracking",
 };
 
+const MS_PER_DAY = 1000 * 60 * 60 * 24;
+
+// How close a known hiatus end date has to be to count as "returning soon" —
+// see the returningSoon comment below for why this is a fixed window rather
+// than a percent-of-hiatus-elapsed threshold.
+const RETURNING_SOON_WINDOW_DAYS = 30;
+
 interface HiatusRow {
   id: string;
   start_date: string;
@@ -84,11 +91,21 @@ export default async function HiatusTrackingPage() {
         new Date(b.touchpoint.nextTouchpoint!.date).getTime()
     );
 
-  // Returning soon — past the 75% mark of a known-duration hiatus, sorted
-  // by expected end date. Indefinite hiatuses (no end_date) never appear
-  // here — there's no date to sort by.
+  // Returning soon — end date within the next RETURNING_SOON_WINDOW_DAYS (or
+  // already past due), sorted by expected end date. Indefinite hiatuses (no
+  // end_date) never appear here — there's no date to sort by.
+  //
+  // Deliberately date-based rather than percent-based (the old "beyond 75%"
+  // rule): 75% of a long hiatus can still be months away, while 75% of a
+  // short one can already be over. A fixed day window means "returning soon"
+  // means the same thing — about to actually return — regardless of how long
+  // the hiatus was.
   const returningSoon = hiatusData
-    .filter((item) => item.touchpoint.isPastAllTouchpoints && item.hiatus.end_date)
+    .filter((item) => {
+      if (!item.hiatus.end_date) return false;
+      const daysUntilEnd = (new Date(item.hiatus.end_date).getTime() - now.getTime()) / MS_PER_DAY;
+      return daysUntilEnd <= RETURNING_SOON_WINDOW_DAYS;
+    })
     .sort((a, b) => new Date(a.hiatus.end_date!).getTime() - new Date(b.hiatus.end_date!).getTime());
 
   // Group upcoming touchpoints by month for display, same as before.
@@ -124,7 +141,7 @@ export default async function HiatusTrackingPage() {
             <p className="mt-2 text-3xl font-bold text-slate-900 dark:text-slate-100">
               {returningSoon.length}
             </p>
-            <p className="text-xs text-slate-500 dark:text-slate-500 mt-1">Beyond 75%</p>
+            <p className="text-xs text-slate-500 dark:text-slate-500 mt-1">Within 30 days</p>
           </div>
           <div className="bg-white dark:bg-slate-900 rounded-lg shadow p-6">
             <h3 className="text-sm font-medium text-slate-600 dark:text-slate-400">Next Touchpoint</h3>
@@ -212,7 +229,7 @@ export default async function HiatusTrackingPage() {
         {returningSoon.length > 0 && (
           <div className="bg-white dark:bg-slate-900 rounded-lg shadow">
             <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800">
-              <h2 className="text-xl font-bold">Returning Soon - Beyond 75%</h2>
+              <h2 className="text-xl font-bold">Returning Soon - Within 30 Days</h2>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full">
