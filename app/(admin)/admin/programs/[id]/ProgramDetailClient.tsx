@@ -334,9 +334,9 @@ export default function ProgramDetailClient({ programId }: { programId: string }
         {data.cohorts.length === 0 ? (
           <p className="text-gray-500">No cohorts yet.</p>
         ) : (
-          <div className="space-y-6">
+          <div className="space-y-3">
             {data.cohorts.map((cohort) => (
-              <div key={cohort.id} className="border border-gray-200 dark:border-slate-700 rounded p-4">
+              <div key={cohort.id} className="border border-gray-200 dark:border-slate-700 rounded p-3">
                 {editingCohortId === cohort.id ? (
                   <form onSubmit={(e) => handleUpdateCohort(e, cohort.id)} className="space-y-3">
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -419,26 +419,28 @@ export default function ProgramDetailClient({ programId }: { programId: string }
                   </div>
                 )}
 
-                <div className="mt-3">
-                  <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <div className="mt-2">
+                  <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
                     Enrolled ({cohort.member_program_enrollments.length})
                   </h4>
                   {cohort.member_program_enrollments.length > 0 && (
-                    <ul className="mb-2 space-y-1">
+                    <div className="mb-1.5 flex flex-wrap gap-1.5">
                       {cohort.member_program_enrollments.map((enrollment) => (
-                        <li key={enrollment.id} className="flex items-center justify-between text-sm py-1">
-                          <span>
-                            {enrollment.member.name} <span className="text-gray-500">({enrollment.member.email})</span>
-                          </span>
+                        <span
+                          key={enrollment.id}
+                          className="inline-flex items-center gap-1 pl-2 pr-1 py-0.5 bg-gray-100 dark:bg-slate-800 rounded text-xs"
+                        >
+                          {enrollment.member.name}
                           <button
                             onClick={() => handleRemoveEnrollment(enrollment.id)}
-                            className="text-red-600 hover:text-red-800 text-xs"
+                            className="text-gray-400 hover:text-red-600 dark:hover:text-red-400 leading-none"
+                            title="Remove from cohort"
                           >
-                            Remove
+                            ×
                           </button>
-                        </li>
+                        </span>
                       ))}
-                    </ul>
+                    </div>
                   )}
 
                   {enrollingCohortId === cohort.id ? (

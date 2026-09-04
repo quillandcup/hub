@@ -382,30 +382,17 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // STEP 5: Merge Kajabi members with staff metadata
-    // Staff members are always active — they work for the company regardless of subscription status.
+    // STEP 5: Dedupe Kajabi contacts down to one canonical member per email.
+    // Must happen BEFORE the staff merge below — a staff member who also has
+    // a stray alias Kajabi contact (e.g. an old personal email that got
+    // merged into their real account) produces two entries here for the same
+    // canonical email, and merging staff data per-contact (rather than once,
+    // after dedup) meant whichever contact happened to win the collision
+    // could be the one that never got the staff merge, silently dropping
+    // staff_role/status='active' for that person.
     const membersByEmail = new Map<string, any>();
 
-    // Process Kajabi members and enhance with staff data
     for (const member of kajabiMembers) {
-      const staff = staffByEmail.get(member.email);
-
-      if (staff) {
-        member.staff_role = staff.role;
-        member.user_id = staff.user_id;
-        member.status = 'active'; // Staff are always active
-        // Use staff hire date if earlier than Kajabi joined_at
-        if (staff.hire_date && staff.hire_date < member.joined_at) {
-          member.joined_at = staff.hire_date;
-        }
-        if (staff.hire_date && (!member.first_joined_at || staff.hire_date < member.first_joined_at)) {
-          member.first_joined_at = staff.hire_date;
-          if (!member.most_recent_joined_at) member.most_recent_joined_at = staff.hire_date;
-        }
-        // Mark as processed
-        staffByEmail.delete(member.email);
-      }
-
       const existing = membersByEmail.get(member.email);
       if (existing) {
         // Two Kajabi contacts resolved to the same canonical email (merged member).
@@ -420,6 +407,27 @@ export async function POST(request: NextRequest) {
       }
 
       membersByEmail.set(member.email, member);
+    }
+
+    // STEP 5.5: Merge staff metadata into the deduped members.
+    // Staff members are always active — they work for the company regardless of subscription status.
+    for (const [email, member] of membersByEmail) {
+      const staff = staffByEmail.get(email);
+      if (!staff) continue;
+
+      member.staff_role = staff.role;
+      member.user_id = staff.user_id;
+      member.status = 'active'; // Staff are always active
+      // Use staff hire date if earlier than Kajabi joined_at
+      if (staff.hire_date && staff.hire_date < member.joined_at) {
+        member.joined_at = staff.hire_date;
+      }
+      if (staff.hire_date && (!member.first_joined_at || staff.hire_date < member.first_joined_at)) {
+        member.first_joined_at = staff.hire_date;
+        if (!member.most_recent_joined_at) member.most_recent_joined_at = staff.hire_date;
+      }
+      // Mark as processed
+      staffByEmail.delete(email);
     }
 
     // Add staff members who have NO Kajabi record — always active
