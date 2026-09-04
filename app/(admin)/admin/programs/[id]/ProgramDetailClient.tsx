@@ -63,6 +63,10 @@ export default function ProgramDetailClient({ programId }: { programId: string }
   const [cohortForm, setCohortForm] = useState({ name: "", starts_at: "", expires_at: "", notes: "" });
   const [savingCohort, setSavingCohort] = useState(false);
 
+  const [editingCohortId, setEditingCohortId] = useState<string | null>(null);
+  const [editCohortForm, setEditCohortForm] = useState({ name: "", starts_at: "", expires_at: "", notes: "" });
+  const [savingCohortEdit, setSavingCohortEdit] = useState(false);
+
   const [enrollingCohortId, setEnrollingCohortId] = useState<string | null>(null);
   const [enrollEmail, setEnrollEmail] = useState("");
   const [enrollError, setEnrollError] = useState<string | null>(null);
@@ -105,6 +109,37 @@ export default function ProgramDetailClient({ programId }: { programId: string }
       setError(err.message);
     } finally {
       setSavingCohort(false);
+    }
+  };
+
+  const startEditCohort = (cohort: Cohort) => {
+    setEditingCohortId(cohort.id);
+    setEditCohortForm({
+      name: cohort.name,
+      starts_at: cohort.starts_at,
+      expires_at: cohort.expires_at,
+      notes: cohort.notes ?? "",
+    });
+  };
+
+  const handleUpdateCohort = async (e: React.FormEvent, id: string) => {
+    e.preventDefault();
+    setError(null);
+    setSavingCohortEdit(true);
+    try {
+      const response = await fetch(`/api/admin/program-cohorts/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...editCohortForm, notes: editCohortForm.notes || null }),
+      });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error || "Failed to update cohort");
+      setEditingCohortId(null);
+      fetchData();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setSavingCohortEdit(false);
     }
   };
 
@@ -295,21 +330,87 @@ export default function ProgramDetailClient({ programId }: { programId: string }
           <div className="space-y-6">
             {data.cohorts.map((cohort) => (
               <div key={cohort.id} className="border border-gray-200 dark:border-slate-700 rounded p-4">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <h3 className="font-medium">{cohort.name}</h3>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">
-                      {fmtDate(cohort.starts_at)} – {fmtDate(cohort.expires_at)}
-                    </p>
-                    {cohort.notes && <p className="text-sm text-gray-500 dark:text-gray-500 mt-1">{cohort.notes}</p>}
+                {editingCohortId === cohort.id ? (
+                  <form onSubmit={(e) => handleUpdateCohort(e, cohort.id)} className="space-y-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div>
+                        <label className="block text-sm font-medium mb-1 dark:text-gray-200">Name</label>
+                        <input
+                          type="text"
+                          value={editCohortForm.name}
+                          onChange={(e) => setEditCohortForm({ ...editCohortForm, name: e.target.value })}
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 dark:bg-slate-900 dark:text-gray-100 rounded"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium mb-1 dark:text-gray-200">Starts</label>
+                        <input
+                          type="date"
+                          value={editCohortForm.starts_at}
+                          onChange={(e) => setEditCohortForm({ ...editCohortForm, starts_at: e.target.value })}
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 dark:bg-slate-900 dark:text-gray-100 rounded"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium mb-1 dark:text-gray-200">Expires</label>
+                        <input
+                          type="date"
+                          value={editCohortForm.expires_at}
+                          onChange={(e) => setEditCohortForm({ ...editCohortForm, expires_at: e.target.value })}
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 dark:bg-slate-900 dark:text-gray-100 rounded"
+                          required
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-1 dark:text-gray-200">Notes (optional)</label>
+                      <input
+                        type="text"
+                        value={editCohortForm.notes}
+                        onChange={(e) => setEditCohortForm({ ...editCohortForm, notes: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 dark:bg-slate-900 dark:text-gray-100 rounded"
+                      />
+                    </div>
+                    <div className="flex gap-2">
+                      <button type="submit" disabled={savingCohortEdit} className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 text-sm">
+                        {savingCohortEdit ? "Saving..." : "Save"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEditingCohortId(null)}
+                        className="px-4 py-2 bg-gray-300 dark:bg-slate-700 text-gray-800 dark:text-gray-200 rounded hover:bg-gray-400 dark:hover:bg-slate-600 text-sm"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </form>
+                ) : (
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <h3 className="font-medium">{cohort.name}</h3>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">
+                        {fmtDate(cohort.starts_at)} – {fmtDate(cohort.expires_at)}
+                      </p>
+                      {cohort.notes && <p className="text-sm text-gray-500 dark:text-gray-500 mt-1">{cohort.notes}</p>}
+                    </div>
+                    <div className="flex gap-3 shrink-0">
+                      <button
+                        onClick={() => startEditCohort(cohort)}
+                        className="text-blue-600 dark:text-blue-400 hover:underline text-sm"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => handleDeleteCohort(cohort.id)}
+                        className="text-red-600 hover:text-red-800 text-sm"
+                      >
+                        Delete
+                      </button>
+                    </div>
                   </div>
-                  <button
-                    onClick={() => handleDeleteCohort(cohort.id)}
-                    className="text-red-600 hover:text-red-800 text-sm"
-                  >
-                    Delete
-                  </button>
-                </div>
+                )}
 
                 <div className="mt-3">
                   <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
