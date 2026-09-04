@@ -86,6 +86,13 @@ export default function ProjectsClient({ initialProjects }: ProjectsClientProps)
                 </p>
               </div>
               <div className="flex-shrink-0 flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setLogProgressFor(project.id)}
+                  className="px-3 py-1.5 text-sm bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg font-medium"
+                >
+                  + Log progress
+                </button>
                 {!project.book && (
                   <button
                     type="button"
@@ -95,13 +102,6 @@ export default function ProjectsClient({ initialProjects }: ProjectsClientProps)
                     🚀 Publish
                   </button>
                 )}
-                <button
-                  type="button"
-                  onClick={() => setLogProgressFor(project.id)}
-                  className="px-3 py-1.5 text-sm bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg font-medium"
-                >
-                  + Log progress
-                </button>
               </div>
             </div>
 
