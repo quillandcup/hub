@@ -61,10 +61,6 @@ function formatActiveLabel(days: number): string {
   return `${months} mo active`;
 }
 
-function isGenericBackfillNote(notes: string | null): boolean {
-  return !!notes && notes.toLowerCase().includes("backfilled from hedgieversary");
-}
-
 // Mirrors gapLabelsByStintStart: labels the active stretch immediately
 // before each hiatus began, using the previous hiatus's end (or first join,
 // for the earliest hiatus) as the boundary.
@@ -321,7 +317,7 @@ export default function MemberTimelinePanel({ memberId, hiatusHistory, membershi
               }
 
               const isOngoing = !event.endDate;
-              const showNotes = event.reason || (event.notes && !isGenericBackfillNote(event.notes));
+              const showNotes = event.reason || event.notes;
               return (
                 <div key={event.key}>
                   <div
@@ -364,7 +360,7 @@ export default function MemberTimelinePanel({ memberId, hiatusHistory, membershi
                   {showNotes && (
                     <div className="pl-3 pt-1 flex flex-wrap gap-x-2 text-xs text-slate-500 dark:text-slate-500">
                       {event.reason && <span>{event.reason}</span>}
-                      {event.notes && !isGenericBackfillNote(event.notes) && <span>{event.notes}</span>}
+                      {event.notes && <span>{event.notes}</span>}
                     </div>
                   )}
                   {event.activeLabel && (
