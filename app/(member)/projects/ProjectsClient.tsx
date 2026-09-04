@@ -6,18 +6,8 @@ import NewProjectModal from "@/components/writing/NewProjectModal";
 import LogProgressModal from "@/components/writing/LogProgressModal";
 import GoalDisplay from "@/components/writing/GoalDisplay";
 import BookFormModal from "@/components/books/BookFormModal";
-import { MEASURE_LABELS } from "@/lib/writing-projects";
+import { MEASURE_LABELS, PHASE_LABELS } from "@/lib/writing-projects";
 import type { WritingProjectRow } from "./actions";
-
-const PHASE_LABELS: Record<string, string> = {
-  planning: "Planning",
-  drafting: "Drafting",
-  revising: "Revising",
-  on_hold: "On hold",
-  complete: "Complete",
-  published: "Published",
-  abandoned: "Abandoned",
-};
 
 interface ProjectsClientProps {
   initialProjects: WritingProjectRow[];

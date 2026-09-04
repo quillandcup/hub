@@ -1,6 +1,29 @@
 export type WritingMeasure = "prickles" | "words" | "time_minutes" | "pages" | "chapters" | "scenes" | "lines";
 export type EntryMode = "delta" | "set_total";
 
+export const PROJECT_PHASES = ["planning", "drafting", "revising", "on_hold", "complete", "published", "abandoned"] as const;
+export type ProjectPhase = (typeof PROJECT_PHASES)[number];
+
+/**
+ * Phases a member can pick manually from a project's phase selector. 'published' is excluded --
+ * it can only be reached via the Publish flow (publishProject), which links a Bookshelf entry in
+ * the same step. See the comment on publishProject in app/(member)/projects/actions.ts.
+ */
+export const MANUALLY_SETTABLE_PHASES = PROJECT_PHASES.filter((p) => p !== "published") as Exclude<
+  ProjectPhase,
+  "published"
+>[];
+
+export const PHASE_LABELS: Record<ProjectPhase, string> = {
+  planning: "Planning",
+  drafting: "Drafting",
+  revising: "Revising",
+  on_hold: "On hold",
+  complete: "Complete",
+  published: "Published",
+  abandoned: "Abandoned",
+};
+
 export const WRITING_MEASURES: WritingMeasure[] = [
   "prickles",
   "words",

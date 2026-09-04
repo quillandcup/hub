@@ -8,6 +8,8 @@ import { validateBookInput } from "@/lib/bookValidation";
 import { getMyBooks, type BookInput, type MyBookRow } from "@/app/(member)/bookshelf/actions";
 import {
   WRITING_MEASURES,
+  PROJECT_PHASES,
+  MANUALLY_SETTABLE_PHASES,
   computeCumulativeTotal,
   computeCumulativeSeries,
   computeGoalProgress,
@@ -17,13 +19,14 @@ import {
   type EntryMode,
   type HabitPeriod,
   type PrickleAttendanceRow,
+  type ProjectPhase,
 } from "@/lib/writing-projects";
 import { computePrickleStreaks, seriesKeyFor } from "@/lib/streaks";
 import { getUserTimezonePreference } from "@/lib/timezone";
 import { DAY_NAMES, formatScheduleLabel, getMonthStart, getNextMonthStart } from "@/lib/prickle-schedules";
 
-const PHASES = ["planning", "drafting", "revising", "on_hold", "complete", "published", "abandoned"] as const;
-type Phase = (typeof PHASES)[number];
+const PHASES = PROJECT_PHASES;
+type Phase = ProjectPhase;
 
 const HABIT_PERIODS: HabitPeriod[] = ["day", "week", "month"];
 const ORG_TIMEZONE = "America/New_York"; // mirrors the same fallback convention used in app/(member)/dashboard/page.tsx
@@ -542,6 +545,34 @@ export async function toggleProjectVisibility(
 
   revalidatePath(`/projects/${projectId}`);
   revalidatePath(`/members/${effectiveIdentity.memberId}`);
+  return { success: true };
+}
+
+/**
+ * Manual phase change (Planning/Drafting/Revising/On hold/Complete/Abandoned). 'published' is
+ * excluded here -- it can only be reached via publishProject, which links a Bookshelf entry in
+ * the same step (see the comment there).
+ */
+export async function updateProjectPhase(
+  projectId: string,
+  phase: (typeof MANUALLY_SETTABLE_PHASES)[number]
+): Promise<{ success: true } | { error: string }> {
+  const ctx = await requireIdentity();
+  if ("error" in ctx) return ctx;
+  const { supabase, effectiveIdentity } = ctx;
+
+  if (!MANUALLY_SETTABLE_PHASES.includes(phase)) return { error: "Invalid phase" };
+
+  const { error } = await supabase
+    .from("writing_projects")
+    .update({ phase })
+    .eq("id", projectId)
+    .eq("member_id", effectiveIdentity.memberId);
+
+  if (error) return { error: error.message };
+
+  revalidatePath("/projects");
+  revalidatePath(`/projects/${projectId}`);
   return { success: true };
 }
 

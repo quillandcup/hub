@@ -11,6 +11,8 @@ import { deleteBook } from "@/app/(member)/bookshelf/actions";
 import {
   WRITING_MEASURES,
   MEASURE_LABELS,
+  MANUALLY_SETTABLE_PHASES,
+  PHASE_LABELS,
   type WritingMeasure,
   type HabitPeriod,
 } from "@/lib/writing-projects";
@@ -23,6 +25,7 @@ import {
   toggleGoalStar,
   toggleProjectVisibility,
   updateGoal,
+  updateProjectPhase,
   type AnchorOption,
   type WritingProjectRow,
   type EntryRow,
@@ -42,6 +45,8 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
   const [editingGoal, setEditingGoal] = useState<GoalRow | null>(null);
   const [showOnProfile, setShowOnProfile] = useState(project.showOnProfile);
   const [visibilityPending, setVisibilityPending] = useState(false);
+  const [phase, setPhase] = useState(project.phase);
+  const [phasePending, setPhasePending] = useState(false);
   const [showPublish, setShowPublish] = useState(false);
   const [showEditBook, setShowEditBook] = useState(false);
   const [removingBook, setRemovingBook] = useState(false);
@@ -91,6 +96,18 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
     setShowOnProfile(next);
   }
 
+  async function handlePhaseChange(e: React.ChangeEvent<HTMLSelectElement>) {
+    const next = e.target.value as (typeof MANUALLY_SETTABLE_PHASES)[number];
+    setPhasePending(true);
+    const result = await updateProjectPhase(project.id, next);
+    setPhasePending(false);
+    if ("error" in result) {
+      alert(result.error);
+      return;
+    }
+    setPhase(next);
+  }
+
   async function handleRemoveBook() {
     if (!project.book) return;
     if (!confirm(`Remove "${project.book.title}" from the Bookshelf?`)) return;
@@ -107,16 +124,35 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
   return (
     <div className="max-w-3xl mx-auto space-y-6">
       <div className="flex items-center justify-between text-sm">
-        <label className="flex items-center gap-2 text-slate-600 dark:text-slate-400 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={showOnProfile}
-            disabled={visibilityPending}
-            onChange={handleToggleVisibility}
-            className="rounded"
-          />
-          Show on my profile
-        </label>
+        <div className="flex items-center gap-4">
+          <label className="flex items-center gap-2 text-slate-600 dark:text-slate-400 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={showOnProfile}
+              disabled={visibilityPending}
+              onChange={handleToggleVisibility}
+              className="rounded"
+            />
+            Show on my profile
+          </label>
+          {!project.book && (
+            <label className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
+              Status
+              <select
+                value={phase}
+                disabled={phasePending}
+                onChange={handlePhaseChange}
+                className="px-2 py-1 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-sm disabled:opacity-50"
+              >
+                {MANUALLY_SETTABLE_PHASES.map((p) => (
+                  <option key={p} value={p}>
+                    {PHASE_LABELS[p]}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+        </div>
         <a
           href={`/api/projects/export?projectId=${project.id}`}
           className="text-blue-600 hover:text-blue-700 dark:text-blue-400"
