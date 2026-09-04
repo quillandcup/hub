@@ -19,7 +19,7 @@ import {
 } from "@/lib/streaks"
 
 const ORG_TIMEZONE = "America/New_York"
-const STREAK_LIST_LIMIT = 20
+const STREAK_LIST_LIMIT = 10
 
 function formatHour(hour: number): string {
   if (hour === 0) return '12am'
@@ -62,21 +62,21 @@ function StreakRow({
 }) {
   const isActive = current > 0
   return (
-    <div className="flex items-center justify-between py-3 border-b border-slate-100 dark:border-slate-800 last:border-0">
+    <div className="flex items-center justify-between py-1.5 border-b border-slate-100 dark:border-slate-800 last:border-0">
       <span
-        className={`text-sm font-medium ${isActive ? "" : "text-slate-500 dark:text-slate-400"}`}
+        className={`text-sm font-medium truncate ${isActive ? "" : "text-slate-500 dark:text-slate-400"}`}
       >
         {isActive && <span className="mr-1.5">🔥</span>}
         {label}
       </span>
-      <div className="flex items-center gap-6 text-right flex-shrink-0 ml-4">
-        <div className="w-16">
+      <div className="flex items-center gap-4 text-right flex-shrink-0 ml-4">
+        <div className="w-12">
           <p className="text-sm font-bold">{current}w</p>
-          <p className="text-xs text-slate-400">current</p>
+          <p className="text-[10px] text-slate-400 leading-tight">current</p>
         </div>
-        <div className="w-16">
+        <div className="w-12">
           <p className="text-sm font-bold text-slate-400 dark:text-slate-500">{longest}w</p>
-          <p className="text-xs text-slate-400">best</p>
+          <p className="text-[10px] text-slate-400 leading-tight">best</p>
         </div>
       </div>
     </div>
@@ -109,11 +109,11 @@ function SisterStreakRow({
     .sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime())
 
   return (
-    <div className="py-3 border-b border-slate-100 dark:border-slate-800 last:border-0">
+    <div className="py-1.5 border-b border-slate-100 dark:border-slate-800 last:border-0">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 min-w-0">
           <span
-            className={`text-sm font-medium ${isActive ? "" : "text-slate-500 dark:text-slate-400"}`}
+            className={`text-sm font-medium truncate ${isActive ? "" : "text-slate-500 dark:text-slate-400"}`}
           >
             {isActive && <span className="mr-1.5">🔥</span>}
             {s.memberName}
@@ -123,7 +123,7 @@ function SisterStreakRow({
               href={slackDmUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-[#4A154B]/10 text-[#4A154B] hover:bg-[#4A154B]/20 dark:bg-purple-900/30 dark:text-purple-300 dark:hover:bg-purple-900/50 transition-colors flex-shrink-0"
+              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium bg-[#4A154B]/10 text-[#4A154B] hover:bg-[#4A154B]/20 dark:bg-purple-900/30 dark:text-purple-300 dark:hover:bg-purple-900/50 transition-colors flex-shrink-0"
               title={`Message ${s.memberName} on Slack`}
             >
               <svg viewBox="0 0 54 54" className="w-3 h-3 flex-shrink-0" aria-hidden="true">
@@ -134,25 +134,24 @@ function SisterStreakRow({
                   <path d="M0 34.249a5.381 5.381 0 0 0 5.376 5.386 5.381 5.381 0 0 0 5.376-5.386v-5.387H5.376A5.381 5.381 0 0 0 0 34.249m14.336 0v14.364A5.381 5.381 0 0 0 19.712 54a5.381 5.381 0 0 0 5.376-5.387V34.249a5.381 5.381 0 0 0-5.376-5.387 5.381 5.381 0 0 0-5.376 5.387" fill="#E01E5A"/>
                 </g>
               </svg>
-              Message
             </Link>
           )}
         </div>
-        <div className="flex items-center gap-6 text-right flex-shrink-0 ml-4">
-          <div className="w-16">
+        <div className="flex items-center gap-4 text-right flex-shrink-0 ml-4">
+          <div className="w-12">
             <p className="text-sm font-bold">{s.currentStreak}w</p>
-            <p className="text-xs text-slate-400">current</p>
+            <p className="text-[10px] text-slate-400 leading-tight">current</p>
           </div>
-          <div className="w-16">
+          <div className="w-12">
             <p className="text-sm font-bold text-slate-400 dark:text-slate-500">
               {s.longestStreak}w
             </p>
-            <p className="text-xs text-slate-400">best</p>
+            <p className="text-[10px] text-slate-400 leading-tight">best</p>
           </div>
         </div>
       </div>
       {sharedPrickles.length > 0 && (
-        <details className="mt-1.5">
+        <details className="mt-1">
           <summary className="text-xs text-slate-400 cursor-pointer select-none hover:text-slate-600 dark:hover:text-slate-300 w-fit">
             {sharedPrickles.length} shared {sharedPrickles.length === 1 ? "Prickle" : "Prickles"}
           </summary>
@@ -338,90 +337,86 @@ export default async function StreaksPage() {
   }
 
   return (
-    <div className="container mx-auto px-6 py-8 max-w-2xl">
-      <h1 className="text-3xl font-bold mb-8">Streaks</h1>
+    <div className="container mx-auto px-6 py-6 max-w-4xl">
+      <h1 className="text-2xl font-bold mb-4">Streaks</h1>
 
       {/* Overall attendance streak */}
-      <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 p-6 mb-6">
-        <h2 className="text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-4">
+      <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 p-4 mb-4">
+        <h2 className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2">
           Your Attendance Streak
         </h2>
         <div className="flex items-center gap-3">
           {overall.currentStreak > 0 && (
-            <span className="text-4xl" aria-hidden>
+            <span className="text-3xl" aria-hidden>
               🔥
             </span>
           )}
           <StreakBadge current={overall.currentStreak} longest={overall.longestStreak} />
         </div>
         {overall.currentStreak === 0 && overall.longestStreak > 0 && (
-          <p className="text-xs text-slate-400 mt-3">
+          <p className="text-xs text-slate-400 mt-2">
             Attend a Prickle this week or next to start a new streak.
           </p>
         )}
       </div>
 
-      {/* Sister streaks */}
-      <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 p-6 mb-6">
-        <h2 className="text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-4">
-          Sister Streaks
-        </h2>
-        <p className="text-xs text-slate-400 dark:text-slate-500 mb-4">
-          Members you&apos;ve shown up to the same Prickle with, week after week.
-        </p>
-        {sisterStreaks.length === 0 ? (
-          <p className="text-sm text-slate-500 dark:text-slate-400">
-            No sister streaks yet. Consistent co-attendance with another member over 2+ consecutive
-            weeks will show up here.
-          </p>
-        ) : (
-          <div>
-            {sisterStreaks.map((s) => (
-              <SisterStreakRow
-                key={s.memberId}
-                s={s}
-                prickleMap={prickleMap}
-                slackDmUrl={slackDmByMemberId.get(s.memberId)}
-              />
-            ))}
-            {totalSisterStreaks > sisterStreaks.length && (
-              <p className="text-xs text-slate-400 mt-3">
-                Showing top {sisterStreaks.length} of {totalSisterStreaks}.
-              </p>
-            )}
-          </div>
-        )}
-      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {/* Prickle streaks */}
+        <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 p-4">
+          <h2 className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
+            Prickle Streaks
+          </h2>
+          {prickleStreaks.length === 0 ? (
+            <p className="text-sm text-slate-500 dark:text-slate-400 mt-2">
+              No Prickle streaks yet. Attend the same Prickle for 2+ consecutive weeks to start one.
+            </p>
+          ) : (
+            <div>
+              {prickleStreaks.map((s) => (
+                <StreakRow
+                  key={`${s.prickleTypeName}|${s.dayOfWeek}|${s.startHour}`}
+                  label={formatPrickleLabel(s.prickleTypeName, s.dayOfWeek, s.startHour)}
+                  current={s.currentStreak}
+                  longest={s.longestStreak}
+                />
+              ))}
+              {totalPrickleStreaks > prickleStreaks.length && (
+                <p className="text-xs text-slate-400 mt-2">
+                  Top {prickleStreaks.length} of {totalPrickleStreaks}.
+                </p>
+              )}
+            </div>
+          )}
+        </div>
 
-      {/* Prickle streaks */}
-      <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 p-6">
-        <h2 className="text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-4">
-          Prickle Streaks
-        </h2>
-        <p className="text-xs text-slate-400 dark:text-slate-500 mb-4">
-          Your consistency attending the same recurring Prickle.
-        </p>
-        {prickleStreaks.length === 0 ? (
-          <p className="text-sm text-slate-500 dark:text-slate-400">
-            No Prickle streaks yet. Attend the same Prickle for 2+ consecutive weeks to start one.
-          </p>
-        ) : (
-          <div>
-            {prickleStreaks.map((s) => (
-              <StreakRow
-                key={`${s.prickleTypeName}|${s.dayOfWeek}|${s.startHour}`}
-                label={formatPrickleLabel(s.prickleTypeName, s.dayOfWeek, s.startHour)}
-                current={s.currentStreak}
-                longest={s.longestStreak}
-              />
-            ))}
-            {totalPrickleStreaks > prickleStreaks.length && (
-              <p className="text-xs text-slate-400 mt-3">
-                Showing top {prickleStreaks.length} of {totalPrickleStreaks}.
-              </p>
-            )}
-          </div>
-        )}
+        {/* Sister streaks */}
+        <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 p-4">
+          <h2 className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
+            Sister Streaks
+          </h2>
+          {sisterStreaks.length === 0 ? (
+            <p className="text-sm text-slate-500 dark:text-slate-400 mt-2">
+              No sister streaks yet. Consistent co-attendance with another member over 2+
+              consecutive weeks will show up here.
+            </p>
+          ) : (
+            <div>
+              {sisterStreaks.map((s) => (
+                <SisterStreakRow
+                  key={s.memberId}
+                  s={s}
+                  prickleMap={prickleMap}
+                  slackDmUrl={slackDmByMemberId.get(s.memberId)}
+                />
+              ))}
+              {totalSisterStreaks > sisterStreaks.length && (
+                <p className="text-xs text-slate-400 mt-2">
+                  Top {sisterStreaks.length} of {totalSisterStreaks}.
+                </p>
+              )}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )

@@ -10,7 +10,7 @@ import WelcomeBackBanner from "./WelcomeBackBanner"
 import { parseDateOnly } from "@/lib/member-tenure"
 import { getProfileWritingSummary } from "@/app/(member)/projects/actions"
 import { MEASURE_LABELS } from "@/lib/writing-projects"
-import { getMemberBadges } from "@/lib/badges"
+import { getMemberBadges, getAttendedPrickleCount } from "@/lib/badges"
 import BadgeChip from "@/components/BadgeChip"
 import { safeUrl } from "@/lib/url"
 
@@ -62,15 +62,6 @@ export default async function MemberProfilePage({
 
   const writingSummary = await getProfileWritingSummary(id)
 
-  let metrics: {
-    member_id: string
-    last_attended_at: string | null
-    sessions_last_7_days: number
-    sessions_last_30_days: number
-    total_sessions: number
-    engagement_score: number
-    updated_at: string
-  } | null = null
   let attendance: {
     id: string
     join_time: string
@@ -78,16 +69,14 @@ export default async function MemberProfilePage({
     prickles: { start_time: string; prickle_types: { name: string } | null } | null
   }[] = []
   let streakJoinTimes: string[] = []
+  let engagementRows: { join_time: string; prickle_id: string }[] = []
   let timeZone = ORG_TIMEZONE
 
-  // Metrics (total prickles attended) feed both the Tier 3 "Community Stats" card and the
-  // Badges section below, so they're fetched regardless of viewer -- not just for isSelf.
-  const { data: metricsData } = await supabase
-    .from("member_metrics")
-    .select("*")
-    .eq("member_id", id)
-    .single()
-  metrics = metricsData
+  // Total prickles attended feeds both the Tier 3 "Community Stats" card and the Badges section
+  // below, so it's computed regardless of viewer -- not just for isSelf. Computed live from
+  // prickle_attendance (distinct prickle_id, per CLAUDE.md) rather than the member_metrics
+  // table, which nothing in the app populates -- see docs/MEDALLION_ARCHITECTURE.md.
+  const totalPricklesAttended = await getAttendedPrickleCount(supabase, id)
 
   if (isSelf) {
     // Fetch history and timezone preference concurrently (all bounded)
@@ -103,32 +92,45 @@ export default async function MemberProfilePage({
     timeZone = tzPref === "browser" ? ORG_TIMEZONE : tzPref
     attendance = (historyData ?? []) as unknown as typeof attendance
 
-    // Paginate all join_times for streak computation (sequential by nature)
+    // Paginate all join_times + prickle_ids for streak computation and the Engagement card's
+    // last-7/30-day distinct-prickle counts (sequential by nature)
     const BATCH_SIZE = 1000
     let offset = 0
     let hasMore = true
     while (hasMore) {
       const { data: batch } = await supabase
         .from("prickle_attendance")
-        .select("join_time")
+        .select("join_time, prickle_id")
         .eq("member_id", id)
         .range(offset, offset + BATCH_SIZE - 1)
       if (batch && batch.length > 0) {
-        streakJoinTimes = streakJoinTimes.concat(batch.map((r) => r.join_time))
+        engagementRows = engagementRows.concat(batch)
         offset += batch.length
         hasMore = batch.length === BATCH_SIZE
       } else {
         hasMore = false
       }
     }
+    streakJoinTimes = engagementRows.map((r) => r.join_time)
   }
 
   const earnedBadges = await getMemberBadges(
     supabase,
     id,
-    metrics?.total_sessions ?? 0,
+    totalPricklesAttended,
     member.first_joined_at
   )
+
+  const countDistinctPricklesInWindow = (windowMs: number) => {
+    const cutoff = Date.now() - windowMs
+    const ids = new Set<string>()
+    for (const row of engagementRows) {
+      if (new Date(row.join_time).getTime() >= cutoff) ids.add(row.prickle_id)
+    }
+    return ids.size
+  }
+  const sessionsLast7Days = countDistinctPricklesInWindow(7 * 24 * 60 * 60 * 1000)
+  const sessionsLast30Days = countDistinctPricklesInWindow(30 * 24 * 60 * 60 * 1000)
 
   const streaks = computeStreaks(streakJoinTimes, new Date(), timeZone)
 
@@ -255,7 +257,7 @@ export default async function MemberProfilePage({
           Community Stats
         </h2>
         <div className="flex items-center gap-2">
-          <span className="text-3xl font-bold">{metrics?.total_sessions ?? 0}</span>
+          <span className="text-3xl font-bold">{totalPricklesAttended}</span>
           <span className="text-slate-500 dark:text-slate-400">prickles attended</span>
         </div>
       </div>
@@ -324,15 +326,15 @@ export default async function MemberProfilePage({
             </h2>
             <div className="grid grid-cols-3 gap-4 mb-6">
               <div className="text-center">
-                <p className="text-2xl font-bold">{metrics?.sessions_last_7_days ?? 0}</p>
+                <p className="text-2xl font-bold">{sessionsLast7Days}</p>
                 <p className="text-xs text-slate-500 dark:text-slate-400">Last 7 days</p>
               </div>
               <div className="text-center">
-                <p className="text-2xl font-bold">{metrics?.sessions_last_30_days ?? 0}</p>
+                <p className="text-2xl font-bold">{sessionsLast30Days}</p>
                 <p className="text-xs text-slate-500 dark:text-slate-400">Last 30 days</p>
               </div>
               <div className="text-center">
-                <p className="text-2xl font-bold">{metrics?.total_sessions ?? 0}</p>
+                <p className="text-2xl font-bold">{totalPricklesAttended}</p>
                 <p className="text-xs text-slate-500 dark:text-slate-400">All time</p>
               </div>
             </div>
