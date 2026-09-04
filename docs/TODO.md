@@ -37,9 +37,10 @@ Some people who attend prickles have no Kajabi footprint at all (not a member, t
 **Resolved:** replaced the old `member_status_overrides` `override_type='180_program'` stopgap with real generic cohort tracking — `programs` / `program_cohorts` / `member_program_enrollments` tables (`supabase/migrations/20260903000000_create_program_cohort_tracking.sql`), driving member status via `reprocess_members_atomic` Steps 4a/4c/4d, and migrating any existing `180_program` override rows into real cohorts/enrollments (`20260904130000_program_cohorts_supersede_180_program.sql`). A cohort's start/end dates live once and apply to everyone enrolled in it; a member can enroll in more than one cohort over time (e.g. an alumna repeating the 180 Program). Admin UI at `/admin/programs` (feature flag `program_cohorts`) manages programs/cohorts/enrollments and shows a leakage report — members whose most recent cohort lapsed without their status converting to `active` — per program. Seeded with the two known real programs: **180 Program** and **Self-Editing Academy**.
 
 **Still open:**
-- **Automatic Kajabi-purchase-to-cohort mapping.** `programs.kajabi_offer_names` captures the known offer titles (180 Program: `"Q&C 180 Program"` / alumna repeat-purchase offer `"You did it once. Let's 180. Again!"` internally titled `"Q&C 180 Program Alumna"`) but nothing yet reads it — enrollment is still manual. Building real auto-detection needs purchase-date-to-cohort matching logic and handling repeat/alumna purchases, which wasn't reliable enough to build blind.
+- **Automatic Kajabi-purchase-to-cohort mapping.** `programs.kajabi_offer_names` captures the known offer titles (180 Program: `"Q&C 180 Program"` / alumna repeat-purchase offer `"You did it once. Let's 180. Again!"` internally titled `"Q&C 180 Program Alumna"`) but nothing yet reads it — enrollment is still manual. Direction: cohorts stay manually created (dates/names are a staff decision), but once a cohort exists, auto-detect/auto-map members into it from Kajabi purchase data matching `kajabi_offer_names` within the cohort's window, instead of hand-enrolling each person. Needs purchase-date-to-cohort matching logic and handling repeat/alumna purchases, which wasn't reliable enough to build blind.
 - **Self-Editing Academy's level-within-cohort progression.** The cohort moves together through 3 levels, plus a flexible "stay in the previous level" option — rules are TBD, needs a conversation with Ania before modeling. Today's schema only tracks one shared cohort window, not levels.
 - **Broader direction (not scoped yet):** first-class local data for `courses` (evergreen and cohort-based), `events` (in-person/virtual retreats, paid public prickles), and other Kajabi "products," plus a sync pipeline to import and keep them current from Kajabi — part of an eventual move away from Kajabi as the source of truth.
+- **Ad-hoc Kajabi Payments subscriptions aren't reconciled at all.** Discovered while backfilling real 180 Program cohorts: some members (e.g. Abby VanLuvanee) pay through a custom product set up directly in Kajabi's Payments/Billing area (subscriptions/invoices, not the classic "Offers" catalog this sync was built around) — nothing in `kajabi_purchases`/`kajabi_offers` reflects them, so reconciliation shows them as `cancelled` despite an active paid subscription. Stopgap: a `gift` override per affected member. Real fix needs syncing Kajabi's Payments API (subscriptions/invoices), separate from the existing Offers-based purchase sync.
 
 ---
 
@@ -427,6 +428,18 @@ Add a hidden keyboard shortcut (typing "helpme", similar to Confluent Cloud's de
 
 ### General Improvements
 - Add favicon to the application
+
+---
+
+## Internationalization
+
+### Basic Date Format Localization (Needs Scoping)
+Dates are currently always displayed US-style (`MM/DD/YYYY`), but many/most other countries prefer `DD/MM/YYYY`. Language should stay English and money stay USD (that's all Quill & Cup charges in and speaks) — this is scoped to date display only, not full i18n.
+
+**Needs scoping before implementation:**
+- Where dates are formatted today (likely scattered `toLocaleDateString()`/manual formatting calls across admin and member pages) vs. a shared date-formatting utility that could centralize this
+- Source of the preferred format: browser locale (`navigator.language`) vs. an explicit per-member/user setting (ties into "User settings - additional preferences" under UI Enhancements, which already floats a "working location for global time analysis" preference)
+- Whether this only affects display formatting, or also needs to affect date *input* parsing (e.g. any place a date is typed rather than picked via `<input type="date">`, which is locale-formatted by the browser natively already)
 
 ---
 
