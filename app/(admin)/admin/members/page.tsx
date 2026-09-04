@@ -107,7 +107,24 @@ export default async function MembersPage({
   let query = supabase.from("members").select("*");
 
   if (search) {
-    query = query.or(`name.ilike.%${search}%,email.ilike.%${search}%`);
+    // Also match members via member_name_aliases (e.g. a Zoom display name
+    // that differs from the canonical members.name) so searching by an alias
+    // still finds the member. Scoped to source="zoom": "slack" aliases store
+    // an opaque Slack user_id, not a name, so it isn't meaningful to text-match.
+    const { data: matchingAliases } = await supabase
+      .from("member_name_aliases")
+      .select("member_id")
+      .eq("source", "zoom")
+      .ilike("alias", `%${search}%`);
+    const aliasMemberIds = Array.from(
+      new Set((matchingAliases ?? []).map((a) => a.member_id))
+    );
+
+    const orFilters = [`name.ilike.%${search}%`, `email.ilike.%${search}%`];
+    if (aliasMemberIds.length > 0) {
+      orFilters.push(`id.in.(${aliasMemberIds.join(",")})`);
+    }
+    query = query.or(orFilters.join(","));
   }
 
   const { data: allMembers } = await query.order("name");
