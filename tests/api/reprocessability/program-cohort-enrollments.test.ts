@@ -4,7 +4,7 @@ import { getTestSupabaseAdminClient, getTestAuthHeaders, getTestApiBaseUrl } fro
 /**
  * member_program_enrollments + program_cohorts must drive member status the
  * same way the old member_status_overrides override_type='180_program'
- * stopgap did (see reprocess_members_atomic Steps 4b/4c/4d in
+ * stopgap did (see reprocess_members_atomic Steps 4a/4c/4d in
  * 20260904130000_program_cohorts_supersede_180_program.sql), but sourced
  * from a real cohort (shared start/end window) instead of a hand-typed date
  * per member, and supporting more than one enrollment per member (an alumna
@@ -23,7 +23,7 @@ describe('Program cohort enrollments applied during reprocessing', () => {
   let memberIds: Record<string, string> = {}
   const enrollmentIds: string[] = []
   const cohortIds: string[] = []
-  const overrideIds: string[] = []
+  const hiatusIds: string[] = []
 
   function isoDate(offsetDays: number): string {
     const d = new Date()
@@ -74,14 +74,14 @@ describe('Program cohort enrollments applied during reprocessing', () => {
     expect(memberError).toBeNull()
     members?.forEach((m) => { memberIds[m.email] = m.id })
 
-    const { data: overrides, error: overrideError } = await supabase
-      .from('member_status_overrides')
+    const { data: hiatuses, error: hiatusError } = await supabase
+      .from('member_hiatus_history')
       .insert([
-        { member_id: memberIds[emailHiatusWins], override_type: 'hiatus', reason: 'test hiatus', starts_at: new Date().toISOString() },
+        { member_id: memberIds[emailHiatusWins], start_date: isoDate(-5), reason: 'test hiatus' },
       ])
       .select('id')
-    expect(overrideError).toBeNull()
-    overrideIds.push(...(overrides?.map((o) => o.id) ?? []))
+    expect(hiatusError).toBeNull()
+    hiatusIds.push(...(hiatuses?.map((h) => h.id) ?? []))
 
     const { data: enrollments, error: enrollmentError } = await supabase
       .from('member_program_enrollments')
@@ -100,7 +100,7 @@ describe('Program cohort enrollments applied during reprocessing', () => {
 
   afterAll(async () => {
     await supabase.from('member_program_enrollments').delete().in('id', enrollmentIds)
-    await supabase.from('member_status_overrides').delete().in('id', overrideIds)
+    await supabase.from('member_hiatus_history').delete().in('id', hiatusIds)
     await supabase.from('members').delete().in('id', Object.values(memberIds))
     await supabase.from('program_cohorts').delete().in('id', cohortIds)
     await supabase.from('programs').delete().eq('id', programId)

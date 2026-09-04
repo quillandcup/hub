@@ -47,10 +47,13 @@ ALTER TABLE member_status_overrides
   ADD CONSTRAINT member_status_overrides_override_type_check
   CHECK (override_type IN ('gift', 'special'));
 
--- Steps 1 through 4a are unchanged from 20260903130000_180_program_active_months.sql.
--- Step 4 drops '180_program' (removed above); 4b/4c ('180_program'-specific
--- lapse-to-cancelled and total_active_months backfill) are replaced by the
--- cohort-enrollment-driven 4c/4d/4e below.
+-- Steps 1 through 4 (gift) and old 4a (hiatus) are unchanged from
+-- 20260903130000_180_program_active_months.sql, aside from Step 4 dropping
+-- '180_program' (removed above) and hiatus moving to 4b so the new
+-- cohort-active step (4a) can run before it (hiatus must win via ordering).
+-- Old 4b/4c ('180_program'-specific lapse-to-cancelled and
+-- total_active_months backfill) are replaced by the cohort-enrollment-driven
+-- 4a/4c/4d below.
 CREATE OR REPLACE FUNCTION reprocess_members_atomic(
   new_data JSONB
 ) RETURNS void AS $$
@@ -225,20 +228,9 @@ BEGIN
   WHERE ao.member_id = m.id
     AND m.status IS DISTINCT FROM 'active';
 
-  -- Step 4a: An active hiatus (member_hiatus_history) always forces
-  -- on_hiatus, overriding whatever Step 4 (or 4b below) just set — hiatus is
-  -- the more restrictive state, and running after them makes it win without
-  -- needing a cross-table tie-break.
-  UPDATE members m
-  SET status = 'on_hiatus', updated_at = NOW()
-  FROM member_hiatus_history hh
-  WHERE hh.member_id = m.id
-    AND current_date BETWEEN hh.start_date AND COALESCE(hh.end_date, 'infinity'::date)
-    AND m.status IS DISTINCT FROM 'on_hiatus';
-
-  -- Step 4b: A currently-active program-cohort enrollment (member_program_enrollments
+  -- Step 4a: A currently-active program-cohort enrollment (member_program_enrollments
   -- + program_cohorts — see 20260903000000) forces status='active', the same
-  -- way a 'gift' override does. Placed before 4a (hiatus) so hiatus still
+  -- way a 'gift' override does. Placed before 4b (hiatus) so hiatus still
   -- wins via ordering, same as Step 4.
   UPDATE members m
   SET status = 'active', updated_at = NOW()
@@ -249,6 +241,17 @@ BEGIN
       WHERE mpe.member_id = m.id
         AND now()::date BETWEEN pc.starts_at AND pc.expires_at
     );
+
+  -- Step 4b: An active hiatus (member_hiatus_history) always forces
+  -- on_hiatus, overriding whatever Step 4 (or 4a above) just set — hiatus is
+  -- the more restrictive state, and running after them makes it win without
+  -- needing a cross-table tie-break.
+  UPDATE members m
+  SET status = 'on_hiatus', updated_at = NOW()
+  FROM member_hiatus_history hh
+  WHERE hh.member_id = m.id
+    AND current_date BETWEEN hh.start_date AND COALESCE(hh.end_date, 'infinity'::date)
+    AND m.status IS DISTINCT FROM 'on_hiatus';
 
   -- Step 4c: A member whose program-cohort enrollment(s) have all lapsed
   -- (cohort expires_at in the past, none currently active) and who is still
@@ -288,9 +291,9 @@ BEGIN
     total_active_months = GREATEST(
       m.total_active_months,
       (
-        SELECT MAX(FLOOR(EXTRACT(EPOCH FROM (
-          LEAST(now()::date, pc.expires_at) - pc.starts_at
-        )) / 86400 / 30))::integer
+        -- pc.starts_at/expires_at are DATE, so this subtraction is already
+        -- an integer day count (no EXTRACT(EPOCH ...) needed/valid here).
+        SELECT MAX(FLOOR((LEAST(now()::date, pc.expires_at) - pc.starts_at) / 30.0))::integer
         FROM member_program_enrollments mpe
         JOIN program_cohorts pc ON pc.id = mpe.cohort_id
         WHERE mpe.member_id = m.id
