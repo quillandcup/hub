@@ -83,6 +83,43 @@ describe('Member Filters', () => {
           engagement_tier: 'active',
         }
       },
+      {
+        // A lead who never attended gets riskLevel="high" from
+        // computeMemberEngagementMetrics (it doesn't look at status), but
+        // at-risk should never surface a lead -- they never converted.
+        name: 'High-Risk Lead Member',
+        email: `high-risk-lead-${Date.now()}@example.com`,
+        joined_at: new Date().toISOString(),
+        status: 'lead',
+        engagement: {
+          risk_level: 'high',
+          engagement_tier: 'at_risk',
+        }
+      },
+      {
+        // A cancelled former member can also carry a stale high risk_level;
+        // at-risk should not surface them either.
+        name: 'High-Risk Cancelled Member',
+        email: `high-risk-cancelled-${Date.now()}@example.com`,
+        joined_at: new Date().toISOString(),
+        status: 'cancelled',
+        engagement: {
+          risk_level: 'high',
+          engagement_tier: 'at_risk',
+        }
+      },
+      {
+        // An on_hiatus member who is also high risk SHOULD surface as
+        // at-risk -- on_hiatus is one of the two eligible statuses.
+        name: 'High-Risk Hiatus Member',
+        email: `high-risk-hiatus-${Date.now()}@example.com`,
+        joined_at: new Date().toISOString(),
+        status: 'on_hiatus',
+        engagement: {
+          risk_level: 'high',
+          engagement_tier: 'at_risk',
+        }
+      },
     ]
 
     // Insert members and their engagement data
@@ -134,15 +171,18 @@ describe('Member Filters', () => {
 
     expect(error).toBeNull()
 
-    // Filter in memory (this is what the fix will do)
+    // Filter in memory (this is what page.tsx's isAtRisk does): high risk_level
+    // AND status is active or on_hiatus -- never lead or cancelled, even if
+    // they carry a stale/misleading high risk_level.
     const atRiskMembers = members?.filter(
-      (m: any) => m.member_engagement?.risk_level === 'high'
+      (m: any) =>
+        m.member_engagement?.risk_level === 'high' &&
+        (m.status === 'active' || m.status === 'on_hiatus')
     )
 
     expect(atRiskMembers).toBeDefined()
-    expect(atRiskMembers!.length).toBe(1)
-    expect(atRiskMembers![0].name).toBe('At Risk Member')
-    expect(atRiskMembers![0].member_engagement.risk_level).toBe('high')
+    const atRiskNames = atRiskMembers!.map((m: any) => m.name).sort()
+    expect(atRiskNames).toEqual(['At Risk Member', 'High-Risk Hiatus Member'])
   })
 
   it('should return only highly-engaged members when filter=highly_engaged', async () => {
@@ -184,7 +224,7 @@ describe('Member Filters', () => {
 
     expect(error).toBeNull()
     expect(members).toBeDefined()
-    expect(members!.length).toBe(6)
+    expect(members!.length).toBe(9)
   })
 
   it('should return only active members when filter=active', async () => {
@@ -221,9 +261,12 @@ describe('Member Filters', () => {
 
     expect(error).toBeNull()
     expect(members).toBeDefined()
-    expect(members!.length).toBe(1)
-    expect(members![0].status).toBe('on_hiatus')
-    expect(members![0].name).toBe('On Hiatus Member')
+    expect(members!.length).toBe(2)
+    expect(members!.every((m: any) => m.status === 'on_hiatus')).toBe(true)
+    expect(members!.map((m: any) => m.name).sort()).toEqual([
+      'High-Risk Hiatus Member',
+      'On Hiatus Member',
+    ])
   })
 
   it('should return only leads when filter=lead', async () => {
@@ -240,9 +283,12 @@ describe('Member Filters', () => {
 
     expect(error).toBeNull()
     expect(members).toBeDefined()
-    expect(members!.length).toBe(1)
-    expect(members![0].status).toBe('lead')
-    expect(members![0].name).toBe('Lead Member')
+    expect(members!.length).toBe(2)
+    expect(members!.every((m: any) => m.status === 'lead')).toBe(true)
+    expect(members!.map((m: any) => m.name).sort()).toEqual([
+      'High-Risk Lead Member',
+      'Lead Member',
+    ])
   })
 
   it('should return only cancelled members when filter=cancelled', async () => {
@@ -259,9 +305,12 @@ describe('Member Filters', () => {
 
     expect(error).toBeNull()
     expect(members).toBeDefined()
-    expect(members!.length).toBe(1)
-    expect(members![0].status).toBe('cancelled')
-    expect(members![0].name).toBe('Cancelled Member')
+    expect(members!.length).toBe(2)
+    expect(members!.every((m: any) => m.status === 'cancelled')).toBe(true)
+    expect(members!.map((m: any) => m.name).sort()).toEqual([
+      'Cancelled Member',
+      'High-Risk Cancelled Member',
+    ])
   })
 
   it('should handle members without engagement data gracefully', async () => {

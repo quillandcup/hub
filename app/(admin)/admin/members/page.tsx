@@ -162,12 +162,21 @@ export default async function MembersPage({
     };
   });
 
+  // At-risk only ever applies to members who are actually still around --
+  // "active" or "on_hiatus". A "lead" (never had a real subscription) or a
+  // "cancelled" member can have a computed risk_level of "high" (the metrics
+  // function doesn't look at status), but that's not a meaningful "at risk"
+  // signal for either of those statuses.
+  const isAtRisk = (m: (typeof membersWithMetrics)[number]) =>
+    m.member_engagement?.risk_level === "high" &&
+    (m.status === "active" || m.status === "on_hiatus");
+
   // Counts per filter tab, scoped to the current search but ignoring the
   // currently selected filter, so each tab shows how many results it would return.
   const filterCounts = {
     all: membersWithMetrics.length,
     active: membersWithMetrics.filter((m) => m.status === "active").length,
-    at_risk: membersWithMetrics.filter((m) => m.member_engagement?.risk_level === "high").length,
+    at_risk: membersWithMetrics.filter(isAtRisk).length,
     highly_engaged: membersWithMetrics.filter((m) => m.member_engagement?.engagement_tier === "highly_engaged").length,
     on_hiatus: membersWithMetrics.filter((m) => m.status === "on_hiatus").length,
     lead: membersWithMetrics.filter((m) => m.status === "lead").length,
@@ -189,7 +198,7 @@ export default async function MembersPage({
   } else if (filter === "unregistered") {
     members = membersWithMetrics.filter((m) => m.status === "active" && m.user_id === null);
   } else if (filter === "at_risk") {
-    members = membersWithMetrics.filter((m) => m.member_engagement?.risk_level === "high");
+    members = membersWithMetrics.filter(isAtRisk);
   } else if (filter === "highly_engaged") {
     members = membersWithMetrics.filter((m) => m.member_engagement?.engagement_tier === "highly_engaged");
   }
