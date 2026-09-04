@@ -24,42 +24,56 @@ const navigation: NavSection[] = [
     name: "Overview",
     items: [
       { name: "Dashboard", href: "/admin", icon: "📊" },
+      { name: "Calendar View", href: "/admin/calendar", icon: "📅" },
     ],
   },
   {
     name: "Members",
     items: [
+      { name: "Work Queue", href: "/admin/work-queue", icon: "✅", feature: "work_queue" },
       { name: "All Members", href: "/admin/members", icon: "👥" },
       { name: "At-Risk Members", href: "/admin/at-risk", icon: "⚠️" },
-      { name: "Hiatus Tracking", href: "/admin/hiatus", icon: "⏸️", feature: "hiatus_tracking" },
       { name: "Hedgieversaries", href: "/admin/hedgieversaries", icon: "🎂", feature: "hedgieversaries" },
+      { name: "Member Overrides", href: "/admin/member-overrides", icon: "🎁", feature: "member_overrides" },
       { name: "Programs", href: "/admin/programs", icon: "🎓", feature: "program_cohorts" },
-      { name: "Network", href: "/admin/members/network", icon: "🕸️" },
-      { name: "Wheel of Wonder", href: "/admin/wheel-of-wonder", icon: "🎡", feature: "wheel_of_wonder" },
-      { name: "Badges", href: "/admin/badges", icon: "🏅" },
     ],
   },
   {
-    name: "Prickles",
+    name: "Community",
     items: [
-      { name: "Calendar View", href: "/admin/calendar", icon: "📅" },
-      { name: "Prickle Insights", href: "/admin/insights/prickles", icon: "✍️" },
-      { name: "Resubscriptions", href: "/admin/insights/resubscriptions", icon: "🔄" },
-      { name: "Community Stats", href: "/admin/stats", icon: "✨" },
-      { name: "Slack Engagement", href: "/admin/insights/slack-engagement", icon: "💬" },
+      { name: "Network", href: "/admin/members/network", icon: "🕸️" },
+      { name: "Badges", href: "/admin/badges", icon: "🏅" },
       { name: "Hosts", href: "/admin/hosts", icon: "🎙️" },
     ],
   },
   {
-    name: "Advanced",
-    collapsible: true,
+    // Data-quality actions that need regular attention to keep the pipeline
+    // from degrading — kept expanded (unlike System below) since these are
+    // meant to be worked, not just occasionally referenced. Name Aliases and
+    // most other hygiene fix-up tools stay off the nav, same as the rest of
+    // /admin/hygiene's linked sub-pages — reached by drilling in from here.
+    name: "Data Health",
     items: [
       { name: "Health Check", href: "/admin/hygiene", icon: "🏥" },
+      { name: "Reconciliation", href: "/admin/reconciliation", icon: "🔄" },
+    ],
+  },
+  {
+    name: "Analytics",
+    items: [
+      { name: "Community Stats", href: "/admin/stats", icon: "✨" },
+      { name: "Prickle Insights", href: "/admin/insights/prickles", icon: "✍️" },
+      { name: "Slack Engagement", href: "/admin/insights/slack-engagement", icon: "💬" },
+      { name: "Resubscriptions", href: "/admin/insights/resubscriptions", icon: "🔄" },
+      { name: "Wheel of Wonder", href: "/admin/wheel-of-wonder", icon: "🎡", feature: "wheel_of_wonder" },
+    ],
+  },
+  {
+    name: "System",
+    collapsible: true,
+    items: [
       { name: "Import Data", href: "/admin/data/import", icon: "📥" },
       { name: "Prickle Types", href: "/admin/data/prickle-types", icon: "🏷️" },
-      { name: "Name Aliases", href: "/admin/data/aliases", icon: "👤" },
-      { name: "Member Overrides", href: "/admin/member-overrides", icon: "🎁", feature: "member_overrides" },
-      { name: "Reconciliation", href: "/admin/reconciliation", icon: "🔄" },
       { name: "Users", href: "/admin/users", icon: "🔑" },
       { name: "Feedback", href: "/admin/feedback", icon: "💬" },
     ],

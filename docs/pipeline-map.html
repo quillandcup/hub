@@ -1,0 +1,446 @@
+<title>Spark to Shelf</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,500&family=Karla:ital,wght@0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+  :root{
+    --bg:#EFE6D2;
+    --bg-card:#FBF6EA;
+    --fg:#232C47;
+    --fg-muted:#6B6252;
+    --accent-live:#232C47;
+    --accent-live-fg:#F3ECDA;
+    --accent-community:#B6733C;
+    --accent-community-soft:rgba(182,115,60,0.13);
+    --accent-planned:#4F7052;
+    --accent-external:#7C7364;
+    --border:rgba(35,44,71,0.20);
+    --shadow:0 1px 2px rgba(35,25,10,.07), 0 10px 24px -16px rgba(25,20,10,.35);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#14192A;
+      --bg-card:#1D2339;
+      --fg:#EDE3CE;
+      --fg-muted:#B2A98F;
+      --accent-live:#C9CFE8;
+      --accent-live-fg:#14192A;
+      --accent-community:#E0A268;
+      --accent-community-soft:rgba(224,162,104,0.16);
+      --accent-planned:#8FB393;
+      --accent-external:#B8AC98;
+      --border:rgba(237,227,206,0.22);
+      --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 24px -16px rgba(0,0,0,.6);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#14192A;
+    --bg-card:#1D2339;
+    --fg:#EDE3CE;
+    --fg-muted:#B2A98F;
+    --accent-live:#C9CFE8;
+    --accent-live-fg:#14192A;
+    --accent-community:#E0A268;
+    --accent-community-soft:rgba(224,162,104,0.16);
+    --accent-planned:#8FB393;
+    --accent-external:#B8AC98;
+    --border:rgba(237,227,206,0.22);
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 24px -16px rgba(0,0,0,.6);
+  }
+
+  *{box-sizing:border-box;}
+  body{background:var(--bg);color:var(--fg);}
+  .page{
+    max-width:1100px;
+    margin:0 auto;
+    padding:clamp(1.5rem,4vw,3.25rem) clamp(1.25rem,4vw,2.5rem) 4rem;
+    font-family:'Karla',ui-sans-serif,system-ui,sans-serif;
+  }
+
+  .brandmark{display:flex;align-items:center;gap:.5rem;margin-bottom:1.4rem;}
+  .brandmark svg{flex:none;color:var(--accent-community);}
+  .brand-eyebrow{
+    font-family:'IBM Plex Mono',ui-monospace,monospace;
+    font-size:.72rem;
+    letter-spacing:.16em;
+    text-transform:uppercase;
+    color:var(--accent-community);
+  }
+
+  h1.title{
+    font-family:'Fraunces',Georgia,serif;
+    font-weight:600;
+    font-size:clamp(2.4rem,4.4vw + 1rem,3.6rem);
+    line-height:1.02;
+    margin:0 0 .85rem;
+    text-wrap:balance;
+    letter-spacing:-.01em;
+  }
+  .dek{
+    font-size:1.05rem;
+    line-height:1.55;
+    color:var(--fg-muted);
+    max-width:64ch;
+    margin:0 0 1.6rem;
+  }
+
+  .legend{
+    list-style:none;
+    display:flex;
+    flex-wrap:wrap;
+    gap:1.5rem;
+    margin:0 0 2.6rem;
+    padding:0;
+    font-family:'IBM Plex Mono',ui-monospace,monospace;
+    font-size:.78rem;
+    color:var(--fg-muted);
+  }
+  .legend li{display:flex;align-items:center;gap:.5rem;}
+  .legend-swatch{display:inline-block;width:22px;flex:none;}
+  .legend-swatch--live{height:3px;background:var(--accent-live);border-radius:2px;}
+  .legend-swatch--external{height:0;border-top:2.5px dotted var(--accent-external);}
+  .legend-swatch--planned{height:0;border-top:2.5px dashed var(--accent-planned);}
+  .legend-swatch--community{width:13px;height:13px;border-radius:50%;background:var(--accent-community);}
+
+  figure.spine-figure{margin:0 0 2.4rem;}
+  .spine-scroll{
+    overflow-x:auto;
+    overflow-y:hidden;
+    padding:.4rem .1rem 1rem;
+    margin:0 -.1rem;
+  }
+  .spine-wrap{position:relative;width:1850px;height:540px;}
+  .spine-wrap svg{position:absolute;inset:0;display:block;}
+
+  .community-tag{
+    position:absolute;left:40px;top:32px;
+    display:flex;flex-direction:column;gap:.05rem;
+  }
+  .community-tag__label{
+    font-family:'IBM Plex Mono',ui-monospace,monospace;
+    font-size:.72rem;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--accent-community);font-weight:600;
+  }
+  .community-tag__sub{
+    font-family:'Karla',sans-serif;
+    font-style:italic;font-size:.8rem;color:var(--fg-muted);
+  }
+
+  .start-dot{
+    position:absolute;left:60px;top:250px;
+    width:14px;height:14px;border-radius:50%;
+    background:var(--fg);transform:translate(-50%,-50%);
+  }
+  .start-label{
+    position:absolute;left:60px;top:302px;width:130px;
+    transform:translate(-50%,0);text-align:center;
+    font-family:'Karla',sans-serif;font-style:italic;
+    font-size:.82rem;color:var(--fg-muted);line-height:1.3;
+  }
+
+  .node{
+    position:absolute;
+    transform:translate(-50%,-50%);
+    width:194px;
+    background:var(--bg-card);
+    border:1.5px solid var(--border);
+    border-radius:14px;
+    padding:.85rem 1rem 1rem;
+    box-shadow:var(--shadow);
+    transition:transform .15s ease, box-shadow .15s ease;
+  }
+  @media (prefers-reduced-motion: no-preference){
+    .node:hover{transform:translate(-50%,-50%) translateY(-3px);box-shadow:0 2px 4px rgba(35,25,10,.1), 0 16px 28px -16px rgba(25,20,10,.4);}
+  }
+  .node--live{border-color:var(--accent-live);}
+  .node--planned{border-style:dashed;border-color:var(--accent-planned);}
+  .node--external{border-style:dotted;border-width:2px;border-color:var(--accent-external);}
+
+  .node__top{display:flex;align-items:center;justify-content:space-between;margin-bottom:.3rem;}
+  .node__num{
+    font-family:'IBM Plex Mono',ui-monospace,monospace;
+    font-size:.7rem;letter-spacing:.05em;color:var(--fg-muted);
+  }
+  .node__status{
+    font-family:'IBM Plex Mono',ui-monospace,monospace;
+    font-size:.6rem;letter-spacing:.06em;text-transform:uppercase;
+    padding:.16rem .48rem;border-radius:99px;line-height:1.5;
+    white-space:nowrap;
+  }
+  .node--live .node__status{background:var(--accent-live);color:var(--accent-live-fg);}
+  .node--planned .node__status{border:1px solid var(--accent-planned);color:var(--accent-planned);}
+  .node--external .node__status{border:1px solid var(--accent-external);color:var(--accent-external);}
+
+  .node__title{
+    font-family:'Fraunces',Georgia,serif;font-weight:600;
+    font-size:1.14rem;margin:0 0 .1rem;line-height:1.15;
+  }
+  .node__program{
+    font-size:.76rem;font-weight:600;color:var(--accent-community);
+    margin:0 0 .45rem;
+  }
+  .node--external .node__program{color:var(--accent-external);}
+  .node__desc{
+    font-size:.8rem;line-height:1.42;color:var(--fg-muted);margin:0;
+  }
+  .node__phase{
+    display:block;margin-top:.5rem;
+    font-family:'IBM Plex Mono',ui-monospace,monospace;
+    font-size:.6rem;letter-spacing:.03em;color:var(--fg-muted);opacity:.7;
+  }
+
+  .support-node{
+    position:absolute;transform:translate(-50%,-50%);
+    width:150px;
+    background:var(--bg-card);
+    border:1.5px solid var(--accent-community);
+    border-radius:12px;
+    padding:.55rem .75rem .65rem;
+    box-shadow:var(--shadow);
+  }
+  .support-node--planned{border-style:dashed;border-color:var(--accent-planned);}
+  .support-node__top{display:flex;align-items:center;justify-content:space-between;gap:.4rem;margin-bottom:.05rem;}
+  .support-node__title{
+    font-family:'Fraunces',Georgia,serif;font-weight:600;
+    font-size:.98rem;color:var(--accent-community);margin:0;
+  }
+  .support-node--planned .support-node__title{color:var(--accent-planned);}
+  .support-node__status{
+    font-family:'IBM Plex Mono',ui-monospace,monospace;
+    font-size:.55rem;letter-spacing:.05em;text-transform:uppercase;
+    padding:.14rem .42rem;border-radius:99px;line-height:1.4;
+    white-space:nowrap;flex:none;
+    background:var(--accent-community);color:var(--bg-card);
+  }
+  .support-node--planned .support-node__status{
+    background:transparent;border:1px solid var(--accent-planned);color:var(--accent-planned);
+  }
+  .support-node__sub{
+    font-family:'IBM Plex Mono',ui-monospace,monospace;
+    font-size:.58rem;letter-spacing:.04em;color:var(--fg-muted);
+    display:block;margin:.1rem 0 .35rem;
+  }
+  .support-node__desc{font-size:.7rem;line-height:1.35;color:var(--fg-muted);margin:0;}
+  .support-node__phase{
+    display:block;margin-top:.35rem;
+    font-family:'IBM Plex Mono',ui-monospace,monospace;
+    font-size:.56rem;letter-spacing:.03em;color:var(--fg-muted);opacity:.7;
+  }
+
+  .phase-note{margin:0 0 2.5rem;padding-top:1.6rem;border-top:1px solid var(--border);}
+  .phase-note__title{
+    font-family:'Fraunces',Georgia,serif;font-weight:600;
+    font-size:1.3rem;margin:0 0 .7rem;text-wrap:balance;
+  }
+  .phase-note p{
+    font-size:.92rem;line-height:1.6;color:var(--fg-muted);
+    max-width:68ch;margin:0 0 .9rem;
+  }
+  .phase-note p:last-child{margin-bottom:0;}
+  .phase-note code{
+    font-family:'IBM Plex Mono',ui-monospace,monospace;
+    font-size:.85em;color:var(--fg);
+    background:var(--accent-community-soft);
+    padding:.05rem .3rem;border-radius:4px;
+  }
+
+  .flow-live{fill:none;stroke:var(--accent-live);stroke-width:2.5;stroke-linecap:round;}
+  .flow-planned{fill:none;stroke:var(--accent-planned);stroke-width:2.5;stroke-linecap:round;stroke-dasharray:7 7;}
+  .flow-external{fill:none;stroke:var(--accent-external);stroke-width:2.25;stroke-linecap:round;stroke-dasharray:1 6.5;}
+  .flow-bff{fill:none;stroke:var(--accent-community);stroke-width:2.75;stroke-linecap:round;}
+  .bff-anchor{fill:var(--accent-community);}
+  .marker-live{fill:var(--accent-live);}
+  .marker-planned{fill:var(--accent-planned);}
+  .marker-external{fill:var(--accent-external);}
+  .marker-bff{fill:var(--accent-community);}
+  .band{fill:var(--accent-community-soft);stroke:var(--accent-community);stroke-opacity:.4;stroke-width:1.5;stroke-dasharray:2 7;}
+  .ring{fill:none;stroke:var(--accent-community);}
+
+  figcaption{
+    margin-top:1rem;
+    font-size:.86rem;line-height:1.55;color:var(--fg-muted);
+    max-width:70ch;
+  }
+
+  .closing{
+    font-family:'Fraunces',Georgia,serif;
+    font-style:italic;font-weight:500;
+    font-size:1.18rem;line-height:1.5;
+    max-width:52ch;
+    color:var(--fg);
+    margin:0 0 2.5rem;
+  }
+
+  .page-footer{
+    font-family:'IBM Plex Mono',ui-monospace,monospace;
+    font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;
+    color:var(--fg-muted);
+    border-top:1px solid var(--border);
+    padding-top:1.1rem;
+  }
+</style>
+
+<div class="page">
+  <header>
+    <div class="brandmark">
+      <svg width="26" height="26" viewBox="0 0 26 26" fill="none" aria-hidden="true">
+        <path d="M5 21 C 5 21, 12 20, 16 12 C 19 6, 20 4, 22 3 C 20 5, 18 9, 13 13 C 8 17, 6 19, 5 21 Z" stroke="currentColor" stroke-width="1.4" fill="none" stroke-linejoin="round"/>
+        <path d="M7 19 L 9.5 16.5 M9 17.5 L 11 15.5 M11 16 L 12.8 14" stroke="currentColor" stroke-width="1" stroke-linecap="round"/>
+      </svg>
+      <span class="brand-eyebrow">Quill &amp; Cup</span>
+    </div>
+    <h1 class="title">Spark to Shelf</h1>
+    <p class="dek">Every book we help make travels the same road — though writers can take a self-taught turn or hire a pro at a couple of forks along the way. Here's that road, and how much of it we've already built.</p>
+    <ul class="legend">
+      <li><span class="legend-swatch legend-swatch--live"></span>Live today</li>
+      <li><span class="legend-swatch legend-swatch--external"></span>Hire a pro</li>
+      <li><span class="legend-swatch legend-swatch--planned"></span>On the roadmap</li>
+      <li><span class="legend-swatch legend-swatch--community"></span>Community — the whole way</li>
+    </ul>
+  </header>
+
+  <figure class="spine-figure">
+    <div class="spine-scroll">
+      <div class="spine-wrap">
+        <svg viewBox="0 0 1850 540" width="1850" height="540" role="img"
+             aria-label="Diagram of the Quill &amp; Cup writer pipeline from a blank page to a sold book. Draft (180 Program) is live, supported by BFF critique partners. It forks into Self-Edit Academy (live) or hiring a Developmental Editor (outside pro), both leading to Beta Readers (roadmap). Everyone then goes to a Line and Copy Editor (outside pro), which forks into a Self-Publishing course or a Query and Submit / Trad Publishing course (both roadmap). ARC Readers runs in parallel with both of those, feeding revisions back into whichever one a writer is on, and both then lead to Launch and Sell. An always-on Community layer underlies every stage.">
+          <defs>
+            <marker id="arrow-live" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 Z" class="marker-live"/>
+            </marker>
+            <marker id="arrow-planned" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 Z" class="marker-planned"/>
+            </marker>
+            <marker id="arrow-external" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 Z" class="marker-external"/>
+            </marker>
+            <marker id="arrow-bff" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 Z" class="marker-bff"/>
+            </marker>
+          </defs>
+
+          <rect class="band" x="20" y="20" width="1810" height="500" rx="28"/>
+          <circle class="ring" cx="1800" cy="70" r="34" stroke-width="6" stroke-opacity=".32"/>
+          <circle class="ring" cx="1800" cy="70" r="54" stroke-width="6" stroke-opacity=".18"/>
+
+          <!-- main spine -->
+          <path class="flow-live" marker-end="url(#arrow-live)" d="M73,250 C120,235 150,235 177,250"/>
+          <path class="flow-live" marker-end="url(#arrow-live)" d="M383,250 C420,250 420,140 457,140"/>
+          <path class="flow-external" marker-end="url(#arrow-external)" d="M383,250 C420,250 420,360 457,360"/>
+          <path class="flow-planned" marker-end="url(#arrow-planned)" d="M663,140 C700,140 700,250 737,250"/>
+          <path class="flow-planned" marker-end="url(#arrow-planned)" d="M663,360 C700,360 700,250 737,250"/>
+          <path class="flow-external" marker-end="url(#arrow-external)" d="M943,250 C980,235 1000,235 1017,250"/>
+          <path class="flow-planned" marker-end="url(#arrow-planned)" d="M1223,250 C1260,250 1260,105 1297,105"/>
+          <path class="flow-planned" marker-end="url(#arrow-planned)" d="M1223,250 C1260,250 1260,395 1297,395"/>
+          <path class="flow-planned" marker-end="url(#arrow-planned)" d="M1503,105 C1540,105 1540,250 1577,250"/>
+          <path class="flow-planned" marker-end="url(#arrow-planned)" d="M1503,395 C1540,395 1540,250 1577,250"/>
+
+          <!-- ARC Readers parallel feedback loop -->
+          <path class="flow-planned" marker-start="url(#arrow-planned)" marker-end="url(#arrow-planned)" d="M1400,180 C1440,185 1440,190 1400,195"/>
+          <path class="flow-planned" marker-start="url(#arrow-planned)" marker-end="url(#arrow-planned)" d="M1400,320 C1440,315 1440,310 1400,305"/>
+
+          <!-- BFF connectors -->
+          <path class="flow-bff" marker-end="url(#arrow-bff)" d="M260,113 C245,135 235,155 245,172"/>
+          <path class="flow-bff" marker-end="url(#arrow-bff)" d="M340,113 C400,110 460,75 495,55"/>
+          <circle class="bff-anchor" cx="260" cy="113" r="3.5"/>
+          <circle class="bff-anchor" cx="340" cy="113" r="3.5"/>
+        </svg>
+
+        <div class="community-tag">
+          <span class="community-tag__label">Community</span>
+          <span class="community-tag__sub">always on</span>
+        </div>
+
+        <div class="start-dot"></div>
+        <div class="start-label">Blank page — where every book starts<br><span style="font-family:'IBM Plex Mono',monospace;font-style:normal;font-size:.62rem;opacity:.7;">app phase · planning</span></div>
+
+        <div class="support-node" style="left:300px;top:66px;">
+          <div class="support-node__top"><p class="support-node__title">BFF</p><span class="support-node__status">Live</span></div>
+          <span class="support-node__sub">Best Feedback Friends</span>
+          <p class="support-node__desc">Critique partners trading chapters through Draft and Self-Edit — not the Developmental Editor route.</p>
+          <span class="support-node__phase">app phase · drafting, revising</span>
+        </div>
+
+        <div class="node node--live" style="left:280px;top:250px;">
+          <div class="node__top"><span class="node__num">01</span><span class="node__status">Live</span></div>
+          <h3 class="node__title">Draft</h3>
+          <p class="node__program">180 Program</p>
+          <p class="node__desc">180 days of daily sprints and weekly prompts, turning a spark into a finished manuscript.</p>
+          <span class="node__phase">app phase · outlining, drafting</span>
+        </div>
+
+        <div class="node node--live" style="left:560px;top:140px;">
+          <div class="node__top"><span class="node__num">02A</span><span class="node__status">Live</span></div>
+          <h3 class="node__title">Self-Edit</h3>
+          <p class="node__program">Self-Editing Academy</p>
+          <p class="node__desc">A self-taught pass at structure and story — the DIY alternative to hiring a developmental editor.</p>
+          <span class="node__phase">app phase · revising</span>
+        </div>
+
+        <div class="node node--external" style="left:560px;top:360px;">
+          <div class="node__top"><span class="node__num">02B</span><span class="node__status">Hire a Pro</span></div>
+          <h3 class="node__title">Developmental Edit</h3>
+          <p class="node__program">Hired independently</p>
+          <p class="node__desc">Or skip the DIY route and pay a professional to reshape structure and story for you.</p>
+          <span class="node__phase">app phase · revising</span>
+        </div>
+
+        <div class="node node--planned" style="left:840px;top:250px;">
+          <div class="node__top"><span class="node__num">03</span><span class="node__status">Roadmap</span></div>
+          <h3 class="node__title">Get Feedback</h3>
+          <p class="node__program">Beta Readers</p>
+          <p class="node__desc">A structured beta-read program — full manuscripts in front of real readers, whichever edit path got you here.</p>
+          <span class="node__phase">app phase · revising</span>
+        </div>
+
+        <div class="node node--external" style="left:1120px;top:250px;">
+          <div class="node__top"><span class="node__num">04</span><span class="node__status">Hire a Pro</span></div>
+          <h3 class="node__title">Line &amp; Copy Edit</h3>
+          <p class="node__program">Hired independently</p>
+          <p class="node__desc">Sharpen the voice, then polish the prose — the pass that comes after beta reads.</p>
+          <span class="node__phase">app phase · revising</span>
+        </div>
+
+        <div class="node node--planned" style="left:1400px;top:105px;">
+          <div class="node__top"><span class="node__num">05A</span><span class="node__status">Roadmap</span></div>
+          <h3 class="node__title">Self-Publish</h3>
+          <p class="node__program">Self-Publishing Course</p>
+          <p class="node__desc">Formatting, covers, and launch mechanics for writers publishing on their own terms.</p>
+          <span class="node__phase">app phase · complete → published</span>
+        </div>
+
+        <div class="node node--planned" style="left:1400px;top:395px;">
+          <div class="node__top"><span class="node__num">05B</span><span class="node__status">Roadmap</span></div>
+          <h3 class="node__title">Query &amp; Submit</h3>
+          <p class="node__program">Trad Publishing Course</p>
+          <p class="node__desc">Query letters, comp titles, and agent research for writers chasing a traditional deal.</p>
+          <span class="node__phase">app phase · complete → published</span>
+        </div>
+
+        <div class="support-node support-node--planned" style="left:1400px;top:250px;">
+          <div class="support-node__top"><p class="support-node__title">Build Buzz</p><span class="support-node__status">Roadmap</span></div>
+          <span class="support-node__sub">ARC Readers</span>
+          <p class="support-node__desc">Copies go out early; feedback folds back into whichever version is still in progress.</p>
+          <span class="support-node__phase">app phase · complete</span>
+        </div>
+
+        <div class="node node--planned" style="left:1680px;top:250px;">
+          <div class="node__top"><span class="node__num">06</span><span class="node__status">Roadmap</span></div>
+          <h3 class="node__title">Launch &amp; Sell</h3>
+          <p class="node__program">Marketing</p>
+          <p class="node__desc">Then: the shelf, the storefront, and the next spark.</p>
+          <span class="node__phase">app phase · published</span>
+        </div>
+      </div>
+    </div>
+    <figcaption>Solid ink marks what's built today — Draft, Self-Edit Academy, and BFF critique partners. Dotted marks where you'd go outside Quill &amp; Cup — hiring a developmental or line/copy editor. Dashed sage marks the roadmap — Beta Readers, the Publish fork, and Launch &amp; Sell. ARC Readers sits beside the Publish fork rather than after it: copies go out while the manuscript is still being finished, and reader feedback loops back into whichever version — self-published or submitted — is still in progress. The warm band underneath is Community: not a stage on the road, but the table every stage sits on.</figcaption>
+  </figure>
+
+  <p class="closing">Community threads through every stage above — critique swaps, co-writing sessions, and company at the desk, from the first blank page to the next one. It isn't a stop on the road. It's the road.</p>
+
+  <section class="phase-note">
+    <h2 class="phase-note__title">How this maps to the app</h2>
+    <p>The small <code>app phase</code> tags above are Hedgie Hub's actual <code>writing_projects.phase</code> values (<code>planning</code>, <code>outlining</code>, <code>drafting</code>, <code>revising</code>, <code>complete</code>, <code>published</code> — plus <code>on_hold</code> and <code>abandoned</code>, which aren't pipeline positions at all; they're pause/exit flags that can apply at any stage above). The correspondence isn't one-to-one: <code>revising</code> alone covers four stages here — Self-Edit, Developmental Edit, Beta Readers, and Line &amp; Copy Edit — and <code>complete</code> covers both publishing forks before either resolves to <code>published</code>.</p>
+    <p>That's not a gap to close by splitting <code>phase</code> into more values. <code>phase</code> answers "how far along is the manuscript" — a thing a member can honestly self-report from a dropdown. This diagram answers a different question, "which program or vendor are you using right now," which is exactly why it has forks (DIY vs. hired, self-publish vs. query) that a linear phase enum can't represent without conflating progress with vendor choice. The more honest place to resolve which node a <code>revising</code> project is actually on is program-enrollment data — the <code>member_products</code> table already planned in <code>docs/TODO.md</code> — once it exists, not a bigger phase list members have to interpret correctly every time they update a project.</p>
+  </section>
+
+  <div class="page-footer">Quill &amp; Cup — pipeline map</div>
+</div>

@@ -35,7 +35,6 @@ function NavLinks({ memberId, isAdmin, enabledFeatures, pathname, collapsed, onN
   const showStreaks = enabledFeatures.includes('streaks');
   const showPricklePicker = enabledFeatures.includes('prickle_picker');
   const showWheel = enabledFeatures.includes('wheel_of_wonder');
-  const hasGrowItems = showStreaks || showPricklePicker || showWheel;
 
   const linkClass = (active: boolean) =>
     `flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
@@ -47,11 +46,11 @@ function NavLinks({ memberId, isAdmin, enabledFeatures, pathname, collapsed, onN
   return (
     <>
       <nav className="p-4 overflow-y-auto flex-1">
-        {/* Overview */}
+        {/* Home */}
         <div className="mb-6">
           {!collapsed && (
             <h2 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2 px-3">
-              Overview
+              Home
             </h2>
           )}
           <div className="space-y-1">
@@ -77,72 +76,14 @@ function NavLinks({ memberId, isAdmin, enabledFeatures, pathname, collapsed, onN
           </div>
         </div>
 
-        {/* Grow — feature-flagged discovery/gamification pages */}
-        {hasGrowItems && (
-          <div className="mb-6">
-            {!collapsed && (
-              <h2 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2 px-3">
-                Grow
-              </h2>
-            )}
-            <div className="space-y-1">
-              {showStreaks && (
-                <Link
-                  href="/streaks"
-                  onClick={onNavigate}
-                  className={linkClass(isStreaksActive)}
-                  title={collapsed ? "Streaks" : undefined}
-                >
-                  <span className="text-lg">🔥</span>
-                  {!collapsed && <span>Streaks</span>}
-                </Link>
-              )}
-
-              {showPricklePicker && (
-                <Link
-                  href="/prickle-picker"
-                  onClick={onNavigate}
-                  className={linkClass(isPrickerPickerActive)}
-                  title={collapsed ? "Prickle Picker" : undefined}
-                >
-                  <span className="text-lg">🧭</span>
-                  {!collapsed && <span>Prickle Picker</span>}
-                </Link>
-              )}
-
-              {showWheel && (
-                <Link
-                  href="/wheel-of-wonder"
-                  onClick={onNavigate}
-                  className={linkClass(isWheelActive)}
-                  title={collapsed ? "Wheel of Wonder" : undefined}
-                >
-                  <span className="text-lg">🎡</span>
-                  {!collapsed && <span>Wheel of Wonder</span>}
-                </Link>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Community */}
+        {/* Write — your own projects and the tools that support them */}
         <div className="mb-6">
           {!collapsed && (
             <h2 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2 px-3">
-              Community
+              Write
             </h2>
           )}
           <div className="space-y-1">
-            <Link
-              href="/network"
-              onClick={onNavigate}
-              className={linkClass(isNetworkActive)}
-              title={collapsed ? "Network" : undefined}
-            >
-              <span className="text-lg">🤝</span>
-              {!collapsed && <span>Network</span>}
-            </Link>
-
             <Link
               href="/projects"
               onClick={onNavigate}
@@ -153,6 +94,40 @@ function NavLinks({ memberId, isAdmin, enabledFeatures, pathname, collapsed, onN
               {!collapsed && <span>Projects</span>}
             </Link>
 
+            {showPricklePicker && (
+              <Link
+                href="/prickle-picker"
+                onClick={onNavigate}
+                className={linkClass(isPrickerPickerActive)}
+                title={collapsed ? "Prickle Picker" : undefined}
+              >
+                <span className="text-lg">🧭</span>
+                {!collapsed && <span>Prickle Picker</span>}
+              </Link>
+            )}
+
+            {showStreaks && (
+              <Link
+                href="/streaks"
+                onClick={onNavigate}
+                className={linkClass(isStreaksActive)}
+                title={collapsed ? "Streaks" : undefined}
+              >
+                <span className="text-lg">🔥</span>
+                {!collapsed && <span>Streaks</span>}
+              </Link>
+            )}
+          </div>
+        </div>
+
+        {/* Community — ordered from you-centered to broad/public */}
+        <div className="mb-6">
+          {!collapsed && (
+            <h2 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2 px-3">
+              Community
+            </h2>
+          )}
+          <div className="space-y-1">
             <Link
               href="/hosting"
               onClick={onNavigate}
@@ -162,6 +137,28 @@ function NavLinks({ memberId, isAdmin, enabledFeatures, pathname, collapsed, onN
               <span className="text-lg">🎙️</span>
               {!collapsed && <span>Hosting</span>}
             </Link>
+
+            <Link
+              href="/network"
+              onClick={onNavigate}
+              className={linkClass(isNetworkActive)}
+              title={collapsed ? "Network" : undefined}
+            >
+              <span className="text-lg">🤝</span>
+              {!collapsed && <span>Network</span>}
+            </Link>
+
+            {showWheel && (
+              <Link
+                href="/wheel-of-wonder"
+                onClick={onNavigate}
+                className={linkClass(isWheelActive)}
+                title={collapsed ? "Wheel of Wonder" : undefined}
+              >
+                <span className="text-lg">🎡</span>
+                {!collapsed && <span>Wheel of Wonder</span>}
+              </Link>
+            )}
 
             <Link
               href="/bookshelf"

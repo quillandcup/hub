@@ -408,6 +408,37 @@ async function getPublishedBookCountsByMember(
   return countsByMember;
 }
 
+/** Distinct prickle_id count attended by a single member, from `prickle_attendance` -- the
+ * per-member counterpart to getAttendedPrickleCountsByMember, for pages that only need one
+ * member's count rather than a bulk scan. Mirrors the DISTINCT-prickle_id rule in CLAUDE.md (a
+ * member can have multiple attendance rows per prickle from leaving/rejoining). */
+export async function getAttendedPrickleCount(
+  supabase: SupabaseClient,
+  memberId: string
+): Promise<number> {
+  const prickleIds = new Set<string>();
+  const BATCH_SIZE = 1000;
+  let offset = 0;
+  let hasMore = true;
+  while (hasMore) {
+    const { data: batch } = await supabase
+      .from("prickle_attendance")
+      .select("prickle_id")
+      .eq("member_id", memberId)
+      .range(offset, offset + BATCH_SIZE - 1);
+    if (batch && batch.length > 0) {
+      for (const row of batch as { prickle_id: string }[]) {
+        prickleIds.add(row.prickle_id);
+      }
+      offset += batch.length;
+      hasMore = batch.length === BATCH_SIZE;
+    } else {
+      hasMore = false;
+    }
+  }
+  return prickleIds.size;
+}
+
 /** Distinct prickle_id count attended per member, from `prickle_attendance` -- the bulk
  * counterpart to the per-member total_sessions figure, one paginated scan instead of N. Mirrors
  * the DISTINCT-prickle_id rule in CLAUDE.md (a member can have multiple attendance rows per

@@ -27,6 +27,7 @@ export default async function DataHygienePage() {
     { count: totalZoomAttendees },
     { count: totalMembers },
     { count: totalAliases },
+    { data: ambiguousNameRows },
     { data: slackUsersForMatching },
     { data: ignoredSlackUsers },
     { data: pupsWith0Attendees },
@@ -58,6 +59,7 @@ export default async function DataHygienePage() {
     supabase.schema('bronze').from("zoom_attendees").select("*", { count: "exact", head: true }),
     supabase.from("members").select("*", { count: "exact", head: true }),
     supabase.from("member_name_aliases").select("*", { count: "exact", head: true }),
+    supabase.from("ambiguous_zoom_names").select("zoom_name").eq("status", "unresolved"),
     // Slack users for unmatched-count (workspace member list stays well under 1000 rows)
     supabase.schema('bronze').from("slack_users").select("user_id, email, real_name, is_bot"),
     supabase.from("ignored_slack_users").select("user_id"),
@@ -139,6 +141,10 @@ export default async function DataHygienePage() {
     // Slack channels Billie Bot can currently see (workspace channel count stays well under 1000)
     supabase.schema('bronze').from("slack_channels").select("channel_id, name, is_private, imported_at"),
   ]);
+
+  // Dedupe by zoom_name -- UNIQUE(zoom_name, zoom_email) doesn't dedupe when
+  // zoom_email is NULL, so the same bare name can produce several rows.
+  const ambiguousNamesCount = new Set((ambiguousNameRows ?? []).map((a) => a.zoom_name)).size;
 
   const duplicateCount = detectDuplicates(membersForDuplicates ?? []).length;
   const stalePrivateChannels = findStalePrivateChannels(slackChannelsForAccessCheck ?? []);
@@ -531,6 +537,35 @@ export default async function DataHygienePage() {
             <p className="text-xs text-blue-600 dark:text-blue-400 mt-2">
               View all aliases →
             </p>
+          </Link>
+
+          {/* Ambiguous Zoom Names */}
+          <Link
+            href="/admin/hygiene/ambiguous-names"
+            className="block p-6 bg-white dark:bg-slate-900 rounded-lg shadow hover:shadow-lg transition-shadow border border-slate-200 dark:border-slate-800"
+          >
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-sm font-medium text-slate-600 dark:text-slate-400">
+                Ambiguous Names
+              </h3>
+              <span className="text-2xl">❓</span>
+            </div>
+            <p className="text-3xl font-bold text-slate-900 dark:text-slate-100 mb-1">
+              {ambiguousNamesCount}
+            </p>
+            <p className="text-sm text-slate-600 dark:text-slate-400">
+              Zoom name{ambiguousNamesCount !== 1 ? "s" : ""} matching multiple members
+            </p>
+            {ambiguousNamesCount > 0 && (
+              <p className="text-xs text-orange-600 dark:text-orange-400 mt-2">
+                Silently dropped from attendance — resolve →
+              </p>
+            )}
+            {ambiguousNamesCount === 0 && (
+              <p className="text-xs text-green-600 dark:text-green-400 mt-2">
+                None pending ✓
+              </p>
+            )}
           </Link>
 
           {/* Merge & Fix */}

@@ -5,7 +5,7 @@
 -- programs (180 Program, Self-Editing Academy, ...) run cohorts that share
 -- one start/end window, and members enroll in specific cohorts -- including
 -- re-enrolling in a later cohort as an alumna. See
--- 20260903000001_apply_program_enrollments_in_reprocess.sql for how this
+-- 20260904130000_program_cohorts_supersede_180_program.sql for how this
 -- drives member status.
 --
 -- Deliberately out of scope here: Self-Editing Academy's 3-level

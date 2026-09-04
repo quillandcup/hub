@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { SortableTh } from "@/components/SortableTh";
 import { useTableSort } from "@/lib/hooks/useTableSort";
-import { parseDateOnly } from "@/lib/member-tenure";
+import { parseDateOnly, milestoneLabel } from "@/lib/member-tenure";
 
 export interface HedgieversaryRow {
   id: string;
@@ -14,13 +14,18 @@ export interface HedgieversaryRow {
   totalActiveMonths: number;
   nextDate: string | null; // null = TBD (currently on an indefinite hiatus)
   milestoneMonths: number | null;
+  recentDate: string | null; // a milestone reached within the last 90 days, if any
+  recentMilestoneMonths: number | null;
+  cumulativeHiatusMonths: number;
+  hiatusWindows: { startsAt: string; endsAt: string | null }[];
 }
 
 type SortColumn = "name" | "firstJoinedAt" | "mostRecentJoinedAt" | "totalActiveMonths" | "nextDate";
 
-function milestoneLabel(months: number): string {
-  return months < 12 ? `${months}-Month` : `${Math.round(months / 12)}-Year`;
-}
+// Only flag a rejoin as newsworthy for this long after it happened —
+// otherwise every past rejoiner carries the badge forever.
+const WELCOME_BACK_WINDOW_DAYS = 90;
+const MS_PER_DAY = 1000 * 60 * 60 * 24;
 
 function getSortValue(row: HedgieversaryRow, column: SortColumn): string | number {
   switch (column) {
@@ -38,7 +43,8 @@ function getSortValue(row: HedgieversaryRow, column: SortColumn): string | numbe
   }
 }
 
-export default function HedgieversariesTable({ rows }: { rows: HedgieversaryRow[] }) {
+export default function HedgieversariesTable({ rows, asOf }: { rows: HedgieversaryRow[]; asOf: string }) {
+  const asOfMs = new Date(asOf).getTime();
   const { sortColumn, sortDirection, handleSort, sortedRows } = useTableSort<HedgieversaryRow, SortColumn>({
     rows,
     getSortValue,
@@ -58,11 +64,17 @@ export default function HedgieversariesTable({ rows }: { rows: HedgieversaryRow[
             <SortableTh label="First Joined" active={sortColumn === "firstJoinedAt"} direction={sortDirection} onClick={() => handleSort("firstJoinedAt")} />
             <SortableTh label="Most Recent Joined" active={sortColumn === "mostRecentJoinedAt"} direction={sortDirection} onClick={() => handleSort("mostRecentJoinedAt")} />
             <SortableTh label="Total Active Months" active={sortColumn === "totalActiveMonths"} direction={sortDirection} onClick={() => handleSort("totalActiveMonths")} />
+            <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+              Hiatus
+            </th>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
           {sortedRows.map((row) => {
-            const isWelcomeBack = !!(row.mostRecentJoinedAt && row.mostRecentJoinedAt !== row.firstJoinedAt);
+            const isWelcomeBack =
+              !!row.mostRecentJoinedAt &&
+              row.mostRecentJoinedAt !== row.firstJoinedAt &&
+              (asOfMs - parseDateOnly(row.mostRecentJoinedAt).getTime()) / MS_PER_DAY <= WELCOME_BACK_WINDOW_DAYS;
             return (
               <tr key={row.id} className="hover:bg-slate-50 dark:hover:bg-slate-800">
                 <td className="px-6 py-4 whitespace-nowrap">
@@ -84,6 +96,16 @@ export default function HedgieversariesTable({ rows }: { rows: HedgieversaryRow[
                   ) : (
                     <span className="text-sm text-slate-400 dark:text-slate-500">TBD (on hiatus)</span>
                   )}
+                  {row.recentDate && row.recentMilestoneMonths != null && (
+                    <div className="mt-1">
+                      <span
+                        className="px-2 py-0.5 text-xs font-medium rounded-full bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300"
+                        title={`Reached ${fmt(row.recentDate)}`}
+                      >
+                        {milestoneLabel(row.recentMilestoneMonths)} reached {fmt(row.recentDate)}
+                      </span>
+                    </div>
+                  )}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700 dark:text-slate-300">
                   {fmt(row.firstJoinedAt)}
@@ -98,6 +120,21 @@ export default function HedgieversariesTable({ rows }: { rows: HedgieversaryRow[
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700 dark:text-slate-300">
                   {row.totalActiveMonths}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700 dark:text-slate-300">
+                  {row.hiatusWindows.length === 0 ? (
+                    "—"
+                  ) : (
+                    <span
+                      className="cursor-help underline decoration-dotted"
+                      title={row.hiatusWindows
+                        .map((w) => `${fmt(w.startsAt.slice(0, 10))} → ${w.endsAt ? fmt(w.endsAt.slice(0, 10)) : "ongoing"}`)
+                        .join("\n")}
+                    >
+                      {row.cumulativeHiatusMonths} mo
+                      {row.hiatusWindows.length > 1 ? ` (${row.hiatusWindows.length} periods)` : ""}
+                    </span>
+                  )}
                 </td>
               </tr>
             );

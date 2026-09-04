@@ -452,8 +452,8 @@ describe('Members Bronze Pagination (>1000 rows)', () => {
  * Member tenure fields (first_joined_at, most_recent_joined_at,
  * total_active_months) computed during reprocessing — see
  * lib/member-tenure.ts. Covers a real cancel/resubscribe gap and a hiatus
- * override (member_status_overrides) excluding time from the total and
- * resetting most_recent_joined_at once it ends.
+ * (member_hiatus_history) excluding time from the total and resetting
+ * most_recent_joined_at once it ends.
  */
 describe('Member Tenure computed during reprocessing', () => {
   const supabase = getTestSupabaseAdminClient()
@@ -466,7 +466,7 @@ describe('Member Tenure computed during reprocessing', () => {
   const emailResub = `tenure-resub-${ts}@example.com`
   const emailHiatus = `tenure-hiatus-${ts}@example.com`
 
-  const overrideIds: string[] = []
+  const hiatusIds: string[] = []
 
   async function reprocess() {
     const response = await fetch('http://localhost:3000/api/process/members', {
@@ -534,8 +534,8 @@ describe('Member Tenure computed during reprocessing', () => {
   })
 
   afterAll(async () => {
-    if (overrideIds.length > 0) {
-      await supabase.from('member_status_overrides').delete().in('id', overrideIds)
+    if (hiatusIds.length > 0) {
+      await supabase.from('member_hiatus_history').delete().in('id', hiatusIds)
     }
     await supabase.schema('bronze').from('kajabi_purchases').delete().ilike('kajabi_purchase_id', `tenure-p%-${ts}`)
     await supabase.schema('bronze').from('kajabi_customers').delete().ilike('kajabi_customer_id', `tenure-cust-%-${ts}`)
@@ -561,19 +561,18 @@ describe('Member Tenure computed during reprocessing', () => {
     expect(before?.first_joined_at).toBe(dateOnly(daysAgo(300)))
     expect(before?.most_recent_joined_at).toBe(dateOnly(daysAgo(300))) // no gap yet — same as first join
 
-    const { data: override, error } = await supabase
-      .from('member_status_overrides')
+    const { data: hiatus, error } = await supabase
+      .from('member_hiatus_history')
       .insert({
         member_id: before!.id,
-        override_type: 'hiatus',
         reason: 'tenure-test ended hiatus',
-        starts_at: daysAgo(60),
-        expires_at: daysAgo(30),
+        start_date: dateOnly(daysAgo(60)),
+        end_date: dateOnly(daysAgo(30)),
       })
       .select('id')
       .single()
     expect(error).toBeNull()
-    overrideIds.push(override!.id)
+    hiatusIds.push(hiatus!.id)
 
     await reprocess()
     const after = await fetchMember(emailHiatus)

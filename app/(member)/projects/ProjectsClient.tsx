@@ -6,18 +6,8 @@ import NewProjectModal from "@/components/writing/NewProjectModal";
 import LogProgressModal from "@/components/writing/LogProgressModal";
 import GoalDisplay from "@/components/writing/GoalDisplay";
 import BookFormModal from "@/components/books/BookFormModal";
-import { MEASURE_LABELS } from "@/lib/writing-projects";
+import { MEASURE_LABELS, PHASE_LABELS } from "@/lib/writing-projects";
 import type { WritingProjectRow } from "./actions";
-
-const PHASE_LABELS: Record<string, string> = {
-  planning: "Planning",
-  drafting: "Drafting",
-  revising: "Revising",
-  on_hold: "On hold",
-  complete: "Complete",
-  published: "Published",
-  abandoned: "Abandoned",
-};
 
 interface ProjectsClientProps {
   initialProjects: WritingProjectRow[];
@@ -73,19 +63,40 @@ export default function ProjectsClient({ initialProjects }: ProjectsClientProps)
             className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 p-5"
           >
             <div className="flex items-start justify-between gap-4">
-              <div className="min-w-0">
-                <Link
-                  href={`/projects/${project.id}`}
-                  className="text-lg font-semibold text-slate-900 dark:text-slate-100 hover:text-blue-600 dark:hover:text-blue-400"
-                >
-                  {project.title}
-                </Link>
-                <p className="text-xs text-slate-400 mt-0.5">
-                  {PHASE_LABELS[project.phase] ?? project.phase}
-                  {project.book && <span className="ml-2">📚 Published</span>}
-                </p>
+              <div className="flex items-start gap-3 min-w-0">
+                {project.book?.coverUrl || project.coverUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element -- fixed-size Supabase Storage upload, not optimizable by next/image
+                  <img
+                    src={project.book?.coverUrl ?? project.coverUrl ?? undefined}
+                    alt={`Cover of ${project.title}`}
+                    className="w-12 h-[4.5rem] object-cover rounded flex-shrink-0 bg-slate-100 dark:bg-slate-800"
+                  />
+                ) : (
+                  <div className="w-12 h-[4.5rem] rounded flex-shrink-0 bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-lg">
+                    📖
+                  </div>
+                )}
+                <div className="min-w-0">
+                  <Link
+                    href={`/projects/${project.id}`}
+                    className="text-lg font-semibold text-slate-900 dark:text-slate-100 hover:text-blue-600 dark:hover:text-blue-400"
+                  >
+                    {project.title}
+                  </Link>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    {PHASE_LABELS[project.phase] ?? project.phase}
+                    {project.book && <span className="ml-2">📚 Published</span>}
+                  </p>
+                </div>
               </div>
               <div className="flex-shrink-0 flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setLogProgressFor(project.id)}
+                  className="px-3 py-1.5 text-sm bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg font-medium"
+                >
+                  + Log progress
+                </button>
                 {!project.book && (
                   <button
                     type="button"
@@ -95,13 +106,6 @@ export default function ProjectsClient({ initialProjects }: ProjectsClientProps)
                     🚀 Publish
                   </button>
                 )}
-                <button
-                  type="button"
-                  onClick={() => setLogProgressFor(project.id)}
-                  className="px-3 py-1.5 text-sm bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg font-medium"
-                >
-                  + Log progress
-                </button>
               </div>
             </div>
 

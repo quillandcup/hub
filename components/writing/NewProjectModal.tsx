@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Modal from "@/components/Modal";
 import { createProject } from "@/app/(member)/projects/actions";
+import { MANUALLY_SETTABLE_PHASES, PHASE_LABELS } from "@/lib/writing-projects";
 
 interface NewProjectModalProps {
   isOpen: boolean;
@@ -10,16 +11,9 @@ interface NewProjectModalProps {
   onCreated: () => void;
 }
 
-const PHASES = [
-  { value: "planning", label: "Planning" },
-  { value: "drafting", label: "Drafting" },
-  { value: "revising", label: "Revising" },
-  { value: "on_hold", label: "On hold" },
-] as const;
-
 export default function NewProjectModal({ isOpen, onClose, onCreated }: NewProjectModalProps) {
   const [title, setTitle] = useState("");
-  const [phase, setPhase] = useState<(typeof PHASES)[number]["value"]>("drafting");
+  const [phase, setPhase] = useState<(typeof MANUALLY_SETTABLE_PHASES)[number]>("drafting");
   const [isPending, setIsPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -68,9 +62,9 @@ export default function NewProjectModal({ isOpen, onClose, onCreated }: NewProje
             onChange={(e) => setPhase(e.target.value as typeof phase)}
             className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-sm"
           >
-            {PHASES.map((p) => (
-              <option key={p.value} value={p.value}>
-                {p.label}
+            {MANUALLY_SETTABLE_PHASES.map((p) => (
+              <option key={p} value={p}>
+                {PHASE_LABELS[p]}
               </option>
             ))}
           </select>

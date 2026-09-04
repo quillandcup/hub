@@ -1,6 +1,39 @@
 export type WritingMeasure = "prickles" | "words" | "time_minutes" | "pages" | "chapters" | "scenes" | "lines";
 export type EntryMode = "delta" | "set_total";
 
+export const PROJECT_PHASES = [
+  "planning",
+  "outlining",
+  "drafting",
+  "revising",
+  "on_hold",
+  "complete",
+  "published",
+  "abandoned",
+] as const;
+export type ProjectPhase = (typeof PROJECT_PHASES)[number];
+
+/**
+ * Phases a member can pick manually from a project's phase selector. 'published' is excluded --
+ * it can only be reached via the Publish flow (publishProject), which links a Bookshelf entry in
+ * the same step. See the comment on publishProject in app/(member)/projects/actions.ts.
+ */
+export const MANUALLY_SETTABLE_PHASES = PROJECT_PHASES.filter((p) => p !== "published") as Exclude<
+  ProjectPhase,
+  "published"
+>[];
+
+export const PHASE_LABELS: Record<ProjectPhase, string> = {
+  planning: "Planning",
+  outlining: "Outlining",
+  drafting: "Drafting",
+  revising: "Revising",
+  on_hold: "On hold",
+  complete: "Complete",
+  published: "Published",
+  abandoned: "Abandoned",
+};
+
 export const WRITING_MEASURES: WritingMeasure[] = [
   "prickles",
   "words",
@@ -105,6 +138,17 @@ export function computeCumulativeSeries(
     byDate.set(entry.entryDate, running);
   }
   return [...byDate.entries()].map(([entryDate, total]) => ({ entryDate, total }));
+}
+
+/**
+ * Offsets a computed total (or chart point) by a project's starting balance for that measure --
+ * how much a member already had before they started tracking here. Kept as its own tested
+ * function so this rule lives in one place: it applies to displayed totals and the chart, but
+ * deliberately NOT to goal progress (see computeGoalProgress/computeHabitGoalProgress), since a
+ * goal measures progress made within its own date window, not a project's all-time total.
+ */
+export function applyStartingBalance(total: number, startingBalance: number | undefined): number {
+  return total + (startingBalance ?? 0);
 }
 
 function compareByDateThenCreatedAt(a: ProgressEntryInput, b: ProgressEntryInput): number {

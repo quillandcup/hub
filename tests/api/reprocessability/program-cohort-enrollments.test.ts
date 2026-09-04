@@ -4,8 +4,8 @@ import { getTestSupabaseAdminClient, getTestAuthHeaders, getTestApiBaseUrl } fro
 /**
  * member_program_enrollments + program_cohorts must drive member status the
  * same way the old member_status_overrides override_type='180_program'
- * stopgap did (see reprocess_members_atomic Steps 4c/4d in
- * 20260903000001_apply_program_enrollments_in_reprocess.sql), but sourced
+ * stopgap did (see reprocess_members_atomic Steps 4b/4c/4d in
+ * 20260904130000_program_cohorts_supersede_180_program.sql), but sourced
  * from a real cohort (shared start/end window) instead of a hand-typed date
  * per member, and supporting more than one enrollment per member (an alumna
  * re-enrolling in a later cohort).

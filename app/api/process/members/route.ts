@@ -138,7 +138,7 @@ export async function POST(request: NextRequest) {
       { data: emailAliases, error: aliasesError },
       { data: stripeCustomers, error: stripeError },
       existingMembers,
-      hiatusOverrides,
+      hiatusHistory,
       joinDateOverrides,
     ] = await Promise.all([
       fetchAllBronzeRows(supabase, "kajabi_contacts"),
@@ -149,9 +149,7 @@ export async function POST(request: NextRequest) {
       supabase.from("member_email_aliases").select("*").eq("active", true),
       supabase.schema('bronze').from("stripe_customers").select("stripe_customer_id, email"),
       fetchAllPublicRows(supabase, "members", "id, email"),
-      fetchAllPublicRows(supabase, "member_status_overrides", "member_id, starts_at, expires_at", (q) =>
-        q.eq("override_type", "hiatus")
-      ),
+      fetchAllPublicRows(supabase, "member_hiatus_history", "member_id, start_date, end_date"),
       fetchAllPublicRows(supabase, "member_join_date_overrides", "member_id, first_joined_at"),
     ]);
 
@@ -175,7 +173,7 @@ export async function POST(request: NextRequest) {
       email_aliases_count: emailAliases?.length || 0,
       stripe_customers_count: stripeCustomers?.length || 0,
       existing_members_count: existingMembers?.length || 0,
-      hiatus_overrides_count: hiatusOverrides?.length || 0,
+      hiatus_history_count: hiatusHistory?.length || 0,
       join_date_overrides_count: joinDateOverrides?.length || 0,
     });
 
@@ -195,18 +193,18 @@ export async function POST(request: NextRequest) {
     }
 
     // Hiatus windows for tenure calculations (lib/member-tenure.ts): resolve
-    // member_status_overrides.member_id (our internal UUID) to the email
-    // this run's tenure computation is keyed by, via the members table.
+    // member_hiatus_history.member_id (our internal UUID) to the email this
+    // run's tenure computation is keyed by, via the members table.
     const emailByMemberId = new Map<string, string>();
     for (const m of existingMembers || []) {
       if (m.email) emailByMemberId.set(m.id, resolveEmail(m.email));
     }
     const hiatusWindowsByEmail = new Map<string, HiatusWindow[]>();
-    for (const override of hiatusOverrides || []) {
-      const email = emailByMemberId.get(override.member_id);
+    for (const hiatus of hiatusHistory || []) {
+      const email = emailByMemberId.get(hiatus.member_id);
       if (!email) continue;
       const windows = hiatusWindowsByEmail.get(email) ?? [];
-      windows.push({ startsAt: override.starts_at, endsAt: override.expires_at });
+      windows.push({ startsAt: hiatus.start_date, endsAt: hiatus.end_date });
       hiatusWindowsByEmail.set(email, windows);
     }
 
@@ -493,9 +491,11 @@ export async function POST(request: NextRequest) {
       }
     });
 
-    // Note: on_hiatus is always 0 here — hiatus/gift overrides are applied inside
-    // reprocess_members_atomic (from member_status_overrides) after this snapshot
-    // is taken, so this breakdown reflects pre-override Kajabi-derived status only.
+    // Note: on_hiatus is always 0 here — hiatus (member_hiatus_history), gift
+    // overrides (member_status_overrides), and program-cohort enrollments
+    // (member_program_enrollments) are applied inside reprocess_members_atomic
+    // after this snapshot is taken, so this breakdown reflects pre-override
+    // Kajabi-derived status only.
     return NextResponse.json({
       success: true,
       processed: allMembers.length,

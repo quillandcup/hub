@@ -159,16 +159,16 @@ export default function SubscriptionImportForm() {
 
           <div className="mt-4 flex gap-3">
             <Link
-              href="/admin/hiatus"
+              href="/admin/members?filter=on_hiatus"
               className="flex-1 text-center bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors"
             >
-              View Hiatus Dashboard
+              View On-Hiatus Members
             </Link>
             <Link
-              href="/admin/members"
+              href="/admin/work-queue"
               className="flex-1 text-center bg-slate-600 hover:bg-slate-700 text-white font-medium py-2 px-4 rounded-lg transition-colors"
             >
-              View Members
+              View Work Queue
             </Link>
           </div>
         </div>

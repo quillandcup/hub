@@ -5,7 +5,6 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import MemberDetails from "./MemberDetails";
 import MergeButton from "./MergeButton";
-import MemberBadgesPanel from "./MemberBadgesPanel";
 import { getUserTimezonePreference } from "@/lib/timezone";
 import { startSudo } from "@/app/actions/sudo";
 import { fetchMembershipHistory } from "@/lib/kajabi/membership-history";
@@ -130,17 +129,31 @@ export default async function MemberDetailPage({
     .eq("canonical_email", member.email)
     .order("alias_email");
 
-  // Fetch hiatus history — member_status_overrides (override_type='hiatus')
-  // is the live source of truth; member_hiatus_history has no writer (see
-  // supabase/migrations/20260828170000_add_member_tenure_fields.sql).
-  // Aliased to the shape MemberDetails.tsx already renders.
-  const { data: hiatusOverrides } = await supabase
-    .from("member_status_overrides")
-    .select("id, start_date:starts_at, end_date:expires_at, reason, notes")
+  // Fetch hiatus history — member_hiatus_history is the live source of
+  // truth for hiatus tracking.
+  const { data: hiatusRows } = await supabase
+    .from("member_hiatus_history")
+    .select("id, start_date, end_date, reason, notes")
     .eq("member_id", id)
-    .eq("override_type", "hiatus")
-    .order("starts_at", { ascending: false });
-  const hiatusHistory = hiatusOverrides || [];
+    .order("start_date", { ascending: false });
+  const hiatusHistory = hiatusRows || [];
+
+  // Fetch program-cohort enrollments (180 Program, Self-Editing Academy, ...)
+  // — a program-only member (no real Kajabi subscription, see
+  // supabase/migrations/20260903000000_create_program_cohort_tracking.sql)
+  // has empty membershipHistory/hiatusHistory, so without this the timeline
+  // below shows nothing at all for them.
+  const { data: enrollmentRows } = await supabase
+    .from("member_program_enrollments")
+    .select("id, cohort:program_cohorts(starts_at, expires_at, program:programs(name))")
+    .eq("member_id", id)
+    .order("created_at", { ascending: false });
+  const programOverrides = (enrollmentRows || []).map((row: any) => ({
+    id: row.id,
+    starts_at: row.cohort.starts_at,
+    expires_at: row.cohort.expires_at,
+    reason: row.cohort.program.name,
+  }));
 
   // Fetch Kajabi membership history — query all customer IDs across primary + alias emails
   const allEmails = [member.email, ...(emailAliases || []).map((a: any) => a.alias_email)];
@@ -235,6 +248,12 @@ export default async function MemberDetailPage({
                 </button>
               </form>
               <MergeButton member={{ id: member.id, name: member.name, email: member.email }} />
+              <Link
+                href="/admin/member-overrides"
+                className="px-3 py-1 text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-md hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+              >
+                Status Overrides
+              </Link>
             </div>
             <div className="mt-1 flex flex-col gap-1">
               <p className="text-sm text-slate-600 dark:text-slate-400">
@@ -291,9 +310,7 @@ export default async function MemberDetailPage({
           slackActivities={slackActivities || []}
           userTimezonePreference={userTimezone}
           membershipHistory={membershipHistory}
-        />
-        <MemberBadgesPanel
-          memberId={id}
+          programOverrides={programOverrides}
           earnedBadges={earnedBadges}
           awardableBadgeTypes={awardableBadgeTypes ?? []}
           awards={awards}

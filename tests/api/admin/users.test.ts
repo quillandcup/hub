@@ -140,7 +140,7 @@ describe('Admin Users API', () => {
     const res = await fetch(`${base}/api/admin/users/${testUserId}`, {
       method: 'PATCH',
       headers: { ...getTestAuthHeaders(), 'Content-Type': 'application/json' },
-      body: JSON.stringify({ features: ['streaks', 'hiatus_tracking'] }),
+      body: JSON.stringify({ features: ['streaks', 'prickle_picker'] }),
     })
 
     expect(res.ok).toBe(true)
@@ -151,7 +151,7 @@ describe('Admin Users API', () => {
       .eq('user_id', testUserId)
 
     const keys = (rows ?? []).map((r) => r.feature_key).sort()
-    expect(keys).toEqual(['hiatus_tracking', 'streaks'])
+    expect(keys).toEqual(['prickle_picker', 'streaks'])
   })
 
   it('PATCH replaces feature flags (remove one)', async () => {

@@ -1,18 +1,18 @@
--- Replace the '180_program' override_type stopgap with real cohort/enrollment
--- tracking (see 20260903000000_create_program_cohort_tracking.sql). Nothing
--- has ever used override_type='180_program' in practice -- it was added in
--- 20260902200000 but never exposed in the admin UI -- so this is a clean
--- swap, not a data migration. Dropping it from the CHECK constraint fails
--- loudly (constraint validation against existing rows) if that assumption
--- is somehow wrong.
-
-ALTER TABLE member_status_overrides
-  DROP CONSTRAINT member_status_overrides_override_type_check;
-
-ALTER TABLE member_status_overrides
-  ADD CONSTRAINT member_status_overrides_override_type_check
-  CHECK (override_type IN ('hiatus', 'gift', 'special'));
-
+-- Fix: members made 'active' by a '180_program' override (see
+-- 20260902200000_add_180_program_override_type.sql) show 0 total_active_months
+-- on the Hedgieversaries table and member detail pages.
+--
+-- Cause: total_active_months is computed in app/api/process/members/route.ts
+-- from buildMembershipStints (lib/kajabi/membership-history.ts), which only
+-- counts real Kajabi/Stripe subscription stints. A 180 Program purchase is a
+-- one-time offer (subscription: false), so it contributes zero stints — the
+-- override's Step 4 makes status='active' but never touched this column.
+--
+-- Fix: while a 180_program override window is currently active, derive
+-- total_active_months from elapsed time since the override's starts_at
+-- (the cohort start date), same whole-months convention used elsewhere
+-- (lib/member-tenure.ts computeMemberTenure: days/30, floored). GREATEST
+-- guards against ever lowering a value real stints already computed.
 CREATE OR REPLACE FUNCTION reprocess_members_atomic(
   new_data JSONB
 ) RETURNS void AS $$
@@ -170,71 +170,74 @@ BEGIN
     twitter_url = EXCLUDED.twitter_url,
     updated_at = NOW();
 
-  -- Step 4: Apply active member_status_overrides — this is what makes
-  -- 'hiatus'/'gift' stick instead of being reverted by the Kajabi-derived
-  -- status above on every run. 'special' is informational only (nothing
-  -- branches on it for status purposes today). If a member somehow has both
-  -- an active hiatus and gift override, hiatus wins (more restrictive),
-  -- then the more recently started one. (Program-cohort enrollments are
-  -- handled separately in Steps 4c/4d below.)
+  -- Step 4: Apply active gift/180_program overrides — this is what makes
+  -- them stick instead of being reverted by the Kajabi-derived status above
+  -- on every run. 'special' is informational only (nothing branches on it
+  -- for status purposes today).
   WITH active_override AS (
     SELECT DISTINCT ON (member_id) member_id, override_type
     FROM member_status_overrides
-    WHERE override_type IN ('hiatus', 'gift')
+    WHERE override_type IN ('gift', '180_program')
       AND now() BETWEEN starts_at AND COALESCE(expires_at, 'infinity'::timestamptz)
-    ORDER BY member_id, (override_type = 'hiatus') DESC, starts_at DESC
+    ORDER BY member_id, starts_at DESC
   )
   UPDATE members m
-  SET
-    status = CASE ao.override_type WHEN 'hiatus' THEN 'on_hiatus' ELSE 'active' END,
-    updated_at = NOW()
+  SET status = 'active', updated_at = NOW()
   FROM active_override ao
   WHERE ao.member_id = m.id
-    AND m.status IS DISTINCT FROM (CASE ao.override_type WHEN 'hiatus' THEN 'on_hiatus' ELSE 'active' END);
+    AND m.status IS DISTINCT FROM 'active';
 
-  -- Step 4c: A currently-active program-cohort enrollment (member_program_enrollments
-  -- + program_cohorts — see 20260903000000) forces status='active', the same way a
-  -- 'gift' override does, UNLESS the member is on an active hiatus (hiatus still
-  -- wins — checked explicitly since this is a separate UPDATE from Step 4's CTE).
+  -- Step 4a: An active hiatus (member_hiatus_history) always forces
+  -- on_hiatus, overriding whatever Step 4 just set — hiatus is the more
+  -- restrictive state, and running after Step 4 makes it win without
+  -- needing a cross-table tie-break.
   UPDATE members m
-  SET status = 'active', updated_at = NOW()
-  WHERE m.status IS DISTINCT FROM 'active'
-    AND EXISTS (
-      SELECT 1 FROM member_program_enrollments mpe
-      JOIN program_cohorts pc ON pc.id = mpe.cohort_id
-      WHERE mpe.member_id = m.id
-        AND now()::date BETWEEN pc.starts_at AND pc.expires_at
-    )
-    AND NOT EXISTS (
-      SELECT 1 FROM member_status_overrides so
-      WHERE so.member_id = m.id
-        AND so.override_type = 'hiatus'
-        AND now() BETWEEN so.starts_at AND COALESCE(so.expires_at, 'infinity'::timestamptz)
-    );
+  SET status = 'on_hiatus', updated_at = NOW()
+  FROM member_hiatus_history hh
+  WHERE hh.member_id = m.id
+    AND current_date BETWEEN hh.start_date AND COALESCE(hh.end_date, 'infinity'::date)
+    AND m.status IS DISTINCT FROM 'on_hiatus';
 
-  -- Step 4d: A member whose program-cohort enrollment(s) have all lapsed
-  -- (cohort expires_at in the past, none currently active) and who is still
-  -- Kajabi-derived 'lead' becomes 'cancelled' rather than reverting to
-  -- 'lead' -- they had a real, bounded enrollment window and left, they
-  -- were never "just a lead" who never subscribed. Only touches members
-  -- Kajabi/Stripe data alone would otherwise call 'lead' (anyone with a
-  -- separate real subscription, or a currently-active enrollment, is
-  -- already correctly classified above and untouched).
+  -- Step 4b: A '180_program' override whose included-membership window has
+  -- already ended (expires_at in the past) leaves 'lead' behind as
+  -- 'cancelled' -- they had a real, bounded membership window and left, not
+  -- "never subscribed." Only touches members Kajabi/Stripe data alone would
+  -- otherwise call 'lead' (anyone who separately has a real subscription is
+  -- already correctly classified and untouched).
   UPDATE members m
-  SET status = 'cancelled', updated_at = NOW()
-  WHERE m.status = 'lead'
-    AND EXISTS (
-      SELECT 1 FROM member_program_enrollments mpe
-      JOIN program_cohorts pc ON pc.id = mpe.cohort_id
-      WHERE mpe.member_id = m.id
-        AND pc.expires_at < now()::date
-    )
-    AND NOT EXISTS (
-      SELECT 1 FROM member_program_enrollments mpe
-      JOIN program_cohorts pc ON pc.id = mpe.cohort_id
-      WHERE mpe.member_id = m.id
-        AND now()::date BETWEEN pc.starts_at AND pc.expires_at
-    );
+  SET
+    status = 'cancelled',
+    updated_at = NOW()
+  FROM member_status_overrides so
+  WHERE so.member_id = m.id
+    AND so.override_type = '180_program'
+    AND so.expires_at IS NOT NULL
+    AND now() > so.expires_at
+    AND m.status = 'lead';
+
+  -- Step 4c: total_active_months is computed upstream (see route.ts) purely
+  -- from real Kajabi/Stripe subscription stints, which a one-time 180
+  -- Program purchase never produces — without this, a member Step 4 just
+  -- made 'active' (or Step 4b just made 'cancelled') would show 0 active
+  -- months forever. Derive it from elapsed time since the override's
+  -- starts_at (the cohort start date) instead, capped at expires_at so the
+  -- count freezes at cancellation rather than growing indefinitely after
+  -- the fact, using the same days/30 floored convention as
+  -- computeMemberTenure (lib/member-tenure.ts). GREATEST guards against
+  -- ever lowering a value a real stint already produced.
+  UPDATE members m
+  SET
+    total_active_months = GREATEST(
+      m.total_active_months,
+      FLOOR(EXTRACT(EPOCH FROM (
+        LEAST(now(), COALESCE(so.expires_at, 'infinity'::timestamptz)) - so.starts_at
+      )) / 86400 / 30)::integer
+    ),
+    updated_at = NOW()
+  FROM member_status_overrides so
+  WHERE so.member_id = m.id
+    AND so.override_type = '180_program'
+    AND now() >= so.starts_at;
 
   -- Note: We do NOT delete members that aren't in new_data.
   -- This preserves historical data for members who left or were removed.

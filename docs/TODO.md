@@ -34,7 +34,7 @@ Some people who attend prickles have no Kajabi footprint at all (not a member, t
 **Why deferred:** Different problem from member status/matching — the whole pipeline assumes attendees resolve to a `members` row derived from Kajabi. Guests break that assumption and need their own identity/record model rather than a fix to existing matching logic.
 
 ### Program Cohort Tracking + Revenue Leakage Report (Resolved, with follow-ups)
-**Resolved:** replaced the old `member_status_overrides` `override_type='180_program'` stopgap with real generic cohort tracking — `programs` / `program_cohorts` / `member_program_enrollments` tables (`supabase/migrations/20260903000000_create_program_cohort_tracking.sql`), driving member status via `reprocess_members_atomic` Steps 4c/4d (`20260903000001_apply_program_enrollments_in_reprocess.sql`). A cohort's start/end dates live once and apply to everyone enrolled in it; a member can enroll in more than one cohort over time (e.g. an alumna repeating the 180 Program). Admin UI at `/admin/programs` (feature flag `program_cohorts`) manages programs/cohorts/enrollments and shows a leakage report — members whose most recent cohort lapsed without their status converting to `active` — per program. Seeded with the two known real programs: **180 Program** and **Self-Editing Academy**.
+**Resolved:** replaced the old `member_status_overrides` `override_type='180_program'` stopgap with real generic cohort tracking — `programs` / `program_cohorts` / `member_program_enrollments` tables (`supabase/migrations/20260903000000_create_program_cohort_tracking.sql`), driving member status via `reprocess_members_atomic` Steps 4b/4c/4d, and migrating any existing `180_program` override rows into real cohorts/enrollments (`20260904130000_program_cohorts_supersede_180_program.sql`). A cohort's start/end dates live once and apply to everyone enrolled in it; a member can enroll in more than one cohort over time (e.g. an alumna repeating the 180 Program). Admin UI at `/admin/programs` (feature flag `program_cohorts`) manages programs/cohorts/enrollments and shows a leakage report — members whose most recent cohort lapsed without their status converting to `active` — per program. Seeded with the two known real programs: **180 Program** and **Self-Editing Academy**.
 
 **Still open:**
 - **Automatic Kajabi-purchase-to-cohort mapping.** `programs.kajabi_offer_names` captures the known offer titles (180 Program: `"Q&C 180 Program"` / alumna repeat-purchase offer `"You did it once. Let's 180. Again!"` internally titled `"Q&C 180 Program Alumna"`) but nothing yet reads it — enrollment is still manual. Building real auto-detection needs purchase-date-to-cohort matching logic and handling repeat/alumna purchases, which wasn't reliable enough to build blind.
@@ -262,6 +262,17 @@ Considerations:
 - Member-facing (public to the community) vs. admin-only view
 - Time window options (all-time, last 30/90 days, current month)
 - Opt-out mechanism so members who don't want to appear can hide themselves
+
+### Verified Service Provider (VSP) Badges (Needs Scoping)
+Ania wants a badge recognizing members who are verified service providers to the community, abbreviated per category — e.g. "VSP Editor", "VSP Coach" — rather than one generic "VSP" badge.
+
+**What already exists (reusable):** the full badge pipeline from the Multi-Product Support & Badges work above — `badge_types`/`badge_levels`/`member_badges` schema (`supabase/migrations/20260831000001_create_badges.sql`), `lib/badges.ts` (earned-badge computation, manual vs. automatic), `components/BadgeChip.tsx`, and the `/admin/badges` CRUD UI. No VSP-specific code exists yet — this would be a new `badge_types.category` value plus one or more seed rows, not new plumbing.
+
+**Needs scoping before implementation:**
+- `badge_types.category` is currently a `CHECK` constrained to `('milestone','community','course','retreat','special')` — needs a new value (e.g. `service_provider`) added to the constraint, or decide `special` is close enough to reuse
+- One badge type per category (`VSP Editor`, `VSP Coach`, ...) vs. a single "VSP" badge type with a category sub-label — affects whether this is a handful of new `badge_types` rows or a schema change to `member_badges`/`badge_types` to carry a free-form category alongside the type
+- Verification process: who marks a member as a verified provider, and for which categories — likely manual (`is_automatic=false`) like other non-criteria badges, awarded via the existing `/admin/badges/[id]/recipients` flow, but the list of valid categories needs to come from Ania
+- Display: profile-only, or also surfaced on admin member list/detail and the community directory (if one exists)?
 
 ### PUP-Starter Badge
 Recognize members who drive spontaneous collaboration by being the first to join (or most frequently starting) Pop-Up Prickles.
@@ -545,6 +556,26 @@ Refine `engagement_score` calculation based on activity types and recency
 ## Writing Projects Tracking
 
 Full roadmap: `docs/superpowers/specs/writing-projects-tracking.md`. Core single-author flow (log progress against a project/goal, prickle-linked nudges, streak/chart stats) is scoped there phase-by-phase.
+
+### In-App Pipeline Visualization + Next-Stage Nudges (Needs Scoping)
+Show each member, on their own writing project, a visual of where they sit in the overall Quill & Cup pipeline (idea → draft → self-edit → feedback → publish → launch/sell) — both to make the system visible ("we have a system, and you're on it") and to nudge them toward the next stage as they approach it, which doubles as adoption/revenue for the programs at each stage as they get built.
+
+**Reference diagram:** `docs/pipeline-map.html` (open directly in a browser) is a first pass at the pipeline as a whole — stages, what's live vs. hired-out vs. still on the roadmap, and the parallel/fork points (Self-Edit Academy vs. hiring a Developmental Editor; Self-Publish vs. Query & Submit, with ARC Readers running alongside both rather than after them). It's a static reference/design source, not app code — treat it as the shape to translate into an in-app, per-project version, not something to embed as-is.
+
+**This is a product/business decision as much as a build, not just a tech task:** most of the pipeline stages aren't Quill & Cup programs yet (Beta Readers, Self-Publishing Course, Trad Publishing/Query Course, and arguably Line & Copy Edit) — building the in-app visualization is a relatively contained UI feature, but *nudging members toward a stage* only pays off once that stage is a real, staffed program. Sequencing (visualize the roadmap now vs. wait until each program exists) is a call for Cody/Ania, not something to default on.
+
+**How `writing_projects.phase` maps to the pipeline (resolved — see "How this maps to the app" section in `docs/pipeline-map.html` for the full reasoning):** the mapping is intentionally many-to-one, not something to fix by adding more phase values.
+- `planning`/`outlining`/`drafting` → Draft (180 Program)
+- `revising` → covers four diagram stages at once (Self-Edit Academy, Developmental Edit, Beta Readers, Line & Copy Edit) — `phase` can't and shouldn't try to distinguish these
+- `complete` → both publishing forks (Self-Publish, Query & Submit), before either resolves
+- `published` → Launch & Sell
+- `on_hold`/`abandoned` → not pipeline positions; pause/exit flags that apply at any stage
+- **Why not split `phase` further:** `phase` answers "how far along is the manuscript" (member-set from a simple dropdown); the pipeline answers "which program or vendor are you using," which has forks (DIY vs. hired, self-publish vs. query) a linear enum can't represent without conflating progress with vendor choice. Disambiguating which node a `revising` project is actually on belongs to program-enrollment data — the `member_products` table already planned above under Kajabi Data Expansion — once it exists, not a bigger phase list.
+
+**Still needs scoping before implementation:**
+- What a "nudge" actually is — a banner on `/writing`, a Slack DM (ties into the Messaging Abstraction Layer under CRM Features), an email, or just a visual marker with no push?
+- Whether the visualization is linear per project or needs to show the same fork/parallel structure as the reference diagram (e.g. a member who hired a Developmental Editor shouldn't be nudged toward Self-Edit Academy) — likely blocked on `member_products` existing, per above
+- How stages that don't exist yet as programs should render — greyed out/"coming soon," or hidden until built?
 
 ### Collaborative / Multi-Author Projects (Deferred — needs scoping)
 Some members write as part of a group — e.g. Ania is one of ~7 authors writing separate novellas set in the same shared town, with intertwining characters (a shared-universe anthology). The core writing-projects data model is single-owner only and doesn't account for this.

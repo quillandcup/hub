@@ -5,6 +5,7 @@ import { getEffectiveIdentity } from "@/lib/sudo";
 import { revalidatePath } from "next/cache";
 import { safeUrl } from "@/lib/url";
 import { validateBookInput } from "@/lib/bookValidation";
+import { notifyStaffNewBook } from "@/lib/slack";
 
 export type BookFormat = "print" | "ebook";
 
@@ -101,6 +102,14 @@ export async function addBook(input: BookInput): Promise<{ success: true } | { e
   });
 
   if (error) return { error: error.message };
+
+  // Fire-and-forget: a Slack outage must never block the book from being added.
+  notifyStaffNewBook({
+    title: input.title.trim(),
+    memberId: effectiveIdentity.memberId,
+    memberName: effectiveIdentity.memberName,
+    purchaseUrl: safeUrl(input.purchaseUrl),
+  }).catch((err) => console.error("New book Slack notification failed:", err));
 
   revalidatePath("/bookshelf");
   revalidatePath("/projects");

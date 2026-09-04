@@ -55,25 +55,23 @@ export default async function HedgieversariesPage() {
   // Only current members (active or on_hiatus) with a real first join date —
   // cancelled former members and leads don't get a Hedgieversary to
   // celebrate here.
-  const [members, hiatusOverrides] = await Promise.all([
+  const [members, hiatusHistory] = await Promise.all([
     fetchAllRows(
       supabase,
       "members",
       "id, name, email, status, first_joined_at, most_recent_joined_at, total_active_months",
       (q) => q.in("status", ["active", "on_hiatus"]).not("first_joined_at", "is", null)
     ),
-    fetchAllRows(supabase, "member_status_overrides", "member_id, starts_at, expires_at", (q) =>
-      q.eq("override_type", "hiatus")
-    ),
+    fetchAllRows(supabase, "member_hiatus_history", "member_id, start_date, end_date"),
   ]);
 
   const now = new Date();
 
   const hiatusWindowsByMember = new Map<string, HiatusWindow[]>();
-  for (const override of hiatusOverrides) {
-    const windows = hiatusWindowsByMember.get(override.member_id) ?? [];
-    windows.push({ startsAt: override.starts_at, endsAt: override.expires_at });
-    hiatusWindowsByMember.set(override.member_id, windows);
+  for (const hiatus of hiatusHistory) {
+    const windows = hiatusWindowsByMember.get(hiatus.member_id) ?? [];
+    windows.push({ startsAt: hiatus.start_date, endsAt: hiatus.end_date });
+    hiatusWindowsByMember.set(hiatus.member_id, windows);
   }
 
   const rows: HedgieversaryRow[] = members.map((m) => {
@@ -82,7 +80,7 @@ export default async function HedgieversariesPage() {
     const isOnIndefiniteHiatus = windows.some(
       (w) => !w.endsAt && new Date(w.startsAt).getTime() <= now.getTime()
     );
-    const { nextDate, milestoneMonths } = nextHedgieversaryDate(
+    const { nextDate, milestoneMonths, recentDate, recentMilestoneMonths } = nextHedgieversaryDate(
       m.first_joined_at,
       cumulativeHiatusMonths,
       isOnIndefiniteHiatus,
@@ -98,6 +96,10 @@ export default async function HedgieversariesPage() {
       totalActiveMonths: m.total_active_months ?? 0,
       nextDate,
       milestoneMonths,
+      recentDate,
+      recentMilestoneMonths,
+      cumulativeHiatusMonths,
+      hiatusWindows: windows,
     };
   });
 
@@ -115,7 +117,7 @@ export default async function HedgieversariesPage() {
 
       <main className="container mx-auto px-6 py-8">
         <div className="bg-white dark:bg-slate-900 rounded-lg shadow">
-          <HedgieversariesTable rows={rows} />
+          <HedgieversariesTable rows={rows} asOf={now.toISOString()} />
         </div>
       </main>
     </div>

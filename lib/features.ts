@@ -1,4 +1,4 @@
-export type FeatureKey = 'streaks' | 'hiatus_tracking' | 'member_overrides' | 'prickle_picker' | 'wheel_of_wonder' | 'hedgieversaries' | 'program_cohorts';
+export type FeatureKey = 'streaks' | 'member_overrides' | 'prickle_picker' | 'wheel_of_wonder' | 'hedgieversaries' | 'work_queue' | 'program_cohorts';
 
 export interface FeaturePreview {
   key: FeatureKey;
@@ -11,11 +11,6 @@ export const FEATURE_PREVIEWS: FeaturePreview[] = [
     key: 'streaks',
     name: 'Streaks',
     description: 'Track your writing streaks over time',
-  },
-  {
-    key: 'hiatus_tracking',
-    name: 'Hiatus Tracking',
-    description: 'Track and manage member hiatus periods',
   },
   {
     key: 'member_overrides',
@@ -36,6 +31,11 @@ export const FEATURE_PREVIEWS: FeaturePreview[] = [
     key: 'hedgieversaries',
     name: 'Hedgieversaries',
     description: 'Track member Hedgieversary milestones — replaces the manual spreadsheet',
+  },
+  {
+    key: 'work_queue',
+    name: 'Admin Work Queue',
+    description: 'Welcome-back, Hedgieversary celebration, and hiatus-nudge tasks, sorted by deadline',
   },
   {
     key: 'program_cohorts',

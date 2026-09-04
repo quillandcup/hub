@@ -7,10 +7,13 @@ import GoalDisplay from "@/components/writing/GoalDisplay";
 import ProjectCharts from "@/components/writing/ProjectCharts";
 import ReasonBadges from "@/components/ReasonBadges";
 import BookFormModal from "@/components/books/BookFormModal";
+import ProjectDetailsModal from "@/components/writing/ProjectDetailsModal";
 import { deleteBook } from "@/app/(member)/bookshelf/actions";
 import {
   WRITING_MEASURES,
   MEASURE_LABELS,
+  MANUALLY_SETTABLE_PHASES,
+  PHASE_LABELS,
   type WritingMeasure,
   type HabitPeriod,
 } from "@/lib/writing-projects";
@@ -23,6 +26,7 @@ import {
   toggleGoalStar,
   toggleProjectVisibility,
   updateGoal,
+  updateProjectPhase,
   type AnchorOption,
   type WritingProjectRow,
   type EntryRow,
@@ -42,8 +46,11 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
   const [editingGoal, setEditingGoal] = useState<GoalRow | null>(null);
   const [showOnProfile, setShowOnProfile] = useState(project.showOnProfile);
   const [visibilityPending, setVisibilityPending] = useState(false);
+  const [phase, setPhase] = useState(project.phase);
+  const [phasePending, setPhasePending] = useState(false);
   const [showPublish, setShowPublish] = useState(false);
   const [showEditBook, setShowEditBook] = useState(false);
+  const [showEditDetails, setShowEditDetails] = useState(false);
   const [removingBook, setRemovingBook] = useState(false);
 
   function handleChanged() {
@@ -62,6 +69,7 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
   }
 
   async function handleDeleteGoal(goalId: string) {
+    if (!confirm("Delete this goal? This can't be undone.")) return;
     const result = await deleteGoal(goalId);
     if ("error" in result) {
       alert(result.error);
@@ -91,6 +99,18 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
     setShowOnProfile(next);
   }
 
+  async function handlePhaseChange(e: React.ChangeEvent<HTMLSelectElement>) {
+    const next = e.target.value as (typeof MANUALLY_SETTABLE_PHASES)[number];
+    setPhasePending(true);
+    const result = await updateProjectPhase(project.id, next);
+    setPhasePending(false);
+    if ("error" in result) {
+      alert(result.error);
+      return;
+    }
+    setPhase(next);
+  }
+
   async function handleRemoveBook() {
     if (!project.book) return;
     if (!confirm(`Remove "${project.book.title}" from the Bookshelf?`)) return;
@@ -107,16 +127,42 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
   return (
     <div className="max-w-3xl mx-auto space-y-6">
       <div className="flex items-center justify-between text-sm">
-        <label className="flex items-center gap-2 text-slate-600 dark:text-slate-400 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={showOnProfile}
-            disabled={visibilityPending}
-            onChange={handleToggleVisibility}
-            className="rounded"
-          />
-          Show on my profile
-        </label>
+        <div className="flex items-center gap-4">
+          <label className="flex items-center gap-2 text-slate-600 dark:text-slate-400 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={showOnProfile}
+              disabled={visibilityPending}
+              onChange={handleToggleVisibility}
+              className="rounded"
+            />
+            Show on my profile
+          </label>
+          {!project.book && (
+            <label className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
+              Status
+              <select
+                value={phase}
+                disabled={phasePending}
+                onChange={handlePhaseChange}
+                className="px-2 py-1 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-sm disabled:opacity-50"
+              >
+                {MANUALLY_SETTABLE_PHASES.map((p) => (
+                  <option key={p} value={p}>
+                    {PHASE_LABELS[p]}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          <button
+            type="button"
+            onClick={() => setShowEditDetails(true)}
+            className="text-blue-600 hover:text-blue-700 dark:text-blue-400"
+          >
+            ✏️ Edit details
+          </button>
+        </div>
         <a
           href={`/api/projects/export?projectId=${project.id}`}
           className="text-blue-600 hover:text-blue-700 dark:text-blue-400"
@@ -175,11 +221,28 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
           </div>
         </div>
       ) : (
-        <div className="flex justify-end">
+        <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 p-5 flex items-center gap-4">
+          {project.coverUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element -- fixed-size Supabase Storage upload, not optimizable by next/image
+            <img
+              src={project.coverUrl}
+              alt={`Cover of ${project.title}`}
+              className="w-16 h-24 object-cover rounded flex-shrink-0 bg-slate-100 dark:bg-slate-800"
+            />
+          ) : (
+            <div className="w-16 h-24 rounded flex-shrink-0 bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-2xl">
+              📖
+            </div>
+          )}
+          <p className="flex-1 text-sm text-slate-500 dark:text-slate-400">
+            {project.coverUrl
+              ? "Not published yet."
+              : "No cover yet — add one from Edit details, or wait until you publish."}
+          </p>
           <button
             type="button"
             onClick={() => setShowPublish(true)}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium"
+            className="flex-shrink-0 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium"
           >
             🚀 Publish
           </button>
@@ -200,6 +263,10 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
                   handleChanged();
                 }}
                 onCancel={() => setEditingGoal(null)}
+                onArchive={() => {
+                  setEditingGoal(null);
+                  handleArchiveGoal(goal.id);
+                }}
               />
             ) : (
               <div key={goal.id} className="flex items-start gap-3">
@@ -229,15 +296,6 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
                     aria-label="Edit goal"
                   >
                     ✏️
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleArchiveGoal(goal.id)}
-                    className="text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400"
-                    aria-label="Mark as done"
-                    title="Mark as done (keeps the record, removes from active goals)"
-                  >
-                    ✅
                   </button>
                   <button
                     type="button"
@@ -375,6 +433,8 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
           onSaved={handleChanged}
           projectId={project.id}
           projectTitle={project.title}
+          initialDescription={project.description ?? undefined}
+          initialCoverUrl={project.coverUrl ?? undefined}
         />
       )}
 
@@ -384,6 +444,15 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
           onClose={() => setShowEditBook(false)}
           onSaved={handleChanged}
           book={project.book}
+        />
+      )}
+
+      {showEditDetails && (
+        <ProjectDetailsModal
+          isOpen={showEditDetails}
+          onClose={() => setShowEditDetails(false)}
+          onSaved={handleChanged}
+          project={project}
         />
       )}
     </div>
@@ -401,11 +470,13 @@ function GoalForm({
   goal,
   onSaved,
   onCancel,
+  onArchive,
 }: {
   projectId: string;
   goal?: GoalRow;
   onSaved: () => void;
   onCancel?: () => void;
+  onArchive?: () => void;
 }) {
   const isEditing = !!goal;
   const [goalType, setGoalType] = useState<"target" | "habit">(goal?.kind ?? "target");
@@ -613,23 +684,37 @@ function GoalForm({
 
       {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
 
-      <div className="flex justify-end gap-2">
-        {onCancel && (
+      <div className="flex items-center justify-between gap-2">
+        {isEditing && onArchive ? (
           <button
             type="button"
-            onClick={onCancel}
-            className="px-4 py-2 text-sm text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100"
+            onClick={onArchive}
+            className="text-sm text-slate-500 hover:text-emerald-600 dark:text-slate-400 dark:hover:text-emerald-400"
+            title="Mark as done (keeps the record, removes from active goals)"
           >
-            Cancel
+            ✅ Mark as done
           </button>
+        ) : (
+          <span />
         )}
-        <button
-          type="submit"
-          disabled={isPending}
-          className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-        >
-          {isEditing ? (isPending ? "Saving..." : "Save changes") : isPending ? "Adding..." : "Add goal"}
-        </button>
+        <div className="flex gap-2">
+          {onCancel && (
+            <button
+              type="button"
+              onClick={onCancel}
+              className="px-4 py-2 text-sm text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100"
+            >
+              Cancel
+            </button>
+          )}
+          <button
+            type="submit"
+            disabled={isPending}
+            className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {isEditing ? (isPending ? "Saving..." : "Save changes") : isPending ? "Adding..." : "Add goal"}
+          </button>
+        </div>
       </div>
     </form>
   );
