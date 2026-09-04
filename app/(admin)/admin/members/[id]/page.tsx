@@ -138,6 +138,18 @@ export default async function MemberDetailPage({
     .order("start_date", { ascending: false });
   const hiatusHistory = hiatusRows || [];
 
+  // Fetch 180 Program overrides — a 180-Program-only member (no real Kajabi
+  // subscription, see supabase/migrations/20260902200000_add_180_program_override_type.sql)
+  // has empty membershipHistory/hiatusHistory, so without this the timeline
+  // below shows nothing at all for them.
+  const { data: programOverrideRows } = await supabase
+    .from("member_status_overrides")
+    .select("id, starts_at, expires_at, reason")
+    .eq("member_id", id)
+    .eq("override_type", "180_program")
+    .order("starts_at", { ascending: false });
+  const programOverrides = programOverrideRows || [];
+
   // Fetch Kajabi membership history — query all customer IDs across primary + alias emails
   const allEmails = [member.email, ...(emailAliases || []).map((a: any) => a.alias_email)];
   const { data: kajabiCustomers } = await supabase
@@ -287,6 +299,7 @@ export default async function MemberDetailPage({
           slackActivities={slackActivities || []}
           userTimezonePreference={userTimezone}
           membershipHistory={membershipHistory}
+          programOverrides={programOverrides}
           earnedBadges={earnedBadges}
           awardableBadgeTypes={awardableBadgeTypes ?? []}
           awards={awards}

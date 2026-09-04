@@ -35,6 +35,37 @@ export interface WorkQueueItem {
   occurrenceKey: string;
   deadline: string; // date-only
   label: string;
+  // Hiatus Nudge only: the hiatus's known end_date (null = indefinite
+  // hiatus). Left undefined for the other two queue types.
+  expectedReturnDate?: string | null;
+}
+
+// Per-occurrence outcome recorded in admin_work_queue_completions.
+// 'opted_out'/'postponed' only ever apply to 'hedgieversary' occurrences
+// (enforced by the POST route) — 'welcome_back'/'hiatus_nudge' only ever
+// use 'completed'.
+export type CompletionStatus = "completed" | "opted_out" | "postponed";
+
+export interface CompletionInfo {
+  status: CompletionStatus;
+  postponedUntil: string | null; // date-only, required when status is 'postponed'
+}
+
+// Keyed by completionKey(queueType, memberId, occurrenceKey).
+export type CompletionLookup = Map<string, CompletionInfo>;
+
+// 'completed'/'opted_out' suppress an occurrence forever. 'postponed'
+// suppresses it only until postponedUntil, at which point it resurfaces —
+// this is what lets a postponed Hedgieversary celebration come back into
+// the queue instead of vanishing for good.
+function isSuppressed(completions: CompletionLookup, key: string, nowMs: number): boolean {
+  const info = completions.get(key);
+  if (!info) return false;
+  if (info.status === "postponed") {
+    if (!info.postponedUntil) return true; // malformed row — fail closed (stay suppressed)
+    return nowMs < new Date(`${info.postponedUntil}T00:00:00Z`).getTime();
+  }
+  return true; // 'completed' or 'opted_out'
 }
 
 export interface MemberInput {
@@ -68,7 +99,7 @@ function byDeadline(a: WorkQueueItem, b: WorkQueueItem): number {
 export function buildWelcomeBackQueue(
   hiatusRows: HiatusInput[],
   membersById: Map<string, { name: string }>,
-  completed: Set<string>,
+  completed: CompletionLookup,
   now: Date,
   lookaheadDays: number = WORK_QUEUE_LOOKAHEAD_DAYS,
   lookbackDays: number = WORK_QUEUE_LOOKBACK_DAYS
@@ -83,7 +114,7 @@ export function buildWelcomeBackQueue(
 
     const deadlineMs = new Date(`${hiatus.end_date}T00:00:00Z`).getTime();
     if (!inWindow(deadlineMs, nowMs, lookaheadDays, lookbackDays)) continue;
-    if (completed.has(completionKey("welcome_back", hiatus.member_id, hiatus.id))) continue;
+    if (isSuppressed(completed, completionKey("welcome_back", hiatus.member_id, hiatus.id), nowMs)) continue;
 
     items.push({
       queueType: "welcome_back",
@@ -105,7 +136,7 @@ export function buildWelcomeBackQueue(
 export function buildHedgieversaryQueue(
   members: MemberInput[],
   hiatusWindowsByMember: Map<string, HiatusWindow[]>,
-  completed: Set<string>,
+  completed: CompletionLookup,
   now: Date,
   lookaheadDays: number = WORK_QUEUE_LOOKAHEAD_DAYS,
   lookbackDays: number = WORK_QUEUE_LOOKBACK_DAYS
@@ -135,7 +166,7 @@ export function buildHedgieversaryQueue(
       if (!inWindow(deadlineMs, nowMs, lookaheadDays, lookbackDays)) continue;
 
       const occurrenceKey = String(milestone.milestoneMonths);
-      if (completed.has(completionKey("hedgieversary", member.id, occurrenceKey))) continue;
+      if (isSuppressed(completed, completionKey("hedgieversary", member.id, occurrenceKey), nowMs)) continue;
 
       items.push({
         queueType: "hedgieversary",
@@ -157,7 +188,7 @@ export function buildHedgieversaryQueue(
 export function buildHiatusNudgeQueue(
   hiatusRows: HiatusInput[],
   membersById: Map<string, { name: string }>,
-  completed: Set<string>,
+  completed: CompletionLookup,
   now: Date,
   lookaheadDays: number = WORK_QUEUE_LOOKAHEAD_DAYS,
   lookbackDays: number = WORK_QUEUE_LOOKBACK_DAYS
@@ -175,7 +206,7 @@ export function buildHiatusNudgeQueue(
       if (!inWindow(deadlineMs, nowMs, lookaheadDays, lookbackDays)) continue;
 
       const occurrenceKey = `${hiatus.id}:${mark.pct}`;
-      if (completed.has(completionKey("hiatus_nudge", hiatus.member_id, occurrenceKey))) continue;
+      if (isSuppressed(completed, completionKey("hiatus_nudge", hiatus.member_id, occurrenceKey), nowMs)) continue;
 
       items.push({
         queueType: "hiatus_nudge",
@@ -184,6 +215,7 @@ export function buildHiatusNudgeQueue(
         occurrenceKey,
         deadline: mark.date.slice(0, 10),
         label: `${mark.pct}% mark`,
+        expectedReturnDate: hiatus.end_date,
       });
     }
   }

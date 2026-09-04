@@ -16,6 +16,7 @@ interface MemberDetailsProps {
   slackActivities: any[];
   userTimezonePreference?: string; // User's timezone preference from profile
   membershipHistory: any[];
+  programOverrides?: { id: string; starts_at: string; expires_at: string | null; reason: string | null }[];
   earnedBadges: EarnedBadge[];
   awardableBadgeTypes: { id: string; name: string; icon: string }[];
   awards: {
@@ -37,6 +38,7 @@ export default function MemberDetails({
   slackActivities,
   userTimezonePreference = "browser",
   membershipHistory,
+  programOverrides = [],
   earnedBadges,
   awardableBadgeTypes,
   awards,
@@ -166,6 +168,7 @@ export default function MemberDetails({
             hiatusHistory={hiatusHistory}
             membershipHistory={membershipHistory}
             firstJoinedAt={member.first_joined_at}
+            programOverrides={programOverrides}
           />
 
           <MemberBadgesPanel
