@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import MemberSearch from "@/components/MemberSearch";
 
 interface Member {
   id: string;
@@ -67,14 +68,23 @@ export default function ProgramDetailClient({ programId }: { programId: string }
   const [editCohortForm, setEditCohortForm] = useState({ name: "", starts_at: "", expires_at: "", notes: "" });
   const [savingCohortEdit, setSavingCohortEdit] = useState(false);
 
+  const [allMembers, setAllMembers] = useState<Member[]>([]);
+
   const [enrollingCohortId, setEnrollingCohortId] = useState<string | null>(null);
-  const [enrollEmail, setEnrollEmail] = useState("");
+  const [enrollMember, setEnrollMember] = useState<Member | null>(null);
   const [enrollError, setEnrollError] = useState<string | null>(null);
   const [enrolling, setEnrolling] = useState(false);
 
   useEffect(() => {
     fetchData();
   }, [programId]);
+
+  useEffect(() => {
+    fetch("/api/members")
+      .then((res) => res.json())
+      .then((body) => setAllMembers(body.members || []))
+      .catch(() => {});
+  }, []);
 
   const fetchData = async () => {
     try {
@@ -157,24 +167,21 @@ export default function ProgramDetailClient({ programId }: { programId: string }
   const handleEnroll = async (e: React.FormEvent, cohortId: string) => {
     e.preventDefault();
     setEnrollError(null);
+    if (!enrollMember) {
+      setEnrollError("Select a member first");
+      return;
+    }
     setEnrolling(true);
     try {
-      const lookup = await fetch(`/api/members?email=${encodeURIComponent(enrollEmail)}`);
-      const lookupBody = await lookup.json();
-      if (!lookup.ok || !lookupBody.members || lookupBody.members.length === 0) {
-        throw new Error("Member not found with that email address");
-      }
-      const member = lookupBody.members[0];
-
       const response = await fetch("/api/admin/program-enrollments", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ member_id: member.id, cohort_id: cohortId }),
+        body: JSON.stringify({ member_id: enrollMember.id, cohort_id: cohortId }),
       });
       const body = await response.json();
       if (!response.ok) throw new Error(body.error || "Failed to enroll member");
 
-      setEnrollEmail("");
+      setEnrollMember(null);
       setEnrollingCohortId(null);
       fetchData();
     } catch (err: any) {
@@ -437,25 +444,22 @@ export default function ProgramDetailClient({ programId }: { programId: string }
                   {enrollingCohortId === cohort.id ? (
                     <form onSubmit={(e) => handleEnroll(e, cohort.id)} className="flex items-start gap-2">
                       <div className="flex-1">
-                        <input
-                          type="email"
-                          value={enrollEmail}
-                          onChange={(e) => setEnrollEmail(e.target.value)}
-                          placeholder="member@example.com"
-                          className="w-full px-3 py-1.5 border border-gray-300 dark:border-slate-700 dark:bg-slate-800 dark:text-gray-100 rounded text-sm"
-                          required
-                          autoFocus
+                        <MemberSearch
+                          members={allMembers}
+                          selectedMemberId={enrollMember?.id ?? null}
+                          onSelect={setEnrollMember}
+                          placeholder="Search by name or email..."
                         />
                         {enrollError && <p className="text-xs text-red-600 mt-1">{enrollError}</p>}
                       </div>
-                      <button type="submit" disabled={enrolling} className="px-3 py-1.5 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm disabled:opacity-50">
+                      <button type="submit" disabled={enrolling || !enrollMember} className="px-3 py-1.5 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm disabled:opacity-50">
                         {enrolling ? "Enrolling..." : "Enroll"}
                       </button>
                       <button
                         type="button"
                         onClick={() => {
                           setEnrollingCohortId(null);
-                          setEnrollEmail("");
+                          setEnrollMember(null);
                           setEnrollError(null);
                         }}
                         className="px-3 py-1.5 bg-gray-300 dark:bg-slate-700 text-gray-800 dark:text-gray-200 rounded hover:bg-gray-400 dark:hover:bg-slate-600 text-sm"
