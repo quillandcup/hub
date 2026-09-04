@@ -34,9 +34,11 @@ export default async function DashboardPage() {
     .from("prickle_attendance")
     .select("*", { count: "exact", head: true });
 
-  // At-risk: active members with no attendance in last 30 days. Staff-only
-  // accounts (source='staff', no paying Kajabi subscription) are excluded —
-  // staff who are ALSO paying members keep source='kajabi' and stay eligible.
+  // At-risk: active or on-hiatus members with no attendance in last 30 days.
+  // Leads and cancelled members are excluded — at-risk only ever applies to
+  // members who are still around. Staff-only accounts (source='staff', no
+  // paying Kajabi subscription) are also excluded — staff who are ALSO
+  // paying members keep source='kajabi' and stay eligible.
   const { data: atRiskMembers } = await supabase
     .from("members")
     .select(`
@@ -46,7 +48,7 @@ export default async function DashboardPage() {
       source,
       prickle_attendance(join_time)
     `)
-    .eq("status", "active");
+    .in("status", ["active", "on_hiatus"]);
 
   const isAtRisk = (m: { source: string; prickle_attendance?: { join_time: string }[] | null }) => {
     if (m.source === "staff") {

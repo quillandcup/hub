@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
+import { getEffectiveIdentity } from "@/lib/sudo";
 import { ThemeSwitcher } from "./ThemeSwitcher";
 import { TimezoneSwitcher } from "./TimezoneSwitcher";
 import { SessionsPanel } from "./SessionsPanel";
@@ -27,6 +28,11 @@ export default async function SettingsPage() {
     .select("timezone_preference, role")
     .eq("id", user.id)
     .single();
+
+  // Use the effective identity's email so this shows the sudo'd member's
+  // email during sudo, not the admin's own auth email.
+  const effectiveIdentity = await getEffectiveIdentity(user);
+  const displayEmail = effectiveIdentity?.memberEmail ?? user.email;
 
   const timezonePreference = profile?.timezone_preference || "browser";
 
@@ -60,7 +66,7 @@ export default async function SettingsPage() {
                     Email
                   </label>
                   <p className="text-sm text-slate-900 dark:text-slate-100 bg-slate-50 dark:bg-slate-800 px-3 py-2 rounded-md">
-                    {user.email}
+                    {displayEmail}
                   </p>
                 </div>
               </div>

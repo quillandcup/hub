@@ -206,10 +206,12 @@ export function IdentityPanel() {
 
   return (
     <div className="space-y-8">
-      <div role="status" className="min-h-[1.25rem] text-sm">
-        {error && <span className="text-red-600 dark:text-red-400">{error}</span>}
-        {!error && message && <span className="text-green-600 dark:text-green-400">{message}</span>}
-      </div>
+      {(error || message) && (
+        <div role="status" className="text-sm">
+          {error && <span className="text-red-600 dark:text-red-400">{error}</span>}
+          {!error && message && <span className="text-green-600 dark:text-green-400">{message}</span>}
+        </div>
+      )}
 
       {/* Real Name */}
       <div>

@@ -136,7 +136,7 @@ export default async function MemberProfilePage({
 
   // No fallback to joined_at (Kajabi contact creation) — a lead who never
   // had a real subscription has no first_joined_at, and isn't a member, so
-  // shows no "Member since" line at all.
+  // shows no "Hedgie since" line at all.
   const firstJoinedDate = member.first_joined_at ? parseDateOnly(member.first_joined_at) : null
   const formatMonthYear = (d: Date) =>
     `${d.toLocaleString("en-US", { month: "long" })} ${d.getFullYear()}`
@@ -183,7 +183,7 @@ export default async function MemberProfilePage({
           <h1 className="text-3xl font-bold">{member.name}</h1>
           {firstJoinedDate && (
             <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-              Member since {formatMonthYear(firstJoinedDate)}
+              Hedgie since {formatMonthYear(firstJoinedDate)}
               {totalActiveMonths > 0 && <span className="mx-1.5">·</span>}
               {totalActiveMonths > 0 && <span>{hedgieversaryLabel}</span>}
             </p>

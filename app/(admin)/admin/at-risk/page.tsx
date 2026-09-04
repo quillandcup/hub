@@ -18,7 +18,9 @@ export default async function AtRiskPage() {
     redirect("/login");
   }
 
-  // Get all active members with their attendance
+  // Get all active or on-hiatus members with their attendance. Leads and
+  // cancelled members are excluded — at-risk only ever applies to members
+  // who are still around.
   const { data: activeMembers } = await supabase
     .from("members")
     .select(`
@@ -29,7 +31,7 @@ export default async function AtRiskPage() {
       source,
       prickle_attendance(join_time)
     `)
-    .eq("status", "active")
+    .in("status", ["active", "on_hiatus"])
     .order("name");
 
   const thirtyDaysAgo = new Date();
@@ -89,7 +91,7 @@ export default async function AtRiskPage() {
           </Link>
           <h1 className="text-2xl font-bold">⚠️ At-Risk Members</h1>
           <p className="text-slate-600 dark:text-slate-400 mt-1">
-            Active members with no attendance in the last 30 days
+            Active or on-hiatus members with no attendance in the last 30 days
           </p>
         </div>
       </header>
