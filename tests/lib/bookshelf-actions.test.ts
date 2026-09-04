@@ -18,10 +18,15 @@ vi.mock("next/cache", () => ({
   revalidatePath: vi.fn(),
 }));
 
+vi.mock("@/lib/slack", () => ({
+  notifyStaffNewBook: vi.fn().mockResolvedValue(undefined),
+}));
+
 import { getMyBooks, addBook, updateBook, deleteBook, type BookInput } from "@/app/(member)/bookshelf/actions";
 import { createClient } from "@/lib/supabase/server";
 import { getEffectiveIdentity } from "@/lib/sudo";
 import { revalidatePath } from "next/cache";
+import { notifyStaffNewBook } from "@/lib/slack";
 
 const IDENTITY = {
   memberId: "member-1",
@@ -240,6 +245,12 @@ describe("addBook", () => {
     expect(revalidatePath).toHaveBeenCalledWith("/bookshelf");
     expect(revalidatePath).toHaveBeenCalledWith("/projects");
     expect(revalidatePath).toHaveBeenCalledWith("/members/member-1");
+    expect(notifyStaffNewBook).toHaveBeenCalledWith({
+      title: "My Book",
+      memberId: "member-1",
+      memberName: "Member One",
+      purchaseUrl: "https://example.com/buy",
+    });
   });
 
   it("scopes the insert to the sudo'd member, not the real admin, while sudo'd", async () => {
@@ -261,6 +272,7 @@ describe("addBook", () => {
     const result = await addBook(VALID_INPUT);
     expect(result).toEqual({ error: "boom" });
     expect(revalidatePath).not.toHaveBeenCalled();
+    expect(notifyStaffNewBook).not.toHaveBeenCalled();
   });
 });
 

@@ -48,3 +48,39 @@ export async function sendSlackDM(params: SendSlackDMParams): Promise<void> {
   const slack = new WebClient(token);
   await slack.chat.postMessage({ channel: slackUserId, text, blocks });
 }
+
+// No NEXT_PUBLIC base-URL env var exists yet (app/api/reconcile/README.md hardcodes the same
+// domain for its curl examples) -- this is a staff-facing Slack link, so pointing it at the real
+// production site regardless of which environment triggered the notification is fine.
+const APP_URL = "https://hub.quillandcup.com";
+
+export interface NotifyStaffNewBookParams {
+  title: string;
+  memberId: string;
+  memberName: string;
+  purchaseUrl?: string | null;
+}
+
+/**
+ * Posts to a staff Slack channel when a member adds a new book -- either the standalone "Add a
+ * Book" flow or the book-creation step of publishing a tracked project -- so staff can add it to
+ * the Shopify store. Distinct from sendSlackDM above (that messages a *member*, not staff) and
+ * from feedback/route.ts's notifySlack (a different channel, SLACK_FEEDBACK_CHANNEL_ID, for a
+ * different purpose). Gated the same way: silently no-ops until both env vars are configured.
+ */
+export async function notifyStaffNewBook(params: NotifyStaffNewBookParams): Promise<void> {
+  const token = process.env.SLACK_BOT_TOKEN;
+  const channel = process.env.SLACK_NEW_BOOKS_CHANNEL_ID;
+  if (!token || !channel) return;
+
+  const { title, memberId, memberName, purchaseUrl } = params;
+  const memberLink = `${APP_URL}/admin/members/${memberId}`;
+
+  const text = [
+    `📚 New book added: *${title}* by ${memberName}`,
+    purchaseUrl ? `<${purchaseUrl}|Where to buy>  ·  <${memberLink}|View member>` : `<${memberLink}|View member>`,
+  ].join("\n");
+
+  const slack = new WebClient(token);
+  await slack.chat.postMessage({ channel, text });
+}
