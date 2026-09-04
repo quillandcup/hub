@@ -51,11 +51,21 @@ describe('Admin members page — alias-aware search', () => {
 
     const { data: alias, error: aliasError } = await supabase
       .from('member_name_aliases')
-      .insert({ member_id: aliasedMemberId, alias: `Bobby-${ts}` })
+      .insert({ member_id: aliasedMemberId, alias: `Bobby-${ts}`, source: 'zoom' })
       .select('id')
       .single()
     expect(aliasError).toBeNull()
     aliasIds.push(alias!.id)
+
+    // A slack-source alias stores an opaque Slack user_id, not a name — it
+    // should NOT be text-searchable the way a zoom display-name alias is.
+    const { data: slackAlias, error: slackAliasError } = await supabase
+      .from('member_name_aliases')
+      .insert({ member_id: plainMemberId, alias: `U0SLACKID${ts}`, source: 'slack' })
+      .select('id')
+      .single()
+    expect(slackAliasError).toBeNull()
+    aliasIds.push(slackAlias!.id)
   })
 
   afterAll(async () => {
@@ -68,6 +78,7 @@ describe('Admin members page — alias-aware search', () => {
     const { data: matchingAliases } = await supabase
       .from('member_name_aliases')
       .select('member_id')
+      .eq('source', 'zoom')
       .ilike('alias', `%${search}%`)
     const aliasMemberIds = Array.from(
       new Set((matchingAliases ?? []).map((a) => a.member_id))
@@ -105,6 +116,11 @@ describe('Admin members page — alias-aware search', () => {
 
   it('returns no results for a search matching neither a member nor an alias', async () => {
     const results = await searchMembers(`nonexistent-search-term-${ts}`)
+    expect(results.filter((m) => testMemberIds.includes(m.id))).toEqual([])
+  })
+
+  it('does not match a slack-source alias (opaque user_id, not a name)', async () => {
+    const results = await searchMembers(`U0SLACKID${ts}`)
     expect(results.filter((m) => testMemberIds.includes(m.id))).toEqual([])
   })
 })
