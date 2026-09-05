@@ -79,10 +79,26 @@ interface ZoomAccessData {
   unmatched: ZoomUnmatchedAttendee[];
 }
 
+interface KajabiGrant {
+  kajabi_purchase_id: string;
+  offer_name: string;
+  amount_in_cents: number;
+  created_at: string | null;
+  member_id: string | null;
+  member_name: string | null;
+  member_email: string | null;
+  member_status: string | null;
+}
+
+interface KajabiGrantsData {
+  grants: KajabiGrant[];
+}
+
 export default function ReconciliationClient() {
   const [data, setData] = useState<ReconciliationData | null>(null);
   const [slackData, setSlackData] = useState<SlackData | null>(null);
   const [stripeOrphanData, setStripeOrphanData] = useState<StripeOrphanData | null>(null);
+  const [kajabiGrantsData, setKajabiGrantsData] = useState<KajabiGrantsData | null>(null);
   const [zoomAccessData, setZoomAccessData] = useState<ZoomAccessData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -96,7 +112,7 @@ export default function ReconciliationClient() {
   const fetchAll = async () => {
     setLoading(true);
     setError(null);
-    await Promise.all([fetchReconciliation(), fetchSlackData(), fetchStripeOrphans(), fetchZoomAccess()]);
+    await Promise.all([fetchReconciliation(), fetchSlackData(), fetchStripeOrphans(), fetchKajabiGrants(), fetchZoomAccess()]);
     setLoading(false);
   };
 
@@ -136,6 +152,17 @@ export default function ReconciliationClient() {
       setStripeOrphanData(result);
     } catch (err: any) {
       console.error("Error fetching Stripe orphans:", err);
+    }
+  };
+
+  const fetchKajabiGrants = async () => {
+    try {
+      const response = await fetch("/api/analyze/kajabi-grants");
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Failed to fetch Kajabi grants");
+      setKajabiGrantsData(result);
+    } catch (err: any) {
+      console.error("Error fetching Kajabi grants:", err);
     }
   };
 
@@ -565,6 +592,57 @@ export default function ReconciliationClient() {
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
                       {o.created_at ? new Date(o.created_at).toLocaleDateString() : "—"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Kajabi memberships granted with no real transaction behind them */}
+      {kajabiGrantsData && kajabiGrantsData.grants.length > 0 && (
+        <div className="mt-8">
+          <h2 className="text-base font-semibold mb-3 dark:text-white">
+            Granted memberships — no payment behind them ({kajabiGrantsData.grants.length})
+          </h2>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+            Active in Kajabi with no transaction on the purchase — either granted via the API (no billing
+            attached, won&apos;t auto-revoke on cancellation) or a manual comp. Worth a look before it becomes
+            another invisible category, the way ad-hoc Stripe subscriptions did.
+          </p>
+          <div className="border border-gray-200 dark:border-slate-700 rounded overflow-hidden">
+            <table className="w-full">
+              <thead className="bg-gray-50 dark:bg-slate-800">
+                <tr>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">Member</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">Offer</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">Amount</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">Granted</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200 dark:divide-slate-700 bg-white dark:bg-slate-900">
+                {kajabiGrantsData.grants.map((g) => (
+                  <tr key={g.kajabi_purchase_id} className="hover:bg-gray-50 dark:hover:bg-slate-800">
+                    <td className="px-4 py-3">
+                      {g.member_id ? (
+                        <a
+                          href={`/admin/members/${g.member_id}`}
+                          className="font-medium text-blue-600 dark:text-blue-400 hover:underline"
+                        >
+                          {g.member_name}
+                        </a>
+                      ) : (
+                        <span className="font-medium dark:text-white">{g.member_email ?? "—"}</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">{g.offer_name}</td>
+                    <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
+                      {(g.amount_in_cents / 100).toLocaleString(undefined, { style: "currency", currency: "USD" })}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
+                      {g.created_at ? new Date(g.created_at).toLocaleDateString() : "—"}
                     </td>
                   </tr>
                 ))}
