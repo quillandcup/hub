@@ -30,11 +30,13 @@ function NavLinks({ memberId, isAdmin, enabledFeatures, pathname, collapsed, onN
   const isHostingActive = pathname === '/hosting';
   const isProjectsActive = pathname === '/projects' || pathname.startsWith('/projects/');
   const isBookshelfActive = pathname === '/bookshelf';
+  const isEventsActive = pathname === '/events' || pathname.startsWith('/events/');
   const isProfileActive = pathname === `/members/${memberId}` || pathname.startsWith(`/members/${memberId}/`);
 
   const showStreaks = enabledFeatures.includes('streaks');
   const showPricklePicker = enabledFeatures.includes('prickle_picker');
   const showWheel = enabledFeatures.includes('wheel_of_wonder');
+  const showEvents = enabledFeatures.includes('events');
 
   const linkClass = (active: boolean) =>
     `flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
@@ -169,6 +171,18 @@ function NavLinks({ memberId, isAdmin, enabledFeatures, pathname, collapsed, onN
               <span className="text-lg">🐚</span>
               {!collapsed && <span>Bookshelf</span>}
             </Link>
+
+            {showEvents && (
+              <Link
+                href="/events"
+                onClick={onNavigate}
+                className={linkClass(isEventsActive)}
+                title={collapsed ? "Events" : undefined}
+              >
+                <span className="text-lg">📸</span>
+                {!collapsed && <span>Events</span>}
+              </Link>
+            )}
           </div>
         </div>
 

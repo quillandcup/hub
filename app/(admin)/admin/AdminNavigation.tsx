@@ -44,6 +44,7 @@ const navigation: NavSection[] = [
       { name: "Network", href: "/admin/members/network", icon: "🕸️" },
       { name: "Badges", href: "/admin/badges", icon: "🏅" },
       { name: "Hosts", href: "/admin/hosts", icon: "🎙️" },
+      { name: "Events", href: "/admin/events", icon: "📸", feature: "events" },
     ],
   },
   {
