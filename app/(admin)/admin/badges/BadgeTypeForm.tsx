@@ -25,11 +25,20 @@ interface LevelState extends LevelInput {
   key: string;
 }
 
+interface EventOption {
+  id: string;
+  title: string;
+  starts_at: string;
+}
+
 interface BadgeTypeFormProps {
   mode: "create" | "edit";
   badgeTypeId?: string;
   isAutomatic?: boolean;
   awardCount?: number;
+  /** Events not already linked to a different badge, plus this badge's own currently-linked
+   * event (if any) so it still shows up as selected in edit mode. */
+  events?: EventOption[];
   initial?: {
     name: string;
     description: string;
@@ -37,6 +46,7 @@ interface BadgeTypeFormProps {
     category: Category;
     hasLevels: boolean;
     levels: LevelInput[];
+    eventId: string | null;
   };
 }
 
@@ -53,6 +63,7 @@ export default function BadgeTypeForm({
   badgeTypeId,
   isAutomatic,
   awardCount,
+  events = [],
   initial,
 }: BadgeTypeFormProps) {
   const router = useRouter();
@@ -61,6 +72,7 @@ export default function BadgeTypeForm({
   const [icon, setIcon] = useState(initial?.icon ?? "🏅");
   const [category, setCategory] = useState<Category>(initial?.category ?? "community");
   const [hasLevels, setHasLevels] = useState(initial?.hasLevels ?? false);
+  const [eventId, setEventId] = useState(initial?.eventId ?? "");
   const [levels, setLevels] = useState<LevelState[]>(
     initial?.levels && initial.levels.length > 0
       ? initial.levels.map((l) => ({ ...l, key: makeKey() }))
@@ -133,6 +145,7 @@ export default function BadgeTypeForm({
               threshold: l.threshold.trim() === "" ? null : Number(l.threshold),
             }))
           : [],
+        eventId: eventId || null,
       };
 
       const url = mode === "create" ? "/api/badge-types/create" : `/api/badge-types/${badgeTypeId}/update`;
@@ -228,6 +241,30 @@ export default function BadgeTypeForm({
             ))}
           </select>
         </div>
+
+        {!isAutomatic && (
+          <div className="mb-6">
+            <label className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2 block">
+              Linked event (optional)
+            </label>
+            <select
+              value={eventId}
+              onChange={(e) => setEventId(e.target.value)}
+              className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+            >
+              <option value="">None</option>
+              {events.map((event) => (
+                <option key={event.id} value={event.id}>
+                  {event.title} ({new Date(`${event.starts_at}T00:00:00`).getFullYear()})
+                </option>
+              ))}
+            </select>
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+              When set, this badge is granted by attendance instead -- manual award/revoke is disabled, and
+              adding/removing an attendee on the event page grants/revokes it automatically.
+            </p>
+          </div>
+        )}
 
         <div className="mb-6">
           <label className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-300">

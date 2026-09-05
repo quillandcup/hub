@@ -11,13 +11,24 @@ export async function GET(
   const { supabase } = auth;
   const { id } = await params;
 
-  const [{ data: event, error: eventError }, { data: photos, error: photosError }] = await Promise.all([
+  const [
+    { data: event, error: eventError },
+    { data: photos, error: photosError },
+    { data: badgeType },
+    { data: attendees, error: attendeesError },
+  ] = await Promise.all([
     supabase.from("events").select("*").eq("id", id).single(),
     supabase
       .from("event_photos")
       .select("*")
       .eq("event_id", id)
       .order("taken_at", { ascending: true, nullsFirst: false })
+      .order("created_at", { ascending: true }),
+    supabase.from("badge_types").select("id, name, icon").eq("event_id", id).maybeSingle(),
+    supabase
+      .from("event_attendees")
+      .select("id, member_id, members(name, email)")
+      .eq("event_id", id)
       .order("created_at", { ascending: true }),
   ]);
 
@@ -26,8 +37,19 @@ export async function GET(
     console.error("Error fetching event photos:", photosError);
     return NextResponse.json({ error: photosError.message }, { status: 500 });
   }
+  if (attendeesError) {
+    console.error("Error fetching event attendees:", attendeesError);
+    return NextResponse.json({ error: attendeesError.message }, { status: 500 });
+  }
 
-  return NextResponse.json({ event, photos: photos || [] });
+  const attendeeRows = (attendees ?? []).map((a: any) => ({
+    id: a.id,
+    memberId: a.member_id,
+    memberName: a.members?.name ?? "Unknown",
+    memberEmail: a.members?.email ?? "",
+  }));
+
+  return NextResponse.json({ event, photos: photos || [], badgeType: badgeType ?? null, attendees: attendeeRows });
 }
 
 export async function PATCH(

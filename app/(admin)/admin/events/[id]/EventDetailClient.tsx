@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import PhotoLightbox from "@/components/PhotoLightbox";
+import MemberSearch from "@/components/MemberSearch";
 
 interface EventData {
   id: string;
@@ -23,6 +24,25 @@ interface Photo {
   hidden_at: string | null;
 }
 
+interface Member {
+  id: string;
+  name: string;
+  email: string;
+}
+
+interface Attendee {
+  id: string;
+  memberId: string;
+  memberName: string;
+  memberEmail: string;
+}
+
+interface BadgeTypeLink {
+  id: string;
+  name: string;
+  icon: string;
+}
+
 const EVENT_TYPES = [
   { value: "in_person_retreat", label: "In-Person Retreat" },
   { value: "virtual_retreat", label: "Virtual Retreat" },
@@ -32,6 +52,8 @@ const EVENT_TYPES = [
 export default function EventDetailClient({ eventId }: { eventId: string }) {
   const [event, setEvent] = useState<EventData | null>(null);
   const [photos, setPhotos] = useState<Photo[]>([]);
+  const [badgeType, setBadgeType] = useState<BadgeTypeLink | null>(null);
+  const [attendees, setAttendees] = useState<Attendee[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -43,9 +65,21 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
   const [showHidden, setShowHidden] = useState(false);
   const [togglingId, setTogglingId] = useState<string | null>(null);
 
+  const [allMembers, setAllMembers] = useState<Member[]>([]);
+  const [addingMember, setAddingMember] = useState<Member | null>(null);
+  const [addingAttendee, setAddingAttendee] = useState(false);
+  const [removingId, setRemovingId] = useState<string | null>(null);
+
   useEffect(() => {
     fetchData();
   }, [eventId]);
+
+  useEffect(() => {
+    fetch("/api/members")
+      .then((res) => res.json())
+      .then((body) => setAllMembers(body.members || []))
+      .catch(() => {});
+  }, []);
 
   const fetchData = async () => {
     try {
@@ -55,10 +89,51 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
       if (!response.ok) throw new Error(body.error || "Failed to fetch event");
       setEvent(body.event);
       setPhotos(body.photos);
+      setBadgeType(body.badgeType);
+      setAttendees(body.attendees);
     } catch (err: any) {
       setError(err.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleAddAttendee = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!addingMember) return;
+    setAddingAttendee(true);
+    setError(null);
+    try {
+      const response = await fetch(`/api/admin/events/${eventId}/attendees`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ memberId: addingMember.id }),
+      });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error || "Failed to add attendee");
+      setAddingMember(null);
+      await fetchData();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setAddingAttendee(false);
+    }
+  };
+
+  const handleRemoveAttendee = async (memberId: string) => {
+    setRemovingId(memberId);
+    setError(null);
+    try {
+      const response = await fetch(`/api/admin/events/${eventId}/attendees/${memberId}`, { method: "DELETE" });
+      if (!response.ok) {
+        const body = await response.json();
+        throw new Error(body.error || "Failed to remove attendee");
+      }
+      await fetchData();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setRemovingId(null);
     }
   };
 
@@ -313,6 +388,64 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
               </div>
             )}
           </dl>
+        )}
+      </section>
+
+      {/* Attendees */}
+      <section className="bg-white dark:bg-slate-900 rounded-lg shadow p-6">
+        <h2 className="text-lg font-semibold mb-1">Attendees ({attendees.length})</h2>
+        {badgeType ? (
+          <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
+            Adding or removing an attendee here also grants or revokes the linked{" "}
+            <strong>
+              {badgeType.icon} {badgeType.name}
+            </strong>{" "}
+            badge automatically.
+          </p>
+        ) : (
+          <p className="text-sm text-slate-500 dark:text-slate-500 mb-4">
+            No badge is linked to this event yet -- attendance is just recorded here for now.
+          </p>
+        )}
+
+        <form onSubmit={handleAddAttendee} className="flex items-start gap-2 mb-4">
+          <div className="flex-1 max-w-sm">
+            <MemberSearch
+              members={allMembers}
+              selectedMemberId={addingMember?.id ?? null}
+              onSelect={setAddingMember}
+              placeholder="Search by name or email..."
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={addingAttendee || !addingMember}
+            className="px-3 py-1.5 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm disabled:opacity-50"
+          >
+            {addingAttendee ? "Adding..." : "Add attendee"}
+          </button>
+        </form>
+
+        {attendees.length === 0 ? (
+          <p className="text-gray-500">No attendees recorded yet.</p>
+        ) : (
+          <ul className="divide-y divide-gray-200 dark:divide-slate-800">
+            {attendees.map((attendee) => (
+              <li key={attendee.id} className="flex items-center justify-between py-2">
+                <div>
+                  <span className="text-sm font-medium">{attendee.memberName}</span>
+                  <span className="text-sm text-gray-500 dark:text-gray-400 ml-2">{attendee.memberEmail}</span>
+                </div>
+                <button
+                  onClick={() => handleRemoveAttendee(attendee.memberId)}
+                  disabled={removingId === attendee.memberId}
+                  className="text-xs text-red-600 dark:text-red-400 hover:underline disabled:opacity-50"
+                >
+                  {removingId === attendee.memberId ? "Removing..." : "Remove"}
+                </button>
+              </li>
+            ))}
+          </ul>
         )}
       </section>
 

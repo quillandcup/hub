@@ -10,7 +10,7 @@ export async function POST(request: NextRequest) {
   const { supabase } = auth;
 
   try {
-    const { name, description, icon, category, hasLevels, levels } = await request.json();
+    const { name, description, icon, category, hasLevels, levels, eventId } = await request.json();
 
     if (!name || !name.trim()) {
       return NextResponse.json({ error: "Name is required" }, { status: 400 });
@@ -50,13 +50,22 @@ export async function POST(request: NextRequest) {
         category: category ?? "community",
         has_levels: !!hasLevels,
         is_automatic: false,
+        event_id: eventId || null,
       })
       .select()
       .single();
 
     if (insertError) {
       console.error("Error creating badge type:", insertError);
+      if (insertError.code === "23505" && insertError.message.includes("event_id")) {
+        return NextResponse.json({ error: "That event is already linked to another badge" }, { status: 409 });
+      }
       return NextResponse.json({ error: insertError.message }, { status: 500 });
+    }
+
+    if (eventId) {
+      const { error: syncError } = await supabase.rpc("sync_event_badge_awards", { p_event_id: eventId });
+      if (syncError) console.error("Error syncing event badge awards:", syncError);
     }
 
     if (hasLevels && Array.isArray(levels) && levels.length > 0) {

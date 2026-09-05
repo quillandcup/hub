@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
 
     const { data: badgeType, error: badgeTypeError } = await supabase
       .from("badge_types")
-      .select("id, is_automatic")
+      .select("id, is_automatic, event_id")
       .eq("id", badgeTypeId)
       .single();
     if (badgeTypeError || !badgeType) {
@@ -29,6 +29,12 @@ export async function POST(request: NextRequest) {
     if (badgeType.is_automatic) {
       return NextResponse.json(
         { error: "This badge is computed automatically and can't be manually awarded" },
+        { status: 400 }
+      );
+    }
+    if (badgeType.event_id) {
+      return NextResponse.json(
+        { error: "This badge is granted by event attendance -- manage attendees on the event page instead" },
         { status: 400 }
       );
     }
