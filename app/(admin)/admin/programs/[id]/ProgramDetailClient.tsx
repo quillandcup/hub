@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import MemberSearch from "@/components/MemberSearch";
+import MultiSelectSearch from "@/components/MultiSelectSearch";
 
 interface Member {
   id: string;
@@ -233,12 +234,6 @@ export default function ProgramDetailClient({ programId }: { programId: string }
     fetchData();
   };
 
-  const toggleOfferName = (name: string) => {
-    setOfferNamesSelection((prev) =>
-      prev.includes(name) ? prev.filter((n) => n !== name) : [...prev, name]
-    );
-  };
-
   const handleSaveOfferNames = async () => {
     setError(null);
     setSavingOfferNames(true);
@@ -380,30 +375,14 @@ export default function ProgramDetailClient({ programId }: { programId: string }
           Which Kajabi offers count as a purchase of this program — used by &quot;Find Kajabi matches&quot; below to
           suggest members to enroll in a cohort.
         </p>
-        <div className="flex flex-wrap gap-x-4 gap-y-2 mb-3">
-          {allOfferNames.map((name) => (
-            <label key={name} className="flex items-center gap-1.5 text-sm">
-              <input
-                type="checkbox"
-                checked={offerNamesSelection.includes(name)}
-                onChange={() => toggleOfferName(name)}
-              />
-              {name}
-            </label>
-          ))}
-          {offerNamesSelection
-            .filter((name) => !allOfferNames.includes(name))
-            .map((name) => (
-              <label key={name} className="flex items-center gap-1.5 text-sm text-amber-700 dark:text-amber-400">
-                <input
-                  type="checkbox"
-                  checked={true}
-                  onChange={() => toggleOfferName(name)}
-                />
-                {name} <span className="text-xs">(not in current Kajabi catalog)</span>
-              </label>
-            ))}
-        </div>
+        <MultiSelectSearch
+          options={allOfferNames}
+          selected={offerNamesSelection}
+          onChange={setOfferNamesSelection}
+          placeholder="Search Kajabi offers..."
+          className="mb-3"
+          chipNote={(name) => (allOfferNames.includes(name) ? undefined : "(not in current Kajabi catalog)")}
+        />
         <button
           onClick={handleSaveOfferNames}
           disabled={savingOfferNames}
