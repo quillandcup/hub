@@ -334,8 +334,9 @@ export async function POST(request: NextRequest) {
         const customer = customerByEmail.get(email);
         const attrs = customer?.data?.attributes;
 
+        const now = new Date();
         const stints = buildMembershipStints(contactPurchases, offerMap, email, stripeTrialInfoByEmail);
-        const tenure = computeMemberTenure(stints, hiatusWindowsByEmail.get(email) ?? [], new Date());
+        const tenure = computeMemberTenure(stints, hiatusWindowsByEmail.get(email) ?? [], now);
 
         // A legacy join-date override always wins over the computed value —
         // it exists specifically because Kajabi has no record of the true
@@ -350,6 +351,26 @@ export async function POST(request: NextRequest) {
             ? joinDateOverride
             : tenure.mostRecentJoinedAt;
 
+        // total_active_months from `tenure` only counts time inside a real
+        // Kajabi/Stripe stint — it can't see activity before the earliest
+        // purchase record Kajabi has. A join-date override implies exactly
+        // that kind of activity (that's the whole reason it exists), so
+        // without this, an overridden join date reads as contradictory next
+        // to an unchanged, stint-only active-months count ("Hedgie since
+        // 2022, active 5 months"). Estimate active time since the override
+        // date instead (elapsed calendar time minus hiatus, same convention
+        // as computeMemberTenure), and never let it go backward from what
+        // the real stints already established — mirrors the GREATEST guard
+        // reprocess_members_atomic uses for program-cohort active months.
+        const totalActiveMonths = joinDateOverride
+          ? Math.max(
+              tenure.totalActiveMonths,
+              Math.floor(
+                computeActiveDays(joinDateOverride, now.toISOString(), hiatusWindowsByEmail.get(email) ?? [], now) / 30
+              )
+            )
+          : tenure.totalActiveMonths;
+
         kajabiMembers.push({
           email,
           _originalEmail: contact.email.toLowerCase(),
@@ -357,7 +378,7 @@ export async function POST(request: NextRequest) {
           joined_at: contact.created_at_kajabi.split('T')[0],
           first_joined_at: firstJoinedAt,
           most_recent_joined_at: mostRecentJoinedAt,
-          total_active_months: tenure.totalActiveMonths,
+          total_active_months: totalActiveMonths,
           status,
           plan,
           source: 'kajabi',

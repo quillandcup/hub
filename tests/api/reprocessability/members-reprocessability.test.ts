@@ -788,6 +788,13 @@ describe('Legacy join-date overrides during reprocessing', () => {
     const after = await fetchMember()
     expect(after?.first_joined_at).toBe(legacyJoinedAt)
     expect(after?.most_recent_joined_at).toBe(legacyJoinedAt) // no independent rejoin detected — pulled forward too
+    // The override implies ~700 days of real activity Kajabi has no purchase
+    // record for (only the ~300-day stint above) — total_active_months must
+    // reflect the override, not just the Kajabi-visible stint, or a
+    // corrected join date paired with an unchanged active-months count reads
+    // as contradictory ("Hedgie since 700 days ago, active ~10 months").
+    expect(after?.total_active_months).toBeGreaterThanOrEqual(23)
+    expect(after?.total_active_months).toBeLessThanOrEqual(24)
 
     await supabase.from('member_join_date_overrides').delete().eq('member_id', member!.id)
   })
