@@ -269,8 +269,8 @@ export async function GET(request: NextRequest) {
             expectedState = "active";
           } else if (stripeSubscription.pause_collection) {
             // Paused subscriptions - check for special cases
-            if (override?.override_type === "gift") {
-              // Gift/180 program members: paused in Stripe but should be active in Kajabi
+            if (override?.override_type === "gift" || override?.override_type === "direct_stripe") {
+              // Gift/180 program/direct-Stripe members: paused in Stripe but should be active in Kajabi
               expectedState = "active";
             } else {
               // Regular pause (hiatus or voluntary): should be inactive in Kajabi
@@ -279,8 +279,8 @@ export async function GET(request: NextRequest) {
           } else if (stripeSubscription.status === "past_due") {
             expectedState = "active"; // Still active until cancelled
           }
-        } else if (override?.override_type === "gift") {
-          expectedState = "active"; // Gift members should be active even without Stripe
+        } else if (override?.override_type === "gift" || override?.override_type === "direct_stripe") {
+          expectedState = "active"; // Gift/direct-Stripe members should be active even without a matched Stripe subscription
         }
 
         // Determine actual Kajabi state

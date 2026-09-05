@@ -14,6 +14,12 @@ interface MemberOverrideFormProps {
   memberId: string;
   memberName?: string;
   existing?: MemberOverrideFields | null;
+  // Pre-fills a fresh (non-`existing`) form — e.g. the reconciliation page
+  // suggesting 'direct_stripe' + a reason when it detects an active Stripe
+  // subscription with no matching Kajabi purchase, so staff can review and
+  // confirm in one click instead of typing the same explanation each time.
+  suggestedType?: "gift" | "special" | "direct_stripe";
+  suggestedReason?: string;
   onSaved: () => void;
   onCancel: () => void;
 }
@@ -29,12 +35,14 @@ export default function MemberOverrideForm({
   memberId,
   memberName,
   existing,
+  suggestedType,
+  suggestedReason,
   onSaved,
   onCancel,
 }: MemberOverrideFormProps) {
   const [formData, setFormData] = useState({
-    override_type: existing?.override_type ?? ("gift" as "gift" | "special" | "direct_stripe"),
-    reason: existing?.reason ?? "",
+    override_type: existing?.override_type ?? suggestedType ?? ("gift" as "gift" | "special" | "direct_stripe"),
+    reason: existing?.reason ?? suggestedReason ?? "",
     notes: existing?.notes ?? "",
     expires_at: existing?.expires_at ? existing.expires_at.split("T")[0] : "",
   });

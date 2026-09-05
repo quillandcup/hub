@@ -180,6 +180,19 @@ export default function ReconciliationClient() {
     m.has_discrepancy ||
     (slackData !== null && !memberSlackSet.has(m.member_id) && m.expected_kajabi_state === "active");
 
+  // A member actively paying in Stripe (stripe_state: "paying") whose Kajabi-derived
+  // status isn't active and who has no override yet — same discrepancy shape as
+  // Abby VanLuvanee's ad-hoc Kajabi Payments subscription (docs/TODO.md "Ad-hoc
+  // Kajabi Payments subscriptions aren't reconciled at all"). Suggests
+  // 'direct_stripe' instead of making staff type it out each time.
+  const suggestedOverride = (m: MemberReconciliation) =>
+    !m.override_type && m.stripe_state === "paying" && m.actual_kajabi_state !== "active"
+      ? {
+          type: "direct_stripe" as const,
+          reason: "Active Stripe subscription not reflected in Kajabi purchase data",
+        }
+      : null;
+
   const filteredMembers = filterDiscrepancies
     ? data.members.filter(hasDiscrepancy)
     : data.members;
@@ -412,6 +425,20 @@ export default function ReconciliationClient() {
                             </a>
                           </div>
                         </div>
+                      ) : suggestedOverride(member) ? (
+                        <div>
+                          <span className="px-2 py-1 text-xs rounded font-medium bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+                            ⚡ Suggested: direct_stripe
+                          </span>
+                          <button
+                            onClick={() =>
+                              setEditingMemberId(editingMemberId === member.member_id ? null : member.member_id)
+                            }
+                            className="block mt-1 text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                          >
+                            {editingMemberId === member.member_id ? "Cancel" : "Review & apply"}
+                          </button>
+                        </div>
                       ) : (
                         <div>
                           <span className="text-gray-400 dark:text-gray-500 text-sm">None</span>
@@ -459,6 +486,8 @@ export default function ReconciliationClient() {
                               }
                             : null
                         }
+                        suggestedType={suggestedOverride(member)?.type}
+                        suggestedReason={suggestedOverride(member)?.reason}
                         onSaved={handleOverrideSaved}
                         onCancel={() => setEditingMemberId(null)}
                       />
