@@ -8,21 +8,23 @@
 -- Conflating the two would misclassify real paying customers as "gifted"
 -- in any future gift/comp reporting.
 
--- Migrate the one existing 'gift' override that was actually standing in
--- for this (Abby VanLuvanee, see docs/TODO.md "Ad-hoc Kajabi Payments
--- subscriptions aren't reconciled at all") before the constraint no longer
--- has a slot for its old meaning to matter.
-UPDATE member_status_overrides
-SET override_type = 'direct_stripe'
-WHERE override_type = 'gift'
-  AND reason = 'Ad-hoc Kajabi Payments subscription not tracked by our purchase sync';
-
+-- Widen the constraint first -- the migrate-existing-row UPDATE below sets
+-- override_type='direct_stripe', which the old constraint doesn't allow yet.
 ALTER TABLE member_status_overrides
   DROP CONSTRAINT member_status_overrides_override_type_check;
 
 ALTER TABLE member_status_overrides
   ADD CONSTRAINT member_status_overrides_override_type_check
   CHECK (override_type IN ('gift', 'special', 'direct_stripe'));
+
+-- Migrate the one existing 'gift' override that was actually standing in
+-- for this (Abby VanLuvanee, see docs/TODO.md "Ad-hoc Kajabi Payments
+-- subscriptions aren't reconciled at all") now that the constraint has a
+-- slot for its real meaning.
+UPDATE member_status_overrides
+SET override_type = 'direct_stripe'
+WHERE override_type = 'gift'
+  AND reason = 'Ad-hoc Kajabi Payments subscription not tracked by our purchase sync';
 
 -- Step 4 now applies both 'gift' and 'direct_stripe' overrides the same way
 -- (force 'active') — otherwise identical to
