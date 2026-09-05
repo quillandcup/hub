@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Modal from "@/components/Modal";
 import type { MemberExternalStatus } from "@/app/api/admin/members/external-status/route";
+import { hasExternalNotes, needsActionBeforeMerge, MergeExternalNotice } from "../MergeExternalNotice";
 
 interface Member {
   id: string;
@@ -27,7 +28,7 @@ export default function MergeMemberModal({ primaryMember, isOpen, onClose }: Mer
   const [merging, setMerging] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [conflicts, setConflicts] = useState<{ field: string; kept: string; discarded: string }[]>([]);
-  const [externalStatus, setExternalStatus] = useState<MemberExternalStatus | null>(null);
+  const [externalStatusById, setExternalStatusById] = useState<Record<string, MemberExternalStatus>>({});
   const [externalLoading, setExternalLoading] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -47,21 +48,22 @@ export default function MergeMemberModal({ primaryMember, isOpen, onClose }: Mer
       setPrimaryId(primaryMember.id);
       setError(null);
       setConflicts([]);
-      setExternalStatus(null);
+      setExternalStatusById({});
     }
   }, [isOpen, primaryMember.id]);
 
-  // Check external accounts for the secondary (non-primary) member
+  // Check external accounts for both members — need the primary's status too,
+  // to tell "will transfer automatically" apart from "will be discarded".
   const secondaryId = secondary?.id;
   useEffect(() => {
-    if (!secondaryId) { setExternalStatus(null); return; }
+    if (!secondaryId) { setExternalStatusById({}); return; }
     setExternalLoading(true);
-    fetch(`/api/admin/members/external-status?ids=${secondaryId}`)
+    fetch(`/api/admin/members/external-status?ids=${primary.id},${secondaryId}`)
       .then(r => r.json())
-      .then(data => setExternalStatus(data.members?.[secondaryId] ?? null))
-      .catch(() => setExternalStatus(null))
+      .then(data => setExternalStatusById(data.members ?? {}))
+      .catch(() => setExternalStatusById({}))
       .finally(() => setExternalLoading(false));
-  }, [secondaryId]);
+  }, [primary.id, secondaryId]);
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -278,14 +280,29 @@ export default function MergeMemberModal({ primaryMember, isOpen, onClose }: Mer
           <p className="text-xs text-slate-500 dark:text-slate-400">Checking external accounts...</p>
         )}
 
-        {!externalLoading && externalStatus && secondary && hasExternalAccounts(externalStatus) && (
-          <div className="rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-700 p-3 text-xs space-y-1">
-            <p className="font-semibold text-red-800 dark:text-red-300 mb-2">
-              External accounts require manual cleanup after merging:
-            </p>
-            <ExternalAccountWarnings member={secondary} status={externalStatus} />
-          </div>
-        )}
+        {!externalLoading && secondary && hasExternalNotes(externalStatusById[secondary.id]) && (() => {
+          const secondaryStatus = externalStatusById[secondary.id];
+          const actionNeeded = needsActionBeforeMerge(externalStatusById[primary.id], secondaryStatus);
+          return (
+            <div
+              className={
+                actionNeeded
+                  ? "rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-700 p-3 text-xs space-y-1"
+                  : "rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 p-3 text-xs space-y-1"
+              }
+            >
+              <p className={actionNeeded ? "font-semibold text-red-800 dark:text-red-300 mb-2" : "font-semibold text-slate-700 dark:text-slate-300 mb-2"}>
+                {actionNeeded ? "Action needed before merging:" : "Linked external accounts:"}
+              </p>
+              <MergeExternalNotice
+                primaryName={primary.name}
+                secondary={secondary}
+                primaryStatus={externalStatusById[primary.id]}
+                secondaryStatus={secondaryStatus}
+              />
+            </div>
+          );
+        })()}
 
         {conflicts.length > 0 && (
           <div className="rounded-lg bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-700 p-3 text-xs space-y-1">
@@ -335,67 +352,5 @@ export default function MergeMemberModal({ primaryMember, isOpen, onClose }: Mer
         </div>
       </div>
     </Modal>
-  );
-}
-
-function hasExternalAccounts(status: MemberExternalStatus): boolean {
-  return !!(status.kajabi_id || status.stripe_customer_id || status.slack_user_id);
-}
-
-function ExternalAccountWarnings({ member, status }: { member: { name: string; email: string }; status: MemberExternalStatus }) {
-  return (
-    <div>
-      <p className="font-semibold text-red-700 dark:text-red-400 mb-1">
-        {member.name} <span className="font-normal text-red-600 dark:text-red-500">({member.email})</span>
-      </p>
-      <ul className="space-y-1 ml-2">
-        {status.kajabi_id && (
-          <li className="flex items-start gap-1.5">
-            <span className="text-red-400 mt-0.5">•</span>
-            <span className={status.kajabi_active_purchases > 0 ? "text-red-700 dark:text-red-400" : "text-slate-600 dark:text-slate-400"}>
-              {status.kajabi_active_purchases > 0
-                ? "Active Kajabi subscription — cancel or migrate before merging"
-                : "Kajabi account — verify course access in Kajabi"}
-              {" "}
-              <a
-                href={`https://app.kajabi.com/admin/contacts/${status.kajabi_id}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-blue-600 dark:text-blue-400 hover:underline"
-              >
-                {status.kajabi_id} ↗
-              </a>
-            </span>
-          </li>
-        )}
-        {status.stripe_customer_id && (
-          <li className="flex items-start gap-1.5">
-            <span className="text-red-400 mt-0.5">•</span>
-            <span className={status.stripe_active_subscriptions > 0 ? "text-red-700 dark:text-red-400" : "text-slate-600 dark:text-slate-400"}>
-              {status.stripe_active_subscriptions > 0
-                ? `${status.stripe_active_subscriptions} active Stripe subscription${status.stripe_active_subscriptions !== 1 ? "s" : ""} — cancel or migrate before merging`
-                : "Stripe account — no active subscriptions"}
-              {" "}
-              <a
-                href={`https://dashboard.stripe.com/customers/${status.stripe_customer_id}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-blue-600 dark:text-blue-400 hover:underline"
-              >
-                {status.stripe_customer_id} ↗
-              </a>
-            </span>
-          </li>
-        )}
-        {status.slack_user_id && (
-          <li className="flex items-start gap-1.5">
-            <span className="text-slate-400 mt-0.5">•</span>
-            <span className="text-slate-600 dark:text-slate-400">
-              Slack account ({status.slack_user_id}) — message history resolves automatically via email alias
-            </span>
-          </li>
-        )}
-      </ul>
-    </div>
   );
 }
