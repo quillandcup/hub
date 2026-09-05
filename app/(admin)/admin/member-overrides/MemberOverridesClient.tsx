@@ -16,12 +16,15 @@ interface MemberOverride extends MemberOverrideFields {
   member: Member;
 }
 
+type TypeFilter = "all" | "gift" | "special" | "direct_stripe";
+
 export default function MemberOverridesClient() {
   const [overrides, setOverrides] = useState<MemberOverride[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [editingOverride, setEditingOverride] = useState<MemberOverride | null>(null);
+  const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
 
   // Email lookup — resolves to a member before the shared form (which just
   // needs a memberId) can render.
@@ -118,6 +121,8 @@ export default function MemberOverridesClient() {
     );
   }
 
+  const filteredOverrides = typeFilter === "all" ? overrides : overrides.filter((o) => o.override_type === typeFilter);
+
   return (
     <div className="p-8">
       <div className="mb-6">
@@ -141,6 +146,32 @@ export default function MemberOverridesClient() {
         >
           Add Override
         </button>
+      )}
+
+      <div className="mb-4 flex gap-2 flex-wrap">
+        {(["all", "gift", "special", "direct_stripe"] as const).map((type) => {
+          const count = type === "all" ? overrides.length : overrides.filter((o) => o.override_type === type).length;
+          return (
+            <button
+              key={type}
+              onClick={() => setTypeFilter(type)}
+              className={`px-3 py-1.5 text-sm rounded-full border ${
+                typeFilter === type
+                  ? "bg-blue-600 border-blue-600 text-white"
+                  : "bg-white dark:bg-slate-900 border-gray-300 dark:border-slate-700 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800"
+              }`}
+            >
+              {type === "all" ? "All" : type} ({count})
+            </button>
+          );
+        })}
+      </div>
+
+      {typeFilter === "direct_stripe" && (
+        <p className="mb-4 text-sm text-gray-600 dark:text-slate-400">
+          Members paying via an ad-hoc Stripe subscription Kajabi doesn&apos;t know about. Reach out to get them
+          resubscribed through Kajabi the right way, then <strong>Delete</strong> the override once they have.
+        </p>
       )}
 
       {showForm && (
@@ -212,14 +243,14 @@ export default function MemberOverridesClient() {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200 dark:divide-slate-700 bg-white dark:bg-slate-900">
-            {overrides.length === 0 ? (
+            {filteredOverrides.length === 0 ? (
               <tr>
                 <td colSpan={5} className="px-4 py-8 text-center text-gray-500 dark:text-slate-400">
-                  No overrides found. Add one to get started.
+                  {overrides.length === 0 ? "No overrides found. Add one to get started." : "No overrides of this type."}
                 </td>
               </tr>
             ) : (
-              overrides.map((override) => (
+              filteredOverrides.map((override) => (
                 <tr key={override.id} className="hover:bg-gray-50 dark:hover:bg-slate-800">
                   <td className="px-4 py-3">
                     <div className="font-medium text-slate-900 dark:text-slate-100">{override.member.name}</div>
