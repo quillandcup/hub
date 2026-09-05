@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import MemberOverrideForm, { type MemberOverrideFields } from "@/components/MemberOverrideForm";
+import MemberSearch from "@/components/MemberSearch";
 
 interface Member {
   id: string;
@@ -26,14 +28,17 @@ export default function MemberOverridesClient() {
   const [editingOverride, setEditingOverride] = useState<MemberOverride | null>(null);
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
 
-  // Email lookup — resolves to a member before the shared form (which just
-  // needs a memberId) can render.
-  const [memberEmailInput, setMemberEmailInput] = useState("");
+  // Resolves to a member before the shared form (which just needs a memberId)
+  // can render.
   const [resolvedMember, setResolvedMember] = useState<Member | null>(null);
-  const [lookupError, setLookupError] = useState<string | null>(null);
+  const [allMembers, setAllMembers] = useState<Member[]>([]);
 
   useEffect(() => {
     fetchOverrides();
+    fetch("/api/members")
+      .then((res) => res.json())
+      .then((body) => setAllMembers(body.members || []))
+      .catch(() => {});
   }, []);
 
   const fetchOverrides = async () => {
@@ -52,21 +57,6 @@ export default function MemberOverridesClient() {
       setError(err.message);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleLookup = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLookupError(null);
-    try {
-      const response = await fetch(`/api/members?email=${encodeURIComponent(memberEmailInput)}`);
-      const data = await response.json();
-      if (!response.ok || !data.members || data.members.length === 0) {
-        throw new Error("Member not found with that email address");
-      }
-      setResolvedMember(data.members[0]);
-    } catch (err: any) {
-      setLookupError(err.message);
     }
   };
 
@@ -107,8 +97,6 @@ export default function MemberOverridesClient() {
     setShowForm(false);
     setEditingOverride(null);
     setResolvedMember(null);
-    setMemberEmailInput("");
-    setLookupError(null);
     setError(null);
   };
 
@@ -181,34 +169,26 @@ export default function MemberOverridesClient() {
           </h2>
 
           {!resolvedMember ? (
-            <form onSubmit={handleLookup} className="space-y-4">
+            <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium mb-1 text-slate-700 dark:text-slate-300">
-                  Member Email
+                  Member
                 </label>
-                <input
-                  type="email"
-                  value={memberEmailInput}
-                  onChange={(e) => setMemberEmailInput(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
-                  required
-                  autoFocus
+                <MemberSearch
+                  members={allMembers}
+                  selectedMemberId={null}
+                  onSelect={(member) => setResolvedMember(member)}
+                  placeholder="Search by name or email..."
                 />
-                {lookupError && <p className="mt-1 text-sm text-red-600 dark:text-red-400">{lookupError}</p>}
               </div>
-              <div className="flex gap-2">
-                <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
-                  Find Member
-                </button>
-                <button
-                  type="button"
-                  onClick={handleCancel}
-                  className="px-4 py-2 bg-gray-300 dark:bg-slate-700 text-gray-800 dark:text-slate-200 rounded hover:bg-gray-400 dark:hover:bg-slate-600"
-                >
-                  Cancel
-                </button>
-              </div>
-            </form>
+              <button
+                type="button"
+                onClick={handleCancel}
+                className="px-4 py-2 bg-gray-300 dark:bg-slate-700 text-gray-800 dark:text-slate-200 rounded hover:bg-gray-400 dark:hover:bg-slate-600"
+              >
+                Cancel
+              </button>
+            </div>
           ) : (
             <MemberOverrideForm
               memberId={resolvedMember.id}
@@ -253,10 +233,12 @@ export default function MemberOverridesClient() {
               filteredOverrides.map((override) => (
                 <tr key={override.id} className="hover:bg-gray-50 dark:hover:bg-slate-800">
                   <td className="px-4 py-3">
-                    <div className="font-medium text-slate-900 dark:text-slate-100">{override.member.name}</div>
-                    <div className="text-sm text-gray-600 dark:text-slate-400">
-                      {override.member.email}
-                    </div>
+                    <Link
+                      href={`/admin/members/${override.member_id}`}
+                      className="font-medium text-blue-600 dark:text-blue-400 hover:underline"
+                    >
+                      {override.member.name}
+                    </Link>
                   </td>
                   <td className="px-4 py-3">
                     <span
