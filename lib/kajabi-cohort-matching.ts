@@ -9,7 +9,7 @@ export interface KajabiCandidate {
   // Usually one name, but can be more than one if a member's purchases in
   // this window used more than one matching offer (e.g. regular + alumna).
   offer_names: string[];
-  purchase_date: string | null; // earliest matching purchase's created_at_kajabi
+  purchase_date: string | null; // earliest matching purchase's created_at_kajabi ?? effective_start_at
   effective_start_at: string | null;
   deactivated_at: string | null;
   // Name of another cohort (same program) the member is already enrolled in,
@@ -39,13 +39,19 @@ function nextDay(dateStr: string): string {
  * cohort: a purchase of one of the program's known offers, falling inside
  * the cohort's [starts_at, expires_at] window.
  *
- * Matches on EITHER created_at_kajabi (transaction date) OR effective_start_at
- * (access-grant date) falling in-window, not just one — effective_start_at can
- * lag the real transaction date by more than a week (see docs/TODO.md "Access-
- * date vs transaction-date audit"), and since this feeds a staff-reviewed
- * candidate list rather than blind auto-enrollment, the wider net is safe: it
- * can't produce a false negative from that lag, and staff still eyeballs
- * every candidate before enrolling.
+ * Matches on created_at_kajabi (transaction date), falling back to
+ * effective_start_at only when created_at_kajabi is null — the same
+ * precedence lib/kajabi/membership-history.ts already uses (buildMembershipStints:
+ * `p.created_at_kajabi ?? p.effective_start_at`). This is a single coalesced
+ * date, not an OR across two independent ranges: unioning both fields was
+ * tried first and produced false positives — for a repeat/alumna purchase,
+ * effective_start_at can reflect original access from a much EARLIER,
+ * unrelated cohort (Kajabi doesn't grant a fresh access date for an evergreen
+ * course the member never lost access to), which pulled the purchase into
+ * the wrong, older cohort's window even though its real transaction date
+ * (created_at_kajabi) fell squarely in a different, later cohort. Falling
+ * back to effective_start_at only when created_at_kajabi is missing avoids
+ * that failure mode while still handling rows with no transaction date.
  *
  * Read-only — does not enroll anyone. Does not filter by purchase.status: a
  * refunded/cancelled purchase is still historical proof the member was in
@@ -74,22 +80,29 @@ export async function findKajabiCandidatesForCohort(
   const offerIds = Array.from(offerNameById.keys());
   if (offerIds.length === 0) return { candidates: [], offerNamesConfigured: true };
 
-  // Bounded by specific offer IDs + one cohort's date window, so this is
-  // inherently small (dozens of rows, not thousands) — no pagination loop
-  // needed here unlike the full-table Bronze reads in app/api/process/members.
-  const startsAt = cohort.starts_at;
-  const expiresAtExclusive = nextDay(cohort.expires_at);
-  const { data: purchases, error: purchasesError } = await supabase
+  // Bounded by specific offer IDs (a program's total purchases across every
+  // cohort it's ever run, not just this one), so this is still inherently
+  // small (dozens to low hundreds, not thousands) — no pagination loop needed
+  // here unlike the full-table Bronze reads in app/api/process/members. The
+  // date window is applied in JS below (on the coalesced date), not pushed
+  // into this query, since PostgREST can't express "COALESCE(a, b) BETWEEN
+  // x AND y" as a single-column range filter.
+  const { data: allOfferPurchases, error: purchasesError } = await supabase
     .schema("bronze")
     .from("kajabi_purchases")
     .select("kajabi_customer_id, kajabi_offer_id, created_at_kajabi, effective_start_at, deactivated_at")
-    .in("kajabi_offer_id", offerIds)
-    .or(
-      `and(created_at_kajabi.gte.${startsAt},created_at_kajabi.lt.${expiresAtExclusive}),` +
-      `and(effective_start_at.gte.${startsAt},effective_start_at.lt.${expiresAtExclusive})`
-    );
+    .in("kajabi_offer_id", offerIds);
   if (purchasesError) throw purchasesError;
-  if (!purchases || purchases.length === 0) return { candidates: [], offerNamesConfigured: true };
+
+  const startMs = new Date(`${cohort.starts_at}T00:00:00Z`).getTime();
+  const endMsExclusive = new Date(`${nextDay(cohort.expires_at)}T00:00:00Z`).getTime();
+  const purchases = (allOfferPurchases || []).filter((p) => {
+    const raw = p.created_at_kajabi ?? p.effective_start_at;
+    if (!raw) return false;
+    const ms = new Date(raw).getTime();
+    return ms >= startMs && ms < endMsExclusive;
+  });
+  if (purchases.length === 0) return { candidates: [], offerNamesConfigured: true };
 
   const customerIds = Array.from(new Set(purchases.map((p) => p.kajabi_customer_id).filter(Boolean)));
   const [{ data: customers, error: customersError }, { data: emailAliases, error: aliasesError }] = await Promise.all([
@@ -171,7 +184,7 @@ export async function findKajabiCandidatesForCohort(
     member_email: member.email,
     member_status: member.status,
     offer_names: Array.from(offerNames),
-    purchase_date: earliest.created_at_kajabi,
+    purchase_date: earliest.created_at_kajabi ?? earliest.effective_start_at,
     effective_start_at: earliest.effective_start_at,
     deactivated_at: earliest.deactivated_at,
     already_enrolled_elsewhere: alreadyElsewhereByMember.get(member.id) ?? null,

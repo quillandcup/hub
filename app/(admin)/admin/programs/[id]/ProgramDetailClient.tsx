@@ -264,7 +264,15 @@ export default function ProgramDetailClient({ programId }: { programId: string }
       setOfferNamesConfiguredByCohortId((prev) => ({ ...prev, [cohortId]: body.offerNamesConfigured }));
       setSelectedCandidates((prev) => ({
         ...prev,
-        [cohortId]: new Set<string>(body.candidates.map((c: KajabiCandidate) => c.member_id)),
+        // Default-check only the clean matches. A candidate already enrolled
+        // in a different cohort of this program is a real, legitimate
+        // ambiguity (e.g. two cohorts' windows genuinely overlap) rather than
+        // a bug — leave it unchecked so bulk-enrolling doesn't double-enroll
+        // someone who's already correctly placed elsewhere without staff
+        // deliberately opting in.
+        [cohortId]: new Set<string>(
+          body.candidates.filter((c: KajabiCandidate) => !c.already_enrolled_elsewhere).map((c: KajabiCandidate) => c.member_id)
+        ),
       }));
     } catch (err: any) {
       setMatchesError(err.message);
@@ -642,15 +650,28 @@ export default function ProgramDetailClient({ programId }: { programId: string }
                         </p>
                       ) : (
                         <>
-                          <p className="text-sm font-medium mb-2">
-                            {matchesByCohortId[cohort.id].length} candidate
-                            {matchesByCohortId[cohort.id].length !== 1 ? "s" : ""} found
-                          </p>
+                          {(() => {
+                            const cleanCount = matchesByCohortId[cohort.id].filter((c) => !c.already_enrolled_elsewhere).length;
+                            const elsewhereCount = matchesByCohortId[cohort.id].length - cleanCount;
+                            return (
+                              <p className="text-sm font-medium mb-2">
+                                {cleanCount} candidate{cleanCount !== 1 ? "s" : ""} found
+                                {elsewhereCount > 0 &&
+                                  ` (+${elsewhereCount} already enrolled in another cohort — shown below, unchecked)`}
+                              </p>
+                            );
+                          })()}
                           <div className="space-y-1.5 mb-3">
-                            {matchesByCohortId[cohort.id].map((candidate) => (
+                            {[...matchesByCohortId[cohort.id]]
+                              .sort((a, b) => (a.already_enrolled_elsewhere ? 1 : 0) - (b.already_enrolled_elsewhere ? 1 : 0))
+                              .map((candidate) => (
                               <label
                                 key={candidate.member_id}
-                                className="flex items-start gap-2 text-sm bg-white dark:bg-slate-900 rounded px-2 py-1.5"
+                                className={
+                                  candidate.already_enrolled_elsewhere
+                                    ? "flex items-start gap-2 text-sm bg-white dark:bg-slate-900 rounded px-2 py-1.5 opacity-60"
+                                    : "flex items-start gap-2 text-sm bg-white dark:bg-slate-900 rounded px-2 py-1.5"
+                                }
                               >
                                 <input
                                   type="checkbox"
