@@ -1,4 +1,4 @@
-export type FeatureKey = 'streaks' | 'member_overrides' | 'prickle_picker' | 'wheel_of_wonder' | 'hedgieversaries' | 'work_queue' | 'program_cohorts';
+export type FeatureKey = 'streaks' | 'member_overrides' | 'prickle_picker' | 'wheel_of_wonder' | 'hedgieversaries' | 'work_queue' | 'program_cohorts' | 'events';
 
 export interface FeaturePreview {
   key: FeatureKey;
@@ -41,6 +41,11 @@ export const FEATURE_PREVIEWS: FeaturePreview[] = [
     key: 'program_cohorts',
     name: 'Programs',
     description: 'Manage cohort-based program enrollment (180 Program, Self-Editing Academy, ...) and see who hasn\'t converted after their window lapsed',
+  },
+  {
+    key: 'events',
+    name: 'Events',
+    description: 'Retreats and other events, with metadata and a photo gallery imported from Google Photos',
   },
 ];
 

@@ -57,6 +57,8 @@ export const integrations = {
   google: {
     calendarId: process.env.GOOGLE_CALENDAR_ID,
     serviceAccountKey: process.env.GOOGLE_SERVICE_ACCOUNT_KEY,
+    oauthClientId: process.env.GOOGLE_OAUTH_CLIENT_ID,
+    oauthClientSecret: process.env.GOOGLE_OAUTH_CLIENT_SECRET,
   },
   kajabi: {
     clientId: process.env.KAJABI_CLIENT_ID,
