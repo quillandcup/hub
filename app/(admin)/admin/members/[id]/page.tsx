@@ -155,6 +155,19 @@ export default async function MemberDetailPage({
     reason: row.cohort.program.name,
   }));
 
+  // Fetch status overrides (gift/direct_stripe/special — see
+  // reprocess_members_atomic Step 4) — these force status='active' but,
+  // unlike a real Kajabi stint, produce no membership-history row of their
+  // own, so without this the timeline shows a gap during an active gifted
+  // membership (e.g. a lifetime membership granted in exchange for an
+  // acquisition).
+  const { data: statusOverrideRows } = await supabase
+    .from("member_status_overrides")
+    .select("id, override_type, reason, starts_at, expires_at")
+    .eq("member_id", id)
+    .order("starts_at", { ascending: false });
+  const statusOverrides = statusOverrideRows || [];
+
   // Fetch Kajabi membership history — query all customer IDs across primary + alias emails
   const allEmails = [member.email, ...(emailAliases || []).map((a: any) => a.alias_email)];
   const { data: kajabiCustomers } = await supabase
@@ -311,6 +324,7 @@ export default async function MemberDetailPage({
           userTimezonePreference={userTimezone}
           membershipHistory={membershipHistory}
           programOverrides={programOverrides}
+          statusOverrides={statusOverrides}
           earnedBadges={earnedBadges}
           awardableBadgeTypes={awardableBadgeTypes ?? []}
           awards={awards}

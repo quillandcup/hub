@@ -17,6 +17,7 @@ interface MemberDetailsProps {
   userTimezonePreference?: string; // User's timezone preference from profile
   membershipHistory: any[];
   programOverrides?: { id: string; starts_at: string; expires_at: string | null; reason: string | null }[];
+  statusOverrides?: { id: string; override_type: string; reason: string | null; starts_at: string; expires_at: string | null }[];
   earnedBadges: EarnedBadge[];
   awardableBadgeTypes: { id: string; name: string; icon: string }[];
   awards: {
@@ -39,6 +40,7 @@ export default function MemberDetails({
   userTimezonePreference = "browser",
   membershipHistory,
   programOverrides = [],
+  statusOverrides = [],
   earnedBadges,
   awardableBadgeTypes,
   awards,
@@ -169,6 +171,7 @@ export default function MemberDetails({
             membershipHistory={membershipHistory}
             firstJoinedAt={member.first_joined_at}
             programOverrides={programOverrides}
+            statusOverrides={statusOverrides}
           />
 
           <MemberBadgesPanel

@@ -24,13 +24,32 @@ interface ProgramOverrideRow {
   reason: string | null;
 }
 
+// A member_status_overrides row ('gift', 'direct_stripe', or 'special' —
+// see reprocess_members_atomic Step 4). Unlike a real Kajabi stint, this
+// produces no membership-history row of its own, so without surfacing it
+// here the timeline shows a gap during an active gifted/comped membership.
+interface StatusOverrideRow {
+  id: string;
+  override_type: string;
+  reason: string | null;
+  starts_at: string;
+  expires_at: string | null;
+}
+
 interface MemberTimelinePanelProps {
   memberId: string;
   hiatusHistory: HiatusRow[];
   membershipHistory: any[];
   firstJoinedAt?: string | null;
   programOverrides?: ProgramOverrideRow[];
+  statusOverrides?: StatusOverrideRow[];
 }
+
+const OVERRIDE_TYPE_LABEL: Record<string, string> = {
+  gift: "Gift",
+  direct_stripe: "Direct Stripe",
+  special: "Special",
+};
 
 type TimelineEvent =
   | {
@@ -57,6 +76,14 @@ type TimelineEvent =
       startDate: Date;
       endDate: Date | null;
       reason: string | null;
+    }
+  | {
+      kind: "statusOverride";
+      key: string;
+      startDate: Date;
+      endDate: Date | null;
+      reason: string | null;
+      overrideType: string;
     };
 
 function todayDateOnly(): string {
@@ -106,6 +133,7 @@ export default function MemberTimelinePanel({
   membershipHistory,
   firstJoinedAt = null,
   programOverrides = [],
+  statusOverrides = [],
 }: MemberTimelinePanelProps) {
   const router = useRouter();
   const [showForm, setShowForm] = useState(false);
@@ -146,6 +174,14 @@ export default function MemberTimelinePanel({
       startDate: new Date(override.starts_at),
       endDate: override.expires_at ? new Date(override.expires_at) : null,
       reason: override.reason,
+    })),
+    ...statusOverrides.map((override): TimelineEvent => ({
+      kind: "statusOverride",
+      key: `status-override-${override.id}`,
+      startDate: new Date(override.starts_at),
+      endDate: override.expires_at ? new Date(override.expires_at) : null,
+      reason: override.reason,
+      overrideType: override.override_type,
     })),
   ].sort((a, b) => b.startDate.getTime() - a.startDate.getTime());
 
@@ -328,6 +364,27 @@ export default function MemberTimelinePanel({
                           {event.endDate ? fmtMonthYear(event.endDate) : "Present"}
                         </span>
                       </div>
+                    </div>
+                  </div>
+                );
+              }
+
+              if (event.kind === "statusOverride") {
+                const typeLabel = OVERRIDE_TYPE_LABEL[event.overrideType] ?? event.overrideType;
+                return (
+                  <div key={event.key}>
+                    <div className="flex items-center justify-between p-3 rounded-lg border bg-emerald-50/60 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-900">
+                      <div className="flex items-center gap-3 flex-wrap">
+                        <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-300">
+                          {typeLabel}
+                        </span>
+                        <span className="text-sm font-medium text-slate-900 dark:text-slate-100">
+                          {event.reason ?? "Status override"}
+                        </span>
+                      </div>
+                      <span className="text-xs text-slate-500 dark:text-slate-400 ml-4 shrink-0">
+                        {fmt(event.startDate)} → {event.endDate ? fmt(event.endDate) : "Present"}
+                      </span>
                     </div>
                   </div>
                 );
