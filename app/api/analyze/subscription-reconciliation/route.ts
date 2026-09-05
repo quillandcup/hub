@@ -225,15 +225,21 @@ export async function GET(request: NextRequest) {
       const reconciliationData = members?.map(member => {
         const allMemberEmails = getMemberEmails(member, reverseAliasMap);
 
-        // Find Kajabi customer by email (kajabi_id in members is stale)
-        const kajabiCustomer = kajabiCustomers?.find(c =>
-          allMemberEmails.has(c.email?.toLowerCase())
-        );
+        // Find Kajabi customer(s) by email (kajabi_id in members is stale).
+        // A member can have more than one Kajabi customer record — their
+        // canonical email's customer plus a separate one under an old,
+        // now-aliased email (Kajabi customers, unlike contacts, aren't
+        // merged) — so a single .find() can non-deterministically pick the
+        // wrong one and miss a real active purchase sitting on the other.
+        // Check purchases across every matching customer ID instead.
+        const matchingCustomerIds = (kajabiCustomers ?? [])
+          .filter(c => allMemberEmails.has(c.email?.toLowerCase()))
+          .map(c => c.kajabi_customer_id);
 
-        // Find Kajabi purchase for this member using the matched customer ID
+        // Find Kajabi purchase for this member using the matched customer IDs
         // Prefer active purchases (deactivated_at IS NULL) over deactivated ones
-        const kajabiPurchase = kajabiCustomer
-          ? kajabiPurchases?.filter(p => p.kajabi_customer_id === kajabiCustomer.kajabi_customer_id)
+        const kajabiPurchase = matchingCustomerIds.length > 0
+          ? kajabiPurchases?.filter(p => matchingCustomerIds.includes(p.kajabi_customer_id))
               .sort((a, b) => {
                 // Sort by: active first (null deactivated_at), then by created_at descending
                 if (!a.deactivated_at && b.deactivated_at) return -1;
