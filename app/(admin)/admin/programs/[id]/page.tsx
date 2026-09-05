@@ -5,9 +5,14 @@ import { redirect, notFound } from "next/navigation";
 import { getUserFeaturePreviews } from "@/lib/features.server";
 import ProgramDetailClient from "./ProgramDetailClient";
 
-export const metadata: Metadata = {
-  title: "Program",
-};
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
+  const { id } = await params;
+  const supabase = await createClient();
+  const { data: program } = await supabase.from("programs").select("name").eq("id", id).single();
+  return {
+    title: program?.name ?? "Program",
+  };
+}
 
 export default async function ProgramDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
