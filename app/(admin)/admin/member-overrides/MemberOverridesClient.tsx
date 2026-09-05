@@ -232,6 +232,8 @@ export default function MemberOverridesClient() {
                       className={`px-2 py-1 text-xs rounded ${
                         override.override_type === "gift"
                           ? "bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300"
+                          : override.override_type === "direct_stripe"
+                          ? "bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300"
                           : "bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300"
                       }`}
                     >

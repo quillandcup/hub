@@ -45,7 +45,7 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey);
 interface SpecialCaseMember {
   email: string;
   name: string;
-  override_type: "gift" | "special";
+  override_type: "gift" | "special" | "direct_stripe";
   reason: string;
   notes: string;
 }

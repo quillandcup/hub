@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { getTestSupabaseAdminClient, getTestAuthHeaders, getTestApiBaseUrl } from '../../helpers/supabase'
 
 /**
- * member_status_overrides (gift) must actually stick after
+ * member_status_overrides (gift, direct_stripe) must actually stick after
  * reprocessing — this is the fix for the bug where a manually-set 'active'
  * status got silently reverted to the Kajabi-derived value on every nightly
  * sync (see app/api/process/members/route.ts and the reprocess_members_atomic
@@ -15,6 +15,7 @@ describe('Member Status Overrides applied during reprocessing', () => {
 
   const emailGift = `override-gift-${ts}@example.com`
   const emailExpired = `override-expired-${ts}@example.com`
+  const emailDirectStripe = `override-direct-stripe-${ts}@example.com`
 
   let memberIds: Record<string, string> = {}
   const overrideIds: string[] = []
@@ -38,6 +39,7 @@ describe('Member Status Overrides applied during reprocessing', () => {
     const { data: members, error } = await supabase.from('members').insert([
       { name: 'Override Gift', email: emailGift, joined_at: '2023-01-01', status: 'cancelled' },
       { name: 'Override Expired', email: emailExpired, joined_at: '2023-01-01', status: 'cancelled' },
+      { name: 'Override Direct Stripe', email: emailDirectStripe, joined_at: '2023-01-01', status: 'cancelled' },
     ]).select('id, email')
 
     expect(error).toBeNull()
@@ -58,6 +60,7 @@ describe('Member Status Overrides applied during reprocessing', () => {
           starts_at: '2020-01-01T00:00:00Z',
           expires_at: '2020-06-01T00:00:00Z',
         },
+        { member_id: memberIds[emailDirectStripe], override_type: 'direct_stripe', reason: 'test direct stripe', starts_at: new Date().toISOString() },
       ])
       .select('id')
 
@@ -67,7 +70,7 @@ describe('Member Status Overrides applied during reprocessing', () => {
 
   afterAll(async () => {
     await supabase.from('member_status_overrides').delete().in('id', overrideIds)
-    await supabase.from('members').delete().in('email', [emailGift, emailExpired])
+    await supabase.from('members').delete().in('email', [emailGift, emailExpired, emailDirectStripe])
   })
 
   it('forces status to active for a gift override', async () => {
@@ -80,5 +83,11 @@ describe('Member Status Overrides applied during reprocessing', () => {
     await processMembers()
     const { data: member } = await supabase.from('members').select('status').eq('email', emailExpired).single()
     expect(member?.status).toBe('cancelled')
+  })
+
+  it('forces status to active for a direct_stripe override', async () => {
+    await processMembers()
+    const { data: member } = await supabase.from('members').select('status').eq('email', emailDirectStripe).single()
+    expect(member?.status).toBe('active')
   })
 })

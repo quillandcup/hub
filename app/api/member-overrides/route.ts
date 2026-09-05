@@ -43,9 +43,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!['gift', 'special'].includes(override_type)) {
+    if (!['gift', 'special', 'direct_stripe'].includes(override_type)) {
       return NextResponse.json(
-        { error: "override_type must be one of: gift, special" },
+        { error: "override_type must be one of: gift, special, direct_stripe" },
         { status: 400 }
       );
     }

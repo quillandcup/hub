@@ -15,9 +15,9 @@ export async function PATCH(
     const body = await request.json();
     const { override_type, reason, notes, starts_at, expires_at } = body;
 
-    if (override_type && !['gift', 'special'].includes(override_type)) {
+    if (override_type && !['gift', 'special', 'direct_stripe'].includes(override_type)) {
       return NextResponse.json(
-        { error: "override_type must be one of: gift, special" },
+        { error: "override_type must be one of: gift, special, direct_stripe" },
         { status: 400 }
       );
     }

@@ -4,7 +4,7 @@ import { useState } from "react";
 
 export interface MemberOverrideFields {
   id: string;
-  override_type: "gift" | "special";
+  override_type: "gift" | "special" | "direct_stripe";
   reason: string;
   notes: string | null;
   expires_at: string | null;
@@ -18,7 +18,7 @@ interface MemberOverrideFormProps {
   onCancel: () => void;
 }
 
-// Shared create/edit form for member_status_overrides (gift/special).
+// Shared create/edit form for member_status_overrides (gift/special/direct_stripe).
 // Hiatus has its own dedicated table and UI (MemberTimelinePanel, on the
 // member detail page) — it's common enough to deserve first-class tracking
 // rather than living in this generic exceptions bucket.
@@ -33,7 +33,7 @@ export default function MemberOverrideForm({
   onCancel,
 }: MemberOverrideFormProps) {
   const [formData, setFormData] = useState({
-    override_type: existing?.override_type ?? ("gift" as "gift" | "special"),
+    override_type: existing?.override_type ?? ("gift" as "gift" | "special" | "direct_stripe"),
     reason: existing?.reason ?? "",
     notes: existing?.notes ?? "",
     expires_at: existing?.expires_at ? existing.expires_at.split("T")[0] : "",
@@ -97,12 +97,13 @@ export default function MemberOverrideForm({
         <select
           value={formData.override_type}
           onChange={(e) =>
-            setFormData({ ...formData, override_type: e.target.value as "gift" | "special" })
+            setFormData({ ...formData, override_type: e.target.value as "gift" | "special" | "direct_stripe" })
           }
           className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 dark:bg-slate-800 dark:text-gray-100 rounded"
           required
         >
           <option value="gift">Gift (hosting, compensation)</option>
+          <option value="direct_stripe">Direct Stripe (pays outside Kajabi sync)</option>
           <option value="special">Special Case</option>
         </select>
       </div>

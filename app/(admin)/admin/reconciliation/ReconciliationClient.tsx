@@ -377,6 +377,8 @@ export default function ReconciliationClient() {
                             className={`px-2 py-1 text-xs rounded font-medium ${
                               member.override_type === "gift"
                                 ? "bg-purple-100 dark:bg-purple-900/40 text-purple-800 dark:text-purple-300"
+                                : member.override_type === "direct_stripe"
+                                ? "bg-indigo-100 dark:bg-indigo-900/40 text-indigo-800 dark:text-indigo-300"
                                 : "bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300"
                             }`}
                           >
@@ -450,7 +452,7 @@ export default function ReconciliationClient() {
                           member.override_id
                             ? {
                                 id: member.override_id,
-                                override_type: member.override_type as "gift" | "special",
+                                override_type: member.override_type as "gift" | "special" | "direct_stripe",
                                 reason: member.override_reason ?? "",
                                 notes: member.override_notes,
                                 expires_at: member.override_expires_at,
