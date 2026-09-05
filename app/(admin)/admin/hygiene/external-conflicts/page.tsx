@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { buildAliasMap } from "@/lib/email-aliases";
 import Link from "next/link";
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
@@ -21,12 +22,6 @@ interface ConflictGroup {
   memberId: string | null;
   memberName: string | null;
   entries: ConflictEntry[];
-}
-
-function buildAliasMap(aliases: { alias_email: string; canonical_email: string }[]): Map<string, string> {
-  const map = new Map<string, string>();
-  for (const a of aliases) map.set(a.alias_email.toLowerCase(), a.canonical_email.toLowerCase());
-  return map;
 }
 
 function groupByCanonical<T extends { email: string }>(

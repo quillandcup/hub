@@ -3,6 +3,7 @@ import { requireAdmin } from "@/lib/supabase/api-auth";
 import { isMembershipOffer } from "@/lib/membership";
 import { buildMembershipStints, fetchStripeTrialInfoByEmail, isRealMembershipStint } from "@/lib/kajabi/membership-history";
 import { computeMemberTenure, computeActiveDays, type HiatusWindow } from "@/lib/member-tenure";
+import { buildAliasMap, resolveEmail as resolveEmailShared } from "@/lib/email-aliases";
 import { NextRequest, NextResponse, after } from "next/server";
 import { triggerAttendanceReprocessing } from "@/lib/processing/trigger";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -180,16 +181,10 @@ export async function POST(request: NextRequest) {
     // STEP 2: Build lookup maps
 
     // Email alias resolution
-    const aliasMap = new Map<string, string>();
-    if (emailAliases && emailAliases.length > 0) {
-      for (const alias of emailAliases) {
-        aliasMap.set(alias.alias_email.toLowerCase(), alias.canonical_email.toLowerCase());
-      }
-    }
+    const aliasMap = buildAliasMap(emailAliases || []);
 
     function resolveEmail(email: string): string {
-      const normalized = email.toLowerCase();
-      return aliasMap.get(normalized) || normalized;
+      return resolveEmailShared(email, aliasMap);
     }
 
     // Hiatus windows for tenure calculations (lib/member-tenure.ts): resolve

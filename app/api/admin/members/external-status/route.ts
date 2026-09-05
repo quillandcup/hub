@@ -1,4 +1,5 @@
 import { requireAdmin } from "@/lib/supabase/api-auth";
+import { buildReverseAliasMap, getMemberEmails } from "@/lib/stripe-matching";
 import { NextRequest, NextResponse } from "next/server";
 
 export interface MemberExternalStatus {
@@ -27,20 +28,11 @@ export async function GET(request: NextRequest) {
 
   if (!members?.length) return NextResponse.json({ members: {} });
 
-  // Build alias map and per-member full email sets (canonical + all aliases pointing to it)
-  const aliasMap = new Map<string, string>();
-  for (const a of emailAliases ?? []) {
-    aliasMap.set(a.alias_email.toLowerCase(), a.canonical_email.toLowerCase());
-  }
-
+  // Per-member full email sets (canonical + all aliases pointing to it)
+  const reverseAliasMap = buildReverseAliasMap(emailAliases ?? []);
   const memberEmailSets = new Map<string, Set<string>>();
   for (const m of members) {
-    const canonical = m.email.toLowerCase();
-    const emailSet = new Set<string>([canonical]);
-    for (const [alias, can] of aliasMap) {
-      if (can === canonical) emailSet.add(alias);
-    }
-    memberEmailSets.set(canonical, emailSet);
+    memberEmailSets.set(m.email.toLowerCase(), getMemberEmails(m, reverseAliasMap));
   }
 
   const canonicalEmails = members.map(m => m.email.toLowerCase());

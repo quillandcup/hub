@@ -36,8 +36,20 @@ interface LeakageRow {
   days_since_expiry: number;
 }
 
+interface KajabiCandidate {
+  member_id: string;
+  member_name: string;
+  member_email: string;
+  member_status: string;
+  offer_names: string[];
+  purchase_date: string | null;
+  effective_start_at: string | null;
+  deactivated_at: string | null;
+  already_enrolled_elsewhere: string | null;
+}
+
 interface ProgramDetailData {
-  program: { id: string; name: string };
+  program: { id: string; name: string; kajabi_offer_names: string[] };
   cohorts: Cohort[];
   leakage: LeakageRow[];
 }
@@ -75,6 +87,17 @@ export default function ProgramDetailClient({ programId }: { programId: string }
   const [enrollError, setEnrollError] = useState<string | null>(null);
   const [enrolling, setEnrolling] = useState(false);
 
+  const [allOfferNames, setAllOfferNames] = useState<string[]>([]);
+  const [offerNamesSelection, setOfferNamesSelection] = useState<string[]>([]);
+  const [savingOfferNames, setSavingOfferNames] = useState(false);
+
+  const [matchesByCohortId, setMatchesByCohortId] = useState<Record<string, KajabiCandidate[]>>({});
+  const [offerNamesConfiguredByCohortId, setOfferNamesConfiguredByCohortId] = useState<Record<string, boolean>>({});
+  const [matchesLoadingCohortId, setMatchesLoadingCohortId] = useState<string | null>(null);
+  const [matchesError, setMatchesError] = useState<string | null>(null);
+  const [selectedCandidates, setSelectedCandidates] = useState<Record<string, Set<string>>>({});
+  const [enrollingSelectedCohortId, setEnrollingSelectedCohortId] = useState<string | null>(null);
+
   useEffect(() => {
     fetchData();
   }, [programId]);
@@ -84,7 +107,15 @@ export default function ProgramDetailClient({ programId }: { programId: string }
       .then((res) => res.json())
       .then((body) => setAllMembers(body.members || []))
       .catch(() => {});
+    fetch("/api/admin/kajabi-offers")
+      .then((res) => res.json())
+      .then((body) => setAllOfferNames(body.names || []))
+      .catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (data?.program) setOfferNamesSelection(data.program.kajabi_offer_names || []);
+  }, [data?.program.id]);
 
   const fetchData = async () => {
     try {
@@ -202,6 +233,97 @@ export default function ProgramDetailClient({ programId }: { programId: string }
     fetchData();
   };
 
+  const toggleOfferName = (name: string) => {
+    setOfferNamesSelection((prev) =>
+      prev.includes(name) ? prev.filter((n) => n !== name) : [...prev, name]
+    );
+  };
+
+  const handleSaveOfferNames = async () => {
+    setError(null);
+    setSavingOfferNames(true);
+    try {
+      const response = await fetch(`/api/admin/programs/${programId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ kajabi_offer_names: offerNamesSelection }),
+      });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error || "Failed to save offer names");
+      fetchData();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setSavingOfferNames(false);
+    }
+  };
+
+  const handleFindMatches = async (cohortId: string) => {
+    setMatchesError(null);
+    setMatchesLoadingCohortId(cohortId);
+    try {
+      const response = await fetch(`/api/admin/program-cohorts/${cohortId}/kajabi-matches`);
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error || "Failed to find Kajabi matches");
+      setMatchesByCohortId((prev) => ({ ...prev, [cohortId]: body.candidates }));
+      setOfferNamesConfiguredByCohortId((prev) => ({ ...prev, [cohortId]: body.offerNamesConfigured }));
+      setSelectedCandidates((prev) => ({
+        ...prev,
+        [cohortId]: new Set<string>(body.candidates.map((c: KajabiCandidate) => c.member_id)),
+      }));
+    } catch (err: any) {
+      setMatchesError(err.message);
+    } finally {
+      setMatchesLoadingCohortId(null);
+    }
+  };
+
+  const handleCloseMatches = (cohortId: string) => {
+    setMatchesByCohortId((prev) => {
+      const next = { ...prev };
+      delete next[cohortId];
+      return next;
+    });
+    setMatchesError(null);
+  };
+
+  const toggleCandidateSelected = (cohortId: string, memberId: string) => {
+    setSelectedCandidates((prev) => {
+      const current = new Set(prev[cohortId] ?? []);
+      if (current.has(memberId)) current.delete(memberId);
+      else current.add(memberId);
+      return { ...prev, [cohortId]: current };
+    });
+  };
+
+  const handleEnrollSelected = async (cohortId: string) => {
+    const selected = selectedCandidates[cohortId] ?? new Set<string>();
+    if (selected.size === 0) return;
+    setMatchesError(null);
+    setEnrollingSelectedCohortId(cohortId);
+    try {
+      const results = await Promise.all(
+        Array.from(selected).map((memberId) =>
+          fetch("/api/admin/program-enrollments", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ member_id: memberId, cohort_id: cohortId }),
+          })
+        )
+      );
+      const failed = results.filter((r) => !r.ok && r.status !== 409);
+      if (failed.length > 0) {
+        setMatchesError(`${failed.length} of ${results.length} enrollments failed`);
+      }
+      handleCloseMatches(cohortId);
+      fetchData();
+    } catch (err: any) {
+      setMatchesError(err.message);
+    } finally {
+      setEnrollingSelectedCohortId(null);
+    }
+  };
+
   if (loading) return <p className="text-slate-500">Loading...</p>;
   if (!data) return <p className="text-red-600">{error || "Not found"}</p>;
 
@@ -250,6 +372,46 @@ export default function ProgramDetailClient({ programId }: { programId: string }
           </div>
         </section>
       )}
+
+      {/* Kajabi offer names — which Kajabi offers count as a purchase of this program */}
+      <section className="bg-white dark:bg-slate-900 rounded-lg shadow p-6">
+        <h2 className="text-lg font-semibold mb-1">Kajabi Offer Names</h2>
+        <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
+          Which Kajabi offers count as a purchase of this program — used by &quot;Find Kajabi matches&quot; below to
+          suggest members to enroll in a cohort.
+        </p>
+        <div className="flex flex-wrap gap-x-4 gap-y-2 mb-3">
+          {allOfferNames.map((name) => (
+            <label key={name} className="flex items-center gap-1.5 text-sm">
+              <input
+                type="checkbox"
+                checked={offerNamesSelection.includes(name)}
+                onChange={() => toggleOfferName(name)}
+              />
+              {name}
+            </label>
+          ))}
+          {offerNamesSelection
+            .filter((name) => !allOfferNames.includes(name))
+            .map((name) => (
+              <label key={name} className="flex items-center gap-1.5 text-sm text-amber-700 dark:text-amber-400">
+                <input
+                  type="checkbox"
+                  checked={true}
+                  onChange={() => toggleOfferName(name)}
+                />
+                {name} <span className="text-xs">(not in current Kajabi catalog)</span>
+              </label>
+            ))}
+        </div>
+        <button
+          onClick={handleSaveOfferNames}
+          disabled={savingOfferNames}
+          className="px-3 py-1.5 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm disabled:opacity-50"
+        >
+          {savingOfferNames ? "Saving..." : "Save Offer Names"}
+        </button>
+      </section>
 
       {/* Cohorts */}
       <section className="bg-white dark:bg-slate-900 rounded-lg shadow p-6">
@@ -470,12 +632,93 @@ export default function ProgramDetailClient({ programId }: { programId: string }
                       </button>
                     </form>
                   ) : (
-                    <button
-                      onClick={() => setEnrollingCohortId(cohort.id)}
-                      className="text-blue-600 dark:text-blue-400 hover:underline text-sm"
-                    >
-                      + Enroll a member
-                    </button>
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={() => setEnrollingCohortId(cohort.id)}
+                        className="text-blue-600 dark:text-blue-400 hover:underline text-sm"
+                      >
+                        + Enroll a member
+                      </button>
+                      <button
+                        onClick={() => handleFindMatches(cohort.id)}
+                        disabled={matchesLoadingCohortId === cohort.id}
+                        className="text-blue-600 dark:text-blue-400 hover:underline text-sm disabled:opacity-50"
+                      >
+                        {matchesLoadingCohortId === cohort.id ? "Searching..." : "Find Kajabi matches"}
+                      </button>
+                    </div>
+                  )}
+
+                  {matchesByCohortId[cohort.id] !== undefined && (
+                    <div className="mt-3 p-3 border border-blue-200 dark:border-blue-900 rounded bg-blue-50 dark:bg-blue-950/30">
+                      {matchesError && <p className="text-xs text-red-600 mb-2">{matchesError}</p>}
+                      {!offerNamesConfiguredByCohortId[cohort.id] ? (
+                        <p className="text-sm text-slate-600 dark:text-slate-400">
+                          No Kajabi offer names are configured for this program — pick offers above under
+                          &quot;Kajabi Offer Names&quot; to enable matching.
+                        </p>
+                      ) : matchesByCohortId[cohort.id].length === 0 ? (
+                        <p className="text-sm text-slate-600 dark:text-slate-400">
+                          No unmatched Kajabi purchases found in this cohort&apos;s window.
+                        </p>
+                      ) : (
+                        <>
+                          <p className="text-sm font-medium mb-2">
+                            {matchesByCohortId[cohort.id].length} candidate
+                            {matchesByCohortId[cohort.id].length !== 1 ? "s" : ""} found
+                          </p>
+                          <div className="space-y-1.5 mb-3">
+                            {matchesByCohortId[cohort.id].map((candidate) => (
+                              <label
+                                key={candidate.member_id}
+                                className="flex items-start gap-2 text-sm bg-white dark:bg-slate-900 rounded px-2 py-1.5"
+                              >
+                                <input
+                                  type="checkbox"
+                                  className="mt-0.5"
+                                  checked={(selectedCandidates[cohort.id] ?? new Set()).has(candidate.member_id)}
+                                  onChange={() => toggleCandidateSelected(cohort.id, candidate.member_id)}
+                                />
+                                <span>
+                                  <span className="font-medium">{candidate.member_name}</span>{" "}
+                                  <span className="text-gray-500 dark:text-gray-400">{candidate.member_email}</span>
+                                  <span className="block text-xs text-gray-500 dark:text-gray-400">
+                                    {candidate.offer_names.join(", ")}
+                                    {candidate.purchase_date && ` · purchased ${fmtDate(candidate.purchase_date.split("T")[0])}`}
+                                    {candidate.deactivated_at && " · since refunded/cancelled"}
+                                  </span>
+                                  {candidate.already_enrolled_elsewhere && (
+                                    <span className="block text-xs text-amber-700 dark:text-amber-400">
+                                      Already enrolled in {candidate.already_enrolled_elsewhere}
+                                    </span>
+                                  )}
+                                </span>
+                              </label>
+                            ))}
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => handleEnrollSelected(cohort.id)}
+                              disabled={
+                                enrollingSelectedCohortId === cohort.id ||
+                                (selectedCandidates[cohort.id]?.size ?? 0) === 0
+                              }
+                              className="px-3 py-1.5 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm disabled:opacity-50"
+                            >
+                              {enrollingSelectedCohortId === cohort.id
+                                ? "Enrolling..."
+                                : `Enroll Selected (${selectedCandidates[cohort.id]?.size ?? 0})`}
+                            </button>
+                            <button
+                              onClick={() => handleCloseMatches(cohort.id)}
+                              className="px-3 py-1.5 bg-gray-300 dark:bg-slate-700 text-gray-800 dark:text-gray-200 rounded hover:bg-gray-400 dark:hover:bg-slate-600 text-sm"
+                            >
+                              Close
+                            </button>
+                          </div>
+                        </>
+                      )}
+                    </div>
                   )}
                 </div>
               </div>

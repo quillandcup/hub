@@ -1,4 +1,5 @@
 import { isMembershipOffer, trialEndDate } from "@/lib/membership";
+import { buildAliasMap, resolveEmail } from "@/lib/email-aliases";
 
 export type MembershipPurchase = {
   created_at_kajabi: string;
@@ -173,11 +174,7 @@ export async function fetchStripeTrialInfoByEmail(
 ): Promise<Map<string, StripeTrialInfo[]>> {
   const result = new Map<string, StripeTrialInfo[]>();
 
-  const aliasMap = new Map<string, string>();
-  for (const a of emailAliases) {
-    aliasMap.set(a.alias_email.toLowerCase(), a.canonical_email.toLowerCase());
-  }
-  const resolveEmail = (email: string) => aliasMap.get(email.toLowerCase()) ?? email.toLowerCase();
+  const aliasMap = buildAliasMap(emailAliases);
 
   const stripeCustomers = await fetchAllBronzeRows(supabase, "stripe_customers", "stripe_customer_id, email");
   if (stripeCustomers.length === 0) return result;
@@ -185,7 +182,7 @@ export async function fetchStripeTrialInfoByEmail(
   const stripeCustomerIdsByCanonicalEmail = new Map<string, string[]>();
   for (const c of stripeCustomers) {
     if (!c.email) continue;
-    const canonical = resolveEmail(c.email);
+    const canonical = resolveEmail(c.email, aliasMap);
     const list = stripeCustomerIdsByCanonicalEmail.get(canonical) ?? [];
     list.push(c.stripe_customer_id);
     stripeCustomerIdsByCanonicalEmail.set(canonical, list);
@@ -293,14 +290,9 @@ export async function fetchMembershipHistory(
     .from("member_email_aliases")
     .select("alias_email, canonical_email");
 
-  const aliasMap = new Map<string, string>();
-  for (const a of emailAliases || []) {
-    aliasMap.set(a.alias_email.toLowerCase(), a.canonical_email.toLowerCase());
-  }
+  const aliasMap = buildAliasMap(emailAliases || []);
   const firstEmail = customers?.find((c: any) => c.email)?.email;
-  const canonicalEmail = firstEmail
-    ? aliasMap.get(firstEmail.toLowerCase()) ?? firstEmail.toLowerCase()
-    : undefined;
+  const canonicalEmail = firstEmail ? resolveEmail(firstEmail, aliasMap) : undefined;
 
   const stripeInfoByEmail = await fetchStripeTrialInfoByEmail(supabase, emailAliases || []);
 
