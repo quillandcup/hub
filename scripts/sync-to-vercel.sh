@@ -6,6 +6,19 @@ set -e
 echo "🚀 Syncing environment variables to Vercel..."
 echo ""
 
+# All app env vars, synced to every Vercel environment from that environment's .env file
+SYNCED_VARS="
+    NEXT_PUBLIC_SUPABASE_URL NEXT_PUBLIC_SUPABASE_ANON_KEY SUPABASE_SERVICE_ROLE_KEY
+    ZOOM_ACCOUNT_ID ZOOM_CLIENT_ID ZOOM_CLIENT_SECRET ZOOM_WEBHOOK_SECRET_TOKEN ZOOM_USER_EMAIL
+    KAJABI_CLIENT_ID KAJABI_CLIENT_SECRET KAJABI_SITE_ID
+    GOOGLE_CALENDAR_ID GOOGLE_SERVICE_ACCOUNT_KEY GOOGLE_OAUTH_CLIENT_ID GOOGLE_OAUTH_CLIENT_SECRET
+    SLACK_BOT_TOKEN SLACK_FEEDBACK_CHANNEL_ID SLACK_NEW_BOOKS_CHANNEL_ID SLACK_DEV_USER_ID SLACK_TEST_MODE
+    STRIPE_API_KEY
+    SUDO_SECRET
+    CRON_SECRET
+    CRON_INTERNAL_SECRET
+"
+
 # Function to add/update env var from file
 sync_env_var() {
     local var_name=$1
@@ -43,7 +56,7 @@ if [ ! -f .env.devel ]; then
 fi
 
 # Sync devel vars from .env.devel to development AND preview
-for var in NEXT_PUBLIC_SUPABASE_URL NEXT_PUBLIC_SUPABASE_ANON_KEY SUPABASE_SERVICE_ROLE_KEY SLACK_FEEDBACK_CHANNEL_ID; do
+for var in $SYNCED_VARS; do
     sync_env_var "$var" .env.devel development
     sync_env_var "$var" .env.devel preview
 done
@@ -59,16 +72,7 @@ if [ ! -f .env.prod ]; then
 fi
 
 # Sync all production vars from .env.prod
-for var in \
-    NEXT_PUBLIC_SUPABASE_URL NEXT_PUBLIC_SUPABASE_ANON_KEY SUPABASE_SERVICE_ROLE_KEY \
-    ZOOM_ACCOUNT_ID ZOOM_CLIENT_ID ZOOM_CLIENT_SECRET ZOOM_WEBHOOK_SECRET_TOKEN ZOOM_USER_EMAIL \
-    KAJABI_CLIENT_ID KAJABI_CLIENT_SECRET KAJABI_SITE_ID \
-    GOOGLE_CALENDAR_ID GOOGLE_SERVICE_ACCOUNT_KEY \
-    SLACK_BOT_TOKEN SLACK_FEEDBACK_CHANNEL_ID \
-    STRIPE_API_KEY \
-    SUDO_SECRET \
-    CRON_SECRET \
-    CRON_INTERNAL_SECRET; do
+for var in $SYNCED_VARS; do
     sync_env_var "$var" .env.prod production
 done
 
