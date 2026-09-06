@@ -328,6 +328,7 @@ export async function GET(request: NextRequest) {
           override_type: override?.override_type || null,
           override_reason: override?.reason || null,
           override_notes: override?.notes || null,
+          override_starts_at: override?.starts_at || null,
           override_expires_at: override?.expires_at || null,
           is_on_hiatus: isOnHiatus,
           has_discrepancy: hasDiscrepancy,

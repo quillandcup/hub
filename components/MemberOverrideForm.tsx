@@ -7,6 +7,7 @@ export interface MemberOverrideFields {
   override_type: "gift" | "special" | "direct_stripe";
   reason: string;
   notes: string | null;
+  starts_at: string;
   expires_at: string | null;
 }
 
@@ -44,6 +45,13 @@ export default function MemberOverrideForm({
     override_type: existing?.override_type ?? suggestedType ?? ("gift" as "gift" | "special" | "direct_stripe"),
     reason: existing?.reason ?? suggestedReason ?? "",
     notes: existing?.notes ?? "",
+    // Defaults to today for a new override (matching the DB's `starts_at
+    // DEFAULT now()`), but this is often wrong — an override is usually
+    // backdated to when the underlying arrangement actually began (e.g. a
+    // member's first off-Kajabi Stripe payment), not to whenever staff got
+    // around to recording it. Always show the field so staff consciously
+    // confirm or correct it instead of silently inheriting "today".
+    starts_at: existing?.starts_at ? existing.starts_at.split("T")[0] : new Date().toISOString().split("T")[0],
     expires_at: existing?.expires_at ? existing.expires_at.split("T")[0] : "",
   });
   const [error, setError] = useState<string | null>(null);
@@ -60,6 +68,7 @@ export default function MemberOverrideForm({
         override_type: formData.override_type,
         reason: formData.reason,
         notes: formData.notes || null,
+        starts_at: formData.starts_at,
         expires_at: formData.expires_at || null,
       };
 
@@ -137,6 +146,20 @@ export default function MemberOverrideForm({
           rows={2}
           placeholder="Additional context or details"
         />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium mb-1 dark:text-gray-200">Starts At</label>
+        <input
+          type="date"
+          value={formData.starts_at}
+          onChange={(e) => setFormData({ ...formData, starts_at: e.target.value })}
+          className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 dark:bg-slate-800 dark:text-gray-100 rounded"
+          required
+        />
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+          When the arrangement actually began — e.g. their first off-Kajabi payment date, not today&apos;s date.
+        </p>
       </div>
 
       <div>

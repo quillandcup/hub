@@ -23,6 +23,7 @@ interface MemberReconciliation {
   override_type: string | null;
   override_reason: string | null;
   override_notes: string | null;
+  override_starts_at: string | null;
   override_expires_at: string | null;
   is_on_hiatus: boolean;
   has_discrepancy: boolean;
@@ -509,6 +510,7 @@ export default function ReconciliationClient() {
                                 override_type: member.override_type as "gift" | "special" | "direct_stripe",
                                 reason: member.override_reason ?? "",
                                 notes: member.override_notes,
+                                starts_at: member.override_starts_at ?? new Date().toISOString(),
                                 expires_at: member.override_expires_at,
                               }
                             : null

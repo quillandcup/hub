@@ -13,7 +13,6 @@ interface Member {
 
 interface MemberOverride extends MemberOverrideFields {
   member_id: string;
-  starts_at: string;
   created_at: string;
   member: Member;
 }
@@ -215,6 +214,9 @@ export default function MemberOverridesClient() {
                 Reason
               </th>
               <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-slate-300">
+                Starts
+              </th>
+              <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-slate-300">
                 Expires
               </th>
               <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-slate-300">
@@ -225,7 +227,7 @@ export default function MemberOverridesClient() {
           <tbody className="divide-y divide-gray-200 dark:divide-slate-700 bg-white dark:bg-slate-900">
             {filteredOverrides.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-gray-500 dark:text-slate-400">
+                <td colSpan={6} className="px-4 py-8 text-center text-gray-500 dark:text-slate-400">
                   {overrides.length === 0 ? "No overrides found. Add one to get started." : "No overrides of this type."}
                 </td>
               </tr>
@@ -260,6 +262,9 @@ export default function MemberOverridesClient() {
                         {override.notes}
                       </div>
                     )}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-gray-600 dark:text-slate-400">
+                    {new Date(override.starts_at).toLocaleDateString()}
                   </td>
                   <td className="px-4 py-3 text-sm text-gray-600 dark:text-slate-400">
                     {override.expires_at
