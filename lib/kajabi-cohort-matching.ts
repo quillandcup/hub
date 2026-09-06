@@ -35,6 +35,32 @@ function nextDay(dateStr: string): string {
 }
 
 /**
+ * The single date used to decide which cohort a purchase belongs to:
+ * created_at_kajabi (transaction date), falling back to effective_start_at
+ * only when created_at_kajabi is null. Deliberately NOT an OR/union of both
+ * fields — see findKajabiCandidatesForCohort's doc comment for why unioning
+ * them produced false positives (a repeat/alumna purchase's stale
+ * effective_start_at can predate the real transaction by years).
+ */
+export function resolveMatchDate(purchase: {
+  created_at_kajabi: string | null;
+  effective_start_at?: string | null;
+}): string | null {
+  return purchase.created_at_kajabi ?? purchase.effective_start_at ?? null;
+}
+
+/** Whether `dateStr` falls within [cohort.starts_at, cohort.expires_at], inclusive of both ends. */
+export function isDateWithinCohortWindow(
+  dateStr: string,
+  cohort: { starts_at: string; expires_at: string }
+): boolean {
+  const ms = new Date(dateStr).getTime();
+  const startMs = new Date(`${cohort.starts_at}T00:00:00Z`).getTime();
+  const endMsExclusive = new Date(`${nextDay(cohort.expires_at)}T00:00:00Z`).getTime();
+  return ms >= startMs && ms < endMsExclusive;
+}
+
+/**
  * Finds members whose Kajabi purchase data suggests they belong in this
  * cohort: a purchase of one of the program's known offers, falling inside
  * the cohort's [starts_at, expires_at] window.
@@ -94,13 +120,9 @@ export async function findKajabiCandidatesForCohort(
     .in("kajabi_offer_id", offerIds);
   if (purchasesError) throw purchasesError;
 
-  const startMs = new Date(`${cohort.starts_at}T00:00:00Z`).getTime();
-  const endMsExclusive = new Date(`${nextDay(cohort.expires_at)}T00:00:00Z`).getTime();
   const purchases = (allOfferPurchases || []).filter((p) => {
-    const raw = p.created_at_kajabi ?? p.effective_start_at;
-    if (!raw) return false;
-    const ms = new Date(raw).getTime();
-    return ms >= startMs && ms < endMsExclusive;
+    const matchDate = resolveMatchDate(p);
+    return matchDate !== null && isDateWithinCohortWindow(matchDate, cohort);
   });
   if (purchases.length === 0) return { candidates: [], offerNamesConfigured: true };
 
@@ -148,7 +170,7 @@ export async function findKajabiCandidatesForCohort(
     if (!member) continue;
 
     const offerName = offerNameById.get(p.kajabi_offer_id) ?? "Unknown offer";
-    const sortKey = p.created_at_kajabi ?? p.effective_start_at ?? "";
+    const sortKey = resolveMatchDate(p) ?? "";
 
     const existing = byMember.get(member.id);
     if (!existing) {
@@ -184,7 +206,7 @@ export async function findKajabiCandidatesForCohort(
     member_email: member.email,
     member_status: member.status,
     offer_names: Array.from(offerNames),
-    purchase_date: earliest.created_at_kajabi ?? earliest.effective_start_at,
+    purchase_date: resolveMatchDate(earliest),
     effective_start_at: earliest.effective_start_at,
     deactivated_at: earliest.deactivated_at,
     already_enrolled_elsewhere: alreadyElsewhereByMember.get(member.id) ?? null,
