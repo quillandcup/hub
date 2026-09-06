@@ -26,11 +26,12 @@
 // they're still surfaced as an annotation on whatever segment they overlap
 // so the record isn't lost.
 //
-// Date handling: hiatus and program-cohort dates are DATE columns (calendar
-// days with no real time-of-day), so they're parsed with parseDateOnly to
-// avoid `new Date("2026-07-21")`'s UTC-midnight parsing rendering as the
-// previous day in timezones behind UTC. Membership stints and status
-// overrides are TIMESTAMPTZ — real instants — so they're parsed as-is.
+// Date handling: hiatus, program-cohort, and status-override dates are all
+// DATE columns (calendar days with no real time-of-day), so they're parsed
+// with parseDateOnly to avoid `new Date("2026-07-21")`'s UTC-midnight
+// parsing rendering as the previous day in timezones behind UTC. Membership
+// stints are TIMESTAMPTZ — real instants (actual Kajabi purchase
+// timestamps) — so they're parsed as-is.
 
 import { parseDateOnly } from "@/lib/member-tenure";
 
@@ -138,8 +139,8 @@ export function buildMembershipTimeline(
 
   for (const s of statusOverrides) {
     coverages.push({
-      start: new Date(s.starts_at).getTime(),
-      end: s.expires_at ? new Date(s.expires_at).getTime() : null,
+      start: parseDateOnly(s.starts_at).getTime(),
+      end: s.expires_at ? parseDateOnly(s.expires_at).getTime() : null,
       kind: ACTIVE_OVERRIDE_TYPES.has(s.override_type) ? "activeOverride" : "annotation",
       label: OVERRIDE_TYPE_LABEL[s.override_type] ?? s.override_type,
     });

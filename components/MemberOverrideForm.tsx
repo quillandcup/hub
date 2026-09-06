@@ -46,7 +46,7 @@ export default function MemberOverrideForm({
     reason: existing?.reason ?? suggestedReason ?? "",
     notes: existing?.notes ?? "",
     // Defaults to today for a new override (matching the DB's `starts_at
-    // DEFAULT now()`), but this is often wrong — an override is usually
+    // DEFAULT CURRENT_DATE`), but this is often wrong — an override is usually
     // backdated to when the underlying arrangement actually began (e.g. a
     // member's first off-Kajabi Stripe payment), not to whenever staff got
     // around to recording it. Always show the field so staff consciously

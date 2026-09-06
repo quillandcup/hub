@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import MemberOverrideForm, { type MemberOverrideFields } from "@/components/MemberOverrideForm";
 import MemberSearch from "@/components/MemberSearch";
+import { parseDateOnly } from "@/lib/member-tenure";
 
 interface Member {
   id: string;
@@ -264,11 +265,11 @@ export default function MemberOverridesClient() {
                     )}
                   </td>
                   <td className="px-4 py-3 text-sm text-gray-600 dark:text-slate-400">
-                    {new Date(override.starts_at).toLocaleDateString()}
+                    {parseDateOnly(override.starts_at).toLocaleDateString()}
                   </td>
                   <td className="px-4 py-3 text-sm text-gray-600 dark:text-slate-400">
                     {override.expires_at
-                      ? new Date(override.expires_at).toLocaleDateString()
+                      ? parseDateOnly(override.expires_at).toLocaleDateString()
                       : "Never"}
                   </td>
                   <td className="px-4 py-3">
