@@ -27,6 +27,9 @@ interface MemberDetailsProps {
     badgeTypeIcon: string;
     occurredAt: string;
     note: string | null;
+    eventId: string | null;
+    eventTitle: string | null;
+    eventSlug: string | null;
   }[];
 }
 

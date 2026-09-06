@@ -16,7 +16,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
   try {
     const { id } = await params;
-    const { name, description, icon, category, hasLevels, levels } = await request.json();
+    const { name, description, icon, category, hasLevels, levels, eventId } = await request.json();
 
     if (!name || !name.trim()) {
       return NextResponse.json({ error: "Name is required" }, { status: 400 });
@@ -42,6 +42,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         icon: icon?.trim() || "🏅",
         category: category ?? "community",
         has_levels: !!hasLevels,
+        event_id: eventId || null,
         updated_at: new Date().toISOString(),
       })
       .eq("id", id)
@@ -50,10 +51,18 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
     if (updateError) {
       console.error("Error updating badge type:", updateError);
+      if (updateError.code === "23505" && updateError.message.includes("event_id")) {
+        return NextResponse.json({ error: "That event is already linked to another badge" }, { status: 409 });
+      }
       return NextResponse.json({ error: updateError.message }, { status: 500 });
     }
     if (!badgeType) {
       return NextResponse.json({ error: "Badge type not found" }, { status: 404 });
+    }
+
+    if (eventId) {
+      const { error: syncError } = await supabase.rpc("sync_event_badge_awards", { p_event_id: eventId });
+      if (syncError) console.error("Error syncing event badge awards:", syncError);
     }
 
     const { error: deleteError } = await supabase.from("badge_levels").delete().eq("badge_type_id", id);

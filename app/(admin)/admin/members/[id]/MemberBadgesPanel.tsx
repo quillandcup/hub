@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import type { EarnedBadge } from "@/lib/badges";
 import BadgeChip from "@/components/BadgeChip";
 
@@ -18,6 +19,9 @@ interface RawAward {
   badgeTypeIcon: string;
   occurredAt: string;
   note: string | null;
+  eventId: string | null;
+  eventTitle: string | null;
+  eventSlug: string | null;
 }
 
 interface MemberBadgesPanelProps {
@@ -167,13 +171,23 @@ export default function MemberBadgesPanel({
                     <span className="text-xs text-slate-400 dark:text-slate-500 ml-2">— {award.note}</span>
                   )}
                 </span>
-                <button
-                  onClick={() => handleRevoke(award.id)}
-                  disabled={revokingId === award.id}
-                  className="text-xs text-red-600 dark:text-red-400 hover:underline disabled:opacity-50 flex-shrink-0"
-                >
-                  {revokingId === award.id ? "Revoking..." : "Revoke"}
-                </button>
+                {award.eventId ? (
+                  <Link
+                    href={`/admin/events/${award.eventId}`}
+                    className="text-xs text-slate-500 dark:text-slate-400 hover:underline flex-shrink-0"
+                    title="Revoking this means removing the attendee on the event page"
+                  >
+                    via {award.eventTitle ?? "event"}
+                  </Link>
+                ) : (
+                  <button
+                    onClick={() => handleRevoke(award.id)}
+                    disabled={revokingId === award.id}
+                    className="text-xs text-red-600 dark:text-red-400 hover:underline disabled:opacity-50 flex-shrink-0"
+                  >
+                    {revokingId === award.id ? "Revoking..." : "Revoke"}
+                  </button>
+                )}
               </li>
             ))}
           </ul>

@@ -12,6 +12,14 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
   try {
     const { id } = await params;
 
+    const { data: award } = await supabase.from("member_badges").select("event_id").eq("id", id).single();
+    if (award?.event_id) {
+      return NextResponse.json(
+        { error: "This award came from event attendance -- remove the attendee on the event page instead" },
+        { status: 400 }
+      );
+    }
+
     const { error } = await supabase.from("member_badges").delete().eq("id", id);
 
     if (error) {

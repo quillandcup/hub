@@ -193,10 +193,10 @@ export default async function MemberDetailPage({
 
   const [earnedBadges, { data: awardableBadgeTypes }, { data: rawAwards }] = await Promise.all([
     getMemberBadges(supabase, id, metrics?.totalPrickles ?? 0, memberRow.first_joined_at),
-    supabase.from("badge_types").select("id, name, icon").eq("is_automatic", false).order("name"),
+    supabase.from("badge_types").select("id, name, icon").eq("is_automatic", false).is("event_id", null).order("name"),
     supabase
       .from("member_badges")
-      .select("id, badge_type_id, occurred_at, note, badge_types(name, icon)")
+      .select("id, badge_type_id, occurred_at, note, event_id, badge_types(name, icon), events(title, slug)")
       .eq("member_id", id)
       .order("occurred_at", { ascending: false }),
   ]);
@@ -208,6 +208,9 @@ export default async function MemberDetailPage({
     badgeTypeIcon: row.badge_types?.icon ?? "🏅",
     occurredAt: row.occurred_at,
     note: row.note,
+    eventId: row.event_id,
+    eventTitle: row.events?.title ?? null,
+    eventSlug: row.events?.slug ?? null,
   }));
 
   return (
