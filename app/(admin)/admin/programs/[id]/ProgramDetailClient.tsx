@@ -640,14 +640,30 @@ export default function ProgramDetailClient({ programId }: { programId: string }
                     <div className="mt-3 p-3 border border-blue-200 dark:border-blue-900 rounded bg-blue-50 dark:bg-blue-950/30">
                       {matchesError && <p className="text-xs text-red-600 mb-2">{matchesError}</p>}
                       {!offerNamesConfiguredByCohortId[cohort.id] ? (
-                        <p className="text-sm text-slate-600 dark:text-slate-400">
-                          No Kajabi offer names are configured for this program — pick offers above under
-                          &quot;Kajabi Offer Names&quot; to enable matching.
-                        </p>
+                        <>
+                          <p className="text-sm text-slate-600 dark:text-slate-400 mb-3">
+                            No Kajabi offer names are configured for this program — pick offers above under
+                            &quot;Kajabi Offer Names&quot; to enable matching.
+                          </p>
+                          <button
+                            onClick={() => handleCloseMatches(cohort.id)}
+                            className="px-3 py-1.5 bg-gray-300 dark:bg-slate-700 text-gray-800 dark:text-gray-200 rounded hover:bg-gray-400 dark:hover:bg-slate-600 text-sm"
+                          >
+                            Close
+                          </button>
+                        </>
                       ) : matchesByCohortId[cohort.id].length === 0 ? (
-                        <p className="text-sm text-slate-600 dark:text-slate-400">
-                          No unmatched Kajabi purchases found in this cohort&apos;s window.
-                        </p>
+                        <>
+                          <p className="text-sm text-slate-600 dark:text-slate-400 mb-3">
+                            No unmatched Kajabi purchases found in this cohort&apos;s window.
+                          </p>
+                          <button
+                            onClick={() => handleCloseMatches(cohort.id)}
+                            className="px-3 py-1.5 bg-gray-300 dark:bg-slate-700 text-gray-800 dark:text-gray-200 rounded hover:bg-gray-400 dark:hover:bg-slate-600 text-sm"
+                          >
+                            Close
+                          </button>
+                        </>
                       ) : (
                         <>
                           {(() => {
