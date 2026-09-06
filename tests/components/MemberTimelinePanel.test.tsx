@@ -32,6 +32,37 @@ describe("MemberTimelinePanel", () => {
     expect(screen.queryByText(/^-\d+ days?/)).not.toBeInTheDocument();
   });
 
+  it("displays a hiatus's stored calendar date, not a day shifted by the viewer's timezone", () => {
+    // member_hiatus_history.start_date/end_date are DATE columns (no
+    // time-of-day) — `new Date("2026-07-21")` parses as UTC midnight, which
+    // renders as the *previous* day in any timezone behind UTC (reproduced
+    // live: a hiatus stored as 2026-07-21 showed as "Jul 20, 2026"). The
+    // expected strings are built the same way parseDateOnly does (local
+    // Y/M/D), so this assertion holds regardless of the machine's timezone.
+    render(
+      <MemberTimelinePanel
+        memberId="m1"
+        hiatusHistory={[
+          { id: "h1", start_date: "2026-07-21", end_date: "2026-10-19", reason: null, notes: null },
+        ]}
+        membershipHistory={[]}
+      />
+    );
+
+    const expectedStart = new Date(2026, 6, 21).toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+    const expectedEnd = new Date(2026, 9, 19).toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+
+    expect(screen.getByText(`${expectedStart} → ${expectedEnd}`)).toBeInTheDocument();
+  });
+
   it("renders a muted gap row for a stretch with no membership, hiatus, or program coverage", () => {
     render(
       <MemberTimelinePanel

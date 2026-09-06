@@ -25,6 +25,14 @@
 // reprocess_members_atomic Step 4), so they never change the state, but
 // they're still surfaced as an annotation on whatever segment they overlap
 // so the record isn't lost.
+//
+// Date handling: hiatus and program-cohort dates are DATE columns (calendar
+// days with no real time-of-day), so they're parsed with parseDateOnly to
+// avoid `new Date("2026-07-21")`'s UTC-midnight parsing rendering as the
+// previous day in timezones behind UTC. Membership stints and status
+// overrides are TIMESTAMPTZ — real instants — so they're parsed as-is.
+
+import { parseDateOnly } from "@/lib/member-tenure";
 
 export type TimelineSegmentState = "active" | "hiatus" | "gap";
 
@@ -109,8 +117,8 @@ export function buildMembershipTimeline(
 
   for (const h of hiatusHistory) {
     coverages.push({
-      start: new Date(h.start_date).getTime(),
-      end: h.end_date ? new Date(h.end_date).getTime() : null,
+      start: parseDateOnly(h.start_date).getTime(),
+      end: h.end_date ? parseDateOnly(h.end_date).getTime() : null,
       kind: "hiatus",
       label: h.reason ?? "",
       hiatusId: h.id,
@@ -121,8 +129,8 @@ export function buildMembershipTimeline(
 
   for (const p of programOverrides) {
     coverages.push({
-      start: new Date(p.starts_at).getTime(),
-      end: p.expires_at ? new Date(p.expires_at).getTime() : null,
+      start: parseDateOnly(p.starts_at).getTime(),
+      end: p.expires_at ? parseDateOnly(p.expires_at).getTime() : null,
       kind: "program",
       label: p.reason ?? "Program",
     });
