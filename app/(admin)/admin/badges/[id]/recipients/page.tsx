@@ -4,6 +4,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { getBadgeRecipients, type BadgeLevel, type BadgeType } from "@/lib/badges";
 import BadgeRecipientsTable from "./BadgeRecipientsTable";
+import AwardBadgeForm from "./AwardBadgeForm";
 
 export async function generateMetadata({
   params,
@@ -26,6 +27,10 @@ export default async function BadgeRecipientsPage({ params }: { params: Promise<
   ]);
 
   if (!badgeType) notFound();
+
+  const { data: linkedEvent } = badgeType.event_id
+    ? await supabase.from("events").select("id, title").eq("id", badgeType.event_id).single()
+    : { data: null };
 
   const recipients = await getBadgeRecipients(
     supabase,
@@ -62,7 +67,17 @@ export default async function BadgeRecipientsPage({ params }: { params: Promise<
             {badgeType.is_automatic && (
               <span className="text-xs text-slate-400 dark:text-slate-500">Computed automatically</span>
             )}
+            {linkedEvent && (
+              <span className="text-xs text-slate-400 dark:text-slate-500">
+                Granted by attendance —{" "}
+                <Link href={`/admin/events/${linkedEvent.id}`} className="text-blue-600 dark:text-blue-400 hover:underline">
+                  manage attendees
+                </Link>
+              </span>
+            )}
           </div>
+
+          {!badgeType.is_automatic && !badgeType.event_id && <AwardBadgeForm badgeTypeId={badgeType.id} />}
 
           {recipients.length === 0 ? (
             <div className="p-12 text-center text-slate-500 dark:text-slate-400">

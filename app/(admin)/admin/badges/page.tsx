@@ -51,7 +51,7 @@ export default async function BadgesPage() {
           <h1 className="text-2xl font-bold">Badges</h1>
           <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
             Badge definitions shown on member profiles. Award or revoke a badge from a member&apos;s
-            admin page.
+            admin page, or award it to a member from its recipients list here.
           </p>
         </div>
         <Link
