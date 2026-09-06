@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { gapLabelsByStintStart } from "@/lib/resubscription-detection";
+import { buildMembershipTimeline, type TimelineSegment } from "@/lib/membership-timeline";
 
 interface HiatusRow {
   id: string;
@@ -40,51 +40,9 @@ interface MemberTimelinePanelProps {
   memberId: string;
   hiatusHistory: HiatusRow[];
   membershipHistory: any[];
-  firstJoinedAt?: string | null;
   programOverrides?: ProgramOverrideRow[];
   statusOverrides?: StatusOverrideRow[];
 }
-
-const OVERRIDE_TYPE_LABEL: Record<string, string> = {
-  gift: "Gift",
-  direct_stripe: "Direct Stripe",
-  special: "Special",
-};
-
-type TimelineEvent =
-  | {
-      kind: "membership";
-      key: string;
-      startDate: Date;
-      endDate: Date | null;
-      isActive: boolean;
-      gapLabel: string | null;
-    }
-  | {
-      kind: "hiatus";
-      key: string;
-      id: string;
-      startDate: Date;
-      endDate: Date | null;
-      reason: string | null;
-      notes: string | null;
-      activeLabel: string | null;
-    }
-  | {
-      kind: "program";
-      key: string;
-      startDate: Date;
-      endDate: Date | null;
-      reason: string | null;
-    }
-  | {
-      kind: "statusOverride";
-      key: string;
-      startDate: Date;
-      endDate: Date | null;
-      reason: string | null;
-      overrideType: string;
-    };
 
 function todayDateOnly(): string {
   return new Date().toISOString().slice(0, 10);
@@ -92,6 +50,10 @@ function todayDateOnly(): string {
 
 function durationText(startDate: Date, endDate: Date | null): string {
   const end = endDate ?? new Date();
+  // A segment can start after "now" — e.g. the active stretch queued up
+  // after a hiatus whose scheduled return date hasn't arrived yet. There's
+  // no duration to report for something that hasn't started.
+  if (end.getTime() <= startDate.getTime()) return "upcoming";
   const durationDays = Math.floor((end.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
   const durationMonths = Math.floor(durationDays / 30);
   const suffix = endDate ? "" : " so far";
@@ -100,38 +62,11 @@ function durationText(startDate: Date, endDate: Date | null): string {
 }
 
 const fmt = (d: Date) => d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-const fmtMonthYear = (d: Date) => d.toLocaleDateString("en-US", { month: "short", year: "numeric" });
-
-function formatActiveLabel(days: number): string {
-  const months = Math.round(days / 30);
-  if (months < 1) return `${days}d active`;
-  if (months === 1) return "1 mo active";
-  return `${months} mo active`;
-}
-
-// Mirrors gapLabelsByStintStart: labels the active stretch immediately
-// before each hiatus began, using the previous hiatus's end (or first join,
-// for the earliest hiatus) as the boundary.
-function activeLabelsByHiatusStart(hiatusHistory: HiatusRow[], firstJoinedAt: string | null): Map<string, string> {
-  const sorted = [...hiatusHistory].sort((a, b) => a.start_date.localeCompare(b.start_date));
-  const map = new Map<string, string>();
-  sorted.forEach((hiatus, i) => {
-    const previousEnd = i === 0 ? firstJoinedAt : sorted[i - 1].end_date;
-    if (!previousEnd) return;
-    const days = Math.floor(
-      (new Date(hiatus.start_date).getTime() - new Date(previousEnd).getTime()) / (1000 * 60 * 60 * 24)
-    );
-    if (days < 0) return;
-    map.set(hiatus.start_date, formatActiveLabel(days));
-  });
-  return map;
-}
 
 export default function MemberTimelinePanel({
   memberId,
   hiatusHistory,
   membershipHistory,
-  firstJoinedAt = null,
   programOverrides = [],
   statusOverrides = [],
 }: MemberTimelinePanelProps) {
@@ -146,44 +81,13 @@ export default function MemberTimelinePanel({
   const [error, setError] = useState<string | null>(null);
 
   const currentHiatus = hiatusHistory.find((h) => h.end_date === null);
-  const gapLabelByStart = gapLabelsByStintStart(membershipHistory);
-  const activeLabelByHiatusStart = activeLabelsByHiatusStart(hiatusHistory, firstJoinedAt);
 
-  const events: TimelineEvent[] = [
-    ...membershipHistory.map((purchase: any): TimelineEvent => ({
-      kind: "membership",
-      key: `membership-${purchase.kajabi_offer_id}-${purchase.created_at_kajabi}`,
-      startDate: new Date(purchase.created_at_kajabi),
-      endDate: purchase.derived_end_at ? new Date(purchase.derived_end_at) : null,
-      isActive: purchase.status === "active",
-      gapLabel: gapLabelByStart.get(purchase.created_at_kajabi) ?? null,
-    })),
-    ...hiatusHistory.map((hiatus): TimelineEvent => ({
-      kind: "hiatus",
-      key: `hiatus-${hiatus.id}`,
-      id: hiatus.id,
-      startDate: new Date(hiatus.start_date),
-      endDate: hiatus.end_date ? new Date(hiatus.end_date) : null,
-      reason: hiatus.reason,
-      notes: hiatus.notes,
-      activeLabel: activeLabelByHiatusStart.get(hiatus.start_date) ?? null,
-    })),
-    ...programOverrides.map((override): TimelineEvent => ({
-      kind: "program",
-      key: `program-${override.id}`,
-      startDate: new Date(override.starts_at),
-      endDate: override.expires_at ? new Date(override.expires_at) : null,
-      reason: override.reason,
-    })),
-    ...statusOverrides.map((override): TimelineEvent => ({
-      kind: "statusOverride",
-      key: `status-override-${override.id}`,
-      startDate: new Date(override.starts_at),
-      endDate: override.expires_at ? new Date(override.expires_at) : null,
-      reason: override.reason,
-      overrideType: override.override_type,
-    })),
-  ].sort((a, b) => b.startDate.getTime() - a.startDate.getTime());
+  const segments: TimelineSegment[] = buildMembershipTimeline(
+    membershipHistory,
+    hiatusHistory,
+    programOverrides,
+    statusOverrides
+  );
 
   const resetForm = () => {
     setStartDate(todayDateOnly());
@@ -349,139 +253,110 @@ export default function MemberTimelinePanel({
           </form>
         )}
 
-        {events.length === 0 && !showForm ? (
+        {segments.length === 0 && !showForm ? (
           <p className="text-sm text-slate-500 dark:text-slate-400">No membership, hiatus, or program history.</p>
         ) : (
-          <div className="space-y-3">
-            {events.map((event) => {
-              if (event.kind === "program") {
+          <div className="space-y-2">
+            {segments.map((segment) => {
+              const today = todayDateOnly();
+              const endDateOnly = segment.endDate ? segment.endDate.toISOString().slice(0, 10) : null;
+              const isCurrent = endDateOnly === null || endDateOnly > today;
+              const key =
+                segment.hiatus?.id ??
+                `${segment.state}-${segment.startDate.toISOString()}-${segment.endDate?.toISOString() ?? "present"}`;
+
+              if (segment.state === "gap") {
                 return (
-                  <div key={event.key}>
-                    <div className="flex items-center justify-between p-3 rounded-lg border bg-indigo-50/60 dark:bg-indigo-950/20 border-indigo-200 dark:border-indigo-900">
-                      <div className="flex items-center gap-3 flex-wrap">
-                        <span className="text-sm font-medium text-slate-900 dark:text-slate-100">
-                          {event.reason ?? "Program"}: {fmtMonthYear(event.startDate)} –{" "}
-                          {event.endDate ? fmtMonthYear(event.endDate) : "Present"}
-                        </span>
-                      </div>
-                    </div>
+                  <div
+                    key={key}
+                    className="flex items-center justify-between px-3 py-2 rounded-lg border border-dashed border-slate-200 dark:border-slate-800 text-slate-400 dark:text-slate-500"
+                  >
+                    <span className="text-sm">
+                      {fmt(segment.startDate)} → {segment.endDate ? fmt(segment.endDate) : "Present"}
+                      <span className="ml-2 text-xs">not a member</span>
+                    </span>
+                    <span className="text-xs shrink-0">{durationText(segment.startDate, segment.endDate)}</span>
                   </div>
                 );
               }
 
-              if (event.kind === "statusOverride") {
-                const typeLabel = OVERRIDE_TYPE_LABEL[event.overrideType] ?? event.overrideType;
+              if (segment.state === "hiatus") {
+                const hiatus = segment.hiatus!;
+                const showNotes = hiatus.reason || hiatus.notes;
                 return (
-                  <div key={event.key}>
-                    <div className="flex items-center justify-between p-3 rounded-lg border bg-emerald-50/60 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-900">
+                  <div key={key}>
+                    <div
+                      className={`flex items-center justify-between p-3 rounded-lg border ${
+                        isCurrent
+                          ? "bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800"
+                          : "bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700"
+                      }`}
+                    >
                       <div className="flex items-center gap-3 flex-wrap">
-                        <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-300">
-                          {typeLabel}
-                        </span>
                         <span className="text-sm font-medium text-slate-900 dark:text-slate-100">
-                          {event.reason ?? "Status override"}
+                          {fmt(segment.startDate)} → {segment.endDate ? fmt(segment.endDate) : "Present"}
+                        </span>
+                        <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-300">
+                          on hiatus
                         </span>
                       </div>
-                      <span className="text-xs text-slate-500 dark:text-slate-400 ml-4 shrink-0">
-                        {fmt(event.startDate)} → {event.endDate ? fmt(event.endDate) : "Present"}
-                      </span>
-                    </div>
-                  </div>
-                );
-              }
-
-              if (event.kind === "membership") {
-                return (
-                  <div key={event.key}>
-                    <div className="flex items-center justify-between p-3 rounded-lg border bg-blue-50/60 dark:bg-blue-950/20 border-blue-200 dark:border-blue-900">
-                      <div className="flex items-center gap-3 flex-wrap">
-                        <span className="text-sm font-medium text-slate-900 dark:text-slate-100">
-                          {fmt(event.startDate)} → {event.endDate ? fmt(event.endDate) : "Present"}
+                      <div className="flex items-center gap-3 shrink-0">
+                        <span className="text-xs text-slate-500 dark:text-slate-400">
+                          {durationText(segment.startDate, segment.endDate)}
                         </span>
-                        <span
-                          className={`px-2 py-0.5 text-xs font-medium rounded-full ${
-                            event.isActive
-                              ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300"
-                              : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400"
-                          }`}
+                        {isCurrent && (
+                          <button
+                            onClick={() => handleEndNow(hiatus.id)}
+                            disabled={busyId === hiatus.id}
+                            className="text-xs text-blue-600 dark:text-blue-400 hover:underline disabled:opacity-50"
+                          >
+                            {busyId === hiatus.id ? "Ending..." : endDateOnly ? "Return Early" : "End Now"}
+                          </button>
+                        )}
+                        <button
+                          onClick={() => handleDelete(hiatus.id)}
+                          disabled={busyId === hiatus.id}
+                          className="text-xs text-red-600 dark:text-red-400 hover:underline disabled:opacity-50"
                         >
-                          {event.isActive ? "active" : "cancelled"}
-                        </span>
+                          Delete
+                        </button>
                       </div>
-                      <span className="text-xs text-slate-500 dark:text-slate-400 ml-4 shrink-0">
-                        {durationText(event.startDate, event.endDate)}
-                      </span>
                     </div>
-                    {event.gapLabel && (
-                      <div className="flex items-center gap-2 pl-4 mt-1 text-xs text-slate-400 dark:text-slate-500">
-                        <span className="inline-block w-px h-3 bg-slate-300 dark:bg-slate-600" />
-                        {event.gapLabel} before rejoining
+                    {showNotes && (
+                      <div className="pl-3 pt-1 flex flex-wrap gap-x-2 text-xs text-slate-500 dark:text-slate-500">
+                        {hiatus.reason && <span>{hiatus.reason}</span>}
+                        {hiatus.notes && <span>{hiatus.notes}</span>}
                       </div>
                     )}
                   </div>
                 );
               }
 
-              // "Ongoing" means the hiatus hasn't ended yet — either it has
-              // no end date at all (indefinite), or its end date is still
-              // in the future (an admin can set a planned return date up
-              // front when starting a hiatus, via the End date field
-              // above). Comparing date-only strings sidesteps timezone
-              // drift from parsing "YYYY-MM-DD" as UTC midnight.
-              const endDateOnly = event.endDate ? event.endDate.toISOString().slice(0, 10) : null;
-              const isOngoing = endDateOnly === null || endDateOnly > todayDateOnly();
-              const showNotes = event.reason || event.notes;
+              // Active. reasonTags[0] is always the primary driver
+              // ("Membership", or the override/program that grants active
+              // status on its own); anything after it is concurrent context
+              // (e.g. a program running alongside a real subscription).
+              const [primaryReason, ...extraReasons] = segment.reasonTags;
               return (
-                <div key={event.key}>
-                  <div
-                    className={`flex items-center justify-between p-3 rounded-lg border ${
-                      isOngoing
-                        ? "bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800"
-                        : "bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700"
-                    }`}
-                  >
-                    <div className="flex items-center gap-3 flex-wrap">
-                      <span className="text-sm font-medium text-slate-900 dark:text-slate-100">
-                        {fmt(event.startDate)} → {event.endDate ? fmt(event.endDate) : "Ongoing"}
-                      </span>
-                      <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-300">
-                        {isOngoing ? "on hiatus" : "hiatus"}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-3 shrink-0">
-                      <span className="text-xs text-slate-500 dark:text-slate-400">
-                        {durationText(event.startDate, event.endDate)}
-                      </span>
-                      {isOngoing && (
-                        <button
-                          onClick={() => handleEndNow(event.id)}
-                          disabled={busyId === event.id}
-                          className="text-xs text-blue-600 dark:text-blue-400 hover:underline disabled:opacity-50"
-                        >
-                          {busyId === event.id ? "Ending..." : endDateOnly ? "Return Early" : "End Now"}
-                        </button>
-                      )}
-                      <button
-                        onClick={() => handleDelete(event.id)}
-                        disabled={busyId === event.id}
-                        className="text-xs text-red-600 dark:text-red-400 hover:underline disabled:opacity-50"
-                      >
-                        Delete
-                      </button>
-                    </div>
+                <div
+                  key={key}
+                  className="flex items-center justify-between p-3 rounded-lg border bg-blue-50/60 dark:bg-blue-950/20 border-blue-200 dark:border-blue-900"
+                >
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <span className="text-sm font-medium text-slate-900 dark:text-slate-100">
+                      {fmt(segment.startDate)} → {segment.endDate ? fmt(segment.endDate) : "Present"}
+                    </span>
+                    <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300">
+                      active
+                    </span>
+                    <span className="text-xs text-slate-500 dark:text-slate-400">
+                      {primaryReason}
+                      {extraReasons.length > 0 && ` + ${extraReasons.join(" + ")}`}
+                    </span>
                   </div>
-                  {showNotes && (
-                    <div className="pl-3 pt-1 flex flex-wrap gap-x-2 text-xs text-slate-500 dark:text-slate-500">
-                      {event.reason && <span>{event.reason}</span>}
-                      {event.notes && <span>{event.notes}</span>}
-                    </div>
-                  )}
-                  {event.activeLabel && (
-                    <div className="flex items-center gap-2 pl-4 mt-1 text-xs text-slate-400 dark:text-slate-500">
-                      <span className="inline-block w-px h-3 bg-slate-300 dark:bg-slate-600" />
-                      {event.activeLabel} before hiatus
-                    </div>
-                  )}
+                  <span className="text-xs text-slate-500 dark:text-slate-400 ml-4 shrink-0">
+                    {durationText(segment.startDate, segment.endDate)}
+                  </span>
                 </div>
               );
             })}

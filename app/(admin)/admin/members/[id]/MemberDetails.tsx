@@ -169,7 +169,6 @@ export default function MemberDetails({
             memberId={member.id}
             hiatusHistory={hiatusHistory}
             membershipHistory={membershipHistory}
-            firstJoinedAt={member.first_joined_at}
             programOverrides={programOverrides}
             statusOverrides={statusOverrides}
           />

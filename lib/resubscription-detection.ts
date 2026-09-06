@@ -55,23 +55,3 @@ export function formatGapLabel(days: number): string {
   if (months === 1) return "1 mo gap";
   return `${months} mo gap`;
 }
-
-/**
- * Given a list of membership stints (in any order), returns a map from each
- * stint's start date to a formatted gap label describing the time between
- * the previous stint's cancellation and this stint's start — empty when a
- * stint isn't a resubscription (first stint, or no gap before it).
- */
-export function gapLabelsByStintStart(
-  stints: { created_at_kajabi: string; derived_end_at: string | null }[]
-): Map<string, string> {
-  const events = detectResubscriptions(
-    stints.map((s, i) => ({
-      kajabi_purchase_id: String(i),
-      effective_start_at: null,
-      created_at_kajabi: s.created_at_kajabi,
-      deactivated_at: s.derived_end_at,
-    }))
-  );
-  return new Map(events.map((event) => [event.resubscribedAt, formatGapLabel(event.gapDays)]));
-}

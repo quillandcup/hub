@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { detectResubscriptions, formatGapLabel, gapLabelsByStintStart } from "@/lib/resubscription-detection";
+import { detectResubscriptions, formatGapLabel } from "@/lib/resubscription-detection";
 import type { PurchaseRecord } from "@/lib/resubscription-detection";
 
 function purchase(
@@ -131,43 +131,5 @@ describe("formatGapLabel", () => {
     expect(formatGapLabel(45)).toBe("2 mo gap"); // rounds up to 2
     expect(formatGapLabel(150)).toBe("5 mo gap");
     expect(formatGapLabel(365)).toBe("12 mo gap");
-  });
-});
-
-describe("gapLabelsByStintStart", () => {
-  it("labels a resubscribed stint's start with the gap since the prior cancellation", () => {
-    const labels = gapLabelsByStintStart([
-      { created_at_kajabi: "2022-09-03T00:00:00Z", derived_end_at: "2023-03-04T00:00:00Z" },
-      { created_at_kajabi: "2023-07-24T00:00:00Z", derived_end_at: "2023-12-24T00:00:00Z" },
-      { created_at_kajabi: "2024-08-15T00:00:00Z", derived_end_at: "2024-12-30T00:00:00Z" },
-    ]);
-
-    expect(labels.get("2022-09-03T00:00:00Z")).toBeUndefined(); // first stint — nothing before it
-    expect(labels.get("2023-07-24T00:00:00Z")).toBe("5 mo gap");
-    expect(labels.get("2024-08-15T00:00:00Z")).toBe("8 mo gap");
-  });
-
-  it("does not label a stint when it immediately follows the prior one with no gap", () => {
-    const labels = gapLabelsByStintStart([
-      { created_at_kajabi: "2024-01-01T00:00:00Z", derived_end_at: "2024-06-01T00:00:00Z" },
-      { created_at_kajabi: "2024-06-01T00:00:00Z", derived_end_at: null },
-    ]);
-
-    expect(labels.size).toBe(0);
-  });
-
-  it("returns an empty map for a single stint", () => {
-    const labels = gapLabelsByStintStart([
-      { created_at_kajabi: "2024-01-01T00:00:00Z", derived_end_at: null },
-    ]);
-    expect(labels.size).toBe(0);
-  });
-
-  it("accepts stints in any order, keyed by ISO start regardless of input order", () => {
-    const labels = gapLabelsByStintStart([
-      { created_at_kajabi: "2024-09-01T00:00:00Z", derived_end_at: null },
-      { created_at_kajabi: "2024-01-01T00:00:00Z", derived_end_at: "2024-06-01T00:00:00Z" },
-    ]);
-    expect(labels.get("2024-09-01T00:00:00Z")).toBe("3 mo gap");
   });
 });
