@@ -1,4 +1,5 @@
 import { requireAdmin } from "@/lib/supabase/api-auth";
+import { recomputeMemberStatus } from "@/lib/member-status";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function PATCH(
@@ -37,6 +38,8 @@ export async function PATCH(
       return NextResponse.json({ error: "Hiatus not found" }, { status: 404 });
     }
 
+    await recomputeMemberStatus(supabase, hiatus.member_id);
+
     return NextResponse.json({ hiatus });
   } catch (error: any) {
     console.error("Error processing request:", error);
@@ -59,12 +62,20 @@ export async function DELETE(
   try {
     const { id } = await params;
 
+    const { data: existing } = await supabase
+      .from("member_hiatus_history")
+      .select("member_id")
+      .eq("id", id)
+      .single();
+
     const { error } = await supabase.from("member_hiatus_history").delete().eq("id", id);
 
     if (error) {
       console.error("Error deleting member hiatus:", error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
+
+    if (existing) await recomputeMemberStatus(supabase, existing.member_id);
 
     return NextResponse.json({ success: true });
   } catch (error: any) {

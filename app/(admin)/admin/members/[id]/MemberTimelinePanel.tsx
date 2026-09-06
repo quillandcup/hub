@@ -80,6 +80,15 @@ export default function MemberTimelinePanel({
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const [returnPromptId, setReturnPromptId] = useState<string | null>(null);
+  const [returnDate, setReturnDate] = useState(todayDateOnly());
+
+  const [editId, setEditId] = useState<string | null>(null);
+  const [editStart, setEditStart] = useState("");
+  const [editEnd, setEditEnd] = useState("");
+  const [editReason, setEditReason] = useState("");
+  const [editNotes, setEditNotes] = useState("");
+
   const currentHiatus = hiatusHistory.find((h) => h.end_date === null);
 
   const segments: TimelineSegment[] = buildMembershipTimeline(
@@ -124,17 +133,60 @@ export default function MemberTimelinePanel({
     }
   };
 
-  const handleEndNow = async (id: string) => {
+  const handleEndNow = async (id: string, endOn: string) => {
     setBusyId(id);
     setError(null);
     try {
       const response = await fetch(`/api/member-hiatus/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ end_date: todayDateOnly() }),
+        body: JSON.stringify({ end_date: endOn }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Failed to end hiatus");
+      setReturnPromptId(null);
+      router.refresh();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const openReturnPrompt = (id: string) => {
+    setReturnDate(todayDateOnly());
+    setReturnPromptId(id);
+  };
+
+  const openEdit = (hiatus: HiatusRow) => {
+    setReturnPromptId(null);
+    setEditStart(hiatus.start_date);
+    setEditEnd(hiatus.end_date ?? "");
+    setEditReason(hiatus.reason ?? "");
+    setEditNotes(hiatus.notes ?? "");
+    setEditId(hiatus.id);
+  };
+
+  const cancelEdit = () => setEditId(null);
+
+  const handleEditSubmit = async (e: React.FormEvent, id: string) => {
+    e.preventDefault();
+    setBusyId(id);
+    setError(null);
+    try {
+      const response = await fetch(`/api/member-hiatus/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          start_date: editStart,
+          end_date: editEnd || null,
+          reason: editReason.trim() || null,
+          notes: editNotes.trim() || null,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Failed to update hiatus");
+      setEditId(null);
       router.refresh();
     } catch (err: any) {
       setError(err.message);
@@ -283,6 +335,69 @@ export default function MemberTimelinePanel({
               if (segment.state === "hiatus") {
                 const hiatus = segment.hiatus!;
                 const showNotes = hiatus.reason || hiatus.notes;
+
+                if (editId === hiatus.id) {
+                  return (
+                    <form
+                      key={key}
+                      onSubmit={(e) => handleEditSubmit(e, hiatus.id)}
+                      className="p-4 border border-blue-200 dark:border-blue-800 rounded-lg bg-blue-50/60 dark:bg-blue-950/20 space-y-3"
+                    >
+                      <div className="flex flex-wrap gap-3">
+                        <div>
+                          <label className="text-xs text-slate-500 dark:text-slate-400 block mb-1">Start date</label>
+                          <input
+                            type="date"
+                            value={editStart}
+                            onChange={(e) => setEditStart(e.target.value)}
+                            required
+                            className="px-3 py-1.5 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 text-sm"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs text-slate-500 dark:text-slate-400 block mb-1">End date (blank = ongoing)</label>
+                          <input
+                            type="date"
+                            value={editEnd}
+                            onChange={(e) => setEditEnd(e.target.value)}
+                            className="px-3 py-1.5 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 text-sm"
+                          />
+                        </div>
+                      </div>
+                      <input
+                        type="text"
+                        value={editReason}
+                        onChange={(e) => setEditReason(e.target.value)}
+                        placeholder="Reason (optional)"
+                        className="w-full px-3 py-1.5 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 text-sm"
+                      />
+                      <textarea
+                        value={editNotes}
+                        onChange={(e) => setEditNotes(e.target.value)}
+                        placeholder="Notes (optional)"
+                        rows={2}
+                        className="w-full px-3 py-1.5 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 text-sm"
+                      />
+                      <div className="flex gap-2">
+                        <button
+                          type="submit"
+                          disabled={busyId === hiatus.id}
+                          className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg text-sm font-medium transition-colors"
+                        >
+                          {busyId === hiatus.id ? "Saving..." : "Save"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={cancelEdit}
+                          className="px-4 py-1.5 bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-lg text-sm font-medium hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </form>
+                  );
+                }
+
                 return (
                   <div key={key}>
                     <div
@@ -304,15 +419,25 @@ export default function MemberTimelinePanel({
                         <span className="text-xs text-slate-500 dark:text-slate-400">
                           {durationText(segment.startDate, segment.endDate)}
                         </span>
-                        {isCurrent && (
+                        {isCurrent && returnPromptId !== hiatus.id && (
                           <button
-                            onClick={() => handleEndNow(hiatus.id)}
+                            onClick={() => openReturnPrompt(hiatus.id)}
                             disabled={busyId === hiatus.id}
                             className="text-xs text-blue-600 dark:text-blue-400 hover:underline disabled:opacity-50"
                           >
-                            {busyId === hiatus.id ? "Ending..." : endDateOnly ? "Return Early" : "End Now"}
+                            {endDateOnly ? "Return Early" : "End Now"}
                           </button>
                         )}
+                        <button
+                          onClick={() => {
+                            const row = hiatusHistory.find((h) => h.id === hiatus.id);
+                            if (row) openEdit(row);
+                          }}
+                          disabled={busyId === hiatus.id}
+                          className="text-xs text-slate-600 dark:text-slate-400 hover:underline disabled:opacity-50"
+                        >
+                          Edit
+                        </button>
                         <button
                           onClick={() => handleDelete(hiatus.id)}
                           disabled={busyId === hiatus.id}
@@ -322,6 +447,33 @@ export default function MemberTimelinePanel({
                         </button>
                       </div>
                     </div>
+                    {returnPromptId === hiatus.id && (
+                      <div className="mt-2 flex items-center gap-2 p-3 rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50/60 dark:bg-blue-950/20">
+                        <label className="text-xs text-slate-500 dark:text-slate-400" htmlFor={`return-date-${hiatus.id}`}>
+                          Return on
+                        </label>
+                        <input
+                          id={`return-date-${hiatus.id}`}
+                          type="date"
+                          value={returnDate}
+                          onChange={(e) => setReturnDate(e.target.value)}
+                          className="px-3 py-1.5 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 text-sm"
+                        />
+                        <button
+                          onClick={() => handleEndNow(hiatus.id, returnDate)}
+                          disabled={busyId === hiatus.id || !returnDate}
+                          className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg text-xs font-medium transition-colors"
+                        >
+                          {busyId === hiatus.id ? "Saving..." : "Confirm"}
+                        </button>
+                        <button
+                          onClick={() => setReturnPromptId(null)}
+                          className="text-xs text-slate-500 dark:text-slate-400 hover:underline"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    )}
                     {showNotes && (
                       <div className="pl-3 pt-1 flex flex-wrap gap-x-2 text-xs text-slate-500 dark:text-slate-500">
                         {hiatus.reason && <span>{hiatus.reason}</span>}
