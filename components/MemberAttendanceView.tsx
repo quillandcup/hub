@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { countDistinctPrickles } from "@/lib/attendance-grouping";
 
 const TIMEZONES = [
   { value: "America/New_York", label: "Eastern (ET)" },
@@ -109,12 +110,13 @@ export default function MemberAttendanceView({
   };
 
   const selectedDayAttendance = selectedDay ? getAttendanceForDay(selectedDay) : [];
+  const distinctPrickleCount = countDistinctPrickles(attendanceRecords);
 
   return (
     <div className="bg-white dark:bg-slate-900 rounded-lg shadow">
       <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800">
         <div className="flex items-center justify-between flex-wrap gap-3">
-          <h2 className="text-xl font-bold">Attendance History ({attendanceRecords.length})</h2>
+          <h2 className="text-xl font-bold">Attendance History ({distinctPrickleCount})</h2>
           <div className="flex items-center gap-3">
             {/* Timezone selector */}
             <div className="flex items-center gap-2">

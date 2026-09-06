@@ -4,6 +4,7 @@ import { useState } from "react";
 import MemberAttendanceView from "@/components/MemberAttendanceView";
 import { MemberStatusBadge } from "@/components/MemberStatusBadge";
 import { parseDateOnly } from "@/lib/member-tenure";
+import { countDistinctPrickles } from "@/lib/attendance-grouping";
 import MemberTimelinePanel from "./MemberTimelinePanel";
 import MemberSlackActivityPanel, { computeSlackSummary } from "./MemberSlackActivityPanel";
 import MemberBadgesPanel from "./MemberBadgesPanel";
@@ -61,9 +62,11 @@ export default function MemberDetails({
     : Infinity;
   const showWelcomeBack = isRejoin && daysSinceRejoin <= 30;
 
+  const distinctPrickleCount = countDistinctPrickles(attendanceRecords);
+
   const tabs: { id: Tab; label: string }[] = [
     { id: "overview", label: "Overview" },
-    { id: "attendance", label: `Attendance History (${attendanceRecords.length})` },
+    { id: "attendance", label: `Attendance History (${distinctPrickleCount})` },
     { id: "slack", label: `Slack Activity (${slackActivities.length})` },
   ];
 
