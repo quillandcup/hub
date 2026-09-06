@@ -60,6 +60,107 @@ export function isDateWithinCohortWindow(
   return ms >= startMs && ms < endMsExclusive;
 }
 
+interface RawPurchase {
+  kajabi_customer_id: string | null;
+  kajabi_offer_id: string;
+  created_at_kajabi: string | null;
+  effective_start_at: string | null;
+  deactivated_at: string | null;
+}
+
+interface MemberLike {
+  id: string;
+  name: string;
+  email: string;
+  status: string;
+}
+
+/**
+ * Pure computation step, no I/O: given a program's purchases for its matching
+ * offers (not pre-filtered to any cohort) plus lookup data already fetched by
+ * the caller, returns the candidate list for one specific cohort — date
+ * filtering, grouping matched purchases by member, and sorting all happen
+ * here. This is the exact logic that had the real matching bug (see
+ * findKajabiCandidatesForCohort's doc comment), split out so it's fully
+ * unit-testable without a database — see tests/lib/kajabi-cohort-matching.test.ts.
+ */
+export function computeCandidates(
+  allOfferPurchases: RawPurchase[],
+  cohort: CohortWindow,
+  offerNameById: Map<string, string>,
+  emailByCustomerId: Map<string, string>,
+  memberByEmail: Map<string, MemberLike>,
+  alreadyElsewhereByMember: Map<string, string>
+): KajabiCandidate[] {
+  const purchases = allOfferPurchases.filter((p) => {
+    const matchDate = resolveMatchDate(p);
+    return matchDate !== null && isDateWithinCohortWindow(matchDate, cohort);
+  });
+
+  // Group matched purchases by member, keeping the earliest for display and
+  // collecting every distinct offer name matched (e.g. regular + alumna
+  // offer). Purchases that don't resolve to any existing member are skipped
+  // — there's no member row to enroll.
+  type Accum = {
+    member: MemberLike;
+    offerNames: Set<string>;
+    earliest: { created_at_kajabi: string | null; effective_start_at: string | null; deactivated_at: string | null };
+    earliestSortKey: string;
+  };
+  const byMember = new Map<string, Accum>();
+
+  for (const p of purchases) {
+    if (!p.kajabi_customer_id) continue;
+    const email = emailByCustomerId.get(p.kajabi_customer_id);
+    if (!email) continue;
+    const member = memberByEmail.get(email);
+    if (!member) continue;
+
+    const offerName = offerNameById.get(p.kajabi_offer_id) ?? "Unknown offer";
+    const sortKey = resolveMatchDate(p) ?? "";
+
+    const existing = byMember.get(member.id);
+    if (!existing) {
+      byMember.set(member.id, {
+        member,
+        offerNames: new Set([offerName]),
+        earliest: {
+          created_at_kajabi: p.created_at_kajabi,
+          effective_start_at: p.effective_start_at,
+          deactivated_at: p.deactivated_at,
+        },
+        earliestSortKey: sortKey,
+      });
+    } else {
+      existing.offerNames.add(offerName);
+      if (sortKey && (!existing.earliestSortKey || sortKey < existing.earliestSortKey)) {
+        existing.earliestSortKey = sortKey;
+        existing.earliest = {
+          created_at_kajabi: p.created_at_kajabi,
+          effective_start_at: p.effective_start_at,
+          deactivated_at: p.deactivated_at,
+        };
+      }
+    }
+  }
+
+  const candidates: KajabiCandidate[] = Array.from(byMember.values()).map(({ member, offerNames, earliest }) => ({
+    member_id: member.id,
+    member_name: member.name,
+    member_email: member.email,
+    member_status: member.status,
+    offer_names: Array.from(offerNames),
+    purchase_date: resolveMatchDate(earliest),
+    effective_start_at: earliest.effective_start_at,
+    deactivated_at: earliest.deactivated_at,
+    already_enrolled_elsewhere: alreadyElsewhereByMember.get(member.id) ?? null,
+  }));
+
+  candidates.sort((a, b) => (a.purchase_date ?? "").localeCompare(b.purchase_date ?? ""));
+
+  return candidates;
+}
+
 /**
  * Finds members whose Kajabi purchase data suggests they belong in this
  * cohort: a purchase of one of the program's known offers, falling inside
@@ -109,24 +210,23 @@ export async function findKajabiCandidatesForCohort(
   // Bounded by specific offer IDs (a program's total purchases across every
   // cohort it's ever run, not just this one), so this is still inherently
   // small (dozens to low hundreds, not thousands) — no pagination loop needed
-  // here unlike the full-table Bronze reads in app/api/process/members. The
-  // date window is applied in JS below (on the coalesced date), not pushed
-  // into this query, since PostgREST can't express "COALESCE(a, b) BETWEEN
-  // x AND y" as a single-column range filter.
+  // here unlike the full-table Bronze reads in app/api/process/members.
+  // Deliberately unfiltered by date here — the cohort's window is applied
+  // inside computeCandidates (pure, no I/O), since PostgREST can't express
+  // "COALESCE(a, b) BETWEEN x AND y" as a single-column range filter, and
+  // keeping the whole date/grouping pipeline in one pure function is what
+  // makes it unit-testable without a database.
   const { data: allOfferPurchases, error: purchasesError } = await supabase
     .schema("bronze")
     .from("kajabi_purchases")
     .select("kajabi_customer_id, kajabi_offer_id, created_at_kajabi, effective_start_at, deactivated_at")
     .in("kajabi_offer_id", offerIds);
   if (purchasesError) throw purchasesError;
+  if (!allOfferPurchases || allOfferPurchases.length === 0) {
+    return { candidates: [], offerNamesConfigured: true };
+  }
 
-  const purchases = (allOfferPurchases || []).filter((p) => {
-    const matchDate = resolveMatchDate(p);
-    return matchDate !== null && isDateWithinCohortWindow(matchDate, cohort);
-  });
-  if (purchases.length === 0) return { candidates: [], offerNamesConfigured: true };
-
-  const customerIds = Array.from(new Set(purchases.map((p) => p.kajabi_customer_id).filter(Boolean)));
+  const customerIds = Array.from(new Set(allOfferPurchases.map((p) => p.kajabi_customer_id).filter(Boolean)));
   const [{ data: customers, error: customersError }, { data: emailAliases, error: aliasesError }] = await Promise.all([
     supabase.schema("bronze").from("kajabi_customers").select("kajabi_customer_id, email").in("kajabi_customer_id", customerIds),
     supabase.from("member_email_aliases").select("alias_email, canonical_email").eq("active", true),
@@ -151,68 +251,20 @@ export async function findKajabiCandidatesForCohort(
 
   const memberByEmail = new Map((members || []).map((m) => [m.email.toLowerCase(), m]));
 
-  // Group matched purchases by member, keeping the earliest for display and
-  // collecting every distinct offer name matched (e.g. regular + alumna
-  // offer). Purchases that don't resolve to any existing member are skipped
-  // — there's no member row to enroll.
-  type Accum = {
-    member: { id: string; name: string; email: string; status: string };
-    offerNames: Set<string>;
-    earliest: { created_at_kajabi: string | null; effective_start_at: string | null; deactivated_at: string | null };
-    earliestSortKey: string;
-  };
-  const byMember = new Map<string, Accum>();
-
-  for (const p of purchases) {
-    const email = emailByCustomerId.get(p.kajabi_customer_id);
-    if (!email) continue;
-    const member = memberByEmail.get(email);
-    if (!member) continue;
-
-    const offerName = offerNameById.get(p.kajabi_offer_id) ?? "Unknown offer";
-    const sortKey = resolveMatchDate(p) ?? "";
-
-    const existing = byMember.get(member.id);
-    if (!existing) {
-      byMember.set(member.id, {
-        member,
-        offerNames: new Set([offerName]),
-        earliest: {
-          created_at_kajabi: p.created_at_kajabi,
-          effective_start_at: p.effective_start_at,
-          deactivated_at: p.deactivated_at,
-        },
-        earliestSortKey: sortKey,
-      });
-    } else {
-      existing.offerNames.add(offerName);
-      if (sortKey && (!existing.earliestSortKey || sortKey < existing.earliestSortKey)) {
-        existing.earliestSortKey = sortKey;
-        existing.earliest = {
-          created_at_kajabi: p.created_at_kajabi,
-          effective_start_at: p.effective_start_at,
-          deactivated_at: p.deactivated_at,
-        };
-      }
-    }
-  }
-
-  const memberIds = Array.from(byMember.keys());
+  // Fetched for every member who ever bought a matching offer (not narrowed
+  // to this cohort's window) so computeCandidates can annotate any of them —
+  // still small, bounded by the same purchase set above.
+  const memberIds = Array.from(new Set(Array.from(memberByEmail.values()).map((m) => m.id)));
   const alreadyElsewhereByMember = await findOtherCohortEnrollments(supabase, program.id, cohort.id, memberIds);
 
-  const candidates: KajabiCandidate[] = Array.from(byMember.values()).map(({ member, offerNames, earliest }) => ({
-    member_id: member.id,
-    member_name: member.name,
-    member_email: member.email,
-    member_status: member.status,
-    offer_names: Array.from(offerNames),
-    purchase_date: resolveMatchDate(earliest),
-    effective_start_at: earliest.effective_start_at,
-    deactivated_at: earliest.deactivated_at,
-    already_enrolled_elsewhere: alreadyElsewhereByMember.get(member.id) ?? null,
-  }));
-
-  candidates.sort((a, b) => (a.purchase_date ?? "").localeCompare(b.purchase_date ?? ""));
+  const candidates = computeCandidates(
+    allOfferPurchases,
+    cohort,
+    offerNameById,
+    emailByCustomerId,
+    memberByEmail,
+    alreadyElsewhereByMember
+  );
 
   return { candidates, offerNamesConfigured: true };
 }
