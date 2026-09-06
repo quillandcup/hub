@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import PhotoLightbox from "@/components/PhotoLightbox";
 import MemberSearch from "@/components/MemberSearch";
 
@@ -432,10 +433,12 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
           <ul className="divide-y divide-gray-200 dark:divide-slate-800">
             {attendees.map((attendee) => (
               <li key={attendee.id} className="flex items-center justify-between py-2">
-                <div>
-                  <span className="text-sm font-medium">{attendee.memberName}</span>
-                  <span className="text-sm text-gray-500 dark:text-gray-400 ml-2">{attendee.memberEmail}</span>
-                </div>
+                <Link
+                  href={`/admin/members/${attendee.memberId}`}
+                  className="text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline"
+                >
+                  {attendee.memberName}
+                </Link>
                 <button
                   onClick={() => handleRemoveAttendee(attendee.memberId)}
                   disabled={removingId === attendee.memberId}
