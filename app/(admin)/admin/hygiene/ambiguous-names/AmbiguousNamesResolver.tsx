@@ -77,23 +77,23 @@ export default function AmbiguousNamesResolver({ entries }: { entries: Ambiguous
                 </span>
               </div>
 
-              <p className="text-sm text-slate-600 dark:text-slate-400 mb-3">
+              <p className="text-sm text-slate-600 dark:text-slate-400 mb-1.5">
                 Matches {entry.candidates.length} members — every session where someone joined
                 Zoom as just &quot;{entry.zoomName}&quot; had no attendance recorded for anyone.
                 Which one actually uses this name?
               </p>
 
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-1.5 items-center">
                 {entry.candidates.map((candidate) => (
                   <button
                     key={candidate.id}
+                    type="button"
                     onClick={() => assign(entry.zoomName, candidate.id)}
                     disabled={busy === `${entry.zoomName}:${candidate.id}`}
-                    className="px-3 py-1.5 text-sm bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-lg font-medium transition-colors"
+                    className="px-2 py-1 text-xs bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 rounded-full hover:bg-blue-100 dark:hover:bg-blue-900/40 disabled:opacity-50"
+                    title={candidate.email}
                   >
-                    {busy === `${entry.zoomName}:${candidate.id}`
-                      ? "Assigning..."
-                      : `This is ${candidate.name}`}
+                    {busy === `${entry.zoomName}:${candidate.id}` ? "Assigning…" : candidate.name}
                   </button>
                 ))}
                 <button
