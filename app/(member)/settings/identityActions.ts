@@ -25,6 +25,8 @@ export interface EmailAliasRow {
 export interface IdentitySettings {
   realName: string;
   primaryEmail: string;
+  birthdayMonth: number | null;
+  birthdayDay: number | null;
   nameAliases: NameAliasRow[];
   emailAliases: EmailAliasRow[];
   /** Heuristic only — nothing links a specific alias to the attendance it
@@ -64,7 +66,11 @@ export async function getIdentitySettings(): Promise<IdentitySettings | { error:
   const { supabase, effectiveIdentity } = ctx;
 
   const [memberResult, nameAliasResult, emailAliasResult, attendanceResult] = await Promise.all([
-    supabase.from("members").select("name, email").eq("id", effectiveIdentity.memberId).single(),
+    supabase
+      .from("members")
+      .select("name, email, birthday_month, birthday_day")
+      .eq("id", effectiveIdentity.memberId)
+      .single(),
     supabase
       .from("member_name_aliases")
       .select("id, alias, source, active, created_at")
@@ -84,6 +90,8 @@ export async function getIdentitySettings(): Promise<IdentitySettings | { error:
   return {
     realName: memberResult.data?.name ?? effectiveIdentity.memberName,
     primaryEmail: memberResult.data?.email ?? effectiveIdentity.memberEmail,
+    birthdayMonth: memberResult.data?.birthday_month ?? null,
+    birthdayDay: memberResult.data?.birthday_day ?? null,
     nameAliases: (nameAliasResult.data ?? []).map((row) => ({
       id: row.id,
       alias: row.alias,
@@ -122,6 +130,41 @@ export async function updateRealName(name: string): Promise<{ success: true } | 
 
   revalidatePath("/settings");
   revalidatePath(`/members/${effectiveIdentity.memberId}`);
+  return { success: true };
+}
+
+const DAYS_IN_MONTH = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+
+export async function updateBirthday(
+  month: number | null,
+  day: number | null
+): Promise<{ success: true } | { error: string }> {
+  const ctx = await requireIdentity();
+  if ("error" in ctx) return ctx;
+  const { supabase, effectiveIdentity } = ctx;
+
+  if ((month === null) !== (day === null)) {
+    return { error: "Enter both a month and a day, or leave both blank" };
+  }
+  if (month !== null && day !== null) {
+    if (!Number.isInteger(month) || month < 1 || month > 12) {
+      return { error: "That's not a valid month" };
+    }
+    if (!Number.isInteger(day) || day < 1 || day > DAYS_IN_MONTH[month - 1]) {
+      return { error: "That's not a valid day for that month" };
+    }
+  }
+
+  const { data, error } = await supabase
+    .from("members")
+    .update({ birthday_month: month, birthday_day: day })
+    .eq("id", effectiveIdentity.memberId)
+    .select("id")
+    .single();
+
+  if (error || !data) return { error: error?.message ?? "Couldn't update your birthday" };
+
+  revalidatePath("/settings");
   return { success: true };
 }
 

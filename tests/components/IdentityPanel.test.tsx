@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { IdentityPanel } from '@/app/(member)/settings/IdentityPanel'
 import * as identityActions from '@/app/(member)/settings/identityActions'
@@ -8,6 +8,7 @@ import * as identityActions from '@/app/(member)/settings/identityActions'
 vi.mock('@/app/(member)/settings/identityActions', () => ({
   getIdentitySettings: vi.fn(),
   updateRealName: vi.fn(),
+  updateBirthday: vi.fn(),
   addNameAlias: vi.fn(),
   setNameAliasActive: vi.fn(),
   addEmailAlias: vi.fn(),
@@ -17,6 +18,8 @@ vi.mock('@/app/(member)/settings/identityActions', () => ({
 const baseSettings = {
   realName: 'Ada Lovelace',
   primaryEmail: 'ada@example.com',
+  birthdayMonth: null,
+  birthdayDay: null,
   nameAliases: [],
   emailAliases: [],
   hasAttendanceHistory: false,
@@ -45,7 +48,8 @@ describe('IdentityPanel', () => {
     const input = screen.getByDisplayValue('Ada Lovelace')
     await userEvent.clear(input)
     await userEvent.type(input, 'Ada King')
-    await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+    const form = input.closest('form') as HTMLFormElement
+    await userEvent.click(within(form).getByRole('button', { name: 'Save' }))
 
     await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Name updated.'))
   })

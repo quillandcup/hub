@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, FormEvent } from "react";
 import {
   getIdentitySettings,
   updateRealName,
+  updateBirthday,
   addNameAlias,
   setNameAliasActive,
   addEmailAlias,
@@ -12,6 +13,12 @@ import {
   type NameAliasRow,
   type EmailAliasRow,
 } from "./identityActions";
+
+const MONTHS = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+const DAYS_IN_MONTH = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
 
 function sourceLabel(source: string): string {
   switch (source) {
@@ -77,6 +84,9 @@ export function IdentityPanel() {
 
   const [nameInput, setNameInput] = useState("");
   const [savingName, setSavingName] = useState(false);
+  const [birthdayMonth, setBirthdayMonth] = useState<string>("");
+  const [birthdayDay, setBirthdayDay] = useState<string>("");
+  const [savingBirthday, setSavingBirthday] = useState(false);
   const [nameAliasInput, setNameAliasInput] = useState("");
   const [addingNameAlias, setAddingNameAlias] = useState(false);
   const [emailAliasInput, setEmailAliasInput] = useState("");
@@ -93,6 +103,8 @@ export function IdentityPanel() {
     } else {
       setData(result);
       setNameInput(result.realName);
+      setBirthdayMonth(result.birthdayMonth ? String(result.birthdayMonth) : "");
+      setBirthdayDay(result.birthdayDay ? String(result.birthdayDay) : "");
     }
     setLoading(false);
   }, []);
@@ -115,6 +127,23 @@ export function IdentityPanel() {
       await load();
     }
     setSavingName(false);
+  }
+
+  async function handleSaveBirthday(e: FormEvent) {
+    e.preventDefault();
+    setSavingBirthday(true);
+    setError(null);
+    setMessage(null);
+    const month = birthdayMonth ? Number(birthdayMonth) : null;
+    const day = birthdayDay ? Number(birthdayDay) : null;
+    const result = await updateBirthday(month, day);
+    if ("error" in result) {
+      setError(result.error);
+    } else {
+      setMessage("Birthday updated.");
+      await load();
+    }
+    setSavingBirthday(false);
   }
 
   async function handleAddNameAlias(e: FormEvent) {
@@ -233,6 +262,59 @@ export function IdentityPanel() {
             className="px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {savingName ? "Saving…" : "Save"}
+          </button>
+        </form>
+      </div>
+
+      {/* Birthday */}
+      <div>
+        <h3 className="text-sm font-medium text-slate-900 dark:text-slate-100 mb-1">Birthday</h3>
+        <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">
+          Month and day only — no year needed. Used to celebrate your hedgie birthday with you.
+        </p>
+        <form onSubmit={handleSaveBirthday} className="flex gap-2 max-w-md">
+          <select
+            value={birthdayMonth}
+            onChange={(e) => {
+              setBirthdayMonth(e.target.value);
+              setBirthdayDay("");
+            }}
+            className="px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-sm"
+          >
+            <option value="">Month</option>
+            {MONTHS.map((label, i) => (
+              <option key={label} value={i + 1}>
+                {label}
+              </option>
+            ))}
+          </select>
+          <select
+            value={birthdayDay}
+            onChange={(e) => setBirthdayDay(e.target.value)}
+            disabled={!birthdayMonth}
+            className="px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-sm disabled:opacity-50"
+          >
+            <option value="">Day</option>
+            {Array.from(
+              { length: birthdayMonth ? DAYS_IN_MONTH[Number(birthdayMonth) - 1] : 31 },
+              (_, i) => i + 1
+            ).map((d) => (
+              <option key={d} value={d}>
+                {d}
+              </option>
+            ))}
+          </select>
+          <button
+            type="submit"
+            disabled={
+              savingBirthday ||
+              (!!birthdayMonth !== !!birthdayDay) ||
+              (Number(birthdayMonth) === (data.birthdayMonth ?? 0) &&
+                Number(birthdayDay) === (data.birthdayDay ?? 0))
+            }
+            className="px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {savingBirthday ? "Saving…" : "Save"}
           </button>
         </form>
       </div>
