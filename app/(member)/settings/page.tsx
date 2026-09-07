@@ -8,6 +8,7 @@ import { IdentityPanel } from "./IdentityPanel";
 import { getUserFeaturePreviews } from "@/lib/features.server";
 import { getHostedVibes } from "@/app/(member)/prickle-picker/actions";
 import HostVibePanel from "@/components/HostVibePanel";
+import { SettingsTabs } from "./SettingsTabs";
 
 export const metadata: Metadata = {
   title: "Settings",
@@ -55,47 +56,46 @@ export default async function SettingsPage() {
 
       <main className="container mx-auto px-6 py-8">
         <div className="bg-white dark:bg-slate-900 shadow rounded-lg p-6">
-          <div className="space-y-6">
-            <div>
-              <h2 className="text-lg font-medium text-slate-900 dark:text-slate-100 mb-4">
-                Account Information
-              </h2>
-              <div className="space-y-4">
+          <SettingsTabs
+            accountContent={
+              <div className="space-y-6">
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                    Email
-                  </label>
-                  <p className="text-sm text-slate-900 dark:text-slate-100 bg-slate-50 dark:bg-slate-800 px-3 py-2 rounded-md">
-                    {displayEmail}
-                  </p>
+                  <h2 className="text-lg font-medium text-slate-900 dark:text-slate-100 mb-4">
+                    Account Information
+                  </h2>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                        Email
+                      </label>
+                      <p className="text-sm text-slate-900 dark:text-slate-100 bg-slate-50 dark:bg-slate-800 px-3 py-2 rounded-md">
+                        {displayEmail}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="border-t border-slate-200 dark:border-slate-700 pt-6">
+                  <h2 className="text-lg font-medium text-slate-900 dark:text-slate-100 mb-4">
+                    Identity
+                  </h2>
+                  <IdentityPanel />
+                </div>
+
+                <div className="border-t border-slate-200 dark:border-slate-700 pt-6">
+                  <SessionsPanel />
                 </div>
               </div>
-            </div>
-
-            <div className="border-t border-slate-200 dark:border-slate-700 pt-6">
-              <h2 className="text-lg font-medium text-slate-900 dark:text-slate-100 mb-4">
-                Identity
-              </h2>
-              <IdentityPanel />
-            </div>
-
-            <div className="border-t border-slate-200 dark:border-slate-700 pt-6">
-              <h2 className="text-lg font-medium text-slate-900 dark:text-slate-100 mb-4">
-                Preferences
-              </h2>
+            }
+            preferencesContent={
               <div className="space-y-6">
                 <ThemeSwitcher />
 
                 <TimezoneSwitcher initialTimezone={timezonePreference} />
               </div>
-            </div>
-
-            <div className="border-t border-slate-200 dark:border-slate-700 pt-6">
-              <SessionsPanel />
-            </div>
-
-            <HostVibePanel hostedVibes={hostedVibes} />
-          </div>
+            }
+            hostingContent={hostedVibes.length > 0 ? <HostVibePanel hostedVibes={hostedVibes} /> : null}
+          />
         </div>
       </main>
     </div>
