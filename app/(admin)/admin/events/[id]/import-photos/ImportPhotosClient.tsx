@@ -70,6 +70,14 @@ export default function ImportPhotosClient({ eventId, pickerUri }: { eventId: st
             Open Google Photos, navigate to this event&apos;s album, and select the photos to import (or select all).
             Come back to this tab once you&apos;re done — it&apos;ll pick up automatically.
           </p>
+          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
+            <p className="text-sm text-blue-800 dark:text-blue-200">
+              Trying to select from a Shared Album? Make sure you&apos;ve joined the album and
+              added at least one photo to it in Google Photos so it becomes searchable — otherwise
+              searching for the album won&apos;t return anything, even for an exact match on an
+              album that&apos;s been shared with you.
+            </p>
+          </div>
           <a
             href={`${pickerUri}/autoclose`}
             target="_blank"
