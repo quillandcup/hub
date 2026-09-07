@@ -19,13 +19,14 @@ export default async function EditBadgePage({ params }: { params: Promise<{ id: 
   const { id } = await params;
   const supabase = await createClient();
 
-  const [{ data: badgeType }, { data: levels }, { count: awardCount }, { data: allEvents }, { data: linkedBadges }] =
+  const [{ data: badgeType }, { data: levels }, { count: awardCount }, { data: allEvents }, { data: linkedBadges }, { data: programs }] =
     await Promise.all([
       supabase.from("badge_types").select("*").eq("id", id).single(),
       supabase.from("badge_levels").select("*").eq("badge_type_id", id).order("level"),
       supabase.from("member_badges").select("id", { count: "exact", head: true }).eq("badge_type_id", id),
       supabase.from("events").select("id, title, starts_at").order("starts_at", { ascending: false }),
       supabase.from("badge_types").select("event_id").not("event_id", "is", null).neq("id", id),
+      supabase.from("programs").select("id, name").order("name"),
     ]);
 
   if (!badgeType) notFound();
@@ -55,6 +56,7 @@ export default async function EditBadgePage({ params }: { params: Promise<{ id: 
             isAutomatic={badgeType.is_automatic}
             awardCount={awardCount ?? 0}
             events={events}
+            programs={programs ?? []}
             initial={{
               name: badgeType.name,
               description: badgeType.description ?? "",
@@ -67,6 +69,7 @@ export default async function EditBadgePage({ params }: { params: Promise<{ id: 
                 threshold: l.threshold != null ? String(l.threshold) : "",
               })),
               eventId: badgeType.event_id,
+              programId: badgeType.program_id,
             }}
           />
         </div>

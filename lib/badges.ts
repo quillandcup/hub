@@ -10,6 +10,7 @@ export interface BadgeType {
   category: string;
   has_levels: boolean;
   is_automatic: boolean;
+  program_id: string | null;
 }
 
 export interface BadgeLevel {
@@ -42,6 +43,16 @@ export interface AutomaticBadgeMetrics {
   firstJoinedAt: string | null;
   hostedQuarterCount: number;
   publishedBookCount: number;
+  /** Programs this member has completed, keyed by program_id -- see getProgramCompletions. */
+  programCompletions: Map<string, ProgramCompletion>;
+}
+
+/** One member's completion history for a single program: how many enrolled cohorts have ended,
+ * and the earliest/latest of those end dates. */
+export interface ProgramCompletion {
+  occurrences: number;
+  firstCompletedAt: string;
+  lastCompletedAt: string;
 }
 
 /** The highest level whose threshold is met by `occurrences`, or null if none is met yet
@@ -94,6 +105,51 @@ function pushAutomaticLeveled(
   });
 }
 
+/** Adds one occurrence to a running ProgramCompletion map (either "programId -> completion" for
+ * one member, or "memberId -> completion" for one program in bulk) -- generic over what the key
+ * represents. */
+function mergeCompletion(completions: Map<string, ProgramCompletion>, key: string, expiresAt: string) {
+  const existing = completions.get(key);
+  if (existing) {
+    existing.occurrences += 1;
+    if (expiresAt < existing.firstCompletedAt) existing.firstCompletedAt = expiresAt;
+    if (expiresAt > existing.lastCompletedAt) existing.lastCompletedAt = expiresAt;
+  } else {
+    completions.set(key, { occurrences: 1, firstCompletedAt: expiresAt, lastCompletedAt: expiresAt });
+  }
+}
+
+/** Merges a program's computed cohort-completion count with any legacy manually-awarded
+ * member_badges rows for the same badge type (pre-dating program/cohort tracking), so switching
+ * program_180/self_editing_academy to computed badges doesn't drop history for members awarded
+ * before enrollment tracking existed. */
+function pushProgramCompletion(
+  earned: EarnedBadge[],
+  badgeType: BadgeType,
+  levels: BadgeLevel[],
+  completion: ProgramCompletion | undefined,
+  legacyAwards: { occurred_at: string; note: string | null }[]
+) {
+  const dates = [
+    ...(completion ? [completion.firstCompletedAt, completion.lastCompletedAt] : []),
+    ...legacyAwards.map((a) => a.occurred_at),
+  ];
+  if (dates.length === 0) return;
+  dates.sort();
+
+  const occurrences = (completion?.occurrences ?? 0) + legacyAwards.length;
+  const level = badgeType.has_levels ? deriveLevel(levels, occurrences) : null;
+  earned.push({
+    badgeType,
+    levelName: level?.name ?? badgeType.name,
+    level: level?.level ?? null,
+    occurrences,
+    firstAwardedAt: dates[0],
+    lastAwardedAt: dates[dates.length - 1],
+    note: legacyAwards[legacyAwards.length - 1]?.note ?? null,
+  });
+}
+
 /**
  * Merges manually-awarded badges (member_badges rows) with the automatically-computed ones
  * (prickle milestones, Founding Hedgie, Hostess, Published Author) into one earned-badges list,
@@ -116,6 +172,7 @@ export function computeEarnedBadges(
 
   for (const badgeType of badgeTypes) {
     const levels = levelsByBadgeType.get(badgeType.id) ?? [];
+    const typeAwards = awardsByType.get(badgeType.id) ?? [];
 
     if (badgeType.is_automatic) {
       switch (badgeType.key) {
@@ -141,12 +198,21 @@ export function computeEarnedBadges(
             });
           }
           break;
+        default:
+          if (badgeType.program_id) {
+            pushProgramCompletion(
+              earned,
+              badgeType,
+              levels,
+              metrics.programCompletions.get(badgeType.program_id),
+              typeAwards
+            );
+          }
       }
       continue;
     }
 
-    const typeAwards = awardsByType.get(badgeType.id);
-    if (!typeAwards || typeAwards.length === 0) continue;
+    if (typeAwards.length === 0) continue;
 
     const occurrences = typeAwards.length;
     const sorted = [...typeAwards].sort((a, b) => a.occurred_at.localeCompare(b.occurred_at));
@@ -243,6 +309,9 @@ export interface BulkAutomaticMetrics {
   attendedPrickleCountsByMember: Map<string, number>;
   hostedQuarterCountsByMember: Map<string, number>;
   publishedBookCountsByMember: Map<string, number>;
+  /** Program completions, keyed by program_id then member_id -- bulk counterpart to
+   * AutomaticBadgeMetrics.programCompletions, see getProgramCompletionsByProgram. */
+  programCompletionsByProgramId: Map<string, Map<string, ProgramCompletion>>;
 }
 
 function pushLeveledRecipient(
@@ -318,6 +387,42 @@ export function computeBadgeRecipients(
           });
         }
         break;
+      default:
+        if (badgeType.program_id) {
+          // `awards` here is already scoped to this one badge type (see getBadgeRecipients),
+          // so it's exactly the legacy manual awards to merge with computed completions.
+          const completionsByMember =
+            metrics.programCompletionsByProgramId.get(badgeType.program_id) ?? new Map<string, ProgramCompletion>();
+          const legacyByMember = new Map<string, { occurred_at: string; note: string | null }[]>();
+          for (const award of awards) {
+            const list = legacyByMember.get(award.member_id) ?? [];
+            list.push({ occurred_at: award.occurred_at, note: award.note });
+            legacyByMember.set(award.member_id, list);
+          }
+          for (const memberId of new Set([...completionsByMember.keys(), ...legacyByMember.keys()])) {
+            const member = membersById.get(memberId);
+            if (!member) continue;
+            const completion = completionsByMember.get(memberId);
+            const legacy = legacyByMember.get(memberId) ?? [];
+            const dates = [
+              ...(completion ? [completion.firstCompletedAt, completion.lastCompletedAt] : []),
+              ...legacy.map((a) => a.occurred_at),
+            ].sort();
+            const occurrences = (completion?.occurrences ?? 0) + legacy.length;
+            const level = badgeType.has_levels ? deriveLevel(levels, occurrences) : null;
+            recipients.push({
+              memberId,
+              memberName: member.name,
+              memberEmail: member.email,
+              levelName: level?.name ?? badgeType.name,
+              level: level?.level ?? null,
+              occurrences,
+              firstAwardedAt: dates[0],
+              lastAwardedAt: dates[dates.length - 1],
+              note: legacy[legacy.length - 1]?.note ?? null,
+            });
+          }
+        }
     }
   } else {
     const awardsByMember = new Map<string, { occurred_at: string; note: string | null }[]>();
@@ -474,6 +579,65 @@ async function getAttendedPrickleCountsByMember(
   return countsByMember;
 }
 
+interface EnrollmentCohortRow {
+  program_cohorts: { program_id: string; expires_at: string } | null;
+}
+
+/** Programs `memberId` has completed -- one entry per program_id with at least one enrolled
+ * cohort whose expires_at has passed. A member can complete a program more than once (e.g. a
+ * repeat 180 alumna enrolling in a later cohort), tracked as multiple occurrences. Enrollment
+ * rows per member are few, so this doesn't need CLAUDE.md's pagination loop. */
+export async function getProgramCompletions(
+  supabase: SupabaseClient,
+  memberId: string
+): Promise<Map<string, ProgramCompletion>> {
+  const { data } = await supabase
+    .from("member_program_enrollments")
+    .select("program_cohorts(program_id, expires_at)")
+    .eq("member_id", memberId);
+
+  const today = new Date().toISOString().slice(0, 10);
+  const completions = new Map<string, ProgramCompletion>();
+  for (const row of (data ?? []) as unknown as EnrollmentCohortRow[]) {
+    const cohort = row.program_cohorts;
+    if (!cohort || cohort.expires_at > today) continue;
+    mergeCompletion(completions, cohort.program_id, cohort.expires_at);
+  }
+  return completions;
+}
+
+/** Bulk counterpart to getProgramCompletions -- one paginated scan across every member's
+ * enrollments instead of N single-member queries, keyed by program_id then member_id. */
+async function getProgramCompletionsByProgram(
+  supabase: SupabaseClient
+): Promise<Map<string, Map<string, ProgramCompletion>>> {
+  const today = new Date().toISOString().slice(0, 10);
+  const byProgram = new Map<string, Map<string, ProgramCompletion>>();
+  const BATCH_SIZE = 1000;
+  let offset = 0;
+  let hasMore = true;
+  while (hasMore) {
+    const { data: batch } = await supabase
+      .from("member_program_enrollments")
+      .select("member_id, program_cohorts(program_id, expires_at)")
+      .range(offset, offset + BATCH_SIZE - 1);
+    if (batch && batch.length > 0) {
+      for (const row of batch as unknown as (EnrollmentCohortRow & { member_id: string })[]) {
+        const cohort = row.program_cohorts;
+        if (!cohort || cohort.expires_at > today) continue;
+        const byMember = byProgram.get(cohort.program_id) ?? new Map<string, ProgramCompletion>();
+        mergeCompletion(byMember, row.member_id, cohort.expires_at);
+        byProgram.set(cohort.program_id, byMember);
+      }
+      offset += batch.length;
+      hasMore = batch.length === BATCH_SIZE;
+    } else {
+      hasMore = false;
+    }
+  }
+  return byProgram;
+}
+
 /**
  * Every member who has earned a given badge type, across all members -- the reverse of
  * getMemberBadges (which computes one member's badges). Fetches all members plus, depending on
@@ -504,13 +668,22 @@ export async function getBadgeRecipients(
       levels,
       members,
       (awards ?? []) as { member_id: string; occurred_at: string; note: string | null }[],
-      { attendedPrickleCountsByMember: new Map(), hostedQuarterCountsByMember: new Map(), publishedBookCountsByMember: new Map() }
+      {
+        attendedPrickleCountsByMember: new Map(),
+        hostedQuarterCountsByMember: new Map(),
+        publishedBookCountsByMember: new Map(),
+        programCompletionsByProgramId: new Map(),
+      }
     );
   }
 
   let attendedPrickleCountsByMember = new Map<string, number>();
   let hostedQuarterCountsByMember = new Map<string, number>();
   let publishedBookCountsByMember = new Map<string, number>();
+  let programCompletionsByProgramId = new Map<string, Map<string, ProgramCompletion>>();
+  // Legacy manual awards for a program-linked badge (pre-dating enrollment tracking), scoped to
+  // this one badge type -- computeBadgeRecipients merges these with computed completions.
+  let legacyAwards: { member_id: string; occurred_at: string; note: string | null }[] = [];
   switch (badgeType.key) {
     case "prickle_milestones":
       attendedPrickleCountsByMember = await getAttendedPrickleCountsByMember(supabase);
@@ -522,12 +695,22 @@ export async function getBadgeRecipients(
       publishedBookCountsByMember = await getPublishedBookCountsByMember(supabase);
       break;
     // founding_hedgie needs no query -- it's a pure function of members.firstJoinedAt.
+    default:
+      if (badgeType.program_id) {
+        programCompletionsByProgramId = await getProgramCompletionsByProgram(supabase);
+        const { data: awards } = await supabase
+          .from("member_badges")
+          .select("member_id, occurred_at, note")
+          .eq("badge_type_id", badgeType.id);
+        legacyAwards = (awards ?? []) as typeof legacyAwards;
+      }
   }
 
-  return computeBadgeRecipients(badgeType, levels, members, [], {
+  return computeBadgeRecipients(badgeType, levels, members, legacyAwards, {
     attendedPrickleCountsByMember,
     hostedQuarterCountsByMember,
     publishedBookCountsByMember,
+    programCompletionsByProgramId,
   });
 }
 
@@ -540,7 +723,7 @@ export async function getMemberBadges(
   totalPricklesAttended: number,
   firstJoinedAt: string | null
 ): Promise<EarnedBadge[]> {
-  const [{ data: badgeTypes }, { data: levels }, { data: awards }, hostedQuarterCount, publishedBookCount] =
+  const [{ data: badgeTypes }, { data: levels }, { data: awards }, hostedQuarterCount, publishedBookCount, programCompletions] =
     await Promise.all([
       supabase.from("badge_types").select("*").order("category").order("name"),
       supabase.from("badge_levels").select("*").order("level"),
@@ -550,6 +733,7 @@ export async function getMemberBadges(
         .eq("member_id", memberId),
       getHostedQuarterCount(supabase, memberId),
       getPublishedBookCount(supabase, memberId),
+      getProgramCompletions(supabase, memberId),
     ]);
 
   const levelsByBadgeType = new Map<string, BadgeLevel[]>();
@@ -563,6 +747,6 @@ export async function getMemberBadges(
     (badgeTypes ?? []) as BadgeType[],
     levelsByBadgeType,
     (awards ?? []) as { badge_type_id: string; occurred_at: string; note: string | null }[],
-    { totalPricklesAttended, firstJoinedAt, hostedQuarterCount, publishedBookCount }
+    { totalPricklesAttended, firstJoinedAt, hostedQuarterCount, publishedBookCount, programCompletions }
   );
 }

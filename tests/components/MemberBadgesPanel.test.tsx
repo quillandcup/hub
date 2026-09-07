@@ -20,6 +20,7 @@ const hostessBadge: EarnedBadge = {
     category: "community",
     has_levels: true,
     is_automatic: false,
+    program_id: null,
   },
   levelName: "Hostess",
   level: 1,

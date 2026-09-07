@@ -32,6 +32,10 @@ export default async function BadgeRecipientsPage({ params }: { params: Promise<
     ? await supabase.from("events").select("id, title").eq("id", badgeType.event_id).single()
     : { data: null };
 
+  const { data: linkedProgram } = badgeType.program_id
+    ? await supabase.from("programs").select("id, name").eq("id", badgeType.program_id).single()
+    : { data: null };
+
   const recipients = await getBadgeRecipients(
     supabase,
     badgeType as BadgeType,
@@ -64,8 +68,19 @@ export default async function BadgeRecipientsPage({ params }: { params: Promise<
             <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
               {recipients.length} {recipients.length === 1 ? "recipient" : "recipients"}
             </h2>
-            {badgeType.is_automatic && (
+            {badgeType.is_automatic && !linkedProgram && (
               <span className="text-xs text-slate-400 dark:text-slate-500">Computed automatically</span>
+            )}
+            {linkedProgram && (
+              <span className="text-xs text-slate-400 dark:text-slate-500">
+                Granted when a cohort ends —{" "}
+                <Link
+                  href={`/admin/programs/${linkedProgram.id}`}
+                  className="text-blue-600 dark:text-blue-400 hover:underline"
+                >
+                  manage {linkedProgram.name} cohorts
+                </Link>
+              </span>
             )}
             {linkedEvent && (
               <span className="text-xs text-slate-400 dark:text-slate-500">

@@ -23,6 +23,7 @@ const NO_METRICS: AutomaticBadgeMetrics = {
   firstJoinedAt: null,
   hostedQuarterCount: 0,
   publishedBookCount: 0,
+  programCompletions: new Map(),
 };
 
 describe("deriveLevel", () => {
@@ -86,6 +87,7 @@ describe("computeEarnedBadges", () => {
     category: "milestone",
     has_levels: true,
     is_automatic: true,
+    program_id: null,
   };
   const foundingHedgie: BadgeType = {
     id: "bt-founding",
@@ -96,6 +98,7 @@ describe("computeEarnedBadges", () => {
     category: "special",
     has_levels: false,
     is_automatic: true,
+    program_id: null,
   };
   const hostess: BadgeType = {
     id: "bt-hostess",
@@ -106,6 +109,7 @@ describe("computeEarnedBadges", () => {
     category: "community",
     has_levels: true,
     is_automatic: true,
+    program_id: null,
   };
   const publishedAuthor: BadgeType = {
     id: "bt-author",
@@ -116,6 +120,7 @@ describe("computeEarnedBadges", () => {
     category: "community",
     has_levels: true,
     is_automatic: true,
+    program_id: null,
   };
   const hedgieMentor: BadgeType = {
     id: "bt-mentor",
@@ -126,6 +131,7 @@ describe("computeEarnedBadges", () => {
     category: "community",
     has_levels: true,
     is_automatic: false,
+    program_id: null,
   };
   const retreat: BadgeType = {
     id: "bt-retreat",
@@ -136,6 +142,7 @@ describe("computeEarnedBadges", () => {
     category: "retreat",
     has_levels: false,
     is_automatic: false,
+    program_id: null,
   };
 
   const milestoneLevels: BadgeLevel[] = [
@@ -253,6 +260,67 @@ describe("computeEarnedBadges", () => {
     const earned = computeEarnedBadges([hedgieMentor, retreat], levelsByBadgeType, [], NO_METRICS);
     expect(earned).toHaveLength(0);
   });
+
+  describe("program-linked badges", () => {
+    const programBadge: BadgeType = {
+      id: "bt-180",
+      key: "program_180",
+      name: "180 Program",
+      description: null,
+      icon: "🎓",
+      category: "course",
+      has_levels: false,
+      is_automatic: true,
+      program_id: "prog-180",
+    };
+
+    it("is earned once a linked program's cohort has been completed", () => {
+      const earned = computeEarnedBadges([programBadge], levelsByBadgeType, [], {
+        ...NO_METRICS,
+        programCompletions: new Map([
+          ["prog-180", { occurrences: 1, firstCompletedAt: "2025-06-01", lastCompletedAt: "2025-06-01" }],
+        ]),
+      });
+      expect(earned).toHaveLength(1);
+      expect(earned[0].occurrences).toBe(1);
+      expect(earned[0].firstAwardedAt).toBe("2025-06-01");
+    });
+
+    it("is not earned when enrolled but the cohort hasn't completed yet", () => {
+      const earned = computeEarnedBadges([programBadge], levelsByBadgeType, [], NO_METRICS);
+      expect(earned).toHaveLength(0);
+    });
+
+    it("merges a legacy manually-awarded row with a computed completion instead of dropping it", () => {
+      const earned = computeEarnedBadges(
+        [programBadge],
+        levelsByBadgeType,
+        [{ badge_type_id: "bt-180", occurred_at: "2023-01-01", note: "awarded before cohort tracking existed" }],
+        {
+          ...NO_METRICS,
+          programCompletions: new Map([
+            ["prog-180", { occurrences: 1, firstCompletedAt: "2025-06-01", lastCompletedAt: "2025-06-01" }],
+          ]),
+        }
+      );
+      expect(earned).toHaveLength(1);
+      expect(earned[0].occurrences).toBe(2);
+      expect(earned[0].firstAwardedAt).toBe("2023-01-01");
+      expect(earned[0].lastAwardedAt).toBe("2025-06-01");
+    });
+
+    it("shows a legacy manual award even with no matching computed completion", () => {
+      const earned = computeEarnedBadges(
+        [programBadge],
+        levelsByBadgeType,
+        [{ badge_type_id: "bt-180", occurred_at: "2023-01-01", note: null }],
+        NO_METRICS
+      );
+      expect(earned).toHaveLength(1);
+      expect(earned[0].occurrences).toBe(1);
+      expect(earned[0].firstAwardedAt).toBe("2023-01-01");
+    });
+  });
 });
 
 describe("computeBadgeRecipients", () => {
@@ -265,6 +333,7 @@ describe("computeBadgeRecipients", () => {
     category: "milestone",
     has_levels: true,
     is_automatic: true,
+    program_id: null,
   };
   const foundingHedgie: BadgeType = {
     id: "bt-founding",
@@ -275,6 +344,7 @@ describe("computeBadgeRecipients", () => {
     category: "special",
     has_levels: false,
     is_automatic: true,
+    program_id: null,
   };
   const hostess: BadgeType = {
     id: "bt-hostess",
@@ -285,6 +355,7 @@ describe("computeBadgeRecipients", () => {
     category: "community",
     has_levels: true,
     is_automatic: true,
+    program_id: null,
   };
   const hedgieMentor: BadgeType = {
     id: "bt-mentor",
@@ -295,6 +366,7 @@ describe("computeBadgeRecipients", () => {
     category: "community",
     has_levels: true,
     is_automatic: false,
+    program_id: null,
   };
 
   const milestoneLevels: BadgeLevel[] = [
@@ -320,6 +392,7 @@ describe("computeBadgeRecipients", () => {
     attendedPrickleCountsByMember: new Map(),
     hostedQuarterCountsByMember: new Map(),
     publishedBookCountsByMember: new Map(),
+    programCompletionsByProgramId: new Map(),
   };
 
   it("lists every member who meets an automatic milestone threshold, sorted by name", () => {
@@ -380,5 +453,54 @@ describe("computeBadgeRecipients", () => {
   it("returns no recipients for a manual badge type with no awards", () => {
     const recipients = computeBadgeRecipients(hedgieMentor, mentorLevels, members, [], NO_BULK_METRICS);
     expect(recipients).toHaveLength(0);
+  });
+
+  describe("program-linked badges", () => {
+    const programBadge: BadgeType = {
+      id: "bt-180",
+      key: "program_180",
+      name: "180 Program",
+      description: null,
+      icon: "🎓",
+      category: "course",
+      has_levels: false,
+      is_automatic: true,
+      program_id: "prog-180",
+    };
+
+    it("lists members with a completed cohort in the linked program", () => {
+      const recipients = computeBadgeRecipients(programBadge, [], members, [], {
+        ...NO_BULK_METRICS,
+        programCompletionsByProgramId: new Map([
+          [
+            "prog-180",
+            new Map([["mem-alice", { occurrences: 1, firstCompletedAt: "2025-06-01", lastCompletedAt: "2025-06-01" }]]),
+          ],
+        ]),
+      });
+      expect(recipients.map((r) => r.memberName)).toEqual(["Alice"]);
+      expect(recipients[0].firstAwardedAt).toBe("2025-06-01");
+    });
+
+    it("merges a legacy manual award with a computed completion for the same member", () => {
+      const recipients = computeBadgeRecipients(
+        programBadge,
+        [],
+        members,
+        [{ member_id: "mem-alice", occurred_at: "2023-01-01", note: null }],
+        {
+          ...NO_BULK_METRICS,
+          programCompletionsByProgramId: new Map([
+            [
+              "prog-180",
+              new Map([["mem-alice", { occurrences: 1, firstCompletedAt: "2025-06-01", lastCompletedAt: "2025-06-01" }]]),
+            ],
+          ]),
+        }
+      );
+      expect(recipients).toHaveLength(1);
+      expect(recipients[0].occurrences).toBe(2);
+      expect(recipients[0].firstAwardedAt).toBe("2023-01-01");
+    });
   });
 });

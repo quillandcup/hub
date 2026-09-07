@@ -6,8 +6,9 @@ const VALID_CATEGORIES = ["milestone", "community", "course", "retreat", "specia
 // Replaces name/description/icon/category and the full set of levels for a badge type.
 // Levels are DELETE + INSERT (not diffed) -- same "reconcile in full" shape as the codebase's
 // other DELETE+INSERT layers, and simple to reason about for what's a low-traffic admin form.
-// is_automatic is never touched here: it's set only at seed time (the badge's computation lives
-// in lib/badges.ts, not in data), so this route has no way to turn a manual badge type automatic.
+// is_automatic is otherwise seed-time only (the badge's computation lives in lib/badges.ts, not
+// in data) -- the one exception is program_id, which drives is_automatic directly: linking a
+// program makes the badge computed, unlinking reverts it to a plain manual badge.
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const auth = await requireAdmin(request);
   if (!auth.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -16,7 +17,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
   try {
     const { id } = await params;
-    const { name, description, icon, category, hasLevels, levels, eventId } = await request.json();
+    const { name, description, icon, category, hasLevels, levels, eventId, programId } = await request.json();
 
     if (!name || !name.trim()) {
       return NextResponse.json({ error: "Name is required" }, { status: 400 });
@@ -34,6 +35,13 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       );
     }
 
+    const { data: current } = await supabase.from("badge_types").select("program_id").eq("id", id).single();
+    // Only touch is_automatic when program_id is actually changing -- leave it alone for
+    // badges whose automation is code-driven (founding_hedgie, prickle_milestones, ...) and
+    // that never had a program_id to begin with.
+    const isAutomaticPatch =
+      programId ? { is_automatic: true } : current?.program_id ? { is_automatic: false } : {};
+
     const { data: badgeType, error: updateError } = await supabase
       .from("badge_types")
       .update({
@@ -43,6 +51,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         category: category ?? "community",
         has_levels: !!hasLevels,
         event_id: eventId || null,
+        program_id: programId || null,
+        ...isAutomaticPatch,
         updated_at: new Date().toISOString(),
       })
       .eq("id", id)

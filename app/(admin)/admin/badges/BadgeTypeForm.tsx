@@ -31,6 +31,11 @@ interface EventOption {
   starts_at: string;
 }
 
+interface ProgramOption {
+  id: string;
+  name: string;
+}
+
 interface BadgeTypeFormProps {
   mode: "create" | "edit";
   badgeTypeId?: string;
@@ -39,6 +44,9 @@ interface BadgeTypeFormProps {
   /** Events not already linked to a different badge, plus this badge's own currently-linked
    * event (if any) so it still shows up as selected in edit mode. */
   events?: EventOption[];
+  /** All programs -- unlike events, a program isn't limited to one badge, so no exclusion
+   * filtering is needed here. */
+  programs?: ProgramOption[];
   initial?: {
     name: string;
     description: string;
@@ -47,6 +55,7 @@ interface BadgeTypeFormProps {
     hasLevels: boolean;
     levels: LevelInput[];
     eventId: string | null;
+    programId: string | null;
   };
 }
 
@@ -64,6 +73,7 @@ export default function BadgeTypeForm({
   isAutomatic,
   awardCount,
   events = [],
+  programs = [],
   initial,
 }: BadgeTypeFormProps) {
   const router = useRouter();
@@ -73,6 +83,7 @@ export default function BadgeTypeForm({
   const [category, setCategory] = useState<Category>(initial?.category ?? "community");
   const [hasLevels, setHasLevels] = useState(initial?.hasLevels ?? false);
   const [eventId, setEventId] = useState(initial?.eventId ?? "");
+  const [programId, setProgramId] = useState(initial?.programId ?? "");
   const [levels, setLevels] = useState<LevelState[]>(
     initial?.levels && initial.levels.length > 0
       ? initial.levels.map((l) => ({ ...l, key: makeKey() }))
@@ -146,6 +157,7 @@ export default function BadgeTypeForm({
             }))
           : [],
         eventId: eventId || null,
+        programId: programId || null,
       };
 
       const url = mode === "create" ? "/api/badge-types/create" : `/api/badge-types/${badgeTypeId}/update`;
@@ -242,7 +254,7 @@ export default function BadgeTypeForm({
           </select>
         </div>
 
-        {!isAutomatic && (
+        {!isAutomatic && !programId && (
           <div className="mb-6">
             <label className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2 block">
               Linked event (optional)
@@ -262,6 +274,30 @@ export default function BadgeTypeForm({
             <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
               When set, this badge is granted by attendance instead -- manual award/revoke is disabled, and
               adding/removing an attendee on the event page grants/revokes it automatically.
+            </p>
+          </div>
+        )}
+
+        {!eventId && (
+          <div className="mb-6">
+            <label className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2 block">
+              Linked program (optional)
+            </label>
+            <select
+              value={programId}
+              onChange={(e) => setProgramId(e.target.value)}
+              className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+            >
+              <option value="">None</option>
+              {programs.map((program) => (
+                <option key={program.id} value={program.id}>
+                  {program.name}
+                </option>
+              ))}
+            </select>
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+              When set, this badge is computed automatically -- manual award/revoke is disabled. A member
+              earns it once a cohort they&apos;re enrolled in (Admin → Programs) ends.
             </p>
           </div>
         )}

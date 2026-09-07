@@ -86,19 +86,11 @@ Some people who attend prickles have no Kajabi footprint at all (not a member, t
 **Lead & engagement tracking (future)**
 - Form submissions, opt-in reports, product progress — lower priority until core member/financial data is solid
 
-### Multi-Product Support & Badges (Needs Scoping)
-Beyond the core Quill & Cup membership, support these products/programs, each shown as a badge on the member's profile:
-- **The 180 Program** (drafting) — single badge, or milestone badges per phase?
-- **Self-Editing Academy** — single badge
-- **In-Person Retreats** — one badge *per retreat attended* (not just "has attended a retreat")
-- **Virtual Retreats** — one badge per retreat attended, same pattern as in-person
+### Multi-Product Support & Badges
 
-**Depends on:** the `kajabi_products` / `member_products` junction table already planned above — retreat badges specifically need per-instance data (which retreat, which date), so likely also need a `retreats` or `retreat_instances` table rather than just a product flag, since "180 Program" is a single ongoing product but "Retreat" has many distinct occurrences a member could attend more than once.
-
-**Needs scoping before implementation:**
-- Data source for retreat attendance (Kajabi tag per retreat? separate registration table? manual entry?)
-- Badge display: profile-only, or also on admin member list/detail?
-- Whether 180 Program / Self-Editing Academy get a single "enrolled" badge vs. a "completed" badge vs. both
+Beyond the core Quill & Cup membership, these products/programs each show as a badge on the member's profile:
+- **In-Person / Virtual Retreats** — one badge *per retreat attended*. **Resolved**: `badge_types.event_id` links a badge to an `events` row; `event_attendees` + `add_event_attendee`/`remove_event_attendee` (`20260905010000_link_badges_to_events_and_attendees.sql`) auto-grant/revoke the badge as an admin adds/removes attendees.
+- **180 Program** / **Self-Editing Academy** — completion badge, auto-derived from cohort tracking. **Resolved**: `badge_types.program_id` links a badge to a `programs` row (`20260906010000_link_badges_to_programs.sql`); `lib/badges.ts` computes it on the fly (same "Gold layer" pattern as Founding Hedgie/Prickle Milestones, not a stored/triggered award) as "a member is earned once an enrolled cohort's `expires_at` has passed" — i.e. an *enrolled* badge wasn't added, only *completed*. Any pre-existing manual awards for these two badges (from before cohort tracking existed) are merged in rather than dropped. Self-Editing Academy's internal level progression is still open — see the "Still open" bullet below.
 
 ### Schedule Import
 Import Prickles schedule from:

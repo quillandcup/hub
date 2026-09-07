@@ -10,7 +10,7 @@ export async function POST(request: NextRequest) {
   const { supabase } = auth;
 
   try {
-    const { name, description, icon, category, hasLevels, levels, eventId } = await request.json();
+    const { name, description, icon, category, hasLevels, levels, eventId, programId } = await request.json();
 
     if (!name || !name.trim()) {
       return NextResponse.json({ error: "Name is required" }, { status: 400 });
@@ -49,8 +49,11 @@ export async function POST(request: NextRequest) {
         icon: icon?.trim() || "🏅",
         category: category ?? "community",
         has_levels: !!hasLevels,
-        is_automatic: false,
+        // A program link makes the badge computed (lib/badges.ts), same as founding_hedgie /
+        // prickle_milestones -- there's no separate "enable automation" toggle, per design.
+        is_automatic: !!programId,
         event_id: eventId || null,
+        program_id: programId || null,
       })
       .select()
       .single();
