@@ -76,15 +76,13 @@ export default async function SettingsPage() {
                 </div>
 
                 <div className="border-t border-slate-200 dark:border-slate-700 pt-6">
-                  <h2 className="text-lg font-medium text-slate-900 dark:text-slate-100 mb-4">
-                    Identity
-                  </h2>
-                  <IdentityPanel />
-                </div>
-
-                <div className="border-t border-slate-200 dark:border-slate-700 pt-6">
                   <SessionsPanel />
                 </div>
+              </div>
+            }
+            identityContent={
+              <div className="space-y-6">
+                <IdentityPanel />
               </div>
             }
             preferencesContent={

@@ -2,14 +2,16 @@
 
 import { useState, type ReactNode } from "react";
 
-type TabId = "account" | "preferences" | "hosting";
+type TabId = "account" | "identity" | "preferences" | "hosting";
 
 export function SettingsTabs({
   accountContent,
+  identityContent,
   preferencesContent,
   hostingContent,
 }: {
   accountContent: ReactNode;
+  identityContent: ReactNode;
   preferencesContent: ReactNode;
   hostingContent: ReactNode | null;
 }) {
@@ -17,6 +19,7 @@ export function SettingsTabs({
 
   const tabs: { id: TabId; label: string }[] = [
     { id: "account", label: "Account" },
+    { id: "identity", label: "Identity" },
     { id: "preferences", label: "Preferences" },
     ...(hostingContent ? [{ id: "hosting" as const, label: "Hosting" }] : []),
   ];
@@ -43,6 +46,7 @@ export function SettingsTabs({
       </div>
 
       {activeTab === "account" && accountContent}
+      {activeTab === "identity" && identityContent}
       {activeTab === "preferences" && preferencesContent}
       {activeTab === "hosting" && hostingContent}
     </div>
