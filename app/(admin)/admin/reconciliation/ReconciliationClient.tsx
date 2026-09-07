@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import MemberOverrideForm from "@/components/MemberOverrideForm";
 
 interface ReconciliationSummary {
@@ -350,9 +350,10 @@ export default function ReconciliationClient() {
             ) : (
               filteredMembers.map((member) => {
                 const inSlack = memberSlackSet.has(member.member_id);
+                const isEditing = editingMemberId === member.member_id;
                 return (
+                  <Fragment key={member.member_id}>
                   <tr
-                    key={member.member_id}
                     className={`hover:bg-gray-50 dark:hover:bg-slate-800 ${
                       hasDiscrepancy(member) ? "bg-red-50 dark:bg-red-950/20" : ""
                     }`}
@@ -476,7 +477,7 @@ export default function ReconciliationClient() {
                             }
                             className="block mt-1 text-xs text-blue-600 dark:text-blue-400 hover:underline"
                           >
-                            {editingMemberId === member.member_id ? "Cancel" : "Explain"}
+                            {isEditing ? "Cancel" : "Add override"}
                           </button>
                         </div>
                       )}
@@ -491,39 +492,38 @@ export default function ReconciliationClient() {
                       )}
                     </td>
                   </tr>
+                  {isEditing && (
+                    <tr className="bg-blue-50/50 dark:bg-blue-950/10">
+                      <td colSpan={slackData ? 7 : 6} className="px-4 py-4">
+                        <div className="max-w-md">
+                          <MemberOverrideForm
+                            memberId={member.member_id}
+                            memberName={member.member_name}
+                            existing={
+                              member.override_id
+                                ? {
+                                    id: member.override_id,
+                                    override_type: member.override_type as "gift" | "special" | "direct_stripe",
+                                    reason: member.override_reason ?? "",
+                                    notes: member.override_notes,
+                                    starts_at: member.override_starts_at ?? new Date().toISOString(),
+                                    expires_at: member.override_expires_at,
+                                  }
+                                : null
+                            }
+                            suggestedType={suggestedOverride(member)?.type}
+                            suggestedReason={suggestedOverride(member)?.reason}
+                            onSaved={handleOverrideSaved}
+                            onCancel={() => setEditingMemberId(null)}
+                          />
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                  </Fragment>
                 );
               })
             )}
-            {filteredMembers
-              .filter((m) => m.member_id === editingMemberId)
-              .map((member) => (
-                <tr key={`${member.member_id}-form`} className="bg-blue-50/50 dark:bg-blue-950/10">
-                  <td colSpan={slackData ? 7 : 6} className="px-4 py-4">
-                    <div className="max-w-md">
-                      <MemberOverrideForm
-                        memberId={member.member_id}
-                        memberName={member.member_name}
-                        existing={
-                          member.override_id
-                            ? {
-                                id: member.override_id,
-                                override_type: member.override_type as "gift" | "special" | "direct_stripe",
-                                reason: member.override_reason ?? "",
-                                notes: member.override_notes,
-                                starts_at: member.override_starts_at ?? new Date().toISOString(),
-                                expires_at: member.override_expires_at,
-                              }
-                            : null
-                        }
-                        suggestedType={suggestedOverride(member)?.type}
-                        suggestedReason={suggestedOverride(member)?.reason}
-                        onSaved={handleOverrideSaved}
-                        onCancel={() => setEditingMemberId(null)}
-                      />
-                    </div>
-                  </td>
-                </tr>
-              ))}
           </tbody>
         </table>
       </div>
