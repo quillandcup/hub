@@ -20,7 +20,7 @@ export async function PATCH(
 
   const { id } = await params;
   const body = await request.json();
-  const { role, features, staffId } = body;
+  const { role, features, staffId, memberId } = body;
 
   const supabase = getServiceClient();
 
@@ -47,24 +47,23 @@ export async function PATCH(
     tasks.push(
       (async () => {
         // Clear any existing staff link for this user
-        await Promise.all([
-          supabase.from("staff").update({ user_id: null }).eq("user_id", id),
-          supabase.from("members").update({ user_id: null }).eq("user_id", id),
-        ]);
+        await supabase.from("staff").update({ user_id: null }).eq("user_id", id);
 
         if (staffId) {
-          const { data: staffRecord } = await supabase
-            .from("staff")
-            .select("email")
-            .eq("id", staffId)
-            .single();
+          await supabase.from("staff").update({ user_id: id }).eq("id", staffId);
+        }
+      })()
+    );
+  }
 
-          if (staffRecord) {
-            await Promise.all([
-              supabase.from("staff").update({ user_id: id }).eq("id", staffId),
-              supabase.from("members").update({ user_id: id }).eq("email", staffRecord.email),
-            ]);
-          }
+  if ("memberId" in body) {
+    tasks.push(
+      (async () => {
+        // Clear any existing member link for this user
+        await supabase.from("members").update({ user_id: null }).eq("user_id", id);
+
+        if (memberId) {
+          await supabase.from("members").update({ user_id: id }).eq("id", memberId);
         }
       })()
     );

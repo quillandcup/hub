@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { FEATURE_PREVIEWS } from "@/lib/features";
+import MemberSearch from "@/components/MemberSearch";
 
 type Role = "admin" | "assistant" | "member";
 type StaffRole = "owner" | "staff" | "contractor";
@@ -11,6 +12,13 @@ interface StaffRecord {
   name: string;
   email: string;
   role: StaffRole;
+  user_id: string | null;
+}
+
+interface MemberRecord {
+  id: string;
+  name: string;
+  email: string;
   user_id: string | null;
 }
 
@@ -87,6 +95,7 @@ const STAFF_ROLE_COLORS: Record<StaffRole, string> = {
 export default function UsersClient({ currentUserId }: { currentUserId: string }) {
   const [users, setUsers] = useState<AppUser[]>([]);
   const [allStaff, setAllStaff] = useState<StaffRecord[]>([]);
+  const [allMembers, setAllMembers] = useState<MemberRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -94,6 +103,7 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
   const [editRole, setEditRole] = useState<Role>("member");
   const [editFeatures, setEditFeatures] = useState<Set<string>>(new Set());
   const [editStaffId, setEditStaffId] = useState<string | null>(null);
+  const [editMemberId, setEditMemberId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   const [inviteEmail, setInviteEmail] = useState("");
@@ -124,6 +134,7 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
       if (!res.ok) throw new Error(data.error || "Failed to load users");
       setUsers(data.users);
       setAllStaff(data.allStaff ?? []);
+      setAllMembers(data.allMembers ?? []);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to load users");
     } finally {
@@ -138,13 +149,14 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
     setEditRole(user.role);
     setEditFeatures(new Set(user.features));
     setEditStaffId(user.staffId);
+    setEditMemberId(user.memberId);
   }
 
   function cancelEdit() {
     setEditingId(null);
   }
 
-  async function saveEdit(userId: string, originalStaffId: string | null) {
+  async function saveEdit(userId: string, originalStaffId: string | null, originalMemberId: string | null) {
     setSaving(true);
     try {
       const body: Record<string, unknown> = {
@@ -154,6 +166,10 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
       // Only include staffId if it changed
       if (editStaffId !== originalStaffId) {
         body.staffId = editStaffId;
+      }
+      // Only include memberId if it changed
+      if (editMemberId !== originalMemberId) {
+        body.memberId = editMemberId;
       }
       const res = await fetch(`/api/admin/users/${userId}`, {
         method: "PATCH",
@@ -281,6 +297,10 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
     return allStaff.filter((s) => s.user_id === null || s.id === currentStaffId);
   }
 
+  function availableMemberOptions(currentMemberId: string | null): MemberRecord[] {
+    return allMembers.filter((m) => m.user_id === null || m.id === currentMemberId);
+  }
+
   return (
     <>
     <div className="container mx-auto px-6 py-8">
@@ -375,6 +395,7 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
                   const isEditing = editingId === user.id;
                   const isCurrentUser = user.id === currentUserId;
                   const staffOptions = availableStaffOptions(user.staffId);
+                  const memberOptions = availableMemberOptions(user.memberId);
 
                   return (
                     <tr key={user.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
@@ -421,11 +442,16 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
                                 ))}
                               </select>
                             </div>
-                            {user.memberId && (
-                              <div className="text-xs text-slate-500 dark:text-slate-400">
-                                Member: <span className="font-medium text-slate-700 dark:text-slate-300">{user.memberName}</span>
-                              </div>
-                            )}
+                            <div>
+                              <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">Member</label>
+                              <MemberSearch
+                                members={memberOptions}
+                                selectedMemberId={editMemberId}
+                                selectedMemberName={user.memberId === editMemberId ? user.memberName : undefined}
+                                onSelect={(m) => setEditMemberId(m?.id ?? null)}
+                                placeholder="Search by name or email..."
+                              />
+                            </div>
                           </div>
                         ) : (
                           <div className="flex flex-col gap-1">
@@ -491,7 +517,7 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
                           {isEditing ? (
                             <>
                               <button
-                                onClick={() => saveEdit(user.id, user.staffId)}
+                                onClick={() => saveEdit(user.id, user.staffId, user.memberId)}
                                 disabled={saving}
                                 className="text-xs px-3 py-1 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded font-medium transition-colors"
                               >

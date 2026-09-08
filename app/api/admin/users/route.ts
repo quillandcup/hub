@@ -22,13 +22,13 @@ export async function GET(request: NextRequest) {
     { data: profiles },
     { data: previews },
     { data: allStaff },
-    { data: linkedMembers },
+    { data: allMembers },
   ] = await Promise.all([
     supabase.auth.admin.listUsers({ perPage: 1000 }),
     supabase.from("user_profiles").select("id, email, role, created_at"),
     supabase.from("user_feature_previews").select("user_id, feature_key"),
     supabase.from("staff").select("id, name, email, role, user_id"),
-    supabase.from("members").select("id, name, email, user_id").not("user_id", "is", null),
+    supabase.from("members").select("id, name, email, user_id"),
   ]);
 
   if (listError) {
@@ -42,7 +42,7 @@ export async function GET(request: NextRequest) {
     featureMap.get(row.user_id)!.push(row.feature_key);
   }
   const staffByUserId = new Map((allStaff ?? []).filter((s) => s.user_id).map((s) => [s.user_id, s]));
-  const memberByUserId = new Map((linkedMembers ?? []).map((m) => [m.user_id, m]));
+  const memberByUserId = new Map((allMembers ?? []).filter((m) => m.user_id).map((m) => [m.user_id, m]));
 
   const users = (listData?.users ?? []).map((u) => {
     const profile = profileMap.get(u.id);
@@ -65,7 +65,7 @@ export async function GET(request: NextRequest) {
 
   users.sort((a, b) => a.email.localeCompare(b.email));
 
-  return NextResponse.json({ users, allStaff: allStaff ?? [] });
+  return NextResponse.json({ users, allStaff: allStaff ?? [], allMembers: allMembers ?? [] });
 }
 
 export async function POST(request: NextRequest) {
