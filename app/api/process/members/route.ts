@@ -19,6 +19,14 @@ function toSocialUrl(base: string, handle: string | null | undefined): string | 
   return `${base}/${clean}`
 }
 
+// Kajabi contact custom field for "Instagram Handle" — confirmed via
+// GET /v1/custom_fields (site 2147577478) to be handle `custom_1`. Most
+// Kajabi customers never fill in the native profile socials.instagram field,
+// but this custom field is collected on the "Ideal Hedgie" opt-in form at
+// signup, so it's the primary source; socials.instagram (below) still wins
+// when a customer has explicitly set it, since that's the more current value.
+const INSTAGRAM_CUSTOM_FIELD_HANDLE = "custom_1";
+
 // Extend timeout — member processing itself is fast (~10s), but we kick off
 // background attendance reprocessing via after() which needs the remainder.
 export const maxDuration = 300;
@@ -385,7 +393,10 @@ export async function POST(request: NextRequest) {
           stripe_customer_id: stripeIdByEmail.get(email) ?? null,
           photo_url: toKajabiPhotoUrl(attrs?.avatar, email, slackImageByEmail.get(email)),
           bio: attrs?.public_bio || null,
-          instagram_url: toSocialUrl("https://instagram.com", attrs?.socials?.instagram),
+          instagram_url: toSocialUrl(
+            "https://instagram.com",
+            attrs?.socials?.instagram || contact.data?.attributes?.[INSTAGRAM_CUSTOM_FIELD_HANDLE]
+          ),
           facebook_url: toSocialUrl("https://facebook.com", attrs?.socials?.facebook),
           twitter_url: toSocialUrl("https://x.com", attrs?.socials?.twitter),
           kajabi_tags: Array.isArray(contact.data?.tags) ? contact.data.tags : [],

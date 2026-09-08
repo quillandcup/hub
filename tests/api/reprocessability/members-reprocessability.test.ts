@@ -799,3 +799,97 @@ describe('Legacy join-date overrides during reprocessing', () => {
     await supabase.from('member_join_date_overrides').delete().eq('member_id', member!.id)
   })
 })
+
+/**
+ * Instagram handle sourcing during reprocessing.
+ *
+ * Most Kajabi customers never fill in the native profile "socials" field,
+ * but leads captured via the Ideal Hedgie opt-in form answer an Instagram
+ * Handle custom field on the Contact instead (Kajabi custom field `custom_1`
+ * for this site — see the comment above INSTAGRAM_CUSTOM_FIELD_HANDLE in
+ * app/api/process/members/route.ts). This falls back to that custom field
+ * when the customer socials field is empty, and prefers socials when both
+ * are present (it's the more current, explicitly-set value).
+ */
+describe('Instagram handle sourcing during reprocessing', () => {
+  const supabase = getTestSupabaseAdminClient()
+  const ts = Date.now()
+
+  const emailCustomFieldOnly = `ig-custom-field-${ts}@example.com`
+  const emailBothSources = `ig-both-sources-${ts}@example.com`
+  const emailNeitherSource = `ig-neither-${ts}@example.com`
+
+  async function reprocess() {
+    const response = await fetch('http://localhost:3000/api/process/members', {
+      method: 'POST',
+      headers: getTestAuthHeaders(),
+    })
+    if (!response.ok) {
+      throw new Error(`API call failed: ${response.status} - ${await response.text()}`)
+    }
+    return response.json()
+  }
+
+  async function fetchMember(email: string) {
+    const { data } = await supabase.from('members').select('*').eq('email', email).single()
+    return data
+  }
+
+  beforeAll(async () => {
+    await supabase.schema('bronze').from('kajabi_contacts').insert([
+      {
+        kajabi_contact_id: `ig-contact-custom-only-${ts}`,
+        email: emailCustomFieldOnly,
+        name: 'IG Custom Field Only',
+        created_at_kajabi: '2024-01-01T00:00:00Z',
+        data: { attributes: { custom_1: '@signup_handle' } },
+      },
+      {
+        kajabi_contact_id: `ig-contact-both-${ts}`,
+        email: emailBothSources,
+        name: 'IG Both Sources',
+        created_at_kajabi: '2024-01-01T00:00:00Z',
+        data: { attributes: { custom_1: 'stale_signup_handle' } },
+      },
+      {
+        kajabi_contact_id: `ig-contact-neither-${ts}`,
+        email: emailNeitherSource,
+        name: 'IG Neither Source',
+        created_at_kajabi: '2024-01-01T00:00:00Z',
+        data: { attributes: { custom_1: '' } },
+      },
+    ])
+
+    await supabase.schema('bronze').from('kajabi_customers').insert([
+      {
+        kajabi_customer_id: `ig-cust-both-${ts}`,
+        email: emailBothSources,
+        data: { attributes: { socials: { instagram: 'current_profile_handle' } } },
+      },
+    ])
+  })
+
+  afterAll(async () => {
+    await supabase.schema('bronze').from('kajabi_customers').delete().ilike('kajabi_customer_id', `ig-cust-%-${ts}`)
+    await supabase.schema('bronze').from('kajabi_contacts').delete().ilike('kajabi_contact_id', `ig-contact-%-${ts}`)
+    await supabase.from('members').delete().in('email', [emailCustomFieldOnly, emailBothSources, emailNeitherSource])
+  })
+
+  it('falls back to the Instagram Handle custom field when socials.instagram is empty', async () => {
+    await reprocess()
+    const member = await fetchMember(emailCustomFieldOnly)
+    expect(member?.instagram_url).toBe('https://instagram.com/signup_handle')
+  })
+
+  it('prefers the customer socials.instagram field over the signup custom field when both are set', async () => {
+    await reprocess()
+    const member = await fetchMember(emailBothSources)
+    expect(member?.instagram_url).toBe('https://instagram.com/current_profile_handle')
+  })
+
+  it('leaves instagram_url null when neither source has a handle', async () => {
+    await reprocess()
+    const member = await fetchMember(emailNeitherSource)
+    expect(member?.instagram_url).toBeNull()
+  })
+})
