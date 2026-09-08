@@ -104,12 +104,17 @@ export default function OutreachTable({ leads }: OutreachTableProps) {
   const [rows, setRows] = useState(leads);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [instagramOnly, setInstagramOnly] = useState(false);
 
   const { sortColumn, sortDirection, handleSort, sortedRows } = useTableSort<OutreachLead, SortColumn>({
     rows,
     getSortValue,
     defaultSort: { column: "outreachStatus", direction: "asc" },
   });
+
+  const visibleRows = instagramOnly
+    ? sortedRows.filter((lead) => instagramHandle(lead.instagramUrl))
+    : sortedRows;
 
   const updateStatus = async (memberId: string, status: LeadStatus) => {
     setBusyId(memberId);
@@ -143,6 +148,18 @@ export default function OutreachTable({ leads }: OutreachTableProps) {
         </div>
       )}
 
+      <div className="px-6 py-3 border-b border-slate-200 dark:border-slate-800">
+        <label className="inline-flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
+          <input
+            type="checkbox"
+            checked={instagramOnly}
+            onChange={(e) => setInstagramOnly(e.target.checked)}
+            className="rounded border-slate-300 dark:border-slate-600 text-blue-600 focus:ring-blue-500"
+          />
+          Only show leads with Instagram ({rows.filter((lead) => instagramHandle(lead.instagramUrl)).length})
+        </label>
+      </div>
+
       <div className="overflow-x-auto">
         <table className="w-full">
           <thead className="bg-slate-50 dark:bg-slate-800">
@@ -171,7 +188,14 @@ export default function OutreachTable({ leads }: OutreachTableProps) {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
-            {sortedRows.map((lead) => {
+            {visibleRows.length === 0 && (
+              <tr>
+                <td colSpan={4} className="px-6 py-8 text-center text-sm text-slate-500 dark:text-slate-400">
+                  No leads with Instagram on file.
+                </td>
+              </tr>
+            )}
+            {visibleRows.map((lead) => {
               const handle = instagramHandle(lead.instagramUrl);
               const busy = busyId === lead.id;
               return (

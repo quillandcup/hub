@@ -83,7 +83,7 @@ export default async function OutreachPage() {
           </Link>
           <h1 className="text-2xl font-bold">🎯 Outreach</h1>
           <p className="text-slate-600 dark:text-slate-400 mt-1">
-            Kajabi leads tagged &ldquo;{IDEAL_HEDGIE_TAG}&rdquo;. Mark hot when you have a call to action to
+            Leads tagged &ldquo;{IDEAL_HEDGIE_TAG}&rdquo;. Mark hot when you have a call to action to
             schedule a trial prickle.
           </p>
         </div>
@@ -98,7 +98,7 @@ export default async function OutreachPage() {
 
           {rows.length === 0 ? (
             <div className="p-12 text-center text-slate-500">
-              No leads tagged &ldquo;{IDEAL_HEDGIE_TAG}&rdquo; in Kajabi yet.
+              No leads tagged &ldquo;{IDEAL_HEDGIE_TAG}&rdquo; yet.
             </div>
           ) : (
             <OutreachTable leads={rows} />
