@@ -68,6 +68,7 @@ export default async function MergeFixPage() {
 
   const enrichedGroups: EnrichedGroup[] = duplicateGroups.map(group => ({
     reason: group.reason,
+    confidence: group.confidence,
     members: sortGroupMembers(
       group.members.map(m => {
         const raw = memberById.get(m.id);

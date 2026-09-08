@@ -7,9 +7,13 @@ import { matchAttendeeToMember } from "@/lib/member-matching";
 import { matchSlackUsersToMembers } from "@/lib/slack-matching";
 import { detectDuplicates } from "@/lib/member-duplicates";
 import { findStalePrivateChannels } from "@/lib/private-channel-access";
+import { computeUnmatchedZoomNames } from "@/lib/unmatched-zoom-names";
+import { buildAliasMap } from "@/lib/email-aliases";
+import { groupByCanonical } from "@/lib/external-conflicts";
+import ReconciliationClient from "@/app/(admin)/admin/reconciliation/ReconciliationClient";
 
 export const metadata: Metadata = {
-  title: "Data Hygiene Dashboard",
+  title: "Data Health Dashboard",
 };
 
 export const dynamic = "force-dynamic";
@@ -146,7 +150,8 @@ export default async function DataHygienePage() {
   // zoom_email is NULL, so the same bare name can produce several rows.
   const ambiguousNamesCount = new Set((ambiguousNameRows ?? []).map((a) => a.zoom_name)).size;
 
-  const duplicateCount = detectDuplicates(membersForDuplicates ?? []).length;
+  const duplicateGroups = detectDuplicates(membersForDuplicates ?? []);
+  const duplicateCount = duplicateGroups.length;
   const stalePrivateChannels = findStalePrivateChannels(slackChannelsForAccessCheck ?? []);
 
   const calendarMatchRate = totalCalendarEvents && matchedCalendarEvents
@@ -352,276 +357,69 @@ export default async function DataHygienePage() {
     .sort()
     .pop();
 
+  // Unmatched Zoom Names count — reuses allAttendeesForMatching (already paginated
+  // above), just also needs ignored names and staff to mirror
+  // /admin/hygiene/unmatched-zoom exactly.
+  const [{ data: ignoredZoomNamesForCount }, { data: staffForZoomCount }] = await Promise.all([
+    supabase.from("ignored_zoom_names").select("zoom_name"),
+    supabase.from("staff").select("name, email"),
+  ]);
+  const unmatchedZoomNamesCount = computeUnmatchedZoomNames(
+    allAttendeesForMatching,
+    membersForMatching || [],
+    aliasesForMatching || [],
+    (ignoredZoomNamesForCount || []).map(r => r.zoom_name),
+    staffForZoomCount || []
+  ).length;
+
+  // External Conflicts count — same multi-account-per-canonical-email check as
+  // /admin/hygiene/external-conflicts, computed here just for the tile count
+  // (only the grouping inputs are needed, not the enrichment queries that
+  // page uses to annotate each entry).
+  const paginate = async <T,>(
+    queryFn: (from: number, to: number) => PromiseLike<{ data: T[] | null }>
+  ): Promise<T[]> => {
+    const rows: T[] = [];
+    let offset = 0;
+    let hasMore = true;
+    while (hasMore) {
+      const { data } = await queryFn(offset, offset + 999);
+      if (data?.length) { rows.push(...data); offset += data.length; hasMore = data.length === 1000; }
+      else hasMore = false;
+    }
+    return rows;
+  };
+
+  const [
+    emailAliasesForConflicts,
+    kajabiContactsForConflicts,
+    stripeCustomersForConflicts,
+    slackUsersForConflicts,
+  ] = await Promise.all([
+    supabase.from("member_email_aliases").select("alias_email, canonical_email").then(r => r.data ?? []),
+    paginate((from, to) => supabase.schema("bronze").from("kajabi_contacts")
+      .select("kajabi_contact_id, email, name").range(from, to)),
+    paginate((from, to) => supabase.schema("bronze").from("stripe_customers")
+      .select("stripe_customer_id, email, name").range(from, to)),
+    paginate((from, to) => supabase.schema("bronze").from("slack_users")
+      .select("user_id, email, real_name, display_name").eq("is_bot", false).range(from, to)),
+  ]);
+
+  const conflictsAliasMap = buildAliasMap(emailAliasesForConflicts ?? []);
+  const totalConflicts =
+    groupByCanonical(kajabiContactsForConflicts, conflictsAliasMap, c => c.kajabi_contact_id, c => c.name ?? null).length +
+    groupByCanonical(stripeCustomersForConflicts, conflictsAliasMap, c => c.stripe_customer_id, c => c.name ?? null).length +
+    groupByCanonical(slackUsersForConflicts, conflictsAliasMap, u => u.user_id, u => (u.real_name || u.display_name) ?? null).length;
+
   return (
     <div className="p-6">
       <div className="max-w-7xl mx-auto">
         <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-100 mb-8">
-          Data Hygiene Dashboard
+          Data Health Dashboard
         </h1>
 
-        {/* At-a-glance metrics */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          {/* Calendar Events */}
-          <Link
-            href="/admin/hygiene/unmatched-events"
-            className="block p-6 bg-white dark:bg-slate-900 rounded-lg shadow hover:shadow-lg transition-shadow border border-slate-200 dark:border-slate-800"
-          >
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="text-sm font-medium text-slate-600 dark:text-slate-400">
-                Calendar Events
-              </h3>
-              <span className="text-2xl">📋</span>
-            </div>
-            <p className="text-3xl font-bold text-slate-900 dark:text-slate-100 mb-1">
-              {calendarMatchRate}%
-            </p>
-            <p className="text-sm text-slate-600 dark:text-slate-400">
-              {matchedCalendarEvents}/{totalCalendarEvents} matched
-            </p>
-            {unmatchedCalendarEvents && unmatchedCalendarEvents > 0 && (
-              <p className="text-xs text-orange-600 dark:text-orange-400 mt-2">
-                {unmatchedCalendarEvents} unmatched events →
-              </p>
-            )}
-          </Link>
-
-          {/* Host Assignment */}
-          <Link
-            href="/admin/data-health/missing-hosts"
-            className="block p-6 bg-white dark:bg-slate-900 rounded-lg shadow hover:shadow-lg transition-shadow border border-slate-200 dark:border-slate-800"
-          >
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="text-sm font-medium text-slate-600 dark:text-slate-400">
-                Host Assignment
-              </h3>
-              <span className="text-2xl">👤</span>
-            </div>
-            <p className="text-3xl font-bold text-slate-900 dark:text-slate-100 mb-1">
-              {hostMatchRate}%
-            </p>
-            <p className="text-sm text-slate-600 dark:text-slate-400">
-              {calendarPricklesWithHost}/{totalRequiringHosts} assigned
-            </p>
-            {calendarPricklesMissingHost && calendarPricklesMissingHost > 0 && (
-              <p className="text-xs text-orange-600 dark:text-orange-400 mt-2">
-                {calendarPricklesMissingHost} missing hosts →
-              </p>
-            )}
-          </Link>
-
-          {/* Zoom Attendees */}
-          <Link
-            href="/admin/hygiene/unmatched-zoom"
-            className="block p-6 bg-white dark:bg-slate-900 rounded-lg shadow hover:shadow-lg transition-shadow border border-slate-200 dark:border-slate-800"
-          >
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="text-sm font-medium text-slate-600 dark:text-slate-400">
-                Zoom Coverage
-              </h3>
-              <span className="text-2xl">🔍</span>
-            </div>
-            <p className="text-3xl font-bold text-slate-900 dark:text-slate-100 mb-1">
-              {totalZoomAttendees && matchedZoomAttendees
-                ? Math.round((matchedZoomAttendees / totalZoomAttendees) * 100)
-                : 0}%
-            </p>
-            <p className="text-sm text-slate-600 dark:text-slate-400">
-              {matchedZoomAttendees}/{totalZoomAttendees} in processed meetings
-            </p>
-            {unmatchedZoomAttendees > 0 && (
-              <p className="text-xs text-orange-600 dark:text-orange-400 mt-2">
-                View unmatched names →
-              </p>
-            )}
-          </Link>
-
-          {/* Slack Users */}
-          <Link
-            href="/admin/hygiene/unmatched-slack"
-            className="block p-6 bg-white dark:bg-slate-900 rounded-lg shadow hover:shadow-lg transition-shadow border border-slate-200 dark:border-slate-800"
-          >
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="text-sm font-medium text-slate-600 dark:text-slate-400">
-                Slack Users
-              </h3>
-              <span className="text-2xl">💬</span>
-            </div>
-            <p className="text-3xl font-bold text-slate-900 dark:text-slate-100 mb-1">
-              {unmatchedSlackUsersCount}
-            </p>
-            <p className="text-sm text-slate-600 dark:text-slate-400">
-              unmatched Slack user{unmatchedSlackUsersCount !== 1 ? "s" : ""}
-            </p>
-            {unmatchedSlackUsersCount > 0 && (
-              <p className="text-xs text-orange-600 dark:text-orange-400 mt-2">
-                View unmatched users →
-              </p>
-            )}
-            {unmatchedSlackUsersCount === 0 && (
-              <p className="text-xs text-green-600 dark:text-green-400 mt-2">
-                All matched ✓
-              </p>
-            )}
-          </Link>
-
-          {/* Members Without Slack (reverse direction) */}
-          <Link
-            href="/admin/hygiene/members-without-slack"
-            className="block p-6 bg-white dark:bg-slate-900 rounded-lg shadow hover:shadow-lg transition-shadow border border-slate-200 dark:border-slate-800"
-          >
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="text-sm font-medium text-slate-600 dark:text-slate-400">
-                Members Without Slack
-              </h3>
-              <span className="text-2xl">🔁</span>
-            </div>
-            <p className="text-3xl font-bold text-slate-900 dark:text-slate-100 mb-1">
-              {membersWithoutSlackCount}
-            </p>
-            <p className="text-sm text-slate-600 dark:text-slate-400">
-              active member{membersWithoutSlackCount !== 1 ? "s" : ""} with no Slack match
-            </p>
-            {membersWithoutSlackCount > 0 && (
-              <p className="text-xs text-orange-600 dark:text-orange-400 mt-2">
-                View unmatched members →
-              </p>
-            )}
-            {membersWithoutSlackCount === 0 && (
-              <p className="text-xs text-green-600 dark:text-green-400 mt-2">
-                All linked ✓
-              </p>
-            )}
-          </Link>
-
-          {/* Missing Member Data */}
-          <Link
-            href="/admin/hygiene/missing-member-data"
-            className="block p-6 bg-white dark:bg-slate-900 rounded-lg shadow hover:shadow-lg transition-shadow border border-slate-200 dark:border-slate-800"
-          >
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="text-sm font-medium text-slate-600 dark:text-slate-400">
-                Member Data
-              </h3>
-              <span className="text-2xl">🔗</span>
-            </div>
-            <p className="text-3xl font-bold text-slate-900 dark:text-slate-100 mb-1">
-              {missingStripeCount ?? 0}
-            </p>
-            <p className="text-sm text-slate-600 dark:text-slate-400">
-              active members missing Stripe ID
-            </p>
-            {(missingStripeCount ?? 0) > 0 && (
-              <p className="text-xs text-orange-600 dark:text-orange-400 mt-2">
-                {missingStripeCount} missing Stripe ID →
-              </p>
-            )}
-          </Link>
-
-          {/* Name Aliases */}
-          <Link
-            href="/admin/data/aliases"
-            className="block p-6 bg-white dark:bg-slate-900 rounded-lg shadow hover:shadow-lg transition-shadow border border-slate-200 dark:border-slate-800"
-          >
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="text-sm font-medium text-slate-600 dark:text-slate-400">
-                Name Aliases
-              </h3>
-              <span className="text-2xl">🧩</span>
-            </div>
-            <p className="text-3xl font-bold text-slate-900 dark:text-slate-100 mb-1">
-              {totalAliases}
-            </p>
-            <p className="text-sm text-slate-600 dark:text-slate-400">
-              active aliases for {totalMembers} members
-            </p>
-            <p className="text-xs text-blue-600 dark:text-blue-400 mt-2">
-              View all aliases →
-            </p>
-          </Link>
-
-          {/* Ambiguous Zoom Names */}
-          <Link
-            href="/admin/hygiene/ambiguous-names"
-            className="block p-6 bg-white dark:bg-slate-900 rounded-lg shadow hover:shadow-lg transition-shadow border border-slate-200 dark:border-slate-800"
-          >
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="text-sm font-medium text-slate-600 dark:text-slate-400">
-                Ambiguous Names
-              </h3>
-              <span className="text-2xl">❓</span>
-            </div>
-            <p className="text-3xl font-bold text-slate-900 dark:text-slate-100 mb-1">
-              {ambiguousNamesCount}
-            </p>
-            <p className="text-sm text-slate-600 dark:text-slate-400">
-              Zoom name{ambiguousNamesCount !== 1 ? "s" : ""} matching multiple members
-            </p>
-            {ambiguousNamesCount > 0 && (
-              <p className="text-xs text-orange-600 dark:text-orange-400 mt-2">
-                Silently dropped from attendance — resolve →
-              </p>
-            )}
-            {ambiguousNamesCount === 0 && (
-              <p className="text-xs text-green-600 dark:text-green-400 mt-2">
-                None pending ✓
-              </p>
-            )}
-          </Link>
-
-          {/* Merge & Fix */}
-          <Link
-            href="/admin/hygiene/merge-fix"
-            className="block p-6 bg-white dark:bg-slate-900 rounded-lg shadow hover:shadow-lg transition-shadow border border-slate-200 dark:border-slate-800"
-          >
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="text-sm font-medium text-slate-600 dark:text-slate-400">
-                Merge & Fix
-              </h3>
-              <span className="text-2xl">🔀</span>
-            </div>
-            <p className="text-3xl font-bold text-slate-900 dark:text-slate-100 mb-1">
-              {duplicateCount}
-            </p>
-            <p className="text-sm text-slate-600 dark:text-slate-400">
-              potential duplicate{duplicateCount !== 1 ? "s" : ""} detected
-            </p>
-            {duplicateCount > 0 && (
-              <p className="text-xs text-orange-600 dark:text-orange-400 mt-2">
-                {duplicateCount} group{duplicateCount !== 1 ? "s" : ""} to review →
-              </p>
-            )}
-            {duplicateCount === 0 && (
-              <p className="text-xs text-green-600 dark:text-green-400 mt-2">
-                No duplicates found ✓
-              </p>
-            )}
-          </Link>
-
-          {/* External Conflicts */}
-          <Link
-            href="/admin/hygiene/external-conflicts"
-            className="block p-6 bg-white dark:bg-slate-900 rounded-lg shadow hover:shadow-lg transition-shadow border border-slate-200 dark:border-slate-800"
-          >
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="text-sm font-medium text-slate-600 dark:text-slate-400">
-                External Conflicts
-              </h3>
-              <span className="text-2xl">⚡</span>
-            </div>
-            <p className="text-3xl font-bold text-slate-900 dark:text-slate-100 mb-1">
-              ?
-            </p>
-            <p className="text-sm text-slate-600 dark:text-slate-400">
-              duplicate accounts in Kajabi, Stripe, Slack
-            </p>
-            <p className="text-xs text-blue-600 dark:text-blue-400 mt-2">
-              Check for duplicates →
-            </p>
-          </Link>
-        </div>
-
-        {/* Data quality warnings */}
-        <div className="space-y-4 mb-8">
+        {/* Needs Attention: things actively wrong right now, worth acting on today */}
+        <div className="space-y-4 mb-10">
           {orphanedEvents > 0 && (
             <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
               <div className="flex items-start gap-3">
@@ -761,62 +559,416 @@ export default async function DataHygienePage() {
           )}
         </div>
 
-        {/* Recent activity */}
-        <div className="bg-white dark:bg-slate-900 rounded-lg shadow border border-slate-200 dark:border-slate-800 p-6">
-          <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-4">
-            Recent Activity
+        {/* Subscription Reconciliation: the per-member view — see exactly which
+            member has which mismatch across Kajabi/Stripe/Slack and act on it
+            directly. */}
+        <section id="reconciliation" className="mb-10 scroll-mt-6">
+          <div className="bg-white dark:bg-slate-900 rounded-lg shadow border border-slate-200 dark:border-slate-800 overflow-hidden">
+            <ReconciliationClient />
+          </div>
+        </section>
+
+        {/* Pipeline & Sync Health: is data flowing in and getting processed? */}
+        <section className="mb-10">
+          <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-100 mb-1">
+            Pipeline &amp; Sync Health
           </h2>
-          <div className="space-y-3 text-sm">
-            <div className="flex justify-between items-center">
-              <span className="text-slate-600 dark:text-slate-400">Last calendar sync:</span>
-              <span className="font-medium text-slate-900 dark:text-slate-100">
-                {lastSync?.imported_at
-                  ? new Date(lastSync.imported_at).toLocaleString()
-                  : "Never"}
-              </span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-slate-600 dark:text-slate-400">Last attendance processing:</span>
-              <span className="font-medium text-slate-900 dark:text-slate-100">
-                {lastProcessing?.created_at
-                  ? new Date(lastProcessing.created_at).toLocaleString()
-                  : "Never"}
-              </span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-slate-600 dark:text-slate-400">Last Slack sync:</span>
-              <span className="font-medium text-slate-900 dark:text-slate-100">
-                {lastSlackSyncAt
-                  ? new Date(lastSlackSyncAt).toLocaleString()
-                  : "Never"}
-              </span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-slate-600 dark:text-slate-400">Last Slack processing:</span>
-              <span className="font-medium text-slate-900 dark:text-slate-100">
-                {lastSlackProcessing?.created_at
-                  ? new Date(lastSlackProcessing.created_at).toLocaleString()
-                  : "Never"}
-              </span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-slate-600 dark:text-slate-400">Last Kajabi sync:</span>
-              <span className="font-medium text-slate-900 dark:text-slate-100">
-                {lastKajabiSync?.imported_at
-                  ? new Date(lastKajabiSync.imported_at).toLocaleString()
-                  : "Never"}
-              </span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-slate-600 dark:text-slate-400">Last Kajabi processing:</span>
-              <span className="font-medium text-slate-900 dark:text-slate-100">
-                {lastKajabiProcessing?.updated_at
-                  ? new Date(lastKajabiProcessing.updated_at).toLocaleString()
-                  : "Never"}
-              </span>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
+            Is data flowing in from Calendar/Zoom/Slack/Kajabi and getting processed on schedule?
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
+            {/* Calendar Events */}
+            <Link
+              href="/admin/hygiene/unmatched-events"
+              className="block p-6 bg-white dark:bg-slate-900 rounded-lg shadow hover:shadow-lg transition-shadow border border-slate-200 dark:border-slate-800"
+            >
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-sm font-medium text-slate-600 dark:text-slate-400">
+                  Calendar Events
+                </h3>
+                <span className="text-2xl">📋</span>
+              </div>
+              <p className="text-3xl font-bold text-slate-900 dark:text-slate-100 mb-1">
+                {calendarMatchRate}%
+              </p>
+              <p className="text-sm text-slate-600 dark:text-slate-400">
+                {matchedCalendarEvents}/{totalCalendarEvents} matched
+              </p>
+              {unmatchedCalendarEvents && unmatchedCalendarEvents > 0 && (
+                <p className="text-xs text-orange-600 dark:text-orange-400 mt-2">
+                  {unmatchedCalendarEvents} unmatched events →
+                </p>
+              )}
+            </Link>
+
+            {/* Host Assignment */}
+            <Link
+              href="/admin/data-health/missing-hosts"
+              className="block p-6 bg-white dark:bg-slate-900 rounded-lg shadow hover:shadow-lg transition-shadow border border-slate-200 dark:border-slate-800"
+            >
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-sm font-medium text-slate-600 dark:text-slate-400">
+                  Host Assignment
+                </h3>
+                <span className="text-2xl">👤</span>
+              </div>
+              <p className="text-3xl font-bold text-slate-900 dark:text-slate-100 mb-1">
+                {hostMatchRate}%
+              </p>
+              <p className="text-sm text-slate-600 dark:text-slate-400">
+                {calendarPricklesWithHost}/{totalRequiringHosts} assigned
+              </p>
+              {calendarPricklesMissingHost && calendarPricklesMissingHost > 0 && (
+                <p className="text-xs text-orange-600 dark:text-orange-400 mt-2">
+                  {calendarPricklesMissingHost} missing hosts →
+                </p>
+              )}
+            </Link>
+
+            {/* Zoom Attendees */}
+            <Link
+              href="/admin/hygiene/unmatched-zoom"
+              className="block p-6 bg-white dark:bg-slate-900 rounded-lg shadow hover:shadow-lg transition-shadow border border-slate-200 dark:border-slate-800"
+            >
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-sm font-medium text-slate-600 dark:text-slate-400">
+                  Zoom Coverage
+                </h3>
+                <span className="text-2xl">🔍</span>
+              </div>
+              <p className="text-3xl font-bold text-slate-900 dark:text-slate-100 mb-1">
+                {totalZoomAttendees && matchedZoomAttendees
+                  ? Math.round((matchedZoomAttendees / totalZoomAttendees) * 100)
+                  : 0}%
+              </p>
+              <p className="text-sm text-slate-600 dark:text-slate-400">
+                {matchedZoomAttendees}/{totalZoomAttendees} in processed meetings
+              </p>
+              {unmatchedZoomAttendees > 0 && (
+                <p className="text-xs text-orange-600 dark:text-orange-400 mt-2">
+                  View unmatched names →
+                </p>
+              )}
+            </Link>
+          </div>
+
+          {/* Recent Activity */}
+          <div className="bg-white dark:bg-slate-900 rounded-lg shadow border border-slate-200 dark:border-slate-800 p-6">
+            <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100 mb-4">
+              Recent Activity
+            </h3>
+            <div className="space-y-3 text-sm">
+              <div className="flex justify-between items-center">
+                <span className="text-slate-600 dark:text-slate-400">Last calendar sync:</span>
+                <span className="font-medium text-slate-900 dark:text-slate-100">
+                  {lastSync?.imported_at
+                    ? new Date(lastSync.imported_at).toLocaleString()
+                    : "Never"}
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-600 dark:text-slate-400">Last attendance processing:</span>
+                <span className="font-medium text-slate-900 dark:text-slate-100">
+                  {lastProcessing?.created_at
+                    ? new Date(lastProcessing.created_at).toLocaleString()
+                    : "Never"}
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-600 dark:text-slate-400">Last Slack sync:</span>
+                <span className="font-medium text-slate-900 dark:text-slate-100">
+                  {lastSlackSyncAt
+                    ? new Date(lastSlackSyncAt).toLocaleString()
+                    : "Never"}
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-600 dark:text-slate-400">Last Slack processing:</span>
+                <span className="font-medium text-slate-900 dark:text-slate-100">
+                  {lastSlackProcessing?.created_at
+                    ? new Date(lastSlackProcessing.created_at).toLocaleString()
+                    : "Never"}
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-600 dark:text-slate-400">Last Kajabi sync:</span>
+                <span className="font-medium text-slate-900 dark:text-slate-100">
+                  {lastKajabiSync?.imported_at
+                    ? new Date(lastKajabiSync.imported_at).toLocaleString()
+                    : "Never"}
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-600 dark:text-slate-400">Last Kajabi processing:</span>
+                <span className="font-medium text-slate-900 dark:text-slate-100">
+                  {lastKajabiProcessing?.updated_at
+                    ? new Date(lastKajabiProcessing.updated_at).toLocaleString()
+                    : "Never"}
+                </span>
+              </div>
             </div>
           </div>
-        </div>
+        </section>
+
+        {/* Identity Matching: is a person who exists in an external system
+            correctly linked to a member record? */}
+        <section id="identity-matching" className="mb-10 scroll-mt-6">
+          <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-100 mb-1">
+            Identity Matching
+          </h2>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
+            Is a person who exists in Slack or Zoom correctly linked to a member record?{" "}
+            Looking for subscription-status mismatches instead? See{" "}
+            <a href="#reconciliation" className="text-blue-600 dark:text-blue-400 hover:underline">
+              Subscription Reconciliation
+            </a>{" "}
+            above.
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {/* Slack Users */}
+            <Link
+              href="/admin/hygiene/unmatched-slack"
+              className="block p-6 bg-white dark:bg-slate-900 rounded-lg shadow hover:shadow-lg transition-shadow border border-slate-200 dark:border-slate-800"
+            >
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-sm font-medium text-slate-600 dark:text-slate-400">
+                  Slack Users
+                </h3>
+                <span className="text-2xl">💬</span>
+              </div>
+              <p className="text-3xl font-bold text-slate-900 dark:text-slate-100 mb-1">
+                {unmatchedSlackUsersCount}
+              </p>
+              <p className="text-sm text-slate-600 dark:text-slate-400">
+                unmatched Slack user{unmatchedSlackUsersCount !== 1 ? "s" : ""}
+              </p>
+              {unmatchedSlackUsersCount > 0 && (
+                <p className="text-xs text-orange-600 dark:text-orange-400 mt-2">
+                  View unmatched users →
+                </p>
+              )}
+              {unmatchedSlackUsersCount === 0 && (
+                <p className="text-xs text-green-600 dark:text-green-400 mt-2">
+                  All matched ✓
+                </p>
+              )}
+            </Link>
+
+            {/* Members Without Slack (reverse direction) */}
+            <Link
+              href="/admin/hygiene/members-without-slack"
+              className="block p-6 bg-white dark:bg-slate-900 rounded-lg shadow hover:shadow-lg transition-shadow border border-slate-200 dark:border-slate-800"
+            >
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-sm font-medium text-slate-600 dark:text-slate-400">
+                  Members Without Slack
+                </h3>
+                <span className="text-2xl">🔁</span>
+              </div>
+              <p className="text-3xl font-bold text-slate-900 dark:text-slate-100 mb-1">
+                {membersWithoutSlackCount}
+              </p>
+              <p className="text-sm text-slate-600 dark:text-slate-400">
+                active member{membersWithoutSlackCount !== 1 ? "s" : ""} with no Slack match
+              </p>
+              {membersWithoutSlackCount > 0 && (
+                <p className="text-xs text-orange-600 dark:text-orange-400 mt-2">
+                  View unmatched members →
+                </p>
+              )}
+              {membersWithoutSlackCount === 0 && (
+                <p className="text-xs text-green-600 dark:text-green-400 mt-2">
+                  All linked ✓
+                </p>
+              )}
+            </Link>
+
+            {/* Unmatched Zoom Names */}
+            <Link
+              href="/admin/hygiene/unmatched-zoom"
+              className="block p-6 bg-white dark:bg-slate-900 rounded-lg shadow hover:shadow-lg transition-shadow border border-slate-200 dark:border-slate-800"
+            >
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-sm font-medium text-slate-600 dark:text-slate-400">
+                  Unmatched Zoom Names
+                </h3>
+                <span className="text-2xl">🎦</span>
+              </div>
+              <p className="text-3xl font-bold text-slate-900 dark:text-slate-100 mb-1">
+                {unmatchedZoomNamesCount}
+              </p>
+              <p className="text-sm text-slate-600 dark:text-slate-400">
+                Zoom name{unmatchedZoomNamesCount !== 1 ? "s" : ""} with no member match
+              </p>
+              {unmatchedZoomNamesCount > 0 && (
+                <p className="text-xs text-orange-600 dark:text-orange-400 mt-2">
+                  Resolve with suggestions →
+                </p>
+              )}
+              {unmatchedZoomNamesCount === 0 && (
+                <p className="text-xs text-green-600 dark:text-green-400 mt-2">
+                  All matched ✓
+                </p>
+              )}
+            </Link>
+
+            {/* Ambiguous Zoom Names */}
+            <Link
+              href="/admin/hygiene/ambiguous-names"
+              className="block p-6 bg-white dark:bg-slate-900 rounded-lg shadow hover:shadow-lg transition-shadow border border-slate-200 dark:border-slate-800"
+            >
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-sm font-medium text-slate-600 dark:text-slate-400">
+                  Ambiguous Names
+                </h3>
+                <span className="text-2xl">❓</span>
+              </div>
+              <p className="text-3xl font-bold text-slate-900 dark:text-slate-100 mb-1">
+                {ambiguousNamesCount}
+              </p>
+              <p className="text-sm text-slate-600 dark:text-slate-400">
+                Zoom name{ambiguousNamesCount !== 1 ? "s" : ""} matching multiple members
+              </p>
+              {ambiguousNamesCount > 0 && (
+                <p className="text-xs text-orange-600 dark:text-orange-400 mt-2">
+                  Silently dropped from attendance — resolve →
+                </p>
+              )}
+              {ambiguousNamesCount === 0 && (
+                <p className="text-xs text-green-600 dark:text-green-400 mt-2">
+                  None pending ✓
+                </p>
+              )}
+            </Link>
+          </div>
+        </section>
+
+        {/* Duplicate & Conflict Detection: does the same person have more than
+            one record, in this app or in an external system? */}
+        <section className="mb-10">
+          <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-100 mb-1">
+            Duplicate &amp; Conflict Detection
+          </h2>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
+            Does the same person have more than one record — in this app, or in an external system?
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Merge & Fix */}
+            <Link
+              href="/admin/hygiene/merge-fix"
+              className="block p-6 bg-white dark:bg-slate-900 rounded-lg shadow hover:shadow-lg transition-shadow border border-slate-200 dark:border-slate-800"
+            >
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-sm font-medium text-slate-600 dark:text-slate-400">
+                  Merge & Fix
+                </h3>
+                <span className="text-2xl">🔀</span>
+              </div>
+              <p className="text-3xl font-bold text-slate-900 dark:text-slate-100 mb-1">
+                {duplicateCount}
+              </p>
+              <p className="text-sm text-slate-600 dark:text-slate-400">
+                potential duplicate{duplicateCount !== 1 ? "s" : ""} detected
+              </p>
+              {duplicateCount > 0 && (
+                <p className="text-xs text-orange-600 dark:text-orange-400 mt-2">
+                  {duplicateCount} group{duplicateCount !== 1 ? "s" : ""} to review →
+                </p>
+              )}
+              {duplicateCount === 0 && (
+                <p className="text-xs text-green-600 dark:text-green-400 mt-2">
+                  No duplicates found ✓
+                </p>
+              )}
+            </Link>
+
+            {/* External Conflicts */}
+            <Link
+              href="/admin/hygiene/external-conflicts"
+              className="block p-6 bg-white dark:bg-slate-900 rounded-lg shadow hover:shadow-lg transition-shadow border border-slate-200 dark:border-slate-800"
+            >
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-sm font-medium text-slate-600 dark:text-slate-400">
+                  External Conflicts
+                </h3>
+                <span className="text-2xl">⚡</span>
+              </div>
+              <p className="text-3xl font-bold text-slate-900 dark:text-slate-100 mb-1">
+                {totalConflicts}
+              </p>
+              <p className="text-sm text-slate-600 dark:text-slate-400">
+                duplicate accounts in Kajabi, Stripe, Slack
+              </p>
+              {totalConflicts > 0 && (
+                <p className="text-xs text-orange-600 dark:text-orange-400 mt-2">
+                  {totalConflicts} conflict{totalConflicts !== 1 ? "s" : ""} to review →
+                </p>
+              )}
+              {totalConflicts === 0 && (
+                <p className="text-xs text-green-600 dark:text-green-400 mt-2">
+                  All clear ✓
+                </p>
+              )}
+            </Link>
+          </div>
+        </section>
+
+        {/* Data Completeness: is a real member missing a field this app needs? */}
+        <section>
+          <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-100 mb-1">
+            Data Completeness
+          </h2>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
+            Is a real, matched member missing a field this app relies on?
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Missing Member Data */}
+            <Link
+              href="/admin/hygiene/missing-member-data"
+              className="block p-6 bg-white dark:bg-slate-900 rounded-lg shadow hover:shadow-lg transition-shadow border border-slate-200 dark:border-slate-800"
+            >
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-sm font-medium text-slate-600 dark:text-slate-400">
+                  Member Data
+                </h3>
+                <span className="text-2xl">🔗</span>
+              </div>
+              <p className="text-3xl font-bold text-slate-900 dark:text-slate-100 mb-1">
+                {missingStripeCount ?? 0}
+              </p>
+              <p className="text-sm text-slate-600 dark:text-slate-400">
+                active members missing Stripe ID
+              </p>
+              {(missingStripeCount ?? 0) > 0 && (
+                <p className="text-xs text-orange-600 dark:text-orange-400 mt-2">
+                  {missingStripeCount} missing Stripe ID →
+                </p>
+              )}
+            </Link>
+
+            {/* Name Aliases */}
+            <Link
+              href="/admin/data/aliases"
+              className="block p-6 bg-white dark:bg-slate-900 rounded-lg shadow hover:shadow-lg transition-shadow border border-slate-200 dark:border-slate-800"
+            >
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-sm font-medium text-slate-600 dark:text-slate-400">
+                  Name Aliases
+                </h3>
+                <span className="text-2xl">🧩</span>
+              </div>
+              <p className="text-3xl font-bold text-slate-900 dark:text-slate-100 mb-1">
+                {totalAliases}
+              </p>
+              <p className="text-sm text-slate-600 dark:text-slate-400">
+                active aliases for {totalMembers} members
+              </p>
+              <p className="text-xs text-blue-600 dark:text-blue-400 mt-2">
+                View all aliases →
+              </p>
+            </Link>
+          </div>
+        </section>
       </div>
     </div>
   );

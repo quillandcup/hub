@@ -56,7 +56,7 @@ const navigation: NavSection[] = [
     name: "Data Health",
     items: [
       { name: "Health Check", href: "/admin/hygiene", icon: "🏥" },
-      { name: "Reconciliation", href: "/admin/reconciliation", icon: "🔄" },
+      { name: "Reconciliation", href: "/admin/hygiene#reconciliation", icon: "🔄" },
     ],
   },
   {

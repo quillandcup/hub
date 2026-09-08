@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import AliasSearchForm from "./AliasSearchForm";
-import { matchAttendeeToMember } from "@/lib/member-matching";
+import { computeUnmatchedZoomNames } from "@/lib/unmatched-zoom-names";
 
 export const metadata: Metadata = {
   title: "Unmatched Zoom Names",
@@ -43,66 +43,13 @@ export default async function AliasSearchPage() {
     }
   }
 
-  const ignoredSet = new Set(ignoredNames?.map(i => i.zoom_name) || []);
-  const staffEmails = new Set((staffMembers || []).map(s => s.email.toLowerCase()));
-  const staffNames = new Set((staffMembers || []).map(s => s.name.toLowerCase()));
-
-  // Count unique meetings (not total records) for each Zoom name
-  const zoomNameCounts = new Map<string, { count: number; emails: Set<string>; meetings: Set<string> }>();
-  allZoomNames?.forEach(z => {
-    const existing = zoomNameCounts.get(z.name);
-    if (existing) {
-      if (z.meeting_uuid) existing.meetings.add(z.meeting_uuid);
-      if (z.email) existing.emails.add(z.email);
-    } else {
-      zoomNameCounts.set(z.name, {
-        count: 0, // Will be set to meetings.size below
-        emails: new Set(z.email ? [z.email] : []),
-        meetings: new Set(z.meeting_uuid ? [z.meeting_uuid] : []),
-      });
-    }
-  });
-
-  // Update counts to be unique meetings
-  for (const [name, info] of zoomNameCounts) {
-    info.count = info.meetings.size;
-  }
-
-  const unmatchedZoomAttendees: Array<{
-    zoomName: string;
-    appearances: number;
-    emails: string[];
-  }> = [];
-
-  // Check each Zoom name to see if it can be matched
-  for (const [zoomName, info] of zoomNameCounts) {
-    // Skip ignored names
-    if (ignoredSet.has(zoomName)) continue;
-
-    // Skip staff members — they attend but aren't tracked as members
-    const zoomEmail = info.emails.size > 0 ? Array.from(info.emails)[0]?.toLowerCase() : null;
-    if (staffNames.has(zoomName.toLowerCase()) || (zoomEmail && staffEmails.has(zoomEmail))) continue;
-
-    // Use centralized matching logic to check if this would match
-    const email = info.emails.size > 0 ? Array.from(info.emails)[0] : null;
-    const matchResult = matchAttendeeToMember(
-      zoomName,
-      email,
-      allMembers || [],
-      aliases || []
-    );
-
-    // If no match found, add to unmatched list
-    if (!matchResult) {
-      unmatchedZoomAttendees.push({
-        zoomName,
-        appearances: info.count,
-        emails: Array.from(info.emails),
-      });
-    }
-  }
-
-  unmatchedZoomAttendees.sort((a, b) => b.appearances - a.appearances);
+  const unmatchedZoomAttendees = computeUnmatchedZoomNames(
+    allZoomNames || [],
+    allMembers || [],
+    aliases || [],
+    (ignoredNames || []).map((i) => i.zoom_name),
+    staffMembers || []
+  ).sort((a, b) => b.appearances - a.appearances);
 
   return (
     <div className="container mx-auto px-6 py-8">

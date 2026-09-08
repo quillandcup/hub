@@ -28,6 +28,7 @@ describe('detectDuplicates', () => {
       const groups = detectDuplicates(members)
       expect(groups).toHaveLength(1)
       expect(groups[0].reason).toBe('Same name')
+      expect(groups[0].confidence).toBe('medium')
       expect(groups[0].members.map(m => m.id)).toEqual(expect.arrayContaining(['1', '2']))
     })
 
@@ -89,6 +90,7 @@ describe('detectDuplicates', () => {
       const groups = detectDuplicates(members)
       expect(groups).toHaveLength(1)
       expect(groups[0].reason).toBe('Same email')
+      expect(groups[0].confidence).toBe('high')
       expect(groups[0].members.map(m => m.id)).toEqual(expect.arrayContaining(['1', '2']))
     })
 
@@ -130,6 +132,55 @@ describe('detectDuplicates', () => {
       const groups = detectDuplicates(members)
       expect(groups).toHaveLength(2)
       expect(groups.map(g => g.reason)).toEqual(expect.arrayContaining(['Same name', 'Same email']))
+    })
+  })
+
+  describe('fuzzy name detection', () => {
+    it('flags a likely typo in the first name when the last name matches exactly', () => {
+      const members = [
+        member('1', 'John Smith', 'a@example.com'),
+        member('2', 'Jon Smith', 'b@example.com'),
+      ]
+      const groups = detectDuplicates(members)
+      expect(groups).toHaveLength(1)
+      expect(groups[0].confidence).toBe('low')
+      expect(groups[0].reason).toMatch(/Similar name \(\d+% match\)/)
+    })
+
+    it('flags a nickname/short-form first name when the last name matches exactly', () => {
+      const members = [
+        member('1', 'Robert Smith', 'a@example.com'),
+        member('2', 'Rob Smith', 'b@example.com'),
+      ]
+      const groups = detectDuplicates(members)
+      expect(groups).toHaveLength(1)
+      expect(groups[0].confidence).toBe('low')
+    })
+
+    it('does not flag two different people who merely share a first name', () => {
+      const members = [
+        member('1', 'Alice Smith', 'a@example.com'),
+        member('2', 'Alice Jones', 'b@example.com'),
+      ]
+      expect(detectDuplicates(members)).toHaveLength(0)
+    })
+
+    it('does not flag two different people who merely share a last name', () => {
+      const members = [
+        member('1', 'Sarah Johnson', 'a@example.com'),
+        member('2', 'Mike Johnson', 'b@example.com'),
+      ]
+      expect(detectDuplicates(members)).toHaveLength(0)
+    })
+
+    it('does not re-flag a pair already caught by an exact match', () => {
+      const members = [
+        member('1', 'Alice Smith', 'alice@example.com'),
+        member('2', 'Alice Smith', 'alice@example.com'),
+      ]
+      const groups = detectDuplicates(members)
+      expect(groups).toHaveLength(1)
+      expect(groups[0].reason).toBe('Same email')
     })
   })
 

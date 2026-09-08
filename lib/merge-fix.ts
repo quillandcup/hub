@@ -9,6 +9,7 @@ export interface EnrichedMember {
 
 export interface EnrichedGroup {
   reason: string;
+  confidence: "high" | "medium" | "low";
   members: EnrichedMember[];
 }
 

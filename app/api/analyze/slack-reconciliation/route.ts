@@ -4,7 +4,9 @@ import { NextRequest, NextResponse } from "next/server";
 
 /**
  * GET /api/analyze/slack-reconciliation
- * Returns which members are matched in Slack, and which Slack users have no member record.
+ * Returns which members are matched in Slack, for the reconciliation table's
+ * Slack column. Slack users with no member record at all are covered by
+ * /admin/hygiene/unmatched-slack, not duplicated here.
  */
 export async function GET(request: NextRequest) {
   const auth = await requireAdmin(request);
@@ -42,20 +44,9 @@ export async function GET(request: NextRequest) {
       membersInSlack.add(memberId);
     }
 
-    // Slack users not matched to any member record at all (true orphans)
-    const orphanSlackUsers = nonBotSlackUsers
-      .filter((u) => !userToMemberMap.has(u.user_id))
-      .map((u) => ({
-        slack_user_id: u.user_id,
-        email: u.email,
-        real_name: u.real_name,
-        display_name: u.display_name,
-      }));
-
     return NextResponse.json({
       total_in_slack: nonBotSlackUsers.length,
       members_in_slack: Array.from(membersInSlack),
-      orphan_slack_users: orphanSlackUsers,
     });
   } catch (error: any) {
     console.error("Error analyzing Slack reconciliation:", error);

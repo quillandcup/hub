@@ -38,17 +38,9 @@ interface ReconciliationData {
   };
 }
 
-interface OrphanSlackUser {
-  slack_user_id: string;
-  email: string | null;
-  real_name: string;
-  display_name: string;
-}
-
 interface SlackData {
   total_in_slack: number;
   members_in_slack: string[];
-  orphan_slack_users: OrphanSlackUser[];
 }
 
 interface StripeOrphan {
@@ -70,14 +62,8 @@ interface ZoomInactiveMember {
   prickle_count: number;
 }
 
-interface ZoomUnmatchedAttendee {
-  name: string;
-  prickle_count: number;
-}
-
 interface ZoomAccessData {
   matched_inactive: ZoomInactiveMember[];
-  unmatched: ZoomUnmatchedAttendee[];
 }
 
 interface KajabiGrant {
@@ -181,7 +167,7 @@ export default function ReconciliationClient() {
   if (loading) {
     return (
       <div className="p-8">
-        <h1 className="text-2xl font-bold mb-4">Subscription Reconciliation</h1>
+        <h2 className="text-2xl font-bold mb-4">Subscription Reconciliation</h2>
         <p>Loading...</p>
       </div>
     );
@@ -190,7 +176,7 @@ export default function ReconciliationClient() {
   if (error) {
     return (
       <div className="p-8">
-        <h1 className="text-2xl font-bold mb-4">Subscription Reconciliation</h1>
+        <h2 className="text-2xl font-bold mb-4">Subscription Reconciliation</h2>
         <div className="p-4 bg-red-50 border border-red-200 rounded">
           <p className="text-red-800">{error}</p>
         </div>
@@ -228,7 +214,7 @@ export default function ReconciliationClient() {
   return (
     <div className="p-8">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold mb-2 dark:text-white">Subscription Reconciliation</h1>
+        <h2 className="text-2xl font-bold mb-2 dark:text-white">Subscription Reconciliation</h2>
         <p className="text-gray-600 dark:text-gray-400">
           Compare expected vs actual member status across Stripe, Kajabi, and Slack
         </p>
@@ -528,44 +514,16 @@ export default function ReconciliationClient() {
         </table>
       </div>
 
-      {/* Orphan Slack users — in Slack but no member record at all */}
-      {slackData && slackData.orphan_slack_users.length > 0 && (
-        <div className="mt-8">
-          <h2 className="text-base font-semibold mb-3 dark:text-white">
-            In Slack with no member record ({slackData.orphan_slack_users.length})
-          </h2>
-          <div className="border border-gray-200 dark:border-slate-700 rounded overflow-hidden">
-            <table className="w-full">
-              <thead className="bg-gray-50 dark:bg-slate-800">
-                <tr>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">
-                    Slack Name
-                  </th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">
-                    Email
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200 dark:divide-slate-700 bg-white dark:bg-slate-900">
-                {slackData.orphan_slack_users.map((u) => (
-                  <tr key={u.slack_user_id} className="hover:bg-gray-50 dark:hover:bg-slate-800">
-                    <td className="px-4 py-3">
-                      <div className="font-medium dark:text-white">{u.real_name}</div>
-                      {u.display_name && u.display_name !== u.real_name && (
-                        <div className="text-xs text-gray-500 dark:text-gray-400">
-                          @{u.display_name}
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
-                      {u.email ?? <span className="text-gray-400 dark:text-gray-500">—</span>}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+      {/* Slack users with no member record: resolved (with alias-creation) on
+          the Identity Matching section of the Data Health dashboard, not
+          duplicated here. */}
+      {slackData && (
+        <p className="mt-8 text-sm text-gray-600 dark:text-gray-400">
+          Looking for Slack users with no member record?{" "}
+          <a href="/admin/hygiene/unmatched-slack" className="text-blue-600 dark:text-blue-400 hover:underline">
+            Resolve them in Identity Matching →
+          </a>
+        </p>
       )}
 
       {/* Active Stripe subscribers with no member record */}
@@ -681,31 +639,18 @@ export default function ReconciliationClient() {
         </div>
       )}
 
-      {/* Zoom: attending prickles with no member record */}
-      {zoomAccessData && zoomAccessData.unmatched.length > 0 && (
-        <div className="mt-8">
-          <h2 className="text-base font-semibold mb-3 dark:text-white">
-            Attending prickles — no member record found ({zoomAccessData.unmatched.length})
-          </h2>
-          <div className="border border-gray-200 dark:border-slate-700 rounded overflow-hidden">
-            <table className="w-full">
-              <thead className="bg-gray-50 dark:bg-slate-800">
-                <tr>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">Name</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">Prickles (last 90d)</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200 dark:divide-slate-700 bg-white dark:bg-slate-900">
-                {zoomAccessData.unmatched.map((u) => (
-                  <tr key={u.name} className="hover:bg-gray-50 dark:hover:bg-slate-800">
-                    <td className="px-4 py-3 font-medium dark:text-white">{u.name}</td>
-                    <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">{u.prickle_count}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+      {/* Zoom attendees with no member record at all: resolved (with
+          alias-creation) on the Identity Matching section, which covers
+          all-time data rather than just the last 90 days used above for
+          the membership-inactive check. */}
+      {zoomAccessData && (
+        <p className="mt-8 text-sm text-gray-600 dark:text-gray-400">
+          Looking for Zoom attendees with no member record at all?{" "}
+          <a href="/admin/hygiene/unmatched-zoom" className="text-blue-600 dark:text-blue-400 hover:underline">
+            Resolve them in Identity Matching →
+          </a>{" "}
+          (all-time, unlike the 90-day window above)
+        </p>
       )}
 
       <div className="mt-6">

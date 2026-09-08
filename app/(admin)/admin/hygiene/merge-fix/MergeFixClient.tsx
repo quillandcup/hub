@@ -25,6 +25,20 @@ function groupKey(group: EnrichedGroup) {
   return group.members.map((m) => m.id).sort().join("|");
 }
 
+const CONFIDENCE_STYLES: Record<EnrichedGroup["confidence"], string> = {
+  high: "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300",
+  medium: "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300",
+  low: "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300",
+};
+
+function ConfidenceBadge({ confidence }: { confidence: EnrichedGroup["confidence"] }) {
+  return (
+    <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide ${CONFIDENCE_STYLES[confidence]}`}>
+      {confidence} confidence
+    </span>
+  );
+}
+
 export default function MergeFixClient({ duplicateGroups, dismissedKeys }: MergeFixClientProps) {
   const router = useRouter();
   const [, startTransition] = useTransition();
@@ -126,10 +140,11 @@ export default function MergeFixClient({ duplicateGroups, dismissedKeys }: Merge
                 key={groupKey(group)}
                 className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 overflow-hidden"
               >
-                <div className="px-4 py-2 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-700">
+                <div className="px-4 py-2 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-700 flex items-center gap-2">
                   <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
                     {group.reason}
                   </span>
+                  <ConfidenceBadge confidence={group.confidence} />
                 </div>
 
                 <div className="p-4 flex flex-wrap gap-6">
@@ -206,10 +221,11 @@ export default function MergeFixClient({ duplicateGroups, dismissedKeys }: Merge
             key={groupKey(group)}
             className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 overflow-hidden"
           >
-            <div className="px-4 py-2 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-700">
+            <div className="px-4 py-2 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-700 flex items-center gap-2">
               <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
                 {group.reason}
               </span>
+              <ConfidenceBadge confidence={group.confidence} />
             </div>
 
             <div className="p-4 flex flex-wrap gap-6">

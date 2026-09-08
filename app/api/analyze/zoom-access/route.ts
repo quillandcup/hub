@@ -10,9 +10,10 @@ const NINETY_DAYS_AGO = () => {
 
 /**
  * GET /api/analyze/zoom-access
- * Zoom attendees from the last 90 days who either:
- *   - matched to a cancelled member (attending after cancellation)
- *   - didn't match any member record (potential non-member)
+ * Zoom attendees from the last 90 days who matched to a cancelled member
+ * (attending after cancellation) — a subscription-status signal. Attendees
+ * who didn't match any member record at all are covered (all-time) by
+ * /admin/hygiene/unmatched-zoom, not duplicated here.
  */
 export async function GET(request: NextRequest) {
   const auth = await requireAdmin(request);
@@ -27,17 +28,12 @@ export async function GET(request: NextRequest) {
       { data: members },
       { data: nameAliases },
       { data: emailAliases },
-      { data: ignoredNames },
     ] = await Promise.all([
       supabase.from("members").select("id, name, email, status"),
       supabase.from("member_name_aliases").select("alias, member_id, source"),
       supabase.from("member_email_aliases").select("alias_email, canonical_email"),
-      supabase.from("ignored_zoom_names").select("zoom_name"),
     ]);
 
-    const ignoredNameSet = new Set(
-      (ignoredNames ?? []).map((r) => r.zoom_name.toLowerCase())
-    );
     const memberStatusMap = new Map(
       (members ?? []).map((m) => [m.id, m.status as string])
     );
@@ -68,7 +64,6 @@ export async function GET(request: NextRequest) {
 
     // Group by name for matching efficiency, preserving meeting_uuids
     const inactiveMatchCounts = new Map<string, { member_id: string; member_name: string; meetings: Set<string> }>();
-    const unmatchedCounts = new Map<string, Set<string>>();
 
     for (const attendee of attendees) {
       const result = matchAttendeeToMember(
@@ -92,13 +87,6 @@ export async function GET(request: NextRequest) {
           }
           inactiveMatchCounts.get(result.member_id)!.meetings.add(attendee.meeting_uuid);
         }
-      } else {
-        // Unmatched or ambiguous — treat as unmatched
-        if (ignoredNameSet.has(attendee.name.toLowerCase())) continue;
-        if (!unmatchedCounts.has(attendee.name)) {
-          unmatchedCounts.set(attendee.name, new Set());
-        }
-        unmatchedCounts.get(attendee.name)!.add(attendee.meeting_uuid);
       }
     }
 
@@ -111,13 +99,8 @@ export async function GET(request: NextRequest) {
       }))
       .sort((a, b) => b.prickle_count - a.prickle_count);
 
-    const unmatchedList = Array.from(unmatchedCounts.entries())
-      .map(([name, meetings]) => ({ name, prickle_count: meetings.size }))
-      .sort((a, b) => b.prickle_count - a.prickle_count);
-
     return NextResponse.json({
       matched_inactive: matchedInactive,
-      unmatched: unmatchedList,
     });
   } catch (error: any) {
     console.error("Error analyzing Zoom access:", error);

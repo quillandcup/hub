@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import MemberSearch from "@/components/MemberSearch";
 import Modal from "@/components/Modal";
 import { formatDateTime } from "@/lib/formatters";
+import { suggestMemberMatches } from "@/lib/member-matching";
 
 interface UnmatchedAttendee {
   zoomName: string;
@@ -42,9 +43,22 @@ export default function AliasSearchForm({
   const [loadingPrickles, setLoadingPrickles] = useState(false);
 
   // Remove matched and ignored items from the list
-  const availableZoomNames = unmatchedAttendees.filter(
-    (a) => !matches.some((m) => m.zoomName === a.zoomName) && !ignoredNames.has(a.zoomName)
+  const availableZoomNames = useMemo(
+    () =>
+      unmatchedAttendees.filter(
+        (a) => !matches.some((m) => m.zoomName === a.zoomName) && !ignoredNames.has(a.zoomName)
+      ),
+    [unmatchedAttendees, matches, ignoredNames]
   );
+
+  const suggestionsByZoomName = useMemo(() => {
+    const map = new Map<string, ReturnType<typeof suggestMemberMatches>>();
+    for (const attendee of availableZoomNames) {
+      const email = attendee.emails.length > 0 ? attendee.emails[0] : null;
+      map.set(attendee.zoomName, suggestMemberMatches(attendee.zoomName, email, allMembers, 3));
+    }
+    return map;
+  }, [availableZoomNames, allMembers]);
 
   const handleSelectMember = (zoomName: string, member: Member | null) => {
     if (!member) return; // Don't add null matches
@@ -259,12 +273,29 @@ export default function AliasSearchForm({
                     )}
                   </div>
 
-                  {/* Middle: Member search */}
-                  <MemberSearch
-                    members={allMembers}
-                    selectedMemberId={null}
-                    onSelect={(member) => handleSelectMember(attendee.zoomName, member)}
-                  />
+                  {/* Middle: Suggestions + member search */}
+                  <div>
+                    {suggestionsByZoomName.get(attendee.zoomName)!.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 mb-1.5">
+                        {suggestionsByZoomName.get(attendee.zoomName)!.map(({ member }) => (
+                          <button
+                            key={member.id}
+                            type="button"
+                            onClick={() => handleSelectMember(attendee.zoomName, member)}
+                            className="px-2 py-1 text-xs bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 rounded-full hover:bg-blue-100 dark:hover:bg-blue-900/40"
+                            title={member.email}
+                          >
+                            {member.name}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    <MemberSearch
+                      members={allMembers}
+                      selectedMemberId={null}
+                      onSelect={(member) => handleSelectMember(attendee.zoomName, member)}
+                    />
+                  </div>
 
                   {/* Right: Ignore button */}
                   <div>

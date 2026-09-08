@@ -476,6 +476,13 @@ Query: `SELECT * FROM bronze.kajabi_purchases WHERE effective_start_at - created
   2. Move all `has_discrepancy` logic client-side so the page computes it by combining all sources uniformly
   3. Remove `has_discrepancy` from the API response (it becomes a pure UI concern)
 
+### Let a prickle's host report unmatched Zoom attendees _(feature idea)_
+- **Idea:** Both prickle detail pages (`/admin/prickles/[id]` and `/(member)/prickles/[id]`) already compute `findUnmatchedZoomAttendees` and render `AliasSearchForm` — but the member-facing page gates it to `isActingAsAdmin` only, so a regular host never sees "these Zoom names showed up but didn't match anyone" for a prickle they hosted, even though the host is the one person who actually knows who that was.
+- **Blockers found:**
+  1. `app/(member)/prickles/[id]/page.tsx` — the `AliasSearchForm` render and its data fetch are conditioned on `isActingAsAdmin`; would need to change to "viewer is this prickle's host" (or host OR admin).
+  2. `/api/aliases` and `/api/aliases/slack` are both `requireAdmin`-only. A host-facing version needs a scoped write path — only allow aliasing a Zoom name that actually appeared in a prickle that member hosted, not arbitrary alias creation — which is its own design/security decision, not a drop-in relaxation of the existing admin check.
+- **Why not built yet:** Raised during the data-hygiene dashboard cleanup (see "Data hygiene / reconciliation dashboard cleanup" work); deliberately scoped out since the permission model needs its own design pass.
+
 ---
 
 ## CRM Features
