@@ -33,6 +33,7 @@ const navigation: NavSection[] = [
       { name: "Work Queue", href: "/admin/work-queue", icon: "✅", feature: "work_queue" },
       { name: "All Members", href: "/admin/members", icon: "👥" },
       { name: "At-Risk Members", href: "/admin/at-risk", icon: "⚠️" },
+      { name: "Outreach", href: "/admin/outreach", icon: "🎯" },
       { name: "Hedgieversaries", href: "/admin/hedgieversaries", icon: "🎂", feature: "hedgieversaries" },
       { name: "Member Overrides", href: "/admin/member-overrides", icon: "🎁", feature: "member_overrides" },
       { name: "Programs", href: "/admin/programs", icon: "🎓", feature: "program_cohorts" },

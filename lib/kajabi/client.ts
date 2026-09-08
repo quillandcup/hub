@@ -32,6 +32,10 @@ export interface KajabiContact {
   };
   relationships?: Record<string, any>;
   links?: Record<string, any>;
+  /** Not a native Kajabi field — resolved from relationships.tags + the
+   *  `include=tags` response by fetchContactsPaginated below, so callers
+   *  don't need a separate contact_tags lookup. Tag names, e.g. ["Ideal Hedgie"]. */
+  tags?: string[];
 }
 
 export interface KajabiPurchase {
@@ -226,9 +230,58 @@ export class KajabiClient {
   /**
    * Fetch all contacts with pagination support
    * Uses JSON:API pagination format: page[number] and page[size]
+   *
+   * Requests `include=tags` and resolves each contact's tag relationship
+   * (a list of `contact_tags` IDs) into plain tag name strings via the
+   * response's `included` array, attached as `contact.tags`. This is what
+   * lets Silver processing (/api/process/members) find "Ideal Hedgie"-tagged
+   * leads for the Outreach page without a separate contact_tags fetch/join.
    */
   async *fetchContactsPaginated(): AsyncGenerator<KajabiContact[]> {
-    yield* this.fetchPaginated<KajabiContact>('/v1/contacts', 'Contacts');
+    let pageNumber = 1;
+    const pageSize = 100;
+    let hasMore = true;
+
+    while (hasMore) {
+      const params = new URLSearchParams({
+        'filter[site_id]': this.siteId,
+        'page[number]': pageNumber.toString(),
+        'page[size]': pageSize.toString(),
+        'include': 'tags',
+      });
+
+      const response: any = await this.request(`/v1/contacts?${params.toString()}`);
+      const items: KajabiContact[] = response.data || [];
+
+      if (items.length > 0) {
+        const tagNameById = new Map<string, string>();
+        for (const included of response.included || []) {
+          if (included.type === 'contact_tags' && included.attributes?.name) {
+            tagNameById.set(included.id, included.attributes.name);
+          }
+        }
+        for (const contact of items) {
+          const tagRefs = contact.relationships?.tags?.data || [];
+          contact.tags = tagRefs
+            .map((ref: { id: string }) => tagNameById.get(ref.id))
+            .filter((name: string | undefined): name is string => Boolean(name));
+        }
+
+        console.log(`[Kajabi API] Contacts page ${pageNumber}: ${items.length} records (${response.meta?.current_page}/${response.meta?.total_pages} pages, ${response.meta?.total_count} total)`);
+        yield items;
+        pageNumber++;
+
+        if (response.meta?.current_page != null && response.meta?.total_pages != null) {
+          hasMore = response.meta.current_page < response.meta.total_pages;
+        } else {
+          hasMore = items.length === pageSize;
+        }
+      } else {
+        hasMore = false;
+      }
+
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
   }
 
   /**
