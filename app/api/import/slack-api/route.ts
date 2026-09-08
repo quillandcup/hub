@@ -1,6 +1,7 @@
 import { WebClient } from '@slack/web-api';
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/supabase/api-auth';
+import { extractSlackImageUrl } from '@/lib/member-avatar';
 
 export const maxDuration = 300; // 5 minutes for Slack API calls
 
@@ -198,6 +199,7 @@ async function fetchAllUsers(slack: WebClient) {
         name: u.name,
         display_name: u.profile?.display_name || u.name,
         real_name: u.real_name,
+        image_url: extractSlackImageUrl(u.profile),
         is_bot: u.is_bot || false,
         is_deleted: u.deleted || false,
         raw_payload: u

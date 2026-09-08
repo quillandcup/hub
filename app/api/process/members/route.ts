@@ -1,24 +1,12 @@
-import { createHash } from "crypto";
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { isMembershipOffer } from "@/lib/membership";
 import { buildMembershipStints, fetchStripeTrialInfoByEmail, isRealMembershipStint } from "@/lib/kajabi/membership-history";
 import { computeMemberTenure, computeActiveDays, type HiatusWindow } from "@/lib/member-tenure";
 import { buildAliasMap, resolveEmail as resolveEmailShared } from "@/lib/email-aliases";
+import { toKajabiPhotoUrl } from "@/lib/member-avatar";
 import { NextRequest, NextResponse, after } from "next/server";
 import { triggerAttendanceReprocessing } from "@/lib/processing/trigger";
 import type { SupabaseClient } from "@supabase/supabase-js";
-
-const KAJABI_CDN = "https://kajabi-storefronts-production.kajabi-cdn.com/kajabi-storefronts-production/"
-
-function toKajabiPhotoUrl(path: string | null | undefined, email: string): string {
-  if (path) {
-    if (path.startsWith("http://") || path.startsWith("https://")) return path
-    return KAJABI_CDN + path
-  }
-  // No custom Kajabi avatar — try Gravatar; d=404 means 404 if no account (onError → initials)
-  const hash = createHash("md5").update(email.toLowerCase().trim()).digest("hex")
-  return `https://www.gravatar.com/avatar/${hash}?d=404&s=200`
-}
 
 function toSocialUrl(base: string, handle: string | null | undefined): string | null {
   if (!handle) return null
@@ -135,6 +123,7 @@ export async function POST(request: NextRequest) {
       customers,
       purchases,
       offers,
+      slackUsers,
       { data: staffMembers, error: staffError },
       { data: emailAliases, error: aliasesError },
       { data: stripeCustomers, error: stripeError },
@@ -146,6 +135,7 @@ export async function POST(request: NextRequest) {
       fetchAllBronzeRows(supabase, "kajabi_customers"),
       fetchAllBronzeRows(supabase, "kajabi_purchases"),
       fetchAllBronzeRows(supabase, "kajabi_offers"),
+      fetchAllBronzeRows(supabase, "slack_users", "email, image_url"),
       supabase.from("staff").select("*"),
       supabase.from("member_email_aliases").select("*").eq("active", true),
       supabase.schema('bronze').from("stripe_customers").select("stripe_customer_id, email"),
@@ -170,6 +160,7 @@ export async function POST(request: NextRequest) {
       customers_count: customers?.length || 0,
       purchases_count: purchases?.length || 0,
       offers_count: offers?.length || 0,
+      slack_users_count: slackUsers?.length || 0,
       staff_count: staffMembers?.length || 0,
       email_aliases_count: emailAliases?.length || 0,
       stripe_customers_count: stripeCustomers?.length || 0,
@@ -237,6 +228,17 @@ export async function POST(request: NextRequest) {
         const existing = customerByEmail.get(email);
         if (!existing || customer.updated_at_kajabi > existing.updated_at_kajabi) {
           customerByEmail.set(email, customer);
+        }
+      }
+    }
+
+    // Slack photo lookup: email → Slack profile image URL (avatar fallback,
+    // ahead of Gravatar, for members who never uploaded a Kajabi avatar)
+    const slackImageByEmail = new Map<string, string>();
+    if (slackUsers && slackUsers.length > 0) {
+      for (const slackUser of slackUsers) {
+        if (slackUser.email && slackUser.image_url) {
+          slackImageByEmail.set(resolveEmail(slackUser.email), slackUser.image_url);
         }
       }
     }
@@ -381,7 +383,7 @@ export async function POST(request: NextRequest) {
           user_id: null,
           kajabi_id: contact.kajabi_contact_id,
           stripe_customer_id: stripeIdByEmail.get(email) ?? null,
-          photo_url: toKajabiPhotoUrl(attrs?.avatar, email),
+          photo_url: toKajabiPhotoUrl(attrs?.avatar, email, slackImageByEmail.get(email)),
           bio: attrs?.public_bio || null,
           instagram_url: toSocialUrl("https://instagram.com", attrs?.socials?.instagram),
           facebook_url: toSocialUrl("https://facebook.com", attrs?.socials?.facebook),
