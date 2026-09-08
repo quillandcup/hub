@@ -388,6 +388,7 @@ export async function POST(request: NextRequest) {
           instagram_url: toSocialUrl("https://instagram.com", attrs?.socials?.instagram),
           facebook_url: toSocialUrl("https://facebook.com", attrs?.socials?.facebook),
           twitter_url: toSocialUrl("https://x.com", attrs?.socials?.twitter),
+          kajabi_tags: Array.isArray(contact.data?.tags) ? contact.data.tags : [],
         });
       }
     }
@@ -474,6 +475,7 @@ export async function POST(request: NextRequest) {
         instagram_url: null,
         facebook_url: null,
         twitter_url: null,
+        kajabi_tags: [],
       });
     }
 
