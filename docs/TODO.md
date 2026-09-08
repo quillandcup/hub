@@ -287,6 +287,13 @@ Build fuzzy matching to connect Zoom attendance to members when emails aren't av
 - Manual mapping table for common aliases
 - Confidence scoring
 
+### Slack Name → Member Lookup Tool (Needs Scoping)
+Staff currently resolve an unknown Slack display name/nickname to a member by hand: search Slack, guess at a real name, then search Kajabi/Hedgie Hub by email. Came up while bootstrapping member birthdays from a hand-maintained sheet of Slack names — the fuzzy matcher (`lib/member-matching.ts`, `suggestMemberMatches`) plus the alias tables (`member_name_aliases`, `member_email_aliases`) already have most of what's needed to do this automatically; there's just no UI for an ad-hoc "who is this Slack name" lookup outside the existing unmatched-Slack/ambiguous-names reconciliation flows (which only cover names Slack/Zoom processing has already flagged).
+
+**Possible shape:** a small admin search box — paste a name, get back ranked candidate members (name/email/status) using the same matching logic, with a one-click "add as alias" action. Could live alongside `/admin/hygiene/unmatched-slack` or as its own lightweight tool.
+
+**Priority:** Not scoped yet — came from a one-off bootstrap task, not a recurring pain point (yet).
+
 ### Background Agents
 Set up background agents for faster parallel development
 
