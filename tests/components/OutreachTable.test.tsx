@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import type { ReactNode } from 'react'
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import OutreachTable, { type OutreachLead } from '@/app/(admin)/admin/outreach/OutreachTable'
@@ -27,6 +27,7 @@ const leads: OutreachLead[] = [
     memberStatus: 'lead',
     outreachStatus: 'cold',
     outreachUpdatedAt: null,
+    lastTouchedAt: null,
   },
   {
     id: 'b',
@@ -37,41 +38,85 @@ const leads: OutreachLead[] = [
     memberStatus: 'lead',
     outreachStatus: 'cold',
     outreachUpdatedAt: null,
+    lastTouchedAt: null,
+  },
+  {
+    id: 'c',
+    name: 'Carol',
+    email: 'carol@example.com',
+    photoUrl: null,
+    instagramUrl: 'https://instagram.com/carol_handle',
+    memberStatus: 'cancelled',
+    outreachStatus: 'cold',
+    outreachUpdatedAt: null,
+    lastTouchedAt: null,
   },
 ]
 
-describe('OutreachTable Instagram filter', () => {
-  it('shows every lead by default, with Profile/DM disabled for leads with no Instagram', () => {
-    render(<OutreachTable leads={leads} />)
+function switchToAllLeads() {
+  return userEvent.click(screen.getByRole('button', { name: /all leads/i }))
+}
+
+describe('OutreachTable — All Leads view', () => {
+  it('shows current leads by default and reveals former members via the filter', async () => {
+    render(<OutreachTable leads={leads} initialTodayCount={0} />)
+    await switchToAllLeads()
+
     expect(screen.getByText('Alice')).toBeInTheDocument()
     expect(screen.getByText('Bob')).toBeInTheDocument()
+    expect(screen.queryByText('Carol')).not.toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('checkbox', { name: /include former members/i }))
+    expect(screen.getByText('Carol')).toBeInTheDocument()
+  })
+
+  it('hides leads without Instagram when the Instagram filter is checked', async () => {
+    render(<OutreachTable leads={leads} initialTodayCount={0} />)
+    await switchToAllLeads()
 
     const profileLinks = screen.getAllByText('Profile')
-    expect(profileLinks).toHaveLength(2)
-    // Alice has a handle -> real href; Bob has none -> disabled (no href)
     expect(profileLinks[0]).toHaveAttribute('href', 'https://instagram.com/alice_handle')
     expect(profileLinks[1]).not.toHaveAttribute('href')
-  })
 
-  it('hides leads without Instagram when the filter checkbox is checked', async () => {
-    render(<OutreachTable leads={leads} />)
-    const checkbox = screen.getByRole('checkbox', { name: /only show leads with instagram/i })
-
-    await userEvent.click(checkbox)
-
+    await userEvent.click(screen.getByRole('checkbox', { name: /only show leads with instagram/i }))
     expect(screen.getByText('Alice')).toBeInTheDocument()
     expect(screen.queryByText('Bob')).not.toBeInTheDocument()
+  })
+})
 
-    await userEvent.click(checkbox)
-    expect(screen.getByText('Bob')).toBeInTheDocument()
+describe("OutreachTable — Today's Queue view (default)", () => {
+  beforeEach(() => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({
+        ok: true,
+        json: async () => ({ touch: { id: 't1', touched_at: new Date().toISOString(), member_id: 'a' } }),
+      }))
+    )
   })
 
-  it('shows an empty-state message when the filter matches no leads', async () => {
-    render(<OutreachTable leads={[leads[1]]} />)
-    const checkbox = screen.getByRole('checkbox', { name: /only show leads with instagram/i })
+  it('only queues current, Instagram-reachable leads', () => {
+    render(<OutreachTable leads={leads} initialTodayCount={0} />)
+    expect(screen.getByText('Alice')).toBeInTheDocument()
+    expect(screen.queryByText('Bob')).not.toBeInTheDocument() // no Instagram handle
+    expect(screen.queryByText('Carol')).not.toBeInTheDocument() // former member, excluded by default
+  })
 
-    await userEvent.click(checkbox)
+  it('logging an outreach increments the daily count and marks the lead done', async () => {
+    render(<OutreachTable leads={leads} initialTodayCount={3} />)
+    expect(screen.getByText(/today.s outreach: 3 \/ 25/i)).toBeInTheDocument()
 
-    expect(screen.getByText('No leads with Instagram on file.')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: /log outreach/i }))
+
+    expect(await screen.findByText(/today.s outreach: 4 \/ 25/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /logged/i })).toBeDisabled()
+  })
+
+  it('hides the remaining queue once "Done for today" is clicked', async () => {
+    render(<OutreachTable leads={leads} initialTodayCount={0} />)
+    await userEvent.click(screen.getByRole('button', { name: /done for today/i }))
+
+    expect(screen.queryByText('Alice')).not.toBeInTheDocument()
+    expect(screen.getByText(/all caught up for today/i)).toBeInTheDocument()
   })
 })

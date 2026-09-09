@@ -4,12 +4,18 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import OutreachTable, { type OutreachLead } from "./OutreachTable";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { etDate } from "@/lib/community-stats";
 
 export const metadata: Metadata = {
   title: "Outreach",
 };
 
 const IDEAL_HEDGIE_TAG = "Ideal Hedgie";
+// Never show current members here — they're already Hedgies. 'lead' (never
+// joined) and 'cancelled' (former member) are the only statuses worth
+// outreach; 'cancelled' rows are hidden by default client-side, toggleable
+// via OutreachTable's "Include former members" filter.
+const OUTREACH_STATUSES = ["lead", "cancelled"];
 
 // Same pagination pattern as app/api/process/members/route.ts — members can
 // exceed Supabase's 1000-row cap, even though the Ideal Hedgie-tagged subset
@@ -56,12 +62,42 @@ export default async function OutreachPage() {
       supabase,
       "members",
       "id, name, email, photo_url, instagram_url, status",
-      (q) => q.contains("kajabi_tags", [IDEAL_HEDGIE_TAG]).order("name")
+      (q) => q.contains("kajabi_tags", [IDEAL_HEDGIE_TAG]).in("status", OUTREACH_STATUSES).order("name")
     ),
     fetchAllRows(supabase, "outreach_leads", "member_id, status, updated_at"),
   ]);
 
+  const memberIds = leads.map((m) => m.id);
+
+  const touchRows =
+    memberIds.length > 0
+      ? await fetchAllRows(supabase, "outreach_touches", "member_id, touched_at", (q) =>
+          q.in("member_id", memberIds)
+        )
+      : [];
+
+  // "Today" totals are computed over a 48h window (not filtered to these
+  // members) rather than a precise ET-midnight query boundary, then bucketed
+  // by etDate — cheap, DST-safe, and avoids reconstructing a UTC day
+  // boundary from an ET wall-clock date.
+  const recentTouches = await fetchAllRows(
+    supabase,
+    "outreach_touches",
+    "touched_at",
+    (q) => q.gte("touched_at", new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString())
+  );
+  const todayET = etDate(new Date().toISOString());
+  const todayTouchCount = recentTouches.filter((t) => etDate(t.touched_at) === todayET).length;
+
   const statusByMemberId = new Map(statuses.map((s) => [s.member_id, s]));
+
+  const lastTouchByMemberId = new Map<string, string>();
+  for (const t of touchRows) {
+    const existing = lastTouchByMemberId.get(t.member_id);
+    if (!existing || t.touched_at > existing) {
+      lastTouchByMemberId.set(t.member_id, t.touched_at);
+    }
+  }
 
   const rows: OutreachLead[] = leads.map((m) => ({
     id: m.id,
@@ -72,6 +108,7 @@ export default async function OutreachPage() {
     memberStatus: m.status,
     outreachStatus: statusByMemberId.get(m.id)?.status ?? "cold",
     outreachUpdatedAt: statusByMemberId.get(m.id)?.updated_at ?? null,
+    lastTouchedAt: lastTouchByMemberId.get(m.id) ?? null,
   }));
 
   return (
@@ -92,7 +129,9 @@ export default async function OutreachPage() {
       <main className="container mx-auto px-6 py-8">
         <div className="bg-white dark:bg-slate-900 rounded-lg shadow">
           <div className="p-6 border-b border-slate-200 dark:border-slate-800">
-            <div className="text-3xl font-bold text-slate-900 dark:text-slate-100">{rows.length}</div>
+            <div className="text-3xl font-bold text-slate-900 dark:text-slate-100">
+              {rows.filter((r) => r.memberStatus === "lead").length}
+            </div>
             <div className="text-sm text-slate-600 dark:text-slate-400">ideal hedgie leads</div>
           </div>
 
@@ -101,7 +140,7 @@ export default async function OutreachPage() {
               No leads tagged &ldquo;{IDEAL_HEDGIE_TAG}&rdquo; yet.
             </div>
           ) : (
-            <OutreachTable leads={rows} />
+            <OutreachTable leads={rows} initialTodayCount={todayTouchCount} />
           )}
         </div>
       </main>
