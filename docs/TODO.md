@@ -391,7 +391,21 @@ Every admin table (Hedgieversaries, Members, etc.) has a fixed column order set 
 ### Admin Features
 - Manually create/edit members
 - Manually create/edit Prickles
-- Mark members for outreach
+- ~~Mark members for outreach~~ — done: `/admin/outreach` (hot/warm/cold status, daily 25-outreach queue, outreach_touches log)
+
+### Outreach — Instagram DM Integration & Universal Inbox (Needs Scoping)
+`/admin/outreach` currently tracks outreach as a one-way log: an admin clicks "Log Outreach" after manually sending an Instagram DM (via the `DM` deep link, which opens `ig.me/m/<handle>` in whatever Instagram account is logged into the browser). There's no visibility into whether a lead ever replied.
+
+**The goal:** connect to Instagram (likely via the Instagram Graph API / Meta for Developers, which requires the account be a Business/Creator account linked to a Facebook Page) so that:
+- Outreach DMs can be sent and tracked from Hedgie Hub directly, not just linked out to the Instagram app.
+- Replies bubble up into a "universal inbox" surfacing follow-ups/responses from leads who've been reached out to, so a reply doesn't go unnoticed in the personal Instagram app.
+
+**Open questions:**
+- Which Instagram account(s) do outreach — one shared business account, or multiple staff accounts? Affects whether this is a single OAuth connection or per-user.
+- Scope of "universal inbox" — Instagram DMs only, or eventually also email/Slack replies from outreach leads (true "universal")?
+- Meta's Business Login/webhook setup and review process for messaging permissions (`instagram_manage_messages`) has real lead time — likely the first concrete step once this is scoped.
+
+**Priority:** Not scoped yet — stated as the next step after the outreach daily-queue work above.
 
 ### Member Profile Pages
 - **Attendance breakdown by Prickle kind and time slot**
