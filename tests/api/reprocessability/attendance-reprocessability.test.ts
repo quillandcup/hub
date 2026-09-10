@@ -84,6 +84,7 @@ describe('Attendance Reprocessability', () => {
   afterAll(async () => {
     // Clean up using overlap logic to ensure we catch all test data
     await supabase.from('prickle_attendance').delete().eq('member_id', testMemberId)
+    await supabase.from('member_activities').delete().eq('member_id', testMemberId).eq('source', 'prickle_attendance')
     await supabase
       .from('prickles')
       .delete()
@@ -140,6 +141,25 @@ describe('Attendance Reprocessability', () => {
 
     expect(attendance).toHaveLength(1)
     expect(attendance?.[0].join_time).toBe('2099-05-15T10:05:00+00:00')
+
+    // ASSERT: mirrored into member_activities atomically alongside prickle_attendance
+    const { data: activity } = await supabase
+      .from('member_activities')
+      .select('*')
+      .eq('member_id', testMemberId)
+      .eq('source', 'prickle_attendance')
+      .single()
+
+    expect(activity).toBeTruthy()
+    expect(activity?.activity_type).toBe('prickle_attended')
+    expect(activity?.actor_kind).toBe('member')
+    expect(activity?.related_id).toBe(attendance![0].prickle_id)
+    // engagement_value MUST be 10 (not the column default of 1, and not 0) —
+    // this is the sole source of the attendance weight for engagement
+    // scoring now that computeMemberEngagementMetrics no longer separately
+    // multiplies pricklesLast30Days by 10 itself.
+    expect(activity?.engagement_value).toBe(10)
+    expect(activity?.title).toBe('Attended Pop-Up Prickle')
   })
 
   it('should remove attendance when Zoom data is deleted', async () => {
@@ -170,6 +190,16 @@ describe('Attendance Reprocessability', () => {
       .eq('member_id', testMemberId)
 
     expect(attendance).toHaveLength(0)
+
+    // ASSERT: the member_activities mirror is removed too (DELETE+INSERT,
+    // not UPSERT — an orphaned mirror row would mean it isn't reprocessable)
+    const { data: activity } = await supabase
+      .from('member_activities')
+      .select('*')
+      .eq('member_id', testMemberId)
+      .eq('source', 'prickle_attendance')
+
+    expect(activity).toHaveLength(0)
   })
 
   it('should remove PUPs when Zoom meeting is deleted', async () => {

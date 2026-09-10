@@ -6,7 +6,6 @@ import MemberFilters from "./MemberFilters";
 import MembersTable from "./MembersTable";
 import {
   computeMemberEngagementMetrics,
-  type EngagementAttendanceRow,
   type EngagementActivityRow,
 } from "@/lib/member-engagement";
 
@@ -16,23 +15,25 @@ export const metadata: Metadata = {
 
 type SearchParams = Promise<{ [key: string]: string | string[] | undefined }>;
 
-// prickle_attendance can have 10,000+ rows (CLAUDE.md) — paginate.
-// Fetched unfiltered (not `.in("member_id", ...)`) because with the "all"
-// members filter the member ID list can grow long enough to exceed the
-// Supabase gateway's URL length limit, which fails with a 400 Bad Request.
-async function fetchAllAttendance(
+// member_activities (prickle_attended rows) can have 10,000+ rows over time
+// (same order of magnitude as prickle_attendance, which it mirrors) —
+// paginate. Fetched unfiltered (not `.in("member_id", ...)`) because with
+// the "all" members filter the member ID list can grow long enough to
+// exceed the Supabase gateway's URL length limit, which fails with a 400.
+async function fetchAllPrickleAttended(
   supabase: Awaited<ReturnType<typeof createClient>>
-): Promise<EngagementAttendanceRow[]> {
+): Promise<{ member_id: string; occurred_at: string }[]> {
   const BATCH = 1000;
-  const rows: EngagementAttendanceRow[] = [];
+  const rows: { member_id: string; occurred_at: string }[] = [];
   let offset = 0;
   let hasMore = true;
 
   while (hasMore) {
     const { data, error } = await supabase
-      .from("prickle_attendance")
-      .select("member_id, prickle_id, join_time")
-      .order("join_time", { ascending: true })
+      .from("member_activities")
+      .select("member_id, occurred_at")
+      .eq("activity_type", "prickle_attended")
+      .order("occurred_at", { ascending: true })
       .range(offset, offset + BATCH - 1);
 
     if (error) throw error;
@@ -48,9 +49,10 @@ async function fetchAllAttendance(
   return rows;
 }
 
-// member_activities (Slack messages/reactions today) feeds the engagement
-// score's activity component — only the last 30 days are ever used, so scope
-// the query instead of paginating full history.
+// member_activities (all activity types — Slack, prickle attendance,
+// outreach touches, logins, ...) feeds the engagement score — only the
+// last 30 days are ever used, so scope the query instead of paginating
+// full history.
 async function fetchRecentActivities(
   supabase: Awaited<ReturnType<typeof createClient>>,
   sinceIso: string
@@ -63,7 +65,7 @@ async function fetchRecentActivities(
   while (hasMore) {
     const { data, error } = await supabase
       .from("member_activities")
-      .select("member_id, engagement_value, occurred_at")
+      .select("member_id, activity_type, engagement_value, occurred_at")
       .gte("occurred_at", sinceIso)
       .order("occurred_at", { ascending: true })
       .range(offset, offset + BATCH - 1);
@@ -129,17 +131,17 @@ export default async function MembersPage({
 
   const { data: allMembers } = await query.order("name");
 
-  // Compute real engagement metrics from prickle_attendance (DISTINCT prickle_id
-  // per member, per CLAUDE.md) rather than relying on the static member_metrics /
-  // member_engagement seed tables.
+  // Compute real engagement metrics from member_activities (the mirror of
+  // prickle_attendance plus Slack/outreach/login activity) rather than
+  // relying on the static member_metrics / member_engagement seed tables.
   const memberIds = (allMembers ?? []).map((m) => m.id);
   const now = new Date();
   const thirtyDaysAgoIso = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
-  const [attendance, activities] = await Promise.all([
-    fetchAllAttendance(supabase),
+  const [allPrickleAttended, activities] = await Promise.all([
+    fetchAllPrickleAttended(supabase),
     fetchRecentActivities(supabase, thirtyDaysAgoIso),
   ]);
-  const metricsByMemberId = computeMemberEngagementMetrics(attendance, memberIds, now, activities);
+  const metricsByMemberId = computeMemberEngagementMetrics(allPrickleAttended, memberIds, now, activities);
 
   const membersWithMetrics = (allMembers ?? []).map((m) => {
     const metrics = metricsByMemberId.get(m.id) ?? null;

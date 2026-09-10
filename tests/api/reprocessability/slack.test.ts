@@ -209,13 +209,13 @@ describe('Slack Reprocessability', () => {
 
     // Should only have TEST_001 activity (TEST_002 was deleted)
     const deletedMessageActivity = activities?.find(
-      (a) => a.metadata?.message_ts === 'TEST_002'
+      (a) => a.data?.message_ts === 'TEST_002'
     )
     expect(deletedMessageActivity).toBeUndefined()
 
     // TEST_001 should still exist
     const activeMessageActivity = activities?.find(
-      (a) => a.metadata?.message_ts === 'TEST_001'
+      (a) => a.data?.message_ts === 'TEST_001'
     )
     expect(activeMessageActivity).toBeDefined()
   })
@@ -233,7 +233,7 @@ describe('Slack Reprocessability', () => {
       occurred_at: '2099-04-01T12:00:00Z',
       engagement_value: 10,
       related_id: 'C_ORPHAN:ORPHAN_MESSAGE',
-      metadata: {
+      data: {
         message_ts: 'ORPHAN_MESSAGE',
         channel_id: 'C_ORPHAN',
         channel_name: 'orphan-channel',
@@ -250,7 +250,7 @@ describe('Slack Reprocessability', () => {
     const { data: before } = await supabase
       .from('member_activities')
       .select('*')
-      .eq('metadata->>message_ts', 'ORPHAN_MESSAGE')
+      .eq('data->>message_ts', 'ORPHAN_MESSAGE')
       .single()
 
     expect(before).toBeTruthy()
@@ -282,7 +282,7 @@ describe('Slack Reprocessability', () => {
     const { data: after } = await supabase
       .from('member_activities')
       .select('*')
-      .eq('metadata->>message_ts', 'ORPHAN_MESSAGE')
+      .eq('data->>message_ts', 'ORPHAN_MESSAGE')
       .single()
 
     expect(after).toBeNull()

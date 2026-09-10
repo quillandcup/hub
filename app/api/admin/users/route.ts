@@ -85,5 +85,16 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
 
+  // Link this new auth user to any existing member with a matching email —
+  // otherwise members.user_id only ever gets set via the staff-merge step
+  // (app/api/process/members) or manual admin linking, leaving it null for
+  // an ordinary invited member indefinitely. Best-effort: a missing member
+  // row (e.g. inviting a staff-only email) is not an error here.
+  await supabase
+    .from("members")
+    .update({ user_id: data.user.id })
+    .eq("email", data.user.email)
+    .is("user_id", null);
+
   return NextResponse.json({ user: { id: data.user.id, email: data.user.email } });
 }

@@ -166,8 +166,8 @@ Before committing changes to API routes, verify:
 - **NOT reprocessed** - these tables ARE the source of truth
 
 **Silver Layer** (canonical state, computed from Bronze + Local):
-- `members`, `prickles`, `attendance`
-- **Pattern**: DELETE + INSERT for `prickles`/`attendance`; `members` uses a custom atomic upsert (see below) to preserve historical attendance via the `ON DELETE CASCADE` FK
+- `members`, `prickles`, `attendance`, `member_activities`
+- **Pattern**: DELETE + INSERT for `prickles`/`attendance`; `members` uses a custom atomic upsert (see below) to preserve historical attendance via the `ON DELETE CASCADE` FK; `member_activities` uses two patterns depending on source — DELETE+INSERT by `source` + date range for reprocessable mirrors (Slack, prickle attendance, mirrored atomically inside `reprocess_prickle_attendance_atomic`), and a best-effort single insert alongside the primary action for append-only sources (writing-progress, outreach touches, logins) that are never reprocessed. See `docs/ACTIVITY_AND_AUDIT_LOG.md`.
 
 **Gold Layer** (aggregated views):
 - Currently computed on-demand in dashboard queries

@@ -393,19 +393,26 @@ Every admin table (Hedgieversaries, Members, etc.) has a fixed column order set 
 - Manually create/edit Prickles
 - ~~Mark members for outreach~~ — done: `/admin/outreach` (hot/warm/cold status, daily 25-outreach queue, outreach_touches log)
 
-### Outreach — Instagram DM Integration & Universal Inbox (Needs Scoping)
-`/admin/outreach` currently tracks outreach as a one-way log: an admin clicks "Log Outreach" after manually sending an Instagram DM (via the `DM` deep link, which opens `ig.me/m/<handle>` in whatever Instagram account is logged into the browser). There's no visibility into whether a lead ever replied.
+### CRM & Outreach Automation Roadmap (Needs Scoping — Multi-Phase)
+`/admin/outreach` (hot/warm/cold status, the daily 25-lead queue, `outreach_touches` log) is the first slice of a much bigger planned system: a built-in CRM with a unified inbox, response-driven outreach, lead scoring, and eventually an AI prospecting agent. Stated 2026-09-09 as the direction to build toward — not scoped or started beyond Outreach itself. Phases below are roughly the order they'd need to happen (later phases depend on earlier ones), not a commitment to build all of them.
 
-**The goal:** connect to Instagram (likely via the Instagram Graph API / Meta for Developers, which requires the account be a Business/Creator account linked to a Facebook Page) so that:
-- Outreach DMs can be sent and tracked from Hedgie Hub directly, not just linked out to the Instagram app.
-- Replies bubble up into a "universal inbox" surfacing follow-ups/responses from leads who've been reached out to, so a reply doesn't go unnoticed in the personal Instagram app.
+**Phase 1 — Centralized activity log (CRM backbone). In progress.** `member_activities` already existed (written by Slack import + writing-progress) and is being extended to also mirror prickle attendance, outreach touches, and Hedgie Hub logins — see `docs/ACTIVITY_AND_AUDIT_LOG.md` for the schema (`actor_kind`/`actor_user_id` for who acted, `data` for the event's actual content) and the separate, not-yet-built `audit_log` design (field-level record-change history, distinct from this activity log — see that doc for why they're two tables).
 
-**Open questions:**
-- Which Instagram account(s) do outreach — one shared business account, or multiple staff accounts? Affects whether this is a single OAuth connection or per-user.
-- Scope of "universal inbox" — Instagram DMs only, or eventually also email/Slack replies from outreach leads (true "universal")?
-- Meta's Business Login/webhook setup and review process for messaging permissions (`instagram_manage_messages`) has real lead time — likely the first concrete step once this is scoped.
+**Phase 2 — Inbox.** A Beeper Desktop-inspired unified inbox inside Hedgie Hub showing messages across connected accounts, with filter views: All / Unread / Drafts / Unanswered / Archived / Requests / Low Priority. Requires real per-channel integrations to pull messages in — Instagram DMs (Graph API, needs a Business/Creator account linked to a Facebook Page, and Meta's app review for `instagram_manage_messages` has real lead time), email (provider-dependent — Gmail API vs. a shared inbox forwarding setup), Slack (already have API access, just needs message-fetch + a read UI). Likely built incrementally per channel rather than all at once.
 
-**Priority:** Not scoped yet — stated as the next step after the outreach daily-queue work above.
+**Phase 3 — Outreach ↔ Inbox integration.** Once Phase 2 exists, Outreach should surface a "needs response" view — leads who replied to a cold outreach touch, as a filtered subset of Inbox scoped to outreach recipients. This is where a reply stops being invisible in personal Instagram/email and becomes an actionable queue item, closing the loop that today's one-way `outreach_touches` log doesn't.
+
+**Phase 4 — Lead scoring.** Augment Ania's manual hot/warm/cold with a computed score, using Phase 1's activity log as the input (engagement signals, response patterns, etc.) once there's enough activity data to make a score meaningful.
+
+**Phase 5 — AI prospecting & messaging agent.** An agent that (a) finds people not yet on the lead list by searching online (Instagram and beyond), (b) reads their profile/page for talking points and fit signals, (c) drafts an initial outreach message, and (d) over time learns Ania's voice and optimizes messaging for response rate and conversion — likely needs its own feedback loop off Phase 1's activity log and Phase 4's scoring. Longer-term: SMS and voice-call outreach (Vapi mentioned as a candidate for voice).
+
+**Open questions (apply across phases):**
+- Single shared Instagram/email account for outreach, or per-staff-member accounts? Affects OAuth/connection architecture for Phase 2.
+- Data model for Phase 1 — settled on extending `member_activities` (one row per event) rather than a new table; see `docs/ACTIVITY_AND_AUDIT_LOG.md`.
+- How much of Phase 5's "AI agent" runs autonomously vs. drafts-for-review — cold outreach to strangers sourced by an AI carries real brand/trust risk if it goes out unreviewed.
+- **ORM evaluation** (decoupled from the above — came up while designing `audit_log`'s trigger-based change tracking, which needs no ORM and works regardless of this decision): this codebase has no ORM/model layer, just direct `supabase-js` calls across routes. Worth evaluating on its own merits (type safety, query ergonomics) at some point, but not framed as something the audit log or any of the above phases are blocked on or temporary until.
+
+**Priority:** Phase 1 in progress; the rest is roadmap only.
 
 ### Member Profile Pages
 - **Attendance breakdown by Prickle kind and time slot**
