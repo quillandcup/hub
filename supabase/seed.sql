@@ -251,7 +251,7 @@ INSERT INTO prickle_popularity (prickle_id, avg_attendance, last_5_attendance, t
 -- =====================================================
 
 -- Sample activities showing the comprehensive tracking
-INSERT INTO member_activities (member_id, activity_type, activity_category, title, description, metadata, prickle_id, occurred_at, engagement_value, duration_minutes, source) VALUES
+INSERT INTO member_activities (member_id, activity_type, activity_category, title, description, data, prickle_id, occurred_at, engagement_value, duration_minutes, source) VALUES
 -- Prickle attendance (derived from zoom_attendees and attendance tables)
 ('11111111-1111-1111-1111-111111111111', 'prickle_attendance', 'engagement', 'Attended Morning Writing Sprint', 'Participated in writing session', '{"attentiveness": 95, "arrived_on_time": true}'::jsonb, '10000001-0000-0000-0000-000000000001', '2026-03-10 09:05:00+00', 5, 80, 'zoom'),
 ('33333333-3333-3333-3333-333333333333', 'prickle_attendance', 'engagement', 'Attended Morning Writing Sprint', 'Participated in writing session', '{"attentiveness": 88, "arrived_on_time": false}'::jsonb, '10000001-0000-0000-0000-000000000001', '2026-03-10 09:10:00+00', 5, 80, 'zoom'),

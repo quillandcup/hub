@@ -10,7 +10,6 @@ import { startSudo } from "@/app/actions/sudo";
 import { fetchMembershipHistory } from "@/lib/kajabi/membership-history";
 import {
   computeMemberEngagementMetrics,
-  type EngagementAttendanceRow,
   type EngagementActivityRow,
 } from "@/lib/member-engagement";
 import { getMemberBadges } from "@/lib/badges";
@@ -73,30 +72,30 @@ export default async function MemberDetailPage({
     .eq("member_id", id)
     .order("join_time", { ascending: false });
 
-  // Compute real engagement metrics from this member's attendance (DISTINCT
-  // prickle_id per CLAUDE.md) rather than the static member_metrics /
-  // member_engagement seed tables.
-  const attendanceForMetrics: EngagementAttendanceRow[] = (attendance ?? []).map((a: any) => {
-    const prickle = Array.isArray(a.prickles) ? a.prickles[0] : a.prickles;
-    return {
-      member_id: id,
-      prickle_id: prickle?.id ?? a.id,
-      join_time: a.join_time,
-    };
-  });
-  // Slack (and future) activity feeds the engagement score's activity
-  // component — only the last 30 days are ever used, so scope the query.
+  // Compute real engagement metrics from member_activities — the mirror of
+  // this member's prickle attendance (unbounded, for lastAttendedAt/
+  // totalPrickles) plus all activity types in the last 30 days (for the
+  // score) — rather than the static member_metrics / member_engagement seed
+  // tables. `attendance` above stays the rich, unfiltered source for the
+  // attendanceRecords panel below.
   const now = new Date();
   const thirtyDaysAgoIso = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
-  const { data: recentActivities } = await supabase
-    .from("member_activities")
-    .select("member_id, engagement_value, occurred_at")
-    .eq("member_id", id)
-    .gte("occurred_at", thirtyDaysAgoIso);
+  const [{ data: allPrickleAttended }, { data: recentActivities }] = await Promise.all([
+    supabase
+      .from("member_activities")
+      .select("member_id, occurred_at")
+      .eq("member_id", id)
+      .eq("activity_type", "prickle_attended"),
+    supabase
+      .from("member_activities")
+      .select("member_id, activity_type, engagement_value, occurred_at")
+      .eq("member_id", id)
+      .gte("occurred_at", thirtyDaysAgoIso),
+  ]);
   const activitiesForMetrics: EngagementActivityRow[] = recentActivities ?? [];
 
   const metrics =
-    computeMemberEngagementMetrics(attendanceForMetrics, [id], now, activitiesForMetrics).get(id) ?? null;
+    computeMemberEngagementMetrics(allPrickleAttended ?? [], [id], now, activitiesForMetrics).get(id) ?? null;
   const member = {
     ...memberRow,
     member_metrics: metrics

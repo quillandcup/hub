@@ -18,7 +18,7 @@ export default function MemberSlackActivityPanel({ slackActivities }: MemberSlac
   const slackStats = {
     totalMessages: slackActivities.filter(a => a.activity_type === 'slack_message' || a.activity_type === 'slack_thread_reply').length,
     totalReactions: slackActivities.filter(a => a.activity_type === 'slack_reaction').length,
-    channels: [...new Set(slackActivities.map(a => a.metadata?.channel_name).filter(Boolean))],
+    channels: [...new Set(slackActivities.map(a => a.data?.channel_name).filter(Boolean))],
     last30Days: slackActivities.filter(a => {
       const occurred = new Date(a.occurred_at);
       const thirtyDaysAgo = new Date();
@@ -169,7 +169,7 @@ export default function MemberSlackActivityPanel({ slackActivities }: MemberSlac
                     .filter((activity: any) => {
                       // Filter by channel
                       if (slackChannelFilter) {
-                        return activity.metadata?.channel_name === slackChannelFilter;
+                        return activity.data?.channel_name === slackChannelFilter;
                       }
                       return true;
                     })
@@ -180,9 +180,9 @@ export default function MemberSlackActivityPanel({ slackActivities }: MemberSlac
                     const isThreadReply = activity.activity_type === 'slack_thread_reply';
                     const isReaction = activity.activity_type === 'slack_reaction';
 
-                    // Extract reaction emoji from metadata and convert to Unicode
+                    // Extract reaction emoji from activity data and convert to Unicode
                     const reactionShortcode = isReaction
-                      ? (activity.metadata?.reaction || activity.title?.match(/:([^:]+):/)?.[1] || 'thumbsup')
+                      ? (activity.data?.reaction || activity.title?.match(/:([^:]+):/)?.[1] || 'thumbsup')
                       : null;
                     const reactionEmojiUnicode = reactionShortcode ? slackEmojiToUnicode(reactionShortcode) : null;
                     // If emoji conversion returned shortcode (not found), show as badge instead
@@ -192,11 +192,11 @@ export default function MemberSlackActivityPanel({ slackActivities }: MemberSlac
                       : reactionEmojiUnicode;
 
                     // Build Slack permalink
-                    const slackUrl = activity.metadata?.channel_id && activity.metadata?.message_ts
+                    const slackUrl = activity.data?.channel_id && activity.data?.message_ts
                       ? formatSlackPermalink(
                           SLACK_WORKSPACE_URL,
-                          activity.metadata.channel_id,
-                          activity.metadata.message_ts
+                          activity.data.channel_id,
+                          activity.data.message_ts
                         )
                       : null;
 
@@ -231,7 +231,7 @@ export default function MemberSlackActivityPanel({ slackActivities }: MemberSlac
                         </td>
                         <td className="px-6 py-3 whitespace-nowrap">
                           <span className="text-xs text-slate-600 dark:text-slate-400">
-                            #{activity.metadata?.channel_name || 'unknown'}
+                            #{activity.data?.channel_name || 'unknown'}
                           </span>
                         </td>
                         <td className="px-6 py-3">
@@ -279,7 +279,7 @@ export default function MemberSlackActivityPanel({ slackActivities }: MemberSlac
                 })
                 .filter((activity: any) => {
                   if (slackChannelFilter) {
-                    return activity.metadata?.channel_name === slackChannelFilter;
+                    return activity.data?.channel_name === slackChannelFilter;
                   }
                   return true;
                 });
@@ -322,7 +322,7 @@ export function computeSlackSummary(slackActivities: any[]) {
   return {
     totalMessages: slackActivities.filter(a => a.activity_type === 'slack_message' || a.activity_type === 'slack_thread_reply').length,
     totalReactions: slackActivities.filter(a => a.activity_type === 'slack_reaction').length,
-    channels: [...new Set(slackActivities.map(a => a.metadata?.channel_name).filter(Boolean))].length,
+    channels: [...new Set(slackActivities.map(a => a.data?.channel_name).filter(Boolean))].length,
     last30Days: slackActivities.filter(a => {
       const occurred = new Date(a.occurred_at);
       const thirtyDaysAgo = new Date();

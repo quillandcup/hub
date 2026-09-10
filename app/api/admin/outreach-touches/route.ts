@@ -29,6 +29,27 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    // Best-effort mirror into the activity log — log-and-continue on
+    // failure, same convention as the writing-progress mirror in
+    // app/(member)/projects/actions.ts. outreach_touches remains the source
+    // of truth regardless.
+    const actorUserId = user.id !== "service-role" && user.id !== "cron" ? user.id : null;
+    const { error: activityError } = await supabase.from("member_activities").insert({
+      member_id,
+      activity_type: "outreach_touch_logged",
+      activity_category: "communication",
+      title: "Outreach touch logged",
+      actor_kind: "staff",
+      actor_user_id: actorUserId,
+      engagement_value: 0, // our action, not the lead's engagement signal
+      occurred_at: touch.touched_at,
+      source: "outreach_touches",
+      related_id: touch.id,
+    });
+    if (activityError) {
+      console.error("Error mirroring outreach touch to member_activities:", activityError);
+    }
+
     return NextResponse.json({ touch }, { status: 201 });
   } catch (error: any) {
     console.error("Error processing request:", error);

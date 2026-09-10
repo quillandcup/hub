@@ -16,6 +16,10 @@
     {
       "path": "/api/reconcile/members",
       "schedule": "0 3 * * *"
+    },
+    {
+      "path": "/api/reconcile/logins",
+      "schedule": "15 3 * * *"
     }
   ]
 }

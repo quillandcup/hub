@@ -1,16 +1,13 @@
-export interface EngagementAttendanceRow {
-  member_id: string;
-  prickle_id: string;
-  join_time: string;
-}
-
-// Non-Prickle engagement signals from the `member_activities` table (Slack
-// messages/reactions today; other activity types per docs/TODO.md "Activity
-// Feed Expansion" later). `engagement_value` is pre-weighted per activity by
-// whatever processed it into Silver (see calculateMessageValue in
-// app/api/process/slack/route.ts).
+// Every input now comes from member_activities — prickle attendance is
+// mirrored in there (see reprocess_prickle_attendance_atomic) atomically
+// alongside prickle_attendance itself, so it can't drift out of sync.
+// Previously this combined two independently-fetched sources (a direct
+// prickle_attendance query plus member_activities) with a hand-written
+// `pricklesLast30Days * 10` term; that risked double-counting if a mirror
+// row were ever given a nonzero engagement_value. One source, one sum.
 export interface EngagementActivityRow {
   member_id: string;
+  activity_type: string;
   engagement_value: number;
   occurred_at: string;
 }
@@ -27,67 +24,65 @@ export interface MemberEngagementMetrics {
 
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 const FIFTEEN_DAYS_MS = 15 * 24 * 60 * 60 * 1000;
+const PRICKLE_ACTIVITY_TYPE = "prickle_attended";
 
-// Count DISTINCT prickle_id per member — a member can have multiple
-// attendance rows per prickle (leave/rejoin), see CLAUDE.md.
+// `allPrickleAttended` is unbounded (all-time) — needed for totalPrickles and
+// lastAttendedAt, which can be older than the 30-day scoring window.
+// `recentActivities` is scoped by the caller's query to the last 30 days,
+// across all activity types (including prickle_attended, for the score sum).
 export function computeMemberEngagementMetrics(
-  attendance: EngagementAttendanceRow[],
+  allPrickleAttended: Pick<EngagementActivityRow, "member_id" | "occurred_at">[],
   memberIds: string[],
   now: Date = new Date(),
-  activities: EngagementActivityRow[] = []
+  recentActivities: EngagementActivityRow[] = []
 ): Map<string, MemberEngagementMetrics> {
   const nowMs = now.getTime();
   const thirtyDaysAgoMs = nowMs - THIRTY_DAYS_MS;
 
   const lastAttendedMs = new Map<string, number>();
-  const totalPrickleIds = new Map<string, Set<string>>();
-  const last30PrickleIds = new Map<string, Set<string>>();
+  const totalPrickles = new Map<string, number>();
 
-  for (const record of attendance) {
-    const joinMs = new Date(record.join_time).getTime();
-
+  // Each row here is already one-per-(member_id, prickle_id), aggregated by
+  // the mirror in reprocess_prickle_attendance_atomic, so a plain count is
+  // correct — no need to dedupe by prickle_id again here.
+  for (const record of allPrickleAttended) {
+    const occurredMs = new Date(record.occurred_at).getTime();
     const currentLast = lastAttendedMs.get(record.member_id);
-    if (currentLast === undefined || joinMs > currentLast) {
-      lastAttendedMs.set(record.member_id, joinMs);
+    if (currentLast === undefined || occurredMs > currentLast) {
+      lastAttendedMs.set(record.member_id, occurredMs);
     }
-
-    if (!totalPrickleIds.has(record.member_id)) {
-      totalPrickleIds.set(record.member_id, new Set());
-    }
-    totalPrickleIds.get(record.member_id)!.add(record.prickle_id);
-
-    if (joinMs >= thirtyDaysAgoMs) {
-      if (!last30PrickleIds.has(record.member_id)) {
-        last30PrickleIds.set(record.member_id, new Set());
-      }
-      last30PrickleIds.get(record.member_id)!.add(record.prickle_id);
-    }
+    totalPrickles.set(record.member_id, (totalPrickles.get(record.member_id) ?? 0) + 1);
   }
 
-  // Slack (and future) activity points, last 30 days only — same window as
-  // pricklesLast30Days so the two signals combine on equal footing.
+  const pricklesLast30 = new Map<string, number>();
   const activityPointsLast30 = new Map<string, number>();
-  for (const record of activities) {
+  for (const record of recentActivities) {
+    // Callers scope this query to the last 30 days already, but filter here
+    // too — defense in depth against a caller that doesn't.
     const occurredMs = new Date(record.occurred_at).getTime();
-    if (occurredMs >= thirtyDaysAgoMs) {
-      activityPointsLast30.set(
-        record.member_id,
-        (activityPointsLast30.get(record.member_id) ?? 0) + record.engagement_value
-      );
+    if (occurredMs < thirtyDaysAgoMs) continue;
+
+    if (record.activity_type === PRICKLE_ACTIVITY_TYPE) {
+      pricklesLast30.set(record.member_id, (pricklesLast30.get(record.member_id) ?? 0) + 1);
     }
+    activityPointsLast30.set(
+      record.member_id,
+      (activityPointsLast30.get(record.member_id) ?? 0) + record.engagement_value
+    );
   }
 
   const metrics = new Map<string, MemberEngagementMetrics>();
 
   for (const memberId of memberIds) {
     const lastMs = lastAttendedMs.get(memberId) ?? null;
-    const pricklesLast30Days = last30PrickleIds.get(memberId)?.size ?? 0;
-    const totalPrickles = totalPrickleIds.get(memberId)?.size ?? 0;
+    const pricklesLast30Days = pricklesLast30.get(memberId) ?? 0;
+    const totalPricklesCount = totalPrickles.get(memberId) ?? 0;
     const activityPointsLast30Days = activityPointsLast30.get(memberId) ?? 0;
-    // Prickle attendance is weighted higher (10 pts/prickle) than Slack/other
-    // activity (1-3 pts each, per calculateMessageValue) per docs/TODO.md
-    // "CRM Features > Slack Integration > Phase 3: Combined Engagement Scoring".
-    const engagementScore = Math.min(100, pricklesLast30Days * 10 + activityPointsLast30Days);
+    // Prickle attendance is weighted at 10 pts/prickle (engagement_value on
+    // the prickle_attended mirror row) vs. 1-3 pts for Slack/other activity
+    // (calculateMessageValue in app/api/process/slack/route.ts) — both are
+    // already summed into activityPointsLast30Days.
+    const engagementScore = Math.min(100, activityPointsLast30Days);
 
     let riskLevel: MemberEngagementMetrics["riskLevel"];
     if (lastMs === null) {
@@ -108,7 +103,7 @@ export function computeMemberEngagementMetrics(
     metrics.set(memberId, {
       lastAttendedAt: lastMs !== null ? new Date(lastMs).toISOString() : null,
       pricklesLast30Days,
-      totalPrickles,
+      totalPrickles: totalPricklesCount,
       activityPointsLast30Days,
       engagementScore,
       riskLevel,

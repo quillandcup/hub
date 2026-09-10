@@ -95,7 +95,7 @@ export async function POST(request: NextRequest) {
           activity_category: 'communication',
           title: `Posted in #${msg.channel_name}`,
           description: msg.text?.substring(0, 200) || null,
-          metadata: {
+          data: {
             channel_id: msg.channel_id,
             channel_name: msg.channel_name,
             channel_type: msg.channel_type,
@@ -124,7 +124,7 @@ export async function POST(request: NextRequest) {
           activity_category: 'communication',
           title: `Reacted :${reaction.reaction}:`,
           description: null,
-          metadata: {
+          data: {
             channel_id: reaction.channel_id,
             channel_name: reaction.channel_name,
             message_ts: reaction.message_ts,

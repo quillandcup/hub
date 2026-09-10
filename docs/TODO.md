@@ -396,7 +396,7 @@ Every admin table (Hedgieversaries, Members, etc.) has a fixed column order set 
 ### CRM & Outreach Automation Roadmap (Needs Scoping — Multi-Phase)
 `/admin/outreach` (hot/warm/cold status, the daily 25-lead queue, `outreach_touches` log) is the first slice of a much bigger planned system: a built-in CRM with a unified inbox, response-driven outreach, lead scoring, and eventually an AI prospecting agent. Stated 2026-09-09 as the direction to build toward — not scoped or started beyond Outreach itself. Phases below are roughly the order they'd need to happen (later phases depend on earlier ones), not a commitment to build all of them.
 
-**Phase 1 — Centralized activity log (CRM backbone).** A single log of every touch/action across a person's relationship with Quill & Cup, not just outreach: Instagram DMs sent/received, emails received/opened/clicked, Slack messages and reactions sent (message *reads* aren't available via Slack's API), Hedgie Hub logins, prickles attended, and future social platforms. Most of the *source* data already exists somewhere in the medallion pipeline (Slack messages/reactions in Bronze, prickle attendance in Silver, `outreach_touches`) — what's missing is a normalized event table and taxonomy that unifies them, plus new capture points for things not yet logged at all (Hedgie Hub logins, email opens/clicks). This phase has no external API dependencies and could start from data already in the database.
+**Phase 1 — Centralized activity log (CRM backbone). In progress.** `member_activities` already existed (written by Slack import + writing-progress) and is being extended to also mirror prickle attendance, outreach touches, and Hedgie Hub logins — see `docs/ACTIVITY_AND_AUDIT_LOG.md` for the schema (`actor_kind`/`actor_user_id` for who acted, `data` for the event's actual content) and the separate, not-yet-built `audit_log` design (field-level record-change history, distinct from this activity log — see that doc for why they're two tables).
 
 **Phase 2 — Inbox.** A Beeper Desktop-inspired unified inbox inside Hedgie Hub showing messages across connected accounts, with filter views: All / Unread / Drafts / Unanswered / Archived / Requests / Low Priority. Requires real per-channel integrations to pull messages in — Instagram DMs (Graph API, needs a Business/Creator account linked to a Facebook Page, and Meta's app review for `instagram_manage_messages` has real lead time), email (provider-dependent — Gmail API vs. a shared inbox forwarding setup), Slack (already have API access, just needs message-fetch + a read UI). Likely built incrementally per channel rather than all at once.
 
@@ -408,10 +408,11 @@ Every admin table (Hedgieversaries, Members, etc.) has a fixed column order set 
 
 **Open questions (apply across phases):**
 - Single shared Instagram/email account for outreach, or per-staff-member accounts? Affects OAuth/connection architecture for Phase 2.
-- Data model for Phase 1 — one polymorphic `activity_log` table vs. per-source tables normalized into a shared view; needs to support the query patterns Phase 3/4 will want (timeline per lead, recency, scoring inputs) without becoming a bottleneck as volume grows.
+- Data model for Phase 1 — settled on extending `member_activities` (one row per event) rather than a new table; see `docs/ACTIVITY_AND_AUDIT_LOG.md`.
 - How much of Phase 5's "AI agent" runs autonomously vs. drafts-for-review — cold outreach to strangers sourced by an AI carries real brand/trust risk if it goes out unreviewed.
+- **ORM evaluation** (decoupled from the above — came up while designing `audit_log`'s trigger-based change tracking, which needs no ORM and works regardless of this decision): this codebase has no ORM/model layer, just direct `supabase-js` calls across routes. Worth evaluating on its own merits (type safety, query ergonomics) at some point, but not framed as something the audit log or any of the above phases are blocked on or temporary until.
 
-**Priority:** Roadmap only — no implementation started beyond Outreach (Phase 0, effectively). Revisit once Outreach itself has seen real usage.
+**Priority:** Phase 1 in progress; the rest is roadmap only.
 
 ### Member Profile Pages
 - **Attendance breakdown by Prickle kind and time slot**
