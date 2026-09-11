@@ -7,21 +7,38 @@ const KAJABI_CDN = "https://kajabi-storefronts-production.kajabi-cdn.com/kajabi-
  * See MemberAvatar.tsx for the initials fallback, triggered by the Gravatar
  * `d=404` param 404-ing and the <img> onError handler.
  */
+function gravatarUrl(email: string): string {
+  // d=404 means 404 if the address has no Gravatar account (onError → initials).
+  const hash = createHash("md5").update(email.toLowerCase().trim()).digest("hex");
+  return `https://www.gravatar.com/avatar/${hash}?d=404&s=200`;
+}
+
 export function toKajabiPhotoUrl(
   path: string | null | undefined,
   email: string,
   slackImageUrl: string | null | undefined
 ): string {
   if (path) {
-    if (path.startsWith("http://") || path.startsWith("https://")) return path;
+    if (path.startsWith("http://") || path.startsWith("https://")) {
+      // Kajabi's own `avatar` field documents itself as "a custom uploaded
+      // avatar or falls back to Gravatar" — i.e. Kajabi sometimes hands back
+      // a Gravatar URL it built itself, without the `d=404` this codebase
+      // relies on for the onError → initials fallback. Without that param,
+      // Gravatar returns its generic default image for anyone with no real
+      // account, and (depending on the exact URL Kajabi constructs) that can
+      // still fail to render for reasons this app doesn't control. Rebuild
+      // it ourselves instead of trusting Kajabi's version verbatim, so the
+      // same reliable d=404-driven fallback always applies.
+      if (path.includes("gravatar.com/avatar")) return gravatarUrl(email);
+      return path;
+    }
     return KAJABI_CDN + path;
   }
   // No custom Kajabi avatar — try their Slack profile photo next (real,
   // uploaded photos only; see extractSlackImageUrl below).
   if (slackImageUrl) return slackImageUrl;
   // No Slack photo either — try Gravatar; d=404 means 404 if no account (onError → initials)
-  const hash = createHash("md5").update(email.toLowerCase().trim()).digest("hex");
-  return `https://www.gravatar.com/avatar/${hash}?d=404&s=200`;
+  return gravatarUrl(email);
 }
 
 /**

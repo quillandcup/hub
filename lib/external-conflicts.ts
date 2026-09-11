@@ -17,7 +17,7 @@ export interface ConflictGroup {
  * the groups with more than one entry — i.e. the same person with more than
  * one account in an external system.
  */
-export function groupByCanonical<T extends { email: string }>(
+export function groupByCanonical<T extends { email: string | null }>(
   items: T[],
   aliasMap: Map<string, string>,
   getId: (item: T) => string,
@@ -26,6 +26,9 @@ export function groupByCanonical<T extends { email: string }>(
 ): ConflictGroup[] {
   const grouped = new Map<string, ConflictEntry[]>();
   for (const item of items) {
+    // Slack users (and, rarely, Kajabi contacts/Stripe customers) can have a
+    // null email at the DB level — nothing to group without one.
+    if (!item.email) continue;
     const normalized = item.email.toLowerCase();
     const canonical = aliasMap.get(normalized) ?? normalized;
     const entries = grouped.get(canonical) ?? [];

@@ -37,6 +37,19 @@ describe('toKajabiPhotoUrl', () => {
     const url = toKajabiPhotoUrl(null, 'alice@example.com', null);
     expect(url).toContain('d=404');
   });
+
+  // Regression: Kajabi's own `avatar` field can itself be a Gravatar URL
+  // ("falls back to Gravatar" per their API docs) built without `d=404` —
+  // trusting it verbatim bypassed this app's own onError → initials
+  // fallback, showing a broken image for leads/members with no real photo.
+  it('rebuilds a Kajabi-supplied Gravatar URL with our own d=404 rather than trusting it verbatim', () => {
+    const url = toKajabiPhotoUrl(
+      'https://www.gravatar.com/avatar/deadbeef1234?s=250',
+      'alice@example.com',
+      null
+    );
+    expect(url).toMatch(/^https:\/\/www\.gravatar\.com\/avatar\/[0-9a-f]{32}\?d=404&s=200$/);
+  });
 });
 
 describe('extractSlackImageUrl', () => {
