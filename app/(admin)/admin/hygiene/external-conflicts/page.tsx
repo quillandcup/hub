@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { buildAliasMap } from "@/lib/email-aliases";
 import { groupByCanonical, type ConflictGroup, type ConflictEntry } from "@/lib/external-conflicts";
+import { SLACKBOT_USER_ID } from "@/lib/slack-matching";
 import Link from "next/link";
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
@@ -44,7 +45,7 @@ export default async function ExternalConflictsPage() {
     paginate((from, to) => supabase.schema("bronze").from("stripe_customers")
       .select("stripe_customer_id, email, name").range(from, to)),
     paginate((from, to) => supabase.schema("bronze").from("slack_users")
-      .select("user_id, email, real_name, display_name").eq("is_bot", false).range(from, to)),
+      .select("user_id, email, real_name, display_name").eq("is_bot", false).neq("user_id", SLACKBOT_USER_ID).range(from, to)),
     supabase.from("members").select("id, name, email").then(r => r.data ?? []),
     supabase.schema("bronze").from("stripe_subscriptions")
       .select("stripe_customer_id, status")

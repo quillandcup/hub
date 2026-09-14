@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import SlackAliasSearchForm from "./SlackAliasSearchForm";
-import { matchSlackUsersToMembers } from "@/lib/slack-matching";
+import { matchSlackUsersToMembers, SLACKBOT_USER_ID } from "@/lib/slack-matching";
 
 export const metadata: Metadata = {
   title: "Unmatched Slack Users",
@@ -17,7 +17,7 @@ export default async function UnmatchedSlackUsersPage() {
     { data: aliases },
     { data: ignoredUsers },
   ] = await Promise.all([
-    supabase.schema('bronze').from("slack_users").select("user_id, email, real_name, display_name, is_bot, is_deleted"),
+    supabase.schema('bronze').from("slack_users").select("user_id, email, real_name, display_name, is_bot, is_deleted").neq("user_id", SLACKBOT_USER_ID),
     supabase.from("members").select("id, name, email").order("name"),
     supabase.from("member_name_aliases").select("alias, member_id, source"),
     supabase.from("ignored_slack_users").select("user_id"),

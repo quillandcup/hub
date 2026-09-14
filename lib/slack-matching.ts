@@ -1,5 +1,13 @@
 import { Member, MemberAlias, normalizeName } from './member-matching';
 
+// Slack's own system assistant account. Slack's API reports it with
+// is_bot: false (unlike real app/bot integrations), so the usual `is_bot`
+// filter doesn't exclude it — and it never has an email, since it isn't a
+// real person. Exclude it explicitly wherever Slack users are counted or
+// listed for matching/hygiene purposes, or it shows up as permanent noise
+// (an "unmatched" user, a conflict-check row with a null email, etc.).
+export const SLACKBOT_USER_ID = 'USLACKBOT';
+
 export interface SlackUser {
   user_id: string;
   email: string | null;

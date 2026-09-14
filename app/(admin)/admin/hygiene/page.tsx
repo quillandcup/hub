@@ -4,7 +4,7 @@ import Link from "next/link";
 import ProcessOrphanedButton from "./ProcessOrphanedButton";
 import ProcessOrphanedMeetingsButton from "./ProcessOrphanedMeetingsButton";
 import { matchAttendeeToMember } from "@/lib/member-matching";
-import { matchSlackUsersToMembers } from "@/lib/slack-matching";
+import { matchSlackUsersToMembers, SLACKBOT_USER_ID } from "@/lib/slack-matching";
 import { detectDuplicates } from "@/lib/member-duplicates";
 import { findStalePrivateChannels } from "@/lib/private-channel-access";
 import { computeUnmatchedZoomNames } from "@/lib/unmatched-zoom-names";
@@ -65,7 +65,7 @@ export default async function DataHygienePage() {
     supabase.from("member_name_aliases").select("*", { count: "exact", head: true }),
     supabase.from("ambiguous_zoom_names").select("zoom_name").eq("status", "unresolved"),
     // Slack users for unmatched-count (workspace member list stays well under 1000 rows)
-    supabase.schema('bronze').from("slack_users").select("user_id, email, real_name, is_bot"),
+    supabase.schema('bronze').from("slack_users").select("user_id, email, real_name, is_bot").neq("user_id", SLACKBOT_USER_ID),
     supabase.from("ignored_slack_users").select("user_id"),
     // Find PUPs with 0 attendees
     supabase
@@ -402,7 +402,7 @@ export default async function DataHygienePage() {
     paginate((from, to) => supabase.schema("bronze").from("stripe_customers")
       .select("stripe_customer_id, email, name").range(from, to)),
     paginate((from, to) => supabase.schema("bronze").from("slack_users")
-      .select("user_id, email, real_name, display_name").eq("is_bot", false).range(from, to)),
+      .select("user_id, email, real_name, display_name").eq("is_bot", false).neq("user_id", SLACKBOT_USER_ID).range(from, to)),
   ]);
 
   const conflictsAliasMap = buildAliasMap(emailAliasesForConflicts ?? []);

@@ -1,6 +1,6 @@
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { NextRequest, NextResponse } from "next/server";
-import { matchSlackUsersToMembers } from "@/lib/slack-matching";
+import { matchSlackUsersToMembers, SLACKBOT_USER_ID } from "@/lib/slack-matching";
 
 export async function GET(request: NextRequest) {
   const auth = await requireAdmin(request);
@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
       { data: aliases },
       { data: ignoredUsers },
     ] = await Promise.all([
-      supabase.schema('bronze').from("slack_users").select("user_id, email, real_name, display_name, is_bot"),
+      supabase.schema('bronze').from("slack_users").select("user_id, email, real_name, display_name, is_bot").neq("user_id", SLACKBOT_USER_ID),
       supabase.from("members").select("id, name, email"),
       supabase.from("member_name_aliases").select("alias, member_id, source"),
       supabase.from("ignored_slack_users").select("user_id"),
