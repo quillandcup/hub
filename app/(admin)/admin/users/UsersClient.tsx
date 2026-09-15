@@ -7,14 +7,6 @@ import MemberSearch from "@/components/MemberSearch";
 type Role = "admin" | "assistant" | "member";
 type StaffRole = "owner" | "staff" | "contractor";
 
-interface StaffRecord {
-  id: string;
-  name: string;
-  email: string;
-  role: StaffRole;
-  user_id: string | null;
-}
-
 interface MemberRecord {
   id: string;
   name: string;
@@ -28,7 +20,6 @@ interface AppUser {
   role: Role;
   features: string[];
   createdAt: string;
-  staffId: string | null;
   staffName: string | null;
   staffRole: StaffRole | null;
   memberId: string | null;
@@ -94,7 +85,6 @@ const STAFF_ROLE_COLORS: Record<StaffRole, string> = {
 
 export default function UsersClient({ currentUserId }: { currentUserId: string }) {
   const [users, setUsers] = useState<AppUser[]>([]);
-  const [allStaff, setAllStaff] = useState<StaffRecord[]>([]);
   const [allMembers, setAllMembers] = useState<MemberRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -102,7 +92,6 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editRole, setEditRole] = useState<Role>("member");
   const [editFeatures, setEditFeatures] = useState<Set<string>>(new Set());
-  const [editStaffId, setEditStaffId] = useState<string | null>(null);
   const [editMemberId, setEditMemberId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -133,7 +122,6 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to load users");
       setUsers(data.users);
-      setAllStaff(data.allStaff ?? []);
       setAllMembers(data.allMembers ?? []);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to load users");
@@ -148,7 +136,6 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
     setEditingId(user.id);
     setEditRole(user.role);
     setEditFeatures(new Set(user.features));
-    setEditStaffId(user.staffId);
     setEditMemberId(user.memberId);
   }
 
@@ -156,17 +143,13 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
     setEditingId(null);
   }
 
-  async function saveEdit(userId: string, originalStaffId: string | null, originalMemberId: string | null) {
+  async function saveEdit(userId: string, originalMemberId: string | null) {
     setSaving(true);
     try {
       const body: Record<string, unknown> = {
         role: editRole,
         features: Array.from(editFeatures),
       };
-      // Only include staffId if it changed
-      if (editStaffId !== originalStaffId) {
-        body.staffId = editStaffId;
-      }
       // Only include memberId if it changed
       if (editMemberId !== originalMemberId) {
         body.memberId = editMemberId;
@@ -293,10 +276,6 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
     }
   }
 
-  function availableStaffOptions(currentStaffId: string | null): StaffRecord[] {
-    return allStaff.filter((s) => s.user_id === null || s.id === currentStaffId);
-  }
-
   function availableMemberOptions(currentMemberId: string | null): MemberRecord[] {
     return allMembers.filter((m) => m.user_id === null || m.id === currentMemberId);
   }
@@ -394,7 +373,6 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
                 {users.map((user) => {
                   const isEditing = editingId === user.id;
                   const isCurrentUser = user.id === currentUserId;
-                  const staffOptions = availableStaffOptions(user.staffId);
                   const memberOptions = availableMemberOptions(user.memberId);
 
                   return (
@@ -428,21 +406,6 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
                         {isEditing ? (
                           <div className="flex flex-col gap-2">
                             <div>
-                              <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">Staff</label>
-                              <select
-                                value={editStaffId ?? ""}
-                                onChange={(e) => setEditStaffId(e.target.value || null)}
-                                className="px-2 py-1 border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-sm w-full"
-                              >
-                                <option value="">— None —</option>
-                                {staffOptions.map((s) => (
-                                  <option key={s.id} value={s.id}>
-                                    {s.name} ({STAFF_ROLE_LABELS[s.role]})
-                                  </option>
-                                ))}
-                              </select>
-                            </div>
-                            <div>
                               <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">Member</label>
                               <MemberSearch
                                 members={memberOptions}
@@ -452,20 +415,28 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
                                 placeholder="Search by name or email..."
                               />
                             </div>
+                            {user.staffName && (
+                              <p className="text-xs text-slate-500 dark:text-slate-400">
+                                Staff role ({user.staffRole ? STAFF_ROLE_LABELS[user.staffRole] : ""}) is set on the staff record, not here.
+                              </p>
+                            )}
                           </div>
                         ) : (
                           <div className="flex flex-col gap-1">
-                            {user.staffId ? (
+                            {user.staffName ? (
                               <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${STAFF_ROLE_COLORS[user.staffRole!]}`}>
                                 {user.staffName} · {STAFF_ROLE_LABELS[user.staffRole!]}
                               </span>
                             ) : null}
                             {user.memberId ? (
-                              <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300">
+                              <a
+                                href={`/admin/members/${user.memberId}`}
+                                className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300 hover:underline"
+                              >
                                 Member: {user.memberName}
-                              </span>
+                              </a>
                             ) : null}
-                            {!user.staffId && !user.memberId && (
+                            {!user.staffName && !user.memberId && (
                               <span className="text-xs text-slate-400 dark:text-slate-500">None</span>
                             )}
                           </div>
@@ -517,7 +488,7 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
                           {isEditing ? (
                             <>
                               <button
-                                onClick={() => saveEdit(user.id, user.staffId, user.memberId)}
+                                onClick={() => saveEdit(user.id, user.memberId)}
                                 disabled={saving}
                                 className="text-xs px-3 py-1 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded font-medium transition-colors"
                               >

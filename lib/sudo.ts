@@ -73,11 +73,25 @@ export async function getEffectiveIdentity(realUser: User): Promise<EffectiveIde
     // Cookie present but invalid — fall through to real user
   }
 
-  const { data: member } = await supabase
+  // user_id is the durable link (survives email changes on either side,
+  // once established via invite or the admin Member picker) — same
+  // precedence as current_member_id() in
+  // supabase/migrations/20260831180000_add_alias_self_service.sql, which
+  // backs alias-management RLS. Email is only a fallback for accounts that
+  // predate that link being set.
+  const { data: byUserId } = await supabase
     .from('members')
     .select('id, name, email')
-    .eq('email', realUser.email!)
-    .single()
+    .eq('user_id', realUser.id)
+    .maybeSingle()
+
+  const member = byUserId ?? (
+    await supabase
+      .from('members')
+      .select('id, name, email')
+      .eq('email', realUser.email!)
+      .maybeSingle()
+  ).data
 
   if (!member) return null
 

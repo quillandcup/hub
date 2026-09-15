@@ -175,4 +175,80 @@ describe('Staff Member Status', () => {
     expect(member?.status).toBe('active')
     expect(member?.staff_role).toBe('owner')
   })
+
+  it('reprocessing preserves an existing members.user_id for a non-staff member', async () => {
+    // Regression for a bug where reprocess_members_atomic unconditionally
+    // overwrote members.user_id from the payload (which only ever carried a
+    // value via staff.user_id) on every run, silently wiping any link
+    // established directly on a member (e.g. via the admin Member picker or
+    // an invite) for anyone who isn't also a staff record.
+    const linkedMemberEmail = `staff-status-test-linked-${ts}@example.com`
+    const { data: authUser, error: authError } = await supabase.auth.admin.createUser({
+      email: `staff-status-test-auth-${ts}@example.com`,
+      email_confirm: true,
+    })
+    if (authError || !authUser.user) throw new Error(`Failed to create test auth user: ${authError?.message}`)
+
+    try {
+      await supabase.schema('bronze').from('kajabi_contacts').insert({
+        kajabi_contact_id: `linked-${ts}`,
+        email: linkedMemberEmail,
+        name: 'Linked Member',
+        created_at_kajabi: '2022-01-01T00:00:00Z',
+        data: {},
+      })
+      // Establish the link the same way the admin Member picker / invite
+      // flow would, directly on the member — no staff record involved.
+      await processMembers()
+      await supabase.from('members').update({ user_id: authUser.user.id }).eq('email', linkedMemberEmail)
+
+      // ACT: reprocess again, as if a scheduled Kajabi sync ran.
+      const result = await processMembers()
+      expect(result.success).toBe(true)
+
+      // ASSERT: the link survives.
+      const { data: member } = await supabase
+        .from('members')
+        .select('user_id')
+        .eq('email', linkedMemberEmail)
+        .single()
+
+      expect(member?.user_id).toBe(authUser.user.id)
+    } finally {
+      await supabase.auth.admin.deleteUser(authUser.user.id).catch(() => {})
+    }
+  })
+
+  it('reprocessing backfills staff.member_id to match the resolved member', async () => {
+    const backfillEmail = `staff-status-test-backfill-${ts}@example.com`
+
+    await supabase.schema('bronze').from('kajabi_contacts').insert({
+      kajabi_contact_id: `backfill-${ts}`,
+      email: backfillEmail,
+      name: 'Backfill Staffer',
+      created_at_kajabi: '2022-01-01T00:00:00Z',
+      data: {},
+    })
+    await supabase.from('staff').insert({
+      email: backfillEmail,
+      name: 'Backfill Staffer',
+      role: 'staff',
+    })
+
+    const result = await processMembers()
+    expect(result.success).toBe(true)
+
+    const { data: member } = await supabase
+      .from('members')
+      .select('id')
+      .eq('email', backfillEmail)
+      .single()
+    const { data: staffRow } = await supabase
+      .from('staff')
+      .select('member_id')
+      .eq('email', backfillEmail)
+      .single()
+
+    expect(staffRow?.member_id).toBe(member?.id)
+  })
 })

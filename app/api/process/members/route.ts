@@ -446,7 +446,6 @@ export async function POST(request: NextRequest) {
       if (!staff) continue;
 
       member.staff_role = staff.role;
-      member.user_id = staff.user_id;
       member.status = 'active'; // Staff are always active
       // Use staff hire date if earlier than Kajabi joined_at
       if (staff.hire_date && staff.hire_date < member.joined_at) {
@@ -478,7 +477,6 @@ export async function POST(request: NextRequest) {
         plan: null,
         source: 'staff',
         staff_role: staff.role,
-        user_id: staff.user_id,
         kajabi_id: null,
         stripe_customer_id: null,
         photo_url: null,
@@ -514,6 +512,28 @@ export async function POST(request: NextRequest) {
     if (upsertError) {
       console.error("Error upserting members:", upsertError);
       throw upsertError;
+    }
+
+    // STEP 6.5: Keep staff.member_id in sync with the just-reprocessed
+    // members table. Staff<->member matching itself still goes through
+    // resolveEmail() (staffByEmail, above) — this just persists the result
+    // as a real FK so other code (e.g. the admin Users page) can join on an
+    // id instead of re-deriving the relationship by email every time.
+    if (staffMembers && staffMembers.length > 0) {
+      const freshMembers = await fetchAllPublicRows(supabase, "members", "id, email");
+      const memberIdByEmail = new Map(freshMembers.map((m: any) => [resolveEmail(m.email), m.id]));
+      const staffUpdates: { id: string; member_id: string | null }[] = [];
+      for (const staff of staffMembers) {
+        const matchedId = memberIdByEmail.get(resolveEmail(staff.email)) ?? null;
+        if (staff.member_id !== matchedId) {
+          staffUpdates.push({ id: staff.id, member_id: matchedId });
+        }
+      }
+      if (staffUpdates.length > 0) {
+        await Promise.all(
+          staffUpdates.map((u) => supabase.from("staff").update({ member_id: u.member_id }).eq("id", u.id))
+        );
+      }
     }
 
     // After the response is sent, reprocess attendance for the last 90 days.

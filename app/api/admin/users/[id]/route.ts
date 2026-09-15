@@ -20,7 +20,7 @@ export async function PATCH(
 
   const { id } = await params;
   const body = await request.json();
-  const { role, features, staffId, memberId } = body;
+  const { role, features, memberId } = body;
 
   const supabase = getServiceClient();
 
@@ -38,19 +38,6 @@ export async function PATCH(
           await supabase.from("user_feature_previews").insert(
             (features as string[]).map((key: string) => ({ user_id: id, feature_key: key }))
           );
-        }
-      })()
-    );
-  }
-
-  if ("staffId" in body) {
-    tasks.push(
-      (async () => {
-        // Clear any existing staff link for this user
-        await supabase.from("staff").update({ user_id: null }).eq("user_id", id);
-
-        if (staffId) {
-          await supabase.from("staff").update({ user_id: id }).eq("id", staffId);
         }
       })()
     );
