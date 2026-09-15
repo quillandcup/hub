@@ -13,6 +13,7 @@ import { MEASURE_LABELS } from "@/lib/writing-projects"
 import { getMemberBadges, getAttendedPrickleCount } from "@/lib/badges"
 import BadgeChip from "@/components/BadgeChip"
 import { safeUrl } from "@/lib/url"
+import { getMemberDisplayName } from "@/lib/member-display-name"
 
 const ORG_TIMEZONE = "America/New_York"
 
@@ -21,7 +22,7 @@ const getMember = cache(async (id: string) => {
   const { data } = await supabase
     .from("members")
     .select(
-      "id, name, email, joined_at, first_joined_at, most_recent_joined_at, total_active_months, status, photo_url, bio, instagram_url, facebook_url, twitter_url"
+      "id, name, display_name, email, joined_at, first_joined_at, most_recent_joined_at, total_active_months, status, photo_url, bio, instagram_url, facebook_url, twitter_url"
     )
     .eq("id", id)
     .single()
@@ -35,7 +36,7 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { id } = await params
   const member = await getMember(id)
-  return { title: member?.name ?? "Member" }
+  return { title: member ? getMemberDisplayName(member) : "Member" }
 }
 
 export default async function MemberProfilePage({
@@ -173,14 +174,15 @@ export default async function MemberProfilePage({
   const safeInstagram = safeUrl(member.instagram_url)
   const safeFacebook = safeUrl(member.facebook_url)
   const safePhoto = safeUrl(member.photo_url)
+  const displayName = getMemberDisplayName(member)
 
   return (
     <div className="container mx-auto px-6 py-8 max-w-2xl">
       {/* Header */}
       <div className="mb-8 flex items-center gap-4">
-        <MemberAvatar name={member.name} photoUrl={safePhoto} size={56} />
+        <MemberAvatar name={displayName} photoUrl={safePhoto} size={56} />
         <div>
-          <h1 className="text-3xl font-bold">{member.name}</h1>
+          <h1 className="text-3xl font-bold">{displayName}</h1>
           {firstJoinedDate && (
             <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
               Hedgie since {formatMonthYear(firstJoinedDate)}

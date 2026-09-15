@@ -121,6 +121,14 @@ export default async function MemberDetailPage({
     .eq("member_id", id)
     .order("alias");
 
+  // Fetch full alias rows for the Identity panel (pen name selection) — the
+  // header chip display above only needs the alias text.
+  const { data: nameAliasRows } = await supabase
+    .from("member_name_aliases")
+    .select("id, alias, source, active")
+    .eq("member_id", id)
+    .order("created_at", { ascending: false });
+
   // Fetch email aliases
   const { data: emailAliases } = await supabase
     .from("member_email_aliases")
@@ -330,6 +338,7 @@ export default async function MemberDetailPage({
           earnedBadges={earnedBadges}
           awardableBadgeTypes={awardableBadgeTypes ?? []}
           awards={awards}
+          nameAliases={nameAliasRows ?? []}
         />
       </main>
     </div>

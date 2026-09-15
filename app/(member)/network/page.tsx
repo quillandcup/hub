@@ -6,6 +6,7 @@ import { getEffectiveIdentity } from "@/lib/sudo"
 import { getUserTimezonePreference } from "@/lib/timezone"
 import { computeSisterStreaks, rankStreaks, type SisterStreak } from "@/lib/streaks"
 import { buildAttendanceMap, getScheduleSlot } from "@/lib/scheduled-prickle-stats"
+import { getMemberDisplayName } from "@/lib/member-display-name"
 
 export const metadata: Metadata = {
   title: "Network",
@@ -136,7 +137,12 @@ export default async function NetworkPage() {
 
   // Co-attendance, batched by prickle ID — same pattern as app/(member)/streaks/page.tsx.
   const myPrickleIds = [...new Set(myAttendance.map((r) => r.prickle_id))]
-  type CoRecord = { member_id: string; prickle_id: string; join_time: string; members: { name: string } | null }
+  type CoRecord = {
+    member_id: string
+    prickle_id: string
+    join_time: string
+    members: { name: string; display_name: string | null } | null
+  }
   let coAttendance: CoRecord[] = []
   for (let i = 0; i < myPrickleIds.length; i += PRICKLE_BATCH) {
     const prickleBatch = myPrickleIds.slice(i, i + PRICKLE_BATCH)
@@ -145,7 +151,7 @@ export default async function NetworkPage() {
     while (hasMore) {
       const { data: batch } = await supabase
         .from("prickle_attendance")
-        .select("member_id, prickle_id, join_time, members(name)")
+        .select("member_id, prickle_id, join_time, members(name, display_name)")
         .in("prickle_id", prickleBatch)
         .neq("member_id", memberId)
         .range(offset, offset + BATCH_SIZE - 1)
@@ -163,7 +169,7 @@ export default async function NetworkPage() {
     myAttendance.map((r) => ({ prickleId: r.prickle_id, joinTime: r.join_time })),
     coAttendance.map((r) => ({
       memberId: r.member_id,
-      memberName: r.members?.name ?? "Unknown",
+      memberName: r.members ? getMemberDisplayName(r.members) : "Unknown",
       prickleId: r.prickle_id,
       joinTime: r.join_time,
     })),
@@ -317,13 +323,15 @@ export default async function NetworkPage() {
     if (topMemberIds.length > 0) {
       const { data: topMemberRows } = await supabase
         .from("members")
-        .select("id, name, photo_url")
+        .select("id, name, display_name, photo_url")
         .in("id", topMemberIds)
       const byId = new Map((topMemberRows ?? []).map((m) => [m.id, m]))
       wellConnected = topMemberIds
         .map((id) => byId.get(id))
-        .filter((m): m is { id: string; name: string; photo_url: string | null } => !!m)
-        .map((m) => ({ id: m.id, name: m.name, photoUrl: m.photo_url }))
+        .filter(
+          (m): m is { id: string; name: string; display_name: string | null; photo_url: string | null } => !!m
+        )
+        .map((m) => ({ id: m.id, name: getMemberDisplayName(m), photoUrl: m.photo_url }))
     }
   }
 

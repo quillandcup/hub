@@ -344,6 +344,23 @@ export class KajabiClient {
   }
 
   /**
+   * Update a contact's attributes (e.g. name after a legal-name correction).
+   * See: https://help.kajabi.com/api-reference/contacts/update-contact
+   */
+  async updateContact(
+    contactId: string,
+    attributes: Partial<Pick<KajabiContact['attributes'], 'name' | 'email'>>
+  ): Promise<KajabiContact> {
+    const response = await this.request<{ data: KajabiContact }>(`/v1/contacts/${contactId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({
+        data: { type: 'contacts', id: contactId, attributes },
+      }),
+    });
+    return response.data;
+  }
+
+  /**
    * Fetch all offers with pagination support
    * Uses JSON:API pagination format: page[number] and page[size]
    */

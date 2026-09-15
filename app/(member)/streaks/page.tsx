@@ -5,6 +5,7 @@ import Link from "next/link"
 import { getEffectiveIdentity } from "@/lib/sudo"
 import { getUserTimezonePreference } from "@/lib/timezone"
 import { getUserFeaturePreviews } from "@/lib/features.server"
+import { getMemberDisplayName } from "@/lib/member-display-name"
 
 export const metadata: Metadata = {
   title: "Streaks",
@@ -243,7 +244,7 @@ export default async function StreaksPage() {
     member_id: string
     prickle_id: string
     join_time: string
-    members: { name: string } | null
+    members: { name: string; display_name: string | null } | null
   }
   let coAttendance: CoRecord[] = []
   const PRICKLE_BATCH = 100
@@ -254,7 +255,7 @@ export default async function StreaksPage() {
     while (hasMore) {
       const { data: batch } = await supabase
         .from("prickle_attendance")
-        .select("member_id, prickle_id, join_time, members(name)")
+        .select("member_id, prickle_id, join_time, members(name, display_name)")
         .in("prickle_id", prickleBatch)
         .neq("member_id", memberId)
         .range(offset, offset + BATCH_SIZE - 1)
@@ -272,7 +273,7 @@ export default async function StreaksPage() {
     myAttendance.map((r) => ({ prickleId: r.prickle_id, joinTime: r.join_time })),
     coAttendance.map((r) => ({
       memberId: r.member_id,
-      memberName: r.members?.name ?? "Unknown",
+      memberName: r.members ? getMemberDisplayName(r.members) : "Unknown",
       prickleId: r.prickle_id,
       joinTime: r.join_time,
     })),

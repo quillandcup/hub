@@ -16,6 +16,7 @@ import {
   type PrickleStreak,
   type SisterStreak,
 } from "@/lib/streaks"
+import { getMemberDisplayName } from "@/lib/member-display-name"
 
 export const metadata: Metadata = {
   title: "Dashboard",
@@ -89,7 +90,7 @@ type RawUpcomingPrickle = {
   type_id: string | null
   start_time: string
   prickle_types: { name: string } | { name: string }[] | null
-  host: { id: string; name: string } | { id: string; name: string }[] | null
+  host: { id: string; name: string; display_name: string | null } | { id: string; name: string; display_name: string | null }[] | null
 }
 
 type UpcomingPrickle = {
@@ -135,7 +136,7 @@ async function fetchUpcomingPrickles(
   const raw = await fetchAllPaginated<RawUpcomingPrickle>((offset) =>
     supabase
       .from("prickles")
-      .select("id, type_id, start_time, prickle_types(name), host:members(id, name)")
+      .select("id, type_id, start_time, prickle_types(name), host:members(id, name, display_name)")
       .gte("start_time", windowStart)
       .lte("start_time", windowEnd)
       .order("start_time")
@@ -153,7 +154,7 @@ async function fetchUpcomingPrickles(
       typeName,
       startTime: p.start_time,
       hostId: host?.id ?? null,
-      hostName: host?.name ?? null,
+      hostName: host ? getMemberDisplayName(host) : null,
       dayOfWeek,
       startHour,
       seriesKey: seriesKeyFor(typeName, dayOfWeek, startHour),
@@ -236,7 +237,10 @@ export default async function DashboardPage() {
     member_id: string
     prickle_id: string
     join_time: string
-    members: { name: string } | { name: string }[] | null
+    members:
+      | { name: string; display_name: string | null }
+      | { name: string; display_name: string | null }[]
+      | null
   }
   let coAttendance: CoRecord[] = []
   const PRICKLE_BATCH = 100
@@ -245,7 +249,7 @@ export default async function DashboardPage() {
     const batchRows = await fetchAllPaginated<CoRecord>((offset) =>
       supabase
         .from("prickle_attendance")
-        .select("member_id, prickle_id, join_time, members(name)")
+        .select("member_id, prickle_id, join_time, members(name, display_name)")
         .in("prickle_id", prickleBatch)
         .neq("member_id", memberId)
         .range(offset, offset + BATCH_SIZE - 1)
@@ -255,12 +259,15 @@ export default async function DashboardPage() {
 
   const sisterStreaks: SisterStreak[] = computeSisterStreaks(
     myAttendance.map((r) => ({ prickleId: r.prickle_id, joinTime: r.join_time })),
-    coAttendance.map((r) => ({
-      memberId: r.member_id,
-      memberName: unwrapOne(r.members)?.name ?? "Unknown",
-      prickleId: r.prickle_id,
-      joinTime: r.join_time,
-    })),
+    coAttendance.map((r) => {
+      const member = unwrapOne(r.members)
+      return {
+        memberId: r.member_id,
+        memberName: member ? getMemberDisplayName(member) : "Unknown",
+        prickleId: r.prickle_id,
+        joinTime: r.join_time,
+      }
+    }),
     now,
     timeZone
   )

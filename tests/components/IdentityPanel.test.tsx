@@ -23,6 +23,7 @@ const baseSettings = {
   nameAliases: [],
   emailAliases: [],
   hasAttendanceHistory: false,
+  nameChangeLocked: false,
 }
 
 describe('IdentityPanel', () => {
@@ -52,5 +53,18 @@ describe('IdentityPanel', () => {
     await userEvent.click(within(form).getByRole('button', { name: 'Save' }))
 
     await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Name updated.'))
+  })
+
+  it('locks the Real Name form and points to support once the one-time change is used', async () => {
+    vi.mocked(identityActions.getIdentitySettings).mockResolvedValue({
+      ...baseSettings,
+      nameChangeLocked: true,
+    })
+
+    render(<IdentityPanel />)
+
+    await waitFor(() => expect(screen.getByText('Ada Lovelace')).toBeInTheDocument())
+    expect(screen.queryByDisplayValue('Ada Lovelace')).not.toBeInTheDocument()
+    expect(screen.getByText(/support@quillandcup\.com/)).toBeInTheDocument()
   })
 })

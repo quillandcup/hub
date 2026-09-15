@@ -248,22 +248,37 @@ export function IdentityPanel() {
         <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">
           Your canonical name — used across the app unless a pen name below matches instead.
         </p>
-        <form onSubmit={handleSaveName} className="flex gap-2 max-w-md">
-          <input
-            type="text"
-            value={nameInput}
-            onChange={(e) => setNameInput(e.target.value)}
-            className="flex-1 px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-sm"
-            maxLength={200}
-          />
-          <button
-            type="submit"
-            disabled={savingName || nameInput.trim() === data.realName || !nameInput.trim()}
-            className="px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {savingName ? "Saving…" : "Save"}
-          </button>
-        </form>
+        {data.nameChangeLocked ? (
+          <div className="max-w-md">
+            <p className="px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-md bg-slate-50 dark:bg-slate-800 text-sm text-slate-900 dark:text-slate-100">
+              {data.realName}
+            </p>
+            <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+              You&apos;ve already changed your name once. Email{" "}
+              <a href="mailto:support@quillandcup.com" className="underline">
+                support@quillandcup.com
+              </a>{" "}
+              if it needs to change again.
+            </p>
+          </div>
+        ) : (
+          <form onSubmit={handleSaveName} className="flex gap-2 max-w-md">
+            <input
+              type="text"
+              value={nameInput}
+              onChange={(e) => setNameInput(e.target.value)}
+              className="flex-1 px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-sm"
+              maxLength={200}
+            />
+            <button
+              type="submit"
+              disabled={savingName || nameInput.trim() === data.realName || !nameInput.trim()}
+              className="px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {savingName ? "Saving…" : "Save"}
+            </button>
+          </form>
+        )}
       </div>
 
       {/* Birthday */}

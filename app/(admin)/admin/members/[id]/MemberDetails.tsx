@@ -8,6 +8,7 @@ import { countDistinctPrickles } from "@/lib/attendance-grouping";
 import MemberTimelinePanel from "./MemberTimelinePanel";
 import MemberSlackActivityPanel, { computeSlackSummary } from "./MemberSlackActivityPanel";
 import MemberBadgesPanel from "./MemberBadgesPanel";
+import MemberIdentityPanel, { type NameAliasRow } from "./MemberIdentityPanel";
 import type { EarnedBadge } from "@/lib/badges";
 
 interface MemberDetailsProps {
@@ -32,6 +33,7 @@ interface MemberDetailsProps {
     eventTitle: string | null;
     eventSlug: string | null;
   }[];
+  nameAliases: NameAliasRow[];
 }
 
 type Tab = "overview" | "attendance" | "slack";
@@ -48,6 +50,7 @@ export default function MemberDetails({
   earnedBadges,
   awardableBadgeTypes,
   awards,
+  nameAliases,
 }: MemberDetailsProps) {
   const [activeTab, setActiveTab] = useState<Tab>("overview");
 
@@ -135,6 +138,14 @@ export default function MemberDetails({
 
       {activeTab === "overview" && (
         <div className="space-y-6">
+          <MemberIdentityPanel
+            memberId={member.id}
+            name={member.name}
+            displayName={member.display_name ?? null}
+            hasKajabiId={!!member.kajabi_id}
+            nameAliases={nameAliases}
+          />
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <SummaryCard
               title="Attendance"

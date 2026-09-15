@@ -4,6 +4,7 @@ import { after } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getEffectiveIdentity } from "@/lib/sudo";
 import { triggerReprocessing } from "@/lib/processing/trigger";
+import { createKajabiClient } from "@/lib/kajabi/client";
 import { revalidatePath } from "next/cache";
 
 export interface NameAliasRow {
@@ -34,6 +35,8 @@ export interface IdentitySettings {
    * "this specific alias is load-bearing". See migration
    * 20260831170000_add_alias_self_service.sql. */
   hasAttendanceHistory: boolean;
+  /** True once the member has used their one self-service legal-name change. */
+  nameChangeLocked: boolean;
 }
 
 type IdentityContext =
@@ -68,7 +71,7 @@ export async function getIdentitySettings(): Promise<IdentitySettings | { error:
   const [memberResult, nameAliasResult, emailAliasResult, attendanceResult] = await Promise.all([
     supabase
       .from("members")
-      .select("name, email, birthday_month, birthday_day")
+      .select("name, email, birthday_month, birthday_day, kajabi_id, self_service_name_changed_at")
       .eq("id", effectiveIdentity.memberId)
       .single(),
     supabase
@@ -107,6 +110,7 @@ export async function getIdentitySettings(): Promise<IdentitySettings | { error:
       createdAt: row.created_at,
     })),
     hasAttendanceHistory: (attendanceResult.count ?? 0) > 0,
+    nameChangeLocked: memberResult.data?.self_service_name_changed_at != null,
   };
 }
 
@@ -119,9 +123,34 @@ export async function updateRealName(name: string): Promise<{ success: true } | 
   if (!trimmed) return { error: "Name can't be empty" };
   if (trimmed.length > 200) return { error: "Name is too long" };
 
+  const { data: current, error: fetchError } = await supabase
+    .from("members")
+    .select("name, kajabi_id, self_service_name_changed_at")
+    .eq("id", effectiveIdentity.memberId)
+    .single();
+
+  if (fetchError || !current) return { error: fetchError?.message ?? "Couldn't load your member record" };
+
+  if (current.self_service_name_changed_at != null) {
+    return {
+      error: "You've already used your one name change. Email support@quillandcup.com to update it further.",
+    };
+  }
+
+  // A no-op save shouldn't burn the one allowed change.
+  if (trimmed === current.name) return { success: true };
+
+  if (current.kajabi_id) {
+    try {
+      await createKajabiClient().updateContact(current.kajabi_id, { name: trimmed });
+    } catch (err) {
+      return { error: err instanceof Error ? err.message : "Couldn't update your name in Kajabi" };
+    }
+  }
+
   const { data, error } = await supabase
     .from("members")
-    .update({ name: trimmed })
+    .update({ name: trimmed, self_service_name_changed_at: new Date().toISOString() })
     .eq("id", effectiveIdentity.memberId)
     .select("id")
     .single();
