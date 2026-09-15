@@ -84,3 +84,34 @@ export async function notifyStaffNewBook(params: NotifyStaffNewBookParams): Prom
   const slack = new WebClient(token);
   await slack.chat.postMessage({ channel, text });
 }
+
+export interface NotifyStaffNewAwardParams {
+  awardName: string;
+  workTitle: string;
+  memberId: string;
+  memberName: string;
+  url?: string | null;
+}
+
+/**
+ * Posts to a staff Slack channel when a member self-reports an award/competition win, so staff
+ * see it as soon as it happens (today they only learn about these informally in
+ * #hedgie-classifieds) and can pull it into marketing/stats. Same gated-no-op pattern as
+ * notifyStaffNewBook: silently does nothing until both env vars are configured.
+ */
+export async function notifyStaffNewAward(params: NotifyStaffNewAwardParams): Promise<void> {
+  const token = process.env.SLACK_BOT_TOKEN;
+  const channel = process.env.SLACK_NEW_AWARDS_CHANNEL_ID;
+  if (!token || !channel) return;
+
+  const { awardName, workTitle, memberId, memberName, url } = params;
+  const memberLink = `${APP_URL}/admin/members/${memberId}`;
+
+  const text = [
+    `🏆 ${memberName} won *${awardName}* for "${workTitle}"`,
+    url ? `<${url}|Details>  ·  <${memberLink}|View member>` : `<${memberLink}|View member>`,
+  ].join("\n");
+
+  const slack = new WebClient(token);
+  await slack.chat.postMessage({ channel, text });
+}

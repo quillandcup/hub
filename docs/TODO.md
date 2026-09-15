@@ -277,6 +277,21 @@ Two possible definitions:
 1. **First joiner** — member with the earliest `join_time` in `attendance` for a given PUP
 2. **Most frequent caller** — member who initiates the most PUPs (may need Zoom host data or a `called_by` field on prickles)
 
+### Awards & Competition Tracking
+Track external competitions (awards, contests, anthologies, showcases) that members submit their writing projects to. Members currently share these informally in the `#hedgie-classifieds` Slack channel; no structured tracking existed before Phase 1 below.
+
+**Phase 1 — record wins: Resolved.** `member_awards` table (`supabase/migrations/20260914000000_create_member_awards.sql`) — `award_name`, `category` (free text, doubles as placement/tier e.g. "Gold Medal — Romance"), `work_title`, optional `book_id`/`project_id` links to `member_books`/`writing_projects`, `award_date`, `url`, `notes`. Same LOCAL-layer, self-report RLS shape as `member_books` (member manages own rows, admin bypass for sudo, every authenticated user can view). Self-service "My Awards" panel lives on `/projects` (`app/(member)/projects/MyAwardsPanel.tsx` + `components/awards/AwardFormModal.tsx`, actions in `app/(member)/awards/actions.ts`), mirroring the existing "My Books" panel. `notifyStaffNewAward` (`lib/slack.ts`) posts to a staff Slack channel on each new win, gated behind `SLACK_NEW_AWARDS_CHANNEL_ID` (unset today — silently no-ops until that env var is added, same pattern as `notifyStaffNewBook`/`SLACK_NEW_BOOKS_CHANNEL_ID`). Deliberately scoped out of Phase 1: no public community-facing "Awards" gallery page (unlike Bookshelf) and no admin-side display — staff visibility is via the Slack notification for now.
+
+**Phase 2 — submission tracking, not just wins:** record *submissions* too, so both per-member and aggregate win-rate stats become possible ("submitted 8, won 2"). Needs a submission status (submitted / longlisted / shortlisted / won / rejected) rather than a boolean, and a submission date separate from any result date.
+
+**Phase 3 — internal award list / PR campaign tracker:** a curated list of known competitions (name, submission deadline, eligibility, categories) members can track against as part of their own PR/marketing push, and staff can use to prompt members ahead of deadlines. Could be seeded from what shows up in `#hedgie-classifieds`, but that's manual curation, not an automated import — the existing Slack import ingests channel messages into Bronze, but "is this message announcing a competition with a deadline" isn't something the pipeline classifies today.
+
+**Badge tie-in:** an "Award-Winning Author" badge, reusing the existing badge pipeline (`badge_types`/`member_badges` — see Multi-Product Support & Badges and VSP Badges above), likely auto-derivable once Phase 1's win record exists, the same pattern as the retreat/program badges.
+
+**Sequencing:** Phase 1 (mark wins) stands alone and should ship before Phases 2-3; win-rate stats and the internal deadline-tracking list are natural follow-ons once win-tracking exists, not prerequisites for it.
+
+**Priority:** Not scoped yet — idea only, no code started.
+
 ---
 
 ## Analytics & Matching

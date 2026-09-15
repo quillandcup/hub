@@ -4,8 +4,10 @@ import { redirect } from "next/navigation";
 import { getEffectiveIdentity } from "@/lib/sudo";
 import { getMyProjects } from "./actions";
 import { getMyBooks } from "@/app/(member)/bookshelf/actions";
+import { getMyAwards } from "@/app/(member)/awards/actions";
 import ProjectsClient from "./ProjectsClient";
 import MyBooksPanel from "./MyBooksPanel";
+import MyAwardsPanel from "./MyAwardsPanel";
 
 export const metadata: Metadata = {
   title: "Projects",
@@ -22,7 +24,7 @@ export default async function ProjectsPage() {
   const effectiveIdentity = await getEffectiveIdentity(user);
   if (!effectiveIdentity) redirect("/admin");
 
-  const [projects, books] = await Promise.all([getMyProjects(), getMyBooks()]);
+  const [projects, books, awards] = await Promise.all([getMyProjects(), getMyBooks(), getMyAwards()]);
   const unlinkedBooks = books.filter((b) => b.projectId === null);
 
   return (
@@ -37,8 +39,9 @@ export default async function ProjectsPage() {
       </header>
 
       <main className="container mx-auto px-6 py-8">
-        <div className="max-w-3xl mx-auto mb-6">
+        <div className="max-w-3xl mx-auto mb-6 space-y-6">
           <MyBooksPanel initialBooks={unlinkedBooks} />
+          <MyAwardsPanel initialAwards={awards} myBooks={books} />
         </div>
         <ProjectsClient initialProjects={projects} />
       </main>
