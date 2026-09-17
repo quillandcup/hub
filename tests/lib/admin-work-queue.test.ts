@@ -73,7 +73,11 @@ describe("buildWelcomeBackQueue", () => {
 
 describe("buildHedgieversaryQueue", () => {
   // 3-year (36mo) milestone lands 2026-08-29 — 5 days before NOW, within the 14-day lookback.
-  const members: MemberInput[] = [{ id: "m1", name: "Julie Hykes", first_joined_at: "2023-08-29" }];
+  // total_active_months matches elapsed time exactly (continuously active,
+  // no cancel/resubscribe gaps), so it doesn't shift the milestone date.
+  const members: MemberInput[] = [
+    { id: "m1", name: "Julie Hykes", first_joined_at: "2023-08-29", total_active_months: 36 },
+  ];
 
   it("surfaces a reached, not-yet-completed milestone", () => {
     const hiatusWindows = new Map<string, HiatusWindow[]>();
@@ -117,7 +121,9 @@ describe("buildHedgieversaryQueue", () => {
   });
 
   it("skips members with no first_joined_at", () => {
-    const noJoinDate: MemberInput[] = [{ id: "m2", name: "Lead Person", first_joined_at: null }];
+    const noJoinDate: MemberInput[] = [
+      { id: "m2", name: "Lead Person", first_joined_at: null, total_active_months: 0 },
+    ];
     expect(buildHedgieversaryQueue(noJoinDate, new Map(), NO_COMPLETIONS, NOW)).toEqual([]);
   });
 
@@ -126,6 +132,32 @@ describe("buildHedgieversaryQueue", () => {
       ["m1", [{ startsAt: "2026-08-01", endsAt: null }]],
     ]);
     expect(buildHedgieversaryQueue(members, hiatusWindows, NO_COMPLETIONS, NOW)).toEqual([]);
+  });
+
+  it("excludes a member on a currently-active hiatus even when its return date is already known", () => {
+    // Regression: a hiatus with a planned end date used to only shift the
+    // milestone date forward, not suppress it -- so someone mid-hiatus could
+    // still show a "next milestone" date that fell inside the hiatus itself
+    // (a membership milestone while not currently a member). Any hiatus
+    // covering NOW must suppress the queue entry, known end date or not.
+    const hiatusWindows = new Map<string, HiatusWindow[]>([
+      ["m1", [{ startsAt: "2026-08-01", endsAt: "2026-10-01" }]],
+    ]);
+    expect(buildHedgieversaryQueue(members, hiatusWindows, NO_COMPLETIONS, NOW)).toEqual([]);
+  });
+
+  it("pushes the milestone date out for cancel/resubscribe gap time, not just hiatus", () => {
+    // Joined 3 years ago but has only ever accumulated 3 real active months
+    // (cancelled and mostly stayed away, unlike Julie above) — the 6-month
+    // milestone shouldn't be "reached" yet; it should land ~3 months from
+    // now, once she's accrued 6 real active months.
+    const gappyMember: MemberInput[] = [
+      { id: "m3", name: "Stephanie Johnson", first_joined_at: "2023-08-29", total_active_months: 3 },
+    ];
+    const result = buildHedgieversaryQueue(gappyMember, new Map(), NO_COMPLETIONS, NOW, 120, 0);
+    expect(result).toEqual([
+      { queueType: "hedgieversary", memberId: "m3", memberName: "Stephanie Johnson", occurrenceKey: "6", deadline: "2026-11-29", label: "6-Month" },
+    ]);
   });
 });
 

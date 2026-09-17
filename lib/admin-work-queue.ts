@@ -6,7 +6,9 @@
 // fetching and calls these.
 import {
   computeCumulativeHiatusMonths,
+  computeCumulativeInactiveMonths,
   hedgieversaryMilestonesInWindow,
+  isCurrentlyOnHiatus,
   milestoneLabel,
   type HiatusWindow,
 } from "./member-tenure";
@@ -72,6 +74,7 @@ export interface MemberInput {
   id: string;
   name: string;
   first_joined_at: string | null;
+  total_active_months: number | null;
 }
 
 export interface HiatusInput {
@@ -149,14 +152,16 @@ export function buildHedgieversaryQueue(
 
     const windows = hiatusWindowsByMember.get(member.id) ?? [];
     const cumulativeHiatusMonths = computeCumulativeHiatusMonths(windows, now);
-    const isOnIndefiniteHiatus = windows.some(
-      (w) => !w.endsAt && new Date(w.startsAt).getTime() <= nowMs
+    const cumulativeInactiveMonths = computeCumulativeInactiveMonths(
+      member.first_joined_at,
+      member.total_active_months ?? 0,
+      cumulativeHiatusMonths,
+      now
     );
-
     const milestones = hedgieversaryMilestonesInWindow(
       member.first_joined_at,
-      cumulativeHiatusMonths,
-      isOnIndefiniteHiatus,
+      cumulativeInactiveMonths,
+      isCurrentlyOnHiatus(windows, now),
       now,
       lookaheadDays
     );

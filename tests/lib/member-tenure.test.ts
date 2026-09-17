@@ -3,6 +3,8 @@ import {
   computeActiveDays,
   computeMemberTenure,
   computeCumulativeHiatusMonths,
+  computeCumulativeInactiveMonths,
+  isCurrentlyOnHiatus,
   nextHedgieversaryDate,
   hedgieversaryMilestonesInWindow,
   milestoneLabel,
@@ -137,6 +139,61 @@ describe("computeCumulativeHiatusMonths", () => {
   });
 });
 
+describe("isCurrentlyOnHiatus", () => {
+  it("is true for an open-ended (no end date) hiatus that's already started", () => {
+    const windows: HiatusWindow[] = [{ startsAt: "2024-01-01", endsAt: null }];
+    expect(isCurrentlyOnHiatus(windows, new Date("2024-02-01"))).toBe(true);
+  });
+
+  it("is true mid-way through a hiatus that has a known future end date", () => {
+    // The bug this guards against: a hiatus with a planned return date is
+    // still a *current* hiatus while it's running -- a milestone date
+    // can't be allowed to land inside it just because the end date is known.
+    const windows: HiatusWindow[] = [{ startsAt: "2024-01-01", endsAt: "2024-03-01" }];
+    expect(isCurrentlyOnHiatus(windows, new Date("2024-02-01"))).toBe(true);
+  });
+
+  it("is false once a known-end-date hiatus has ended", () => {
+    const windows: HiatusWindow[] = [{ startsAt: "2024-01-01", endsAt: "2024-03-01" }];
+    expect(isCurrentlyOnHiatus(windows, new Date("2024-04-01"))).toBe(false);
+  });
+
+  it("is false for a hiatus that hasn't started yet", () => {
+    const windows: HiatusWindow[] = [{ startsAt: "2024-06-01", endsAt: null }];
+    expect(isCurrentlyOnHiatus(windows, new Date("2024-01-01"))).toBe(false);
+  });
+
+  it("is false with no hiatus windows", () => {
+    expect(isCurrentlyOnHiatus([], new Date("2024-01-01"))).toBe(false);
+  });
+});
+
+describe("computeCumulativeInactiveMonths", () => {
+  it("returns 0 for a continuously active member (active months matches elapsed time)", () => {
+    // 6 months elapsed, 6 active months, no hiatus -- no gap.
+    expect(computeCumulativeInactiveMonths("2024-01-01", 6, 0, new Date("2024-07-01"))).toBe(0);
+  });
+
+  it("attributes the shortfall to a cancel/resubscribe gap when there's no hiatus", () => {
+    // 6 months elapsed but only 1 real active month -- the other 5 were a
+    // gap (e.g. cancelled and mostly stayed away), not a tracked hiatus.
+    expect(computeCumulativeInactiveMonths("2024-01-01", 1, 0, new Date("2024-07-01"))).toBe(5);
+  });
+
+  it("adds gap time on top of hiatus time rather than double-counting", () => {
+    // 6 months elapsed, 1 active month, 2 hiatus months -> 3 months of gap,
+    // for a total of 5 inactive months (2 hiatus + 3 gap).
+    expect(computeCumulativeInactiveMonths("2024-01-01", 1, 2, new Date("2024-07-01"))).toBe(5);
+  });
+
+  it("clamps to 0 gap when active+hiatus months already exceed elapsed time", () => {
+    // A join-date override can make total_active_months exceed literal
+    // elapsed time since first_joined_at (it estimates from an earlier real
+    // start date) -- must not go negative.
+    expect(computeCumulativeInactiveMonths("2024-01-01", 10, 0, new Date("2024-07-01"))).toBe(0);
+  });
+});
+
 describe("nextHedgieversaryDate", () => {
   it("lands on the 6-month mark before any yearly milestone", () => {
     const result = nextHedgieversaryDate("2024-01-01", 0, false, new Date("2024-03-01"));
@@ -183,7 +240,7 @@ describe("nextHedgieversaryDate", () => {
     expect(result.recentDate).toBeNull();
   });
 
-  it("returns TBD (null) for a member currently on an indefinite hiatus", () => {
+  it("returns TBD (null) for a member currently on hiatus", () => {
     const result = nextHedgieversaryDate("2024-01-01", 0, true, new Date("2024-03-01"));
     expect(result).toEqual({
       nextDate: null,
@@ -234,7 +291,7 @@ describe("hedgieversaryMilestonesInWindow", () => {
     expect(result).toEqual([]);
   });
 
-  it("returns nothing for an indefinite hiatus", () => {
+  it("returns nothing for a member currently on hiatus", () => {
     const result = hedgieversaryMilestonesInWindow("2024-01-01", 0, true, new Date("2025-06-01"), 0);
     expect(result).toEqual([]);
   });

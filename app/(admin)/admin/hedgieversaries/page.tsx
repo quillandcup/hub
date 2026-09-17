@@ -2,7 +2,13 @@ import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { getUserFeaturePreviews } from "@/lib/features.server";
-import { computeCumulativeHiatusMonths, nextHedgieversaryDate, type HiatusWindow } from "@/lib/member-tenure";
+import {
+  computeCumulativeHiatusMonths,
+  computeCumulativeInactiveMonths,
+  isCurrentlyOnHiatus,
+  nextHedgieversaryDate,
+  type HiatusWindow,
+} from "@/lib/member-tenure";
 import HedgieversariesTable, { type HedgieversaryRow } from "./HedgieversariesTable";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -77,13 +83,16 @@ export default async function HedgieversariesPage() {
   const rows: HedgieversaryRow[] = members.map((m) => {
     const windows = hiatusWindowsByMember.get(m.id) ?? [];
     const cumulativeHiatusMonths = computeCumulativeHiatusMonths(windows, now);
-    const isOnIndefiniteHiatus = windows.some(
-      (w) => !w.endsAt && new Date(w.startsAt).getTime() <= now.getTime()
+    const cumulativeInactiveMonths = computeCumulativeInactiveMonths(
+      m.first_joined_at,
+      m.total_active_months ?? 0,
+      cumulativeHiatusMonths,
+      now
     );
     const { nextDate, milestoneMonths, recentDate, recentMilestoneMonths } = nextHedgieversaryDate(
       m.first_joined_at,
-      cumulativeHiatusMonths,
-      isOnIndefiniteHiatus,
+      cumulativeInactiveMonths,
+      isCurrentlyOnHiatus(windows, now),
       now
     );
 

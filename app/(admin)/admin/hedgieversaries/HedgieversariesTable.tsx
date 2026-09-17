@@ -12,7 +12,7 @@ export interface HedgieversaryRow {
   firstJoinedAt: string;
   mostRecentJoinedAt: string | null;
   totalActiveMonths: number;
-  nextDate: string | null; // null = TBD (currently on an indefinite hiatus)
+  nextDate: string | null; // null = TBD (currently on hiatus, known end date or not)
   milestoneMonths: number | null;
   recentDate: string | null; // a milestone reached within the last 90 days, if any
   recentMilestoneMonths: number | null;
@@ -38,7 +38,7 @@ function getSortValue(row: HedgieversaryRow, column: SortColumn): string | numbe
     case "totalActiveMonths":
       return row.totalActiveMonths;
     case "nextDate":
-      // TBD (indefinite hiatus) sorts last in ascending order.
+      // TBD (currently on hiatus) sorts last in ascending order.
       return row.nextDate ? parseDateOnly(row.nextDate).getTime() : Infinity;
   }
 }

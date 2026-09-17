@@ -69,7 +69,7 @@ export default async function WorkQueuePage() {
     fetchAllRows(
       supabase,
       "members",
-      "id, name, first_joined_at",
+      "id, name, first_joined_at, total_active_months",
       (q) => q.in("status", ["active", "on_hiatus"])
     ),
     fetchAllRows(supabase, "member_hiatus_history", "id, member_id, start_date, end_date"),

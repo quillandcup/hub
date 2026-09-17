@@ -145,6 +145,44 @@ export function computeCumulativeHiatusMonths(hiatusWindows: HiatusWindow[], asO
   return Math.round(totalDays / 30);
 }
 
+// Whether `asOf` falls inside any hiatus window — true whether or not that
+// window has a known end date. Used to gate the Hedgieversary milestone
+// functions below: a member currently paused isn't accruing active time
+// *right now*, so a computed milestone date could otherwise land inside the
+// hiatus itself (a real, nonsensical case previously seen in production —
+// "membership milestone" while not currently a member).
+export function isCurrentlyOnHiatus(hiatusWindows: HiatusWindow[], asOf: Date): boolean {
+  const asOfMs = asOf.getTime();
+  return hiatusWindows.some((w) => {
+    const startMs = new Date(w.startsAt).getTime();
+    const endMs = w.endsAt ? new Date(w.endsAt).getTime() : null;
+    return startMs <= asOfMs && (endMs === null || endMs > asOfMs);
+  });
+}
+
+// Total non-active time since first_joined_at, in whole months: hiatus time
+// (deliberate, tracked pauses) plus genuine cancel/resubscribe gap time
+// (untracked directly — the member simply wasn't a paying member for a
+// stretch). Milestone dates must only advance while someone was actually an
+// active paying member, so both kinds of inactive time need to push the
+// date forward, the same way hiatus alone used to. Gap time isn't stored
+// anywhere, but elapsed time since first_joined_at splits exactly into
+// active + hiatus + gap, so it's derived by subtracting the other two
+// (already computed elsewhere, e.g. members.total_active_months and
+// computeCumulativeHiatusMonths) from elapsed time rather than re-deriving
+// it from raw purchase/stint history.
+export function computeCumulativeInactiveMonths(
+  firstJoinedAt: string,
+  totalActiveMonths: number,
+  cumulativeHiatusMonths: number,
+  asOf: Date
+): number {
+  const elapsedMs = asOf.getTime() - new Date(`${firstJoinedAt}T00:00:00Z`).getTime();
+  const elapsedMonths = Math.floor(Math.max(0, elapsedMs) / MS_PER_DAY / 30);
+  const gapMonths = Math.max(0, elapsedMonths - totalActiveMonths - cumulativeHiatusMonths);
+  return cumulativeHiatusMonths + gapMonths;
+}
+
 // Adds `months` to `date`, clamping the day-of-month to the last day of the
 // target month when it would overflow (e.g. Jan 31 + 1 month = Feb 28, not
 // Mar 3 — native Date.setMonth would roll over into March).
@@ -167,7 +205,7 @@ function addMonthsClamped(date: Date, months: number): Date {
 const RECENT_MILESTONE_WINDOW_DAYS = 90;
 
 export interface NextHedgieversary {
-  nextDate: string | null; // date-only, or null when TBD (ongoing indefinite hiatus)
+  nextDate: string | null; // date-only, or null when TBD (currently on hiatus)
   milestoneMonths: number | null; // 6, 12, 24, 36, ...
   recentDate: string | null; // the milestone immediately before nextDate, if it landed within RECENT_MILESTONE_WINDOW_DAYS of asOf
   recentMilestoneMonths: number | null;
@@ -175,23 +213,27 @@ export interface NextHedgieversary {
 
 // The next Hedgieversary milestone date for a member — first-joined date
 // shifted forward by the milestone (6 months, then yearly) plus their
-// cumulative hiatus time, so the date reflects real elapsed *active* time,
-// matching how the spreadsheet this replaces computes "Next Date". A member
-// currently on an indefinite hiatus (no known end date) has no predictable
-// date — return TBD rather than guessing.
+// cumulative *inactive* time (hiatus + cancel/resubscribe gaps — see
+// computeCumulativeInactiveMonths), so the date reflects real elapsed
+// *active* time rather than raw calendar time since first joining. A member
+// currently mid-hiatus isn't accruing active time right now regardless of
+// whether the hiatus has a known return date — celebrating/surfacing a
+// projected date for someone who's paused doesn't make sense until they're
+// actually back, so return TBD rather than a date for the whole time
+// they're on hiatus, not just for an open-ended one.
 //
-// cumulativeHiatusMonths is a rounded whole-month estimate, so a milestone
+// cumulativeInactiveMonths is a rounded whole-month estimate, so a milestone
 // can land just barely in the past (rounding put it a few days behind
 // "today") with nothing ever having surfaced it as reached. Rather than
 // silently jumping straight to the following year's milestone, also report
 // that just-passed one as `recentDate` when it's within the window above.
 export function nextHedgieversaryDate(
   firstJoinedAt: string,
-  cumulativeHiatusMonths: number,
-  isOnIndefiniteHiatus: boolean,
+  cumulativeInactiveMonths: number,
+  isCurrentlyOnHiatus: boolean,
   asOf: Date
 ): NextHedgieversary {
-  if (isOnIndefiniteHiatus) {
+  if (isCurrentlyOnHiatus) {
     return { nextDate: null, milestoneMonths: null, recentDate: null, recentMilestoneMonths: null };
   }
 
@@ -201,7 +243,7 @@ export function nextHedgieversaryDate(
   let milestone = 6;
   let lastPast: { date: Date; milestone: number } | null = null;
   while (milestone <= MAX_MONTHS) {
-    const candidate = addMonthsClamped(start, milestone + cumulativeHiatusMonths);
+    const candidate = addMonthsClamped(start, milestone + cumulativeInactiveMonths);
     if (candidate.getTime() > asOf.getTime()) {
       const isRecent =
         lastPast != null &&
@@ -238,12 +280,12 @@ export interface HedgieversaryMilestone {
 // instead of just the latest.
 export function hedgieversaryMilestonesInWindow(
   firstJoinedAt: string,
-  cumulativeHiatusMonths: number,
-  isOnIndefiniteHiatus: boolean,
+  cumulativeInactiveMonths: number,
+  isCurrentlyOnHiatus: boolean,
   asOf: Date,
   lookaheadDays: number
 ): HedgieversaryMilestone[] {
-  if (isOnIndefiniteHiatus) return [];
+  if (isCurrentlyOnHiatus) return [];
 
   const start = new Date(`${firstJoinedAt}T00:00:00Z`);
   const windowEndMs = asOf.getTime() + lookaheadDays * MS_PER_DAY;
@@ -252,7 +294,7 @@ export function hedgieversaryMilestonesInWindow(
   const results: HedgieversaryMilestone[] = [];
   let milestone = 6;
   while (milestone <= MAX_MONTHS) {
-    const candidate = addMonthsClamped(start, milestone + cumulativeHiatusMonths);
+    const candidate = addMonthsClamped(start, milestone + cumulativeInactiveMonths);
     if (candidate.getTime() > windowEndMs) break;
     results.push({ date: toDateOnly(candidate.toISOString()), milestoneMonths: milestone });
     milestone = milestone === 6 ? 12 : milestone + 12;
