@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import type { Metadata } from "next";
+import AliasBadges from "./AliasBadges";
 
 export const metadata: Metadata = {
   title: "Name Aliases",
@@ -120,16 +121,7 @@ export default async function AliasListPage() {
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <div className="flex flex-wrap gap-2">
-                        {memberAliasesData.map((alias) => (
-                          <span
-                            key={alias.id}
-                            className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200"
-                          >
-                            {alias.alias}
-                          </span>
-                        ))}
-                      </div>
+                      <AliasBadges aliases={memberAliasesData} />
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span
