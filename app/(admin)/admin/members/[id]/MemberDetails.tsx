@@ -72,9 +72,9 @@ export default function MemberDetails({
 
   const tabs: { id: Tab; label: string }[] = [
     { id: "overview", label: "Overview" },
-    { id: "identity", label: "Identity" },
     { id: "attendance", label: `Attendance History (${distinctPrickleCount})` },
     { id: "slack", label: `Slack Activity (${slackActivities.length})` },
+    { id: "identity", label: "Identity" },
   ];
 
   return (
