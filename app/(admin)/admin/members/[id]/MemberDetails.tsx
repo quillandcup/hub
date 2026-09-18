@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import MemberAttendanceView from "@/components/MemberAttendanceView";
 import { MemberStatusBadge } from "@/components/MemberStatusBadge";
 import { parseDateOnly } from "@/lib/member-tenure";
@@ -82,7 +83,17 @@ export default function MemberDetails({
       <div className="bg-white dark:bg-slate-900 rounded-lg shadow px-6 py-4">
         <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
           <StatItem label="Status">
-            <MemberStatusBadge status={member.status} />
+            <div className="flex flex-col gap-0.5">
+              <MemberStatusBadge status={member.status} />
+              {statusOverrides.length > 0 && (
+                <Link
+                  href="/admin/member-overrides"
+                  className="text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 hover:underline"
+                >
+                  Status Overrides
+                </Link>
+              )}
+            </div>
           </StatItem>
           <StatItem label="Engagement">
             <span className="text-lg font-bold text-slate-900 dark:text-slate-100">

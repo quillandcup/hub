@@ -271,12 +271,6 @@ export default async function MemberDetailPage({
                 </button>
               </form>
               <MergeButton member={{ id: member.id, name: member.name, email: member.email }} />
-              <Link
-                href="/admin/member-overrides"
-                className="px-3 py-1 text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-md hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
-              >
-                Status Overrides
-              </Link>
             </div>
             <div className="mt-1 flex flex-col gap-1">
               {(member.kajabi_id || member.stripe_customer_id) && (
