@@ -36,7 +36,7 @@ interface MemberDetailsProps {
   nameAliases: NameAliasRow[];
 }
 
-type Tab = "overview" | "attendance" | "slack";
+type Tab = "overview" | "identity" | "attendance" | "slack";
 
 export default function MemberDetails({
   member,
@@ -69,6 +69,7 @@ export default function MemberDetails({
 
   const tabs: { id: Tab; label: string }[] = [
     { id: "overview", label: "Overview" },
+    { id: "identity", label: "Identity" },
     { id: "attendance", label: `Attendance History (${distinctPrickleCount})` },
     { id: "slack", label: `Slack Activity (${slackActivities.length})` },
   ];
@@ -138,14 +139,6 @@ export default function MemberDetails({
 
       {activeTab === "overview" && (
         <div className="space-y-6">
-          <MemberIdentityPanel
-            memberId={member.id}
-            name={member.name}
-            displayName={member.display_name ?? null}
-            hasKajabiId={!!member.kajabi_id}
-            nameAliases={nameAliases}
-          />
-
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <SummaryCard
               title="Attendance"
@@ -197,6 +190,16 @@ export default function MemberDetails({
             awards={awards}
           />
         </div>
+      )}
+
+      {activeTab === "identity" && (
+        <MemberIdentityPanel
+          memberId={member.id}
+          name={member.name}
+          displayName={member.display_name ?? null}
+          hasKajabiId={!!member.kajabi_id}
+          nameAliases={nameAliases}
+        />
       )}
 
       {activeTab === "attendance" && (
