@@ -102,7 +102,7 @@ describe("MemberIdentityPanel", () => {
       />
     );
 
-    await userEvent.click(screen.getByRole("button", { name: /Edy Hackett/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Use Edy Hackett as the default pen name" }));
 
     await waitFor(() =>
       expect(fetchMock).toHaveBeenCalledWith(
@@ -164,6 +164,30 @@ describe("MemberIdentityPanel", () => {
 
     const body = JSON.parse(fetchMock.mock.calls[0][1].body);
     expect(body).toEqual({ newPenName: "River Wilde" });
+  });
+
+  it("removes a pen name", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ success: true }) });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(
+      <MemberIdentityPanel
+        memberId="member-1"
+        name="Erica Haraldsen"
+        displayName={null}
+        hasKajabiId={true}
+        email="edy@example.com"
+        emailAliases={[]}
+        nameAliases={aliases}
+      />
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Remove pen name Edy Hackett" }));
+
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith("/api/admin/aliases/alias-1", expect.objectContaining({ method: "DELETE" }))
+    );
+    await waitFor(() => expect(refresh).toHaveBeenCalled());
   });
 
   it("shows the member's email and any email aliases", () => {

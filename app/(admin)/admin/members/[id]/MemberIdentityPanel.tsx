@@ -51,6 +51,7 @@ export default function MemberIdentityPanel({
   const [penNameInput, setPenNameInput] = useState("");
   const [addingPenName, setAddingPenName] = useState(false);
   const [settingDefaultId, setSettingDefaultId] = useState<string | null>(null);
+  const [removingAliasId, setRemovingAliasId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const nameChanged = nameInput.trim() !== name && nameInput.trim().length > 0;
@@ -107,6 +108,21 @@ export default function MemberIdentityPanel({
       setError(err.message);
     } finally {
       setSettingDefaultId(null);
+    }
+  }
+
+  async function handleRemoveAlias(id: string) {
+    setRemovingAliasId(id);
+    setError(null);
+    try {
+      const response = await fetch(`/api/admin/aliases/${id}`, { method: "DELETE" });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Request failed");
+      router.refresh();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setRemovingAliasId(null);
     }
   }
 
@@ -187,20 +203,35 @@ export default function MemberIdentityPanel({
           {nameAliases.map((alias) => {
             const isDefault = displayName === alias.alias;
             return (
-              <button
+              <span
                 key={alias.id}
-                onClick={() => handleSetDefault(alias.alias, alias.id)}
-                disabled={settingDefaultId === alias.id || isDefault}
-                className={`px-3 py-1.5 rounded-md border text-sm flex items-center gap-2 ${
+                className={`pl-3 pr-1.5 py-1.5 rounded-md border text-sm flex items-center gap-2 ${
                   isDefault
                     ? "border-blue-300 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"
-                    : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
+                    : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300"
                 } ${!alias.active ? "opacity-50" : ""}`}
               >
-                {alias.alias}
-                <span className="text-xs text-slate-400 dark:text-slate-500">{sourceLabel(alias.source)}</span>
-                {isDefault && <span className="text-xs font-medium">· default</span>}
-              </button>
+                <button
+                  onClick={() => handleSetDefault(alias.alias, alias.id)}
+                  disabled={settingDefaultId === alias.id || isDefault}
+                  aria-label={isDefault ? undefined : `Use ${alias.alias} as the default pen name`}
+                  className="flex items-center gap-2 hover:underline disabled:no-underline"
+                >
+                  {alias.alias}
+                  <span className="text-xs text-slate-400 dark:text-slate-500">{sourceLabel(alias.source)}</span>
+                  {isDefault && <span className="text-xs font-medium">· default</span>}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleRemoveAlias(alias.id)}
+                  disabled={removingAliasId === alias.id}
+                  aria-label={`Remove pen name ${alias.alias}`}
+                  title="Remove pen name"
+                  className="text-slate-400 hover:text-red-600 dark:hover:text-red-400 disabled:opacity-50"
+                >
+                  ×
+                </button>
+              </span>
             );
           })}
           {nameAliases.length === 0 && (
