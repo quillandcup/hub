@@ -34,6 +34,7 @@ interface MemberDetailsProps {
     eventSlug: string | null;
   }[];
   nameAliases: NameAliasRow[];
+  emailAliases: string[];
 }
 
 type Tab = "overview" | "identity" | "attendance" | "slack";
@@ -51,6 +52,7 @@ export default function MemberDetails({
   awardableBadgeTypes,
   awards,
   nameAliases,
+  emailAliases,
 }: MemberDetailsProps) {
   const [activeTab, setActiveTab] = useState<Tab>("overview");
 
@@ -198,6 +200,8 @@ export default function MemberDetails({
           name={member.name}
           displayName={member.display_name ?? null}
           hasKajabiId={!!member.kajabi_id}
+          email={member.email}
+          emailAliases={emailAliases}
           nameAliases={nameAliases}
         />
       )}

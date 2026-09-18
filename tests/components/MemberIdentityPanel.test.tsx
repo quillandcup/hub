@@ -30,6 +30,8 @@ describe("MemberIdentityPanel", () => {
         name="Edy Hackett"
         displayName={null}
         hasKajabiId={true}
+        email="edy@example.com"
+        emailAliases={[]}
         nameAliases={[]}
       />
     );
@@ -61,7 +63,15 @@ describe("MemberIdentityPanel", () => {
     );
 
     render(
-      <MemberIdentityPanel memberId="member-1" name="Edy Hackett" displayName={null} hasKajabiId={true} nameAliases={[]} />
+      <MemberIdentityPanel
+        memberId="member-1"
+        name="Edy Hackett"
+        displayName={null}
+        hasKajabiId={true}
+        email="edy@example.com"
+        emailAliases={[]}
+        nameAliases={[]}
+      />
     );
 
     const input = screen.getByDisplayValue("Edy Hackett");
@@ -86,6 +96,8 @@ describe("MemberIdentityPanel", () => {
         name="Erica Haraldsen"
         displayName={null}
         hasKajabiId={true}
+        email="edy@example.com"
+        emailAliases={[]}
         nameAliases={aliases}
       />
     );
@@ -115,6 +127,8 @@ describe("MemberIdentityPanel", () => {
         name="Erica Haraldsen"
         displayName="Edy Hackett"
         hasKajabiId={true}
+        email="edy@example.com"
+        emailAliases={[]}
         nameAliases={aliases}
       />
     );
@@ -133,7 +147,15 @@ describe("MemberIdentityPanel", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     render(
-      <MemberIdentityPanel memberId="member-1" name="Erica Haraldsen" displayName={null} hasKajabiId={true} nameAliases={[]} />
+      <MemberIdentityPanel
+        memberId="member-1"
+        name="Erica Haraldsen"
+        displayName={null}
+        hasKajabiId={true}
+        email="edy@example.com"
+        emailAliases={[]}
+        nameAliases={[]}
+      />
     );
 
     const input = screen.getByPlaceholderText("e.g. River Wilde");
@@ -142,5 +164,22 @@ describe("MemberIdentityPanel", () => {
 
     const body = JSON.parse(fetchMock.mock.calls[0][1].body);
     expect(body).toEqual({ newPenName: "River Wilde" });
+  });
+
+  it("shows the member's email and any email aliases", () => {
+    render(
+      <MemberIdentityPanel
+        memberId="member-1"
+        name="Erica Haraldsen"
+        displayName={null}
+        hasKajabiId={true}
+        email="erica@example.com"
+        emailAliases={["old@example.com"]}
+        nameAliases={[]}
+      />
+    );
+
+    expect(screen.getByText("erica@example.com")).toBeInTheDocument();
+    expect(screen.getByText(/old@example.com/)).toBeInTheDocument();
   });
 });

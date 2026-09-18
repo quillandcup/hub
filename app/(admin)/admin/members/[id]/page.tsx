@@ -279,14 +279,6 @@ export default async function MemberDetailPage({
               </Link>
             </div>
             <div className="mt-1 flex flex-col gap-1">
-              <p className="text-sm text-slate-600 dark:text-slate-400">
-                {member.email}
-              </p>
-              {emailAliases && emailAliases.length > 0 && (
-                <p className="text-xs text-slate-400 dark:text-slate-500 italic">
-                  Also known as: {emailAliases.map(({ alias_email }) => alias_email).join(", ")}
-                </p>
-              )}
               {(member.kajabi_id || member.stripe_customer_id) && (
                 <div className="flex items-center gap-3 text-xs">
                   {member.kajabi_id && (
@@ -339,6 +331,7 @@ export default async function MemberDetailPage({
           awardableBadgeTypes={awardableBadgeTypes ?? []}
           awards={awards}
           nameAliases={nameAliasRows ?? []}
+          emailAliases={(emailAliases ?? []).map((a: any) => a.alias_email)}
         />
       </main>
     </div>

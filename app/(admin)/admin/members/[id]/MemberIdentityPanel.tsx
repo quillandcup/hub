@@ -15,6 +15,8 @@ interface MemberIdentityPanelProps {
   name: string;
   displayName: string | null;
   hasKajabiId: boolean;
+  email: string;
+  emailAliases: string[];
   nameAliases: NameAliasRow[];
 }
 
@@ -38,6 +40,8 @@ export default function MemberIdentityPanel({
   name,
   displayName,
   hasKajabiId,
+  email,
+  emailAliases,
   nameAliases,
 }: MemberIdentityPanelProps) {
   const router = useRouter();
@@ -115,6 +119,16 @@ export default function MemberIdentityPanel({
           {error}
         </div>
       )}
+
+      <div className="mb-6">
+        <h3 className="text-sm font-medium text-slate-900 dark:text-slate-100 mb-1">Email</h3>
+        <p className="text-sm text-slate-600 dark:text-slate-400">{email}</p>
+        {emailAliases.length > 0 && (
+          <p className="text-xs text-slate-400 dark:text-slate-500 italic mt-0.5">
+            Also known as: {emailAliases.join(", ")}
+          </p>
+        )}
+      </div>
 
       <div className="mb-6">
         <h3 className="text-sm font-medium text-slate-900 dark:text-slate-100 mb-1">Legal Name</h3>
