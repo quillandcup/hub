@@ -146,15 +146,15 @@ Import Prickles schedule from:
 - Easier onboarding for new developers
 
 ### Move Quill & Cup DNS to Cloudflare _(Needs Scoping)_
-Domain registration and DNS currently live at Squarespace. Move DNS to Cloudflare so web and email traffic can be treated differently:
+The domain is registered at Squarespace, but its DNS records are currently managed at Kajabi. Move DNS to Cloudflare so web and email traffic can be treated differently:
 
 - **Web** (`hub.quillandcup.com` and any other site hostnames): orange cloud (proxied) for Cloudflare's CDN/WAF/DDoS layer. Vercel has its own edge network and documents caveats for proxying behind another CDN (SSL mode must be Full (strict), and Vercel's own caching/analytics see Cloudflare IPs), so confirm that trade-off before flipping the proxy on rather than assuming it's a pure win.
 - **Email** (Resend's DKIM/return-path records, MX, SPF/DKIM/DMARC TXT): grey cloud (DNS only). Mail records can't be proxied.
-- **Registrar** can stay at Squarespace; only the nameservers change. Transferring the registration to Cloudflare is optional and separate.
+- **Registrar** can stay at Squarespace; only the nameservers change (from Kajabi's to Cloudflare's). Transferring the registration to Cloudflare is optional and separate.
 
 **Before switching nameservers:**
-- [ ] Inventory every existing record at Squarespace (site, forwarding MX, Kajabi, Slack, Zoom verification TXT, etc.) and recreate them at Cloudflare *before* the cutover, so nothing drops.
-- [ ] `support@quillandcup.com` is a Squarespace email-forwarding alias (to the team Google Group). Confirm whether Squarespace forwarding keeps working once nameservers point elsewhere; if not, replace it with Cloudflare Email Routing (see next item).
+- [ ] Inventory every existing record at Kajabi's DNS (site, forwarding MX, Kajabi, Slack, Zoom verification TXT, the Resend records, etc.) and recreate them at Cloudflare *before* the cutover, so nothing drops. Also check whether Squarespace holds any DNS records of its own.
+- [ ] `support@quillandcup.com` is a Squarespace email-forwarding alias (to the team Google Group). Confirm where its MX records live and whether Squarespace forwarding keeps working once nameservers point at Cloudflare; if not, replace it with Cloudflare Email Routing (see next item).
 - [ ] Lower TTLs ahead of the cutover; verify the Resend domain, Supabase auth emails, and OAuth callbacks after.
 
 ### Email routing on separate subdomains _(Needs Scoping)_
@@ -167,7 +167,7 @@ Auth emails now send via Resend SMTP (see `docs/INVITING_USERS.md`). Plan the se
 | Optional auth split | `auth.quillandcup.com` | Only if login-email delivery needs isolating from notification volume |
 
 **Open items:**
-- [x] `hub.quillandcup.com` added in Resend with return path `bounce.hub.quillandcup.com` (DNS at Squarespace for now; carry the records over in the Cloudflare move, DNS-only/grey cloud). Verified. Check the Resend plan's domain limit before adding more subdomains.
+- [x] `hub.quillandcup.com` added in Resend with return path `bounce.hub.quillandcup.com` (DNS at Kajabi for now; carry the records over in the Cloudflare move, DNS-only/grey cloud). Verified. Check the Resend plan's domain limit before adding more subdomains.
 - [x] Sender address: `no-reply@hub.quillandcup.com`. Supabase's SMTP settings have no reply-to field, and Squarespace forwarding doesn't cover subdomain addresses, so replies bounce. The email footers (`supabase/emails/layout.tsx`) now say "Questions? Email support@quillandcup.com".
 - [ ] Tracking: keep open/click tracking off on `hub.`; enable only on `news.` if newsletters go through Resend.
 - [ ] Publish a DMARC record on the root `quillandcup.com` (subdomains inherit it).
