@@ -18,7 +18,8 @@
     "db:up": "supabase migration up",
     "env:sync": "./scripts/sync-to-vercel.sh",
     "templates:render": "tsx scripts/render-email-templates.ts",
-    "templates:sync": "tsx scripts/sync-email-templates.ts .env.prod",
+    "config:diff": "dotenv -e .env.prod -- supabase config diff",
+    "config:push": "dotenv -e .env.prod -- supabase config push",
     "quarantine:remove": "xattr -r -d com.apple.quarantine node_modules",
     "prepare": "husky"
   },

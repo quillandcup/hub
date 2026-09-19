@@ -84,7 +84,11 @@ echo "there, not from Vercel) -- run scripts/sync-vault-secrets.sh after this."
 echo ""
 echo "=== Validating environment variables ==="
 
-MISSING_ENV_VARS=$(awk -F'=' '/^[[:space:]]*#/ || /^[[:space:]]*$/ || /SUPABASE_PROJECT_REF/ || /SUPABASE_ACCESS_TOKEN/ {next} {keys[$1] = keys[$1] (keys[$1] ? "," : "") FILENAME} END {for (k in keys) if (split(keys[k], files, ",") < 3) print "Key [" k "] is missing. Found only in: " keys[k]}' .env.*)
+
+# Ops-only vars live in .env.prod for scripts/config.toml (supabase config push, templates) and are
+# deliberately NOT synced to Vercel or required in every env file: SUPABASE_PROJECT_REF,
+# SUPABASE_ACCESS_TOKEN, RESEND_API_KEY, SMTP_*.
+MISSING_ENV_VARS=$(awk -F'=' '/^[[:space:]]*#/ || /^[[:space:]]*$/ || /SUPABASE_PROJECT_REF/ || /SUPABASE_ACCESS_TOKEN/ || /RESEND_API_KEY/ || /SMTP_/ {next} {keys[$1] = keys[$1] (keys[$1] ? "," : "") FILENAME} END {for (k in keys) if (split(keys[k], files, ",") < 3) print "Key [" k "] is missing. Found only in: " keys[k]}' .env.*)
 
 if [ ! -z "${MISSING_ENV_VARS}" ]; then
     echo "${MISSING_ENV_VARS}"

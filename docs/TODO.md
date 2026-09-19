@@ -145,6 +145,35 @@ Import Prickles schedule from:
 - Clear separation of development and production
 - Easier onboarding for new developers
 
+### Move Quill & Cup DNS to Cloudflare _(Needs Scoping)_
+Domain registration and DNS currently live at Squarespace. Move DNS to Cloudflare so web and email traffic can be treated differently:
+
+- **Web** (`hub.quillandcup.com` and any other site hostnames): orange cloud (proxied) for Cloudflare's CDN/WAF/DDoS layer. Vercel has its own edge network and documents caveats for proxying behind another CDN (SSL mode must be Full (strict), and Vercel's own caching/analytics see Cloudflare IPs), so confirm that trade-off before flipping the proxy on rather than assuming it's a pure win.
+- **Email** (Resend's DKIM/return-path records, MX, SPF/DKIM/DMARC TXT): grey cloud (DNS only). Mail records can't be proxied.
+- **Registrar** can stay at Squarespace; only the nameservers change. Transferring the registration to Cloudflare is optional and separate.
+
+**Before switching nameservers:**
+- [ ] Inventory every existing record at Squarespace (site, forwarding MX, Kajabi, Slack, Zoom verification TXT, etc.) and recreate them at Cloudflare *before* the cutover, so nothing drops.
+- [ ] `support@quillandcup.com` is a Squarespace email-forwarding alias (to the team Google Group). Confirm whether Squarespace forwarding keeps working once nameservers point elsewhere; if not, replace it with Cloudflare Email Routing (see next item).
+- [ ] Lower TTLs ahead of the cutover; verify the Resend domain, Supabase auth emails, and OAuth callbacks after.
+
+### Email routing on separate subdomains _(Needs Scoping)_
+Auth emails now send via Resend SMTP (see `docs/INVITING_USERS.md`). Plan the sending/receiving domains per email category so each has its own reputation:
+
+| Category | Domain | Status |
+|---|---|---|
+| Auth (invites, magic links, resets) + Hedgie Hub app notifications | `hub.quillandcup.com` | Planned first — matches the app hostname/brand |
+| Newsletters | `news.quillandcup.com` | Later. If sent from Kajabi or another tool, that tool needs its own subdomain and DNS records, not Resend's |
+| Optional auth split | `auth.quillandcup.com` | Only if login-email delivery needs isolating from notification volume |
+
+**Open items:**
+- [x] `hub.quillandcup.com` added in Resend with return path `bounce.hub.quillandcup.com` (DNS at Squarespace for now; carry the records over in the Cloudflare move, DNS-only/grey cloud). Verified. Check the Resend plan's domain limit before adding more subdomains.
+- [x] Sender address: `no-reply@hub.quillandcup.com`. Supabase's SMTP settings have no reply-to field, and Squarespace forwarding doesn't cover subdomain addresses, so replies bounce. The email footers (`supabase/emails/layout.tsx`) now say "Questions? Email support@quillandcup.com".
+- [ ] Tracking: keep open/click tracking off on `hub.`; enable only on `news.` if newsletters go through Resend.
+- [ ] Publish a DMARC record on the root `quillandcup.com` (subdomains inherit it).
+- [ ] Reply handling: if replies to system emails ever matter, either use the Supabase Send Email hook (real `Reply-To`) or set up subdomain inbound routing after the Cloudflare move (Cloudflare Email Routing). Note `hub` is a CNAME to Vercel, and a CNAME can't coexist with an MX record on the same name, so inbound mail for a subdomain that's also a web host needs a different name.
+- [ ] Log auth/notification emails to `member_activities` (CRM Phase 1) — see the CRM & Outreach Automation Roadmap. The Send Email hook would capture every auth email with its exact type; Resend webhooks alone give delivery/bounce/complaint status only.
+
 ---
 
 ## Security & Access Control

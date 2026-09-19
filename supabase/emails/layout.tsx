@@ -81,6 +81,12 @@ export function EmailLayout({
             }}
           >
             Quill &amp; Cup · A community for writers
+            <br />
+            Questions? Email{" "}
+            <a href="mailto:support@quillandcup.com" style={{ color: colors.accent }}>
+              support@quillandcup.com
+            </a>{" "}
+            — replies to this address aren't monitored.
           </Text>
         </Container>
       </Body>

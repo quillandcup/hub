@@ -112,9 +112,22 @@ Planned features for a future update:
 - All emails in local dev go here instead of being sent
 
 **Production:**
-- Check Supabase logs for email delivery errors
-- Verify SMTP settings in Supabase project settings
+- Check the Resend dashboard (https://resend.com/emails) for delivery status and bounces
+- Check Supabase Auth logs for SMTP errors
+- Verify the sending domain is still verified in Resend, and run `npm run config:diff` to check the SMTP settings in Supabase haven't drifted from `config.toml`
 - Check user's spam folder
+
+**Production email setup (Resend SMTP, managed as config-as-code):**
+
+Production's auth config, including SMTP and the email templates, lives in the `[remotes.prod]` block of `supabase/config.toml`.
+
+1. In Resend, add and verify the sending domain `hub.quillandcup.com` (custom return path `bounce`, so bounces go to `bounce.hub.quillandcup.com`) and add the DNS records it gives you. Leave open/click tracking off — the emails contain single-use links that shouldn't go through a tracking redirect. Then create a sending-only API key.
+2. Put `RESEND_API_KEY` in `.env.prod` (gitignored). `config.toml` reads it as `env(RESEND_API_KEY)`.
+3. Log the CLI in with `supabase login`. Don't put `SUPABASE_ACCESS_TOKEN` in `.env.prod`: `npm run config:*` loads that file, and a stale token there overrides your login.
+4. If you edited `supabase/emails/*.tsx`, run `npm run templates:render` to regenerate `supabase/templates/*.html`.
+5. `npm run config:diff` (read-only) to preview what would change on production. Read it before pushing. One difference is expected and accepted: `auth.sms.twilio.enabled` (see the comment in `config.toml`).
+6. `npm run config:push` to apply. It pushes the SMTP settings, the templates and subjects, and every other setting declared in `config.toml`.
+7. Send a test sign-in link to your own email.
 
 ### User can't sign up
 
