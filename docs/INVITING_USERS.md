@@ -125,7 +125,7 @@ Production's auth config, including SMTP and the email templates, lives in the `
 2. Put `RESEND_API_KEY` in `.env.prod` (gitignored). `config.toml` reads it as `env(RESEND_API_KEY)`.
 3. Log the CLI in with `supabase login`. Don't put `SUPABASE_ACCESS_TOKEN` in `.env.prod`: `npm run config:*` loads that file, and a stale token there overrides your login.
 4. If you edited `supabase/emails/*.tsx`, run `npm run templates:render` to regenerate `supabase/templates/*.html`.
-5. `npm run config:diff` (read-only) to preview what would change on production. Read it before pushing. One difference is expected and accepted: `auth.sms.twilio.enabled` (see the comment in `config.toml`).
+5. `npm run config:diff` (read-only) to preview what would change on production. Read it before pushing. One difference always shows and is harmless: `auth.sms.twilio.enabled` (see the comment in `config.toml`).
 6. `npm run config:push` to apply. It pushes the SMTP settings, the templates and subjects, and every other setting declared in `config.toml`.
 7. Send a test sign-in link to your own email.
 

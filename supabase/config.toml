@@ -447,7 +447,7 @@ sender_name = "Quill & Cup"
 enroll_enabled = true
 verify_enabled = true
 
-# Known, accepted diff: `config diff` reports auth.sms.twilio.enabled as remote-only (production
+# Known, harmless diff: `config diff` reports auth.sms.twilio.enabled as remote-only (production
 # has Twilio as the default SMS provider, with no credentials and phone login off). We don't
-# declare Twilio anywhere, so a push would write the default (disabled), which affects nothing
-# since SMS is unused. Always run `supabase config diff` and read it before pushing.
+# declare Twilio anywhere, and `config push` leaves undeclared properties unchanged (confirmed
+# with CLI 2.117), so the line is cosmetic. Always run `supabase config diff` before pushing.
