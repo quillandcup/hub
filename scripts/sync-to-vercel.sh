@@ -18,6 +18,7 @@ SYNCED_VARS="
     SUDO_SECRET
     CRON_SECRET
     CRON_INTERNAL_SECRET
+    NEXT_PUBLIC_GA_ID
 "
 
 # Function to add/update env var from file
