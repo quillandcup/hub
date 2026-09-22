@@ -77,6 +77,7 @@ const navigation: NavSection[] = [
       { name: "Import Data", href: "/admin/data/import", icon: "📥" },
       { name: "Prickle Types", href: "/admin/data/prickle-types", icon: "🏷️" },
       { name: "Users", href: "/admin/users", icon: "🔑" },
+      { name: "Segments", href: "/admin/segments", icon: "🧩" },
       { name: "Feedback", href: "/admin/feedback", icon: "💬" },
     ],
   },
