@@ -19,6 +19,7 @@ SYNCED_VARS="
     CRON_SECRET
     CRON_INTERNAL_SECRET
     NEXT_PUBLIC_GA_ID
+    SENTRY_DSN NEXT_PUBLIC_SENTRY_DSN SENTRY_AUTH_TOKEN
 "
 
 # Function to add/update env var from file
@@ -89,7 +90,9 @@ echo "=== Validating environment variables ==="
 # Ops-only vars live in .env.prod for scripts/config.toml (supabase config push, templates) and are
 # deliberately NOT synced to Vercel or required in every env file: SUPABASE_PROJECT_REF,
 # SUPABASE_ACCESS_TOKEN, RESEND_API_KEY, SMTP_*.
-MISSING_ENV_VARS=$(awk -F'=' '/^[[:space:]]*#/ || /^[[:space:]]*$/ || /SUPABASE_PROJECT_REF/ || /SUPABASE_ACCESS_TOKEN/ || /RESEND_API_KEY/ || /SMTP_/ {next} {keys[$1] = keys[$1] (keys[$1] ? "," : "") FILENAME} END {for (k in keys) if (split(keys[k], files, ",") < 3) print "Key [" k "] is missing. Found only in: " keys[k]}' .env.*)
+# SENTRY_AUTH_TOKEN is also prod-only: it's a build-time secret for uploading production source
+# maps and isn't needed for dev/preview builds.
+MISSING_ENV_VARS=$(awk -F'=' '/^[[:space:]]*#/ || /^[[:space:]]*$/ || /SUPABASE_PROJECT_REF/ || /SUPABASE_ACCESS_TOKEN/ || /RESEND_API_KEY/ || /SMTP_/ || /SENTRY_AUTH_TOKEN/ {next} {keys[$1] = keys[$1] (keys[$1] ? "," : "") FILENAME} END {for (k in keys) if (split(keys[k], files, ",") < 3) print "Key [" k "] is missing. Found only in: " keys[k]}' .env.*)
 
 if [ ! -z "${MISSING_ENV_VARS}" ]; then
     echo "${MISSING_ENV_VARS}"
