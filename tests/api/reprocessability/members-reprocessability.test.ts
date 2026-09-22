@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
-import { getTestSupabaseAdminClient, getTestAuthHeaders } from '../../helpers/supabase'
+import { getTestSupabaseAdminClient, getTestAuthHeaders, getTestApiBaseUrl } from '../../helpers/supabase'
 
 /**
  * Test to verify /api/process/members is fully reprocessable
@@ -82,7 +82,7 @@ describe('Members Reprocessability', () => {
     expect(verifyData).toHaveLength(2)
 
     // ACT: Process members
-    const response = await fetch('http://localhost:3000/api/process/members', {
+    const response = await fetch(`${getTestApiBaseUrl()}/api/process/members`, {
       method: 'POST',
       headers: getTestAuthHeaders(),
     })
@@ -127,7 +127,7 @@ describe('Members Reprocessability', () => {
     expect(error).toBeNull()
 
     // ACT: Reprocess members
-    const response = await fetch('http://localhost:3000/api/process/members', {
+    const response = await fetch(`${getTestApiBaseUrl()}/api/process/members`, {
       method: 'POST',
       headers: getTestAuthHeaders(),
     })
@@ -164,7 +164,7 @@ describe('Members Reprocessability', () => {
     expect(error).toBeNull()
 
     // ACT: Reprocess
-    const response = await fetch('http://localhost:3000/api/process/members', {
+    const response = await fetch(`${getTestApiBaseUrl()}/api/process/members`, {
       method: 'POST',
       headers: getTestAuthHeaders(),
     })
@@ -204,7 +204,7 @@ describe('Members Reprocessability', () => {
     const originalId = before!.id
 
     // ACT: Process members (UPSERT - preserves UUIDs)
-    const response = await fetch('http://localhost:3000/api/process/members', {
+    const response = await fetch(`${getTestApiBaseUrl()}/api/process/members`, {
       method: 'POST',
       headers: getTestAuthHeaders(),
     })
@@ -321,7 +321,7 @@ describe('Members Status Classification', () => {
   })
 
   async function reprocess() {
-    const response = await fetch('http://localhost:3000/api/process/members', {
+    const response = await fetch(`${getTestApiBaseUrl()}/api/process/members`, {
       method: 'POST',
       headers: getTestAuthHeaders(),
     })
@@ -411,7 +411,7 @@ describe('Members Bronze Pagination (>1000 rows)', () => {
   it(
     'processes every contact, including those past the Supabase query row cap',
     async () => {
-      const response = await fetch('http://localhost:3000/api/process/members', {
+      const response = await fetch(`${getTestApiBaseUrl()}/api/process/members`, {
         method: 'POST',
         headers: getTestAuthHeaders(),
       })
@@ -449,6 +449,77 @@ describe('Members Bronze Pagination (>1000 rows)', () => {
 })
 
 /**
+ * Regression test for a pagination gap in /api/process/members' bronze.stripe_customers
+ * lookup used to populate members.stripe_customer_id.
+ *
+ * The route already paginates kajabi_contacts/customers/purchases/offers (see the
+ * "Members Bronze Pagination (>1000 rows)" suite above), but it separately re-fetched
+ * bronze.stripe_customers with a single unguarded `.select()` — capped at the project's
+ * max-rows setting (1000 in production; 5000 locally per supabase/config.toml) — just to
+ * build the email -> stripe_customer_id map. A Stripe customer row past that cap was
+ * silently dropped, leaving members.stripe_customer_id null even though the row existed
+ * in Bronze. The fix routes this fetch through the same paginated `fetchAllBronzeRows`
+ * helper used everywhere else in this file — see tests/lib/bronze-pagination.test.ts for
+ * a test that seeds past the row cap and proves that helper retrieves every row (seeding
+ * that many rows through this full API route isn't viable here: it would also blow up an
+ * unrelated `.in()` query in lib/kajabi/membership-history.ts's Stripe trial lookup with
+ * a "URI too long" error, since that list's length scales with total stripe_customers
+ * row count regardless of this fix). This test instead confirms, at a realistic scale,
+ * that the email -> stripe_customer_id mapping is still wired up correctly end-to-end.
+ */
+describe('Members stripe_customer_id matching', () => {
+  const supabase = getTestSupabaseAdminClient()
+  const ts = Date.now()
+  const email = `stripe-id-match-${ts}@example.com`
+  const stripeCustomerId = `cus_stripe_id_match_${ts}`
+
+  beforeAll(async () => {
+    await supabase.schema('bronze').from('kajabi_contacts').insert({
+      kajabi_contact_id: `stripe-id-match-contact-${ts}`,
+      email,
+      name: 'Stripe Id Match',
+      created_at_kajabi: '2022-01-01T00:00:00Z',
+      data: {},
+    })
+    await supabase.schema('bronze').from('stripe_customers').insert({
+      stripe_customer_id: stripeCustomerId,
+      email,
+      data: {},
+    })
+  })
+
+  afterAll(async () => {
+    await supabase.schema('bronze').from('stripe_customers').delete().eq('stripe_customer_id', stripeCustomerId)
+    await supabase.schema('bronze').from('kajabi_contacts').delete().eq('email', email)
+    await supabase.from('members').delete().eq('email', email)
+  })
+
+  it('sets members.stripe_customer_id from the matching bronze.stripe_customers row', async () => {
+    const response = await fetch(`${getTestApiBaseUrl()}/api/process/members`, {
+      method: 'POST',
+      headers: getTestAuthHeaders(),
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      throw new Error(`API call failed: ${response.status} - ${errorText}`)
+    }
+
+    const result = await response.json()
+    expect(result.success).toBe(true)
+
+    const { data: member, error } = await supabase
+      .from('members')
+      .select('stripe_customer_id')
+      .eq('email', email)
+      .single()
+
+    expect(error).toBeNull()
+    expect(member?.stripe_customer_id).toBe(stripeCustomerId)
+  })
+})
+
+/**
  * Member tenure fields (first_joined_at, most_recent_joined_at,
  * total_active_months) computed during reprocessing — see
  * lib/member-tenure.ts. Covers a real cancel/resubscribe gap and a hiatus
@@ -469,7 +540,7 @@ describe('Member Tenure computed during reprocessing', () => {
   const hiatusIds: string[] = []
 
   async function reprocess() {
-    const response = await fetch('http://localhost:3000/api/process/members', {
+    const response = await fetch(`${getTestApiBaseUrl()}/api/process/members`, {
       method: 'POST',
       headers: getTestAuthHeaders(),
     })
@@ -602,7 +673,7 @@ describe('Stripe trial-conversion date correction during reprocessing', () => {
   const trialEndAt = daysAgo(293) // 7-day trial
 
   async function reprocess() {
-    const response = await fetch('http://localhost:3000/api/process/members', {
+    const response = await fetch(`${getTestApiBaseUrl()}/api/process/members`, {
       method: 'POST',
       headers: getTestAuthHeaders(),
     })
@@ -725,7 +796,7 @@ describe('Legacy join-date overrides during reprocessing', () => {
   const legacyJoinedAt = dateOnly(daysAgo(700)) // predates anything Kajabi knows about
 
   async function reprocess() {
-    const response = await fetch('http://localhost:3000/api/process/members', {
+    const response = await fetch(`${getTestApiBaseUrl()}/api/process/members`, {
       method: 'POST',
       headers: getTestAuthHeaders(),
     })
@@ -820,7 +891,7 @@ describe('Instagram handle sourcing during reprocessing', () => {
   const emailNeitherSource = `ig-neither-${ts}@example.com`
 
   async function reprocess() {
-    const response = await fetch('http://localhost:3000/api/process/members', {
+    const response = await fetch(`${getTestApiBaseUrl()}/api/process/members`, {
       method: 'POST',
       headers: getTestAuthHeaders(),
     })

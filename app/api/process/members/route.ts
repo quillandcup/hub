@@ -6,6 +6,7 @@ import { buildAliasMap, resolveEmail as resolveEmailShared } from "@/lib/email-a
 import { toKajabiPhotoUrl } from "@/lib/member-avatar";
 import { NextRequest, NextResponse, after } from "next/server";
 import { triggerAttendanceReprocessing } from "@/lib/processing/trigger";
+import { fetchAllBronzeRows } from "@/lib/supabase/bronze-pagination";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 function toSocialUrl(base: string, handle: string | null | undefined): string | null {
@@ -49,39 +50,11 @@ export const maxDuration = 300;
  * 3. Applies business logic
  * 4. Regenerates members table (UPSERT pattern to preserve UUIDs)
  */
-// Fetches every row from a Bronze table, paginating past Supabase's default
-// 1000-row cap so large tables (e.g. kajabi_contacts, kajabi_purchases) don't
-// get silently truncated. See CLAUDE.md "Database Query Limits".
-async function fetchAllBronzeRows(
-  supabase: SupabaseClient,
-  table: string,
-  columns: string = "*"
-): Promise<any[]> {
-  const BATCH_SIZE = 1000;
-  let allRows: any[] = [];
-  let offset = 0;
-  let hasMore = true;
-
-  while (hasMore) {
-    const { data: batch, error } = await supabase
-      .schema('bronze')
-      .from(table)
-      .select(columns)
-      .range(offset, offset + BATCH_SIZE - 1);
-
-    if (error) throw error;
-
-    if (batch && batch.length > 0) {
-      allRows = allRows.concat(batch);
-      offset += batch.length;
-      hasMore = batch.length === BATCH_SIZE;
-    } else {
-      hasMore = false;
-    }
-  }
-
-  return allRows;
-}
+// fetchAllBronzeRows (imported above from lib/supabase/bronze-pagination) paginates
+// past Supabase's default 1000-row cap so large Bronze tables (e.g. kajabi_contacts,
+// kajabi_purchases, stripe_customers) don't get silently truncated. See CLAUDE.md
+// "Database Query Limits". It's shared with lib/kajabi/membership-history.ts so every
+// Bronze read in this pipeline goes through the same paginated fetch.
 
 // Same pagination as fetchAllBronzeRows, for public-schema (Local/Silver)
 // tables that can also grow past 1000 rows — used here for `members` and
@@ -124,8 +97,11 @@ export async function POST(request: NextRequest) {
 
   try {
     // STEP 1: Load Bronze data + Local data.
-    // kajabi_contacts, kajabi_customers, kajabi_purchases, and kajabi_offers can each
-    // exceed Supabase's default 1000-row cap, so they're paginated in parallel loops.
+    // kajabi_contacts, kajabi_customers, kajabi_purchases, kajabi_offers, and
+    // stripe_customers can each exceed Supabase's default 1000-row cap, so
+    // they're paginated in parallel loops (fetchAllBronzeRows/fetchAllPublicRows).
+    // staff and member_email_aliases are small Local-layer tables and are not
+    // expected to approach that limit.
     const [
       contacts,
       customers,
@@ -134,7 +110,7 @@ export async function POST(request: NextRequest) {
       slackUsers,
       { data: staffMembers, error: staffError },
       { data: emailAliases, error: aliasesError },
-      { data: stripeCustomers, error: stripeError },
+      stripeCustomers,
       existingMembers,
       hiatusHistory,
       joinDateOverrides,
@@ -146,7 +122,7 @@ export async function POST(request: NextRequest) {
       fetchAllBronzeRows(supabase, "slack_users", "email, image_url"),
       supabase.from("staff").select("*"),
       supabase.from("member_email_aliases").select("*").eq("active", true),
-      supabase.schema('bronze').from("stripe_customers").select("stripe_customer_id, email"),
+      fetchAllBronzeRows(supabase, "stripe_customers", "stripe_customer_id, email"),
       fetchAllPublicRows(supabase, "members", "id, email"),
       fetchAllPublicRows(supabase, "member_hiatus_history", "member_id, start_date, end_date"),
       fetchAllPublicRows(supabase, "member_join_date_overrides", "member_id, first_joined_at"),
@@ -154,7 +130,6 @@ export async function POST(request: NextRequest) {
 
     if (staffError) throw staffError;
     if (aliasesError) throw aliasesError;
-    if (stripeError) throw stripeError;
 
     // Stripe subscriptions' real trial-conversion dates, keyed by canonical
     // email — see lib/kajabi/membership-history.ts for why this matters

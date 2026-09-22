@@ -1,5 +1,6 @@
 import { isMembershipOffer, trialEndDate } from "@/lib/membership";
 import { buildAliasMap, resolveEmail } from "@/lib/email-aliases";
+import { fetchAllBronzeRows } from "@/lib/supabase/bronze-pagination";
 
 export type MembershipPurchase = {
   created_at_kajabi: string;
@@ -215,38 +216,6 @@ export async function fetchStripeTrialInfoByEmail(
   }
 
   return result;
-}
-
-// Paginates past Supabase's default 1000-row cap. See CLAUDE.md "Database
-// Query Limits" — stripe_customers/stripe_subscriptions are small today but
-// this keeps the fetch correct as they grow.
-async function fetchAllBronzeRows(
-  supabase: any,
-  table: string,
-  columns: string,
-  filter?: (query: any) => any
-): Promise<any[]> {
-  const BATCH_SIZE = 1000;
-  let allRows: any[] = [];
-  let offset = 0;
-  let hasMore = true;
-
-  while (hasMore) {
-    let query = supabase.schema("bronze").from(table).select(columns);
-    if (filter) query = filter(query);
-    const { data: batch, error } = await query.range(offset, offset + BATCH_SIZE - 1);
-    if (error) throw error;
-
-    if (batch && batch.length > 0) {
-      allRows = allRows.concat(batch);
-      offset += batch.length;
-      hasMore = batch.length === BATCH_SIZE;
-    } else {
-      hasMore = false;
-    }
-  }
-
-  return allRows;
 }
 
 export async function fetchMembershipHistory(
