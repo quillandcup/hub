@@ -24,6 +24,7 @@
     "prepare": "husky"
   },
   "dependencies": {
+    "@next/third-parties": "^16.3.6",
     "@slack/web-api": "^7.15.0",
     "@supabase/ssr": "^0.10.0",
     "@supabase/supabase-js": "^2.101.1",
