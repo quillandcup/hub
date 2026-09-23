@@ -7,16 +7,12 @@ on:
     paths:
       - "__checks__/**"
       - "checkly.config.ts"
-      - "package.json"
-      - "package-lock.json"
       - ".github/workflows/checkly.yml"
   push:
     branches: [main]
     paths:
       - "__checks__/**"
       - "checkly.config.ts"
-      - "package.json"
-      - "package-lock.json"
       - ".github/workflows/checkly.yml"
 
 jobs:
