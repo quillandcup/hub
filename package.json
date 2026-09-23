@@ -59,7 +59,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@vitejs/plugin-react": "^6.0.1",
-    "@vitest/ui": "^4.1.2",
+    "@vitest/ui": "^4.1.11",
     "autoprefixer": "^10.4.20",
     "checkly": "latest",
     "dotenv-cli": "^11.0.0",
@@ -73,7 +73,7 @@
     "tsx": "^4.21.0",
     "typescript": "^5",
     "vercel": "^56.3.2",
-    "vitest": "^4.1.2"
+    "vitest": "^4.1.11"
   },
   "overrides": {
     "tar": "^7.5.16",
@@ -81,7 +81,7 @@
     "esbuild": "^0.28.1",
     "js-yaml": "^4.2.0",
     "next": {
-      "postcss": "^8.5.10"
+      "postcss": "^8.5.23"
     },
     "@vercel/static-config": {
       "ajv": "^8.17.2"
@@ -101,13 +101,29 @@
     },
     "@vercel/node": {
       "path-to-regexp": "^6.3.0",
-      "undici": "^5.29.0"
+      "undici": "^6.28.0"
     },
     "@vercel/remix-builder": {
       "path-to-regexp": "^6.3.0"
     },
     "@vercel/python-analysis": {
       "minimatch": "^10.2.3"
+    },
+    "vercel": {
+      "undici": "^6.28.0",
+      "sandbox": {
+        "@vercel/sandbox": {
+          "undici": "^7.29.0"
+        }
+      }
+    },
+    "minimatch@3.1.5": {
+      "brace-expansion": "^1.1.18"
+    },
+    "glob": {
+      "minimatch": {
+        "brace-expansion": "^5.0.12"
+      }
     }
   }
 }
