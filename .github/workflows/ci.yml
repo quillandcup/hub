@@ -34,6 +34,12 @@ env:
   # Pinned (not "latest") so the local stack's container image set -- and this
   # cache key, if caching is revisited -- is reproducible across runs.
   SUPABASE_CLI_VERSION: 2.117.0
+  # Forces Supabase CLI to pull local-stack images from Docker Hub instead of
+  # its default candidate cycling (public.ecr.aws -> ghcr.io -> Docker Hub),
+  # which was getting stuck retrying only ghcr.io and hitting its
+  # "toomanyrequests" rate limit repeatedly, unrelated to this repo's code.
+  # All supabase/* images are public on Docker Hub -- no credentials needed.
+  SUPABASE_INTERNAL_IMAGE_REGISTRY: docker.io
   # Supabase CLI's well-known local demo keys (see tests/setup.ts) -- fixed,
   # public, and the same for every `supabase start` on every machine. Not
   # secrets. Only valid against the ephemeral local stack this job starts;
