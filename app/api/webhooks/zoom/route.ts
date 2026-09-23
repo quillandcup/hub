@@ -100,7 +100,13 @@ async function processMeetingEvent(payload: any) {
   const eventType = payload.event;
   const meetingData = payload.payload.object;
 
-  console.log(`Processing Zoom event: ${eventType}`, {
+  // eventType is attacker-controlled (from the webhook payload). Pass it as a
+  // %s substitution rather than interpolating it into the format string itself --
+  // otherwise a value like "%s" or "%d" in eventType would make console.log
+  // (which uses util.format under the hood) try to consume the trailing object
+  // argument as a format substitution instead of printing it. See CodeQL
+  // js/tainted-format-string.
+  console.log("Processing Zoom event: %s", eventType, {
     meetingId: meetingData.id,
     uuid: meetingData.uuid,
     topic: meetingData.topic,
