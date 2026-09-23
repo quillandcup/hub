@@ -20,6 +20,9 @@ fi
 # Sensitive values -- pushed as encrypted secrets (never readable back via `gh secret list`).
 SYNCED_SECRETS="
     CHECKLY_API_KEY
+    SUPABASE_ACCESS_TOKEN
+    SUPABASE_DB_PASSWORD
+    VERCEL_DEPLOY_HOOK_URL
 "
 
 # Non-sensitive values -- pushed as plain variables (visible via `gh variable list`).
