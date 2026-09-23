@@ -1,5 +1,30 @@
 # Test Infrastructure Improvement Plan
 
+## Status update (2026-09-23)
+
+Several items below were implemented since this doc was written, via different
+mechanisms than the code samples originally suggested — noting the actual
+state rather than rewriting the aspirational sections wholesale:
+
+- **Server-in-CI**: resolved, but via a bash step in `.github/workflows/ci.yml`
+  (`npm run start` + a curl readiness loop) rather than the `globalSetup`/
+  vitest-config approach sketched in Phase 1 below. Same problem, different
+  implementation.
+- **MSW for external API mocks**: already set up (`tests/setup-msw.ts`,
+  `tests/fixtures/webhooks/`) — but registered with `onUnhandledRequest:
+  'bypass'`, meaning a test with no explicit handler for a URL lets the real
+  request through rather than blocking/erroring it. The "tests could
+  accidentally call the real Google Calendar/Zoom API" risk this section
+  describes is only closed for requests someone has actually written a
+  handler for, not closed by MSW's mere presence.
+- **Shared database state / no test isolation**: still real and unresolved —
+  `vitest.config.ts` currently sets `fileParallelism: false` as a stopgap
+  (see the "Re-introduce Test Parallelism" TODO in `docs/TODO.md` for the
+  real fix this is standing in for: transactional rollback or per-worker DB
+  isolation, neither implemented yet).
+- **Separate test DB schema, Playwright E2E**: not implemented — still
+  genuinely open, as originally written below.
+
 ## Current Issues
 
 ### ❌ Problems with Current Setup:
@@ -193,20 +218,27 @@ describe('My Test Suite', () => {
 
 ### Immediate (This Week)
 - [x] Add seed data helper
-- [ ] Create test fixtures for common reference data
+- [x] Create test fixtures — `tests/fixtures/webhooks/{calendar,slack,zoom}`
+      (webhook payloads, not the reference-data fixtures originally
+      envisioned here — no `tests/fixtures/members.ts`-style data yet)
 - [ ] Add cleanup in afterEach hooks
 - [ ] Document test isolation issues in README
 
 ### Short Term (This Month)
-- [ ] Set up MSW (Mock Service Worker) for external APIs
-- [ ] Add programmatic server start/stop in Vitest config
+- [x] Set up MSW — `tests/setup-msw.ts`, but registered with
+      `onUnhandledRequest: 'bypass'` (see Status update above — only closes
+      the external-API-call risk for requests with an explicit handler)
+- [x] Server available to tests in CI — via a bash step in
+      `.github/workflows/ci.yml`, not the Vitest `globalSetup` approach
+      sketched below
 - [ ] Use separate test database schema
 - [ ] Add test:integration npm script
 
 ### Long Term (Next Quarter)
 - [ ] Migrate to Playwright for E2E tests
 - [ ] Set up staging environment
-- [ ] Add CI/CD pipeline with test database
+- [x] Add CI/CD pipeline with test database — `.github/workflows/ci.yml`
+      boots a real local Supabase stack from migrations + seed.sql
 - [ ] Implement test database seeding/migration strategy
 
 ## File Structure

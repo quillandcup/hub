@@ -28,18 +28,11 @@ concurrency:
 
 permissions:
   contents: read
-  packages: read
 
 env:
   # Pinned (not "latest") so the local stack's container image set -- and this
   # cache key, if caching is revisited -- is reproducible across runs.
   SUPABASE_CLI_VERSION: 2.117.0
-  # Forces Supabase CLI to pull local-stack images from Docker Hub instead of
-  # its default candidate cycling (public.ecr.aws -> ghcr.io -> Docker Hub),
-  # which was getting stuck retrying only ghcr.io and hitting its
-  # "toomanyrequests" rate limit repeatedly, unrelated to this repo's code.
-  # All supabase/* images are public on Docker Hub -- no credentials needed.
-  SUPABASE_INTERNAL_IMAGE_REGISTRY: docker.io
   # Supabase CLI's well-known local demo keys (see tests/setup.ts) -- fixed,
   # public, and the same for every `supabase start` on every machine. Not
   # secrets. Only valid against the ephemeral local stack this job starts;
@@ -67,14 +60,6 @@ jobs:
         with:
           version: ${{ env.SUPABASE_CLI_VERSION }}
 
-      # Anonymous ghcr.io pulls share a low, easily-exhausted rate limit across
-      # ALL GitHub-hosted runners -- authenticating with the free per-run
-      # GITHUB_TOKEN gets a much higher one. Without this, `supabase start`
-      # intermittently fails on "toomanyrequests" pulling the Supabase images,
-      # unrelated to anything in this repo's own code.
-      - name: Log in to GHCR
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-
       # Boots Postgres + the full bronze/silver/gold schema from
       # supabase/migrations (+ seed.sql), same as local dev. Docker-image
       # caching was investigated (supabase/setup-cli's own `enable-docker-cache`
@@ -83,34 +68,21 @@ jobs:
       # neither one comes out ahead in practice. -x drops containers this repo
       # never touches (no Storage image transforms, no Edge Functions, no
       # Studio/log-explorer UI) to shave a little real startup time instead.
-      # Supabase CLI's own internal retry on ghcr.io "toomanyrequests" only
-      # backs off by microseconds between attempts -- nowhere near enough for
-      # a per-minute rate window to actually reset. Wrap it in a real retry
-      # loop with a genuine wait, since this is a known, widely-reported
-      # ghcr.io congestion pattern (not something caused by this repo's code,
-      # and not reliably fixed by authenticating alone -- Supabase CLI's
-      # embedded Docker client doesn't consistently pick up `docker login`'s
-      # stored credentials for its own pulls).
+      #
+      # SUPABASE_INTERNAL_IMAGE_REGISTRY=docker.io forces image pulls there
+      # instead of the CLI's default candidate cycling (public.ecr.aws ->
+      # ghcr.io -> Docker Hub), which was getting stuck retrying only ghcr.io
+      # and hitting sustained "toomanyrequests" -- unrelated to this repo's
+      # code, but real enough that it once blocked production deploys for
+      # nearly an hour. Must be step-level: setting it at the job/workflow
+      # level got silently overridden back to ghcr.io by the time this step
+      # ran, for a reason that was never identified. Step-level env has the
+      # highest precedence in Actions, so it wins regardless of where that
+      # override was coming from.
       - name: Start local Supabase
-        # Setting SUPABASE_INTERNAL_IMAGE_REGISTRY at the job/workflow level
-        # was silently overridden back to ghcr.io by the time this step ran
-        # (confirmed via this step's own env debug dump -- source of the
-        # override wasn't identified). Step-level env has the highest
-        # precedence in Actions, so it wins regardless of where that came
-        # from.
         env:
           SUPABASE_INTERNAL_IMAGE_REGISTRY: docker.io
-        run: |
-          for attempt in 1 2 3 4 5; do
-            if supabase start -x imgproxy -x edge-runtime -x studio -x logflare -x vector; then
-              exit 0
-            fi
-            echo "supabase start failed (attempt $attempt/5), waiting for the ghcr.io rate-limit window to reset..."
-            supabase stop --no-backup >/dev/null 2>&1 || true
-            sleep 90
-          done
-          echo "supabase start failed after 5 attempts"
-          exit 1
+        run: supabase start -x imgproxy -x edge-runtime -x studio -x logflare -x vector
 
       # Also serves as the production build check that used to be a separate
       # post-test step -- building once here (and starting the app from it,

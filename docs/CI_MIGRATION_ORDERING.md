@@ -1,5 +1,14 @@
 # CI/CD Migration Ordering: Option A vs Option B
 
+**Status: RESOLVED — Option B is implemented and live.** `vercel.json`'s
+`git.deploymentEnabled.main: false` disables Vercel's git-triggered deploy;
+`.github/workflows/ci.yml`'s `deploy` job calls a Vercel Deploy Hook as its
+last step, after `push-migrations` succeeds. Verified end-to-end with a real
+push landing the deploy hook and confirmed Vercel deployment. The rest of
+this doc is kept as the historical record of the tradeoffs that were
+weighed before making that call — read it for the "why," not the "what do
+we do."
+
 ## The problem
 
 `.github/workflows/ci.yml` auto-pushes pending Supabase migrations to
@@ -25,7 +34,7 @@ never run, page 500'd until someone remembered to run `db:push` by hand).
 Automating the "someone forgot" failure mode doesn't automatically fix the
 ordering if Vercel's deploy simply wins the race.
 
-## Option A — keep Vercel's auto-deploy as-is (implemented by default)
+## Option A — keep Vercel's auto-deploy as-is (superseded, no longer in effect)
 
 Do nothing to Vercel's project settings. `ci.yml` still auto-pushes
 migrations after tests pass; it just runs concurrently with, and usually
@@ -47,7 +56,7 @@ smaller blast radius than the status quo.
 
 **Effort**: none — this is what's implemented in `ci.yml` today.
 
-## Option B — correct the ordering by gating Vercel's deploy on this workflow
+## Option B — correct the ordering by gating Vercel's deploy on this workflow (implemented)
 
 Turn off Vercel's git-triggered production deploy, and instead have this
 GitHub Actions workflow trigger the Vercel production deployment itself, as
@@ -141,10 +150,9 @@ without a decision from the project owner.
   with no independent trigger path, whereas today Vercel's deploy is
   resilient to GitHub Actions being broken.
 
-### Recommendation
+### Decision (made, implemented)
 
-Not made here — this is presented for the project owner to decide. Option A
-is implemented today. If the flaky pre-existing test suite gets fixed (the
-parallel effort already tracked in project history) and the team is
-comfortable with slower, CI-gated production deploys, Option B is a clean
-follow-up with the concrete steps above.
+Option B was chosen and is live. The pre-existing flaky test suite was fixed
+first (see project history — resubscriptions, reconciliation orphans,
+program-cohort overrides — since resolved in a separate pass), removing the
+main objection to gating deploys on a fully-green suite.
