@@ -1,5 +1,6 @@
 import { cache } from "react"
 import { createClient } from "@/lib/supabase/server"
+import { getCurrentUser } from "@/lib/auth"
 import { redirect, notFound } from "next/navigation"
 import type { Metadata } from "next"
 import { getEffectiveIdentity } from "@/lib/sudo"
@@ -47,9 +48,7 @@ export default async function MemberProfilePage({
   const supabase = await createClient()
   const { id } = await params
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const user = await getCurrentUser()
   if (!user) redirect("/login")
 
   const effectiveIdentity = await getEffectiveIdentity(user)

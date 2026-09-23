@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { getEffectiveIdentity } from "@/lib/sudo";
 import { getUserFeaturePreviews } from "@/lib/features.server";
@@ -13,9 +14,7 @@ export const maxDuration = 60;
 
 export default async function WheelOfWonderPage() {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) redirect("/login");
 
   const [effectiveIdentity, enabledFeatures, confirmedMatchesResult] = await Promise.all([

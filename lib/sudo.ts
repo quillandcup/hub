@@ -1,7 +1,8 @@
 import { createHmac, timingSafeEqual } from 'crypto'
 import { cookies } from 'next/headers'
+import { cache } from 'react'
 import { createClient } from '@/lib/supabase/server'
-import type { User } from '@supabase/supabase-js'
+import type { AuthUser } from '@/lib/auth'
 
 export interface EffectiveIdentity {
   memberId: string
@@ -39,18 +40,36 @@ export function parseSudoCookie(value: string): { adminId: string; memberId: str
   return { adminId, memberId }
 }
 
-export async function getEffectiveIdentity(realUser: User): Promise<EffectiveIdentity | null> {
+/**
+ * Resolve the member a request should act as: the sudo'd member when an admin
+ * has sudo active, otherwise the real user's own member record.
+ *
+ * Takes only the id/email slice of the auth user, so both a full Supabase
+ * `User` and `getCurrentUser()`'s verified-claims user work. Memoized per
+ * render (keyed on primitives, so any object carrying the same id/email hits
+ * the cache), which lets a layout and its page both call this without
+ * repeating the user_profiles/members lookups. Outside a render (server
+ * actions, route handlers) React's cache() is a pass-through.
+ */
+export async function getEffectiveIdentity(realUser: AuthUser): Promise<EffectiveIdentity | null> {
+  return resolveEffectiveIdentity(realUser.id, realUser.email ?? null)
+}
+
+const resolveEffectiveIdentity = cache(async (
+  realUserId: string,
+  realUserEmail: string | null,
+): Promise<EffectiveIdentity | null> => {
   const supabase = await createClient()
   const cookieStore = await cookies()
   const sudoCookieValue = cookieStore.get('sudo_as')?.value
 
   if (sudoCookieValue) {
     const parsed = parseSudoCookie(sudoCookieValue)
-    if (parsed && parsed.adminId === realUser.id) {
+    if (parsed && parsed.adminId === realUserId) {
       const { data: profile } = await supabase
         .from('user_profiles')
         .select('role')
-        .eq('id', realUser.id)
+        .eq('id', realUserId)
         .single()
 
       if (profile?.role === 'admin') {
@@ -82,16 +101,18 @@ export async function getEffectiveIdentity(realUser: User): Promise<EffectiveIde
   const { data: byUserId } = await supabase
     .from('members')
     .select('id, name, email')
-    .eq('user_id', realUser.id)
+    .eq('user_id', realUserId)
     .maybeSingle()
 
-  const member = byUserId ?? (
-    await supabase
-      .from('members')
-      .select('id, name, email')
-      .eq('email', realUser.email!)
-      .maybeSingle()
-  ).data
+  const member = byUserId ?? (realUserEmail
+    ? (
+        await supabase
+          .from('members')
+          .select('id, name, email')
+          .eq('email', realUserEmail)
+          .maybeSingle()
+      ).data
+    : null)
 
   if (!member) return null
 
@@ -101,4 +122,4 @@ export async function getEffectiveIdentity(realUser: User): Promise<EffectiveIde
     memberEmail: member.email,
     isSudo: false,
   }
-}
+})

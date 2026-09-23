@@ -21,7 +21,10 @@ function makeRequest(authHeader?: string): NextRequest {
 function makeSupabaseMock(user: any, role: string | null) {
   return {
     auth: {
-      getUser: vi.fn().mockResolvedValue({ data: { user } }),
+      getClaims: vi.fn().mockResolvedValue({
+        data: user ? { claims: { sub: user.id, email: user.email } } : null,
+        error: null,
+      }),
     },
     from: vi.fn().mockReturnValue({
       select: vi.fn().mockReturnThis(),

@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 
 export interface SessionRow {
@@ -24,6 +25,12 @@ export interface SessionRow {
 // scoped to auth.uid(), and bulk "sign out everywhere else" via the
 // supabase-js signOut({ scope }) API — there's no per-session revoke in
 // supabase-js itself).
+//
+// The three session functions below intentionally keep the network
+// getUser() rather than getCurrentUser()'s local JWT verification: they
+// act on auth sessions themselves, so they should confirm with Supabase Auth
+// that the caller's own session is still live, not just that its JWT hasn't
+// expired yet. They're rare, user-initiated calls, so the round trip is cheap.
 
 export type GetMySessionsResult =
   | { sessions: SessionRow[]; error?: undefined }
@@ -104,9 +111,7 @@ export async function signOutOtherSessions() {
 export async function updateTimezonePreference(timezone: string) {
   const supabase = await createClient();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
 
   if (!user) {
     return { error: "Not authenticated" };

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getUserFeaturePreviews } from "@/lib/features.server";
@@ -33,9 +34,7 @@ function oneMember(value: MatchMember | MatchMember[] | null): MatchMember | nul
 
 export default async function WheelOfWonderAdminPage() {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) redirect("/login");
 
   const enabledFeatures = await getUserFeaturePreviews(user.id);

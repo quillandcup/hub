@@ -68,7 +68,7 @@ function makeSupabaseMock({
   });
 
   return {
-    auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: "auth-user-1" } } }) },
+    auth: { getClaims: vi.fn().mockResolvedValue({ data: { claims: { sub: "auth-user-1" } }, error: null }) },
     from,
     __projectSelect: projectSelect,
     __projectUpdate: projectUpdate,
@@ -86,7 +86,7 @@ beforeEach(() => {
 describe("updateProjectDetails", () => {
   it("rejects when there is no authenticated user", async () => {
     const mock = makeSupabaseMock();
-    mock.auth.getUser = vi.fn().mockResolvedValue({ data: { user: null } });
+    mock.auth.getClaims = vi.fn().mockResolvedValue({ data: null, error: null });
     vi.mocked(createClient).mockResolvedValue(mock as any);
 
     const result = await updateProjectDetails("project-1", { title: "New Title", description: "" });
