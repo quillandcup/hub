@@ -92,7 +92,9 @@ echo "=== Validating environment variables ==="
 # SUPABASE_ACCESS_TOKEN, RESEND_API_KEY, SMTP_*.
 # SENTRY_AUTH_TOKEN is also prod-only: it's a build-time secret for uploading production source
 # maps and isn't needed for dev/preview builds.
-MISSING_ENV_VARS=$(awk -F'=' '/^[[:space:]]*#/ || /^[[:space:]]*$/ || /SUPABASE_PROJECT_REF/ || /SUPABASE_ACCESS_TOKEN/ || /RESEND_API_KEY/ || /SMTP_/ || /SENTRY_AUTH_TOKEN/ {next} {keys[$1] = keys[$1] (keys[$1] ? "," : "") FILENAME} END {for (k in keys) if (split(keys[k], files, ",") < 3) print "Key [" k "] is missing. Found only in: " keys[k]}' .env.*)
+# CHECKLY_API_KEY / CHECKLY_ACCOUNT_ID are GitHub Actions CI credentials, not Vercel/app vars --
+# synced separately via scripts/sync-to-github.sh.
+MISSING_ENV_VARS=$(awk -F'=' '/^[[:space:]]*#/ || /^[[:space:]]*$/ || /SUPABASE_PROJECT_REF/ || /SUPABASE_ACCESS_TOKEN/ || /RESEND_API_KEY/ || /SMTP_/ || /SENTRY_AUTH_TOKEN/ || /CHECKLY_API_KEY/ || /CHECKLY_ACCOUNT_ID/ {next} {keys[$1] = keys[$1] (keys[$1] ? "," : "") FILENAME} END {for (k in keys) if (split(keys[k], files, ",") < 3) print "Key [" k "] is missing. Found only in: " keys[k]}' .env.*)
 
 if [ ! -z "${MISSING_ENV_VARS}" ]; then
     echo "${MISSING_ENV_VARS}"

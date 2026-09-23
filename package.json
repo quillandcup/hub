@@ -17,6 +17,7 @@
     "db:push": "dotenv -e .env.prod -- supabase db push",
     "db:up": "supabase migration up",
     "env:sync": "./scripts/sync-to-vercel.sh",
+    "env:sync:github": "./scripts/sync-to-github.sh",
     "templates:render": "tsx scripts/render-email-templates.ts",
     "config:diff": "dotenv -e .env.prod -- supabase config diff",
     "config:push": "dotenv -e .env.prod -- supabase config push",
