@@ -28,8 +28,9 @@ Before deploying, all critical security measures are in place:
 3. Set:
    - **Organization**: Select or create
    - **Name**: `hub` (or your preference)
-   - **Database Password**: Generate a strong password (save this!)
-       DB password: phX09ttGJQXb2OD2
+   - **Database Password**: Generate a strong password (save this!) -- store it as
+     `SUPABASE_DB_PASSWORD` in `.env.prod` and the GitHub Actions secret of the same
+     name, never in this file or any other committed doc
    - **Region**: Choose closest to your users
 4. Click **"Create new project"** (takes ~2 minutes)
 
