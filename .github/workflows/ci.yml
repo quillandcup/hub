@@ -92,6 +92,14 @@ jobs:
       # embedded Docker client doesn't consistently pick up `docker login`'s
       # stored credentials for its own pulls).
       - name: Start local Supabase
+        # Setting SUPABASE_INTERNAL_IMAGE_REGISTRY at the job/workflow level
+        # was silently overridden back to ghcr.io by the time this step ran
+        # (confirmed via this step's own env debug dump -- source of the
+        # override wasn't identified). Step-level env has the highest
+        # precedence in Actions, so it wins regardless of where that came
+        # from.
+        env:
+          SUPABASE_INTERNAL_IMAGE_REGISTRY: docker.io
         run: |
           for attempt in 1 2 3 4 5; do
             if supabase start -x imgproxy -x edge-runtime -x studio -x logflare -x vector; then
