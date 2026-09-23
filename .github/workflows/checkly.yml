@@ -19,6 +19,18 @@ on:
       - "package-lock.json"
       - ".github/workflows/checkly.yml"
 
+# Least-privilege GITHUB_TOKEN for both jobs. Neither job needs write access:
+# checkly/checkly-action@v1 talks to the Checkly API directly with
+# CHECKLY_API_KEY, and its `reporting: auto` "detached GitHub Check" mode is
+# posted by Checkly's own GitHub App installation -- a credential entirely
+# separate from this workflow's GITHUB_TOKEN. Confirmed by reading the
+# action's scripts/run.sh and the checkly-cli GitHub reporter source: neither
+# references GITHUB_TOKEN, and the non-detached fallback only writes
+# GITHUB_STEP_SUMMARY locally. So contents: read (for actions/checkout) is
+# sufficient for both jobs; no checks:write or statuses:write needed.
+permissions:
+  contents: read
+
 jobs:
   checkly-test:
     if: github.event_name == 'pull_request'
