@@ -145,6 +145,26 @@ Import Prickles schedule from:
 - Clear separation of development and production
 - Easier onboarding for new developers
 
+### Re-introduce Test Parallelism
+**Status:** Deliberately disabled (2026-09-22), needs a real fix
+
+`vitest.config.ts` sets `fileParallelism: false` because test files running concurrently
+against the shared local Supabase instance were racing each other (colliding fixture
+names, cross-file data pollution) and causing spurious failures unrelated to real bugs.
+Disabling parallelism fixed that but costs real time -- the full suite is already at
+~100s and creeping toward the 2-minute mark as more tests are added, which matters once
+this suite is gating CI on every PR.
+
+**Real fix options to investigate:**
+- [ ] Wrap each test in a transaction that rolls back at teardown, so parallel tests never
+      see each other's writes (the standard pattern for this class of problem)
+- [ ] Give each parallel worker its own isolated schema/database instead of sharing one
+- [ ] Audit remaining shared-fixture-name collisions (e.g. generic "Test Member" style
+      names reused across files) and make them unique per file/run as a cheaper partial fix
+
+Don't just flip `fileParallelism` back to `true` without one of the above -- that's what
+caused the pollution/flakiness in the first place.
+
 ### Move Quill & Cup DNS to Cloudflare _(Needs Scoping)_
 The domain is registered at Squarespace, but its DNS records are currently managed at Kajabi. Move DNS to Cloudflare so web and email traffic can be treated differently:
 
