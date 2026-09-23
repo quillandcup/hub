@@ -96,17 +96,21 @@ jobs:
         run: |
           npm run start > /tmp/next-server.log 2>&1 &
           echo $! > /tmp/next-server.pid
+          ready=""
           for i in $(seq 1 60); do
-            code=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:3000/api/admin/events)
-            if [ "$code" != "000" ]; then
+            code=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:3000/api/admin/events 2>/dev/null) || true
+            if [ -n "$code" ] && [ "$code" != "000" ]; then
               echo "App server is up (HTTP $code)"
-              exit 0
+              ready=1
+              break
             fi
             sleep 1
           done
-          echo "App server did not become ready in time"
-          cat /tmp/next-server.log
-          exit 1
+          if [ -z "$ready" ]; then
+            echo "App server did not become ready in time"
+            cat /tmp/next-server.log
+            exit 1
+          fi
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ env.LOCAL_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ env.LOCAL_SUPABASE_ANON_KEY }}
