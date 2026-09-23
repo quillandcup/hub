@@ -165,6 +165,49 @@ this suite is gating CI on every PR.
 Don't just flip `fileParallelism` back to `true` without one of the above -- that's what
 caused the pollution/flakiness in the first place.
 
+### Support Preview Environments
+**Status:** Not started — needs scoping
+
+Right now every merge goes straight to `main`; PR-based Vercel preview deployments have
+never really been used (confirmed: `vercel.json` has no preview-specific config, and
+there's no workflow that opens PRs instead of merging worktree branches directly). Making
+previews actually useful means:
+
+1. [ ] Make Vercel preview deployments work properly with a real PR workflow (currently
+       blocked on habit/workflow more than tooling -- previews already happen automatically
+       on any branch push once PRs are actually used).
+2. [ ] Fix all secrets/env vars for the preview environment, and **disable anything that
+       causes real-world side effects from a preview**: outbound Slack messages, Kajabi/Zoom
+       API calls, billing-triggering webhooks, email sends, cron jobs. A preview should never
+       be able to notify a real user or incur a real charge.
+3. [ ] Evaluate [Supabase branching](https://supabase.com/docs/guides/deployment/branching)
+       (native per-PR ephemeral DB branches) as the mechanism, instead of the single static
+       `.env.devel` Supabase project previews currently point to. Note: that existing devel
+       project has no migration-push path today at all (`supabase/config.toml` only has
+       `[remotes.prod]`, and `package.json` only has `db:push` targeting `.env.prod`) --
+       worth confirming whether Supabase branching solves this automatically or whether it's
+       a separate gap either way.
+4. [ ] Run Checkly browser checks against each preview URL, including key flows like login --
+       this is the "deploy-check" capability discussed when Checkly was first set up, deferred
+       specifically pending this preview-environment work landing first.
+
+### Support a Long-Lived Devel Environment
+**Status:** Not started — needs scoping
+
+A persistent (not per-PR-ephemeral) staging environment, sitting between preview and
+production:
+
+1. [ ] Add a persistent Supabase branch for devel (see Supabase branching link above --
+       distinct from today's single static `.env.devel` project, if branching replaces it).
+2. [ ] Same secrets/notification-disabling work as preview environments above -- no real
+       Slack/Kajabi/Zoom/billing side effects from devel either.
+3. [ ] Clarify the relationship to Supabase DB branching from the preview-environments work
+       above -- likely the same underlying mechanism, but confirm rather than assume.
+4. [ ] Checkly checks against the devel branch too (same browser-check coverage as preview).
+5. [ ] Update the git workflow and CI (`.github/workflows/ci.yml`) to a real promotion
+       pipeline: deploy to devel first, run tests, a bake/soak period, then promote to
+       production -- rather than today's single `main`-branch-direct-to-prod pipeline.
+
 ### Move Quill & Cup DNS to Cloudflare _(Needs Scoping)_
 The domain is registered at Squarespace, but its DNS records are currently managed at Kajabi. Move DNS to Cloudflare so web and email traffic can be treated differently:
 
