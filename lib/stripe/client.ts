@@ -49,7 +49,7 @@ export class StripeClientWrapper {
     }
 
     this.stripe = new Stripe(apiKey, {
-      apiVersion: '2026-04-22.dahlia',
+      apiVersion: '2026-08-26.dahlia',
     });
   }
 
