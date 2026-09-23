@@ -1,0 +1,115 @@
+name: CI
+
+# Gates merges to main with the real test suite (against a real local Supabase
+# stack, not mocks -- see CLAUDE.md's note on RLS/SQL functions/bronze-silver-gold)
+# and a production build. On push to main, once (and only once) tests+build pass,
+# also auto-pushes any pending Supabase migrations to production.
+#
+# Why the migration push exists: Vercel auto-deploys code on every push to main,
+# but nobody was reliably running `supabase db push` afterward -- new code has
+# 500'd in prod waiting on a table/column that was never migrated in. This job
+# makes that step automatic instead of memory-dependent.
+#
+# Ordering note (see docs/CI_MIGRATION_ORDERING.md): Vercel's own git-triggered
+# deploy is independent of this workflow and usually finishes first, since this
+# job has to boot a full local Postgres+Supabase stack before it can even start
+# testing. That means new code can go live briefly before its matching migration
+# lands. Documented tradeoffs and a fix (Vercel Deploy Hook triggered as the last
+# step here, with Vercel's auto-deploy turned off) are in that doc for review --
+# not implemented here since it changes how every future deploy works.
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+env:
+  # Pinned (not "latest") so the local stack's container image set -- and this
+  # cache key, if caching is revisited -- is reproducible across runs.
+  SUPABASE_CLI_VERSION: 2.117.0
+  # Supabase CLI's well-known local demo keys (see tests/setup.ts) -- fixed,
+  # public, and the same for every `supabase start` on every machine. Not
+  # secrets. Only valid against the ephemeral local stack this job starts;
+  # useless against production.
+  LOCAL_SUPABASE_URL: http://127.0.0.1:54321
+  LOCAL_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0
+  LOCAL_SUPABASE_SERVICE_ROLE_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU
+
+jobs:
+  test:
+    name: Test & build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: ".nvmrc"
+          cache: npm
+
+      - run: npm ci
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: ${{ env.SUPABASE_CLI_VERSION }}
+
+      # Boots Postgres + the full bronze/silver/gold schema from
+      # supabase/migrations (+ seed.sql), same as local dev. Docker-image
+      # caching was investigated (supabase/setup-cli's own `enable-docker-cache`
+      # input, and a manual `docker save`/`load` keyed on SUPABASE_CLI_VERSION)
+      # but both were dropped -- see the timing note in the PR/commit for why
+      # neither one comes out ahead in practice. -x drops containers this repo
+      # never touches (no Storage image transforms, no Edge Functions, no
+      # Studio/log-explorer UI) to shave a little real startup time instead.
+      - name: Start local Supabase
+        run: supabase start -x imgproxy -x edge-runtime -x studio -x logflare -x vector
+
+      - name: Run test suite
+        run: npm run test:run
+
+      - name: Production build
+        run: npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ env.LOCAL_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ env.LOCAL_SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ env.LOCAL_SUPABASE_SERVICE_ROLE_KEY }}
+
+      - name: Stop local Supabase
+        if: always()
+        run: supabase stop
+
+  push-migrations:
+    name: Push migrations to production
+    needs: test
+    # needs.test succeeding already gates this on tests+build passing; the
+    # event/ref check keeps it off pull_request runs.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: ${{ env.SUPABASE_CLI_VERSION }}
+
+      - name: Link production project
+        run: supabase link --project-ref "$SUPABASE_PROJECT_ID"
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          SUPABASE_PROJECT_ID: ${{ vars.SUPABASE_PROJECT_ID }}
+
+      - name: Push pending migrations
+        run: supabase db push --yes
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
