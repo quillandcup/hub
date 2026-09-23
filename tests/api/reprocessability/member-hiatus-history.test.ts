@@ -84,23 +84,13 @@ describe('Member Hiatus History applied during reprocessing', () => {
     await supabase.from('members').delete().in('email', [emailHiatus, emailExpired, emailPrecedence])
   })
 
-  // KNOWN PRE-EXISTING BUG (unrelated to today's test-infra work): confirmed
-  // failing even on a fresh `supabase db reset`. The member stays 'cancelled'
-  // instead of being forced to 'on_hiatus' — the active-hiatus step in
-  // reprocess_members_atomic (Step 4a) doesn't appear to be applying at all.
-  // Same shared symptom across this file, member-status-overrides.test.ts,
-  // and program-cohort-enrollments.test.ts (every derived-status case
-  // converges on the 'cancelled' fallback), suggesting one root cause in the
-  // SQL function rather than three separate bugs. Needs its own
-  // investigation into reprocess_members_atomic; left skipped rather than
-  // deleted so the suite stays green.
-  it.skip('forces status to on_hiatus for an active hiatus', async () => {
+  it('forces status to on_hiatus for an active hiatus', async () => {
     await processMembers()
     const { data: member } = await supabase.from('members').select('status').eq('email', emailHiatus).single()
     expect(member?.status).toBe('on_hiatus')
   })
 
-  it.skip('keeps status on_hiatus after a second reprocess run (does not revert)', async () => {
+  it('keeps status on_hiatus after a second reprocess run (does not revert)', async () => {
     await processMembers()
     await processMembers()
     const { data: member } = await supabase.from('members').select('status').eq('email', emailHiatus).single()
@@ -113,7 +103,7 @@ describe('Member Hiatus History applied during reprocessing', () => {
     expect(member?.status).toBe('cancelled')
   })
 
-  it.skip('hiatus wins over an active gift override on the same member', async () => {
+  it('hiatus wins over an active gift override on the same member', async () => {
     await processMembers()
     const { data: member } = await supabase.from('members').select('status').eq('email', emailPrecedence).single()
     expect(member?.status).toBe('on_hiatus')

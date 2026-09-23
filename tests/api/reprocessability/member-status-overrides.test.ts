@@ -73,17 +73,7 @@ describe('Member Status Overrides applied during reprocessing', () => {
     await supabase.from('members').delete().in('email', [emailGift, emailExpired, emailDirectStripe])
   })
 
-  // KNOWN PRE-EXISTING BUG (unrelated to today's test-infra work): confirmed
-  // failing even on a fresh `supabase db reset`. The member stays 'cancelled'
-  // instead of being forced to 'active' — the override-application step in
-  // reprocess_members_atomic doesn't appear to be applying at all. Same
-  // shared symptom across this file, member-hiatus-history.test.ts, and
-  // program-cohort-enrollments.test.ts (every derived-status case converges
-  // on the 'cancelled' fallback), suggesting one root cause in the SQL
-  // function rather than three separate bugs. Needs its own investigation
-  // into reprocess_members_atomic; left skipped rather than deleted so the
-  // suite stays green.
-  it.skip('forces status to active for a gift override', async () => {
+  it('forces status to active for a gift override', async () => {
     await processMembers()
     const { data: member } = await supabase.from('members').select('status').eq('email', emailGift).single()
     expect(member?.status).toBe('active')
@@ -95,7 +85,7 @@ describe('Member Status Overrides applied during reprocessing', () => {
     expect(member?.status).toBe('cancelled')
   })
 
-  it.skip('forces status to active for a direct_stripe override', async () => {
+  it('forces status to active for a direct_stripe override', async () => {
     await processMembers()
     const { data: member } = await supabase.from('members').select('status').eq('email', emailDirectStripe).single()
     expect(member?.status).toBe('active')

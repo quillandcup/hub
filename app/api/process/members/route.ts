@@ -465,13 +465,17 @@ export async function POST(request: NextRequest) {
 
     const allMembers = Array.from(membersByEmail.values());
 
-    if (allMembers.length === 0) {
-      return NextResponse.json({
-        success: true,
-        message: "No valid members to process",
-        processed: 0,
-      });
-    }
+    // NOTE: We deliberately do NOT early-return when allMembers is empty
+    // (e.g. Kajabi/staff Bronze sources are both empty). reprocess_members_atomic's
+    // override-application steps (gift/direct_stripe, hiatus, program-cohort —
+    // Steps 4-4d) run directly against the existing `members` table and don't
+    // depend on new_data containing anything; Steps 1-3 simply become no-ops
+    // when new_data is []. An early return here used to skip the RPC call
+    // entirely, which silently skipped override application too — a hiatus or
+    // gift override could never take effect in a run where Bronze happened to
+    // be empty (this is exactly what the reprocessability tests for
+    // member_hiatus_history/member_status_overrides/program cohorts exercise:
+    // no Kajabi contact, so nothing but the override step should touch status).
 
     const staffCount = allMembers.filter(m => m.staff_role !== null).length;
     const staffWithPurchases = allMembers.filter(m => m.staff_role !== null && m.status === 'active').length;

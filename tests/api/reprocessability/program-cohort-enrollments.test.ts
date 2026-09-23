@@ -10,19 +10,7 @@ import { getTestSupabaseAdminClient, getTestAuthHeaders, getTestApiBaseUrl } fro
  * per member, and supporting more than one enrollment per member (an alumna
  * re-enrolling in a later cohort).
  */
-// KNOWN PRE-EXISTING BUG (unrelated to today's test-infra work): confirmed
-// failing even on a fresh `supabase db reset`, all 5 cases — every member
-// converges on the 'cancelled' fallback regardless of expected derived
-// status. reprocess_members_atomic's handling of member_program_enrollments/
-// program_cohorts (Steps 4a/4c/4d in
-// 20260904130000_program_cohorts_supersede_180_program.sql) is not producing
-// the expected derived status (active/cancelled/hiatus precedence). Same
-// shared symptom as the skipped tests in member-hiatus-history.test.ts and
-// member-status-overrides.test.ts, suggesting one root cause in the SQL
-// function's override-application steps rather than three separate bugs.
-// Left skipped rather than deleted so the suite stays green; this needs its
-// own investigation into the SQL function, not a test fix.
-describe.skip('Program cohort enrollments applied during reprocessing', () => {
+describe('Program cohort enrollments applied during reprocessing', () => {
   const supabase = getTestSupabaseAdminClient()
   const ts = Date.now()
 
