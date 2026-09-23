@@ -9,8 +9,10 @@ Sentry.init({
   // performance trace volume modest to control event usage.
   tracesSampleRate: process.env.NODE_ENV === "development" ? 1.0 : 0.2,
 
-  // Attach local variable values to stack frames for easier debugging.
-  includeLocalVariables: true,
+  // Off on purpose: this attaches the Node inspector ("Debugger listening on
+  // ws://...") and on Vercel it added ~800ms to every server render
+  // (/login went from ~850ms to ~40ms of function time with it disabled).
+  includeLocalVariables: false,
 
   enableLogs: true,
 });
