@@ -95,7 +95,13 @@ async function processSlackEvent(event: any) {
 
   const eventType = event.type;
 
-  console.log(`Processing Slack event: ${eventType}`, {
+  // eventType is attacker-controlled (from the webhook payload). Pass it as a
+  // %s substitution rather than interpolating it into the format string itself --
+  // otherwise a value like "%s" or "%d" in eventType would make console.log
+  // (which uses util.format under the hood) try to consume the trailing object
+  // argument as a format substitution instead of printing it. See CodeQL
+  // js/tainted-format-string.
+  console.log("Processing Slack event: %s", eventType, {
     channel: event.channel,
     user: event.user,
     ts: event.ts,
