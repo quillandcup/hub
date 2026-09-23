@@ -1,0 +1,45 @@
+name: Checkly CI/CD
+
+# Only touches Checkly's own monitoring config -- unrelated app PRs/pushes
+# shouldn't trigger a check test/deploy.
+on:
+  pull_request:
+    paths:
+      - "__checks__/**"
+      - "checkly.config.ts"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/checkly.yml"
+  push:
+    branches: [main]
+    paths:
+      - "__checks__/**"
+      - "checkly.config.ts"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/checkly.yml"
+
+jobs:
+  checkly-test:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: checkly/checkly-action@v1
+        with:
+          command: test
+          install-command: npm ci
+        env:
+          CHECKLY_API_KEY: ${{ secrets.CHECKLY_API_KEY }}
+          CHECKLY_ACCOUNT_ID: ${{ vars.CHECKLY_ACCOUNT_ID }}
+
+  checkly-deploy:
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: npm ci
+      - run: npx checkly deploy
+        env:
+          CHECKLY_API_KEY: ${{ secrets.CHECKLY_API_KEY }}
+          CHECKLY_ACCOUNT_ID: ${{ vars.CHECKLY_ACCOUNT_ID }}
