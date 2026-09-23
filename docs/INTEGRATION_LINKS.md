@@ -76,8 +76,14 @@ Note: Kajabi webhooks only support "Payment Succeeded" and "Cart Purchase" event
 | Analytics | https://vercel.com/quillandcup/hub/analytics |
 | Speed Insights | https://vercel.com/quillandcup/hub/speed-insights |
 | Environment Variables | https://vercel.com/quillandcup/hub/settings/environment-variables |
+| Deploy Hooks | https://vercel.com/quillandcup/hub/settings/git#deploy-hooks |
+| Domains | https://vercel.com/quillandcup/hub/settings/domains |
 
 Production URL: `https://hub.quillandcup.com`
+
+Note: production deploys no longer happen automatically on push to `main` (see
+`vercel.json`'s `git.deploymentEnabled`) -- they're triggered by a Deploy Hook called
+as the last step of `.github/workflows/ci.yml`, after tests pass and migrations push.
 
 ---
 
@@ -87,3 +93,71 @@ Production URL: `https://hub.quillandcup.com`
 |-------------|-----|
 | Production | https://supabase.com/dashboard/project/bxwtougjidectvjegdlr |
 | Development | https://supabase.com/dashboard/project/odgzkogzmzcnwgyfqvvt |
+
+---
+
+## Sentry
+
+**Org:** https://quill-cup.sentry.io (region: EU/Frankfurt -- data residency for GDPR, see project history)
+
+| Page | URL |
+|------|-----|
+| Issues | https://quill-cup.sentry.io/issues/?project=&statsPeriod=24h |
+| Performance/Traces | https://quill-cup.sentry.io/insights/frontend/ |
+| Session Replay | https://quill-cup.sentry.io/replays/ |
+| Org Settings (slug, general) | https://quill-cup.sentry.io/settings/quill-cup/ |
+| Auth Tokens (org-level, for CI) | https://quill-cup.sentry.io/settings/quill-cup/auth-tokens/ |
+| Project Settings (hub) | https://quill-cup.sentry.io/settings/quill-cup/projects/hub/ |
+
+Org slug shows as `quill-cup` (an attempted rename to `quillandcup` didn't take -- see
+project history for why). Org ID `4512131993501696` and project ID `4512132010672208`
+are what's actually baked into the DSN, unaffected by any slug renaming.
+
+DSN env vars: `SENTRY_DSN` / `NEXT_PUBLIC_SENTRY_DSN` (all environments), `SENTRY_AUTH_TOKEN`
+(production-only, source-map upload).
+
+---
+
+## Checkly
+
+**Account:** https://app.checklyhq.com/accounts/6d3ea8e9-8978-4a8b-9721-ef77984bd1f7
+
+| Page | URL |
+|------|-----|
+| Checks (uptime + SSL monitors) | https://app.checklyhq.com/accounts/6d3ea8e9-8978-4a8b-9721-ef77984bd1f7/checks |
+| Alert Channels | https://app.checklyhq.com/accounts/6d3ea8e9-8978-4a8b-9721-ef77984bd1f7/alerts/settings |
+| Billing / Plan | https://app.checklyhq.com/accounts/6d3ea8e9-8978-4a8b-9721-ef77984bd1f7/billing |
+
+Checks are defined as code in `__checks__/` and `checkly.config.ts`, deployed via
+`.github/workflows/checkly.yml` -- edit the code, not the dashboard, for anything
+that should persist (dashboard edits get overwritten on the next `checkly deploy`).
+
+Account is on the Trial plan, expected to convert to free Hobby (no card on file) --
+worth checking the Billing page above once the trial period ends.
+
+---
+
+## GitHub Actions
+
+**Repo:** https://github.com/quillandcup/hub
+
+| Page | URL |
+|------|-----|
+| Actions runs | https://github.com/quillandcup/hub/actions |
+| Secrets & Variables | https://github.com/quillandcup/hub/settings/secrets/actions |
+
+Secrets: `CHECKLY_API_KEY`, `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD`,
+`VERCEL_DEPLOY_HOOK_URL`. Variables: `CHECKLY_ACCOUNT_ID`, `SUPABASE_PROJECT_ID`.
+Secrets/variables synced from `.env.prod` via `scripts/sync-to-github.sh`.
+
+---
+
+## Google Analytics
+
+GA4 property measurement ID `G-M3GTTL7SX8` (`NEXT_PUBLIC_GA_ID`). No direct dashboard
+link recorded here -- find it at https://analytics.google.com under the Quill & Cup
+account, since the numeric GA4 property ID needed for a deep link isn't captured
+anywhere in this repo.
+
+Consent Mode v2 gates EU/UK visitors behind an accept/decline banner
+(`components/ConsentBanner.tsx`) before firing; everyone else gets GA with no prompt.
