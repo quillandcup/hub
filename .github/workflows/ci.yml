@@ -77,8 +77,26 @@ jobs:
       # neither one comes out ahead in practice. -x drops containers this repo
       # never touches (no Storage image transforms, no Edge Functions, no
       # Studio/log-explorer UI) to shave a little real startup time instead.
+      # Supabase CLI's own internal retry on ghcr.io "toomanyrequests" only
+      # backs off by microseconds between attempts -- nowhere near enough for
+      # a per-minute rate window to actually reset. Wrap it in a real retry
+      # loop with a genuine wait, since this is a known, widely-reported
+      # ghcr.io congestion pattern (not something caused by this repo's code,
+      # and not reliably fixed by authenticating alone -- Supabase CLI's
+      # embedded Docker client doesn't consistently pick up `docker login`'s
+      # stored credentials for its own pulls).
       - name: Start local Supabase
-        run: supabase start -x imgproxy -x edge-runtime -x studio -x logflare -x vector
+        run: |
+          for attempt in 1 2 3 4 5; do
+            if supabase start -x imgproxy -x edge-runtime -x studio -x logflare -x vector; then
+              exit 0
+            fi
+            echo "supabase start failed (attempt $attempt/5), waiting for the ghcr.io rate-limit window to reset..."
+            supabase stop --no-backup >/dev/null 2>&1 || true
+            sleep 90
+          done
+          echo "supabase start failed after 5 attempts"
+          exit 1
 
       # Also serves as the production build check that used to be a separate
       # post-test step -- building once here (and starting the app from it,
