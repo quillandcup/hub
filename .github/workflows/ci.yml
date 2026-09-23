@@ -10,13 +10,12 @@ name: CI
 # 500'd in prod waiting on a table/column that was never migrated in. This job
 # makes that step automatic instead of memory-dependent.
 #
-# Ordering note (see docs/CI_MIGRATION_ORDERING.md): Vercel's own git-triggered
-# deploy is independent of this workflow and usually finishes first, since this
-# job has to boot a full local Postgres+Supabase stack before it can even start
-# testing. That means new code can go live briefly before its matching migration
-# lands. Documented tradeoffs and a fix (Vercel Deploy Hook triggered as the last
-# step here, with Vercel's auto-deploy turned off) are in that doc for review --
-# not implemented here since it changes how every future deploy works.
+# Ordering (see docs/CI_MIGRATION_ORDERING.md for the full Option A/B writeup):
+# Vercel's git-triggered auto-deploy for `main` is disabled in vercel.json
+# (git.deploymentEnabled.main: false). Production deploys now only happen via
+# the deploy-hook trigger below, which fires after migrations succeed -- so
+# code that needs a new table/column can never go live before that table/
+# column exists.
 on:
   pull_request:
   push:
@@ -113,3 +112,14 @@ jobs:
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+
+  deploy:
+    name: Trigger production deploy
+    needs: push-migrations
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Call Vercel deploy hook
+        run: curl -fsS -X POST "$VERCEL_DEPLOY_HOOK_URL"
+        env:
+          VERCEL_DEPLOY_HOOK_URL: ${{ secrets.VERCEL_DEPLOY_HOOK_URL }}
