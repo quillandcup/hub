@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/auth";
 import { getUserTimezonePreference } from "@/lib/timezone";
 import { getEffectiveIdentity } from "@/lib/sudo";
 import MemberCalendarClient from "@/components/MemberCalendarClient";
@@ -14,9 +15,7 @@ export default async function MemberCalendarPage({
   searchParams: Promise<{ view?: string }>;
 }) {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) return null;
 
   const effectiveIdentity = await getEffectiveIdentity(user);

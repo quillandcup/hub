@@ -52,7 +52,7 @@ function makeSupabaseMock({
   const from = vi.fn(() => ({ select, update }));
 
   return {
-    auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: "auth-user-1" } } }) },
+    auth: { getClaims: vi.fn().mockResolvedValue({ data: { claims: { sub: "auth-user-1" } }, error: null }) },
     from,
     __update: update,
   };

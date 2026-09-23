@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createClient as createDirectClient } from "@supabase/supabase-js";
 import { NextRequest } from "next/server";
 import { withTimeout, AUTH_CHECK_TIMEOUT_MS } from "@/lib/with-timeout";
+import { getCurrentUser, type AuthUser } from "@/lib/auth";
 
 /**
  * Creates a Supabase client for API routes.
@@ -34,10 +35,12 @@ export async function createApiAuth(request: NextRequest) {
   }
 
   const supabase = await createClient();
-  let user = null;
+  let user: AuthUser | null = null;
   try {
-    const { data } = await withTimeout(supabase.auth.getUser(), AUTH_CHECK_TIMEOUT_MS);
-    user = data.user;
+    // Verified JWT claims (local signature check against cached JWKS), not a
+    // per-request getUser() round trip to Supabase Auth -- see lib/auth.ts.
+    // The timeout still guards the occasional JWKS refresh fetch.
+    user = await withTimeout(getCurrentUser(), AUTH_CHECK_TIMEOUT_MS);
   } catch {
     // Supabase unreachable or too slow — fall through to the documented
     // "return null for user, caller returns 401" contract instead of

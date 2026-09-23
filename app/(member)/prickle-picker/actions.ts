@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/auth";
 import { getEffectiveIdentity } from "@/lib/sudo";
 import { getUserTimezonePreference } from "@/lib/timezone";
 import { revalidatePath } from "next/cache";
@@ -86,9 +87,7 @@ export async function getWizardRecommendations(
 ): Promise<{ recommendations: PickerRecommendation[] } | { error: string }> {
   const supabase = await createClient();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) return { error: "Not authenticated" };
 
   const effectiveIdentity = await getEffectiveIdentity(user);
@@ -187,9 +186,7 @@ export interface HostedVibeInfo {
 export async function getHostedVibes(): Promise<HostedVibeInfo[]> {
   const supabase = await createClient();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) return [];
 
   const effectiveIdentity = await getEffectiveIdentity(user);
@@ -245,9 +242,7 @@ export async function saveHostVibe(
 ): Promise<{ success: true } | { error: string }> {
   const supabase = await createClient();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) return { error: "Not authenticated" };
 
   const effectiveIdentity = await getEffectiveIdentity(user);

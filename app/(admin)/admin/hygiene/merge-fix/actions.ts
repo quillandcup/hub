@@ -1,11 +1,12 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 
 export async function dismissGroup(groupKey: string) {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) return { error: "Not authenticated" };
 
   const { error } = await supabase
@@ -19,7 +20,7 @@ export async function dismissGroup(groupKey: string) {
 
 export async function undismissGroup(groupKey: string) {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) return { error: "Not authenticated" };
 
   const { error } = await supabase

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/auth";
 import { redirect, notFound } from "next/navigation";
 import { getUserFeaturePreviews } from "@/lib/features.server";
 import EventDetailClient from "./EventDetailClient";
@@ -20,9 +21,7 @@ export default async function EventDetailPage({
   const { photo_import_error } = await searchParams;
   const supabase = await createClient();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) redirect("/login");
 
   const enabledFeatures = await getUserFeaturePreviews(user.id);

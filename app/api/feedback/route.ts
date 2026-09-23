@@ -2,6 +2,7 @@ import { NextRequest, NextResponse, after } from "next/server";
 import { randomUUID } from "crypto";
 import { WebClient } from "@slack/web-api";
 import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/auth";
 import { getEffectiveIdentity, type EffectiveIdentity } from "@/lib/sudo";
 import { withTimeout, AUTH_CHECK_TIMEOUT_MS } from "@/lib/with-timeout";
 
@@ -18,8 +19,7 @@ export async function POST(request: NextRequest) {
   const supabase = await createClient();
   let user;
   try {
-    const { data } = await withTimeout(supabase.auth.getUser(), AUTH_CHECK_TIMEOUT_MS);
-    user = data.user;
+    user = await withTimeout(getCurrentUser(), AUTH_CHECK_TIMEOUT_MS);
   } catch {
     return NextResponse.json({ error: "Auth check timed out, try again" }, { status: 503 });
   }

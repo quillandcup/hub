@@ -55,7 +55,7 @@ function makeSupabaseMock(prickleRows: { id: string; start_time: string; prickle
   });
 
   return {
-    auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: "auth-user-1" } } }) },
+    auth: { getClaims: vi.fn().mockResolvedValue({ data: { claims: { sub: "auth-user-1" } }, error: null }) },
     from,
     __prickleEqSpy: prickleEqSpy,
     __prickleLteSpy: prickleLteSpy,

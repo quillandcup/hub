@@ -89,7 +89,7 @@ function makeSupabaseMock({
   });
 
   return {
-    auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: "auth-user-1" } } }) },
+    auth: { getClaims: vi.fn().mockResolvedValue({ data: { claims: { sub: "auth-user-1" } }, error: null }) },
     from,
     __select: select,
     __insert: insert,
@@ -105,7 +105,7 @@ beforeEach(() => {
 describe("getMyBooks", () => {
   it("returns an empty list when there is no authenticated user", async () => {
     const mock = makeSupabaseMock();
-    mock.auth.getUser = vi.fn().mockResolvedValue({ data: { user: null } });
+    mock.auth.getClaims = vi.fn().mockResolvedValue({ data: null, error: null });
     vi.mocked(createClient).mockResolvedValue(mock as any);
 
     const result = await getMyBooks();
@@ -166,7 +166,7 @@ describe("getMyBooks", () => {
 describe("addBook", () => {
   it("rejects when there is no authenticated user", async () => {
     const mock = makeSupabaseMock();
-    mock.auth.getUser = vi.fn().mockResolvedValue({ data: { user: null } });
+    mock.auth.getClaims = vi.fn().mockResolvedValue({ data: null, error: null });
     vi.mocked(createClient).mockResolvedValue(mock as any);
 
     const result = await addBook(VALID_INPUT);
@@ -279,7 +279,7 @@ describe("addBook", () => {
 describe("updateBook", () => {
   it("rejects when there is no authenticated user", async () => {
     const mock = makeSupabaseMock();
-    mock.auth.getUser = vi.fn().mockResolvedValue({ data: { user: null } });
+    mock.auth.getClaims = vi.fn().mockResolvedValue({ data: null, error: null });
     vi.mocked(createClient).mockResolvedValue(mock as any);
 
     const result = await updateBook("book-1", VALID_INPUT);
@@ -335,7 +335,7 @@ describe("updateBook", () => {
 describe("deleteBook", () => {
   it("rejects when there is no authenticated user", async () => {
     const mock = makeSupabaseMock();
-    mock.auth.getUser = vi.fn().mockResolvedValue({ data: { user: null } });
+    mock.auth.getClaims = vi.fn().mockResolvedValue({ data: null, error: null });
     vi.mocked(createClient).mockResolvedValue(mock as any);
 
     const result = await deleteBook("book-1");

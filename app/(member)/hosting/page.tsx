@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { getEffectiveIdentity } from "@/lib/sudo";
 import { getMonthStart, getNextMonthStart, isMonthLocked } from "@/lib/prickle-schedules";
@@ -14,9 +15,7 @@ export const metadata: Metadata = {
 export default async function HostingPage() {
   const supabase = await createClient();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) redirect("/login");
 
   const effectiveIdentity = await getEffectiveIdentity(user);

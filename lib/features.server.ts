@@ -1,3 +1,4 @@
+import { cache } from 'react';
 import { createClient } from '@/lib/supabase/server';
 import type { FeatureKey } from '@/lib/features';
 
@@ -13,9 +14,11 @@ import type { FeatureKey } from '@/lib/features';
  *
  * Callers (layouts) fetch this once per page load for the full set of keys,
  * so this issues a fixed, small number of queries regardless of how many
- * feature keys exist — never a per-flag round trip.
+ * feature keys exist — never a per-flag round trip. Memoized per render via
+ * React cache(), since admin layouts and several admin pages both ask for the
+ * same user's flags on one request.
  */
-export async function getUserFeaturePreviews(userId: string): Promise<FeatureKey[]> {
+export const getUserFeaturePreviews = cache(async (userId: string): Promise<FeatureKey[]> => {
   const supabase = await createClient();
 
   const [{ data: globalFlags }, { data: previews }, { data: member }] = await Promise.all([
@@ -40,4 +43,4 @@ export async function getUserFeaturePreviews(userId: string): Promise<FeatureKey
   }
 
   return Array.from(enabled) as FeatureKey[];
-}
+});
