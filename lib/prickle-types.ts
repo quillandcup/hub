@@ -8,7 +8,7 @@
 export function normalizePrickleType(rawType: string): string {
   return rawType
     .toLowerCase()
-    .replace(/\s*prickle\s*/gi, "") // Remove "prickle" suffix/prefix
+    .replace(/(?<!\s)\s*prickle\s*/gi, "") // Remove "prickle" suffix/prefix
     .trim()
     .replace(/[^\w\s-]/g, "") // Remove special chars except hyphen
     .replace(/\s+/g, "-") // Replace spaces with hyphens
