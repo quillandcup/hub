@@ -1,0 +1,27 @@
+version: 2
+updates:
+  # App dependencies (package.json / package-lock.json)
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    groups:
+      # Bundle same-day minor/patch bumps into one PR instead of one-per-package
+      # noise. Majors are excluded so each gets its own PR for individual review
+      # (see .github/workflows/dependabot-auto-merge.yml -- majors never auto-merge).
+      minor-and-patch:
+        update-types:
+          - "minor"
+          - "patch"
+
+  # Workflow files under .github/workflows/**
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      minor-and-patch:
+        update-types:
+          - "minor"
+          - "patch"
