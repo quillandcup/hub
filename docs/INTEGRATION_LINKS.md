@@ -154,10 +154,10 @@ Secrets/variables synced from `.env.prod` via `scripts/sync-to-github.sh`.
 
 ## Google Analytics
 
-GA4 property measurement ID `G-M3GTTL7SX8` (`NEXT_PUBLIC_GA_ID`). No direct dashboard
-link recorded here -- find it at https://analytics.google.com under the Quill & Cup
-account, since the numeric GA4 property ID needed for a deep link isn't captured
-anywhere in this repo.
+**Dashboard:** https://analytics.google.com/analytics/web/#/a190881256p555427327/reports/intelligenthome
+
+GA4 property measurement ID `G-M3GTTL7SX8` (`NEXT_PUBLIC_GA_ID`). Account `a190881256`,
+property `p555427327`.
 
 Consent Mode v2 gates EU/UK visitors behind an accept/decline banner
 (`components/ConsentBanner.tsx`) before firing; everyone else gets GA with no prompt.
