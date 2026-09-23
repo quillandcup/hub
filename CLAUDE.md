@@ -87,10 +87,11 @@ SELECT EXISTS(SELECT 1 FROM attendance WHERE member_id = 'alice' AND prickle_id 
 **Required pattern**:
 
 ```typescript
+import { getCurrentUser } from "@/lib/auth";
 import { getEffectiveIdentity } from "@/lib/sudo";
 
 // ✅ CORRECT: Use effective identity for member data
-const { data: { user } } = await supabase.auth.getUser();
+const user = await getCurrentUser(); // verified JWT claims, no Auth round trip
 if (!user) redirect("/login");
 
 const effectiveIdentity = await getEffectiveIdentity(user);
@@ -125,6 +126,8 @@ const memberBasePath = isActingAsAdmin ? "/admin/members" : "/members";
 ```
 
 **`EffectiveIdentity` fields**: `memberId`, `memberName`, `memberEmail`, `isSudo: boolean`
+
+**Auth lookups in server code**: Use `getCurrentUser()` from `lib/auth.ts` (returns `{ id, email }` or `null`) in layouts, pages, server actions and API routes. It verifies the JWT locally via `supabase.auth.getClaims()` and is memoized per render with React `cache()`, so layout + page share one check. Only `lib/supabase/middleware.ts` (token refresh + live-session check) and code that needs fields absent from the JWT (`last_sign_in_at`, `identities`, etc.) or must confirm the session is still live server-side (e.g. session management in `app/(member)/settings/actions.ts`) should call `supabase.auth.getUser()`.
 
 ### Testing Requirements
 

@@ -42,7 +42,11 @@ export async function updateSession(request: NextRequest) {
   // can't write them, so if this middleware didn't do it, tokens would never
   // get refreshed-and-persisted and sessions would degrade over time. The
   // /login redirect further down is a secondary fast-path only -- the real
-  // gate is each protected layout's own uncapped getUser() recheck.
+  // gate is each protected layout's own recheck via getCurrentUser()
+  // (lib/auth.ts). That recheck verifies the JWT locally with getClaims(), so
+  // this is also the one place per request that asks Supabase Auth whether
+  // the session is still live: when it isn't, getUser() clears the auth
+  // cookies through setAll() above, on the request forwarded downstream too.
   let user = null
   let sessionId: string | null = null
   let authCheckTimedOut = false
@@ -61,7 +65,7 @@ export async function updateSession(request: NextRequest) {
     // Supabase unreachable or too slow to respond within our short budget --
     // NOT the same thing as "no session". Don't force the /login redirect
     // below on this: app/(member)/layout.tsx and app/(admin)/layout.tsx each
-    // independently re-run their own uncapped getUser() check right after
+    // independently re-run their own auth check (getCurrentUser()) right after
     // and will redirect correctly if the session really is gone. Treating a
     // timeout as "logged out" here was kicking users with perfectly valid
     // sessions to /login on ordinary Supabase latency blips.

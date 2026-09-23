@@ -1,5 +1,6 @@
 import type { Metadata } from "next"
 import { createClient } from "@/lib/supabase/server"
+import { getCurrentUser } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import CommunityStatsCharts from "./CommunityStatsCharts"
 import DateRangeFilter from "./DateRangeFilter"
@@ -112,9 +113,7 @@ export default async function CommunityStatsPage({
   searchParams: Promise<{ from?: string; to?: string }>
 }) {
   const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const user = await getCurrentUser()
   if (!user) redirect("/login")
 
   const { from: fromParam, to: toParam } = await searchParams

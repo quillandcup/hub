@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/auth";
 import { getEffectiveIdentity } from "@/lib/sudo";
 import { revalidatePath } from "next/cache";
 import {
@@ -51,9 +52,7 @@ async function getLockOverrides(supabase: Awaited<ReturnType<typeof createClient
 export async function getMySchedules(): Promise<MyScheduleRow[]> {
   const supabase = await createClient();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) return [];
 
   const effectiveIdentity = await getEffectiveIdentity(user);
@@ -130,9 +129,7 @@ const DEFAULT_SLOT_DURATION_MINUTES = 60;
 export async function getHostingCalendarContext(month: string): Promise<HostingCalendarContext> {
   const supabase = await createClient();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) return { prickles: [], proposedSlots: [] };
 
   const monthStart = new Date(`${month}T00:00:00Z`);
@@ -222,9 +219,7 @@ export async function requestToHost(
 ): Promise<{ success: true } | { error: string }> {
   const supabase = await createClient();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) return { error: "Not authenticated" };
 
   const effectiveIdentity = await getEffectiveIdentity(user);
@@ -299,9 +294,7 @@ export async function updateMySchedule(
 ): Promise<{ success: true } | { error: string }> {
   const supabase = await createClient();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) return { error: "Not authenticated" };
 
   const effectiveIdentity = await getEffectiveIdentity(user);
@@ -348,9 +341,7 @@ export async function updateMySchedule(
 export async function withdrawMySchedule(id: string): Promise<{ success: true } | { error: string }> {
   const supabase = await createClient();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) return { error: "Not authenticated" };
 
   const effectiveIdentity = await getEffectiveIdentity(user);
@@ -393,9 +384,7 @@ export async function withdrawMySchedule(id: string): Promise<{ success: true } 
 export async function getMyHostingStats(): Promise<HostingStats> {
   const supabase = await createClient();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) return computeHostingStats([]);
 
   const effectiveIdentity = await getEffectiveIdentity(user);

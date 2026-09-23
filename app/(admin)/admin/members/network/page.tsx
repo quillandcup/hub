@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/auth";
 import Link from "next/link";
 import type { Metadata } from "next";
 import NetworkGraph from "./NetworkGraph";
@@ -11,9 +12,7 @@ export const metadata: Metadata = {
 export default async function MemberNetworkPage() {
   const supabase = await createClient();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
 
   if (!user) {
     redirect("/login");

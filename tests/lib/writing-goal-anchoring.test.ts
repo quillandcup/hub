@@ -66,7 +66,7 @@ function makeSupabaseMock({ scheduleRow = null, existingGoal = null, insertedId 
   });
 
   return {
-    auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: "auth-user-1" } } }) },
+    auth: { getClaims: vi.fn().mockResolvedValue({ data: { claims: { sub: "auth-user-1" } }, error: null }) },
     from,
     __select: select,
     __insert: insert,

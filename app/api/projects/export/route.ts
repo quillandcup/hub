@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/auth";
 import { getEffectiveIdentity } from "@/lib/sudo";
 
 function csvEscape(value: string): string {
@@ -10,9 +11,7 @@ function csvEscape(value: string): string {
 /** CSV export of the acting member's own entries -- optionally scoped to one project via ?projectId=. Low-effort off-ramp: a member can always take their data with them. */
 export async function GET(request: NextRequest) {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
 
   const effectiveIdentity = await getEffectiveIdentity(user);

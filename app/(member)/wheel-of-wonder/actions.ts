@@ -2,6 +2,7 @@
 
 import { WebClient } from "@slack/web-api";
 import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/auth";
 import { getEffectiveIdentity } from "@/lib/sudo";
 import { matchSlackUsersToMembers } from "@/lib/slack-matching";
 import { pickConversationStarter } from "@/lib/wheel-of-wonder-starters";
@@ -166,9 +167,7 @@ async function loadCandidatePool(
 export async function spinWheel(): Promise<WheelSpinResponse> {
   const supabase = await createClient();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) return { error: "Not authenticated" };
 
   const effectiveIdentity = await getEffectiveIdentity(user);

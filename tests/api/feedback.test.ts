@@ -37,7 +37,10 @@ function makeSupabaseMock(user: any, insertResult: { data: any; error: any }) {
     single: vi.fn().mockResolvedValue(insertResult),
   }
   return {
-    auth: { getUser: vi.fn().mockResolvedValue({ data: { user } }) },
+    auth: { getClaims: vi.fn().mockResolvedValue({
+        data: user ? { claims: { sub: user.id, email: user.email } } : null,
+        error: null,
+      }) },
     storage: {
       from: vi.fn().mockReturnValue({ upload: vi.fn().mockResolvedValue({ error: null }) }),
     },

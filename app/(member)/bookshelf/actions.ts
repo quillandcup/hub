@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/auth";
 import { getEffectiveIdentity } from "@/lib/sudo";
 import { revalidatePath } from "next/cache";
 import { safeUrl } from "@/lib/url";
@@ -43,9 +44,7 @@ type IdentityContext =
 
 async function requireIdentity(): Promise<IdentityContext> {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) return { error: "Not authenticated" };
 
   const effectiveIdentity = await getEffectiveIdentity(user);

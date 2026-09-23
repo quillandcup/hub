@@ -26,7 +26,7 @@ function makeSupabaseMock({ hostsType, upsertError }: { hostsType: boolean; upse
 
   return {
     auth: {
-      getUser: vi.fn().mockResolvedValue({ data: { user: { id: "auth-user-1" } } }),
+      getClaims: vi.fn().mockResolvedValue({ data: { claims: { sub: "auth-user-1" } }, error: null }),
     },
     from: vi.fn((table: string) => {
       if (table === "prickles") {
@@ -53,7 +53,7 @@ beforeEach(() => {
 describe("saveHostVibe authorization scoping", () => {
   it("rejects when there is no authenticated user", async () => {
     const mockSupabase = makeSupabaseMock({ hostsType: true });
-    mockSupabase.auth.getUser = vi.fn().mockResolvedValue({ data: { user: null } });
+    mockSupabase.auth.getClaims = vi.fn().mockResolvedValue({ data: null, error: null });
     vi.mocked(createClient).mockResolvedValue(mockSupabase as any);
 
     const result = await saveHostVibe("type-a", "chatty", "");
