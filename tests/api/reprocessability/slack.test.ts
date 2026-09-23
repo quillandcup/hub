@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
-import { getTestSupabaseAdminClient, getTestAuthHeaders } from '../../helpers/supabase'
+import { getTestSupabaseAdminClient, getTestAuthHeaders, getTestApiBaseUrl } from '../../helpers/supabase'
 
 /**
  * Test to verify /api/process/slack is fully reprocessable
@@ -126,7 +126,7 @@ describe('Slack Reprocessability', () => {
     expect(verifyData).toHaveLength(2)
 
     // ACT: Process Slack messages
-    const response = await fetch('http://localhost:3000/api/process/slack', {
+    const response = await fetch(`${getTestApiBaseUrl()}/api/process/slack`, {
       method: 'POST',
       headers: {
         ...getTestAuthHeaders(),
@@ -177,7 +177,7 @@ describe('Slack Reprocessability', () => {
     expect(deletedMsg?.deleted_at).not.toBeNull()
 
     // ACT: Reprocess Slack messages
-    const response = await fetch('http://localhost:3000/api/process/slack', {
+    const response = await fetch(`${getTestApiBaseUrl()}/api/process/slack`, {
       method: 'POST',
       headers: {
         ...getTestAuthHeaders(),
@@ -256,7 +256,7 @@ describe('Slack Reprocessability', () => {
     expect(before).toBeTruthy()
 
     // ACT: Process Slack (should DELETE all activities in date range, then INSERT from Bronze)
-    const response = await fetch('http://localhost:3000/api/process/slack', {
+    const response = await fetch(`${getTestApiBaseUrl()}/api/process/slack`, {
       method: 'POST',
       headers: {
         ...getTestAuthHeaders(),

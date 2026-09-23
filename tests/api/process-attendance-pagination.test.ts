@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
-import { getTestSupabaseAdminClient, getTestAuthHeaders } from '../helpers/supabase'
+import { getTestSupabaseAdminClient, getTestAuthHeaders, getTestApiBaseUrl } from '../helpers/supabase'
 import { seedReferenceData } from '../helpers/seed-data'
 
 /**
@@ -89,7 +89,7 @@ describe('Attendance Processing Pagination', () => {
       expect(count).toBe(MEETING_COUNT * ATTENDEES_PER_MEETING)
 
       // ACT: Process attendance for the full date range
-      const response = await fetch('http://localhost:3000/api/process/attendance', {
+      const response = await fetch(`${getTestApiBaseUrl()}/api/process/attendance`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...getTestAuthHeaders() },
         body: JSON.stringify({ fromDate: FROM_DATE, toDate: TO_DATE }),

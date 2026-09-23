@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
-import { getTestSupabaseAdminClient, getTestAuthHeaders } from '../../helpers/supabase'
+import { getTestSupabaseAdminClient, getTestAuthHeaders, getTestApiBaseUrl } from '../../helpers/supabase'
 import { getMonthStart, getMonthEnd, getNextMonthStart } from '@/lib/prickle-schedules'
 
 /**
@@ -84,7 +84,7 @@ describe('Prickle Schedules Bootstrap API', () => {
   })
 
   it('bootstraps a weekly schedule from calendar prickles and copies it to next month', async () => {
-    const response = await fetch('http://localhost:3000/api/prickle-schedules/bootstrap', {
+    const response = await fetch(`${getTestApiBaseUrl()}/api/prickle-schedules/bootstrap`, {
       method: 'POST',
       headers: { ...getTestAuthHeaders(), 'Content-Type': 'application/json' },
       body: JSON.stringify({ month: currentMonth }),
@@ -118,7 +118,7 @@ describe('Prickle Schedules Bootstrap API', () => {
   })
 
   it('is idempotent: re-running skips the already-created schedule', async () => {
-    const response = await fetch('http://localhost:3000/api/prickle-schedules/bootstrap', {
+    const response = await fetch(`${getTestApiBaseUrl()}/api/prickle-schedules/bootstrap`, {
       method: 'POST',
       headers: { ...getTestAuthHeaders(), 'Content-Type': 'application/json' },
       body: JSON.stringify({ month: currentMonth }),
@@ -139,7 +139,7 @@ describe('Prickle Schedules Bootstrap API', () => {
       source: 'calendar',
     })
 
-    const response = await fetch('http://localhost:3000/api/prickle-schedules/bootstrap', {
+    const response = await fetch(`${getTestApiBaseUrl()}/api/prickle-schedules/bootstrap`, {
       method: 'POST',
       headers: { ...getTestAuthHeaders(), 'Content-Type': 'application/json' },
       body: JSON.stringify({ month: currentMonth }),

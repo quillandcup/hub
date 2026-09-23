@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
-import { getTestSupabaseAdminClient, getTestAuthHeaders } from '../../helpers/supabase'
+import { getTestSupabaseAdminClient, getTestAuthHeaders, getTestApiBaseUrl } from '../../helpers/supabase'
 import { seedReferenceData } from '../../helpers/seed-data'
 
 /**
@@ -127,7 +127,7 @@ describe('Midnight-Crossing Meeting Reprocessability', () => {
     expect(insertedAttendee).toBeTruthy()
 
     // ACT: Process Aug 1 (meeting starts on Aug 1, ends on Aug 2)
-    const response = await fetch('http://localhost:3000/api/process/attendance', {
+    const response = await fetch(`${getTestApiBaseUrl()}/api/process/attendance`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...getTestAuthHeaders() },
       body: JSON.stringify({
@@ -182,7 +182,7 @@ describe('Midnight-Crossing Meeting Reprocessability', () => {
     expect(beforePups).toHaveLength(1)
 
     // ACT: Reprocess the exact same date range
-    const response = await fetch('http://localhost:3000/api/process/attendance', {
+    const response = await fetch(`${getTestApiBaseUrl()}/api/process/attendance`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...getTestAuthHeaders() },
       body: JSON.stringify({
@@ -219,7 +219,7 @@ describe('Midnight-Crossing Meeting Reprocessability', () => {
     // instead of containment logic (gte/lte)
 
     // ARRANGE: Create the PUP first by processing
-    const setupResponse = await fetch('http://localhost:3000/api/process/attendance', {
+    const setupResponse = await fetch(`${getTestApiBaseUrl()}/api/process/attendance`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...getTestAuthHeaders() },
       body: JSON.stringify({
@@ -248,7 +248,7 @@ describe('Midnight-Crossing Meeting Reprocessability', () => {
 
     // ACT: Reprocess Aug 1 (meeting starts Aug 1, ends Aug 2)
     // The DELETE query MUST catch this PUP even though end_time is Aug 2
-    const response = await fetch('http://localhost:3000/api/process/attendance', {
+    const response = await fetch(`${getTestApiBaseUrl()}/api/process/attendance`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...getTestAuthHeaders() },
       body: JSON.stringify({
@@ -331,7 +331,7 @@ describe('Midnight-Crossing Meeting Reprocessability', () => {
     ])
 
     // ACT: Process Aug 1
-    const response = await fetch('http://localhost:3000/api/process/attendance', {
+    const response = await fetch(`${getTestApiBaseUrl()}/api/process/attendance`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...getTestAuthHeaders() },
       body: JSON.stringify({

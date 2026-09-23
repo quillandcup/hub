@@ -4,9 +4,16 @@ import { getTestSupabaseAdminClient, getTestAuthHeaders, getTestApiBaseUrl } fro
 /**
  * Integration tests for GET /api/analyze/zoom-access
  *
- * Returns two lists:
+ * Returns one list:
  *   matched_inactive — attendees matched to an inactive member
- *   unmatched        — attendees with no member match (not ignored)
+ *
+ * Note: this route used to also return `unmatched` (attendees with no member
+ * match at all), but that was intentionally removed in "Consolidate data
+ * hygiene and reconciliation into one dashboard" — unmatched-name detection
+ * now lives at /admin/hygiene/unmatched-zoom instead (all-time, not just the
+ * last 90 days), so it isn't duplicated here. The tests covering that
+ * removed behavior were deleted along with it rather than left pointing at
+ * a dead field.
  */
 describe('Zoom Access', () => {
   const supabase = getTestSupabaseAdminClient()
@@ -19,8 +26,6 @@ describe('Zoom Access', () => {
   const names = {
     activeMember: `ZoomAccessActive ${ts}`,
     inactiveMember: `ZoomAccessInactive ${ts}`,
-    unmatched: `ZoomAccessStranger ${ts}`,
-    ignored: `ZoomAccessIgnored ${ts}`,
     oldAttendee: `ZoomAccessOld ${ts}`,
   }
 
@@ -47,19 +52,12 @@ describe('Zoom Access', () => {
     }).select('id').single()
     inactiveMemberId = inactive!.id
 
-    // Ignored name
-    await supabase.from('ignored_zoom_names').insert({ zoom_name: names.ignored })
-
     // Zoom attendees (recent)
     await supabase.schema('bronze').from('zoom_attendees').insert([
       // Active member attending — should NOT appear
       { name: names.activeMember, email: null, meeting_id: meetingUuid, meeting_uuid: meetingUuid, join_time: recentJoin, leave_time: recentJoin, duration: 0 },
       // Inactive member attending — should appear in matched_inactive
       { name: names.inactiveMember, email: null, meeting_id: meetingUuid, meeting_uuid: meetingUuid, join_time: recentJoin, leave_time: recentJoin, duration: 0 },
-      // Unmatched name — should appear in unmatched
-      { name: names.unmatched, email: null, meeting_id: meetingUuid, meeting_uuid: meetingUuid, join_time: recentJoin, leave_time: recentJoin, duration: 0 },
-      // Ignored name — should NOT appear
-      { name: names.ignored, email: null, meeting_id: meetingUuid, meeting_uuid: meetingUuid, join_time: recentJoin, leave_time: recentJoin, duration: 0 },
       // Old attendance — should NOT appear (outside 90-day window)
       { name: names.inactiveMember, email: null, meeting_id: `${meetingUuid}-old`, meeting_uuid: `${meetingUuid}-old`, join_time: oldJoin, leave_time: oldJoin, duration: 0 },
     ])
@@ -68,7 +66,6 @@ describe('Zoom Access', () => {
   afterAll(async () => {
     await supabase.schema('bronze').from('zoom_attendees')
       .delete().ilike('meeting_uuid', `${meetingUuid}%`)
-    await supabase.from('ignored_zoom_names').delete().eq('zoom_name', names.ignored)
     await supabase.from('members').delete().in('id', [activeMemberId, inactiveMemberId])
   })
 
@@ -76,7 +73,7 @@ describe('Zoom Access', () => {
     const response = await fetch(`${base}/api/analyze/zoom-access`, { headers: getTestAuthHeaders() })
     const body = await response.json()
     expect(response.ok, `API returned ${response.status}: ${JSON.stringify(body)}`).toBe(true)
-    return body as { matched_inactive: any[]; unmatched: any[] }
+    return body as { matched_inactive: any[] }
   }
 
   it('includes inactive member with recent attendance in matched_inactive', async () => {
@@ -87,16 +84,6 @@ describe('Zoom Access', () => {
   it('does not include active members in matched_inactive', async () => {
     const { matched_inactive } = await fetchZoomAccess()
     expect(matched_inactive.some((m: any) => m.member_id === activeMemberId)).toBe(false)
-  })
-
-  it('includes unmatched name in unmatched list', async () => {
-    const { unmatched } = await fetchZoomAccess()
-    expect(unmatched.some((u: any) => u.name === names.unmatched)).toBe(true)
-  })
-
-  it('excludes ignored names from unmatched list', async () => {
-    const { unmatched } = await fetchZoomAccess()
-    expect(unmatched.some((u: any) => u.name === names.ignored)).toBe(false)
   })
 
   it('excludes attendance older than 90 days', async () => {

@@ -73,7 +73,12 @@ describe('dismissed_duplicate_groups (shared)', () => {
       .eq('group_key', TEST_KEY)
       .single()
     expect(data).not.toBeNull()
-    expect(new Date(data!.dismissed_at).getTime()).toBeGreaterThanOrEqual(before.getTime())
+    // Compare against the test process's clock with a small tolerance: `before`
+    // is captured in this Node process, while `dismissed_at` is set by the DB
+    // server's clock (a separate Docker container) — sub-millisecond skew
+    // between the two clocks made this flake (observed off by ~1ms) even
+    // though the insert genuinely happened after `before`.
+    expect(new Date(data!.dismissed_at).getTime()).toBeGreaterThanOrEqual(before.getTime() - 2000)
   })
 
   it('multiple groups can be dismissed independently', async () => {

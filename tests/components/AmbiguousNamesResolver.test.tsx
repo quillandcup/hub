@@ -35,8 +35,8 @@ describe('AmbiguousNamesResolver', () => {
 
     expect(screen.getByText('"Jenn"')).toBeInTheDocument()
     expect(screen.getByText(/31 occurrences/)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'This is Jenn Powell' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'This is Jenn McGeehan' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Jenn Powell' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Jenn McGeehan' })).toBeInTheDocument()
 
     expect(screen.getByText('"Sam"')).toBeInTheDocument()
     expect(screen.getByText('unresolved ambiguous names')).toBeInTheDocument()
@@ -50,7 +50,7 @@ describe('AmbiguousNamesResolver', () => {
 
     render(<AmbiguousNamesResolver entries={entries} />)
 
-    await userEvent.click(screen.getByRole('button', { name: 'This is Jenn Powell' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Jenn Powell' }))
 
     expect(global.fetch).toHaveBeenCalledWith(
       '/api/zoom/resolve-ambiguous',
@@ -99,7 +99,7 @@ describe('AmbiguousNamesResolver', () => {
 
     render(<AmbiguousNamesResolver entries={entries} />)
 
-    await userEvent.click(screen.getByRole('button', { name: 'This is Jenn Powell' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Jenn Powell' }))
 
     await waitFor(() => {
       expect(screen.getByText('Something went wrong')).toBeInTheDocument()
