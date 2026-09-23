@@ -3,22 +3,15 @@
 import { useState } from 'react'
 import { startSudo } from '@/app/actions/sudo'
 import Modal from '@/components/Modal'
-import MemberSearch from '@/components/MemberSearch'
-
-interface Member {
-  id: string
-  name: string
-  email: string
-}
+import SudoMemberSearch, { type SudoMember } from '@/components/SudoMemberSearch'
 
 interface SudoModalProps {
   isOpen: boolean
   onClose: () => void
-  members: Member[]
 }
 
-export default function SudoModal({ isOpen, onClose, members }: SudoModalProps) {
-  const [selectedMember, setSelectedMember] = useState<Member | null>(null)
+export default function SudoModal({ isOpen, onClose }: SudoModalProps) {
+  const [selectedMember, setSelectedMember] = useState<SudoMember | null>(null)
   const [isPending, setIsPending] = useState(false)
 
   async function handleConfirm() {
@@ -37,9 +30,8 @@ export default function SudoModal({ isOpen, onClose, members }: SudoModalProps) 
         <p className="text-sm text-slate-600 dark:text-slate-400">
           Select a member to view the portal as them.
         </p>
-        <MemberSearch
-          members={members}
-          selectedMemberId={selectedMember?.id ?? null}
+        <SudoMemberSearch
+          selectedMember={selectedMember}
           onSelect={setSelectedMember}
           placeholder="Search by name or email..."
         />
