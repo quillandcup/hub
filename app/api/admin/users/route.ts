@@ -1,5 +1,5 @@
 import { requireAdmin } from "@/lib/supabase/api-auth";
-import { createClient as createServiceClient } from "@supabase/supabase-js";
+import { createClient as createServiceClient, SupabaseClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 
 function getServiceClient() {
@@ -8,6 +8,37 @@ function getServiceClient() {
   return createServiceClient(url, key, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
+}
+
+// members can exceed Supabase's default 1000-row query limit (former members
+// are retained, not deleted — see CLAUDE.md), and this endpoint needs the
+// full table both to resolve every user's linked member and to let the
+// frontend offer every unlinked member as a link target. Paginate to avoid
+// silently truncating to the first 1000 rows.
+async function fetchAllMembers(supabase: SupabaseClient) {
+  const allMembers: { id: string; name: string; email: string; user_id: string | null }[] = [];
+  let offset = 0;
+  const BATCH_SIZE = 1000;
+  let hasMore = true;
+
+  while (hasMore) {
+    const { data: batch, error } = await supabase
+      .from("members")
+      .select("id, name, email, user_id")
+      .range(offset, offset + BATCH_SIZE - 1);
+
+    if (error) throw error;
+
+    if (batch && batch.length > 0) {
+      allMembers.push(...batch);
+      offset += batch.length;
+      hasMore = batch.length === BATCH_SIZE;
+    } else {
+      hasMore = false;
+    }
+  }
+
+  return allMembers;
 }
 
 export async function GET(request: NextRequest) {
@@ -22,13 +53,13 @@ export async function GET(request: NextRequest) {
     { data: profiles },
     { data: previews },
     { data: allStaff },
-    { data: allMembers },
+    allMembers,
   ] = await Promise.all([
     supabase.auth.admin.listUsers({ perPage: 1000 }),
     supabase.from("user_profiles").select("id, email, role, created_at"),
     supabase.from("user_feature_previews").select("user_id, feature_key"),
     supabase.from("staff").select("id, name, email, role, member_id"),
-    supabase.from("members").select("id, name, email, user_id"),
+    fetchAllMembers(supabase),
   ]);
 
   if (listError) {

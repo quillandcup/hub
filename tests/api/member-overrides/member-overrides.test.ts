@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
-import { getTestSupabaseAdminClient, getTestAuthHeaders } from '../../helpers/supabase'
+import { getTestSupabaseAdminClient, getTestAuthHeaders, getTestApiBaseUrl } from '../../helpers/supabase'
 
 /**
  * Integration tests for member-overrides CRUD API
@@ -33,7 +33,7 @@ describe('Member Overrides API', () => {
   })
 
   it('GET returns a list of overrides', async () => {
-    const response = await fetch('http://localhost:3000/api/member-overrides', {
+    const response = await fetch(`${getTestApiBaseUrl()}/api/member-overrides`, {
       headers: getTestAuthHeaders(),
     })
 
@@ -43,7 +43,7 @@ describe('Member Overrides API', () => {
   })
 
   it('POST creates an override with valid data', async () => {
-    const response = await fetch('http://localhost:3000/api/member-overrides', {
+    const response = await fetch(`${getTestApiBaseUrl()}/api/member-overrides`, {
       method: 'POST',
       headers: { ...getTestAuthHeaders(), 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -66,7 +66,7 @@ describe('Member Overrides API', () => {
   })
 
   it('POST rejects invalid override_type', async () => {
-    const response = await fetch('http://localhost:3000/api/member-overrides', {
+    const response = await fetch(`${getTestApiBaseUrl()}/api/member-overrides`, {
       method: 'POST',
       headers: { ...getTestAuthHeaders(), 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -82,7 +82,7 @@ describe('Member Overrides API', () => {
   })
 
   it('POST rejects missing required fields', async () => {
-    const response = await fetch('http://localhost:3000/api/member-overrides', {
+    const response = await fetch(`${getTestApiBaseUrl()}/api/member-overrides`, {
       method: 'POST',
       headers: { ...getTestAuthHeaders(), 'Content-Type': 'application/json' },
       body: JSON.stringify({ member_id: memberId }),
@@ -101,7 +101,7 @@ describe('Member Overrides API', () => {
       .select('id')
       .single()
 
-    const response = await fetch(`http://localhost:3000/api/member-overrides/${created!.id}`, {
+    const response = await fetch(`${getTestApiBaseUrl()}/api/member-overrides/${created!.id}`, {
       method: 'PATCH',
       headers: { ...getTestAuthHeaders(), 'Content-Type': 'application/json' },
       body: JSON.stringify({ reason: 'updated reason' }),
@@ -125,7 +125,7 @@ describe('Member Overrides API', () => {
       .select('id')
       .single()
 
-    const response = await fetch(`http://localhost:3000/api/member-overrides/${created!.id}`, {
+    const response = await fetch(`${getTestApiBaseUrl()}/api/member-overrides/${created!.id}`, {
       method: 'PATCH',
       headers: { ...getTestAuthHeaders(), 'Content-Type': 'application/json' },
       body: JSON.stringify({ override_type: 'bad_type' }),
@@ -143,7 +143,7 @@ describe('Member Overrides API', () => {
       .select('id')
       .single()
 
-    const response = await fetch(`http://localhost:3000/api/member-overrides/${created!.id}`, {
+    const response = await fetch(`${getTestApiBaseUrl()}/api/member-overrides/${created!.id}`, {
       method: 'DELETE',
       headers: getTestAuthHeaders(),
     })
@@ -169,7 +169,7 @@ describe('Member Overrides API', () => {
       .select('id')
       .single()
 
-    const response = await fetch('http://localhost:3000/api/member-overrides', {
+    const response = await fetch(`${getTestApiBaseUrl()}/api/member-overrides`, {
       headers: getTestAuthHeaders(),
     })
 

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
-import { getTestSupabaseAdminClient, getTestAuthHeaders } from '../../helpers/supabase'
+import { getTestSupabaseAdminClient, getTestAuthHeaders, getTestApiBaseUrl } from '../../helpers/supabase'
 
 describe('Member Hiatus status sync', () => {
   const supabase = getTestSupabaseAdminClient()
@@ -22,7 +22,7 @@ describe('Member Hiatus status sync', () => {
   })
 
   it('sets status to on_hiatus on create, then back off on delete', async () => {
-    const createRes = await fetch('http://localhost:3000/api/member-hiatus', {
+    const createRes = await fetch(`${getTestApiBaseUrl()}/api/member-hiatus`, {
       method: 'POST',
       headers: { ...getTestAuthHeaders(), 'Content-Type': 'application/json' },
       body: JSON.stringify({ member_id: memberId, start_date: '2020-01-01', reason: 'test' }),
@@ -33,7 +33,7 @@ describe('Member Hiatus status sync', () => {
     const { data: afterCreate } = await supabase.from('members').select('status').eq('id', memberId).single()
     expect(afterCreate!.status).toBe('on_hiatus')
 
-    const delRes = await fetch(`http://localhost:3000/api/member-hiatus/${created.hiatus.id}`, {
+    const delRes = await fetch(`${getTestApiBaseUrl()}/api/member-hiatus/${created.hiatus.id}`, {
       method: 'DELETE',
       headers: getTestAuthHeaders(),
     })

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
-import { getTestSupabaseAdminClient, getTestAuthHeaders } from '../../helpers/supabase'
+import { getTestSupabaseAdminClient, getTestAuthHeaders, getTestApiBaseUrl } from '../../helpers/supabase'
 import { getMonthStart, getNextMonthStart } from '@/lib/prickle-schedules'
 
 /**
@@ -44,7 +44,7 @@ describe('Prickle Schedules API', () => {
   })
 
   it('GET returns schedules for the requested month', async () => {
-    const response = await fetch(`http://localhost:3000/api/prickle-schedules?month=${currentMonth}`, {
+    const response = await fetch(`${getTestApiBaseUrl()}/api/prickle-schedules?month=${currentMonth}`, {
       headers: getTestAuthHeaders(),
     })
     expect(response.ok).toBe(true)
@@ -53,14 +53,14 @@ describe('Prickle Schedules API', () => {
   })
 
   it('GET requires a month query parameter', async () => {
-    const response = await fetch('http://localhost:3000/api/prickle-schedules', {
+    const response = await fetch(`${getTestApiBaseUrl()}/api/prickle-schedules`, {
       headers: getTestAuthHeaders(),
     })
     expect(response.status).toBe(400)
   })
 
   it('POST creates a weekly schedule', async () => {
-    const response = await fetch('http://localhost:3000/api/prickle-schedules', {
+    const response = await fetch(`${getTestApiBaseUrl()}/api/prickle-schedules`, {
       method: 'POST',
       headers: { ...getTestAuthHeaders(), 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -82,7 +82,7 @@ describe('Prickle Schedules API', () => {
   })
 
   it('POST creates a biweekly schedule requiring an anchor date', async () => {
-    const response = await fetch('http://localhost:3000/api/prickle-schedules', {
+    const response = await fetch(`${getTestApiBaseUrl()}/api/prickle-schedules`, {
       method: 'POST',
       headers: { ...getTestAuthHeaders(), 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -101,7 +101,7 @@ describe('Prickle Schedules API', () => {
   })
 
   it('POST rejects biweekly without an anchor date', async () => {
-    const response = await fetch('http://localhost:3000/api/prickle-schedules', {
+    const response = await fetch(`${getTestApiBaseUrl()}/api/prickle-schedules`, {
       method: 'POST',
       headers: { ...getTestAuthHeaders(), 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -119,7 +119,7 @@ describe('Prickle Schedules API', () => {
   })
 
   it('POST rejects an invalid recurrence_type', async () => {
-    const response = await fetch('http://localhost:3000/api/prickle-schedules', {
+    const response = await fetch(`${getTestApiBaseUrl()}/api/prickle-schedules`, {
       method: 'POST',
       headers: { ...getTestAuthHeaders(), 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -147,7 +147,7 @@ describe('Prickle Schedules API', () => {
       .select('id')
       .single()
 
-    const response = await fetch(`http://localhost:3000/api/prickle-schedules/${created!.id}`, {
+    const response = await fetch(`${getTestApiBaseUrl()}/api/prickle-schedules/${created!.id}`, {
       method: 'PATCH',
       headers: { ...getTestAuthHeaders(), 'Content-Type': 'application/json' },
       // Client-supplied confirmed_by/confirmed_at must be ignored.
@@ -176,7 +176,7 @@ describe('Prickle Schedules API', () => {
       .select('id')
       .single()
 
-    const response = await fetch(`http://localhost:3000/api/prickle-schedules/${created!.id}`, {
+    const response = await fetch(`${getTestApiBaseUrl()}/api/prickle-schedules/${created!.id}`, {
       method: 'PATCH',
       headers: { ...getTestAuthHeaders(), 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: 'bogus' }),
@@ -200,7 +200,7 @@ describe('Prickle Schedules API', () => {
       .select('id')
       .single()
 
-    const response = await fetch(`http://localhost:3000/api/prickle-schedules/${created!.id}`, {
+    const response = await fetch(`${getTestApiBaseUrl()}/api/prickle-schedules/${created!.id}`, {
       method: 'DELETE',
       headers: getTestAuthHeaders(),
     })
@@ -213,7 +213,7 @@ describe('Prickle Schedules API', () => {
       .single()
     expect(row!.deleted_at).not.toBeNull()
 
-    const listResponse = await fetch(`http://localhost:3000/api/prickle-schedules?month=${currentMonth}`, {
+    const listResponse = await fetch(`${getTestApiBaseUrl()}/api/prickle-schedules?month=${currentMonth}`, {
       headers: getTestAuthHeaders(),
     })
     const listBody = await listResponse.json()
@@ -238,7 +238,7 @@ describe('Prickle Schedules API', () => {
       .select('id')
       .single()
 
-    const firstResponse = await fetch(`http://localhost:3000/api/prickle-schedules?month=${nextMonth}`, {
+    const firstResponse = await fetch(`${getTestApiBaseUrl()}/api/prickle-schedules?month=${nextMonth}`, {
       headers: getTestAuthHeaders(),
     })
     const firstBody = await firstResponse.json()
@@ -247,7 +247,7 @@ describe('Prickle Schedules API', () => {
     expect(seeded.status).toBe('proposed')
     expect(seeded.host_id).toBe(memberId)
 
-    const secondResponse = await fetch(`http://localhost:3000/api/prickle-schedules?month=${nextMonth}`, {
+    const secondResponse = await fetch(`${getTestApiBaseUrl()}/api/prickle-schedules?month=${nextMonth}`, {
       headers: getTestAuthHeaders(),
     })
     const secondBody = await secondResponse.json()

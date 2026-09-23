@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
-import { getTestSupabaseAdminClient, getTestAuthHeaders } from '../../helpers/supabase'
+import { getTestSupabaseAdminClient, getTestAuthHeaders, getTestApiBaseUrl } from '../../helpers/supabase'
 
 /**
  * Test to verify /api/import/slack is idempotent
@@ -146,7 +146,7 @@ describe('Slack Import Idempotency', () => {
     formData.append('messages', messagesFile)
     formData.append('reactions', reactionsFile)
 
-    const response = await fetch('http://localhost:3000/api/import/slack', {
+    const response = await fetch(`${getTestApiBaseUrl()}/api/import/slack`, {
       method: 'POST',
       headers: authHeaders,
       body: formData,
@@ -267,7 +267,7 @@ describe('Slack Import Idempotency', () => {
     formData.append('messages', messagesFile)
     formData.append('reactions', reactionsFile)
 
-    const response = await fetch('http://localhost:3000/api/import/slack', {
+    const response = await fetch(`${getTestApiBaseUrl()}/api/import/slack`, {
       method: 'POST',
       headers: authHeaders,
       body: formData,
@@ -383,7 +383,7 @@ describe('Slack Import Idempotency', () => {
     formData.append('messages', messagesFile)
     formData.append('reactions', reactionsFile)
 
-    const response = await fetch('http://localhost:3000/api/import/slack', {
+    const response = await fetch(`${getTestApiBaseUrl()}/api/import/slack`, {
       method: 'POST',
       headers: authHeaders,
       body: formData,
@@ -511,7 +511,7 @@ describe('Slack Import Idempotency', () => {
       formData.append('messages', messagesFile)
       formData.append('reactions', reactionsFile)
 
-      const response = await fetch('http://localhost:3000/api/import/slack', {
+      const response = await fetch(`${getTestApiBaseUrl()}/api/import/slack`, {
         method: 'POST',
         headers: authHeaders,
         body: formData,
@@ -626,7 +626,7 @@ describe('Slack Import Idempotency', () => {
     formData.append('messages', messagesFile)
     formData.append('reactions', reactionsFile)
 
-    const response = await fetch('http://localhost:3000/api/import/slack', {
+    const response = await fetch(`${getTestApiBaseUrl()}/api/import/slack`, {
       method: 'POST',
       headers: authHeaders,
       body: formData,
@@ -770,7 +770,7 @@ describe('Slack Import Idempotency', () => {
     formData.append('messages', messagesFile)
     formData.append('reactions', reactionsFile)
 
-    const response = await fetch('http://localhost:3000/api/import/slack', {
+    const response = await fetch(`${getTestApiBaseUrl()}/api/import/slack`, {
       method: 'POST',
       headers: authHeaders,
       body: formData,

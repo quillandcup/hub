@@ -1,6 +1,22 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
 
+// The route calls next/server's after() to defer the Slack notification past
+// the response. after() requires a real request-scope context set up by the
+// Next.js server runtime, which doesn't exist when a test imports and calls
+// the route handler directly (no actual HTTP request is ever made). Mock it
+// to just run the callback immediately, matching the convention already used
+// in tests/api/webhooks/calendar.test.ts, zoom.test.ts, and slack.test.ts.
+vi.mock('next/server', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('next/server')>()
+  return {
+    ...actual,
+    after: (callback: () => void | Promise<void>) => {
+      void callback()
+    },
+  }
+})
+
 vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))
 vi.mock('@/lib/sudo', () => ({ getEffectiveIdentity: vi.fn() }))
 vi.mock('@slack/web-api', () => ({
