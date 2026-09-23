@@ -7,17 +7,10 @@ import SudoModal from './SudoModal'
 import FeaturePreviewsModal from './FeaturePreviewsModal'
 import type { FeatureKey } from '@/lib/features'
 
-interface Member {
-  id: string
-  name: string
-  email: string
-}
-
 interface UserMenuProps {
   userEmail: string
   isAdmin?: boolean
   isSudo?: boolean
-  members?: Member[]
   enabledFeatures?: FeatureKey[]
 }
 
@@ -25,7 +18,6 @@ export default function UserMenu({
   userEmail,
   isAdmin = false,
   isSudo = false,
-  members = [],
   enabledFeatures = [],
 }: UserMenuProps) {
   const [isOpen, setIsOpen] = useState(false)
@@ -110,7 +102,6 @@ export default function UserMenu({
         <SudoModal
           isOpen={isSudoModalOpen}
           onClose={() => setIsSudoModalOpen(false)}
-          members={members}
         />
       )}
 

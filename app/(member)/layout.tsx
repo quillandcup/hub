@@ -37,27 +37,6 @@ export default async function MemberLayout({
   // Admin with no member record and no sudo active → send to admin area
   if (!effectiveIdentity) redirect('/admin')
 
-  let members: { id: string; name: string; email: string }[] = []
-  if (isAdmin) {
-    let offset = 0
-    const BATCH_SIZE = 1000
-    let hasMore = true
-    while (hasMore) {
-      const { data: batch } = await supabase
-        .from('members')
-        .select('id, name, email')
-        .order('name')
-        .range(offset, offset + BATCH_SIZE - 1)
-      if (batch && batch.length > 0) {
-        members = members.concat(batch)
-        offset += batch.length
-        hasMore = batch.length === BATCH_SIZE
-      } else {
-        hasMore = false
-      }
-    }
-  }
-
   return (
     <div className="flex h-screen overflow-hidden bg-slate-50 dark:bg-slate-950">
       <MemberNavigation isAdmin={isAdmin} memberId={effectiveIdentity.memberId} enabledFeatures={enabledFeatures} />
@@ -73,7 +52,6 @@ export default async function MemberLayout({
             userEmail={effectiveIdentity.memberName}
             isAdmin={isAdmin}
             isSudo={effectiveIdentity.isSudo}
-            members={members}
             enabledFeatures={enabledFeatures}
           />
         </header>
