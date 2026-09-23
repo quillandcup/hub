@@ -13,7 +13,14 @@
 2. **Manual Server Management**
    - Dev server must be running on port 3000
    - Requires manual start/stop
-   - Can't run tests in CI without server setup
+   - ~~Can't run tests in CI without server setup~~ **Resolved**: `.github/workflows/ci.yml`'s
+     "Production build" + "Start app server" steps now build and boot the app
+     with `next start` before `npm run test:run`, and tear it down after. This
+     was in fact the actual cause of a real CI failure (tests that fetch
+     `TEST_API_BASE_URL` had nothing listening in a fresh runner, while local
+     runs "passed" only by accident of whatever `next dev` happened to already
+     be running on :3000). The rest of this section's concerns (isolation,
+     external API calls) are unaddressed.
    - Dev server uses production config (Google Calendar, Zoom APIs)
 
 3. **No Test Isolation**

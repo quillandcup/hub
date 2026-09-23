@@ -71,15 +71,53 @@ jobs:
       - name: Start local Supabase
         run: supabase start -x imgproxy -x edge-runtime -x studio -x logflare -x vector
 
-      - name: Run test suite
-        run: npm run test:run
-
+      # Also serves as the production build check that used to be a separate
+      # post-test step -- building once here (and starting the app from it,
+      # below) covers both.
       - name: Production build
         run: npm run build
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ env.LOCAL_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ env.LOCAL_SUPABASE_ANON_KEY }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ env.LOCAL_SUPABASE_SERVICE_ROLE_KEY }}
+
+      # A large share of tests/api/** are integration tests that hit the real
+      # HTTP API via fetch(TEST_API_BASE_URL, default http://localhost:3000)
+      # instead of importing route handlers directly -- see
+      # tests/helpers/supabase.ts's getTestApiBaseUrl() and the "Manual Server
+      # Management" problem called out in docs/TEST_INFRASTRUCTURE_PLAN.md.
+      # Locally this "just works" because a `next dev` for this repo is
+      # usually already running on :3000 from normal day-to-day use; a fresh
+      # CI runner has nothing listening there unless we start it ourselves,
+      # which previously caused a cascade of null/undefined failures in every
+      # test file that fetches from the app (the first fetch fails, and
+      # everything chained off its response comes back null/undefined).
+      - name: Start app server
+        run: |
+          npm run start > /tmp/next-server.log 2>&1 &
+          echo $! > /tmp/next-server.pid
+          for i in $(seq 1 60); do
+            code=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:3000/api/admin/events)
+            if [ "$code" != "000" ]; then
+              echo "App server is up (HTTP $code)"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "App server did not become ready in time"
+          cat /tmp/next-server.log
+          exit 1
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ env.LOCAL_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ env.LOCAL_SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ env.LOCAL_SUPABASE_SERVICE_ROLE_KEY }}
+
+      - name: Run test suite
+        run: npm run test:run
+
+      - name: Stop app server
+        if: always()
+        run: kill "$(cat /tmp/next-server.pid)" 2>/dev/null || true
 
       - name: Stop local Supabase
         if: always()

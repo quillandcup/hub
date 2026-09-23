@@ -7,9 +7,9 @@ production after tests+build pass on a push to `main` (see that file's
 top-of-file comment). But **Vercel's own git-integration deploy is a
 separate, independent trigger** — it fires the moment `main` is pushed and
 typically finishes in a minute or two. The GitHub Actions job has to boot a
-full local Postgres + Supabase stack, run the whole test suite, then run the
-production build, before it even gets to pushing migrations. In practice that
-means:
+full local Postgres + Supabase stack, run the production build (also used to
+start the app server the integration tests hit), run the whole test suite,
+before it even gets to pushing migrations. In practice that means:
 
 ```
 push to main
