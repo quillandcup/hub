@@ -147,8 +147,8 @@ describe('fetchMembershipHistory', () => {
       const history = await fetchMembershipHistory(supabase, [multiSubCustomerId])
       expect(history).toHaveLength(2)
 
-      const earlier = history.find(p => p.kajabi_purchase_id === earlierPurchaseId || p.created_at_kajabi === '2022-08-18T00:00:00+00:00')
-      const later = history.find(p => p.kajabi_purchase_id === laterPurchaseId || p.created_at_kajabi === '2022-12-05T00:00:00+00:00')
+      const earlier = history.find(p => p.created_at_kajabi === '2022-08-18T00:00:00+00:00')
+      const later = history.find(p => p.created_at_kajabi === '2022-12-05T00:00:00+00:00')
 
       // Earlier subscription: derived_end_at = its own deactivated_at, leaving the gap
       // before the next purchase's created_at (2022-12-05) visible.

@@ -238,24 +238,30 @@ Auth emails now send via Resend SMTP (see `docs/INVITING_USERS.md`). Plan the se
 - [ ] Log auth/notification emails to `member_activities` (CRM Phase 1) — see the CRM & Outreach Automation Roadmap. The Send Email hook would capture every auth email with its exact type; Resend webhooks alone give delivery/bounce/complaint status only.
 
 ### Upgrade to Next.js 16
-**Status:** Not started — planned, dependabot already has PRs open
+**Status:** Code complete locally (lint/typecheck/build/full test suite all green) — not yet merged or preview-validated on Vercel
 
-Follows on from the CI/production Turbopack migration (`--turbopack` flag adopted for both CI and the real `package.json` build script) — Next 16 makes Turbopack the default for `next dev`/`next build` instead of an opt-in flag, so this is the natural next step once that work has baked.
+Bumped `next` 15.5.26 → 16.3.6, `eslint-config-next` 15.5.14 → 16.3.6, `@next/third-parties` → 16.3.6 (pinned exact, matching the upgrade codemod's default for the Next/React stack). Supersedes dependabot PRs #13 and #9 — close those once this merges.
 
-**Current state:** Next 15.5.26, React 19 (already satisfies 16's preference for React 19 — no React 18 deprecation warning to deal with), Node 24 via `.nvmrc` (well above 16's `>=20.9.0` floor), flat ESLint config already in `eslint.config.mjs` (16 migrates `next lint` to the ESLint CLI directly — less to change here than a project still on `.eslintrc.json`).
+**What the codemods actually did** (`npx @next/codemod@canary upgrade latest`, then separately `next-async-request-api` per the note below):
+- `middleware.ts` → `proxy.ts`, `export function middleware` → `export function proxy`. No other changes needed — it only re-exports `updateSession` from `lib/supabase/middleware.ts`, which is unaffected (that's a helper file, not the Next.js convention file).
+- `next-async-request-api` codemod made **zero changes** — the codebase was already fully migrated to async `params`/`cookies()`/`headers()` (confirmed: all 47 dynamic-route files already use `params: Promise<...>` + `await params`). Nothing to do here.
+- `eslint.config.mjs` switched from `FlatCompat` + `next/core-web-vitals` string extends to importing `eslint-config-next/core-web-vitals` / `eslint-config-next/typescript` directly (the `@eslint/eslintrc` shim is no longer needed).
+- The `cacheComponents-instant-false` codemod pass added `export const instant = false` to 69 page/layout files as a proactive Cache Components opt-out — reverted all of it, since this upgrade does not adopt `cacheComponents`. Revisit if/when that migration is actually undertaken.
+- The codemod bumped `eslint` to `10.11.0`, which conflicts with `eslint-config-next`'s own transitive `eslint-plugin-react`/`eslint-plugin-jsx-a11y` (peer-capped at `^9`) — reverted to `^9`. `eslint-config-next` itself only requires `eslint >= 9.0.0`.
 
-**Already in flight:** Dependabot has two relevant open PRs — #13 (`next` 15.5.26 → 16.3.5) and #9 (`eslint-config-next` 15.5.14 → 16.3.5). Rebase one of those rather than starting a fresh upgrade branch from scratch.
+**Manual changes beyond the codemods:**
+- `next.config.ts`: dropped the `eslint: { ignoreDuringBuilds: isPreview }` block — that option is removed entirely in v16 (`next build` no longer lints, period, regardless of config). `typescript.ignoreBuildErrors` is unaffected and stays.
+- **CI lint coverage gap**: since `next build` no longer lints, and `ci.yml` never had an explicit `npm run lint` step (it relied entirely on `next build`'s implicit lint pass), linting would have silently stopped running in CI. Added an explicit `Run lint` step to the `test-unit` job.
+- `eslint-config-next@16` newly enables React Compiler-oriented hook rules (`react-hooks/set-state-in-effect`, `react-hooks/immutability`, `react-hooks/exhaustive-deps`, `react-hooks/purity`) by default, which surfaced 49 errors across ~20 existing files. Downgraded to `warn` in `eslint.config.mjs` (matching the file's existing precedent for `@typescript-eslint/no-explicit-any`/`react/no-unescaped-entities`) rather than fixing ~20 files of pre-existing hook patterns as a side effect of this bump. Worth a dedicated cleanup pass later.
+- Fixed real, upgrade-caused build breakage — Next 16's stricter typecheck (confirmed via CI history: the identical test files passed clean CI at the pre-upgrade commit) surfaced ~15 TypeScript errors, all genuine: a regex `s` flag needing `es2018+` under the `ES2017` target (rewrote to `[\s\S]`), three `member_name_aliases` test queries missing `source` in `.select()` (every production call site selects it; the tests didn't), a stale `MemberBadgesPanel` test fixture missing `eventId`/`eventTitle`/`eventSlug` added to `RawAward`, an untyped default-parameter object in `settings-session-actions.test.ts` inferring `data: never[]`, and a dead `kajabi_purchase_id` comparison in a membership-history test (that field was never on `MembershipPurchase`, and the OR-fallback on `created_at_kajabi` was already sufficient).
+- 3 pre-existing `prefer-const` lint errors in `tests/api/reprocessability/*` fixed via `eslint --fix`.
 
-**Known breaking changes to handle** (per Next's own v16 upgrade guide — re-check it at upgrade time in case it's changed):
-- [ ] Run the official upgrade codemod first: `npx @next/codemod@canary upgrade latest` — updates `next.config.ts` to the new top-level `turbopack` key, migrates `next lint` → the ESLint CLI, renames the deprecated `middleware` convention to `proxy`, drops stabilized `unstable_` prefixes, removes `experimental_ppr` route config.
-- [ ] `middleware.ts` (repo root, ~20 lines) needs to become `proxy.ts` — the codemod should handle the rename, but read the diff carefully since this is what gates auth.
-- [ ] Separately run `npx @next/codemod@canary next-async-request-api .` — the `upgrade` codemod does **not** run this one automatically. 47 files under `app/` reference `params`; Next 16 fully removes the Next-15-era synchronous compatibility shim for `params`/`searchParams`/`cookies()`/`headers()`/`draftMode()` (they were async-only in principle since 15, but sync access still silently worked) — anything still accessing these synchronously will now break outright, not just warn.
-- [ ] Check `next.config.ts` for `experimental.dynamicIO` post-codemod — it's renamed to `cacheComponents` and the old name is a hard config validation error, not just deprecated. Not currently used, but re-verify after the codemod runs.
-- [ ] Re-verify Sentry's Turbopack support still holds at whatever `@sentry/nextjs` version is current then — already confirmed no incompatible options (`excludeServerRoutes` etc.) as of 10.75.2, but a major Next bump plus a likely Sentry SDK bump warrants a fresh check via docs, not an assumption nothing changed.
-- [ ] Re-run the bundle-size comparison done for the CI/prod Turbopack migration (especially `/projects/[id]`, which had the largest First Load JS jump there) — Next 16 may shift Turbopack's chunking behavior again.
-- [ ] Full local + CI + a real Vercel preview-deployment validation, same pattern as the CI/prod Turbopack migration — the preview deploy is the only environment that actually matches production, don't skip it.
+**Verified locally:** `npm run lint` (0 errors), `npx tsc --noEmit` (0 errors), `npm run build` (Turbopack, 126 pages, clean), `npm run test:unit` (975/975 passed), `npm run test:db` against a live `next start` + local Supabase (384/393 passed, 9 intentionally skipped).
 
-**Why "soon" and not immediately:** this is a major-version bump with a real breaking-change surface (synchronous `params`/`cookies`/`headers` access across the whole `app/` tree), not a compiler-flag flip — it deserves its own dedicated pass rather than riding along with the Turbopack build-tool work that prompted it.
+**Still open before merge:**
+- [ ] A real Vercel preview-deployment build (the only environment that actually matches production — don't skip it, per the prior Turbopack migration's own lesson).
+- [ ] Re-run the bundle-size comparison done for the CI/prod Turbopack migration — Next 16 may shift Turbopack's chunking behavior again from the 15.5.26 baseline already measured.
+- [ ] Sentry: `@sentry/nextjs@10.75.3` already declares `next: ^16.0.0-0` peer support, so no SDK bump was needed — but still worth a real preview deploy to confirm source maps/tunneling behave.
 
 ---
 

@@ -116,7 +116,7 @@ describe('Orphaned Meetings Idempotency', () => {
       // Load members and aliases for matching (same as dashboard)
       const [{ data: members }, { data: aliases }] = await Promise.all([
         supabase.from('members').select('id, name, email'),
-        supabase.from('member_name_aliases').select('alias, member_id'),
+        supabase.from('member_name_aliases').select('alias, member_id, source'),
       ]);
 
       // Get all zoom_attendees for test meeting
@@ -287,7 +287,7 @@ describe('Orphaned Meetings Idempotency', () => {
     // Before processing: meeting should show as orphaned (matched attendee, no PUP)
     const [{ data: members }, { data: aliases }] = await Promise.all([
       supabase.from('members').select('id, name, email'),
-      supabase.from('member_name_aliases').select('alias, member_id'),
+      supabase.from('member_name_aliases').select('alias, member_id, source'),
     ]);
 
     const { data: allAttendees } = await supabase
@@ -376,7 +376,7 @@ describe('Orphaned Meetings Idempotency', () => {
 
     // Calculate orphaned meetings using centralized matching logic
     const { data: members } = await supabase.from('members').select('id, name, email');
-    const { data: aliases } = await supabase.from('member_name_aliases').select('alias, member_id');
+    const { data: aliases } = await supabase.from('member_name_aliases').select('alias, member_id, source');
 
     const { data: allAttendees } = await supabase
       .schema('bronze').from('zoom_attendees')

@@ -59,6 +59,14 @@ jobs:
 
       - run: npm ci
 
+      # Next.js 16 removed linting from `next build` entirely (it used to run
+      # as part of the "Production build" step in test-db below, gated by
+      # next.config.ts's now-removed `eslint.ignoreDuringBuilds` option), so
+      # this is now the only thing that lints the codebase. Placed in the
+      # fast unit job (no Supabase/Docker needed) for quick feedback.
+      - name: Run lint
+        run: npm run lint
+
       # This bucket is pure-logic/component tests -- every dependency is mocked
       # (vi.mock / vi.fn / stubbed global.fetch) or the test is pure functions in,
       # assertions out. No Supabase, no app server, no Docker: see vitest.config.ts's
