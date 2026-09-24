@@ -2,16 +2,20 @@ import type { NextConfig } from "next";
 import path from "path";
 import { withSentryConfig } from "@sentry/nextjs/config";
 
-// Preview deployments on Vercel's Hobby-tier build machine (4 cores, 8 GB)
-// have intermittently hung indefinitely (~45 min, then force-errored with no
-// diagnostic output) during Next.js's combined "Linting and checking
-// validity of types" build phase -- reproduced across multiple unrelated
-// branches/commits/times, not correlated with the Sentry auth-token warning
-// (which is benign and unrelated -- see next.config's Sentry options below).
-// GitHub Actions CI already runs the full `npm run build` (lint + typecheck)
-// on every PR and push to main, so skip that same, resource-heavy pass on
-// preview builds specifically to remove the hang risk; production builds
-// keep full enforcement as a second safety net.
+// Preview deployments have intermittently hung indefinitely (~45 min, then
+// force-errored with no diagnostic output) during Next.js's combined
+// "Linting and checking validity of types" build phase -- reproduced across
+// multiple unrelated branches/commits/times, never in GitHub Actions CI
+// running the identical `npm run build`. Not correlated with the Sentry
+// auth-token warning (which is benign and unrelated -- see next.config's
+// Sentry options below). Root cause unconfirmed (a Vercel build-machine
+// resource stall was suspected, but the account is on Pro, not Hobby, so
+// that specific explanation doesn't clearly hold -- treat this as a
+// verified-effective workaround for an unexplained stall, not a diagnosed
+// fix). GitHub Actions CI already runs the full `npm run build` (lint +
+// typecheck) on every PR and push to main, so skip that same, resource-heavy
+// pass on preview builds specifically to remove the hang risk; production
+// builds keep full enforcement as a second safety net.
 const isPreview = process.env.VERCEL_ENV === "preview";
 
 const nextConfig: NextConfig = {
