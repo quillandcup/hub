@@ -60,7 +60,7 @@
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
     "@vitejs/plugin-react": "^6.1.1",
-    "@vitest/ui": "^4.1.11",
+    "@vitest/ui": "^5.0.1",
     "autoprefixer": "^10.6.1",
     "checkly": "latest",
     "dotenv-cli": "^11.0.0",
