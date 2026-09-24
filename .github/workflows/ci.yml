@@ -127,16 +127,11 @@ jobs:
       # above -- the build only needs the Supabase URL/key env vars present
       # (baked in / read at runtime), not a live database.
       #
-      # CI-only experiment: uses Turbopack (`next build --turbopack`) instead
-      # of the webpack build that `npm run build` (package.json) still runs
-      # for Vercel production deploys. Turbopack production builds are stable
-      # as of Next.js 15.x behind this explicit flag. Scoped to CI only --
-      # flipping the default `build` script is a separate, bigger decision
-      # out of scope here. `npm run build -- --turbopack` forwards the flag
-      # through to the underlying `next build` (npm passes args after `--`
-      # to the script).
+      # `npm run build` (package.json) now runs `next build --turbopack`
+      # directly, matching what Vercel's production deploys use -- so this
+      # step no longer needs to forward the flag itself.
       - name: Production build
-        run: npm run build -- --turbopack
+        run: npm run build
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ env.LOCAL_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ env.LOCAL_SUPABASE_ANON_KEY }}
