@@ -145,6 +145,20 @@ Import Prickles schedule from:
 - Clear separation of development and production
 - Easier onboarding for new developers
 
+### Un-pin CI Runners from ubuntu-24.04
+**Status:** Pinned 2026-09-24, needs revisiting after 2026-11-19
+
+`.github/workflows/ci.yml`, `checkly.yml`, and `dependabot-auto-merge.yml` all pin
+`runs-on: ubuntu-24.04` instead of `ubuntu-latest`, added to avoid flaky CI during
+GitHub's gradual, non-deterministic rollout of `ubuntu-latest` → Ubuntu 26.04 between
+Oct 19 and Nov 19, 2026 (`actions/runner-images#14748`).
+
+- [ ] After the rollout completes (~2026-11-19), deliberately test the `test-db` job
+      (Docker/Supabase-based, most likely to be sensitive to the kernel/systemd bump)
+      against `ubuntu-26.04` explicitly on a branch before switching the pin.
+- [ ] Once verified, either switch `runs-on:` back to `ubuntu-latest` (now pointing at
+      26.04) or pin directly to `ubuntu-26.04` — same tradeoff as today's choice.
+
 ### Re-introduce Test Parallelism
 **Status:** Deliberately disabled (2026-09-22), needs a real fix
 
