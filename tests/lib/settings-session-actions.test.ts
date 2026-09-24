@@ -28,7 +28,7 @@ import { revalidatePath } from "next/cache";
 
 function makeSupabaseMock({
   authenticated = true,
-  rpcResult = { data: [], error: null },
+  rpcResult = { data: [] as unknown, error: null as { message: string } | null },
   signOutError = null as { message: string } | null,
 } = {}) {
   return {

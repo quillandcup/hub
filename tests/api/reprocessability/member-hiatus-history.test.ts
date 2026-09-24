@@ -20,7 +20,7 @@ describe('Member Hiatus History applied during reprocessing', () => {
   const emailExpired = `hiatus-expired-${ts}@example.com`
   const emailPrecedence = `hiatus-precedence-${ts}@example.com`
 
-  let memberIds: Record<string, string> = {}
+  const memberIds: Record<string, string> = {}
   const hiatusIds: string[] = []
   const overrideIds: string[] = []
 

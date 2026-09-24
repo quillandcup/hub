@@ -17,7 +17,7 @@ describe('Member Status Overrides applied during reprocessing', () => {
   const emailExpired = `override-expired-${ts}@example.com`
   const emailDirectStripe = `override-direct-stripe-${ts}@example.com`
 
-  let memberIds: Record<string, string> = {}
+  const memberIds: Record<string, string> = {}
   const overrideIds: string[] = []
 
   async function processMembers() {

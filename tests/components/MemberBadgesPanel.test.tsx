@@ -40,6 +40,9 @@ const awards = [
     badgeTypeIcon: "🎙️",
     occurredAt: "2025-01-01",
     note: null,
+    eventId: null,
+    eventTitle: null,
+    eventSlug: null,
   },
 ];
 

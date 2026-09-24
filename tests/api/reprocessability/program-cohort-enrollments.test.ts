@@ -20,7 +20,7 @@ describe('Program cohort enrollments applied during reprocessing', () => {
   const emailAlumna = `enrollment-alumna-${ts}@example.com`
 
   let programId: string
-  let memberIds: Record<string, string> = {}
+  const memberIds: Record<string, string> = {}
   const enrollmentIds: string[] = []
   const cohortIds: string[] = []
   const hiatusIds: string[] = []

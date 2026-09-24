@@ -128,7 +128,7 @@ describe('Attendance Processing Pagination', () => {
 
       // Must NOT use an unpaginated single-shot query for zoom_attendees
       // (the old pattern was: const { data: zoomAttendees } = await supabase...select("*")...order("join_time"))
-      expect(content).not.toMatch(/const\s*\{\s*data:\s*zoomAttendees\s*[,}].*from\("zoom_attendees"\)/s)
+      expect(content).not.toMatch(/const\s*\{\s*data:\s*zoomAttendees\s*[,}][\s\S]*from\("zoom_attendees"\)/)
     })
   })
 
