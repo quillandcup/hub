@@ -1,9 +1,12 @@
 name: CI
 
-# Gates merges to main with the real test suite (against a real local Supabase
-# stack, not mocks -- see CLAUDE.md's note on RLS/SQL functions/bronze-silver-gold)
-# and a production build. On push to main, once (and only once) tests+build pass,
-# also auto-pushes any pending Supabase migrations to production.
+# Gates merges to main with the real test suite, split into two parallel jobs:
+# test-unit (fast, fully-mocked pure-logic/component tests, no infra) and test-db
+# (integration tests against a real local Supabase stack, not mocks -- see CLAUDE.md's
+# note on RLS/SQL functions/bronze-silver-gold -- plus the production build). See
+# vitest.config.ts for how tests are split between the two. On push to main, once
+# (and only once) both jobs pass, also auto-pushes any pending Supabase migrations
+# to production.
 #
 # Why the migration push exists: Vercel auto-deploys code on every push to main,
 # but nobody was reliably running `supabase db push` afterward -- new code has
@@ -42,8 +45,29 @@ env:
   LOCAL_SUPABASE_SERVICE_ROLE_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU
 
 jobs:
-  test:
-    name: Test & build
+  test-unit:
+    name: Test (unit)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: ".nvmrc"
+          cache: npm
+
+      - run: npm ci
+
+      # This bucket is pure-logic/component tests -- every dependency is mocked
+      # (vi.mock / vi.fn / stubbed global.fetch) or the test is pure functions in,
+      # assertions out. No Supabase, no app server, no Docker: see vitest.config.ts's
+      # "unit" project for exactly which files land here and why.
+      - name: Run unit test suite
+        run: npm run test:unit
+
+  test-db:
+    name: Test (db) & build
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -129,8 +153,8 @@ jobs:
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ env.LOCAL_SUPABASE_ANON_KEY }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ env.LOCAL_SUPABASE_SERVICE_ROLE_KEY }}
 
-      - name: Run test suite
-        run: npm run test:run
+      - name: Run db test suite
+        run: npm run test:db
 
       - name: Stop app server
         if: always()
@@ -142,9 +166,10 @@ jobs:
 
   push-migrations:
     name: Push migrations to production
-    needs: test
-    # needs.test succeeding already gates this on tests+build passing; the
-    # event/ref check keeps it off pull_request runs.
+    needs: [test-unit, test-db]
+    # needs: [test-unit, test-db] succeeding already gates this on both test
+    # buckets (and the build, which test-db also runs) passing; the event/ref
+    # check keeps it off pull_request runs.
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 10
