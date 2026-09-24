@@ -34,7 +34,7 @@ permissions:
 jobs:
   checkly-test:
     if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
       - uses: checkly/checkly-action@v1
@@ -47,7 +47,7 @@ jobs:
 
   checkly-deploy:
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
       - run: npm ci

@@ -47,7 +47,7 @@ env:
 jobs:
   test-unit:
     name: Test (unit)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v5
@@ -76,7 +76,7 @@ jobs:
 
   test-db:
     name: Test (db) & build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v5
@@ -215,7 +215,7 @@ jobs:
     # buckets (and the build, which test-db also runs) passing; the event/ref
     # check keeps it off pull_request runs.
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v5
@@ -240,7 +240,7 @@ jobs:
   deploy:
     name: Trigger production deploy
     needs: push-migrations
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - name: Call Vercel deploy hook
