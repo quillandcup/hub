@@ -103,20 +103,52 @@ jobs:
       # ran, for a reason that was never identified. Step-level env has the
       # highest precedence in Actions, so it wins regardless of where that
       # override was coming from.
+      #
+      # Backgrounded (nohup + disown) so the next step (Production build) can
+      # run immediately instead of waiting on this ~80s+ startup -- the build
+      # doesn't touch Supabase at all (this app has no generateStaticParams /
+      # force-static pages that fetch at build time; everything is
+      # dynamically rendered behind auth), so the two are independent and can
+      # overlap. GitHub Actions runs each step as a fresh shell on the same
+      # VM, and a backgrounded+disowned process from one step keeps running
+      # into later steps. The "Wait for local Supabase" step (after the
+      # build) blocks until this is actually ready before anything that
+      # needs it (app server, tests) proceeds.
       - name: Start local Supabase
         env:
           SUPABASE_INTERNAL_IMAGE_REGISTRY: docker.io
-        run: supabase start -x imgproxy -x edge-runtime -x studio -x logflare -x vector
+        run: |
+          nohup supabase start -x imgproxy -x edge-runtime -x studio -x logflare -x vector > /tmp/supabase-start.log 2>&1 &
+          disown
 
       # Also serves as the production build check that used to be a separate
       # post-test step -- building once here (and starting the app from it,
-      # below) covers both.
+      # below) covers both. Runs concurrently with "Start local Supabase"
+      # above -- the build only needs the Supabase URL/key env vars present
+      # (baked in / read at runtime), not a live database.
       - name: Production build
         run: npm run build
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ env.LOCAL_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ env.LOCAL_SUPABASE_ANON_KEY }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ env.LOCAL_SUPABASE_SERVICE_ROLE_KEY }}
+
+      # Blocks until the backgrounded "Start local Supabase" step above has
+      # actually finished starting up, so the app server / test suite never
+      # run against a Supabase that isn't ready yet. Also surfaces the
+      # backgrounded step's log on failure instead of silently swallowing it.
+      - name: Wait for local Supabase
+        run: |
+          for i in $(seq 1 180); do
+            if supabase status >/dev/null 2>&1; then
+              echo "Supabase is up"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Supabase did not become ready in time"
+          cat /tmp/supabase-start.log
+          exit 1
 
       # A large share of tests/api/** are integration tests that hit the real
       # HTTP API via fetch(TEST_API_BASE_URL, default http://localhost:3000)
