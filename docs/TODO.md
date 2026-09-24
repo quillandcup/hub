@@ -237,6 +237,26 @@ Auth emails now send via Resend SMTP (see `docs/INVITING_USERS.md`). Plan the se
 - [ ] Reply handling: if replies to system emails ever matter, either use the Supabase Send Email hook (real `Reply-To`) or set up subdomain inbound routing after the Cloudflare move (Cloudflare Email Routing). Note `hub` is a CNAME to Vercel, and a CNAME can't coexist with an MX record on the same name, so inbound mail for a subdomain that's also a web host needs a different name.
 - [ ] Log auth/notification emails to `member_activities` (CRM Phase 1) — see the CRM & Outreach Automation Roadmap. The Send Email hook would capture every auth email with its exact type; Resend webhooks alone give delivery/bounce/complaint status only.
 
+### Upgrade to Next.js 16
+**Status:** Not started — planned, dependabot already has PRs open
+
+Follows on from the CI/production Turbopack migration (`--turbopack` flag adopted for both CI and the real `package.json` build script) — Next 16 makes Turbopack the default for `next dev`/`next build` instead of an opt-in flag, so this is the natural next step once that work has baked.
+
+**Current state:** Next 15.5.26, React 19 (already satisfies 16's preference for React 19 — no React 18 deprecation warning to deal with), Node 24 via `.nvmrc` (well above 16's `>=20.9.0` floor), flat ESLint config already in `eslint.config.mjs` (16 migrates `next lint` to the ESLint CLI directly — less to change here than a project still on `.eslintrc.json`).
+
+**Already in flight:** Dependabot has two relevant open PRs — #13 (`next` 15.5.26 → 16.3.5) and #9 (`eslint-config-next` 15.5.14 → 16.3.5). Rebase one of those rather than starting a fresh upgrade branch from scratch.
+
+**Known breaking changes to handle** (per Next's own v16 upgrade guide — re-check it at upgrade time in case it's changed):
+- [ ] Run the official upgrade codemod first: `npx @next/codemod@canary upgrade latest` — updates `next.config.ts` to the new top-level `turbopack` key, migrates `next lint` → the ESLint CLI, renames the deprecated `middleware` convention to `proxy`, drops stabilized `unstable_` prefixes, removes `experimental_ppr` route config.
+- [ ] `middleware.ts` (repo root, ~20 lines) needs to become `proxy.ts` — the codemod should handle the rename, but read the diff carefully since this is what gates auth.
+- [ ] Separately run `npx @next/codemod@canary next-async-request-api .` — the `upgrade` codemod does **not** run this one automatically. 47 files under `app/` reference `params`; Next 16 fully removes the Next-15-era synchronous compatibility shim for `params`/`searchParams`/`cookies()`/`headers()`/`draftMode()` (they were async-only in principle since 15, but sync access still silently worked) — anything still accessing these synchronously will now break outright, not just warn.
+- [ ] Check `next.config.ts` for `experimental.dynamicIO` post-codemod — it's renamed to `cacheComponents` and the old name is a hard config validation error, not just deprecated. Not currently used, but re-verify after the codemod runs.
+- [ ] Re-verify Sentry's Turbopack support still holds at whatever `@sentry/nextjs` version is current then — already confirmed no incompatible options (`excludeServerRoutes` etc.) as of 10.75.2, but a major Next bump plus a likely Sentry SDK bump warrants a fresh check via docs, not an assumption nothing changed.
+- [ ] Re-run the bundle-size comparison done for the CI/prod Turbopack migration (especially `/projects/[id]`, which had the largest First Load JS jump there) — Next 16 may shift Turbopack's chunking behavior again.
+- [ ] Full local + CI + a real Vercel preview-deployment validation, same pattern as the CI/prod Turbopack migration — the preview deploy is the only environment that actually matches production, don't skip it.
+
+**Why "soon" and not immediately:** this is a major-version bump with a real breaking-change surface (synchronous `params`/`cookies`/`headers` access across the whole `app/` tree), not a compiler-flag flip — it deserves its own dedicated pass rather than riding along with the Turbopack build-tool work that prompted it.
+
 ---
 
 ## Security & Access Control
