@@ -98,23 +98,27 @@ as the last step of `.github/workflows/ci.yml`, after tests pass and migrations 
 
 ## Sentry
 
-**Org:** https://quill-cup.sentry.io (region: EU/Frankfurt -- data residency for GDPR, see project history)
+**Org:** https://quillandcup.sentry.io (region: EU/Frankfurt -- data residency for GDPR, see project history)
 
 | Page | URL |
 |------|-----|
-| Issues | https://quill-cup.sentry.io/issues/?project=&statsPeriod=24h |
-| Performance/Traces | https://quill-cup.sentry.io/insights/frontend/ |
-| Session Replay | https://quill-cup.sentry.io/replays/ |
-| Org Settings (slug, general) | https://quill-cup.sentry.io/settings/quill-cup/ |
-| Auth Tokens (org-level, for CI) | https://quill-cup.sentry.io/settings/quill-cup/auth-tokens/ |
-| Project Settings (hub) | https://quill-cup.sentry.io/settings/quill-cup/projects/hub/ |
+| Issues | https://quillandcup.sentry.io/issues/?project=&statsPeriod=24h |
+| Performance/Traces | https://quillandcup.sentry.io/insights/frontend/ |
+| Session Replay | https://quillandcup.sentry.io/replays/ |
+| Org Settings (slug, general) | https://quillandcup.sentry.io/settings/organization/ |
+| Auth Tokens (org-level, for CI) | https://quillandcup.sentry.io/settings/auth-tokens/ |
+| Project Settings (hub) | https://quillandcup.sentry.io/settings/quillandcup/projects/hub/ |
 
-Org slug shows as `quill-cup` (an attempted rename to `quillandcup` didn't take -- see
-project history for why). Org ID `4512131993501696` and project ID `4512132010672208`
-are what's actually baked into the DSN, unaffected by any slug renaming.
+Org slug is `quillandcup` (confirmed 2026-09-25 -- an earlier note here claimed a rename
+attempt to this slug "didn't take" and that `quill-cup` was canonical; that was wrong/stale,
+the rename did take). `next.config.ts`'s `withSentryConfig({ org: "quillandcup", ... })`
+already matches this. Org ID `4512131993501696` and project ID `4512132010672208` are what's
+actually baked into the DSN, unaffected by any slug renaming either way.
 
 DSN env vars: `SENTRY_DSN` / `NEXT_PUBLIC_SENTRY_DSN` (all environments), `SENTRY_AUTH_TOKEN`
-(production-only, source-map upload).
+(production-only, source-map upload -- org-level tokens only offer one scope preset, `org:ci`,
+which bundles Source Map Upload + Release Creation + Code Mappings; nothing to individually
+select).
 
 ---
 
