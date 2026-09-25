@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
@@ -20,7 +21,8 @@ export const metadata: Metadata = {
 };
 
 const ORG_TIMEZONE = "America/New_York";
-const UPCOMING_WINDOW_DAYS = 30;
+const UPCOMING_WINDOW_DAYS = 14;
+const MAX_UPCOMING_DISPLAY = 8;
 const MEMBERS_BATCH_SIZE = 1000;
 
 const TAB_IDS = ["upcoming", "history", "find", "hosting"] as const;
@@ -75,6 +77,11 @@ export default async function MyPricklesPage({
   const currentMonthLocked = isMonthLocked(getMonthStart(now), overrides, now);
   const nextMonthLocked = isMonthLocked(getNextMonthStart(now), overrides, now);
 
+  // Same ranking as Dashboard (hosting/streak/sister-attendance signals
+  // first), capped the same way -- this tab is a dedicated home for it, not
+  // a raw feed of every prickle happening org-wide in the window.
+  const displayedUpcoming = ranked.slice(0, MAX_UPCOMING_DISPLAY);
+
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
       <header className="border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
@@ -92,17 +99,31 @@ export default async function MyPricklesPage({
           upcomingContent={
             <div className="max-w-2xl bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 p-6">
               <h2 className="text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-4">
-                Next {UPCOMING_WINDOW_DAYS} Days
+                For You — Next {UPCOMING_WINDOW_DAYS} Days
               </h2>
-              {ranked.length === 0 ? (
+              {displayedUpcoming.length === 0 ? (
                 <p className="text-sm text-slate-500 dark:text-slate-400">
                   No prickles scheduled in the next {UPCOMING_WINDOW_DAYS} days.
                 </p>
               ) : (
                 <div>
-                  {ranked.map(({ prickle, reasons }) => (
+                  {displayedUpcoming.map(({ prickle, reasons }) => (
                     <UpcomingPrickleRow key={prickle.id} prickle={prickle} reasons={reasons} timeZone={timeZone} />
                   ))}
+                  {ranked.length > displayedUpcoming.length && (
+                    <p className="text-xs text-slate-400 mt-3">
+                      Showing the top {displayedUpcoming.length} of {ranked.length}.
+                      {canFindPrickle && (
+                        <>
+                          {" "}
+                          Looking for something specific?{" "}
+                          <Link href="/my-prickles?tab=find" className="text-blue-600 dark:text-blue-400 hover:underline">
+                            Find a Prickle →
+                          </Link>
+                        </>
+                      )}
+                    </p>
+                  )}
                 </div>
               )}
             </div>
