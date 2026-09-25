@@ -10,7 +10,12 @@ function AttendanceHint({ row }: { row: PrickleScheduleRow }) {
   if (row.sessionCount === 0) {
     return <span className="text-slate-400 dark:text-slate-500">New</span>;
   }
-  return <span className="text-slate-500 dark:text-slate-400">~{Math.round(row.avgAttendance ?? 0)} usually</span>;
+  const n = Math.round(row.avgAttendance ?? 0);
+  return (
+    <span className="text-slate-500 dark:text-slate-400">
+      ~{n} {n === 1 ? "Hedgie" : "Hedgies"}
+    </span>
+  );
 }
 
 export default function AllPricklesTable({ rows }: { rows: PrickleScheduleRow[] }) {
@@ -34,31 +39,23 @@ export default function AllPricklesTable({ rows }: { rows: PrickleScheduleRow[] 
   }, [rows, typeFilter]);
 
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 p-6">
-      <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-        <div>
-          <h2 className="text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide">
-            All Prickles
-          </h2>
-          <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">
-            The full recurring weekly schedule — also known as Prickle Times. Times shown in your timezone.
-          </p>
-        </div>
-        {types.length > 1 && (
+    <div>
+      {types.length > 1 && (
+        <div className="flex justify-end mb-3">
           <select
             value={typeFilter}
             onChange={(e) => setTypeFilter(e.target.value)}
             className="px-3 py-1.5 text-sm border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
           >
-            <option value="all">All kinds</option>
+            <option value="all">All Prickles</option>
             {types.map(([id, name]) => (
               <option key={id} value={id}>
                 {name}
               </option>
             ))}
           </select>
-        )}
-      </div>
+        </div>
+      )}
 
       {filteredByDay.length === 0 ? (
         <p className="text-sm text-slate-500 dark:text-slate-400">No prickles match that filter.</p>

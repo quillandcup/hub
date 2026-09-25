@@ -47,6 +47,11 @@ interface CalendarWeekViewProps {
   // navigate the user away and lose their in-progress input.
   onSlotClick?: (slot: SlotClick) => void;
   selectedSlot?: SlotClick | null;
+  // False for calendars of prickles that haven't happened yet (e.g. the
+  // upcoming-schedule view), where an attendance count would be misleading
+  // rather than merely absent. Hides the tooltip's attendance/host-flag
+  // lines; the on-block badge is already member-mode-only.
+  showAttendanceDetails?: boolean;
 }
 
 // Common timezones for the dropdown
@@ -123,6 +128,7 @@ export default function CalendarWeekView({
   proposedSlots,
   onSlotClick,
   selectedSlot,
+  showAttendanceDetails = true,
 }: CalendarWeekViewProps) {
   // Reconstruct Date from components to avoid timezone serialization issues
   // Using date components (not timestamps) ensures consistent day-of-week on server and client
@@ -412,9 +418,13 @@ export default function CalendarWeekView({
                               >
                                 <div className="font-semibold mb-1">{prickle.prickle_type}</div>
                                 <div>Host: {prickle.host || "none"}</div>
-                                <div>Attendance: {prickle.attendance_count}</div>
-                                {prickle.host_missing && <div className="text-yellow-400 dark:text-orange-600 mt-1">⚠️ Host did not attend</div>}
-                                {prickle.host_late && <div className="text-yellow-400 dark:text-orange-600 mt-1">⚠️ Host was late (&gt;5 min)</div>}
+                                {showAttendanceDetails && (
+                                  <>
+                                    <div>Attendance: {prickle.attendance_count}</div>
+                                    {prickle.host_missing && <div className="text-yellow-400 dark:text-orange-600 mt-1">⚠️ Host did not attend</div>}
+                                    {prickle.host_late && <div className="text-yellow-400 dark:text-orange-600 mt-1">⚠️ Host was late (&gt;5 min)</div>}
+                                  </>
+                                )}
                               </div>
                             )}
                           </div>

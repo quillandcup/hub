@@ -4,10 +4,11 @@ import { getMemberDisplayName } from "@/lib/member-display-name"
 
 // The full recurring weekly schedule ("All Prickles" / "Prickle Times") --
 // one row per (type, day-of-week, hour) slot that still has an upcoming
-// occurrence, with the next instance's host and historical attendance for
-// that slot. Distinct from lib/upcoming-prickles.ts, which ranks individual
-// upcoming instances by personal relevance rather than describing the
-// recurring pattern itself.
+// occurrence, with a representative host and historical attendance for that
+// slot, plus the raw upcoming instances themselves for a calendar view.
+// Distinct from lib/upcoming-prickles.ts, which ranks individual upcoming
+// instances by personal relevance rather than describing the recurring
+// pattern itself.
 
 const BATCH_SIZE = 1000
 
@@ -38,12 +39,15 @@ function unwrapOne<T>(ref: T | T[] | null | undefined): T | null {
   return ref ?? null
 }
 
+type Host = { id: string; name: string; display_name: string | null }
+
 type RawPrickleRow = {
   id: string
   type_id: string | null
   start_time: string
+  end_time: string
   prickle_types: { name: string } | { name: string }[] | null
-  host: { id: string; name: string; display_name: string | null } | { id: string; name: string; display_name: string | null }[] | null
+  host: Host | Host[] | null
 }
 
 export interface PrickleScheduleRow {
@@ -59,6 +63,21 @@ export interface PrickleScheduleRow {
   hostName: string | null
   sessionCount: number
   avgAttendance: number | null
+}
+
+export interface PrickleInstance {
+  id: string
+  typeId: string | null
+  typeName: string
+  hostId: string | null
+  hostName: string | null
+  startTime: string
+  endTime: string
+}
+
+export interface PrickleScheduleOverview {
+  rows: PrickleScheduleRow[]
+  upcomingInstances: PrickleInstance[]
 }
 
 function seriesKeyFor(typeId: string | null, scheduleSortKey: string): string {
@@ -102,8 +121,33 @@ function getSlotInfo(iso: string, timeZone: string): { sortKey: string; dayOfWee
 }
 
 /**
- * Every recurring weekly slot with at least one occurrence still ahead,
- * ordered by day-of-week then time in the viewer's own timezone.
+ * The host most likely to actually be running this slot: whoever hosted it
+ * most often across its recent historical occurrences, not just whoever
+ * happens to be attached to the single next calendar instance. A specific
+ * occurrence's host can be null (unmatched from the calendar import, see the
+ * admin data-health "missing hosts" tool) or a one-off substitute even when
+ * one person hosts the slot nearly every week, so picking "next occurrence's
+ * host" alone under-reports well-established recurring hosts.
+ */
+function pickRepresentativeHost(next: RawPrickleRow, historical: RawPrickleRow[]): Host | null {
+  const counts = new Map<string, { count: number; host: Host }>()
+  for (const p of historical) {
+    const host = unwrapOne(p.host)
+    if (!host) continue
+    const entry = counts.get(host.id) ?? { count: 0, host }
+    entry.count += 1
+    counts.set(host.id, entry)
+  }
+  if (counts.size > 0) {
+    return [...counts.values()].sort((a, b) => b.count - a.count)[0].host
+  }
+  return unwrapOne(next.host)
+}
+
+/**
+ * Every recurring weekly slot with at least one occurrence still ahead
+ * (ordered by day-of-week then time in the viewer's own timezone), plus the
+ * raw upcoming instances for a calendar view.
  */
 export async function getPrickleScheduleOverview(
   supabase: SupabaseClient,
@@ -111,7 +155,7 @@ export async function getPrickleScheduleOverview(
   timeZone: string,
   lookbackDays: number,
   upcomingWindowDays: number
-): Promise<PrickleScheduleRow[]> {
+): Promise<PrickleScheduleOverview> {
   const windowStart = new Date(now.getTime() - lookbackDays * 24 * 60 * 60 * 1000).toISOString()
   const windowEnd = new Date(now.getTime() + upcomingWindowDays * 24 * 60 * 60 * 1000).toISOString()
   const nowIso = now.toISOString()
@@ -119,7 +163,7 @@ export async function getPrickleScheduleOverview(
   const raw = await fetchAllPaginated<RawPrickleRow>((offset) =>
     supabase
       .from("prickles")
-      .select("id, type_id, start_time, prickle_types(name), host:members(id, name, display_name)")
+      .select("id, type_id, start_time, end_time, prickle_types(name), host:members(id, name, display_name)")
       .gte("start_time", windowStart)
       .lte("start_time", windowEnd)
       .order("start_time")
@@ -162,10 +206,10 @@ export async function getPrickleScheduleOverview(
       p.start_time < earliest.start_time ? p : earliest
     )
     const type = unwrapOne(next.prickle_types)
-    const host = unwrapOne(next.host)
     const slot = getSlotInfo(next.start_time, timeZone)
 
     const historical = historicalBySlot.get(key) ?? []
+    const host = pickRepresentativeHost(next, historical)
     const counts = historical.map((p) => attendanceMap.get(p.id)?.size ?? 0)
     const avgAttendance = counts.length > 0 ? counts.reduce((s, c) => s + c, 0) / counts.length : null
 
@@ -186,5 +230,20 @@ export async function getPrickleScheduleOverview(
   }
 
   rows.sort((a, b) => a.sortKey.localeCompare(b.sortKey))
-  return rows
+
+  const upcomingInstances: PrickleInstance[] = [...upcomingBySlot.values()].flat().map((p) => {
+    const type = unwrapOne(p.prickle_types)
+    const host = unwrapOne(p.host)
+    return {
+      id: p.id,
+      typeId: p.type_id,
+      typeName: type?.name ?? "Prickle",
+      hostId: host?.id ?? null,
+      hostName: host ? getMemberDisplayName(host) : null,
+      startTime: p.start_time,
+      endTime: p.end_time,
+    }
+  })
+
+  return { rows, upcomingInstances }
 }

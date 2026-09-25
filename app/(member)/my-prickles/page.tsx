@@ -15,7 +15,7 @@ import UpcomingPrickleRow from "@/components/UpcomingPrickleRow";
 import PrickleWizard from "@/app/(member)/prickle-picker/PrickleWizard";
 import HostingStats from "@/app/(member)/hosting/HostingStats";
 import HostingScheduleManager from "@/app/(member)/hosting/HostingScheduleManager";
-import AllPricklesTable from "./AllPricklesTable";
+import AllPricklesView from "./AllPricklesView";
 import { MyPricklesTabs } from "./MyPricklesTabs";
 
 export const metadata: Metadata = {
@@ -107,6 +107,7 @@ export default async function MyPricklesPage({
 
       <main className="container mx-auto px-6 py-8">
         <MyPricklesTabs
+          key={initialTab}
           initialTab={initialTab}
           upcomingContent={
             <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 p-6">
@@ -146,7 +147,14 @@ export default async function MyPricklesPage({
               )}
             </div>
           }
-          allPricklesContent={<AllPricklesTable rows={scheduleOverview} />}
+          allPricklesContent={
+            <AllPricklesView
+              rows={scheduleOverview.rows}
+              instances={scheduleOverview.upcomingInstances}
+              timeZone={timeZone}
+              upcomingWindowDays={UPCOMING_WINDOW_DAYS}
+            />
+          }
           historyContent={
             <MemberCalendarClient
               memberId={memberId}
