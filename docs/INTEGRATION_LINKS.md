@@ -2,6 +2,10 @@
 
 Quick reference for managing all external service integrations. These dashboards are hard to find — bookmark this file.
 
+Rotating a credential (or all of them, after an exposure)? See `docs/SECRET_ROTATION.md` for
+the step-by-step per-service runbook — this file has the dashboard links, that one has the
+"how to actually rotate it without breaking something" steps.
+
 ## Zoom
 
 **App:** https://marketplace.zoom.us/develop/apps/gcFgx-76S8aaL4AiYqaHng/credentials
