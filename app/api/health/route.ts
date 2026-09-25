@@ -35,8 +35,20 @@ function timeHandshake(host: string, address: string, timings: Record<string, nu
 export async function GET(request: NextRequest) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+  // Supabase reports its own processing time (gateway + PostgREST + Postgres)
+  // in this header; capturing it separates time spent inside Supabase from
+  // time spent getting there and back.
+  let upstreamMs: number | undefined;
   const supabase = createServiceClient(url, key, {
     auth: { autoRefreshToken: false, persistSession: false },
+    global: {
+      fetch: async (...args: Parameters<typeof fetch>) => {
+        const res = await fetch(...args);
+        const upstream = res.headers.get("x-envoy-upstream-service-time");
+        upstreamMs = upstream ? Number(upstream) : undefined;
+        return res;
+      },
+    },
   });
   const coldStart = servedCount++ === 0;
   // ?timing=1 breaks connection setup (DNS, TCP, TLS) out from query time,
@@ -76,6 +88,7 @@ export async function GET(request: NextRequest) {
 
     const { error } = await time("db", () => supabase.from("members").select("id").limit(1));
     if (error) throw error;
+    if (upstreamMs !== undefined) timings.db_upstream = upstreamMs;
 
     if (detailed) {
       const res = await time("db_warm", () =>
@@ -85,7 +98,8 @@ export async function GET(request: NextRequest) {
       );
       await res.arrayBuffer();
       diagnostics.pop = res.headers.get("cf-ray")?.split("-").pop();
-      diagnostics.upstreamMs = res.headers.get("x-envoy-upstream-service-time");
+      const warmUpstream = res.headers.get("x-envoy-upstream-service-time");
+      if (warmUpstream) timings.db_warm_upstream = Number(warmUpstream);
     }
 
     return NextResponse.json(
