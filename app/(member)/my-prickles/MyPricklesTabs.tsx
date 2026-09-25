@@ -27,7 +27,7 @@ export function MyPricklesTabs({
   ];
 
   return (
-    <div>
+    <div className="max-w-3xl mx-auto">
       <div className="border-b border-slate-200 dark:border-slate-800 mb-6">
         <nav className="flex gap-1 -mb-px overflow-x-auto">
           {tabs.map((tab) => (

@@ -97,7 +97,7 @@ export default async function MyPricklesPage({
         <MyPricklesTabs
           initialTab={initialTab}
           upcomingContent={
-            <div className="max-w-2xl bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 p-6">
+            <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 p-6">
               <h2 className="text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-4">
                 For You — Next {UPCOMING_WINDOW_DAYS} Days
               </h2>
@@ -145,7 +145,7 @@ export default async function MyPricklesPage({
             ) : null
           }
           hostingContent={
-            <div className="max-w-3xl">
+            <div>
               <HostingStats stats={hostingStats} />
               <HostingScheduleManager
                 initialSchedules={schedules}
