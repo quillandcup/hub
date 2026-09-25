@@ -2,12 +2,25 @@
 
 **Status: RESOLVED — Option B is implemented and live.** `vercel.json`'s
 `git.deploymentEnabled.main: false` disables Vercel's git-triggered deploy;
-`.github/workflows/ci.yml`'s `deploy` job calls a Vercel Deploy Hook as its
-last step, after `push-migrations` succeeds. Verified end-to-end with a real
-push landing the deploy hook and confirmed Vercel deployment. The rest of
-this doc is kept as the historical record of the tradeoffs that were
-weighed before making that call — read it for the "why," not the "what do
-we do."
+`.github/workflows/ci.yml`'s `deploy` job triggers the production deployment
+as its last step, after `push-migrations` succeeds. The rest of this doc is
+kept as the historical record of the tradeoffs that were weighed before
+making that call — read it for the "why," not the "what do we do."
+
+**Update (2026-09-24): the trigger mechanism changed, the ordering decision
+did not.** The `deploy` job no longer calls a Vercel Deploy Hook (`curl -X
+POST` against a webhook URL, shown in step 3 below) — that pattern triggers
+an independent *remote* build on whatever Vercel considers `main`'s HEAD at
+that moment, disconnected from the exact commit CI just tested, and the curl
+reports success the instant Vercel *accepts* the webhook, not when the build
+actually succeeds. It's now replaced with `vercel pull` → `vercel build
+--prod` → `vercel deploy --prebuilt --prod`, which builds and deploys the
+exact commit that passed `test-unit`/`test-db`/`push-migrations`, using a
+real Vercel CLI token (`VERCEL_TOKEN`/`VERCEL_ORG_ID`/`VERCEL_PROJECT_ID`
+secrets, replacing `VERCEL_DEPLOY_HOOK_URL`), and fails the job for real if
+the build or deploy fails. Everything else below — Option B's ordering
+guarantee, `git.deploymentEnabled.main: false`, PR previews being
+unaffected — is still accurate.
 
 ## The problem
 

@@ -147,7 +147,7 @@ worth checking the Billing page above once the trial period ends.
 | Secrets & Variables | https://github.com/quillandcup/hub/settings/secrets/actions |
 
 Secrets: `CHECKLY_API_KEY`, `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD`,
-`VERCEL_DEPLOY_HOOK_URL`. Variables: `CHECKLY_ACCOUNT_ID`, `SUPABASE_PROJECT_ID`.
+`VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`. Variables: `CHECKLY_ACCOUNT_ID`, `SUPABASE_PROJECT_ID`.
 Secrets/variables synced from `.env.prod` via `scripts/sync-to-github.sh`.
 
 ---

@@ -22,7 +22,9 @@ SYNCED_SECRETS="
     CHECKLY_API_KEY
     SUPABASE_ACCESS_TOKEN
     SUPABASE_DB_PASSWORD
-    VERCEL_DEPLOY_HOOK_URL
+    VERCEL_TOKEN
+    VERCEL_ORG_ID
+    VERCEL_PROJECT_ID
 "
 
 # Non-sensitive values -- pushed as plain variables (visible via `gh variable list`).

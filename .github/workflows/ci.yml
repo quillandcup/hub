@@ -8,17 +8,21 @@ name: CI
 # (and only once) both jobs pass, also auto-pushes any pending Supabase migrations
 # to production.
 #
-# Why the migration push exists: Vercel auto-deploys code on every push to main,
-# but nobody was reliably running `supabase db push` afterward -- new code has
-# 500'd in prod waiting on a table/column that was never migrated in. This job
-# makes that step automatic instead of memory-dependent.
+# Why the migration push exists: nobody was reliably running `supabase db push`
+# after a merge -- new code has 500'd in prod waiting on a table/column that
+# was never migrated in. This job makes that step automatic instead of
+# memory-dependent.
 #
 # Ordering (see docs/CI_MIGRATION_ORDERING.md for the full Option A/B writeup):
 # Vercel's git-triggered auto-deploy for `main` is disabled in vercel.json
 # (git.deploymentEnabled.main: false). Production deploys now only happen via
-# the deploy-hook trigger below, which fires after migrations succeed -- so
-# code that needs a new table/column can never go live before that table/
-# column exists.
+# the deploy job below, which builds and deploys the commit that just passed
+# tests + migrations -- via `vercel pull` / `vercel build --prod` / `vercel
+# deploy --prebuilt --prod`, not a remote build triggered by a deploy hook --
+# so code that needs a new table/column can never go live before that table/
+# column exists, and a failed build/deploy fails the workflow instead of
+# reporting green. PR/branch preview deploys are unaffected -- they still go
+# through Vercel's git integration as before.
 on:
   pull_request:
   push:
@@ -36,6 +40,9 @@ env:
   # Pinned (not "latest") so the local stack's container image set -- and this
   # cache key, if caching is revisited -- is reproducible across runs.
   SUPABASE_CLI_VERSION: 2.117.0
+  # Pinned so `vercel build`/`vercel deploy` behavior in the deploy job below
+  # doesn't shift out from under CI on an unannounced CLI release.
+  VERCEL_CLI_VERSION: 60.0.0
   # Supabase CLI's well-known local demo keys (see tests/setup.ts) -- fixed,
   # public, and the same for every `supabase start` on every machine. Not
   # secrets. Only valid against the ephemeral local stack this job starts;
@@ -238,12 +245,67 @@ jobs:
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
 
   deploy:
-    name: Trigger production deploy
+    name: Build and deploy to production
     needs: push-migrations
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    timeout-minutes: 15
     steps:
-      - name: Call Vercel deploy hook
-        run: curl -fsS -X POST "$VERCEL_DEPLOY_HOOK_URL"
+      - uses: actions/checkout@v5
+
+      # `cache: npm` here caches npm's download cache (~/.npm) keyed on
+      # package-lock.json -- `vercel build` below runs its own `npm install`
+      # internally (not `npm ci`, and there's no way to skip that install
+      # step), so this is what actually speeds it up. No explicit `npm ci`
+      # step needed in this job.
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: ".nvmrc"
+          cache: npm
+
+      - run: npm install -g "vercel@$VERCEL_CLI_VERSION"
+
+      # `vercel build` populates/reads the same .next/cache that `next build`
+      # does (see Next.js's CI build caching docs), so this is what makes a
+      # --prebuilt deploy fast instead of a cold build every push -- it's the
+      # local equivalent of the remote build cache the deploy-hook path got
+      # for free from Vercel's own infrastructure.
+      - name: Cache Next.js build cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}/.next/cache
+          key: ${{ runner.os }}-nextjs-${{ hashFiles('package-lock.json') }}-${{ hashFiles('**/*.js', '**/*.jsx', '**/*.ts', '**/*.tsx') }}
+          restore-keys: |
+            ${{ runner.os }}-nextjs-${{ hashFiles('package-lock.json') }}-
+
+      # Pulls the linked project's real production env vars/settings (this is
+      # what makes vercel.json's git.deploymentEnabled.main:false safe --
+      # production only ever ships via this explicit, CI-tested path, never
+      # an implicit git-triggered build).
+      #
+      # VERCEL_TOKEN is read from the env automatically -- deliberately not
+      # passed as `--token=`, which would leak it into this runner's process
+      # listing (`ps`, etc.) for the life of the command.
+      - name: Pull Vercel production environment
+        run: vercel pull --yes --environment=production
         env:
-          VERCEL_DEPLOY_HOOK_URL: ${{ secrets.VERCEL_DEPLOY_HOOK_URL }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+      # Builds the exact commit that test-unit/test-db/push-migrations just
+      # passed -- unlike the old deploy-hook trigger, there's no gap where
+      # Vercel might build a different HEAD than the one CI validated.
+      - name: Build project artifacts
+        run: vercel build --prod
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+
+      # Uploads the local build output as-is instead of triggering another
+      # remote build -- and unlike the old curl to the deploy hook, this step
+      # actually fails the job (and the workflow) if the deploy doesn't
+      # succeed, rather than reporting green the instant Vercel accepts the
+      # webhook.
+      - name: Deploy prebuilt artifacts to production
+        run: vercel deploy --prebuilt --prod
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
