@@ -25,7 +25,7 @@ export default async function SettingsPage() {
   // Fetch user profile to get timezone preference
   const { data: profile } = await supabase
     .from("user_profiles")
-    .select("timezone_preference, role")
+    .select("timezone_preference")
     .eq("id", user.id)
     .single();
 
@@ -36,10 +36,7 @@ export default async function SettingsPage() {
 
   const timezonePreference = profile?.timezone_preference || "browser";
 
-  // Feature previews are currently admin-only (see MemberLayout), so mirror
-  // that gating here rather than showing the vibe panel to everyone.
-  const isAdmin = profile?.role === "admin";
-  const enabledFeatures = isAdmin ? await getUserFeaturePreviews(user.id) : [];
+  const enabledFeatures = await getUserFeaturePreviews(user.id);
   const hostedVibes = enabledFeatures.includes("prickle_picker") ? await getHostedVibes() : [];
 
   return (

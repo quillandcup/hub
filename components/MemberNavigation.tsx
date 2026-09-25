@@ -7,12 +7,10 @@ import type { FeatureKey } from "@/lib/features";
 
 interface MemberNavigationProps {
   isAdmin: boolean;
-  memberId: string;
   enabledFeatures: FeatureKey[];
 }
 
 interface NavLinksProps {
-  memberId: string;
   isAdmin: boolean;
   enabledFeatures: FeatureKey[];
   pathname: string;
@@ -20,21 +18,16 @@ interface NavLinksProps {
   onNavigate?: () => void;
 }
 
-function NavLinks({ memberId, isAdmin, enabledFeatures, pathname, collapsed, onNavigate }: NavLinksProps) {
+function NavLinks({ isAdmin, enabledFeatures, pathname, collapsed, onNavigate }: NavLinksProps) {
   const isDashboardActive = pathname === '/dashboard';
-  const isCalendarActive = pathname === '/calendar';
-  const isStreaksActive = pathname === '/streaks';
-  const isPrickerPickerActive = pathname === '/prickle-picker';
-  const isNetworkActive = pathname === '/network';
-  const isWheelActive = pathname === '/wheel-of-wonder';
-  const isHostingActive = pathname === '/hosting';
   const isProjectsActive = pathname === '/projects' || pathname.startsWith('/projects/');
+  const isMyPricklesActive = pathname === '/my-prickles' || ['/calendar', '/prickle-picker', '/hosting'].some((p) => pathname === p || pathname.startsWith(`${p}/`));
+  const isStreaksActive = pathname === '/streaks';
+  const isWheelActive = pathname === '/wheel-of-wonder';
   const isBookshelfActive = pathname === '/bookshelf';
   const isEventsActive = pathname === '/events' || pathname.startsWith('/events/');
-  const isProfileActive = pathname === `/members/${memberId}` || pathname.startsWith(`/members/${memberId}/`);
 
   const showStreaks = enabledFeatures.includes('streaks');
-  const showPricklePicker = enabledFeatures.includes('prickle_picker');
   const showWheel = enabledFeatures.includes('wheel_of_wonder');
   const showEvents = enabledFeatures.includes('events');
 
@@ -65,24 +58,14 @@ function NavLinks({ memberId, isAdmin, enabledFeatures, pathname, collapsed, onN
               <span className="text-lg">🏠</span>
               {!collapsed && <span>Dashboard</span>}
             </Link>
-
-            <Link
-              href="/calendar"
-              onClick={onNavigate}
-              className={linkClass(isCalendarActive)}
-              title={collapsed ? "My Calendar" : undefined}
-            >
-              <span className="text-lg">📅</span>
-              {!collapsed && <span>My Calendar</span>}
-            </Link>
           </div>
         </div>
 
-        {/* Write — your own projects and the tools that support them */}
+        {/* My Burrow — the member's own writing and their relationship to Prickles */}
         <div className="mb-6">
           {!collapsed && (
             <h2 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2 px-3">
-              Write
+              My Burrow
             </h2>
           )}
           <div className="space-y-1">
@@ -90,23 +73,21 @@ function NavLinks({ memberId, isAdmin, enabledFeatures, pathname, collapsed, onN
               href="/projects"
               onClick={onNavigate}
               className={linkClass(isProjectsActive)}
-              title={collapsed ? "Projects" : undefined}
+              title={collapsed ? "My Writing" : undefined}
             >
               <span className="text-lg">📝</span>
-              {!collapsed && <span>Projects</span>}
+              {!collapsed && <span>My Writing</span>}
             </Link>
 
-            {showPricklePicker && (
-              <Link
-                href="/prickle-picker"
-                onClick={onNavigate}
-                className={linkClass(isPrickerPickerActive)}
-                title={collapsed ? "Prickle Picker" : undefined}
-              >
-                <span className="text-lg">🧭</span>
-                {!collapsed && <span>Prickle Picker</span>}
-              </Link>
-            )}
+            <Link
+              href="/my-prickles"
+              onClick={onNavigate}
+              className={linkClass(isMyPricklesActive)}
+              title={collapsed ? "My Prickles" : undefined}
+            >
+              <span className="text-lg">🦔</span>
+              {!collapsed && <span>My Prickles</span>}
+            </Link>
 
             {showStreaks && (
               <Link
@@ -122,7 +103,7 @@ function NavLinks({ memberId, isAdmin, enabledFeatures, pathname, collapsed, onN
           </div>
         </div>
 
-        {/* Community — ordered from you-centered to broad/public */}
+        {/* Community — shared, broader-than-you surfaces */}
         <div className="mb-6">
           {!collapsed && (
             <h2 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2 px-3">
@@ -130,26 +111,6 @@ function NavLinks({ memberId, isAdmin, enabledFeatures, pathname, collapsed, onN
             </h2>
           )}
           <div className="space-y-1">
-            <Link
-              href="/hosting"
-              onClick={onNavigate}
-              className={linkClass(isHostingActive)}
-              title={collapsed ? "Hosting" : undefined}
-            >
-              <span className="text-lg">🎙️</span>
-              {!collapsed && <span>Hosting</span>}
-            </Link>
-
-            <Link
-              href="/network"
-              onClick={onNavigate}
-              className={linkClass(isNetworkActive)}
-              title={collapsed ? "Network" : undefined}
-            >
-              <span className="text-lg">🤝</span>
-              {!collapsed && <span>Network</span>}
-            </Link>
-
             {showWheel && (
               <Link
                 href="/wheel-of-wonder"
@@ -185,26 +146,6 @@ function NavLinks({ memberId, isAdmin, enabledFeatures, pathname, collapsed, onN
             )}
           </div>
         </div>
-
-        {/* Me */}
-        <div className="mb-6">
-          {!collapsed && (
-            <h2 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2 px-3">
-              Me
-            </h2>
-          )}
-          <div className="space-y-1">
-            <Link
-              href={`/members/${memberId}`}
-              onClick={onNavigate}
-              className={linkClass(isProfileActive)}
-              title={collapsed ? "My Profile" : undefined}
-            >
-              <span className="text-lg">👤</span>
-              {!collapsed && <span>My Profile</span>}
-            </Link>
-          </div>
-        </div>
       </nav>
 
       {/* Admin Portal — fixed at bottom, admin-only */}
@@ -225,7 +166,7 @@ function NavLinks({ memberId, isAdmin, enabledFeatures, pathname, collapsed, onN
   );
 }
 
-export default function MemberNavigation({ isAdmin, memberId, enabledFeatures }: MemberNavigationProps) {
+export default function MemberNavigation({ isAdmin, enabledFeatures }: MemberNavigationProps) {
   const [collapsed, setCollapsed] = useState(true);
   const [mobileOpen, setMobileOpen] = useState(false);
   const pathname = usePathname();
@@ -284,7 +225,6 @@ export default function MemberNavigation({ isAdmin, memberId, enabledFeatures }:
         </div>
 
         <NavLinks
-          memberId={memberId}
           isAdmin={isAdmin}
           enabledFeatures={enabledFeatures}
           pathname={pathname}
@@ -316,7 +256,6 @@ export default function MemberNavigation({ isAdmin, memberId, enabledFeatures }:
         </div>
 
         <NavLinks
-          memberId={memberId}
           isAdmin={isAdmin}
           enabledFeatures={enabledFeatures}
           pathname={pathname}

@@ -9,6 +9,7 @@ import type { FeatureKey } from '@/lib/features'
 
 interface UserMenuProps {
   userEmail: string
+  memberId?: string | null
   isAdmin?: boolean
   isSudo?: boolean
   enabledFeatures?: FeatureKey[]
@@ -16,6 +17,7 @@ interface UserMenuProps {
 
 export default function UserMenu({
   userEmail,
+  memberId,
   isAdmin = false,
   isSudo = false,
   enabledFeatures = [],
@@ -64,6 +66,16 @@ export default function UserMenu({
               <p className="text-sm font-medium text-slate-900 dark:text-slate-100">Signed in as</p>
               <p className="text-sm text-slate-500 dark:text-slate-400 truncate">{userEmail}</p>
             </div>
+
+            {memberId && (
+              <Link
+                href={`/members/${memberId}`}
+                className="block px-4 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                onClick={() => setIsOpen(false)}
+              >
+                View My Profile
+              </Link>
+            )}
 
             <Link
               href="/settings"

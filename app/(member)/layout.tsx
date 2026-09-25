@@ -29,9 +29,10 @@ export default async function MemberLayout({
   const isAdmin = profile?.role === 'admin'
   const storedTimezone = profile?.timezone_preference ?? 'browser'
 
-  const enabledFeatures: FeatureKey[] = isAdmin
-    ? await getUserFeaturePreviews(user.id)
-    : []
+  // Resolved for every member, not just admins previewing — a flag can also
+  // be on for someone via a global rollout or a segment (see
+  // lib/features.server.ts), and nav visibility needs to match that.
+  const enabledFeatures: FeatureKey[] = await getUserFeaturePreviews(user.id)
 
   const effectiveIdentity = await getEffectiveIdentity(user)
 
@@ -40,7 +41,7 @@ export default async function MemberLayout({
 
   return (
     <div className="flex h-screen overflow-hidden bg-slate-50 dark:bg-slate-950">
-      <MemberNavigation isAdmin={isAdmin} memberId={effectiveIdentity.memberId} enabledFeatures={enabledFeatures} />
+      <MemberNavigation isAdmin={isAdmin} enabledFeatures={enabledFeatures} />
       <div className="flex flex-col flex-1 min-w-0">
         {effectiveIdentity.isSudo && (
           <SudoBanner
@@ -51,6 +52,7 @@ export default async function MemberLayout({
         <header className="h-16 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex items-center justify-end px-6 flex-shrink-0 relative z-30">
           <UserMenu
             userEmail={effectiveIdentity.memberName}
+            memberId={effectiveIdentity.memberId}
             isAdmin={isAdmin}
             isSudo={effectiveIdentity.isSudo}
             enabledFeatures={enabledFeatures}
