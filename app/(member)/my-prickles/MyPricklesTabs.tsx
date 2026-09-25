@@ -2,17 +2,19 @@
 
 import { useState, type ReactNode } from "react";
 
-type TabId = "upcoming" | "history" | "find" | "hosting";
+type TabId = "upcoming" | "all" | "history" | "find" | "hosting";
 
 export function MyPricklesTabs({
   initialTab,
   upcomingContent,
+  allPricklesContent,
   historyContent,
   findContent,
   hostingContent,
 }: {
   initialTab: TabId;
   upcomingContent: ReactNode;
+  allPricklesContent: ReactNode;
   historyContent: ReactNode;
   findContent: ReactNode | null;
   hostingContent: ReactNode;
@@ -21,8 +23,9 @@ export function MyPricklesTabs({
 
   const tabs: { id: TabId; label: string }[] = [
     { id: "upcoming", label: "Upcoming" },
-    { id: "history", label: "Attendance History" },
+    { id: "all", label: "All Prickles" },
     ...(findContent ? [{ id: "find" as const, label: "Find a Prickle" }] : []),
+    { id: "history", label: "Attendance History" },
     { id: "hosting", label: "Hosting" },
   ];
 
@@ -48,6 +51,7 @@ export function MyPricklesTabs({
       </div>
 
       {activeTab === "upcoming" && upcomingContent}
+      {activeTab === "all" && allPricklesContent}
       {activeTab === "history" && historyContent}
       {activeTab === "find" && findContent}
       {activeTab === "hosting" && hostingContent}

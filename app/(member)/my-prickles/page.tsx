@@ -7,6 +7,7 @@ import { getEffectiveIdentity } from "@/lib/sudo";
 import { getUserTimezonePreference } from "@/lib/timezone";
 import { getUserFeaturePreviews } from "@/lib/features.server";
 import { getRankedUpcomingPrickles } from "@/lib/upcoming-prickles";
+import { getPrickleScheduleOverview } from "@/lib/prickle-schedule";
 import { getMonthStart, getNextMonthStart, isMonthLocked } from "@/lib/prickle-schedules";
 import { getMySchedules, getMyHostingStats } from "@/app/(member)/hosting/actions";
 import MemberCalendarClient from "@/components/MemberCalendarClient";
@@ -14,6 +15,7 @@ import UpcomingPrickleRow from "@/components/UpcomingPrickleRow";
 import PrickleWizard from "@/app/(member)/prickle-picker/PrickleWizard";
 import HostingStats from "@/app/(member)/hosting/HostingStats";
 import HostingScheduleManager from "@/app/(member)/hosting/HostingScheduleManager";
+import AllPricklesTable from "./AllPricklesTable";
 import { MyPricklesTabs } from "./MyPricklesTabs";
 
 export const metadata: Metadata = {
@@ -23,9 +25,10 @@ export const metadata: Metadata = {
 const ORG_TIMEZONE = "America/New_York";
 const UPCOMING_WINDOW_DAYS = 14;
 const MAX_UPCOMING_DISPLAY = 8;
+const SCHEDULE_LOOKBACK_DAYS = 90;
 const MEMBERS_BATCH_SIZE = 1000;
 
-const TAB_IDS = ["upcoming", "history", "find", "hosting"] as const;
+const TAB_IDS = ["upcoming", "all", "history", "find", "hosting"] as const;
 type TabId = (typeof TAB_IDS)[number];
 
 export default async function MyPricklesPage({
@@ -56,22 +59,31 @@ export default async function MyPricklesPage({
   const currentMonth = getMonthStart(now).toISOString().slice(0, 10);
   const nextMonth = getNextMonthStart(now).toISOString().slice(0, 10);
 
-  const [ranked, { data: attendance }, { data: prickleTypes }, schedules, { data: lockRows }, hostingStats, members] =
-    await Promise.all([
-      getRankedUpcomingPrickles(supabase, memberId, timeZone, now, UPCOMING_WINDOW_DAYS),
-      supabase
-        .from("prickle_attendance")
-        .select(
-          `id, join_time, leave_time, prickles(id, host:members(id, name), start_time, end_time, prickle_types(name))`
-        )
-        .eq("member_id", memberId)
-        .order("join_time", { ascending: false }),
-      supabase.from("prickle_types").select("id, name").eq("requires_host", true).order("name"),
-      getMySchedules(),
-      supabase.from("prickle_schedule_locks").select("month, locked").in("month", [currentMonth, nextMonth]),
-      getMyHostingStats(),
-      canFindPrickle ? fetchOtherMembers(supabase, memberId) : Promise.resolve([]),
-    ]);
+  const [
+    ranked,
+    scheduleOverview,
+    { data: attendance },
+    { data: prickleTypes },
+    schedules,
+    { data: lockRows },
+    hostingStats,
+    members,
+  ] = await Promise.all([
+    getRankedUpcomingPrickles(supabase, memberId, timeZone, now, UPCOMING_WINDOW_DAYS),
+    getPrickleScheduleOverview(supabase, now, SCHEDULE_LOOKBACK_DAYS, UPCOMING_WINDOW_DAYS),
+    supabase
+      .from("prickle_attendance")
+      .select(
+        `id, join_time, leave_time, prickles(id, host:members(id, name), start_time, end_time, prickle_types(name))`
+      )
+      .eq("member_id", memberId)
+      .order("join_time", { ascending: false }),
+    supabase.from("prickle_types").select("id, name").eq("requires_host", true).order("name"),
+    getMySchedules(),
+    supabase.from("prickle_schedule_locks").select("month, locked").in("month", [currentMonth, nextMonth]),
+    getMyHostingStats(),
+    canFindPrickle ? fetchOtherMembers(supabase, memberId) : Promise.resolve([]),
+  ]);
 
   const overrides = (lockRows ?? []).map((r) => ({ month: r.month as string, locked: r.locked as boolean }));
   const currentMonthLocked = isMonthLocked(getMonthStart(now), overrides, now);
@@ -103,7 +115,10 @@ export default async function MyPricklesPage({
               </h2>
               {displayedUpcoming.length === 0 ? (
                 <p className="text-sm text-slate-500 dark:text-slate-400">
-                  No prickles scheduled in the next {UPCOMING_WINDOW_DAYS} days.
+                  No prickles scheduled in the next {UPCOMING_WINDOW_DAYS} days.{" "}
+                  <Link href="/my-prickles?tab=all" className="text-blue-600 dark:text-blue-400 hover:underline">
+                    See the full schedule →
+                  </Link>
                 </p>
               ) : (
                 <div>
@@ -112,11 +127,14 @@ export default async function MyPricklesPage({
                   ))}
                   {ranked.length > displayedUpcoming.length && (
                     <p className="text-xs text-slate-400 mt-3">
-                      Showing the top {displayedUpcoming.length} of {ranked.length}.
+                      Showing the top {displayedUpcoming.length} of {ranked.length}. Looking for something specific?{" "}
+                      <Link href="/my-prickles?tab=all" className="text-blue-600 dark:text-blue-400 hover:underline">
+                        See all Prickles →
+                      </Link>
                       {canFindPrickle && (
                         <>
                           {" "}
-                          Looking for something specific?{" "}
+                          or try{" "}
                           <Link href="/my-prickles?tab=find" className="text-blue-600 dark:text-blue-400 hover:underline">
                             Find a Prickle →
                           </Link>
@@ -128,6 +146,7 @@ export default async function MyPricklesPage({
               )}
             </div>
           }
+          allPricklesContent={<AllPricklesTable rows={scheduleOverview} />}
           historyContent={
             <MemberCalendarClient
               memberId={memberId}
