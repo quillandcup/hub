@@ -1,4 +1,4 @@
-#!/usr/bin/env tsx
+#!/usr/bin/env npx tsx
 // Syncs production secret values into Supabase Vault (database-level secrets read by SQL --
 // PL/pgSQL functions, triggers, pg_cron jobs -- via vault.decrypted_secrets), reading which
 // vars go where from env-vars.config.ts at the repo root instead of a hardcoded list -- see

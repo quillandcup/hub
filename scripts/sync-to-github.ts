@@ -1,4 +1,4 @@
-#!/usr/bin/env tsx
+#!/usr/bin/env npx tsx 
 // Syncs GitHub Actions secrets/variables from .env.prod for this repo's CI workflows,
 // reading which vars go where from env-vars.config.ts at the repo root instead of a
 // hardcoded list -- see that file for why. Counterpart to sync-to-vercel.ts, but GitHub
