@@ -132,8 +132,12 @@ jobs:
       - name: Start local Supabase
         env:
           SUPABASE_INTERNAL_IMAGE_REGISTRY: docker.io
+        #
+        # The wrapper records `supabase start`'s exit code to
+        # /tmp/supabase-start.exit when it finishes, so the wait step below can
+        # tell "still starting" apart from "done" and "failed".
         run: |
-          nohup supabase start -x imgproxy -x edge-runtime -x studio -x logflare -x vector > /tmp/supabase-start.log 2>&1 &
+          nohup sh -c 'supabase start -x imgproxy -x edge-runtime -x studio -x logflare -x vector; echo $? > /tmp/supabase-start.exit' > /tmp/supabase-start.log 2>&1 &
           disown
 
       # Also serves as the production build check that used to be a separate
@@ -156,17 +160,41 @@ jobs:
       # actually finished starting up, so the app server / test suite never
       # run against a Supabase that isn't ready yet. Also surfaces the
       # backgrounded step's log on failure instead of silently swallowing it.
+      #
+      # This used to poll `supabase status`, but that returns success as soon
+      # as the containers exist, while `supabase start` is still running. Tests
+      # then began before the API gateway on :54321 was listening, and the
+      # first test file failed with ECONNREFUSED 127.0.0.1:54321. So this
+      # step now waits for `supabase start` itself to exit (via the exit-code
+      # file written by the start step), then also waits until the gateway
+      # answers REST and Auth requests.
       - name: Wait for local Supabase
         run: |
           for i in $(seq 1 180); do
-            if supabase status >/dev/null 2>&1; then
+            [ -f /tmp/supabase-start.exit ] && break
+            sleep 2
+          done
+          if [ ! -f /tmp/supabase-start.exit ]; then
+            echo "supabase start did not finish in time"
+            cat /tmp/supabase-start.log
+            exit 1
+          fi
+          if [ "$(cat /tmp/supabase-start.exit)" != "0" ]; then
+            echo "supabase start failed"
+            cat /tmp/supabase-start.log
+            exit 1
+          fi
+          for i in $(seq 1 60); do
+            if curl -sf -o /dev/null -H "apikey: $LOCAL_SUPABASE_SERVICE_ROLE_KEY" "$LOCAL_SUPABASE_URL/rest/v1/" \
+              && curl -sf -o /dev/null -H "apikey: $LOCAL_SUPABASE_SERVICE_ROLE_KEY" "$LOCAL_SUPABASE_URL/auth/v1/health"; then
               echo "Supabase is up"
               exit 0
             fi
-            sleep 2
+            sleep 1
           done
-          echo "Supabase did not become ready in time"
+          echo "Supabase API gateway did not become reachable in time"
           cat /tmp/supabase-start.log
+          supabase status || true
           exit 1
 
       # A large share of tests/api/** are integration tests that hit the real
