@@ -148,7 +148,7 @@ worth checking the Billing page above once the trial period ends.
 
 Secrets: `CHECKLY_API_KEY`, `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD`,
 `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`. Variables: `CHECKLY_ACCOUNT_ID`, `SUPABASE_PROJECT_ID`.
-Secrets/variables synced from `.env.prod` via `scripts/sync-to-github.sh`.
+Secrets/variables synced from `.env.prod` via `scripts/sync-to-github.ts` (`npm run env:sync:github`) -- see `env-vars.config.ts` at the repo root for the source-of-truth list of which vars go where.
 
 ---
 
