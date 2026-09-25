@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server"
-import { buildAttendanceMap, getScheduleSlot } from "@/lib/scheduled-prickle-stats"
+import { buildAttendanceMap } from "@/lib/scheduled-prickle-stats"
 import { getMemberDisplayName } from "@/lib/member-display-name"
 
 // The full recurring weekly schedule ("All Prickles" / "Prickle Times") --
@@ -53,7 +53,6 @@ export interface PrickleScheduleRow {
   timeLabel: string
   typeId: string | null
   typeName: string
-  scheduleLabel: string
   nextOccurrenceId: string
   nextOccurrenceStart: string
   hostId: string | null
@@ -66,14 +65,50 @@ function seriesKeyFor(typeId: string | null, scheduleSortKey: string): string {
   return `${typeId ?? "notype"}:${scheduleSortKey}`
 }
 
+const DAY_ORDER = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+
+/**
+ * Day/time info for a slot in a given viewer's timezone -- unlike
+ * lib/scheduled-prickle-stats.ts's getScheduleSlot (hardcoded ET, used for
+ * org-canonical admin views), this is parameterized so each viewer sees the
+ * schedule in their own local day/time, matching how the rest of the member
+ * app (Dashboard, streaks) already resolves times per-viewer.
+ */
+function getSlotInfo(iso: string, timeZone: string): { sortKey: string; dayOfWeek: string; timeLabel: string } {
+  const dt = new Date(iso)
+
+  const dayOfWeek = new Intl.DateTimeFormat("en-US", { timeZone, weekday: "long" }).format(dt)
+  const timeLabel = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+    timeZoneName: "short",
+  }).format(dt)
+
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    weekday: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(dt)
+  const dayAbbr = parts.find((p) => p.type === "weekday")?.value ?? "Sun"
+  const hour = parts.find((p) => p.type === "hour")?.value ?? "00"
+  const minute = parts.find((p) => p.type === "minute")?.value ?? "00"
+  const dayNum = DAY_ORDER.indexOf(dayAbbr)
+
+  return { sortKey: `${dayNum}-${hour}:${minute}`, dayOfWeek, timeLabel }
+}
+
 /**
  * Every recurring weekly slot with at least one occurrence still ahead,
- * ordered by day-of-week then time (ET, matching how the org has always
- * scheduled and talked about Prickle Times).
+ * ordered by day-of-week then time in the viewer's own timezone.
  */
 export async function getPrickleScheduleOverview(
   supabase: SupabaseClient,
   now: Date,
+  timeZone: string,
   lookbackDays: number,
   upcomingWindowDays: number
 ): Promise<PrickleScheduleRow[]> {
@@ -96,7 +131,7 @@ export async function getPrickleScheduleOverview(
   const historicalBySlot = new Map<string, RawPrickleRow[]>()
 
   for (const p of raw) {
-    const slot = getScheduleSlot(p.start_time)
+    const slot = getSlotInfo(p.start_time, timeZone)
     const key = seriesKeyFor(p.type_id, slot.sortKey)
     const bucket = p.start_time >= nowIso ? upcomingBySlot : historicalBySlot
     const list = bucket.get(key) ?? []
@@ -128,32 +163,19 @@ export async function getPrickleScheduleOverview(
     )
     const type = unwrapOne(next.prickle_types)
     const host = unwrapOne(next.host)
-    const slot = getScheduleSlot(next.start_time)
+    const slot = getSlotInfo(next.start_time, timeZone)
 
     const historical = historicalBySlot.get(key) ?? []
     const counts = historical.map((p) => attendanceMap.get(p.id)?.size ?? 0)
     const avgAttendance = counts.length > 0 ? counts.reduce((s, c) => s + c, 0) / counts.length : null
 
-    const nextDate = new Date(next.start_time)
-    const dayOfWeek = new Intl.DateTimeFormat("en-US", {
-      timeZone: "America/New_York",
-      weekday: "long",
-    }).format(nextDate)
-    const timeLabel = `${new Intl.DateTimeFormat("en-US", {
-      timeZone: "America/New_York",
-      hour: "numeric",
-      minute: "2-digit",
-      hour12: true,
-    }).format(nextDate)} ET`
-
     rows.push({
       seriesKey: key,
       sortKey: slot.sortKey,
-      dayOfWeek,
-      timeLabel,
+      dayOfWeek: slot.dayOfWeek,
+      timeLabel: slot.timeLabel,
       typeId: next.type_id,
       typeName: type?.name ?? "Prickle",
-      scheduleLabel: slot.label,
       nextOccurrenceId: next.id,
       nextOccurrenceStart: next.start_time,
       hostId: host?.id ?? null,

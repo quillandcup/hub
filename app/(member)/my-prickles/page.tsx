@@ -70,7 +70,7 @@ export default async function MyPricklesPage({
     members,
   ] = await Promise.all([
     getRankedUpcomingPrickles(supabase, memberId, timeZone, now, UPCOMING_WINDOW_DAYS),
-    getPrickleScheduleOverview(supabase, now, SCHEDULE_LOOKBACK_DAYS, UPCOMING_WINDOW_DAYS),
+    getPrickleScheduleOverview(supabase, now, timeZone, SCHEDULE_LOOKBACK_DAYS, UPCOMING_WINDOW_DAYS),
     supabase
       .from("prickle_attendance")
       .select(

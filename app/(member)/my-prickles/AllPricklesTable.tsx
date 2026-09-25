@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import Link from "next/link";
 import type { PrickleScheduleRow } from "@/lib/prickle-schedule";
 
@@ -8,13 +8,9 @@ const DAY_ORDER = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Frid
 
 function AttendanceHint({ row }: { row: PrickleScheduleRow }) {
   if (row.sessionCount === 0) {
-    return <span className="text-slate-400 dark:text-slate-500">New — no history yet</span>;
+    return <span className="text-slate-400 dark:text-slate-500">New</span>;
   }
-  return (
-    <span className="text-slate-500 dark:text-slate-400">
-      ~{Math.round(row.avgAttendance ?? 0)} usually attend
-    </span>
-  );
+  return <span className="text-slate-500 dark:text-slate-400">~{Math.round(row.avgAttendance ?? 0)} usually</span>;
 }
 
 export default function AllPricklesTable({ rows }: { rows: PrickleScheduleRow[] }) {
@@ -45,7 +41,7 @@ export default function AllPricklesTable({ rows }: { rows: PrickleScheduleRow[] 
             All Prickles
           </h2>
           <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">
-            The full recurring weekly schedule — also known as Prickle Times. All times in ET.
+            The full recurring weekly schedule — also known as Prickle Times. Times shown in your timezone.
           </p>
         </div>
         {types.length > 1 && (
@@ -67,34 +63,47 @@ export default function AllPricklesTable({ rows }: { rows: PrickleScheduleRow[] 
       {filteredByDay.length === 0 ? (
         <p className="text-sm text-slate-500 dark:text-slate-400">No prickles match that filter.</p>
       ) : (
-        <div className="space-y-6">
-          {filteredByDay.map(({ day, rows: dayRows }) => (
-            <div key={day}>
-              <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">{day}</h3>
-              <div className="divide-y divide-slate-100 dark:divide-slate-800">
-                {dayRows.map((row) => (
-                  <Link
-                    key={row.seriesKey}
-                    href={`/prickles/${row.nextOccurrenceId}`}
-                    className="flex items-center justify-between gap-4 py-2.5 -mx-2 px-2 rounded hover:bg-slate-50 dark:hover:bg-slate-800/50"
+        <table className="w-full text-sm border-separate border-spacing-0">
+          <thead>
+            <tr className="text-left text-xs text-slate-400 dark:text-slate-500 uppercase tracking-wide">
+              <th className="pb-2 pr-2 font-medium">Time</th>
+              <th className="pb-2 pr-2 font-medium">Kind</th>
+              <th className="pb-2 pr-2 font-medium">Host</th>
+              <th className="pb-2 font-medium text-right">Typically</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredByDay.map(({ day, rows: dayRows }) => (
+              <Fragment key={day}>
+                <tr>
+                  <td
+                    colSpan={4}
+                    className="pt-4 pb-1.5 text-sm font-semibold text-slate-700 dark:text-slate-300 border-b border-slate-200 dark:border-slate-800"
                   >
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium truncate">
-                        {row.timeLabel} · {row.typeName}
-                      </p>
-                      <p className="text-xs text-slate-400 mt-0.5">
-                        {row.hostName ? `Hosted by ${row.hostName}` : "No host listed"}
-                      </p>
-                    </div>
-                    <p className="text-xs flex-shrink-0 text-right">
+                    {day}
+                  </td>
+                </tr>
+                {dayRows.map((row) => (
+                  <tr key={row.seriesKey} className="group">
+                    <td className="py-0">
+                      <Link
+                        href={`/prickles/${row.nextOccurrenceId}`}
+                        className="flex items-center py-2 pr-2 text-slate-900 dark:text-slate-100 group-hover:text-blue-600 dark:group-hover:text-blue-400"
+                      >
+                        {row.timeLabel}
+                      </Link>
+                    </td>
+                    <td className="py-2 pr-2 text-slate-600 dark:text-slate-300">{row.typeName}</td>
+                    <td className="py-2 pr-2 text-slate-500 dark:text-slate-400">{row.hostName ?? "—"}</td>
+                    <td className="py-2 text-right">
                       <AttendanceHint row={row} />
-                    </p>
-                  </Link>
+                    </td>
+                  </tr>
                 ))}
-              </div>
-            </div>
-          ))}
-        </div>
+              </Fragment>
+            ))}
+          </tbody>
+        </table>
       )}
     </div>
   );
