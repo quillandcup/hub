@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import NewProjectModal from "@/components/writing/NewProjectModal";
+import TrackbearImportModal from "@/components/writing/TrackbearImportModal";
 import LogProgressModal from "@/components/writing/LogProgressModal";
 import GoalDisplay from "@/components/writing/GoalDisplay";
 import BookFormModal from "@/components/books/BookFormModal";
@@ -15,6 +16,7 @@ interface ProjectsClientProps {
 
 export default function ProjectsClient({ initialProjects }: ProjectsClientProps) {
   const [showNewProject, setShowNewProject] = useState(false);
+  const [showImport, setShowImport] = useState(false);
   const [logProgressFor, setLogProgressFor] = useState<string | null>(null);
   const [publishing, setPublishing] = useState<WritingProjectRow | null>(null);
 
@@ -39,14 +41,32 @@ export default function ProjectsClient({ initialProjects }: ProjectsClientProps)
         >
           New project
         </button>
+        <p className="text-sm text-slate-500 dark:text-slate-400 mt-3">
+          Already tracking in TrackBear?{" "}
+          <button
+            type="button"
+            onClick={() => setShowImport(true)}
+            className="text-blue-600 dark:text-blue-400 hover:underline"
+          >
+            Import your projects
+          </button>
+        </p>
         <NewProjectModal isOpen={showNewProject} onClose={() => setShowNewProject(false)} onCreated={handleChanged} />
+        <TrackbearImportModal isOpen={showImport} onClose={() => setShowImport(false)} onImported={handleChanged} />
       </div>
     );
   }
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
-      <div className="flex justify-end">
+      <div className="flex justify-end gap-2">
+        <button
+          type="button"
+          onClick={() => setShowImport(true)}
+          className="px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg text-sm font-medium"
+        >
+          Import from TrackBear
+        </button>
         <button
           type="button"
           onClick={() => setShowNewProject(true)}
@@ -132,6 +152,7 @@ export default function ProjectsClient({ initialProjects }: ProjectsClientProps)
       </div>
 
       <NewProjectModal isOpen={showNewProject} onClose={() => setShowNewProject(false)} onCreated={handleChanged} />
+      <TrackbearImportModal isOpen={showImport} onClose={() => setShowImport(false)} onImported={handleChanged} />
 
       {logProgressFor && (
         <LogProgressModal

@@ -37,6 +37,7 @@
     "@vercel/analytics": "^2.0.1",
     "@vercel/speed-insights": "^2.0.0",
     "dotenv": "^17.4.2",
+    "fflate": "^0.8.3",
     "googleapis": "^171.4.0",
     "html-to-image": "^1.11.13",
     "image-size": "^2.0.2",
@@ -50,6 +51,7 @@
     "recharts": "^3.10.1",
     "rehype-raw": "^7.0.0",
     "remark-gfm": "^4.0.1",
+    "sharp": "^0.35.4",
     "stripe": "^22.6.2"
   },
   "devDependencies": {

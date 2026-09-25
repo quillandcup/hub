@@ -100,6 +100,27 @@ Import Prickles schedule from:
 
 ---
 
+### TrackBear Import Gaps
+
+The TrackBear importer (Projects → "Import from TrackBear"; `lib/trackbear-import.ts`) brings over
+projects, all progress, starting balances, covers, tags-on-entries, and single-project goals. It lists
+everything else per import instead of silently dropping it. Closing these gaps needs Hub features first:
+
+- **Cross-project goals** (a TrackBear goal counting all projects or several): `writing_goals.project_id` is already nullable, but nothing displays or computes a goal with no project, or with several.
+- **Tag-filtered goals** ("only count entries tagged X"): no tag filter on `writing_goals`.
+- **Habit cadences**: "every N days/weeks" (N > 1) and yearly habits; Hub habits are every 1 day/week/month.
+- **"Any measure" habits** (TrackBear habit with no threshold): Hub habits need one measure.
+- **Habit date ranges**: Hub habits are open-ended; imported habits' start/end dates are dropped.
+- **Goal title, description, show-on-profile**: no columns/UI for these.
+- **Project "starred"**: no star on Hub projects.
+- **Tag colors, unused tags**: Hub tags are plain labels on each entry.
+- **Negative starting balances**: `writing_project_starting_balances` has `CHECK (amount >= 0)`.
+- Habit weeks start Monday in Hub; TrackBear uses the member's setting (Sunday by default), so weekly streaks can differ.
+- **Entry "last edited" time** (`updatedAt`): Hub entries only have `created_at`.
+- **Covers**: always cropped to Hub's 145×215 spec; a cover that fails to copy isn't retried on re-import (the project already exists), so the member has to upload it by hand.
+- **Not in TrackBear's export at all** (would need their API or a TrackBear change): account-level lifetime starting balance, week-start and other settings, leaderboards.
+- **One-click import**: TrackBear has no OAuth, and its API needs a member-created API key, so import is export-file upload for now. If TrackBear adds OAuth, switch to it. An API-key version was prototyped (paste a key from trackbear.app/account/api-keys, then read /api/v1/project, /tally, /goal, /tag) but dropped so members don't have to create credentials.
+
 ## Infrastructure & Deployment
 
 ### Multi-Environment Setup
