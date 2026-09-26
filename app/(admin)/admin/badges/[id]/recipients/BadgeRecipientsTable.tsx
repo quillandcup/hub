@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { SortableTh } from "@/components/SortableTh";
 import { useTableSort, type SortValue } from "@/lib/hooks/useTableSort";
+import { Pagination } from "@/components/Pagination";
+import { usePagination } from "@/lib/hooks/usePagination";
 import type { BadgeRecipient } from "@/lib/badges";
 
 type SortColumn = "member" | "level" | "occurrences" | "firstAwardedAt";
@@ -34,6 +36,7 @@ export default function BadgeRecipientsTable({
     getSortValue,
     defaultSort: { column: "member", direction: "asc" },
   });
+  const pagination = usePagination({ rows: sortedRows, resetKey: `${sortColumn}:${sortDirection}` });
 
   return (
     <div className="overflow-x-auto">
@@ -67,7 +70,7 @@ export default function BadgeRecipientsTable({
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
-          {sortedRows.map((recipient) => (
+          {pagination.pageRows.map((recipient) => (
             <tr key={recipient.memberId}>
               <td className="px-6 py-4 whitespace-nowrap">
                 <Link
@@ -91,6 +94,7 @@ export default function BadgeRecipientsTable({
           ))}
         </tbody>
       </table>
+      <Pagination {...pagination.paginationProps} itemLabel="recipients" />
     </div>
   );
 }

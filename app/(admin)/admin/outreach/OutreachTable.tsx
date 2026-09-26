@@ -6,6 +6,8 @@ import Link from "next/link";
 import MemberAvatar from "@/app/(member)/members/[id]/MemberAvatar";
 import { SortableTh } from "@/components/SortableTh";
 import { useTableSort } from "@/lib/hooks/useTableSort";
+import { Pagination } from "@/components/Pagination";
+import { usePagination } from "@/lib/hooks/usePagination";
 import { etDate } from "@/lib/community-stats";
 
 export type LeadStatus = "hot" | "warm" | "cold";
@@ -187,6 +189,11 @@ export default function OutreachTable({ leads, initialTodayCount }: OutreachTabl
     if (instagramOnly && !instagramHandle(lead.instagramUrl)) return false;
     return true;
   });
+  // The daily queue is capped at DAILY_OUTREACH_GOAL, so only "All leads" pages in practice.
+  const pagination = usePagination({
+    rows: visibleRows,
+    resetKey: `${viewMode}:${sortColumn}:${sortDirection}:${instagramOnly}:${includeFormerMembers}`,
+  });
 
   const updateStatus = async (memberId: string, status: LeadStatus) => {
     setBusyId(memberId);
@@ -365,7 +372,7 @@ export default function OutreachTable({ leads, initialTodayCount }: OutreachTabl
                 </td>
               </tr>
             )}
-            {visibleRows.map((lead) => {
+            {pagination.pageRows.map((lead) => {
               const handle = instagramHandle(lead.instagramUrl);
               const busy = busyId === lead.id;
               return (
@@ -450,6 +457,7 @@ export default function OutreachTable({ leads, initialTodayCount }: OutreachTabl
             })}
           </tbody>
         </table>
+        <Pagination {...pagination.paginationProps} itemLabel="leads" />
       </div>
     </div>
   );

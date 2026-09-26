@@ -5,6 +5,8 @@ import { SortableTh } from "@/components/SortableTh";
 import { useTableSort, type SortValue } from "@/lib/hooks/useTableSort";
 import type { ResubscribingMember } from "@/lib/resubscription-data";
 import { formatGapLabel } from "@/lib/resubscription-detection";
+import { Pagination } from "@/components/Pagination";
+import { usePagination } from "@/lib/hooks/usePagination";
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString("en-US", {
@@ -92,6 +94,7 @@ export default function ResubscribingMembersTable({ members }: { members: Resubs
     getSortValue,
     defaultSort: { column: "member", direction: "asc" },
   });
+  const pagination = usePagination({ rows: sortedRows, resetKey: `${sortColumn}:${sortDirection}` });
 
   return (
     <div className="overflow-x-auto">
@@ -120,11 +123,12 @@ export default function ResubscribingMembersTable({ members }: { members: Resubs
           </tr>
         </thead>
         <tbody>
-          {sortedRows.map((member) => (
+          {pagination.pageRows.map((member) => (
             <MemberRow key={member.memberEmail} member={member} />
           ))}
         </tbody>
       </table>
+      <Pagination {...pagination.paginationProps} itemLabel="members" />
     </div>
   );
 }

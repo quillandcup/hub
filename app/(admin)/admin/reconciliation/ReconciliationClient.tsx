@@ -4,6 +4,8 @@ import { Fragment, useCallback, useEffect, useState } from "react";
 import MemberOverrideForm from "@/components/MemberOverrideForm";
 import { SortableTh } from "@/components/SortableTh";
 import { useTableSort, type SortValue } from "@/lib/hooks/useTableSort";
+import { Pagination } from "@/components/Pagination";
+import { usePagination } from "@/lib/hooks/usePagination";
 
 interface ReconciliationSummary {
   total_members: number;
@@ -177,6 +179,20 @@ export default function ReconciliationClient() {
     defaultSort: null,
   });
 
+  const memberSlackSet = new Set(slackData?.members_in_slack ?? []);
+
+  const hasDiscrepancy = (m: MemberReconciliation) =>
+    m.has_discrepancy ||
+    (slackData !== null && !memberSlackSet.has(m.member_id) && m.expected_kajabi_state === "active");
+
+  const filteredMembers = filterDiscrepancies
+    ? memberSort.sortedRows.filter(hasDiscrepancy)
+    : memberSort.sortedRows;
+  const memberPagination = usePagination({
+    rows: filteredMembers,
+    resetKey: `${memberSort.sortColumn}:${memberSort.sortDirection}:${filterDiscrepancies}`,
+  });
+
   useEffect(() => {
     fetchAll();
   }, []);
@@ -273,11 +289,6 @@ export default function ReconciliationClient() {
     return null;
   }
 
-  const memberSlackSet = new Set(slackData?.members_in_slack ?? []);
-
-  const hasDiscrepancy = (m: MemberReconciliation) =>
-    m.has_discrepancy ||
-    (slackData !== null && !memberSlackSet.has(m.member_id) && m.expected_kajabi_state === "active");
 
   // A member actively paying in Stripe (stripe_state: "paying") whose Kajabi-derived
   // status isn't active and who has no override yet — same discrepancy shape as
@@ -292,9 +303,6 @@ export default function ReconciliationClient() {
         }
       : null;
 
-  const filteredMembers = filterDiscrepancies
-    ? memberSort.sortedRows.filter(hasDiscrepancy)
-    : memberSort.sortedRows;
 
   return (
     <div className="p-8">
@@ -447,7 +455,7 @@ export default function ReconciliationClient() {
                 </td>
               </tr>
             ) : (
-              filteredMembers.map((member) => {
+              memberPagination.pageRows.map((member) => {
                 const inSlack = memberSlackSet.has(member.member_id);
                 const isEditing = editingMemberId === member.member_id;
                 return (
@@ -625,6 +633,7 @@ export default function ReconciliationClient() {
             )}
           </tbody>
         </table>
+        <Pagination {...memberPagination.paginationProps} itemLabel="members" />
       </div>
 
       {/* Slack users with no member record: resolved (with alias-creation) on

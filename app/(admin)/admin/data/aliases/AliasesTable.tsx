@@ -4,6 +4,8 @@ import Link from "next/link";
 import { SortableTh } from "@/components/SortableTh";
 import { useTableSort, type SortValue } from "@/lib/hooks/useTableSort";
 import AliasBadges from "./AliasBadges";
+import { Pagination } from "@/components/Pagination";
+import { usePagination } from "@/lib/hooks/usePagination";
 
 export interface MemberAliasRow {
   member: { id: string; name: string; email: string; status: string };
@@ -29,6 +31,7 @@ export default function AliasesTable({ rows }: { rows: MemberAliasRow[] }) {
     getSortValue,
     defaultSort: { column: "member", direction: "asc" },
   });
+  const pagination = usePagination({ rows: sortedRows, resetKey: `${sortColumn}:${sortDirection}` });
   const th = (label: string, column: SortColumn) => (
     <SortableTh
       label={label}
@@ -49,7 +52,7 @@ export default function AliasesTable({ rows }: { rows: MemberAliasRow[] }) {
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
-          {sortedRows.map(({ member, aliases }) => (
+          {pagination.pageRows.map(({ member, aliases }) => (
             <tr key={member.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
               <td className="px-6 py-4 whitespace-nowrap">
                 <div>
@@ -80,6 +83,7 @@ export default function AliasesTable({ rows }: { rows: MemberAliasRow[] }) {
           ))}
         </tbody>
       </table>
+      <Pagination {...pagination.paginationProps} itemLabel="members" />
     </div>
   );
 }

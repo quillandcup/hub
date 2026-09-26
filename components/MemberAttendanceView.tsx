@@ -6,6 +6,8 @@ import Link from "next/link";
 import { countDistinctPrickles } from "@/lib/attendance-grouping";
 import { SortableTh } from "@/components/SortableTh";
 import { useTableSort, type SortValue } from "@/lib/hooks/useTableSort";
+import { Pagination } from "@/components/Pagination";
+import { usePagination } from "@/lib/hooks/usePagination";
 
 type SortColumn = "type" | "date" | "time" | "duration" | "host";
 
@@ -81,6 +83,8 @@ export default function MemberAttendanceView({
     getSortValue,
     defaultSort: null,
   });
+  // A long-time member's full history runs to hundreds of rows.
+  const pagination = usePagination({ rows: sortedRows, resetKey: `${sortColumn}:${sortDirection}` });
 
   const formatTime = (date: Date) =>
     date.toLocaleTimeString("en-US", { timeZone: timezone, hour: "numeric", minute: "2-digit" });
@@ -233,7 +237,7 @@ export default function MemberAttendanceView({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
-                  {sortedRows.map((record: any) => {
+                  {pagination.pageRows.map((record: any) => {
                     const prickle = record.prickles;
                     const joinTime = new Date(record.join_time);
                     const leaveTime = new Date(record.leave_time);
@@ -280,6 +284,7 @@ export default function MemberAttendanceView({
                   })}
                 </tbody>
               </table>
+              <Pagination {...pagination.paginationProps} itemLabel="attendances" />
             </div>
           ) : (
             <div className="space-y-6">

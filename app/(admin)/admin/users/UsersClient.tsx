@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { SortableTh } from "@/components/SortableTh";
 import { useTableSort, type SortValue } from "@/lib/hooks/useTableSort";
+import { Pagination } from "@/components/Pagination";
+import { usePagination } from "@/lib/hooks/usePagination";
 import { FEATURE_PREVIEWS } from "@/lib/features";
 import MemberSearch from "@/components/MemberSearch";
 
@@ -112,6 +114,7 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
     getSortValue,
     defaultSort: null,
   });
+  const pagination = usePagination({ rows: sortedRows, resetKey: `${sortColumn}:${sortDirection}` });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -411,7 +414,7 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
-                {sortedRows.map((user) => {
+                {pagination.pageRows.map((user) => {
                   const isEditing = editingId === user.id;
                   const isCurrentUser = user.id === currentUserId;
                   const memberOptions = availableMemberOptions(user.memberId);
@@ -605,6 +608,7 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
                 })}
               </tbody>
             </table>
+            <Pagination {...pagination.paginationProps} itemLabel="users" />
           </div>
         )}
       </div>

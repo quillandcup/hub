@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { SortableTh } from "@/components/SortableTh";
 import { useTableSort, type SortValue } from "@/lib/hooks/useTableSort";
+import { Pagination } from "@/components/Pagination";
+import { usePagination } from "@/lib/hooks/usePagination";
 
 export interface MissingStripeRow {
   id: string;
@@ -30,6 +32,7 @@ export default function MissingStripeTable({ rows }: { rows: MissingStripeRow[] 
     getSortValue,
     defaultSort: { column: "name", direction: "asc" },
   });
+  const pagination = usePagination({ rows: sortedRows, resetKey: `${sortColumn}:${sortDirection}` });
   const th = (label: string, column: SortColumn) => (
     <SortableTh
       label={label}
@@ -50,7 +53,7 @@ export default function MissingStripeTable({ rows }: { rows: MissingStripeRow[] 
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
-          {sortedRows.map((member) => (
+          {pagination.pageRows.map((member) => (
             <tr key={member.id} className="hover:bg-slate-50 dark:hover:bg-slate-800">
               <td className="px-6 py-3">
                 <Link
@@ -79,6 +82,7 @@ export default function MissingStripeTable({ rows }: { rows: MissingStripeRow[] 
           ))}
         </tbody>
       </table>
+      <Pagination {...pagination.paginationProps} itemLabel="members" />
     </div>
   );
 }

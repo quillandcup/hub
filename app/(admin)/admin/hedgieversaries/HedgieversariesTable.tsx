@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { SortableTh } from "@/components/SortableTh";
 import { useTableSort, type SortValue } from "@/lib/hooks/useTableSort";
+import { Pagination } from "@/components/Pagination";
+import { usePagination } from "@/lib/hooks/usePagination";
 import { parseDateOnly, milestoneLabel } from "@/lib/member-tenure";
 
 export interface HedgieversaryRow {
@@ -52,6 +54,7 @@ export default function HedgieversariesTable({ rows, asOf }: { rows: Hedgieversa
     getSortValue,
     defaultSort: { column: "nextDate", direction: "asc" },
   });
+  const pagination = usePagination({ rows: sortedRows, resetKey: `${sortColumn}:${sortDirection}` });
 
   const fmt = (dateOnly: string) =>
     parseDateOnly(dateOnly).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
@@ -72,7 +75,7 @@ export default function HedgieversariesTable({ rows, asOf }: { rows: Hedgieversa
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
-          {sortedRows.map((row) => {
+          {pagination.pageRows.map((row) => {
             const isWelcomeBack =
               !!row.mostRecentJoinedAt &&
               row.mostRecentJoinedAt !== row.firstJoinedAt &&
@@ -143,6 +146,7 @@ export default function HedgieversariesTable({ rows, asOf }: { rows: Hedgieversa
           })}
         </tbody>
       </table>
+      <Pagination {...pagination.paginationProps} itemLabel="members" />
       {rows.length === 0 && (
         <div className="p-12 text-center text-slate-500 dark:text-slate-400">No members to show yet.</div>
       )}
