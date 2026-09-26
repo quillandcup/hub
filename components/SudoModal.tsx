@@ -18,7 +18,12 @@ export default function SudoModal({ isOpen, onClose }: SudoModalProps) {
     if (!selectedMember) return
     setIsPending(true)
     try {
-      await startSudo(selectedMember.id)
+      // Stay on the current page (as the member). Read at click time rather
+      // than via useSearchParams, which would force a Suspense boundary onto
+      // every layout rendering the user menu. The server action sanitizes it
+      // and falls back to the dashboard for admin-only pages.
+      const { pathname, search, hash } = window.location
+      await startSudo(selectedMember.id, `${pathname}${search}${hash}`)
     } finally {
       setIsPending(false)
     }

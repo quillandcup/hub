@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { getCurrentUser } from '@/lib/auth'
 import { signSudoCookie } from '@/lib/sudo'
+import { sudoExitPath, sudoLandingPath } from '@/lib/sudo-redirect'
 
 async function requireAdmin() {
   const supabase = await createClient()
@@ -22,22 +23,15 @@ async function requireAdmin() {
   return { user, supabase }
 }
 
-// landingUrl is attacker-influenced (e.g. a feedback item's self-reported
-// page_url), so only the path+search+hash survives — the scheme/host are
-// discarded rather than validated, which rules out an open redirect
-// regardless of what host was supplied.
-function sanitizeLandingPath(url: string | undefined): string | null {
-  if (!url) return null
-  let parsed: URL
-  try {
-    parsed = new URL(url)
-  } catch {
-    return null
-  }
-  const path = `${parsed.pathname}${parsed.search}${parsed.hash}`
-  return path.startsWith('/') && !path.startsWith('//') ? path : null
-}
-
+/**
+ * Start browsing as a member.
+ *
+ * @param landingUrl Page to land on once sudo is active — typically the page
+ *   the admin is currently on (so they see that same page as the member), or a
+ *   feedback item's page_url. Absolute URLs and relative paths are both
+ *   accepted; only the path+search+hash is kept. Admin-only pages (and
+ *   anything missing/invalid) fall back to the dashboard.
+ */
 export async function startSudo(memberId: string, landingUrl?: string) {
   const { user, supabase } = await requireAdmin()
 
@@ -50,7 +44,9 @@ export async function startSudo(memberId: string, landingUrl?: string) {
   if (!member) throw new Error('Member not found')
 
   const headersList = await headers()
-  const returnTo = headersList.get('referer') || '/admin'
+  // The page sudo was started from, so exiting returns there. The Referer is
+  // an absolute URL; keep only its same-origin path.
+  const returnTo = sudoExitPath(headersList.get('referer'))
 
   const cookieStore = await cookies()
   const isProduction = process.env.NODE_ENV === 'production'
@@ -59,15 +55,12 @@ export async function startSudo(memberId: string, landingUrl?: string) {
   cookieStore.set('sudo_as', signSudoCookie(user.id, memberId), cookieOpts)
   cookieStore.set('sudo_return_to', returnTo, cookieOpts)
 
-  redirect(sanitizeLandingPath(landingUrl) ?? '/dashboard')
+  redirect(sudoLandingPath(landingUrl))
 }
 
 export async function exitSudo() {
   const cookieStore = await cookies()
-  const rawReturnTo = cookieStore.get('sudo_return_to')?.value || '/admin'
-  const returnTo = rawReturnTo.startsWith('/') && !rawReturnTo.startsWith('//')
-    ? rawReturnTo
-    : '/admin'
+  const returnTo = sudoExitPath(cookieStore.get('sudo_return_to')?.value)
 
   cookieStore.delete('sudo_as')
   cookieStore.delete('sudo_return_to')
