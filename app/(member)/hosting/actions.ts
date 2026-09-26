@@ -397,7 +397,12 @@ export async function getMyHostingStats(): Promise<HostingStats> {
   // totals, no-show counts, or "most recent hosted".
   const nowIso = new Date().toISOString();
 
-  type HostedPrickleRow = { id: string; start_time: string; prickle_types: { name: string } | null };
+  type HostedPrickleRow = {
+    id: string;
+    start_time: string;
+    end_time: string;
+    prickle_types: { name: string } | null;
+  };
   let hostedPrickles: HostedPrickleRow[] = [];
   {
     let offset = 0;
@@ -405,7 +410,7 @@ export async function getMyHostingStats(): Promise<HostingStats> {
     while (hasMore) {
       const { data: batch } = await supabase
         .from("prickles")
-        .select("id, start_time, prickle_types:type_id(name)")
+        .select("id, start_time, end_time, prickle_types:type_id(name)")
         .eq("host", memberId)
         .lte("start_time", nowIso)
         .range(offset, offset + BATCH_SIZE - 1);
@@ -453,6 +458,7 @@ export async function getMyHostingStats(): Promise<HostingStats> {
     prickleId: p.id,
     typeName: p.prickle_types?.name ?? "Prickle",
     startTime: p.start_time,
+    endTime: p.end_time,
     earliestJoinTime: earliestJoinByPrickle.get(p.id) ?? null,
   }));
 
