@@ -447,6 +447,20 @@ Track external competitions (awards, contests, anthologies, showcases) that memb
 
 ---
 
+## Member Profiles
+
+### Public Pen Names ("Also writes as …") _(Idea)_
+Let members choose which of their alternate names show on their public profile. Today the only public name is `members.display_name` (the "default pen name", used as the profile heading via `getMemberDisplayName`). Other pen names live in `member_name_aliases`, mixed in with internal Zoom/Slack matching names that can include typos or legal names, and RLS only lets a member read their own aliases (`20260831180000_add_alias_self_service.sql`) — so they can't be shown to other members as-is.
+
+- **Schema:** add an `is_public` boolean to `member_name_aliases`, default `false`, so nothing becomes visible without an explicit opt-in (existing aliases stay private).
+- **Settings → Identity:** a "Show on my profile" toggle next to each alias the member added themselves.
+- **Read path:** serve only public aliases through a narrow read (e.g. a view or `SECURITY INVOKER` function returning just `member_id` + alias text for `is_public = true`) rather than loosening the table's RLS, so matching-only aliases never leak.
+- **Profile:** list them under the heading as "Also writes as …".
+
+**Priority:** Not scoped yet — idea only, no code started.
+
+---
+
 ## Analytics & Matching
 
 ### Member Matching Logic (In Progress)
