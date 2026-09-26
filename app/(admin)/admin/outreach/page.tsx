@@ -6,6 +6,7 @@ import Link from "next/link";
 import OutreachTable, { type OutreachLead } from "./OutreachTable";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { etDate } from "@/lib/community-stats";
+import { requireAdminPage } from "@/lib/admin-auth";
 
 export const metadata: Metadata = {
   title: "Outreach",
@@ -51,6 +52,7 @@ async function fetchAllRows(
 }
 
 export default async function OutreachPage() {
+  await requireAdminPage();
   const supabase = await createClient();
 
   const user = await getCurrentUser();

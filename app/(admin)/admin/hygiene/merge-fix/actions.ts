@@ -1,13 +1,12 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
-import { getCurrentUser } from "@/lib/auth";
+import { requireAdminAction } from "@/lib/admin-auth";
 import { revalidatePath } from "next/cache";
 
 export async function dismissGroup(groupKey: string) {
-  const supabase = await createClient();
-  const user = await getCurrentUser();
-  if (!user) return { error: "Not authenticated" };
+  const auth = await requireAdminAction();
+  if (!auth.ok) return { error: auth.error };
+  const { supabase } = auth;
 
   const { error } = await supabase
     .from("dismissed_duplicate_groups")
@@ -19,9 +18,9 @@ export async function dismissGroup(groupKey: string) {
 }
 
 export async function undismissGroup(groupKey: string) {
-  const supabase = await createClient();
-  const user = await getCurrentUser();
-  if (!user) return { error: "Not authenticated" };
+  const auth = await requireAdminAction();
+  if (!auth.ok) return { error: auth.error };
+  const { supabase } = auth;
 
   const { error } = await supabase
     .from("dismissed_duplicate_groups")

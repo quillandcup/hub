@@ -5,12 +5,14 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import MatchingGame from "./MatchingGame";
 import { matchAttendeeToMember } from "@/lib/member-matching";
+import { requireAdminPage } from "@/lib/admin-auth";
 
 export const metadata: Metadata = {
   title: "Name Matching Game",
 };
 
 export default async function NameMatchingReportPage() {
+  await requireAdminPage();
   const supabase = await createClient();
 
   const user = await getCurrentUser();

@@ -2,6 +2,7 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse, after, type NextRequest } from 'next/server'
 import { withTimeout, AUTH_CHECK_TIMEOUT_MS } from '@/lib/with-timeout'
 import { getSessionIdFromAccessToken } from '@/lib/supabase/session-claims'
+import { ADMIN_NO_ACCESS_PATH, isAdminPath } from '@/lib/admin-paths'
 
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })
@@ -111,5 +112,53 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
+  // Admin area: optimistic role check so a signed-in non-admin is sent to
+  // /no-access (see lib/admin-paths.ts for why not /dashboard)
+  // before any admin page/layout renders (including RSC fetches on client
+  // navigation, which skip the layout). This is the pre-filter only -- the
+  // secure check is requireAdminPage() (lib/admin-auth.ts) in the admin layout
+  // and every admin page. See "Admin route protection" in CLAUDE.md.
+  if (user && isAdminPath(pathname)) {
+    const isAdmin = await checkIsAdmin(supabase, user.id)
+    if (isAdmin === false) {
+      const url = request.nextUrl.clone()
+      url.pathname = ADMIN_NO_ACCESS_PATH
+      url.search = ''
+      const redirectResponse = NextResponse.redirect(url)
+      // Keep any session cookies getUser() just refreshed.
+      supabaseResponse.cookies.getAll().forEach((cookie) => redirectResponse.cookies.set(cookie))
+      return redirectResponse
+    }
+  }
+
   return supabaseResponse
+}
+
+/**
+ * Role lookup for the proxy's admin pre-filter. The role isn't in the JWT
+ * (no custom access-token hook), so this is one indexed primary-key read of
+ * user_profiles -- and it only runs on /admin paths, never on member or API
+ * requests. Sudo doesn't matter here: the sudo cookie only changes the
+ * *effective member* identity, while the signed-in user is still the admin.
+ *
+ * Returns null when the answer is unknown (Supabase slow/erroring) so the
+ * caller lets the request through to the secure requireAdminPage() check,
+ * mirroring how a getUser() timeout above doesn't force a /login redirect.
+ */
+async function checkIsAdmin(
+  supabase: ReturnType<typeof createServerClient>,
+  userId: string
+): Promise<boolean | null> {
+  try {
+    const { data, error } = await withTimeout(
+      Promise.resolve(
+        supabase.from('user_profiles').select('role').eq('id', userId).maybeSingle()
+      ),
+      AUTH_CHECK_TIMEOUT_MS
+    )
+    if (error) return null
+    return (data as { role?: string } | null)?.role === 'admin'
+  } catch {
+    return null
+  }
 }

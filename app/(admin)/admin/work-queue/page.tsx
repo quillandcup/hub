@@ -16,6 +16,7 @@ import {
 import type { HiatusWindow } from "@/lib/member-tenure";
 import WorkQueueSections from "./WorkQueueSections";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { requireAdminPage } from "@/lib/admin-auth";
 
 export const metadata: Metadata = {
   title: "Work Queue",
@@ -54,6 +55,7 @@ async function fetchAllRows(
 }
 
 export default async function WorkQueuePage() {
+  await requireAdminPage();
   const supabase = await createClient();
 
   const user = await getCurrentUser();

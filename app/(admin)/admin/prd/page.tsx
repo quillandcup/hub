@@ -3,12 +3,14 @@ import Link from "next/link";
 import { readFileSync } from "fs";
 import { join } from "path";
 import MarkdownRenderer from "./MarkdownRenderer";
+import { requireAdminPage } from "@/lib/admin-auth";
 
 export const metadata: Metadata = {
   title: "PRD",
 };
 
-export default function PRDPage() {
+export default async function PRDPage() {
+  await requireAdminPage();
   // Read the PRD markdown file
   const prdPath = join(process.cwd(), "docs", "PRD.md");
   const prdContent = readFileSync(prdPath, "utf8");

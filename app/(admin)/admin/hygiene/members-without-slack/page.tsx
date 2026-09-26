@@ -2,12 +2,14 @@ import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import MemberSlackSearchForm from "./MemberSlackSearchForm";
 import { matchSlackUsersToMembers } from "@/lib/slack-matching";
+import { requireAdminPage } from "@/lib/admin-auth";
 
 export const metadata: Metadata = {
   title: "Members Without Slack",
 };
 
 export default async function MembersWithoutSlackPage() {
+  await requireAdminPage();
   const supabase = await createClient();
 
   const [

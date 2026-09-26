@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import type { Metadata } from "next";
 import EditPrickleTypeForm from "./EditPrickleTypeForm";
+import { requireAdminPage } from "@/lib/admin-auth";
 
 const getPrickleType = cache(async (id: string) => {
   const supabase = await createClient();
@@ -31,6 +32,7 @@ export default async function EditPrickleTypePage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  await requireAdminPage();
   const { id } = await params;
 
   const user = await getCurrentUser();

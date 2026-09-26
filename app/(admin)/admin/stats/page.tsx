@@ -14,6 +14,7 @@ import {
   type PrickleRow,
   type AttRow,
 } from "@/lib/community-stats"
+import { requireAdminPage } from "@/lib/admin-auth"
 
 export const metadata: Metadata = {
   title: "Community Stats",
@@ -112,6 +113,7 @@ export default async function CommunityStatsPage({
 }: {
   searchParams: Promise<{ from?: string; to?: string }>
 }) {
+  await requireAdminPage()
   const supabase = await createClient()
   const user = await getCurrentUser()
   if (!user) redirect("/login")

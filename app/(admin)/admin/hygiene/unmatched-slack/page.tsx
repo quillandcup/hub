@@ -2,12 +2,14 @@ import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import SlackAliasSearchForm from "./SlackAliasSearchForm";
 import { matchSlackUsersToMembers, SLACKBOT_USER_ID } from "@/lib/slack-matching";
+import { requireAdminPage } from "@/lib/admin-auth";
 
 export const metadata: Metadata = {
   title: "Unmatched Slack Users",
 };
 
 export default async function UnmatchedSlackUsersPage() {
+  await requireAdminPage();
   const supabase = await createClient();
 
   // Load reference data

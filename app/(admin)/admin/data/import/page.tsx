@@ -9,12 +9,14 @@ import ManualReprocessingSection from "./ManualReprocessingSection";
 import KajabiApiImportForm from "./KajabiApiImportForm";
 import StripeImportForm from "./StripeImportForm";
 import type { Metadata } from "next";
+import { requireAdminPage } from "@/lib/admin-auth";
 
 export const metadata: Metadata = {
   title: "Import Data",
 };
 
 export default async function ImportPage() {
+  await requireAdminPage();
   const user = await getCurrentUser();
 
   if (!user) {

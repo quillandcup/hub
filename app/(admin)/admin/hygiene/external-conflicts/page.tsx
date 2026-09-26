@@ -5,6 +5,7 @@ import { SLACKBOT_USER_ID } from "@/lib/slack-matching";
 import Link from "next/link";
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
+import { requireAdminPage } from "@/lib/admin-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +14,7 @@ export const metadata: Metadata = {
 };
 
 export default async function ExternalConflictsPage() {
+  await requireAdminPage();
   const supabase = await createClient();
 
   const paginate = async <T,>(

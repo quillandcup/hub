@@ -134,16 +134,31 @@ describe("retired feature flags: pages render for a member with no feature previ
     expect(redirect).not.toHaveBeenCalled();
   });
 
-  it("admin Wheel of Wonder sends a non-admin member back to /dashboard without loading matches", async () => {
+  // The admin wheel page guards itself with requireAdminPage() (lib/admin-auth.ts, run for real here
+  // against the fake user_profiles rows) rather than relying on the admin layout.
+  it("admin Wheel of Wonder still renders for an admin in sudo mode", async () => {
+    signInAs(ADMIN_USER, { ...MEMBER_IDENTITY, isSudo: true });
+    useFakeSupabase({ user_profiles: userProfiles });
+    await renderServerPage(AdminWheelOfWonderPage, {});
+    expect(screen.getByRole("heading", { name: /Wheel of Wonder/ })).toBeInTheDocument();
+    expect(redirect).not.toHaveBeenCalled();
+  });
+
+  it("admin Wheel of Wonder sends a non-admin member to /no-access without loading matches", async () => {
     const supabase = useFakeSupabase({ user_profiles: userProfiles });
-    await expectRedirect(AdminWheelOfWonderPage, {}, "/dashboard");
+    await expectRedirect(AdminWheelOfWonderPage, {}, "/no-access");
     expect(supabase.queries.map((q) => q.table)).not.toContain("wheel_of_wonder_matches");
   });
 
   it("admin Wheel of Wonder blocks a user with no profile row", async () => {
     signInAs({ id: "user-no-profile", email: "nobody@example.test" }, null);
     useFakeSupabase({ user_profiles: userProfiles });
-    await expectRedirect(AdminWheelOfWonderPage, {}, "/dashboard");
+    await expectRedirect(AdminWheelOfWonderPage, {}, "/no-access");
+  });
+
+  it("admin Wheel of Wonder sends a signed-out visitor to /login", async () => {
+    signInAs(null);
+    await expectRedirect(AdminWheelOfWonderPage, {}, "/login");
   });
 
   it("My Prickles includes the Find a Prickle tab", async () => {

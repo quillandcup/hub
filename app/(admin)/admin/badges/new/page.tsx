@@ -2,12 +2,14 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import BadgeTypeForm from "../BadgeTypeForm";
+import { requireAdminPage } from "@/lib/admin-auth";
 
 export const metadata: Metadata = {
   title: "New Badge",
 };
 
 export default async function NewBadgePage() {
+  await requireAdminPage();
   const supabase = await createClient();
   const [{ data: allEvents }, { data: linkedBadges }, { data: programs }] = await Promise.all([
     supabase.from("events").select("id, title, starts_at").order("starts_at", { ascending: false }),

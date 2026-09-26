@@ -9,6 +9,7 @@ import {
   computeMemberEngagementMetrics,
   type EngagementActivityRow,
 } from "@/lib/member-engagement";
+import { requireAdminPage } from "@/lib/admin-auth";
 
 export const metadata: Metadata = {
   title: "Member Analytics",
@@ -89,6 +90,7 @@ export default async function MembersPage({
 }: {
   searchParams: SearchParams;
 }) {
+  await requireAdminPage();
   const supabase = await createClient();
   const params = await searchParams;
 

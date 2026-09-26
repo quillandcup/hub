@@ -12,6 +12,7 @@ import {
 } from "@/lib/member-tenure";
 import HedgieversariesTable, { type HedgieversaryRow } from "./HedgieversariesTable";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { requireAdminPage } from "@/lib/admin-auth";
 
 export const metadata: Metadata = {
   title: "Hedgieversaries",
@@ -49,6 +50,7 @@ async function fetchAllRows(
 }
 
 export default async function HedgieversariesPage() {
+  await requireAdminPage();
   const supabase = await createClient();
 
   const user = await getCurrentUser();

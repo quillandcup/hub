@@ -3,12 +3,14 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import { requireAdminPage } from "@/lib/admin-auth";
 
 export const metadata: Metadata = {
   title: "At-Risk Members",
 };
 
 export default async function AtRiskPage() {
+  await requireAdminPage();
   const supabase = await createClient();
 
   const user = await getCurrentUser();

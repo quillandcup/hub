@@ -1,6 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
-import { getCurrentUser } from "@/lib/auth";
-import { redirect } from "next/navigation";
+import { requireAdminPage } from "@/lib/admin-auth";
 import { getUserFeaturePreviews } from "@/lib/features.server";
 import type { FeatureKey } from "@/lib/features";
 import AdminNavigation from "./admin/AdminNavigation";
@@ -12,39 +10,11 @@ export default async function AdminLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const supabase = await createClient();
-  const user = await getCurrentUser();
-
-  if (!user) {
-    redirect("/login");
-  }
-
-  const { data: profile } = await supabase
-    .from("user_profiles")
-    .select("role")
-    .eq("id", user.id)
-    .single();
-
-  if (profile?.role !== "admin") {
-    return (
-      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 mb-2">
-            Access Denied
-          </h1>
-          <p className="text-slate-600 dark:text-slate-400 mb-4">
-            You don&apos;t have permission to access the admin area.
-          </p>
-          <a
-            href="/dashboard"
-            className="text-blue-600 dark:text-blue-400 hover:underline"
-          >
-            ← Return to my view
-          </a>
-        </div>
-      </div>
-    );
-  }
+  // Secure admin check (redirects signed-out → /login, non-admins → /dashboard).
+  // proxy.ts pre-filters /admin optimistically, and each admin page repeats
+  // this call because layouts don't re-run on client navigation -- see
+  // lib/admin-auth.ts.
+  const user = await requireAdminPage();
 
   const enabledFeatures: FeatureKey[] = await getUserFeaturePreviews(user.id);
 

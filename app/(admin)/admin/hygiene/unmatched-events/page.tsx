@@ -2,12 +2,14 @@ import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import type { Metadata } from "next";
 import UnmatchedEventsTable from "../../data/prickle-types/UnmatchedEventsTable";
+import { requireAdminPage } from "@/lib/admin-auth";
 
 export const metadata: Metadata = {
   title: "Unmatched Calendar Events",
 };
 
 export default async function UnmatchedEventsPage() {
+  await requireAdminPage();
   const supabase = await createClient();
 
   // Fetch unmatched calendar events (paginate to handle >1000 rows)

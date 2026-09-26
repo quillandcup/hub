@@ -129,6 +129,19 @@ const memberBasePath = isActingAsAdmin ? "/admin/members" : "/members";
 
 **Auth lookups in server code**: Use `getCurrentUser()` from `lib/auth.ts` (returns `{ id, email }` or `null`) in layouts, pages, server actions and API routes. It verifies the JWT locally via `supabase.auth.getClaims()` and is memoized per render with React `cache()`, so layout + page share one check. Only `lib/supabase/middleware.ts` (token refresh + live-session check) and code that needs fields absent from the JWT (`last_sign_in_at`, `identities`, etc.) or must confirm the session is still live server-side (e.g. session management in `app/(member)/settings/actions.ts`) should call `supabase.auth.getUser()`.
 
+### Admin Route Protection
+
+**RULE**: Every `app/(admin)/admin/**/page.tsx` starts with `await requireAdminPage()`, and every admin-only server action starts with `const auth = await requireAdminAction(); if (!auth.ok) return { error: auth.error };` (both from `lib/admin-auth.ts`). Don't hand-roll `user_profiles` role checks, and don't rely on the admin layout or the page to protect an action.
+
+Layers, per the Next.js auth guide (`node_modules/next/dist/docs/01-app/02-guides/authentication.md`):
+- **Optimistic, in `proxy.ts`** (`lib/supabase/middleware.ts`): `/admin` and `/admin/*` (not `/administrivia`; see `isAdminPath` in `lib/admin-paths.ts`) → anonymous to `/login`, signed-in non-admin to `/no-access`. Reuses the user the proxy already loads; the role costs one `user_profiles` read, on admin paths only (the role isn't a JWT claim). If that read errors or times out the request falls through to the secure check.
+- **Secure, next to the data**: `requireAdminPage()` in `app/(admin)/layout.tsx` and every admin page (memoized with `cache()`, so layout + page share one lookup), same redirects. Pages repeat it because layouts don't re-run on client navigation and don't stop a page segment from rendering.
+- **Server actions** are directly callable POST endpoints, so each admin action checks for itself with `requireAdminAction()` (returns `{ ok: false, error }` rather than redirecting; `startSudo` throws it). `tests/components/pages/admin-auth.test.tsx` fails if an admin page or an action in a `"use server"` file under `app/(admin)/` (or `app/actions/sudo.ts`) is missing its check; list deliberate exceptions there with a reason.
+
+**Non-admins go to `/no-access`, never a member page**: member pages send anyone without a member record to `/admin`, so redirecting non-admins back to `/dashboard` would loop. `app/no-access/page.tsx` sits outside both route groups and must never redirect a signed-in user.
+
+Sudo doesn't affect any of these checks: the sudo cookie changes the effective *member*, not the signed-in admin. API routes use `requireAdmin` (`lib/supabase/api-auth.ts`) instead.
+
 ### Testing Requirements
 
 **RULE**: Critical data processing routes must have integration tests.

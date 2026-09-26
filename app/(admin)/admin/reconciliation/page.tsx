@@ -1,9 +1,11 @@
 import { redirect } from "next/navigation";
+import { requireAdminPage } from "@/lib/admin-auth";
 
 // Subscription Reconciliation now lives as a section of the merged Data
 // Health dashboard, alongside the hygiene tooling it used to duplicate
 // (unmatched Slack/Zoom identity matching). Kept as a redirect so old
 // links/bookmarks still land somewhere correct.
-export default function ReconciliationRedirectPage() {
+export default async function ReconciliationRedirectPage() {
+  await requireAdminPage();
   redirect("/admin/hygiene#reconciliation");
 }

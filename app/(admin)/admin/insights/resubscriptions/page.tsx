@@ -7,6 +7,7 @@ import ResubscriptionsChart from "./ResubscriptionsChart";
 import { fetchResubscriptionsData } from "@/lib/resubscription-data";
 import type { ResubscribingMember } from "@/lib/resubscription-data";
 import { formatGapLabel } from "@/lib/resubscription-detection";
+import { requireAdminPage } from "@/lib/admin-auth";
 
 export const maxDuration = 60;
 
@@ -82,6 +83,7 @@ function MemberRow({ member }: { member: ResubscribingMember }) {
 }
 
 export default async function ResubscriptionsPage() {
+  await requireAdminPage();
   const supabase = await createClient();
   const user = await getCurrentUser();
   if (!user) redirect("/login");

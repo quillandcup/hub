@@ -2,12 +2,14 @@ import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import type { Metadata } from "next";
 import AliasBadges from "./AliasBadges";
+import { requireAdminPage } from "@/lib/admin-auth";
 
 export const metadata: Metadata = {
   title: "Name Aliases",
 };
 
 export default async function AliasListPage() {
+  await requireAdminPage();
   const supabase = await createClient();
 
   // Get all aliases with their member info

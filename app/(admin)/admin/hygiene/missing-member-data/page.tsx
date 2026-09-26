@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import type { Metadata } from "next";
+import { requireAdminPage } from "@/lib/admin-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -9,6 +10,7 @@ export const metadata: Metadata = {
 };
 
 export default async function MissingMemberDataPage() {
+  await requireAdminPage();
   const supabase = await createClient();
 
   const { data: missingStripe } = await supabase

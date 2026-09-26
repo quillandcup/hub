@@ -2,12 +2,14 @@ import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import DashboardCharts from "./DashboardCharts";
+import { requireAdminPage } from "@/lib/admin-auth";
 
 export const metadata: Metadata = {
   title: "Dashboard",
 };
 
 export default async function DashboardPage() {
+  await requireAdminPage();
   const supabase = await createClient();
 
   // Fetch dashboard metrics

@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
-import { getCurrentUser } from "@/lib/auth";
-import { redirect } from "next/navigation";
+import { requireAdminPage } from "@/lib/admin-auth";
 import Link from "next/link";
 import { CONNECTION_CONFIRMATION_MESSAGE_THRESHOLD } from "@/lib/wheel-of-wonder";
 
@@ -32,14 +31,8 @@ function oneMember(value: MatchMember | MatchMember[] | null): MatchMember | nul
 }
 
 export default async function WheelOfWonderAdminPage() {
+  await requireAdminPage();
   const supabase = await createClient();
-  const user = await getCurrentUser();
-  if (!user) redirect("/login");
-
-  // Explicit guard rather than relying only on the admin layout's Access Denied screen: match
-  // data is admin-only. Non-admins go back to their own view, where that screen's link points.
-  const { data: profile } = await supabase.from("user_profiles").select("role").eq("id", user.id).single();
-  if (profile?.role !== "admin") redirect("/dashboard");
 
   const { data: matchesData } = await supabase
     .from("wheel_of_wonder_matches")

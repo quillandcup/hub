@@ -2,12 +2,14 @@ import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import AliasSearchForm from "./AliasSearchForm";
 import { computeUnmatchedZoomNames } from "@/lib/unmatched-zoom-names";
+import { requireAdminPage } from "@/lib/admin-auth";
 
 export const metadata: Metadata = {
   title: "Unmatched Zoom Names",
 };
 
 export default async function AliasSearchPage() {
+  await requireAdminPage();
   const supabase = await createClient();
 
   // Get members, aliases, ignored names, and staff in parallel; paginate zoom_attendees separately

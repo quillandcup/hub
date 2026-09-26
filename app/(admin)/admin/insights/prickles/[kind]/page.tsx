@@ -10,6 +10,7 @@ import {
   type AttendanceRow,
 } from "@/lib/scheduled-prickle-stats";
 import GroupedTable from "./GroupedTable";
+import { requireAdminPage } from "@/lib/admin-auth";
 
 // ---------------------------------------------------------------------------
 // Pagination helpers
@@ -138,6 +139,7 @@ export default async function PrickleKindInsightsPage({
   params: Promise<{ kind: string }>;
   searchParams: Promise<{ group?: string; from?: string; to?: string; slot?: string }>;
 }) {
+  await requireAdminPage();
   const { kind } = await params;
   const { group, from, to, slot } = await searchParams;
 

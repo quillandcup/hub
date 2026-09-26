@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import type { Metadata } from "next";
 import BadgeTypeForm from "../../BadgeTypeForm";
+import { requireAdminPage } from "@/lib/admin-auth";
 
 export async function generateMetadata({
   params,
@@ -16,6 +17,7 @@ export async function generateMetadata({
 }
 
 export default async function EditBadgePage({ params }: { params: Promise<{ id: string }> }) {
+  await requireAdminPage();
   const { id } = await params;
   const supabase = await createClient();
 

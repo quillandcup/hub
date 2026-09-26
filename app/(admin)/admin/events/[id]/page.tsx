@@ -5,6 +5,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { redirect, notFound } from "next/navigation";
 import { getUserFeaturePreviews } from "@/lib/features.server";
 import EventDetailClient from "./EventDetailClient";
+import { requireAdminPage } from "@/lib/admin-auth";
 
 export const metadata: Metadata = {
   title: "Event",
@@ -17,6 +18,7 @@ export default async function EventDetailPage({
   params: Promise<{ id: string }>;
   searchParams: Promise<{ photo_import_error?: string }>;
 }) {
+  await requireAdminPage();
   const { id } = await params;
   const { photo_import_error } = await searchParams;
   const supabase = await createClient();

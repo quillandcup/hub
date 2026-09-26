@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import AmbiguousNamesResolver from "./AmbiguousNamesResolver";
+import { requireAdminPage } from "@/lib/admin-auth";
 
 export const metadata: Metadata = {
   title: "Ambiguous Zoom Names",
@@ -9,6 +10,7 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 export default async function AmbiguousNamesPage() {
+  await requireAdminPage();
   const supabase = await createClient();
 
   const [{ data: ambiguousRows }, { data: allMembers }] = await Promise.all([

@@ -5,6 +5,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { redirect, notFound } from "next/navigation";
 import { getUserFeaturePreviews } from "@/lib/features.server";
 import ProgramDetailClient from "./ProgramDetailClient";
+import { requireAdminPage } from "@/lib/admin-auth";
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params;
@@ -16,6 +17,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 }
 
 export default async function ProgramDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  await requireAdminPage();
   const { id } = await params;
   const supabase = await createClient();
 

@@ -10,6 +10,7 @@ import { findUnmatchedZoomAttendees } from "@/lib/prickle-unmatched";
 import AliasSearchForm from "@/app/(admin)/admin/hygiene/unmatched-zoom/AliasSearchForm";
 import { getScheduleSlot } from "@/lib/scheduled-prickle-stats";
 import { formatPrickleTitle } from "@/lib/formatters";
+import { requireAdminPage } from "@/lib/admin-auth";
 
 const getPrickle = cache(async (id: string) => {
   const supabase = await createClient();
@@ -48,6 +49,7 @@ export default async function AdminPrickleDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  await requireAdminPage();
   const { id } = await params;
   const supabase = await createClient();
 

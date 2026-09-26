@@ -4,12 +4,14 @@ import { getCurrentUser } from "@/lib/auth";
 import Link from "next/link";
 import type { Metadata } from "next";
 import NetworkGraph from "./NetworkGraph";
+import { requireAdminPage } from "@/lib/admin-auth";
 
 export const metadata: Metadata = {
   title: "Member Network",
 };
 
 export default async function MemberNetworkPage() {
+  await requireAdminPage();
   const supabase = await createClient();
 
   const user = await getCurrentUser();

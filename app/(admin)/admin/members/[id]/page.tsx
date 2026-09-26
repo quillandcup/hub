@@ -14,6 +14,7 @@ import {
   type EngagementActivityRow,
 } from "@/lib/member-engagement";
 import { getMemberBadges } from "@/lib/badges";
+import { requireAdminPage } from "@/lib/admin-auth";
 
 const getMemberRow = cache(async (id: string) => {
   const supabase = await createClient();
@@ -36,6 +37,7 @@ export default async function MemberDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  await requireAdminPage();
   const supabase = await createClient();
   const { id } = await params;
 

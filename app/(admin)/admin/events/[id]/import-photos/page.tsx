@@ -6,12 +6,14 @@ import { redirect, notFound } from "next/navigation";
 import { getUserFeaturePreviews } from "@/lib/features.server";
 import { getImportSessionCookie } from "@/lib/google-photos-picker/import-session-cookie";
 import ImportPhotosClient from "./ImportPhotosClient";
+import { requireAdminPage } from "@/lib/admin-auth";
 
 export const metadata: Metadata = {
   title: "Import Photos",
 };
 
 export default async function ImportPhotosPage({ params }: { params: Promise<{ id: string }> }) {
+  await requireAdminPage();
   const { id } = await params;
   const supabase = await createClient();
 

@@ -3,12 +3,14 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import type { Metadata } from "next";
 import NewPrickleTypeForm from "./NewPrickleTypeForm";
+import { requireAdminPage } from "@/lib/admin-auth";
 
 export const metadata: Metadata = {
   title: "Create New Prickle Type",
 };
 
 export default async function NewPrickleTypePage() {
+  await requireAdminPage();
   const user = await getCurrentUser();
 
   if (!user) {

@@ -11,6 +11,7 @@ import { computeUnmatchedZoomNames } from "@/lib/unmatched-zoom-names";
 import { buildAliasMap } from "@/lib/email-aliases";
 import { groupByCanonical } from "@/lib/external-conflicts";
 import ReconciliationClient from "@/app/(admin)/admin/reconciliation/ReconciliationClient";
+import { requireAdminPage } from "@/lib/admin-auth";
 
 export const metadata: Metadata = {
   title: "Data Health Dashboard",
@@ -19,6 +20,7 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 export default async function DataHygienePage() {
+  await requireAdminPage();
   const supabase = await createClient();
 
   // Fetch data quality metrics

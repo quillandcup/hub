@@ -17,6 +17,7 @@ import {
 } from "@/lib/slack-engagement-stats"
 
 import { resolveDateRange } from "@/lib/stats-date-range"
+import { requireAdminPage } from "@/lib/admin-auth"
 
 export const maxDuration = 60
 
@@ -152,6 +153,7 @@ export default async function SlackEngagementPage({
 }: {
   searchParams: Promise<{ from?: string; to?: string }>
 }) {
+  await requireAdminPage()
   const supabase = await createClient()
   const user = await getCurrentUser()
   if (!user) redirect("/login")

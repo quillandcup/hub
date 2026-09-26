@@ -4,6 +4,7 @@ import Link from "next/link";
 import CalendarWeekView from "@/components/CalendarWeekView";
 import { getUserTimezonePreference } from "@/lib/timezone";
 import { computeHostPunctuality } from "@/lib/hosting-stats";
+import { requireAdminPage } from "@/lib/admin-auth";
 
 export const metadata: Metadata = {
   title: "Prickle Calendar",
@@ -14,6 +15,7 @@ export default async function CalendarPage({
 }: {
   searchParams: Promise<{ week?: string }>;
 }) {
+  await requireAdminPage();
   const supabase = await createClient();
 
   // Await searchParams in Next.js 15

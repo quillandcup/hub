@@ -3,12 +3,14 @@ import { getCurrentUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { getUserFeaturePreviews } from "@/lib/features.server";
 import EventsClient from "./EventsClient";
+import { requireAdminPage } from "@/lib/admin-auth";
 
 export const metadata: Metadata = {
   title: "Events",
 };
 
 export default async function EventsPage() {
+  await requireAdminPage();
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 

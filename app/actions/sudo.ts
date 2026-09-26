@@ -2,26 +2,9 @@
 
 import { cookies, headers } from 'next/headers'
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
-import { getCurrentUser } from '@/lib/auth'
+import { requireAdminAction } from '@/lib/admin-auth'
 import { signSudoCookie } from '@/lib/sudo'
 import { sudoExitPath, sudoLandingPath } from '@/lib/sudo-redirect'
-
-async function requireAdmin() {
-  const supabase = await createClient()
-  const user = await getCurrentUser()
-  if (!user) throw new Error('Not authenticated')
-
-  const { data: profile } = await supabase
-    .from('user_profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single()
-
-  if (profile?.role !== 'admin') throw new Error('Not authorized')
-
-  return { user, supabase }
-}
 
 /**
  * Start browsing as a member.
@@ -33,7 +16,10 @@ async function requireAdmin() {
  *   anything missing/invalid) fall back to the dashboard.
  */
 export async function startSudo(memberId: string, landingUrl?: string) {
-  const { user, supabase } = await requireAdmin()
+  // Throws (as before) rather than returning { error }: callers treat a failed start as an exception.
+  const auth = await requireAdminAction()
+  if (!auth.ok) throw new Error(auth.error)
+  const { user, supabase } = auth
 
   const { data: member } = await supabase
     .from('members')

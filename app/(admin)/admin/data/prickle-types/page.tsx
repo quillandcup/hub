@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import type { Metadata } from "next";
+import { requireAdminPage } from "@/lib/admin-auth";
 
 export const metadata: Metadata = {
   title: "Prickle Types",
@@ -38,6 +39,7 @@ function SoloTaskFriendlyBadge({ soloTaskFriendly }: { soloTaskFriendly: boolean
 }
 
 export default async function PrickleTypesPage() {
+  await requireAdminPage();
   const supabase = await createClient();
 
   // Fetch all prickle types
