@@ -50,8 +50,17 @@ function StatTile({ value, label, muted }: { value: string; label: string; muted
 }
 
 export default function HostingStats({ stats }: { stats: HostingStatsData }) {
-  const { totalHosted, onTimeCount, lateCount, missingCount, onTimeRate, mostRecentHostedAt, monthlyTrend, byType } =
-    stats;
+  const {
+    totalHosted,
+    onTimeCount,
+    lateCount,
+    missingCount,
+    showUpRate,
+    onTimeRate,
+    mostRecentHostedAt,
+    monthlyTrend,
+    byType,
+  } = stats;
 
   return (
     <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 p-4 sm:p-6 mb-6">
@@ -67,6 +76,10 @@ export default function HostingStats({ stats }: { stats: HostingStatsData }) {
         <>
           <div className="flex items-center gap-6 sm:gap-8 flex-wrap">
             <StatTile value={String(totalHosted)} label={totalHosted === 1 ? "prickle hosted" : "prickles hosted"} />
+            <StatTile
+              value={showUpRate === null ? "—" : `${Math.round(showUpRate * 100)}%`}
+              label="show-up rate"
+            />
             <StatTile
               value={onTimeRate === null ? "—" : `${Math.round(onTimeRate * 100)}%`}
               label="on-time rate"
