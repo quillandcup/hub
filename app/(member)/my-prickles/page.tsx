@@ -16,6 +16,9 @@ import PrickleWizard from "@/app/(member)/prickle-picker/PrickleWizard";
 import HostingStats from "@/app/(member)/hosting/HostingStats";
 import HostingScheduleManager from "@/app/(member)/hosting/HostingScheduleManager";
 import AllPricklesView from "./AllPricklesView";
+import CommitmentsManager from "./CommitmentsManager";
+import { getMyCommitments } from "./commitment-actions";
+import { buildSlotOptions } from "@/lib/commitments";
 import { Tabs } from "@/components/Tabs";
 
 export const metadata: Metadata = {
@@ -28,10 +31,10 @@ const MAX_UPCOMING_DISPLAY = 8;
 const SCHEDULE_LOOKBACK_DAYS = 90;
 const MEMBERS_BATCH_SIZE = 1000;
 
-const TAB_IDS = ["upcoming", "all", "history", "find", "hosting"] as const;
+const TAB_IDS = ["upcoming", "all", "history", "find", "hosting", "commitments"] as const;
 type TabId = (typeof TAB_IDS)[number];
 
-export default async function MyPricklesPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
+export default async function MyPricklesPage({ searchParams }: { searchParams: Promise<{ tab?: string; slot?: string }> }) {
   const supabase = await createClient();
   const user = await getCurrentUser();
   if (!user) redirect("/login");
@@ -47,7 +50,7 @@ export default async function MyPricklesPage({ searchParams }: { searchParams: P
   const timeZone = tzPref === "browser" ? ORG_TIMEZONE : tzPref;
   const canFindPrickle = enabledFeatures.includes("prickle_picker");
 
-  const { tab: rawTab } = await searchParams;
+  const { tab: rawTab, slot: commitSlotKey } = await searchParams;
   const requestedTab = (TAB_IDS as readonly string[]).includes(rawTab ?? "") ? (rawTab as TabId) : "upcoming";
   const initialTab: TabId = requestedTab === "find" && !canFindPrickle ? "upcoming" : requestedTab;
 
@@ -64,6 +67,7 @@ export default async function MyPricklesPage({ searchParams }: { searchParams: P
     { data: lockRows },
     hostingStats,
     members,
+    commitments,
   ] = await Promise.all([
     getRankedUpcomingPrickles(supabase, memberId, timeZone, now, UPCOMING_WINDOW_DAYS),
     getPrickleScheduleOverview(supabase, now, timeZone, SCHEDULE_LOOKBACK_DAYS, UPCOMING_WINDOW_DAYS),
@@ -79,6 +83,7 @@ export default async function MyPricklesPage({ searchParams }: { searchParams: P
     supabase.from("prickle_schedule_locks").select("month, locked").in("month", [currentMonth, nextMonth]),
     getMyHostingStats(),
     canFindPrickle ? fetchOtherMembers(supabase, memberId) : Promise.resolve([]),
+    getMyCommitments(),
   ]);
 
   const overrides = (lockRows ?? []).map((r) => ({ month: r.month as string, locked: r.locked as boolean }));
@@ -191,6 +196,17 @@ export default async function MyPricklesPage({ searchParams }: { searchParams: P
                   defaultTimezone={tzPref}
                   memberBasePath="/members"
                   initialView="month"
+                />
+              ),
+            },
+            {
+              id: "commitments",
+              label: "Commitments",
+              content: (
+                <CommitmentsManager
+                  slots={buildSlotOptions(scheduleOverview.rows, timeZone)}
+                  commitments={commitments}
+                  initialSlotKey={commitSlotKey ?? null}
                 />
               ),
             },
