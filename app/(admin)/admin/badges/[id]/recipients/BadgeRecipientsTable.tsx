@@ -2,13 +2,12 @@
 
 import Link from "next/link";
 import { SortableTh } from "@/components/SortableTh";
-import { useTableSort } from "@/lib/hooks/useTableSort";
-import { parseDateOnly } from "@/lib/member-tenure";
+import { useTableSort, type SortValue } from "@/lib/hooks/useTableSort";
 import type { BadgeRecipient } from "@/lib/badges";
 
 type SortColumn = "member" | "level" | "occurrences" | "firstAwardedAt";
 
-function getSortValue(row: BadgeRecipient, column: SortColumn): string | number {
+function getSortValue(row: BadgeRecipient, column: SortColumn): SortValue {
   switch (column) {
     case "member":
       return row.memberName.toLowerCase();
@@ -17,8 +16,9 @@ function getSortValue(row: BadgeRecipient, column: SortColumn): string | number 
     case "occurrences":
       return row.occurrences;
     case "firstAwardedAt":
-      // No date yet (e.g. an automatic badge with no "first eligible" concept) sorts last.
-      return row.firstAwardedAt ? parseDateOnly(row.firstAwardedAt).getTime() : Infinity;
+      // No date yet (e.g. an automatic badge with no "first eligible" concept) is null,
+      // which useTableSort sorts last in both directions.
+      return row.firstAwardedAt;
   }
 }
 
