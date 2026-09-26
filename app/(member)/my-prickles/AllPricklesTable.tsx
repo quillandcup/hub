@@ -67,6 +67,9 @@ export default function AllPricklesTable({ rows }: { rows: PrickleScheduleRow[] 
               <th className="pb-2 pr-2 font-medium">Kind</th>
               <th className="pb-2 pr-2 font-medium">Host</th>
               <th className="pb-2 font-medium text-right">Typically</th>
+              <th className="pb-2 font-medium">
+                <span className="sr-only">Commit</span>
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -74,7 +77,7 @@ export default function AllPricklesTable({ rows }: { rows: PrickleScheduleRow[] 
               <Fragment key={day}>
                 <tr>
                   <td
-                    colSpan={4}
+                    colSpan={5}
                     className="pt-4 pb-1.5 text-sm font-semibold text-slate-700 dark:text-slate-300 border-b border-slate-200 dark:border-slate-800"
                   >
                     {day}
@@ -94,6 +97,17 @@ export default function AllPricklesTable({ rows }: { rows: PrickleScheduleRow[] 
                     <td className="py-2 pr-2 text-slate-500 dark:text-slate-400">{row.hostName ?? "—"}</td>
                     <td className="py-2 text-right">
                       <AttendanceHint row={row} />
+                    </td>
+                    <td className="py-2 pl-3 text-right">
+                      {row.typeId && (
+                        <Link
+                          href={`/my-prickles?tab=commitments&slot=${encodeURIComponent(row.seriesKey)}`}
+                          className="text-xs text-blue-600 dark:text-blue-400 hover:underline whitespace-nowrap"
+                          title="Commit to attending this prickle for a few weeks"
+                        >
+                          Commit
+                        </Link>
+                      )}
                     </td>
                   </tr>
                 ))}
