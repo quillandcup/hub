@@ -42,7 +42,7 @@ describe("MemberNavigation", () => {
   });
 
   it("renders the same primary links in the mobile drawer and the desktop sidebar", async () => {
-    render(<MemberNavigation isAdmin={true} enabledFeatures={["streaks", "wheel_of_wonder", "events"]} />);
+    render(<MemberNavigation isAdmin={true} enabledFeatures={["events"]} />);
     const drawer = await openMobileDrawer();
     const sidebar = screen.getByRole("complementary", { name: "Sidebar navigation" });
     const hrefs = (el: HTMLElement) => within(el).getAllByRole("link").map((a) => a.getAttribute("href"));

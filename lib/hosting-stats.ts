@@ -33,6 +33,9 @@ export interface HostedPrickleRecord {
   endTime?: string;
   /** Host's earliest join_time for this prickle, or null if they never attended it. */
   earliestJoinTime: string | null;
+  /** Distinct members who attended this prickle (host included). Only populated when the
+   * caller asked for attendee counts -- see fetchHostedPrickleRecords. */
+  attendeeCount?: number;
 }
 
 export interface HostingTypeBreakdown {
@@ -117,5 +120,49 @@ export function computeHostingStats(
     mostRecentHostedAt,
     monthlyTrend,
     byType,
+  };
+}
+
+/** The subset of hosting history that's appropriate to show to *other* members on a public
+ * profile. Deliberately excludes punctuality (on-time rate, late/no-show counts) -- those are
+ * shown only to the host themselves on /my-prickles and to admins. */
+export interface PublicHostingSummary {
+  totalHosted: number;
+  firstHostedAt: string | null;
+  mostRecentHostedAt: string | null;
+  /** Mean distinct attendees (host included, matching the "Typically ~N Hedgies" hint on All
+   * Prickles) across hosted prickles that carry an attendeeCount; null if none do. */
+  avgAttendance: number | null;
+  /** Prickle types hosted, most-hosted first. */
+  typeNames: string[];
+}
+
+export function computePublicHostingSummary(records: HostedPrickleRecord[]): PublicHostingSummary {
+  let firstHostedAt: string | null = null;
+  let mostRecentHostedAt: string | null = null;
+  let attendeeTotal = 0;
+  let countedPrickles = 0;
+  const countsByType = new Map<string, number>();
+
+  for (const r of records) {
+    if (!firstHostedAt || r.startTime < firstHostedAt) firstHostedAt = r.startTime;
+    if (!mostRecentHostedAt || r.startTime > mostRecentHostedAt) mostRecentHostedAt = r.startTime;
+    if (r.attendeeCount !== undefined) {
+      attendeeTotal += r.attendeeCount;
+      countedPrickles++;
+    }
+    countsByType.set(r.typeName, (countsByType.get(r.typeName) ?? 0) + 1);
+  }
+
+  const typeNames = Array.from(countsByType.entries())
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .map(([typeName]) => typeName);
+
+  return {
+    totalHosted: records.length,
+    firstHostedAt,
+    mostRecentHostedAt,
+    avgAttendance: countedPrickles > 0 ? attendeeTotal / countedPrickles : null,
+    typeNames,
   };
 }
