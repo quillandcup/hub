@@ -5,7 +5,6 @@ import { getCurrentUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { getEffectiveIdentity } from "@/lib/sudo";
 import { getUserTimezonePreference } from "@/lib/timezone";
-import { getUserFeaturePreviews } from "@/lib/features.server";
 import { getRankedUpcomingPrickles } from "@/lib/upcoming-prickles";
 import { getPrickleScheduleOverview } from "@/lib/prickle-schedule";
 import { getMonthStart, getNextMonthStart, isMonthLocked } from "@/lib/prickle-schedules";
@@ -36,20 +35,14 @@ export default async function MyPricklesPage({ searchParams }: { searchParams: P
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
-  const [effectiveIdentity, tzPref, enabledFeatures] = await Promise.all([
-    getEffectiveIdentity(user),
-    getUserTimezonePreference(),
-    getUserFeaturePreviews(user.id),
-  ]);
+  const [effectiveIdentity, tzPref] = await Promise.all([getEffectiveIdentity(user), getUserTimezonePreference()]);
   if (!effectiveIdentity) redirect("/admin");
 
   const memberId = effectiveIdentity.memberId;
   const timeZone = tzPref === "browser" ? ORG_TIMEZONE : tzPref;
-  const canFindPrickle = enabledFeatures.includes("prickle_picker");
 
   const { tab: rawTab } = await searchParams;
-  const requestedTab = (TAB_IDS as readonly string[]).includes(rawTab ?? "") ? (rawTab as TabId) : "upcoming";
-  const initialTab: TabId = requestedTab === "find" && !canFindPrickle ? "upcoming" : requestedTab;
+  const initialTab: TabId = (TAB_IDS as readonly string[]).includes(rawTab ?? "") ? (rawTab as TabId) : "upcoming";
 
   const now = new Date();
   const currentMonth = getMonthStart(now).toISOString().slice(0, 10);
@@ -78,7 +71,7 @@ export default async function MyPricklesPage({ searchParams }: { searchParams: P
     getMySchedules(),
     supabase.from("prickle_schedule_locks").select("month, locked").in("month", [currentMonth, nextMonth]),
     getMyHostingStats(),
-    canFindPrickle ? fetchOtherMembers(supabase, memberId) : Promise.resolve([]),
+    fetchOtherMembers(supabase, memberId),
   ]);
 
   const overrides = (lockRows ?? []).map((r) => ({ month: r.month as string, locked: r.locked as boolean }));
@@ -135,19 +128,14 @@ export default async function MyPricklesPage({ searchParams }: { searchParams: P
                             className="text-blue-600 dark:text-blue-400 hover:underline"
                           >
                             See all Prickles →
+                          </Link>{" "}
+                          or try{" "}
+                          <Link
+                            href="/my-prickles?tab=find"
+                            className="text-blue-600 dark:text-blue-400 hover:underline"
+                          >
+                            Find a Prickle →
                           </Link>
-                          {canFindPrickle && (
-                            <>
-                              {" "}
-                              or try{" "}
-                              <Link
-                                href="/my-prickles?tab=find"
-                                className="text-blue-600 dark:text-blue-400 hover:underline"
-                              >
-                                Find a Prickle →
-                              </Link>
-                            </>
-                          )}
                         </p>
                       )}
                     </div>
@@ -168,19 +156,15 @@ export default async function MyPricklesPage({ searchParams }: { searchParams: P
                 />
               ),
             },
-            ...(canFindPrickle
-              ? [
-                  {
-                    id: "find" as const,
-                    label: "Find a Prickle",
-                    content: (
-                      <div className="flex justify-center">
-                        <PrickleWizard members={members} />
-                      </div>
-                    ),
-                  },
-                ]
-              : []),
+            {
+              id: "find",
+              label: "Find a Prickle",
+              content: (
+                <div className="flex justify-center">
+                  <PrickleWizard members={members} />
+                </div>
+              ),
+            },
             {
               id: "history",
               label: "Attendance History",

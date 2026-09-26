@@ -62,14 +62,24 @@ describe('Admin Feature Flags API', () => {
 
   // ── GET ────────────────────────────────────────────────────────────────────
 
-  it('GET includes wheel_of_wonder, backfilled by the registry migration', async () => {
+  it('GET includes every key in FEATURE_PREVIEWS, even without a registry row', async () => {
     const res = await fetch(`${base}/api/admin/feature-flags`, { headers: getTestAuthHeaders() })
     expect(res.ok).toBe(true)
     const body = await res.json()
-    const found = body.flags.find((f: any) => f.key === 'wheel_of_wonder')
+    const found = body.flags.find((f: any) => f.key === 'events')
     expect(found).toBeTruthy()
     expect(typeof found.enabledGlobally).toBe('boolean')
     expect(Array.isArray(found.segments)).toBe(true)
+  })
+
+  it('GET no longer lists the retired streaks / prickle_picker / wheel_of_wonder flags', async () => {
+    const res = await fetch(`${base}/api/admin/feature-flags`, { headers: getTestAuthHeaders() })
+    expect(res.ok).toBe(true)
+    const body = await res.json()
+    const keys = body.flags.map((f: any) => f.key)
+    expect(keys).not.toContain('streaks')
+    expect(keys).not.toContain('prickle_picker')
+    expect(keys).not.toContain('wheel_of_wonder')
   })
 
   // ── PATCH enabled_globally ───────────────────────────────────────────────

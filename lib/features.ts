@@ -1,4 +1,4 @@
-export type FeatureKey = 'streaks' | 'member_overrides' | 'prickle_picker' | 'wheel_of_wonder' | 'hedgieversaries' | 'work_queue' | 'program_cohorts' | 'events';
+export type FeatureKey = 'member_overrides' | 'hedgieversaries' | 'work_queue' | 'program_cohorts' | 'events';
 
 export interface FeaturePreview {
   key: FeatureKey;
@@ -8,24 +8,9 @@ export interface FeaturePreview {
 
 export const FEATURE_PREVIEWS: FeaturePreview[] = [
   {
-    key: 'streaks',
-    name: 'Streaks',
-    description: 'Track your writing streaks over time',
-  },
-  {
     key: 'member_overrides',
     name: 'Member Overrides',
     description: 'Suppress reconciliation mismatches (180 program, hiatus, gifted memberships)',
-  },
-  {
-    key: 'prickle_picker',
-    name: 'Prickle Picker',
-    description: 'A wizard that recommends upcoming prickles based on mood, purpose, and who you want to see',
-  },
-  {
-    key: 'wheel_of_wonder',
-    name: 'Wheel of Wonder',
-    description: 'Spin to get matched with a hedgie who’s online in Slack right now',
   },
   {
     key: 'hedgieversaries',

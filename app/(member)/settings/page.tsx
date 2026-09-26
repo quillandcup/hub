@@ -6,7 +6,6 @@ import { ThemeSwitcher } from "./ThemeSwitcher";
 import { TimezoneSwitcher } from "./TimezoneSwitcher";
 import { SessionsPanel } from "./SessionsPanel";
 import { IdentityPanel } from "./IdentityPanel";
-import { getUserFeaturePreviews } from "@/lib/features.server";
 import { getHostedVibes } from "@/app/(member)/prickle-picker/actions";
 import HostVibePanel from "@/components/HostVibePanel";
 import { Tabs } from "@/components/Tabs";
@@ -36,8 +35,7 @@ export default async function SettingsPage() {
 
   const timezonePreference = profile?.timezone_preference || "browser";
 
-  const enabledFeatures = await getUserFeaturePreviews(user.id);
-  const hostedVibes = enabledFeatures.includes("prickle_picker") ? await getHostedVibes() : [];
+  const hostedVibes = await getHostedVibes();
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950">

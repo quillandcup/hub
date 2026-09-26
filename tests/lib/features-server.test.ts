@@ -45,7 +45,7 @@ describe("getUserFeaturePreviews", () => {
   it("enables a flag that is on globally, even with no per-user or segment grant", async () => {
     const mock = makeSupabaseMock(
       {
-        feature_flags: { data: [{ feature_key: "wheel_of_wonder" }], error: null },
+        feature_flags: { data: [{ feature_key: "work_queue" }], error: null },
         user_feature_previews: { data: [], error: null },
       },
       null
@@ -53,21 +53,21 @@ describe("getUserFeaturePreviews", () => {
     vi.mocked(createClient).mockResolvedValue(mock as any);
 
     const result = await getUserFeaturePreviews("user-1");
-    expect(result).toEqual(["wheel_of_wonder"]);
+    expect(result).toEqual(["work_queue"]);
   });
 
   it("enables a flag via the per-user opt-in override, independent of global/segment state", async () => {
     const mock = makeSupabaseMock(
       {
         feature_flags: { data: [], error: null },
-        user_feature_previews: { data: [{ feature_key: "streaks" }], error: null },
+        user_feature_previews: { data: [{ feature_key: "program_cohorts" }], error: null },
       },
       null
     );
     vi.mocked(createClient).mockResolvedValue(mock as any);
 
     const result = await getUserFeaturePreviews("user-1");
-    expect(result).toEqual(["streaks"]);
+    expect(result).toEqual(["program_cohorts"]);
   });
 
   it("enables a flag when the user's member is in a segment linked to that key", async () => {
@@ -111,8 +111,8 @@ describe("getUserFeaturePreviews", () => {
   it("de-duplicates and combines all three enablement paths", async () => {
     const mock = makeSupabaseMock(
       {
-        feature_flags: { data: [{ feature_key: "wheel_of_wonder" }], error: null },
-        user_feature_previews: { data: [{ feature_key: "wheel_of_wonder" }, { feature_key: "streaks" }], error: null },
+        feature_flags: { data: [{ feature_key: "work_queue" }], error: null },
+        user_feature_previews: { data: [{ feature_key: "work_queue" }, { feature_key: "program_cohorts" }], error: null },
         feature_flag_segments: { data: [{ feature_key: "events", segment_id: "seg-1" }], error: null },
         segment_members: { data: [{ segment_id: "seg-1" }], error: null },
       },
@@ -121,7 +121,7 @@ describe("getUserFeaturePreviews", () => {
     vi.mocked(createClient).mockResolvedValue(mock as any);
 
     const result = await getUserFeaturePreviews("user-1");
-    expect(new Set(result)).toEqual(new Set(["wheel_of_wonder", "streaks", "events"]));
+    expect(new Set(result)).toEqual(new Set(["work_queue", "program_cohorts", "events"]));
     expect(result).toHaveLength(3);
   });
 });

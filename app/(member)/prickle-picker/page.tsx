@@ -3,7 +3,6 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { getEffectiveIdentity } from "@/lib/sudo";
-import { getUserFeaturePreviews } from "@/lib/features.server";
 import PrickleWizard from "./PrickleWizard";
 
 export const metadata: Metadata = {
@@ -17,12 +16,8 @@ export default async function PrickleWizardPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
-  const [effectiveIdentity, enabledFeatures] = await Promise.all([
-    getEffectiveIdentity(user),
-    getUserFeaturePreviews(user.id),
-  ]);
+  const effectiveIdentity = await getEffectiveIdentity(user);
   if (!effectiveIdentity) redirect("/admin");
-  if (!enabledFeatures.includes("prickle_picker")) redirect("/dashboard");
 
   let members: { id: string; name: string; email: string }[] = [];
   let offset = 0;

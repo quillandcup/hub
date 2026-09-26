@@ -3,7 +3,6 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { getEffectiveIdentity } from "@/lib/sudo";
-import { getUserFeaturePreviews } from "@/lib/features.server";
 import Wheel from "./Wheel";
 
 export const metadata: Metadata = {
@@ -17,16 +16,14 @@ export default async function WheelOfWonderPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
-  const [effectiveIdentity, enabledFeatures, confirmedMatchesResult] = await Promise.all([
+  const [effectiveIdentity, confirmedMatchesResult] = await Promise.all([
     getEffectiveIdentity(user),
-    getUserFeaturePreviews(user.id),
     supabase
       .from("wheel_of_wonder_matches")
       .select("*", { count: "exact", head: true })
       .eq("status", "confirmed"),
   ]);
   if (!effectiveIdentity) redirect("/admin");
-  if (!enabledFeatures.includes("wheel_of_wonder")) redirect("/dashboard");
 
   const confirmedConnectionCount = confirmedMatchesResult.count ?? 0;
 
