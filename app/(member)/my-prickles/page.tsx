@@ -161,9 +161,10 @@ export default async function MyPricklesPage({ searchParams }: { searchParams: P
               content: (
                 <AllPricklesView
                   rows={scheduleOverview.rows}
-                  instances={scheduleOverview.upcomingInstances}
+                  instances={scheduleOverview.instances}
                   timeZone={timeZone}
                   upcomingWindowDays={UPCOMING_WINDOW_DAYS}
+                  lookbackDays={SCHEDULE_LOOKBACK_DAYS}
                 />
               ),
             },

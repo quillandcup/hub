@@ -22,10 +22,12 @@ export default function AllPricklesCalendar({
   instances,
   timeZone,
   upcomingWindowDays,
+  lookbackDays,
 }: {
   instances: PrickleInstance[];
   timeZone: string;
   upcomingWindowDays: number;
+  lookbackDays: number;
 }) {
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const thisWeekStart = useMemo(() => startOfWeek(new Date()), []);
@@ -50,7 +52,9 @@ export default function AllPricklesCalendar({
   }));
 
   const maxWeekStart = startOfWeek(addDays(new Date(), upcomingWindowDays));
-  const isPrevDisabled = weekStart <= thisWeekStart;
+  // First full week inside the lookback window -- the week the cutoff falls in would be half empty.
+  const minWeekStart = addDays(startOfWeek(addDays(new Date(), -lookbackDays)), 7);
+  const isPrevDisabled = weekStart <= minWeekStart;
   const isNextDisabled = weekStart >= maxWeekStart;
 
   return (

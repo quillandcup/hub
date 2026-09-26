@@ -5,7 +5,7 @@ import { getMemberDisplayName } from "@/lib/member-display-name"
 // The full recurring weekly schedule ("All Prickles" / "Prickle Times") --
 // one row per (type, day-of-week, hour) slot that still has an upcoming
 // occurrence, with a representative host and historical attendance for that
-// slot, plus the raw upcoming instances themselves for a calendar view.
+// slot, plus the raw instances themselves (past and upcoming) for a calendar view.
 // Distinct from lib/upcoming-prickles.ts, which ranks individual upcoming
 // instances by personal relevance rather than describing the recurring
 // pattern itself.
@@ -77,7 +77,9 @@ export interface PrickleInstance {
 
 export interface PrickleScheduleOverview {
   rows: PrickleScheduleRow[]
-  upcomingInstances: PrickleInstance[]
+  /** Every occurrence in the lookback + upcoming window, so the calendar can show earlier
+   * days of the current week (and prior weeks) rather than leaving them blank. */
+  instances: PrickleInstance[]
 }
 
 function seriesKeyFor(typeId: string | null, scheduleSortKey: string): string {
@@ -147,7 +149,7 @@ function pickRepresentativeHost(next: RawPrickleRow, historical: RawPrickleRow[]
 /**
  * Every recurring weekly slot with at least one occurrence still ahead
  * (ordered by day-of-week then time in the viewer's own timezone), plus the
- * raw upcoming instances for a calendar view.
+ * raw instances (past and upcoming, across the whole window) for a calendar view.
  */
 export async function getPrickleScheduleOverview(
   supabase: SupabaseClient,
@@ -231,7 +233,7 @@ export async function getPrickleScheduleOverview(
 
   rows.sort((a, b) => a.sortKey.localeCompare(b.sortKey))
 
-  const upcomingInstances: PrickleInstance[] = [...upcomingBySlot.values()].flat().map((p) => {
+  const instances: PrickleInstance[] = raw.map((p) => {
     const type = unwrapOne(p.prickle_types)
     const host = unwrapOne(p.host)
     return {
@@ -245,5 +247,5 @@ export async function getPrickleScheduleOverview(
     }
   })
 
-  return { rows, upcomingInstances }
+  return { rows, instances }
 }

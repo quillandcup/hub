@@ -12,11 +12,13 @@ export default function AllPricklesView({
   instances,
   timeZone,
   upcomingWindowDays,
+  lookbackDays,
 }: {
   rows: PrickleScheduleRow[];
   instances: PrickleInstance[];
   timeZone: string;
   upcomingWindowDays: number;
+  lookbackDays: number;
 }) {
   const [view, setView] = useState<ViewMode>("table");
 
@@ -60,7 +62,12 @@ export default function AllPricklesView({
       {view === "table" ? (
         <AllPricklesTable rows={rows} />
       ) : (
-        <AllPricklesCalendar instances={instances} timeZone={timeZone} upcomingWindowDays={upcomingWindowDays} />
+        <AllPricklesCalendar
+          instances={instances}
+          timeZone={timeZone}
+          upcomingWindowDays={upcomingWindowDays}
+          lookbackDays={lookbackDays}
+        />
       )}
     </div>
   );
