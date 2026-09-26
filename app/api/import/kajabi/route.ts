@@ -1,5 +1,5 @@
 import { requireAdmin } from "@/lib/supabase/api-auth";
-import { createKajabiClient } from "@/lib/kajabi/client";
+import { createKajabiClient, toKajabiContactBronzeRecord } from "@/lib/kajabi/client";
 import { triggerReprocessing } from "@/lib/processing/trigger";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -45,15 +45,7 @@ export async function POST(request: NextRequest) {
       // BRONZE LAYER: Store raw data as-is (no transformation)
 
       // 1. Contacts (all people in Kajabi)
-      const contactRecords = contacts.map(contact => ({
-        kajabi_contact_id: contact.id,
-        email: contact.attributes.email.toLowerCase(),
-        name: contact.attributes.name,
-        created_at_kajabi: contact.attributes.created_at,
-        updated_at_kajabi: contact.attributes.updated_at,
-        imported_at: importTimestamp,
-        data: contact,
-      }));
+      const contactRecords = contacts.map((contact) => toKajabiContactBronzeRecord(contact, importTimestamp));
 
       const { error: contactsError } = await supabase
         .schema("bronze")

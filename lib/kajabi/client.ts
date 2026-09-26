@@ -76,6 +76,46 @@ export interface KajabiOffer {
   links?: Record<string, any>;
 }
 
+/** Contact attributes this app writes back to Kajabi via PATCH /v1/contacts/{id}. */
+export type KajabiWritableContactAttribute = 'name' | 'email' | 'custom_1' | 'custom_2' | 'custom_3';
+
+/**
+ * Resolve each contact's tags relationship (contact_tags IDs) into plain tag
+ * names via the response's `included` array (requires `include=tags`),
+ * attached as `contact.tags`.
+ */
+function resolveContactTags(contacts: KajabiContact[], included: any[] | undefined): void {
+  const tagNameById = new Map<string, string>();
+  for (const item of included || []) {
+    if (item.type === 'contact_tags' && item.attributes?.name) {
+      tagNameById.set(item.id, item.attributes.name);
+    }
+  }
+  for (const contact of contacts) {
+    const tagRefs = contact.relationships?.tags?.data || [];
+    contact.tags = tagRefs
+      .map((ref: { id: string }) => tagNameById.get(ref.id))
+      .filter((name: string | undefined): name is string => Boolean(name));
+  }
+}
+
+/**
+ * Bronze `kajabi_contacts` row for a Kajabi contact. Shared by the full
+ * import (/api/import/kajabi) and the targeted single-contact refresh so both
+ * write identical rows (UPSERT on kajabi_contact_id — idempotent).
+ */
+export function toKajabiContactBronzeRecord(contact: KajabiContact, importTimestamp: string) {
+  return {
+    kajabi_contact_id: contact.id,
+    email: contact.attributes.email.toLowerCase(),
+    name: contact.attributes.name,
+    created_at_kajabi: contact.attributes.created_at,
+    updated_at_kajabi: contact.attributes.updated_at,
+    imported_at: importTimestamp,
+    data: contact,
+  };
+}
+
 export class KajabiClient {
   private clientId: string;
   private clientSecret: string;
@@ -254,18 +294,7 @@ export class KajabiClient {
       const items: KajabiContact[] = response.data || [];
 
       if (items.length > 0) {
-        const tagNameById = new Map<string, string>();
-        for (const included of response.included || []) {
-          if (included.type === 'contact_tags' && included.attributes?.name) {
-            tagNameById.set(included.id, included.attributes.name);
-          }
-        }
-        for (const contact of items) {
-          const tagRefs = contact.relationships?.tags?.data || [];
-          contact.tags = tagRefs
-            .map((ref: { id: string }) => tagNameById.get(ref.id))
-            .filter((name: string | undefined): name is string => Boolean(name));
-        }
+        resolveContactTags(items, response.included);
 
         console.log(`[Kajabi API] Contacts page ${pageNumber}: ${items.length} records (${response.meta?.current_page}/${response.meta?.total_pages} pages, ${response.meta?.total_count} total)`);
         yield items;
@@ -344,12 +373,31 @@ export class KajabiClient {
   }
 
   /**
-   * Update a contact's attributes (e.g. name after a legal-name correction).
+   * Fetch a single contact, shaped exactly like fetchContactsPaginated's items
+   * (including the resolved `tags` name list), so it can be written to Bronze
+   * with the same record shape as a full import. Used for a targeted refresh
+   * after a member edits a Kajabi-owned field from the app.
+   * See: https://help.kajabi.com/api-reference/contacts/contact-details
+   */
+  async fetchContact(contactId: string): Promise<KajabiContact> {
+    const params = new URLSearchParams({ include: 'tags' });
+    const response: any = await this.request(`/v1/contacts/${contactId}?${params.toString()}`);
+    const contact: KajabiContact | undefined = response.data;
+    if (!contact) throw new Error(`Kajabi returned no contact for id ${contactId}`);
+    resolveContactTags([contact], response.included);
+    return contact;
+  }
+
+  /**
+   * Update a contact's attributes (e.g. name after a legal-name correction,
+   * or a contact custom field like the "Instagram Handle" custom_1).
+   * Kajabi's API has no equivalent for /v1/customers — customer profile
+   * fields (public_bio, socials) are read-only.
    * See: https://help.kajabi.com/api-reference/contacts/update-contact
    */
   async updateContact(
     contactId: string,
-    attributes: Partial<Pick<KajabiContact['attributes'], 'name' | 'email'>>
+    attributes: Partial<Pick<KajabiContact['attributes'], KajabiWritableContactAttribute>>
   ): Promise<KajabiContact> {
     const response = await this.request<{ data: KajabiContact }>(`/v1/contacts/${contactId}`, {
       method: 'PATCH',

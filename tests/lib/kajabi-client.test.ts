@@ -51,4 +51,49 @@ describe("KajabiClient.updateContact", () => {
     const client = new KajabiClient("client-id", "client-secret", "site-id");
     await expect(client.updateContact("456", { name: "" })).rejects.toThrow(/Kajabi API error/);
   });
+
+  it("sends contact custom fields (e.g. the Instagram Handle custom_1)", async () => {
+    const fetchMock = mockFetchSequence([
+      { ok: true, json: { access_token: "token-123", expires_in: 3600 } },
+      { ok: true, json: { data: { id: "456", type: "contacts", attributes: { custom_1: "hedgie" } } } },
+    ]);
+
+    const client = new KajabiClient("client-id", "client-secret", "site-id");
+    await client.updateContact("456", { custom_1: "hedgie" });
+
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toEqual({
+      data: { type: "contacts", id: "456", attributes: { custom_1: "hedgie" } },
+    });
+  });
+});
+
+describe("KajabiClient.fetchContact", () => {
+  beforeEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("GETs one contact with include=tags and resolves tag names like the paginated fetch", async () => {
+    const fetchMock = mockFetchSequence([
+      { ok: true, json: { access_token: "token-123", expires_in: 3600 } },
+      {
+        ok: true,
+        json: {
+          data: {
+            id: "456",
+            type: "contacts",
+            attributes: { name: "Test Person", email: "test@example.com", custom_1: "hedgie" },
+            relationships: { tags: { data: [{ id: "t1", type: "contact_tags" }] } },
+          },
+          included: [{ id: "t1", type: "contact_tags", attributes: { name: "Ideal Hedgie" } }],
+        },
+      },
+    ]);
+
+    const client = new KajabiClient("client-id", "client-secret", "site-id");
+    const contact = await client.fetchContact("456");
+
+    expect(fetchMock.mock.calls[1][0]).toBe("https://api.kajabi.com/v1/contacts/456?include=tags");
+    expect(contact.tags).toEqual(["Ideal Hedgie"]);
+    expect(contact.attributes.custom_1).toBe("hedgie");
+  });
 });

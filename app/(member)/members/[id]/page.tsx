@@ -1,4 +1,5 @@
 import { cache } from "react"
+import Link from "next/link"
 import { createClient } from "@/lib/supabase/server"
 import { getCurrentUser } from "@/lib/auth"
 import { redirect, notFound } from "next/navigation"
@@ -160,6 +161,14 @@ export default async function MemberProfilePage({
             </p>
           )}
         </div>
+        {member.id === effectiveIdentity.memberId && (
+          <Link
+            href="/settings?tab=profile"
+            className="ml-auto shrink-0 text-sm px-3 py-1.5 rounded-md border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+          >
+            Edit profile
+          </Link>
+        )}
       </div>
 
       {showWelcomeBack && mostRecentJoinedDate && (
