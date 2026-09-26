@@ -204,9 +204,12 @@ export default function MemberNavigation({ isAdmin, enabledFeatures }: MemberNav
         />
       )}
 
-      {/* Mobile slide-in drawer */}
+      {/* Mobile slide-in drawer. Height comes from `fixed inset-y-0` (the visible viewport), not `h-screen`:
+          on mobile browsers 100vh is taller than the visible area, which pushed the bottom-pinned Admin Portal
+          link under the browser toolbar where it couldn't be reached. */}
       <aside
-        className={`md:hidden fixed inset-y-0 left-0 z-50 w-64 h-screen bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 transform transition-transform duration-300 flex flex-col ${
+        aria-label="Mobile navigation"
+        className={`md:hidden fixed inset-y-0 left-0 z-50 w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 transform transition-transform duration-300 flex flex-col ${
           mobileOpen ? "translate-x-0" : "-translate-x-full"
         }`}
         aria-hidden={!mobileOpen}
@@ -235,6 +238,7 @@ export default function MemberNavigation({ isAdmin, enabledFeatures }: MemberNav
 
       {/* Desktop sidebar — unchanged collapsible behavior at md and above */}
       <aside
+        aria-label="Sidebar navigation"
         className={`hidden md:flex flex-shrink-0 h-screen bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 transition-all duration-300 z-10 flex-col ${
           collapsed ? "w-16" : "w-64"
         }`}
