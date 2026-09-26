@@ -27,6 +27,11 @@ interface Props {
   nextMonthLocked: boolean;
   // Omitted/null -> treated as eligible (keeps the standard invite).
   hostEligibility?: HostEligibility | null;
+  /** Prickles the calendar already credits this member with hosting (hosting stats' totalHosted).
+   * Schedules are a separate, self-declared record (seeded once from the calendar, then carried
+   * forward), so a real host can have none on file -- e.g. if their calendar prickles weren't
+   * attributed to them yet when the month was bootstrapped. Don't tell them they aren't a host. */
+  calendarHostedCount?: number;
 }
 
 const STATUS_STYLES: Record<MyScheduleRow["status"], string> = {
@@ -678,6 +683,7 @@ export default function HostingScheduleManager({
   currentMonthLocked,
   nextMonthLocked,
   hostEligibility,
+  calendarHostedCount = 0,
 }: Props) {
   const [schedules, setSchedules] = useState(initialSchedules);
   const [requestingForMonth, setRequestingForMonth] = useState<string | null>(null);
@@ -696,7 +702,13 @@ export default function HostingScheduleManager({
   // month (lib/host-eligibility.ts). Brand-new members see a welcome instead
   // of the "Want to host?" pitch. Self-signup itself isn't blocked -- an admin
   // reviews every request anyway -- so a keen new member can still ask.
-  if (schedules.length === 0 && !requestingForMonth && hostEligibility && !hostEligibility.eligible) {
+  if (
+    schedules.length === 0 &&
+    !requestingForMonth &&
+    calendarHostedCount === 0 &&
+    hostEligibility &&
+    !hostEligibility.eligible
+  ) {
     return (
       <div className="max-w-xl mx-auto text-center py-12 border border-dashed border-slate-300 dark:border-slate-700 rounded-lg">
         <p className="text-4xl mb-3">🦔</p>
@@ -723,13 +735,28 @@ export default function HostingScheduleManager({
     return (
       <div className="max-w-xl mx-auto text-center py-12 border border-dashed border-slate-300 dark:border-slate-700 rounded-lg">
         <p className="text-4xl mb-3">🎙️</p>
-        <h2 className="text-lg font-medium text-slate-900 dark:text-slate-100 mb-2">
-          Want to host {monthLabel(nextMonth)}?
-        </h2>
-        <p className="text-sm text-slate-500 dark:text-slate-400 mb-4 max-w-sm mx-auto">
-          Most hedgies aren&apos;t hosts — but if you&apos;d like to run a prickle next month, request a slot and an
-          admin will confirm it.
-        </p>
+        {calendarHostedCount > 0 ? (
+          <>
+            <h2 className="text-lg font-medium text-slate-900 dark:text-slate-100 mb-2">
+              No hosting schedule on file for {monthLabel(nextMonth)}
+            </h2>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mb-4 max-w-sm mx-auto">
+              You&apos;ve hosted {calendarHostedCount} prickle{calendarHostedCount === 1 ? "" : "s"}, but your regular
+              slots haven&apos;t been added here yet. Request them below, or ask an admin to add them from the
+              calendar.
+            </p>
+          </>
+        ) : (
+          <>
+            <h2 className="text-lg font-medium text-slate-900 dark:text-slate-100 mb-2">
+              Want to host {monthLabel(nextMonth)}?
+            </h2>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mb-4 max-w-sm mx-auto">
+              Most hedgies aren&apos;t hosts — but if you&apos;d like to run a prickle next month, request a slot and
+              an admin will confirm it.
+            </p>
+          </>
+        )}
         <button
           type="button"
           onClick={() => setRequestingForMonth(nextMonth)}

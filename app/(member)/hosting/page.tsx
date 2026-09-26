@@ -58,6 +58,7 @@ export default async function HostingPage() {
           currentMonthLocked={currentMonthLocked}
           nextMonthLocked={nextMonthLocked}
           hostEligibility={hostEligibility}
+          calendarHostedCount={hostingStats.totalHosted}
         />
       </main>
     </div>
