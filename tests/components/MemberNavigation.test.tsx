@@ -1,12 +1,17 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import MemberNavigation from "@/components/MemberNavigation";
 
+let pathname = "/dashboard";
 vi.mock("next/navigation", () => ({
-  usePathname: () => "/dashboard",
+  usePathname: () => pathname,
 }));
+
+beforeEach(() => {
+  pathname = "/dashboard";
+});
 
 async function openMobileDrawer() {
   await userEvent.click(screen.getByRole("button", { name: "Open navigation menu" }));
@@ -59,5 +64,21 @@ describe("MemberNavigation", () => {
     const sidebar = screen.getByRole("complementary", { name: "Sidebar navigation" });
     const sidebarHrefs = within(sidebar).getAllByRole("link").map((a) => a.getAttribute("href"));
     expect(sidebarHrefs).toEqual(expect.arrayContaining(["/streaks", "/wheel-of-wonder"]));
+  });
+
+  // Calendar, Prickle Picker and Hosting are now My Prickles tabs (no standalone routes).
+  it.each(["/my-prickles", "/prickles/prickle-1"])("highlights My Prickles at %s", (path) => {
+    pathname = path;
+    render(<MemberNavigation isAdmin={false} enabledFeatures={[]} />);
+    const sidebar = screen.getByRole("complementary", { name: "Sidebar navigation" });
+    expect(within(sidebar).getByRole("link", { name: /My Prickles/ })).toHaveClass("font-medium");
+    expect(within(sidebar).getByRole("link", { name: /Dashboard/ })).not.toHaveClass("font-medium");
+  });
+
+  it("does not highlight My Prickles on unrelated pages", () => {
+    pathname = "/projects";
+    render(<MemberNavigation isAdmin={false} enabledFeatures={[]} />);
+    const sidebar = screen.getByRole("complementary", { name: "Sidebar navigation" });
+    expect(within(sidebar).getByRole("link", { name: /My Prickles/ })).not.toHaveClass("font-medium");
   });
 });

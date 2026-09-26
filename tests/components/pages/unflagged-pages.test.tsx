@@ -59,7 +59,6 @@ vi.mock("@/app/(member)/my-prickles/AllPricklesView", () => ({ default: () => <d
 vi.mock("@/app/(member)/my-prickles/CommitmentsManager", () => ({ default: () => <div /> }));
 
 import StreaksPage from "@/app/(member)/streaks/page";
-import PricklePickerPage from "@/app/(member)/prickle-picker/page";
 import WheelOfWonderPage from "@/app/(member)/wheel-of-wonder/page";
 import AdminWheelOfWonderPage from "@/app/(admin)/admin/wheel-of-wonder/page";
 import MyPricklesPage from "@/app/(member)/my-prickles/page";
@@ -93,11 +92,12 @@ describe("retired feature flags: pages render for a member with no feature previ
     expect(redirect).not.toHaveBeenCalled();
   });
 
-  it("Prickle Picker renders the wizard, excluding the member themselves", async () => {
-    await renderServerPage(PricklePickerPage, {});
-    expect(screen.getByRole("heading", { name: "Prickle Picker" })).toBeInTheDocument();
-    expect(screen.getByTestId("prickle-wizard")).toHaveTextContent("Hazel Burrowes");
-    expect(screen.getByTestId("prickle-wizard")).not.toHaveTextContent("Fern Quillsby");
+  // The standalone /prickle-picker page was removed; the Prickle Picker lives only in this tab now.
+  it("Prickle Picker (My Prickles → Find a Prickle) renders the wizard, excluding the member themselves", async () => {
+    await renderServerPage(MyPricklesPage, myPricklesProps("find"));
+    const wizard = within(screen.getByRole("tabpanel")).getByTestId("prickle-wizard");
+    expect(wizard).toHaveTextContent("Hazel Burrowes");
+    expect(wizard).not.toHaveTextContent("Fern Quillsby");
     expect(redirect).not.toHaveBeenCalled();
   });
 
@@ -173,7 +173,6 @@ describe("retired feature flags: pages render for a member with no feature previ
 describe("sudo requirement is kept", () => {
   it.each([
     ["Streaks", StreaksPage, {}],
-    ["Prickle Picker", PricklePickerPage, {}],
     ["Wheel of Wonder", WheelOfWonderPage, {}],
     ["My Prickles", MyPricklesPage, myPricklesProps("find")],
   ] as const)("%s redirects a user with no effective member identity to /admin", async (_name, Page, props) => {

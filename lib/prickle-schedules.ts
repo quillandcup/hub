@@ -1,4 +1,4 @@
-// Logic for the Hosting feature (member self-service at /hosting, admin
+// Logic for the Hosting feature (member self-service in the My Prickles → Hosting tab, admin
 // review at /admin/hosts). Most of this module is pure and DB-free -- month
 // boundaries, lock state, human labels, and which calendar dates a schedule
 // lands on -- so it's easy to unit test in isolation (see

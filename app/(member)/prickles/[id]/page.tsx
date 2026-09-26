@@ -67,7 +67,8 @@ export default async function PrickleDetailPage({
   const isAdmin = profileResult.data?.role === "admin";
   const isActingAsAdmin = isAdmin && !effectiveIdentity?.isSudo;
   const memberBasePath = isActingAsAdmin ? "/admin/members" : "/members";
-  const backHref = isActingAsAdmin ? "/admin/calendar" : "/calendar";
+  const backHref = isActingAsAdmin ? "/admin/calendar" : "/my-prickles?tab=history";
+  const backLabel = isActingAsAdmin ? "← Back to Calendar" : "← Back to My Prickles";
 
   if (!prickle) {
     return (
@@ -75,7 +76,7 @@ export default async function PrickleDetailPage({
         <div className="text-center">
           <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 mb-2">Prickle not found</h1>
           <Link href={backHref} className="text-blue-600 hover:text-blue-700 dark:text-blue-400">
-            ← Back to Calendar
+            {backLabel}
           </Link>
         </div>
       </div>
@@ -170,7 +171,7 @@ export default async function PrickleDetailPage({
       <header className="border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
         <div className="container mx-auto px-6 py-4">
           <Link href={backHref} className="text-blue-600 hover:text-blue-700 dark:text-blue-400 text-sm mb-2 inline-block">
-            ← Back to Calendar
+            {backLabel}
           </Link>
           <h1 className="text-2xl font-bold mt-2">Prickle Details</h1>
         </div>

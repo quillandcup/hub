@@ -482,7 +482,7 @@ export default async function NetworkPage() {
                 <p className="text-sm text-slate-400 mb-3">Check the calendar for upcoming sessions.</p>
               )}
               <Link
-                href="/prickle-picker"
+                href="/my-prickles?tab=find"
                 className="text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline"
               >
                 Try the Prickle Picker →

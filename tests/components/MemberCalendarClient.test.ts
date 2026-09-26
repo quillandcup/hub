@@ -7,11 +7,6 @@ const src = fs.readFileSync(
   'utf-8'
 );
 
-const pageSrc = fs.readFileSync(
-  path.join(process.cwd(), 'app/(member)/calendar/page.tsx'),
-  'utf-8'
-);
-
 function formatWeekRange(start: Date, endExclusive: Date): string {
   const end = new Date(endExclusive);
   end.setDate(end.getDate() - 1);
@@ -225,26 +220,6 @@ describe('MemberCalendarClient', () => {
     });
   });
 
-  describe('calendar page integration', () => {
-    it('page imports and renders MemberCalendarClient', () => {
-      expect(pageSrc).toContain('MemberCalendarClient');
-    });
-
-    it('page no longer has its own view toggle markup', () => {
-      expect(pageSrc).not.toContain('bg-slate-100 dark:bg-slate-800 rounded-lg p-1');
-    });
-
-    it('page no longer has its own Prev/Next navigation', () => {
-      expect(pageSrc).not.toContain('← Previous');
-      expect(pageSrc).not.toContain('Next →');
-    });
-
-    it('page passes initialView from URL param', () => {
-      expect(pageSrc).toContain('initialView={initialView}');
-    });
-
-    it('page supports list as a valid view param', () => {
-      expect(pageSrc).toContain('"list"');
-    });
-  });
+  // The standalone /calendar page was removed; MemberCalendarClient now renders in My Prickles → Attendance
+  // History (tests/components/pages/my-prickles-tabs.test.tsx).
 });

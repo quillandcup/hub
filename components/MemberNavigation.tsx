@@ -21,7 +21,8 @@ interface NavLinksProps {
 function NavLinks({ isAdmin, enabledFeatures, pathname, collapsed, onNavigate }: NavLinksProps) {
   const isDashboardActive = pathname === '/dashboard';
   const isProjectsActive = pathname === '/projects' || pathname.startsWith('/projects/');
-  const isMyPricklesActive = pathname === '/my-prickles' || ['/calendar', '/prickle-picker', '/hosting'].some((p) => pathname === p || pathname.startsWith(`${p}/`));
+  // Calendar, Prickle Picker and Hosting are My Prickles tabs; prickle detail pages link back here.
+  const isMyPricklesActive = pathname === '/my-prickles' || pathname.startsWith('/prickles/');
   const isStreaksActive = pathname === '/streaks';
   const isWheelActive = pathname === '/wheel-of-wonder';
   const isBookshelfActive = pathname === '/bookshelf';
