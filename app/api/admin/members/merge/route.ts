@@ -53,7 +53,12 @@ export async function POST(request: NextRequest) {
       run(supabase.from("member_activities").update({ member_id: primaryId }).eq("member_id", secondaryId)),
       run(supabase.from("member_hiatus_history").update({ member_id: primaryId }).eq("member_id", secondaryId)),
       run(supabase.from("member_status_overrides").update({ member_id: primaryId }).eq("member_id", secondaryId)),
-      run(supabase.from("prickles").update({ host_id: primaryId }).eq("host_id", secondaryId)),
+      // prickles.host (not host_id) -- a wrong column name here used to fail silently, and deleting
+      // the secondary below then SET NULL'd every prickle they hosted.
+      run(supabase.from("prickles").update({ host: primaryId }).eq("host", secondaryId)),
+      // prickle_schedules.host_id is ON DELETE CASCADE, so an untransferred schedule would be
+      // silently deleted along with the secondary.
+      run(supabase.from("prickle_schedules").update({ host_id: primaryId }).eq("host_id", secondaryId)),
       run(supabase.from("prickle_types").update({ default_host_id: primaryId }).eq("default_host_id", secondaryId)),
       run(supabase.from("ambiguous_zoom_names").update({ resolved_member_id: primaryId }).eq("resolved_member_id", secondaryId)),
     ]);

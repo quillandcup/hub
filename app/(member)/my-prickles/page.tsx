@@ -207,6 +207,7 @@ export default async function MyPricklesPage({ searchParams }: { searchParams: P
                     nextMonth={nextMonth}
                     currentMonthLocked={currentMonthLocked}
                     nextMonthLocked={nextMonthLocked}
+                    calendarHostedCount={hostingStats.totalHosted}
                   />
                 </div>
               ),

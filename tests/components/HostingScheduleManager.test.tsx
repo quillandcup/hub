@@ -75,6 +75,19 @@ describe("HostingScheduleManager", () => {
     expect(screen.getByRole("button", { name: "Request to host" })).toBeInTheDocument();
   });
 
+  it("doesn't tell a member who already hosts on the calendar that they aren't a host", () => {
+    renderManager([], { calendarHostedCount: 12 });
+    expect(screen.queryByText(/Most hedgies aren't hosts/)).not.toBeInTheDocument();
+    expect(screen.getByText(/No hosting schedule on file for October 2026/)).toBeInTheDocument();
+    expect(screen.getByText(/You've hosted 12 prickles/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Request to host" })).toBeInTheDocument();
+  });
+
+  it("keeps the generic invite for members who have never hosted", () => {
+    renderManager([], { calendarHostedCount: 0 });
+    expect(screen.getByText(/Most hedgies aren't hosts/)).toBeInTheDocument();
+  });
+
   it("opens the request form from the empty-state CTA and submits a weekly request", async () => {
     vi.mocked(requestToHost).mockResolvedValue({ success: true });
     renderManager([]);
