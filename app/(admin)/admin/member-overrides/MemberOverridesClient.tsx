@@ -5,6 +5,8 @@ import Link from "next/link";
 import MemberOverrideForm, { type MemberOverrideFields } from "@/components/MemberOverrideForm";
 import MemberSearch from "@/components/MemberSearch";
 import { parseDateOnly } from "@/lib/member-tenure";
+import { SortableTh } from "@/components/SortableTh";
+import { useTableSort, type SortValue } from "@/lib/hooks/useTableSort";
 
 interface Member {
   id: string;
@@ -20,6 +22,24 @@ interface MemberOverride extends MemberOverrideFields {
 
 type TypeFilter = "all" | "gift" | "special" | "direct_stripe";
 
+type SortColumn = "member" | "type" | "reason" | "starts" | "expires";
+
+function getSortValue(override: MemberOverride, column: SortColumn): SortValue {
+  switch (column) {
+    case "member":
+      return override.member.name.toLowerCase();
+    case "type":
+      return override.override_type;
+    case "reason":
+      return override.reason.toLowerCase();
+    case "starts":
+      return override.starts_at;
+    case "expires":
+      // No expiry means "never": later than any date.
+      return override.expires_at ?? "9999-12-31";
+  }
+}
+
 export default function MemberOverridesClient() {
   const [overrides, setOverrides] = useState<MemberOverride[]>([]);
   const [loading, setLoading] = useState(true);
@@ -32,6 +52,11 @@ export default function MemberOverridesClient() {
   // can render.
   const [resolvedMember, setResolvedMember] = useState<Member | null>(null);
   const [allMembers, setAllMembers] = useState<Member[]>([]);
+  const { sortColumn, sortDirection, handleSort, sortedRows } = useTableSort<MemberOverride, SortColumn>({
+    rows: overrides,
+    getSortValue,
+    defaultSort: null,
+  });
 
   useEffect(() => {
     fetchOverrides();
@@ -109,7 +134,7 @@ export default function MemberOverridesClient() {
     );
   }
 
-  const filteredOverrides = typeFilter === "all" ? overrides : overrides.filter((o) => o.override_type === typeFilter);
+  const filteredOverrides = typeFilter === "all" ? sortedRows : sortedRows.filter((o) => o.override_type === typeFilter);
 
   return (
     <div className="p-8">
@@ -205,21 +230,41 @@ export default function MemberOverridesClient() {
         <table className="w-full">
           <thead className="bg-gray-50 dark:bg-slate-800">
             <tr>
-              <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-slate-300">
-                Member
-              </th>
-              <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-slate-300">
-                Type
-              </th>
-              <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-slate-300">
-                Reason
-              </th>
-              <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-slate-300">
-                Starts
-              </th>
-              <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-slate-300">
-                Expires
-              </th>
+              <SortableTh
+                label="Member"
+                className="px-4 py-3 text-sm font-medium text-gray-700 dark:text-slate-300"
+                active={sortColumn === "member"}
+                direction={sortDirection}
+                onClick={() => handleSort("member")}
+              />
+              <SortableTh
+                label="Type"
+                className="px-4 py-3 text-sm font-medium text-gray-700 dark:text-slate-300"
+                active={sortColumn === "type"}
+                direction={sortDirection}
+                onClick={() => handleSort("type")}
+              />
+              <SortableTh
+                label="Reason"
+                className="px-4 py-3 text-sm font-medium text-gray-700 dark:text-slate-300"
+                active={sortColumn === "reason"}
+                direction={sortDirection}
+                onClick={() => handleSort("reason")}
+              />
+              <SortableTh
+                label="Starts"
+                className="px-4 py-3 text-sm font-medium text-gray-700 dark:text-slate-300"
+                active={sortColumn === "starts"}
+                direction={sortDirection}
+                onClick={() => handleSort("starts")}
+              />
+              <SortableTh
+                label="Expires"
+                className="px-4 py-3 text-sm font-medium text-gray-700 dark:text-slate-300"
+                active={sortColumn === "expires"}
+                direction={sortDirection}
+                onClick={() => handleSort("expires")}
+              />
               <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-slate-300">
                 Actions
               </th>

@@ -1,9 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { countDistinctPrickles } from "@/lib/attendance-grouping";
+import { SortableTh } from "@/components/SortableTh";
+import { useTableSort, type SortValue } from "@/lib/hooks/useTableSort";
+
+type SortColumn = "type" | "date" | "time" | "duration" | "host";
 
 const TIMEZONES = [
   { value: "America/New_York", label: "Eastern (ET)" },
@@ -48,6 +52,35 @@ export default function MemberAttendanceView({
   useEffect(() => {
     setTimezone(defaultTimezone);
   }, [defaultTimezone]);
+
+  // "Time" sorts by time of day in the selected timezone; "Date" by the full instant.
+  const getSortValue = useCallback(
+    (record: any, column: SortColumn): SortValue => {
+      switch (column) {
+        case "type":
+          return record.prickles?.prickle_types?.name?.toLowerCase() ?? null;
+        case "date":
+          return record.join_time;
+        case "time":
+          return new Date(record.join_time).toLocaleTimeString("en-GB", {
+            timeZone: timezone,
+            hour: "2-digit",
+            minute: "2-digit",
+            hourCycle: "h23",
+          });
+        case "duration":
+          return (new Date(record.leave_time).getTime() - new Date(record.join_time).getTime()) / 60000;
+        case "host":
+          return record.prickles?.host?.name?.toLowerCase() ?? null;
+      }
+    },
+    [timezone]
+  );
+  const { sortColumn, sortDirection, handleSort, sortedRows } = useTableSort<any, SortColumn>({
+    rows: attendanceRecords,
+    getSortValue,
+    defaultSort: null,
+  });
 
   const formatTime = (date: Date) =>
     date.toLocaleTimeString("en-US", { timeZone: timezone, hour: "numeric", minute: "2-digit" });
@@ -167,25 +200,40 @@ export default function MemberAttendanceView({
               <table className="w-full">
                 <thead className="bg-slate-50 dark:bg-slate-800">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                      Prickle Type
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                      Date
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                      Time
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                      Duration
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                      Host
-                    </th>
+                    <SortableTh
+                      label="Prickle Type"
+                      active={sortColumn === "type"}
+                      direction={sortDirection}
+                      onClick={() => handleSort("type")}
+                    />
+                    <SortableTh
+                      label="Date"
+                      active={sortColumn === "date"}
+                      direction={sortDirection}
+                      onClick={() => handleSort("date")}
+                    />
+                    <SortableTh
+                      label="Time"
+                      active={sortColumn === "time"}
+                      direction={sortDirection}
+                      onClick={() => handleSort("time")}
+                    />
+                    <SortableTh
+                      label="Duration"
+                      active={sortColumn === "duration"}
+                      direction={sortDirection}
+                      onClick={() => handleSort("duration")}
+                    />
+                    <SortableTh
+                      label="Host"
+                      active={sortColumn === "host"}
+                      direction={sortDirection}
+                      onClick={() => handleSort("host")}
+                    />
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
-                  {attendanceRecords.map((record: any) => {
+                  {sortedRows.map((record: any) => {
                     const prickle = record.prickles;
                     const joinTime = new Date(record.join_time);
                     const leaveTime = new Date(record.leave_time);

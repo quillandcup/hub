@@ -147,7 +147,7 @@ describe("sortRows with date values", () => {
     expect(ids(sortRows(rows, byValue, desc))).toEqual(["c", "b", "a"]);
   });
 
-  it("sorts null, undefined, NaN and invalid dates last in both directions", () => {
+  it("sorts null, undefined, NaN and invalid dates last ascending and first descending", () => {
     const rows: DateRow[] = [
       { id: "null", value: null },
       { id: "2024", value: "2024-05-01" },
@@ -159,7 +159,20 @@ describe("sortRows with date values", () => {
     ];
     const missing = ["null", "undef", "nan", "invalid"];
     expect(ids(sortRows(rows, byValue, asc))).toEqual(["2022", "2023", "2024", ...missing]);
-    expect(ids(sortRows(rows, byValue, desc))).toEqual(["2024", "2023", "2022", ...missing]);
+    // Stable sort keeps the empties in input order within their block.
+    expect(ids(sortRows(rows, byValue, desc))).toEqual([...missing, "2024", "2023", "2022"]);
+  });
+
+  it("makes descending the exact reverse of ascending when all values are distinct", () => {
+    const rows: DateRow[] = [
+      { id: "none", value: null },
+      { id: "mid", value: "2024-06-01T12:00:00Z" },
+      { id: "old", value: "2020-01-01" },
+      { id: "new", value: new Date("2026-01-01T00:00:00Z") },
+    ];
+    const ascending = ids(sortRows(rows, byValue, asc));
+    expect(ascending).toEqual(["old", "mid", "new", "none"]);
+    expect(ids(sortRows(rows, byValue, desc))).toEqual([...ascending].reverse());
   });
 
   it("treats Infinity sentinels as equal to each other instead of producing NaN", () => {
@@ -183,10 +196,12 @@ describe("sortRows with date values", () => {
 });
 
 describe("compareSortValues", () => {
-  it("never lets a missing value precede a present one", () => {
+  it("ranks missing values after present ones ascending and before them descending", () => {
     expect(compareSortValues(null, "2024-01-01", "asc")).toBeGreaterThan(0);
-    expect(compareSortValues(null, "2024-01-01", "desc")).toBeGreaterThan(0);
-    expect(compareSortValues("2024-01-01", undefined, "desc")).toBeLessThan(0);
+    expect(compareSortValues(null, "2024-01-01", "desc")).toBeLessThan(0);
+    expect(compareSortValues("2024-01-01", undefined, "asc")).toBeLessThan(0);
+    expect(compareSortValues("2024-01-01", undefined, "desc")).toBeGreaterThan(0);
     expect(compareSortValues(null, undefined, "asc")).toBe(0);
+    expect(compareSortValues(null, undefined, "desc")).toBe(0);
   });
 });

@@ -5,8 +5,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import ResubscriptionsChart from "./ResubscriptionsChart";
 import { fetchResubscriptionsData } from "@/lib/resubscription-data";
-import type { ResubscribingMember } from "@/lib/resubscription-data";
-import { formatGapLabel } from "@/lib/resubscription-detection";
+import ResubscribingMembersTable from "./ResubscribingMembersTable";
 
 export const maxDuration = 60;
 
@@ -17,68 +16,6 @@ export const metadata: Metadata = {
 function pct(num: number, denom: number): string {
   if (denom === 0) return "—";
   return `${((num / denom) * 100).toFixed(1)}%`;
-}
-
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    timeZone: "UTC",
-  });
-}
-
-function GapBadge({ days }: { days: number }) {
-  return (
-    <span className="text-xs text-slate-400 dark:text-slate-500 ml-2">({formatGapLabel(days)})</span>
-  );
-}
-
-function MemberRow({ member }: { member: ResubscribingMember }) {
-  const profileHref = member.memberId ? `/admin/members/${member.memberId}` : null;
-
-  return (
-    <tr className="border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50">
-      <td className="px-4 py-3">
-        <div className="flex items-center gap-2">
-          {profileHref ? (
-            <Link href={profileHref} className="font-medium text-blue-600 dark:text-blue-400 hover:underline">
-              {member.memberName}
-            </Link>
-          ) : (
-            <span className="font-medium text-slate-700 dark:text-slate-300">{member.memberName}</span>
-          )}
-          {member.isCurrentlyActive ? (
-            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">
-              active
-            </span>
-          ) : (
-            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400">
-              cancelled
-            </span>
-          )}
-        </div>
-        <div className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">{member.memberEmail}</div>
-      </td>
-      <td className="px-4 py-3 text-center text-sm font-medium text-slate-700 dark:text-slate-300">
-        {member.resubscriptions.length}
-      </td>
-      <td className="px-4 py-3">
-        <div className="space-y-1">
-          {member.resubscriptions.map((event, i) => (
-            <div key={i} className="text-sm text-slate-600 dark:text-slate-400">
-              <span className="text-slate-400 dark:text-slate-500 text-xs">Cancelled</span>{" "}
-              {formatDate(event.cancelledAt)}
-              <span className="mx-2 text-slate-300 dark:text-slate-600">→</span>
-              <span className="text-slate-400 dark:text-slate-500 text-xs">Rejoined</span>{" "}
-              <span className="text-green-600 dark:text-green-400 font-medium">{formatDate(event.resubscribedAt)}</span>
-              <GapBadge days={event.gapDays} />
-            </div>
-          ))}
-        </div>
-      </td>
-    </tr>
-  );
 }
 
 export default async function ResubscriptionsPage() {
@@ -148,28 +85,7 @@ export default async function ResubscriptionsPage() {
                   No resubscriptions found yet.
                 </div>
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                          Member
-                        </th>
-                        <th className="px-4 py-3 text-center text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                          Times
-                        </th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                          History
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {data.members.map((member) => (
-                        <MemberRow key={member.memberEmail} member={member} />
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                <ResubscribingMembersTable members={data.members} />
               )}
             </div>
         </>

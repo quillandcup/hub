@@ -4,6 +4,8 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import LogProgressModal from "@/components/writing/LogProgressModal";
+import { SortableTh } from "@/components/SortableTh";
+import { useTableSort, type SortValue } from "@/lib/hooks/useTableSort";
 
 const TIMEZONES = [
   { value: "America/New_York", label: "Eastern (ET)" },
@@ -26,6 +28,21 @@ interface PrickleDetailsProps {
   viewerProjects?: { id: string; title: string }[];
 }
 
+type SortColumn = "member" | "join" | "leave" | "duration";
+
+function getSortValue(record: any, column: SortColumn): SortValue {
+  switch (column) {
+    case "member":
+      return record.members?.name?.toLowerCase() ?? null;
+    case "join":
+      return record.join_time;
+    case "leave":
+      return record.leave_time;
+    case "duration":
+      return (new Date(record.leave_time).getTime() - new Date(record.join_time).getTime()) / 60000;
+  }
+}
+
 export default function PrickleDetails({
   prickle,
   attendanceRecords,
@@ -40,6 +57,11 @@ export default function PrickleDetails({
 }: PrickleDetailsProps) {
   const router = useRouter();
   const [isLogModalOpen, setIsLogModalOpen] = useState(false);
+  const { sortColumn, sortDirection, handleSort, sortedRows } = useTableSort<any, SortColumn>({
+    rows: attendanceRecords,
+    getSortValue,
+    defaultSort: null,
+  });
   const [detectedTimezone, setDetectedTimezone] = useState<string | null>(null);
   useEffect(() => {
     if (userTimezonePreference === "browser") {
@@ -195,22 +217,34 @@ export default function PrickleDetails({
             <table className="w-full">
               <thead className="bg-slate-50 dark:bg-slate-800">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                    Member
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                    Join Time
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                    Leave Time
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                    Duration
-                  </th>
+                  <SortableTh
+                    label="Member"
+                    active={sortColumn === "member"}
+                    direction={sortDirection}
+                    onClick={() => handleSort("member")}
+                  />
+                  <SortableTh
+                    label="Join Time"
+                    active={sortColumn === "join"}
+                    direction={sortDirection}
+                    onClick={() => handleSort("join")}
+                  />
+                  <SortableTh
+                    label="Leave Time"
+                    active={sortColumn === "leave"}
+                    direction={sortDirection}
+                    onClick={() => handleSort("leave")}
+                  />
+                  <SortableTh
+                    label="Duration"
+                    active={sortColumn === "duration"}
+                    direction={sortDirection}
+                    onClick={() => handleSort("duration")}
+                  />
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
-                {attendanceRecords.map((record: any) => {
+                {sortedRows.map((record: any) => {
                   const member = record.members;
                   const joinTime = new Date(record.join_time);
                   const leaveTime = new Date(record.leave_time);

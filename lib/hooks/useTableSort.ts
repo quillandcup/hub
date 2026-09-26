@@ -11,8 +11,8 @@ export interface SortConfig<TColumn extends string> {
 
 // A column's sort key. Dates may be passed as Date objects or as ISO strings
 // (date-only "YYYY-MM-DD" or full timestamps) and are compared chronologically.
-// null/undefined (and NaN / invalid dates) mean "no value" and always sort
-// last, in both directions.
+// null/undefined (and NaN / invalid dates) mean "no value": they sort last
+// ascending and first descending (descending is a true reversal).
 export type SortValue = string | number | Date | null | undefined;
 
 interface UseTableSortOptions<TRow, TColumn extends string> {
@@ -116,15 +116,23 @@ function comparePresent(a: PresentSortValue, b: PresentSortValue): number {
   return String(a).localeCompare(String(b));
 }
 
-// Comparator for one direction. Missing values sort last in both directions,
-// so e.g. "no date yet" rows never jump to the top when sorting descending.
-export function compareSortValues(a: SortValue, b: SortValue, direction: SortDirection): number {
+// Ascending comparison of any two sort values: missing values rank after
+// every present value.
+function compareAscending(a: SortValue, b: SortValue): number {
   const aMissing = isMissing(a);
   const bMissing = isMissing(b);
   if (aMissing && bMissing) return 0;
   if (aMissing) return 1;
   if (bMissing) return -1;
-  const cmp = comparePresent(a, b);
+  return comparePresent(a, b);
+}
+
+// Comparator for one direction. Descending is an exact reversal of ascending,
+// so missing values sort last ascending and first descending — clicking both
+// directions shows both ends of the column, empties included.
+export function compareSortValues(a: SortValue, b: SortValue, direction: SortDirection): number {
+  const cmp = compareAscending(a, b);
+  if (cmp === 0) return 0;
   return direction === "asc" ? cmp : -cmp;
 }
 
@@ -154,10 +162,13 @@ export function useTableSort<TRow, TColumn extends string>({
 
   const effectiveSort = activeSort ?? defaultSort;
 
+  // getSortValue is a dependency so a getter that closes over state (e.g. a
+  // timezone) re-sorts when it changes; pass a module-level function or a
+  // useCallback so it's stable otherwise.
   const sortedRows = useMemo(
     () => sortRows(rows, getSortValue, effectiveSort),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [rows, effectiveSort?.column, effectiveSort?.direction]
+    [rows, getSortValue, effectiveSort?.column, effectiveSort?.direction]
   );
 
   return {

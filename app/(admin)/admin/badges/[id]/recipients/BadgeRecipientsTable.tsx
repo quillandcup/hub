@@ -17,7 +17,7 @@ function getSortValue(row: BadgeRecipient, column: SortColumn): SortValue {
       return row.occurrences;
     case "firstAwardedAt":
       // No date yet (e.g. an automatic badge with no "first eligible" concept) is null,
-      // which useTableSort sorts last in both directions.
+      // which useTableSort sorts last ascending and first descending.
       return row.firstAwardedAt;
   }
 }

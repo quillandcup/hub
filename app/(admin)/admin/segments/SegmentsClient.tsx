@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { SortableTh } from "@/components/SortableTh";
+import { useTableSort, type SortValue } from "@/lib/hooks/useTableSort";
 
 interface Segment {
   id: string;
@@ -47,8 +49,26 @@ const RESULT_COLORS: Record<string, string> = {
   failed: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300",
 };
 
+type SortColumn = "name" | "members" | "created";
+
+function getSortValue(segment: Segment, column: SortColumn): SortValue {
+  switch (column) {
+    case "name":
+      return segment.name.toLowerCase();
+    case "members":
+      return segment.memberCount;
+    case "created":
+      return segment.created_at;
+  }
+}
+
 export default function SegmentsClient() {
   const [segments, setSegments] = useState<Segment[]>([]);
+  const { sortColumn, sortDirection, handleSort, sortedRows } = useTableSort<Segment, SortColumn>({
+    rows: segments,
+    getSortValue,
+    defaultSort: null,
+  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -299,9 +319,24 @@ export default function SegmentsClient() {
             <table className="w-full">
               <thead className="bg-slate-50 dark:bg-slate-800">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Name</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Members</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Created</th>
+                  <SortableTh
+                    label="Name"
+                    active={sortColumn === "name"}
+                    direction={sortDirection}
+                    onClick={() => handleSort("name")}
+                  />
+                  <SortableTh
+                    label="Members"
+                    active={sortColumn === "members"}
+                    direction={sortDirection}
+                    onClick={() => handleSort("members")}
+                  />
+                  <SortableTh
+                    label="Created"
+                    active={sortColumn === "created"}
+                    direction={sortDirection}
+                    onClick={() => handleSort("created")}
+                  />
                   <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
@@ -313,7 +348,7 @@ export default function SegmentsClient() {
                     </td>
                   </tr>
                 )}
-                {segments.map((s) => (
+                {sortedRows.map((s) => (
                   <tr key={s.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
                     <td className="px-6 py-4 text-sm font-medium text-slate-900 dark:text-slate-100">{s.name}</td>
                     <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">{s.memberCount}</td>

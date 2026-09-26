@@ -28,8 +28,8 @@ const WELCOME_BACK_WINDOW_DAYS = 90;
 const MS_PER_DAY = 1000 * 60 * 60 * 24;
 
 // Date columns hand back the raw YYYY-MM-DD strings; useTableSort compares
-// them chronologically and sorts null (no date / TBD while on hiatus) last in
-// both directions.
+// them chronologically. null (no date / TBD while on hiatus) sorts last
+// ascending and first descending.
 function getSortValue(row: HedgieversaryRow, column: SortColumn): SortValue {
   switch (column) {
     case "name":

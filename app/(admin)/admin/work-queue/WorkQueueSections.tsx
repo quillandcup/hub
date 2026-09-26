@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import type { WorkQueueItem, WorkQueueType } from "@/lib/admin-work-queue";
 import { parseDateOnly } from "@/lib/member-tenure";
+import { SortableTh } from "@/components/SortableTh";
+import { useTableSort, type SortValue } from "@/lib/hooks/useTableSort";
 
 interface WorkQueueSectionsProps {
   welcomeBackQueue: WorkQueueItem[];
@@ -171,11 +173,29 @@ function QueueRow({ item, busyKey, onMarkDone, onOptOut, onPostpone, onExtend }:
   );
 }
 
+type SortColumn = "deadline" | "member" | "event";
+
+function getSortValue(item: WorkQueueItem, column: SortColumn): SortValue {
+  switch (column) {
+    case "deadline":
+      return item.deadline;
+    case "member":
+      return item.memberName.toLowerCase();
+    case "event":
+      return item.label.toLowerCase();
+  }
+}
+
 function QueueSection({ items }: { items: WorkQueueItem[] }) {
   const router = useRouter();
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [undoable, setUndoable] = useState<{ id: string; key: string } | null>(null);
+  const { sortColumn, sortDirection, handleSort, sortedRows } = useTableSort<WorkQueueItem, SortColumn>({
+    rows: items,
+    getSortValue,
+    defaultSort: { column: "deadline", direction: "asc" },
+  });
 
   if (items.length === 0) return null;
   const meta = SECTION_META[items[0].queueType];
@@ -287,22 +307,31 @@ function QueueSection({ items }: { items: WorkQueueItem[] }) {
         <table className="w-full">
           <thead className="bg-slate-50 dark:bg-slate-800">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                Deadline
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                Hedgie
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                Event
-              </th>
+              <SortableTh
+                label="Deadline"
+                active={sortColumn === "deadline"}
+                direction={sortDirection}
+                onClick={() => handleSort("deadline")}
+              />
+              <SortableTh
+                label="Hedgie"
+                active={sortColumn === "member"}
+                direction={sortDirection}
+                onClick={() => handleSort("member")}
+              />
+              <SortableTh
+                label="Event"
+                active={sortColumn === "event"}
+                direction={sortDirection}
+                onClick={() => handleSort("event")}
+              />
               <th className="px-6 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                 Action
               </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
-            {items.map((item) => (
+            {sortedRows.map((item) => (
               <QueueRow
                 key={rowKey(item)}
                 item={item}

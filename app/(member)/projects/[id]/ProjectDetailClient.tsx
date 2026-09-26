@@ -6,6 +6,8 @@ import LogProgressModal from "@/components/writing/LogProgressModal";
 import GoalDisplay from "@/components/writing/GoalDisplay";
 import ProjectCharts from "@/components/writing/ProjectCharts";
 import ReasonBadges from "@/components/ReasonBadges";
+import { SortableTh } from "@/components/SortableTh";
+import { useTableSort, type SortValue } from "@/lib/hooks/useTableSort";
 import BookFormModal from "@/components/books/BookFormModal";
 import ProjectDetailsModal from "@/components/writing/ProjectDetailsModal";
 import { deleteBook } from "@/app/(member)/bookshelf/actions";
@@ -39,6 +41,19 @@ interface ProjectDetailClientProps {
   archivedGoals: GoalRow[];
 }
 
+type EntrySortColumn = "date" | "amount" | "note";
+
+function entrySortValue(entry: EntryRow, column: EntrySortColumn): SortValue {
+  switch (column) {
+    case "date":
+      return entry.entryDate;
+    case "amount":
+      return entry.amount;
+    case "note":
+      return entry.note?.toLowerCase() || null;
+  }
+}
+
 export default function ProjectDetailClient({ project, entries, archivedGoals }: ProjectDetailClientProps) {
   const [showLogProgress, setShowLogProgress] = useState(false);
   const [editingEntry, setEditingEntry] = useState<EntryRow | null>(null);
@@ -52,6 +67,12 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
   const [showEditBook, setShowEditBook] = useState(false);
   const [showEditDetails, setShowEditDetails] = useState(false);
   const [removingBook, setRemovingBook] = useState(false);
+  const {
+    sortColumn,
+    sortDirection,
+    handleSort,
+    sortedRows: sortedEntries,
+  } = useTableSort<EntryRow, EntrySortColumn>({ rows: entries, getSortValue: entrySortValue, defaultSort: null });
 
   function handleChanged() {
     // Server actions already revalidatePath(); a full page refresh picks up
@@ -357,8 +378,36 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
           </p>
         ) : (
           <table className="w-full text-sm">
+            <thead>
+              <tr>
+                <SortableTh
+                  label="Date"
+                  className="px-5 pt-3 pb-1 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide"
+                  active={sortColumn === "date"}
+                  direction={sortDirection}
+                  onClick={() => handleSort("date")}
+                />
+                <SortableTh
+                  label="Amount"
+                  className="px-5 pt-3 pb-1 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide"
+                  active={sortColumn === "amount"}
+                  direction={sortDirection}
+                  onClick={() => handleSort("amount")}
+                />
+                <SortableTh
+                  label="Note"
+                  className="px-5 pt-3 pb-1 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide"
+                  active={sortColumn === "note"}
+                  direction={sortDirection}
+                  onClick={() => handleSort("note")}
+                />
+                <th>
+                  <span className="sr-only">Actions</span>
+                </th>
+              </tr>
+            </thead>
             <tbody>
-              {entries.map((entry) => (
+              {sortedEntries.map((entry) => (
                 <tr key={entry.id} className="border-t border-slate-100 dark:border-slate-800 first:border-0">
                   <td className="px-5 py-3 whitespace-nowrap text-slate-500 dark:text-slate-400">{entry.entryDate}</td>
                   <td className="px-5 py-3">

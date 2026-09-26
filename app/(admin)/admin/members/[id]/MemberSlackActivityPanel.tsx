@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { slackEmojiToUnicode, formatSlackPermalink } from "@/lib/slack-emoji";
+import { SortableTh } from "@/components/SortableTh";
+import { useTableSort, type SortValue } from "@/lib/hooks/useTableSort";
 
 interface MemberSlackActivityPanelProps {
   slackActivities: any[];
@@ -10,10 +12,30 @@ interface MemberSlackActivityPanelProps {
 // TODO: move to env variable
 const SLACK_WORKSPACE_URL = "https://quillandcup.slack.com";
 
+type SortColumn = "type" | "channel" | "content" | "date";
+
+function getSortValue(activity: any, column: SortColumn): SortValue {
+  switch (column) {
+    case "type":
+      return activity.activity_type;
+    case "channel":
+      return activity.data?.channel_name?.toLowerCase() ?? null;
+    case "content":
+      return activity.description?.toLowerCase() || null;
+    case "date":
+      return activity.occurred_at;
+  }
+}
+
 export default function MemberSlackActivityPanel({ slackActivities }: MemberSlackActivityPanelProps) {
   const [slackActivityFilter, setSlackActivityFilter] = useState<"all" | "messages" | "reactions">("all");
   const [slackChannelFilter, setSlackChannelFilter] = useState<string | null>(null);
   const [showAllSlackActivities, setShowAllSlackActivities] = useState(false);
+  const { sortColumn, sortDirection, handleSort, sortedRows } = useTableSort<any, SortColumn>({
+    rows: slackActivities,
+    getSortValue,
+    defaultSort: { column: "date", direction: "desc" },
+  });
 
   const slackStats = {
     totalMessages: slackActivities.filter(a => a.activity_type === 'slack_message' || a.activity_type === 'slack_thread_reply').length,
@@ -141,22 +163,38 @@ export default function MemberSlackActivityPanel({ slackActivities }: MemberSlac
               <table className="w-full">
                 <thead className="bg-slate-50 dark:bg-slate-800 border-y border-slate-200 dark:border-slate-700">
                   <tr>
-                    <th className="px-6 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                      Type
-                    </th>
-                    <th className="px-6 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                      Channel
-                    </th>
-                    <th className="px-6 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                      Content
-                    </th>
-                    <th className="px-6 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                      Date
-                    </th>
+                    <SortableTh
+                      label="Type"
+                      className="px-6 py-2 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider"
+                      active={sortColumn === "type"}
+                      direction={sortDirection}
+                      onClick={() => handleSort("type")}
+                    />
+                    <SortableTh
+                      label="Channel"
+                      className="px-6 py-2 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider"
+                      active={sortColumn === "channel"}
+                      direction={sortDirection}
+                      onClick={() => handleSort("channel")}
+                    />
+                    <SortableTh
+                      label="Content"
+                      className="px-6 py-2 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider"
+                      active={sortColumn === "content"}
+                      direction={sortDirection}
+                      onClick={() => handleSort("content")}
+                    />
+                    <SortableTh
+                      label="Date"
+                      className="px-6 py-2 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider"
+                      active={sortColumn === "date"}
+                      direction={sortDirection}
+                      onClick={() => handleSort("date")}
+                    />
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
-                  {slackActivities
+                  {sortedRows
                     .filter((activity: any) => {
                       // Filter by activity type
                       if (slackActivityFilter === "messages") {

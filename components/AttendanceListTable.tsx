@@ -3,6 +3,8 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { SortableTh } from "@/components/SortableTh";
+import { useTableSort, type SortValue } from "@/lib/hooks/useTableSort";
 
 interface Props {
   attendance: any[];
@@ -28,6 +30,23 @@ function formatDateKey(dateKey: string): string {
   });
 }
 
+type SortColumn = "type" | "time" | "duration" | "host";
+
+// Rows are sorted within each date group; the groups themselves always stay
+// newest-first so the month grid's scroll-to-date keeps working.
+function getSortValue(record: any, column: SortColumn): SortValue {
+  switch (column) {
+    case "type":
+      return record.prickles?.prickle_types?.name?.toLowerCase() ?? null;
+    case "time":
+      return record.join_time;
+    case "duration":
+      return (new Date(record.leave_time).getTime() - new Date(record.join_time).getTime()) / 60000;
+    case "host":
+      return record.prickles?.host?.name?.toLowerCase() ?? null;
+  }
+}
+
 export default function AttendanceListTable({
   attendance,
   timezone,
@@ -37,9 +56,14 @@ export default function AttendanceListTable({
   prickleBasePath = "/prickles",
 }: Props) {
   const router = useRouter();
+  const { sortColumn, sortDirection, handleSort, sortedRows } = useTableSort<any, SortColumn>({
+    rows: attendance,
+    getSortValue,
+    defaultSort: null,
+  });
 
   const byDate = new Map<string, any[]>();
-  attendance.forEach((record) => {
+  sortedRows.forEach((record) => {
     const key = new Date(record.join_time).toLocaleDateString("en-US", {
       timeZone: timezone,
       year: "numeric",
@@ -78,18 +102,30 @@ export default function AttendanceListTable({
         <table className="w-full">
           <thead className="bg-slate-50 dark:bg-slate-800 sticky top-0">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                Prickle Type
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                Time
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                Duration
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                Host
-              </th>
+              <SortableTh
+                label="Prickle Type"
+                active={sortColumn === "type"}
+                direction={sortDirection}
+                onClick={() => handleSort("type")}
+              />
+              <SortableTh
+                label="Time"
+                active={sortColumn === "time"}
+                direction={sortDirection}
+                onClick={() => handleSort("time")}
+              />
+              <SortableTh
+                label="Duration"
+                active={sortColumn === "duration"}
+                direction={sortDirection}
+                onClick={() => handleSort("duration")}
+              />
+              <SortableTh
+                label="Host"
+                active={sortColumn === "host"}
+                direction={sortDirection}
+                onClick={() => handleSort("host")}
+              />
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200 dark:divide-slate-700">

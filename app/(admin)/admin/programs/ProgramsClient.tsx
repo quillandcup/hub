@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { SortableTh } from "@/components/SortableTh";
+import { useTableSort, type SortValue } from "@/lib/hooks/useTableSort";
 
 interface Program {
   id: string;
@@ -20,6 +22,19 @@ function slugify(name: string): string {
     .replace(/(^-|-$)/g, "");
 }
 
+type SortColumn = "name" | "cohorts" | "enrollments";
+
+function getSortValue(program: Program, column: SortColumn): SortValue {
+  switch (column) {
+    case "name":
+      return program.name.toLowerCase();
+    case "cohorts":
+      return program.cohort_count;
+    case "enrollments":
+      return program.enrollment_count;
+  }
+}
+
 export default function ProgramsClient() {
   const [programs, setPrograms] = useState<Program[]>([]);
   const [loading, setLoading] = useState(true);
@@ -27,6 +42,11 @@ export default function ProgramsClient() {
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [formData, setFormData] = useState({ name: "", description: "" });
+  const { sortColumn, sortDirection, handleSort, sortedRows } = useTableSort<Program, SortColumn>({
+    rows: programs,
+    getSortValue,
+    defaultSort: null,
+  });
 
   useEffect(() => {
     fetchPrograms();
@@ -132,9 +152,24 @@ export default function ProgramsClient() {
         <table className="w-full">
           <thead className="bg-gray-50 dark:bg-slate-800">
             <tr>
-              <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">Program</th>
-              <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">Cohorts</th>
-              <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">Enrollments</th>
+              <SortableTh
+                label="Program"
+                active={sortColumn === "name"}
+                direction={sortDirection}
+                onClick={() => handleSort("name")}
+              />
+              <SortableTh
+                label="Cohorts"
+                active={sortColumn === "cohorts"}
+                direction={sortDirection}
+                onClick={() => handleSort("cohorts")}
+              />
+              <SortableTh
+                label="Enrollments"
+                active={sortColumn === "enrollments"}
+                direction={sortDirection}
+                onClick={() => handleSort("enrollments")}
+              />
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200 dark:divide-slate-800">
@@ -145,7 +180,7 @@ export default function ProgramsClient() {
                 </td>
               </tr>
             ) : (
-              programs.map((program) => (
+              sortedRows.map((program) => (
                 <tr key={program.id} className="hover:bg-gray-50 dark:hover:bg-slate-800">
                   <td className="px-4 py-3">
                     <Link
