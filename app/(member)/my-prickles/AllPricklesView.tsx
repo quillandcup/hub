@@ -4,8 +4,14 @@ import { useState } from "react";
 import type { PrickleScheduleRow, PrickleInstance } from "@/lib/prickle-schedule";
 import AllPricklesTable from "./AllPricklesTable";
 import AllPricklesCalendar from "./AllPricklesCalendar";
+import { PillFilter } from "@/components/PillFilter";
 
 type ViewMode = "table" | "calendar";
+
+const VIEW_OPTIONS = [
+  { id: "table", label: "Table" },
+  { id: "calendar", label: "Calendar" },
+] as const;
 
 export default function AllPricklesView({
   rows,
@@ -33,30 +39,13 @@ export default function AllPricklesView({
             The full recurring weekly schedule — also known as Prickle Times. Times shown in your timezone.
           </p>
         </div>
-        <div className="flex rounded-lg border border-slate-300 dark:border-slate-600 overflow-hidden text-sm flex-shrink-0">
-          <button
-            type="button"
-            onClick={() => setView("table")}
-            className={`px-3 py-1.5 transition-colors ${
-              view === "table"
-                ? "bg-blue-600 text-white"
-                : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700"
-            }`}
-          >
-            Table
-          </button>
-          <button
-            type="button"
-            onClick={() => setView("calendar")}
-            className={`px-3 py-1.5 transition-colors border-l border-slate-300 dark:border-slate-600 ${
-              view === "calendar"
-                ? "bg-blue-600 text-white"
-                : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700"
-            }`}
-          >
-            Calendar
-          </button>
-        </div>
+        <PillFilter
+          variant="segmented"
+          ariaLabel="View"
+          options={VIEW_OPTIONS}
+          value={view}
+          onChange={setView}
+        />
       </div>
 
       {view === "table" ? (
