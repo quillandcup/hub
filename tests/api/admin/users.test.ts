@@ -139,7 +139,7 @@ describe('Admin Users API', () => {
     const res = await fetch(`${base}/api/admin/users/${testUserId}`, {
       method: 'PATCH',
       headers: { ...getTestAuthHeaders(), 'Content-Type': 'application/json' },
-      body: JSON.stringify({ features: ['streaks', 'prickle_picker'] }),
+      body: JSON.stringify({ features: ['hedgieversaries', 'events'] }),
     })
 
     expect(res.ok).toBe(true)
@@ -150,14 +150,14 @@ describe('Admin Users API', () => {
       .eq('user_id', testUserId)
 
     const keys = (rows ?? []).map((r) => r.feature_key).sort()
-    expect(keys).toEqual(['prickle_picker', 'streaks'])
+    expect(keys).toEqual(['events', 'hedgieversaries'])
   })
 
   it('PATCH replaces feature flags (remove one)', async () => {
     const res = await fetch(`${base}/api/admin/users/${testUserId}`, {
       method: 'PATCH',
       headers: { ...getTestAuthHeaders(), 'Content-Type': 'application/json' },
-      body: JSON.stringify({ features: ['streaks'] }),
+      body: JSON.stringify({ features: ['hedgieversaries'] }),
     })
 
     expect(res.ok).toBe(true)
@@ -168,7 +168,7 @@ describe('Admin Users API', () => {
       .eq('user_id', testUserId)
 
     const keys = (rows ?? []).map((r) => r.feature_key)
-    expect(keys).toEqual(['streaks'])
+    expect(keys).toEqual(['hedgieversaries'])
   })
 
   it('PATCH clears all feature flags when given empty array', async () => {

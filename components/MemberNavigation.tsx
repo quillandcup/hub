@@ -27,8 +27,6 @@ function NavLinks({ isAdmin, enabledFeatures, pathname, collapsed, onNavigate }:
   const isBookshelfActive = pathname === '/bookshelf';
   const isEventsActive = pathname === '/events' || pathname.startsWith('/events/');
 
-  const showStreaks = enabledFeatures.includes('streaks');
-  const showWheel = enabledFeatures.includes('wheel_of_wonder');
   const showEvents = enabledFeatures.includes('events');
 
   const linkClass = (active: boolean) =>
@@ -89,17 +87,15 @@ function NavLinks({ isAdmin, enabledFeatures, pathname, collapsed, onNavigate }:
               {!collapsed && <span>My Prickles</span>}
             </Link>
 
-            {showStreaks && (
-              <Link
-                href="/streaks"
-                onClick={onNavigate}
-                className={linkClass(isStreaksActive)}
-                title={collapsed ? "Streaks" : undefined}
-              >
-                <span className="text-lg">🔥</span>
-                {!collapsed && <span>Streaks</span>}
-              </Link>
-            )}
+            <Link
+              href="/streaks"
+              onClick={onNavigate}
+              className={linkClass(isStreaksActive)}
+              title={collapsed ? "Streaks" : undefined}
+            >
+              <span className="text-lg">🔥</span>
+              {!collapsed && <span>Streaks</span>}
+            </Link>
           </div>
         </div>
 
@@ -111,17 +107,15 @@ function NavLinks({ isAdmin, enabledFeatures, pathname, collapsed, onNavigate }:
             </h2>
           )}
           <div className="space-y-1">
-            {showWheel && (
-              <Link
-                href="/wheel-of-wonder"
-                onClick={onNavigate}
-                className={linkClass(isWheelActive)}
-                title={collapsed ? "Wheel of Wonder" : undefined}
-              >
-                <span className="text-lg">🎡</span>
-                {!collapsed && <span>Wheel of Wonder</span>}
-              </Link>
-            )}
+            <Link
+              href="/wheel-of-wonder"
+              onClick={onNavigate}
+              className={linkClass(isWheelActive)}
+              title={collapsed ? "Wheel of Wonder" : undefined}
+            >
+              <span className="text-lg">🎡</span>
+              {!collapsed && <span>Wheel of Wonder</span>}
+            </Link>
 
             <Link
               href="/bookshelf"

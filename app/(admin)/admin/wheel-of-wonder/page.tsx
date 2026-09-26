@@ -3,7 +3,6 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { getUserFeaturePreviews } from "@/lib/features.server";
 import { CONNECTION_CONFIRMATION_MESSAGE_THRESHOLD } from "@/lib/wheel-of-wonder";
 
 export const metadata: Metadata = {
@@ -36,9 +35,6 @@ export default async function WheelOfWonderAdminPage() {
   const supabase = await createClient();
   const user = await getCurrentUser();
   if (!user) redirect("/login");
-
-  const enabledFeatures = await getUserFeaturePreviews(user.id);
-  if (!enabledFeatures.includes("wheel_of_wonder")) redirect("/admin");
 
   const { data: matchesData } = await supabase
     .from("wheel_of_wonder_matches")

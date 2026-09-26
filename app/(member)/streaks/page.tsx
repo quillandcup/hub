@@ -5,7 +5,6 @@ import { redirect } from "next/navigation"
 import Link from "next/link"
 import { getEffectiveIdentity } from "@/lib/sudo"
 import { getUserTimezonePreference } from "@/lib/timezone"
-import { getUserFeaturePreviews } from "@/lib/features.server"
 import { getMemberDisplayName } from "@/lib/member-display-name"
 
 export const metadata: Metadata = {
@@ -179,13 +178,8 @@ export default async function StreaksPage() {
   const user = await getCurrentUser()
   if (!user) redirect("/login")
 
-  const [effectiveIdentity, tzPref, enabledFeatures] = await Promise.all([
-    getEffectiveIdentity(user),
-    getUserTimezonePreference(),
-    getUserFeaturePreviews(user.id),
-  ])
+  const [effectiveIdentity, tzPref] = await Promise.all([getEffectiveIdentity(user), getUserTimezonePreference()])
   if (!effectiveIdentity) redirect("/admin")
-  if (!enabledFeatures.includes('streaks')) redirect("/dashboard")
 
   const memberId = effectiveIdentity.memberId
   const timeZone = tzPref === "browser" ? ORG_TIMEZONE : tzPref
