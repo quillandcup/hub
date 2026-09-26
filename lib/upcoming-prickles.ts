@@ -9,6 +9,13 @@ import {
 } from "@/lib/streaks"
 import { getMemberDisplayName } from "@/lib/member-display-name"
 import {
+  computeCommitmentProgress,
+  effectiveCommitmentStatus,
+  type Commitment,
+  type CommitmentStatus,
+  type SlotPrickle,
+} from "@/lib/commitments"
+import {
   RECOMMENDATION_LOOKBACK_DAYS,
   computeHostExperience,
   computeSlotVibrancy,
@@ -119,7 +126,7 @@ export type UpcomingPrickle = {
 }
 
 export interface HighlightReason {
-  kind: "hosting" | "streak" | "lostStreak" | "sister" | RecommendationReasonKind
+  kind: "hosting" | "commitment" | "streak" | "lostStreak" | "sister" | RecommendationReasonKind
   tooltip: string[]
 }
 
@@ -218,16 +225,112 @@ async function fetchHostedCounts(
   return counts
 }
 
+/**
+ * Ranking tiers, lowest first. Hosting stays on top (the session can't run without you); an
+ * explicit commitment comes next -- it's a promise the member made about this exact occurrence,
+ * a stronger and more deliberate signal than a streak, which is only inferred from past
+ * behavior (and usually accompanies the commitment anyway, so the member sees both badges).
+ */
+export const PRIORITY = {
+  hosting: 0,
+  commitment: 1,
+  streak: 2,
+  sister: 3,
+  lostStreak: 4,
+  none: 5,
+} as const
+
+/** The member's commitments with stored status 'active' (a member has only a handful, but
+ * paginated anyway per CLAUDE.md). Like the other fetches here, a query error yields no rows, so
+ * the Upcoming list still renders -- just without commitment badges. */
+async function fetchActiveCommitments(supabase: SupabaseClient, memberId: string): Promise<Commitment[]> {
+  type Row = {
+    id: string
+    type_id: string
+    day_of_week: number
+    start_time_local: string
+    timezone: string
+    start_date: string
+    weeks: number
+    status: CommitmentStatus
+    cancelled_at: string | null
+  }
+  const rows = await fetchAllPaginated<Row>((offset) =>
+    supabase
+      .from("prickle_commitments")
+      .select("id, type_id, day_of_week, start_time_local, timezone, start_date, weeks, status, cancelled_at")
+      .eq("member_id", memberId)
+      .eq("status", "active")
+      .order("id")
+      .range(offset, offset + BATCH_SIZE - 1)
+  )
+  return rows.map((r) => ({
+    id: r.id,
+    typeId: r.type_id,
+    dayOfWeek: r.day_of_week,
+    startTimeLocal: r.start_time_local,
+    timezone: r.timezone,
+    startDate: r.start_date,
+    weeks: r.weeks,
+    status: r.status,
+    cancelledAt: r.cancelled_at,
+  }))
+}
+
 export interface RankedPrickle {
   prickle: UpcomingPrickle
   reasons: HighlightReason[]
-  /** 0 hosting, 1 active streak, 2 high-likelihood sister, 3 lost streak, 4 no personal signal. */
+  /** See PRIORITY: 0 hosting, 1 commitment, 2 active streak, 3 high-likelihood sister, 4 lost
+   * streak, 5 no personal signal. */
   priority: number
   /** Within-priority sort key (lower first) for personal tiers; position in the diversified
-   * recommendation order for priority 4. */
+   * recommendation order for PRIORITY.none. */
   sortValue: number
   /** Community recommendation score in [0, 1] (host experience, popularity, regulars). */
   recommendationScore: number
+}
+
+/** An upcoming prickle that is one week of one of the viewer's active commitments. */
+export interface CommitmentSignal {
+  commitmentId: string
+  /** 1-based week of the commitment this prickle is. */
+  week: number
+  weeks: number
+  /** Weeks already kept (attended) so far. */
+  kept: number
+}
+
+function commitmentReasonText(s: CommitmentSignal): string {
+  const base = `Week ${s.week} of ${s.weeks}`
+  return s.kept > 0 ? `${base} · ${s.kept} kept so far` : base
+}
+
+/**
+ * Which upcoming prickles fall in one of the viewer's active commitments, using lib/commitments'
+ * own slot matching (computeCommitmentProgress: same type, committed local weekday/time in the
+ * commitment's timezone, within the commitment window, closest prickle within
+ * MATCH_TOLERANCE_MINUTES). `prickles` should include the upcoming prickles plus any past
+ * same-type prickles available (for the kept count); `attendedPrickleIds` is the viewer's
+ * distinct attended prickle ids.
+ */
+export function computeCommitmentSignals(
+  commitments: Commitment[],
+  prickles: SlotPrickle[],
+  attendedPrickleIds: ReadonlySet<string>,
+  now: Date
+): Map<string, CommitmentSignal> {
+  const result = new Map<string, CommitmentSignal>()
+  for (const c of commitments) {
+    if (effectiveCommitmentStatus(c, now) !== "active") continue
+    const progress = computeCommitmentProgress(c, prickles, attendedPrickleIds, now)
+    // Occurrences are only dropped after a cancellation, which an active commitment doesn't have,
+    // so index i is week i + 1.
+    progress.occurrences.forEach((o, i) => {
+      if (o.status !== "upcoming" || !o.prickleId || result.has(o.prickleId)) return
+      result.set(o.prickleId, { commitmentId: c.id, week: i + 1, weeks: c.weeks, kept: progress.kept })
+    })
+  }
+  return result
 }
 
 export interface RankingInputs {
@@ -235,6 +338,8 @@ export interface RankingInputs {
   memberId: string
   now: Date
   timeZone: string
+  /** Upcoming prickle id -> commitment signal (see computeCommitmentSignals). */
+  commitmentByPrickleId?: Map<string, CommitmentSignal>
   activeStreakBySeries?: Map<string, number>
   lostStreakBySeries?: Map<string, number>
   sistersBySeries?: Map<string, SisterSignal[]>
@@ -244,9 +349,10 @@ export interface RankingInputs {
 }
 
 /**
- * Pure ranking step. Personal signals always win: hosting > active streak
- * (longest first) > high-likelihood sister-streak sister > lost streak
- * (longest first); within a tier, ties go to the stronger community
+ * Pure ranking step. Personal signals always win: hosting > commitment
+ * (soonest first) > active streak (longest first) > high-likelihood
+ * sister-streak sister > lost streak (longest first); within a tier, ties go
+ * to the stronger community
  * recommendation, then the earlier start. Everything without a personal
  * signal follows, ordered by community recommendation score with a
  * day / time-of-day / slot diversity and time-proximity balance, all in the
@@ -258,6 +364,7 @@ export function rankUpcomingPrickles(inputs: RankingInputs): RankedPrickle[] {
     memberId,
     now,
     timeZone,
+    commitmentByPrickleId = new Map(),
     activeStreakBySeries = new Map(),
     lostStreakBySeries = new Map(),
     sistersBySeries = new Map(),
@@ -271,19 +378,26 @@ export function rankUpcomingPrickles(inputs: RankingInputs): RankedPrickle[] {
 
   const ranked: RankedPrickle[] = upcoming.map((p) => {
     const reasons: HighlightReason[] = []
-    let priority = 4
+    let priority: number = PRIORITY.none
     let sortValue = new Date(p.startTime).getTime()
 
     if (p.hostId === memberId) {
       reasons.push({ kind: "hosting", tooltip: ["You're hosting this one"] })
-      priority = 0
+      priority = PRIORITY.hosting
+    }
+
+    const commitment = commitmentByPrickleId.get(p.id)
+    if (commitment) {
+      reasons.push({ kind: "commitment", tooltip: [commitmentReasonText(commitment)] })
+      // Soonest first within the tier (sortValue is already the start time).
+      if (priority > PRIORITY.commitment) priority = PRIORITY.commitment
     }
 
     const streakWeeks = activeStreakBySeries.get(p.seriesKey)
     if (streakWeeks) {
       reasons.push({ kind: "streak", tooltip: [`${streakWeeks}-week streak here`] })
-      if (priority > 1) {
-        priority = 1
+      if (priority > PRIORITY.streak) {
+        priority = PRIORITY.streak
         sortValue = -streakWeeks
       }
     }
@@ -294,16 +408,16 @@ export function rankUpcomingPrickles(inputs: RankingInputs): RankedPrickle[] {
     }
 
     const highLikelihoodSister = highLikelihoodSistersBySeries.get(p.seriesKey)
-    if (highLikelihoodSister && priority > 2) {
-      priority = 2
+    if (highLikelihoodSister && priority > PRIORITY.sister) {
+      priority = PRIORITY.sister
       sortValue = -highLikelihoodSister.maxStreak
     }
 
     const lostStreakWeeks = lostStreakBySeries.get(p.seriesKey)
     if (lostStreakWeeks) {
       reasons.push({ kind: "lostStreak", tooltip: [`Lost a ${lostStreakWeeks}-week streak here`] })
-      if (priority > 3) {
-        priority = 3
+      if (priority > PRIORITY.lostStreak) {
+        priority = PRIORITY.lostStreak
         sortValue = -lostStreakWeeks
       }
     }
@@ -317,7 +431,7 @@ export function rankUpcomingPrickles(inputs: RankingInputs): RankedPrickle[] {
 
   const startMs = (r: RankedPrickle) => new Date(r.prickle.startTime).getTime()
   const personal = ranked
-    .filter((r) => r.priority < 4)
+    .filter((r) => r.priority < PRIORITY.none)
     .sort(
       (a, b) =>
         a.priority - b.priority ||
@@ -329,7 +443,7 @@ export function rankUpcomingPrickles(inputs: RankingInputs): RankedPrickle[] {
   const byId = new Map(ranked.map((r) => [r.prickle.id, r]))
   const rest = orderWithDiversity(
     ranked
-      .filter((r) => r.priority === 4)
+      .filter((r) => r.priority === PRIORITY.none)
       .map((r) => ({
         id: r.prickle.id,
         startTime: r.prickle.startTime,
@@ -363,23 +477,24 @@ export async function getRankedUpcomingPrickles(
   // ---- Round 1 (parallel): upcoming prickles, this member's attendance
   // history (for prickle streaks + sister-streak co-attendance), and the
   // recent past prickles (for sister-likely-attending + community
-  // recommendation signals). ----
+  // recommendation signals), plus this member's active commitments. ----
   type MyRecord = {
     prickle_id: string
     join_time: string
-    prickles: { start_time: string; prickle_types: { name: string } | null } | null
+    prickles: { start_time: string; type_id: string | null; prickle_types: { name: string } | null } | null
   }
-  const [upcoming, myAttendance, pastPrickles] = await Promise.all([
+  const [upcoming, myAttendance, pastPrickles, commitments] = await Promise.all([
     fetchPrickles(supabase, windowStart, windowEnd, timeZone, true),
     fetchAllPaginated<MyRecord>((offset) =>
       supabase
         .from("prickle_attendance")
-        .select("prickle_id, join_time, prickles(start_time, prickle_types(name))")
+        .select("prickle_id, join_time, prickles(start_time, type_id, prickle_types(name))")
         .eq("member_id", memberId)
         .order("id")
         .range(offset, offset + BATCH_SIZE - 1)
     ),
     fetchPrickles(supabase, lookbackStart, windowStart, timeZone, false),
+    fetchActiveCommitments(supabase, memberId),
   ])
 
   // ---- Round 2 (parallel): co-attendance on every prickle this member has
@@ -527,11 +642,37 @@ export async function getRankedUpcomingPrickles(
   const slotVibrancy = computeSlotVibrancy(past, pastAttendance, memberId)
   const hostExperience = computeHostExperience(hostedCounts, past, pastAttendance)
 
+  // ---- Commitments: which upcoming prickles are a week of an active
+  // commitment. Matching candidates are every prickle already in hand --
+  // upcoming, the 60-day past window, and every prickle this member attended
+  // (so kept weeks older than the lookback still count). No extra query.
+  // endTime only feeds the pending/missed split for past weeks, which isn't
+  // shown here, so start time stands in for it. ----
+  let commitmentByPrickleId = new Map<string, CommitmentSignal>()
+  if (commitments.length > 0) {
+    const candidates = new Map<string, SlotPrickle>()
+    for (const p of [...pastPrickles, ...upcoming]) {
+      candidates.set(p.id, { id: p.id, typeId: p.typeId, startTime: p.startTime, endTime: p.startTime })
+    }
+    for (const r of myAttendance) {
+      if (!r.prickles || candidates.has(r.prickle_id)) continue
+      const { start_time, type_id } = r.prickles
+      candidates.set(r.prickle_id, { id: r.prickle_id, typeId: type_id, startTime: start_time, endTime: start_time })
+    }
+    commitmentByPrickleId = computeCommitmentSignals(
+      commitments,
+      [...candidates.values()],
+      new Set(myAttendance.map((r) => r.prickle_id)),
+      now
+    )
+  }
+
   return rankUpcomingPrickles({
     upcoming,
     memberId,
     now,
     timeZone,
+    commitmentByPrickleId,
     activeStreakBySeries,
     lostStreakBySeries,
     sistersBySeries,

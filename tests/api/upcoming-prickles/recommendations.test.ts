@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { getTestSupabaseAdminClient } from '../../helpers/supabase'
-import { getRankedUpcomingPrickles, type RankedPrickle } from '@/lib/upcoming-prickles'
+import { PRIORITY, getRankedUpcomingPrickles, type RankedPrickle } from '@/lib/upcoming-prickles'
 import { scoreRecommendation } from '@/lib/prickle-recommendations'
 import { hostShortName } from '@/lib/formatters'
 
@@ -43,6 +43,9 @@ describe('getRankedUpcomingPrickles (DB)', () => {
   let experiencedUpcomingId: string
   let newHostUpcomingId: string
   let viewerHostedUpcomingId: string
+  let commitPastId: string
+  let commitUpcomingId: string
+  const commitmentIds: string[] = []
   let typeId: string
 
   async function insertMember(key: string, name: string) {
@@ -60,7 +63,7 @@ describe('getRankedUpcomingPrickles (DB)', () => {
     memberIds[key] = data!.id
   }
 
-  async function insertPrickle(startMs: number, host: string): Promise<string> {
+  async function insertPrickle(startMs: number, host: string | null): Promise<string> {
     const { data, error } = await supabase
       .from('prickles')
       .insert({
@@ -96,6 +99,7 @@ describe('getRankedUpcomingPrickles (DB)', () => {
       insertMember('reg2', 'Sorrel Regular'),
       insertMember('reg3', 'Thistle Regular'),
       insertMember('reg4', 'Yarrow Regular'),
+      insertMember('committer', 'Clover Committer'),
     ])
 
     // Experienced host: 8 weekly past sessions in the lookback + 6 older ones.
@@ -147,9 +151,56 @@ describe('getRankedUpcomingPrickles (DB)', () => {
     }
     const { error: mErr } = await supabase.from('prickle_attendance').insert(meaningful)
     expect(mErr).toBeNull()
+
+    // Commitment fixtures: a separate, hostless weekly slot -- Thursdays 12:00 PM ET (16:00Z in
+    // May) -- so the experienced-host slot's numbers above are untouched. The committer attended
+    // last Thursday's session (2183-05-01) and committed for 3 weeks starting then: week 1 = last
+    // Thursday (kept), week 2 = this Thursday 2183-05-08 (upcoming), week 3 = no prickle yet.
+    const thisThursday = now.getTime() + 3 * DAY + 4 * HOUR // 2183-05-08T16:00Z = Thu 12:00 PM EDT
+    commitPastId = await insertPrickle(thisThursday - 7 * DAY, null)
+    commitUpcomingId = await insertPrickle(thisThursday, null)
+    const { error: caErr } = await supabase.from('prickle_attendance').insert({
+      member_id: memberIds.committer,
+      prickle_id: commitPastId,
+      join_time: new Date(thisThursday - 7 * DAY).toISOString(),
+      leave_time: new Date(thisThursday - 7 * DAY + HOUR).toISOString(),
+      confidence_score: 'high',
+    })
+    expect(caErr).toBeNull()
+
+    const commitmentBase = { member_id: memberIds.committer, type_id: typeId, timezone: TZ }
+    const { data: commitRows, error: cErr } = await supabase
+      .from('prickle_commitments')
+      .insert([
+        // Active: Thursdays 12:00 for 3 weeks from last Thursday.
+        // (Every row spells out status/cancelled_at: a multi-row insert nulls keys a row omits.)
+        {
+          ...commitmentBase,
+          day_of_week: 4,
+          start_time_local: '12:00',
+          start_date: '2183-05-01',
+          weeks: 3,
+          status: 'active',
+          cancelled_at: null,
+        },
+        // Cancelled commitment on the experienced host's Monday 10:00 slot -- must be ignored.
+        {
+          ...commitmentBase,
+          day_of_week: 1,
+          start_time_local: '10:00',
+          start_date: '2183-05-05',
+          weeks: 4,
+          status: 'cancelled',
+          cancelled_at: now.toISOString(),
+        },
+      ])
+      .select('id')
+    expect(cErr).toBeNull()
+    commitmentIds.push(...commitRows!.map((r) => r.id))
   }, 60_000)
 
   afterAll(async () => {
+    if (commitmentIds.length > 0) await supabase.from('prickle_commitments').delete().in('id', commitmentIds)
     if (prickleIds.length > 0) {
       await supabase.from('prickle_attendance').delete().in('prickle_id', prickleIds)
       await supabase.from('prickles').delete().in('id', prickleIds)
@@ -181,7 +232,7 @@ describe('getRankedUpcomingPrickles (DB)', () => {
     )
 
     // No personal signals for this viewer.
-    for (const r of ranked) expect(r.priority).toBe(4)
+    for (const r of ranked) expect(r.priority).toBe(PRIORITY.none)
     expect(byId.get(newHostUpcomingId)!.recommendationScore).toBe(0)
   })
 
@@ -220,12 +271,37 @@ describe('getRankedUpcomingPrickles (DB)', () => {
   it('still ranks a personal signal (viewer is hosting) first, ahead of the strong recommendation', async () => {
     const ranked = await rankFor('viewerHost')
     expect(ranked[0].prickle.id).toBe(viewerHostedUpcomingId)
-    expect(ranked[0].priority).toBe(0)
+    expect(ranked[0].priority).toBe(PRIORITY.hosting)
     expect(kinds(ranked[0])).toContain('hosting')
 
     // The experienced host's prickle is the top non-personal pick, badges intact.
     expect(ranked[1].prickle.id).toBe(experiencedUpcomingId)
-    expect(ranked[1].priority).toBe(4)
+    expect(ranked[1].priority).toBe(PRIORITY.none)
     expect(kinds(ranked[1])).toEqual(['experiencedHost', 'popular', 'regulars'])
+  })
+
+  it('ranks an upcoming week of an active commitment in the commitment tier, with week/kept progress', async () => {
+    const all = await getRankedUpcomingPrickles(supabase as never, memberIds.committer, TZ, now, WINDOW_DAYS)
+    const mine = new Set([experiencedUpcomingId, newHostUpcomingId, viewerHostedUpcomingId, commitUpcomingId])
+    const ranked = all.filter((r) => mine.has(r.prickle.id))
+
+    // The hostless, sparse committed slot outranks the strong experienced-host recommendation.
+    expect(ranked[0].prickle.id).toBe(commitUpcomingId)
+    expect(ranked[0].priority).toBe(PRIORITY.commitment)
+    expect(ranked[0].reasons.find((r) => r.kind === 'commitment')).toEqual({
+      kind: 'commitment',
+      tooltip: ['Week 2 of 3 · 1 kept so far'],
+    })
+
+    // The cancelled commitment on the experienced host's slot adds nothing.
+    const experienced = ranked.find((r) => r.prickle.id === experiencedUpcomingId)!
+    expect(experienced.priority).toBe(PRIORITY.none)
+    expect(kinds(experienced)).not.toContain('commitment')
+
+    // Commitments are per member: the no-signal viewer sees no commitment badge on that prickle.
+    const forViewer = await getRankedUpcomingPrickles(supabase as never, memberIds.viewer, TZ, now, WINDOW_DAYS)
+    const committedForViewer = forViewer.find((r) => r.prickle.id === commitUpcomingId)!
+    expect(committedForViewer.priority).toBe(PRIORITY.none)
+    expect(kinds(committedForViewer)).not.toContain('commitment')
   })
 })

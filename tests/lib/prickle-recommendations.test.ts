@@ -13,7 +13,7 @@ import {
   type PastPrickle,
   type SlotVibrancy,
 } from "@/lib/prickle-recommendations"
-import { rankUpcomingPrickles, type UpcomingPrickle } from "@/lib/upcoming-prickles"
+import { PRIORITY, rankUpcomingPrickles, type UpcomingPrickle } from "@/lib/upcoming-prickles"
 
 const TZ = "America/New_York"
 const NOW = new Date("2026-09-26T12:00:00Z") // Sat 8am ET
@@ -371,7 +371,7 @@ describe("rankUpcomingPrickles", () => {
       ...community,
     })
     expect(ranked.map((r) => r.prickle.id)).toEqual(["sparse", "strong"])
-    expect(ranked[0].priority).toBe(1)
+    expect(ranked[0].priority).toBe(PRIORITY.streak)
     expect(ranked[0].reasons[0].kind).toBe("streak")
   })
 
