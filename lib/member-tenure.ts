@@ -186,7 +186,7 @@ export function computeCumulativeInactiveMonths(
 // Adds `months` to `date`, clamping the day-of-month to the last day of the
 // target month when it would overflow (e.g. Jan 31 + 1 month = Feb 28, not
 // Mar 3 — native Date.setMonth would roll over into March).
-function addMonthsClamped(date: Date, months: number): Date {
+export function addMonthsClamped(date: Date, months: number): Date {
   const year = date.getUTCFullYear();
   const month = date.getUTCMonth();
   const day = date.getUTCDate();

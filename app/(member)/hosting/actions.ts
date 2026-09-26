@@ -16,6 +16,7 @@ import {
   type RecurrenceType,
 } from "@/lib/prickle-schedules";
 import { computeHostingStats, type HostedPrickleRecord, type HostingStats } from "@/lib/hosting-stats";
+import { fetchHostEligibilityByMember, type HostEligibility } from "@/lib/host-eligibility";
 
 const DEFAULT_TIMEZONE = "America/New_York";
 const BATCH_SIZE = 1000;
@@ -91,6 +92,25 @@ export async function getMySchedules(): Promise<MyScheduleRow[]> {
     notes: row.notes,
     carriedForwardFrom: row.carried_forward_from,
   }));
+}
+
+/**
+ * Whether the acting member has been a member long enough to be invited to
+ * host (see lib/host-eligibility.ts). Used to swap the "Want to host?" invite
+ * for a friendlier not-yet message for brand-new members. Returns null when
+ * there's no acting member.
+ */
+export async function getMyHostEligibility(): Promise<HostEligibility | null> {
+  const supabase = await createClient();
+
+  const user = await getCurrentUser();
+  if (!user) return null;
+
+  const effectiveIdentity = await getEffectiveIdentity(user);
+  if (!effectiveIdentity) return null;
+
+  const byMember = await fetchHostEligibilityByMember(supabase, [effectiveIdentity.memberId], new Date());
+  return byMember.get(effectiveIdentity.memberId) ?? null;
 }
 
 export interface HostingCalendarPrickle {

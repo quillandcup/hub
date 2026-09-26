@@ -75,6 +75,47 @@ describe("HostingScheduleManager", () => {
     expect(screen.getByRole("button", { name: "Request to host" })).toBeInTheDocument();
   });
 
+  it("shows the standard invite to members who have been here a full month", () => {
+    renderManager([], {
+      hostEligibility: { eligible: true, tenureStartDate: "2025-01-01", eligibleOn: "2025-02-01" },
+    });
+    expect(screen.getByText(/Want to host October 2026/)).toBeInTheDocument();
+  });
+
+  it("doesn't invite brand-new members to host, and says when they can", () => {
+    renderManager([], {
+      hostEligibility: { eligible: false, tenureStartDate: "2026-09-10", eligibleOn: "2026-10-10" },
+    });
+    expect(screen.queryByText(/Want to host/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Request to host" })).not.toBeInTheDocument();
+    expect(screen.getByText("Settle in first")).toBeInTheDocument();
+    expect(screen.getByText(/for you, that's October 10, 2026/)).toBeInTheDocument();
+  });
+
+  it("shows a date-less not-yet message when the join date is unknown", () => {
+    renderManager([], { hostEligibility: { eligible: false, tenureStartDate: null, eligibleOn: null } });
+    expect(screen.getByText("Settle in first")).toBeInTheDocument();
+    expect(screen.queryByText(/for you, that's/)).not.toBeInTheDocument();
+  });
+
+  it("still lets a brand-new member request a slot if they ask", async () => {
+    vi.mocked(requestToHost).mockResolvedValue({ success: true });
+    renderManager([], {
+      hostEligibility: { eligible: false, tenureStartDate: "2026-09-10", eligibleOn: "2026-10-10" },
+    });
+
+    await userEvent.click(screen.getByRole("button", { name: /Request a slot anyway/ }));
+    expect(screen.getByText(/Request to host for October 2026/)).toBeInTheDocument();
+  });
+
+  it("shows a brand-new member's existing schedules as usual", () => {
+    renderManager([confirmedSchedule], {
+      hostEligibility: { eligible: false, tenureStartDate: "2026-09-10", eligibleOn: "2026-10-10" },
+    });
+    expect(screen.queryByText("Settle in first")).not.toBeInTheDocument();
+    expect(screen.getByText(/Current Month/)).toBeInTheDocument();
+  });
+
   it("opens the request form from the empty-state CTA and submits a weekly request", async () => {
     vi.mocked(requestToHost).mockResolvedValue({ success: true });
     renderManager([]);
