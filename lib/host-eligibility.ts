@@ -1,9 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { addMonthsClamped, type HiatusWindow } from "@/lib/member-tenure";
+import { addMonthsClamped } from "@/lib/member-tenure";
 
 // Business rule: we don't invite people to host until they've been a member
-// for a full calendar month. Wherever the app invites, suggests, or flags
-// someone as a potential host, gate it on getHostEligibility below.
+// for a full calendar month. Wherever the app invites, suggests, or accepts
+// self-signups from potential hosts, gate it on getHostEligibility below.
 export const HOST_ELIGIBILITY_MIN_MONTHS = 1;
 
 // "Today" for the rule is the org-local calendar date, so a member becomes
@@ -13,13 +13,12 @@ const ORG_TIMEZONE = "America/New_York";
 export interface HostEligibilityMember {
   firstJoinedAt: string | null; // members.first_joined_at (date-only)
   mostRecentJoinedAt: string | null; // members.most_recent_joined_at (date-only)
-  hiatusWindows: HiatusWindow[]; // from member_hiatus_history (start_date/end_date)
 }
 
 export interface HostEligibility {
   eligible: boolean;
-  // Date-only start of the membership stint the month is counted from, or null
-  // when the member has no join date on record.
+  // Date-only date the month is counted from, or null when the member has no
+  // join date on record.
   tenureStartDate: string | null;
   // Date-only first day the member is eligible, or null when unknown.
   eligibleOn: string | null;
@@ -29,29 +28,13 @@ function toDateOnly(value: string): string {
   return value.slice(0, 10);
 }
 
-// The date the "full month" is counted from: the start of the current
-// membership stint.
-//
-// - A real cancel -> resubscribe rejoin starts a new stint, so the clock
-//   restarts from most_recent_joined_at (they're settling back in).
-// - Returning from a hiatus does NOT start a new stint. A hiatus is a pause in
-//   an ongoing membership (see computeMemberTenure in lib/member-tenure.ts),
-//   but most_recent_joined_at deliberately also resets on a hiatus return to
-//   drive the "welcome back" UI. So when most_recent_joined_at is exactly an
-//   ended hiatus's end date, fall back to first_joined_at: that member was
-//   already a member before pausing and isn't "new".
-//   Known approximation: members.* doesn't store the latest *real* rejoin
-//   separately, so someone who resubscribed and then went on hiatus within
-//   the same month is measured from first_joined_at. That's rare and errs on
-//   the side of treating a returning member as established.
+// The month counts from the member's FIRST join. Someone rejoining after a
+// cancellation or hiatus -- however long ago -- isn't new to the community, so
+// they don't wait another month. most_recent_joined_at is only a fallback for
+// rows with no first_joined_at.
 export function hostingTenureStartDate(member: HostEligibilityMember): string | null {
-  const first = member.firstJoinedAt ? toDateOnly(member.firstJoinedAt) : null;
-  const mostRecent = member.mostRecentJoinedAt ? toDateOnly(member.mostRecentJoinedAt) : null;
-  if (!mostRecent) return first;
-  if (!first) return mostRecent;
-
-  const isHiatusReturn = member.hiatusWindows.some((w) => w.endsAt != null && toDateOnly(w.endsAt) === mostRecent);
-  return isHiatusReturn ? first : mostRecent;
+  const start = member.firstJoinedAt ?? member.mostRecentJoinedAt;
+  return start ? toDateOnly(start) : null;
 }
 
 // Date-only string for `now` in the org timezone.
@@ -86,14 +69,27 @@ export function isEligibleToHost(member: HostEligibilityMember, now: Date): bool
   return getHostEligibility(member, now).eligible;
 }
 
+// Friendly member-facing explanation for someone who isn't eligible yet.
+export function hostEligibilityMessage(eligibility: HostEligibility): string {
+  const base = "We invite hedgies to host once they've been a member for a full month";
+  if (!eligibility.eligibleOn) return `${base}.`;
+  const date = new Intl.DateTimeFormat("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(new Date(`${eligibility.eligibleOn}T00:00:00Z`));
+  return `${base} — for you, that's ${date}.`;
+}
+
 interface HostEligibilityMemberRow {
   id: string;
   first_joined_at: string | null;
   most_recent_joined_at: string | null;
 }
 
-// Loads join dates + hiatus history for the given members and computes each
-// one's host eligibility. Members not found are omitted from the result.
+// Loads join dates for the given members and computes each one's host
+// eligibility. Members not found are omitted from the result.
 export async function fetchHostEligibilityByMember(
   supabase: SupabaseClient,
   memberIds: string[],
@@ -105,40 +101,23 @@ export async function fetchHostEligibilityByMember(
 
   // .in() filters go in the URL, so chunk to keep requests a sane size.
   const ID_CHUNK = 100;
-  const members: HostEligibilityMemberRow[] = [];
-  const hiatusByMember = new Map<string, HiatusWindow[]>();
   const chunks: string[][] = [];
   for (let i = 0; i < ids.length; i += ID_CHUNK) chunks.push(ids.slice(i, i + ID_CHUNK));
 
-  await Promise.all(
-    chunks.map(async (chunk) => {
-      const [membersRes, hiatusRes] = await Promise.all([
-        supabase.from("members").select("id, first_joined_at, most_recent_joined_at").in("id", chunk),
-        supabase.from("member_hiatus_history").select("member_id, start_date, end_date").in("member_id", chunk),
-      ]);
-      if (membersRes.error) throw membersRes.error;
-      if (hiatusRes.error) throw hiatusRes.error;
-      members.push(...((membersRes.data ?? []) as HostEligibilityMemberRow[]));
-      for (const h of (hiatusRes.data ?? []) as { member_id: string; start_date: string; end_date: string | null }[]) {
-        const windows = hiatusByMember.get(h.member_id) ?? [];
-        windows.push({ startsAt: h.start_date, endsAt: h.end_date });
-        hiatusByMember.set(h.member_id, windows);
-      }
-    })
+  const responses = await Promise.all(
+    chunks.map((chunk) =>
+      supabase.from("members").select("id, first_joined_at, most_recent_joined_at").in("id", chunk)
+    )
   );
 
-  for (const m of members) {
-    result.set(
-      m.id,
-      getHostEligibility(
-        {
-          firstJoinedAt: m.first_joined_at,
-          mostRecentJoinedAt: m.most_recent_joined_at,
-          hiatusWindows: hiatusByMember.get(m.id) ?? [],
-        },
-        now
-      )
-    );
+  for (const res of responses) {
+    if (res.error) throw res.error;
+    for (const m of (res.data ?? []) as HostEligibilityMemberRow[]) {
+      result.set(
+        m.id,
+        getHostEligibility({ firstJoinedAt: m.first_joined_at, mostRecentJoinedAt: m.most_recent_joined_at }, now)
+      );
+    }
   }
   return result;
 }
