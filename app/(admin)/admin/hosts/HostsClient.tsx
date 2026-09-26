@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { TabBar } from "@/components/Tabs";
 import {
   DAY_NAMES,
   formatScheduleLabel,
@@ -258,28 +259,15 @@ export default function HostsClient({ prickleTypes }: { prickleTypes: PrickleTyp
         </p>
       </div>
 
-      <div className="flex items-center gap-4 mb-6 border-b border-gray-200 dark:border-slate-800">
-        <button
-          onClick={() => setTab("current")}
-          className={`pb-2 px-1 border-b-2 font-medium text-sm ${
-            tab === "current"
-              ? "border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400"
-              : "border-transparent text-gray-500 dark:text-slate-400"
-          }`}
-        >
-          Current Month ({monthLabel(CURRENT_MONTH)})
-        </button>
-        <button
-          onClick={() => setTab("next")}
-          className={`pb-2 px-1 border-b-2 font-medium text-sm ${
-            tab === "next"
-              ? "border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400"
-              : "border-transparent text-gray-500 dark:text-slate-400"
-          }`}
-        >
-          Next Month ({monthLabel(NEXT_MONTH)})
-        </button>
-      </div>
+      <TabBar
+        tabs={[
+          { id: "current", label: `Current Month (${monthLabel(CURRENT_MONTH)})` },
+          { id: "next", label: `Next Month (${monthLabel(NEXT_MONTH)})` },
+        ]}
+        activeTab={tab}
+        onTabChange={setTab}
+        className="mb-6"
+      />
 
       {error && (
         <div className="mb-4 p-4 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded">

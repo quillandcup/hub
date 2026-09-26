@@ -37,7 +37,7 @@ export default async function ProjectDetailPage({
         <div className="text-center">
           <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 mb-2">Project not found</h1>
           <Link href="/projects" className="text-blue-600 hover:text-blue-700 dark:text-blue-400">
-            ← Back to Projects
+            ← Back to My Writing
           </Link>
         </div>
       </div>
@@ -51,7 +51,7 @@ export default async function ProjectDetailPage({
       <header className="border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
         <div className="container mx-auto px-6 py-4">
           <Link href="/projects" className="text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400">
-            ← Projects
+            ← My Writing
           </Link>
           <h1 className="text-2xl font-bold mt-1">{result.project.title}</h1>
         </div>

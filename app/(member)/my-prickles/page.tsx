@@ -16,7 +16,7 @@ import PrickleWizard from "@/app/(member)/prickle-picker/PrickleWizard";
 import HostingStats from "@/app/(member)/hosting/HostingStats";
 import HostingScheduleManager from "@/app/(member)/hosting/HostingScheduleManager";
 import AllPricklesView from "./AllPricklesView";
-import { MyPricklesTabs } from "./MyPricklesTabs";
+import { Tabs } from "@/components/Tabs";
 
 export const metadata: Metadata = {
   title: "My Prickles",
@@ -31,11 +31,7 @@ const MEMBERS_BATCH_SIZE = 1000;
 const TAB_IDS = ["upcoming", "all", "history", "find", "hosting"] as const;
 type TabId = (typeof TAB_IDS)[number];
 
-export default async function MyPricklesPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ tab?: string }>;
-}) {
+export default async function MyPricklesPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
   const supabase = await createClient();
   const user = await getCurrentUser();
   if (!user) redirect("/login");
@@ -106,84 +102,115 @@ export default async function MyPricklesPage({
       </header>
 
       <main className="container mx-auto px-6 py-8">
-        <MyPricklesTabs
+        <Tabs
           key={initialTab}
           initialTab={initialTab}
-          upcomingContent={
-            <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 p-6">
-              <h2 className="text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-4">
-                For You — Next {UPCOMING_WINDOW_DAYS} Days
-              </h2>
-              {displayedUpcoming.length === 0 ? (
-                <p className="text-sm text-slate-500 dark:text-slate-400">
-                  No prickles scheduled in the next {UPCOMING_WINDOW_DAYS} days.{" "}
-                  <Link href="/my-prickles?tab=all" className="text-blue-600 dark:text-blue-400 hover:underline">
-                    See the full schedule →
-                  </Link>
-                </p>
-              ) : (
-                <div>
-                  {displayedUpcoming.map(({ prickle, reasons }) => (
-                    <UpcomingPrickleRow key={prickle.id} prickle={prickle} reasons={reasons} timeZone={timeZone} />
-                  ))}
-                  {ranked.length > displayedUpcoming.length && (
-                    <p className="text-xs text-slate-400 mt-3">
-                      Showing the top {displayedUpcoming.length} of {ranked.length}. Looking for something specific?{" "}
+          className="max-w-3xl mx-auto"
+          tabs={[
+            {
+              id: "upcoming",
+              label: "Upcoming",
+              content: (
+                <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 p-6">
+                  <h2 className="text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-4">
+                    For You — Next {UPCOMING_WINDOW_DAYS} Days
+                  </h2>
+                  {displayedUpcoming.length === 0 ? (
+                    <p className="text-sm text-slate-500 dark:text-slate-400">
+                      No prickles scheduled in the next {UPCOMING_WINDOW_DAYS} days.{" "}
                       <Link href="/my-prickles?tab=all" className="text-blue-600 dark:text-blue-400 hover:underline">
-                        See all Prickles →
+                        See the full schedule →
                       </Link>
-                      {canFindPrickle && (
-                        <>
-                          {" "}
-                          or try{" "}
-                          <Link href="/my-prickles?tab=find" className="text-blue-600 dark:text-blue-400 hover:underline">
-                            Find a Prickle →
-                          </Link>
-                        </>
-                      )}
                     </p>
+                  ) : (
+                    <div>
+                      {displayedUpcoming.map(({ prickle, reasons }) => (
+                        <UpcomingPrickleRow key={prickle.id} prickle={prickle} reasons={reasons} timeZone={timeZone} />
+                      ))}
+                      {ranked.length > displayedUpcoming.length && (
+                        <p className="text-xs text-slate-400 mt-3">
+                          Showing the top {displayedUpcoming.length} of {ranked.length}. Looking for something specific?{" "}
+                          <Link
+                            href="/my-prickles?tab=all"
+                            className="text-blue-600 dark:text-blue-400 hover:underline"
+                          >
+                            See all Prickles →
+                          </Link>
+                          {canFindPrickle && (
+                            <>
+                              {" "}
+                              or try{" "}
+                              <Link
+                                href="/my-prickles?tab=find"
+                                className="text-blue-600 dark:text-blue-400 hover:underline"
+                              >
+                                Find a Prickle →
+                              </Link>
+                            </>
+                          )}
+                        </p>
+                      )}
+                    </div>
                   )}
                 </div>
-              )}
-            </div>
-          }
-          allPricklesContent={
-            <AllPricklesView
-              rows={scheduleOverview.rows}
-              instances={scheduleOverview.upcomingInstances}
-              timeZone={timeZone}
-              upcomingWindowDays={UPCOMING_WINDOW_DAYS}
-            />
-          }
-          historyContent={
-            <MemberCalendarClient
-              memberId={memberId}
-              attendance={attendance || []}
-              defaultTimezone={tzPref}
-              memberBasePath="/members"
-              initialView="month"
-            />
-          }
-          findContent={
-            canFindPrickle ? (
-              <div className="flex justify-center">
-                <PrickleWizard members={members} />
-              </div>
-            ) : null
-          }
-          hostingContent={
-            <div>
-              <HostingStats stats={hostingStats} />
-              <HostingScheduleManager
-                initialSchedules={schedules}
-                prickleTypes={prickleTypes ?? []}
-                currentMonth={currentMonth}
-                nextMonth={nextMonth}
-                currentMonthLocked={currentMonthLocked}
-                nextMonthLocked={nextMonthLocked}
-              />
-            </div>
-          }
+              ),
+            },
+            {
+              id: "all",
+              label: "All Prickles",
+              content: (
+                <AllPricklesView
+                  rows={scheduleOverview.rows}
+                  instances={scheduleOverview.upcomingInstances}
+                  timeZone={timeZone}
+                  upcomingWindowDays={UPCOMING_WINDOW_DAYS}
+                />
+              ),
+            },
+            ...(canFindPrickle
+              ? [
+                  {
+                    id: "find" as const,
+                    label: "Find a Prickle",
+                    content: (
+                      <div className="flex justify-center">
+                        <PrickleWizard members={members} />
+                      </div>
+                    ),
+                  },
+                ]
+              : []),
+            {
+              id: "history",
+              label: "Attendance History",
+              content: (
+                <MemberCalendarClient
+                  memberId={memberId}
+                  attendance={attendance || []}
+                  defaultTimezone={tzPref}
+                  memberBasePath="/members"
+                  initialView="month"
+                />
+              ),
+            },
+            {
+              id: "hosting",
+              label: "Hosting",
+              content: (
+                <div>
+                  <HostingStats stats={hostingStats} />
+                  <HostingScheduleManager
+                    initialSchedules={schedules}
+                    prickleTypes={prickleTypes ?? []}
+                    currentMonth={currentMonth}
+                    nextMonth={nextMonth}
+                    currentMonthLocked={currentMonthLocked}
+                    nextMonthLocked={nextMonthLocked}
+                  />
+                </div>
+              ),
+            },
+          ]}
         />
       </main>
     </div>

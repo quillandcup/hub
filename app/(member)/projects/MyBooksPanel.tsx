@@ -1,14 +1,15 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import BookFormModal from "@/components/books/BookFormModal";
 import { deleteBook, type MyBookRow } from "@/app/(member)/bookshelf/actions";
 
 interface MyBooksPanelProps {
-  /** Books not linked to any tracked project -- a published project's book shows on that
-   * project's card/detail page instead (see WritingProjectRow.book), so it isn't duplicated here. */
   initialBooks: MyBookRow[];
+  /** Titles of the member's projects by id, to link a published project's book back to it. */
+  projectTitles: Record<string, string>;
 }
 
 function formatDate(dateOnly: string): string {
@@ -22,11 +23,11 @@ function formatPrice(price: number | null): string | null {
   return price == null ? null : `$${price.toFixed(2)}`;
 }
 
-/** Manages books not tied to a tracked project (past books added before this feature, or added
- * standalone) -- relocated here from the old Bookshelf "My Books" panel, which is now a
- * read-only community gallery. Publishing a project (see ProjectsClient) is the fast path for a
- * new book; this stays as the manual fallback. */
-export default function MyBooksPanel({ initialBooks }: MyBooksPanelProps) {
+/** Manages all of the member's books -- both those published from a tracked project and standalone
+ * ones (past books added before projects existed, or added by hand). Relocated here from the old
+ * Bookshelf "My Books" panel, which is now a read-only community gallery. Publishing a project
+ * (see ProjectsClient) is the fast path for a new book; "Add a book" stays as the manual fallback. */
+export default function MyBooksPanel({ initialBooks, projectTitles }: MyBooksPanelProps) {
   const router = useRouter();
   const [showAdd, setShowAdd] = useState(false);
   const [editingBook, setEditingBook] = useState<MyBookRow | null>(null);
@@ -37,7 +38,11 @@ export default function MyBooksPanel({ initialBooks }: MyBooksPanelProps) {
   }
 
   async function handleDelete(book: MyBookRow) {
-    if (!confirm(`Remove "${book.title}" from the Bookshelf?`)) return;
+    const projectTitle = book.projectId ? projectTitles[book.projectId] : undefined;
+    const message = projectTitle
+      ? `Remove "${book.title}" from the Bookshelf? "${projectTitle}" will no longer be marked as published.`
+      : `Remove "${book.title}" from the Bookshelf?`;
+    if (!confirm(message)) return;
     setDeletingId(book.id);
     const result = await deleteBook(book.id);
     setDeletingId(null);
@@ -51,9 +56,7 @@ export default function MyBooksPanel({ initialBooks }: MyBooksPanelProps) {
   return (
     <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 p-6">
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide">
-          My Books
-        </h2>
+        <h2 className="text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide">My Books</h2>
         <button
           type="button"
           onClick={() => setShowAdd(true)}
@@ -65,7 +68,7 @@ export default function MyBooksPanel({ initialBooks }: MyBooksPanelProps) {
 
       {initialBooks.length === 0 ? (
         <p className="text-sm text-slate-500 dark:text-slate-400">
-          No standalone books yet -- publishing a project above adds one automatically.
+          No books yet -- publishing a project adds one automatically, or add one by hand.
         </p>
       ) : (
         <ul className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -76,6 +79,17 @@ export default function MyBooksPanel({ initialBooks }: MyBooksPanelProps) {
                 <p className="text-xs text-slate-500 dark:text-slate-400">
                   {formatDate(book.publishedDate)} · <span className="capitalize">{book.format}</span>
                   {formatPrice(book.price) && ` · ${formatPrice(book.price)}`}
+                  {book.projectId && projectTitles[book.projectId] && (
+                    <>
+                      {" · From "}
+                      <Link
+                        href={`/projects/${book.projectId}`}
+                        className="text-blue-600 dark:text-blue-400 hover:underline"
+                      >
+                        {projectTitles[book.projectId]}
+                      </Link>
+                    </>
+                  )}
                 </p>
               </div>
               <div className="flex items-center gap-3 flex-shrink-0">
