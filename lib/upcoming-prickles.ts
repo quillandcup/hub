@@ -12,6 +12,7 @@ import {
   RECOMMENDATION_LOOKBACK_DAYS,
   computeHostExperience,
   computeSlotVibrancy,
+  localDayAndTimeOfDay,
   orderWithDiversity,
   recommendationReasons,
   scoreRecommendation,
@@ -248,7 +249,8 @@ export interface RankingInputs {
  * (longest first); within a tier, ties go to the stronger community
  * recommendation, then the earlier start. Everything without a personal
  * signal follows, ordered by community recommendation score with a
- * day/slot-diversity and time-proximity balance (see orderWithDiversity).
+ * day / time-of-day / slot diversity and time-proximity balance, all in the
+ * viewer's own timezone (see orderWithDiversity).
  */
 export function rankUpcomingPrickles(inputs: RankingInputs): RankedPrickle[] {
   const {
@@ -264,8 +266,8 @@ export function rankUpcomingPrickles(inputs: RankingInputs): RankedPrickle[] {
     hostExperience = new Map(),
   } = inputs
 
-  const dayKeyFormat = new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" })
-  const dayKeyFor = (iso: string) => dayKeyFormat.format(new Date(iso))
+  // Local day + time-of-day bucket in the viewer's own timezone, for spreading recommendations.
+  const localSlotFor = (iso: string) => localDayAndTimeOfDay(iso, timeZone)
 
   const ranked: RankedPrickle[] = upcoming.map((p) => {
     const reasons: HighlightReason[] = []
@@ -331,12 +333,12 @@ export function rankUpcomingPrickles(inputs: RankingInputs): RankedPrickle[] {
       .map((r) => ({
         id: r.prickle.id,
         startTime: r.prickle.startTime,
-        dayKey: dayKeyFor(r.prickle.startTime),
+        ...localSlotFor(r.prickle.startTime),
         seriesKey: r.prickle.seriesKey,
         score: r.recommendationScore,
       })),
     now,
-    personal.map((r) => ({ dayKey: dayKeyFor(r.prickle.startTime), seriesKey: r.prickle.seriesKey }))
+    personal.map((r) => ({ ...localSlotFor(r.prickle.startTime), seriesKey: r.prickle.seriesKey }))
   ).map((c, i) => ({ ...byId.get(c.id)!, sortValue: i }))
 
   return [...personal, ...rest]
