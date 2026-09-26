@@ -256,4 +256,154 @@ describe('Prickle Schedules API', () => {
 
     await supabase.from('prickle_schedules').delete().eq('host_id', memberId).eq('day_of_week', 4)
   })
+
+  describe('host_eligibility on GET', () => {
+    // Independent re-implementation of the rule (one calendar month from the tenure
+    // start, clamped to month end) on org-local (America/New_York) dates, so the test
+    // doesn't just echo lib/host-eligibility.ts back at itself.
+    function orgToday(): string {
+      return new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'America/New_York',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      }).format(new Date())
+    }
+    function addDays(date: string, days: number): string {
+      const d = new Date(`${date}T00:00:00Z`)
+      d.setUTCDate(d.getUTCDate() + days)
+      return d.toISOString().slice(0, 10)
+    }
+    function plusOneMonthClamped(date: string): string {
+      const [y, m, d] = date.split('-').map(Number)
+      const targetMonthIndex = m // 0-based index of the following month
+      const lastDay = new Date(Date.UTC(y, targetMonthIndex + 1, 0)).getUTCDate()
+      return new Date(Date.UTC(y, targetMonthIndex, Math.min(d, lastDay))).toISOString().slice(0, 10)
+    }
+
+    const eligSuffix = `${ts}-${Math.random().toString(36).slice(2, 8)}`
+    const hostIds: string[] = []
+
+    async function createHostWithSchedule(
+      label: string,
+      joinDates: { first_joined_at: string | null; most_recent_joined_at: string | null },
+      dayOfWeek: number
+    ): Promise<{ hostId: string; scheduleId: string }> {
+      const { data: host, error: hostError } = await supabase
+        .from('members')
+        .insert({
+          name: `Eligibility ${label} Host`,
+          email: `sched-elig-${label}-${eligSuffix}@example.com`,
+          status: 'active',
+          // joined_at is NOT NULL but is the raw Kajabi contact date, which the rule
+          // deliberately ignores -- set it far in the past so a regression that fell
+          // back to it would flip the "new" / "no dates" hosts to eligible.
+          joined_at: '2020-01-01',
+          ...joinDates,
+        })
+        .select('id')
+        .single()
+      if (hostError || !host) throw new Error(`Failed to create ${label} host: ${hostError?.message}`)
+      hostIds.push(host.id)
+
+      const { data: schedule, error: scheduleError } = await supabase
+        .from('prickle_schedules')
+        .insert({
+          host_id: host.id,
+          type_id: typeId,
+          month: currentMonth,
+          recurrence_type: 'weekly',
+          day_of_week: dayOfWeek,
+          start_time_local: '08:00',
+        })
+        .select('id')
+        .single()
+      if (scheduleError || !schedule) throw new Error(`Failed to create ${label} schedule: ${scheduleError?.message}`)
+      return { hostId: host.id, scheduleId: schedule.id }
+    }
+
+    async function getScheduleFromApi(scheduleId: string) {
+      const response = await fetch(`${getTestApiBaseUrl()}/api/prickle-schedules?month=${currentMonth}`, {
+        headers: getTestAuthHeaders(),
+      })
+      expect(response.ok).toBe(true)
+      const body = await response.json()
+      const schedule = body.schedules.find((s: any) => s.id === scheduleId)
+      expect(schedule).toBeTruthy()
+      return schedule
+    }
+
+    afterAll(async () => {
+      if (hostIds.length === 0) return
+      await supabase.from('prickle_schedules').delete().in('host_id', hostIds)
+      await supabase.from('member_hiatus_history').delete().in('member_id', hostIds)
+      await supabase.from('members').delete().in('id', hostIds)
+    })
+
+    it('marks a host who joined more than a month ago as eligible', async () => {
+      const joined = addDays(orgToday(), -45)
+      const { scheduleId } = await createHostWithSchedule(
+        'veteran',
+        { first_joined_at: joined, most_recent_joined_at: joined },
+        1
+      )
+
+      const schedule = await getScheduleFromApi(scheduleId)
+      expect(schedule.host_eligibility).toEqual({
+        eligible: true,
+        tenureStartDate: joined,
+        eligibleOn: plusOneMonthClamped(joined),
+      })
+    })
+
+    it('marks a host who joined 10 days ago as not yet eligible, with the date they become eligible', async () => {
+      const joined = addDays(orgToday(), -10)
+      const { scheduleId } = await createHostWithSchedule(
+        'newbie',
+        { first_joined_at: joined, most_recent_joined_at: joined },
+        2
+      )
+
+      const schedule = await getScheduleFromApi(scheduleId)
+      const expectedEligibleOn = plusOneMonthClamped(joined)
+      expect(expectedEligibleOn > orgToday()).toBe(true)
+      expect(schedule.host_eligibility).toEqual({
+        eligible: false,
+        tenureStartDate: joined,
+        eligibleOn: expectedEligibleOn,
+      })
+    })
+
+    it('marks a host with no join dates on record as not eligible, with eligibleOn null', async () => {
+      const { scheduleId } = await createHostWithSchedule(
+        'nodates',
+        { first_joined_at: null, most_recent_joined_at: null },
+        3
+      )
+
+      const schedule = await getScheduleFromApi(scheduleId)
+      expect(schedule.host_eligibility).toEqual({ eligible: false, tenureStartDate: null, eligibleOn: null })
+    })
+
+    it('does not restart the clock when the most recent join is a return from hiatus', async () => {
+      const first = addDays(orgToday(), -400)
+      const hiatusEnd = addDays(orgToday(), -5)
+      const { hostId, scheduleId } = await createHostWithSchedule(
+        'hiatus',
+        { first_joined_at: first, most_recent_joined_at: hiatusEnd },
+        4
+      )
+      const { error: hiatusError } = await supabase
+        .from('member_hiatus_history')
+        .insert({ member_id: hostId, start_date: addDays(orgToday(), -60), end_date: hiatusEnd })
+      expect(hiatusError).toBeNull()
+
+      const schedule = await getScheduleFromApi(scheduleId)
+      expect(schedule.host_eligibility).toEqual({
+        eligible: true,
+        tenureStartDate: first,
+        eligibleOn: plusOneMonthClamped(first),
+      })
+    })
+  })
 })

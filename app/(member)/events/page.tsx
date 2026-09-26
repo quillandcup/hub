@@ -5,35 +5,15 @@ import { redirect } from "next/navigation";
 import { getUserFeaturePreviews } from "@/lib/features.server";
 import { getUserTimezonePreference } from "@/lib/timezone";
 import { localDateString, parseEventFilter } from "@/lib/events-filter";
-import EventsBrowser, { type EducationalPrickle, type EventRow } from "./EventsBrowser";
+import { fetchUpcomingEducationalPrickles } from "@/lib/educational-prickles";
+import EventsBrowser, { type EventRow } from "./EventsBrowser";
 
 export const metadata: Metadata = {
   title: "Events",
 };
 
 const ORG_TIMEZONE = "America/New_York";
-// How far ahead to look for educational prickles. They're scheduled a month or two out
-// on the shared calendar; this keeps the list to what's actually been announced.
-const EDUCATIONAL_WINDOW_DAYS = 90;
-// Well under Supabase's 1000-row cap -- educational prickles are a few per month.
-const EDUCATIONAL_LIMIT = 200;
-
-type NameRef = { name: string } | { name: string }[] | null;
-
 type RawEvent = Omit<EventRow, "cover_photo_id"> & { event_photos: { id: string; hidden_at: string | null }[] | null };
-type RawEducational = {
-  id: string;
-  title: string | null;
-  start_time: string;
-  end_time: string;
-  host: NameRef;
-  prickle_types: NameRef;
-};
-
-function unwrapName(ref: NameRef): string | null {
-  if (Array.isArray(ref)) return ref[0]?.name ?? null;
-  return ref?.name ?? null;
-}
 
 export default async function EventsPage({ searchParams }: { searchParams: Promise<{ type?: string }> }) {
   const supabase = await createClient();
@@ -51,21 +31,13 @@ export default async function EventsPage({ searchParams }: { searchParams: Promi
   const timeZone = tzPref === "browser" ? ORG_TIMEZONE : tzPref;
 
   const now = new Date();
-  const windowEnd = new Date(now.getTime() + EDUCATIONAL_WINDOW_DAYS * 24 * 60 * 60 * 1000);
 
-  const [{ data: events }, { data: educational }] = await Promise.all([
+  const [{ data: events }, educationalPrickles] = await Promise.all([
     supabase
       .from("events")
       .select("id, slug, title, event_type, location, starts_at, ends_at, focus, event_photos(id, hidden_at)")
       .order("starts_at", { ascending: false }),
-    supabase
-      .from("prickles")
-      .select("id, title, start_time, end_time, host:members(name), prickle_types!inner(name, normalized_name)")
-      .eq("prickle_types.normalized_name", "educational")
-      .gte("end_time", now.toISOString())
-      .lte("start_time", windowEnd.toISOString())
-      .order("start_time", { ascending: true })
-      .limit(EDUCATIONAL_LIMIT),
+    fetchUpcomingEducationalPrickles(supabase, now),
   ]);
 
   const rows: EventRow[] = ((events ?? []) as RawEvent[]).map((e) => ({
@@ -78,15 +50,6 @@ export default async function EventsPage({ searchParams }: { searchParams: Promi
     ends_at: e.ends_at,
     focus: e.focus,
     cover_photo_id: (e.event_photos || []).find((p) => !p.hidden_at)?.id ?? null,
-  }));
-
-  const educationalPrickles: EducationalPrickle[] = ((educational ?? []) as unknown as RawEducational[]).map((p) => ({
-    id: p.id,
-    title: p.title ?? null,
-    typeName: unwrapName(p.prickle_types) ?? "Educational Prickle",
-    hostName: unwrapName(p.host),
-    startTime: p.start_time,
-    endTime: p.end_time,
   }));
 
   return (

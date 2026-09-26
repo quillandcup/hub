@@ -49,4 +49,15 @@ describe("MemberNavigation", () => {
     expect(hrefs(drawer)).toEqual(hrefs(sidebar));
     expect(hrefs(drawer)).toContain("/admin");
   });
+
+  // Streaks and Wheel of Wonder were feature-flagged; they're now on for everyone.
+  it("shows Streaks and Wheel of Wonder with no feature previews enabled", async () => {
+    render(<MemberNavigation isAdmin={false} enabledFeatures={[]} />);
+    const drawer = await openMobileDrawer();
+    expect(within(drawer).getByRole("link", { name: /Streaks/ })).toHaveAttribute("href", "/streaks");
+    expect(within(drawer).getByRole("link", { name: /Wheel of Wonder/ })).toHaveAttribute("href", "/wheel-of-wonder");
+    const sidebar = screen.getByRole("complementary", { name: "Sidebar navigation" });
+    const sidebarHrefs = within(sidebar).getAllByRole("link").map((a) => a.getAttribute("href"));
+    expect(sidebarHrefs).toEqual(expect.arrayContaining(["/streaks", "/wheel-of-wonder"]));
+  });
 });
