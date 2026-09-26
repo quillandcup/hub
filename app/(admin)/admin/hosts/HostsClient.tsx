@@ -161,16 +161,37 @@ export default function HostsClient({ prickleTypes }: { prickleTypes: PrickleTyp
     setMessage(null);
     setBootstrapping(true);
     try {
-      const res = await fetch("/api/prickle-schedules/bootstrap", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ month: CURRENT_MONTH }),
-      });
-      const body = await res.json();
-      if (!res.ok) throw new Error(body.error || "Failed to bootstrap from calendar");
+      // Preview first (dry run), so the admin sees exactly what an import of
+      // this month will change before anything is written.
+      const bootstrap = async (opts: Record<string, unknown>) => {
+        const res = await fetch("/api/prickle-schedules/bootstrap", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ month, ...opts }),
+        });
+        const body = await res.json();
+        if (!res.ok) throw new Error(body.error || "Failed to bootstrap from calendar");
+        return body;
+      };
+      const preview = await bootstrap({ dryRun: true });
+      const proceed = confirm(
+        `Import ${monthLabel(month)} hosting schedules from the calendar?\n\n` +
+          `• ${preview.created} new confirmed schedule${preview.created === 1 ? "" : "s"}\n` +
+          `• ${preview.skippedExisting} already here (left as-is)\n` +
+          `• ${preview.unmatchedExisting} existing schedule${preview.unmatchedExisting === 1 ? "" : "s"} not on the calendar (left as-is for you to review)`
+      );
+      if (!proceed) return;
+      const confirmMatchingProposed =
+        preview.matchingProposed > 0 &&
+        confirm(
+          `${preview.matchingProposed} existing proposed schedule${preview.matchingProposed === 1 ? "" : "s"} ` +
+            `match${preview.matchingProposed === 1 ? "es" : ""} the calendar. Mark ${preview.matchingProposed === 1 ? "it" : "them"} confirmed too?`
+        );
+      const body = await bootstrap({ confirmMatchingProposed });
       setMessage(
         `Bootstrapped ${body.created} schedule${body.created === 1 ? "" : "s"} from the calendar` +
           (body.skippedExisting ? `, skipped ${body.skippedExisting} already there` : "") +
+          (body.confirmedExisting ? `, confirmed ${body.confirmedExisting} proposed` : "") +
           (body.copiedToNextMonth ? `, copied ${body.copiedToNextMonth} to next month` : "") +
           "."
       );
@@ -291,16 +312,14 @@ export default function HostsClient({ prickleTypes }: { prickleTypes: PrickleTyp
               Add Schedule
             </button>
           )}
-          {tab === "current" && (
-            <button
-              onClick={handleBootstrap}
-              disabled={bootstrapping}
-              className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50"
-              title="Create confirmed schedules from who's already hosting on the calendar this month, then copy them to next month"
-            >
-              {bootstrapping ? "Bootstrapping…" : "Bootstrap from calendar"}
-            </button>
-          )}
+          <button
+            onClick={handleBootstrap}
+            disabled={bootstrapping}
+            className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50"
+            title={`Create confirmed schedules from who's hosting on the calendar in ${monthLabel(month)}, then copy them to the following month`}
+          >
+            {bootstrapping ? "Bootstrapping…" : `Bootstrap ${monthLabel(month)} from calendar`}
+          </button>
         </div>
         <button
           onClick={handleToggleLock}
