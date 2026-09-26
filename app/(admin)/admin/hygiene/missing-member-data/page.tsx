@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import type { Metadata } from "next";
+import MissingStripeTable from "./MissingStripeTable";
 import { requireAdminPage } from "@/lib/admin-auth";
 
 export const dynamic = "force-dynamic";
@@ -64,54 +65,7 @@ export default async function MissingMemberDataPage() {
               </span>
             </div>
             {missingStripe && missingStripe.length > 0 ? (
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-slate-50 dark:bg-slate-800">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                        Name
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                        Email
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                        Kajabi
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
-                    {missingStripe.map((member) => (
-                      <tr key={member.id} className="hover:bg-slate-50 dark:hover:bg-slate-800">
-                        <td className="px-6 py-3">
-                          <Link
-                            href={`/admin/members/${member.id}`}
-                            className="text-sm font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 hover:underline"
-                          >
-                            {member.name}
-                          </Link>
-                        </td>
-                        <td className="px-6 py-3 text-sm text-slate-600 dark:text-slate-400">
-                          {member.email}
-                        </td>
-                        <td className="px-6 py-3">
-                          {member.kajabi_id ? (
-                            <a
-                              href={`https://app.kajabi.com/admin/contacts/${member.kajabi_id}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-xs text-blue-600 hover:underline dark:text-blue-400"
-                            >
-                              {member.kajabi_id}
-                            </a>
-                          ) : (
-                            <span className="text-xs text-slate-400">—</span>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <MissingStripeTable rows={missingStripe} />
             ) : (
               <div className="px-6 py-8 text-center text-sm text-green-600 dark:text-green-400 font-medium">
                 All active members have a Stripe customer ID.

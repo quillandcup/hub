@@ -12,6 +12,8 @@ import type { SlotClick } from "@/components/CalendarWeekView";
 import { requestToHost, updateMySchedule, withdrawMySchedule, type MyScheduleRow } from "./actions";
 import HostingCalendarPicker from "./HostingCalendarPicker";
 import { hostEligibilityMessage, type HostEligibility } from "@/lib/host-eligibility";
+import { SortableTh } from "@/components/SortableTh";
+import { useTableSort, type SortValue } from "@/lib/hooks/useTableSort";
 
 interface PrickleType {
   id: string;
@@ -432,6 +434,33 @@ function ScheduleForm({
   );
 }
 
+type ScheduleSortColumn = "schedule" | "status" | "notes";
+
+const SCHEDULE_STATUS_ORDER: Record<string, number> = { proposed: 0, confirmed: 1, declined: 2 };
+
+function scheduleLabel(s: MyScheduleRow): string {
+  return formatScheduleLabel(s.typeName, {
+    recurrenceType: s.recurrenceType,
+    dayOfWeek: s.dayOfWeek,
+    recurrenceAnchorDate: s.recurrenceAnchorDate,
+    weekOfMonth: s.weekOfMonth,
+    eventDate: s.eventDate,
+    startTimeLocal: s.startTimeLocal,
+    timezone: s.timezone,
+  });
+}
+
+function scheduleSortValue(s: MyScheduleRow, column: ScheduleSortColumn): SortValue {
+  switch (column) {
+    case "schedule":
+      return scheduleLabel(s).toLowerCase();
+    case "status":
+      return SCHEDULE_STATUS_ORDER[s.status] ?? 99;
+    case "notes":
+      return s.notes?.toLowerCase() || null;
+  }
+}
+
 function ScheduleRowActions({
   schedule,
   locked,
@@ -535,6 +564,11 @@ function MonthSection({
   onRequestSlot: () => void;
 }) {
   const stats = summarizeMonth(schedules);
+  const { sortColumn, sortDirection, handleSort, sortedRows } = useTableSort<MyScheduleRow, ScheduleSortColumn>({
+    rows: schedules,
+    getSortValue: scheduleSortValue,
+    defaultSort: null,
+  });
   const monthStart = new Date(`${month}T00:00:00Z`);
   const monthEnd = new Date(Date.UTC(monthStart.getUTCFullYear(), monthStart.getUTCMonth() + 1, 0));
 
@@ -627,25 +661,35 @@ function MonthSection({
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700">
-                <th className="pb-2 pr-2">Schedule</th>
-                <th className="pb-2 pr-2">Status</th>
-                <th className="pb-2 pr-2">Notes</th>
+                <SortableTh
+                  label="Schedule"
+                  className="pb-2 pr-2"
+                  active={sortColumn === "schedule"}
+                  direction={sortDirection}
+                  onClick={() => handleSort("schedule")}
+                />
+                <SortableTh
+                  label="Status"
+                  className="pb-2 pr-2"
+                  active={sortColumn === "status"}
+                  direction={sortDirection}
+                  onClick={() => handleSort("status")}
+                />
+                <SortableTh
+                  label="Notes"
+                  className="pb-2 pr-2"
+                  active={sortColumn === "notes"}
+                  direction={sortDirection}
+                  onClick={() => handleSort("notes")}
+                />
                 <th className="pb-2">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-              {schedules.map((s) => (
+              {sortedRows.map((s) => (
                 <tr key={s.id}>
                   <td className="py-2 pr-2 text-slate-900 dark:text-slate-100">
-                    {formatScheduleLabel(s.typeName, {
-                      recurrenceType: s.recurrenceType,
-                      dayOfWeek: s.dayOfWeek,
-                      recurrenceAnchorDate: s.recurrenceAnchorDate,
-                      weekOfMonth: s.weekOfMonth,
-                      eventDate: s.eventDate,
-                      startTimeLocal: s.startTimeLocal,
-                      timezone: s.timezone,
-                    })}
+                    {scheduleLabel(s)}
                     {s.carriedForwardFrom && (
                       <span className="ml-2 text-xs text-slate-400 dark:text-slate-500">(carried forward)</span>
                     )}

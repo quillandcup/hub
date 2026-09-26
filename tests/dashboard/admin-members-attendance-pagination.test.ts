@@ -3,6 +3,11 @@ import { getTestSupabaseAdminClient } from '../helpers/supabase'
 import { computeMemberEngagementMetrics } from '@/lib/member-engagement'
 
 /**
+ * NOTE: /admin/members no longer fetches attendance history at all — it pages
+ * and sorts in SQL (admin_members_page; see tests/lib/admin-members-paging.test.ts,
+ * which also covers >1000 attendances). This test still guards the paginated
+ * fetch pattern and computeMemberEngagementMetrics at scale.
+ *
  * Regression test for the /admin/members?filter=all Bad Request bug (commit 50816d9).
  *
  * The page used to fetch attendance with `.in("member_id", memberIds)`. With the

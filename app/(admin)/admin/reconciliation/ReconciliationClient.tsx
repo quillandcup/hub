@@ -1,7 +1,11 @@
 "use client";
 
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useCallback, useEffect, useState } from "react";
 import MemberOverrideForm from "@/components/MemberOverrideForm";
+import { SortableTh } from "@/components/SortableTh";
+import { useTableSort, type SortValue } from "@/lib/hooks/useTableSort";
+import { Pagination } from "@/components/Pagination";
+import { usePagination } from "@/lib/hooks/usePagination";
 
 interface ReconciliationSummary {
   total_members: number;
@@ -81,6 +85,42 @@ interface KajabiGrantsData {
   grants: KajabiGrant[];
 }
 
+type MemberSortColumn = "member" | "expected" | "actual" | "stripe" | "slack" | "override" | "status";
+type OrphanSortColumn = "name" | "email" | "since";
+type GrantSortColumn = "member" | "offer" | "amount" | "granted";
+type ZoomSortColumn = "member" | "prickles";
+
+function orphanSortValue(o: StripeOrphan, column: OrphanSortColumn): SortValue {
+  switch (column) {
+    case "name":
+      return o.name?.toLowerCase() ?? null;
+    case "email":
+      return o.email?.toLowerCase() ?? null;
+    case "since":
+      return o.created_at;
+  }
+}
+
+function grantSortValue(g: KajabiGrant, column: GrantSortColumn): SortValue {
+  switch (column) {
+    case "member":
+      return (g.member_name ?? g.member_email)?.toLowerCase() ?? null;
+    case "offer":
+      return g.offer_name.toLowerCase();
+    case "amount":
+      return g.amount_in_cents;
+    case "granted":
+      return g.created_at;
+  }
+}
+
+function zoomSortValue(m: ZoomInactiveMember, column: ZoomSortColumn): SortValue {
+  return column === "member" ? m.member_name.toLowerCase() : m.prickle_count;
+}
+
+const EMPTY: never[] = [];
+const HEADER_CLASS = "px-4 py-3 text-sm font-medium text-gray-700 dark:text-gray-300";
+
 export default function ReconciliationClient() {
   const [data, setData] = useState<ReconciliationData | null>(null);
   const [slackData, setSlackData] = useState<SlackData | null>(null);
@@ -91,6 +131,67 @@ export default function ReconciliationClient() {
   const [error, setError] = useState<string | null>(null);
   const [filterDiscrepancies, setFilterDiscrepancies] = useState(true);
   const [editingMemberId, setEditingMemberId] = useState<string | null>(null);
+
+  // Sort hooks live above the loading/error early returns (rules of hooks).
+  const memberSortValue = useCallback(
+    (m: MemberReconciliation, column: MemberSortColumn): SortValue => {
+      switch (column) {
+        case "member":
+          return m.member_name.toLowerCase();
+        case "expected":
+          return m.expected_kajabi_state;
+        case "actual":
+          return m.actual_kajabi_state;
+        case "stripe":
+          return m.stripe_state;
+        case "slack":
+          return slackData?.members_in_slack.includes(m.member_id) ? 1 : 0;
+        case "override":
+          return m.override_type ?? (m.is_on_hiatus ? "hiatus" : null);
+        case "status":
+          // Ascending puts mismatches first.
+          return m.has_discrepancy ||
+            (slackData !== null && !slackData.members_in_slack.includes(m.member_id) && m.expected_kajabi_state === "active")
+            ? 0
+            : 1;
+      }
+    },
+    [slackData]
+  );
+  const memberSort = useTableSort<MemberReconciliation, MemberSortColumn>({
+    rows: data?.members ?? EMPTY,
+    getSortValue: memberSortValue,
+    defaultSort: null,
+  });
+  const orphanSort = useTableSort<StripeOrphan, OrphanSortColumn>({
+    rows: stripeOrphanData?.orphans ?? EMPTY,
+    getSortValue: orphanSortValue,
+    defaultSort: null,
+  });
+  const grantSort = useTableSort<KajabiGrant, GrantSortColumn>({
+    rows: kajabiGrantsData?.grants ?? EMPTY,
+    getSortValue: grantSortValue,
+    defaultSort: null,
+  });
+  const zoomSort = useTableSort<ZoomInactiveMember, ZoomSortColumn>({
+    rows: zoomAccessData?.matched_inactive ?? EMPTY,
+    getSortValue: zoomSortValue,
+    defaultSort: null,
+  });
+
+  const memberSlackSet = new Set(slackData?.members_in_slack ?? []);
+
+  const hasDiscrepancy = (m: MemberReconciliation) =>
+    m.has_discrepancy ||
+    (slackData !== null && !memberSlackSet.has(m.member_id) && m.expected_kajabi_state === "active");
+
+  const filteredMembers = filterDiscrepancies
+    ? memberSort.sortedRows.filter(hasDiscrepancy)
+    : memberSort.sortedRows;
+  const memberPagination = usePagination({
+    rows: filteredMembers,
+    resetKey: `${memberSort.sortColumn}:${memberSort.sortDirection}:${filterDiscrepancies}`,
+  });
 
   useEffect(() => {
     fetchAll();
@@ -188,11 +289,6 @@ export default function ReconciliationClient() {
     return null;
   }
 
-  const memberSlackSet = new Set(slackData?.members_in_slack ?? []);
-
-  const hasDiscrepancy = (m: MemberReconciliation) =>
-    m.has_discrepancy ||
-    (slackData !== null && !memberSlackSet.has(m.member_id) && m.expected_kajabi_state === "active");
 
   // A member actively paying in Stripe (stripe_state: "paying") whose Kajabi-derived
   // status isn't active and who has no override yet — same discrepancy shape as
@@ -207,9 +303,6 @@ export default function ReconciliationClient() {
         }
       : null;
 
-  const filteredMembers = filterDiscrepancies
-    ? data.members.filter(hasDiscrepancy)
-    : data.members;
 
   return (
     <div className="p-8">
@@ -298,29 +391,57 @@ export default function ReconciliationClient() {
         <table className="w-full">
           <thead className="bg-gray-50 dark:bg-slate-800">
             <tr>
-              <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">
-                Member
-              </th>
-              <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">
-                Expected (Kajabi)
-              </th>
-              <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">
-                Actual (Kajabi)
-              </th>
-              <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">
-                Stripe
-              </th>
+              <SortableTh
+                label="Member"
+                className={HEADER_CLASS}
+                active={memberSort.sortColumn === "member"}
+                direction={memberSort.sortDirection}
+                onClick={() => memberSort.handleSort("member")}
+              />
+              <SortableTh
+                label="Expected (Kajabi)"
+                className={HEADER_CLASS}
+                active={memberSort.sortColumn === "expected"}
+                direction={memberSort.sortDirection}
+                onClick={() => memberSort.handleSort("expected")}
+              />
+              <SortableTh
+                label="Actual (Kajabi)"
+                className={HEADER_CLASS}
+                active={memberSort.sortColumn === "actual"}
+                direction={memberSort.sortDirection}
+                onClick={() => memberSort.handleSort("actual")}
+              />
+              <SortableTh
+                label="Stripe"
+                className={HEADER_CLASS}
+                active={memberSort.sortColumn === "stripe"}
+                direction={memberSort.sortDirection}
+                onClick={() => memberSort.handleSort("stripe")}
+              />
               {slackData && (
-                <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Slack
-                </th>
+                <SortableTh
+                  label="Slack"
+                  className={HEADER_CLASS}
+                  active={memberSort.sortColumn === "slack"}
+                  direction={memberSort.sortDirection}
+                  onClick={() => memberSort.handleSort("slack")}
+                />
               )}
-              <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">
-                Override
-              </th>
-              <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">
-                Status
-              </th>
+              <SortableTh
+                label="Override"
+                className={HEADER_CLASS}
+                active={memberSort.sortColumn === "override"}
+                direction={memberSort.sortDirection}
+                onClick={() => memberSort.handleSort("override")}
+              />
+              <SortableTh
+                label="Status"
+                className={HEADER_CLASS}
+                active={memberSort.sortColumn === "status"}
+                direction={memberSort.sortDirection}
+                onClick={() => memberSort.handleSort("status")}
+              />
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200 dark:divide-slate-700 bg-white dark:bg-slate-900">
@@ -334,7 +455,7 @@ export default function ReconciliationClient() {
                 </td>
               </tr>
             ) : (
-              filteredMembers.map((member) => {
+              memberPagination.pageRows.map((member) => {
                 const inSlack = memberSlackSet.has(member.member_id);
                 const isEditing = editingMemberId === member.member_id;
                 return (
@@ -512,6 +633,7 @@ export default function ReconciliationClient() {
             )}
           </tbody>
         </table>
+        <Pagination {...memberPagination.paginationProps} itemLabel="members" />
       </div>
 
       {/* Slack users with no member record: resolved (with alias-creation) on
@@ -536,13 +658,31 @@ export default function ReconciliationClient() {
             <table className="w-full">
               <thead className="bg-gray-50 dark:bg-slate-800">
                 <tr>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">Name</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">Email</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">Subscription Since</th>
+                  <SortableTh
+                    label="Name"
+                    className={HEADER_CLASS}
+                    active={orphanSort.sortColumn === "name"}
+                    direction={orphanSort.sortDirection}
+                    onClick={() => orphanSort.handleSort("name")}
+                  />
+                  <SortableTh
+                    label="Email"
+                    className={HEADER_CLASS}
+                    active={orphanSort.sortColumn === "email"}
+                    direction={orphanSort.sortDirection}
+                    onClick={() => orphanSort.handleSort("email")}
+                  />
+                  <SortableTh
+                    label="Subscription Since"
+                    className={HEADER_CLASS}
+                    active={orphanSort.sortColumn === "since"}
+                    direction={orphanSort.sortDirection}
+                    onClick={() => orphanSort.handleSort("since")}
+                  />
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200 dark:divide-slate-700 bg-white dark:bg-slate-900">
-                {stripeOrphanData.orphans.map((o) => (
+                {orphanSort.sortedRows.map((o) => (
                   <tr key={o.stripe_customer_id} className="hover:bg-gray-50 dark:hover:bg-slate-800">
                     <td className="px-4 py-3 font-medium dark:text-white">
                       {o.name ?? <span className="text-gray-400 dark:text-gray-500">—</span>}
@@ -576,14 +716,38 @@ export default function ReconciliationClient() {
             <table className="w-full">
               <thead className="bg-gray-50 dark:bg-slate-800">
                 <tr>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">Member</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">Offer</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">Amount</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">Granted</th>
+                  <SortableTh
+                    label="Member"
+                    className={HEADER_CLASS}
+                    active={grantSort.sortColumn === "member"}
+                    direction={grantSort.sortDirection}
+                    onClick={() => grantSort.handleSort("member")}
+                  />
+                  <SortableTh
+                    label="Offer"
+                    className={HEADER_CLASS}
+                    active={grantSort.sortColumn === "offer"}
+                    direction={grantSort.sortDirection}
+                    onClick={() => grantSort.handleSort("offer")}
+                  />
+                  <SortableTh
+                    label="Amount"
+                    className={HEADER_CLASS}
+                    active={grantSort.sortColumn === "amount"}
+                    direction={grantSort.sortDirection}
+                    onClick={() => grantSort.handleSort("amount")}
+                  />
+                  <SortableTh
+                    label="Granted"
+                    className={HEADER_CLASS}
+                    active={grantSort.sortColumn === "granted"}
+                    direction={grantSort.sortDirection}
+                    onClick={() => grantSort.handleSort("granted")}
+                  />
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200 dark:divide-slate-700 bg-white dark:bg-slate-900">
-                {kajabiGrantsData.grants.map((g) => (
+                {grantSort.sortedRows.map((g) => (
                   <tr key={g.kajabi_purchase_id} className="hover:bg-gray-50 dark:hover:bg-slate-800">
                     <td className="px-4 py-3">
                       {g.member_id ? (
@@ -622,12 +786,24 @@ export default function ReconciliationClient() {
             <table className="w-full">
               <thead className="bg-gray-50 dark:bg-slate-800">
                 <tr>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">Member</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">Prickles (last 90d)</th>
+                  <SortableTh
+                    label="Member"
+                    className={HEADER_CLASS}
+                    active={zoomSort.sortColumn === "member"}
+                    direction={zoomSort.sortDirection}
+                    onClick={() => zoomSort.handleSort("member")}
+                  />
+                  <SortableTh
+                    label="Prickles (last 90d)"
+                    className={HEADER_CLASS}
+                    active={zoomSort.sortColumn === "prickles"}
+                    direction={zoomSort.sortDirection}
+                    onClick={() => zoomSort.handleSort("prickles")}
+                  />
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200 dark:divide-slate-700 bg-white dark:bg-slate-900">
-                {zoomAccessData.matched_inactive.map((m) => (
+                {zoomSort.sortedRows.map((m) => (
                   <tr key={m.member_id} className="hover:bg-gray-50 dark:hover:bg-slate-800">
                     <td className="px-4 py-3 font-medium dark:text-white">{m.member_name}</td>
                     <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">{m.prickle_count}</td>

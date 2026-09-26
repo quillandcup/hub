@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import MemberSearch from "@/components/MemberSearch";
 import MultiSelectSearch from "@/components/MultiSelectSearch";
+import { SortableTh } from "@/components/SortableTh";
+import { useTableSort, type SortValue } from "@/lib/hooks/useTableSort";
 
 interface Member {
   id: string;
@@ -68,10 +70,39 @@ function suggestExpiry(startsAt: string): string {
   return target.toISOString().split("T")[0];
 }
 
+type LeakageSortColumn = "member" | "cohort" | "status" | "expired" | "daysSince";
+
+const NO_LEAKAGE: LeakageRow[] = [];
+
+function leakageSortValue(row: LeakageRow, column: LeakageSortColumn): SortValue {
+  switch (column) {
+    case "member":
+      return row.member_name.toLowerCase();
+    case "cohort":
+      return row.cohort_name.toLowerCase();
+    case "status":
+      return row.member_status;
+    case "expired":
+      return row.expired_at;
+    case "daysSince":
+      return row.days_since_expiry;
+  }
+}
+
 export default function ProgramDetailClient({ programId }: { programId: string }) {
   const [data, setData] = useState<ProgramDetailData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const {
+    sortColumn,
+    sortDirection,
+    handleSort,
+    sortedRows: sortedLeakage,
+  } = useTableSort<LeakageRow, LeakageSortColumn>({
+    rows: data?.leakage ?? NO_LEAKAGE,
+    getSortValue: leakageSortValue,
+    defaultSort: null,
+  });
 
   const [showCohortForm, setShowCohortForm] = useState(false);
   const [cohortForm, setCohortForm] = useState({ name: "", starts_at: "", expires_at: "", notes: "" });
@@ -350,15 +381,45 @@ export default function ProgramDetailClient({ programId }: { programId: string }
             <table className="w-full">
               <thead className="bg-gray-50 dark:bg-slate-800">
                 <tr>
-                  <th className="px-4 py-2 text-left text-sm font-medium text-gray-700 dark:text-gray-300">Member</th>
-                  <th className="px-4 py-2 text-left text-sm font-medium text-gray-700 dark:text-gray-300">Cohort</th>
-                  <th className="px-4 py-2 text-left text-sm font-medium text-gray-700 dark:text-gray-300">Status</th>
-                  <th className="px-4 py-2 text-left text-sm font-medium text-gray-700 dark:text-gray-300">Expired</th>
-                  <th className="px-4 py-2 text-left text-sm font-medium text-gray-700 dark:text-gray-300">Days Since</th>
+                  <SortableTh
+                    label="Member"
+                    className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300"
+                    active={sortColumn === "member"}
+                    direction={sortDirection}
+                    onClick={() => handleSort("member")}
+                  />
+                  <SortableTh
+                    label="Cohort"
+                    className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300"
+                    active={sortColumn === "cohort"}
+                    direction={sortDirection}
+                    onClick={() => handleSort("cohort")}
+                  />
+                  <SortableTh
+                    label="Status"
+                    className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300"
+                    active={sortColumn === "status"}
+                    direction={sortDirection}
+                    onClick={() => handleSort("status")}
+                  />
+                  <SortableTh
+                    label="Expired"
+                    className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300"
+                    active={sortColumn === "expired"}
+                    direction={sortDirection}
+                    onClick={() => handleSort("expired")}
+                  />
+                  <SortableTh
+                    label="Days Since"
+                    className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300"
+                    active={sortColumn === "daysSince"}
+                    direction={sortDirection}
+                    onClick={() => handleSort("daysSince")}
+                  />
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200 dark:divide-slate-800">
-                {data.leakage.map((row) => (
+                {sortedLeakage.map((row) => (
                   <tr key={row.member_id}>
                     <td className="px-4 py-2">
                       <div className="font-medium">{row.member_name}</div>

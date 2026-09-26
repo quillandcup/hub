@@ -3,6 +3,8 @@
 import { Fragment, useMemo, useState } from "react";
 import Link from "next/link";
 import type { PrickleScheduleRow } from "@/lib/prickle-schedule";
+import { SortableTh } from "@/components/SortableTh";
+import { useTableSort, type SortValue } from "@/lib/hooks/useTableSort";
 
 const DAY_ORDER = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
@@ -18,8 +20,30 @@ function AttendanceHint({ row }: { row: PrickleScheduleRow }) {
   );
 }
 
+type SortColumn = "time" | "kind" | "host" | "typically";
+
+// Sorting reorders prickles within each day; the days themselves stay in
+// week order since this is a weekly schedule.
+function getSortValue(row: PrickleScheduleRow, column: SortColumn): SortValue {
+  switch (column) {
+    case "time":
+      return row.sortKey;
+    case "kind":
+      return row.typeName.toLowerCase();
+    case "host":
+      return row.hostName?.toLowerCase() ?? null;
+    case "typically":
+      return row.sessionCount === 0 ? null : (row.avgAttendance ?? 0);
+  }
+}
+
 export default function AllPricklesTable({ rows }: { rows: PrickleScheduleRow[] }) {
   const [typeFilter, setTypeFilter] = useState<string>("all");
+  const { sortColumn, sortDirection, handleSort, sortedRows } = useTableSort<PrickleScheduleRow, SortColumn>({
+    rows,
+    getSortValue,
+    defaultSort: { column: "time", direction: "asc" },
+  });
 
   const types = useMemo(() => {
     const seen = new Map<string, string>();
@@ -28,7 +52,8 @@ export default function AllPricklesTable({ rows }: { rows: PrickleScheduleRow[] 
   }, [rows]);
 
   const filteredByDay = useMemo(() => {
-    const filtered = typeFilter === "all" ? rows : rows.filter((r) => (r.typeId ?? "notype") === typeFilter);
+    const filtered =
+      typeFilter === "all" ? sortedRows : sortedRows.filter((r) => (r.typeId ?? "notype") === typeFilter);
     const byDay = new Map<string, PrickleScheduleRow[]>();
     for (const r of filtered) {
       const list = byDay.get(r.dayOfWeek) ?? [];
@@ -36,7 +61,7 @@ export default function AllPricklesTable({ rows }: { rows: PrickleScheduleRow[] 
       byDay.set(r.dayOfWeek, list);
     }
     return DAY_ORDER.map((day) => ({ day, rows: byDay.get(day) ?? [] })).filter((g) => g.rows.length > 0);
-  }, [rows, typeFilter]);
+  }, [sortedRows, typeFilter]);
 
   return (
     <div>
@@ -63,10 +88,24 @@ export default function AllPricklesTable({ rows }: { rows: PrickleScheduleRow[] 
         <table className="w-full text-sm border-separate border-spacing-0">
           <thead>
             <tr className="text-left text-xs text-slate-400 dark:text-slate-500 uppercase tracking-wide">
-              <th className="pb-2 pr-2 font-medium">Time</th>
-              <th className="pb-2 pr-2 font-medium">Kind</th>
-              <th className="pb-2 pr-2 font-medium">Host</th>
-              <th className="pb-2 font-medium text-right">Typically</th>
+              {(
+                [
+                  ["Time", "time", "left"],
+                  ["Kind", "kind", "left"],
+                  ["Host", "host", "left"],
+                  ["Typically", "typically", "right"],
+                ] as const
+              ).map(([label, column, align]) => (
+                <SortableTh
+                  key={column}
+                  label={label}
+                  align={align}
+                  className="pb-2 pr-2 font-medium"
+                  active={sortColumn === column}
+                  direction={sortDirection}
+                  onClick={() => handleSort(column)}
+                />
+              ))}
               <th className="pb-2 font-medium">
                 <span className="sr-only">Commit</span>
               </th>

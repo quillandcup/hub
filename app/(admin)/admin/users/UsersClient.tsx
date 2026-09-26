@@ -1,6 +1,10 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { SortableTh } from "@/components/SortableTh";
+import { useTableSort, type SortValue } from "@/lib/hooks/useTableSort";
+import { Pagination } from "@/components/Pagination";
+import { usePagination } from "@/lib/hooks/usePagination";
 import { FEATURE_PREVIEWS } from "@/lib/features";
 import MemberSearch from "@/components/MemberSearch";
 
@@ -83,9 +87,34 @@ const STAFF_ROLE_COLORS: Record<StaffRole, string> = {
   contractor: "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300",
 };
 
+type SortColumn = "email" | "role" | "profiles" | "features" | "created";
+
+const ROLE_ORDER: Record<Role, number> = { admin: 0, assistant: 1, member: 2 };
+
+function getSortValue(user: AppUser, column: SortColumn): SortValue {
+  switch (column) {
+    case "email":
+      return user.email.toLowerCase();
+    case "role":
+      return ROLE_ORDER[user.role];
+    case "profiles":
+      return (user.staffName ?? user.memberName)?.toLowerCase() ?? null;
+    case "features":
+      return user.features.length;
+    case "created":
+      return user.createdAt;
+  }
+}
+
 export default function UsersClient({ currentUserId }: { currentUserId: string }) {
   const [users, setUsers] = useState<AppUser[]>([]);
   const [allMembers, setAllMembers] = useState<MemberRecord[]>([]);
+  const { sortColumn, sortDirection, handleSort, sortedRows } = useTableSort<AppUser, SortColumn>({
+    rows: users,
+    getSortValue,
+    defaultSort: null,
+  });
+  const pagination = usePagination({ rows: sortedRows, resetKey: `${sortColumn}:${sortDirection}` });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -349,28 +378,43 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
             <table className="w-full">
               <thead className="bg-slate-50 dark:bg-slate-800">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                    Email
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                    Role
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                    Linked Profiles
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                    Feature Flags
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                    Created
-                  </th>
+                  <SortableTh
+                    label="Email"
+                    active={sortColumn === "email"}
+                    direction={sortDirection}
+                    onClick={() => handleSort("email")}
+                  />
+                  <SortableTh
+                    label="Role"
+                    active={sortColumn === "role"}
+                    direction={sortDirection}
+                    onClick={() => handleSort("role")}
+                  />
+                  <SortableTh
+                    label="Linked Profiles"
+                    active={sortColumn === "profiles"}
+                    direction={sortDirection}
+                    onClick={() => handleSort("profiles")}
+                  />
+                  <SortableTh
+                    label="Feature Flags"
+                    active={sortColumn === "features"}
+                    direction={sortDirection}
+                    onClick={() => handleSort("features")}
+                  />
+                  <SortableTh
+                    label="Created"
+                    active={sortColumn === "created"}
+                    direction={sortDirection}
+                    onClick={() => handleSort("created")}
+                  />
                   <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                     Actions
                   </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
-                {users.map((user) => {
+                {pagination.pageRows.map((user) => {
                   const isEditing = editingId === user.id;
                   const isCurrentUser = user.id === currentUserId;
                   const memberOptions = availableMemberOptions(user.memberId);
@@ -564,6 +608,7 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
                 })}
               </tbody>
             </table>
+            <Pagination {...pagination.paginationProps} itemLabel="users" />
           </div>
         )}
       </div>

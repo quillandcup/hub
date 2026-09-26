@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { SortableTh } from "@/components/SortableTh";
+import { useTableSort, type SortValue } from "@/lib/hooks/useTableSort";
 
 interface EventRow {
   id: string;
@@ -45,6 +47,21 @@ const emptyForm = {
   google_photos_album_url: "",
 };
 
+type SortColumn = "title" | "dates" | "location" | "photos";
+
+function getSortValue(event: EventRow, column: SortColumn): SortValue {
+  switch (column) {
+    case "title":
+      return event.title.toLowerCase();
+    case "dates":
+      return event.starts_at;
+    case "location":
+      return event.location?.toLowerCase() || null;
+    case "photos":
+      return event.photo_count;
+  }
+}
+
 export default function EventsClient() {
   const [events, setEvents] = useState<EventRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -52,6 +69,11 @@ export default function EventsClient() {
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [formData, setFormData] = useState(emptyForm);
+  const { sortColumn, sortDirection, handleSort, sortedRows } = useTableSort<EventRow, SortColumn>({
+    rows: events,
+    getSortValue,
+    defaultSort: null,
+  });
 
   useEffect(() => {
     fetchEvents();
@@ -245,10 +267,34 @@ export default function EventsClient() {
         <table className="w-full">
           <thead className="bg-gray-50 dark:bg-slate-800">
             <tr>
-              <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">Event</th>
-              <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">Dates</th>
-              <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">Location</th>
-              <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">Photos</th>
+              <SortableTh
+                label="Event"
+                className="px-4 py-3 text-sm font-medium text-gray-700 dark:text-gray-300"
+                active={sortColumn === "title"}
+                direction={sortDirection}
+                onClick={() => handleSort("title")}
+              />
+              <SortableTh
+                label="Dates"
+                className="px-4 py-3 text-sm font-medium text-gray-700 dark:text-gray-300"
+                active={sortColumn === "dates"}
+                direction={sortDirection}
+                onClick={() => handleSort("dates")}
+              />
+              <SortableTh
+                label="Location"
+                className="px-4 py-3 text-sm font-medium text-gray-700 dark:text-gray-300"
+                active={sortColumn === "location"}
+                direction={sortDirection}
+                onClick={() => handleSort("location")}
+              />
+              <SortableTh
+                label="Photos"
+                className="px-4 py-3 text-sm font-medium text-gray-700 dark:text-gray-300"
+                active={sortColumn === "photos"}
+                direction={sortDirection}
+                onClick={() => handleSort("photos")}
+              />
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200 dark:divide-slate-800">
@@ -259,7 +305,7 @@ export default function EventsClient() {
                 </td>
               </tr>
             ) : (
-              events.map((event) => (
+              sortedRows.map((event) => (
                 <tr key={event.id} className="hover:bg-gray-50 dark:hover:bg-slate-800">
                   <td className="px-4 py-3">
                     <Link

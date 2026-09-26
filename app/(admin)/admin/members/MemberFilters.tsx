@@ -40,6 +40,7 @@ export default function MemberFilters({
   const handleFilterChange = (filter: string) => {
     const params = new URLSearchParams(searchParams);
     params.set("filter", filter);
+    params.delete("page"); // a new tab starts on page 1
     router.push(`/admin/members?${params.toString()}`);
   };
 
@@ -48,6 +49,7 @@ export default function MemberFilters({
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
       const params = new URLSearchParams(searchParams);
+      params.delete("page"); // a new search starts on page 1
       if (value) {
         params.set("search", value);
       } else {

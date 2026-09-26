@@ -55,10 +55,10 @@ describe('HedgieversariesTable date sorting', () => {
     expect(renderedNames()).toEqual(['Clover', 'Bramble', 'Acorn', 'Thistle', 'Hazel'])
   })
 
-  it('flips the default Next Hedgieversary sort to descending on the first click, keeping TBD last', async () => {
+  it('flips the default Next Hedgieversary sort to descending on the first click, TBD first', async () => {
     renderTable()
     await userEvent.click(screen.getByText('Next Hedgieversary'))
-    expect(renderedNames()).toEqual(['Acorn', 'Bramble', 'Clover', 'Thistle', 'Hazel'])
+    expect(renderedNames()).toEqual(['Thistle', 'Hazel', 'Acorn', 'Bramble', 'Clover'])
   })
 
   it('returns to ascending on the second click of Next Hedgieversary', async () => {
@@ -78,13 +78,13 @@ describe('HedgieversariesTable date sorting', () => {
     expect(renderedNames()).toEqual(['Hazel', 'Thistle', 'Clover', 'Bramble', 'Acorn'])
   })
 
-  it('sorts Most Recent Joined with missing dates last in both directions', async () => {
+  it('sorts Most Recent Joined with missing dates last ascending and first descending', async () => {
     renderTable()
     const header = screen.getByText('Most Recent Joined')
     await userEvent.click(header)
     expect(renderedNames()).toEqual(['Bramble', 'Clover', 'Hazel', 'Acorn', 'Thistle'])
     await userEvent.click(header)
-    expect(renderedNames()).toEqual(['Acorn', 'Hazel', 'Clover', 'Bramble', 'Thistle'])
+    expect(renderedNames()).toEqual(['Thistle', 'Acorn', 'Hazel', 'Clover', 'Bramble'])
   })
 
   it('reverts to the Next Hedgieversary default after a third click on another column', async () => {

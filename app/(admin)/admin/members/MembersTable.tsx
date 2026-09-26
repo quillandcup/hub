@@ -5,7 +5,8 @@ import Link from "next/link";
 import BulkMergeMemberModal from "./BulkMergeMemberModal";
 import { SortableTh } from "@/components/SortableTh";
 import { MemberStatusBadge, type MemberStatus } from "@/components/MemberStatusBadge";
-import { useTableSort } from "@/lib/hooks/useTableSort";
+import { useTableSort, type SortDirection } from "@/lib/hooks/useTableSort";
+import type { MemberSortColumn } from "@/lib/admin-members-paging";
 
 export interface MemberRow {
   id: string;
@@ -26,6 +27,13 @@ export interface MemberRow {
 
 interface MembersTableProps {
   members: MemberRow[];
+  // Controlled (server-side) sort: `members` arrive already ordered by the
+  // query and header clicks are reported instead of re-sorting in memory.
+  sort?: {
+    sortColumn: SortColumn | null;
+    sortDirection: SortDirection;
+    onSort: (column: SortColumn) => void;
+  };
 }
 
 
@@ -42,15 +50,7 @@ function RiskBadge({ risk }: { risk: string }) {
   );
 }
 
-type SortColumn =
-  | "name"
-  | "email"
-  | "status"
-  | "last_attended_at"
-  | "prickles_last_30_days"
-  | "total_prickles"
-  | "engagement_score"
-  | "risk_level";
+type SortColumn = MemberSortColumn;
 
 const RISK_ORDER: Record<string, number> = { low: 0, medium: 1, high: 2 };
 
@@ -78,19 +78,18 @@ function getSortValue(member: MemberRow, column: SortColumn): string | number {
   }
 }
 
-export default function MembersTable({ members }: MembersTableProps) {
+export default function MembersTable({ members, sort }: MembersTableProps) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [mergeModalOpen, setMergeModalOpen] = useState(false);
-  const {
-    sortColumn,
-    sortDirection,
-    handleSort,
-    sortedRows: sortedMembers,
-  } = useTableSort<MemberRow, SortColumn>({
+  const localSort = useTableSort<MemberRow, SortColumn>({
     rows: members,
     getSortValue,
     defaultSort: null,
   });
+  const sortColumn = sort ? sort.sortColumn : localSort.sortColumn;
+  const sortDirection = sort ? sort.sortDirection : localSort.sortDirection;
+  const handleSort = sort ? sort.onSort : localSort.handleSort;
+  const sortedMembers = sort ? members : localSort.sortedRows;
 
   const allSelected = members.length > 0 && selectedIds.size === members.length;
   const someSelected = selectedIds.size > 0 && selectedIds.size < members.length;

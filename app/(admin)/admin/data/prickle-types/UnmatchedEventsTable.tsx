@@ -4,6 +4,8 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Modal from "@/components/Modal";
 import MemberSearch from "@/components/MemberSearch";
+import { SortableTh } from "@/components/SortableTh";
+import { useTableSort, type SortValue } from "@/lib/hooks/useTableSort";
 
 interface EventGroup {
   summary: string;
@@ -31,11 +33,31 @@ interface UnmatchedEventsTableProps {
   prickleTypes: PrickleType[];
 }
 
+type SortColumn = "summary" | "count" | "suggestedType" | "suggestedHost";
+
+function getSortValue(group: EventGroup, column: SortColumn): SortValue {
+  switch (column) {
+    case "summary":
+      return group.summary.toLowerCase();
+    case "count":
+      return group.count;
+    case "suggestedType":
+      return group.suggestedType?.toLowerCase() || null;
+    case "suggestedHost":
+      return group.suggestedHost?.toLowerCase() || null;
+  }
+}
+
 export default function UnmatchedEventsTable({
   eventGroups,
   prickleTypes,
 }: UnmatchedEventsTableProps) {
   const router = useRouter();
+  const { sortColumn, sortDirection, handleSort, sortedRows } = useTableSort<EventGroup, SortColumn>({
+    rows: eventGroups,
+    getSortValue,
+    defaultSort: null,
+  });
   const [selectedGroup, setSelectedGroup] = useState<EventGroup | null>(null);
   const [mode, setMode] = useState<"existing" | "new">("existing");
   const [selectedTypeId, setSelectedTypeId] = useState(prickleTypes[0]?.id || "");
@@ -167,26 +189,38 @@ export default function UnmatchedEventsTable({
         <table className="w-full">
           <thead className="bg-slate-50 dark:bg-slate-800">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                Event Summary
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                Count
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                Suggested Type
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                Suggested Host
-              </th>
+              <SortableTh
+                label="Event Summary"
+                active={sortColumn === "summary"}
+                direction={sortDirection}
+                onClick={() => handleSort("summary")}
+              />
+              <SortableTh
+                label="Count"
+                active={sortColumn === "count"}
+                direction={sortDirection}
+                onClick={() => handleSort("count")}
+              />
+              <SortableTh
+                label="Suggested Type"
+                active={sortColumn === "suggestedType"}
+                direction={sortDirection}
+                onClick={() => handleSort("suggestedType")}
+              />
+              <SortableTh
+                label="Suggested Host"
+                active={sortColumn === "suggestedHost"}
+                direction={sortDirection}
+                onClick={() => handleSort("suggestedHost")}
+              />
               <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                 Actions
               </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
-            {eventGroups.map((group, idx) => (
-              <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800">
+            {sortedRows.map((group) => (
+              <tr key={group.summary} className="hover:bg-slate-50 dark:hover:bg-slate-800">
                 <td className="px-6 py-4">
                   <div className="text-sm font-medium text-slate-900 dark:text-slate-100">
                     {group.summary}

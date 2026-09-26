@@ -16,6 +16,8 @@ import type {
   ArchivalCandidate,
   EmojiEntry,
 } from "@/lib/slack-engagement-stats"
+import { SortableTh } from "@/components/SortableTh"
+import { useTableSort, type SortValue } from "@/lib/hooks/useTableSort"
 
 interface Props {
   heatmap: HeatCell[]
@@ -180,6 +182,213 @@ function formatDate(iso: string | null): string {
   return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
 }
 
+type ChannelSortColumn =
+  | "name"
+  | "messages"
+  | "reactions"
+  | "threadReplies"
+  | "uniqueUsers"
+  | "peak"
+  | "lastActivity"
+
+function channelSortValue(c: ChannelEngagement, column: ChannelSortColumn): SortValue {
+  switch (column) {
+    case "name":
+      return c.name.toLowerCase()
+    case "peak":
+      // Week order (Sun..Sat) then hour.
+      return DAY_ORDER.indexOf(c.peakDay) * 24 + c.peakHour
+    case "lastActivity":
+      return c.lastActivity
+    default:
+      return c[column]
+  }
+}
+
+function ChannelBreakdownTable({ channels }: { channels: ChannelEngagement[] }) {
+  const { sortColumn, sortDirection, handleSort, sortedRows } = useTableSort<ChannelEngagement, ChannelSortColumn>({
+    rows: channels,
+    getSortValue: channelSortValue,
+    defaultSort: null,
+  })
+
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="text-left text-xs text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800">
+            <SortableTh
+              label="Channel"
+              className="py-2 pr-4"
+              active={sortColumn === "name"}
+              direction={sortDirection}
+              onClick={() => handleSort("name")}
+            />
+            <SortableTh
+              label="Messages"
+              align="right"
+              className="py-2 pr-4"
+              active={sortColumn === "messages"}
+              direction={sortDirection}
+              onClick={() => handleSort("messages")}
+            />
+            <SortableTh
+              label="Reactions"
+              align="right"
+              className="py-2 pr-4"
+              active={sortColumn === "reactions"}
+              direction={sortDirection}
+              onClick={() => handleSort("reactions")}
+            />
+            <SortableTh
+              label="Thread Replies"
+              align="right"
+              className="py-2 pr-4"
+              active={sortColumn === "threadReplies"}
+              direction={sortDirection}
+              onClick={() => handleSort("threadReplies")}
+            />
+            <SortableTh
+              label="Active Users"
+              align="right"
+              className="py-2 pr-4"
+              active={sortColumn === "uniqueUsers"}
+              direction={sortDirection}
+              onClick={() => handleSort("uniqueUsers")}
+            />
+            <SortableTh
+              label="Peak Time"
+              className="py-2 pr-4"
+              active={sortColumn === "peak"}
+              direction={sortDirection}
+              onClick={() => handleSort("peak")}
+            />
+            <SortableTh
+              label="Last Activity"
+              className="py-2 pr-4"
+              active={sortColumn === "lastActivity"}
+              direction={sortDirection}
+              onClick={() => handleSort("lastActivity")}
+            />
+            <th className="py-2 pr-4">Trend</th>
+          </tr>
+        </thead>
+        <tbody>
+          {sortedRows.map((c) => (
+            <tr
+              key={c.channelId}
+              className="border-b border-slate-100 dark:border-slate-800/50"
+            >
+              <td className="py-2 pr-4 font-medium">
+                {c.isPrivate ? "🔒 " : "#"}
+                {c.name}
+              </td>
+              <td className="py-2 pr-4 text-right tabular-nums">{c.messages.toLocaleString()}</td>
+              <td className="py-2 pr-4 text-right tabular-nums">{c.reactions.toLocaleString()}</td>
+              <td className="py-2 pr-4 text-right tabular-nums">{c.threadReplies.toLocaleString()}</td>
+              <td className="py-2 pr-4 text-right tabular-nums">{c.uniqueUsers.toLocaleString()}</td>
+              <td className="py-2 pr-4 text-slate-500 dark:text-slate-400">
+                {c.peakDay} {formatHour(c.peakHour)}
+              </td>
+              <td className="py-2 pr-4 text-slate-500 dark:text-slate-400">
+                {formatDate(c.lastActivity)}
+              </td>
+              <td className="py-2 pr-4">
+                <Sparkline data={c.sparkline} />
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+type ArchivalSortColumn = "name" | "memberCount" | "lastActivity" | "daysSinceActivity" | "totalMessagesAllTime"
+
+function archivalSortValue(c: ArchivalCandidate, column: ArchivalSortColumn): SortValue {
+  return column === "name" ? c.name.toLowerCase() : c[column]
+}
+
+function ArchivalCandidatesTable({ candidates }: { candidates: ArchivalCandidate[] }) {
+  const { sortColumn, sortDirection, handleSort, sortedRows } = useTableSort<ArchivalCandidate, ArchivalSortColumn>({
+    rows: candidates,
+    getSortValue: archivalSortValue,
+    defaultSort: null,
+  })
+
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="text-left text-xs text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800">
+            <SortableTh
+              label="Channel"
+              className="py-2 pr-4"
+              active={sortColumn === "name"}
+              direction={sortDirection}
+              onClick={() => handleSort("name")}
+            />
+            <SortableTh
+              label="Members"
+              align="right"
+              className="py-2 pr-4"
+              active={sortColumn === "memberCount"}
+              direction={sortDirection}
+              onClick={() => handleSort("memberCount")}
+            />
+            <SortableTh
+              label="Last Activity"
+              className="py-2 pr-4"
+              active={sortColumn === "lastActivity"}
+              direction={sortDirection}
+              onClick={() => handleSort("lastActivity")}
+            />
+            <SortableTh
+              label="Days Dormant"
+              align="right"
+              className="py-2 pr-4"
+              active={sortColumn === "daysSinceActivity"}
+              direction={sortDirection}
+              onClick={() => handleSort("daysSinceActivity")}
+            />
+            <SortableTh
+              label="Messages (all-time)"
+              align="right"
+              className="py-2 pr-4"
+              active={sortColumn === "totalMessagesAllTime"}
+              direction={sortDirection}
+              onClick={() => handleSort("totalMessagesAllTime")}
+            />
+          </tr>
+        </thead>
+        <tbody>
+          {sortedRows.map((c) => (
+            <tr
+              key={c.channelId}
+              className="border-b border-slate-100 dark:border-slate-800/50"
+            >
+              <td className="py-2 pr-4 font-medium">#{c.name}</td>
+              <td className="py-2 pr-4 text-right tabular-nums">
+                {c.memberCount?.toLocaleString() ?? "—"}
+              </td>
+              <td className="py-2 pr-4 text-slate-500 dark:text-slate-400">
+                {formatDate(c.lastActivity)}
+              </td>
+              <td className="py-2 pr-4 text-right tabular-nums">
+                {c.daysSinceActivity ?? "—"}
+              </td>
+              <td className="py-2 pr-4 text-right tabular-nums">
+                {c.totalMessagesAllTime.toLocaleString()}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
 export default function SlackEngagementCharts({
   heatmap,
   channels,
@@ -234,48 +443,7 @@ export default function SlackEngagementCharts({
       </div>
 
       <ChartCard title="📊 Channel Breakdown" subtitle={`Detail since ${sinceLabel}`}>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-xs text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800">
-                <th className="py-2 pr-4">Channel</th>
-                <th className="py-2 pr-4 text-right">Messages</th>
-                <th className="py-2 pr-4 text-right">Reactions</th>
-                <th className="py-2 pr-4 text-right">Thread Replies</th>
-                <th className="py-2 pr-4 text-right">Active Users</th>
-                <th className="py-2 pr-4">Peak Time</th>
-                <th className="py-2 pr-4">Last Activity</th>
-                <th className="py-2 pr-4">Trend</th>
-              </tr>
-            </thead>
-            <tbody>
-              {channels.map((c) => (
-                <tr
-                  key={c.channelId}
-                  className="border-b border-slate-100 dark:border-slate-800/50"
-                >
-                  <td className="py-2 pr-4 font-medium">
-                    {c.isPrivate ? "🔒 " : "#"}
-                    {c.name}
-                  </td>
-                  <td className="py-2 pr-4 text-right tabular-nums">{c.messages.toLocaleString()}</td>
-                  <td className="py-2 pr-4 text-right tabular-nums">{c.reactions.toLocaleString()}</td>
-                  <td className="py-2 pr-4 text-right tabular-nums">{c.threadReplies.toLocaleString()}</td>
-                  <td className="py-2 pr-4 text-right tabular-nums">{c.uniqueUsers.toLocaleString()}</td>
-                  <td className="py-2 pr-4 text-slate-500 dark:text-slate-400">
-                    {c.peakDay} {formatHour(c.peakHour)}
-                  </td>
-                  <td className="py-2 pr-4 text-slate-500 dark:text-slate-400">
-                    {formatDate(c.lastActivity)}
-                  </td>
-                  <td className="py-2 pr-4">
-                    <Sparkline data={c.sparkline} />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <ChannelBreakdownTable channels={channels} />
       </ChartCard>
 
       <ChartCard
@@ -287,41 +455,7 @@ export default function SlackEngagementCharts({
             No dormant channels found — everything's seeing some activity. 🎉
           </p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-xs text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800">
-                  <th className="py-2 pr-4">Channel</th>
-                  <th className="py-2 pr-4 text-right">Members</th>
-                  <th className="py-2 pr-4">Last Activity</th>
-                  <th className="py-2 pr-4 text-right">Days Dormant</th>
-                  <th className="py-2 pr-4 text-right">Messages (all-time)</th>
-                </tr>
-              </thead>
-              <tbody>
-                {archivalCandidates.map((c) => (
-                  <tr
-                    key={c.channelId}
-                    className="border-b border-slate-100 dark:border-slate-800/50"
-                  >
-                    <td className="py-2 pr-4 font-medium">#{c.name}</td>
-                    <td className="py-2 pr-4 text-right tabular-nums">
-                      {c.memberCount?.toLocaleString() ?? "—"}
-                    </td>
-                    <td className="py-2 pr-4 text-slate-500 dark:text-slate-400">
-                      {formatDate(c.lastActivity)}
-                    </td>
-                    <td className="py-2 pr-4 text-right tabular-nums">
-                      {c.daysSinceActivity ?? "—"}
-                    </td>
-                    <td className="py-2 pr-4 text-right tabular-nums">
-                      {c.totalMessagesAllTime.toLocaleString()}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <ArchivalCandidatesTable candidates={archivalCandidates} />
         )}
       </ChartCard>
     </div>

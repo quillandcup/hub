@@ -46,6 +46,21 @@ describe('SortableTh', () => {
     expect(onClick).toHaveBeenCalledTimes(1)
   })
 
+  it('exposes the sort state via aria-sort', () => {
+    const { unmount } = renderTh({ active: true, direction: 'desc' })
+    expect(screen.getByRole('columnheader')).toHaveAttribute('aria-sort', 'descending')
+    unmount()
+    renderTh({ active: false })
+    expect(screen.getByRole('columnheader')).toHaveAttribute('aria-sort', 'none')
+  })
+
+  it('replaces the default cell classes when className is passed, keeping alignment', () => {
+    renderTh({ className: 'pb-2 pr-2', align: 'right' })
+    const th = screen.getByRole('columnheader')
+    expect(th).toHaveClass('pb-2', 'pr-2', 'text-right', 'cursor-pointer')
+    expect(th).not.toHaveClass('px-6')
+  })
+
   it('renders filter slot content when passed', () => {
     renderTh({ filter: <input placeholder="≤" /> })
     expect(screen.getByPlaceholderText('≤')).toBeInTheDocument()
