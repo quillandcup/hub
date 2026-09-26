@@ -601,7 +601,7 @@ Every admin table (Hedgieversaries, Members, etc.) has a fixed column order set 
   - Show attendance counts grouped by Prickle type (e.g. "Heads Down: 42", "Progress Prickle: 18")
   - Drill into Prickle type + recurring day/time slot (e.g. "Heads Down on Mondays at 5am: 12")
   - Filter to show only Prickle kinds or time slots where attendance is zero or low — helps identify patterns like "never attends evening prickles" or "dropped off Pop-Up Prickles after March"
-  - Applies to both member self-view (`/calendar`) and admin member detail
+  - Applies to both member self-view (My Prickles → Attendance History) and admin member detail
 
 - **Attendance over time chart**
   - Show historical attendance patterns
