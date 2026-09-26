@@ -1,5 +1,6 @@
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { getMonthStart, getNextMonthStart, seedNextMonthSchedules, validateScheduleInput } from "@/lib/prickle-schedules";
+import { fetchHostEligibilityByMember } from "@/lib/host-eligibility";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(request: NextRequest) {
@@ -34,7 +35,26 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ schedules });
+  // Flag hosts who haven't been a member for a full month yet, so admins can
+  // see at a glance that a request comes from a brand-new member.
+  let eligibilityByHost;
+  try {
+    eligibilityByHost = await fetchHostEligibilityByMember(
+      supabase,
+      (schedules ?? []).map((s) => s.host_id as string),
+      now
+    );
+  } catch (eligibilityError) {
+    console.error("Error computing host eligibility for prickle_schedules:", eligibilityError);
+    return NextResponse.json({ error: "Failed to compute host eligibility" }, { status: 500 });
+  }
+
+  return NextResponse.json({
+    schedules: (schedules ?? []).map((s) => ({
+      ...s,
+      host_eligibility: eligibilityByHost.get(s.host_id as string) ?? null,
+    })),
+  });
 }
 
 export async function POST(request: NextRequest) {

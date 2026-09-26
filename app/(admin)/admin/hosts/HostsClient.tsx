@@ -10,6 +10,7 @@ import {
   type RecurrenceType,
   type ScheduleStatus,
 } from "@/lib/prickle-schedules";
+import type { HostEligibility } from "@/lib/host-eligibility";
 
 interface Member {
   id: string;
@@ -34,6 +35,25 @@ interface Schedule {
   carried_forward_from: string | null;
   member: Member;
   prickle_type: { id: string; name: string };
+  host_eligibility: HostEligibility | null;
+}
+
+// "New member" marker for hosts who haven't been a member for a full month yet
+// (lib/host-eligibility.ts). Admins can still confirm them -- this just makes
+// it visible.
+export function HostEligibilityBadge({ eligibility }: { eligibility: HostEligibility | null }) {
+  if (!eligibility || eligibility.eligible) return null;
+  const title = eligibility.eligibleOn
+    ? `Member for less than a full month; eligible to host from ${eligibility.eligibleOn}`
+    : "No join date on record, so we can't confirm a full month of membership";
+  return (
+    <span
+      title={title}
+      className="inline-block mt-1 px-2 py-0.5 text-xs rounded bg-rose-100 text-rose-800 dark:bg-rose-900 dark:text-rose-300"
+    >
+      {eligibility.eligibleOn ? `New member — eligible ${eligibility.eligibleOn}` : "Join date unknown"}
+    </span>
+  );
 }
 
 interface PrickleType {
@@ -513,6 +533,7 @@ export default function HostsClient({ prickleTypes }: { prickleTypes: PrickleTyp
                   <td className="px-4 py-3">
                     <div className="font-medium dark:text-slate-100">{s.member.name}</div>
                     <div className="text-sm text-gray-600 dark:text-slate-400">{s.member.email}</div>
+                    <HostEligibilityBadge eligibility={s.host_eligibility} />
                   </td>
                   <td className="px-4 py-3">
                     <div className="text-sm dark:text-slate-200">

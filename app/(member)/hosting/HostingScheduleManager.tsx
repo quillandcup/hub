@@ -11,6 +11,7 @@ import {
 import type { SlotClick } from "@/components/CalendarWeekView";
 import { requestToHost, updateMySchedule, withdrawMySchedule, type MyScheduleRow } from "./actions";
 import HostingCalendarPicker from "./HostingCalendarPicker";
+import type { HostEligibility } from "@/lib/host-eligibility";
 
 interface PrickleType {
   id: string;
@@ -24,6 +25,8 @@ interface Props {
   nextMonth: string;
   currentMonthLocked: boolean;
   nextMonthLocked: boolean;
+  // Omitted/null -> treated as eligible (keeps the standard invite).
+  hostEligibility?: HostEligibility | null;
 }
 
 const STATUS_STYLES: Record<MyScheduleRow["status"], string> = {
@@ -31,6 +34,12 @@ const STATUS_STYLES: Record<MyScheduleRow["status"], string> = {
   confirmed: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400",
   declined: "bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-400",
 };
+
+function formatDateOnly(dateOnly: string): string {
+  return new Intl.DateTimeFormat("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" }).format(
+    new Date(`${dateOnly}T00:00:00Z`)
+  );
+}
 
 function monthLabel(month: string): string {
   return new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric", timeZone: "UTC" }).format(
@@ -668,6 +677,7 @@ export default function HostingScheduleManager({
   nextMonth,
   currentMonthLocked,
   nextMonthLocked,
+  hostEligibility,
 }: Props) {
   const [schedules, setSchedules] = useState(initialSchedules);
   const [requestingForMonth, setRequestingForMonth] = useState<string | null>(null);
@@ -680,6 +690,33 @@ export default function HostingScheduleManager({
     // picks up fresh server data. Simplest correct approach given this is a
     // client component holding its own copy of server-fetched data.
     window.location.reload();
+  }
+
+  // We don't invite people to host until they've been a member for a full
+  // month (lib/host-eligibility.ts). Brand-new members see a welcome instead
+  // of the "Want to host?" pitch. Self-signup itself isn't blocked -- an admin
+  // reviews every request anyway -- so a keen new member can still ask.
+  if (schedules.length === 0 && !requestingForMonth && hostEligibility && !hostEligibility.eligible) {
+    return (
+      <div className="max-w-xl mx-auto text-center py-12 border border-dashed border-slate-300 dark:border-slate-700 rounded-lg">
+        <p className="text-4xl mb-3">🦔</p>
+        <h2 className="text-lg font-medium text-slate-900 dark:text-slate-100 mb-2">Settle in first</h2>
+        <p className="text-sm text-slate-500 dark:text-slate-400 mb-4 max-w-sm mx-auto">
+          {hostEligibility.eligibleOn
+            ? `We invite hedgies to host once they've been a member for a full month — for you, that's ${formatDateOnly(hostEligibility.eligibleOn)}.`
+            : "We invite hedgies to host once they've been a member for a full month."}{" "}
+          Until then, enjoy some prickles and get a feel for how they run.
+        </p>
+        <button
+          type="button"
+          onClick={() => setRequestingForMonth(nextMonth)}
+          disabled={nextMonthLocked}
+          className="text-sm text-blue-600 dark:text-blue-400 hover:underline disabled:text-slate-400 disabled:no-underline"
+        >
+          Already keen? Request a slot anyway
+        </button>
+      </div>
+    );
   }
 
   if (schedules.length === 0 && !requestingForMonth) {

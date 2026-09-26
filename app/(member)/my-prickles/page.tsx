@@ -8,7 +8,7 @@ import { getUserTimezonePreference } from "@/lib/timezone";
 import { getRankedUpcomingPrickles } from "@/lib/upcoming-prickles";
 import { getPrickleScheduleOverview } from "@/lib/prickle-schedule";
 import { getMonthStart, getNextMonthStart, isMonthLocked } from "@/lib/prickle-schedules";
-import { getMySchedules, getMyHostingStats } from "@/app/(member)/hosting/actions";
+import { getMySchedules, getMyHostingStats, getMyHostEligibility } from "@/app/(member)/hosting/actions";
 import MemberCalendarClient from "@/components/MemberCalendarClient";
 import UpcomingPrickleRow from "@/components/UpcomingPrickleRow";
 import PrickleWizard from "@/app/(member)/prickle-picker/PrickleWizard";
@@ -56,6 +56,7 @@ export default async function MyPricklesPage({ searchParams }: { searchParams: P
     schedules,
     { data: lockRows },
     hostingStats,
+    hostEligibility,
     members,
   ] = await Promise.all([
     getRankedUpcomingPrickles(supabase, memberId, timeZone, now, UPCOMING_WINDOW_DAYS),
@@ -71,6 +72,7 @@ export default async function MyPricklesPage({ searchParams }: { searchParams: P
     getMySchedules(),
     supabase.from("prickle_schedule_locks").select("month, locked").in("month", [currentMonth, nextMonth]),
     getMyHostingStats(),
+    getMyHostEligibility(),
     fetchOtherMembers(supabase, memberId),
   ]);
 
@@ -191,6 +193,7 @@ export default async function MyPricklesPage({ searchParams }: { searchParams: P
                     nextMonth={nextMonth}
                     currentMonthLocked={currentMonthLocked}
                     nextMonthLocked={nextMonthLocked}
+                    hostEligibility={hostEligibility}
                   />
                 </div>
               ),
