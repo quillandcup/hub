@@ -15,11 +15,10 @@ import {
   zonedTimeToUtc,
   type RecurrenceType,
 } from "@/lib/prickle-schedules";
-import { computeHostingStats, type HostedPrickleRecord, type HostingStats } from "@/lib/hosting-stats";
+import { computeHostingStats, type HostingStats } from "@/lib/hosting-stats";
+import { fetchHostedPrickleRecords } from "@/lib/hosted-prickles";
 
 const DEFAULT_TIMEZONE = "America/New_York";
-const BATCH_SIZE = 1000;
-const PRICKLE_ID_BATCH = 100;
 
 export interface MyScheduleRow {
   id: string;
@@ -378,8 +377,8 @@ export async function withdrawMySchedule(id: string): Promise<{ success: true } 
 /**
  * All-time hosting attendance stats for the acting member -- how many prickles they've hosted,
  * on-time vs. late (>5 min, same threshold as the admin calendar) vs. no-show, and a 12-month
- * trend. Re-derives effectiveIdentity server-side, same as getMySchedules. Paginated per
- * CLAUDE.md: prickles and prickle_attendance can each exceed 1000 rows.
+ * trend. Re-derives effectiveIdentity server-side, same as getMySchedules. The paginated fetch
+ * lives in lib/hosted-prickles.ts, shared with the public member profile.
  */
 export async function getMyHostingStats(): Promise<HostingStats> {
   const supabase = await createClient();
@@ -390,71 +389,6 @@ export async function getMyHostingStats(): Promise<HostingStats> {
   const effectiveIdentity = await getEffectiveIdentity(user);
   if (!effectiveIdentity) return computeHostingStats([]);
 
-  const memberId = effectiveIdentity.memberId;
-
-  // Only prickles that have actually started count as "hosted" -- future scheduled prickles
-  // (already synced from the calendar) haven't happened yet, so they shouldn't count toward
-  // totals, no-show counts, or "most recent hosted".
-  const nowIso = new Date().toISOString();
-
-  type HostedPrickleRow = { id: string; start_time: string; prickle_types: { name: string } | null };
-  let hostedPrickles: HostedPrickleRow[] = [];
-  {
-    let offset = 0;
-    let hasMore = true;
-    while (hasMore) {
-      const { data: batch } = await supabase
-        .from("prickles")
-        .select("id, start_time, prickle_types:type_id(name)")
-        .eq("host", memberId)
-        .lte("start_time", nowIso)
-        .range(offset, offset + BATCH_SIZE - 1);
-      if (batch && batch.length > 0) {
-        hostedPrickles = hostedPrickles.concat(batch as unknown as HostedPrickleRow[]);
-        offset += batch.length;
-        hasMore = batch.length === BATCH_SIZE;
-      } else {
-        hasMore = false;
-      }
-    }
-  }
-
-  if (hostedPrickles.length === 0) return computeHostingStats([]);
-
-  // Earliest join_time per hosted prickle, fetched in prickle-id batches (a host can leave and
-  // rejoin, leaving multiple attendance rows for the same prickle).
-  const prickleIds = hostedPrickles.map((p) => p.id);
-  const earliestJoinByPrickle = new Map<string, string>();
-  for (let i = 0; i < prickleIds.length; i += PRICKLE_ID_BATCH) {
-    const idBatch = prickleIds.slice(i, i + PRICKLE_ID_BATCH);
-    let offset = 0;
-    let hasMore = true;
-    while (hasMore) {
-      const { data: batch } = await supabase
-        .from("prickle_attendance")
-        .select("prickle_id, join_time")
-        .eq("member_id", memberId)
-        .in("prickle_id", idBatch)
-        .range(offset, offset + BATCH_SIZE - 1);
-      if (batch && batch.length > 0) {
-        for (const row of batch as { prickle_id: string; join_time: string }[]) {
-          const existing = earliestJoinByPrickle.get(row.prickle_id);
-          if (!existing || row.join_time < existing) earliestJoinByPrickle.set(row.prickle_id, row.join_time);
-        }
-        offset += batch.length;
-        hasMore = batch.length === BATCH_SIZE;
-      } else {
-        hasMore = false;
-      }
-    }
-  }
-
-  const records: HostedPrickleRecord[] = hostedPrickles.map((p) => ({
-    prickleId: p.id,
-    typeName: p.prickle_types?.name ?? "Prickle",
-    startTime: p.start_time,
-    earliestJoinTime: earliestJoinByPrickle.get(p.id) ?? null,
-  }));
-
+  const records = await fetchHostedPrickleRecords(supabase, effectiveIdentity.memberId);
   return computeHostingStats(records);
 }

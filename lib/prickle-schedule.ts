@@ -249,3 +249,108 @@ export async function getPrickleScheduleOverview(
 
   return { rows, instances }
 }
+
+// ---------------------------------------------------------------------------
+// A single host's upcoming schedule (member profile "Hosting" card)
+// ---------------------------------------------------------------------------
+
+export interface HostedScheduleSlot {
+  seriesKey: string
+  sortKey: string
+  dayOfWeek: string
+  timeLabel: string
+  typeName: string
+  nextOccurrenceId: string
+  nextOccurrenceStart: string
+  /** Occurrences of this slot within the lookahead window (1 for a one-off or monthly slot). */
+  upcomingCount: number
+}
+
+export interface UpcomingHostedPrickle {
+  id: string
+  typeId: string | null
+  typeName: string
+  startTime: string
+}
+
+/**
+ * Groups one host's upcoming prickles into recurring (type, day-of-week, time) slots in the
+ * viewer's timezone -- same slot key as getPrickleScheduleOverview -- ordered by day then time.
+ * Pure so it can be unit-tested without a database.
+ */
+export function groupHostedPricklesIntoSlots(
+  prickles: UpcomingHostedPrickle[],
+  timeZone: string
+): HostedScheduleSlot[] {
+  const bySlot = new Map<string, HostedScheduleSlot>()
+  for (const p of prickles) {
+    const slot = getSlotInfo(p.startTime, timeZone)
+    const key = seriesKeyFor(p.typeId, slot.sortKey)
+    const existing = bySlot.get(key)
+    if (!existing) {
+      bySlot.set(key, {
+        seriesKey: key,
+        sortKey: slot.sortKey,
+        dayOfWeek: slot.dayOfWeek,
+        timeLabel: slot.timeLabel,
+        typeName: p.typeName,
+        nextOccurrenceId: p.id,
+        nextOccurrenceStart: p.startTime,
+        upcomingCount: 1,
+      })
+      continue
+    }
+    existing.upcomingCount += 1
+    if (p.startTime < existing.nextOccurrenceStart) {
+      existing.nextOccurrenceId = p.id
+      existing.nextOccurrenceStart = p.startTime
+      // Label from the next occurrence so a DST change later in the window doesn't win.
+      existing.timeLabel = slot.timeLabel
+    }
+  }
+  return [...bySlot.values()].sort((a, b) => a.sortKey.localeCompare(b.sortKey))
+}
+
+type RawHostedRow = {
+  id: string
+  type_id: string | null
+  start_time: string
+  prickle_types: { name: string } | { name: string }[] | null
+}
+
+/**
+ * The prickles `hostId` is on the calendar to host between now and `windowDays` from now,
+ * grouped into recurring slots. Uses synced calendar prickles (the source of truth for what's
+ * actually happening, and linkable to /prickles/[id]) rather than prickle_schedules, which
+ * also carries proposed/unconfirmed requests.
+ */
+export async function getMemberHostingSchedule(
+  supabase: SupabaseClient,
+  hostId: string,
+  now: Date,
+  timeZone: string,
+  windowDays: number
+): Promise<HostedScheduleSlot[]> {
+  const windowEnd = new Date(now.getTime() + windowDays * 24 * 60 * 60 * 1000).toISOString()
+
+  const raw = await fetchAllPaginated<RawHostedRow>((offset) =>
+    supabase
+      .from("prickles")
+      .select("id, type_id, start_time, prickle_types(name)")
+      .eq("host", hostId)
+      .gte("start_time", now.toISOString())
+      .lte("start_time", windowEnd)
+      .order("start_time")
+      .range(offset, offset + BATCH_SIZE - 1)
+  )
+
+  return groupHostedPricklesIntoSlots(
+    raw.map((p) => ({
+      id: p.id,
+      typeId: p.type_id,
+      typeName: unwrapOne(p.prickle_types)?.name ?? "Prickle",
+      startTime: p.start_time,
+    })),
+    timeZone
+  )
+}

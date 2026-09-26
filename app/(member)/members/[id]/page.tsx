@@ -15,8 +15,14 @@ import { getMemberBadges, getAttendedPrickleCount } from "@/lib/badges"
 import BadgeChip from "@/components/BadgeChip"
 import { safeUrl } from "@/lib/url"
 import { getMemberDisplayName } from "@/lib/member-display-name"
+import { fetchHostedPrickleRecords } from "@/lib/hosted-prickles"
+import { computePublicHostingSummary } from "@/lib/hosting-stats"
+import { getMemberHostingSchedule } from "@/lib/prickle-schedule"
+import MemberHostingCard from "./MemberHostingCard"
 
 const ORG_TIMEZONE = "America/New_York"
+// Long enough to catch a monthly slot's next occurrence, not just weekly ones.
+const HOSTING_SCHEDULE_WINDOW_DAYS = 35
 
 const getMember = cache(async (id: string) => {
   const supabase = await createClient()
@@ -84,7 +90,15 @@ export default async function MemberProfilePage({
   // below. Computed live from prickle_attendance (distinct prickle_id, per CLAUDE.md) rather
   // than the member_metrics table, which nothing in the app populates -- see
   // docs/MEDALLION_ARCHITECTURE.md.
-  const totalPricklesAttended = await getAttendedPrickleCount(supabase, id)
+  // Hosting stats are the public subset only (no punctuality), and the schedule is the
+  // member's upcoming calendar prickles grouped into recurring slots in the viewer's timezone.
+  const now = new Date()
+  const [totalPricklesAttended, hostedRecords, hostingSlots] = await Promise.all([
+    getAttendedPrickleCount(supabase, id),
+    fetchHostedPrickleRecords(supabase, id, { now, includeAttendeeCounts: true }),
+    getMemberHostingSchedule(supabase, id, now, timeZone, HOSTING_SCHEDULE_WINDOW_DAYS),
+  ])
+  const hostingSummary = computePublicHostingSummary(hostedRecords)
 
   // Paginate all join_times for the streak shown in Community Stats.
   let streakJoinTimes: string[] = []
@@ -113,7 +127,7 @@ export default async function MemberProfilePage({
     member.first_joined_at
   )
 
-  const streaks = computeStreaks(streakJoinTimes, new Date(), timeZone)
+  const streaks = computeStreaks(streakJoinTimes, now, timeZone)
 
   // No fallback to joined_at (Kajabi contact creation) — a lead who never
   // had a real subscription has no first_joined_at, and isn't a member, so
@@ -127,7 +141,7 @@ export default async function MemberProfilePage({
   )
   const mostRecentJoinedDate = member.most_recent_joined_at ? parseDateOnly(member.most_recent_joined_at) : null
   const daysSinceRejoin = mostRecentJoinedDate
-    ? Math.floor((Date.now() - mostRecentJoinedDate.getTime()) / (1000 * 60 * 60 * 24))
+    ? Math.floor((now.getTime() - mostRecentJoinedDate.getTime()) / (1000 * 60 * 60 * 24))
     : Infinity
   const showWelcomeBack = isRejoin && daysSinceRejoin <= 30
 
@@ -246,6 +260,14 @@ export default async function MemberProfilePage({
           </div>
         </div>
       </div>
+
+      {/* Tier 3: visible to all -- renders nothing for members who don't host */}
+      <MemberHostingCard
+        summary={hostingSummary}
+        slots={hostingSlots}
+        timeZone={timeZone}
+        firstName={displayName.split(" ")[0]}
+      />
 
       {/* Tier 3: visible to all */}
       {earnedBadges.length > 0 && (
