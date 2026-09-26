@@ -44,6 +44,11 @@ const MIN_OCCURRENCES_FOR_SLOT_BADGE = 2
 // Diversity / time-proximity knobs for ordering recommendations.
 const SAME_DAY_PENALTY = 0.15
 const SAME_SERIES_PENALTY = 0.25
+// Per earlier pick in the same local time-of-day bucket (see timeOfDayBucket). A bit lighter than
+// the same-day penalty: two morning picks on different days are less redundant than two picks on
+// the same day, but an all-mornings list still hides the afternoon/evening options -- and, for
+// viewers outside ET, the times that actually fit their day.
+const SAME_TIME_OF_DAY_PENALTY = 0.1
 const PER_DAY_AWAY_PENALTY = 0.01
 const MS_PER_DAY = 24 * 60 * 60 * 1000
 
@@ -256,32 +261,81 @@ export function recommendationReasons(input: {
   return reasons
 }
 
+export type TimeOfDay = "morning" | "midday" | "afternoon" | "evening" | "night"
+
+/**
+ * Buckets a local (viewer-timezone) hour 0-23:
+ *   morning   05:00-10:59
+ *   midday    11:00-13:59
+ *   afternoon 14:00-16:59
+ *   evening   17:00-21:59
+ *   night     22:00-04:59 (mostly matters for viewers far from ET, where slots can land overnight)
+ */
+export function timeOfDayBucket(localHour: number): TimeOfDay {
+  if (localHour >= 5 && localHour < 11) return "morning"
+  if (localHour >= 11 && localHour < 14) return "midday"
+  if (localHour >= 14 && localHour < 17) return "afternoon"
+  if (localHour >= 17 && localHour < 22) return "evening"
+  return "night"
+}
+
+// Intl formatters are relatively costly to construct; cache one per timezone.
+const localSlotFormats = new Map<string, Intl.DateTimeFormat>()
+
+/** Local calendar date ("YYYY-MM-DD") and time-of-day bucket for `iso` in the viewer's timezone. */
+export function localDayAndTimeOfDay(iso: string, timeZone: string): { dayKey: string; timeOfDay: TimeOfDay } {
+  let format = localSlotFormats.get(timeZone)
+  if (!format) {
+    format = new Intl.DateTimeFormat("en-CA", {
+      timeZone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "numeric",
+      hourCycle: "h23",
+    })
+    localSlotFormats.set(timeZone, format)
+  }
+  const parts = format.formatToParts(new Date(iso))
+  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? "0"
+  return {
+    dayKey: `${get("year")}-${get("month")}-${get("day")}`,
+    timeOfDay: timeOfDayBucket(parseInt(get("hour"), 10) % 24),
+  }
+}
+
 export interface DiversityCandidate {
   id: string
   startTime: string
   /** Local calendar date in the viewer's timezone, e.g. "2026-09-26". */
   dayKey: string
+  /** Local time-of-day bucket in the viewer's timezone (see timeOfDayBucket). */
+  timeOfDay: TimeOfDay
   seriesKey: string
   score: number
 }
 
 /**
  * Greedy ordering that balances recommendation quality with spread: each pick is the candidate
- * with the best score after penalties for (a) days already represented, (b) slots already picked
- * (a weekly slot shouldn't take two of the top spots), and (c) a gentle per-day-away decay so
- * soon prickles aren't buried. Ties go to the earlier prickle. `seed` pre-loads day/series counts
- * from items already placed above these (e.g. personal-signal picks).
+ * with the best score after penalties for (a) days already represented, (b) local times of day
+ * already represented (morning/midday/afternoon/evening/night -- see timeOfDayBucket), (c) slots
+ * already picked (a weekly slot shouldn't take two of the top spots), and (d) a gentle
+ * per-day-away decay so soon prickles aren't buried. Ties go to the earlier prickle. `seed`
+ * pre-loads day/time-of-day/series counts from items already placed above these (e.g.
+ * personal-signal picks).
  */
 export function orderWithDiversity<T extends DiversityCandidate>(
   candidates: T[],
   now: Date,
-  seed: { dayKey: string; seriesKey: string }[] = [],
+  seed: { dayKey: string; timeOfDay: TimeOfDay; seriesKey: string }[] = [],
 ): T[] {
   const dayCounts = new Map<string, number>()
+  const timeOfDayCounts = new Map<string, number>()
   const seriesCounts = new Map<string, number>()
   const bump = (m: Map<string, number>, k: string) => m.set(k, (m.get(k) ?? 0) + 1)
   for (const s of seed) {
     bump(dayCounts, s.dayKey)
+    bump(timeOfDayCounts, s.timeOfDay)
     bump(seriesCounts, s.seriesKey)
   }
 
@@ -301,6 +355,7 @@ export function orderWithDiversity<T extends DiversityCandidate>(
       const value =
         r.base -
         SAME_DAY_PENALTY * (dayCounts.get(r.c.dayKey) ?? 0) -
+        SAME_TIME_OF_DAY_PENALTY * (timeOfDayCounts.get(r.c.timeOfDay) ?? 0) -
         SAME_SERIES_PENALTY * (seriesCounts.get(r.c.seriesKey) ?? 0)
       const best = remaining[bestIdx]
       if (value > bestValue + 1e-9 || (Math.abs(value - bestValue) <= 1e-9 && r.startMs < best.startMs)) {
@@ -311,6 +366,7 @@ export function orderWithDiversity<T extends DiversityCandidate>(
     const [picked] = remaining.splice(bestIdx, 1)
     ordered.push(picked.c)
     bump(dayCounts, picked.c.dayKey)
+    bump(timeOfDayCounts, picked.c.timeOfDay)
     bump(seriesCounts, picked.c.seriesKey)
   }
   return ordered
