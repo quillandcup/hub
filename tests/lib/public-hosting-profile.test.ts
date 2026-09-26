@@ -3,7 +3,11 @@ import { describe, it, expect, vi } from "vitest";
 vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
 
 import { computePublicHostingSummary, type HostedPrickleRecord } from "@/lib/hosting-stats";
-import { fetchHostedPrickleRecords } from "@/lib/hosted-prickles";
+import {
+  fetchHostedPrickleRecords,
+  mapHostedPrickleAttendanceRows,
+  type HostedPrickleAttendanceRow,
+} from "@/lib/hosted-prickles";
 import { groupHostedPricklesIntoSlots, getMemberHostingSchedule } from "@/lib/prickle-schedule";
 
 function record(overrides: Partial<HostedPrickleRecord>): HostedPrickleRecord {
@@ -56,8 +60,20 @@ type Row = Record<string, unknown>;
 
 /** Minimal chainable Supabase mock: records filter calls per table, returns canned rows once
  * per (table) query and then an empty page so pagination loops terminate. */
-function makeSupabaseMock(tables: Record<string, Row[]>) {
+function makeSupabaseMock(
+  tables: Record<string, Row[]>,
+  rpcPages: { data: object[] | null; error: { message: string } | null }[] = []
+) {
   const calls: { table: string; method: string; args: unknown[] }[] = [];
+  const rpc = vi.fn((fn: string, params: unknown) => {
+    calls.push({ table: `rpc:${fn}`, method: "rpc", args: [params] });
+    return {
+      range: vi.fn((from: number, to: number) => {
+        calls.push({ table: `rpc:${fn}`, method: "range", args: [from, to] });
+        return Promise.resolve(rpcPages.shift() ?? { data: [], error: null });
+      }),
+    };
+  });
   const from = vi.fn((table: string) => {
     let served = false;
     const obj: any = {};
@@ -74,7 +90,7 @@ function makeSupabaseMock(tables: Record<string, Row[]>) {
     });
     return obj;
   });
-  return { from, calls };
+  return { from, rpc, calls };
 }
 
 describe("fetchHostedPrickleRecords", () => {
@@ -83,17 +99,18 @@ describe("fetchHostedPrickleRecords", () => {
     { id: "p2", start_time: "2025-01-08T14:00:00.000Z", prickle_types: null },
   ];
 
-  it("counts distinct attendees per prickle and the host's earliest join when asked", async () => {
-    const mock = makeSupabaseMock({
-      prickles,
-      prickle_attendance: [
-        { prickle_id: "p1", member_id: "host", join_time: "2025-01-01T14:10:00.000Z" },
-        { prickle_id: "p1", member_id: "host", join_time: "2025-01-01T14:01:00.000Z" },
-        { prickle_id: "p1", member_id: "m2", join_time: "2025-01-01T14:00:00.000Z" },
-        { prickle_id: "p1", member_id: "m2", join_time: "2025-01-01T15:00:00.000Z" },
-        { prickle_id: "p1", member_id: "m3", join_time: "2025-01-01T14:02:00.000Z" },
-      ],
-    });
+  const rpcRow = (overrides: Partial<HostedPrickleAttendanceRow>): HostedPrickleAttendanceRow => ({
+    prickle_id: "p1",
+    start_time: "2025-01-01T14:00:00+00:00",
+    end_time: "2025-01-01T15:00:00+00:00",
+    type_name: "Progress Prickle",
+    host_earliest_join: "2025-01-01T14:01:00+00:00",
+    attendee_count: 3,
+    ...overrides,
+  });
+
+  it("gets attendee counts from the aggregating RPC, never from all-attendee rows", async () => {
+    const mock = makeSupabaseMock({}, [{ data: [rpcRow({})], error: null }]);
 
     const records = await fetchHostedPrickleRecords(mock as any, "host", {
       now: new Date("2026-01-01T00:00:00Z"),
@@ -104,26 +121,48 @@ describe("fetchHostedPrickleRecords", () => {
       {
         prickleId: "p1",
         typeName: "Progress Prickle",
-        startTime: "2025-01-01T14:00:00.000Z",
-        earliestJoinTime: "2025-01-01T14:01:00.000Z",
+        startTime: "2025-01-01T14:00:00+00:00",
+        endTime: "2025-01-01T15:00:00+00:00",
+        earliestJoinTime: "2025-01-01T14:01:00+00:00",
         attendeeCount: 3,
       },
-      {
-        prickleId: "p2",
-        typeName: "Prickle",
-        startTime: "2025-01-08T14:00:00.000Z",
-        earliestJoinTime: null,
-        attendeeCount: 0,
-      },
     ]);
-    // All attendees, not just the host, when counting.
-    expect(mock.calls).not.toContainEqual({ table: "prickle_attendance", method: "eq", args: ["member_id", "host"] });
-    expect(mock.calls).toContainEqual({ table: "prickles", method: "eq", args: ["host", "host"] });
-    expect(mock.calls).toContainEqual({
-      table: "prickles",
-      method: "lte",
-      args: ["start_time", "2026-01-01T00:00:00.000Z"],
+    expect(mock.rpc).toHaveBeenCalledWith("get_hosted_prickle_attendance", {
+      p_host_id: "host",
+      p_started_before: "2026-01-01T00:00:00.000Z",
     });
+    expect(mock.from).not.toHaveBeenCalled();
+  });
+
+  it("pages the RPC with .range() until a short page", async () => {
+    const fullPage = Array.from({ length: 1000 }, (_, i) => rpcRow({ prickle_id: `p${i}` }));
+    const mock = makeSupabaseMock({}, [
+      { data: fullPage, error: null },
+      { data: [rpcRow({ prickle_id: "last" })], error: null },
+    ]);
+
+    const records = await fetchHostedPrickleRecords(mock as any, "host", { includeAttendeeCounts: true });
+
+    expect(records).toHaveLength(1001);
+    expect(mock.calls.filter((c) => c.method === "range").map((c) => c.args)).toEqual([
+      [0, 999],
+      [1000, 1999],
+    ]);
+  });
+
+  it("falls back to the host-only queries (no attendeeCount) if the RPC errors", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const mock = makeSupabaseMock(
+      { prickles: prickles.slice(0, 1), prickle_attendance: [] },
+      [{ data: null, error: { message: "function does not exist" } }]
+    );
+
+    const records = await fetchHostedPrickleRecords(mock as any, "host", { includeAttendeeCounts: true });
+
+    expect(records).toHaveLength(1);
+    expect(records[0]).not.toHaveProperty("attendeeCount");
+    expect(errorSpy).toHaveBeenCalled();
+    errorSpy.mockRestore();
   });
 
   it("only fetches the host's own attendance and omits attendeeCount by default", async () => {
@@ -135,8 +174,44 @@ describe("fetchHostedPrickleRecords", () => {
 
   it("skips the attendance query entirely for a member who has never hosted", async () => {
     const mock = makeSupabaseMock({ prickles: [] });
-    expect(await fetchHostedPrickleRecords(mock as any, "host", { includeAttendeeCounts: true })).toEqual([]);
+    expect(await fetchHostedPrickleRecords(mock as any, "host")).toEqual([]);
     expect(mock.from).not.toHaveBeenCalledWith("prickle_attendance");
+  });
+
+  it("host-only path never calls the RPC and scopes attendance to the host", async () => {
+    const mock = makeSupabaseMock({
+      prickles: prickles.slice(0, 1),
+      prickle_attendance: [
+        { prickle_id: "p1", join_time: "2025-01-01T14:10:00.000Z" },
+        { prickle_id: "p1", join_time: "2025-01-01T14:01:00.000Z" },
+      ],
+    });
+    const [r] = await fetchHostedPrickleRecords(mock as any, "host");
+    expect(r.earliestJoinTime).toBe("2025-01-01T14:01:00.000Z");
+    expect(mock.rpc).not.toHaveBeenCalled();
+  });
+});
+
+describe("mapHostedPrickleAttendanceRows", () => {
+  it("defaults a missing type name to Prickle and a null count to 0", () => {
+    const [r] = mapHostedPrickleAttendanceRows([
+      {
+        prickle_id: "p",
+        start_time: "2025-01-01T14:00:00+00:00",
+        end_time: "2025-01-01T15:00:00+00:00",
+        type_name: null,
+        host_earliest_join: null,
+        attendee_count: null,
+      },
+    ]);
+    expect(r).toEqual({
+      prickleId: "p",
+      typeName: "Prickle",
+      startTime: "2025-01-01T14:00:00+00:00",
+      endTime: "2025-01-01T15:00:00+00:00",
+      earliestJoinTime: null,
+      attendeeCount: 0,
+    });
   });
 });
 
