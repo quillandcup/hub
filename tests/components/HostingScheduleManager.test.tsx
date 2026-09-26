@@ -98,14 +98,14 @@ describe("HostingScheduleManager", () => {
     expect(screen.queryByText(/for you, that's/)).not.toBeInTheDocument();
   });
 
-  it("still lets a brand-new member request a slot if they ask", async () => {
-    vi.mocked(requestToHost).mockResolvedValue({ success: true });
+  it("gives a brand-new member no way to request a slot", () => {
     renderManager([], {
       hostEligibility: { eligible: false, tenureStartDate: "2026-09-10", eligibleOn: "2026-10-10" },
     });
 
-    await userEvent.click(screen.getByRole("button", { name: /Request a slot anyway/ }));
-    expect(screen.getByText(/Request to host for October 2026/)).toBeInTheDocument();
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Request a slot anyway/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Request to host for/)).not.toBeInTheDocument();
   });
 
   it("shows a brand-new member's existing schedules as usual", () => {

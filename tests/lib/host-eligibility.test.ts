@@ -3,6 +3,7 @@ import {
   HOST_ELIGIBILITY_MIN_MONTHS,
   fetchHostEligibilityByMember,
   getHostEligibility,
+  hostEligibilityMessage,
   hostEligibleOnDate,
   hostingTenureStartDate,
   isEligibleToHost,
@@ -17,7 +18,7 @@ function at(date: string): Date {
 }
 
 function member(overrides: Partial<HostEligibilityMember> = {}): HostEligibilityMember {
-  return { firstJoinedAt: "2026-01-15", mostRecentJoinedAt: "2026-01-15", hiatusWindows: [], ...overrides };
+  return { firstJoinedAt: "2026-01-15", mostRecentJoinedAt: "2026-01-15", ...overrides };
 }
 
 describe("HOST_ELIGIBILITY_MIN_MONTHS", () => {
@@ -85,51 +86,33 @@ describe("isEligibleToHost — month-end clamping", () => {
   });
 });
 
-describe("hostingTenureStartDate — rejoin vs. hiatus", () => {
-  it("counts from the most recent join after a real cancel/rejoin", () => {
-    const rejoiner = member({ firstJoinedAt: "2020-03-01", mostRecentJoinedAt: "2026-09-10" });
-    expect(hostingTenureStartDate(rejoiner)).toBe("2026-09-10");
-    expect(isEligibleToHost(rejoiner, at("2026-09-26"))).toBe(false);
-    expect(getHostEligibility(rejoiner, at("2026-09-26")).eligibleOn).toBe("2026-10-10");
-    expect(isEligibleToHost(rejoiner, at("2026-10-10"))).toBe(true);
+describe("hostingTenureStartDate — counts from first join", () => {
+  it("a rejoiner after years away is measured from their first join, so doesn't wait a month", () => {
+    const rejoiner = member({ firstJoinedAt: "2020-03-01", mostRecentJoinedAt: "2026-09-20" });
+    expect(hostingTenureStartDate(rejoiner)).toBe("2020-03-01");
+    expect(getHostEligibility(rejoiner, at("2026-09-26"))).toEqual({
+      eligible: true,
+      tenureStartDate: "2020-03-01",
+      eligibleOn: "2020-04-01",
+    });
   });
 
-  it("does not reset the clock when the most recent join is a hiatus return", () => {
-    const returning = member({
-      firstJoinedAt: "2022-05-01",
-      mostRecentJoinedAt: "2026-09-20",
-      hiatusWindows: [{ startsAt: "2026-01-01", endsAt: "2026-09-20" }],
-    });
-    expect(hostingTenureStartDate(returning)).toBe("2022-05-01");
+  it("a member back from hiatus is measured from their first join", () => {
+    const returning = member({ firstJoinedAt: "2022-05-01", mostRecentJoinedAt: "2026-09-24" });
     expect(isEligibleToHost(returning, at("2026-09-26"))).toBe(true);
   });
 
-  it("matches a hiatus end given as a timestamp", () => {
-    const returning = member({
-      firstJoinedAt: "2022-05-01",
-      mostRecentJoinedAt: "2026-09-20",
-      hiatusWindows: [{ startsAt: "2026-01-01T00:00:00Z", endsAt: "2026-09-20T00:00:00Z" }],
+  it("a rejoiner whose first join was under a month ago still waits", () => {
+    const quickRejoin = member({ firstJoinedAt: "2026-09-01", mostRecentJoinedAt: "2026-09-20" });
+    expect(getHostEligibility(quickRejoin, at("2026-09-26"))).toEqual({
+      eligible: false,
+      tenureStartDate: "2026-09-01",
+      eligibleOn: "2026-10-01",
     });
-    expect(isEligibleToHost(returning, at("2026-09-26"))).toBe(true);
   });
 
-  it("still resets for a real rejoin that happened after an earlier hiatus", () => {
-    const m = member({
-      firstJoinedAt: "2022-05-01",
-      mostRecentJoinedAt: "2026-09-20",
-      hiatusWindows: [{ startsAt: "2024-01-01", endsAt: "2024-06-01" }],
-    });
-    expect(hostingTenureStartDate(m)).toBe("2026-09-20");
-    expect(isEligibleToHost(m, at("2026-09-26"))).toBe(false);
-  });
-
-  it("an ongoing hiatus (no end date) never counts as a return", () => {
-    const m = member({
-      firstJoinedAt: "2022-05-01",
-      mostRecentJoinedAt: "2022-05-01",
-      hiatusWindows: [{ startsAt: "2026-08-01", endsAt: null }],
-    });
-    expect(hostingTenureStartDate(m)).toBe("2022-05-01");
+  it("uses the date part of a timestamp", () => {
+    expect(hostingTenureStartDate(member({ firstJoinedAt: "2022-05-01T00:00:00Z" }))).toBe("2022-05-01");
   });
 });
 
@@ -143,7 +126,7 @@ describe("getHostEligibility — missing dates", () => {
     });
   });
 
-  it("falls back to first_joined_at when most_recent_joined_at is null", () => {
+  it("uses first_joined_at when most_recent_joined_at is null", () => {
     const m = member({ firstJoinedAt: "2026-01-15", mostRecentJoinedAt: null });
     expect(getHostEligibility(m, at("2026-09-26"))).toEqual({
       eligible: true,
@@ -152,7 +135,7 @@ describe("getHostEligibility — missing dates", () => {
     });
   });
 
-  it("uses most_recent_joined_at when first_joined_at is null", () => {
+  it("falls back to most_recent_joined_at only when first_joined_at is null", () => {
     const m = member({ firstJoinedAt: null, mostRecentJoinedAt: "2026-09-01" });
     expect(getHostEligibility(m, at("2026-09-26"))).toEqual({
       eligible: false,
@@ -162,51 +145,76 @@ describe("getHostEligibility — missing dates", () => {
   });
 });
 
+describe("hostEligibilityMessage", () => {
+  it("names the eligibility date when known", () => {
+    expect(hostEligibilityMessage({ eligible: false, tenureStartDate: "2026-09-10", eligibleOn: "2026-10-10" })).toBe(
+      "We invite hedgies to host once they've been a member for a full month — for you, that's October 10, 2026."
+    );
+  });
+
+  it("omits the date when the join date is unknown", () => {
+    expect(hostEligibilityMessage({ eligible: false, tenureStartDate: null, eligibleOn: null })).toBe(
+      "We invite hedgies to host once they've been a member for a full month."
+    );
+  });
+});
+
 describe("fetchHostEligibilityByMember", () => {
-  function fakeSupabase(tables: Record<string, any[]>) {
+  function fakeSupabase(tables: Record<string, Record<string, unknown>[]>) {
     return {
       from: vi.fn((table: string) => ({
         select: () => ({
           in: (column: string, values: string[]) =>
-            Promise.resolve({ data: tables[table].filter((r) => values.includes(r[column])), error: null }),
+            Promise.resolve({ data: tables[table].filter((r) => values.includes(r[column] as string)), error: null }),
         }),
       })),
-    } as any;
+    } as unknown as Parameters<typeof fetchHostEligibilityByMember>[0] & { from: ReturnType<typeof vi.fn> };
   }
 
   it("returns an empty map without querying when there are no ids", async () => {
-    const supabase = fakeSupabase({ members: [], member_hiatus_history: [] });
+    const supabase = fakeSupabase({ members: [] });
     expect((await fetchHostEligibilityByMember(supabase, [], at("2026-09-26"))).size).toBe(0);
     expect(supabase.from).not.toHaveBeenCalled();
   });
 
-  it("computes eligibility per member, applying their own hiatus history", async () => {
+  it("computes eligibility per member from their first join", async () => {
     const supabase = fakeSupabase({
       members: [
         { id: "new", first_joined_at: "2026-09-10", most_recent_joined_at: "2026-09-10" },
         { id: "veteran", first_joined_at: "2021-01-01", most_recent_joined_at: "2021-01-01" },
-        { id: "back-from-hiatus", first_joined_at: "2021-01-01", most_recent_joined_at: "2026-09-20" },
+        { id: "rejoiner", first_joined_at: "2021-01-01", most_recent_joined_at: "2026-09-20" },
         { id: "unknown", first_joined_at: null, most_recent_joined_at: null },
       ],
-      member_hiatus_history: [{ member_id: "back-from-hiatus", start_date: "2026-03-01", end_date: "2026-09-20" }],
     });
 
     const result = await fetchHostEligibilityByMember(
       supabase,
-      ["new", "veteran", "back-from-hiatus", "unknown", "new"],
+      ["new", "veteran", "rejoiner", "unknown", "new"],
       at("2026-09-26")
     );
 
     expect(result.get("new")).toEqual({ eligible: false, tenureStartDate: "2026-09-10", eligibleOn: "2026-10-10" });
     expect(result.get("veteran")?.eligible).toBe(true);
-    expect(result.get("back-from-hiatus")?.eligible).toBe(true);
+    expect(result.get("rejoiner")?.eligible).toBe(true);
     expect(result.get("unknown")).toEqual({ eligible: false, tenureStartDate: null, eligibleOn: null });
+    expect(supabase.from).toHaveBeenCalledTimes(1);
+    expect(supabase.from).toHaveBeenCalledWith("members");
+  });
+
+  it("chunks large id lists", async () => {
+    const ids = Array.from({ length: 250 }, (_, i) => `m${i}`);
+    const supabase = fakeSupabase({
+      members: ids.map((id) => ({ id, first_joined_at: "2021-01-01", most_recent_joined_at: "2021-01-01" })),
+    });
+    const result = await fetchHostEligibilityByMember(supabase, ids, at("2026-09-26"));
+    expect(result.size).toBe(250);
+    expect(supabase.from).toHaveBeenCalledTimes(3);
   });
 
   it("throws when a query fails", async () => {
     const supabase = {
       from: () => ({ select: () => ({ in: () => Promise.resolve({ data: null, error: new Error("boom") }) }) }),
-    } as any;
+    } as unknown as Parameters<typeof fetchHostEligibilityByMember>[0];
     await expect(fetchHostEligibilityByMember(supabase, ["x"], at("2026-09-26"))).rejects.toThrow("boom");
   });
 });

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 // Mirrors tests/lib/prickle-picker-actions.test.ts's approach: these actions
 // scope every write to effectiveIdentity.memberId (never a client-passed id),
@@ -52,6 +52,14 @@ function makeSupabaseMock({
   lockOverrides = [] as { month: string; locked: boolean }[],
   existingRow = null as any,
   writeError = undefined as string | undefined,
+  // Join dates for the acting member (defaults to a long-standing member, who
+  // is eligible to host). null = no members row found.
+  memberJoin = { first_joined_at: "2020-01-01", most_recent_joined_at: "2020-01-01" } as {
+    first_joined_at: string | null;
+    most_recent_joined_at: string | null;
+  } | null,
+  hostedCount = 0,
+  confirmedScheduleCount = 0,
 }) {
   const insert = vi.fn().mockResolvedValue(writeError ? { error: { message: writeError } } : { error: null });
   const updateEqEq = vi.fn().mockResolvedValue(writeError ? { error: { message: writeError } } : { error: null });
@@ -65,7 +73,13 @@ function makeSupabaseMock({
       return chain({ data: lockOverrides });
     }
     if (table === "prickle_schedules") {
-      return { ...chain({ data: existingRow }), insert, update };
+      return { ...chain({ data: existingRow, count: confirmedScheduleCount }), insert, update };
+    }
+    if (table === "members") {
+      return chain({ data: memberJoin ? [{ id: IDENTITY.memberId, ...memberJoin }, { id: SUDO_IDENTITY.memberId, ...memberJoin }] : [], error: null });
+    }
+    if (table === "prickles") {
+      return chain({ data: null, count: hostedCount });
     }
     throw new Error(`Unexpected table in test: ${table}`);
   });
@@ -186,6 +200,101 @@ describe("requestToHost", () => {
     });
 
     expect(mock.__insert).toHaveBeenCalledWith(expect.objectContaining({ host_id: "sudo-target-member" }));
+  });
+
+  describe("one-full-month rule", () => {
+    const REQUEST = {
+      month: "2027-01-01",
+      typeId: "type-a",
+      recurrenceType: "weekly" as const,
+      dayOfWeek: 2,
+      startTimeLocal: "19:00",
+    };
+    const UNLOCKED = [{ month: "2027-01-01", locked: false }];
+
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(new Date("2026-09-26T16:00:00Z"));
+    });
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("blocks a member who first joined less than a month ago, with a friendly message and no insert", async () => {
+      const mock = makeSupabaseMock({
+        lockOverrides: UNLOCKED,
+        memberJoin: { first_joined_at: "2026-09-10", most_recent_joined_at: "2026-09-10" },
+      });
+      vi.mocked(createClient).mockResolvedValue(mock as any);
+      vi.mocked(getEffectiveIdentity).mockResolvedValue(IDENTITY);
+
+      const result = await requestToHost(REQUEST);
+      expect(result).toEqual({
+        error: "We invite hedgies to host once they've been a member for a full month — for you, that's October 10, 2026.",
+      });
+      expect(mock.__insert).not.toHaveBeenCalled();
+    });
+
+    it("blocks a member with no join date on record", async () => {
+      const mock = makeSupabaseMock({
+        lockOverrides: UNLOCKED,
+        memberJoin: { first_joined_at: null, most_recent_joined_at: null },
+      });
+      vi.mocked(createClient).mockResolvedValue(mock as any);
+      vi.mocked(getEffectiveIdentity).mockResolvedValue(IDENTITY);
+
+      const result = await requestToHost(REQUEST);
+      expect(result).toEqual({ error: "We invite hedgies to host once they've been a member for a full month." });
+      expect(mock.__insert).not.toHaveBeenCalled();
+    });
+
+    it("allows a member exactly one month after first joining", async () => {
+      const mock = makeSupabaseMock({
+        lockOverrides: UNLOCKED,
+        memberJoin: { first_joined_at: "2026-08-26", most_recent_joined_at: "2026-08-26" },
+      });
+      vi.mocked(createClient).mockResolvedValue(mock as any);
+      vi.mocked(getEffectiveIdentity).mockResolvedValue(IDENTITY);
+
+      expect(await requestToHost(REQUEST)).toEqual({ success: true });
+      expect(mock.__insert).toHaveBeenCalled();
+    });
+
+    it("allows a rejoiner who rejoined days ago but first joined years ago", async () => {
+      const mock = makeSupabaseMock({
+        lockOverrides: UNLOCKED,
+        memberJoin: { first_joined_at: "2021-03-01", most_recent_joined_at: "2026-09-20" },
+      });
+      vi.mocked(createClient).mockResolvedValue(mock as any);
+      vi.mocked(getEffectiveIdentity).mockResolvedValue(IDENTITY);
+
+      expect(await requestToHost(REQUEST)).toEqual({ success: true });
+      expect(mock.__insert).toHaveBeenCalled();
+    });
+
+    it("exempts a new member who has already hosted a prickle", async () => {
+      const mock = makeSupabaseMock({
+        lockOverrides: UNLOCKED,
+        memberJoin: { first_joined_at: "2026-09-10", most_recent_joined_at: "2026-09-10" },
+        hostedCount: 2,
+      });
+      vi.mocked(createClient).mockResolvedValue(mock as any);
+      vi.mocked(getEffectiveIdentity).mockResolvedValue(IDENTITY);
+
+      expect(await requestToHost(REQUEST)).toEqual({ success: true });
+    });
+
+    it("exempts a new member an admin has already confirmed as a host", async () => {
+      const mock = makeSupabaseMock({
+        lockOverrides: UNLOCKED,
+        memberJoin: { first_joined_at: "2026-09-10", most_recent_joined_at: "2026-09-10" },
+        confirmedScheduleCount: 1,
+      });
+      vi.mocked(createClient).mockResolvedValue(mock as any);
+      vi.mocked(getEffectiveIdentity).mockResolvedValue(IDENTITY);
+
+      expect(await requestToHost(REQUEST)).toEqual({ success: true });
+    });
   });
 });
 

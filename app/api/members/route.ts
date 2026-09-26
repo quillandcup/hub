@@ -1,7 +1,16 @@
 import { requireAdmin } from "@/lib/supabase/api-auth";
+import { getHostEligibility } from "@/lib/host-eligibility";
 import { NextRequest, NextResponse } from "next/server";
 
 const MAX_LIMIT = 50;
+
+interface EmailLookupRow {
+  id: string;
+  name: string;
+  email: string;
+  first_joined_at: string | null;
+  most_recent_joined_at: string | null;
+}
 
 /**
  * Get members for dropdown/autocomplete (admin only).
@@ -34,7 +43,7 @@ export async function GET(request: NextRequest) {
 
     let query = supabase
       .from("members")
-      .select("id, name, email")
+      .select(email ? "id, name, email, first_joined_at, most_recent_joined_at" : "id, name, email")
       .order("name");
 
     if (email) {
@@ -50,6 +59,24 @@ export async function GET(request: NextRequest) {
     const { data: members, error } = await query;
 
     if (error) throw error;
+
+    // Exact-email lookups back admin forms that assign a specific member (e.g.
+    // "add host" on /admin/hosts), which warn up front when that member hasn't
+    // been a member for a full month yet -- so include host eligibility there.
+    if (email) {
+      const now = new Date();
+      return NextResponse.json({
+        members: ((members ?? []) as unknown as EmailLookupRow[]).map(
+          ({ first_joined_at, most_recent_joined_at, ...m }) => ({
+            ...m,
+            host_eligibility: getHostEligibility(
+              { firstJoinedAt: first_joined_at, mostRecentJoinedAt: most_recent_joined_at },
+              now
+            ),
+          })
+        ),
+      });
+    }
 
     return NextResponse.json({ members: members || [] });
   } catch (error: any) {

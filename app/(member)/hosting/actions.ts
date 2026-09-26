@@ -17,7 +17,7 @@ import {
 } from "@/lib/prickle-schedules";
 import { computeHostingStats, type HostingStats } from "@/lib/hosting-stats";
 import { fetchHostedPrickleRecords } from "@/lib/hosted-prickles";
-import { fetchHostEligibilityByMember, type HostEligibility } from "@/lib/host-eligibility";
+import { fetchHostEligibilityByMember, hostEligibilityMessage, type HostEligibility } from "@/lib/host-eligibility";
 
 const DEFAULT_TIMEZONE = "America/New_York";
 
@@ -110,6 +110,40 @@ export async function getMyHostEligibility(): Promise<HostEligibility | null> {
 
   const byMember = await fetchHostEligibilityByMember(supabase, [effectiveIdentity.memberId], new Date());
   return byMember.get(effectiveIdentity.memberId) ?? null;
+}
+
+/**
+ * Server-side enforcement of the one-full-month rule for member self-signup.
+ * Returns a friendly error when `memberId` may not request to host yet, or
+ * null when they may. Members who are already hosts -- they've hosted a
+ * prickle, or an admin has confirmed a schedule for them (admins can assign
+ * hosts directly regardless of tenure) -- are exempt, matching the UI, which
+ * only shows "Settle in first" to members with no hosting history.
+ */
+async function selfServeHostingBlock(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  memberId: string,
+  now: Date
+): Promise<string | null> {
+  const eligibility = (await fetchHostEligibilityByMember(supabase, [memberId], now)).get(memberId) ?? {
+    eligible: false,
+    tenureStartDate: null,
+    eligibleOn: null,
+  };
+  if (eligibility.eligible) return null;
+
+  const [{ count: hostedCount }, { count: confirmedCount }] = await Promise.all([
+    supabase.from("prickles").select("id", { count: "exact", head: true }).eq("host", memberId),
+    supabase
+      .from("prickle_schedules")
+      .select("id", { count: "exact", head: true })
+      .eq("host_id", memberId)
+      .eq("status", "confirmed")
+      .is("deleted_at", null),
+  ]);
+  if ((hostedCount ?? 0) > 0 || (confirmedCount ?? 0) > 0) return null;
+
+  return hostEligibilityMessage(eligibility);
 }
 
 export interface HostingCalendarPrickle {
@@ -268,6 +302,9 @@ export async function requestToHost(
   if (isMonthLocked(monthDate, overrides, new Date())) {
     return { error: "This month is locked -- ask an admin to unlock it, or request next month instead" };
   }
+
+  const eligibilityError = await selfServeHostingBlock(supabase, effectiveIdentity.memberId, new Date());
+  if (eligibilityError) return { error: eligibilityError };
 
   const { error } = await supabase.from("prickle_schedules").insert({
     host_id: effectiveIdentity.memberId,

@@ -406,7 +406,9 @@ describe('Prickle Schedules API', () => {
       })
     })
 
-    it('restarts the clock for a long-time member who cancelled and rejoined 10 days ago', async () => {
+    // Tenure counts from first_joined_at: a rejoiner, however recent the rejoin,
+    // isn't new to the community and doesn't wait another month.
+    it('does not restart the clock for a long-time member who cancelled and rejoined 10 days ago', async () => {
       const first = addDays(orgToday(), -900)
       const rejoined = addDays(orgToday(), -10)
       const { scheduleId } = await createHostWithSchedule(
@@ -417,13 +419,13 @@ describe('Prickle Schedules API', () => {
 
       const schedule = await getScheduleFromApi(scheduleId)
       expect(schedule.host_eligibility).toEqual({
-        eligible: false,
-        tenureStartDate: rejoined,
-        eligibleOn: plusOneMonthClamped(rejoined),
+        eligible: true,
+        tenureStartDate: first,
+        eligibleOn: plusOneMonthClamped(first),
       })
     })
 
-    it('restarts the clock for a real rejoin even when the member also had an earlier, finished hiatus', async () => {
+    it('does not restart the clock for a rejoin after an earlier, finished hiatus', async () => {
       const first = addDays(orgToday(), -900)
       const rejoined = addDays(orgToday(), -10)
       const { hostId, scheduleId } = await createHostWithSchedule(
@@ -439,13 +441,13 @@ describe('Prickle Schedules API', () => {
 
       const schedule = await getScheduleFromApi(scheduleId)
       expect(schedule.host_eligibility).toEqual({
-        eligible: false,
-        tenureStartDate: rejoined,
-        eligibleOn: plusOneMonthClamped(rejoined),
+        eligible: true,
+        tenureStartDate: first,
+        eligibleOn: plusOneMonthClamped(first),
       })
     })
 
-    it('makes a rejoiner eligible once a full month has passed since the rejoin', async () => {
+    it('measures a rejoiner from their first join, not the rejoin 40 days ago', async () => {
       const first = addDays(orgToday(), -900)
       const rejoined = addDays(orgToday(), -40)
       const { scheduleId } = await createHostWithSchedule(
@@ -457,8 +459,24 @@ describe('Prickle Schedules API', () => {
       const schedule = await getScheduleFromApi(scheduleId)
       expect(schedule.host_eligibility).toEqual({
         eligible: true,
-        tenureStartDate: rejoined,
-        eligibleOn: plusOneMonthClamped(rejoined),
+        tenureStartDate: first,
+        eligibleOn: plusOneMonthClamped(first),
+      })
+    })
+
+    it('falls back to most_recent_joined_at only when first_joined_at is null', async () => {
+      const recent = addDays(orgToday(), -10)
+      const { scheduleId } = await createHostWithSchedule(
+        'no-first-join',
+        { first_joined_at: null, most_recent_joined_at: recent },
+        6
+      )
+
+      const schedule = await getScheduleFromApi(scheduleId)
+      expect(schedule.host_eligibility).toEqual({
+        eligible: false,
+        tenureStartDate: recent,
+        eligibleOn: plusOneMonthClamped(recent),
       })
     })
   })

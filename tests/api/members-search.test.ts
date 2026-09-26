@@ -89,3 +89,64 @@ describe("GET /api/members search + limit", () => {
     expect(filter).not.toContain(")");
   });
 });
+
+describe("GET /api/members?email= host eligibility", () => {
+  function asAdmin(rows: unknown[] = []) {
+    const mock = makeSupabaseMock(rows);
+    vi.mocked(requireAdmin).mockResolvedValue({ supabase: mock.supabase, user: { id: "u1" }, forbidden: false } as any);
+    return mock;
+  }
+
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-09-26T16:00:00Z"));
+    return () => vi.useRealTimers();
+  });
+
+  it("adds host_eligibility (from first join) to exact-email lookups, without leaking the join dates", async () => {
+    const { chain } = asAdmin([
+      { id: "m1", name: "New Hedgie", email: "new@example.com", first_joined_at: "2026-09-10", most_recent_joined_at: "2026-09-10" },
+    ]);
+
+    const res = await GET(makeRequest("?email=new@example.com"));
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      members: [
+        {
+          id: "m1",
+          name: "New Hedgie",
+          email: "new@example.com",
+          host_eligibility: { eligible: false, tenureStartDate: "2026-09-10", eligibleOn: "2026-10-10" },
+        },
+      ],
+    });
+    expect(chain.select).toHaveBeenCalledWith("id, name, email, first_joined_at, most_recent_joined_at");
+    expect(chain.ilike).toHaveBeenCalledWith("email", "new@example.com");
+  });
+
+  it("treats a recent rejoiner who first joined years ago as eligible", async () => {
+    asAdmin([
+      { id: "m2", name: "Rejoiner", email: "back@example.com", first_joined_at: "2021-01-01", most_recent_joined_at: "2026-09-20" },
+    ]);
+    const body = await (await GET(makeRequest("?email=back@example.com"))).json();
+    expect(body.members[0].host_eligibility).toEqual({
+      eligible: true,
+      tenureStartDate: "2021-01-01",
+      eligibleOn: "2021-02-01",
+    });
+  });
+
+  it("marks a member with no join dates as not eligible", async () => {
+    asAdmin([{ id: "m3", name: "Dateless", email: "x@example.com", first_joined_at: null, most_recent_joined_at: null }]);
+    const body = await (await GET(makeRequest("?email=x@example.com"))).json();
+    expect(body.members[0].host_eligibility).toEqual({ eligible: false, tenureStartDate: null, eligibleOn: null });
+  });
+
+  it("leaves search lookups unchanged (no join dates selected, no eligibility)", async () => {
+    const rows = [{ id: "m1", name: "Alice", email: "alice@example.com" }];
+    const { chain } = asAdmin(rows);
+    const body = await (await GET(makeRequest("?search=ali"))).json();
+    expect(body).toEqual({ members: rows });
+    expect(chain.select).toHaveBeenCalledWith("id, name, email");
+  });
+});

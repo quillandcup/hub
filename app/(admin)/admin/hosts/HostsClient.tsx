@@ -56,6 +56,22 @@ export function HostEligibilityBadge({ eligibility }: { eligibility: HostEligibi
   );
 }
 
+// Up-front warning in the "add host" form when the chosen member isn't
+// eligible to host yet. Admins can still save -- it's a heads-up, not a block.
+export function HostEligibilityWarning({ eligibility }: { eligibility: HostEligibility | null }) {
+  if (!eligibility || eligibility.eligible) return null;
+  return (
+    <p
+      role="alert"
+      className="mt-2 px-3 py-2 text-sm rounded bg-amber-50 text-amber-800 border border-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-800"
+    >
+      {eligibility.eligibleOn
+        ? `Heads up: this member hasn't been a member for a full month yet (eligible to host from ${eligibility.eligibleOn}). You can still add them.`
+        : "Heads up: this member has no join date on record, so we can't confirm a full month of membership. You can still add them."}
+    </p>
+  );
+}
+
 interface PrickleType {
   id: string;
   name: string;
@@ -98,6 +114,9 @@ export default function HostsClient({ prickleTypes }: { prickleTypes: PrickleTyp
   const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(EMPTY_NEW_FORM);
+  // Eligibility of the member typed into "Host Email", looked up on blur so the
+  // warning shows before saving. Keyed by the email it was looked up for.
+  const [hostLookup, setHostLookup] = useState<{ email: string; eligibility: HostEligibility | null } | null>(null);
   const [bootstrapping, setBootstrapping] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -238,6 +257,23 @@ export default function HostsClient({ prickleTypes }: { prickleTypes: PrickleTyp
     fetchAll();
   }
 
+  async function lookupHostEligibility(rawEmail: string) {
+    const email = rawEmail.trim();
+    if (!email) {
+      setHostLookup(null);
+      return;
+    }
+    try {
+      const res = await fetch(`/api/members?email=${encodeURIComponent(email)}`);
+      const data = await res.json();
+      const found = res.ok ? data.members?.[0] : undefined;
+      setHostLookup({ email, eligibility: found?.host_eligibility ?? null });
+    } catch {
+      // The warning is best-effort; handleCreate reports a missing member.
+      setHostLookup(null);
+    }
+  }
+
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
@@ -282,6 +318,7 @@ export default function HostsClient({ prickleTypes }: { prickleTypes: PrickleTyp
       if (!res.ok) throw new Error(data.error || "Failed to create schedule");
 
       setForm(EMPTY_NEW_FORM);
+      setHostLookup(null);
       setShowForm(false);
       fetchAll();
     } catch (err: any) {
@@ -358,19 +395,29 @@ export default function HostsClient({ prickleTypes }: { prickleTypes: PrickleTyp
           <h2 className="text-lg font-semibold dark:text-slate-100">Add Schedule for {monthLabel(month)}</h2>
 
           <div>
-            <label className="block text-sm font-medium mb-1 dark:text-slate-300">Host Email</label>
+            <label htmlFor="new-host-email" className="block text-sm font-medium mb-1 dark:text-slate-300">
+              Host Email
+            </label>
             <input
+              id="new-host-email"
               type="email"
               value={form.hostEmail}
               onChange={(e) => setForm({ ...form, hostEmail: e.target.value })}
+              onBlur={() => lookupHostEligibility(form.hostEmail)}
               className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 rounded"
               required
             />
+            {hostLookup && hostLookup.email === form.hostEmail.trim() && (
+              <HostEligibilityWarning eligibility={hostLookup.eligibility} />
+            )}
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1 dark:text-slate-300">Prickle Type</label>
+            <label htmlFor="new-host-type" className="block text-sm font-medium mb-1 dark:text-slate-300">
+              Prickle Type
+            </label>
             <select
+              id="new-host-type"
               value={form.typeId}
               onChange={(e) => setForm({ ...form, typeId: e.target.value })}
               className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 rounded"
@@ -514,6 +561,7 @@ export default function HostsClient({ prickleTypes }: { prickleTypes: PrickleTyp
               onClick={() => {
                 setShowForm(false);
                 setForm(EMPTY_NEW_FORM);
+                setHostLookup(null);
               }}
               className="px-4 py-2 bg-gray-300 text-gray-800 rounded hover:bg-gray-400 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600"
             >
