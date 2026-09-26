@@ -36,6 +36,11 @@ export default async function WheelOfWonderAdminPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
+  // Explicit guard rather than relying only on the admin layout's Access Denied screen: match
+  // data is admin-only. Non-admins go back to their own view, where that screen's link points.
+  const { data: profile } = await supabase.from("user_profiles").select("role").eq("id", user.id).single();
+  if (profile?.role !== "admin") redirect("/dashboard");
+
   const { data: matchesData } = await supabase
     .from("wheel_of_wonder_matches")
     .select(

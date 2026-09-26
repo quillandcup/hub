@@ -15,6 +15,7 @@ import {
   type PrimaryEventFilter,
   type RetreatFilter,
 } from "@/lib/events-filter";
+import type { EducationalPrickle } from "@/lib/educational-prickles";
 
 export interface EventRow {
   id: string;
@@ -28,14 +29,9 @@ export interface EventRow {
   cover_photo_id: string | null;
 }
 
-export interface EducationalPrickle {
-  id: string;
-  title: string | null;
-  typeName: string;
-  hostName: string | null;
-  startTime: string;
-  endTime: string;
-}
+// Type-only (erased at compile time), so none of lib/educational-prickles.ts's server-side
+// query code reaches the client bundle. Re-exported for existing importers.
+export type { EducationalPrickle };
 
 // How many educational prickles the "All" view highlights before linking to the full list.
 const EDUCATIONAL_PREVIEW_COUNT = 4;

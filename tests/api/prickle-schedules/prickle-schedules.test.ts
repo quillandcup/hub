@@ -405,5 +405,61 @@ describe('Prickle Schedules API', () => {
         eligibleOn: plusOneMonthClamped(first),
       })
     })
+
+    it('restarts the clock for a long-time member who cancelled and rejoined 10 days ago', async () => {
+      const first = addDays(orgToday(), -900)
+      const rejoined = addDays(orgToday(), -10)
+      const { scheduleId } = await createHostWithSchedule(
+        'rejoiner',
+        { first_joined_at: first, most_recent_joined_at: rejoined },
+        5
+      )
+
+      const schedule = await getScheduleFromApi(scheduleId)
+      expect(schedule.host_eligibility).toEqual({
+        eligible: false,
+        tenureStartDate: rejoined,
+        eligibleOn: plusOneMonthClamped(rejoined),
+      })
+    })
+
+    it('restarts the clock for a real rejoin even when the member also had an earlier, finished hiatus', async () => {
+      const first = addDays(orgToday(), -900)
+      const rejoined = addDays(orgToday(), -10)
+      const { hostId, scheduleId } = await createHostWithSchedule(
+        'hiatus-then-rejoin',
+        { first_joined_at: first, most_recent_joined_at: rejoined },
+        6
+      )
+      // The hiatus ended long before the rejoin, so most_recent_joined_at is a real rejoin, not a hiatus return.
+      const { error: hiatusError } = await supabase
+        .from('member_hiatus_history')
+        .insert({ member_id: hostId, start_date: addDays(orgToday(), -500), end_date: addDays(orgToday(), -400) })
+      expect(hiatusError).toBeNull()
+
+      const schedule = await getScheduleFromApi(scheduleId)
+      expect(schedule.host_eligibility).toEqual({
+        eligible: false,
+        tenureStartDate: rejoined,
+        eligibleOn: plusOneMonthClamped(rejoined),
+      })
+    })
+
+    it('makes a rejoiner eligible once a full month has passed since the rejoin', async () => {
+      const first = addDays(orgToday(), -900)
+      const rejoined = addDays(orgToday(), -40)
+      const { scheduleId } = await createHostWithSchedule(
+        'settled-rejoiner',
+        { first_joined_at: first, most_recent_joined_at: rejoined },
+        0
+      )
+
+      const schedule = await getScheduleFromApi(scheduleId)
+      expect(schedule.host_eligibility).toEqual({
+        eligible: true,
+        tenureStartDate: rejoined,
+        eligibleOn: plusOneMonthClamped(rejoined),
+      })
+    })
   })
 })

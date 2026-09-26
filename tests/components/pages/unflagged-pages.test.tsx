@@ -18,6 +18,7 @@ import {
   resetServerPageMocks,
   signInAs,
   useFakeSupabase,
+  type FakeQuery,
 } from "@/tests/helpers/server-page";
 
 vi.mock("next/navigation", () => import("@/tests/helpers/server-page").then((m) => m.nextNavigationModule));
@@ -69,6 +70,13 @@ const OTHER_MEMBERS = [
   { id: "member-hazel", name: "Hazel Burrowes", email: "hazel.burrowes@example.test" },
 ];
 
+// Roles keyed by the queried user id, so only ADMIN_USER resolves to an admin profile.
+const ROLES: Record<string, string> = { [ADMIN_USER.id]: "admin", [MEMBER_USER.id]: "member" };
+const userProfiles = (q: FakeQuery) => {
+  const id = q.calls.find((c) => c.method === "eq" && c.args[0] === "id")?.args[1] as string;
+  return { data: ROLES[id] ? [{ role: ROLES[id] }] : [] };
+};
+
 const myPricklesProps = (tab?: string) => ({ searchParams: Promise.resolve(tab ? { tab } : {}) });
 
 beforeEach(() => {
@@ -104,6 +112,7 @@ describe("retired feature flags: pages render for a member with no feature previ
   it("admin Wheel of Wonder renders for an admin without redirecting to /admin", async () => {
     signInAs(ADMIN_USER, null);
     useFakeSupabase({
+      user_profiles: userProfiles,
       wheel_of_wonder_matches: {
         data: [
           {
@@ -123,6 +132,18 @@ describe("retired feature flags: pages render for a member with no feature previ
     expect(screen.getByRole("heading", { name: /Wheel of Wonder/ })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Hazel Burrowes" })).toHaveAttribute("href", "/admin/members/member-hazel");
     expect(redirect).not.toHaveBeenCalled();
+  });
+
+  it("admin Wheel of Wonder sends a non-admin member back to /dashboard without loading matches", async () => {
+    const supabase = useFakeSupabase({ user_profiles: userProfiles });
+    await expectRedirect(AdminWheelOfWonderPage, {}, "/dashboard");
+    expect(supabase.queries.map((q) => q.table)).not.toContain("wheel_of_wonder_matches");
+  });
+
+  it("admin Wheel of Wonder blocks a user with no profile row", async () => {
+    signInAs({ id: "user-no-profile", email: "nobody@example.test" }, null);
+    useFakeSupabase({ user_profiles: userProfiles });
+    await expectRedirect(AdminWheelOfWonderPage, {}, "/dashboard");
   });
 
   it("My Prickles includes the Find a Prickle tab", async () => {
