@@ -6,6 +6,7 @@ import { ThemeSwitcher } from "./ThemeSwitcher";
 import { TimezoneSwitcher } from "./TimezoneSwitcher";
 import { SessionsPanel } from "./SessionsPanel";
 import { IdentityPanel } from "./IdentityPanel";
+import { ProfilePanel } from "./ProfilePanel";
 import { getHostedVibes } from "@/app/(member)/prickle-picker/actions";
 import HostVibePanel from "@/components/HostVibePanel";
 import { Tabs } from "@/components/Tabs";
@@ -14,8 +15,11 @@ export const metadata: Metadata = {
   title: "Settings",
 };
 
-export default async function SettingsPage() {
+export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
   const supabase = await createClient();
+  // Deep link from the "Edit profile" button on a member's own profile page.
+  const { tab: rawTab } = await searchParams;
+  const initialTab = rawTab === "profile" ? ("profile" as const) : undefined;
 
   const user = await getCurrentUser();
 
@@ -51,6 +55,8 @@ export default async function SettingsPage() {
       <main className="container mx-auto px-6 py-8">
         <div className="bg-white dark:bg-slate-900 shadow rounded-lg p-6">
           <Tabs
+            key={initialTab ?? "default"}
+            initialTab={initialTab}
             tabs={[
               {
                 id: "account",
@@ -78,6 +84,11 @@ export default async function SettingsPage() {
                     </div>
                   </div>
                 ),
+              },
+              {
+                id: "profile",
+                label: "Profile",
+                content: <ProfilePanel />,
               },
               {
                 id: "identity",
