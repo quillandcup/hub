@@ -9,9 +9,15 @@ export interface SortConfig<TColumn extends string> {
   direction: SortDirection;
 }
 
+// A column's sort key. Dates may be passed as Date objects or as ISO strings
+// (date-only "YYYY-MM-DD" or full timestamps) and are compared chronologically.
+// null/undefined (and NaN / invalid dates) mean "no value" and always sort
+// last, in both directions.
+export type SortValue = string | number | Date | null | undefined;
+
 interface UseTableSortOptions<TRow, TColumn extends string> {
   rows: TRow[];
-  getSortValue: (row: TRow, column: TColumn) => string | number;
+  getSortValue: (row: TRow, column: TColumn) => SortValue;
   // Sort applied when no column is actively clicked (initial view, and the
   // state a third click on the active column reverts to). Pass null for a
   // table whose "cleared" state is simply the given row order.
@@ -41,26 +47,100 @@ export function nextSortConfig<TColumn extends string>(
   return null;
 }
 
+// What a header click does, given the active (clicked) sort and the table's
+// default. The default sort's column has no distinct "cleared" state —
+// clearing would land on the very view already showing — so clicking it just
+// flips direction, and clicking it from another column returns to the default
+// view. Every other column uses the tri-state cycle in nextSortConfig.
+// Returns null to mean "show defaultSort".
+export function nextTableSort<TColumn extends string>(
+  active: SortConfig<TColumn> | null,
+  defaultSort: SortConfig<TColumn> | null,
+  column: TColumn
+): SortConfig<TColumn> | null {
+  if (!defaultSort || defaultSort.column !== column) {
+    return nextSortConfig(active, column);
+  }
+  const current = active ?? defaultSort;
+  if (current.column !== column) return null;
+  const direction: SortDirection = current.direction === "asc" ? "desc" : "asc";
+  return direction === defaultSort.direction ? null : { column, direction };
+}
+
+// "YYYY-MM-DD", optionally followed by a time and a Z / ±HH[:MM] offset —
+// the shapes Postgres DATE and TIMESTAMPTZ columns come back as.
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}(?::?\d{2})?)?)?$/;
+const DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+// Epoch ms for an ISO date string, or NaN if it isn't one. Date-only strings
+// are read as local midnight (like parseDateOnly), not UTC, so they order
+// consistently against same-day local timestamps.
+function isoStringToTime(value: string): number {
+  if (!ISO_DATE_RE.test(value)) return NaN;
+  return DATE_ONLY_RE.test(value) ? new Date(`${value}T00:00:00`).getTime() : Date.parse(value);
+}
+
+type PresentSortValue = string | number | Date;
+
+function isMissing(value: SortValue): value is null | undefined {
+  if (value === null || value === undefined) return true;
+  if (typeof value === "number") return Number.isNaN(value);
+  if (value instanceof Date) return Number.isNaN(value.getTime());
+  return false;
+}
+
+function toTime(value: PresentSortValue): number {
+  if (value instanceof Date) return value.getTime();
+  if (typeof value === "string") return isoStringToTime(value);
+  return value;
+}
+
+function compareNumbers(a: number, b: number): number {
+  // Not `a - b`: Infinity - Infinity is NaN, which sort() treats as "equal".
+  if (a < b) return -1;
+  return a > b ? 1 : 0;
+}
+
+// Ascending comparison of two present sort values.
+function comparePresent(a: PresentSortValue, b: PresentSortValue): number {
+  if (typeof a === "number" && typeof b === "number") return compareNumbers(a, b);
+  // Dates (Date objects and/or ISO strings) compare chronologically, never
+  // lexically — "2024-01-05T09:00:00Z" vs "2024-01-05T10:00:00+02:00" etc.
+  const aTime = toTime(a);
+  const bTime = toTime(b);
+  if (typeof a !== "number" && typeof b !== "number" && !Number.isNaN(aTime) && !Number.isNaN(bTime)) {
+    return compareNumbers(aTime, bTime);
+  }
+  if (typeof a === "number") return -1; // mixed types: numbers first, deterministically
+  if (typeof b === "number") return 1;
+  return String(a).localeCompare(String(b));
+}
+
+// Comparator for one direction. Missing values sort last in both directions,
+// so e.g. "no date yet" rows never jump to the top when sorting descending.
+export function compareSortValues(a: SortValue, b: SortValue, direction: SortDirection): number {
+  const aMissing = isMissing(a);
+  const bMissing = isMissing(b);
+  if (aMissing && bMissing) return 0;
+  if (aMissing) return 1;
+  if (bMissing) return -1;
+  const cmp = comparePresent(a, b);
+  return direction === "asc" ? cmp : -cmp;
+}
+
 export function sortRows<TRow, TColumn extends string>(
   rows: TRow[],
-  getSortValue: (row: TRow, column: TColumn) => string | number,
+  getSortValue: (row: TRow, column: TColumn) => SortValue,
   sort: SortConfig<TColumn> | null
 ): TRow[] {
   if (!sort) return rows;
   const { column, direction } = sort;
-  return [...rows].sort((a, b) => {
-    const aVal = getSortValue(a, column);
-    const bVal = getSortValue(b, column);
-    const cmp =
-      typeof aVal === "string" && typeof bVal === "string"
-        ? aVal.localeCompare(bVal)
-        : (aVal as number) - (bVal as number);
-    return direction === "asc" ? cmp : -cmp;
-  });
+  return [...rows].sort((a, b) => compareSortValues(getSortValue(a, column), getSortValue(b, column), direction));
 }
 
 // Tri-state column sort: click 1 -> asc, click 2 (same column) -> desc,
 // click 3 (same column) -> clear back to defaultSort (or raw row order).
+// The defaultSort column itself just toggles direction (see nextTableSort).
 export function useTableSort<TRow, TColumn extends string>({
   rows,
   getSortValue,
@@ -69,7 +149,7 @@ export function useTableSort<TRow, TColumn extends string>({
   const [activeSort, setActiveSort] = useState<SortConfig<TColumn> | null>(null);
 
   function handleSort(column: TColumn) {
-    setActiveSort((prev) => nextSortConfig(prev, column));
+    setActiveSort((prev) => nextTableSort(prev, defaultSort, column));
   }
 
   const effectiveSort = activeSort ?? defaultSort;

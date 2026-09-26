@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { SortableTh } from "@/components/SortableTh";
-import { useTableSort } from "@/lib/hooks/useTableSort";
+import { useTableSort, type SortValue } from "@/lib/hooks/useTableSort";
 import { parseDateOnly, milestoneLabel } from "@/lib/member-tenure";
 
 export interface HedgieversaryRow {
@@ -27,19 +27,21 @@ type SortColumn = "name" | "firstJoinedAt" | "mostRecentJoinedAt" | "totalActive
 const WELCOME_BACK_WINDOW_DAYS = 90;
 const MS_PER_DAY = 1000 * 60 * 60 * 24;
 
-function getSortValue(row: HedgieversaryRow, column: SortColumn): string | number {
+// Date columns hand back the raw YYYY-MM-DD strings; useTableSort compares
+// them chronologically and sorts null (no date / TBD while on hiatus) last in
+// both directions.
+function getSortValue(row: HedgieversaryRow, column: SortColumn): SortValue {
   switch (column) {
     case "name":
       return row.name.toLowerCase();
     case "firstJoinedAt":
-      return parseDateOnly(row.firstJoinedAt).getTime();
+      return row.firstJoinedAt;
     case "mostRecentJoinedAt":
-      return row.mostRecentJoinedAt ? parseDateOnly(row.mostRecentJoinedAt).getTime() : 0;
+      return row.mostRecentJoinedAt;
     case "totalActiveMonths":
       return row.totalActiveMonths;
     case "nextDate":
-      // TBD (currently on hiatus) sorts last in ascending order.
-      return row.nextDate ? parseDateOnly(row.nextDate).getTime() : Infinity;
+      return row.nextDate;
   }
 }
 

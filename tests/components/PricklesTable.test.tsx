@@ -50,6 +50,30 @@ describe('PricklesTable tri-state sort', () => {
     expect(renderedNames()).toEqual(['Zeta', 'Mid', 'Alpha'])
   })
 
+  it('flips the default Sessions column to ascending on its first click, then back', async () => {
+    render(<PricklesTable rows={rows} />)
+    const header = screen.getByText('Sessions')
+    await userEvent.click(header)
+    expect(renderedNames()).toEqual(['Mid', 'Zeta', 'Alpha'])
+    await userEvent.click(header)
+    expect(renderedNames()).toEqual(['Alpha', 'Zeta', 'Mid'])
+  })
+
+  it('sorts Last Session timestamps chronologically, not lexically', async () => {
+    const timed = [
+      // 08:00Z: lexically last, chronologically first
+      { ...row('Early', 1), lastSession: '2024-01-05T10:00:00+02:00' },
+      { ...row('Late', 2), lastSession: '2024-01-05T09:30:00.5Z' },
+      { ...row('Middle', 3), lastSession: '2024-01-05T09:00:00+00:00' },
+    ]
+    render(<PricklesTable rows={timed} />)
+    const header = screen.getByText('Last Session')
+    await userEvent.click(header)
+    expect(renderedNames()).toEqual(['Early', 'Middle', 'Late'])
+    await userEvent.click(header)
+    expect(renderedNames()).toEqual(['Late', 'Middle', 'Early'])
+  })
+
   it('reverts to the sessions-descending default on the third click', async () => {
     render(<PricklesTable rows={rows} />)
     const header = screen.getByText('Name')
