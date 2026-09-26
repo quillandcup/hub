@@ -21,6 +21,22 @@ describe('ReasonBadges', () => {
     expect(screen.queryByRole('tooltip')).not.toBeInTheDocument()
   })
 
+  it('renders the recommendation badges (experienced host, popular session, lots of regulars)', async () => {
+    const user = userEvent.setup()
+    const reasons: ReasonBadgeData[] = [
+      { kind: 'experiencedHost', tooltip: ['Jane S has hosted 40 sessions'] },
+      { kind: 'popular', tooltip: ['Usually about 9 writers'] },
+      { kind: 'regulars', tooltip: ['Usually 5 regulars — Hedgies who come most weeks'] },
+    ]
+    render(<ReasonBadges reasons={reasons} />)
+    expect(screen.getByRole('img', { name: /Popular session — Usually about 9 writers/ })).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: /Lots of regulars/ })).toBeInTheDocument()
+
+    await user.hover(screen.getByText('⭐'))
+    expect(screen.getByRole('tooltip')).toHaveTextContent('Experienced host')
+    expect(screen.getByRole('tooltip')).toHaveTextContent('Jane S has hosted 40 sessions')
+  })
+
   it('shows the tooltip content on hover and hides it again on mouse leave', async () => {
     const user = userEvent.setup()
     const reasons: ReasonBadgeData[] = [{ kind: 'streak', tooltip: ['5-week streak here'] }]

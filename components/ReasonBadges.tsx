@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 
-export type ReasonKind = "hosting" | "streak" | "lostStreak" | "sister"
+export type ReasonKind = "hosting" | "streak" | "lostStreak" | "sister" | "experiencedHost" | "popular" | "regulars"
 
 export interface ReasonBadgeData {
   kind: ReasonKind
@@ -14,6 +14,9 @@ const REASON_ICON: Record<ReasonKind, string> = {
   streak: "🔥",
   lostStreak: "💔",
   sister: "🤝",
+  experiencedHost: "⭐",
+  popular: "👥",
+  regulars: "🦔",
 }
 
 const REASON_LABEL: Record<ReasonKind, string> = {
@@ -21,6 +24,9 @@ const REASON_LABEL: Record<ReasonKind, string> = {
   streak: "Active streak",
   lostStreak: "Lost streak",
   sister: "Likely sister attendance",
+  experiencedHost: "Experienced host",
+  popular: "Popular session",
+  regulars: "Lots of regulars",
 }
 
 function ReasonBadge({ reason }: { reason: ReasonBadgeData }) {
