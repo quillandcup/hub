@@ -324,7 +324,7 @@ export async function requestToHost(
 
   if (error) return { error: error.message };
 
-  revalidatePath("/hosting");
+  revalidatePath("/my-prickles");
   return { success: true };
 }
 
@@ -389,7 +389,7 @@ export async function updateMySchedule(
 
   if (error) return { error: error.message };
 
-  revalidatePath("/hosting");
+  revalidatePath("/my-prickles");
   return { success: true };
 }
 
@@ -427,7 +427,7 @@ export async function withdrawMySchedule(id: string): Promise<{ success: true } 
 
   if (error) return { error: error.message };
 
-  revalidatePath("/hosting");
+  revalidatePath("/my-prickles");
   return { success: true };
 }
 

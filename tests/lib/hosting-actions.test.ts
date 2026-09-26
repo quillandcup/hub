@@ -23,6 +23,7 @@ vi.mock("next/cache", () => ({
 import { requestToHost, updateMySchedule, withdrawMySchedule } from "@/app/(member)/hosting/actions";
 import { createClient } from "@/lib/supabase/server";
 import { getEffectiveIdentity } from "@/lib/sudo";
+import { revalidatePath } from "next/cache";
 
 const IDENTITY = {
   memberId: "member-1",
@@ -184,6 +185,8 @@ describe("requestToHost", () => {
     expect(mock.__insert).toHaveBeenCalledWith(
       expect.objectContaining({ host_id: "member-1", status: "proposed" })
     );
+    // Hosting lives on the My Prickles "Hosting" tab (there's no standalone /hosting page).
+    expect(revalidatePath).toHaveBeenCalledWith("/my-prickles");
   });
 
   it("scopes the insert to the sudo'd member, not the real admin, while sudo'd", async () => {
@@ -333,6 +336,7 @@ describe("updateMySchedule", () => {
     const result = await updateMySchedule("s1", { notes: "new notes" });
     expect(result).toEqual({ success: true });
     expect(mock.__update).toHaveBeenCalledWith(expect.objectContaining({ notes: "new notes" }));
+    expect(revalidatePath).toHaveBeenCalledWith("/my-prickles");
   });
 
   it("never sends status or confirmed_* fields through, even if smuggled via `as any`", async () => {
@@ -386,5 +390,6 @@ describe("withdrawMySchedule", () => {
     expect(mock.__update).toHaveBeenCalledWith(
       expect.objectContaining({ deleted_at: expect.any(String), deleted_by: "auth-user-1" })
     );
+    expect(revalidatePath).toHaveBeenCalledWith("/my-prickles");
   });
 });

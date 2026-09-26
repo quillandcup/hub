@@ -686,7 +686,7 @@ export default function HostingScheduleManager({
   const nextSchedules = schedules.filter((s) => s.month === nextMonth);
 
   function handleChanged() {
-    // Server actions already revalidatePath('/hosting'); a full page refresh
+    // Server actions already revalidatePath('/my-prickles'); a full page refresh
     // picks up fresh server data. Simplest correct approach given this is a
     // client component holding its own copy of server-fetched data.
     window.location.reload();
