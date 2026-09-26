@@ -129,6 +129,36 @@ describe('Prickle Schedules Bootstrap API', () => {
     expect(body.skippedExisting).toBe(1)
   })
 
+  it('rejects a month that is not a first-of-month date', async () => {
+    const response = await fetch(`${getTestApiBaseUrl()}/api/prickle-schedules/bootstrap`, {
+      method: 'POST',
+      headers: { ...getTestAuthHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ month: '2026-10-15' }),
+    })
+    expect(response.status).toBe(400)
+  })
+
+  it('dry run for next month returns counts without writing', async () => {
+    const before = await supabase
+      .from('prickle_schedules')
+      .select('id', { count: 'exact', head: true })
+      .eq('host_id', memberId)
+    const response = await fetch(`${getTestApiBaseUrl()}/api/prickle-schedules/bootstrap`, {
+      method: 'POST',
+      headers: { ...getTestAuthHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ month: nextMonth, dryRun: true }),
+    })
+    expect(response.ok).toBe(true)
+    const body = await response.json()
+    expect(body).toMatchObject({ month: nextMonth, dryRun: true, copiedToNextMonth: 0 })
+
+    const after = await supabase
+      .from('prickle_schedules')
+      .select('id', { count: 'exact', head: true })
+      .eq('host_id', memberId)
+    expect(after.count).toBe(before.count)
+  })
+
   it('ignores prickles of types that do not require a host', async () => {
     await supabase.from('prickles').insert({
       type_id: noHostTypeId,

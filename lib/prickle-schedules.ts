@@ -271,30 +271,74 @@ interface BootstrapPrickleRow {
   start_time: string;
 }
 
+interface BootstrapExistingRow {
+  id: string;
+  host_id: string;
+  type_id: string;
+  recurrence_type: RecurrenceType;
+  day_of_week: number | null;
+  week_of_month: number | null;
+  status: ScheduleStatus;
+}
+
+export interface BootstrapOptions {
+  /**
+   * Also flip existing `proposed` rows (member requests or carried-forward
+   * rows) that the calendar confirms -- same host+type+recurrence+day/week --
+   * to `confirmed`. Off by default: a proposed row is a pending request an
+   * admin hasn't reviewed yet, so promoting it is an explicit choice.
+   * `confirmed` and `declined` rows are never touched either way.
+   */
+  confirmMatchingProposed?: boolean;
+  /** Compute and return the counts without writing anything (no insert, no confirm, no next-month seed). */
+  dryRun?: boolean;
+}
+
 export interface BootstrapResult {
+  /** New `confirmed` rows inserted (or that would be, on a dry run). */
   created: number;
+  /** Calendar slots that already had a row in the month and were left as-is. */
   skippedExisting: number;
+  /** Of skippedExisting, slots whose row is still `proposed` -- what confirmMatchingProposed confirms. */
+  matchingProposed: number;
+  /** Existing `proposed` rows flipped to `confirmed` (only with confirmMatchingProposed). */
+  confirmedExisting: number;
+  /**
+   * Existing recurring rows in the month with no matching slot on the
+   * calendar (e.g. a carried-forward slot the host has since dropped). Never
+   * deleted or declined automatically -- reported so an admin can review.
+   */
+  unmatchedExisting: number;
   copiedToNextMonth: number;
+  dryRun: boolean;
 }
 
 /**
- * "Bootstraps" prickle_schedules for `month` directly from prickles already
- * on the calendar, then immediately carries the result forward to next month
- * via seedNextMonthSchedules -- so admins don't have to wait for everyone to
- * self-declare a slot they're visibly already running. Groups calendar
- * prickles (requires_host types only) by host+type+local weekday, infers a
- * recurrence pattern per group (see inferRecurrenceFromDates), and inserts
- * each as an already-`confirmed` row -- this reflects what's actually
- * happening, not a pending request. Idempotent: skips any
- * host+type+recurrence+day/week combination that already has a row in
- * `month`, so it's safe to re-run (e.g. after fixing a miscategorized slot
- * by hand).
+ * "Bootstraps" (backports) prickle_schedules for `month` directly from
+ * prickles already on the calendar, then immediately carries the result
+ * forward to next month via seedNextMonthSchedules -- so admins don't have to
+ * wait for everyone to self-declare a slot they're visibly already running.
+ * Works for any month the calendar sync covers (the daily sync pulls 90 days
+ * ahead), e.g. next month once it's been locked in on Google Calendar.
+ * Groups calendar prickles (requires_host types only) by host+type+local
+ * weekday, infers a recurrence pattern per group (see
+ * inferRecurrenceFromDates), and inserts each as an already-`confirmed` row
+ * -- this reflects what's actually happening, not a pending request.
+ *
+ * Idempotent and additive: skips any host+type+recurrence+day/week
+ * combination that already has a row in `month` (whatever its status), and
+ * never deletes, declines or edits an existing row -- except flipping
+ * matching `proposed` rows to `confirmed` when opts.confirmMatchingProposed
+ * is set. Safe to re-run (e.g. after the calendar changes, or after fixing a
+ * miscategorized slot by hand).
  */
 export async function bootstrapMonthFromCalendar(
   supabase: SupabaseClient,
   month: string,
-  confirmedBy: string | null
+  confirmedBy: string | null,
+  opts: BootstrapOptions = {}
 ): Promise<BootstrapResult> {
+  const { confirmMatchingProposed = false, dryRun = false } = opts;
   const monthStart = new Date(`${month}T00:00:00Z`);
   const monthEnd = getMonthEnd(monthStart);
   const nextMonth = getNextMonthStart(monthStart).toISOString().slice(0, 10);
@@ -312,7 +356,7 @@ export async function bootstrapMonthFromCalendar(
       .order("start_time", { ascending: true }),
     supabase
       .from("prickle_schedules")
-      .select("host_id, type_id, recurrence_type, day_of_week, week_of_month")
+      .select("id, host_id, type_id, recurrence_type, day_of_week, week_of_month, status")
       .eq("month", month)
       .is("deleted_at", null),
   ]);
@@ -332,18 +376,39 @@ export async function bootstrapMonthFromCalendar(
     }
   }
 
-  const existingKeys = new Set(
-    (existingRows ?? []).map((r) => [r.host_id, r.type_id, r.recurrence_type, r.day_of_week, r.week_of_month].join("|"))
-  );
+  const existing = (existingRows ?? []) as BootstrapExistingRow[];
+  const existingByKey = new Map<string, BootstrapExistingRow[]>();
+  for (const row of existing) {
+    const key = continuationKey(row);
+    existingByKey.set(key, [...(existingByKey.get(key) ?? []), row]);
+  }
 
+  const now = new Date().toISOString();
   const toInsert: Record<string, unknown>[] = [];
+  const toConfirmIds: string[] = [];
+  const calendarKeys = new Set<string>();
   let skippedExisting = 0;
+  let matchingProposed = 0;
   for (const group of groups.values()) {
     const inferred = inferRecurrenceFromDates(group.dates, monthStart, monthEnd);
     if (!inferred) continue;
-    const key = [group.host_id, group.type_id, inferred.recurrenceType, inferred.dayOfWeek, inferred.weekOfMonth].join("|");
-    if (existingKeys.has(key)) {
+    const key = continuationKey({
+      host_id: group.host_id,
+      type_id: group.type_id,
+      recurrence_type: inferred.recurrenceType,
+      day_of_week: inferred.dayOfWeek,
+      week_of_month: inferred.weekOfMonth,
+    });
+    calendarKeys.add(key);
+    const matches = existingByKey.get(key);
+    if (matches) {
       skippedExisting++;
+      // A declined row for the same slot is an explicit admin decision -- never override it.
+      const proposed = matches.filter((r) => r.status === "proposed");
+      if (proposed.length > 0 && !matches.some((r) => r.status === "declined")) {
+        matchingProposed++;
+        if (confirmMatchingProposed) toConfirmIds.push(...proposed.map((r) => r.id));
+      }
       continue;
     }
     toInsert.push({
@@ -358,19 +423,40 @@ export async function bootstrapMonthFromCalendar(
       timezone: BOOTSTRAP_TIMEZONE,
       status: "confirmed",
       confirmed_by: confirmedBy,
-      confirmed_at: new Date().toISOString(),
+      confirmed_at: now,
       notes: "Bootstrapped from the calendar",
     });
   }
+
+  const result: BootstrapResult = {
+    created: toInsert.length,
+    skippedExisting,
+    matchingProposed,
+    confirmedExisting: 0,
+    unmatchedExisting: existing.filter((r) => r.recurrence_type !== "one_off" && !calendarKeys.has(continuationKey(r)))
+      .length,
+    copiedToNextMonth: 0,
+    dryRun,
+  };
+  if (dryRun) return result;
 
   if (toInsert.length > 0) {
     const { error } = await supabase.from("prickle_schedules").insert(toInsert);
     if (error) throw new Error(error.message);
   }
 
-  const copiedToNextMonth = await seedNextMonthSchedules(supabase, month, nextMonth);
+  if (toConfirmIds.length > 0) {
+    const { error } = await supabase
+      .from("prickle_schedules")
+      .update({ status: "confirmed", confirmed_by: confirmedBy, confirmed_at: now, updated_by: confirmedBy, updated_at: now })
+      .in("id", toConfirmIds)
+      .eq("status", "proposed");
+    if (error) throw new Error(error.message);
+    result.confirmedExisting = toConfirmIds.length;
+  }
 
-  return { created: toInsert.length, skippedExisting, copiedToNextMonth };
+  result.copiedToNextMonth = await seedNextMonthSchedules(supabase, month, nextMonth);
+  return result;
 }
 
 /** Stat-row counts for the member/admin month views. */
