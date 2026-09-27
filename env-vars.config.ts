@@ -352,13 +352,13 @@ export const ENV_VARS: readonly EnvVarSpec[] = [
     destinations: [{ kind: "github", type: "secret" }],
   },
 
-  // --- Ops-only: read directly from .env.prod by local scripts, not synced anywhere -------
+  // --- Supabase config push: read by `supabase config push` locally and in CI, never by the app ---
   {
     name: "RESEND_API_KEY",
-    group: "Ops (local scripts only)",
+    group: "Supabase config push (local + CI)",
     description:
-      "SMTP auth for Supabase Auth emails. Read by `npm run config:push` (supabase config push) via config.toml's env(RESEND_API_KEY); the app itself never reads it, so it isn't synced to Vercel.",
+      "SMTP auth for Supabase Auth emails. Read by `supabase config push` (`npm run config:push` locally, and CI's push-migrations job on every push to main) via config.toml's env(RESEND_API_KEY). CI refuses to push config without it, since the push would otherwise overwrite production's SMTP password. The app itself never reads it, so it isn't synced to Vercel.",
     secret: true,
-    destinations: [],
+    destinations: [{ kind: "github", type: "secret" }],
   },
 ];
