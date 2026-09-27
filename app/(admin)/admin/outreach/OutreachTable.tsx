@@ -5,9 +5,8 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import MemberAvatar from "@/app/(member)/members/[id]/MemberAvatar";
 import { SortableTh } from "@/components/SortableTh";
-import { useTableSort } from "@/lib/hooks/useTableSort";
-import { Pagination } from "@/components/Pagination";
-import { usePagination } from "@/lib/hooks/usePagination";
+import { useDataTable } from "@/lib/hooks/useDataTable";
+import { DataTablePager } from "@/components/DataTablePager";
 import { etDate } from "@/lib/community-stats";
 
 export type LeadStatus = "hot" | "warm" | "cold";
@@ -168,18 +167,12 @@ export default function OutreachTable({ leads, initialTodayCount }: OutreachTabl
   const [viewMode, setViewMode] = useState<ViewMode>("queue");
   const [doneForToday, setDoneForToday] = useState(false);
 
-  const { sortColumn, sortDirection, handleSort, sortedRows } = useTableSort<OutreachLead, SortColumn>({
-    rows,
-    getSortValue,
-    defaultSort: { column: "outreachStatus", direction: "asc" },
-  });
-
   const todaysQueueIds = useMemo(() => {
     const queue = selectTodaysQueue(rows, includeFormerMembers, DAILY_OUTREACH_GOAL);
     return new Set(queue.map((lead) => lead.id));
   }, [rows, includeFormerMembers]);
 
-  const visibleRows = sortedRows.filter((lead) => {
+  const visibleRows = rows.filter((lead) => {
     if (viewMode === "queue") {
       if (!todaysQueueIds.has(lead.id)) return false;
       if (doneForToday && !isTouchedToday(lead.lastTouchedAt)) return false;
@@ -190,10 +183,13 @@ export default function OutreachTable({ leads, initialTodayCount }: OutreachTabl
     return true;
   });
   // The daily queue is capped at DAILY_OUTREACH_GOAL, so only "All leads" pages in practice.
-  const pagination = usePagination({
+  const table = useDataTable<OutreachLead, SortColumn>({
     rows: visibleRows,
-    resetKey: `${viewMode}:${sortColumn}:${sortDirection}:${instagramOnly}:${includeFormerMembers}`,
+    getSortValue,
+    defaultSort: { column: "outreachStatus", direction: "asc" },
+    resetKey: `${viewMode}:${instagramOnly}:${includeFormerMembers}:${doneForToday}`,
   });
+  const { sortColumn, sortDirection, handleSort } = table;
 
   const updateStatus = async (memberId: string, status: LeadStatus) => {
     setBusyId(memberId);
@@ -372,7 +368,7 @@ export default function OutreachTable({ leads, initialTodayCount }: OutreachTabl
                 </td>
               </tr>
             )}
-            {pagination.pageRows.map((lead) => {
+            {table.rows.map((lead) => {
               const handle = instagramHandle(lead.instagramUrl);
               const busy = busyId === lead.id;
               return (
@@ -457,7 +453,7 @@ export default function OutreachTable({ leads, initialTodayCount }: OutreachTabl
             })}
           </tbody>
         </table>
-        <Pagination {...pagination.paginationProps} itemLabel="leads" />
+        <DataTablePager table={table} itemLabel="leads" />
       </div>
     </div>
   );

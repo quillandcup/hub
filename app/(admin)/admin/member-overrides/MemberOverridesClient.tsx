@@ -6,7 +6,9 @@ import MemberOverrideForm, { type MemberOverrideFields } from "@/components/Memb
 import MemberSearch from "@/components/MemberSearch";
 import { parseDateOnly } from "@/lib/member-tenure";
 import { SortableTh } from "@/components/SortableTh";
-import { useTableSort, type SortValue } from "@/lib/hooks/useTableSort";
+import { useDataTable } from "@/lib/hooks/useDataTable";
+import type { SortValue } from "@/lib/hooks/useTableSort";
+import { DataTablePager } from "@/components/DataTablePager";
 
 interface Member {
   id: string;
@@ -52,11 +54,16 @@ export default function MemberOverridesClient() {
   // can render.
   const [resolvedMember, setResolvedMember] = useState<Member | null>(null);
   const [allMembers, setAllMembers] = useState<Member[]>([]);
-  const { sortColumn, sortDirection, handleSort, sortedRows } = useTableSort<MemberOverride, SortColumn>({
-    rows: overrides,
+  // Filter first, then sort + page the result.
+  const filteredOverrides =
+    typeFilter === "all" ? overrides : overrides.filter((o) => o.override_type === typeFilter);
+  const table = useDataTable<MemberOverride, SortColumn>({
+    rows: filteredOverrides,
     getSortValue,
     defaultSort: null,
+    resetKey: typeFilter,
   });
+  const { sortColumn, sortDirection, handleSort } = table;
 
   useEffect(() => {
     fetchOverrides();
@@ -134,7 +141,6 @@ export default function MemberOverridesClient() {
     );
   }
 
-  const filteredOverrides = typeFilter === "all" ? sortedRows : sortedRows.filter((o) => o.override_type === typeFilter);
 
   return (
     <div className="p-8">
@@ -278,7 +284,7 @@ export default function MemberOverridesClient() {
                 </td>
               </tr>
             ) : (
-              filteredOverrides.map((override) => (
+              table.rows.map((override) => (
                 <tr key={override.id} className="hover:bg-gray-50 dark:hover:bg-slate-800">
                   <td className="px-4 py-3">
                     <Link
@@ -338,6 +344,7 @@ export default function MemberOverridesClient() {
             )}
           </tbody>
         </table>
+        <DataTablePager table={table} itemLabel="overrides" />
       </div>
     </div>
   );

@@ -2,6 +2,7 @@
 
 import { WebClient } from "@slack/web-api";
 import { createClient } from "@/lib/supabase/server";
+import { createServiceRoleClient } from "@/lib/supabase/service";
 import { getCurrentUser } from "@/lib/auth";
 import { getEffectiveIdentity } from "@/lib/sudo";
 import { matchSlackUsersToMembers } from "@/lib/slack-matching";
@@ -16,7 +17,6 @@ const BATCH_SIZE = 1000;
 const SLACK_ACTIVITY_WINDOW_DAYS = 45;
 const REEL_SLOT_COUNT = 8;
 
-type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
 
 async function fetchAllPaginated<T>(
   queryFn: (offset: number) => PromiseLike<{ data: T[] | null }>
@@ -64,10 +64,15 @@ interface CandidatePoolResult {
   viewerSlackUserId: string | null;
 }
 
-async function loadCandidatePool(
-  supabase: SupabaseClient,
-  viewerMemberId: string
-): Promise<CandidatePoolResult> {
+/**
+ * Builds the candidate pool from community-wide data a member session can't read under RLS
+ * (other members' emails and status, everyone's Slack activity and aliases, bronze.slack_users),
+ * so it runs server-side with the service role. Only the pool's non-sensitive fields (member id,
+ * name, photo, Slack user id, derived counts) are used by callers, and only the winner/reel
+ * names and photos reach the client.
+ */
+async function loadCandidatePool(viewerMemberId: string): Promise<CandidatePoolResult> {
+  const supabase = createServiceRoleClient();
   const activityWindowStart = new Date(
     Date.now() - SLACK_ACTIVITY_WINDOW_DAYS * 24 * 60 * 60 * 1000
   ).toISOString();
@@ -176,7 +181,7 @@ export async function spinWheel(): Promise<WheelSpinResponse> {
   const slackToken = process.env.SLACK_BOT_TOKEN;
   if (!slackToken) return { error: "Slack isn't configured for this workspace yet" };
 
-  const { pool, viewerSlackUserId } = await loadCandidatePool(supabase, effectiveIdentity.memberId);
+  const { pool, viewerSlackUserId } = await loadCandidatePool(effectiveIdentity.memberId);
   if (pool.length === 0) return { noOneAvailable: true };
 
   const slack = new WebClient(slackToken);

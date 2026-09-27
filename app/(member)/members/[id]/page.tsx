@@ -28,7 +28,7 @@ const HOSTING_SCHEDULE_WINDOW_DAYS = 35
 const getMember = cache(async (id: string) => {
   const supabase = await createClient()
   const { data } = await supabase
-    .from("members")
+    .from("member_directory")
     .select(
       "id, name, display_name, joined_at, first_joined_at, most_recent_joined_at, total_active_months, photo_url, bio, instagram_url, facebook_url, twitter_url"
     )

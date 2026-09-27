@@ -6,7 +6,9 @@ import Link from "next/link";
 import type { WorkQueueItem, WorkQueueType } from "@/lib/admin-work-queue";
 import { parseDateOnly } from "@/lib/member-tenure";
 import { SortableTh } from "@/components/SortableTh";
-import { useTableSort, type SortValue } from "@/lib/hooks/useTableSort";
+import { useDataTable } from "@/lib/hooks/useDataTable";
+import type { SortValue } from "@/lib/hooks/useTableSort";
+import { DataTablePager } from "@/components/DataTablePager";
 
 interface WorkQueueSectionsProps {
   welcomeBackQueue: WorkQueueItem[];
@@ -191,11 +193,12 @@ function QueueSection({ items }: { items: WorkQueueItem[] }) {
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [undoable, setUndoable] = useState<{ id: string; key: string } | null>(null);
-  const { sortColumn, sortDirection, handleSort, sortedRows } = useTableSort<WorkQueueItem, SortColumn>({
+  const table = useDataTable<WorkQueueItem, SortColumn>({
     rows: items,
     getSortValue,
     defaultSort: { column: "deadline", direction: "asc" },
   });
+  const { sortColumn, sortDirection, handleSort } = table;
 
   if (items.length === 0) return null;
   const meta = SECTION_META[items[0].queueType];
@@ -331,7 +334,7 @@ function QueueSection({ items }: { items: WorkQueueItem[] }) {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
-            {sortedRows.map((item) => (
+            {table.rows.map((item) => (
               <QueueRow
                 key={rowKey(item)}
                 item={item}
@@ -344,6 +347,7 @@ function QueueSection({ items }: { items: WorkQueueItem[] }) {
             ))}
           </tbody>
         </table>
+        <DataTablePager table={table} itemLabel="items" />
       </div>
     </div>
   );

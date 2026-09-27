@@ -4,7 +4,9 @@ import { useEffect, useState } from "react";
 import MemberSearch from "@/components/MemberSearch";
 import MultiSelectSearch from "@/components/MultiSelectSearch";
 import { SortableTh } from "@/components/SortableTh";
-import { useTableSort, type SortValue } from "@/lib/hooks/useTableSort";
+import { useDataTable } from "@/lib/hooks/useDataTable";
+import type { SortValue } from "@/lib/hooks/useTableSort";
+import { DataTablePager } from "@/components/DataTablePager";
 
 interface Member {
   id: string;
@@ -93,16 +95,12 @@ export default function ProgramDetailClient({ programId }: { programId: string }
   const [data, setData] = useState<ProgramDetailData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const {
-    sortColumn,
-    sortDirection,
-    handleSort,
-    sortedRows: sortedLeakage,
-  } = useTableSort<LeakageRow, LeakageSortColumn>({
+  const table = useDataTable<LeakageRow, LeakageSortColumn>({
     rows: data?.leakage ?? NO_LEAKAGE,
     getSortValue: leakageSortValue,
     defaultSort: null,
   });
+  const { sortColumn, sortDirection, handleSort } = table;
 
   const [showCohortForm, setShowCohortForm] = useState(false);
   const [cohortForm, setCohortForm] = useState({ name: "", starts_at: "", expires_at: "", notes: "" });
@@ -419,7 +417,7 @@ export default function ProgramDetailClient({ programId }: { programId: string }
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200 dark:divide-slate-800">
-                {sortedLeakage.map((row) => (
+                {table.rows.map((row) => (
                   <tr key={row.member_id}>
                     <td className="px-4 py-2">
                       <div className="font-medium">{row.member_name}</div>
@@ -433,6 +431,7 @@ export default function ProgramDetailClient({ programId }: { programId: string }
                 ))}
               </tbody>
             </table>
+            <DataTablePager table={table} itemLabel="members" />
           </div>
         </section>
       )}

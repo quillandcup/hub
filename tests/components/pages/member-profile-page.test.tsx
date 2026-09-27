@@ -88,7 +88,7 @@ const SLOT: HostedScheduleSlot = {
 const params = { params: Promise.resolve({ id: PROFILE_ID }) };
 
 function tables(extra: FakeTables = {}): FakeTables {
-  return { members: { data: HAZEL }, ...extra };
+  return { member_directory: { data: HAZEL }, ...extra };
 }
 
 beforeEach(() => {

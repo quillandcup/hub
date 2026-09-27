@@ -11,6 +11,10 @@ import {
   type ScheduleStatus,
 } from "@/lib/prickle-schedules";
 import type { HostEligibility } from "@/lib/host-eligibility";
+import { SortableTh } from "@/components/SortableTh";
+import { DataTablePager } from "@/components/DataTablePager";
+import { useDataTable } from "@/lib/hooks/useDataTable";
+import type { SortValue } from "@/lib/hooks/useTableSort";
 
 interface Member {
   id: string;
@@ -92,6 +96,34 @@ const STATUS_STYLES: Record<ScheduleStatus, string> = {
   confirmed: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-300",
   declined: "bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300",
 };
+
+type ScheduleSortColumn = "host" | "schedule" | "status";
+
+const STATUS_ORDER: Record<ScheduleStatus, number> = { proposed: 0, confirmed: 1, declined: 2 };
+
+function scheduleLabel(s: Schedule): string {
+  return formatScheduleLabel(s.prickle_type.name, {
+    recurrenceType: s.recurrence_type,
+    dayOfWeek: s.day_of_week,
+    recurrenceAnchorDate: s.recurrence_anchor_date,
+    weekOfMonth: s.week_of_month,
+    eventDate: s.event_date,
+    startTimeLocal: s.start_time_local,
+    timezone: s.timezone,
+  });
+}
+
+function scheduleSortValue(s: Schedule, column: ScheduleSortColumn): SortValue {
+  switch (column) {
+    case "host":
+      return s.member.name.toLowerCase();
+    case "schedule":
+      return scheduleLabel(s).toLowerCase();
+    case "status":
+      // Ascending puts proposed (needs a decision) first.
+      return STATUS_ORDER[s.status];
+  }
+}
 
 const EMPTY_NEW_FORM = {
   hostEmail: "",
@@ -327,6 +359,12 @@ export default function HostsClient({ prickleTypes }: { prickleTypes: PrickleTyp
   }
 
   const monthSchedules = schedules[month] ?? [];
+  const table = useDataTable<Schedule, ScheduleSortColumn>({
+    rows: monthSchedules,
+    getSortValue: scheduleSortValue,
+    defaultSort: null,
+    resetKey: month,
+  });
 
   return (
     <div className="p-8">
@@ -575,9 +613,9 @@ export default function HostsClient({ prickleTypes }: { prickleTypes: PrickleTyp
         <table className="w-full">
           <thead className="bg-gray-50 dark:bg-slate-800">
             <tr>
-              <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-slate-300">Host</th>
-              <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-slate-300">Schedule</th>
-              <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-slate-300">Status</th>
+              <SortableTh label="Host" className="px-4 py-3 text-sm font-medium text-gray-700 dark:text-slate-300" {...table.sortProps("host")} />
+              <SortableTh label="Schedule" className="px-4 py-3 text-sm font-medium text-gray-700 dark:text-slate-300" {...table.sortProps("schedule")} />
+              <SortableTh label="Status" className="px-4 py-3 text-sm font-medium text-gray-700 dark:text-slate-300" {...table.sortProps("status")} />
               <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-slate-300">Actions</th>
             </tr>
           </thead>
@@ -595,7 +633,7 @@ export default function HostsClient({ prickleTypes }: { prickleTypes: PrickleTyp
                 </td>
               </tr>
             ) : (
-              monthSchedules.map((s) => (
+              table.rows.map((s) => (
                 <tr key={s.id} className="hover:bg-gray-50 dark:hover:bg-slate-800">
                   <td className="px-4 py-3">
                     <div className="font-medium dark:text-slate-100">{s.member.name}</div>
@@ -603,17 +641,7 @@ export default function HostsClient({ prickleTypes }: { prickleTypes: PrickleTyp
                     <HostEligibilityBadge eligibility={s.host_eligibility} />
                   </td>
                   <td className="px-4 py-3">
-                    <div className="text-sm dark:text-slate-200">
-                      {formatScheduleLabel(s.prickle_type.name, {
-                        recurrenceType: s.recurrence_type,
-                        dayOfWeek: s.day_of_week,
-                        recurrenceAnchorDate: s.recurrence_anchor_date,
-                        weekOfMonth: s.week_of_month,
-                        eventDate: s.event_date,
-                        startTimeLocal: s.start_time_local,
-                        timezone: s.timezone,
-                      })}
-                    </div>
+                    <div className="text-sm dark:text-slate-200">{scheduleLabel(s)}</div>
                     {s.carried_forward_from && (
                       <div className="text-xs text-gray-400 dark:text-slate-500">carried forward from last month</div>
                     )}
@@ -644,6 +672,7 @@ export default function HostsClient({ prickleTypes }: { prickleTypes: PrickleTyp
             )}
           </tbody>
         </table>
+        <DataTablePager table={table} itemLabel="schedules" />
       </div>
     </div>
   );

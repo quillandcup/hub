@@ -65,8 +65,8 @@ import MyPricklesPage from "@/app/(member)/my-prickles/page";
 import { getRankedUpcomingPrickles } from "@/lib/upcoming-prickles";
 
 const OTHER_MEMBERS = [
-  { id: "member-fern", name: "Fern Quillsby", email: "fern.quillsby@example.test" },
-  { id: "member-hazel", name: "Hazel Burrowes", email: "hazel.burrowes@example.test" },
+  { id: "member-fern", name: "Fern Quillsby" },
+  { id: "member-hazel", name: "Hazel Burrowes" },
 ];
 
 // Roles keyed by the queried user id, so only ADMIN_USER resolves to an admin profile.
@@ -81,7 +81,7 @@ const myPricklesProps = (tab?: string) => ({ searchParams: Promise.resolve(tab ?
 beforeEach(() => {
   resetServerPageMocks();
   signInAs(MEMBER_USER, MEMBER_IDENTITY);
-  useFakeSupabase({ members: { data: OTHER_MEMBERS } });
+  useFakeSupabase({ member_directory: { data: OTHER_MEMBERS } });
 });
 
 describe("retired feature flags: pages render for a member with no feature previews", () => {

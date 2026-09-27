@@ -17,7 +17,9 @@ import type {
   EmojiEntry,
 } from "@/lib/slack-engagement-stats"
 import { SortableTh } from "@/components/SortableTh"
-import { useTableSort, type SortValue } from "@/lib/hooks/useTableSort"
+import { useDataTable } from "@/lib/hooks/useDataTable"
+import type { SortValue } from "@/lib/hooks/useTableSort"
+import { DataTablePager } from "@/components/DataTablePager"
 
 interface Props {
   heatmap: HeatCell[]
@@ -206,11 +208,12 @@ function channelSortValue(c: ChannelEngagement, column: ChannelSortColumn): Sort
 }
 
 function ChannelBreakdownTable({ channels }: { channels: ChannelEngagement[] }) {
-  const { sortColumn, sortDirection, handleSort, sortedRows } = useTableSort<ChannelEngagement, ChannelSortColumn>({
+  const table = useDataTable<ChannelEngagement, ChannelSortColumn>({
     rows: channels,
     getSortValue: channelSortValue,
     defaultSort: null,
   })
+  const { sortColumn, sortDirection, handleSort } = table
 
   return (
     <div className="overflow-x-auto">
@@ -274,7 +277,7 @@ function ChannelBreakdownTable({ channels }: { channels: ChannelEngagement[] }) 
           </tr>
         </thead>
         <tbody>
-          {sortedRows.map((c) => (
+          {table.rows.map((c) => (
             <tr
               key={c.channelId}
               className="border-b border-slate-100 dark:border-slate-800/50"
@@ -300,6 +303,7 @@ function ChannelBreakdownTable({ channels }: { channels: ChannelEngagement[] }) 
           ))}
         </tbody>
       </table>
+      <DataTablePager table={table} itemLabel="channels" />
     </div>
   )
 }
@@ -311,11 +315,12 @@ function archivalSortValue(c: ArchivalCandidate, column: ArchivalSortColumn): So
 }
 
 function ArchivalCandidatesTable({ candidates }: { candidates: ArchivalCandidate[] }) {
-  const { sortColumn, sortDirection, handleSort, sortedRows } = useTableSort<ArchivalCandidate, ArchivalSortColumn>({
+  const table = useDataTable<ArchivalCandidate, ArchivalSortColumn>({
     rows: candidates,
     getSortValue: archivalSortValue,
     defaultSort: null,
   })
+  const { sortColumn, sortDirection, handleSort } = table
 
   return (
     <div className="overflow-x-auto">
@@ -363,7 +368,7 @@ function ArchivalCandidatesTable({ candidates }: { candidates: ArchivalCandidate
           </tr>
         </thead>
         <tbody>
-          {sortedRows.map((c) => (
+          {table.rows.map((c) => (
             <tr
               key={c.channelId}
               className="border-b border-slate-100 dark:border-slate-800/50"
@@ -385,6 +390,7 @@ function ArchivalCandidatesTable({ candidates }: { candidates: ArchivalCandidate
           ))}
         </tbody>
       </table>
+      <DataTablePager table={table} itemLabel="channels" />
     </div>
   )
 }

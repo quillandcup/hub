@@ -42,7 +42,7 @@ describe('Pagination', () => {
   })
 })
 
-// Client-side paging wired into a sortable table (usePagination after useTableSort).
+// Auto-pagination via useDataTable on a real table.
 describe('client-side paging on HedgieversariesTable', () => {
   // 60 fictional members; first-joined dates ascend with the index.
   const rows: HedgieversaryRow[] = Array.from({ length: 60 }, (_, i) => ({

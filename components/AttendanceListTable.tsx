@@ -4,7 +4,8 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { SortableTh } from "@/components/SortableTh";
-import { useTableSort, type SortValue } from "@/lib/hooks/useTableSort";
+import { useDataTable } from "@/lib/hooks/useDataTable";
+import type { SortValue } from "@/lib/hooks/useTableSort";
 
 interface Props {
   attendance: any[];
@@ -56,10 +57,12 @@ export default function AttendanceListTable({
   prickleBasePath = "/prickles",
 }: Props) {
   const router = useRouter();
-  const { sortColumn, sortDirection, handleSort, sortedRows } = useTableSort<any, SortColumn>({
+  // Grouped by date and scrolled into from the month grid, so it never pages.
+  const { sortColumn, sortDirection, handleSort, rows: sortedRows } = useDataTable<any, SortColumn>({
     rows: attendance,
     getSortValue,
     defaultSort: null,
+    paginate: false,
   });
 
   const byDate = new Map<string, any[]>();

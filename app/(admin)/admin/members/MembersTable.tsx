@@ -5,7 +5,8 @@ import Link from "next/link";
 import BulkMergeMemberModal from "./BulkMergeMemberModal";
 import { SortableTh } from "@/components/SortableTh";
 import { MemberStatusBadge, type MemberStatus } from "@/components/MemberStatusBadge";
-import { useTableSort, type SortDirection } from "@/lib/hooks/useTableSort";
+import { DataTablePager } from "@/components/DataTablePager";
+import { useDataTable, type DataTable } from "@/lib/hooks/useDataTable";
 import type { MemberSortColumn } from "@/lib/admin-members-paging";
 
 export interface MemberRow {
@@ -27,13 +28,10 @@ export interface MemberRow {
 
 interface MembersTableProps {
   members: MemberRow[];
-  // Controlled (server-side) sort: `members` arrive already ordered by the
-  // query and header clicks are reported instead of re-sorting in memory.
-  sort?: {
-    sortColumn: SortColumn | null;
-    sortDirection: SortDirection;
-    onSort: (column: SortColumn) => void;
-  };
+  // Server mode (see PagedMembersTable): a useServerDataTable whose rows are
+  // the page the query already sorted and ranged. Without it the table sorts
+  // and auto-paginates `members` in memory.
+  table?: DataTable<MemberRow, SortColumn>;
 }
 
 
@@ -78,18 +76,16 @@ function getSortValue(member: MemberRow, column: SortColumn): string | number {
   }
 }
 
-export default function MembersTable({ members, sort }: MembersTableProps) {
+export default function MembersTable({ members, table: serverTable }: MembersTableProps) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [mergeModalOpen, setMergeModalOpen] = useState(false);
-  const localSort = useTableSort<MemberRow, SortColumn>({
+  const localTable = useDataTable<MemberRow, SortColumn>({
     rows: members,
     getSortValue,
     defaultSort: null,
   });
-  const sortColumn = sort ? sort.sortColumn : localSort.sortColumn;
-  const sortDirection = sort ? sort.sortDirection : localSort.sortDirection;
-  const handleSort = sort ? sort.onSort : localSort.handleSort;
-  const sortedMembers = sort ? members : localSort.sortedRows;
+  const table = serverTable ?? localTable;
+  const { sortColumn, sortDirection, handleSort } = table;
 
   const allSelected = members.length > 0 && selectedIds.size === members.length;
   const someSelected = selectedIds.size > 0 && selectedIds.size < members.length;
@@ -209,7 +205,7 @@ export default function MembersTable({ members, sort }: MembersTableProps) {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
-            {sortedMembers.map((member) => (
+            {table.rows.map((member) => (
               <tr
                 key={member.id}
                 className={`hover:bg-slate-50 dark:hover:bg-slate-800 ${selectedIds.has(member.id) ? "bg-blue-50 dark:bg-blue-950/20" : ""}`}
@@ -259,6 +255,7 @@ export default function MembersTable({ members, sort }: MembersTableProps) {
           </tbody>
         </table>
       </div>
+      <DataTablePager table={table} itemLabel="members" />
 
       {mergeModalOpen && selectedMembers.length >= 2 && (
         <BulkMergeMemberModal

@@ -3,7 +3,9 @@
 import { useState } from "react";
 import { slackEmojiToUnicode, formatSlackPermalink } from "@/lib/slack-emoji";
 import { SortableTh } from "@/components/SortableTh";
-import { useTableSort, type SortValue } from "@/lib/hooks/useTableSort";
+import { useDataTable } from "@/lib/hooks/useDataTable";
+import type { SortValue } from "@/lib/hooks/useTableSort";
+import { DataTablePager } from "@/components/DataTablePager";
 
 interface MemberSlackActivityPanelProps {
   slackActivities: any[];
@@ -30,12 +32,24 @@ function getSortValue(activity: any, column: SortColumn): SortValue {
 export default function MemberSlackActivityPanel({ slackActivities }: MemberSlackActivityPanelProps) {
   const [slackActivityFilter, setSlackActivityFilter] = useState<"all" | "messages" | "reactions">("all");
   const [slackChannelFilter, setSlackChannelFilter] = useState<string | null>(null);
-  const [showAllSlackActivities, setShowAllSlackActivities] = useState(false);
-  const { sortColumn, sortDirection, handleSort, sortedRows } = useTableSort<any, SortColumn>({
-    rows: slackActivities,
+  const filteredActivities = slackActivities
+    .filter((activity: any) => {
+      if (slackActivityFilter === "messages") {
+        return activity.activity_type === "slack_message" || activity.activity_type === "slack_thread_reply";
+      } else if (slackActivityFilter === "reactions") {
+        return activity.activity_type === "slack_reaction";
+      }
+      return true; // "all" shows everything
+    })
+    .filter((activity: any) => !slackChannelFilter || activity.data?.channel_name === slackChannelFilter);
+  // Standard table paging replaces the old "first 20 / Show all" toggle.
+  const table = useDataTable<any, SortColumn>({
+    rows: filteredActivities,
     getSortValue,
     defaultSort: { column: "date", direction: "desc" },
+    resetKey: `${slackActivityFilter}:${slackChannelFilter}`,
   });
+  const { sortColumn, sortDirection, handleSort } = table;
 
   const slackStats = {
     totalMessages: slackActivities.filter(a => a.activity_type === 'slack_message' || a.activity_type === 'slack_thread_reply').length,
@@ -194,24 +208,7 @@ export default function MemberSlackActivityPanel({ slackActivities }: MemberSlac
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
-                  {sortedRows
-                    .filter((activity: any) => {
-                      // Filter by activity type
-                      if (slackActivityFilter === "messages") {
-                        return activity.activity_type === 'slack_message' || activity.activity_type === 'slack_thread_reply';
-                      } else if (slackActivityFilter === "reactions") {
-                        return activity.activity_type === 'slack_reaction';
-                      }
-                      return true; // "all" shows everything
-                    })
-                    .filter((activity: any) => {
-                      // Filter by channel
-                      if (slackChannelFilter) {
-                        return activity.data?.channel_name === slackChannelFilter;
-                      }
-                      return true;
-                    })
-                    .slice(0, showAllSlackActivities ? undefined : 20)
+                  {table.rows
                     .map((activity: any) => {
                     const occurred = new Date(activity.occurred_at);
                     const isMessage = activity.activity_type === 'slack_message' || activity.activity_type === 'slack_thread_reply';
@@ -305,36 +302,7 @@ export default function MemberSlackActivityPanel({ slackActivities }: MemberSlac
                 </tbody>
               </table>
             </div>
-            {(() => {
-              const filteredActivities = slackActivities
-                .filter((activity: any) => {
-                  if (slackActivityFilter === "messages") {
-                    return activity.activity_type === 'slack_message' || activity.activity_type === 'slack_thread_reply';
-                  } else if (slackActivityFilter === "reactions") {
-                    return activity.activity_type === 'slack_reaction';
-                  }
-                  return true;
-                })
-                .filter((activity: any) => {
-                  if (slackChannelFilter) {
-                    return activity.data?.channel_name === slackChannelFilter;
-                  }
-                  return true;
-                });
-
-              return filteredActivities.length > 20 && (
-                <div className="mt-3 text-center">
-                  <button
-                    onClick={() => setShowAllSlackActivities(!showAllSlackActivities)}
-                    className="text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 hover:underline"
-                  >
-                    {showAllSlackActivities
-                      ? "Show less"
-                      : `Show all ${filteredActivities.length} activities`}
-                  </button>
-                </div>
-              );
-            })()}
+            <DataTablePager table={table} itemLabel="activities" />
           </div>
         </div>
       ) : (

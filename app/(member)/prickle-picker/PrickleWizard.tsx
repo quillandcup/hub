@@ -9,7 +9,7 @@ import type { PickerRecommendation, TimeOfDay, VibePreference, PurposePreference
 interface Member {
   id: string;
   name: string;
-  email: string;
+  email?: string;
 }
 
 interface PrickleWizardProps {
