@@ -48,7 +48,7 @@ describe("getAppRoleFromAccessToken", () => {
     expect(getAppRoleFromAccessToken(makeJwt({ sub: "u", app_role: null }))).toBeNull();
   });
 
-  it("returns undefined when the claim is absent (token minted before the hook)", () => {
+  it("returns undefined when the claim is absent", () => {
     expect(getAppRoleFromAccessToken(makeJwt({ sub: "u", role: "authenticated" }))).toBeUndefined();
   });
 
