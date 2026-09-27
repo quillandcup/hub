@@ -49,7 +49,7 @@ async function fetchHostedPrickleAttendance(
   supabase: SupabaseClient,
   memberId: string,
   nowIso: string
-): Promise<HostedPrickleRecord[] | null> {
+): Promise<HostedPrickleRecord[]> {
   // One row per hosted prickle; a prolific host can still pass PostgREST's 1000-row cap, so
   // page with .range() over the function's deterministic (start_time, id) order.
   let rows: HostedPrickleAttendanceRow[] = [];
@@ -60,11 +60,8 @@ async function fetchHostedPrickleAttendance(
       .rpc("get_hosted_prickle_attendance", { p_host_id: memberId, p_started_before: nowIso })
       .range(offset, offset + BATCH_SIZE - 1);
     if (error) {
-      console.error("get_hosted_prickle_attendance failed; falling back to no attendee counts", {
-        memberId,
-        error: error.message,
-      });
-      return null;
+      console.error("get_hosted_prickle_attendance failed", { memberId, error: error.message });
+      throw new Error(`Failed to load hosting stats: ${error.message}`);
     }
     const page = (batch ?? []) as HostedPrickleAttendanceRow[];
     rows = rows.concat(page);
@@ -94,12 +91,8 @@ export async function fetchHostedPrickleRecords(
   { now = new Date(), includeAttendeeCounts = false }: FetchHostedPrickleOptions = {}
 ): Promise<HostedPrickleRecord[]> {
   const nowIso = now.toISOString();
-  if (includeAttendeeCounts) {
-    // Null only if the RPC errored (e.g. migration not yet applied) -- degrade to the host-only
-    // path below so the profile still renders, just without the typical-attendance number.
-    const aggregated = await fetchHostedPrickleAttendance(supabase, memberId, nowIso);
-    if (aggregated) return aggregated;
-  }
+  // CI pushes migrations before deploying, so the RPC always exists; an error is a real failure.
+  if (includeAttendeeCounts) return fetchHostedPrickleAttendance(supabase, memberId, nowIso);
 
   let hostedPrickles: HostedPrickleRow[] = [];
   {
