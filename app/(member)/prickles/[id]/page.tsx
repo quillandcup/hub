@@ -18,7 +18,7 @@ const getPrickle = cache(async (id: string) => {
     .from("prickles")
     .select(`
       id,
-      host:members(id, name),
+      host:prickle_host(id, name),
       start_time,
       end_time,
       source,
@@ -83,16 +83,16 @@ export default async function PrickleDetailPage({
     );
   }
 
+  // Attendee emails are admin-only: members can't read other members' rows (RLS), so a member
+  // viewer gets names from the public member_directory via the attendance_member computed
+  // relationship, and never receives emails.
   const { data: attendanceRecords } = await supabase
     .from("prickle_attendance")
-    .select(`
-      id,
-      join_time,
-      leave_time,
-      confidence_score,
-      member_id,
-      members!inner(id, name, email)
-    `)
+    .select(
+      isActingAsAdmin
+        ? "id, join_time, leave_time, confidence_score, member_id, members!inner(id, name, email)"
+        : "id, join_time, leave_time, confidence_score, member_id, members:attendance_member!inner(id, name)"
+    )
     .eq("prickle_id", id)
     .order("join_time", { ascending: true });
 

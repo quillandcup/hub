@@ -68,7 +68,7 @@ export default async function MyPricklesPage({ searchParams }: { searchParams: P
     supabase
       .from("prickle_attendance")
       .select(
-        `id, join_time, leave_time, prickles(id, host:members(id, name), start_time, end_time, prickle_types(name))`
+        `id, join_time, leave_time, prickles(id, host:prickle_host(id, name), start_time, end_time, prickle_types(name))`
       )
       .eq("member_id", memberId)
       .order("join_time", { ascending: false }),
@@ -225,15 +225,18 @@ export default async function MyPricklesPage({ searchParams }: { searchParams: P
 async function fetchOtherMembers(
   supabase: Awaited<ReturnType<typeof createClient>>,
   memberId: string
-): Promise<{ id: string; name: string; email: string }[]> {
-  let members: { id: string; name: string; email: string }[] = [];
+): Promise<{ id: string; name: string }[]> {
+  // Public directory fields only -- other members' emails are admin-only (and this list is
+  // passed to a client component).
+  let members: { id: string; name: string }[] = [];
   let offset = 0;
   let hasMore = true;
   while (hasMore) {
     const { data: batch } = await supabase
-      .from("members")
-      .select("id, name, email")
+      .from("member_directory")
+      .select("id, name")
       .order("name")
+      .order("id")
       .range(offset, offset + MEMBERS_BATCH_SIZE - 1);
     if (batch && batch.length > 0) {
       members = members.concat(batch);

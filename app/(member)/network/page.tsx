@@ -1,5 +1,6 @@
 import type { Metadata } from "next"
 import { createClient } from "@/lib/supabase/server"
+import { createServiceRoleClient } from "@/lib/supabase/service"
 import { getCurrentUser } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import Link from "next/link"
@@ -150,7 +151,7 @@ export default async function NetworkPage() {
     while (hasMore) {
       const { data: batch } = await supabase
         .from("prickle_attendance")
-        .select("member_id, prickle_id, join_time, members(name, display_name)")
+        .select("member_id, prickle_id, join_time, members:attendance_member(name, display_name)")
         .in("prickle_id", prickleBatch)
         .neq("member_id", memberId)
         .range(offset, offset + BATCH_SIZE - 1)
@@ -183,7 +184,7 @@ export default async function NetworkPage() {
   const photoByMemberId = new Map<string, string>()
   if (hasConnections) {
     const { data: photoRows } = await supabase
-      .from("members")
+      .from("member_directory")
       .select("id, photo_url")
       .in("id", connections.map((c) => c.memberId))
     for (const row of photoRows ?? []) {
@@ -210,7 +211,9 @@ export default async function NetworkPage() {
         .eq("source", "slack")
         .limit(1)
         .maybeSingle(),
-      supabase.schema("bronze").from("slack_channels").select("channel_id").ilike("name", "start-here").limit(1).maybeSingle(),
+      // bronze is admin-read-only; the start-here channel id is non-sensitive, so read just that
+      // one field server-side with the service role.
+      createServiceRoleClient().schema("bronze").from("slack_channels").select("channel_id").ilike("name", "start-here").limit(1).maybeSingle(),
     ])
     hasPostedInSlack = !!slackActivityResult.data
     if (startHereChannelResult.data?.channel_id) {
@@ -321,7 +324,7 @@ export default async function NetworkPage() {
 
     if (topMemberIds.length > 0) {
       const { data: topMemberRows } = await supabase
-        .from("members")
+        .from("member_directory")
         .select("id, name, display_name, photo_url")
         .in("id", topMemberIds)
       const byId = new Map((topMemberRows ?? []).map((m) => [m.id, m]))
