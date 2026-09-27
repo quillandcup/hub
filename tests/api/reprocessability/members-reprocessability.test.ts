@@ -1,5 +1,10 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
-import { getTestSupabaseAdminClient, getTestAuthHeaders, getTestApiBaseUrl } from '../../helpers/supabase'
+import {
+  getTestSupabaseAdminClient,
+  getTestSupabaseClient,
+  getTestAuthHeaders,
+  getTestApiBaseUrl,
+} from '../../helpers/supabase'
 
 /**
  * Test to verify /api/process/members is fully reprocessable
@@ -981,5 +986,180 @@ describe('Instagram handle sourcing during reprocessing', () => {
     await reprocess()
     const member = await fetchMember(emailNeitherSource)
     expect(member?.instagram_url).toBeNull()
+  })
+})
+
+/**
+ * Member-edited profile overrides (public.member_profile_overrides, Local
+ * layer — migration 20260926000800). Kajabi's API can't write customer
+ * public_bio / socials, so the Hub owns member edits to bio / Facebook / X:
+ * processing prefers a non-empty override over the Kajabi value, and a
+ * cleared (NULL) override falls back to Kajabi. Overrides are Local, so they
+ * must survive any number of reprocesses and Bronze changes.
+ */
+describe('Member profile overrides during reprocessing', () => {
+  const supabase = getTestSupabaseAdminClient()
+  const ts = Date.now()
+  const email = `profile-override-${ts}@example.com`
+  const contactId = `profile-override-contact-${ts}`
+  const customerId = `profile-override-cust-${ts}`
+  let memberId: string
+
+  async function reprocess() {
+    const response = await fetch(`${getTestApiBaseUrl()}/api/process/members`, {
+      method: 'POST',
+      headers: getTestAuthHeaders(),
+    })
+    if (!response.ok) {
+      throw new Error(`API call failed: ${response.status} - ${await response.text()}`)
+    }
+    return response.json()
+  }
+
+  async function fetchMember() {
+    const { data } = await supabase
+      .from('members')
+      .select('id, bio, facebook_url, twitter_url')
+      .eq('email', email)
+      .single()
+    return data
+  }
+
+  async function setKajabiProfile(attributes: Record<string, unknown>) {
+    await supabase
+      .schema('bronze')
+      .from('kajabi_customers')
+      .update({ data: { attributes } })
+      .eq('kajabi_customer_id', customerId)
+  }
+
+  beforeAll(async () => {
+    await supabase.schema('bronze').from('kajabi_contacts').insert({
+      kajabi_contact_id: contactId,
+      email,
+      name: 'Profile Override Member',
+      created_at_kajabi: '2024-01-01T00:00:00Z',
+      data: { attributes: {} },
+    })
+    await supabase.schema('bronze').from('kajabi_customers').insert({
+      kajabi_customer_id: customerId,
+      email,
+      data: {
+        attributes: {
+          public_bio: 'Kajabi bio',
+          socials: { facebook: 'kajabi.facebook', twitter: 'kajabi_x' },
+        },
+      },
+    })
+    await reprocess()
+    memberId = (await fetchMember())!.id
+  })
+
+  afterAll(async () => {
+    if (memberId) await supabase.from('member_profile_overrides').delete().eq('member_id', memberId)
+    await supabase.schema('bronze').from('kajabi_customers').delete().eq('kajabi_customer_id', customerId)
+    await supabase.schema('bronze').from('kajabi_contacts').delete().eq('kajabi_contact_id', contactId)
+    await supabase.from('members').delete().eq('email', email)
+  })
+
+  it('uses Kajabi values when there is no override', async () => {
+    const member = await fetchMember()
+    expect(member).toMatchObject({
+      bio: 'Kajabi bio',
+      facebook_url: 'https://facebook.com/kajabi.facebook',
+      twitter_url: 'https://x.com/kajabi_x',
+    })
+  })
+
+  it('prefers a non-empty override field by field, surviving repeated reprocessing', async () => {
+    await supabase.from('member_profile_overrides').upsert({
+      member_id: memberId,
+      bio: 'My own bio',
+      facebook_url: null,
+      twitter_url: 'https://x.com/my_x',
+    })
+
+    await reprocess()
+    await reprocess()
+
+    expect(await fetchMember()).toMatchObject({
+      bio: 'My own bio',
+      facebook_url: 'https://facebook.com/kajabi.facebook', // no override -> Kajabi
+      twitter_url: 'https://x.com/my_x',
+    })
+  })
+
+  it('keeps the override when the Kajabi value changes underneath it, while un-overridden fields follow Kajabi', async () => {
+    await setKajabiProfile({
+      public_bio: 'Newer Kajabi bio',
+      socials: { facebook: 'newer.facebook', twitter: 'newer_x' },
+    })
+    await reprocess()
+
+    expect(await fetchMember()).toMatchObject({
+      bio: 'My own bio',
+      facebook_url: 'https://facebook.com/newer.facebook',
+      twitter_url: 'https://x.com/my_x',
+    })
+  })
+
+  it('falls back to Kajabi once an override is cleared', async () => {
+    await supabase
+      .from('member_profile_overrides')
+      .update({ bio: null, twitter_url: null })
+      .eq('member_id', memberId)
+    await reprocess()
+
+    expect(await fetchMember()).toMatchObject({
+      bio: 'Newer Kajabi bio',
+      twitter_url: 'https://x.com/newer_x',
+    })
+  })
+
+  it('still applies an override when Kajabi has no value for that field', async () => {
+    await setKajabiProfile({})
+    await supabase.from('member_profile_overrides').update({ bio: 'Only in the Hub' }).eq('member_id', memberId)
+    await reprocess()
+
+    expect(await fetchMember()).toMatchObject({ bio: 'Only in the Hub', facebook_url: null, twitter_url: null })
+  })
+
+  it("publishes the processed override to other members through member_directory (they can't read the override table)", async () => {
+    const viewerEmail = `profile-override-viewer-${ts}@example.com`
+    const password = 'test-password-12345!'
+    const { data: viewerMember } = await supabase
+      .from('members')
+      .insert({ name: 'Profile Override Viewer', email: viewerEmail, joined_at: '2023-01-01', status: 'active' })
+      .select('id')
+      .single()
+    const { data: created, error: createError } = await supabase.auth.admin.createUser({
+      email: viewerEmail,
+      password,
+      email_confirm: true,
+    })
+    if (createError || !created.user) throw new Error(`Failed to create viewer: ${createError?.message}`)
+
+    try {
+      await supabase.from('member_profile_overrides').update({ bio: 'Directory-visible bio' }).eq('member_id', memberId)
+      await reprocess()
+
+      const viewer = getTestSupabaseClient()
+      const { error: signInError } = await viewer.auth.signInWithPassword({ email: viewerEmail, password })
+      if (signInError) throw new Error(`Failed to sign in viewer: ${signInError.message}`)
+
+      const { data: directoryRow } = await viewer
+        .from('member_directory')
+        .select('bio, twitter_url')
+        .eq('id', memberId)
+        .single()
+      expect(directoryRow).toEqual({ bio: 'Directory-visible bio', twitter_url: null })
+
+      // The raw override row stays private to its owner (and admins).
+      const { data: overrideRows } = await viewer.from('member_profile_overrides').select('member_id').eq('member_id', memberId)
+      expect(overrideRows ?? []).toEqual([])
+    } finally {
+      await supabase.auth.admin.deleteUser(created.user.id).catch(() => {})
+      if (viewerMember) await supabase.from('members').delete().eq('id', viewerMember.id)
+    }
   })
 })

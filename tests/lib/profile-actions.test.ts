@@ -29,7 +29,11 @@ vi.mock("@/lib/kajabi/client", async (importOriginal) => {
   };
 });
 
-import { updateInstagramHandle, getProfileSettings } from "@/app/(member)/settings/profileActions";
+import {
+  updateInstagramHandle,
+  updateProfileDetails,
+  getProfileSettings,
+} from "@/app/(member)/settings/profileActions";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { getCurrentUser } from "@/lib/auth";
@@ -46,39 +50,52 @@ type MemberRow = {
   twitter_url: string | null;
 };
 
-function makeUserClient(member: MemberRow) {
-  const from = vi.fn((table: string) => {
-    if (table === "members") {
-      return {
-        select: () => ({ eq: () => ({ single: async () => ({ data: member, error: null }) }) }),
-        update: vi.fn(),
-        upsert: vi.fn(),
-      };
-    }
-    if (table === "member_email_aliases") {
-      return { select: () => ({ eq: () => ({ eq: async () => ({ data: [], error: null }) }) }) };
-    }
-    throw new Error(`unexpected table ${table}`);
-  });
-  return { from };
-}
+type OverrideRow = { bio: string | null; facebook_url: string | null; twitter_url: string | null };
 
-function makeServiceClient({
-  contactCustom1 = null as string | null,
-  nativeInstagram = null as string | null,
+/** The caller's own (RLS-scoped) session: only member_profile_overrides goes through it. */
+function makeUserClient({
+  override = null as OverrideRow | null,
   upsertError = null as { message: string } | null,
 } = {}) {
   const upsert = vi.fn(async () => ({ error: upsertError }));
+  const overrideEq = vi.fn(() => ({ maybeSingle: async () => ({ data: override, error: null }) }));
+  const from = vi.fn((table: string) => {
+    if (table === "member_profile_overrides") return { select: () => ({ eq: overrideEq }), upsert };
+    throw new Error(`unexpected user-session table ${table}`);
+  });
+  return { from, upsert, overrideEq };
+}
+
+/** Service role: members row, alias lookup and Bronze, each scoped to the member by the action. */
+function makeServiceClient({
+  member,
+  contactCustom1 = null as string | null,
+  customerAttributes = {} as Record<string, unknown>,
+  bronzeUpsertError = null as { message: string } | null,
+}: {
+  member: MemberRow;
+  contactCustom1?: string | null;
+  customerAttributes?: Record<string, unknown>;
+  bronzeUpsertError?: { message: string } | null;
+}) {
+  const upsert = vi.fn(async () => ({ error: bronzeUpsertError }));
+  const membersUpdate = vi.fn();
+  const membersUpsert = vi.fn();
+  const membersEq = vi.fn(() => ({ single: async () => ({ data: member, error: null }) }));
+  const from = vi.fn((table: string) => {
+    if (table === "members") return { select: () => ({ eq: membersEq }), update: membersUpdate, upsert: membersUpsert };
+    if (table === "member_email_aliases") {
+      return { select: () => ({ eq: () => ({ eq: async () => ({ data: [], error: null }) }) }) };
+    }
+    throw new Error(`unexpected service table ${table}`);
+  });
   const schema = vi.fn(() => ({
     from: (table: string) => {
       if (table === "kajabi_contacts") {
         return {
           select: () => ({
             eq: () => ({
-              maybeSingle: async () => ({
-                data: { data: { attributes: { custom_1: contactCustom1 } } },
-                error: null,
-              }),
+              maybeSingle: async () => ({ data: { data: { attributes: { custom_1: contactCustom1 } } }, error: null }),
             }),
           }),
           upsert,
@@ -88,12 +105,7 @@ function makeServiceClient({
         return {
           select: () => ({
             in: async () => ({
-              data: [
-                {
-                  updated_at_kajabi: "2026-01-01T00:00:00Z",
-                  data: { attributes: { socials: nativeInstagram ? { instagram: nativeInstagram } : null } },
-                },
-              ],
+              data: [{ updated_at_kajabi: "2026-01-01T00:00:00Z", data: { attributes: customerAttributes } }],
               error: null,
             }),
           }),
@@ -102,7 +114,7 @@ function makeServiceClient({
       throw new Error(`unexpected bronze table ${table}`);
     },
   }));
-  return { schema, upsert };
+  return { from, schema, upsert, membersEq, membersUpdate, membersUpsert };
 }
 
 const MEMBER: MemberRow = {
@@ -113,6 +125,7 @@ const MEMBER: MemberRow = {
   facebook_url: null,
   twitter_url: null,
 };
+const KAJABI_ATTRS = { public_bio: "Writes cozy mysteries." };
 
 const FRESH_CONTACT = {
   id: "kj-1",
@@ -130,9 +143,21 @@ const FRESH_CONTACT = {
 let service: ReturnType<typeof makeServiceClient>;
 let userClient: ReturnType<typeof makeUserClient>;
 
-function setup(opts: { member?: MemberRow; service?: Parameters<typeof makeServiceClient>[0] } = {}) {
-  userClient = makeUserClient(opts.member ?? MEMBER);
-  service = makeServiceClient({ contactCustom1: "old_handle", ...opts.service });
+function setup(
+  opts: {
+    member?: MemberRow;
+    override?: OverrideRow | null;
+    overrideUpsertError?: { message: string };
+    service?: Omit<Parameters<typeof makeServiceClient>[0], "member">;
+  } = {}
+) {
+  userClient = makeUserClient({ override: opts.override ?? null, upsertError: opts.overrideUpsertError ?? null });
+  service = makeServiceClient({
+    member: opts.member ?? MEMBER,
+    contactCustom1: "old_handle",
+    customerAttributes: KAJABI_ATTRS,
+    ...opts.service,
+  });
   vi.mocked(createClient).mockResolvedValue(userClient as any);
   vi.mocked(createServiceRoleClient).mockReturnValue(service as any);
 }
@@ -180,14 +205,9 @@ describe("updateInstagramHandle", () => {
     fetchContactMock.mockResolvedValue(FRESH_CONTACT);
 
     await updateInstagramHandle("@new_handle");
-
-    const membersCalls = userClient.from.mock.results
-      .filter((_, i) => userClient.from.mock.calls[i][0] === "members")
-      .map((r) => r.value);
-    for (const table of membersCalls) {
-      expect(table.update).not.toHaveBeenCalled();
-      expect(table.upsert).not.toHaveBeenCalled();
-    }
+    expect(service.membersUpdate).not.toHaveBeenCalled();
+    expect(service.membersUpsert).not.toHaveBeenCalled();
+    expect(userClient.upsert).not.toHaveBeenCalled();
   });
 
   it("sends null to clear the handle", async () => {
@@ -230,7 +250,7 @@ describe("updateInstagramHandle", () => {
 
   it("still writes the custom field when the Kajabi directory profile has its own Instagram", async () => {
     // The custom field wins in member processing, so the edit always takes effect.
-    setup({ service: { nativeInstagram: "https://instagram.com/profile_handle" } });
+    setup({ service: { customerAttributes: { socials: { instagram: "https://instagram.com/profile_handle" } } } });
     updateContactMock.mockResolvedValue({});
     fetchContactMock.mockResolvedValue(FRESH_CONTACT);
 
@@ -247,7 +267,7 @@ describe("updateInstagramHandle", () => {
   });
 
   it("reports success with a warning when Kajabi saved but the Bronze refresh failed", async () => {
-    setup({ service: { upsertError: { message: "db down" } } });
+    setup({ service: { bronzeUpsertError: { message: "db down" } } });
     updateContactMock.mockResolvedValue({});
     fetchContactMock.mockResolvedValue(FRESH_CONTACT);
 
@@ -263,6 +283,7 @@ describe("updateInstagramHandle", () => {
     fetchContactMock.mockResolvedValue({ ...FRESH_CONTACT, id: "kj-2" });
 
     await updateInstagramHandle("@new_handle");
+    expect(service.membersEq).toHaveBeenCalledWith("id", "member-2");
     expect(updateContactMock).toHaveBeenCalledWith("kj-2", { custom_1: "new_handle" });
   });
 
@@ -270,6 +291,90 @@ describe("updateInstagramHandle", () => {
     setup();
     vi.mocked(getCurrentUser).mockResolvedValue(null);
     expect(await updateInstagramHandle("@x")).toEqual({ error: "Not authenticated" });
+  });
+});
+
+describe("updateProfileDetails", () => {
+  it("upserts the effective member's own override row through the RLS-scoped session, then reprocesses members", async () => {
+    setup();
+    const result = await updateProfileDetails({
+      bio: "  New bio  ",
+      facebook: "https://www.facebook.com/hedgie.writes",
+      x: "@hedgie",
+    });
+
+    expect(result).toEqual({ success: true, syncPending: true });
+    expect(userClient.upsert).toHaveBeenCalledWith(
+      {
+        member_id: "member-1",
+        bio: "New bio",
+        facebook_url: "https://facebook.com/hedgie.writes",
+        twitter_url: "https://x.com/hedgie",
+        updated_by: "auth-1",
+      },
+      { onConflict: "member_id" }
+    );
+    expect(service.membersUpdate).not.toHaveBeenCalled();
+    expect(updateContactMock).not.toHaveBeenCalled();
+
+    await Promise.all(afterCallbacks.map((fn) => fn()));
+    expect(triggerReprocessingMock).toHaveBeenCalledWith("member_profile_overrides", "local");
+  });
+
+  it("stores NULL (follow Kajabi) for blank fields and for values equal to Kajabi's", async () => {
+    setup({ override: { bio: "Old override", facebook_url: null, twitter_url: "https://x.com/old" } });
+    await updateProfileDetails({ bio: "Writes cozy mysteries.", facebook: "", x: "" });
+
+    expect(userClient.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ bio: null, facebook_url: null, twitter_url: null }),
+      { onConflict: "member_id" }
+    );
+  });
+
+  it("is a no-op when nothing changed", async () => {
+    setup({ override: { bio: "Mine", facebook_url: null, twitter_url: null } });
+    const result = await updateProfileDetails({ bio: "Mine", facebook: "", x: "" });
+    expect(result).toEqual({ success: true, syncPending: false });
+    expect(userClient.upsert).not.toHaveBeenCalled();
+    expect(afterCallbacks).toHaveLength(0);
+  });
+
+  it("writes the sudo'd member's row during admin sudo, recording the admin as updated_by", async () => {
+    vi.mocked(getEffectiveIdentity).mockResolvedValue({ ...IDENTITY, memberId: "member-2", isSudo: true });
+    vi.mocked(getCurrentUser).mockResolvedValue({ id: "admin-auth", email: "admin@example.com" } as any);
+    setup();
+
+    await updateProfileDetails({ bio: "Sudo bio", facebook: "", x: "" });
+    expect(userClient.overrideEq).toHaveBeenCalledWith("member_id", "member-2");
+    expect(userClient.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ member_id: "member-2", bio: "Sudo bio", updated_by: "admin-auth" }),
+      { onConflict: "member_id" }
+    );
+  });
+
+  it("works for members without a Kajabi contact (overrides are Hub-owned)", async () => {
+    setup({ member: { ...MEMBER, kajabi_id: null } });
+    const result = await updateProfileDetails({ bio: "Staff bio", facebook: "", x: "" });
+    expect(result).toEqual({ success: true, syncPending: true });
+    expect(service.schema).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [{ bio: "a".repeat(1001), facebook: "", x: "" }, /1000 characters/],
+    [{ bio: "", facebook: "https://evil.example.com/me", x: "" }, /^Facebook:/],
+    [{ bio: "", facebook: "", x: "javascript:alert(1)" }, /^X:/],
+  ])("rejects invalid input %# without writing", async (input, message) => {
+    setup();
+    const result = await updateProfileDetails(input);
+    expect(result).toEqual({ error: expect.stringMatching(message) });
+    expect(userClient.upsert).not.toHaveBeenCalled();
+  });
+
+  it("returns an error and schedules nothing when the write is rejected", async () => {
+    setup({ overrideUpsertError: { message: "new row violates row-level security policy" } });
+    const result = await updateProfileDetails({ bio: "x", facebook: "", x: "" });
+    expect(result).toEqual({ error: expect.stringContaining("Couldn't save") });
+    expect(afterCallbacks).toHaveLength(0);
   });
 });
 
@@ -282,17 +387,31 @@ describe("getProfileSettings", () => {
       kajabiLinked: true,
       instagramHandle: "new_handle",
       instagramFallbackUrl: null,
+      details: { bio: "Writes cozy mysteries.", facebookUrl: null, twitterUrl: null },
+      detailFallbacks: { bio: "Writes cozy mysteries.", facebookUrl: null, twitterUrl: null },
       syncPending: true,
     });
   });
 
-  it("is not pending once Silver matches Bronze", async () => {
+  it("is not pending once Silver matches Bronze + overrides", async () => {
     setup();
     expect(await getProfileSettings()).toMatchObject({ instagramHandle: "old_handle", syncPending: false });
   });
 
+  it("shows the override as the current value, the Kajabi value as the fallback, and pending until reprocessed", async () => {
+    setup({
+      override: { bio: "Hub bio", facebook_url: null, twitter_url: "https://x.com/mine" },
+      service: { customerAttributes: { public_bio: "Writes cozy mysteries.", socials: { facebook: "kajabi.fb" } } },
+    });
+    expect(await getProfileSettings()).toMatchObject({
+      details: { bio: "Hub bio", facebookUrl: "https://facebook.com/kajabi.fb", twitterUrl: "https://x.com/mine" },
+      detailFallbacks: { bio: "Writes cozy mysteries.", facebookUrl: "https://facebook.com/kajabi.fb", twitterUrl: null },
+      syncPending: true,
+    });
+  });
+
   it("uses the custom field over socials.instagram and reports socials.instagram as the blank fallback", async () => {
-    setup({ service: { nativeInstagram: "profile_handle" } });
+    setup({ service: { customerAttributes: { ...KAJABI_ATTRS, socials: { instagram: "profile_handle" } } } });
     expect(await getProfileSettings()).toMatchObject({
       instagramHandle: "old_handle",
       instagramFallbackUrl: "https://instagram.com/profile_handle",
@@ -300,18 +419,9 @@ describe("getProfileSettings", () => {
     });
   });
 
-  it("expects the socials.instagram fallback in Silver when the custom field is empty", async () => {
-    setup({
-      member: { ...MEMBER, instagram_url: "https://instagram.com/old_handle" },
-      service: { contactCustom1: null, nativeInstagram: "profile_handle" },
-    });
-    expect(await getProfileSettings()).toMatchObject({ instagramHandle: null, syncPending: true });
-  });
-
   it("reports an unlinked member without touching Bronze", async () => {
-    setup({ member: { ...MEMBER, kajabi_id: null } });
-    expect(await getProfileSettings()).toEqual({
-      memberId: "member-1",
+    setup({ member: { ...MEMBER, kajabi_id: null, bio: null, instagram_url: null } });
+    expect(await getProfileSettings()).toMatchObject({
       kajabiLinked: false,
       instagramHandle: null,
       instagramFallbackUrl: null,

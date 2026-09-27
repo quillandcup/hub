@@ -2,14 +2,32 @@
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
-import { getProfileSettings, updateInstagramHandle, type ProfileSettings } from "./profileActions";
+import {
+  getProfileSettings,
+  updateInstagramHandle,
+  updateProfileDetails,
+  type ProfileSettings,
+} from "./profileActions";
 import { parseInstagramInput } from "@/lib/kajabi/profile-fields";
+import { MAX_BIO_LENGTH, parseBioInput, parseFacebookInput, parseXInput } from "@/lib/social-links";
+
+const INPUT_CLASS =
+  "w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-sm";
+const SAVE_CLASS =
+  "px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed";
+
+function FallbackHint({ fallback, noun }: { fallback: string | null; noun: string }) {
+  return (
+    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+      {fallback ? `If you leave it blank, your profile shows your previous ${noun} instead.` : "Leave blank to remove it."}
+    </p>
+  );
+}
 
 /**
- * Settings > Profile. Only fields members can actually change from here are
- * shown: Kajabi's API can't write bio / Facebook / X (see
- * lib/kajabi/profile-fields.ts), so those stay display-only on the member
- * profile page rather than appearing here as dead, read-only inputs.
+ * Settings > Profile: everything on the public member profile a member can
+ * change, saved without leaving the Hub. Instagram goes to Kajabi's
+ * "Instagram Handle" field; bio / Facebook / X are Hub-owned overrides.
  */
 export function ProfilePanel() {
   const [data, setData] = useState<ProfileSettings | null>(null);
@@ -17,7 +35,10 @@ export function ProfilePanel() {
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [instagramInput, setInstagramInput] = useState("");
-  const [saving, setSaving] = useState(false);
+  const [bioInput, setBioInput] = useState("");
+  const [facebookInput, setFacebookInput] = useState("");
+  const [xInput, setXInput] = useState("");
+  const [saving, setSaving] = useState<"instagram" | "details" | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -28,6 +49,9 @@ export function ProfilePanel() {
     } else {
       setData(result);
       setInstagramInput(result.instagramHandle ? `@${result.instagramHandle.replace(/^@+/, "")}` : "");
+      setBioInput(result.details.bio ?? "");
+      setFacebookInput(result.details.facebookUrl ?? "");
+      setXInput(result.details.twitterUrl ?? "");
     }
     setLoading(false);
   }, []);
@@ -36,29 +60,46 @@ export function ProfilePanel() {
     load();
   }, [load]);
 
+  async function afterSave(result: Awaited<ReturnType<typeof updateProfileDetails>>) {
+    if ("error" in result) {
+      setError(result.error);
+      return;
+    }
+    setMessage(
+      result.warning ??
+        (result.syncPending ? "Saved. Your profile will update in a minute or two." : "No changes to save.")
+    );
+    await load();
+  }
+
   async function handleSaveInstagram(e: FormEvent) {
     e.preventDefault();
     setError(null);
     setMessage(null);
-
     const parsed = parseInstagramInput(instagramInput);
     if ("error" in parsed) {
       setError(parsed.error);
       return;
     }
+    setSaving("instagram");
+    await afterSave(await updateInstagramHandle(instagramInput));
+    setSaving(null);
+  }
 
-    setSaving(true);
-    const result = await updateInstagramHandle(instagramInput);
-    if ("error" in result) {
-      setError(result.error);
-    } else {
-      setMessage(
-        result.warning ??
-          (result.syncPending ? "Saved. Your profile will update in a minute or two." : "No changes to save.")
-      );
-      await load();
-    }
-    setSaving(false);
+  async function handleSaveDetails(e: FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setMessage(null);
+    const bio = parseBioInput(bioInput);
+    const facebook = parseFacebookInput(facebookInput);
+    const x = parseXInput(xInput);
+    if ("error" in bio) return setError(bio.error);
+    if ("error" in facebook) return setError(`Facebook: ${facebook.error}`);
+    if ("error" in x) return setError(`X: ${x.error}`);
+
+    setSaving("details");
+    await afterSave(await updateProfileDetails({ bio: bioInput, facebook: facebookInput, x: xInput }));
+    setSaving(null);
   }
 
   if (loading && !data) {
@@ -77,7 +118,14 @@ export function ProfilePanel() {
   return (
     <div className="space-y-8">
       <div>
-        <h2 className="text-lg font-medium text-slate-900 dark:text-slate-100 mb-1">Public Profile</h2>
+        <div className="flex items-center gap-2 mb-1">
+          <h2 className="text-lg font-medium text-slate-900 dark:text-slate-100">Public Profile</h2>
+          {data.syncPending && (
+            <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
+              Syncing to your profile…
+            </span>
+          )}
+        </div>
         <p className="text-sm text-slate-600 dark:text-slate-400">
           Shown on your{" "}
           <Link href={`/members/${data.memberId}`} className="underline">
@@ -94,15 +142,67 @@ export function ProfilePanel() {
         </div>
       )}
 
-      <div>
-        <div className="flex items-center gap-2 mb-1">
-          <h3 className="text-sm font-medium text-slate-900 dark:text-slate-100">Instagram</h3>
-          {data.syncPending && (
-            <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
-              Syncing to your profile…
+      <form onSubmit={handleSaveDetails} className="space-y-4 max-w-md">
+        <div>
+          <div className="flex items-baseline justify-between mb-1">
+            <label htmlFor="profile-bio" className="text-sm font-medium text-slate-900 dark:text-slate-100">
+              Bio
+            </label>
+            <span className="text-xs text-slate-400 dark:text-slate-500">
+              {bioInput.trim().length}/{MAX_BIO_LENGTH}
             </span>
-          )}
+          </div>
+          <textarea
+            id="profile-bio"
+            value={bioInput}
+            onChange={(e) => setBioInput(e.target.value)}
+            rows={5}
+            maxLength={MAX_BIO_LENGTH + 50}
+            placeholder="A little about you and your writing"
+            className={INPUT_CLASS}
+          />
+          <FallbackHint fallback={data.detailFallbacks.bio} noun="bio" />
         </div>
+        <div>
+          <label htmlFor="profile-facebook" className="block text-sm font-medium text-slate-900 dark:text-slate-100 mb-1">
+            Facebook
+          </label>
+          <input
+            id="profile-facebook"
+            type="text"
+            value={facebookInput}
+            onChange={(e) => setFacebookInput(e.target.value)}
+            placeholder="facebook.com/yourname"
+            maxLength={300}
+            autoComplete="off"
+            className={INPUT_CLASS}
+          />
+          <FallbackHint fallback={data.detailFallbacks.facebookUrl} noun="Facebook link" />
+        </div>
+        <div>
+          <label htmlFor="profile-x" className="block text-sm font-medium text-slate-900 dark:text-slate-100 mb-1">
+            X / Twitter
+          </label>
+          <input
+            id="profile-x"
+            type="text"
+            value={xInput}
+            onChange={(e) => setXInput(e.target.value)}
+            placeholder="@yourname"
+            maxLength={300}
+            autoComplete="off"
+            className={INPUT_CLASS}
+          />
+          <FallbackHint fallback={data.detailFallbacks.twitterUrl} noun="X link" />
+        </div>
+        <button type="submit" disabled={saving !== null} className={SAVE_CLASS}>
+          {saving === "details" ? "Saving…" : "Save profile"}
+        </button>
+      </form>
+
+      {/* Instagram — written to Kajabi's "Instagram Handle" contact custom field. */}
+      <div className="border-t border-slate-200 dark:border-slate-700 pt-6">
+        <h3 className="text-sm font-medium text-slate-900 dark:text-slate-100 mb-1">Instagram</h3>
         {data.kajabiLinked ? (
           <>
             <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">
@@ -123,20 +223,16 @@ export function ProfilePanel() {
                 placeholder="@yourname"
                 maxLength={200}
                 autoComplete="off"
-                className="flex-1 px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-sm"
+                className={`flex-1 ${INPUT_CLASS}`}
               />
-              <button
-                type="submit"
-                disabled={saving}
-                className="px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {saving ? "Saving…" : "Save"}
+              <button type="submit" disabled={saving !== null} className={SAVE_CLASS}>
+                {saving === "instagram" ? "Saving…" : "Save"}
               </button>
             </form>
           </>
         ) : (
           <p className="text-xs text-slate-500 dark:text-slate-400 max-w-md">
-            Your account isn&apos;t set up for profile editing yet. Email{" "}
+            Instagram isn&apos;t set up for your account yet. Email{" "}
             <a href="mailto:support@quillandcup.com" className="underline">
               support@quillandcup.com
             </a>{" "}
