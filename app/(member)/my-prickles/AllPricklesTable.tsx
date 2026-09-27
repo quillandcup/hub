@@ -38,7 +38,20 @@ function getSortValue(row: PrickleScheduleRow, column: SortColumn): SortValue {
   }
 }
 
-export default function AllPricklesTable({ rows }: { rows: PrickleScheduleRow[] }) {
+/** Picking recurring slots to commit to: a checkbox per row, keyed by seriesKey. */
+export interface TableSlotSelection {
+  selected: ReadonlySet<string>;
+  onToggle: (seriesKey: string) => void;
+}
+
+export default function AllPricklesTable({
+  rows,
+  selection,
+}: {
+  rows: PrickleScheduleRow[];
+  selection?: TableSlotSelection;
+}) {
+  const columnCount = selection ? 5 : 4;
   const [typeFilter, setTypeFilter] = useState<string>("all");
   // Grouped under day headers, so it never pages (a page break would split a day).
   const { sortColumn, sortDirection, handleSort, rows: sortedRows } = useDataTable<PrickleScheduleRow, SortColumn>({
@@ -91,6 +104,11 @@ export default function AllPricklesTable({ rows }: { rows: PrickleScheduleRow[] 
         <table className="w-full text-sm border-separate border-spacing-0">
           <thead>
             <tr className="text-left text-xs text-slate-400 dark:text-slate-500 uppercase tracking-wide">
+              {selection && (
+                <th className="pb-2 pr-2 font-medium w-8">
+                  <span className="sr-only">Commit</span>
+                </th>
+              )}
               {(
                 [
                   ["Time", "time", "left"],
@@ -109,9 +127,6 @@ export default function AllPricklesTable({ rows }: { rows: PrickleScheduleRow[] 
                   onClick={() => handleSort(column)}
                 />
               ))}
-              <th className="pb-2 font-medium">
-                <span className="sr-only">Commit</span>
-              </th>
             </tr>
           </thead>
           <tbody>
@@ -119,14 +134,30 @@ export default function AllPricklesTable({ rows }: { rows: PrickleScheduleRow[] 
               <Fragment key={day}>
                 <tr>
                   <td
-                    colSpan={5}
+                    colSpan={columnCount}
                     className="pt-4 pb-1.5 text-sm font-semibold text-slate-700 dark:text-slate-300 border-b border-slate-200 dark:border-slate-800"
                   >
                     {day}
                   </td>
                 </tr>
                 {dayRows.map((row) => (
-                  <tr key={row.seriesKey} className="group">
+                  <tr
+                    key={row.seriesKey}
+                    className={`group ${selection?.selected.has(row.seriesKey) ? "bg-blue-50 dark:bg-blue-950/40" : ""}`}
+                  >
+                    {selection && (
+                      <td className="py-2 pr-2">
+                        {row.typeId && (
+                          <input
+                            type="checkbox"
+                            checked={selection.selected.has(row.seriesKey)}
+                            onChange={() => selection.onToggle(row.seriesKey)}
+                            aria-label={`Commit to ${row.dayOfWeek} ${row.timeLabel} ${row.typeName}`}
+                            className="h-4 w-4 rounded border-slate-300 text-blue-600"
+                          />
+                        )}
+                      </td>
+                    )}
                     <td className="py-0">
                       <Link
                         href={`/prickles/${row.nextOccurrenceId}`}
@@ -139,17 +170,6 @@ export default function AllPricklesTable({ rows }: { rows: PrickleScheduleRow[] 
                     <td className="py-2 pr-2 text-slate-500 dark:text-slate-400">{row.hostName ?? "—"}</td>
                     <td className="py-2 text-right">
                       <AttendanceHint row={row} />
-                    </td>
-                    <td className="py-2 pl-3 text-right">
-                      {row.typeId && (
-                        <Link
-                          href={`/my-prickles?tab=commitments&slot=${encodeURIComponent(row.seriesKey)}`}
-                          className="text-xs text-blue-600 dark:text-blue-400 hover:underline whitespace-nowrap"
-                          title="Commit to attending this prickle for a few weeks"
-                        >
-                          Commit
-                        </Link>
-                      )}
                     </td>
                   </tr>
                 ))}

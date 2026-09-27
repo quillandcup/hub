@@ -40,12 +40,20 @@ vi.mock("@/app/(member)/hosting/HostingStats", () => ({ default: () => <div data
 vi.mock("@/app/(member)/hosting/HostingScheduleManager", () => ({
   default: () => <div data-testid="hosting-schedule-manager" />,
 }));
-vi.mock("@/app/(member)/my-prickles/AllPricklesView", () => ({ default: () => <div /> }));
-vi.mock("@/app/(member)/my-prickles/CommitmentsManager", () => ({ default: () => <div /> }));
+vi.mock("@/app/(member)/my-prickles/AllPricklesView", () => ({
+  default: ({ initialCommitKeys }: { initialCommitKeys?: string[] | null }) => (
+    <div data-testid="all-prickles">commit: {JSON.stringify(initialCommitKeys ?? null)}</div>
+  ),
+}));
+vi.mock("@/app/(member)/my-prickles/CommitmentsManager", () => ({
+  default: () => <div data-testid="commitments-manager" />,
+}));
 
 import MyPricklesPage from "@/app/(member)/my-prickles/page";
 
-const props = (tab: string) => ({ searchParams: Promise.resolve({ tab }) });
+const props = (tab: string, extra: Record<string, string> = {}) => ({
+  searchParams: Promise.resolve({ tab, ...extra }),
+});
 
 beforeEach(() => {
   resetServerPageMocks();
@@ -68,5 +76,37 @@ describe("My Prickles tabs that replaced standalone pages", () => {
     expect(within(screen.getByRole("tabpanel")).getByTestId("history-calendar")).toHaveTextContent(
       `member: ${MEMBER_IDENTITY.memberId}`
     );
+  });
+});
+
+describe("My Prickles commitment links", () => {
+  it("?tab=commitments lists commitments", async () => {
+    await renderServerPage(MyPricklesPage, props("commitments"));
+    expect(screen.getByRole("tab", { name: "Commitments" })).toHaveAttribute("aria-selected", "true");
+    expect(within(screen.getByRole("tabpanel")).getByTestId("commitments-manager")).toBeInTheDocument();
+  });
+
+  it("?tab=all opens All Prickles with commit mode closed", async () => {
+    await renderServerPage(MyPricklesPage, props("all"));
+    expect(within(screen.getByRole("tabpanel")).getByTestId("all-prickles")).toHaveTextContent("commit: null");
+  });
+
+  it("?commit=<keys> opens All Prickles in commit mode with those slots picked", async () => {
+    await renderServerPage(MyPricklesPage, props("all", { commit: "t1:1-05:00,t1:3-05:00" }));
+    expect(screen.getByRole("tab", { name: "All Prickles" })).toHaveAttribute("aria-selected", "true");
+    expect(within(screen.getByRole("tabpanel")).getByTestId("all-prickles")).toHaveTextContent(
+      'commit: ["t1:1-05:00","t1:3-05:00"]'
+    );
+  });
+
+  it("an empty ?commit= opens commit mode with nothing picked", async () => {
+    await renderServerPage(MyPricklesPage, props("all", { commit: "" }));
+    expect(within(screen.getByRole("tabpanel")).getByTestId("all-prickles")).toHaveTextContent("commit: []");
+  });
+
+  it("the older ?tab=commitments&slot=<key> link lands on All Prickles with that slot picked", async () => {
+    await renderServerPage(MyPricklesPage, props("commitments", { slot: "t1:1-07:00" }));
+    expect(screen.getByRole("tab", { name: "All Prickles" })).toHaveAttribute("aria-selected", "true");
+    expect(within(screen.getByRole("tabpanel")).getByTestId("all-prickles")).toHaveTextContent('commit: ["t1:1-07:00"]');
   });
 });

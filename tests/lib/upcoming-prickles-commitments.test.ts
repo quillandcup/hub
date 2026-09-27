@@ -15,14 +15,11 @@ const NOW = new Date("2026-09-26T12:00:00Z") // Sat Sep 26, 8am EDT
 // Mondays 9:00 AM ET for 4 weeks from Sep 14: Sep 14, 21, 28, Oct 5 (13:00Z while EDT).
 const commitment: Commitment = {
   id: "c1",
-  typeId: "t1",
-  dayOfWeek: 1,
-  startTimeLocal: "09:00:00",
-  timezone: TZ,
   startDate: "2026-09-14",
   weeks: 4,
   status: "active",
   cancelledAt: null,
+  slots: [{ typeId: "t1", dayOfWeek: 1, startTimeLocal: "09:00:00", timezone: TZ }],
 }
 
 const slot = (id: string, startTime: string, typeId = "t1"): SlotPrickle => ({
@@ -45,8 +42,8 @@ describe("computeCommitmentSignals", () => {
   it("maps each upcoming week of an active commitment to its prickle, with week number and kept count", () => {
     const signals = computeCommitmentSignals([commitment], prickles, new Set(["wk1"]), NOW)
     expect([...signals.entries()]).toEqual([
-      ["wk3", { commitmentId: "c1", week: 3, weeks: 4, kept: 1 }],
-      ["wk4", { commitmentId: "c1", week: 4, weeks: 4, kept: 1 }],
+      ["wk3", { commitmentId: "c1", week: 3, weeks: 4, sessionsPerWeek: 1, kept: 1 }],
+      ["wk4", { commitmentId: "c1", week: 4, weeks: 4, sessionsPerWeek: 1, kept: 1 }],
     ])
   })
 
@@ -57,9 +54,35 @@ describe("computeCommitmentSignals", () => {
   })
 
   it("matches in the commitment's own timezone (Monday 2pm London = 13:00Z in BST)", () => {
-    const london: Commitment = { ...commitment, id: "c2", startTimeLocal: "14:00", timezone: "Europe/London" }
+    const london: Commitment = {
+      ...commitment,
+      id: "c2",
+      slots: [{ typeId: "t1", dayOfWeek: 1, startTimeLocal: "14:00", timezone: "Europe/London" }],
+    }
     const signals = computeCommitmentSignals([london], prickles, new Set(), NOW)
     expect([...signals.keys()]).toEqual(["wk3", "wk4"])
+  })
+
+  it("flags a prickle matching ANY slot of a multi-slot commitment, with its week and the total kept", () => {
+    // Mon 9:00 + Wed 9:00 ET for 4 weeks from Sep 14; Mondays wk1 kept, Wed Sep 16 kept.
+    const monWed: Commitment = {
+      ...commitment,
+      slots: [...commitment.slots, { typeId: "t1", dayOfWeek: 3, startTimeLocal: "09:00", timezone: TZ }],
+    }
+    const withWednesdays = [
+      ...prickles,
+      slot("wed1", "2026-09-16T13:00:00Z"),
+      slot("wed2", "2026-09-23T13:00:00Z"),
+      slot("wed3", "2026-09-30T13:00:00Z"),
+      slot("wed4", "2026-10-07T13:00:00Z"),
+    ]
+    const signals = computeCommitmentSignals([monWed], withWednesdays, new Set(["wk1", "wed1"]), NOW)
+    expect([...signals.entries()]).toEqual([
+      ["wk3", { commitmentId: "c1", week: 3, weeks: 4, sessionsPerWeek: 2, kept: 2 }],
+      ["wed3", { commitmentId: "c1", week: 3, weeks: 4, sessionsPerWeek: 2, kept: 2 }],
+      ["wk4", { commitmentId: "c1", week: 4, weeks: 4, sessionsPerWeek: 2, kept: 2 }],
+      ["wed4", { commitmentId: "c1", week: 4, weeks: 4, sessionsPerWeek: 2, kept: 2 }],
+    ])
   })
 
   it("ignores cancelled commitments and active ones whose window has already ended", () => {
@@ -92,7 +115,7 @@ describe("rankUpcomingPrickles with commitments", () => {
   const streak = upcoming("streak", "2026-09-27T13:00:00Z", { seriesKey: "STREAK" })
   const strongRec = upcoming("strongRec", "2026-09-26T16:00:00Z", { hostId: "vet", seriesKey: "STRONG" })
   const hosting = upcoming("hosting", "2026-10-06T13:00:00Z", { hostId: "me", seriesKey: "HOST" })
-  const signal: CommitmentSignal = { commitmentId: "c1", week: 3, weeks: 4, kept: 1 }
+  const signal: CommitmentSignal = { commitmentId: "c1", week: 3, weeks: 4, sessionsPerWeek: 1, kept: 1 }
 
   const base = {
     memberId: "me",
@@ -126,6 +149,15 @@ describe("rankUpcomingPrickles with commitments", () => {
       commitmentByPrickleId: new Map([["committed", { ...signal, week: 1, kept: 0 }]]),
     })
     expect(ranked[0].reasons[0].tooltip).toEqual(["Week 1 of 4"])
+  })
+
+  it("counts sessions, not weeks, in the tooltip of a several-sessions-a-week commitment", () => {
+    const tooltip = (s: CommitmentSignal) =>
+      rankUpcomingPrickles({ ...base, upcoming: [committed], commitmentByPrickleId: new Map([["committed", s]]) })[0]
+        .reasons[0].tooltip
+    expect(tooltip({ ...signal, sessionsPerWeek: 3, kept: 5 })).toEqual(["Week 3 of 4 · 5 sessions kept so far"])
+    expect(tooltip({ ...signal, sessionsPerWeek: 3, kept: 1 })).toEqual(["Week 3 of 4 · 1 session kept so far"])
+    expect(tooltip({ ...signal, sessionsPerWeek: 3, kept: 0 })).toEqual(["Week 3 of 4"])
   })
 
   it("keeps hosting on top but still shows the commitment badge when both apply", () => {

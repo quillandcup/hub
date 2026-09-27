@@ -16,7 +16,7 @@ const TZ = "America/New_York";
 
 function instance(id: string, typeName: string, startTime: string): PrickleInstance {
   const endTime = new Date(new Date(startTime).getTime() + 60 * 60 * 1000).toISOString();
-  return { id, typeId: `t-${id}`, typeName, hostId: "h1", hostName: "Penny Quill", startTime, endTime };
+  return { id, seriesKey: `t-${id}:slot`, typeId: `t-${id}`, typeName, hostId: "h1", hostName: "Penny Quill", startTime, endTime };
 }
 
 const INSTANCES = [

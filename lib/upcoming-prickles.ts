@@ -12,6 +12,7 @@ import {
   computeCommitmentProgress,
   effectiveCommitmentStatus,
   type Commitment,
+  type CommitmentSlot,
   type CommitmentStatus,
   type SlotPrickle,
 } from "@/lib/commitments"
@@ -244,21 +245,21 @@ export const PRIORITY = {
  * paginated anyway per CLAUDE.md). Like the other fetches here, a query error yields no rows, so
  * the Upcoming list still renders -- just without commitment badges. */
 async function fetchActiveCommitments(supabase: SupabaseClient, memberId: string): Promise<Commitment[]> {
+  type SlotRow = { type_id: string; day_of_week: number; start_time_local: string; timezone: string }
   type Row = {
     id: string
-    type_id: string
-    day_of_week: number
-    start_time_local: string
-    timezone: string
     start_date: string
     weeks: number
     status: CommitmentStatus
     cancelled_at: string | null
+    prickle_commitment_slots: SlotRow[] | null
   }
   const rows = await fetchAllPaginated<Row>((offset) =>
     supabase
       .from("prickle_commitments")
-      .select("id, type_id, day_of_week, start_time_local, timezone, start_date, weeks, status, cancelled_at")
+      .select(
+        "id, start_date, weeks, status, cancelled_at, prickle_commitment_slots(type_id, day_of_week, start_time_local, timezone)"
+      )
       .eq("member_id", memberId)
       .eq("status", "active")
       .order("id")
@@ -266,14 +267,18 @@ async function fetchActiveCommitments(supabase: SupabaseClient, memberId: string
   )
   return rows.map((r) => ({
     id: r.id,
-    typeId: r.type_id,
-    dayOfWeek: r.day_of_week,
-    startTimeLocal: r.start_time_local,
-    timezone: r.timezone,
     startDate: r.start_date,
     weeks: r.weeks,
     status: r.status,
     cancelledAt: r.cancelled_at,
+    slots: (r.prickle_commitment_slots ?? []).map(
+      (s): CommitmentSlot => ({
+        typeId: s.type_id,
+        dayOfWeek: s.day_of_week,
+        startTimeLocal: s.start_time_local,
+        timezone: s.timezone,
+      })
+    ),
   }))
 }
 
@@ -290,26 +295,32 @@ export interface RankedPrickle {
   recommendationScore: number
 }
 
-/** An upcoming prickle that is one week of one of the viewer's active commitments. */
+/** An upcoming prickle that is one occurrence of one of the viewer's active commitments. */
 export interface CommitmentSignal {
   commitmentId: string
-  /** 1-based week of the commitment this prickle is. */
+  /** 1-based week of the commitment this prickle falls in. */
   week: number
   weeks: number
-  /** Weeks already kept (attended) so far. */
+  /** Committed sessions per week (the commitment's slot count, e.g. 3 for M/W/F). */
+  sessionsPerWeek: number
+  /** Sessions already kept (attended) so far, across all the commitment's slots. */
   kept: number
 }
 
 function commitmentReasonText(s: CommitmentSignal): string {
   const base = `Week ${s.week} of ${s.weeks}`
-  return s.kept > 0 ? `${base} · ${s.kept} kept so far` : base
+  if (s.kept === 0) return base
+  // One session a week: "kept" counts weeks. Several: say "sessions", so 5 kept in week 2 of a
+  // M/W/F commitment doesn't read as 5 weeks.
+  if (s.sessionsPerWeek <= 1) return `${base} · ${s.kept} kept so far`
+  return `${base} · ${s.kept} ${s.kept === 1 ? "session" : "sessions"} kept so far`
 }
 
 /**
- * Which upcoming prickles fall in one of the viewer's active commitments, using lib/commitments'
- * own slot matching (computeCommitmentProgress: same type, committed local weekday/time in the
- * commitment's timezone, within the commitment window, closest prickle within
- * MATCH_TOLERANCE_MINUTES). `prickles` should include the upcoming prickles plus any past
+ * Which upcoming prickles fall in one of the viewer's active commitments -- a prickle matching
+ * ANY slot of a commitment counts -- using lib/commitments' own slot matching
+ * (computeCommitmentProgress: same type, committed local weekday/time in the slot's timezone,
+ * within the commitment window, closest prickle within MATCH_TOLERANCE_MINUTES). `prickles` should include the upcoming prickles plus any past
  * same-type prickles available (for the kept count); `attendedPrickleIds` is the viewer's
  * distinct attended prickle ids.
  */
@@ -323,12 +334,16 @@ export function computeCommitmentSignals(
   for (const c of commitments) {
     if (effectiveCommitmentStatus(c, now) !== "active") continue
     const progress = computeCommitmentProgress(c, prickles, attendedPrickleIds, now)
-    // Occurrences are only dropped after a cancellation, which an active commitment doesn't have,
-    // so index i is week i + 1.
-    progress.occurrences.forEach((o, i) => {
-      if (o.status !== "upcoming" || !o.prickleId || result.has(o.prickleId)) return
-      result.set(o.prickleId, { commitmentId: c.id, week: i + 1, weeks: c.weeks, kept: progress.kept })
-    })
+    for (const o of progress.occurrences) {
+      if (o.status !== "upcoming" || !o.prickleId || result.has(o.prickleId)) continue
+      result.set(o.prickleId, {
+        commitmentId: c.id,
+        week: o.week,
+        weeks: c.weeks,
+        sessionsPerWeek: c.slots.length,
+        kept: progress.kept,
+      })
+    }
   }
   return result
 }

@@ -80,6 +80,9 @@ describe("getPrickleScheduleOverview", () => {
 
     expect(byId.get("sprint-past-2")).toEqual({
       id: "sprint-past-2",
+      // Mon 10:00 AM EDT -- the same key as that slot's schedule row, so the calendar can map a
+      // clicked occurrence to its recurring slot (commit picking).
+      seriesKey: "t-sprint:1-10:00",
       typeId: "t-sprint",
       typeName: "Morning Sprint",
       hostId: "host-a",

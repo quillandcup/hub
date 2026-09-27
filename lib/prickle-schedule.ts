@@ -67,6 +67,8 @@ export interface PrickleScheduleRow {
 
 export interface PrickleInstance {
   id: string
+  /** The recurring slot (PrickleScheduleRow.seriesKey) this occurrence belongs to, in the viewer's timezone. */
+  seriesKey: string
   typeId: string | null
   typeName: string
   hostId: string | null
@@ -238,6 +240,7 @@ export async function getPrickleScheduleOverview(
     const host = unwrapOne(p.host)
     return {
       id: p.id,
+      seriesKey: seriesKeyFor(p.type_id, getSlotInfo(p.start_time, timeZone).sortKey),
       typeId: p.type_id,
       typeName: type?.name ?? "Prickle",
       hostId: host?.id ?? null,

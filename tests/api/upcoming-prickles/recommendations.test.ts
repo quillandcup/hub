@@ -45,6 +45,8 @@ describe('getRankedUpcomingPrickles (DB)', () => {
   let viewerHostedUpcomingId: string
   let commitPastId: string
   let commitUpcomingId: string
+  let commitSatPastId: string
+  let commitSatUpcomingId: string
   const commitmentIds: string[] = []
   let typeId: string
 
@@ -168,35 +170,47 @@ describe('getRankedUpcomingPrickles (DB)', () => {
     })
     expect(caErr).toBeNull()
 
-    const commitmentBase = { member_id: memberIds.committer, type_id: typeId, timezone: TZ }
+    // A second slot of the same commitment: Saturdays 12:00 PM ET. The committer attended last
+    // Saturday's (2183-05-03), so 2 sessions are kept so far across the two slots.
+    const thisSaturday = thisThursday + 2 * DAY // 2183-05-10T16:00Z
+    commitSatPastId = await insertPrickle(thisSaturday - 7 * DAY, null)
+    commitSatUpcomingId = await insertPrickle(thisSaturday, null)
+    const { error: csErr } = await supabase.from('prickle_attendance').insert({
+      member_id: memberIds.committer,
+      prickle_id: commitSatPastId,
+      join_time: new Date(thisSaturday - 7 * DAY).toISOString(),
+      leave_time: new Date(thisSaturday - 7 * DAY + HOUR).toISOString(),
+      confidence_score: 'high',
+    })
+    expect(csErr).toBeNull()
+
     const { data: commitRows, error: cErr } = await supabase
       .from('prickle_commitments')
       .insert([
-        // Active: Thursdays 12:00 for 3 weeks from last Thursday.
+        // Active: Thursdays + Saturdays 12:00 for 3 weeks from last Thursday.
         // (Every row spells out status/cancelled_at: a multi-row insert nulls keys a row omits.)
-        {
-          ...commitmentBase,
-          day_of_week: 4,
-          start_time_local: '12:00',
-          start_date: '2183-05-01',
-          weeks: 3,
-          status: 'active',
-          cancelled_at: null,
-        },
+        { member_id: memberIds.committer, start_date: '2183-05-01', weeks: 3, status: 'active', cancelled_at: null },
         // Cancelled commitment on the experienced host's Monday 10:00 slot -- must be ignored.
         {
-          ...commitmentBase,
-          day_of_week: 1,
-          start_time_local: '10:00',
+          member_id: memberIds.committer,
           start_date: '2183-05-05',
           weeks: 4,
           status: 'cancelled',
           cancelled_at: now.toISOString(),
         },
       ])
-      .select('id')
+      .select('id, status')
     expect(cErr).toBeNull()
     commitmentIds.push(...commitRows!.map((r) => r.id))
+    const activeId = commitRows!.find((r) => r.status === 'active')!.id
+    const cancelledId = commitRows!.find((r) => r.status === 'cancelled')!.id
+    const slotBaseRow = { type_id: typeId, start_time_local: '12:00', timezone: TZ }
+    const { error: sErr } = await supabase.from('prickle_commitment_slots').insert([
+      { ...slotBaseRow, commitment_id: activeId, day_of_week: 4 },
+      { ...slotBaseRow, commitment_id: activeId, day_of_week: 6 },
+      { ...slotBaseRow, commitment_id: cancelledId, day_of_week: 1, start_time_local: '10:00' },
+    ])
+    expect(sErr).toBeNull()
   }, 60_000)
 
   afterAll(async () => {
@@ -280,18 +294,27 @@ describe('getRankedUpcomingPrickles (DB)', () => {
     expect(kinds(ranked[1])).toEqual(['experiencedHost', 'popular', 'regulars'])
   })
 
-  it('ranks an upcoming week of an active commitment in the commitment tier, with week/kept progress', async () => {
+  it('ranks upcoming prickles matching ANY slot of an active commitment in the commitment tier, with week/kept progress', async () => {
     const all = await getRankedUpcomingPrickles(supabase as never, memberIds.committer, TZ, now, WINDOW_DAYS)
-    const mine = new Set([experiencedUpcomingId, newHostUpcomingId, viewerHostedUpcomingId, commitUpcomingId])
+    const mine = new Set([
+      experiencedUpcomingId,
+      newHostUpcomingId,
+      viewerHostedUpcomingId,
+      commitUpcomingId,
+      commitSatUpcomingId,
+    ])
     const ranked = all.filter((r) => mine.has(r.prickle.id))
 
-    // The hostless, sparse committed slot outranks the strong experienced-host recommendation.
-    expect(ranked[0].prickle.id).toBe(commitUpcomingId)
-    expect(ranked[0].priority).toBe(PRIORITY.commitment)
-    expect(ranked[0].reasons.find((r) => r.kind === 'commitment')).toEqual({
-      kind: 'commitment',
-      tooltip: ['Week 2 of 3 · 1 kept so far'],
-    })
+    // Both committed slots' next sessions (hostless, sparse) outrank the strong experienced-host
+    // recommendation, soonest first.
+    expect(ranked.slice(0, 2).map((r) => r.prickle.id)).toEqual([commitUpcomingId, commitSatUpcomingId])
+    for (const r of ranked.slice(0, 2)) {
+      expect(r.priority).toBe(PRIORITY.commitment)
+      expect(r.reasons.find((x) => x.kind === 'commitment')).toEqual({
+        kind: 'commitment',
+        tooltip: ['Week 2 of 3 · 2 sessions kept so far'],
+      })
+    }
 
     // The cancelled commitment on the experienced host's slot adds nothing.
     const experienced = ranked.find((r) => r.prickle.id === experiencedUpcomingId)!

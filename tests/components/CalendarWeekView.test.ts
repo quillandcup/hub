@@ -68,7 +68,11 @@ describe('CalendarWeekView slot-picking mode', () => {
   });
 
   it('disables click-to-navigate on prickle blocks when onSlotClick is provided', () => {
-    expect(src).toContain('onClick={onSlotClick ? undefined : () => router.push(`${prickleBasePath}/${prickle.id}`)}');
+    // onSlotClick wins over both onPrickleClick (commit picking) and click-to-navigate.
+    expect(src).toMatch(
+      /onClick=\{\s*onSlotClick\s*\?\s*undefined\s*:\s*selectable\s*\?\s*\(\) => onPrickleClick\(prickle\)\s*:\s*\(\) => router\.push\(`\$\{prickleBasePath\}\/\$\{prickle\.id\}`\)\s*\}/
+    );
+    expect(src).toContain('const selectable = onPrickleClick && !onSlotClick;');
   });
 
   it('wires an onClick on hour grid cells only when onSlotClick is provided', () => {

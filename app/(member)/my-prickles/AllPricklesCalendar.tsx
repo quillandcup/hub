@@ -18,16 +18,26 @@ function addDays(d: Date, days: number): Date {
   return next;
 }
 
+/** Picking recurring slots to commit to: clicking a prickle toggles its whole weekly slot. */
+export interface CalendarSlotSelection {
+  selected: ReadonlySet<string>;
+  /** Slots that can be committed to (on the upcoming schedule); others' blocks aren't clickable. */
+  selectable: ReadonlySet<string>;
+  onToggle: (seriesKey: string) => void;
+}
+
 export default function AllPricklesCalendar({
   instances,
   timeZone,
   upcomingWindowDays,
   lookbackDays,
+  selection,
 }: {
   instances: PrickleInstance[];
   timeZone: string;
   upcomingWindowDays: number;
   lookbackDays: number;
+  selection?: CalendarSlotSelection;
 }) {
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const thisWeekStart = useMemo(() => startOfWeek(new Date()), []);
@@ -50,6 +60,18 @@ export default function AllPricklesCalendar({
     prickle_type: i.typeName,
     attendance_count: 0,
   }));
+
+  const seriesById = new Map(filtered.map((i) => [i.id, i.seriesKey]));
+  // Every occurrence of a picked slot is highlighted, so the member sees the whole weekly pattern.
+  const selectedPrickleIds = selection
+    ? new Set(filtered.filter((i) => selection.selected.has(i.seriesKey)).map((i) => i.id))
+    : undefined;
+  const handlePrickleClick = selection
+    ? (p: Prickle) => {
+        const key = seriesById.get(p.id);
+        if (key && selection.selectable.has(key)) selection.onToggle(key);
+      }
+    : undefined;
 
   const maxWeekStart = startOfWeek(addDays(new Date(), upcomingWindowDays));
   // First full week inside the lookback window -- the week the cutoff falls in would be half empty.
@@ -108,6 +130,8 @@ export default function AllPricklesCalendar({
           userTimezonePreference={timeZone}
           mode="member"
           showAttendanceDetails={false}
+          onPrickleClick={handlePrickleClick}
+          selectedPrickleIds={selectedPrickleIds}
         />
       </CalendarScrollContainer>
     </div>

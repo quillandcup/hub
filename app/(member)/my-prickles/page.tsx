@@ -17,7 +17,6 @@ import HostingScheduleManager from "@/app/(member)/hosting/HostingScheduleManage
 import AllPricklesView from "./AllPricklesView";
 import CommitmentsManager from "./CommitmentsManager";
 import { getMyCommitments } from "./commitment-actions";
-import { buildSlotOptions } from "@/lib/commitments";
 import { Tabs } from "@/components/Tabs";
 
 export const metadata: Metadata = {
@@ -33,7 +32,7 @@ const MEMBERS_BATCH_SIZE = 1000;
 const TAB_IDS = ["upcoming", "all", "history", "find", "hosting", "commitments"] as const;
 type TabId = (typeof TAB_IDS)[number];
 
-export default async function MyPricklesPage({ searchParams }: { searchParams: Promise<{ tab?: string; slot?: string }> }) {
+export default async function MyPricklesPage({ searchParams }: { searchParams: Promise<{ tab?: string; slot?: string; commit?: string }> }) {
   const supabase = await createClient();
   const user = await getCurrentUser();
   if (!user) redirect("/login");
@@ -44,8 +43,18 @@ export default async function MyPricklesPage({ searchParams }: { searchParams: P
   const memberId = effectiveIdentity.memberId;
   const timeZone = tzPref === "browser" ? ORG_TIMEZONE : tzPref;
 
-  const { tab: rawTab, slot: commitSlotKey } = await searchParams;
-  const initialTab: TabId = (TAB_IDS as readonly string[]).includes(rawTab ?? "") ? (rawTab as TabId) : "upcoming";
+  const { tab: rawTab, slot: legacySlotKey, commit } = await searchParams;
+  const requestedTab: TabId = (TAB_IDS as readonly string[]).includes(rawTab ?? "") ? (rawTab as TabId) : "upcoming";
+  // Commitments are made from All Prickles: ?tab=all&commit=<seriesKey>[,...] opens commit mode with those
+  // slots picked (an empty value opens it with nothing picked). The older ?tab=commitments&slot=<seriesKey>
+  // link lands there too.
+  const initialCommitKeys =
+    commit != null
+      ? commit.split(",").filter(Boolean)
+      : requestedTab === "commitments" && legacySlotKey
+        ? [legacySlotKey]
+        : null;
+  const initialTab: TabId = initialCommitKeys ? "all" : requestedTab;
 
   const now = new Date();
   const currentMonth = getMonthStart(now).toISOString().slice(0, 10);
@@ -160,6 +169,7 @@ export default async function MyPricklesPage({ searchParams }: { searchParams: P
                   timeZone={timeZone}
                   upcomingWindowDays={UPCOMING_WINDOW_DAYS}
                   lookbackDays={SCHEDULE_LOOKBACK_DAYS}
+                  initialCommitKeys={initialCommitKeys}
                 />
               ),
             },
@@ -189,11 +199,7 @@ export default async function MyPricklesPage({ searchParams }: { searchParams: P
               id: "commitments",
               label: "Commitments",
               content: (
-                <CommitmentsManager
-                  slots={buildSlotOptions(scheduleOverview.rows, timeZone)}
-                  commitments={commitments}
-                  initialSlotKey={commitSlotKey ?? null}
-                />
+                <CommitmentsManager commitments={commitments} />
               ),
             },
             {

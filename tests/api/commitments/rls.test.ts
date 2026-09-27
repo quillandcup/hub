@@ -2,17 +2,20 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { getTestSupabaseAdminClient, getTestSupabaseClient } from '../../helpers/supabase'
 
 /**
- * Exercises the prickle_commitments RLS policies and table constraints directly
- * (supabase/migrations/20260926000200_create_prickle_commitments.sql), using real
- * signed-in member/admin sessions -- not the service-role client, which bypasses RLS
- * entirely and so couldn't prove anything about the policies.
+ * Exercises RLS and constraints on prickle_commitments + prickle_commitment_slots
+ * (supabase/migrations/20260926000200_create_prickle_commitments.sql, restructured by
+ * 20260927010000_commitment_slots.sql) using real signed-in member/admin sessions -- not the
+ * service-role client, which bypasses RLS entirely and so couldn't prove anything about the
+ * policies. Also covers create_prickle_commitment (the atomic create RPC the app uses) and the
+ * overlap trigger that replaced the single-slot "one active commitment per slot" index.
  *
  * Modeled on tests/api/prickle-schedules/rls.test.ts.
  */
-describe('prickle_commitments RLS', () => {
+describe('prickle_commitments + prickle_commitment_slots RLS', () => {
   const admin = getTestSupabaseAdminClient()
   const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
   const password = 'test-password-12345!'
+  const TZ = 'America/New_York'
 
   const authUserIds: string[] = []
   let memberAId: string
@@ -23,27 +26,46 @@ describe('prickle_commitments RLS', () => {
   let adminClient: ReturnType<typeof getTestSupabaseClient>
   const anonClient = getTestSupabaseClient()
 
-  // Each test uses its own slot (day_of_week + start time) so the partial unique
-  // index on active commitments never collides across tests.
+  // Each test uses its own slot times so the overlap trigger never fires across tests.
   let slotCounter = 0
-  function nextSlot() {
+  function nextSlot(dayOfWeek = 1) {
     slotCounter += 1
-    return {
-      day_of_week: slotCounter % 7,
-      start_time_local: `${String(6 + slotCounter).padStart(2, '0')}:00:00`,
-    }
+    const minutes = slotCounter * 5
+    const time = `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`
+    return { type_id: typeId, day_of_week: dayOfWeek, start_time_local: time, timezone: TZ }
   }
 
-  function row(memberId: string, overrides: Record<string, unknown> = {}) {
-    return {
-      member_id: memberId,
-      type_id: typeId,
-      timezone: 'America/New_York',
-      start_date: '2026-10-05',
-      weeks: 4,
-      ...nextSlot(),
-      ...overrides,
-    }
+  function commitmentRow(memberId: string, overrides: Record<string, unknown> = {}) {
+    return { member_id: memberId, start_date: '2026-10-05', weeks: 4, ...overrides }
+  }
+
+  type Client = ReturnType<typeof getTestSupabaseClient>
+
+  /** create_prickle_commitment via `client` (RLS applies), returning { id, error }. */
+  async function rpcCreate(
+    client: Client,
+    memberId: string,
+    slots: ReturnType<typeof nextSlot>[],
+    opts: { start_date?: string; weeks?: number } = {},
+  ) {
+    const { data, error } = await client.rpc('create_prickle_commitment', {
+      p_member_id: memberId,
+      p_start_date: opts.start_date ?? '2026-10-05',
+      p_weeks: opts.weeks ?? 4,
+      p_slots: slots,
+    })
+    return { id: data as string | null, error }
+  }
+
+  /** Service-role insert of a commitment with slots (setup only). */
+  async function seed(memberId: string, slots = [nextSlot()], overrides: Record<string, unknown> = {}) {
+    const { data, error } = await admin.from('prickle_commitments').insert(commitmentRow(memberId, overrides)).select('id').single()
+    if (error || !data) throw new Error(`seed failed: ${error?.message}`)
+    const { error: slotError } = await admin
+      .from('prickle_commitment_slots')
+      .insert(slots.map((s) => ({ ...s, commitment_id: data.id })))
+    if (slotError) throw new Error(`seed slots failed: ${slotError.message}`)
+    return data.id as string
   }
 
   async function createUser(email: string, role: 'member' | 'admin') {
@@ -89,6 +111,7 @@ describe('prickle_commitments RLS', () => {
 
   afterAll(async () => {
     if (memberAId && memberBId) {
+      // Slots cascade from their commitment.
       await admin.from('prickle_commitments').delete().in('member_id', [memberAId, memberBId])
       await admin.from('members').delete().in('id', [memberAId, memberBId])
     }
@@ -96,222 +119,268 @@ describe('prickle_commitments RLS', () => {
     for (const id of authUserIds) await admin.auth.admin.deleteUser(id).catch(() => {})
   })
 
-  it('lets a member insert, select, and update their own commitment', async () => {
-    const { data: created, error: insertError } = await memberAClient
-      .from('prickle_commitments')
-      .insert(row(memberAId))
-      .select('id, member_id, status')
-      .single()
-    expect(insertError).toBeNull()
-    expect(created!.member_id).toBe(memberAId)
-    expect(created!.status).toBe('active')
-
-    const { data: selected, error: selectError } = await memberAClient
-      .from('prickle_commitments')
-      .select('id')
-      .eq('id', created!.id)
-    expect(selectError).toBeNull()
-    expect(selected).toHaveLength(1)
-
-    const { data: updated, error: updateError } = await memberAClient
-      .from('prickle_commitments')
-      .update({ weeks: 6 })
-      .eq('id', created!.id)
-      .select('weeks')
-    expect(updateError).toBeNull()
-    expect(updated).toEqual([{ weeks: 6 }])
+  it('no longer has the single-slot columns on prickle_commitments', async () => {
+    const { error } = await admin.from('prickle_commitments').select('type_id').limit(1)
+    expect(error).toBeTruthy()
+    expect(error!.code).toBe('42703') // undefined_column
   })
 
-  it("hides another member's commitments from select and silently blocks updating them", async () => {
-    const { data: bRow } = await admin.from('prickle_commitments').insert(row(memberBId)).select('id').single()
+  it('lets a member create a multi-slot commitment atomically via create_prickle_commitment, then read it', async () => {
+    const slots = [nextSlot(1), nextSlot(3), nextSlot(5)]
+    const { id, error } = await rpcCreate(memberAClient, memberAId, slots)
+    expect(error).toBeNull()
+    expect(id).toBeTruthy()
 
-    // Sanity: the row really exists (service role sees it)...
-    const { data: viaService } = await admin.from('prickle_commitments').select('id').eq('id', bRow!.id)
-    expect(viaService).toHaveLength(1)
-
-    // ...but member A's session can't see it.
-    const { data: viaA, error: selectError } = await memberAClient
+    const { data: row } = await memberAClient
       .from('prickle_commitments')
+      .select('member_id, status, weeks, prickle_commitment_slots(day_of_week, start_time_local, timezone)')
+      .eq('id', id!)
+      .single()
+    expect(row!.member_id).toBe(memberAId)
+    expect(row!.status).toBe('active')
+    expect(row!.prickle_commitment_slots.map((s) => s.day_of_week).sort()).toEqual([1, 3, 5])
+  })
+
+  it('create_prickle_commitment rejects an empty slot list and leaves nothing behind', async () => {
+    const { error } = await rpcCreate(memberAClient, memberAId, [], { start_date: '2026-10-12' })
+    expect(error).toBeTruthy()
+    expect(error!.code).toBe('23514') // check_violation
+    const { data } = await admin
+      .from('prickle_commitments')
+      .select('id, prickle_commitment_slots(id)')
+      .eq('member_id', memberAId)
+      .eq('start_date', '2026-10-12')
+    expect(data).toEqual([])
+  })
+
+  it("won't let a member create a commitment for another member (RPC or direct), and rolls back the RPC", async () => {
+    const slot = nextSlot()
+    const { error: rpcError } = await rpcCreate(memberAClient, memberBId, [slot])
+    expect(rpcError).toBeTruthy()
+    expect(rpcError!.code).toBe('42501') // RLS WITH CHECK violation
+
+    const { error: directError } = await memberAClient
+      .from('prickle_commitments')
+      .insert(commitmentRow(memberBId))
       .select('id')
-      .eq('id', bRow!.id)
-    expect(selectError).toBeNull()
+      .single()
+    expect(directError!.code).toBe('42501')
+
+    const { data: landed } = await admin
+      .from('prickle_commitment_slots')
+      .select('id, prickle_commitments!inner(member_id)')
+      .eq('prickle_commitments.member_id', memberBId)
+      .eq('start_time_local', `${slot.start_time_local}:00`)
+    expect(landed).toEqual([])
+  })
+
+  it("won't let a member add a slot to another member's commitment", async () => {
+    const bId = await seed(memberBId)
+    const { error } = await memberAClient.from('prickle_commitment_slots').insert({ ...nextSlot(), commitment_id: bId })
+    expect(error).toBeTruthy()
+    expect(error!.code).toBe('42501')
+  })
+
+  it("hides another member's commitments and slots from select, and silently blocks updating them", async () => {
+    const bId = await seed(memberBId)
+
+    const { data: viaA } = await memberAClient.from('prickle_commitments').select('id').eq('id', bId)
     expect(viaA).toEqual([])
+    const { data: slotsViaA } = await memberAClient.from('prickle_commitment_slots').select('id').eq('commitment_id', bId)
+    expect(slotsViaA).toEqual([])
+    const { data: ownViaB } = await memberBClient.from('prickle_commitment_slots').select('id').eq('commitment_id', bId)
+    expect(ownViaB).toHaveLength(1)
 
     // A broad select from A returns only A's own rows.
     const { data: allViaA } = await memberAClient.from('prickle_commitments').select('member_id')
     expect(allViaA!.every((r) => r.member_id === memberAId)).toBe(true)
 
-    // UPDATE on a row the USING clause excludes affects zero rows rather than erroring.
     const { data: updated } = await memberAClient
       .from('prickle_commitments')
       .update({ weeks: 12 })
-      .eq('id', bRow!.id)
+      .eq('id', bId)
       .select('weeks')
     expect(updated).toEqual([])
-    const { data: unchanged } = await admin.from('prickle_commitments').select('weeks').eq('id', bRow!.id).single()
+    const { data: unchanged } = await admin.from('prickle_commitments').select('weeks').eq('id', bId).single()
     expect(unchanged!.weeks).toBe(4)
   })
 
-  it("blocks a member from reassigning their own commitment to another member", async () => {
-    const { data: aRow } = await admin.from('prickle_commitments').insert(row(memberAId)).select('id').single()
-
-    const { error } = await memberAClient
+  it('lets a member update (cancel) their own commitment but not reassign it to another member', async () => {
+    const aId = await seed(memberAId)
+    const { error: reassignError } = await memberAClient
       .from('prickle_commitments')
       .update({ member_id: memberBId })
-      .eq('id', aRow!.id)
-    // WITH CHECK fails on the new row -> error, and the row keeps its owner.
-    expect(error).toBeTruthy()
-    const { data: after } = await admin.from('prickle_commitments').select('member_id').eq('id', aRow!.id).single()
-    expect(after!.member_id).toBe(memberAId)
-  })
+      .eq('id', aId)
+    expect(reassignError).toBeTruthy()
 
-  it('blocks a member from inserting a commitment for another member', async () => {
-    const attempt = row(memberBId)
-    const { data, error } = await memberAClient
-      .from('prickle_commitments')
-      .insert(attempt)
-      .select('id')
-      .single()
-    expect(data).toBeNull()
-    expect(error).toBeTruthy()
-    expect(error!.code).toBe('42501') // insufficient_privilege: RLS WITH CHECK violation
-
-    const { data: landed } = await admin
-      .from('prickle_commitments')
-      .select('id')
-      .eq('member_id', memberBId)
-      .eq('day_of_week', attempt.day_of_week)
-      .eq('start_time_local', attempt.start_time_local)
-    expect(landed).toEqual([])
-  })
-
-  it('does not let a member delete even their own commitment (no DELETE policy)', async () => {
-    const { data: aRow } = await admin.from('prickle_commitments').insert(row(memberAId)).select('id').single()
-
-    const { data: deleted, error } = await memberAClient
-      .from('prickle_commitments')
-      .delete()
-      .eq('id', aRow!.id)
-      .select('id')
-    expect(error).toBeNull()
-    expect(deleted).toEqual([])
-
-    const { data: stillThere } = await admin.from('prickle_commitments').select('id').eq('id', aRow!.id)
-    expect(stillThere).toHaveLength(1)
-  })
-
-  it('shows anon (signed-out) callers nothing and rejects anon inserts', async () => {
-    const { data: aRow } = await admin.from('prickle_commitments').insert(row(memberAId)).select('id').single()
-
-    const { data: viaAnon } = await anonClient.from('prickle_commitments').select('id').eq('id', aRow!.id)
-    expect(viaAnon ?? []).toEqual([])
-
-    const { data: inserted, error } = await anonClient.from('prickle_commitments').insert(row(memberAId)).select('id')
-    expect(error).toBeTruthy()
-    expect(inserted).toBeNull()
-  })
-
-  it("lets a real admin session read all members' commitments and update/insert another member's (sudo path)", async () => {
-    const { data: aRow } = await admin.from('prickle_commitments').insert(row(memberAId)).select('id').single()
-    const { data: bRow } = await admin.from('prickle_commitments').insert(row(memberBId)).select('id').single()
-
-    const { data: seen, error: selectError } = await adminClient
-      .from('prickle_commitments')
-      .select('id')
-      .in('id', [aRow!.id, bRow!.id])
-    expect(selectError).toBeNull()
-    expect(seen).toHaveLength(2)
-
-    const { data: updated, error: updateError } = await adminClient
-      .from('prickle_commitments')
-      .update({ weeks: 8 })
-      .eq('id', bRow!.id)
-      .select('weeks')
-    expect(updateError).toBeNull()
-    expect(updated).toEqual([{ weeks: 8 }])
-
-    const { data: inserted, error: insertError } = await adminClient
-      .from('prickle_commitments')
-      .insert(row(memberBId))
-      .select('id')
-      .single()
-    expect(insertError).toBeNull()
-    expect(inserted).toBeTruthy()
-  })
-
-  it('rejects a second active commitment for the same slot, but allows it once the first is cancelled', async () => {
-    const slot = row(memberAId)
-
-    const { data: first, error: firstError } = await memberAClient
-      .from('prickle_commitments')
-      .insert(slot)
-      .select('id')
-      .single()
-    expect(firstError).toBeNull()
-
-    const { error: dupError } = await memberAClient.from('prickle_commitments').insert(slot).select('id').single()
-    expect(dupError).toBeTruthy()
-    expect(dupError!.code).toBe('23505') // unique_violation
-
-    // Member cancels (status + cancelled_at must move together per the CHECK).
-    const { error: cancelError } = await memberAClient
+    const { data: cancelled, error: cancelError } = await memberAClient
       .from('prickle_commitments')
       .update({ status: 'cancelled', cancelled_at: new Date().toISOString() })
-      .eq('id', first!.id)
+      .eq('id', aId)
+      .select('status, member_id')
     expect(cancelError).toBeNull()
-
-    const { data: second, error: secondError } = await memberAClient
-      .from('prickle_commitments')
-      .insert(slot)
-      .select('id')
-      .single()
-    expect(secondError).toBeNull()
-    expect(second!.id).not.toBe(first!.id)
+    expect(cancelled).toEqual([{ status: 'cancelled', member_id: memberAId }])
   })
 
-  it('rejects weeks outside 1..12', async () => {
-    for (const weeks of [0, 13]) {
-      const { error } = await memberAClient
-        .from('prickle_commitments')
-        .insert(row(memberAId, { weeks }))
+  it("doesn't let a member delete their commitment or edit/delete its slots (no member DELETE/UPDATE policies)", async () => {
+    const aId = await seed(memberAId)
+
+    const { data: deleted } = await memberAClient.from('prickle_commitments').delete().eq('id', aId).select('id')
+    expect(deleted).toEqual([])
+    const { data: slotUpdated } = await memberAClient
+      .from('prickle_commitment_slots')
+      .update({ day_of_week: 6 })
+      .eq('commitment_id', aId)
+      .select('id')
+    expect(slotUpdated).toEqual([])
+    const { data: slotDeleted } = await memberAClient
+      .from('prickle_commitment_slots')
+      .delete()
+      .eq('commitment_id', aId)
+      .select('id')
+    expect(slotDeleted).toEqual([])
+
+    const { data: stillThere } = await admin.from('prickle_commitment_slots').select('day_of_week').eq('commitment_id', aId)
+    expect(stillThere).toEqual([{ day_of_week: 1 }])
+  })
+
+  it('shows anon (signed-out) callers nothing and rejects anon writes and RPC', async () => {
+    const aId = await seed(memberAId)
+    const { data: viaAnon } = await anonClient.from('prickle_commitments').select('id').eq('id', aId)
+    expect(viaAnon ?? []).toEqual([])
+    const { data: slotsViaAnon } = await anonClient.from('prickle_commitment_slots').select('id').eq('commitment_id', aId)
+    expect(slotsViaAnon ?? []).toEqual([])
+
+    const { error } = await anonClient.from('prickle_commitments').insert(commitmentRow(memberAId)).select('id')
+    expect(error).toBeTruthy()
+    const { error: rpcError } = await rpcCreate(anonClient, memberAId, [nextSlot()])
+    expect(rpcError).toBeTruthy()
+  })
+
+  it("lets a real admin session read all members' commitments, create for another member (sudo path), and fix slots", async () => {
+    const aId = await seed(memberAId)
+    const bId = await seed(memberBId)
+
+    const { data: seen } = await adminClient.from('prickle_commitments').select('id').in('id', [aId, bId])
+    expect(seen).toHaveLength(2)
+    const { data: slotsSeen } = await adminClient.from('prickle_commitment_slots').select('id').in('commitment_id', [aId, bId])
+    expect(slotsSeen).toHaveLength(2)
+
+    const { id, error } = await rpcCreate(adminClient, memberBId, [nextSlot(2), nextSlot(4)])
+    expect(error).toBeNull()
+    expect(id).toBeTruthy()
+
+    const { data: fixed, error: fixError } = await adminClient
+      .from('prickle_commitment_slots')
+      .update({ day_of_week: 0 })
+      .eq('commitment_id', bId)
+      .select('day_of_week')
+    expect(fixError).toBeNull()
+    expect(fixed).toEqual([{ day_of_week: 0 }])
+  })
+
+  describe('overlap rule: a slot can be in only one active commitment per member at a time', () => {
+    it('rejects a new commitment sharing any slot with an active one whose window overlaps, atomically', async () => {
+      const mon = nextSlot(1)
+      const wed = nextSlot(3)
+      const { error: firstError } = await rpcCreate(memberAClient, memberAId, [mon, wed], { start_date: '2026-10-05', weeks: 4 })
+      expect(firstError).toBeNull()
+
+      // New M/W/F from week 3 shares Wed -> rejected, and none of its rows land.
+      const fri = nextSlot(5)
+      const { error } = await rpcCreate(memberAClient, memberAId, [nextSlot(1), wed, fri], { start_date: '2026-10-19', weeks: 2 })
+      expect(error).toBeTruthy()
+      expect(error!.code).toBe('23505') // unique_violation
+      const { data: orphan } = await admin
+        .from('prickle_commitment_slots')
         .select('id')
-        .single()
+        .eq('start_time_local', `${fri.start_time_local}:00`)
+        .eq('type_id', typeId)
+      expect(orphan).toEqual([])
+    })
+
+    it('allows the same slot for another member, for a non-overlapping window (renewal), or after cancelling', async () => {
+      const slot = nextSlot(2)
+      const { id: first, error: firstError } = await rpcCreate(memberAClient, memberAId, [slot], { start_date: '2026-10-05', weeks: 2 })
+      expect(firstError).toBeNull()
+
+      // Another member, same slot and window.
+      expect((await rpcCreate(memberBClient, memberBId, [slot], { start_date: '2026-10-05', weeks: 2 })).error).toBeNull()
+      // Renewal starting the day after the first ends (10/18).
+      expect((await rpcCreate(memberAClient, memberAId, [slot], { start_date: '2026-10-19', weeks: 4 })).error).toBeNull()
+      // Overlapping again is rejected...
+      expect((await rpcCreate(memberAClient, memberAId, [slot], { start_date: '2026-10-12', weeks: 1 })).error!.code).toBe('23505')
+
+      // ...until the first is cancelled.
+      await memberAClient
+        .from('prickle_commitments')
+        .update({ status: 'cancelled', cancelled_at: new Date().toISOString() })
+        .eq('id', first!)
+      expect((await rpcCreate(memberAClient, memberAId, [slot], { start_date: '2026-10-05', weeks: 2 })).error).toBeNull()
+    })
+
+    it('rejects re-activating a cancelled commitment or extending one into an overlap', async () => {
+      const slot = nextSlot(4)
+      const { id: early } = await rpcCreate(memberAClient, memberAId, [slot], { start_date: '2026-10-05', weeks: 1 })
+      const { id: later, error } = await rpcCreate(memberAClient, memberAId, [slot], { start_date: '2026-10-12', weeks: 1 })
+      expect(error).toBeNull()
+
+      // Extending the early one to 2 weeks would overlap the later one.
+      const { error: extendError } = await memberAClient.from('prickle_commitments').update({ weeks: 2 }).eq('id', early!)
+      expect(extendError!.code).toBe('23505')
+
+      await memberAClient
+        .from('prickle_commitments')
+        .update({ status: 'cancelled', cancelled_at: new Date().toISOString() })
+        .eq('id', later!)
+      const { error: moveError } = await memberAClient.from('prickle_commitments').update({ weeks: 2 }).eq('id', early!)
+      expect(moveError).toBeNull()
+
+      // Now the cancelled one can't come back: it would overlap the extended early one.
+      const { error: reactivateError } = await memberAClient
+        .from('prickle_commitments')
+        .update({ status: 'active', cancelled_at: null })
+        .eq('id', later!)
+      expect(reactivateError!.code).toBe('23505')
+    })
+
+    it('rejects the same slot twice within one commitment', async () => {
+      const slot = nextSlot()
+      const { error } = await rpcCreate(memberAClient, memberAId, [slot, slot])
+      expect(error!.code).toBe('23505')
+    })
+  })
+
+  it('rejects weeks outside 1..12 and slot fields out of range', async () => {
+    for (const weeks of [0, 13]) {
+      const { error } = await rpcCreate(memberAClient, memberAId, [nextSlot()], { weeks })
       expect(error, `weeks=${weeks} should be rejected`).toBeTruthy()
       expect(error!.code).toBe('23514') // check_violation
     }
-
     for (const weeks of [1, 12]) {
-      const { error } = await memberAClient
-        .from('prickle_commitments')
-        .insert(row(memberAId, { weeks }))
-        .select('id')
-        .single()
+      const { error } = await rpcCreate(memberAClient, memberAId, [nextSlot()], { weeks, start_date: weeks === 1 ? '2027-01-04' : '2027-02-01' })
       expect(error, `weeks=${weeks} should be accepted`).toBeNull()
     }
+    const { error: dayError } = await rpcCreate(memberAClient, memberAId, [{ ...nextSlot(), day_of_week: 7 }])
+    expect(dayError!.code).toBe('23514')
   })
 
   it('computes end_date as start_date + weeks*7 - 1 days, and recomputes it when weeks changes', async () => {
-    const { data: created } = await memberAClient
-      .from('prickle_commitments')
-      .insert(row(memberAId, { start_date: '2026-10-05', weeks: 4 }))
-      .select('id, end_date')
-      .single()
+    const { id } = await rpcCreate(memberAClient, memberAId, [nextSlot()], { start_date: '2026-10-05', weeks: 4 })
+    const { data: created } = await memberAClient.from('prickle_commitments').select('end_date').eq('id', id!).single()
     expect(created!.end_date).toBe('2026-11-01')
 
     const { data: updated } = await memberAClient
       .from('prickle_commitments')
       .update({ weeks: 1 })
-      .eq('id', created!.id)
+      .eq('id', id!)
       .select('end_date')
       .single()
     expect(updated!.end_date).toBe('2026-10-11')
 
     // Crosses a year boundary.
-    const { data: long } = await memberAClient
-      .from('prickle_commitments')
-      .insert(row(memberAId, { start_date: '2026-12-01', weeks: 12 }))
-      .select('end_date')
-      .single()
+    const { id: longId } = await rpcCreate(memberAClient, memberAId, [nextSlot()], { start_date: '2026-12-01', weeks: 12 })
+    const { data: long } = await memberAClient.from('prickle_commitments').select('end_date').eq('id', longId!).single()
     expect(long!.end_date).toBe('2027-02-22')
   })
 })

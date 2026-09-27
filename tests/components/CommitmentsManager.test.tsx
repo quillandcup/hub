@@ -1,153 +1,119 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import CommitmentsManager from "@/app/(member)/my-prickles/CommitmentsManager";
-import { cancelCommitment, createCommitment, type MyCommitment } from "@/app/(member)/my-prickles/commitment-actions";
-import type { CommitmentSlotOption } from "@/lib/commitments";
+import { cancelCommitment, type MyCommitment } from "@/app/(member)/my-prickles/commitment-actions";
+import type { CommitmentOccurrence, OccurrenceStatus, ProgressCounts } from "@/lib/commitments";
 
-vi.mock("@/app/(member)/my-prickles/commitment-actions", () => ({
-  createCommitment: vi.fn(),
-  cancelCommitment: vi.fn(),
-}));
+// The Commitments tab lists commitments (made from All Prickles) with progress, and cancels them.
+
+vi.mock("@/app/(member)/my-prickles/commitment-actions", () => ({ cancelCommitment: vi.fn() }));
 
 const refresh = vi.fn();
-vi.mock("next/navigation", () => ({
-  useRouter: () => ({ refresh }),
-}));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh }) }));
 
-const MONDAY_SLOT: CommitmentSlotOption = {
-  key: "type-a:1-07:00",
-  typeId: "type-a",
-  dayOfWeek: 1,
-  startTimeLocal: "07:00",
-  timezone: "America/New_York",
-  typeName: "Progress Prickle",
-  label: "Monday 7:00 AM EDT · Progress Prickle with Host A",
-  nextDate: "2026-09-28",
-};
-const THURSDAY_SLOT: CommitmentSlotOption = {
-  key: "type-b:4-19:30",
-  typeId: "type-b",
-  dayOfWeek: 4,
-  startTimeLocal: "19:30",
-  timezone: "America/New_York",
-  typeName: "Sprint",
-  label: "Thursday 7:30 PM EDT · Sprint",
-  nextDate: "2026-10-01",
-};
+const ET = "America/New_York";
 
-const ACTIVE: MyCommitment = {
+function occ(slotIndex: number, week: number, date: string, status: OccurrenceStatus): CommitmentOccurrence {
+  return { slotIndex, week, date, expectedStart: `${date}T09:00:00.000Z`, prickleId: `${date}-p`, status };
+}
+
+function counts(c: Partial<ProgressCounts>): ProgressCounts {
+  return { kept: 0, missed: 0, pending: 0, upcoming: 0, noSession: 0, ...c };
+}
+
+// M/W/F 5am for 2 weeks: week 1 kept M, missed W, kept F; week 2 all upcoming.
+const MWF: MyCommitment = {
   id: "c1",
-  typeId: "type-a",
-  typeName: "Progress Prickle",
-  label: "Progress Prickle · every Monday · 7 AM EDT",
-  dayOfWeek: 1,
-  startTimeLocal: "07:00",
-  timezone: "America/New_York",
-  startDate: "2026-09-14",
-  endDate: "2026-10-11",
-  weeks: 4,
+  title: "Sprint · Mon, Wed, Fri · 5 AM EDT",
+  slots: [
+    { typeId: "t1", dayOfWeek: 1, startTimeLocal: "05:00", timezone: ET, typeName: "Sprint", label: "Sprint · every Monday · 5 AM EDT", progress: counts({ kept: 1, upcoming: 1 }) },
+    { typeId: "t1", dayOfWeek: 3, startTimeLocal: "05:00", timezone: ET, typeName: "Sprint", label: "Sprint · every Wednesday · 5 AM EDT", progress: counts({ missed: 1, upcoming: 1 }) },
+    { typeId: "t1", dayOfWeek: 5, startTimeLocal: "05:00", timezone: ET, typeName: "Sprint", label: "Sprint · every Friday · 5 AM EDT", progress: counts({ kept: 1, upcoming: 1 }) },
+  ],
+  startDate: "2026-09-21",
+  endDate: "2026-10-04",
+  weeks: 2,
   status: "active",
   progress: {
     occurrences: [
-      { date: "2026-09-14", expectedStart: "2026-09-14T11:00:00.000Z", prickleId: "p1", status: "kept" },
-      { date: "2026-09-21", expectedStart: "2026-09-21T11:00:00.000Z", prickleId: "p2", status: "missed" },
-      { date: "2026-09-28", expectedStart: "2026-09-28T11:00:00.000Z", prickleId: "p3", status: "upcoming" },
-      { date: "2026-10-05", expectedStart: "2026-10-05T11:00:00.000Z", prickleId: "p4", status: "upcoming" },
+      occ(0, 1, "2026-09-21", "kept"),
+      occ(1, 1, "2026-09-23", "missed"),
+      occ(2, 1, "2026-09-25", "kept"),
+      occ(0, 2, "2026-09-28", "upcoming"),
+      occ(1, 2, "2026-09-30", "upcoming"),
+      occ(2, 2, "2026-10-02", "upcoming"),
     ],
-    kept: 1,
+    perSlot: [counts({ kept: 1, upcoming: 1 }), counts({ missed: 1, upcoming: 1 }), counts({ kept: 1, upcoming: 1 })],
+    kept: 2,
     missed: 1,
     pending: 0,
-    upcoming: 2,
+    upcoming: 3,
     noSession: 0,
     effectiveStatus: "active",
   },
 };
+
 const COMPLETED: MyCommitment = {
-  ...ACTIVE,
   id: "c0",
-  startDate: "2026-08-03",
-  endDate: "2026-08-16",
-  weeks: 2,
+  title: "Deep Work · every Tuesday · 7 PM EDT",
+  slots: [
+    { typeId: "t2", dayOfWeek: 2, startTimeLocal: "19:00", timezone: ET, typeName: "Deep Work", label: "Deep Work · every Tuesday · 7 PM EDT", progress: counts({ kept: 1 }) },
+  ],
+  startDate: "2026-08-04",
+  endDate: "2026-08-10",
+  weeks: 1,
   status: "completed",
   progress: {
-    ...ACTIVE.progress,
-    occurrences: ACTIVE.progress.occurrences.slice(0, 2),
+    occurrences: [occ(0, 1, "2026-08-04", "kept")],
+    perSlot: [counts({ kept: 1 })],
+    kept: 1,
+    missed: 0,
+    pending: 0,
     upcoming: 0,
+    noSession: 0,
     effectiveStatus: "completed",
   },
 };
 
 beforeEach(() => {
-  vi.mocked(createCommitment).mockReset();
   vi.mocked(cancelCommitment).mockReset();
   refresh.mockReset();
 });
 
 describe("CommitmentsManager", () => {
-  it("lets a member pick a slot and number of weeks, previews the window, and submits", async () => {
-    vi.mocked(createCommitment).mockResolvedValue({ success: true, id: "new" });
-    const user = userEvent.setup();
-    render(<CommitmentsManager slots={[MONDAY_SLOT, THURSDAY_SLOT]} commitments={[]} />);
-
-    expect(screen.getByText("No active commitments yet.")).toBeInTheDocument();
-
-    await user.selectOptions(screen.getByLabelText("Prickle"), THURSDAY_SLOT.key);
-    expect(screen.getByLabelText("Starting")).toHaveValue("2026-10-01");
-    await user.selectOptions(screen.getByLabelText("For"), "6");
-    expect(screen.getByText("6 sessions: Thu, Oct 1 – Thu, Nov 5")).toBeInTheDocument();
-
-    await user.click(screen.getByRole("button", { name: "Commit" }));
-
-    expect(createCommitment).toHaveBeenCalledWith({
-      typeId: "type-b",
-      dayOfWeek: 4,
-      startTimeLocal: "19:30",
-      timezone: "America/New_York",
-      startDate: "2026-10-01",
-      weeks: 6,
-    });
-    expect(await screen.findByText(/Commitment saved/)).toBeInTheDocument();
-    expect(refresh).toHaveBeenCalled();
+  it("points members to All Prickles to make a commitment (no slot dropdown here)", () => {
+    render(<CommitmentsManager commitments={[]} />);
+    expect(screen.getByText(/No active commitments yet/)).toBeInTheDocument();
+    expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+    for (const link of screen.getAllByRole("link")) {
+      expect(link).toHaveAttribute("href", "/my-prickles?tab=all&commit=");
+    }
+    expect(screen.getByRole("link", { name: /Make a commitment/ })).toBeInTheDocument();
   });
 
-  it("defaults to 4 weeks and preselects a slot from a Commit link", () => {
-    render(<CommitmentsManager slots={[MONDAY_SLOT, THURSDAY_SLOT]} commitments={[]} initialSlotKey={MONDAY_SLOT.key} />);
-    expect(screen.getByLabelText("Prickle")).toHaveValue(MONDAY_SLOT.key);
-    expect(screen.getByLabelText("For")).toHaveValue("4");
-    expect(screen.getByText("4 sessions: Mon, Sep 28 – Mon, Oct 19")).toBeInTheDocument();
-  });
+  it("shows a multi-slot commitment's total progress and a dot row per slot", () => {
+    render(<CommitmentsManager commitments={[MWF, COMPLETED]} />);
+    expect(screen.getByText("Sprint · Mon, Wed, Fri · 5 AM EDT")).toBeInTheDocument();
+    expect(screen.getByText("2 kept · 1 missed · 3 to go")).toBeInTheDocument();
 
-  it("shows a validation error without calling the server when no slot is picked", async () => {
-    const user = userEvent.setup();
-    render(<CommitmentsManager slots={[MONDAY_SLOT]} commitments={[]} />);
-    await user.click(screen.getByRole("button", { name: "Commit" }));
-    expect(screen.getByRole("alert")).toHaveTextContent("Pick a prickle to commit to");
-    expect(createCommitment).not.toHaveBeenCalled();
-  });
+    const wednesday = screen.getByRole("list", { name: "Sprint · every Wednesday · 5 AM EDT weekly progress" });
+    expect(within(wednesday).getAllByRole("listitem").map((li) => li.getAttribute("aria-label"))).toEqual([
+      "Wed, Sep 23: Missed",
+      "Wed, Sep 30: Upcoming",
+    ]);
+    expect(screen.getByText("every Monday · 5 AM EDT")).toBeInTheDocument();
 
-  it("shows a server error", async () => {
-    vi.mocked(createCommitment).mockResolvedValue({ error: "You're already committed to this prickle through 2026-10-11" });
-    const user = userEvent.setup();
-    render(<CommitmentsManager slots={[MONDAY_SLOT]} commitments={[]} initialSlotKey={MONDAY_SLOT.key} />);
-    await user.click(screen.getByRole("button", { name: "Commit" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("already committed");
-    expect(refresh).not.toHaveBeenCalled();
-  });
-
-  it("lists active and past commitments with progress", () => {
-    render(<CommitmentsManager slots={[MONDAY_SLOT]} commitments={[ACTIVE, COMPLETED]} />);
-    expect(screen.getByText("1 kept · 1 missed · 2 to go")).toBeInTheDocument();
     expect(screen.getByText("Past commitments")).toBeInTheDocument();
-    expect(screen.getAllByLabelText("Mon, Sep 14: Kept")).toHaveLength(2);
+    expect(screen.getByLabelText("Tue, Aug 4: Kept")).toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: "Cancel" })).toHaveLength(1); // only the active one
   });
 
   it("cancels an active commitment after confirmation", async () => {
     vi.mocked(cancelCommitment).mockResolvedValue({ success: true });
     const user = userEvent.setup();
-    render(<CommitmentsManager slots={[MONDAY_SLOT]} commitments={[ACTIVE]} />);
+    render(<CommitmentsManager commitments={[MWF]} />);
 
     await user.click(screen.getByRole("button", { name: "Cancel" }));
     expect(cancelCommitment).not.toHaveBeenCalled();
@@ -155,5 +121,15 @@ describe("CommitmentsManager", () => {
 
     expect(cancelCommitment).toHaveBeenCalledWith("c1");
     expect(refresh).toHaveBeenCalled();
+  });
+
+  it("shows a cancel error", async () => {
+    vi.mocked(cancelCommitment).mockResolvedValue({ error: "Only active commitments can be cancelled" });
+    const user = userEvent.setup();
+    render(<CommitmentsManager commitments={[MWF]} />);
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    await user.click(screen.getByRole("button", { name: "Yes, cancel" }));
+    expect(await screen.findByText("Only active commitments can be cancelled")).toBeInTheDocument();
+    expect(refresh).not.toHaveBeenCalled();
   });
 });

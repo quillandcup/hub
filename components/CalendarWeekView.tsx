@@ -52,6 +52,11 @@ interface CalendarWeekViewProps {
   // rather than merely absent. Hides the tooltip's attendance/host-flag
   // lines; the on-block badge is already member-mode-only.
   showAttendanceDetails?: boolean;
+  // When provided, clicking a prickle block calls this instead of navigating to the prickle
+  // (e.g. picking prickles to commit to). Blocks become toggle buttons; those whose id is in
+  // selectedPrickleIds render as pressed/highlighted.
+  onPrickleClick?: (prickle: Prickle) => void;
+  selectedPrickleIds?: ReadonlySet<string>;
 }
 
 // Common timezones for the dropdown
@@ -129,6 +134,8 @@ export default function CalendarWeekView({
   onSlotClick,
   selectedSlot,
   showAttendanceDetails = true,
+  onPrickleClick,
+  selectedPrickleIds,
 }: CalendarWeekViewProps) {
   // Reconstruct Date from components to avoid timezone serialization issues
   // Using date components (not timestamps) ensures consistent day-of-week on server and client
@@ -376,17 +383,40 @@ export default function CalendarWeekView({
                           minute: "2-digit",
                         });
 
+                        const isSelected = selectedPrickleIds?.has(prickle.id) ?? false;
+                        const selectable = onPrickleClick && !onSlotClick;
+
                         return (
                           <div key={prickle.id}>
                             <div
-                              className={`absolute rounded border-2 p-1.5 overflow-hidden pointer-events-auto transition-opacity hover:opacity-90 ${onSlotClick ? "cursor-default" : "cursor-pointer"} ${getAttendanceColor(prickle.attendance_count)}`}
+                              className={`absolute rounded border-2 p-1.5 overflow-hidden pointer-events-auto transition-opacity hover:opacity-90 ${onSlotClick ? "cursor-default" : "cursor-pointer"} ${getAttendanceColor(prickle.attendance_count)} ${isSelected ? "ring-2 ring-blue-600 dark:ring-blue-400 ring-offset-1" : ""}`}
                               style={{
                                 top: `${top}px`,
                                 height: `${height}px`,
                                 left: `calc(${leftPct}% + 2px)`,
                                 width: `calc(${widthPct}% - 4px)`,
                               }}
-                              onClick={onSlotClick ? undefined : () => router.push(`${prickleBasePath}/${prickle.id}`)}
+                              onClick={
+                                onSlotClick
+                                  ? undefined
+                                  : selectable
+                                    ? () => onPrickleClick(prickle)
+                                    : () => router.push(`${prickleBasePath}/${prickle.id}`)
+                              }
+                              {...(selectable
+                                ? {
+                                    role: "button",
+                                    tabIndex: 0,
+                                    "aria-pressed": isSelected,
+                                    "aria-label": `${prickle.prickle_type} at ${startTime}`,
+                                    onKeyDown: (e: React.KeyboardEvent) => {
+                                      if (e.key === "Enter" || e.key === " ") {
+                                        e.preventDefault();
+                                        onPrickleClick(prickle);
+                                      }
+                                    },
+                                  }
+                                : {})}
                               onMouseEnter={() => setHoveredPrickle(prickle.id)}
                               onMouseLeave={() => setHoveredPrickle(null)}
                             >
