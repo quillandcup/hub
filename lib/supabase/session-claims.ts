@@ -36,8 +36,8 @@ export function getSessionIdFromAccessToken(token: string): string | null {
  *
  * - a string (`"admin"`, `"member"`, ...) — `user_profiles.role` when the token was minted
  * - `null` — the hook ran and found no `user_profiles` row (not an admin)
- * - `undefined` — no claim: the token predates the hook (or the hook's lookup
- *   failed), so the caller must look the role up itself
+ * - `undefined` — no claim (the hook isn't enabled, or its lookup failed);
+ *   the proxy treats this as not-admin
  *
  * Only as fresh as the token (up to auth.jwt_expiry old), so it's for the
  * proxy's optimistic check only — never for authorization.

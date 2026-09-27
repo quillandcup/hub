@@ -50,7 +50,8 @@ export async function updateSession(request: NextRequest) {
   // cookies through setAll() above, on the request forwarded downstream too.
   let user = null
   let sessionId: string | null = null
-  // undefined = no app_role claim in the token (see getAppRoleFromAccessToken)
+  // The role the custom access token hook put in the token (see
+  // getAppRoleFromAccessToken); anything but "admin" is not an admin here.
   let roleClaim: string | null | undefined = undefined
   let authCheckTimedOut = false
   try {
@@ -125,8 +126,14 @@ export async function updateSession(request: NextRequest) {
   // secure check is requireAdminPage() (lib/admin-auth.ts) in the admin layout
   // and every admin page. See "Admin route protection" in CLAUDE.md.
   if (user && isAdminPath(pathname)) {
-    const isAdmin = await checkIsAdmin(supabase, user.id, roleClaim)
-    if (isAdmin === false) {
+    // The role comes from the `app_role` claim that the custom access token
+    // hook (supabase/migrations/20260926000900_add_role_to_access_token.sql)
+    // puts in every token -- no user_profiles read. A missing claim counts as
+    // not-admin. The claim can be up to one access-token lifetime stale
+    // (auth.jwt_expiry), which is fine for a pre-filter: requireAdminPage()
+    // re-reads user_profiles. Sudo doesn't matter: the sudo cookie only
+    // changes the *effective member*, not the signed-in user.
+    if (roleClaim !== 'admin') {
       const url = request.nextUrl.clone()
       url.pathname = ADMIN_NO_ACCESS_PATH
       url.search = ''
@@ -138,41 +145,4 @@ export async function updateSession(request: NextRequest) {
   }
 
   return supabaseResponse
-}
-
-/**
- * Role lookup for the proxy's admin pre-filter. Normally free: the custom
- * access token hook (supabase/migrations/20260926000900_add_role_to_access_token.sql)
- * puts user_profiles.role in the verified token as `app_role`, so no DB read.
- * The claim can be up to one access-token lifetime stale (auth.jwt_expiry),
- * which is fine for a pre-filter: requireAdminPage() re-reads user_profiles.
- *
- * Only when the claim is absent -- a token minted before the hook was
- * enabled, until it refreshes -- does this fall back to one indexed
- * primary-key read of user_profiles. Either way it only runs on /admin
- * paths. Sudo doesn't matter here: the sudo cookie only changes the
- * *effective member* identity, while the signed-in user is still the admin.
- *
- * Returns null when the answer is unknown (Supabase slow/erroring) so the
- * caller lets the request through to the secure requireAdminPage() check,
- * mirroring how a getUser() timeout above doesn't force a /login redirect.
- */
-async function checkIsAdmin(
-  supabase: ReturnType<typeof createServerClient>,
-  userId: string,
-  roleClaim: string | null | undefined
-): Promise<boolean | null> {
-  if (roleClaim !== undefined) return roleClaim === 'admin'
-  try {
-    const { data, error } = await withTimeout(
-      Promise.resolve(
-        supabase.from('user_profiles').select('role').eq('id', userId).maybeSingle()
-      ),
-      AUTH_CHECK_TIMEOUT_MS
-    )
-    if (error) return null
-    return (data as { role?: string } | null)?.role === 'admin'
-  } catch {
-    return null
-  }
 }
