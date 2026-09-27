@@ -274,9 +274,15 @@ max_frequency = "5s"
 # uri = "pg-functions://postgres/auth/before-user-created-hook"
 
 # This hook runs before a token is issued and allows you to add additional claims based on the authentication method used.
-# [auth.hook.custom_access_token]
-# enabled = true
-# uri = "pg-functions://<database>/<schema>/<hook_name>"
+# Adds the `app_role` claim (user_profiles.role) that proxy.ts's /admin pre-filter reads instead of
+# querying user_profiles; see supabase/migrations/20260926000900_add_role_to_access_token.sql.
+# Not overridden under [remotes.prod], so `npm run config:push` enables it on production too. Apply
+# that migration to production (`npm run db:push`) BEFORE pushing this: while the hook points at a
+# missing function, Auth can't issue tokens and every sign-in and refresh fails.
+# Local auth only reads this at startup: restart the stack (supabase stop && supabase start) to apply.
+[auth.hook.custom_access_token]
+enabled = true
+uri = "pg-functions://postgres/public/custom_access_token_hook"
 
 # Configure one of the supported SMS providers: `twilio`, `twilio_verify`, `messagebird`, `textlocal`, `vonage`.
 # SMS/Twilio is unused; left out so `supabase config push` has nothing to say about it.

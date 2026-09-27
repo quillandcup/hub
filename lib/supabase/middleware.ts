@@ -1,7 +1,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, after, type NextRequest } from 'next/server'
 import { withTimeout, AUTH_CHECK_TIMEOUT_MS } from '@/lib/with-timeout'
-import { getSessionIdFromAccessToken } from '@/lib/supabase/session-claims'
+import { getAppRoleFromAccessToken, getSessionIdFromAccessToken } from '@/lib/supabase/session-claims'
 import { ADMIN_NO_ACCESS_PATH, isAdminPath } from '@/lib/admin-paths'
 
 export async function updateSession(request: NextRequest) {
@@ -50,16 +50,22 @@ export async function updateSession(request: NextRequest) {
   // cookies through setAll() above, on the request forwarded downstream too.
   let user = null
   let sessionId: string | null = null
+  // undefined = no app_role claim in the token (see getAppRoleFromAccessToken)
+  let roleClaim: string | null | undefined = undefined
   let authCheckTimedOut = false
   try {
     const { data } = await withTimeout(supabase.auth.getUser(), AUTH_CHECK_TIMEOUT_MS)
     user = data.user
     if (user) {
       // getSession() reads the already-parsed cookie session (no extra
-      // network round trip) — getUser() above is what verifies the token.
+      // network round trip) — getUser() above is what verified this token
+      // (after refreshing it if it had expired), so its claims are trusted
+      // as much as the user it returned.
       const { data: sessionData } = await supabase.auth.getSession()
-      if (sessionData.session?.access_token) {
-        sessionId = getSessionIdFromAccessToken(sessionData.session.access_token)
+      const accessToken = sessionData.session?.access_token
+      if (accessToken) {
+        sessionId = getSessionIdFromAccessToken(accessToken)
+        roleClaim = getAppRoleFromAccessToken(accessToken)
       }
     }
   } catch {
@@ -119,7 +125,7 @@ export async function updateSession(request: NextRequest) {
   // secure check is requireAdminPage() (lib/admin-auth.ts) in the admin layout
   // and every admin page. See "Admin route protection" in CLAUDE.md.
   if (user && isAdminPath(pathname)) {
-    const isAdmin = await checkIsAdmin(supabase, user.id)
+    const isAdmin = await checkIsAdmin(supabase, user.id, roleClaim)
     if (isAdmin === false) {
       const url = request.nextUrl.clone()
       url.pathname = ADMIN_NO_ACCESS_PATH
@@ -135,10 +141,16 @@ export async function updateSession(request: NextRequest) {
 }
 
 /**
- * Role lookup for the proxy's admin pre-filter. The role isn't in the JWT
- * (no custom access-token hook), so this is one indexed primary-key read of
- * user_profiles -- and it only runs on /admin paths, never on member or API
- * requests. Sudo doesn't matter here: the sudo cookie only changes the
+ * Role lookup for the proxy's admin pre-filter. Normally free: the custom
+ * access token hook (supabase/migrations/20260926000900_add_role_to_access_token.sql)
+ * puts user_profiles.role in the verified token as `app_role`, so no DB read.
+ * The claim can be up to one access-token lifetime stale (auth.jwt_expiry),
+ * which is fine for a pre-filter: requireAdminPage() re-reads user_profiles.
+ *
+ * Only when the claim is absent -- a token minted before the hook was
+ * enabled, until it refreshes -- does this fall back to one indexed
+ * primary-key read of user_profiles. Either way it only runs on /admin
+ * paths. Sudo doesn't matter here: the sudo cookie only changes the
  * *effective member* identity, while the signed-in user is still the admin.
  *
  * Returns null when the answer is unknown (Supabase slow/erroring) so the
@@ -147,8 +159,10 @@ export async function updateSession(request: NextRequest) {
  */
 async function checkIsAdmin(
   supabase: ReturnType<typeof createServerClient>,
-  userId: string
+  userId: string,
+  roleClaim: string | null | undefined
 ): Promise<boolean | null> {
+  if (roleClaim !== undefined) return roleClaim === 'admin'
   try {
     const { data, error } = await withTimeout(
       Promise.resolve(
