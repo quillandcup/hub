@@ -72,6 +72,11 @@ interface UseDataTableOptions<TRow, TColumn extends string> {
   // Change this when a filter changes so the table returns to page 1. Sort
   // changes do that on their own.
   resetKey?: string;
+  // A row that must be on screen, e.g. one linked from a URL or open by
+  // default: whenever the table would reset to page 1 (first render, sort,
+  // filter or page-size change, or when `key` or the row itself appears), it
+  // goes to the page containing that row instead. Manual paging is left alone.
+  reveal?: { key: string | null | undefined; getRowKey: (row: TRow) => string };
 }
 
 export function useDataTable<TRow, TColumn extends string>({
@@ -81,6 +86,7 @@ export function useDataTable<TRow, TColumn extends string>({
   pageSize: initialPageSize = DEFAULT_PAGE_SIZE,
   paginate = "auto",
   resetKey = "",
+  reveal,
 }: UseDataTableOptions<TRow, TColumn>): DataTable<TRow, TColumn> {
   const { sortColumn, sortDirection, handleSort, sortedRows } = useTableSort<TRow, TColumn>({
     rows,
@@ -88,13 +94,21 @@ export function useDataTable<TRow, TColumn extends string>({
     defaultSort,
   });
 
-  const fullResetKey = `${sortColumn}:${sortDirection}:${resetKey}`;
-  const [state, setState] = useState({ page: 1, pageSize: initialPageSize, resetKey: fullResetKey });
+  const revealIndex = reveal?.key ? sortedRows.findIndex((row) => reveal.getRowKey(row) === reveal.key) : -1;
+  // Page 1, or the page holding the revealed row.
+  const landingPage = (size: number) => (revealIndex >= 0 ? Math.floor(revealIndex / size) + 1 : 1);
+
+  const fullResetKey = `${sortColumn}:${sortDirection}:${resetKey}:${reveal?.key ?? ""}:${revealIndex >= 0}`;
+  const [state, setState] = useState(() => ({
+    page: landingPage(initialPageSize),
+    pageSize: initialPageSize,
+    resetKey: fullResetKey,
+  }));
   // Reset during render (not in an effect) so a stale page never paints.
   let { page } = state;
   if (state.resetKey !== fullResetKey) {
-    page = 1;
-    setState({ ...state, page: 1, resetKey: fullResetKey });
+    page = landingPage(state.pageSize);
+    setState({ ...state, page, resetKey: fullResetKey });
   }
 
   const paginated = paginate === "auto" && sortedRows.length > AUTO_PAGINATE_THRESHOLD;
@@ -117,7 +131,7 @@ export function useDataTable<TRow, TColumn extends string>({
           pageSize: bounds.pageSize,
           total: sortedRows.length,
           onPageChange: (next) => setState((s) => ({ ...s, page: next })),
-          onPageSizeChange: (next) => setState((s) => ({ ...s, pageSize: next, page: 1 })),
+          onPageSizeChange: (next) => setState((s) => ({ ...s, pageSize: next, page: landingPage(next) })),
         }
       : null,
   };

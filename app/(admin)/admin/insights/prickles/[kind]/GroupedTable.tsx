@@ -174,9 +174,13 @@ export default function GroupedTable({ rows, groupBy, defaultExpanded }: Props) 
   }, [rows, filters]);
 
   const table = useDataTable<GroupStats, SortColumn>({
+    // The linked group (?slot=...) opens expanded and is scrolled to, so it
+    // must be on the current page even when it sorts past page 1.
+    reveal: { key: defaultExpanded, getRowKey: (row) => row.groupKey },
     rows: filtered,
     getSortValue,
     defaultSort: { column: "name", direction: "asc" },
+    resetKey: JSON.stringify(filters),
   });
   const { sortColumn, sortDirection, handleSort } = table;
 
