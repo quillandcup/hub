@@ -17,7 +17,6 @@ const baseSettings: profileActions.ProfileSettings = {
   instagramHandle: 'old_handle',
   instagramFallbackUrl: null,
   details: { bio: 'Writes cozy mysteries.', facebookUrl: 'https://facebook.com/someone', twitterUrl: null },
-  detailFallbacks: { bio: 'Writes cozy mysteries.', facebookUrl: null, twitterUrl: null },
   syncPending: false,
 }
 
@@ -38,11 +37,26 @@ describe('ProfilePanel', () => {
     expect(screen.queryByText(/Kajabi/)).not.toBeInTheDocument()
   })
 
-  it('explains the fallback when a blank field would show the previous value', async () => {
+  it('makes clearing obvious: a hide hint on each field and a Remove button that empties it for saving', async () => {
     vi.mocked(profileActions.getProfileSettings).mockResolvedValue(baseSettings)
+    vi.mocked(profileActions.updateProfileDetails).mockResolvedValue({ success: true, syncPending: true })
     render(<ProfilePanel />)
 
-    expect(await screen.findByText(/your profile shows your previous bio instead/)).toBeInTheDocument()
+    expect(await screen.findByText('Leave blank to hide your bio from your profile.')).toBeInTheDocument()
+    expect(screen.queryByText(/previous/)).not.toBeInTheDocument()
+    // X is already empty, so it has no Remove button.
+    expect(screen.queryByRole('button', { name: 'Remove X link' })).not.toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Remove bio' }))
+    expect(screen.getByLabelText('Bio')).toHaveValue('')
+    expect(screen.queryByRole('button', { name: 'Remove bio' })).not.toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Save profile' }))
+    expect(profileActions.updateProfileDetails).toHaveBeenCalledWith({
+      bio: '',
+      facebook: 'https://facebook.com/someone',
+      x: '',
+    })
   })
 
   it('saves bio / Facebook / X together and shows the pending-sync state', async () => {
