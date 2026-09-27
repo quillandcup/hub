@@ -1,5 +1,22 @@
 import { describe, it, expect } from "vitest";
-import { parseInstagramInput, toSocialUrl } from "@/lib/kajabi/profile-fields";
+import { parseInstagramInput, resolveInstagramUrl, toSocialUrl } from "@/lib/kajabi/profile-fields";
+
+describe("resolveInstagramUrl", () => {
+  it("prefers the Instagram Handle custom field over the Kajabi directory socials.instagram", () => {
+    expect(resolveInstagramUrl("form_handle", "https://instagram.com/directory_handle")).toBe(
+      "https://instagram.com/form_handle"
+    );
+  });
+
+  it("falls back to socials.instagram when the custom field is empty or blank", () => {
+    expect(resolveInstagramUrl(null, "directory_handle")).toBe("https://instagram.com/directory_handle");
+    expect(resolveInstagramUrl("   ", "directory_handle")).toBe("https://instagram.com/directory_handle");
+  });
+
+  it("is null when neither is set", () => {
+    expect(resolveInstagramUrl(null, undefined)).toBeNull();
+  });
+});
 
 describe("parseInstagramInput", () => {
   it.each([

@@ -14,20 +14,23 @@ import {
   INSTAGRAM_BASE_URL,
   INSTAGRAM_CUSTOM_FIELD_HANDLE,
   parseInstagramInput,
+  resolveInstagramUrl,
   toSocialUrl,
 } from "@/lib/kajabi/profile-fields";
 
 /**
- * Member self-service for the Kajabi-owned public profile (bio + socials).
+ * Member self-service for the Kajabi-owned public profile.
  *
  * Kajabi is the source of truth, so edits go Kajabi → Bronze → Silver:
- *   1. PATCH the Kajabi contact (only the "Instagram Handle" custom field is
- *      writable — Kajabi's API exposes no update for customer public_bio /
- *      socials; see lib/kajabi/profile-fields.ts),
+ *   1. PATCH the Kajabi contact's "Instagram Handle" custom field (the only
+ *      profile field Kajabi's API can write — bio/Facebook/X live on the
+ *      read-only customer resource; see lib/kajabi/profile-fields.ts),
  *   2. re-fetch that one contact into bronze.kajabi_contacts (same UPSERT as
  *      the full import),
  *   3. run the normal member processing (/api/process/members) after the
- *      response, which rebuilds members.instagram_url from Bronze.
+ *      response, which rebuilds members.instagram_url from Bronze. The custom
+ *      field wins over the Kajabi directory profile's socials.instagram there,
+ *      so a Hub edit always takes effect.
  * Silver `members` is never written directly here.
  *
  * Sudo: allowed, same as the other Settings identity actions (e.g.
@@ -40,19 +43,14 @@ export interface ProfileSettings {
   memberId: string;
   /** False when the member has no Kajabi contact (e.g. staff-only records) — nothing is editable. */
   kajabiLinked: boolean;
-  /** What the profile currently shows (Silver `members`). */
-  bio: string | null;
-  instagramUrl: string | null;
-  facebookUrl: string | null;
-  twitterUrl: string | null;
   /** Kajabi "Instagram Handle" contact custom field, from the latest Bronze snapshot. */
   instagramHandle: string | null;
   /**
-   * The member's native Kajabi profile has socials.instagram set, which
-   * member processing ranks above the custom field — an edit here wouldn't
-   * change what's shown, so the field is read-only and they're pointed to Kajabi.
+   * What the profile shows if the handle is left blank: the Kajabi
+   * member-directory Instagram (socials.instagram), which is the fallback in
+   * member processing. Null when there isn't one.
    */
-  instagramManagedInKajabiProfile: boolean;
+  instagramFallbackUrl: string | null;
   /** Bronze already has the new handle but Silver hasn't been reprocessed yet. */
   syncPending: boolean;
 }
@@ -77,7 +75,11 @@ async function requireIdentity(): Promise<ProfileContext> {
 
 interface KajabiProfileSnapshot {
   instagramHandle: string | null;
-  nativeInstagram: string | null;
+  socialsInstagram: string | null;
+}
+
+function nonBlank(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
 /**
@@ -113,19 +115,17 @@ async function loadKajabiProfileSnapshot(
     (latest, row) => (!latest || row.updated_at_kajabi > latest.updated_at_kajabi ? row : latest),
     null
   );
-  const nativeInstagram = latestCustomer?.data?.attributes?.socials?.instagram;
-  const handle = contactResult.data?.data?.attributes?.[INSTAGRAM_CUSTOM_FIELD_HANDLE];
 
   return {
-    instagramHandle: typeof handle === "string" && handle.trim() ? handle.trim() : null,
-    nativeInstagram: typeof nativeInstagram === "string" && nativeInstagram.trim() ? nativeInstagram.trim() : null,
+    instagramHandle: nonBlank(contactResult.data?.data?.attributes?.[INSTAGRAM_CUSTOM_FIELD_HANDLE]),
+    socialsInstagram: nonBlank(latestCustomer?.data?.attributes?.socials?.instagram),
   };
 }
 
 async function loadMember(ctx: Exclude<ProfileContext, { error: string }>) {
   return ctx.supabase
     .from("members")
-    .select("email, kajabi_id, bio, instagram_url, facebook_url, twitter_url")
+    .select("email, kajabi_id, instagram_url")
     .eq("id", ctx.effectiveIdentity.memberId)
     .single();
 }
@@ -133,43 +133,30 @@ async function loadMember(ctx: Exclude<ProfileContext, { error: string }>) {
 export async function getProfileSettings(): Promise<ProfileSettings | { error: string }> {
   const ctx = await requireIdentity();
   if ("error" in ctx) return ctx;
+  const memberId = ctx.effectiveIdentity.memberId;
 
   const { data: member, error } = await loadMember(ctx);
   if (error || !member) return { error: error?.message ?? "Couldn't load your profile" };
 
-  const base = {
-    memberId: ctx.effectiveIdentity.memberId,
-    bio: member.bio ?? null,
-    instagramUrl: member.instagram_url ?? null,
-    facebookUrl: member.facebook_url ?? null,
-    twitterUrl: member.twitter_url ?? null,
-  };
-
   if (!member.kajabi_id) {
-    return {
-      ...base,
-      kajabiLinked: false,
-      instagramHandle: null,
-      instagramManagedInKajabiProfile: false,
-      syncPending: false,
-    };
+    return { memberId, kajabiLinked: false, instagramHandle: null, instagramFallbackUrl: null, syncPending: false };
   }
 
   let snapshot: KajabiProfileSnapshot;
   try {
     snapshot = await loadKajabiProfileSnapshot(ctx.supabase, createServiceRoleClient(), member.kajabi_id, member.email);
   } catch (err) {
-    console.error("[profile] Failed to load Kajabi Bronze snapshot for member", ctx.effectiveIdentity.memberId, err);
-    return { error: "Couldn't load your Kajabi profile" };
+    console.error("[profile] Failed to load Kajabi Bronze snapshot for member", memberId, err);
+    return { error: "Couldn't load your profile" };
   }
 
-  const managedInKajabi = snapshot.nativeInstagram !== null;
+  const expectedUrl = resolveInstagramUrl(snapshot.instagramHandle, snapshot.socialsInstagram);
   return {
-    ...base,
+    memberId,
     kajabiLinked: true,
     instagramHandle: snapshot.instagramHandle,
-    instagramManagedInKajabiProfile: managedInKajabi,
-    syncPending: !managedInKajabi && toSocialUrl(INSTAGRAM_BASE_URL, snapshot.instagramHandle) !== base.instagramUrl,
+    instagramFallbackUrl: toSocialUrl(INSTAGRAM_BASE_URL, snapshot.socialsInstagram),
+    syncPending: expectedUrl !== (member.instagram_url ?? null),
   };
 }
 
@@ -198,13 +185,7 @@ export async function updateInstagramHandle(input: string): Promise<UpdateInstag
     snapshot = await loadKajabiProfileSnapshot(supabase, service, member.kajabi_id, member.email);
   } catch (err) {
     console.error("[profile] Failed to load Kajabi Bronze snapshot for member", effectiveIdentity.memberId, err);
-    return { error: "Couldn't load your Kajabi profile" };
-  }
-
-  if (snapshot.nativeInstagram !== null) {
-    return {
-      error: "Your Instagram comes from your Kajabi profile, which takes priority — update it in Kajabi instead.",
-    };
+    return { error: "Couldn't load your profile" };
   }
 
   // Unchanged: don't round-trip to Kajabi or kick off a reprocess.
@@ -218,7 +199,7 @@ export async function updateInstagramHandle(input: string): Promise<UpdateInstag
   } catch (err) {
     console.error("[profile] Kajabi updateContact failed for member", effectiveIdentity.memberId, err);
     const detail = err instanceof Error ? err.message : "unknown error";
-    return { error: `Couldn't save your Instagram to Kajabi (${detail}). Nothing was changed — please try again.` };
+    return { error: `Couldn't save your Instagram (${detail}). Nothing was changed — please try again.` };
   }
 
   console.log(
@@ -236,7 +217,8 @@ export async function updateInstagramHandle(input: string): Promise<UpdateInstag
     return {
       success: true,
       syncPending: true,
-      warning: "Saved to Kajabi. It may take until the next Kajabi sync to show on your profile.",
+      // The members reconcile cron (vercel.json) runs a full Kajabi sync nightly.
+      warning: "Saved. It may take until tomorrow to show on your profile.",
     };
   }
 

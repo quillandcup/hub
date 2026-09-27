@@ -874,13 +874,13 @@ describe('Legacy join-date overrides during reprocessing', () => {
 /**
  * Instagram handle sourcing during reprocessing.
  *
- * Most Kajabi customers never fill in the native profile "socials" field,
- * but leads captured via the Ideal Hedgie opt-in form answer an Instagram
- * Handle custom field on the Contact instead (Kajabi custom field `custom_1`
- * for this site — see the comment above INSTAGRAM_CUSTOM_FIELD_HANDLE in
- * app/api/process/members/route.ts). This falls back to that custom field
- * when the customer socials field is empty, and prefers socials when both
- * are present (it's the more current, explicitly-set value).
+ * Leads captured via our Kajabi forms (e.g. the Ideal Hedgie opt-in) answer
+ * an Instagram Handle custom field on the Contact (Kajabi custom field
+ * `custom_1` for this site — see INSTAGRAM_CUSTOM_FIELD_HANDLE and
+ * resolveInstagramUrl in lib/kajabi/profile-fields.ts), and it's what members
+ * edit from Settings > Profile. The customer `socials.instagram` only exists
+ * if they filled in Kajabi's member-directory profile, so the custom field
+ * wins and socials.instagram is only the fallback.
  */
 describe('Instagram handle sourcing during reprocessing', () => {
   const supabase = getTestSupabaseAdminClient()
@@ -889,6 +889,7 @@ describe('Instagram handle sourcing during reprocessing', () => {
   const emailCustomFieldOnly = `ig-custom-field-${ts}@example.com`
   const emailBothSources = `ig-both-sources-${ts}@example.com`
   const emailNeitherSource = `ig-neither-${ts}@example.com`
+  const emailDirectoryOnly = `ig-directory-only-${ts}@example.com`
 
   async function reprocess() {
     const response = await fetch(`${getTestApiBaseUrl()}/api/process/members`, {
@@ -920,7 +921,7 @@ describe('Instagram handle sourcing during reprocessing', () => {
         email: emailBothSources,
         name: 'IG Both Sources',
         created_at_kajabi: '2024-01-01T00:00:00Z',
-        data: { attributes: { custom_1: 'stale_signup_handle' } },
+        data: { attributes: { custom_1: 'form_handle' } },
       },
       {
         kajabi_contact_id: `ig-contact-neither-${ts}`,
@@ -929,13 +930,25 @@ describe('Instagram handle sourcing during reprocessing', () => {
         created_at_kajabi: '2024-01-01T00:00:00Z',
         data: { attributes: { custom_1: '' } },
       },
+      {
+        kajabi_contact_id: `ig-contact-directory-only-${ts}`,
+        email: emailDirectoryOnly,
+        name: 'IG Directory Only',
+        created_at_kajabi: '2024-01-01T00:00:00Z',
+        data: { attributes: { custom_1: null } },
+      },
     ])
 
     await supabase.schema('bronze').from('kajabi_customers').insert([
       {
         kajabi_customer_id: `ig-cust-both-${ts}`,
         email: emailBothSources,
-        data: { attributes: { socials: { instagram: 'current_profile_handle' } } },
+        data: { attributes: { socials: { instagram: 'directory_handle' } } },
+      },
+      {
+        kajabi_customer_id: `ig-cust-directory-only-${ts}`,
+        email: emailDirectoryOnly,
+        data: { attributes: { socials: { instagram: 'directory_only_handle' } } },
       },
     ])
   })
@@ -943,19 +956,25 @@ describe('Instagram handle sourcing during reprocessing', () => {
   afterAll(async () => {
     await supabase.schema('bronze').from('kajabi_customers').delete().ilike('kajabi_customer_id', `ig-cust-%-${ts}`)
     await supabase.schema('bronze').from('kajabi_contacts').delete().ilike('kajabi_contact_id', `ig-contact-%-${ts}`)
-    await supabase.from('members').delete().in('email', [emailCustomFieldOnly, emailBothSources, emailNeitherSource])
+    await supabase.from('members').delete().in('email', [emailCustomFieldOnly, emailBothSources, emailNeitherSource, emailDirectoryOnly])
   })
 
-  it('falls back to the Instagram Handle custom field when socials.instagram is empty', async () => {
+  it('uses the Instagram Handle custom field when socials.instagram is empty', async () => {
     await reprocess()
     const member = await fetchMember(emailCustomFieldOnly)
     expect(member?.instagram_url).toBe('https://instagram.com/signup_handle')
   })
 
-  it('prefers the customer socials.instagram field over the signup custom field when both are set', async () => {
+  it('prefers the Instagram Handle custom field over the directory socials.instagram when both are set', async () => {
     await reprocess()
     const member = await fetchMember(emailBothSources)
-    expect(member?.instagram_url).toBe('https://instagram.com/current_profile_handle')
+    expect(member?.instagram_url).toBe('https://instagram.com/form_handle')
+  })
+
+  it('falls back to the directory socials.instagram when the custom field is empty', async () => {
+    await reprocess()
+    const member = await fetchMember(emailDirectoryOnly)
+    expect(member?.instagram_url).toBe('https://instagram.com/directory_only_handle')
   })
 
   it('leaves instagram_url null when neither source has a handle', async () => {

@@ -228,11 +228,15 @@ describe("updateInstagramHandle", () => {
     expect(service.upsert).not.toHaveBeenCalled();
   });
 
-  it("refuses when the native Kajabi profile Instagram takes precedence", async () => {
+  it("still writes the custom field when the Kajabi directory profile has its own Instagram", async () => {
+    // The custom field wins in member processing, so the edit always takes effect.
     setup({ service: { nativeInstagram: "https://instagram.com/profile_handle" } });
+    updateContactMock.mockResolvedValue({});
+    fetchContactMock.mockResolvedValue(FRESH_CONTACT);
+
     const result = await updateInstagramHandle("@new_handle");
-    expect(result).toEqual({ error: expect.stringContaining("Kajabi profile") });
-    expect(updateContactMock).not.toHaveBeenCalled();
+    expect(result).toEqual({ success: true, syncPending: true });
+    expect(updateContactMock).toHaveBeenCalledWith("kj-1", { custom_1: "new_handle" });
   });
 
   it("refuses when the member has no Kajabi contact", async () => {
@@ -248,7 +252,7 @@ describe("updateInstagramHandle", () => {
     fetchContactMock.mockResolvedValue(FRESH_CONTACT);
 
     const result = await updateInstagramHandle("@new_handle");
-    expect(result).toEqual({ success: true, syncPending: true, warning: expect.stringContaining("next Kajabi sync") });
+    expect(result).toEqual({ success: true, syncPending: true, warning: expect.stringContaining("until tomorrow") });
     expect(afterCallbacks).toHaveLength(0);
   });
 
@@ -273,12 +277,11 @@ describe("getProfileSettings", () => {
   it("flags a pending sync when Bronze has a handle Silver doesn't show yet", async () => {
     setup({ service: { contactCustom1: "new_handle" } });
     const result = await getProfileSettings();
-    expect(result).toMatchObject({
+    expect(result).toEqual({
       memberId: "member-1",
       kajabiLinked: true,
-      bio: "Writes cozy mysteries.",
       instagramHandle: "new_handle",
-      instagramManagedInKajabiProfile: false,
+      instagramFallbackUrl: null,
       syncPending: true,
     });
   });
@@ -288,8 +291,32 @@ describe("getProfileSettings", () => {
     expect(await getProfileSettings()).toMatchObject({ instagramHandle: "old_handle", syncPending: false });
   });
 
-  it("marks Instagram as managed in the Kajabi profile when socials.instagram is set", async () => {
+  it("uses the custom field over socials.instagram and reports socials.instagram as the blank fallback", async () => {
     setup({ service: { nativeInstagram: "profile_handle" } });
-    expect(await getProfileSettings()).toMatchObject({ instagramManagedInKajabiProfile: true, syncPending: false });
+    expect(await getProfileSettings()).toMatchObject({
+      instagramHandle: "old_handle",
+      instagramFallbackUrl: "https://instagram.com/profile_handle",
+      syncPending: false,
+    });
+  });
+
+  it("expects the socials.instagram fallback in Silver when the custom field is empty", async () => {
+    setup({
+      member: { ...MEMBER, instagram_url: "https://instagram.com/old_handle" },
+      service: { contactCustom1: null, nativeInstagram: "profile_handle" },
+    });
+    expect(await getProfileSettings()).toMatchObject({ instagramHandle: null, syncPending: true });
+  });
+
+  it("reports an unlinked member without touching Bronze", async () => {
+    setup({ member: { ...MEMBER, kajabi_id: null } });
+    expect(await getProfileSettings()).toEqual({
+      memberId: "member-1",
+      kajabiLinked: false,
+      instagramHandle: null,
+      instagramFallbackUrl: null,
+      syncPending: false,
+    });
+    expect(service.schema).not.toHaveBeenCalled();
   });
 });
