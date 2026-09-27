@@ -150,18 +150,18 @@ describe("fetchHostedPrickleRecords", () => {
     ]);
   });
 
-  it("falls back to the host-only queries (no attendeeCount) if the RPC errors", async () => {
+  it("logs and throws if the RPC errors, without falling back to table reads", async () => {
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     const mock = makeSupabaseMock(
       { prickles: prickles.slice(0, 1), prickle_attendance: [] },
       [{ data: null, error: { message: "function does not exist" } }]
     );
 
-    const records = await fetchHostedPrickleRecords(mock as any, "host", { includeAttendeeCounts: true });
-
-    expect(records).toHaveLength(1);
-    expect(records[0]).not.toHaveProperty("attendeeCount");
+    await expect(fetchHostedPrickleRecords(mock as any, "host", { includeAttendeeCounts: true })).rejects.toThrow(
+      /function does not exist/
+    );
     expect(errorSpy).toHaveBeenCalled();
+    expect(mock.from).not.toHaveBeenCalled();
     errorSpy.mockRestore();
   });
 
