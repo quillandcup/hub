@@ -129,6 +129,48 @@ describe('useDataTable (client mode)', () => {
   })
 })
 
+function RevealHarness({ count, revealKey }: { count: number; revealKey: string | null }) {
+  const table = useDataTable<Row, Col>({
+    rows: makeRows(count),
+    getSortValue,
+    defaultSort: { column: 'name', direction: 'asc' },
+    reveal: { key: revealKey, getRowKey: (r) => r.name },
+  })
+  return <Table table={table} />
+}
+
+describe('useDataTable reveal', () => {
+  it('opens on the page containing the revealed row', () => {
+    render(<RevealHarness count={120} revealKey="Item 070" />)
+    expect(screen.getByText('Page 2 of 3')).toBeInTheDocument()
+    expect(screen.getByText('Item 070')).toBeInTheDocument()
+  })
+
+  it('keeps the revealed row on screen after a sort change', async () => {
+    render(<RevealHarness count={120} revealKey="Item 070" />)
+    await userEvent.click(screen.getByText('Score')) // ascending score reverses: Item 070 moves to index 49
+    expect(screen.getByText('Page 1 of 3')).toBeInTheDocument()
+    expect(screen.getByText('Item 070')).toBeInTheDocument()
+    await userEvent.click(screen.getByText('Score')) // descending: back to index 70
+    expect(screen.getByText('Item 070')).toBeInTheDocument()
+  })
+
+  it('keeps it on screen after a page-size change, but leaves manual paging alone', async () => {
+    render(<RevealHarness count={120} revealKey="Item 010" />)
+    expect(screen.getByText('Page 1 of 3')).toBeInTheDocument()
+    await next()
+    expect(screen.queryByText('Item 010')).toBeNull()
+    await userEvent.selectOptions(screen.getByRole('combobox'), '25')
+    expect(screen.getByText('Page 1 of 5')).toBeInTheDocument()
+    expect(screen.getByText('Item 010')).toBeInTheDocument()
+  })
+
+  it('falls back to page 1 when the key matches no row', () => {
+    render(<RevealHarness count={120} revealKey="Nope" />)
+    expect(screen.getByText('Page 1 of 3')).toBeInTheDocument()
+  })
+})
+
 function ServerHarness({ rows, total, page = 1, pageSize = 50 }: { rows: Row[]; total: number; page?: number; pageSize?: number }) {
   const table = useServerDataTable<Row, Col>({
     rows,
