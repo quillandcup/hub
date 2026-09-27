@@ -2,7 +2,9 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { SortableTh } from "@/components/SortableTh";
-import { useTableSort, type SortValue } from "@/lib/hooks/useTableSort";
+import { useDataTable } from "@/lib/hooks/useDataTable";
+import type { SortValue } from "@/lib/hooks/useTableSort";
+import { DataTablePager } from "@/components/DataTablePager";
 
 interface Segment {
   id: string;
@@ -64,11 +66,12 @@ function getSortValue(segment: Segment, column: SortColumn): SortValue {
 
 export default function SegmentsClient() {
   const [segments, setSegments] = useState<Segment[]>([]);
-  const { sortColumn, sortDirection, handleSort, sortedRows } = useTableSort<Segment, SortColumn>({
+  const table = useDataTable<Segment, SortColumn>({
     rows: segments,
     getSortValue,
     defaultSort: null,
   });
+  const { sortColumn, sortDirection, handleSort } = table;
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -348,7 +351,7 @@ export default function SegmentsClient() {
                     </td>
                   </tr>
                 )}
-                {sortedRows.map((s) => (
+                {table.rows.map((s) => (
                   <tr key={s.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
                     <td className="px-6 py-4 text-sm font-medium text-slate-900 dark:text-slate-100">{s.name}</td>
                     <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">{s.memberCount}</td>
@@ -369,6 +372,7 @@ export default function SegmentsClient() {
                 ))}
               </tbody>
             </table>
+            <DataTablePager table={table} itemLabel="segments" />
           </div>
         )}
       </div>

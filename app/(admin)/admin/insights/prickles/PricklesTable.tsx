@@ -4,7 +4,8 @@ import { useState, useMemo } from "react";
 import Link from "next/link";
 import type { TypeStats } from "@/lib/scheduled-prickle-stats";
 import { SortableTh } from "@/components/SortableTh";
-import { useTableSort } from "@/lib/hooks/useTableSort";
+import { useDataTable } from "@/lib/hooks/useDataTable";
+import { DataTablePager } from "@/components/DataTablePager";
 
 // ---------------------------------------------------------------------------
 // Sparkline
@@ -93,16 +94,12 @@ export default function PricklesTable({ rows, from, to }: Props) {
     });
   }, [rows, filters]);
 
-  const {
-    sortColumn,
-    sortDirection,
-    handleSort,
-    sortedRows: sorted,
-  } = useTableSort<TypeStats, SortColumn>({
+  const table = useDataTable<TypeStats, SortColumn>({
     rows: filtered,
     getSortValue,
     defaultSort: { column: "sessions", direction: "desc" },
   });
+  const { sortColumn, sortDirection, handleSort } = table;
 
   const hasFilters = Object.values(filters).some(Boolean);
 
@@ -126,7 +123,7 @@ export default function PricklesTable({ rows, from, to }: Props) {
       {hasFilters && (
         <div className="px-6 pt-3 pb-0 flex items-center gap-2">
           <span className="text-xs text-slate-500 dark:text-slate-400">
-            {sorted.length} of {rows.length} rows
+            {table.total} of {rows.length} rows
           </span>
           <button
             onClick={() => setFilters({})}
@@ -200,7 +197,7 @@ export default function PricklesTable({ rows, from, to }: Props) {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
-            {sorted.map((row) => (
+            {table.rows.map((row) => (
               <tr
                 key={row.typeId}
                 className="hover:bg-slate-50 dark:hover:bg-slate-800"
@@ -242,9 +239,10 @@ export default function PricklesTable({ rows, from, to }: Props) {
             ))}
           </tbody>
         </table>
+        <DataTablePager table={table} itemLabel="prickle types" />
       </div>
 
-      {sorted.length === 0 && rows.length > 0 && (
+      {table.total === 0 && rows.length > 0 && (
         <div className="p-8 text-center text-slate-500 dark:text-slate-400 text-sm">
           No rows match current filters.{" "}
           <button

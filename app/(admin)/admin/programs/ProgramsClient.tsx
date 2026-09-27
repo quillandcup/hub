@@ -3,7 +3,9 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { SortableTh } from "@/components/SortableTh";
-import { useTableSort, type SortValue } from "@/lib/hooks/useTableSort";
+import { useDataTable } from "@/lib/hooks/useDataTable";
+import type { SortValue } from "@/lib/hooks/useTableSort";
+import { DataTablePager } from "@/components/DataTablePager";
 
 interface Program {
   id: string;
@@ -42,11 +44,12 @@ export default function ProgramsClient() {
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [formData, setFormData] = useState({ name: "", description: "" });
-  const { sortColumn, sortDirection, handleSort, sortedRows } = useTableSort<Program, SortColumn>({
+  const table = useDataTable<Program, SortColumn>({
     rows: programs,
     getSortValue,
     defaultSort: null,
   });
+  const { sortColumn, sortDirection, handleSort } = table;
 
   useEffect(() => {
     fetchPrograms();
@@ -180,7 +183,7 @@ export default function ProgramsClient() {
                 </td>
               </tr>
             ) : (
-              sortedRows.map((program) => (
+              table.rows.map((program) => (
                 <tr key={program.id} className="hover:bg-gray-50 dark:hover:bg-slate-800">
                   <td className="px-4 py-3">
                     <Link
@@ -200,6 +203,7 @@ export default function ProgramsClient() {
             )}
           </tbody>
         </table>
+        <DataTablePager table={table} itemLabel="programs" />
       </div>
     </div>
   );
