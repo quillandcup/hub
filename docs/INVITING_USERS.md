@@ -145,6 +145,8 @@ SET role = 'admin'  -- or 'assistant' or 'member'
 WHERE email = 'user@example.com';
 ```
 
+Admin pages and actions see the new role immediately. The `/admin` redirect in `proxy.ts` reads it from the `app_role` claim in the user's access token, which updates when the token refreshes (up to 1 hour, `auth.jwt_expiry`). A newly promoted admin who lands on `/no-access` should sign out and back in.
+
 ## Related Documentation
 
 - [RLS Security](./RLS_SECURITY.md) - Row Level Security and permissions
