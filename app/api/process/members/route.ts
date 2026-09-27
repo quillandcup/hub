@@ -8,11 +8,11 @@ import { NextRequest, NextResponse, after } from "next/server";
 import { triggerAttendanceReprocessing } from "@/lib/processing/trigger";
 import { fetchAllBronzeRows } from "@/lib/supabase/bronze-pagination";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { INSTAGRAM_BASE_URL, INSTAGRAM_CUSTOM_FIELD_HANDLE, toSocialUrl } from "@/lib/kajabi/profile-fields";
+import { INSTAGRAM_CUSTOM_FIELD_HANDLE, resolveInstagramUrl, toSocialUrl } from "@/lib/kajabi/profile-fields";
 
-// toSocialUrl + the "Instagram Handle" custom-field handle (and why it ranks
-// below socials.instagram) live in lib/kajabi/profile-fields.ts, shared with the
-// member self-service profile editor.
+// toSocialUrl, the "Instagram Handle" custom-field handle, and the Instagram
+// precedence (custom field first, socials.instagram as fallback) live in
+// lib/kajabi/profile-fields.ts, shared with the member self-service profile editor.
 
 // Extend timeout — member processing itself is fast (~10s), but we kick off
 // background attendance reprocessing via after() which needs the remainder.
@@ -354,9 +354,9 @@ export async function POST(request: NextRequest) {
           stripe_customer_id: stripeIdByEmail.get(email) ?? null,
           photo_url: toKajabiPhotoUrl(attrs?.avatar, email, slackImageByEmail.get(email)),
           bio: attrs?.public_bio || null,
-          instagram_url: toSocialUrl(
-            INSTAGRAM_BASE_URL,
-            attrs?.socials?.instagram || contact.data?.attributes?.[INSTAGRAM_CUSTOM_FIELD_HANDLE]
+          instagram_url: resolveInstagramUrl(
+            contact.data?.attributes?.[INSTAGRAM_CUSTOM_FIELD_HANDLE],
+            attrs?.socials?.instagram
           ),
           facebook_url: toSocialUrl("https://facebook.com", attrs?.socials?.facebook),
           twitter_url: toSocialUrl("https://x.com", attrs?.socials?.twitter),

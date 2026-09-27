@@ -4,29 +4,13 @@ import { useCallback, useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { getProfileSettings, updateInstagramHandle, type ProfileSettings } from "./profileActions";
 import { parseInstagramInput } from "@/lib/kajabi/profile-fields";
-import { safeUrl } from "@/lib/url";
 
-function ReadOnlyField({ label, value, href }: { label: string; value: string | null; href?: string | null }) {
-  return (
-    <div>
-      <dt className="text-sm font-medium text-slate-900 dark:text-slate-100 mb-1">{label}</dt>
-      <dd className="px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-md bg-slate-50 dark:bg-slate-800 text-sm text-slate-900 dark:text-slate-100 whitespace-pre-line break-words">
-        {value ? (
-          href ? (
-            <a href={href} target="_blank" rel="noopener noreferrer" className="underline">
-              {value}
-            </a>
-          ) : (
-            value
-          )
-        ) : (
-          <span className="text-slate-400 dark:text-slate-500">Not set</span>
-        )}
-      </dd>
-    </div>
-  );
-}
-
+/**
+ * Settings > Profile. Only fields members can actually change from here are
+ * shown: Kajabi's API can't write bio / Facebook / X (see
+ * lib/kajabi/profile-fields.ts), so those stay display-only on the member
+ * profile page rather than appearing here as dead, read-only inputs.
+ */
 export function ProfilePanel() {
   const [data, setData] = useState<ProfileSettings | null>(null);
   const [loading, setLoading] = useState(true);
@@ -70,9 +54,7 @@ export function ProfilePanel() {
     } else {
       setMessage(
         result.warning ??
-          (result.syncPending
-            ? "Saved to Kajabi. Your profile will update in a minute or two."
-            : "No changes to save.")
+          (result.syncPending ? "Saved. Your profile will update in a minute or two." : "No changes to save.")
       );
       await load();
     }
@@ -92,14 +74,12 @@ export function ProfilePanel() {
     return <p className="text-sm text-red-600 dark:text-red-400">{error ?? "Couldn't load your profile."}</p>;
   }
 
-  const instagramEditable = data.kajabiLinked && !data.instagramManagedInKajabiProfile;
-
   return (
     <div className="space-y-8">
       <div>
         <h2 className="text-lg font-medium text-slate-900 dark:text-slate-100 mb-1">Public Profile</h2>
         <p className="text-sm text-slate-600 dark:text-slate-400">
-          Your bio and social links come from your Kajabi account and show on your{" "}
+          Shown on your{" "}
           <Link href={`/members/${data.memberId}`} className="underline">
             member profile
           </Link>
@@ -114,7 +94,6 @@ export function ProfilePanel() {
         </div>
       )}
 
-      {/* Instagram — the one profile field Kajabi's API lets us write (contact custom field). */}
       <div>
         <div className="flex items-center gap-2 mb-1">
           <h3 className="text-sm font-medium text-slate-900 dark:text-slate-100">Instagram</h3>
@@ -124,10 +103,13 @@ export function ProfilePanel() {
             </span>
           )}
         </div>
-        {instagramEditable ? (
+        {data.kajabiLinked ? (
           <>
             <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">
-              Your handle (like @yourname) or instagram.com link. Leave blank to remove it.
+              Your handle (like @yourname) or instagram.com link.{" "}
+              {data.instagramFallbackUrl
+                ? `If you leave it blank, your profile links to ${data.instagramFallbackUrl} instead.`
+                : "Leave blank to remove it."}
             </p>
             <form onSubmit={handleSaveInstagram} className="flex gap-2 max-w-md">
               <label htmlFor="instagram-handle" className="sr-only">
@@ -153,31 +135,14 @@ export function ProfilePanel() {
             </form>
           </>
         ) : (
-          <div className="max-w-md">
-            <dl>
-              <ReadOnlyField label="Current link" value={data.instagramUrl} href={safeUrl(data.instagramUrl)} />
-            </dl>
-            <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-              {data.kajabiLinked
-                ? "This comes from the Instagram link on your Kajabi profile, which takes priority — update it in Kajabi."
-                : "Your account isn't linked to Kajabi, so this can't be edited here."}
-            </p>
-          </div>
+          <p className="text-xs text-slate-500 dark:text-slate-400 max-w-md">
+            Your account isn&apos;t set up for profile editing yet. Email{" "}
+            <a href="mailto:support@quillandcup.com" className="underline">
+              support@quillandcup.com
+            </a>{" "}
+            and we&apos;ll sort it out.
+          </p>
         )}
-      </div>
-
-      {/* Bio / Facebook / X — Kajabi customer-profile fields with no write API. */}
-      <div>
-        <h3 className="text-sm font-medium text-slate-900 dark:text-slate-100 mb-1">Bio and other links</h3>
-        <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">
-          Kajabi doesn&apos;t let other apps change these, so edit them on your profile in Kajabi. Changes show up here
-          after the next Kajabi sync.
-        </p>
-        <dl className="space-y-4 max-w-md">
-          <ReadOnlyField label="Bio" value={data.bio} />
-          <ReadOnlyField label="Facebook" value={data.facebookUrl} href={safeUrl(data.facebookUrl)} />
-          <ReadOnlyField label="X / Twitter" value={data.twitterUrl} href={safeUrl(data.twitterUrl)} />
-        </dl>
       </div>
     </div>
   );

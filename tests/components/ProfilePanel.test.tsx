@@ -13,12 +13,8 @@ vi.mock('@/app/(member)/settings/profileActions', () => ({
 const baseSettings: profileActions.ProfileSettings = {
   memberId: 'member-1',
   kajabiLinked: true,
-  bio: 'Writes cozy mysteries.',
-  instagramUrl: 'https://instagram.com/old_handle',
-  facebookUrl: 'https://facebook.com/someone',
-  twitterUrl: null,
   instagramHandle: 'old_handle',
-  instagramManagedInKajabiProfile: false,
+  instagramFallbackUrl: null,
   syncPending: false,
 }
 
@@ -27,20 +23,30 @@ beforeEach(() => {
 })
 
 describe('ProfilePanel', () => {
-  it('prefills the Instagram handle and shows Kajabi-only fields read-only', async () => {
+  it('prefills the Instagram handle and only shows fields the member can edit', async () => {
     vi.mocked(profileActions.getProfileSettings).mockResolvedValue(baseSettings)
     render(<ProfilePanel />)
 
     const input = await screen.findByLabelText('Instagram handle')
     expect(input).toHaveValue('@old_handle')
-    expect(screen.getByText('Writes cozy mysteries.')).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'https://facebook.com/someone' })).toHaveAttribute(
-      'href',
-      'https://facebook.com/someone'
-    )
-    // Bio isn't an input — Kajabi's API can't write it.
-    expect(screen.queryByDisplayValue('Writes cozy mysteries.')).not.toBeInTheDocument()
+    expect(screen.getByText(/Leave blank to remove it/)).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'member profile' })).toHaveAttribute('href', '/members/member-1')
+    // No read-only bio/Facebook/X, and no "go edit it in Kajabi" detour.
+    expect(screen.queryByText(/Bio/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/Facebook/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/Kajabi/)).not.toBeInTheDocument()
+    expect(screen.getAllByRole('textbox')).toHaveLength(1)
+  })
+
+  it('explains what a blank handle falls back to when there is a directory Instagram', async () => {
+    vi.mocked(profileActions.getProfileSettings).mockResolvedValue({
+      ...baseSettings,
+      instagramFallbackUrl: 'https://instagram.com/profile_handle',
+    })
+    render(<ProfilePanel />)
+
+    expect(await screen.findByText(/If you leave it blank, your profile links to https:\/\/instagram.com\/profile_handle/)).toBeInTheDocument()
+    expect(screen.getByLabelText('Instagram handle')).toBeEnabled()
   })
 
   it('saves a new handle and shows the pending-sync message', async () => {
@@ -56,7 +62,7 @@ describe('ProfilePanel', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Save' }))
 
     expect(profileActions.updateInstagramHandle).toHaveBeenCalledWith('@new_handle')
-    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Saved to Kajabi'))
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Saved. Your profile will update'))
     expect(await screen.findByText('Syncing to your profile…')).toBeInTheDocument()
   })
 
@@ -73,10 +79,10 @@ describe('ProfilePanel', () => {
     expect(profileActions.updateInstagramHandle).not.toHaveBeenCalled()
   })
 
-  it('shows the Kajabi error and keeps the typed value when the save fails', async () => {
+  it('shows the error and keeps the typed value when the save fails', async () => {
     vi.mocked(profileActions.getProfileSettings).mockResolvedValue(baseSettings)
     vi.mocked(profileActions.updateInstagramHandle).mockResolvedValue({
-      error: "Couldn't save your Instagram to Kajabi (down). Nothing was changed — please try again.",
+      error: "Couldn't save your Instagram (down). Nothing was changed — please try again.",
     })
 
     render(<ProfilePanel />)
@@ -89,15 +95,15 @@ describe('ProfilePanel', () => {
     expect(input).toHaveValue('new_handle')
   })
 
-  it('makes Instagram read-only when the Kajabi profile link takes precedence', async () => {
+  it('points unlinked members to support instead of showing a form', async () => {
     vi.mocked(profileActions.getProfileSettings).mockResolvedValue({
       ...baseSettings,
-      instagramManagedInKajabiProfile: true,
-      instagramUrl: 'https://instagram.com/profile_handle',
+      kajabiLinked: false,
+      instagramHandle: null,
     })
     render(<ProfilePanel />)
 
-    expect(await screen.findByText(/takes priority/)).toBeInTheDocument()
+    expect(await screen.findByRole('link', { name: 'support@quillandcup.com' })).toBeInTheDocument()
     expect(screen.queryByLabelText('Instagram handle')).not.toBeInTheDocument()
   })
 })

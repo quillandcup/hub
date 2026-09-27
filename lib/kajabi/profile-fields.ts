@@ -9,22 +9,36 @@
  * | bio             | customer.public_bio                             | No — /v1/customers is read-only |
  * | facebook_url    | customer.socials.facebook                       | No |
  * | twitter_url     | customer.socials.twitter                        | No |
- * | instagram_url   | customer.socials.instagram, else contact custom | Only the contact custom field |
- *                     field "Instagram Handle" (custom_1)
+ * | instagram_url   | contact custom field "Instagram Handle"         | Yes (the custom field) |
+ *                     (custom_1), else customer.socials.instagram
  *
- * Kajabi's API reference (and the vendored lib/kajabi/openapi.yaml) only
- * exposes GET for /v1/customers and /v1/customers/{id}; there is no update
- * endpoint, so public_bio/socials can only be changed by the member inside
- * Kajabi itself. PATCH /v1/contacts/{id} does accept custom_1..custom_3.
+ * Kajabi's public API (help.kajabi.com/api-reference, v1 — the only version,
+ * mirrored in lib/kajabi/openapi.yaml) exposes only GET for /v1/customers and
+ * /v1/customers/{id} (plus offer grants); there is no customer/profile update
+ * endpoint, no scope that adds one, and no webhook for profile changes. So
+ * public_bio/socials.* are read-only to us. PATCH /v1/contacts/{id} does
+ * accept custom_1..custom_3.
  */
 
 // Kajabi contact custom field for "Instagram Handle" — confirmed via
-// GET /v1/custom_fields (site 2147577478) to be handle `custom_1`. Most
-// Kajabi customers never fill in the native profile socials.instagram field,
-// but this custom field is collected on the "Ideal Hedgie" opt-in form at
-// signup, so it's the primary source; socials.instagram still wins when a
-// customer has explicitly set it, since that's the more current value.
+// GET /v1/custom_fields (site 2147577478) to be handle `custom_1`. It's
+// collected on our lead forms (e.g. the "Ideal Hedgie" opt-in), so it's
+// normally set, and it's what members edit from Settings > Profile. The
+// customer's socials.instagram only exists if they filled in Kajabi's member
+// directory profile (most don't), so it's just the fallback.
 export const INSTAGRAM_CUSTOM_FIELD_HANDLE = "custom_1" as const;
+
+/**
+ * members.instagram_url from the two Kajabi sources: the "Instagram Handle"
+ * custom field wins; socials.instagram is the fallback when it's empty.
+ * Shared by /api/process/members and the Settings profile editor.
+ */
+export function resolveInstagramUrl(
+  customFieldHandle: string | null | undefined,
+  socialsInstagram: string | null | undefined
+): string | null {
+  return toSocialUrl(INSTAGRAM_BASE_URL, customFieldHandle) ?? toSocialUrl(INSTAGRAM_BASE_URL, socialsInstagram);
+}
 
 export function toSocialUrl(base: string, handle: string | null | undefined): string | null {
   if (!handle) return null;
