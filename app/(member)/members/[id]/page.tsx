@@ -195,7 +195,7 @@ export default async function MemberProfilePage({
 
       {/* Bio */}
       {member.bio && (
-        <p className="text-slate-700 dark:text-slate-300 mb-6 leading-relaxed">
+        <p className="text-slate-700 dark:text-slate-300 mb-6 leading-relaxed whitespace-pre-line">
           {member.bio}
         </p>
       )}
