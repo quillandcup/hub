@@ -453,6 +453,20 @@ sender_name = "Quill & Cup"
 enroll_enabled = true
 verify_enabled = true
 
+# Production's current values for settings where the local defaults above differ, pinned so
+# `npm run config:push` doesn't silently change them (it would have cut the auth email rate
+# limit from 20/h to 2/h and turned off storage analytics/vector). Local stays at the CLI
+# defaults. See "Supabase config as code" in CLAUDE.md.
+[remotes.prod.auth.rate_limit]
+email_sent = 20
+
+[remotes.prod.storage.analytics]
+enabled = true
+max_namespaces = 10
+
+[remotes.prod.storage.vector]
+enabled = true
+
 # Known, harmless diff: `config diff` reports auth.sms.twilio.enabled as remote-only (production
 # has Twilio as the default SMS provider, with no credentials and phone login off). We don't
 # declare Twilio anywhere, and `config push` leaves undeclared properties unchanged (confirmed

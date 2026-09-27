@@ -142,7 +142,18 @@ Layers, per the Next.js auth guide (`node_modules/next/dist/docs/01-app/02-guide
 
 Sudo doesn't affect any of these checks: the sudo cookie changes the effective *member*, not the signed-in admin. API routes use `requireAdmin` (`lib/supabase/api-auth.ts`) instead.
 
-The hook is tested by `supabase/tests/database/custom_access_token_hook.test.sql` (pgTAP, rolled back; run instructions in its header). Enabling it on a project is two steps in this order: apply the migration (`npm run db:push`), then enable the hook (`npm run config:push`, or Dashboard → Authentication → Hooks → Customize Access Token (JWT) Claims → Postgres function `public.custom_access_token_hook`). Enabling the hook before its function exists breaks every sign-in and token refresh.
+The hook is tested by `supabase/tests/database/custom_access_token_hook.test.sql` (pgTAP, rolled back; run instructions in its header). Because the proxy has no fallback, **no one reaches `/admin` on a project until the hook is enabled there** (and they've signed in again or their token has refreshed). See "Supabase config as code" below for how it gets enabled.
+
+### Supabase config as code
+
+`supabase/config.toml` is the source of truth for the Auth/API/DB/storage settings it declares: the top of the file is local dev, and `[remotes.prod]` overrides it for production (project `bxwtougjidectvjegdlr`). Anything not overridden there, such as `[auth.hook.custom_access_token]`, applies to production as-is. `supabase config push` only writes declared properties; undeclared ones keep their dashboard values. So change declared settings in `config.toml`, not the dashboard, or the next push reverts them.
+
+- `npm run config:diff`: read-only diff against production. Run it and read it before every push. Expected, harmless lines: `auth.sms.twilio.enabled` and `storage.image_transformation.enabled` show as remote-only.
+- `npm run config:push`: applies it. Needs `RESEND_API_KEY` in `.env.prod`, which fills the SMTP password via `env(RESEND_API_KEY)`.
+- **Ordering rule: SQL before config.** Config that points at SQL (the access token hook → `public.custom_access_token_hook`) must only be pushed after the migration creating that SQL is live on production. Pushing it first breaks every sign-in and token refresh. CI's push-migrations job runs `supabase db push` on every push to main, so a safe sequence is: merge → wait for CI's "Push migrations to production" to succeed → `npm run config:diff` → `npm run config:push`.
+- The Dashboard equivalent for the hook: Authentication → Hooks → Customize Access Token (JWT) Claims → Postgres function `public.custom_access_token_hook`.
+- Where local defaults differ from production's values (auth email rate limit, storage analytics/vector), `[remotes.prod]` pins production's values so a push doesn't change them. If `config:diff` shows anything besides the change you intend, pin or fix it in `config.toml` before pushing.
+- Local: the auth container reads hooks only at startup, so after changing `[auth.hook.*]` restart the stack (`supabase stop && supabase start`; no reset needed).
 
 ### Testing Requirements
 
