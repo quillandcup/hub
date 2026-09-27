@@ -176,7 +176,7 @@ async function fetchPrickles(
   const raw = await fetchAllPaginated<RawUpcomingPrickle>((offset) => {
     const q = supabase
       .from("prickles")
-      .select("id, type_id, start_time, prickle_types(name), host:members(id, name, display_name)")
+      .select("id, type_id, start_time, prickle_types(name), host:prickle_host(id, name, display_name)")
       .gte("start_time", from)
     return (inclusiveEnd ? q.lte("start_time", to) : q.lt("start_time", to))
       .order("start_time")
@@ -514,7 +514,7 @@ export async function getRankedUpcomingPrickles(
       fetchAllPaginated<CoRecord>((offset) =>
         supabase
           .from("prickle_attendance")
-          .select("member_id, prickle_id, join_time, members(name, display_name)")
+          .select("member_id, prickle_id, join_time, members:attendance_member(name, display_name)")
           .in("prickle_id", chunk)
           .neq("member_id", memberId)
           .order("id")

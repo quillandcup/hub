@@ -192,14 +192,14 @@ export async function getHostingCalendarContext(month: string): Promise<HostingC
   const [{ data: prickleRows }, { data: scheduleRows }] = await Promise.all([
     supabase
       .from("prickles")
-      .select("id, host:members(name), start_time, end_time, prickle_types(name)")
+      .select("id, host:prickle_host(name), start_time, end_time, prickle_types(name)")
       .gte("start_time", monthStart.toISOString())
       .lt("start_time", rangeEnd.toISOString())
       .order("start_time"),
     supabase
       .from("prickle_schedules")
       .select(
-        "id, recurrence_type, day_of_week, recurrence_anchor_date, week_of_month, event_date, start_time_local, timezone, status, prickle_types(name), member:members(name)"
+        "id, recurrence_type, day_of_week, recurrence_anchor_date, week_of_month, event_date, start_time_local, timezone, status, prickle_types(name), member:schedule_host(name)"
       )
       .eq("month", month)
       .in("status", ["proposed", "confirmed"])

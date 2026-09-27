@@ -6,6 +6,7 @@ import Link from "next/link"
 import { getEffectiveIdentity } from "@/lib/sudo"
 import { getUserTimezonePreference } from "@/lib/timezone"
 import { getMemberDisplayName } from "@/lib/member-display-name"
+import { getSlackDmLinksForMembers } from "@/lib/member-slack-links"
 
 export const metadata: Metadata = {
   title: "Streaks",
@@ -248,7 +249,7 @@ export default async function StreaksPage() {
     while (hasMore) {
       const { data: batch } = await supabase
         .from("prickle_attendance")
-        .select("member_id, prickle_id, join_time, members(name, display_name)")
+        .select("member_id, prickle_id, join_time, members:attendance_member(name, display_name)")
         .in("prickle_id", prickleBatch)
         .neq("member_id", memberId)
         .range(offset, offset + BATCH_SIZE - 1)
@@ -280,44 +281,9 @@ export default async function StreaksPage() {
 
   // Look up Slack user IDs: prefer confirmed alias, fall back to email match
   // TODO: proactively send a Slack bot DM when a sister streak is at risk (no shared prickle yet this week)
-  const sisterMemberIds = sisterStreaks.map((s) => s.memberId)
-  const slackDmByMemberId = new Map<string, string>()
-  if (sisterMemberIds.length > 0) {
-    const [{ data: slackAliases }, { data: sisterMembers }] = await Promise.all([
-      supabase
-        .from("member_name_aliases")
-        .select("member_id, alias")
-        .in("member_id", sisterMemberIds)
-        .eq("source", "slack")
-        .eq("active", true),
-      supabase
-        .from("members")
-        .select("id, email")
-        .in("id", sisterMemberIds),
-    ])
-    for (const a of slackAliases ?? []) {
-      slackDmByMemberId.set(a.member_id, `https://quillandcup.slack.com/app_redirect?channel=${a.alias}`)
-    }
-    const unmatchedIds = sisterMemberIds.filter((id) => !slackDmByMemberId.has(id))
-    if (unmatchedIds.length > 0) {
-      const emailByMemberId = new Map((sisterMembers ?? []).map((m) => [m.id, m.email]))
-      const emails = unmatchedIds.map((id) => emailByMemberId.get(id)).filter((e): e is string => !!e)
-      if (emails.length > 0) {
-        const { data: slackUsers } = await supabase
-          .schema("bronze")
-          .from("slack_users")
-          .select("user_id, email")
-          .in("email", emails)
-        const memberIdByEmail = new Map(
-          (sisterMembers ?? []).map((m) => [m.email, m.id])
-        )
-        for (const u of slackUsers ?? []) {
-          const mid = u.email ? memberIdByEmail.get(u.email) : undefined
-          if (mid) slackDmByMemberId.set(mid, `https://quillandcup.slack.com/app_redirect?channel=${u.user_id}`)
-        }
-      }
-    }
-  }
+  // Other members' aliases/emails and bronze.slack_users are admin-only under RLS, so this is
+  // resolved server-side and only the resulting DM URLs come back.
+  const slackDmByMemberId = await getSlackDmLinksForMembers(sisterStreaks.map((s) => s.memberId))
 
   // Map prickle_id → display info for shared prickle links
   const prickleMap = new Map<string, PrickleInfo>()

@@ -13,7 +13,7 @@ export default async function BookshelfPage() {
   const { data: books } = await supabase
     .from("member_books")
     .select(
-      "id, member_id, title, description, cover_url, purchase_url, published_date, price, genre, format, members(name, display_name)"
+      "id, member_id, title, description, cover_url, purchase_url, published_date, price, genre, format, members:book_member(name, display_name)"
     )
     .order("published_date", { ascending: false });
 

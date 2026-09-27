@@ -105,7 +105,7 @@ export async function getWizardRecommendations(
   const [typesResult, membersResult, candidates, historical, vibesResult] = await Promise.all([
     supabase.from("prickle_types").select("id, name, purpose, solo_task_friendly"),
     fetchAllPaginated<PickerHost>((offset) =>
-      supabase.from("members").select("id, name").range(offset, offset + BATCH_SIZE - 1)
+      supabase.from("member_directory").select("id, name").order("id").range(offset, offset + BATCH_SIZE - 1)
     ),
     fetchAllPaginated<CandidatePrickle>((offset) =>
       supabase

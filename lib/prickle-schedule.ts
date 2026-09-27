@@ -165,7 +165,7 @@ export async function getPrickleScheduleOverview(
   const raw = await fetchAllPaginated<RawPrickleRow>((offset) =>
     supabase
       .from("prickles")
-      .select("id, type_id, start_time, end_time, prickle_types(name), host:members(id, name, display_name)")
+      .select("id, type_id, start_time, end_time, prickle_types(name), host:prickle_host(id, name, display_name)")
       .gte("start_time", windowStart)
       .lte("start_time", windowEnd)
       .order("start_time")

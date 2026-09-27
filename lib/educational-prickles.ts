@@ -53,7 +53,7 @@ export async function fetchUpcomingEducationalPrickles(
 
   const { data } = await supabase
     .from("prickles")
-    .select("id, title, start_time, end_time, host:members(name), prickle_types!inner(name, normalized_name)")
+    .select("id, title, start_time, end_time, host:prickle_host(name), prickle_types!inner(name, normalized_name)")
     .eq("prickle_types.normalized_name", "educational")
     .gte("end_time", now.toISOString())
     .lte("start_time", windowEnd.toISOString())
