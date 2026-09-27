@@ -3,7 +3,9 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { SortableTh } from "@/components/SortableTh";
-import { useTableSort, type SortValue } from "@/lib/hooks/useTableSort";
+import { useDataTable } from "@/lib/hooks/useDataTable";
+import type { SortValue } from "@/lib/hooks/useTableSort";
+import { DataTablePager } from "@/components/DataTablePager";
 
 interface EventRow {
   id: string;
@@ -69,11 +71,12 @@ export default function EventsClient() {
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [formData, setFormData] = useState(emptyForm);
-  const { sortColumn, sortDirection, handleSort, sortedRows } = useTableSort<EventRow, SortColumn>({
+  const table = useDataTable<EventRow, SortColumn>({
     rows: events,
     getSortValue,
     defaultSort: null,
   });
+  const { sortColumn, sortDirection, handleSort } = table;
 
   useEffect(() => {
     fetchEvents();
@@ -305,7 +308,7 @@ export default function EventsClient() {
                 </td>
               </tr>
             ) : (
-              sortedRows.map((event) => (
+              table.rows.map((event) => (
                 <tr key={event.id} className="hover:bg-gray-50 dark:hover:bg-slate-800">
                   <td className="px-4 py-3">
                     <Link
@@ -328,6 +331,7 @@ export default function EventsClient() {
             )}
           </tbody>
         </table>
+        <DataTablePager table={table} itemLabel="events" />
       </div>
     </div>
   );

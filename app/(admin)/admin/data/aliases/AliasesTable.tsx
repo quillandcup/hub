@@ -2,10 +2,10 @@
 
 import Link from "next/link";
 import { SortableTh } from "@/components/SortableTh";
-import { useTableSort, type SortValue } from "@/lib/hooks/useTableSort";
+import { useDataTable } from "@/lib/hooks/useDataTable";
+import type { SortValue } from "@/lib/hooks/useTableSort";
+import { DataTablePager } from "@/components/DataTablePager";
 import AliasBadges from "./AliasBadges";
-import { Pagination } from "@/components/Pagination";
-import { usePagination } from "@/lib/hooks/usePagination";
 
 export interface MemberAliasRow {
   member: { id: string; name: string; email: string; status: string };
@@ -26,12 +26,12 @@ function getSortValue(row: MemberAliasRow, column: SortColumn): SortValue {
 }
 
 export default function AliasesTable({ rows }: { rows: MemberAliasRow[] }) {
-  const { sortColumn, sortDirection, handleSort, sortedRows } = useTableSort<MemberAliasRow, SortColumn>({
+  const table = useDataTable<MemberAliasRow, SortColumn>({
     rows,
     getSortValue,
     defaultSort: { column: "member", direction: "asc" },
   });
-  const pagination = usePagination({ rows: sortedRows, resetKey: `${sortColumn}:${sortDirection}` });
+  const { sortColumn, sortDirection, handleSort } = table;
   const th = (label: string, column: SortColumn) => (
     <SortableTh
       label={label}
@@ -52,7 +52,7 @@ export default function AliasesTable({ rows }: { rows: MemberAliasRow[] }) {
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
-          {pagination.pageRows.map(({ member, aliases }) => (
+          {table.rows.map(({ member, aliases }) => (
             <tr key={member.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
               <td className="px-6 py-4 whitespace-nowrap">
                 <div>
@@ -83,7 +83,7 @@ export default function AliasesTable({ rows }: { rows: MemberAliasRow[] }) {
           ))}
         </tbody>
       </table>
-      <Pagination {...pagination.paginationProps} itemLabel="members" />
+      <DataTablePager table={table} itemLabel="members" />
     </div>
   );
 }

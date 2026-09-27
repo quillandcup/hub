@@ -2,11 +2,11 @@
 
 import Link from "next/link";
 import { SortableTh } from "@/components/SortableTh";
-import { useTableSort, type SortValue } from "@/lib/hooks/useTableSort";
+import { useDataTable } from "@/lib/hooks/useDataTable";
+import type { SortValue } from "@/lib/hooks/useTableSort";
+import { DataTablePager } from "@/components/DataTablePager";
 import type { ResubscribingMember } from "@/lib/resubscription-data";
 import { formatGapLabel } from "@/lib/resubscription-detection";
-import { Pagination } from "@/components/Pagination";
-import { usePagination } from "@/lib/hooks/usePagination";
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString("en-US", {
@@ -89,12 +89,12 @@ function MemberRow({ member }: { member: ResubscribingMember }) {
 }
 
 export default function ResubscribingMembersTable({ members }: { members: ResubscribingMember[] }) {
-  const { sortColumn, sortDirection, handleSort, sortedRows } = useTableSort<ResubscribingMember, SortColumn>({
+  const table = useDataTable<ResubscribingMember, SortColumn>({
     rows: members,
     getSortValue,
     defaultSort: { column: "member", direction: "asc" },
   });
-  const pagination = usePagination({ rows: sortedRows, resetKey: `${sortColumn}:${sortDirection}` });
+  const { sortColumn, sortDirection, handleSort } = table;
 
   return (
     <div className="overflow-x-auto">
@@ -123,12 +123,12 @@ export default function ResubscribingMembersTable({ members }: { members: Resubs
           </tr>
         </thead>
         <tbody>
-          {pagination.pageRows.map((member) => (
+          {table.rows.map((member) => (
             <MemberRow key={member.memberEmail} member={member} />
           ))}
         </tbody>
       </table>
-      <Pagination {...pagination.paginationProps} itemLabel="members" />
+      <DataTablePager table={table} itemLabel="members" />
     </div>
   );
 }

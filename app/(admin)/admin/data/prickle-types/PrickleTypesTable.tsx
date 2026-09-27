@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import { SortableTh } from "@/components/SortableTh";
-import { useTableSort, type SortValue } from "@/lib/hooks/useTableSort";
+import { useDataTable } from "@/lib/hooks/useDataTable";
+import type { SortValue } from "@/lib/hooks/useTableSort";
+import { DataTablePager } from "@/components/DataTablePager";
 
 export interface PrickleTypeRow {
   id: string;
@@ -63,11 +65,12 @@ function getSortValue(row: PrickleTypeRow, column: SortColumn): SortValue {
 }
 
 export default function PrickleTypesTable({ rows }: { rows: PrickleTypeRow[] }) {
-  const { sortColumn, sortDirection, handleSort, sortedRows } = useTableSort<PrickleTypeRow, SortColumn>({
+  const table = useDataTable<PrickleTypeRow, SortColumn>({
     rows,
     getSortValue,
     defaultSort: { column: "name", direction: "asc" },
   });
+  const { sortColumn, sortDirection, handleSort } = table;
   const th = (label: string, column: SortColumn) => (
     <SortableTh
       label={label}
@@ -93,7 +96,7 @@ export default function PrickleTypesTable({ rows }: { rows: PrickleTypeRow[] }) 
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
-          {sortedRows.map((type) => (
+          {table.rows.map((type) => (
             <tr key={type.id} className="hover:bg-slate-50 dark:hover:bg-slate-800">
               <td className="px-6 py-4">
                 <div className="text-sm font-medium text-slate-900 dark:text-slate-100">{type.name}</div>
@@ -124,6 +127,7 @@ export default function PrickleTypesTable({ rows }: { rows: PrickleTypeRow[] }) 
           ))}
         </tbody>
       </table>
+      <DataTablePager table={table} itemLabel="types" />
     </div>
   );
 }

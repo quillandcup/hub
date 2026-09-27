@@ -1,17 +1,11 @@
-// Shared pagination rules, used on both sides:
-// - server-paged tables (the query itself is ranged + ordered; page/sort live
-//   in the URL) parse their search params with parsePageParam/parseSortParams
-// - client-paged tables (all rows already loaded) slice with usePagination
-//
-// When to use which:
-// - Server-side: the source can exceed PostgREST's 1000-row cap, or loading it
-//   costs work proportional to history (e.g. All Members, which aggregated all
-//   prickle attendance). Sorting must then happen in the same query.
-// - Client-side: the table is bounded and already fully loaded, but can grow
-//   past one page (a few hundred rows) — paging keeps the DOM small.
-// - None: tables that realistically stay under one page (CLIENT_PAGINATION_THRESHOLD).
-//   usePagination/Pagination render no controls until there's a second page,
-//   so wiring them into a small table costs nothing.
+// Shared pagination rules. Tables don't use these directly — useDataTable
+// (lib/hooks/useDataTable.ts) applies them:
+// - Client mode: every row is loaded; the table auto-paginates once it has more
+//   than AUTO_PAGINATE_THRESHOLD rows, and shows no pager below that.
+// - Server mode: for sources that can pass PostgREST's 1000-row cap or whose
+//   cost grows with history (e.g. All Members). The query itself is filtered,
+//   ordered and ranged; the server component reads ?sort=&dir=&page=&pageSize=
+//   with the parsers below.
 
 import type { SortConfig, SortDirection } from "@/lib/hooks/useTableSort";
 
@@ -19,8 +13,8 @@ export const PAGE_SIZE_OPTIONS = [25, 50, 100] as const;
 export const DEFAULT_PAGE_SIZE = 50;
 // Keep a single page far below PostgREST's 1000-row limit.
 export const MAX_PAGE_SIZE = 100;
-// Tables whose realistic size stays at or below this don't need paging.
-export const CLIENT_PAGINATION_THRESHOLD = DEFAULT_PAGE_SIZE;
+// Client-mode tables page only once they have more rows than this.
+export const AUTO_PAGINATE_THRESHOLD = DEFAULT_PAGE_SIZE;
 
 type ParamValue = string | string[] | undefined | null;
 

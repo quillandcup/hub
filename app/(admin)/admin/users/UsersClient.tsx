@@ -2,9 +2,9 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { SortableTh } from "@/components/SortableTh";
-import { useTableSort, type SortValue } from "@/lib/hooks/useTableSort";
-import { Pagination } from "@/components/Pagination";
-import { usePagination } from "@/lib/hooks/usePagination";
+import { useDataTable } from "@/lib/hooks/useDataTable";
+import type { SortValue } from "@/lib/hooks/useTableSort";
+import { DataTablePager } from "@/components/DataTablePager";
 import { FEATURE_PREVIEWS } from "@/lib/features";
 import MemberSearch from "@/components/MemberSearch";
 
@@ -109,12 +109,12 @@ function getSortValue(user: AppUser, column: SortColumn): SortValue {
 export default function UsersClient({ currentUserId }: { currentUserId: string }) {
   const [users, setUsers] = useState<AppUser[]>([]);
   const [allMembers, setAllMembers] = useState<MemberRecord[]>([]);
-  const { sortColumn, sortDirection, handleSort, sortedRows } = useTableSort<AppUser, SortColumn>({
+  const table = useDataTable<AppUser, SortColumn>({
     rows: users,
     getSortValue,
     defaultSort: null,
   });
-  const pagination = usePagination({ rows: sortedRows, resetKey: `${sortColumn}:${sortDirection}` });
+  const { sortColumn, sortDirection, handleSort } = table;
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -414,7 +414,7 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
-                {pagination.pageRows.map((user) => {
+                {table.rows.map((user) => {
                   const isEditing = editingId === user.id;
                   const isCurrentUser = user.id === currentUserId;
                   const memberOptions = availableMemberOptions(user.memberId);
@@ -608,7 +608,7 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
                 })}
               </tbody>
             </table>
-            <Pagination {...pagination.paginationProps} itemLabel="users" />
+            <DataTablePager table={table} itemLabel="users" />
           </div>
         )}
       </div>

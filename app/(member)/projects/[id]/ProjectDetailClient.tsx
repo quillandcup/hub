@@ -7,7 +7,9 @@ import GoalDisplay from "@/components/writing/GoalDisplay";
 import ProjectCharts from "@/components/writing/ProjectCharts";
 import ReasonBadges from "@/components/ReasonBadges";
 import { SortableTh } from "@/components/SortableTh";
-import { useTableSort, type SortValue } from "@/lib/hooks/useTableSort";
+import { useDataTable } from "@/lib/hooks/useDataTable";
+import type { SortValue } from "@/lib/hooks/useTableSort";
+import { DataTablePager } from "@/components/DataTablePager";
 import BookFormModal from "@/components/books/BookFormModal";
 import ProjectDetailsModal from "@/components/writing/ProjectDetailsModal";
 import { deleteBook } from "@/app/(member)/bookshelf/actions";
@@ -67,12 +69,8 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
   const [showEditBook, setShowEditBook] = useState(false);
   const [showEditDetails, setShowEditDetails] = useState(false);
   const [removingBook, setRemovingBook] = useState(false);
-  const {
-    sortColumn,
-    sortDirection,
-    handleSort,
-    sortedRows: sortedEntries,
-  } = useTableSort<EntryRow, EntrySortColumn>({ rows: entries, getSortValue: entrySortValue, defaultSort: null });
+  const table = useDataTable<EntryRow, EntrySortColumn>({ rows: entries, getSortValue: entrySortValue, defaultSort: null });
+  const { sortColumn, sortDirection, handleSort } = table;
 
   function handleChanged() {
     // Server actions already revalidatePath(); a full page refresh picks up
@@ -377,6 +375,7 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
             No entries yet -- log your first one above.
           </p>
         ) : (
+          <>
           <table className="w-full text-sm">
             <thead>
               <tr>
@@ -407,7 +406,7 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
               </tr>
             </thead>
             <tbody>
-              {sortedEntries.map((entry) => (
+              {table.rows.map((entry) => (
                 <tr key={entry.id} className="border-t border-slate-100 dark:border-slate-800 first:border-0">
                   <td className="px-5 py-3 whitespace-nowrap text-slate-500 dark:text-slate-400">{entry.entryDate}</td>
                   <td className="px-5 py-3">
@@ -454,6 +453,8 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
               ))}
             </tbody>
           </table>
+          <DataTablePager table={table} itemLabel="entries" />
+          </>
         )}
       </div>
 

@@ -4,7 +4,8 @@ import { Fragment, useMemo, useState } from "react";
 import Link from "next/link";
 import type { PrickleScheduleRow } from "@/lib/prickle-schedule";
 import { SortableTh } from "@/components/SortableTh";
-import { useTableSort, type SortValue } from "@/lib/hooks/useTableSort";
+import { useDataTable } from "@/lib/hooks/useDataTable";
+import type { SortValue } from "@/lib/hooks/useTableSort";
 
 const DAY_ORDER = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
@@ -39,10 +40,12 @@ function getSortValue(row: PrickleScheduleRow, column: SortColumn): SortValue {
 
 export default function AllPricklesTable({ rows }: { rows: PrickleScheduleRow[] }) {
   const [typeFilter, setTypeFilter] = useState<string>("all");
-  const { sortColumn, sortDirection, handleSort, sortedRows } = useTableSort<PrickleScheduleRow, SortColumn>({
+  // Grouped under day headers, so it never pages (a page break would split a day).
+  const { sortColumn, sortDirection, handleSort, rows: sortedRows } = useDataTable<PrickleScheduleRow, SortColumn>({
     rows,
     getSortValue,
     defaultSort: { column: "time", direction: "asc" },
+    paginate: false,
   });
 
   const types = useMemo(() => {

@@ -5,7 +5,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import LogProgressModal from "@/components/writing/LogProgressModal";
 import { SortableTh } from "@/components/SortableTh";
-import { useTableSort, type SortValue } from "@/lib/hooks/useTableSort";
+import { useDataTable } from "@/lib/hooks/useDataTable";
+import type { SortValue } from "@/lib/hooks/useTableSort";
+import { DataTablePager } from "@/components/DataTablePager";
 
 const TIMEZONES = [
   { value: "America/New_York", label: "Eastern (ET)" },
@@ -57,11 +59,12 @@ export default function PrickleDetails({
 }: PrickleDetailsProps) {
   const router = useRouter();
   const [isLogModalOpen, setIsLogModalOpen] = useState(false);
-  const { sortColumn, sortDirection, handleSort, sortedRows } = useTableSort<any, SortColumn>({
+  const table = useDataTable<any, SortColumn>({
     rows: attendanceRecords,
     getSortValue,
     defaultSort: null,
   });
+  const { sortColumn, sortDirection, handleSort } = table;
   const [detectedTimezone, setDetectedTimezone] = useState<string | null>(null);
   useEffect(() => {
     if (userTimezonePreference === "browser") {
@@ -244,7 +247,7 @@ export default function PrickleDetails({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
-                {sortedRows.map((record: any) => {
+                {table.rows.map((record: any) => {
                   const member = record.members;
                   const joinTime = new Date(record.join_time);
                   const leaveTime = new Date(record.leave_time);
@@ -298,6 +301,7 @@ export default function PrickleDetails({
                 })}
               </tbody>
             </table>
+            <DataTablePager table={table} itemLabel="attendees" />
           </div>
         ) : (
           <div className="p-12 text-center text-slate-500 dark:text-slate-400">

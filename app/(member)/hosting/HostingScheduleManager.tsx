@@ -13,7 +13,9 @@ import { requestToHost, updateMySchedule, withdrawMySchedule, type MyScheduleRow
 import HostingCalendarPicker from "./HostingCalendarPicker";
 import { hostEligibilityMessage, type HostEligibility } from "@/lib/host-eligibility";
 import { SortableTh } from "@/components/SortableTh";
-import { useTableSort, type SortValue } from "@/lib/hooks/useTableSort";
+import { useDataTable } from "@/lib/hooks/useDataTable";
+import type { SortValue } from "@/lib/hooks/useTableSort";
+import { DataTablePager } from "@/components/DataTablePager";
 
 interface PrickleType {
   id: string;
@@ -564,11 +566,12 @@ function MonthSection({
   onRequestSlot: () => void;
 }) {
   const stats = summarizeMonth(schedules);
-  const { sortColumn, sortDirection, handleSort, sortedRows } = useTableSort<MyScheduleRow, ScheduleSortColumn>({
+  const table = useDataTable<MyScheduleRow, ScheduleSortColumn>({
     rows: schedules,
     getSortValue: scheduleSortValue,
     defaultSort: null,
   });
+  const { sortColumn, sortDirection, handleSort } = table;
   const monthStart = new Date(`${month}T00:00:00Z`);
   const monthEnd = new Date(Date.UTC(monthStart.getUTCFullYear(), monthStart.getUTCMonth() + 1, 0));
 
@@ -686,7 +689,7 @@ function MonthSection({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-              {sortedRows.map((s) => (
+              {table.rows.map((s) => (
                 <tr key={s.id}>
                   <td className="py-2 pr-2 text-slate-900 dark:text-slate-100">
                     {scheduleLabel(s)}
@@ -707,6 +710,7 @@ function MonthSection({
               ))}
             </tbody>
           </table>
+          <DataTablePager table={table} itemLabel="slots" />
         </>
       )}
     </div>

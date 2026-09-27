@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import { SortableTh } from "@/components/SortableTh";
-import { useTableSort, type SortValue } from "@/lib/hooks/useTableSort";
-import { Pagination } from "@/components/Pagination";
-import { usePagination } from "@/lib/hooks/usePagination";
+import { useDataTable } from "@/lib/hooks/useDataTable";
+import type { SortValue } from "@/lib/hooks/useTableSort";
+import { DataTablePager } from "@/components/DataTablePager";
 
 export interface MissingStripeRow {
   id: string;
@@ -27,12 +27,12 @@ function getSortValue(row: MissingStripeRow, column: SortColumn): SortValue {
 }
 
 export default function MissingStripeTable({ rows }: { rows: MissingStripeRow[] }) {
-  const { sortColumn, sortDirection, handleSort, sortedRows } = useTableSort<MissingStripeRow, SortColumn>({
+  const table = useDataTable<MissingStripeRow, SortColumn>({
     rows,
     getSortValue,
     defaultSort: { column: "name", direction: "asc" },
   });
-  const pagination = usePagination({ rows: sortedRows, resetKey: `${sortColumn}:${sortDirection}` });
+  const { sortColumn, sortDirection, handleSort } = table;
   const th = (label: string, column: SortColumn) => (
     <SortableTh
       label={label}
@@ -53,7 +53,7 @@ export default function MissingStripeTable({ rows }: { rows: MissingStripeRow[] 
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
-          {pagination.pageRows.map((member) => (
+          {table.rows.map((member) => (
             <tr key={member.id} className="hover:bg-slate-50 dark:hover:bg-slate-800">
               <td className="px-6 py-3">
                 <Link
@@ -82,7 +82,7 @@ export default function MissingStripeTable({ rows }: { rows: MissingStripeRow[] 
           ))}
         </tbody>
       </table>
-      <Pagination {...pagination.paginationProps} itemLabel="members" />
+      <DataTablePager table={table} itemLabel="members" />
     </div>
   );
 }

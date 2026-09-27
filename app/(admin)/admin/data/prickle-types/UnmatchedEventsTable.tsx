@@ -5,7 +5,9 @@ import { useRouter } from "next/navigation";
 import Modal from "@/components/Modal";
 import MemberSearch from "@/components/MemberSearch";
 import { SortableTh } from "@/components/SortableTh";
-import { useTableSort, type SortValue } from "@/lib/hooks/useTableSort";
+import { useDataTable } from "@/lib/hooks/useDataTable";
+import type { SortValue } from "@/lib/hooks/useTableSort";
+import { DataTablePager } from "@/components/DataTablePager";
 
 interface EventGroup {
   summary: string;
@@ -53,11 +55,12 @@ export default function UnmatchedEventsTable({
   prickleTypes,
 }: UnmatchedEventsTableProps) {
   const router = useRouter();
-  const { sortColumn, sortDirection, handleSort, sortedRows } = useTableSort<EventGroup, SortColumn>({
+  const table = useDataTable<EventGroup, SortColumn>({
     rows: eventGroups,
     getSortValue,
     defaultSort: null,
   });
+  const { sortColumn, sortDirection, handleSort } = table;
   const [selectedGroup, setSelectedGroup] = useState<EventGroup | null>(null);
   const [mode, setMode] = useState<"existing" | "new">("existing");
   const [selectedTypeId, setSelectedTypeId] = useState(prickleTypes[0]?.id || "");
@@ -219,7 +222,7 @@ export default function UnmatchedEventsTable({
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
-            {sortedRows.map((group) => (
+            {table.rows.map((group) => (
               <tr key={group.summary} className="hover:bg-slate-50 dark:hover:bg-slate-800">
                 <td className="px-6 py-4">
                   <div className="text-sm font-medium text-slate-900 dark:text-slate-100">
@@ -261,6 +264,7 @@ export default function UnmatchedEventsTable({
             ))}
           </tbody>
         </table>
+        <DataTablePager table={table} itemLabel="event groups" />
       </div>
 
       {/* Modal */}

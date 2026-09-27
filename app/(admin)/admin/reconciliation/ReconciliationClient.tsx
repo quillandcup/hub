@@ -3,9 +3,9 @@
 import { Fragment, useCallback, useEffect, useState } from "react";
 import MemberOverrideForm from "@/components/MemberOverrideForm";
 import { SortableTh } from "@/components/SortableTh";
-import { useTableSort, type SortValue } from "@/lib/hooks/useTableSort";
-import { Pagination } from "@/components/Pagination";
-import { usePagination } from "@/lib/hooks/usePagination";
+import { useDataTable } from "@/lib/hooks/useDataTable";
+import type { SortValue } from "@/lib/hooks/useTableSort";
+import { DataTablePager } from "@/components/DataTablePager";
 
 interface ReconciliationSummary {
   total_members: number;
@@ -158,22 +158,17 @@ export default function ReconciliationClient() {
     },
     [slackData]
   );
-  const memberSort = useTableSort<MemberReconciliation, MemberSortColumn>({
-    rows: data?.members ?? EMPTY,
-    getSortValue: memberSortValue,
-    defaultSort: null,
-  });
-  const orphanSort = useTableSort<StripeOrphan, OrphanSortColumn>({
+  const orphanSort = useDataTable<StripeOrphan, OrphanSortColumn>({
     rows: stripeOrphanData?.orphans ?? EMPTY,
     getSortValue: orphanSortValue,
     defaultSort: null,
   });
-  const grantSort = useTableSort<KajabiGrant, GrantSortColumn>({
+  const grantSort = useDataTable<KajabiGrant, GrantSortColumn>({
     rows: kajabiGrantsData?.grants ?? EMPTY,
     getSortValue: grantSortValue,
     defaultSort: null,
   });
-  const zoomSort = useTableSort<ZoomInactiveMember, ZoomSortColumn>({
+  const zoomSort = useDataTable<ZoomInactiveMember, ZoomSortColumn>({
     rows: zoomAccessData?.matched_inactive ?? EMPTY,
     getSortValue: zoomSortValue,
     defaultSort: null,
@@ -185,12 +180,13 @@ export default function ReconciliationClient() {
     m.has_discrepancy ||
     (slackData !== null && !memberSlackSet.has(m.member_id) && m.expected_kajabi_state === "active");
 
-  const filteredMembers = filterDiscrepancies
-    ? memberSort.sortedRows.filter(hasDiscrepancy)
-    : memberSort.sortedRows;
-  const memberPagination = usePagination({
+  const allMembers = data?.members ?? EMPTY;
+  const filteredMembers = filterDiscrepancies ? allMembers.filter(hasDiscrepancy) : allMembers;
+  const memberSort = useDataTable<MemberReconciliation, MemberSortColumn>({
     rows: filteredMembers,
-    resetKey: `${memberSort.sortColumn}:${memberSort.sortDirection}:${filterDiscrepancies}`,
+    getSortValue: memberSortValue,
+    defaultSort: null,
+    resetKey: String(filterDiscrepancies),
   });
 
   useEffect(() => {
@@ -455,7 +451,7 @@ export default function ReconciliationClient() {
                 </td>
               </tr>
             ) : (
-              memberPagination.pageRows.map((member) => {
+              memberSort.rows.map((member) => {
                 const inSlack = memberSlackSet.has(member.member_id);
                 const isEditing = editingMemberId === member.member_id;
                 return (
@@ -633,7 +629,7 @@ export default function ReconciliationClient() {
             )}
           </tbody>
         </table>
-        <Pagination {...memberPagination.paginationProps} itemLabel="members" />
+        <DataTablePager table={memberSort} itemLabel="members" />
       </div>
 
       {/* Slack users with no member record: resolved (with alias-creation) on
@@ -682,7 +678,7 @@ export default function ReconciliationClient() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200 dark:divide-slate-700 bg-white dark:bg-slate-900">
-                {orphanSort.sortedRows.map((o) => (
+                {orphanSort.rows.map((o) => (
                   <tr key={o.stripe_customer_id} className="hover:bg-gray-50 dark:hover:bg-slate-800">
                     <td className="px-4 py-3 font-medium dark:text-white">
                       {o.name ?? <span className="text-gray-400 dark:text-gray-500">—</span>}
@@ -697,6 +693,7 @@ export default function ReconciliationClient() {
                 ))}
               </tbody>
             </table>
+            <DataTablePager table={orphanSort} itemLabel="subscribers" />
           </div>
         </div>
       )}
@@ -747,7 +744,7 @@ export default function ReconciliationClient() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200 dark:divide-slate-700 bg-white dark:bg-slate-900">
-                {grantSort.sortedRows.map((g) => (
+                {grantSort.rows.map((g) => (
                   <tr key={g.kajabi_purchase_id} className="hover:bg-gray-50 dark:hover:bg-slate-800">
                     <td className="px-4 py-3">
                       {g.member_id ? (
@@ -772,6 +769,7 @@ export default function ReconciliationClient() {
                 ))}
               </tbody>
             </table>
+            <DataTablePager table={grantSort} itemLabel="grants" />
           </div>
         </div>
       )}
@@ -803,7 +801,7 @@ export default function ReconciliationClient() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200 dark:divide-slate-700 bg-white dark:bg-slate-900">
-                {zoomSort.sortedRows.map((m) => (
+                {zoomSort.rows.map((m) => (
                   <tr key={m.member_id} className="hover:bg-gray-50 dark:hover:bg-slate-800">
                     <td className="px-4 py-3 font-medium dark:text-white">{m.member_name}</td>
                     <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">{m.prickle_count}</td>
@@ -811,6 +809,7 @@ export default function ReconciliationClient() {
                 ))}
               </tbody>
             </table>
+            <DataTablePager table={zoomSort} itemLabel="members" />
           </div>
         </div>
       )}
