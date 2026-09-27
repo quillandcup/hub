@@ -321,14 +321,41 @@ describe("updateProfileDetails", () => {
     expect(triggerReprocessingMock).toHaveBeenCalledWith("member_profile_overrides", "local");
   });
 
-  it("stores NULL (follow Kajabi) for blank fields and for values equal to Kajabi's", async () => {
+  it("clears a previously set field to '' (no Kajabi fallback) and stores a value equal to Kajabi's as an explicit set", async () => {
     setup({ override: { bio: "Old override", facebook_url: null, twitter_url: "https://x.com/old" } });
     await updateProfileDetails({ bio: "Writes cozy mysteries.", facebook: "", x: "" });
 
     expect(userClient.upsert).toHaveBeenCalledWith(
-      expect.objectContaining({ bio: null, facebook_url: null, twitter_url: null }),
+      expect.objectContaining({
+        bio: "Writes cozy mysteries.", // equals Kajabi's, but the member chose it
+        facebook_url: null, // never set, left blank -> still never set
+        twitter_url: "", // was set, now blank -> cleared
+      }),
       { onConflict: "member_id" }
     );
+  });
+
+  it("leaves never-set fields NULL (following Kajabi) when the member saves them unchanged", async () => {
+    setup(); // no override row; the form shows Kajabi's bio
+    const result = await updateProfileDetails({ bio: "Writes cozy mysteries.", facebook: "", x: "" });
+    expect(result).toEqual({ success: true, syncPending: false });
+    expect(userClient.upsert).not.toHaveBeenCalled();
+  });
+
+  it("clears a Kajabi-sourced field the member blanks, so it stays hidden", async () => {
+    setup();
+    await updateProfileDetails({ bio: "", facebook: "", x: "" });
+    expect(userClient.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ bio: "", facebook_url: null, twitter_url: null }),
+      { onConflict: "member_id" }
+    );
+  });
+
+  it("keeps a cleared field cleared when saved blank again", async () => {
+    setup({ override: { bio: "", facebook_url: null, twitter_url: null } });
+    const result = await updateProfileDetails({ bio: "", facebook: "", x: "" });
+    expect(result).toEqual({ success: true, syncPending: false });
+    expect(userClient.upsert).not.toHaveBeenCalled();
   });
 
   it("is a no-op when nothing changed", async () => {
@@ -388,7 +415,6 @@ describe("getProfileSettings", () => {
       instagramHandle: "new_handle",
       instagramFallbackUrl: null,
       details: { bio: "Writes cozy mysteries.", facebookUrl: null, twitterUrl: null },
-      detailFallbacks: { bio: "Writes cozy mysteries.", facebookUrl: null, twitterUrl: null },
       syncPending: true,
     });
   });
@@ -398,15 +424,25 @@ describe("getProfileSettings", () => {
     expect(await getProfileSettings()).toMatchObject({ instagramHandle: "old_handle", syncPending: false });
   });
 
-  it("shows the override as the current value, the Kajabi value as the fallback, and pending until reprocessed", async () => {
+  it("shows the override as the current value (never-set fields follow Kajabi) and is pending until reprocessed", async () => {
     setup({
       override: { bio: "Hub bio", facebook_url: null, twitter_url: "https://x.com/mine" },
       service: { customerAttributes: { public_bio: "Writes cozy mysteries.", socials: { facebook: "kajabi.fb" } } },
     });
     expect(await getProfileSettings()).toMatchObject({
       details: { bio: "Hub bio", facebookUrl: "https://facebook.com/kajabi.fb", twitterUrl: "https://x.com/mine" },
-      detailFallbacks: { bio: "Writes cozy mysteries.", facebookUrl: "https://facebook.com/kajabi.fb", twitterUrl: null },
       syncPending: true,
+    });
+  });
+
+  it("shows a cleared field as empty even though Kajabi has a value", async () => {
+    setup({
+      member: { ...MEMBER, bio: null },
+      override: { bio: "", facebook_url: null, twitter_url: null },
+    });
+    expect(await getProfileSettings()).toMatchObject({
+      details: { bio: null, facebookUrl: null, twitterUrl: null },
+      syncPending: false,
     });
   });
 

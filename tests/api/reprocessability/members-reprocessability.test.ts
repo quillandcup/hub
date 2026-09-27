@@ -991,11 +991,12 @@ describe('Instagram handle sourcing during reprocessing', () => {
 
 /**
  * Member-edited profile overrides (public.member_profile_overrides, Local
- * layer — migration 20260926000800). Kajabi's API can't write customer
- * public_bio / socials, so the Hub owns member edits to bio / Facebook / X:
- * processing prefers a non-empty override over the Kajabi value, and a
- * cleared (NULL) override falls back to Kajabi. Overrides are Local, so they
- * must survive any number of reprocesses and Bronze changes.
+ * layer — migrations 20260926000800 / 20260926001200). Kajabi's API can't
+ * write customer public_bio / socials, so the Hub owns member edits to bio /
+ * Facebook / X, three states per field: NULL (never set) follows Kajabi, a
+ * Hub value wins, and '' (set, then cleared) shows nothing with no Kajabi
+ * fallback. Overrides are Local, so they must survive any number of
+ * reprocesses and Bronze changes.
  */
 describe('Member profile overrides during reprocessing', () => {
   const supabase = getTestSupabaseAdminClient()
@@ -1103,17 +1104,26 @@ describe('Member profile overrides during reprocessing', () => {
     })
   })
 
-  it('falls back to Kajabi once an override is cleared', async () => {
+  it("shows nothing for a field the member set and then cleared (''), even though Kajabi has a value", async () => {
     await supabase
       .from('member_profile_overrides')
-      .update({ bio: null, twitter_url: null })
+      .update({ bio: '', twitter_url: '' })
       .eq('member_id', memberId)
+    await reprocess()
     await reprocess()
 
     expect(await fetchMember()).toMatchObject({
-      bio: 'Newer Kajabi bio',
-      twitter_url: 'https://x.com/newer_x',
+      bio: null, // Kajabi has 'Newer Kajabi bio' -- no fallback
+      facebook_url: 'https://facebook.com/newer.facebook', // never set in the Hub -> still follows Kajabi
+      twitter_url: null,
     })
+  })
+
+  it('follows Kajabi again for a field reset to never-set (NULL)', async () => {
+    await supabase.from('member_profile_overrides').update({ twitter_url: null }).eq('member_id', memberId)
+    await reprocess()
+
+    expect(await fetchMember()).toMatchObject({ bio: null, twitter_url: 'https://x.com/newer_x' })
   })
 
   it('still applies an override when Kajabi has no value for that field', async () => {
@@ -1157,6 +1167,17 @@ describe('Member profile overrides during reprocessing', () => {
       // The raw override row stays private to its owner (and admins).
       const { data: overrideRows } = await viewer.from('member_profile_overrides').select('member_id').eq('member_id', memberId)
       expect(overrideRows ?? []).toEqual([])
+
+      // A cleared field reaches the directory as empty, even though Kajabi has a value for it.
+      await setKajabiProfile({ public_bio: 'Kajabi bio again', socials: { twitter: 'kajabi_x' } })
+      await supabase.from('member_profile_overrides').update({ bio: '', twitter_url: '' }).eq('member_id', memberId)
+      await reprocess()
+      const { data: clearedRow } = await viewer
+        .from('member_directory')
+        .select('bio, twitter_url')
+        .eq('id', memberId)
+        .single()
+      expect(clearedRow).toEqual({ bio: null, twitter_url: null })
     } finally {
       await supabase.auth.admin.deleteUser(created.user.id).catch(() => {})
       if (viewerMember) await supabase.from('members').delete().eq('id', viewerMember.id)

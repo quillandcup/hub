@@ -16,11 +16,22 @@ const INPUT_CLASS =
 const SAVE_CLASS =
   "px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed";
 
-function FallbackHint({ fallback, noun }: { fallback: string | null; noun: string }) {
+/** Under each bio/link field: how to hide it, plus a one-click "Remove" while it has a value. */
+function ClearHint({ value, noun, onClear }: { value: string; noun: string; onClear: () => void }) {
   return (
-    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-      {fallback ? `If you leave it blank, your profile shows your previous ${noun} instead.` : "Leave blank to remove it."}
-    </p>
+    <div className="mt-1 flex items-center justify-between gap-2 text-xs text-slate-500 dark:text-slate-400">
+      <span>Leave blank to hide your {noun} from your profile.</span>
+      {value.trim() && (
+        <button
+          type="button"
+          onClick={onClear}
+          aria-label={`Remove ${noun}`}
+          className="shrink-0 underline hover:text-slate-700 dark:hover:text-slate-200"
+        >
+          Remove
+        </button>
+      )}
+    </div>
   );
 }
 
@@ -161,7 +172,7 @@ export function ProfilePanel() {
             placeholder="A little about you and your writing"
             className={INPUT_CLASS}
           />
-          <FallbackHint fallback={data.detailFallbacks.bio} noun="bio" />
+          <ClearHint value={bioInput} noun="bio" onClear={() => setBioInput("")} />
         </div>
         <div>
           <label htmlFor="profile-facebook" className="block text-sm font-medium text-slate-900 dark:text-slate-100 mb-1">
@@ -177,7 +188,7 @@ export function ProfilePanel() {
             autoComplete="off"
             className={INPUT_CLASS}
           />
-          <FallbackHint fallback={data.detailFallbacks.facebookUrl} noun="Facebook link" />
+          <ClearHint value={facebookInput} noun="Facebook link" onClear={() => setFacebookInput("")} />
         </div>
         <div>
           <label htmlFor="profile-x" className="block text-sm font-medium text-slate-900 dark:text-slate-100 mb-1">
@@ -193,7 +204,7 @@ export function ProfilePanel() {
             autoComplete="off"
             className={INPUT_CLASS}
           />
-          <FallbackHint fallback={data.detailFallbacks.twitterUrl} noun="X link" />
+          <ClearHint value={xInput} noun="X link" onClear={() => setXInput("")} />
         </div>
         <button type="submit" disabled={saving !== null} className={SAVE_CLASS}>
           {saving === "details" ? "Saving…" : "Save profile"}

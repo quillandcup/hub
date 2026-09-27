@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { MAX_BIO_LENGTH, parseBioInput, parseFacebookInput, parseXInput } from "@/lib/social-links";
-import { applyProfileOverride } from "@/lib/member-profile-overrides";
+import { CLEARED, applyProfileOverride, nextOverrideValue } from "@/lib/member-profile-overrides";
 
 describe("parseXInput", () => {
   it.each([
@@ -75,8 +75,36 @@ describe("applyProfileOverride", () => {
     });
   });
 
-  it("falls back to Kajabi for null/blank overrides or no override row", () => {
-    expect(applyProfileOverride(kajabi, { bio: "  ", facebook_url: null, twitter_url: null })).toEqual(kajabi);
+  it("follows Kajabi for never-set (NULL) fields or no override row", () => {
+    expect(applyProfileOverride(kajabi, { bio: null, facebook_url: null, twitter_url: null })).toEqual(kajabi);
     expect(applyProfileOverride(kajabi, null)).toEqual(kajabi);
+  });
+
+  it("shows nothing for a cleared ('') field, even when Kajabi has a value", () => {
+    expect(applyProfileOverride(kajabi, { bio: "", facebook_url: "", twitter_url: null })).toEqual({
+      bio: null,
+      facebook_url: null,
+      twitter_url: null,
+    });
+  });
+});
+
+describe("nextOverrideValue", () => {
+  it("keeps the stored state when the submitted value is what the profile already shows", () => {
+    expect(nextOverrideValue("Kajabi bio", "Kajabi bio", null)).toBeNull(); // never set -> keep following Kajabi
+    expect(nextOverrideValue(null, null, null)).toBeNull();
+    expect(nextOverrideValue(null, null, CLEARED)).toBe(CLEARED);
+    expect(nextOverrideValue("Mine", "Mine", "Mine")).toBe("Mine");
+  });
+
+  it("stores CLEARED when a shown value is blanked, whether it came from the Hub or Kajabi", () => {
+    expect(nextOverrideValue(null, "Mine", "Mine")).toBe(CLEARED);
+    expect(nextOverrideValue(null, "Kajabi bio", null)).toBe(CLEARED);
+  });
+
+  it("stores any new value as an explicit set, even one equal to Kajabi's", () => {
+    expect(nextOverrideValue("New", "Kajabi bio", null)).toBe("New");
+    expect(nextOverrideValue("Kajabi bio", "Mine", "Mine")).toBe("Kajabi bio");
+    expect(nextOverrideValue("Back again", null, CLEARED)).toBe("Back again");
   });
 });

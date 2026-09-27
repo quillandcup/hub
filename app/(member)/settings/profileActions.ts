@@ -17,7 +17,7 @@ import {
   resolveInstagramUrl,
   toSocialUrl,
 } from "@/lib/kajabi/profile-fields";
-import { applyProfileOverride, type ProfileFields } from "@/lib/member-profile-overrides";
+import { applyProfileOverride, nextOverrideValue, type ProfileFields } from "@/lib/member-profile-overrides";
 import { FACEBOOK_BASE_URL, X_BASE_URL, parseBioInput, parseFacebookInput, parseXInput } from "@/lib/social-links";
 
 /**
@@ -31,9 +31,9 @@ import { FACEBOOK_BASE_URL, X_BASE_URL, parseBioInput, parseFacebookInput, parse
  *   Kajabi → Bronze (targeted single-contact refresh) → Silver.
  * - Bio / Facebook / X: Kajabi's API can't write customer public_bio/socials,
  *   so the Hub owns member edits to these in member_profile_overrides (Local
- *   layer, RLS: own row or admin). Processing prefers a non-empty override
- *   over Kajabi's value; a cleared field falls back to Kajabi. Kajabi's member
- *   directory is allowed to drift (product decision).
+ *   layer, RLS: own row or admin). Per field: never set (NULL) follows
+ *   Kajabi, a Hub value wins, and a field the member cleared ('') shows
+ *   nothing. Kajabi's member directory is allowed to drift (product decision).
  *
  * Sudo: allowed — edits apply to the sudo'd member (effective identity), same
  * as the other Settings identity actions. The admin's own session does the
@@ -61,8 +61,6 @@ export interface ProfileSettings {
   instagramFallbackUrl: string | null;
   /** Bio / Facebook / X as the profile will show them (member override, else Kajabi). */
   details: ProfileDetails;
-  /** The Kajabi values each detail falls back to when the member leaves it blank. */
-  detailFallbacks: ProfileDetails;
   /** A saved change hasn't reached the profile yet (member processing still running). */
   syncPending: boolean;
 }
@@ -214,7 +212,6 @@ export async function getProfileSettings(): Promise<ProfileSettings | { error: s
     instagramHandle: snapshot.instagramHandle,
     instagramFallbackUrl: toSocialUrl(INSTAGRAM_BASE_URL, snapshot.socialsInstagram),
     details: toDetails(effective),
-    detailFallbacks: toDetails(snapshot.kajabiDetails),
     syncPending,
   };
 }
@@ -241,9 +238,12 @@ export interface ProfileDetailsInput {
 }
 
 /**
- * Save bio / Facebook / X as member_profile_overrides. A field that's blank,
- * or equal to the Kajabi value it would fall back to, is stored as NULL (no
- * override) so it keeps following Kajabi.
+ * Save bio / Facebook / X as member_profile_overrides (three states per field,
+ * see lib/member-profile-overrides.ts). Per field, compared with what the
+ * profile currently shows:
+ *   - unchanged        -> stored state kept (a never-set field stays NULL and keeps following Kajabi)
+ *   - blanked          -> '' (cleared: the profile shows nothing, no Kajabi fallback)
+ *   - any other value  -> stored as the member's own value, even if it equals Kajabi's
  */
 export async function updateProfileDetails(input: ProfileDetailsInput): Promise<UpdateProfileResult> {
   const ctx = await requireIdentity();
@@ -277,15 +277,18 @@ export async function updateProfileDetails(input: ProfileDetailsInput): Promise<
     }
   }
 
-  const overrideFor = (value: string | null, kajabiValue: string | null) =>
-    value !== null && value !== kajabiValue ? value : null;
+  const current = {
+    bio: existing?.bio ?? null,
+    facebook_url: existing?.facebook_url ?? null,
+    twitter_url: existing?.twitter_url ?? null,
+  };
+  const shown = applyProfileOverride(kajabiDetails, current);
   const next = {
-    bio: overrideFor(bio.bio, kajabiDetails.bio),
-    facebook_url: overrideFor(facebook.url, kajabiDetails.facebook_url),
-    twitter_url: overrideFor(x.url, kajabiDetails.twitter_url),
+    bio: nextOverrideValue(bio.bio, shown.bio, current.bio),
+    facebook_url: nextOverrideValue(facebook.url, shown.facebook_url, current.facebook_url),
+    twitter_url: nextOverrideValue(x.url, shown.twitter_url, current.twitter_url),
   };
 
-  const current = { bio: existing?.bio ?? null, facebook_url: existing?.facebook_url ?? null, twitter_url: existing?.twitter_url ?? null };
   if (
     next.bio === current.bio &&
     next.facebook_url === current.facebook_url &&
