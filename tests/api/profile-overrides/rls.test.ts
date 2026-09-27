@@ -160,6 +160,16 @@ describe('member_profile_overrides RLS', () => {
     }
   })
 
+  it("accepts '' (cleared) for every field, distinct from NULL (never set)", async () => {
+    await resetOverrides()
+    const { error } = await memberAClient
+      .from('member_profile_overrides')
+      .upsert({ member_id: memberAId, bio: '', facebook_url: '', twitter_url: null }, { onConflict: 'member_id' })
+    expect(error).toBeNull()
+    const { data } = await memberAClient.from('member_profile_overrides').select('bio, facebook_url, twitter_url')
+    expect(data).toEqual([{ bio: '', facebook_url: '', twitter_url: null }])
+  })
+
   it('is removed with its member (ON DELETE CASCADE)', async () => {
     const { data: temp } = await admin
       .from('members')

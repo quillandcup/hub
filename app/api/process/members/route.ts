@@ -470,8 +470,10 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // STEP 5.6: Member-edited profile fields win over Kajabi's public_bio /
-    // socials; a cleared (NULL) override falls back to the Kajabi value above.
+    // STEP 5.6: Member-edited profile fields (three states per field, see
+    // lib/member-profile-overrides.ts): never set (NULL) keeps the Kajabi value
+    // above, a Hub value replaces it, and a field the member cleared ('') is
+    // emptied — no Kajabi fallback.
     for (const [email, member] of membersByEmail) {
       const override =
         (member.kajabi_id && profileOverrideByKajabiId.get(member.kajabi_id)) || profileOverrideByEmail.get(email);
