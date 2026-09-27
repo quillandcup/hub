@@ -1,42 +1,59 @@
 # Commitments
 
-A **commitment** is a member's promise to attend one recurring prickle slot for a set number of
-weeks: "Mondays 7am Progress Prickle for the next 4 weeks." It's the attendee-side sibling of
-Hosting (`prickle_schedules`): Hosting is "I'll run this slot", a commitment is "I'll show up to
-this slot."
+A **commitment** is a member's promise to attend one or more recurring prickle slots for a set
+number of weeks: "Mondays 7am Progress Prickle for the next 4 weeks", or "M/W/F 5am Sprint for 4
+weeks." It's the attendee-side sibling of Hosting (`prickle_schedules`): Hosting is "I'll run
+this slot", a commitment is "I'll show up to these slots."
 
 Commitments give us an explicit, opt-in signal of intent. That's the anchor for **pre-prickle
 nudges** and **post-prickle follow-ups**. We build those on top of commitments first, and only
 later try to infer intent heuristically for members who never commit (see
 [Generalizing beyond commitments](#generalizing-beyond-commitments)).
 
-Status: the MVP (data model, member UI, progress tracking) is built. Nudges and follow-ups are
-**proposed only** (this doc).
+Status: the MVP is built and live: the data model, making commitments from All Prickles, the
+Commitments tab, progress tracking, and the 📌 commitment tier on Upcoming/Dashboard. Nudges and
+follow-ups are **proposed only** (Part 2 of this doc).
 
 ---
 
 ## Part 1: What's built
 
-### Data model: `prickle_commitments`
+### Data model
 
-Migration: `supabase/migrations/20260926000200_create_prickle_commitments.sql`. This is **Local layer**
-data: members own it, it uses normal CRUD, and it's never reprocessed.
+These tables are **Local layer** data: members own them, they use normal CRUD, and they're never
+reprocessed.
+
+- `supabase/migrations/20260926000200_create_prickle_commitments.sql` created
+  `prickle_commitments`, originally with one slot inline.
+- `supabase/migrations/20260927010000_commitment_slots.sql` moved the slot into a child table so a
+  commitment can have several. It migrated any existing rows to one slot each (prod had none) and
+  dropped the inline columns.
+
+**`prickle_commitments`** holds the member and the window.
 
 | Column | Notes |
 |---|---|
 | `id` | uuid PK |
 | `member_id` | FK `members`, `ON DELETE CASCADE` |
+| `start_date` | Each slot's first occurrence is the first matching weekday on or after this date |
+| `weeks` | 1–12, default 4 |
+| `end_date` | **Generated**: `start_date + weeks*7 - 1`. Used for window queries and future cron jobs |
+| `status` | `active` / `completed` / `cancelled` |
+| `cancelled_at` | Set iff `status = 'cancelled'` (CHECK constraint) |
+| `created_by` | The real auth user (an admin, under sudo) |
+| `created_at`, `updated_at` | |
+
+**`prickle_commitment_slots`** holds 1..n slots per commitment.
+
+| Column | Notes |
+|---|---|
+| `id` | uuid PK |
+| `commitment_id` | FK `prickle_commitments`, `ON DELETE CASCADE` |
 | `type_id` | FK `prickle_types`, `ON DELETE CASCADE` |
 | `day_of_week` | 0=Sun..6=Sat, same convention as `prickle_schedules.day_of_week` |
 | `start_time_local` | `TIME`, wall-clock time in `timezone` |
-| `timezone` | IANA tz the member saw the schedule in (their preference, or `America/New_York` when set to "browser") |
-| `start_date` | first occurrence is the first `day_of_week` on/after this date |
-| `weeks` | 1–12, default 4 |
-| `end_date` | **generated**: `start_date + weeks*7 - 1` (for window queries and future cron jobs) |
-| `status` | `active` / `completed` / `cancelled` |
-| `cancelled_at` | set iff `status = 'cancelled'` (CHECK constraint) |
-| `created_by` | the real auth user (an admin, under sudo) |
-| `created_at`, `updated_at` | |
+| `timezone` | IANA tz the member saw the schedule in (their preference, or `America/New_York` when set to "browser"). The commitment's dates are local to it. The app gives every slot of one commitment the same timezone |
+| | UNIQUE `(commitment_id, type_id, day_of_week, start_time_local, timezone)` |
 
 Design choices:
 
@@ -44,68 +61,125 @@ Design choices:
   FK to `prickles(id)`, because prickles are DELETE+INSERT reprocessed from the calendar and their
   ids aren't stable. (The existing `writing_nudge_log` does reference `prickles(id)` with `ON DELETE
   CASCADE`, so a calendar reprocess silently erases its dedup rows. We shouldn't copy that. See
-  below.)
-- **One active commitment per member per slot.** A partial unique index on
-  `(member_id, type_id, day_of_week, start_time_local, timezone) WHERE status = 'active'` enforces
-  this. The server action checks first so it can show a friendly error.
+  Part 2.)
+- **One window per commitment.** All of a commitment's slots share `start_date`/`weeks`, so "M/W/F
+  for 4 weeks" is one thing to track, renew, or cancel. Week *N* is the *N*th 7-day block from
+  `start_date`. A slot whose weekday comes before the start date's weekday gets its week-1 session
+  later in that same block.
+- **The overlap rule** replaces the single-slot "one active commitment per slot" unique index. A
+  member can't have the same slot in two **active** commitments whose **windows overlap**. The
+  `enforce_prickle_commitment_slot_overlap` trigger enforces it, because the rule spans both tables
+  and a partial unique index can't. The trigger fires after inserting a slot, and after updating a
+  commitment's status, start date or weeks while it's active. A violation raises
+  `unique_violation` (23505), and a per-member advisory lock serializes concurrent creates.
+  - **Why overlap, not "one active per slot":** a session inside two commitments would count twice
+    (and would get two nudges later).
+  - **Renewals are allowed:** a new commitment on the same slots that starts after the current one
+    ends doesn't overlap. The old index blocked that until the first commitment had ended.
+  - **Mixing works:** committing to M/W/F while already committed to W for overlapping weeks is
+    rejected. Committing to M/F alongside it is fine.
+- **Atomic create.** `create_prickle_commitment(p_member_id, p_start_date, p_weeks, p_slots jsonb,
+  p_created_by)` inserts the commitment and its slots in one transaction. It's `SECURITY INVOKER`,
+  so RLS applies exactly as for direct inserts. An overlap or bad slot rolls back the whole thing.
 - **`completed` is lazy.** `getMyCommitments` flips `active` rows whose window has passed to
   `completed` (best-effort). Status is also derived on read (`effectiveCommitmentStatus`), so a
   stale `active` row is harmless. A future nudge cron should filter on `end_date` rather than trust
   `status` alone.
-- **Cancel, never delete.** There's no DELETE policy. History stays intact, and so will future
+- **Cancel, never delete.** Members have no DELETE policy. History stays intact, and so will future
   nudge logs.
-- **RLS:** members can SELECT/INSERT/UPDATE their own rows. Rows are matched by
-  `members.email = auth.email()`, the same approach as `prickle_schedules`, because
-  `members.user_id` isn't populated. Admins (`is_admin()`) can read everything and can also write,
-  which covers sudo: a sudo'd write runs under the real admin's session.
+
+**RLS** follows the `20260926000600` conventions:
+
+- **Ownership** is `member_id = current_member_id()`, with `is_admin()` for admins. Sudo is covered
+  because a sudo'd write runs under the real admin's session.
+- **`prickle_commitments`:** members can SELECT, INSERT and UPDATE their own rows. There's no
+  DELETE policy.
+- **`prickle_commitment_slots`:** members can SELECT their own slots and INSERT into their own
+  commitments (ownership is checked through the parent). Slots are immutable for members; changing
+  slots means a new commitment. Admins can UPDATE and DELETE slots to fix data.
+
+`tests/api/commitments/rls.test.ts` covers all of this against the local DB, including the overlap
+rule and the RPC's rollback.
 
 ### Member UI
 
-- **`/my-prickles?tab=commitments`**: a new "Commitments" tab (`CommitmentsManager.tsx`):
-  - A form to pick a slot, choose 1–12 weeks (default 4) and a start date. The start date
-    defaults to the slot's next occurrence. A preview shows the window, e.g. "4 sessions:
-    Mon, Sep 28 – Mon, Oct 19".
-  - Slot options come from `getPrickleScheduleOverview` rows (`buildSlotOptions`), the same
-    recurring schedule the All Prickles tab shows, so members can only pick slots that exist.
-    `createCommitment` re-checks this server-side against real prickles in the next 21 days.
-  - "Active commitments" and "Past commitments" lists. Each shows a progress summary ("2 kept ·
-    1 missed · 1 to go") and one dot per week (kept, missed, pending, upcoming, or no session).
-    Cancelling an active commitment takes a two-step confirm.
-- **All Prickles table**: each row now has a "Commit" link to
-  `/my-prickles?tab=commitments&slot=<seriesKey>`, which preselects that slot.
+- **My Prickles → All Prickles** is where commitments are made. It doesn't use a dropdown, so it
+  scales with the schedule.
+  1. Click **📌 Make a commitment** to enter commit mode.
+  2. In **Table** view, each Prickle Times row gets a checkbox. In **Calendar** view, clicking a
+     prickle picks its whole weekly slot, and every occurrence of that slot is highlighted.
+     Clicking a prickle that isn't on the upcoming schedule does nothing. Picks carry across both
+     views. Outside commit mode, calendar clicks still open the prickle.
+  3. A small panel (`CommitPanel.tsx`) lists the picks as removable chips. It has a weeks selector
+     (1–12, default 4) and a start date. The start date defaults to today, or to the first day on
+     which no picked session has already started (`defaultCommitmentStartDate`). A preview shows the
+     window, e.g. "12 sessions: Mon, Sep 28 – Fri, Oct 23".
+  4. **Commit to these N** makes one `createCommitment` call.
+- **Deep links:**
+  - `/my-prickles?tab=all&commit=<seriesKey>[,<seriesKey>…]` opens commit mode with those slots
+    picked. An empty `commit=` opens it with nothing picked.
+  - The older `?tab=commitments&slot=<seriesKey>` link lands in the same place.
+  - A `seriesKey` is `PrickleScheduleRow.seriesKey` (type + local weekday/time in the viewer's
+    timezone). Calendar instances now carry it too (`PrickleInstance.seriesKey`).
+- **My Prickles → Commitments** (`CommitmentsManager.tsx`) links to All Prickles to make a
+  commitment, and lists active and past commitments. Each card shows:
+  - A title that collapses shared type/time ("Sprint · Mon, Wed, Fri · 5 AM EDT").
+  - The window and the total progress ("5 kept · 1 missed · 6 to go").
+  - One row of weekly dots per slot (kept, missed, pending, upcoming, or no session), with that
+    slot's kept count.
+  - A two-step cancel for active commitments.
+- **Upcoming / Dashboard** (`lib/upcoming-prickles.ts`): an upcoming prickle matching **any** slot
+  of an active commitment gets the commitment ranking tier (just below hosting) and the 📌 badge.
+  The tooltip depends on how many sessions a week the commitment has:
+  - One: "Week 2 of 4 · 1 kept so far".
+  - Several: "Week 2 of 4 · 5 sessions kept so far".
 
 ### Progress: kept vs. missed (`lib/commitments.ts`, pure)
 
-For each of the commitment's `weeks` occurrence dates:
+For every slot × week of the window:
 
-1. **Expected start**: `start_time_local` on that date in the commitment's `timezone`, converted to
+1. **Expected start**: the slot's `start_time_local` on that date in its `timezone`, converted to
    UTC. This is DST-aware (`zonedTimeToUtc`).
-2. **Match a prickle**: find the same-type prickle closest to the expected start, within
-   **±60 minutes**. The tolerance covers weeks when the member's timezone and the org's (ET) switch
-   DST on different dates. For example, a London member's "12:00" is 7am ET for most of the year,
-   but for one week in spring and one in fall the ET prickle lands an hour off. Because the closest
-   prickle wins, an adjacent-hour slot of the same type only matches when the committed slot didn't
-   run that week.
-3. **Classify the week**:
+2. **Match prickles to occurrences one-to-one** (`assignOccurrencePrickles`). Take every
+   same-type prickle within **±60 minutes** of an expected start, closest first, and use each
+   occurrence and each prickle at most once.
+   - The tolerance covers weeks when the member's timezone and the org's (ET) switch DST on
+     different dates. For example, a London member's "12:00" is 7am ET for most of the year, but
+     for one week in spring and one in fall the ET prickle lands an hour off.
+   - Closest-first matching means an adjacent-hour slot of the same type only matches when the
+     committed one didn't run.
+   - Two slots of one commitment can never claim the same prickle.
+3. **Classify each occurrence**:
    - `kept`: the member has any `prickle_attendance` row for the matched prickle. Multiple
      join/leave rows collapse to one, since the check uses a set of distinct prickle ids.
-   - `upcoming`: the prickle hasn't started. Future weeks never count.
+   - `upcoming`: the prickle hasn't started. Future occurrences never count.
    - `pending`: the prickle ran, there's no attendance yet, and it ended less than 24h ago.
      Attendance is imported on the Zoom `meeting.ended` webhook and by the nightly reconcile, so it
      can lag.
    - `missed`: the prickle ran, there's no attendance, and the 24h grace period is over.
    - `no_session`: no matching prickle ran that week (a holiday, or a cancelled calendar event).
      This isn't held against the member.
-   - After a cancellation, later weeks are dropped rather than counted as missed.
+   - After a cancellation, later occurrences are dropped rather than counted as missed.
+4. **Summarize** as totals per commitment and `perSlot` counts. Each occurrence carries its
+   `slotIndex` and 1-based `week`.
 
 Data fetching happens in `getMyCommitments`
 (`app/(member)/my-prickles/commitment-actions.ts`):
 
-- One query for the member's commitments.
+- One query for the member's commitments with their slots embedded.
 - One paginated query for prickles of the relevant types across the union window
   (`commitmentsFetchWindow`).
 - The member's `prickle_attendance` for those prickle ids, fetched in batches of 100 ids with
   each batch paginated.
+
+`createCommitment` validates input in the pure layer (`validateCommitmentInput`):
+
+- 1–14 distinct slots, all in one timezone.
+- A start date between today and 60 days out, and 1–12 weeks.
+- No picked session has already started on the start date.
+
+It then checks each slot against real prickles in the next 21 days, pre-checks the overlap rule
+for a friendly message, and calls the RPC.
 
 ### Activity log
 
@@ -117,7 +191,8 @@ same pattern as writing progress and outreach touches (`docs/ACTIVITY_AND_AUDIT_
 - `source = 'prickle_commitments'`
 - `related_id` = the commitment id
 - `engagement_value = 3`
-- `data` holds the slot and window
+- `title`, e.g. "Committed to 3 prickles a week for 4 weeks"
+- `data` = `{ start_date, weeks, slots: [{ type_id, day_of_week, start_time_local, timezone }] }`
 - Under sudo, `actor_kind = 'staff'` and `actor_user_id` is the admin. Otherwise
   `actor_kind = 'member'`.
 
@@ -174,9 +249,10 @@ A failure here is logged and never fails the commitment itself. Cancellations ar
 either by adding a second `cron.schedule` or by folding it into the current route. On each tick:
 
 1. Load active commitments where `end_date >= today - 1`. This set is small, but still paginate.
-2. For prickles starting in the 15–30 minute window, match them to commitments using
-   `matchOccurrencePrickle` / `expectedOccurrenceStart`. That's the same logic the progress view
-   uses, so "what we nudged about" and "what counts as kept" never disagree.
+2. For prickles starting in the 15–30 minute window, match them to commitment occurrences
+   (any slot) with `computeCommitmentProgress`, the same way `computeCommitmentSignals` in
+   `lib/upcoming-prickles.ts` already does. That's the same matching the progress view uses, so
+   "what we nudged about" and "what counts as kept" never disagree.
 3. For each match, claim the send, then send the DM.
 
 **Post-prickle.** Extend `sendPostPricklePrompts`, or add a sibling that's called from the same
@@ -189,17 +265,19 @@ follow-up.
 CREATE TABLE commitment_nudge_log (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   commitment_id UUID NOT NULL REFERENCES prickle_commitments(id) ON DELETE CASCADE,
-  occurrence_date DATE NOT NULL,          -- local date in the commitment's timezone
+  slot_id UUID REFERENCES prickle_commitment_slots(id) ON DELETE CASCADE, -- null for per-commitment kinds (end_summary)
+  occurrence_date DATE NOT NULL,          -- local date in the slot's timezone
   kind TEXT NOT NULL CHECK (kind IN ('pre_nudge', 'post_followup', 'missed_checkin', 'end_summary')),
   channel TEXT NOT NULL DEFAULT 'slack',
   prickle_id UUID,                        -- informational only, no FK (prickle ids aren't stable)
   sent_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  UNIQUE (commitment_id, occurrence_date, kind)
+  UNIQUE NULLS NOT DISTINCT (commitment_id, slot_id, occurrence_date, kind)
 );
 ```
 
-- Keyed on `(commitment_id, occurrence_date, kind)`, **not** on `prickle_id`. That survives
-  calendar reprocessing, which the existing `writing_nudge_log` doesn't.
+- Keyed on `(commitment_id, slot_id, occurrence_date, kind)`, **not** on `prickle_id`. That
+  survives calendar reprocessing, which the existing `writing_nudge_log` doesn't. `slot_id` keeps
+  two slots on the same date (e.g. a 5am and a 7pm) distinct.
 - Use the same insert-first protocol as `tryRecordNudge`: insert; treat a unique violation (`23505`)
   as "already sent"; send only if the insert landed. Service-role only (RLS on, no policies).
 - **Cross-feature dedup.** Before sending a commitment pre-nudge, skip it if `writing_nudge_log`
@@ -265,8 +343,9 @@ Commitments are the explicit case. The same pipeline generalizes by swapping in 
 
 1. **Weeks range and default.** Is 1–12 with a default of 4 right? Should there be an "ongoing"
    option (no end date, a monthly check-in instead)?
-2. **Scope of a commitment.** Is it one slot for N weeks, or should a member be able to commit to
-   several slots in one go ("Mon + Thu for 4 weeks")? The MVP needs one commitment per slot.
+2. **Partial cancel.** A multi-slot commitment is cancelled as a whole. Should members be able to
+   drop one slot ("M/W/F → M/F") and keep the rest? Today they'd cancel it and commit to M/F
+   again.
 3. **What counts as kept?** Any attendance at all, or a minimum (e.g. ≥30 minutes, or joined within
    15 minutes of start)? The MVP counts any join.
 4. **Host changes and substitutes.** Commitments are to a slot, not a host. If the host changes,
