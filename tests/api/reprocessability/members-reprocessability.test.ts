@@ -1,5 +1,10 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
-import { getTestSupabaseAdminClient, getTestAuthHeaders, getTestApiBaseUrl } from '../../helpers/supabase'
+import {
+  getTestSupabaseAdminClient,
+  getTestSupabaseClient,
+  getTestAuthHeaders,
+  getTestApiBaseUrl,
+} from '../../helpers/supabase'
 
 /**
  * Test to verify /api/process/members is fully reprocessable
@@ -1117,5 +1122,44 @@ describe('Member profile overrides during reprocessing', () => {
     await reprocess()
 
     expect(await fetchMember()).toMatchObject({ bio: 'Only in the Hub', facebook_url: null, twitter_url: null })
+  })
+
+  it("publishes the processed override to other members through member_directory (they can't read the override table)", async () => {
+    const viewerEmail = `profile-override-viewer-${ts}@example.com`
+    const password = 'test-password-12345!'
+    const { data: viewerMember } = await supabase
+      .from('members')
+      .insert({ name: 'Profile Override Viewer', email: viewerEmail, joined_at: '2023-01-01', status: 'active' })
+      .select('id')
+      .single()
+    const { data: created, error: createError } = await supabase.auth.admin.createUser({
+      email: viewerEmail,
+      password,
+      email_confirm: true,
+    })
+    if (createError || !created.user) throw new Error(`Failed to create viewer: ${createError?.message}`)
+
+    try {
+      await supabase.from('member_profile_overrides').update({ bio: 'Directory-visible bio' }).eq('member_id', memberId)
+      await reprocess()
+
+      const viewer = getTestSupabaseClient()
+      const { error: signInError } = await viewer.auth.signInWithPassword({ email: viewerEmail, password })
+      if (signInError) throw new Error(`Failed to sign in viewer: ${signInError.message}`)
+
+      const { data: directoryRow } = await viewer
+        .from('member_directory')
+        .select('bio, twitter_url')
+        .eq('id', memberId)
+        .single()
+      expect(directoryRow).toEqual({ bio: 'Directory-visible bio', twitter_url: null })
+
+      // The raw override row stays private to its owner (and admins).
+      const { data: overrideRows } = await viewer.from('member_profile_overrides').select('member_id').eq('member_id', memberId)
+      expect(overrideRows ?? []).toEqual([])
+    } finally {
+      await supabase.auth.admin.deleteUser(created.user.id).catch(() => {})
+      if (viewerMember) await supabase.from('members').delete().eq('id', viewerMember.id)
+    }
   })
 })
