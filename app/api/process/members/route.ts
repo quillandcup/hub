@@ -9,6 +9,7 @@ import { triggerAttendanceReprocessing } from "@/lib/processing/trigger";
 import { fetchAllBronzeRows } from "@/lib/supabase/bronze-pagination";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { INSTAGRAM_CUSTOM_FIELD_HANDLE, resolveInstagramUrl, toSocialUrl } from "@/lib/kajabi/profile-fields";
+import { applyProfileOverride, type ProfileOverride } from "@/lib/member-profile-overrides";
 
 // toSocialUrl, the "Instagram Handle" custom-field handle, and the Instagram
 // precedence (custom field first, socials.instagram as fallback) live in
@@ -100,6 +101,7 @@ export async function POST(request: NextRequest) {
       existingMembers,
       hiatusHistory,
       joinDateOverrides,
+      profileOverrides,
     ] = await Promise.all([
       fetchAllBronzeRows(supabase, "kajabi_contacts"),
       fetchAllBronzeRows(supabase, "kajabi_customers"),
@@ -109,9 +111,10 @@ export async function POST(request: NextRequest) {
       supabase.from("staff").select("*"),
       supabase.from("member_email_aliases").select("*").eq("active", true),
       fetchAllBronzeRows(supabase, "stripe_customers", "stripe_customer_id, email"),
-      fetchAllPublicRows(supabase, "members", "id, email"),
+      fetchAllPublicRows(supabase, "members", "id, email, kajabi_id"),
       fetchAllPublicRows(supabase, "member_hiatus_history", "member_id, start_date, end_date"),
       fetchAllPublicRows(supabase, "member_join_date_overrides", "member_id, first_joined_at"),
+      fetchAllPublicRows(supabase, "member_profile_overrides", "member_id, bio, facebook_url, twitter_url"),
     ]);
 
     if (staffError) throw staffError;
@@ -136,6 +139,7 @@ export async function POST(request: NextRequest) {
       existing_members_count: existingMembers?.length || 0,
       hiatus_history_count: hiatusHistory?.length || 0,
       join_date_overrides_count: joinDateOverrides?.length || 0,
+      profile_overrides_count: profileOverrides?.length || 0,
     });
 
     // STEP 2: Build lookup maps
@@ -171,6 +175,23 @@ export async function POST(request: NextRequest) {
       const email = emailByMemberId.get(override.member_id);
       if (!email) continue;
       joinDateOverrideByEmail.set(email, override.first_joined_at);
+    }
+
+    // Member-edited bio / Facebook / X (member_profile_overrides, Local layer —
+    // Settings > Profile). Matched by kajabi_id first (survives a Kajabi email
+    // change, same key reprocess_members_atomic matches on), then by email for
+    // staff-only members. Applied in STEP 5.6 via applyProfileOverride.
+    const kajabiIdByMemberId = new Map<string, string>();
+    for (const m of existingMembers || []) {
+      if (m.kajabi_id) kajabiIdByMemberId.set(m.id, m.kajabi_id);
+    }
+    const profileOverrideByKajabiId = new Map<string, ProfileOverride>();
+    const profileOverrideByEmail = new Map<string, ProfileOverride>();
+    for (const override of profileOverrides || []) {
+      const kajabiId = kajabiIdByMemberId.get(override.member_id);
+      if (kajabiId) profileOverrideByKajabiId.set(kajabiId, override);
+      const email = emailByMemberId.get(override.member_id);
+      if (email) profileOverrideByEmail.set(email, override);
     }
 
     // Offer lookup by ID
@@ -447,6 +468,14 @@ export async function POST(request: NextRequest) {
         twitter_url: null,
         kajabi_tags: [],
       });
+    }
+
+    // STEP 5.6: Member-edited profile fields win over Kajabi's public_bio /
+    // socials; a cleared (NULL) override falls back to the Kajabi value above.
+    for (const [email, member] of membersByEmail) {
+      const override =
+        (member.kajabi_id && profileOverrideByKajabiId.get(member.kajabi_id)) || profileOverrideByEmail.get(email);
+      if (override) Object.assign(member, applyProfileOverride(member, override));
     }
 
     const allMembers = Array.from(membersByEmail.values());
