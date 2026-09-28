@@ -64,7 +64,7 @@ export function EmailLayout({
                 margin: "0 0 32px 0",
               }}
             >
-              Quill <span style={{ color: colors.accent }}>&amp;</span> Cup
+              Hedgie <span style={{ color: colors.accent }}>Hub</span>
             </Text>
 
             {children}
@@ -80,7 +80,7 @@ export function EmailLayout({
               margin: "32px 0 0 0",
             }}
           >
-            Quill &amp; Cup · A community for writers
+            Hedgie Hub · The members' home of Quill &amp; Cup, a community for writers
             <br />
             Questions? Email{" "}
             <a href="mailto:support@quillandcup.com" style={{ color: colors.accent }}>

@@ -12,12 +12,13 @@ import {
 
 export function InviteEmail({ confirmationUrl }: { confirmationUrl: string }) {
   return (
-    <EmailLayout preview="You've been invited to join Quill & Cup">
+    <EmailLayout preview="You've been invited to join Hedgie Hub">
       <EmailHeading>You've been invited to join our prickle.</EmailHeading>
 
       <EmailBody>
-        Someone at Quill &amp; Cup has set a place at the table for you. We're a
-        community of writers who gather, write, and linger — one prickle at a time.
+        Someone at Quill &amp; Cup has set a place at the table for you in Hedgie
+        Hub, our members' home. We're a community of writers who gather, write, and
+        linger — one prickle at a time.
       </EmailBody>
 
       <EmailBody>

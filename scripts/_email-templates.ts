@@ -16,27 +16,27 @@ export async function buildTemplates(): Promise<EmailTemplate[]> {
   return [
     {
       name: "invite",
-      subject: "You're invited to join Quill & Cup",
+      subject: "You're invited to join Hedgie Hub",
       html: await render(React.createElement(InviteEmail, { confirmationUrl: CONFIRMATION_URL })),
     },
     {
       name: "confirmation",
-      subject: "Confirm your email – Quill & Cup",
+      subject: "Confirm your email – Hedgie Hub",
       html: await render(React.createElement(ConfirmationEmail, { confirmationUrl: CONFIRMATION_URL })),
     },
     {
       name: "recovery",
-      subject: "Reset your Quill & Cup password",
+      subject: "Reset your Hedgie Hub password",
       html: await render(React.createElement(RecoveryEmail, { confirmationUrl: CONFIRMATION_URL })),
     },
     {
       name: "magic_link",
-      subject: "Your Quill & Cup sign-in link",
+      subject: "Your Hedgie Hub sign-in link",
       html: await render(React.createElement(MagicLinkEmail, { confirmationUrl: CONFIRMATION_URL })),
     },
     {
       name: "email_change",
-      subject: "Confirm your new email – Quill & Cup",
+      subject: "Confirm your new email – Hedgie Hub",
       html: await render(
         React.createElement(EmailChangeEmail, { confirmationUrl: CONFIRMATION_URL, newEmail: NEW_EMAIL })
       ),

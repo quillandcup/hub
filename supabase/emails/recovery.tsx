@@ -16,7 +16,7 @@ export function RecoveryEmail({ confirmationUrl }: { confirmationUrl: string }) 
       <EmailHeading>Let's get you back to the page.</EmailHeading>
 
       <EmailBody>
-        We received a request to reset the password for your Quill &amp; Cup
+        We received a request to reset the password for your Hedgie Hub
         account. Click below to choose a new one.
       </EmailBody>
 

@@ -225,26 +225,26 @@ otp_expiry = 3600
 # user = "resend"
 # pass = "env(RESEND_API_KEY)"
 # admin_email = "no-reply@your-verified-domain.com"
-# sender_name = "Quill & Cup"
+# sender_name = "Hedgie Hub"
 
 [auth.email.template.invite]
-subject = "You're invited to join Quill & Cup"
+subject = "You're invited to join Hedgie Hub"
 content_path = "./supabase/templates/invite.html"
 
 [auth.email.template.confirmation]
-subject = "Confirm your email – Quill & Cup"
+subject = "Confirm your email – Hedgie Hub"
 content_path = "./supabase/templates/confirmation.html"
 
 [auth.email.template.recovery]
-subject = "Reset your Quill & Cup password"
+subject = "Reset your Hedgie Hub password"
 content_path = "./supabase/templates/recovery.html"
 
 [auth.email.template.magic_link]
-subject = "Your Quill & Cup sign-in link"
+subject = "Your Hedgie Hub sign-in link"
 content_path = "./supabase/templates/magic_link.html"
 
 [auth.email.template.email_change]
-subject = "Confirm your new email – Quill & Cup"
+subject = "Confirm your new email – Hedgie Hub"
 content_path = "./supabase/templates/email_change.html"
 
 [auth.sms]
@@ -447,7 +447,7 @@ port = 465
 user = "resend"
 pass = "env(RESEND_API_KEY)"
 admin_email = "no-reply@hub.quillandcup.com"
-sender_name = "Quill & Cup"
+sender_name = "Hedgie Hub"
 
 [remotes.prod.auth.mfa.totp]
 enroll_enabled = true

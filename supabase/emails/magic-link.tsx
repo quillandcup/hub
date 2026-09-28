@@ -12,11 +12,11 @@ import {
 
 export function MagicLinkEmail({ confirmationUrl }: { confirmationUrl: string }) {
   return (
-    <EmailLayout preview="Your Quill & Cup sign-in link is ready.">
+    <EmailLayout preview="Your Hedgie Hub sign-in link is ready.">
       <EmailHeading>Your sign-in link is ready.</EmailHeading>
 
       <EmailBody>
-        Here's the link you requested to sign in to Quill &amp; Cup. Click below
+        Here's the link you requested to sign in to Hedgie Hub. Click below
         to continue — no password needed.
       </EmailBody>
 
@@ -40,7 +40,7 @@ export function MagicLinkEmail({ confirmationUrl }: { confirmationUrl: string })
           textDecoration: "none",
         }}
       >
-        Sign in to Quill &amp; Cup
+        Sign in to Hedgie Hub
       </Button>
 
       <EmailDivider />

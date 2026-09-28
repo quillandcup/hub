@@ -16,7 +16,7 @@ export function ConfirmationEmail({ confirmationUrl }: { confirmationUrl: string
       <EmailHeading>One quick step before you settle in.</EmailHeading>
 
       <EmailBody>
-        Thanks for joining Quill &amp; Cup. Please confirm your email address so
+        Thanks for joining Hedgie Hub. Please confirm your email address so
         we can make sure your seat is reserved.
       </EmailBody>
 

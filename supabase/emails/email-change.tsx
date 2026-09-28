@@ -18,11 +18,11 @@ export function EmailChangeEmail({
   newEmail: string;
 }) {
   return (
-    <EmailLayout preview="Confirm your new Quill & Cup email address.">
+    <EmailLayout preview="Confirm your new Hedgie Hub email address.">
       <EmailHeading>Confirm your new email address.</EmailHeading>
 
       <EmailBody>
-        You've requested to update the email address on your Quill &amp; Cup
+        You've requested to update the email address on your Hedgie Hub
         account to:
       </EmailBody>
 
