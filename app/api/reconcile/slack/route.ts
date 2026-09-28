@@ -1,5 +1,6 @@
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { triggerSlackSync } from "@/lib/processing/trigger";
+import { pingCronHeartbeat } from "@/lib/cron-heartbeats";
 import { NextRequest, NextResponse } from "next/server";
 
 // Extend timeout for reconciliation jobs
@@ -27,6 +28,8 @@ export async function GET(request: NextRequest) {
     const result = await triggerSlackSync({ daysBack: 90 });
 
     console.log(`[Reconciliation] Slack reconciliation complete`);
+
+    await pingCronHeartbeat("reconcile-slack");
 
     return NextResponse.json({
       success: true,

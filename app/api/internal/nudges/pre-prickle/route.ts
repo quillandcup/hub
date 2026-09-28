@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { sendSlackDM } from "@/lib/slack";
+import { withCronHeartbeat } from "@/lib/cron-heartbeats";
 import {
   getActivePrickleGoalCandidates,
   prickleMatchesAnchor,
@@ -20,6 +21,11 @@ export const maxDuration = 60;
  * that prickle. See docs/superpowers/specs/writing-projects-tracking.md and the Phase 1 plan.
  */
 export async function POST(request: NextRequest) {
+  // Any successful poll counts as a heartbeat, including ones with nothing to send.
+  return withCronHeartbeat("pre-prickle-nudges", await sendPrePrickleNudges(request));
+}
+
+async function sendPrePrickleNudges(request: NextRequest): Promise<NextResponse> {
   const auth = request.headers.get("authorization");
   const expected = process.env.CRON_INTERNAL_SECRET;
   if (!expected || auth !== `Bearer ${expected}`) {

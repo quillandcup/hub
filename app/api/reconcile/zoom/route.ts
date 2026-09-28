@@ -1,5 +1,6 @@
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { triggerZoomImport } from "@/lib/processing/trigger";
+import { pingCronHeartbeat } from "@/lib/cron-heartbeats";
 import { NextRequest, NextResponse } from "next/server";
 
 // Extend timeout for reconciliation jobs
@@ -26,6 +27,8 @@ export async function GET(request: NextRequest) {
       fromDate: fromDate.toISOString().split('T')[0],
       toDate: now.toISOString().split('T')[0],
     });
+
+    await pingCronHeartbeat("reconcile-zoom");
 
     return NextResponse.json({ success: true, reconciliation: "zoom", ...result });
   } catch (error: any) {

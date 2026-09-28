@@ -132,7 +132,7 @@ select).
 
 | Page | URL |
 |------|-----|
-| Checks (uptime + SSL monitors) | https://app.checklyhq.com/accounts/6d3ea8e9-8978-4a8b-9721-ef77984bd1f7/checks |
+| Checks (uptime, SSL, cron heartbeats) | https://app.checklyhq.com/accounts/6d3ea8e9-8978-4a8b-9721-ef77984bd1f7/checks |
 | Alert Channels | https://app.checklyhq.com/accounts/6d3ea8e9-8978-4a8b-9721-ef77984bd1f7/alerts/settings |
 | Billing / Plan | https://app.checklyhq.com/accounts/6d3ea8e9-8978-4a8b-9721-ef77984bd1f7/billing |
 
