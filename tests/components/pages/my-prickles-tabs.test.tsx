@@ -21,7 +21,7 @@ vi.mock("@/lib/sudo", () => import("@/tests/helpers/server-page").then((m) => m.
 vi.mock("@/lib/supabase/server", () => import("@/tests/helpers/server-page").then((m) => m.supabaseServerModule));
 
 // My Prickles data dependencies and heavy client children.
-vi.mock("@/lib/upcoming-prickles", () => ({ getRankedUpcomingPrickles: vi.fn(async () => []) }));
+vi.mock("@/lib/upcoming-prickles", () => ({ PRIORITY: { none: 6 }, getRankedUpcomingPrickles: vi.fn(async () => []) }));
 vi.mock("@/lib/prickle-schedule", () => ({
   getPrickleScheduleOverview: vi.fn(async () => ({ rows: [], instances: [] })),
 }));

@@ -1,18 +1,16 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 const addPrickle = vi.fn();
 const addEvent = vi.fn();
 const removeItem = vi.fn();
-const refresh = vi.fn();
 vi.mock("@/app/(member)/my-prickles/calendar-feed-actions", () => ({
   addPrickleToMyCalendar: (...args: unknown[]) => addPrickle(...args),
   addEventToMyCalendar: (...args: unknown[]) => addEvent(...args),
   removeMyCalendarItem: (...args: unknown[]) => removeItem(...args),
 }));
-vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh }) }));
 
 import { AddEventToCalendar, AddPrickleToCalendar } from "@/app/(member)/my-prickles/AddToCalendar";
 import type { PrickleCalendarState } from "@/lib/calendar-feed";
@@ -20,7 +18,7 @@ import type { PrickleCalendarState } from "@/lib/calendar-feed";
 const NONE: PrickleCalendarState = { onceItemId: null, weeklyItemId: null };
 
 beforeEach(() => {
-  for (const fn of [addPrickle, addEvent, removeItem, refresh]) fn.mockReset();
+  for (const fn of [addPrickle, addEvent, removeItem]) fn.mockReset();
   addPrickle.mockResolvedValue({ ok: true });
   addEvent.mockResolvedValue({ ok: true });
   removeItem.mockResolvedValue({ ok: true });
@@ -39,7 +37,19 @@ describe("AddPrickleToCalendar", () => {
     await user.click(screen.getByRole("button", { name: /Add to my calendar/ }));
     await user.click(screen.getByRole("menuitemcheckbox", { name: /Just this one · Tue, Oct 6/ }));
     expect(addPrickle).toHaveBeenCalledWith("p1", "once");
-    expect(refresh).toHaveBeenCalled();
+  });
+
+  it("checks the box and turns the icon on before the server answers", async () => {
+    const user = userEvent.setup();
+    // Held open until the end: React waits on every pending action before finishing any transition.
+    let answer!: (value: { ok: true }) => void;
+    addPrickle.mockReturnValue(new Promise((resolve) => (answer = resolve)));
+    renderPrickle(NONE, { variant: "icon" });
+    await user.click(screen.getByRole("button", { name: "Add Educational Prickle to your calendar" }));
+    await user.click(screen.getByRole("menuitemcheckbox", { name: "Every week" }));
+    expect(screen.getByRole("menuitemcheckbox", { name: "Every week" })).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByRole("button", { name: "Educational Prickle is in your calendar" })).toBeInTheDocument();
+    await act(async () => answer({ ok: true }));
   });
 
   it("adds every week", async () => {
@@ -71,14 +81,16 @@ describe("AddPrickleToCalendar", () => {
     expect(once).toBeDisabled();
   });
 
-  it("shows an error from the action and doesn't refresh", async () => {
+  it("shows an error from the action and unchecks the box again", async () => {
     const user = userEvent.setup();
     addPrickle.mockResolvedValue({ error: "Couldn't add that to your calendar. Please try again." });
     renderPrickle();
     await user.click(screen.getByRole("button", { name: /Add to my calendar/ }));
     await user.click(screen.getByRole("menuitemcheckbox", { name: "Every week" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't add that");
-    expect(refresh).not.toHaveBeenCalled();
+    await waitFor(() =>
+      expect(screen.getByRole("menuitemcheckbox", { name: "Every week" })).toHaveAttribute("aria-checked", "false")
+    );
   });
 
   it("closes the menu on Escape", async () => {
@@ -110,7 +122,6 @@ describe("AddEventToCalendar", () => {
     render(<AddEventToCalendar eventId="e1" itemId={null} />);
     await user.click(screen.getByRole("button", { name: /Add to my calendar/ }));
     expect(addEvent).toHaveBeenCalledWith("e1");
-    expect(refresh).toHaveBeenCalled();
   });
 
   it("removes an event that's already added", async () => {

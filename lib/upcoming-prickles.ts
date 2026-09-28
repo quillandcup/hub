@@ -11,6 +11,7 @@ import { getMemberDisplayName } from "@/lib/member-display-name"
 import {
   computeCommitmentProgress,
   effectiveCommitmentStatus,
+  prickleMatchesSlot,
   type Commitment,
   type CommitmentSlot,
   type CommitmentStatus,
@@ -127,7 +128,7 @@ export type UpcomingPrickle = {
 }
 
 export interface HighlightReason {
-  kind: "hosting" | "commitment" | "streak" | "lostStreak" | "sister" | RecommendationReasonKind
+  kind: "hosting" | "commitment" | "calendar" | "streak" | "lostStreak" | "sister" | RecommendationReasonKind
   tooltip: string[]
 }
 
@@ -231,14 +232,17 @@ async function fetchHostedCounts(
  * explicit commitment comes next -- it's a promise the member made about this exact occurrence,
  * a stronger and more deliberate signal than a streak, which is only inferred from past
  * behavior (and usually accompanies the commitment anyway, so the member sees both badges).
+ * A prickle the member added to their calendar by hand is the same kind of deliberate choice, a
+ * lighter one than a commitment, so it sits between the two.
  */
 export const PRIORITY = {
   hosting: 0,
   commitment: 1,
-  streak: 2,
-  sister: 3,
-  lostStreak: 4,
-  none: 5,
+  calendar: 2,
+  streak: 3,
+  sister: 4,
+  lostStreak: 5,
+  none: 6,
 } as const
 
 /** The member's commitments with stored status 'active' (a member has only a handful, but
@@ -282,11 +286,55 @@ async function fetchActiveCommitments(supabase: SupabaseClient, memberId: string
   }))
 }
 
+/** How an upcoming prickle got into the member's calendar feed by hand (calendar_feed_items). */
+export type CalendarAddedMode = "once" | "weekly"
+
+export type CalendarItemRow = {
+  kind: "prickle" | "slot"
+  prickle_id: string | null
+  type_id: string | null
+  day_of_week: number | null
+  start_time_local: string | null
+  timezone: string | null
+}
+
+/** The member's hand-added calendar items (just this prickle, or a weekly slot). Events aren't
+ * prickles, so they're skipped. A query error yields no rows, like the other fetches here. */
+async function fetchCalendarItems(supabase: SupabaseClient, memberId: string): Promise<CalendarItemRow[]> {
+  return fetchAllPaginated<CalendarItemRow>((offset) =>
+    supabase
+      .from("calendar_feed_items")
+      .select("kind, prickle_id, type_id, day_of_week, start_time_local, timezone")
+      .eq("member_id", memberId)
+      .in("kind", ["prickle", "slot"])
+      .order("id")
+      .range(offset, offset + BATCH_SIZE - 1)
+  )
+}
+
+/** Upcoming prickle id -> how the member added it to their calendar. Weekly slots match the same
+ * way the feed does (lib/calendar-feed.ts, prickleMatchesSlot); "once" wins if both apply. */
+export function computeCalendarAdded(
+  items: CalendarItemRow[],
+  upcoming: Pick<UpcomingPrickle, "id" | "typeId" | "startTime">[]
+): Map<string, CalendarAddedMode> {
+  const result = new Map<string, CalendarAddedMode>()
+  const onceIds = new Set(items.filter((i) => i.kind === "prickle" && i.prickle_id).map((i) => i.prickle_id!))
+  const slots = items
+    .filter((i) => i.kind === "slot" && i.type_id && i.day_of_week != null && i.start_time_local && i.timezone)
+    .map((i) => ({ typeId: i.type_id!, dayOfWeek: i.day_of_week!, startTimeLocal: i.start_time_local!, timezone: i.timezone! }))
+  for (const p of upcoming) {
+    if (onceIds.has(p.id)) result.set(p.id, "once")
+    else if (p.typeId && slots.some((slot) => prickleMatchesSlot(p, slot))) result.set(p.id, "weekly")
+  }
+  return result
+}
+
 export interface RankedPrickle {
   prickle: UpcomingPrickle
   reasons: HighlightReason[]
-  /** See PRIORITY: 0 hosting, 1 commitment, 2 active streak, 3 high-likelihood sister, 4 lost
-   * streak, 5 no personal signal. */
+  /** See PRIORITY: 0 hosting, 1 commitment, 2 added to calendar, 3 active streak, 4
+   * high-likelihood sister, 5 lost streak, 6 no personal signal. */
   priority: number
   /** Within-priority sort key (lower first) for personal tiers; position in the diversified
    * recommendation order for PRIORITY.none. */
@@ -355,6 +403,8 @@ export interface RankingInputs {
   timeZone: string
   /** Upcoming prickle id -> commitment signal (see computeCommitmentSignals). */
   commitmentByPrickleId?: Map<string, CommitmentSignal>
+  /** Upcoming prickle id -> added to the calendar by hand (see computeCalendarAdded). */
+  calendarAddedByPrickleId?: Map<string, CalendarAddedMode>
   activeStreakBySeries?: Map<string, number>
   lostStreakBySeries?: Map<string, number>
   sistersBySeries?: Map<string, SisterSignal[]>
@@ -365,7 +415,7 @@ export interface RankingInputs {
 
 /**
  * Pure ranking step. Personal signals always win: hosting > commitment
- * (soonest first) > active streak (longest first) > high-likelihood
+ * (soonest first) > added to calendar (soonest first) > active streak (longest first) > high-likelihood
  * sister-streak sister > lost streak (longest first); within a tier, ties go
  * to the stronger community
  * recommendation, then the earlier start. Everything without a personal
@@ -380,6 +430,7 @@ export function rankUpcomingPrickles(inputs: RankingInputs): RankedPrickle[] {
     now,
     timeZone,
     commitmentByPrickleId = new Map(),
+    calendarAddedByPrickleId = new Map(),
     activeStreakBySeries = new Map(),
     lostStreakBySeries = new Map(),
     sistersBySeries = new Map(),
@@ -406,6 +457,15 @@ export function rankUpcomingPrickles(inputs: RankingInputs): RankedPrickle[] {
       reasons.push({ kind: "commitment", tooltip: [commitmentReasonText(commitment)] })
       // Soonest first within the tier (sortValue is already the start time).
       if (priority > PRIORITY.commitment) priority = PRIORITY.commitment
+    }
+
+    const calendarAdded = calendarAddedByPrickleId.get(p.id)
+    if (calendarAdded) {
+      reasons.push({
+        kind: "calendar",
+        tooltip: [calendarAdded === "weekly" ? "You added this one every week" : "You added this one"],
+      })
+      if (priority > PRIORITY.calendar) priority = PRIORITY.calendar
     }
 
     const streakWeeks = activeStreakBySeries.get(p.seriesKey)
@@ -498,7 +558,7 @@ export async function getRankedUpcomingPrickles(
     join_time: string
     prickles: { start_time: string; type_id: string | null; prickle_types: { name: string } | null } | null
   }
-  const [upcoming, myAttendance, pastPrickles, commitments] = await Promise.all([
+  const [upcoming, myAttendance, pastPrickles, commitments, calendarItems] = await Promise.all([
     fetchPrickles(supabase, windowStart, windowEnd, timeZone, true),
     fetchAllPaginated<MyRecord>((offset) =>
       supabase
@@ -510,6 +570,7 @@ export async function getRankedUpcomingPrickles(
     ),
     fetchPrickles(supabase, lookbackStart, windowStart, timeZone, false),
     fetchActiveCommitments(supabase, memberId),
+    fetchCalendarItems(supabase, memberId),
   ])
 
   // ---- Round 2 (parallel): co-attendance on every prickle this member has
@@ -688,6 +749,7 @@ export async function getRankedUpcomingPrickles(
     now,
     timeZone,
     commitmentByPrickleId,
+    calendarAddedByPrickleId: computeCalendarAdded(calendarItems, upcoming),
     activeStreakBySeries,
     lostStreakBySeries,
     sistersBySeries,

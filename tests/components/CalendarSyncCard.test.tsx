@@ -5,13 +5,9 @@ import userEvent from "@testing-library/user-event";
 import { calendarFeedUrls } from "@/lib/calendar-feed";
 
 const regenerate = vi.fn();
-const removeItem = vi.fn();
-const refresh = vi.fn();
 vi.mock("@/app/(member)/my-prickles/calendar-feed-actions", () => ({
   regenerateMyCalendarFeedToken: () => regenerate(),
-  removeMyCalendarItem: (id: string) => removeItem(id),
 }));
-vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh }) }));
 
 import CalendarSyncCard from "@/app/(member)/my-prickles/CalendarSyncCard";
 
@@ -21,8 +17,6 @@ const NEW_URLS = calendarFeedUrls(ORIGIN, "fedcba9876543210fedcba9876543210");
 
 beforeEach(() => {
   regenerate.mockReset();
-  removeItem.mockReset();
-  refresh.mockReset();
   localStorage.clear();
 });
 
@@ -48,24 +42,6 @@ describe("CalendarSyncCard", () => {
     render(<CalendarSyncCard initialUrls={URLS} />);
     expect(screen.getByText(/Prickles you host and prickles you.ve committed to show up automatically/)).toBeInTheDocument();
     expect(screen.getByText(/in All Prickles or on the event.s page/)).toBeInTheDocument();
-  });
-
-  it("lists added items and removes one", async () => {
-    const user = userEvent.setup();
-    removeItem.mockResolvedValue({ ok: true });
-    render(
-      <CalendarSyncCard
-        initialUrls={URLS}
-        items={[
-          { id: "i1", kind: "slot", label: "Educational Prickle · every Tuesday · 7:00 PM EDT", slotKey: "k" },
-          { id: "i2", kind: "event", label: "Fall Retreat · Oct 9 – Oct 11", eventId: "e1" },
-        ]}
-      />
-    );
-    expect(screen.getByRole("heading", { name: "Also added to your calendar" })).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Remove Fall Retreat · Oct 9 – Oct 11 from your calendar" }));
-    expect(removeItem).toHaveBeenCalledWith("i2");
-    expect(refresh).toHaveBeenCalled();
   });
 
   it("copies the https feed link", async () => {
@@ -108,6 +84,7 @@ describe("CalendarSyncCard", () => {
     const { unmount } = render(<CalendarSyncCard initialUrls={URLS} />);
     await user.click(screen.getByRole("button", { name: "Hide calendar sync options" }));
     expect(screen.queryByRole("link", { name: "Google Calendar" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Also added to your calendar")).not.toBeInTheDocument();
     unmount();
 
     render(<CalendarSyncCard initialUrls={URLS} />);

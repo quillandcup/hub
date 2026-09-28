@@ -2,7 +2,7 @@
 
 import { randomBytes } from "crypto";
 import { headers } from "next/headers";
-import { revalidatePath } from "next/cache";
+import { refresh, revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
 import { getEffectiveIdentity } from "@/lib/sudo";
@@ -187,6 +187,16 @@ export async function getMyCalendarItems(): Promise<MyCalendarItem[]> {
   return items;
 }
 
+/**
+ * After an add/remove: mark My Prickles stale, and re-render whichever page the member is on (a
+ * prickle's or event's page too) in this same action response, so the client doesn't need a
+ * second router.refresh() round trip.
+ */
+function revalidateCalendarViews() {
+  revalidatePath("/my-prickles");
+  refresh();
+}
+
 /** Insert one item for the acting member; an item they already have counts as success. */
 async function addItem(row: Record<string, unknown>): Promise<ItemResult> {
   const user = await getCurrentUser();
@@ -200,7 +210,7 @@ async function addItem(row: Record<string, unknown>): Promise<ItemResult> {
     console.error("addItem: failed to add calendar item", { row, error });
     return { error: "Couldn't add that to your calendar. Please try again." };
   }
-  revalidatePath("/my-prickles");
+  revalidateCalendarViews();
   return { ok: true };
 }
 
@@ -247,6 +257,6 @@ export async function removeMyCalendarItem(itemId: string): Promise<ItemResult> 
     console.error("removeMyCalendarItem: failed", error);
     return { error: "Couldn't remove that. Please try again." };
   }
-  revalidatePath("/my-prickles");
+  revalidateCalendarViews();
   return { ok: true };
 }

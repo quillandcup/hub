@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useOptimistic, useRef, useState, useTransition } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import type { PrickleCalendarState } from "@/lib/calendar-feed";
 import { addEventToMyCalendar, addPrickleToMyCalendar, removeMyCalendarItem } from "./calendar-feed-actions";
+
+/** Stand-in item id while an add is in flight; the refreshed page brings the real one. */
+const OPTIMISTIC_ID = "pending";
 
 /**
  * "Add to my calendar" controls: put a prickle (just this one, or every week) or an event into the
@@ -69,12 +71,14 @@ export function AddPrickleToCalendar({
   /** "icon" for dense rows (All Prickles table), "button" elsewhere. */
   variant?: "icon" | "button";
 }) {
-  const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Flip the checkmark and icon the moment it's clicked; the real state arrives with the action's
+  // refreshed page, and on an error the optimistic value falls back to the unchanged prop.
+  const [shown, setShown] = useOptimistic(state);
+  const [busy, startTransition] = useTransition();
   const ref = useRef<HTMLDivElement>(null);
-  const added = !!(state.onceItemId || state.weeklyItemId);
+  const added = !!(shown.onceItemId || shown.weeklyItemId);
 
   useEffect(() => {
     if (!open) return;
@@ -105,17 +109,15 @@ export function AddPrickleToCalendar({
     );
   }
 
-  async function toggle(mode: "once" | "weekly") {
-    const existing = mode === "once" ? state.onceItemId : state.weeklyItemId;
-    setBusy(true);
+  function toggle(mode: "once" | "weekly") {
+    const key = mode === "once" ? "onceItemId" : "weeklyItemId";
+    const existing = shown[key];
     setError(null);
-    const result = existing ? await removeMyCalendarItem(existing) : await addPrickleToMyCalendar(prickleId, mode);
-    setBusy(false);
-    if ("error" in result) {
-      setError(result.error);
-      return;
-    }
-    router.refresh();
+    startTransition(async () => {
+      setShown({ ...shown, [key]: existing ? null : OPTIMISTIC_ID });
+      const result = existing ? await removeMyCalendarItem(existing) : await addPrickleToMyCalendar(prickleId, mode);
+      if ("error" in result) setError(result.error);
+    });
   }
 
   const triggerLabel = added ? `${typeName} is in your calendar` : `Add ${typeName} to your calendar`;
@@ -161,12 +163,12 @@ export function AddPrickleToCalendar({
           <button
             type="button"
             role="menuitemcheckbox"
-            aria-checked={!!(state.onceItemId || state.weeklyItemId)}
-            disabled={busy || !!state.weeklyItemId}
+            aria-checked={added}
+            disabled={busy || !!shown.weeklyItemId}
             onClick={() => toggle("once")}
             className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-60 disabled:hover:bg-transparent"
           >
-            <CheckMark on={!!(state.onceItemId || state.weeklyItemId)} />
+            <CheckMark on={added} />
             <span>
               Just this one <span className="text-slate-500 dark:text-slate-400">· {nextLabel}</span>
             </span>
@@ -174,12 +176,12 @@ export function AddPrickleToCalendar({
           <button
             type="button"
             role="menuitemcheckbox"
-            aria-checked={!!state.weeklyItemId}
+            aria-checked={!!shown.weeklyItemId}
             disabled={busy}
             onClick={() => toggle("weekly")}
             className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-60"
           >
-            <CheckMark on={!!state.weeklyItemId} />
+            <CheckMark on={!!shown.weeklyItemId} />
             <span>Every week</span>
           </button>
           <p className="px-2 pt-1.5 pb-1 text-xs text-slate-500 dark:text-slate-400 border-t border-slate-100 dark:border-slate-800 mt-1">
@@ -199,21 +201,19 @@ export function AddPrickleToCalendar({
   );
 }
 
-export function AddEventToCalendar({ eventId, itemId }: { eventId: string; itemId: string | null }) {
-  const router = useRouter();
-  const [busy, setBusy] = useState(false);
+export function AddEventToCalendar({ eventId, itemId: savedItemId }: { eventId: string; itemId: string | null }) {
+  const [itemId, setItemId] = useOptimistic(savedItemId);
+  const [busy, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
-  async function toggle() {
-    setBusy(true);
+  function toggle() {
+    const existing = itemId;
     setError(null);
-    const result = itemId ? await removeMyCalendarItem(itemId) : await addEventToMyCalendar(eventId);
-    setBusy(false);
-    if ("error" in result) {
-      setError(result.error);
-      return;
-    }
-    router.refresh();
+    startTransition(async () => {
+      setItemId(existing ? null : OPTIMISTIC_ID);
+      const result = existing ? await removeMyCalendarItem(existing) : await addEventToMyCalendar(eventId);
+      if ("error" in result) setError(result.error);
+    });
   }
 
   return (

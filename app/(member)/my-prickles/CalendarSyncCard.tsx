@@ -1,9 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { CALENDAR_FEED_NAME, type CalendarFeedUrls, type MyCalendarItem } from "@/lib/calendar-feed";
-import { regenerateMyCalendarFeedToken, removeMyCalendarItem } from "./calendar-feed-actions";
+import { CALENDAR_FEED_NAME, type CalendarFeedUrls } from "@/lib/calendar-feed";
+import { regenerateMyCalendarFeedToken } from "./calendar-feed-actions";
 
 const COLLAPSED_KEY = "calendarSyncCard:collapsed";
 
@@ -23,19 +22,11 @@ function CalendarIcon({ className = "" }: { className?: string }) {
 /**
  * "Sync your prickles with your calendar": subscribe links for the member's personal feed
  * (hosted + committed prickles, lib/calendar-feed.ts) in Google, Apple and Outlook, plus copy and
- * regenerate. Collapsible; the collapsed state is a per-browser convenience.
+ * regenerate. Collapsible; the collapsed state is a per-browser convenience. What the member added
+ * by hand is listed separately (AddedToCalendarList), not hidden in here.
  */
-export default function CalendarSyncCard({
-  initialUrls,
-  items = [],
-}: {
-  initialUrls: CalendarFeedUrls;
-  /** Prickles and events the member added by hand (upcoming ones), listed with a remove button. */
-  items?: MyCalendarItem[];
-}) {
-  const router = useRouter();
+export default function CalendarSyncCard({ initialUrls }: { initialUrls: CalendarFeedUrls }) {
   const [urls, setUrls] = useState(initialUrls);
-  const [removingId, setRemovingId] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState(false);
   const [copied, setCopied] = useState(false);
   const [confirmingRegenerate, setConfirmingRegenerate] = useState(false);
@@ -71,18 +62,6 @@ export default function CalendarSyncCard({
     } catch {
       setError(`Couldn't copy automatically. Your link: ${urls.https}`);
     }
-  }
-
-  async function removeItem(id: string) {
-    setRemovingId(id);
-    setError(null);
-    const result = await removeMyCalendarItem(id);
-    setRemovingId(null);
-    if ("error" in result) {
-      setError(result.error);
-      return;
-    }
-    router.refresh();
   }
 
   async function regenerate() {
@@ -153,30 +132,6 @@ export default function CalendarSyncCard({
               {copied ? "Copied!" : "Copy link"}
             </button>
           </div>
-
-          {items.length > 0 && (
-            <div className="mt-4">
-              <h3 className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide">
-                Also added to your calendar
-              </h3>
-              <ul className="mt-1.5 space-y-1">
-                {items.map((item) => (
-                  <li key={item.id} className="flex items-center justify-between gap-3 text-sm text-slate-700 dark:text-slate-300">
-                    <span className="min-w-0 truncate">{item.label}</span>
-                    <button
-                      type="button"
-                      onClick={() => removeItem(item.id)}
-                      disabled={removingId === item.id}
-                      aria-label={`Remove ${item.label} from your calendar`}
-                      className="shrink-0 text-xs text-slate-500 hover:text-rose-700 dark:hover:text-rose-400 disabled:opacity-50"
-                    >
-                      {removingId === item.id ? "Removing…" : "Remove"}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
 
           <p className="mt-3 text-xs text-slate-600 dark:text-slate-400">
             Reminder 15 minutes before each prickle. Google can take 12–24 hours to pick up changes; Apple and Outlook are

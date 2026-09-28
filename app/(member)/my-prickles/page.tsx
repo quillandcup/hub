@@ -6,7 +6,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { getEffectiveIdentity } from "@/lib/sudo";
 import { getUserTimezonePreference } from "@/lib/timezone";
-import { getRankedUpcomingPrickles } from "@/lib/upcoming-prickles";
+import { PRIORITY, getRankedUpcomingPrickles } from "@/lib/upcoming-prickles";
 import { getPrickleScheduleOverview } from "@/lib/prickle-schedule";
 import { getMonthStart, getNextMonthStart, isMonthLocked } from "@/lib/prickle-schedules";
 import { getMySchedules, getMyHostingStats, getMyHostEligibility } from "@/app/(member)/hosting/actions";
@@ -21,6 +21,7 @@ import { getMyCommitments } from "./commitment-actions";
 import { getMyCalendarFeedUrls, getMyCalendarItems } from "./calendar-feed-actions";
 import { slotKey } from "@/lib/commitments";
 import CalendarSyncCard from "./CalendarSyncCard";
+import AddedToCalendarList from "./AddedToCalendarList";
 import { Tabs } from "@/components/Tabs";
 import { RememberTabUrl } from "@/components/ReturnToTab";
 
@@ -103,10 +104,12 @@ export default async function MyPricklesPage({ searchParams }: { searchParams: P
   const currentMonthLocked = isMonthLocked(getMonthStart(now), overrides, now);
   const nextMonthLocked = isMonthLocked(getNextMonthStart(now), overrides, now);
 
-  // Same ranking as Dashboard (hosting/streak/sister-attendance signals
-  // first), capped the same way -- this tab is a dedicated home for it, not
-  // a raw feed of every prickle happening org-wide in the window.
-  const displayedUpcoming = ranked.slice(0, MAX_UPCOMING_DISPLAY);
+  // Same ranking as Dashboard. Every prickle with a personal signal (hosting, commitment, added to
+  // calendar, streak, sister) is shown however many there are; recommendations only fill the list
+  // up to MAX_UPCOMING_DISPLAY -- this tab is a home for the member's own prickles, not a raw feed
+  // of everything happening org-wide in the window.
+  const personalCount = ranked.filter((r) => r.priority < PRIORITY.none).length;
+  const displayedUpcoming = ranked.slice(0, Math.max(personalCount, MAX_UPCOMING_DISPLAY));
 
   // Active commitments' slots are already in the member's calendar feed.
   const committedSlotKeys = new Set(
@@ -211,8 +214,9 @@ export default async function MyPricklesPage({ searchParams }: { searchParams: P
               label: "Commitments",
               content: (
                 <>
-                  {calendarFeedUrls && <CalendarSyncCard initialUrls={calendarFeedUrls} items={calendarItems} />}
+                  {calendarFeedUrls && <CalendarSyncCard initialUrls={calendarFeedUrls} />}
                   <CommitmentsManager commitments={commitments} />
+                  <AddedToCalendarList items={calendarItems} />
                 </>
               ),
             },
@@ -221,7 +225,7 @@ export default async function MyPricklesPage({ searchParams }: { searchParams: P
               label: "Hosting",
               content: (
                 <div>
-                  {!settleInFirst && calendarFeedUrls && <CalendarSyncCard initialUrls={calendarFeedUrls} items={calendarItems} />}
+                  {!settleInFirst && calendarFeedUrls && <CalendarSyncCard initialUrls={calendarFeedUrls} />}
                   {!settleInFirst && <HostingStats stats={hostingStats} />}
                   <HostingScheduleManager
                     initialSchedules={schedules}
