@@ -30,6 +30,7 @@ export default function CalendarSyncCard({ initialUrls }: { initialUrls: Calenda
   const [collapsed, setCollapsed] = useState(false);
   const [copied, setCopied] = useState(false);
   const [confirmingRegenerate, setConfirmingRegenerate] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -138,23 +139,17 @@ export default function CalendarSyncCard({ initialUrls }: { initialUrls: Calenda
             usually faster. The link is private, so don&apos;t share it.
           </p>
 
-          <details className="mt-3 text-xs text-slate-600 dark:text-slate-400">
-            <summary className="cursor-pointer text-blue-700 dark:text-blue-400 font-medium">How does it work?</summary>
-            <ol className="mt-2 space-y-1.5 list-decimal pl-5">
-              <li>Tap your calendar&apos;s button (Google, Apple or Outlook) and confirm &ldquo;Add&rdquo; or &ldquo;Subscribe&rdquo;.</li>
-              <li>
-                A new calendar named &ldquo;{CALENDAR_FEED_NAME}&rdquo; appears with the prickles you host, the ones
-                you&apos;ve committed to, and anything you added. New commitments, cancellations and schedule changes
-                show up on their own.
-              </li>
-              <li>
-                If a button doesn&apos;t open (e.g. Google on mobile), copy the link and paste it in Google Calendar →
-                Other calendars → + → From URL.
-              </li>
-            </ol>
-          </details>
-
-          <div className="mt-3 text-xs">
+          {/* One row for both secondary actions, so the expanded card stays short; the steps open below it. */}
+          <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs">
+            <button
+              type="button"
+              onClick={() => setShowHelp((v) => !v)}
+              aria-expanded={showHelp}
+              aria-controls="calendar-sync-help"
+              className="text-blue-700 dark:text-blue-400 font-medium hover:underline underline-offset-2"
+            >
+              How does it work?
+            </button>
             {confirmingRegenerate ? (
               <div className="flex flex-wrap items-center gap-2 text-slate-700 dark:text-slate-300">
                 <span>Calendars subscribed to your current link will stop updating.</span>
@@ -180,6 +175,21 @@ export default function CalendarSyncCard({ initialUrls }: { initialUrls: Calenda
               </button>
             )}
           </div>
+
+          {showHelp && (
+            <ol id="calendar-sync-help" className="mt-2 space-y-1.5 list-decimal pl-5 text-xs text-slate-600 dark:text-slate-400">
+              <li>Tap your calendar&apos;s button (Google, Apple or Outlook) and confirm &ldquo;Add&rdquo; or &ldquo;Subscribe&rdquo;.</li>
+              <li>
+                A new calendar named &ldquo;{CALENDAR_FEED_NAME}&rdquo; appears with the prickles you host, the ones
+                you&apos;ve committed to, and anything you added. New commitments, cancellations and schedule changes
+                show up on their own.
+              </li>
+              <li>
+                If a button doesn&apos;t open (e.g. Google on mobile), copy the link and paste it in Google Calendar →
+                Other calendars → + → From URL.
+              </li>
+            </ol>
+          )}
 
           {message && <p className="mt-2 text-xs text-emerald-700 dark:text-emerald-400" role="status">{message}</p>}
           {error && <p className="mt-2 text-xs text-rose-700 dark:text-rose-400 break-all" role="alert">{error}</p>}
