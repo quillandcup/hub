@@ -98,7 +98,7 @@ a `vercel.json` cron has no heartbeat.
 
 Adding a cron job: add it to `CRON_HEARTBEATS`, ping from its route
 (`pingCronHeartbeat` / `withCronHeartbeat`), merge so CI deploys the monitor, then copy
-the monitor's ping URL from Checkly into `.env.prod` and run `npm run env:sync:vercel`.
+the monitor's ping URL from Checkly into `.env.prod` and run `npm run env:sync`.
 
 Execution history and logs are in Vercel dashboard → Project → Cron.
 

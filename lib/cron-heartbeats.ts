@@ -8,7 +8,7 @@
 //
 // Checkly assigns each monitor's ping URL on first deploy. After adding a job, deploy the
 // checks, copy the new monitor's ping URL into .env.prod under `envVar`, and run
-// `npm run env:sync:vercel`. Until the var is set, pingCronHeartbeat is a no-op.
+// `npm run env:sync`. Until the var is set, pingCronHeartbeat is a no-op.
 
 type TimeUnit = "seconds" | "minutes" | "hours" | "days";
 
