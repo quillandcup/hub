@@ -85,10 +85,10 @@ export default function SubscriptionImportForm() {
               file:mr-4 file:py-2 file:px-4
               file:rounded-md file:border-0
               file:text-sm file:font-semibold
-              file:bg-blue-50 file:text-blue-700
-              hover:file:bg-blue-100
-              dark:file:bg-blue-900 dark:file:text-blue-300
-              dark:hover:file:bg-blue-800
+              file:bg-plum-50 file:text-plum-700
+              hover:file:bg-plum-100
+              dark:file:bg-plum-900 dark:file:text-plum-300
+              dark:hover:file:bg-plum-800
               disabled:opacity-50"
           />
         </div>
@@ -96,7 +96,7 @@ export default function SubscriptionImportForm() {
         <button
           type="submit"
           disabled={isUploading}
-          className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          className="w-full bg-plum-600 hover:bg-plum-700 text-white font-medium py-2 px-4 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
           {isUploading ? "Importing..." : "Import Subscriptions"}
         </button>
@@ -144,9 +144,9 @@ export default function SubscriptionImportForm() {
 
       {/* Process Result */}
       {processResult && (
-        <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-          <h3 className="font-medium text-blue-900 dark:text-blue-100 mb-2">Processing Complete</h3>
-          <div className="text-sm text-blue-800 dark:text-blue-200 space-y-1">
+        <div className="p-4 bg-plum-50 dark:bg-plum-900/20 border border-plum-200 dark:border-plum-800 rounded-lg">
+          <h3 className="font-medium text-plum-900 dark:text-plum-100 mb-2">Processing Complete</h3>
+          <div className="text-sm text-plum-800 dark:text-plum-200 space-y-1">
             <p>• Detected {processResult.detectedPeriods} hiatus periods total</p>
             <p>• Matched {processResult.matchedToMembers} to existing members</p>
             {processResult.statusBreakdown && (
@@ -160,7 +160,7 @@ export default function SubscriptionImportForm() {
           <div className="mt-4 flex gap-3">
             <Link
               href="/admin/members?filter=on_hiatus"
-              className="flex-1 text-center bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors"
+              className="flex-1 text-center bg-plum-600 hover:bg-plum-700 text-white font-medium py-2 px-4 rounded-lg transition-colors"
             >
               View On-Hiatus Members
             </Link>

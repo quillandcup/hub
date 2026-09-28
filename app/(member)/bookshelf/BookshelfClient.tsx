@@ -39,7 +39,7 @@ export default function BookshelfClient({ shelf }: BookshelfClientProps) {
         <h1 className="text-2xl font-bold">🐚 Hedgie Bookshelf</h1>
         <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
           Books published by members of the community.{" "}
-          <Link href="/projects" className="text-blue-600 hover:text-blue-700 dark:text-blue-400">
+          <Link href="/projects" className="text-plum-600 hover:text-plum-700 dark:text-plum-400">
             Publish a project
           </Link>{" "}
           to add yours — it also earns you the Published Author badge.

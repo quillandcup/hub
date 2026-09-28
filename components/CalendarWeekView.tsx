@@ -73,13 +73,13 @@ function getAttendanceColor(count: number): string {
   if (count === 0) {
     return "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400";
   } else if (count <= 3) {
-    return "bg-blue-100 dark:bg-blue-950 text-blue-900 dark:text-blue-100 border-blue-300 dark:border-blue-700";
+    return "bg-plum-100 dark:bg-plum-950 text-plum-900 dark:text-plum-100 border-plum-300 dark:border-plum-700";
   } else if (count <= 6) {
-    return "bg-blue-200 dark:bg-blue-900 text-blue-900 dark:text-blue-50 border-blue-400 dark:border-blue-600";
+    return "bg-plum-200 dark:bg-plum-900 text-plum-900 dark:text-plum-50 border-plum-400 dark:border-plum-600";
   } else if (count <= 10) {
-    return "bg-blue-400 dark:bg-blue-700 text-white border-blue-500 dark:border-blue-500";
+    return "bg-plum-400 dark:bg-plum-700 text-white border-plum-500 dark:border-plum-500";
   } else {
-    return "bg-blue-600 dark:bg-blue-600 text-white border-blue-700 dark:border-blue-400";
+    return "bg-plum-600 dark:bg-plum-600 text-white border-plum-700 dark:border-plum-400";
   }
 }
 
@@ -224,19 +224,19 @@ export default function CalendarWeekView({
               <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Attendance:</span>
               <div className="flex items-center gap-4">
                 <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 rounded bg-blue-100 dark:bg-blue-950 border border-blue-300 dark:border-blue-700"></div>
+                  <div className="w-4 h-4 rounded bg-plum-100 dark:bg-plum-950 border border-plum-300 dark:border-plum-700"></div>
                   <span className="text-xs text-slate-600 dark:text-slate-400">1-3</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 rounded bg-blue-200 dark:bg-blue-900 border border-blue-400 dark:border-blue-600"></div>
+                  <div className="w-4 h-4 rounded bg-plum-200 dark:bg-plum-900 border border-plum-400 dark:border-plum-600"></div>
                   <span className="text-xs text-slate-600 dark:text-slate-400">4-6</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 rounded bg-blue-400 dark:bg-blue-700 border border-blue-500"></div>
+                  <div className="w-4 h-4 rounded bg-plum-400 dark:bg-plum-700 border border-plum-500"></div>
                   <span className="text-xs text-slate-600 dark:text-slate-400">7-10</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 rounded bg-blue-600 dark:bg-blue-600 border border-blue-700 dark:border-blue-400"></div>
+                  <div className="w-4 h-4 rounded bg-plum-600 dark:bg-plum-600 border border-plum-700 dark:border-plum-400"></div>
                   <span className="text-xs text-slate-600 dark:text-slate-400">11+</span>
                 </div>
               </div>
@@ -247,7 +247,7 @@ export default function CalendarWeekView({
                   type="checkbox"
                   checked={showPups}
                   onChange={(e) => setShowPups(e.target.checked)}
-                  className="w-4 h-4 text-blue-600 bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600 rounded focus:ring-2 focus:ring-blue-500"
+                  className="w-4 h-4 text-plum-600 bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600 rounded focus:ring-2 focus:ring-plum-500"
                 />
                 <span className="text-sm text-slate-700 dark:text-slate-300">Show Pop-Up Prickles</span>
               </label>
@@ -257,7 +257,7 @@ export default function CalendarWeekView({
                   aria-label="Timezone"
                   value={timezone}
                   onChange={(e) => setTimezone(e.target.value)}
-                  className="px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg text-sm text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg text-sm text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-plum-500"
                 >
                   {timezoneOptions.map((tz) => (
                     <option key={tz.value} value={tz.value}>
@@ -282,14 +282,14 @@ export default function CalendarWeekView({
                 <div
                   key={i}
                   className={`p-1 sm:p-3 text-center border-l border-slate-200 dark:border-slate-800 ${
-                    isToday ? "bg-blue-50 dark:bg-blue-950" : "bg-slate-50 dark:bg-slate-800"
+                    isToday ? "bg-plum-50 dark:bg-plum-950" : "bg-slate-50 dark:bg-slate-800"
                   }`}
                 >
-                  <div className={`text-xs sm:text-sm font-semibold ${isToday ? "text-blue-600 dark:text-blue-400" : "text-slate-700 dark:text-slate-300"}`}>
+                  <div className={`text-xs sm:text-sm font-semibold ${isToday ? "text-plum-600 dark:text-plum-400" : "text-slate-700 dark:text-slate-300"}`}>
                     <span className="sm:hidden">{dayNames[day.getDay()].slice(0, 3)}</span>
                     <span className="hidden sm:inline">{dayNames[day.getDay()]}</span>
                   </div>
-                  <div className={`text-xs ${isToday ? "text-blue-500 dark:text-blue-500" : "text-slate-500 dark:text-slate-400"}`}>
+                  <div className={`text-xs ${isToday ? "text-plum-500 dark:text-plum-500" : "text-slate-500 dark:text-slate-400"}`}>
                     {day.getMonth() + 1}/{day.getDate()}
                   </div>
                 </div>
@@ -324,8 +324,8 @@ export default function CalendarWeekView({
                       <div
                         key={hour}
                         className={`h-[60px] border-b border-slate-200 dark:border-slate-800 ${
-                          isToday ? "bg-blue-50/30 dark:bg-blue-950/20" : ""
-                        } ${onSlotClick ? "cursor-pointer hover:bg-blue-100/60 dark:hover:bg-blue-900/30" : ""}`}
+                          isToday ? "bg-plum-50/30 dark:bg-plum-950/20" : ""
+                        } ${onSlotClick ? "cursor-pointer hover:bg-plum-100/60 dark:hover:bg-plum-900/30" : ""}`}
                         onClick={onSlotClick ? (e) => {
                           const rect = e.currentTarget.getBoundingClientRect();
                           const fractionOfHour = (e.clientY - rect.top) / rect.height;
@@ -361,7 +361,7 @@ export default function CalendarWeekView({
                     {/* Selected slot highlight (slot-picking mode only) */}
                     {onSlotClick && selectedSlot && selectedSlot.date.toDateString() === day.toDateString() && (
                       <div
-                        className="absolute inset-x-1 rounded border-2 border-blue-500 bg-blue-500/10 pointer-events-none z-10"
+                        className="absolute inset-x-1 rounded border-2 border-plum-500 bg-plum-500/10 pointer-events-none z-10"
                         style={{ top: `${selectedSlot.hour * 60 + selectedSlot.minute}px`, height: "60px" }}
                       />
                     )}
@@ -389,7 +389,7 @@ export default function CalendarWeekView({
                         return (
                           <div key={prickle.id}>
                             <div
-                              className={`absolute rounded border-2 p-1.5 overflow-hidden pointer-events-auto transition-opacity hover:opacity-90 ${onSlotClick ? "cursor-default" : "cursor-pointer"} ${getAttendanceColor(prickle.attendance_count)} ${isSelected ? "ring-2 ring-blue-600 dark:ring-blue-400 ring-offset-1" : ""}`}
+                              className={`absolute rounded border-2 p-1.5 overflow-hidden pointer-events-auto transition-opacity hover:opacity-90 ${onSlotClick ? "cursor-default" : "cursor-pointer"} ${getAttendanceColor(prickle.attendance_count)} ${isSelected ? "ring-2 ring-plum-600 dark:ring-plum-400 ring-offset-1" : ""}`}
                               style={{
                                 top: `${top}px`,
                                 height: `${height}px`,

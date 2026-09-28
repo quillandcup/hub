@@ -3,21 +3,28 @@
 @tailwind utilities;
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Quill & Cup brand color (tailwind `canvas`) and Cup Gray. */
+  --background: #f4f2f3;
+  --foreground: #4d4d4d;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* next-themes sets .dark on <html> (tailwind darkMode: "class"), including for "system". */
+.dark {
+  --background: #0a0a0a;
+  --foreground: #ededed;
 }
 
 body {
   color: var(--foreground);
   background: var(--background);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+@layer base {
+  /* Page titles in the brand serif; smaller headings stay in the UI sans for density. */
+  h1 {
+    @apply font-display;
+  }
 }
 
 @layer utilities {

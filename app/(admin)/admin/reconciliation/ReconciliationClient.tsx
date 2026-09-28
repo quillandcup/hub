@@ -338,7 +338,7 @@ export default function ReconciliationClient() {
           <div className="text-sm text-gray-600 dark:text-gray-400">Paused (Stripe)</div>
         </div>
         <div className="p-4 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded">
-          <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+          <div className="text-2xl font-bold text-plum-600 dark:text-plum-400">
             {data.summary.active_in_kajabi}
           </div>
           <div className="text-sm text-gray-600 dark:text-gray-400">Active (Kajabi)</div>
@@ -538,7 +538,7 @@ export default function ReconciliationClient() {
                             onClick={() =>
                               setEditingMemberId(editingMemberId === member.member_id ? null : member.member_id)
                             }
-                            className="mt-1 text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                            className="mt-1 text-xs text-plum-600 dark:text-plum-400 hover:underline"
                           >
                             {editingMemberId === member.member_id ? "Cancel" : "Edit"}
                           </button>
@@ -551,7 +551,7 @@ export default function ReconciliationClient() {
                           <div className="mt-1">
                             <a
                               href={`/admin/members/${member.member_id}`}
-                              className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                              className="text-xs text-plum-600 dark:text-plum-400 hover:underline"
                             >
                               Manage on member page →
                             </a>
@@ -566,7 +566,7 @@ export default function ReconciliationClient() {
                             onClick={() =>
                               setEditingMemberId(editingMemberId === member.member_id ? null : member.member_id)
                             }
-                            className="block mt-1 text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                            className="block mt-1 text-xs text-plum-600 dark:text-plum-400 hover:underline"
                           >
                             {editingMemberId === member.member_id ? "Cancel" : "Review & apply"}
                           </button>
@@ -578,7 +578,7 @@ export default function ReconciliationClient() {
                             onClick={() =>
                               setEditingMemberId(editingMemberId === member.member_id ? null : member.member_id)
                             }
-                            className="block mt-1 text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                            className="block mt-1 text-xs text-plum-600 dark:text-plum-400 hover:underline"
                           >
                             {isEditing ? "Cancel" : "Add override"}
                           </button>
@@ -596,7 +596,7 @@ export default function ReconciliationClient() {
                     </td>
                   </tr>
                   {isEditing && (
-                    <tr className="bg-blue-50/50 dark:bg-blue-950/10">
+                    <tr className="bg-plum-50/50 dark:bg-plum-950/10">
                       <td colSpan={slackData ? 7 : 6} className="px-4 py-4">
                         <div className="max-w-md">
                           <MemberOverrideForm
@@ -638,7 +638,7 @@ export default function ReconciliationClient() {
       {slackData && (
         <p className="mt-8 text-sm text-gray-600 dark:text-gray-400">
           Looking for Slack users with no member record?{" "}
-          <a href="/admin/hygiene/unmatched-slack" className="text-blue-600 dark:text-blue-400 hover:underline">
+          <a href="/admin/hygiene/unmatched-slack" className="text-plum-600 dark:text-plum-400 hover:underline">
             Resolve them in Identity Matching →
           </a>
         </p>
@@ -750,7 +750,7 @@ export default function ReconciliationClient() {
                       {g.member_id ? (
                         <a
                           href={`/admin/members/${g.member_id}`}
-                          className="font-medium text-blue-600 dark:text-blue-400 hover:underline"
+                          className="font-medium text-plum-600 dark:text-plum-400 hover:underline"
                         >
                           {g.member_name}
                         </a>
@@ -821,7 +821,7 @@ export default function ReconciliationClient() {
       {zoomAccessData && (
         <p className="mt-8 text-sm text-gray-600 dark:text-gray-400">
           Looking for Zoom attendees with no member record at all?{" "}
-          <a href="/admin/hygiene/unmatched-zoom" className="text-blue-600 dark:text-blue-400 hover:underline">
+          <a href="/admin/hygiene/unmatched-zoom" className="text-plum-600 dark:text-plum-400 hover:underline">
             Resolve them in Identity Matching →
           </a>{" "}
           (all-time, unlike the 90-day window above)
@@ -831,7 +831,7 @@ export default function ReconciliationClient() {
       <div className="mt-6">
         <button
           onClick={fetchAll}
-          className="px-4 py-2 bg-blue-600 dark:bg-blue-500 text-white rounded hover:bg-blue-700 dark:hover:bg-blue-600"
+          className="px-4 py-2 bg-plum-600 dark:bg-plum-500 text-white rounded hover:bg-plum-700 dark:hover:bg-plum-600"
         >
           Refresh Data
         </button>

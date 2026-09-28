@@ -35,7 +35,7 @@ function CheckMark({ on }: { on: boolean }) {
     <span
       aria-hidden="true"
       className={`inline-flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
-        on ? "border-blue-600 bg-blue-600 text-white" : "border-slate-300 dark:border-slate-600"
+        on ? "border-plum-600 bg-plum-600 text-white" : "border-slate-300 dark:border-slate-600"
       }`}
     >
       {on && (
@@ -133,7 +133,7 @@ export function AddPrickleToCalendar({
           aria-label={triggerLabel}
           title={added ? "In your calendar" : "Add to my calendar"}
           className={`p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 ${
-            added ? "text-blue-600 dark:text-blue-400" : "text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+            added ? "text-plum-600 dark:text-plum-400" : "text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
           }`}
         >
           <CalendarGlyph added={added} />
@@ -186,7 +186,7 @@ export function AddPrickleToCalendar({
           </button>
           <p className="px-2 pt-1.5 pb-1 text-xs text-slate-500 dark:text-slate-400 border-t border-slate-100 dark:border-slate-800 mt-1">
             Shows up in your synced calendar.{" "}
-            <Link href={SYNC_HINT_HREF} className="text-blue-600 dark:text-blue-400 hover:underline">
+            <Link href={SYNC_HINT_HREF} className="text-plum-600 dark:text-plum-400 hover:underline">
               Set up sync
             </Link>
           </p>

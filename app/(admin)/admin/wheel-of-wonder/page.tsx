@@ -58,10 +58,10 @@ export default async function WheelOfWonderAdminPage() {
   const confirmationRate = matches.length > 0 ? Math.round((confirmedCount / matches.length) * 100) : 0;
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
+    <div className="min-h-screen bg-canvas dark:bg-slate-950">
       <header className="border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
         <div className="container mx-auto px-6 py-4">
-          <Link href="/admin" className="text-blue-600 dark:text-blue-400 hover:underline mb-2 inline-block">
+          <Link href="/admin" className="text-plum-600 dark:text-plum-400 hover:underline mb-2 inline-block">
             ← Back to Dashboard
           </Link>
           <h1 className="text-2xl font-bold">🎡 Wheel of Wonder</h1>
@@ -111,7 +111,7 @@ export default async function WheelOfWonderAdminPage() {
                         {spinner ? (
                           <Link
                             href={`/admin/members/${spinner.id}`}
-                            className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                            className="hover:text-plum-600 dark:hover:text-plum-400 transition-colors"
                           >
                             {spinner.name}
                           </Link>
@@ -122,7 +122,7 @@ export default async function WheelOfWonderAdminPage() {
                         {matched ? (
                           <Link
                             href={`/admin/members/${matched.id}`}
-                            className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                            className="hover:text-plum-600 dark:hover:text-plum-400 transition-colors"
                           >
                             {matched.name}
                           </Link>

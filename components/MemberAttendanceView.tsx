@@ -160,7 +160,7 @@ export default function MemberAttendanceView({
               <select
                 value={timezone}
                 onChange={(e) => setTimezone(e.target.value)}
-                className="px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg text-sm text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg text-sm text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-plum-500"
               >
                 {TIMEZONES.map((tz) => (
                   <option key={tz.value} value={tz.value}>
@@ -269,7 +269,7 @@ export default function MemberAttendanceView({
                           {prickle.host ? (
                             <Link
                               href={`${memberBasePath}/${prickle.host.id}`}
-                              className="text-blue-600 hover:text-blue-700 dark:text-blue-400 hover:underline"
+                              className="text-plum-600 hover:text-plum-700 dark:text-plum-400 hover:underline"
                               onClick={(e) => e.stopPropagation()}
                             >
                               {prickle.host.name}
@@ -337,8 +337,8 @@ export default function MemberAttendanceView({
                       className={`
                         min-h-[80px] p-2 border rounded-lg
                         ${date ? "cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800" : ""}
-                        ${isToday(date) ? "border-blue-500 dark:border-blue-400 bg-blue-50 dark:bg-blue-950" : "border-slate-200 dark:border-slate-700"}
-                        ${isSelected ? "ring-2 ring-blue-500" : ""}
+                        ${isToday(date) ? "border-plum-500 dark:border-plum-400 bg-plum-50 dark:bg-plum-950" : "border-slate-200 dark:border-slate-700"}
+                        ${isSelected ? "ring-2 ring-plum-500" : ""}
                         ${!date ? "bg-slate-50 dark:bg-slate-900" : "bg-white dark:bg-slate-900"}
                       `}
                     >
@@ -352,7 +352,7 @@ export default function MemberAttendanceView({
                               {attendance.slice(0, 3).map((record) => (
                                 <div
                                   key={record.id}
-                                  className="text-xs px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded truncate"
+                                  className="text-xs px-1.5 py-0.5 bg-plum-100 dark:bg-plum-900 text-plum-800 dark:text-plum-200 rounded truncate"
                                   title={record.prickles?.prickle_types?.name}
                                 >
                                   {record.prickles?.prickle_types?.name}
@@ -392,7 +392,7 @@ export default function MemberAttendanceView({
                         <div
                           key={record.id}
                           onClick={() => router.push(`${prickleBasePath}/${prickle.id}`)}
-                          className="p-3 bg-white dark:bg-slate-900 rounded border border-slate-200 dark:border-slate-700 hover:border-blue-500 dark:hover:border-blue-400 cursor-pointer transition-colors"
+                          className="p-3 bg-white dark:bg-slate-900 rounded border border-slate-200 dark:border-slate-700 hover:border-plum-500 dark:hover:border-plum-400 cursor-pointer transition-colors"
                         >
                           <div className="flex items-start justify-between">
                             <div className="flex-1">
@@ -408,7 +408,7 @@ export default function MemberAttendanceView({
                                   Host:{" "}
                                   <Link
                                     href={`${memberBasePath}/${prickle.host.id}`}
-                                    className="text-blue-600 hover:text-blue-700 dark:text-blue-400 hover:underline"
+                                    className="text-plum-600 hover:text-plum-700 dark:text-plum-400 hover:underline"
                                     onClick={(e) => e.stopPropagation()}
                                   >
                                     {prickle.host.name}

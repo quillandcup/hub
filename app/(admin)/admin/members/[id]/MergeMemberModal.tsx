@@ -146,7 +146,7 @@ export default function MergeMemberModal({ primaryMember, isOpen, onClose }: Mer
                     key={m.id}
                     className={`flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-colors ${
                       primaryId === m.id
-                        ? "border-blue-300 dark:border-blue-600 bg-blue-50 dark:bg-blue-950/30"
+                        ? "border-plum-300 dark:border-plum-600 bg-plum-50 dark:bg-plum-950/30"
                         : "border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600"
                     }`}
                   >
@@ -156,14 +156,14 @@ export default function MergeMemberModal({ primaryMember, isOpen, onClose }: Mer
                       value={m.id}
                       checked={primaryId === m.id}
                       onChange={() => setPrimaryId(m.id)}
-                      className="accent-blue-600"
+                      className="accent-plum-600"
                     />
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">{m.name}</p>
                       <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{m.email}</p>
                     </div>
                     {primaryId === m.id && (
-                      <span className="ml-auto text-xs font-medium text-blue-600 dark:text-blue-400 flex-shrink-0">Keep</span>
+                      <span className="ml-auto text-xs font-medium text-plum-600 dark:text-plum-400 flex-shrink-0">Keep</span>
                     )}
                   </label>
                 ))}
@@ -201,8 +201,8 @@ export default function MergeMemberModal({ primaryMember, isOpen, onClose }: Mer
               <p className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1.5">
                 Keep (primary)
               </p>
-              <div className="flex items-center gap-3 p-3 rounded-lg border-2 border-blue-200 dark:border-blue-700 bg-blue-50 dark:bg-blue-950/30">
-                <div className="w-9 h-9 rounded-full bg-blue-200 dark:bg-blue-800 flex items-center justify-center text-sm font-semibold text-blue-700 dark:text-blue-300 flex-shrink-0">
+              <div className="flex items-center gap-3 p-3 rounded-lg border-2 border-plum-200 dark:border-plum-700 bg-plum-50 dark:bg-plum-950/30">
+                <div className="w-9 h-9 rounded-full bg-plum-200 dark:bg-plum-800 flex items-center justify-center text-sm font-semibold text-plum-700 dark:text-plum-300 flex-shrink-0">
                   {primaryMember.name.charAt(0).toUpperCase()}
                 </div>
                 <div className="min-w-0">
@@ -223,12 +223,12 @@ export default function MergeMemberModal({ primaryMember, isOpen, onClose }: Mer
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   placeholder="Search by name or email..."
-                  className="w-full px-3 py-2 text-sm border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 text-sm border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-plum-500"
                   autoFocus
                 />
                 {loading && (
                   <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                    <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                    <div className="w-4 h-4 border-2 border-plum-500 border-t-transparent rounded-full animate-spin" />
                   </div>
                 )}
                 {results.length > 0 && (
@@ -328,7 +328,7 @@ export default function MergeMemberModal({ primaryMember, isOpen, onClose }: Mer
           {conflicts.length > 0 ? (
             <button
               onClick={onClose}
-              className="px-4 py-2 text-sm font-medium bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+              className="px-4 py-2 text-sm font-medium bg-plum-600 hover:bg-plum-700 text-white rounded-lg transition-colors"
             >
               Done
             </button>

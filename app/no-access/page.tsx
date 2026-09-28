@@ -13,7 +13,7 @@ export const metadata: Metadata = {
 // the proxy before reaching it.
 export default function NoAccessPage() {
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center px-4">
+    <div className="min-h-screen bg-canvas dark:bg-slate-950 flex items-center justify-center px-4">
       <div className="max-w-md w-full bg-white dark:bg-slate-900 rounded-lg shadow p-8 text-center">
         <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 mb-3">
           This area is for Quill &amp; Cup staff
@@ -23,13 +23,13 @@ export default function NoAccessPage() {
         </p>
         <Link
           href="/dashboard"
-          className="inline-block px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-colors mb-6"
+          className="inline-block px-4 py-2 rounded-md bg-plum-600 text-white hover:bg-plum-700 transition-colors mb-6"
         >
           Go to your dashboard
         </Link>
         <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">
           Think you should have a membership? Email{" "}
-          <a href="mailto:support@quillandcup.com" className="text-blue-600 dark:text-blue-400 hover:underline">
+          <a href="mailto:support@quillandcup.com" className="text-plum-600 dark:text-plum-400 hover:underline">
             support@quillandcup.com
           </a>{" "}
           and we&apos;ll sort it out.

@@ -19,7 +19,7 @@ function Sparkline({ values }: { values: number[] }) {
   const maxV = Math.max(...values, 1);
   const barWidth = (W - PAD * 2) / values.length;
   return (
-    <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} aria-hidden="true" className="text-blue-500 dark:text-blue-400">
+    <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} aria-hidden="true" className="text-plum-500 dark:text-plum-400">
       {values.map((v, i) => {
         const barHeight = (v / maxV) * (H - PAD * 2);
         const x = PAD + i * barWidth;

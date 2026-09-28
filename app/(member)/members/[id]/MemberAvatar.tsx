@@ -14,7 +14,7 @@ function getInitials(name: string): string {
 
 function getAvatarColor(name: string): string {
   const colors = [
-    "bg-violet-500", "bg-blue-500", "bg-emerald-500",
+    "bg-violet-500", "bg-plum-500", "bg-emerald-500",
     "bg-amber-500", "bg-rose-500", "bg-cyan-500",
   ]
   let hash = 0

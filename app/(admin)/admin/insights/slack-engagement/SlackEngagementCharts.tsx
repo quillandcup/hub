@@ -42,11 +42,11 @@ const DAY_ORDER = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
 function heatColor(count: number, max: number): string {
   if (count === 0) return "#f0f4f8"
   const pct = count / max
-  if (pct >= 0.8) return "#1e3a8a"
-  if (pct >= 0.6) return "#1d4ed8"
-  if (pct >= 0.4) return "#3b82f6"
-  if (pct >= 0.2) return "#93c5fd"
-  return "#dbeafe"
+  if (pct >= 0.8) return "#613048"
+  if (pct >= 0.6) return "#8b3e64"
+  if (pct >= 0.4) return "#b65a88"
+  if (pct >= 0.2) return "#dca4c0"
+  return "#f4e5ed"
 }
 
 function formatHour(h: number): string {
@@ -159,7 +159,7 @@ function HorizontalBars({
   )
 }
 
-function Sparkline({ data, color = "#3b82f6" }: { data: number[]; color?: string }) {
+function Sparkline({ data, color = "#b65a88" }: { data: number[]; color?: string }) {
   const max = Math.max(1, ...data)
   const w = 100
   const h = 24
@@ -416,7 +416,7 @@ export default function SlackEngagementCharts({
         <DayHourHeatmap heatmap={heatmap} />
         <div className="flex items-center justify-center gap-2 mt-3 text-xs text-slate-400 dark:text-slate-500">
           <span>Less</span>
-          {["#f0f4f8", "#dbeafe", "#93c5fd", "#3b82f6", "#1d4ed8", "#1e3a8a"].map((c) => (
+          {["#f0f4f8", "#f4e5ed", "#dca4c0", "#b65a88", "#8b3e64", "#613048"].map((c) => (
             <div
               key={c}
               className="w-4 h-4 rounded border border-slate-200 dark:border-slate-700"
@@ -432,7 +432,7 @@ export default function SlackEngagementCharts({
           <HorizontalBars
             data={channelBarData}
             dataKey="engagement"
-            color="#3b82f6"
+            color="#b65a88"
             tooltipLabel="Engagement"
           />
         </ChartCard>

@@ -73,14 +73,14 @@ export default function MemberFilters({
           onClick={() => handleFilterChange(filter.value)}
           className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
             currentFilter === filter.value
-              ? "bg-blue-600 text-white"
+              ? "bg-plum-600 text-white"
               : "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700"
           }`}
         >
           {filter.label} <span className="opacity-70">({counts[filter.value]})</span>
         </button>
       ))}
-      <div className="ml-auto flex items-center gap-1.5 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 px-3 py-2 focus-within:ring-2 focus-within:ring-blue-500">
+      <div className="ml-auto flex items-center gap-1.5 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 px-3 py-2 focus-within:ring-2 focus-within:ring-plum-500">
         <span className="text-sm leading-none select-none">🔍</span>
         <input
           type="search"

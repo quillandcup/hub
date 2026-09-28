@@ -273,7 +273,7 @@ export function IdentityPanel() {
             <button
               type="submit"
               disabled={savingName || nameInput.trim() === data.realName || !nameInput.trim()}
-              className="px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-4 py-2 bg-plum-600 text-white text-sm rounded-md hover:bg-plum-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {savingName ? "Saving…" : "Save"}
             </button>
@@ -327,7 +327,7 @@ export function IdentityPanel() {
               (Number(birthdayMonth) === (data.birthdayMonth ?? 0) &&
                 Number(birthdayDay) === (data.birthdayDay ?? 0))
             }
-            className="px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-4 py-2 bg-plum-600 text-white text-sm rounded-md hover:bg-plum-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {savingBirthday ? "Saving…" : "Save"}
           </button>
@@ -369,7 +369,7 @@ export function IdentityPanel() {
           <button
             type="submit"
             disabled={addingNameAlias || !nameAliasInput.trim()}
-            className="px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-4 py-2 bg-plum-600 text-white text-sm rounded-md hover:bg-plum-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {addingNameAlias ? "Adding…" : "Add"}
           </button>
@@ -409,7 +409,7 @@ export function IdentityPanel() {
           <button
             type="submit"
             disabled={addingEmailAlias || !emailAliasInput.trim()}
-            className="px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-4 py-2 bg-plum-600 text-white text-sm rounded-md hover:bg-plum-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {addingEmailAlias ? "Adding…" : "Add"}
           </button>

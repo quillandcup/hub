@@ -94,10 +94,10 @@ export default async function PrickleDetailPage({
 
   if (!prickle) {
     return (
-      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center">
+      <div className="min-h-screen bg-canvas dark:bg-slate-950 flex items-center justify-center">
         <div className="text-center">
           <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 mb-2">Prickle not found</h1>
-          {backLink("text-blue-600 hover:text-blue-700 dark:text-blue-400")}
+          {backLink("text-plum-600 hover:text-plum-700 dark:text-plum-400")}
         </div>
       </div>
     );
@@ -205,10 +205,10 @@ export default async function PrickleDetailPage({
     ) : null;
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
+    <div className="min-h-screen bg-canvas dark:bg-slate-950">
       <header className="border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
         <div className="container mx-auto px-6 py-4">
-          {backLink("text-blue-600 hover:text-blue-700 dark:text-blue-400 text-sm mb-2 inline-block")}
+          {backLink("text-plum-600 hover:text-plum-700 dark:text-plum-400 text-sm mb-2 inline-block")}
           <div className="flex items-center justify-between gap-3 flex-wrap mt-2">
             <h1 className="text-2xl font-bold">Prickle Details</h1>
             {calendarControl}

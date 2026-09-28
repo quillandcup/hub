@@ -331,7 +331,7 @@ export default function MissingHostsClient() {
               <div className="mt-4 pt-4 border-t border-gray-200 dark:border-slate-700">
                 <button
                   onClick={() => setShowDetailedStats(!showDetailedStats)}
-                  className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 flex items-center gap-1"
+                  className="text-sm text-plum-600 dark:text-plum-400 hover:text-plum-700 dark:hover:text-plum-300 flex items-center gap-1"
                 >
                   {showDetailedStats ? '▼' : '▶'} Detailed Breakdown
                 </button>

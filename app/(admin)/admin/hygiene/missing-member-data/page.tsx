@@ -27,7 +27,7 @@ export default async function MissingMemberDataPage() {
         <div className="mb-6">
           <Link
             href="/admin/hygiene"
-            className="text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+            className="text-sm text-plum-600 hover:text-plum-700 dark:text-plum-400 dark:hover:text-plum-300"
           >
             ← Data Hygiene Dashboard
           </Link>

@@ -209,7 +209,7 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold">Details</h2>
           {!editing && (
-            <button onClick={startEdit} className="text-blue-600 dark:text-blue-400 hover:underline text-sm">
+            <button onClick={startEdit} className="text-plum-600 dark:text-plum-400 hover:underline text-sm">
               Edit
             </button>
           )}
@@ -318,7 +318,7 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
               />
             </div>
             <div className="flex gap-2">
-              <button type="submit" disabled={saving} className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 text-sm">
+              <button type="submit" disabled={saving} className="px-4 py-2 bg-plum-600 text-white rounded hover:bg-plum-700 disabled:opacity-50 text-sm">
                 {saving ? "Saving..." : "Save"}
               </button>
               <button
@@ -381,7 +381,7 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
                     href={event.google_photos_album_url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-blue-600 dark:text-blue-400 hover:underline"
+                    className="text-plum-600 dark:text-plum-400 hover:underline"
                   >
                     {event.google_photos_album_url}
                   </a>
@@ -421,7 +421,7 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
           <button
             type="submit"
             disabled={addingAttendee || !addingMember}
-            className="px-3 py-1.5 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm disabled:opacity-50"
+            className="px-3 py-1.5 bg-plum-600 text-white rounded hover:bg-plum-700 text-sm disabled:opacity-50"
           >
             {addingAttendee ? "Adding..." : "Add attendee"}
           </button>
@@ -435,7 +435,7 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
               <li key={attendee.id} className="flex items-center justify-between py-2">
                 <Link
                   href={`/admin/members/${attendee.memberId}`}
-                  className="text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline"
+                  className="text-sm font-medium text-plum-600 dark:text-plum-400 hover:underline"
                 >
                   {attendee.memberName}
                 </Link>
@@ -458,7 +458,7 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
           <h2 className="text-lg font-semibold">Photos ({visiblePhotos.length})</h2>
           <a
             href={`/api/oauth/google/start?eventId=${eventId}`}
-            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm"
+            className="px-4 py-2 bg-plum-600 text-white rounded hover:bg-plum-700 text-sm"
           >
             Import Photos from Google Photos
           </a>

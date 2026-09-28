@@ -28,10 +28,10 @@ export default async function ResubscriptionsPage() {
   const data = await fetchResubscriptionsData(supabase);
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
+    <div className="min-h-screen bg-canvas dark:bg-slate-950">
       <header className="border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
         <div className="container mx-auto px-6 py-4">
-          <Link href="/admin" className="text-blue-600 hover:text-blue-700 dark:text-blue-400 text-sm mb-2 inline-block">
+          <Link href="/admin" className="text-plum-600 hover:text-plum-700 dark:text-plum-400 text-sm mb-2 inline-block">
             ← Back to Dashboard
           </Link>
           <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">
@@ -109,7 +109,7 @@ function StatCard({
 }) {
   return (
     <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-6 text-center">
-      <div className={`text-4xl font-bold text-blue-600 dark:text-blue-400 ${isText ? "" : "tabular-nums"}`}>{value}</div>
+      <div className={`text-4xl font-bold text-plum-600 dark:text-plum-400 ${isText ? "" : "tabular-nums"}`}>{value}</div>
       <div className="text-sm font-medium text-slate-700 dark:text-slate-300 mt-1">{label}</div>
       {sub && <div className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">{sub}</div>}
     </div>

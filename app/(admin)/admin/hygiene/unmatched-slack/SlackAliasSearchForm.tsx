@@ -123,7 +123,7 @@ export default function SlackAliasSearchForm({
           <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
             Search for a member to create an alias, or skip users who aren&apos;t members
           </p>
-          <div className="mt-2 text-2xl font-bold text-blue-600 dark:text-blue-400">
+          <div className="mt-2 text-2xl font-bold text-plum-600 dark:text-plum-400">
             {users.length}
           </div>
           <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
@@ -189,7 +189,7 @@ export default function SlackAliasSearchForm({
                             type="button"
                             onClick={() => handleSelectMember(user.slack_user_id, member)}
                             disabled={matchingUserId === user.slack_user_id}
-                            className="px-2 py-1 text-xs bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 rounded-full hover:bg-blue-100 dark:hover:bg-blue-900/40 disabled:opacity-50"
+                            className="px-2 py-1 text-xs bg-plum-50 dark:bg-plum-900/20 text-plum-700 dark:text-plum-300 border border-plum-200 dark:border-plum-800 rounded-full hover:bg-plum-100 dark:hover:bg-plum-900/40 disabled:opacity-50"
                             title={member.email}
                           >
                             {member.name}
@@ -243,8 +243,8 @@ export default function SlackAliasSearchForm({
       </div>
 
       {/* Instructions */}
-      <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-        <p className="text-sm text-blue-800 dark:text-blue-200">
+      <div className="bg-plum-50 dark:bg-plum-900/20 border border-plum-200 dark:border-plum-800 rounded-lg p-4">
+        <p className="text-sm text-plum-800 dark:text-plum-200">
           <strong>How to match:</strong> Type in the search box to find a member by name or
           email — selecting one immediately links that Slack user to the member. If a Slack
           user isn&apos;t a member (e.g. a guest or bot that slipped through), choose a reason

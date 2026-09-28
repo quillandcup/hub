@@ -12,7 +12,7 @@ function SortIcon({ active, direction }: SortIconProps) {
   if (!active) {
     return <span className="ml-1 text-slate-300 dark:text-slate-600">↕</span>;
   }
-  return <span className="ml-1 text-blue-500">{direction === "asc" ? "↑" : "↓"}</span>;
+  return <span className="ml-1 text-plum-500">{direction === "asc" ? "↑" : "↓"}</span>;
 }
 
 const DEFAULT_CELL_CLASS = "px-6 py-3 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider";

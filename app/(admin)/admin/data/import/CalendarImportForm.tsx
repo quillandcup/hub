@@ -80,7 +80,7 @@ export default function CalendarImportForm() {
         <button
           type="submit"
           disabled={importing}
-          className="w-full px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-semibold rounded-lg transition-colors"
+          className="w-full px-6 py-3 bg-plum-600 hover:bg-plum-700 disabled:bg-plum-400 text-white font-semibold rounded-lg transition-colors"
         >
           {importing ? "Syncing..." : "Sync Calendar"}
         </button>
@@ -91,13 +91,13 @@ export default function CalendarImportForm() {
           className={`mt-6 p-4 rounded-lg ${
             result.error
               ? "bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800"
-              : "bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800"
+              : "bg-plum-50 dark:bg-plum-900/20 border border-plum-200 dark:border-plum-800"
           }`}
         >
           {result.error ? (
             <p className="text-red-800 dark:text-red-200">{result.error}</p>
           ) : (
-            <div className="text-blue-800 dark:text-blue-200">
+            <div className="text-plum-800 dark:text-plum-200">
               <p className="font-semibold mb-2">✓ Calendar Import & Processing Complete</p>
               <ul className="text-sm space-y-1">
                 <li>Total events found: {result.total || 0}</li>
@@ -107,7 +107,7 @@ export default function CalendarImportForm() {
                 <li>Skipped (unchanged/invalid): {result.skipped || 0}</li>
               </ul>
               {result.processing?.processed && result.processing.processed.length > 0 && (
-                <div className="mt-3 pl-4 border-l-2 border-blue-300 dark:border-blue-700">
+                <div className="mt-3 pl-4 border-l-2 border-plum-300 dark:border-plum-700">
                   <p className="font-semibold">Processed to Silver:</p>
                   {result.processing.processed.map((p: any, i: number) => (
                     <div key={i} className="text-sm">

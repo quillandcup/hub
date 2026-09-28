@@ -87,7 +87,7 @@ export default function MemberHostingCard({
                   className="group flex items-baseline justify-between gap-3 py-2 text-sm"
                 >
                   <span className="min-w-0">
-                    <span className="font-medium text-slate-900 dark:text-slate-100 group-hover:text-blue-600 dark:group-hover:text-blue-400">
+                    <span className="font-medium text-slate-900 dark:text-slate-100 group-hover:text-plum-600 dark:group-hover:text-plum-400">
                       {slot.upcomingCount > 1 ? `${slot.dayOfWeek}s` : slot.dayOfWeek} · {slot.timeLabel}
                     </span>
                     <span className="text-slate-500 dark:text-slate-400"> — {slot.typeName}</span>

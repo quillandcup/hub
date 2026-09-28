@@ -75,7 +75,7 @@ export default function BadgeRecipientsTable({
               <td className="px-6 py-4 whitespace-nowrap">
                 <Link
                   href={`/admin/members/${recipient.memberId}`}
-                  className="text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline"
+                  className="text-sm font-medium text-plum-600 dark:text-plum-400 hover:underline"
                 >
                   {recipient.memberName}
                 </Link>

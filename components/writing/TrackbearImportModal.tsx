@@ -75,7 +75,7 @@ export default function TrackbearImportModal({ isOpen, onClose, onImported }: Tr
                 href="https://trackbear.app/account"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-blue-600 dark:text-blue-400 hover:underline"
+                className="text-plum-600 dark:text-plum-400 hover:underline"
               >
                 TrackBear account page
               </a>{" "}
@@ -133,7 +133,7 @@ export default function TrackbearImportModal({ isOpen, onClose, onImported }: Tr
             <button
               type="submit"
               disabled={isPending}
-              className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="px-4 py-2 text-sm bg-plum-600 text-white rounded-lg hover:bg-plum-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {isPending ? "Importing..." : "Import"}
             </button>
@@ -193,7 +193,7 @@ function ImportResult({ result, onDone }: { result: TrackbearImportResult; onDon
         <button
           type="button"
           onClick={onDone}
-          className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          className="px-4 py-2 text-sm bg-plum-600 text-white rounded-lg hover:bg-plum-700 transition-colors"
         >
           Done
         </button>

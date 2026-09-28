@@ -95,7 +95,7 @@ export default function KajabiImportForm() {
               type="file"
               accept=".csv"
               onChange={(e) => setMembersFile(e.target.files?.[0] || null)}
-              className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 dark:file:bg-blue-900/20 dark:file:text-blue-400"
+              className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-plum-50 file:text-plum-700 hover:file:bg-plum-100 dark:file:bg-plum-900/20 dark:file:text-plum-400"
             />
             {membersFile && (
               <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
@@ -112,7 +112,7 @@ export default function KajabiImportForm() {
               type="file"
               accept=".csv"
               onChange={(e) => setSubscriptionsFile(e.target.files?.[0] || null)}
-              className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 dark:file:bg-blue-900/20 dark:file:text-blue-400"
+              className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-plum-50 file:text-plum-700 hover:file:bg-plum-100 dark:file:bg-plum-900/20 dark:file:text-plum-400"
             />
             {subscriptionsFile && (
               <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
@@ -125,7 +125,7 @@ export default function KajabiImportForm() {
         <button
           type="submit"
           disabled={loading || (!membersFile && !subscriptionsFile)}
-          className="w-full px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-semibold rounded-lg transition-colors"
+          className="w-full px-6 py-3 bg-plum-600 hover:bg-plum-700 disabled:bg-plum-400 text-white font-semibold rounded-lg transition-colors"
         >
           {loading ? "Importing..." : "Import Kajabi CSVs"}
         </button>
@@ -141,14 +141,14 @@ export default function KajabiImportForm() {
       {result && (
         <div className="mt-6 space-y-4">
           {result.members && (
-            <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-              <p className="text-sm text-blue-800 dark:text-blue-200 font-semibold mb-2">
+            <div className="p-4 bg-plum-50 dark:bg-plum-900/20 border border-plum-200 dark:border-plum-800 rounded-lg">
+              <p className="text-sm text-plum-800 dark:text-plum-200 font-semibold mb-2">
                 ✓ Members Import & Processing Complete
               </p>
-              <div className="text-sm text-blue-700 dark:text-blue-300 space-y-1">
+              <div className="text-sm text-plum-700 dark:text-plum-300 space-y-1">
                 <p>• Imported {result.members.imported} members to Bronze</p>
                 {result.members.processing && result.members.processing.length > 0 && (
-                  <div className="mt-2 pl-4 border-l-2 border-blue-300 dark:border-blue-700">
+                  <div className="mt-2 pl-4 border-l-2 border-plum-300 dark:border-plum-700">
                     <p className="font-semibold">Processed to Silver:</p>
                     {result.members.processing.map((p: any, i: number) => (
                       <div key={i}>
@@ -174,11 +174,11 @@ export default function KajabiImportForm() {
           )}
 
           {result.subscriptions && (
-            <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-              <p className="text-sm text-blue-800 dark:text-blue-200 font-semibold mb-2">
+            <div className="p-4 bg-plum-50 dark:bg-plum-900/20 border border-plum-200 dark:border-plum-800 rounded-lg">
+              <p className="text-sm text-plum-800 dark:text-plum-200 font-semibold mb-2">
                 ✓ Subscriptions Import & Processing Complete
               </p>
-              <div className="text-sm text-blue-700 dark:text-blue-300 space-y-1">
+              <div className="text-sm text-plum-700 dark:text-plum-300 space-y-1">
                 <p>• Imported {result.subscriptions.imported} subscription records to Bronze</p>
                 <p>• Import timestamp: {new Date(result.subscriptions.importTimestamp).toLocaleString()}</p>
                 {result.subscriptions.statusBreakdown && (
@@ -190,7 +190,7 @@ export default function KajabiImportForm() {
                   </div>
                 )}
                 {result.subscriptions.processing && result.subscriptions.processing.length > 0 && (
-                  <div className="mt-2 pl-4 border-l-2 border-blue-300 dark:border-blue-700">
+                  <div className="mt-2 pl-4 border-l-2 border-plum-300 dark:border-plum-700">
                     <p className="font-semibold">Processed to Silver:</p>
                     {result.subscriptions.processing.map((p: any, i: number) => (
                       <div key={i}>

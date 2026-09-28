@@ -54,7 +54,7 @@ export function PillFilter<T extends string>({
               onClick={() => onChange(opt.id)}
               className={`${sizeClass} transition-colors ${i > 0 ? "border-l border-slate-300 dark:border-slate-600" : ""} ${
                 active
-                  ? "bg-blue-600 text-white"
+                  ? "bg-plum-600 text-white"
                   : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700"
               }`}
             >
@@ -79,7 +79,7 @@ export function PillFilter<T extends string>({
             onClick={() => onChange(opt.id)}
             className={`${sizeClass} rounded-full border font-medium whitespace-nowrap transition-colors ${
               active
-                ? "bg-blue-600 border-blue-600 text-white dark:bg-blue-500 dark:border-blue-500"
+                ? "bg-plum-600 border-plum-600 text-white dark:bg-plum-500 dark:border-plum-500"
                 : "bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
             }`}
           >

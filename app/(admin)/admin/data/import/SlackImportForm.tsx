@@ -76,7 +76,7 @@ export default function SlackImportForm() {
               accept=".csv"
               onChange={(e) => setUsersFile(e.target.files?.[0] || null)}
               required
-              className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 dark:file:bg-blue-900/20 dark:file:text-blue-400"
+              className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-plum-50 file:text-plum-700 hover:file:bg-plum-100 dark:file:bg-plum-900/20 dark:file:text-plum-400"
             />
             {usersFile && (
               <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
@@ -94,7 +94,7 @@ export default function SlackImportForm() {
               accept=".csv"
               onChange={(e) => setChannelsFile(e.target.files?.[0] || null)}
               required
-              className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 dark:file:bg-blue-900/20 dark:file:text-blue-400"
+              className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-plum-50 file:text-plum-700 hover:file:bg-plum-100 dark:file:bg-plum-900/20 dark:file:text-plum-400"
             />
             {channelsFile && (
               <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
@@ -112,7 +112,7 @@ export default function SlackImportForm() {
               accept=".csv"
               onChange={(e) => setMessagesFile(e.target.files?.[0] || null)}
               required
-              className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 dark:file:bg-blue-900/20 dark:file:text-blue-400"
+              className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-plum-50 file:text-plum-700 hover:file:bg-plum-100 dark:file:bg-plum-900/20 dark:file:text-plum-400"
             />
             {messagesFile && (
               <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
@@ -130,7 +130,7 @@ export default function SlackImportForm() {
               accept=".csv"
               onChange={(e) => setReactionsFile(e.target.files?.[0] || null)}
               required
-              className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 dark:file:bg-blue-900/20 dark:file:text-blue-400"
+              className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-plum-50 file:text-plum-700 hover:file:bg-plum-100 dark:file:bg-plum-900/20 dark:file:text-plum-400"
             />
             {reactionsFile && (
               <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
@@ -143,7 +143,7 @@ export default function SlackImportForm() {
         <button
           type="submit"
           disabled={loading || !allFilesSelected}
-          className="w-full px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-semibold rounded-lg transition-colors"
+          className="w-full px-6 py-3 bg-plum-600 hover:bg-plum-700 disabled:bg-plum-400 text-white font-semibold rounded-lg transition-colors"
         >
           {loading ? "Importing..." : "Import Slack CSVs"}
         </button>
@@ -157,26 +157,26 @@ export default function SlackImportForm() {
       )}
 
       {result && (
-        <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-          <p className="text-sm text-blue-800 dark:text-blue-200 font-semibold mb-2">
+        <div className="mt-6 p-4 bg-plum-50 dark:bg-plum-900/20 border border-plum-200 dark:border-plum-800 rounded-lg">
+          <p className="text-sm text-plum-800 dark:text-plum-200 font-semibold mb-2">
             ✓ Slack Import & Processing Complete
           </p>
-          <div className="text-sm text-blue-700 dark:text-blue-300 space-y-1">
+          <div className="text-sm text-plum-700 dark:text-plum-300 space-y-1">
             <p>• {result.imported?.users || 0} users</p>
             <p>• {result.imported?.channels || 0} channels</p>
             <p>• {result.imported?.messages || 0} messages</p>
             <p>• {result.imported?.reactions || 0} reactions</p>
           </div>
           {result.dateRange && (
-            <p className="mt-3 text-sm text-blue-700 dark:text-blue-300">
+            <p className="mt-3 text-sm text-plum-700 dark:text-plum-300">
               📅 Detected date range: {result.dateRange.fromDate} to {result.dateRange.toDate}
             </p>
           )}
           {result.processing && result.processing.length > 0 && (
-            <div className="mt-3 pl-4 border-l-2 border-blue-300 dark:border-blue-700">
-              <p className="font-semibold text-blue-800 dark:text-blue-200">Processed to Silver:</p>
+            <div className="mt-3 pl-4 border-l-2 border-plum-300 dark:border-plum-700">
+              <p className="font-semibold text-plum-800 dark:text-plum-200">Processed to Silver:</p>
               {result.processing.map((p: any, i: number) => (
-                <div key={i} className="text-sm text-blue-700 dark:text-blue-300">
+                <div key={i} className="text-sm text-plum-700 dark:text-plum-300">
                   <p className="font-semibold">• {p.table}: {p.success ? '✓' : '✗'}</p>
                   {p.processed && (
                     <div className="pl-4 space-y-0.5">

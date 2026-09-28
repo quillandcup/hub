@@ -66,8 +66,8 @@ function ChipGroup<T extends string>({
             onClick={() => onChange(opt.value)}
             className={`px-4 py-2 rounded-full text-sm font-medium transition-colors border ${
               selected
-                ? "bg-blue-600 border-blue-600 text-white"
-                : "bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:border-blue-400"
+                ? "bg-plum-600 border-plum-600 text-white"
+                : "bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:border-plum-400"
             }`}
             title={opt.hint || undefined}
           >
@@ -154,7 +154,7 @@ export default function PrickleWizard({ members }: PrickleWizardProps) {
           </h2>
           <button
             onClick={startOver}
-            className="text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 font-medium"
+            className="text-sm text-plum-600 hover:text-plum-700 dark:text-plum-400 font-medium"
           >
             Start over
           </button>
@@ -208,7 +208,7 @@ export default function PrickleWizard({ members }: PrickleWizardProps) {
                   <Link
                     key={occ.id}
                     href={`/prickles/${occ.id}`}
-                    className="px-3 py-1.5 rounded-lg text-sm bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors"
+                    className="px-3 py-1.5 rounded-lg text-sm bg-plum-50 dark:bg-plum-900/20 text-plum-700 dark:text-plum-300 hover:bg-plum-100 dark:hover:bg-plum-900/40 transition-colors"
                   >
                     {formatOccurrence(occ.startTime, timezone)}
                   </Link>
@@ -228,7 +228,7 @@ export default function PrickleWizard({ members }: PrickleWizardProps) {
           <div
             key={i}
             className={`h-1.5 flex-1 rounded-full ${
-              i <= step ? "bg-blue-600" : "bg-slate-200 dark:bg-slate-700"
+              i <= step ? "bg-plum-600" : "bg-slate-200 dark:bg-slate-700"
             }`}
           />
         ))}
@@ -300,7 +300,7 @@ export default function PrickleWizard({ members }: PrickleWizardProps) {
           <button
             type="button"
             onClick={() => setStep((s) => s + 1)}
-            className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
+            className="px-6 py-2 bg-plum-600 hover:bg-plum-700 text-white rounded-lg font-medium transition-colors"
           >
             Next →
           </button>
@@ -309,7 +309,7 @@ export default function PrickleWizard({ members }: PrickleWizardProps) {
             type="button"
             onClick={handleSubmit}
             disabled={loading}
-            className="px-6 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg font-medium transition-colors"
+            className="px-6 py-2 bg-plum-600 hover:bg-plum-700 disabled:bg-plum-400 text-white rounded-lg font-medium transition-colors"
           >
             {loading ? "Sniffing around..." : "Show me prickles 🦔"}
           </button>

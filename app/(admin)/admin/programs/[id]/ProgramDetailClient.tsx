@@ -454,7 +454,7 @@ export default function ProgramDetailClient({ programId }: { programId: string }
         <button
           onClick={handleSaveOfferNames}
           disabled={savingOfferNames}
-          className="px-3 py-1.5 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm disabled:opacity-50"
+          className="px-3 py-1.5 bg-plum-600 text-white rounded hover:bg-plum-700 text-sm disabled:opacity-50"
         >
           {savingOfferNames ? "Saving..." : "Save Offer Names"}
         </button>
@@ -467,7 +467,7 @@ export default function ProgramDetailClient({ programId }: { programId: string }
           {!showCohortForm && (
             <button
               onClick={() => setShowCohortForm(true)}
-              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm"
+              className="px-4 py-2 bg-plum-600 text-white rounded hover:bg-plum-700 text-sm"
             >
               Add Cohort
             </button>
@@ -526,7 +526,7 @@ export default function ProgramDetailClient({ programId }: { programId: string }
               />
             </div>
             <div className="flex gap-2">
-              <button type="submit" disabled={savingCohort} className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50">
+              <button type="submit" disabled={savingCohort} className="px-4 py-2 bg-plum-600 text-white rounded hover:bg-plum-700 disabled:opacity-50">
                 {savingCohort ? "Saving..." : "Create Cohort"}
               </button>
               <button
@@ -590,7 +590,7 @@ export default function ProgramDetailClient({ programId }: { programId: string }
                       />
                     </div>
                     <div className="flex gap-2">
-                      <button type="submit" disabled={savingCohortEdit} className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 text-sm">
+                      <button type="submit" disabled={savingCohortEdit} className="px-4 py-2 bg-plum-600 text-white rounded hover:bg-plum-700 disabled:opacity-50 text-sm">
                         {savingCohortEdit ? "Saving..." : "Save"}
                       </button>
                       <button
@@ -614,7 +614,7 @@ export default function ProgramDetailClient({ programId }: { programId: string }
                     <div className="flex gap-3 shrink-0">
                       <button
                         onClick={() => startEditCohort(cohort)}
-                        className="text-blue-600 dark:text-blue-400 hover:underline text-sm"
+                        className="text-plum-600 dark:text-plum-400 hover:underline text-sm"
                       >
                         Edit
                       </button>
@@ -663,7 +663,7 @@ export default function ProgramDetailClient({ programId }: { programId: string }
                         />
                         {enrollError && <p className="text-xs text-red-600 mt-1">{enrollError}</p>}
                       </div>
-                      <button type="submit" disabled={enrolling || !enrollMember} className="px-3 py-1.5 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm disabled:opacity-50">
+                      <button type="submit" disabled={enrolling || !enrollMember} className="px-3 py-1.5 bg-plum-600 text-white rounded hover:bg-plum-700 text-sm disabled:opacity-50">
                         {enrolling ? "Enrolling..." : "Enroll"}
                       </button>
                       <button
@@ -682,14 +682,14 @@ export default function ProgramDetailClient({ programId }: { programId: string }
                     <div className="flex items-center gap-3">
                       <button
                         onClick={() => setEnrollingCohortId(cohort.id)}
-                        className="text-blue-600 dark:text-blue-400 hover:underline text-sm"
+                        className="text-plum-600 dark:text-plum-400 hover:underline text-sm"
                       >
                         + Enroll a member
                       </button>
                       <button
                         onClick={() => handleFindMatches(cohort.id)}
                         disabled={matchesLoadingCohortId === cohort.id}
-                        className="text-blue-600 dark:text-blue-400 hover:underline text-sm disabled:opacity-50"
+                        className="text-plum-600 dark:text-plum-400 hover:underline text-sm disabled:opacity-50"
                       >
                         {matchesLoadingCohortId === cohort.id ? "Searching..." : "Find Kajabi matches"}
                       </button>
@@ -697,7 +697,7 @@ export default function ProgramDetailClient({ programId }: { programId: string }
                   )}
 
                   {matchesByCohortId[cohort.id] !== undefined && (
-                    <div className="mt-3 p-3 border border-blue-200 dark:border-blue-900 rounded bg-blue-50 dark:bg-blue-950/30">
+                    <div className="mt-3 p-3 border border-plum-200 dark:border-plum-900 rounded bg-plum-50 dark:bg-plum-950/30">
                       {matchesError && <p className="text-xs text-red-600 mb-2">{matchesError}</p>}
                       {!offerNamesConfiguredByCohortId[cohort.id] ? (
                         <>
@@ -779,7 +779,7 @@ export default function ProgramDetailClient({ programId }: { programId: string }
                                 enrollingSelectedCohortId === cohort.id ||
                                 (selectedCandidates[cohort.id]?.size ?? 0) === 0
                               }
-                              className="px-3 py-1.5 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm disabled:opacity-50"
+                              className="px-3 py-1.5 bg-plum-600 text-white rounded hover:bg-plum-700 text-sm disabled:opacity-50"
                             >
                               {enrollingSelectedCohortId === cohort.id
                                 ? "Enrolling..."

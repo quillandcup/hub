@@ -101,7 +101,7 @@ function StatCard({
   return (
     <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-6 text-center">
       <div className="text-3xl mb-2">{emoji}</div>
-      <div className="text-4xl font-bold text-blue-600 dark:text-blue-400 tabular-nums">{value}</div>
+      <div className="text-4xl font-bold text-plum-600 dark:text-plum-400 tabular-nums">{value}</div>
       <div className="text-sm font-medium text-slate-700 dark:text-slate-300 mt-1">{label}</div>
       {sub && <div className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">{sub}</div>}
     </div>

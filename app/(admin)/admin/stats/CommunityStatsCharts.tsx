@@ -32,10 +32,10 @@ const TOOLTIP_STYLE = {
 }
 
 function heatClass(pct: number): string {
-  if (pct >= 90) return "bg-blue-600 text-white"
-  if (pct >= 75) return "bg-blue-400 text-white"
-  if (pct >= 50) return "bg-blue-200 text-slate-700"
-  if (pct >= 25) return "bg-blue-100 text-slate-600"
+  if (pct >= 90) return "bg-plum-600 text-white"
+  if (pct >= 75) return "bg-plum-400 text-white"
+  if (pct >= 50) return "bg-plum-200 text-slate-700"
+  if (pct >= 25) return "bg-plum-100 text-slate-600"
   if (pct > 0)   return "bg-slate-100 text-slate-400"
   return "bg-slate-50 text-slate-300"
 }
@@ -48,11 +48,11 @@ function formatHour(h: number): string {
 }
 
 function clockFill(pct: number): string {
-  if (pct >= 90) return "#1e3a8a" // blue-900
-  if (pct >= 75) return "#1d4ed8" // blue-700
-  if (pct >= 50) return "#3b82f6" // blue-500
-  if (pct >= 25) return "#93c5fd" // blue-300
-  if (pct > 0)   return "#dbeafe" // blue-100
+  if (pct >= 90) return "#613048" // plum-900
+  if (pct >= 75) return "#8b3e64" // plum-700
+  if (pct >= 50) return "#b65a88" // plum-500
+  if (pct >= 25) return "#dca4c0" // plum-300
+  if (pct > 0)   return "#f4e5ed" // plum-100
   return "#f0f4f8"
 }
 
@@ -265,7 +265,7 @@ export default function CommunityStatsCharts({
           <HorizontalBars
             data={topHosts}
             dataKey="count"
-            color="#3b82f6"
+            color="#b65a88"
             tooltipLabel="Hosted"
           />
         </ChartCard>
@@ -322,7 +322,7 @@ export default function CommunityStatsCharts({
         <ClockHeatmap hourCoverage={hourCoverage} />
         <div className="flex items-center justify-center gap-2 mt-2 text-xs text-slate-400 dark:text-slate-500">
           <span>Less</span>
-          {["#f0f4f8", "#dbeafe", "#93c5fd", "#3b82f6", "#1d4ed8", "#1e3a8a"].map((c) => (
+          {["#f0f4f8", "#f4e5ed", "#dca4c0", "#b65a88", "#8b3e64", "#613048"].map((c) => (
             <div key={c} className="w-4 h-4 rounded border border-slate-200 dark:border-slate-700" style={{ backgroundColor: c }} />
           ))}
           <span>More</span>

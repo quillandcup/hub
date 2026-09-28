@@ -40,7 +40,7 @@ export default async function MemberLayout({
   if (!effectiveIdentity) redirect('/admin')
 
   return (
-    <div className="flex h-dvh overflow-hidden bg-slate-50 dark:bg-slate-950">
+    <div className="flex h-dvh overflow-hidden bg-canvas dark:bg-slate-950">
       <MemberNavigation isAdmin={isAdmin} enabledFeatures={enabledFeatures} />
       <div className="flex flex-col flex-1 min-w-0">
         {effectiveIdentity.isSudo && (

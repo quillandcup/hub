@@ -108,7 +108,7 @@ export default function ProgramsClient() {
       {!showForm && (
         <button
           onClick={() => setShowForm(true)}
-          className="mb-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+          className="mb-4 px-4 py-2 bg-plum-600 text-white rounded hover:bg-plum-700"
         >
           Add Program
         </button>
@@ -137,7 +137,7 @@ export default function ProgramsClient() {
             />
           </div>
           <div className="flex gap-2">
-            <button type="submit" disabled={saving} className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50">
+            <button type="submit" disabled={saving} className="px-4 py-2 bg-plum-600 text-white rounded hover:bg-plum-700 disabled:opacity-50">
               {saving ? "Saving..." : "Create Program"}
             </button>
             <button
@@ -188,7 +188,7 @@ export default function ProgramsClient() {
                   <td className="px-4 py-3">
                     <Link
                       href={`/admin/programs/${program.id}`}
-                      className="font-medium text-blue-600 dark:text-blue-400 hover:underline"
+                      className="font-medium text-plum-600 dark:text-plum-400 hover:underline"
                     >
                       {program.name}
                     </Link>

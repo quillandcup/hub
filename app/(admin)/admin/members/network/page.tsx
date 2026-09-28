@@ -30,7 +30,7 @@ export default async function MemberNetworkPage() {
 
   if (!members || members.length === 0) {
     return (
-      <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
+      <div className="min-h-screen bg-canvas dark:bg-slate-950">
         <main className="container mx-auto px-6 py-8">
           <div className="bg-white dark:bg-slate-900 rounded-lg shadow p-12 text-center">
             <p className="text-slate-500 dark:text-slate-400">
@@ -107,12 +107,12 @@ export default async function MemberNetworkPage() {
   const networkData = { nodes, edges };
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
+    <div className="min-h-screen bg-canvas dark:bg-slate-950">
       <header className="border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
         <div className="container mx-auto px-6 py-4">
           <Link
             href="/admin/members"
-            className="text-blue-600 hover:text-blue-700 dark:text-blue-400 text-sm mb-2 inline-block"
+            className="text-plum-600 hover:text-plum-700 dark:text-plum-400 text-sm mb-2 inline-block"
           >
             ← Back to Members
           </Link>

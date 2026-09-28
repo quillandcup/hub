@@ -165,7 +165,7 @@ export default function MemberIdentityPanel({
             <button
               type="submit"
               disabled={savingName || !nameChanged}
-              className="px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-4 py-2 bg-plum-600 text-white text-sm rounded-md hover:bg-plum-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {savingName ? "Saving…" : "Save"}
             </button>
@@ -194,7 +194,7 @@ export default function MemberIdentityPanel({
             disabled={settingDefaultId === "legal" || displayName === null}
             className={`px-3 py-1.5 rounded-md border text-sm ${
               displayName === null
-                ? "border-blue-300 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"
+                ? "border-plum-300 dark:border-plum-700 bg-plum-50 dark:bg-plum-900/30 text-plum-700 dark:text-plum-300"
                 : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
             }`}
           >
@@ -207,7 +207,7 @@ export default function MemberIdentityPanel({
                 key={alias.id}
                 className={`pl-3 pr-1.5 py-1.5 rounded-md border text-sm flex items-center gap-2 ${
                   isDefault
-                    ? "border-blue-300 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"
+                    ? "border-plum-300 dark:border-plum-700 bg-plum-50 dark:bg-plum-900/30 text-plum-700 dark:text-plum-300"
                     : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300"
                 } ${!alias.active ? "opacity-50" : ""}`}
               >
@@ -250,7 +250,7 @@ export default function MemberIdentityPanel({
           <button
             type="submit"
             disabled={addingPenName || !penNameInput.trim()}
-            className="px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-4 py-2 bg-plum-600 text-white text-sm rounded-md hover:bg-plum-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {addingPenName ? "Adding…" : "Add"}
           </button>

@@ -182,14 +182,14 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
           <button
             type="button"
             onClick={() => setShowEditDetails(true)}
-            className="text-blue-600 hover:text-blue-700 dark:text-blue-400"
+            className="text-plum-600 hover:text-plum-700 dark:text-plum-400"
           >
             ✏️ Edit details
           </button>
         </div>
         <a
           href={`/api/projects/export?projectId=${project.id}`}
-          className="text-blue-600 hover:text-blue-700 dark:text-blue-400"
+          className="text-plum-600 hover:text-plum-700 dark:text-plum-400"
         >
           ⬇ Export CSV
         </a>
@@ -221,7 +221,7 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
               {project.book.price != null && <span>· ${project.book.price.toFixed(2)}</span>}
             </p>
             <p className="text-xs mt-2">
-              <Link href="/bookshelf" className="text-blue-600 hover:text-blue-700 dark:text-blue-400">
+              <Link href="/bookshelf" className="text-plum-600 hover:text-plum-700 dark:text-plum-400">
                 View on the Bookshelf
               </Link>
             </p>
@@ -230,7 +230,7 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
             <button
               type="button"
               onClick={() => setShowEditBook(true)}
-              className="text-blue-600 dark:text-blue-400 hover:underline"
+              className="text-plum-600 dark:text-plum-400 hover:underline"
             >
               Edit
             </button>
@@ -266,7 +266,7 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
           <button
             type="button"
             onClick={() => setShowPublish(true)}
-            className="flex-shrink-0 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium"
+            className="flex-shrink-0 px-4 py-2 bg-plum-600 hover:bg-plum-700 text-white rounded-lg text-sm font-medium"
           >
             🚀 Publish
           </button>
@@ -360,14 +360,14 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
             setShowNewGoal((v) => !v);
             setEditingGoal(null);
           }}
-          className="text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 font-medium"
+          className="text-sm text-plum-600 hover:text-plum-700 dark:text-plum-400 font-medium"
         >
           {showNewGoal ? "Cancel" : "+ Add a goal"}
         </button>
         <button
           type="button"
           onClick={() => setShowLogProgress(true)}
-          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium"
+          className="px-4 py-2 bg-plum-600 hover:bg-plum-700 text-white rounded-lg text-sm font-medium"
         >
           + Log progress
         </button>
@@ -619,7 +619,7 @@ function GoalForm({
           type="button"
           onClick={() => setGoalType("target")}
           className={`px-3 py-1.5 text-sm font-medium ${
-            goalType === "target" ? "bg-blue-600 text-white" : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400"
+            goalType === "target" ? "bg-plum-600 text-white" : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400"
           }`}
         >
           Target
@@ -628,7 +628,7 @@ function GoalForm({
           type="button"
           onClick={() => setGoalType("habit")}
           className={`px-3 py-1.5 text-sm font-medium ${
-            goalType === "habit" ? "bg-blue-600 text-white" : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400"
+            goalType === "habit" ? "bg-plum-600 text-white" : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400"
           }`}
         >
           Habit
@@ -765,7 +765,7 @@ function GoalForm({
             <button
               type="button"
               onClick={() => setAnchorTouched(true)}
-              className="text-blue-600 hover:text-blue-800 dark:text-blue-400 underline"
+              className="text-plum-600 hover:text-plum-800 dark:text-plum-400 underline"
             >
               Change
             </button>
@@ -831,7 +831,7 @@ function GoalForm({
           <button
             type="submit"
             disabled={isPending}
-            className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="px-4 py-2 text-sm bg-plum-600 text-white rounded-lg hover:bg-plum-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {isEditing ? (isPending ? "Saving..." : "Save changes") : isPending ? "Adding..." : "Add goal"}
           </button>
@@ -882,7 +882,7 @@ function AnchorPicker({ value, onChange }: { value: string | null; onChange: (id
           type="button"
           onClick={() => onChange(null)}
           className={`w-full flex items-center justify-between gap-2 px-3 py-2 text-sm text-left ${
-            value === null ? "bg-blue-50 dark:bg-blue-900/20" : "hover:bg-slate-50 dark:hover:bg-slate-800"
+            value === null ? "bg-plum-50 dark:bg-plum-900/20" : "hover:bg-slate-50 dark:hover:bg-slate-800"
           }`}
         >
           <span className="text-slate-900 dark:text-slate-100">Any writing prickle</span>
@@ -898,7 +898,7 @@ function AnchorPicker({ value, onChange }: { value: string | null; onChange: (id
               type="button"
               onClick={() => onChange(o.scheduleId)}
               className={`w-full flex items-center justify-between gap-2 px-3 py-2 text-sm text-left ${
-                value === o.scheduleId ? "bg-blue-50 dark:bg-blue-900/20" : "hover:bg-slate-50 dark:hover:bg-slate-800"
+                value === o.scheduleId ? "bg-plum-50 dark:bg-plum-900/20" : "hover:bg-slate-50 dark:hover:bg-slate-800"
               }`}
             >
               <span className="text-slate-900 dark:text-slate-100">{o.label}</span>

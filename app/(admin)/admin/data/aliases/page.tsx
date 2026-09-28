@@ -54,7 +54,7 @@ export default async function AliasListPage() {
     <div className="container mx-auto px-6 py-8">
       {/* Page Header */}
       <div className="mb-6">
-        <Link href="/admin" className="text-blue-600 dark:text-blue-400 hover:underline mb-2 inline-block">
+        <Link href="/admin" className="text-plum-600 dark:text-plum-400 hover:underline mb-2 inline-block">
           ← Back to Dashboard
         </Link>
         <div className="flex items-center justify-between mt-2">
@@ -66,7 +66,7 @@ export default async function AliasListPage() {
           </div>
           <Link
             href="/admin/hygiene/unmatched-zoom"
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
+            className="px-4 py-2 bg-plum-600 hover:bg-plum-700 text-white rounded-lg font-medium transition-colors"
           >
             + Add New Aliases
           </Link>
@@ -74,8 +74,8 @@ export default async function AliasListPage() {
       </div>
 
       {/* Summary */}
-      <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-        <p className="text-sm text-blue-900 dark:text-blue-100">
+      <div className="mb-6 p-4 bg-plum-50 dark:bg-plum-900/20 border border-plum-200 dark:border-plum-800 rounded-lg">
+        <p className="text-sm text-plum-900 dark:text-plum-100">
           <span className="font-bold">{aliases?.length || 0} aliases</span> configured for{" "}
           <span className="font-bold">{memberAliases.length} members</span>
         </p>
@@ -86,7 +86,7 @@ export default async function AliasListPage() {
         {memberAliases.length === 0 ? (
           <div className="p-12 text-center text-slate-500 dark:text-slate-400">
             No aliases configured yet.{" "}
-            <Link href="/admin/hygiene/unmatched-zoom" className="text-blue-600 dark:text-blue-400 hover:underline">
+            <Link href="/admin/hygiene/unmatched-zoom" className="text-plum-600 dark:text-plum-400 hover:underline">
               Add your first alias
             </Link>
           </div>

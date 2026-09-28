@@ -105,7 +105,7 @@ export default function EventDetailClient({
               href={event.google_photos_album_url}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
+              className="text-sm text-plum-600 dark:text-plum-400 hover:underline"
             >
               View full album on Google Photos ↗
             </a>

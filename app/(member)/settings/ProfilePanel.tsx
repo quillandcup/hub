@@ -15,7 +15,7 @@ import { MAX_BIO_LENGTH, parseBioInput, parseFacebookInput, parseXInput } from "
 const INPUT_CLASS =
   "w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-sm";
 const SAVE_CLASS =
-  "px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed";
+  "px-4 py-2 bg-plum-600 text-white text-sm rounded-md hover:bg-plum-700 disabled:opacity-50 disabled:cursor-not-allowed";
 
 /** How a stored handle shows in the input: always with a leading @, or empty. */
 function formatHandle(handle: string | null): string {

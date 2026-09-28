@@ -140,7 +140,7 @@ export default function CommitmentsManager({ commitments }: { commitments: MyCom
           </h2>
           <Link
             href="/my-prickles?tab=all&commit="
-            className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
+            className="text-sm text-plum-600 dark:text-plum-400 hover:underline"
           >
             📌 Make a commitment →
           </Link>
@@ -148,7 +148,7 @@ export default function CommitmentsManager({ commitments }: { commitments: MyCom
         {active.length === 0 ? (
           <p className="text-sm text-slate-500 dark:text-slate-400">
             No active commitments yet. Pick the prickles you&apos;ll show up to from{" "}
-            <Link href="/my-prickles?tab=all&commit=" className="text-blue-600 dark:text-blue-400 hover:underline">
+            <Link href="/my-prickles?tab=all&commit=" className="text-plum-600 dark:text-plum-400 hover:underline">
               All Prickles
             </Link>{" "}
             and choose how many weeks, and we&apos;ll track which ones you made.

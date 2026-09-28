@@ -81,7 +81,7 @@ export default function ZoomImportAndProcessForm() {
         <button
           type="submit"
           disabled={importLoading}
-          className="w-full px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-semibold rounded-lg transition-colors"
+          className="w-full px-6 py-3 bg-plum-600 hover:bg-plum-700 disabled:bg-plum-400 text-white font-semibold rounded-lg transition-colors"
         >
           {importLoading ? "Importing..." : "Import Zoom Data"}
         </button>
@@ -95,15 +95,15 @@ export default function ZoomImportAndProcessForm() {
       )}
 
       {importResult && (
-        <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-          <p className="text-sm text-blue-800 dark:text-blue-200 font-semibold mb-2">
+        <div className="p-4 bg-plum-50 dark:bg-plum-900/20 border border-plum-200 dark:border-plum-800 rounded-lg">
+          <p className="text-sm text-plum-800 dark:text-plum-200 font-semibold mb-2">
             ✓ Zoom Import & Processing Complete
           </p>
-          <div className="text-sm text-blue-700 dark:text-blue-300 space-y-1">
+          <div className="text-sm text-plum-700 dark:text-plum-300 space-y-1">
             <p>• Imported {importResult.meetings} meetings with {importResult.totalAttendees} total attendees to Bronze</p>
             {importResult.reprocessing && (
-              <div className="mt-2 pl-4 border-l-2 border-blue-300 dark:border-blue-700">
-                <p className="font-semibold text-blue-800 dark:text-blue-200">Processed to Silver:</p>
+              <div className="mt-2 pl-4 border-l-2 border-plum-300 dark:border-plum-700">
+                <p className="font-semibold text-plum-800 dark:text-plum-200">Processed to Silver:</p>
                 {importResult.reprocessing.zoom_attendees?.processed?.map((p: any, i: number) => (
                   <div key={`attendees-${i}`}>
                     <p className="font-semibold">• {p.table}: {p.success ? '✓' : '✗'}</p>

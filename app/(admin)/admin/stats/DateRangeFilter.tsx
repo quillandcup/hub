@@ -44,7 +44,7 @@ export default function DateRangeFilter({ from, to }: { from: string; to: string
           <button
             key={label}
             onClick={() => { setError(null); navigate(start(), today) }}
-            className="px-3 py-1 text-sm rounded-full border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-blue-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+            className="px-3 py-1 text-sm rounded-full border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-plum-400 hover:text-plum-600 dark:hover:text-plum-400 transition-colors"
           >
             {label}
           </button>

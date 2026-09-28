@@ -53,7 +53,7 @@ export default function MultiSelectSearch({
                 className={
                   note
                     ? "inline-flex items-center gap-1.5 px-3 py-1 bg-amber-50 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300 rounded-full text-sm"
-                    : "inline-flex items-center gap-1.5 px-3 py-1 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-full text-sm"
+                    : "inline-flex items-center gap-1.5 px-3 py-1 bg-plum-50 dark:bg-plum-900/30 text-plum-700 dark:text-plum-300 rounded-full text-sm"
                 }
               >
                 {value}
@@ -64,7 +64,7 @@ export default function MultiSelectSearch({
                   className={
                     note
                       ? "text-amber-500 hover:text-amber-700 dark:text-amber-400 dark:hover:text-amber-200"
-                      : "text-blue-400 hover:text-blue-600 dark:text-blue-500 dark:hover:text-blue-300"
+                      : "text-plum-400 hover:text-plum-600 dark:text-plum-500 dark:hover:text-plum-300"
                   }
                   title={`Remove ${value}`}
                 >
@@ -83,7 +83,7 @@ export default function MultiSelectSearch({
           onChange={(e) => setSearchTerm(e.target.value)}
           onFocus={() => setIsFocused(true)}
           onBlur={() => setTimeout(() => setIsFocused(false), 200)}
-          className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded text-sm text-slate-900 dark:text-slate-100 bg-white dark:bg-slate-800 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded text-sm text-slate-900 dark:text-slate-100 bg-white dark:bg-slate-800 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-plum-500"
         />
         {showDropdown && (
           <div className="absolute z-10 w-full mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg max-h-60 overflow-y-auto">

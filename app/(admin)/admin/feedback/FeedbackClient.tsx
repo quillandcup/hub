@@ -37,7 +37,7 @@ const STATUS_LABELS: Record<Status, string> = {
 
 const STATUS_COLORS: Record<Status, string> = {
   new: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300",
-  acknowledged: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
+  acknowledged: "bg-plum-100 text-plum-800 dark:bg-plum-900/30 dark:text-plum-300",
   resolved: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
   wontfix: "bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300",
 };
@@ -122,7 +122,7 @@ export default function FeedbackClient() {
             }}
             className={`text-xs px-3 py-1.5 rounded-full font-medium transition-colors ${
               statusFilter === s
-                ? "bg-blue-600 text-white"
+                ? "bg-plum-600 text-white"
                 : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700"
             }`}
           >
@@ -182,7 +182,7 @@ export default function FeedbackClient() {
                     href={item.page_url}
                     target="_blank"
                     rel="noreferrer"
-                    className="text-xs text-blue-600 dark:text-blue-400 hover:underline break-all"
+                    className="text-xs text-plum-600 dark:text-plum-400 hover:underline break-all"
                   >
                     {item.page_url}
                   </a>
@@ -222,7 +222,7 @@ export default function FeedbackClient() {
             <button
               onClick={() => setPage((p) => Math.max(0, p - 1))}
               disabled={page === 0}
-              className="text-blue-600 dark:text-blue-400 hover:underline disabled:opacity-40 disabled:no-underline"
+              className="text-plum-600 dark:text-plum-400 hover:underline disabled:opacity-40 disabled:no-underline"
             >
               ← Newer
             </button>
@@ -232,7 +232,7 @@ export default function FeedbackClient() {
             <button
               onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
               disabled={page >= pageCount - 1}
-              className="text-blue-600 dark:text-blue-400 hover:underline disabled:opacity-40 disabled:no-underline"
+              className="text-plum-600 dark:text-plum-400 hover:underline disabled:opacity-40 disabled:no-underline"
             >
               Older →
             </button>

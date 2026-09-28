@@ -58,7 +58,7 @@ export default async function BadgesPage() {
         </div>
         <Link
           href="/admin/badges/new"
-          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors"
+          className="px-4 py-2 bg-plum-600 hover:bg-plum-700 text-white rounded-lg text-sm font-medium transition-colors"
         >
           + New Badge
         </Link>
@@ -113,7 +113,7 @@ export default async function BadgesPage() {
                       </span>
                       <Link
                         href={`/admin/badges/${type.id}/edit`}
-                        className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                        className="text-xs text-plum-600 dark:text-plum-400 hover:underline"
                       >
                         Edit
                       </Link>

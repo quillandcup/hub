@@ -240,7 +240,7 @@ function ScheduleForm({
               onClick={() => handleRecurrenceChange(opt.value)}
               className={`px-3 py-2 rounded-lg text-sm font-medium border transition-colors ${
                 form.recurrenceType === opt.value
-                  ? "bg-blue-600 border-blue-600 text-white"
+                  ? "bg-plum-600 border-plum-600 text-white"
                   : "bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700"
               }`}
             >
@@ -250,7 +250,7 @@ function ScheduleForm({
         </div>
       </div>
 
-      <p className="rounded-lg bg-blue-50 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-800 px-3 py-2 text-sm text-blue-800 dark:text-blue-300">
+      <p className="rounded-lg bg-plum-50 dark:bg-plum-900/10 border border-plum-200 dark:border-plum-800 px-3 py-2 text-sm text-plum-800 dark:text-plum-300">
         {recurrenceInstruction(form.recurrenceType)}
       </p>
 
@@ -286,7 +286,7 @@ function ScheduleForm({
         <button
           type="button"
           onClick={() => setManualOpen((v) => !v)}
-          className="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 underline"
+          className="text-sm text-plum-600 hover:text-plum-800 dark:text-plum-400 underline"
         >
           {manualOpen ? "Hide manual entry" : pickedSlot ? "Adjust the exact day/time manually" : "Prefer to enter it manually?"}
         </button>
@@ -420,7 +420,7 @@ function ScheduleForm({
         <button
           type="submit"
           disabled={saving}
-          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 dark:disabled:bg-slate-700 text-white rounded-lg text-sm font-medium transition-colors"
+          className="px-4 py-2 bg-plum-600 hover:bg-plum-700 disabled:bg-slate-300 dark:disabled:bg-slate-700 text-white rounded-lg text-sm font-medium transition-colors"
         >
           {saving ? "Submitting…" : "Submit request"}
         </button>
@@ -514,7 +514,7 @@ function ScheduleRowActions({
           type="button"
           onClick={() => setEditingNotes((v) => !v)}
           disabled={busy}
-          className="text-blue-600 hover:text-blue-800 dark:text-blue-400"
+          className="text-plum-600 hover:text-plum-800 dark:text-plum-400"
         >
           {editingNotes ? "Cancel" : "Edit notes"}
         </button>
@@ -539,7 +539,7 @@ function ScheduleRowActions({
             type="button"
             onClick={handleSaveNotes}
             disabled={busy}
-            className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm"
+            className="px-3 py-1 bg-plum-600 hover:bg-plum-700 text-white rounded text-sm"
           >
             Save
           </button>
@@ -607,7 +607,7 @@ function MonthSection({
           <button
             type="button"
             onClick={onRequestSlot}
-            className="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 font-medium"
+            className="text-sm text-plum-600 hover:text-plum-800 dark:text-plum-400 font-medium"
           >
             + Request a slot
           </button>
@@ -792,7 +792,7 @@ export default function HostingScheduleManager({
           type="button"
           onClick={() => setRequestingForMonth(nextMonth)}
           disabled={nextMonthLocked}
-          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 text-white rounded-lg text-sm font-medium"
+          className="px-4 py-2 bg-plum-600 hover:bg-plum-700 disabled:bg-slate-300 text-white rounded-lg text-sm font-medium"
         >
           Request to host
         </button>

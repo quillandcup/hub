@@ -50,7 +50,7 @@ function MemberRow({ member }: { member: ResubscribingMember }) {
       <td className="px-4 py-3">
         <div className="flex items-center gap-2">
           {profileHref ? (
-            <Link href={profileHref} className="font-medium text-blue-600 dark:text-blue-400 hover:underline">
+            <Link href={profileHref} className="font-medium text-plum-600 dark:text-plum-400 hover:underline">
               {member.memberName}
             </Link>
           ) : (

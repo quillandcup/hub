@@ -153,7 +153,7 @@ export default function MemberBadgesPanel({
           <button
             type="submit"
             disabled={submitting}
-            className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg text-sm font-medium transition-colors"
+            className="px-4 py-1.5 bg-plum-600 hover:bg-plum-700 disabled:bg-plum-400 text-white rounded-lg text-sm font-medium transition-colors"
           >
             {submitting ? "Awarding..." : "Award"}
           </button>

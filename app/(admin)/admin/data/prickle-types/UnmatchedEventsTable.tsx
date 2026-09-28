@@ -248,7 +248,7 @@ export default function UnmatchedEventsTable({
                   <div className="flex gap-2">
                     <button
                       onClick={() => openModal(group)}
-                      className="text-xs px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors"
+                      className="text-xs px-3 py-1 bg-plum-600 hover:bg-plum-700 text-white rounded transition-colors"
                     >
                       Review
                     </button>
@@ -416,7 +416,7 @@ export default function UnmatchedEventsTable({
                   <button
                     type="submit"
                     disabled={loading}
-                    className="px-6 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg font-medium transition-colors"
+                    className="px-6 py-2 bg-plum-600 hover:bg-plum-700 disabled:bg-plum-400 text-white rounded-lg font-medium transition-colors"
                   >
                     {loading ? "Saving..." : `Create ${selectedGroup.count} Prickle${selectedGroup.count > 1 ? "s" : ""}`}
                   </button>

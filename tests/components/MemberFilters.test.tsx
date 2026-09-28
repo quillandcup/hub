@@ -41,8 +41,8 @@ describe('MemberFilters counts', () => {
 
   it('highlights the currently selected filter', () => {
     render(<MemberFilters currentFilter="at_risk" counts={counts} />)
-    expect(screen.getByText('At Risk').closest('button')).toHaveClass('bg-blue-600')
-    expect(screen.getByText('Active Only').closest('button')).not.toHaveClass('bg-blue-600')
+    expect(screen.getByText('At Risk').closest('button')).toHaveClass('bg-plum-600')
+    expect(screen.getByText('Active Only').closest('button')).not.toHaveClass('bg-plum-600')
   })
 
   it('navigates with the clicked filter value on click', async () => {

@@ -58,7 +58,7 @@ export default function MissingStripeTable({ rows }: { rows: MissingStripeRow[] 
               <td className="px-6 py-3">
                 <Link
                   href={`/admin/members/${member.id}`}
-                  className="text-sm font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 hover:underline"
+                  className="text-sm font-medium text-plum-600 hover:text-plum-700 dark:text-plum-400 hover:underline"
                 >
                   {member.name}
                 </Link>
@@ -70,7 +70,7 @@ export default function MissingStripeTable({ rows }: { rows: MissingStripeRow[] 
                     href={`https://app.kajabi.com/admin/contacts/${member.kajabi_id}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-xs text-blue-600 hover:underline dark:text-blue-400"
+                    className="text-xs text-plum-600 hover:underline dark:text-plum-400"
                   >
                     {member.kajabi_id}
                   </a>

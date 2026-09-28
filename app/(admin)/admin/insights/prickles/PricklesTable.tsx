@@ -34,7 +34,7 @@ function Sparkline({ values }: { values: number[] }) {
       height={H}
       viewBox={`0 0 ${W} ${H}`}
       aria-hidden="true"
-      className="inline-block text-blue-500 dark:text-blue-400"
+      className="inline-block text-plum-500 dark:text-plum-400"
     >
       <polyline
         points={points}
@@ -127,7 +127,7 @@ export default function PricklesTable({ rows, from, to }: Props) {
           </span>
           <button
             onClick={() => setFilters({})}
-            className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+            className="text-xs text-plum-600 dark:text-plum-400 hover:underline"
           >
             Clear filters
           </button>
@@ -205,7 +205,7 @@ export default function PricklesTable({ rows, from, to }: Props) {
                 <td className="px-6 py-4">
                   <Link
                     href={`/admin/insights/prickles/${row.normalizedName}${buildRangeUrl(from, to)}`}
-                    className="text-sm font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+                    className="text-sm font-medium text-plum-600 hover:text-plum-700 dark:text-plum-400 dark:hover:text-plum-300"
                   >
                     {row.typeName}
                   </Link>
@@ -247,7 +247,7 @@ export default function PricklesTable({ rows, from, to }: Props) {
           No rows match current filters.{" "}
           <button
             onClick={() => setFilters({})}
-            className="text-blue-600 dark:text-blue-400 hover:underline"
+            className="text-plum-600 dark:text-plum-400 hover:underline"
           >
             Clear filters
           </button>

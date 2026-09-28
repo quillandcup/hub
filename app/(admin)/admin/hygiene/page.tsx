@@ -446,18 +446,18 @@ export default async function DataHygienePage() {
           )}
 
           {oldUnmatchedEvents && oldUnmatchedEvents.length > 0 && (
-            <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+            <div className="p-4 bg-plum-50 dark:bg-plum-900/20 border border-plum-200 dark:border-plum-800 rounded-lg">
               <div className="flex items-start gap-3">
                 <span className="text-xl">💡</span>
                 <div className="flex-1">
-                  <h3 className="font-semibold text-blue-900 dark:text-blue-100 mb-1">
+                  <h3 className="font-semibold text-plum-900 dark:text-plum-100 mb-1">
                     {oldUnmatchedEvents.length}+ old unmatched events can be auto-resolved
                   </h3>
-                  <p className="text-sm text-blue-800 dark:text-blue-200 mb-2">
+                  <p className="text-sm text-plum-800 dark:text-plum-200 mb-2">
                     These events were queued before prickle types were added and can now be
                     automatically categorized (e.g., &quot;Heads Down Prickle&quot;).
                   </p>
-                  <p className="text-xs text-blue-700 dark:text-blue-300">
+                  <p className="text-xs text-plum-700 dark:text-plum-300">
                     Recommendation: Reprocess calendar events from early March to auto-resolve
                     these events.
                   </p>
@@ -467,21 +467,21 @@ export default async function DataHygienePage() {
           )}
 
           {hostMatchRate < 90 && totalRequiringHosts > 0 && (
-            <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+            <div className="p-4 bg-plum-50 dark:bg-plum-900/20 border border-plum-200 dark:border-plum-800 rounded-lg">
               <div className="flex items-start gap-3">
                 <span className="text-xl">💡</span>
                 <div className="flex-1">
-                  <h3 className="font-semibold text-blue-900 dark:text-blue-100 mb-1">
+                  <h3 className="font-semibold text-plum-900 dark:text-plum-100 mb-1">
                     Host assignment opportunities
                   </h3>
-                  <p className="text-sm text-blue-800 dark:text-blue-200 mb-2">
+                  <p className="text-sm text-plum-800 dark:text-plum-200 mb-2">
                     Some prickles requiring hosts are missing assignments. Update calendar events
                     with &quot;w/[Name]&quot; patterns or set default hosts for prickle types.
                   </p>
-                  <p className="text-xs text-blue-700 dark:text-blue-300">
+                  <p className="text-xs text-plum-700 dark:text-plum-300">
                     Current rate: {hostMatchRate}% ({calendarPricklesWithHost}/{totalRequiringHosts} with host).
                     Visit{" "}
-                    <Link href="/admin/data-health/missing-hosts" className="underline hover:text-blue-500">
+                    <Link href="/admin/data-health/missing-hosts" className="underline hover:text-plum-500">
                       Missing Hosts
                     </Link>{" "}
                     to review and assign.
@@ -721,7 +721,7 @@ export default async function DataHygienePage() {
           <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
             Is a person who exists in Slack or Zoom correctly linked to a member record?{" "}
             Looking for subscription-status mismatches instead? See{" "}
-            <a href="#reconciliation" className="text-blue-600 dark:text-blue-400 hover:underline">
+            <a href="#reconciliation" className="text-plum-600 dark:text-plum-400 hover:underline">
               Subscription Reconciliation
             </a>{" "}
             above.
@@ -965,7 +965,7 @@ export default async function DataHygienePage() {
               <p className="text-sm text-slate-600 dark:text-slate-400">
                 active aliases for {totalMembers} members
               </p>
-              <p className="text-xs text-blue-600 dark:text-blue-400 mt-2">
+              <p className="text-xs text-plum-600 dark:text-plum-400 mt-2">
                 View all aliases →
               </p>
             </Link>

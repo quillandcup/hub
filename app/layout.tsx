@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Playfair_Display } from "next/font/google";
 import { headers } from "next/headers";
 import Script from "next/script";
 import "./globals.css";
@@ -9,6 +10,13 @@ import { GoogleAnalytics } from "@next/third-parties/google";
 import { EnvironmentIndicator } from "@/components/EnvironmentIndicator";
 import { ConsentBanner } from "@/components/ConsentBanner";
 import { countryNeedsConsent } from "@/lib/gdpr-countries";
+
+// Brand display serif for headings and the wordmark (tailwind `font-display`).
+const displayFont = Playfair_Display({
+  subsets: ["latin"],
+  variable: "--font-display",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: {
@@ -35,7 +43,7 @@ export default async function RootLayout({
   const needsConsent = countryNeedsConsent(headersList.get("x-vercel-ip-country"));
 
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" className={displayFont.variable} suppressHydrationWarning>
       <body className="antialiased">
         <ThemeProvider
           attribute="class"

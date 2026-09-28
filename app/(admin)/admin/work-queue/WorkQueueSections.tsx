@@ -30,7 +30,7 @@ const SECTION_META: Record<
     title: "Hedgieversary Celebrations",
     description: "Post on Instagram and give a shoutout in Slack.",
     emptyText: "No Hedgieversaries to celebrate right now.",
-    badgeClass: "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300",
+    badgeClass: "bg-plum-100 text-plum-800 dark:bg-plum-900/40 dark:text-plum-300",
   },
   hiatus_nudge: {
     title: "Hiatus Nudges",
@@ -94,7 +94,7 @@ function QueueRow({ item, busyKey, onMarkDone, onOptOut, onPostpone, onExtend }:
       <td className="px-6 py-4 whitespace-nowrap">
         <Link
           href={`/admin/members/${item.memberId}`}
-          className="text-sm font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 hover:underline"
+          className="text-sm font-medium text-plum-600 hover:text-plum-700 dark:text-plum-400 hover:underline"
         >
           {item.memberName}
         </Link>
@@ -120,7 +120,7 @@ function QueueRow({ item, busyKey, onMarkDone, onOptOut, onPostpone, onExtend }:
             <button
               onClick={confirmPicker}
               disabled={isBusy}
-              className="px-3 py-1.5 text-sm font-medium bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg transition-colors"
+              className="px-3 py-1.5 text-sm font-medium bg-plum-600 hover:bg-plum-700 disabled:bg-plum-400 text-white rounded-lg transition-colors"
             >
               {isBusy ? "Saving..." : "Confirm"}
             </button>
@@ -164,7 +164,7 @@ function QueueRow({ item, busyKey, onMarkDone, onOptOut, onPostpone, onExtend }:
             <button
               onClick={() => onMarkDone(item)}
               disabled={isBusy}
-              className="px-3 py-1.5 text-sm font-medium bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg transition-colors"
+              className="px-3 py-1.5 text-sm font-medium bg-plum-600 hover:bg-plum-700 disabled:bg-plum-400 text-white rounded-lg transition-colors"
             >
               {isBusy ? "Saving..." : "Mark Done"}
             </button>
@@ -291,7 +291,7 @@ function QueueSection({ items }: { items: WorkQueueItem[] }) {
             <button
               onClick={undo}
               disabled={busyKey === undoable.key}
-              className="text-xs text-blue-600 dark:text-blue-400 hover:underline disabled:opacity-50"
+              className="text-xs text-plum-600 dark:text-plum-400 hover:underline disabled:opacity-50"
             >
               Undo last
             </button>

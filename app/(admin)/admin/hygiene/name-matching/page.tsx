@@ -110,10 +110,10 @@ export default async function NameMatchingReportPage() {
   const unmatchedAttendeesForGame = unmatchedZoomAttendees.slice(0, 50);
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
+    <div className="min-h-screen bg-canvas dark:bg-slate-950">
       <header className="border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
         <div className="container mx-auto px-6 py-4">
-          <Link href="/admin" className="text-blue-600 dark:text-blue-400 hover:underline mb-2 inline-block">
+          <Link href="/admin" className="text-plum-600 dark:text-plum-400 hover:underline mb-2 inline-block">
             ← Back to Dashboard
           </Link>
           <div className="flex items-center justify-between">
@@ -125,7 +125,7 @@ export default async function NameMatchingReportPage() {
             </div>
             <Link
               href="/admin/hygiene/unmatched-zoom"
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
+              className="px-4 py-2 bg-plum-600 hover:bg-plum-700 text-white rounded-lg font-medium transition-colors"
             >
               Search-Based Matching →
             </Link>

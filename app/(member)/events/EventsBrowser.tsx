@@ -223,7 +223,7 @@ function EducationalSection({
       aria-label="Upcoming educational prickles"
       className={`mb-8 rounded-lg border p-4 ${
         highlighted
-          ? "border-blue-200 bg-blue-50 dark:border-blue-900 dark:bg-blue-950/40"
+          ? "border-plum-200 bg-plum-50 dark:border-plum-900 dark:bg-plum-950/40"
           : "border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900"
       }`}
     >
@@ -256,7 +256,7 @@ function EducationalSection({
         <button
           type="button"
           onClick={onSeeAll}
-          className="mt-2 text-sm text-blue-600 dark:text-blue-400 hover:underline"
+          className="mt-2 text-sm text-plum-600 dark:text-plum-400 hover:underline"
         >
           See all {prickles.length + moreCount} educational prickles →
         </button>

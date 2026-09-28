@@ -171,7 +171,7 @@ export default async function ExternalConflictsPage() {
                       href={`https://app.kajabi.com/admin/contacts/${entry.externalId}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="font-mono text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                      className="font-mono text-xs text-plum-600 dark:text-plum-400 hover:underline"
                     >
                       {entry.externalId}
                     </a>
@@ -204,7 +204,7 @@ export default async function ExternalConflictsPage() {
                       href={`https://dashboard.stripe.com/customers/${entry.externalId}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="font-mono text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                      className="font-mono text-xs text-plum-600 dark:text-plum-400 hover:underline"
                     >
                       {entry.externalId}
                     </a>
@@ -284,7 +284,7 @@ function ConflictRow({
           {group.memberId ? (
             <Link
               href={`/admin/members/${group.memberId}`}
-              className="font-semibold text-sm text-slate-900 dark:text-slate-100 hover:text-blue-600 dark:hover:text-blue-400"
+              className="font-semibold text-sm text-slate-900 dark:text-slate-100 hover:text-plum-600 dark:hover:text-plum-400"
             >
               {group.memberName ?? group.canonicalEmail}
             </Link>

@@ -54,7 +54,7 @@ function getInitials(name: string): string {
 }
 
 function getAvatarColor(name: string): string {
-  const colors = ["bg-violet-500", "bg-blue-500", "bg-emerald-500", "bg-amber-500", "bg-rose-500", "bg-cyan-500"]
+  const colors = ["bg-violet-500", "bg-plum-500", "bg-emerald-500", "bg-amber-500", "bg-rose-500", "bg-cyan-500"]
   let hash = 0
   for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash)
   return colors[Math.abs(hash) % colors.length]
@@ -74,7 +74,7 @@ function AvatarCircle({
   return (
     <div
       className={`rounded-full flex items-center justify-center flex-shrink-0 text-white font-semibold bg-cover bg-center shadow-sm ${getAvatarColor(name)} ${
-        ring ? "ring-4 ring-blue-500/30 dark:ring-blue-400/40" : ""
+        ring ? "ring-4 ring-plum-500/30 dark:ring-plum-400/40" : ""
       }`}
       style={{
         width: size,
@@ -419,7 +419,7 @@ export default async function NetworkPage() {
           {totalConnections > connections.length && (
             <p className="text-center text-xs text-slate-400 mt-2">
               Showing top {connections.length} of {totalConnections}.{" "}
-              <Link href="/streaks" className="text-blue-600 dark:text-blue-400 hover:underline">
+              <Link href="/streaks" className="text-plum-600 dark:text-plum-400 hover:underline">
                 See all on Streaks →
               </Link>
             </p>
@@ -456,7 +456,7 @@ export default async function NetworkPage() {
                     href={slackStartHereUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline"
+                    className="text-sm font-medium text-plum-600 dark:text-plum-400 hover:underline"
                   >
                     Open #start-here →
                   </Link>
@@ -486,7 +486,7 @@ export default async function NetworkPage() {
               )}
               <Link
                 href="/my-prickles?tab=find"
-                className="text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline"
+                className="text-sm font-medium text-plum-600 dark:text-plum-400 hover:underline"
               >
                 Try the Prickle Picker →
               </Link>

@@ -46,7 +46,7 @@ export default function KajabiApiImportForm() {
         <button
           type="submit"
           disabled={loading}
-          className="w-full px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-semibold rounded-lg transition-colors"
+          className="w-full px-6 py-3 bg-plum-600 hover:bg-plum-700 disabled:bg-plum-400 text-white font-semibold rounded-lg transition-colors"
         >
           {loading ? "Syncing from Kajabi API..." : "Sync from Kajabi API"}
         </button>
@@ -61,11 +61,11 @@ export default function KajabiApiImportForm() {
 
       {result && result.members && (
         <div className="mt-6">
-          <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-            <p className="text-sm text-blue-800 dark:text-blue-200 font-semibold mb-2">
+          <div className="p-4 bg-plum-50 dark:bg-plum-900/20 border border-plum-200 dark:border-plum-800 rounded-lg">
+            <p className="text-sm text-plum-800 dark:text-plum-200 font-semibold mb-2">
               ✓ Kajabi Sync Complete
             </p>
-            <div className="text-sm text-blue-700 dark:text-blue-300 space-y-1">
+            <div className="text-sm text-plum-700 dark:text-plum-300 space-y-1">
               <p className="font-semibold">Bronze Layer (raw data):</p>
               <div className="pl-4 space-y-0.5">
                 <p>• {result.members.contacts} contacts</p>
@@ -75,7 +75,7 @@ export default function KajabiApiImportForm() {
               </div>
 
               {result.members.processing && result.members.processing.length > 0 && (
-                <div className="mt-2 pt-2 border-t border-blue-200 dark:border-blue-700">
+                <div className="mt-2 pt-2 border-t border-plum-200 dark:border-plum-700">
                   <p className="font-semibold">Silver Layer (processed):</p>
                   {result.members.processing.map((p: any, i: number) => (
                     <div key={i} className="pl-4">

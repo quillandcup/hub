@@ -57,7 +57,7 @@ function ReasonBadge({ reason }: { reason: ReasonBadgeData }) {
         tabIndex={0}
         role="img"
         aria-label={[REASON_LABEL[reason.kind], ...reason.tooltip].join(" — ")}
-        className="flex items-center justify-center w-6 h-6 rounded bg-blue-50 dark:bg-blue-900/20 text-sm cursor-default"
+        className="flex items-center justify-center w-6 h-6 rounded bg-plum-50 dark:bg-plum-900/20 text-sm cursor-default"
       >
         <span aria-hidden>{REASON_ICON[reason.kind]}</span>
       </span>

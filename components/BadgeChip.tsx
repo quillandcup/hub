@@ -4,7 +4,7 @@ import type { EarnedBadge } from "@/lib/badges";
 const CATEGORY_STYLES: Record<string, string> = {
   milestone: "bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800",
   community: "bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-800",
-  course: "bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800",
+  course: "bg-plum-50 dark:bg-plum-900/20 border-plum-200 dark:border-plum-800",
   retreat: "bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800",
   special: "bg-rose-50 dark:bg-rose-900/20 border-rose-200 dark:border-rose-800",
 };

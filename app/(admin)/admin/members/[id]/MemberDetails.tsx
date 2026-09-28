@@ -100,7 +100,7 @@ export default function MemberDetails({
               {statusOverrides.length > 0 && (
                 <Link
                   href="/admin/member-overrides"
-                  className="text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 hover:underline"
+                  className="text-xs text-plum-600 hover:text-plum-700 dark:text-plum-400 dark:hover:text-plum-300 hover:underline"
                 >
                   Status Overrides
                 </Link>
@@ -252,7 +252,7 @@ function SummaryCard({
         <h3 className="text-lg font-bold">{title}</h3>
         <button
           onClick={onViewAll}
-          className="text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 hover:underline"
+          className="text-sm text-plum-600 hover:text-plum-700 dark:text-plum-400 dark:hover:text-plum-300 hover:underline"
         >
           {viewAllLabel} →
         </button>

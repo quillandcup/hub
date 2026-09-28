@@ -122,7 +122,7 @@ export default async function MyPricklesPage({ searchParams }: { searchParams: P
     schedules.length === 0 && hostingStats.totalHosted === 0 && !!hostEligibility && !hostEligibility.eligible;
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
+    <div className="min-h-screen bg-canvas dark:bg-slate-950">
       <header className="border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
         <div className="container mx-auto px-6 py-4">
           <h1 className="text-2xl font-bold">My Prickles</h1>
@@ -153,7 +153,7 @@ export default async function MyPricklesPage({ searchParams }: { searchParams: P
                   {displayedUpcoming.length === 0 ? (
                     <p className="text-sm text-slate-500 dark:text-slate-400">
                       No prickles scheduled in the next {UPCOMING_WINDOW_DAYS} days.{" "}
-                      <Link href="/my-prickles?tab=all" className="text-blue-600 dark:text-blue-400 hover:underline">
+                      <Link href="/my-prickles?tab=all" className="text-plum-600 dark:text-plum-400 hover:underline">
                         See the full schedule →
                       </Link>
                     </p>
@@ -167,14 +167,14 @@ export default async function MyPricklesPage({ searchParams }: { searchParams: P
                           Showing the top {displayedUpcoming.length} of {ranked.length}. Looking for something specific?{" "}
                           <Link
                             href="/my-prickles?tab=all"
-                            className="text-blue-600 dark:text-blue-400 hover:underline"
+                            className="text-plum-600 dark:text-plum-400 hover:underline"
                           >
                             See all Prickles →
                           </Link>{" "}
                           or try{" "}
                           <Link
                             href="/my-prickles?tab=find"
-                            className="text-blue-600 dark:text-blue-400 hover:underline"
+                            className="text-plum-600 dark:text-plum-400 hover:underline"
                           >
                             Find a Prickle →
                           </Link>

@@ -97,7 +97,7 @@ export default function MemberImportForm() {
             accept=".csv"
             onChange={handleFileChange}
             required
-            className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 dark:file:bg-blue-900/20 dark:file:text-blue-400"
+            className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-plum-50 file:text-plum-700 hover:file:bg-plum-100 dark:file:bg-plum-900/20 dark:file:text-plum-400"
           />
           {file && (
             <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
@@ -110,7 +110,7 @@ export default function MemberImportForm() {
           <button
             type="submit"
             disabled={loading || !file}
-            className="flex-1 px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-semibold rounded-lg transition-colors"
+            className="flex-1 px-6 py-3 bg-plum-600 hover:bg-plum-700 disabled:bg-plum-400 text-white font-semibold rounded-lg transition-colors"
           >
             {loading ? "Importing..." : "1. Import CSV"}
           </button>
@@ -134,8 +134,8 @@ export default function MemberImportForm() {
       )}
 
       {result && (
-        <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-          <p className="text-sm text-blue-800 dark:text-blue-200 font-semibold mb-2">
+        <div className="mt-6 p-4 bg-plum-50 dark:bg-plum-900/20 border border-plum-200 dark:border-plum-800 rounded-lg">
+          <p className="text-sm text-plum-800 dark:text-plum-200 font-semibold mb-2">
             ✓ Imported {result.imported} members to raw data
           </p>
         </div>

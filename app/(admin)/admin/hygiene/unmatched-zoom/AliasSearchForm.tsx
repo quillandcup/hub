@@ -195,7 +195,7 @@ export default function AliasSearchForm({
               >
                 <div className="flex items-center gap-4">
                   <div className="text-sm">
-                    <span className="font-mono text-blue-600 dark:text-blue-400">
+                    <span className="font-mono text-plum-600 dark:text-plum-400">
                       {match.zoomName}
                     </span>
                     <span className="mx-2 text-slate-400">→</span>
@@ -226,7 +226,7 @@ export default function AliasSearchForm({
           <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
             Search for a member to create an alias
           </p>
-          <div className="mt-2 text-2xl font-bold text-blue-600 dark:text-blue-400">
+          <div className="mt-2 text-2xl font-bold text-plum-600 dark:text-plum-400">
             {availableZoomNames.length}
           </div>
         </div>
@@ -261,7 +261,7 @@ export default function AliasSearchForm({
                       {attendee.zoomName.length} chars •{" "}
                       <button
                         onClick={() => handleViewPrickles(attendee.zoomName)}
-                        className="text-blue-600 dark:text-blue-400 hover:underline"
+                        className="text-plum-600 dark:text-plum-400 hover:underline"
                       >
                         {attendee.appearances} appearances
                       </button>
@@ -282,7 +282,7 @@ export default function AliasSearchForm({
                             key={member.id}
                             type="button"
                             onClick={() => handleSelectMember(attendee.zoomName, member)}
-                            className="px-2 py-1 text-xs bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 rounded-full hover:bg-blue-100 dark:hover:bg-blue-900/40"
+                            className="px-2 py-1 text-xs bg-plum-50 dark:bg-plum-900/20 text-plum-700 dark:text-plum-300 border border-plum-200 dark:border-plum-800 rounded-full hover:bg-plum-100 dark:hover:bg-plum-900/40"
                             title={member.email}
                           >
                             {member.name}
@@ -338,7 +338,7 @@ export default function AliasSearchForm({
                 href={`/prickles/${prickle.id}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="block p-3 border border-slate-200 dark:border-slate-700 rounded-lg hover:border-blue-500 dark:hover:border-blue-400 transition-colors"
+                className="block p-3 border border-slate-200 dark:border-slate-700 rounded-lg hover:border-plum-500 dark:hover:border-plum-400 transition-colors"
               >
                 <div className="flex items-center justify-between">
                   <div>
@@ -349,7 +349,7 @@ export default function AliasSearchForm({
                       {formatDateTime(prickle.start_time)}
                     </div>
                   </div>
-                  <div className="text-blue-600 dark:text-blue-400">→</div>
+                  <div className="text-plum-600 dark:text-plum-400">→</div>
                 </div>
               </a>
             ))}
@@ -358,8 +358,8 @@ export default function AliasSearchForm({
       </Modal>
 
       {/* Instructions */}
-      <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-        <p className="text-sm text-blue-800 dark:text-blue-200">
+      <div className="bg-plum-50 dark:bg-plum-900/20 border border-plum-200 dark:border-plum-800 rounded-lg p-4">
+        <p className="text-sm text-plum-800 dark:text-plum-200">
           <strong>How to match:</strong> Type in the search box to find a member by name or email.
           This allows you to match Zoom names to ANY member in the system, including those who
           already have attendance records. When you're done, click "Save Aliases" to add them to

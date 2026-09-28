@@ -263,7 +263,7 @@ export default function OutreachTable({ leads, initialTodayCount }: OutreachTabl
             {viewMode === "queue" && (
               <button
                 onClick={() => setDoneForToday((d) => !d)}
-                className="text-sm font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 hover:underline"
+                className="text-sm font-medium text-plum-600 hover:text-plum-700 dark:text-plum-400 hover:underline"
               >
                 {doneForToday ? "Keep going" : "Done for today"}
               </button>
@@ -272,7 +272,7 @@ export default function OutreachTable({ leads, initialTodayCount }: OutreachTabl
         </div>
         <div className="w-full h-2 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
           <div
-            className="h-full bg-blue-600 transition-all"
+            className="h-full bg-plum-600 transition-all"
             style={{ width: `${Math.min(100, (todayCount / DAILY_OUTREACH_GOAL) * 100)}%` }}
           />
         </div>
@@ -286,7 +286,7 @@ export default function OutreachTable({ leads, initialTodayCount }: OutreachTabl
               onClick={() => setViewMode(mode)}
               className={`px-3 py-1.5 text-sm font-medium transition-colors ${
                 viewMode === mode
-                  ? "bg-blue-600 text-white"
+                  ? "bg-plum-600 text-white"
                   : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
               }`}
             >
@@ -300,7 +300,7 @@ export default function OutreachTable({ leads, initialTodayCount }: OutreachTabl
               type="checkbox"
               checked={instagramOnly}
               onChange={(e) => setInstagramOnly(e.target.checked)}
-              className="rounded border-slate-300 dark:border-slate-600 text-blue-600 focus:ring-blue-500"
+              className="rounded border-slate-300 dark:border-slate-600 text-plum-600 focus:ring-plum-500"
             />
             Only show leads with Instagram ({rows.filter((lead) => instagramHandle(lead.instagramUrl)).length})
           </label>
@@ -310,7 +310,7 @@ export default function OutreachTable({ leads, initialTodayCount }: OutreachTabl
             type="checkbox"
             checked={includeFormerMembers}
             onChange={(e) => setIncludeFormerMembers(e.target.checked)}
-            className="rounded border-slate-300 dark:border-slate-600 text-blue-600 focus:ring-blue-500"
+            className="rounded border-slate-300 dark:border-slate-600 text-plum-600 focus:ring-plum-500"
           />
           Include former members ({rows.filter((lead) => lead.memberStatus === "cancelled").length})
         </label>
@@ -378,7 +378,7 @@ export default function OutreachTable({ leads, initialTodayCount }: OutreachTabl
                       <MemberAvatar name={lead.name} photoUrl={lead.photoUrl} size={36} />
                       <Link
                         href={`/admin/members/${lead.id}`}
-                        className="text-sm font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 hover:underline"
+                        className="text-sm font-medium text-plum-600 hover:text-plum-700 dark:text-plum-400 hover:underline"
                       >
                         {lead.name}
                       </Link>
@@ -440,7 +440,7 @@ export default function OutreachTable({ leads, initialTodayCount }: OutreachTabl
                         }
                         className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
                           handle
-                            ? "bg-blue-600 hover:bg-blue-700 text-white"
+                            ? "bg-plum-600 hover:bg-plum-700 text-white"
                             : "bg-slate-50 dark:bg-slate-800/50 text-slate-300 dark:text-slate-600 cursor-not-allowed pointer-events-none"
                         }`}
                       >

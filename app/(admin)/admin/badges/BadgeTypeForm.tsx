@@ -188,7 +188,7 @@ export default function BadgeTypeForm({
       <h2 className="text-xl font-bold mb-6">{mode === "create" ? "New Badge" : "Edit Badge"}</h2>
 
       {isAutomatic && (
-        <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg text-blue-800 dark:text-blue-200 text-sm">
+        <div className="mb-6 p-4 bg-plum-50 dark:bg-plum-900/20 border border-plum-200 dark:border-plum-800 rounded-lg text-plum-800 dark:text-plum-200 text-sm">
           This badge is computed automatically (see lib/badges.ts) — you can rename it or adjust
           its levels/thresholds, but it can&apos;t be manually awarded to a member.
         </div>
@@ -373,7 +373,7 @@ export default function BadgeTypeForm({
             <button
               type="button"
               onClick={addLevel}
-              className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+              className="text-xs text-plum-600 dark:text-plum-400 hover:underline"
             >
               + Add level
             </button>
@@ -385,7 +385,7 @@ export default function BadgeTypeForm({
             <button
               type="submit"
               disabled={loading || deleting}
-              className="px-6 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg font-medium transition-colors"
+              className="px-6 py-2 bg-plum-600 hover:bg-plum-700 disabled:bg-plum-400 text-white rounded-lg font-medium transition-colors"
             >
               {loading ? "Saving..." : mode === "create" ? "Create Badge" : "Save Changes"}
             </button>

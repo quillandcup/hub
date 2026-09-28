@@ -32,10 +32,10 @@ export default async function ImportPhotosPage({ params }: { params: Promise<{ i
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
+    <div className="min-h-screen bg-canvas dark:bg-slate-950">
       <header className="border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
         <div className="container mx-auto px-6 py-4">
-          <Link href={`/admin/events/${id}`} className="text-sm text-blue-600 dark:text-blue-400 hover:underline">
+          <Link href={`/admin/events/${id}`} className="text-sm text-plum-600 dark:text-plum-400 hover:underline">
             ← {event.title}
           </Link>
           <h1 className="text-2xl font-bold mt-1">Import Photos from Google Photos</h1>

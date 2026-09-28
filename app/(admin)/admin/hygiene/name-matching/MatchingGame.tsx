@@ -136,7 +136,7 @@ export default function MatchingGame({
               >
                 <div className="flex items-center gap-4">
                   <div className="text-sm">
-                    <span className="font-mono text-blue-600 dark:text-blue-400">
+                    <span className="font-mono text-plum-600 dark:text-plum-400">
                       {match.zoomName}
                     </span>
                     <span className="mx-2 text-slate-400">→</span>
@@ -169,7 +169,7 @@ export default function MatchingGame({
             <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
               Drag these to the right to create matches
             </p>
-            <div className="mt-2 text-2xl font-bold text-blue-600 dark:text-blue-400">
+            <div className="mt-2 text-2xl font-bold text-plum-600 dark:text-plum-400">
               {availableZoomNames.length}
             </div>
           </div>
@@ -185,7 +185,7 @@ export default function MatchingGame({
                   key={attendee.zoomName}
                   draggable
                   onDragStart={() => handleDragStart(attendee.zoomName)}
-                  className="p-4 cursor-move hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+                  className="p-4 cursor-move hover:bg-plum-50 dark:hover:bg-plum-900/20 transition-colors"
                 >
                   <div className="font-mono font-semibold text-slate-900 dark:text-slate-100">
                     {attendee.zoomName}
@@ -247,8 +247,8 @@ export default function MatchingGame({
       </div>
 
       {/* Instructions */}
-      <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-        <p className="text-sm text-blue-800 dark:text-blue-200">
+      <div className="bg-plum-50 dark:bg-plum-900/20 border border-plum-200 dark:border-plum-800 rounded-lg p-4">
+        <p className="text-sm text-plum-800 dark:text-plum-200">
           <strong>How to match:</strong> Drag a Zoom name from the left and drop it onto the
           corresponding member on the right. When you're done, click "Save Aliases" to add them to
           the database.

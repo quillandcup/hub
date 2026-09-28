@@ -57,8 +57,8 @@ function HostedTypeRow({ initial }: { initial: HostedVibeInfo }) {
             onClick={() => setVibe(opt.value)}
             className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors border ${
               vibe === opt.value
-                ? "bg-blue-600 border-blue-600 text-white"
-                : "bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:border-blue-400"
+                ? "bg-plum-600 border-plum-600 text-white"
+                : "bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:border-plum-400"
             }`}
           >
             {opt.label}
@@ -80,7 +80,7 @@ function HostedTypeRow({ initial }: { initial: HostedVibeInfo }) {
         type="button"
         onClick={handleSave}
         disabled={!dirty || saving}
-        className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 dark:disabled:bg-slate-700 disabled:text-slate-500 text-white rounded-lg text-sm font-medium transition-colors"
+        className="px-4 py-1.5 bg-plum-600 hover:bg-plum-700 disabled:bg-slate-300 dark:disabled:bg-slate-700 disabled:text-slate-500 text-white rounded-lg text-sm font-medium transition-colors"
       >
         {saving ? "Saving..." : "Save"}
       </button>

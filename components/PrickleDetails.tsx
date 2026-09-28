@@ -119,7 +119,7 @@ export default function PrickleDetails({
           <select
             value={timezone}
             onChange={(e) => setTimezone(e.target.value)}
-            className="px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg text-sm text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg text-sm text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-plum-500"
           >
             {TIMEZONES.map((tz) => (
               <option key={tz.value} value={tz.value}>
@@ -143,7 +143,7 @@ export default function PrickleDetails({
             <p className="font-semibold">
               {hostMember ? (
                 <>
-                  <Link href={`${memberBasePath}/${hostMember.id}`} className="text-blue-600 hover:text-blue-700 dark:text-blue-400 hover:underline">
+                  <Link href={`${memberBasePath}/${hostMember.id}`} className="text-plum-600 hover:text-plum-700 dark:text-plum-400 hover:underline">
                     {hostMember.name}
                   </Link>
                   {(hostMissing || hostLate) && (
@@ -175,7 +175,7 @@ export default function PrickleDetails({
             <span className="text-slate-600 dark:text-slate-400">Time:</span>
             <p className="font-semibold text-slate-900 dark:text-slate-100">
               {insightsSlotUrl ? (
-                <Link href={insightsSlotUrl} className="text-blue-600 hover:text-blue-700 dark:text-blue-400 hover:underline">
+                <Link href={insightsSlotUrl} className="text-plum-600 hover:text-plum-700 dark:text-plum-400 hover:underline">
                   {formatTime(startTime)} - {formatTime(endTime)}
                 </Link>
               ) : (
@@ -258,7 +258,7 @@ export default function PrickleDetails({
                   return (
                     <tr key={record.id} className="hover:bg-slate-50 dark:hover:bg-slate-800">
                       <td className="px-6 py-4">
-                        <Link href={`${memberBasePath}/${member.id}`} className="text-sm font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 hover:underline">
+                        <Link href={`${memberBasePath}/${member.id}`} className="text-sm font-medium text-plum-600 hover:text-plum-700 dark:text-plum-400 hover:underline">
                           {member.name}
                         </Link>
                         {showMemberEmails && (
@@ -272,7 +272,7 @@ export default function PrickleDetails({
                               <button
                                 type="button"
                                 onClick={() => setIsLogModalOpen(true)}
-                                className="text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400 hover:underline"
+                                className="text-xs text-plum-600 hover:text-plum-700 dark:text-plum-400 hover:underline"
                               >
                                 What did you write here?
                               </button>

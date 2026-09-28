@@ -60,7 +60,7 @@ export default function MyBooksPanel({ initialBooks, projectTitles }: MyBooksPan
         <button
           type="button"
           onClick={() => setShowAdd(true)}
-          className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium"
+          className="px-3 py-1.5 bg-plum-600 hover:bg-plum-700 text-white rounded-lg text-sm font-medium"
         >
           + Add a book
         </button>
@@ -84,7 +84,7 @@ export default function MyBooksPanel({ initialBooks, projectTitles }: MyBooksPan
                       {" · From "}
                       <Link
                         href={`/projects/${book.projectId}`}
-                        className="text-blue-600 dark:text-blue-400 hover:underline"
+                        className="text-plum-600 dark:text-plum-400 hover:underline"
                       >
                         {projectTitles[book.projectId]}
                       </Link>
@@ -96,7 +96,7 @@ export default function MyBooksPanel({ initialBooks, projectTitles }: MyBooksPan
                 <button
                   type="button"
                   onClick={() => setEditingBook(book)}
-                  className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                  className="text-xs text-plum-600 dark:text-plum-400 hover:underline"
                 >
                   Edit
                 </button>

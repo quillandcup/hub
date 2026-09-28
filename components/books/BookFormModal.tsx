@@ -305,7 +305,7 @@ export default function BookFormModal({
           <button
             type="submit"
             disabled={isPending || isUploadingCover || !coverUrl}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg text-sm font-medium"
+            className="px-4 py-2 bg-plum-600 hover:bg-plum-700 disabled:bg-plum-400 text-white rounded-lg text-sm font-medium"
           >
             {isPending ? pendingLabel : submitLabel}
           </button>

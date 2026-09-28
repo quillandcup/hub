@@ -16,10 +16,10 @@ export default async function PRDPage() {
   const prdContent = readFileSync(prdPath, "utf8");
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
+    <div className="min-h-screen bg-canvas dark:bg-slate-950">
       <header className="border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 sticky top-0 z-10">
         <div className="container mx-auto px-6 py-4">
-          <Link href="/" className="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300">
+          <Link href="/" className="text-plum-600 hover:text-plum-700 dark:text-plum-400 dark:hover:text-plum-300">
             ← Back to Home
           </Link>
         </div>
@@ -32,7 +32,7 @@ export default async function PRDPage() {
           <div className="mt-12 pt-8 border-t border-slate-200 dark:border-slate-700">
             <Link
               href="/"
-              className="inline-block px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors"
+              className="inline-block px-6 py-3 bg-plum-600 hover:bg-plum-700 text-white font-semibold rounded-lg transition-colors"
             >
               ← Back to Home
             </Link>

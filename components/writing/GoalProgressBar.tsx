@@ -34,7 +34,7 @@ export default function GoalProgressBar({
         ? "bg-slate-400 dark:bg-slate-500"
         : onPace === false
           ? "bg-amber-500"
-          : "bg-blue-600";
+          : "bg-plum-600";
 
   return (
     <div>
@@ -61,7 +61,7 @@ export default function GoalProgressBar({
         <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Ended</p>
       ) : (
         onPace !== null && (
-          <p className={`mt-1 text-xs ${onPace ? "text-blue-600 dark:text-blue-400" : "text-amber-600 dark:text-amber-400"}`}>
+          <p className={`mt-1 text-xs ${onPace ? "text-plum-600 dark:text-plum-400" : "text-amber-600 dark:text-amber-400"}`}>
             {onPace ? "On pace" : "Behind pace"}
           </p>
         )

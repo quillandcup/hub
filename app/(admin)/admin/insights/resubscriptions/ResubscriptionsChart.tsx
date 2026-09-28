@@ -56,7 +56,7 @@ export default function ResubscriptionsChart({ data }: Props) {
             return (
               <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 shadow text-sm">
                 <div className="font-medium text-slate-700 dark:text-slate-200">{label}</div>
-                <div className="text-blue-600 dark:text-blue-400">
+                <div className="text-plum-600 dark:text-plum-400">
                   {count} resubscription{count !== 1 ? "s" : ""}
                 </div>
               </div>
@@ -67,7 +67,7 @@ export default function ResubscriptionsChart({ data }: Props) {
           {trimmedData.map((entry) => (
             <Cell
               key={entry.month}
-              fill={entry.count > 0 ? "#3b82f6" : "#e2e8f0"}
+              fill={entry.count > 0 ? "#b65a88" : "#e2e8f0"}
             />
           ))}
         </Bar>

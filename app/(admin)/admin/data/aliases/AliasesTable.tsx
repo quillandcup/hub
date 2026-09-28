@@ -58,7 +58,7 @@ export default function AliasesTable({ rows }: { rows: MemberAliasRow[] }) {
                 <div>
                   <Link
                     href={`/admin/members/${member.id}`}
-                    className="font-medium text-slate-900 dark:text-slate-100 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                    className="font-medium text-slate-900 dark:text-slate-100 hover:text-plum-600 dark:hover:text-plum-400 transition-colors"
                   >
                     {member.name}
                   </Link>

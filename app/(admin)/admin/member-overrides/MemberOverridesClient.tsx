@@ -161,7 +161,7 @@ export default function MemberOverridesClient() {
       {!showForm && (
         <button
           onClick={() => setShowForm(true)}
-          className="mb-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+          className="mb-4 px-4 py-2 bg-plum-600 text-white rounded hover:bg-plum-700"
         >
           Add Override
         </button>
@@ -176,7 +176,7 @@ export default function MemberOverridesClient() {
               onClick={() => setTypeFilter(type)}
               className={`px-3 py-1.5 text-sm rounded-full border ${
                 typeFilter === type
-                  ? "bg-blue-600 border-blue-600 text-white"
+                  ? "bg-plum-600 border-plum-600 text-white"
                   : "bg-white dark:bg-slate-900 border-gray-300 dark:border-slate-700 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800"
               }`}
             >
@@ -289,7 +289,7 @@ export default function MemberOverridesClient() {
                   <td className="px-4 py-3">
                     <Link
                       href={`/admin/members/${override.member_id}`}
-                      className="font-medium text-blue-600 dark:text-blue-400 hover:underline"
+                      className="font-medium text-plum-600 dark:text-plum-400 hover:underline"
                     >
                       {override.member.name}
                     </Link>
@@ -301,7 +301,7 @@ export default function MemberOverridesClient() {
                           ? "bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300"
                           : override.override_type === "direct_stripe"
                           ? "bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300"
-                          : "bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300"
+                          : "bg-plum-100 dark:bg-plum-900/30 text-plum-800 dark:text-plum-300"
                       }`}
                     >
                       {override.override_type}
@@ -327,7 +327,7 @@ export default function MemberOverridesClient() {
                     <div className="flex gap-2">
                       <button
                         onClick={() => handleEdit(override)}
-                        className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 text-sm"
+                        className="text-plum-600 dark:text-plum-400 hover:text-plum-800 dark:hover:text-plum-300 text-sm"
                       >
                         Edit
                       </button>

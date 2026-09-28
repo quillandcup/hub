@@ -117,8 +117,8 @@ export default function MembersTable({ members, table: serverTable }: MembersTab
   return (
     <>
       {selectedIds.size > 0 && (
-        <div className="px-6 py-3 bg-blue-50 dark:bg-blue-950/30 border-b border-blue-200 dark:border-blue-800 flex items-center gap-4">
-          <span className="text-sm font-medium text-blue-800 dark:text-blue-300">
+        <div className="px-6 py-3 bg-plum-50 dark:bg-plum-950/30 border-b border-plum-200 dark:border-plum-800 flex items-center gap-4">
+          <span className="text-sm font-medium text-plum-800 dark:text-plum-300">
             {selectedIds.size} selected
           </span>
           {selectedIds.size >= 2 && (
@@ -131,7 +131,7 @@ export default function MembersTable({ members, table: serverTable }: MembersTab
           )}
           <button
             onClick={() => setSelectedIds(new Set())}
-            className="text-sm text-blue-600 dark:text-blue-400 hover:underline ml-auto"
+            className="text-sm text-plum-600 dark:text-plum-400 hover:underline ml-auto"
           >
             Clear selection
           </button>
@@ -150,7 +150,7 @@ export default function MembersTable({ members, table: serverTable }: MembersTab
                     if (el) el.indeterminate = someSelected;
                   }}
                   onChange={toggleAll}
-                  className="accent-blue-600 cursor-pointer"
+                  className="accent-plum-600 cursor-pointer"
                   aria-label="Select all"
                 />
               </th>
@@ -208,21 +208,21 @@ export default function MembersTable({ members, table: serverTable }: MembersTab
             {table.rows.map((member) => (
               <tr
                 key={member.id}
-                className={`hover:bg-slate-50 dark:hover:bg-slate-800 ${selectedIds.has(member.id) ? "bg-blue-50 dark:bg-blue-950/20" : ""}`}
+                className={`hover:bg-slate-50 dark:hover:bg-slate-800 ${selectedIds.has(member.id) ? "bg-plum-50 dark:bg-plum-950/20" : ""}`}
               >
                 <td className="px-4 py-4 w-10">
                   <input
                     type="checkbox"
                     checked={selectedIds.has(member.id)}
                     onChange={() => toggleOne(member.id)}
-                    className="accent-blue-600 cursor-pointer"
+                    className="accent-plum-600 cursor-pointer"
                     aria-label={`Select ${member.name}`}
                   />
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <Link
                     href={`/admin/members/${member.id}`}
-                    className="text-sm font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 hover:underline"
+                    className="text-sm font-medium text-plum-600 hover:text-plum-700 dark:text-plum-400 hover:underline"
                   >
                     {member.name}
                   </Link>

@@ -83,10 +83,10 @@ export default function CalendarSyncCard({ initialUrls }: { initialUrls: Calenda
   return (
     <section
       aria-labelledby="calendar-sync-heading"
-      className="mb-6 rounded-xl border border-blue-200 dark:border-blue-900 bg-blue-50/50 dark:bg-blue-950/20 p-5"
+      className="mb-6 rounded-xl border border-plum-200 dark:border-plum-900 bg-plum-50/50 dark:bg-plum-950/20 p-5"
     >
       <div className="flex items-start gap-3">
-        <div className="shrink-0 rounded-full bg-white dark:bg-slate-900 border border-blue-200 dark:border-blue-900 p-2 text-blue-700 dark:text-blue-400">
+        <div className="shrink-0 rounded-full bg-white dark:bg-slate-900 border border-plum-200 dark:border-plum-900 p-2 text-plum-700 dark:text-plum-400">
           <CalendarIcon className="w-5 h-5" />
         </div>
         <div className="flex-1 min-w-0">
@@ -146,7 +146,7 @@ export default function CalendarSyncCard({ initialUrls }: { initialUrls: Calenda
               onClick={() => setShowHelp((v) => !v)}
               aria-expanded={showHelp}
               aria-controls="calendar-sync-help"
-              className="text-blue-700 dark:text-blue-400 font-medium hover:underline underline-offset-2"
+              className="text-plum-700 dark:text-plum-400 font-medium hover:underline underline-offset-2"
             >
               How does it work?
             </button>

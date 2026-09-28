@@ -85,7 +85,7 @@ export default function HedgieversariesTable({ rows, asOf }: { rows: Hedgieversa
                 <td className="px-6 py-4 whitespace-nowrap">
                   <Link
                     href={`/admin/members/${row.id}`}
-                    className="text-sm font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 hover:underline"
+                    className="text-sm font-medium text-plum-600 hover:text-plum-700 dark:text-plum-400 hover:underline"
                   >
                     {row.name}
                   </Link>
@@ -94,7 +94,7 @@ export default function HedgieversariesTable({ rows, asOf }: { rows: Hedgieversa
                   {row.nextDate ? (
                     <span className="inline-flex items-center gap-2">
                       <span className="text-sm font-medium text-slate-900 dark:text-slate-100">{fmt(row.nextDate)}</span>
-                      <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300">
+                      <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-plum-100 text-plum-800 dark:bg-plum-900/40 dark:text-plum-300">
                         {row.milestoneMonths != null ? milestoneLabel(row.milestoneMonths) : ""}
                       </span>
                     </span>

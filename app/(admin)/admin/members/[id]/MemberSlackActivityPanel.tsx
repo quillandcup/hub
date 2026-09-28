@@ -74,7 +74,7 @@ export default function MemberSlackActivityPanel({ slackActivities }: MemberSlac
               onClick={() => setSlackActivityFilter("all")}
               className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${
                 slackActivityFilter === "all"
-                  ? "bg-blue-100 dark:bg-blue-900 text-blue-900 dark:text-blue-100"
+                  ? "bg-plum-100 dark:bg-plum-900 text-plum-900 dark:text-plum-100"
                   : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700"
               }`}
             >
@@ -84,7 +84,7 @@ export default function MemberSlackActivityPanel({ slackActivities }: MemberSlac
               onClick={() => setSlackActivityFilter("messages")}
               className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${
                 slackActivityFilter === "messages"
-                  ? "bg-blue-100 dark:bg-blue-900 text-blue-900 dark:text-blue-100"
+                  ? "bg-plum-100 dark:bg-plum-900 text-plum-900 dark:text-plum-100"
                   : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700"
               }`}
             >
@@ -94,7 +94,7 @@ export default function MemberSlackActivityPanel({ slackActivities }: MemberSlac
               onClick={() => setSlackActivityFilter("reactions")}
               className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${
                 slackActivityFilter === "reactions"
-                  ? "bg-blue-100 dark:bg-blue-900 text-blue-900 dark:text-blue-100"
+                  ? "bg-plum-100 dark:bg-plum-900 text-plum-900 dark:text-plum-100"
                   : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700"
               }`}
             >
@@ -141,7 +141,7 @@ export default function MemberSlackActivityPanel({ slackActivities }: MemberSlac
                 {slackChannelFilter && (
                   <button
                     onClick={() => setSlackChannelFilter(null)}
-                    className="ml-2 text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                    className="ml-2 text-xs text-plum-600 dark:text-plum-400 hover:underline"
                   >
                     (clear filter)
                   </button>
@@ -154,8 +154,8 @@ export default function MemberSlackActivityPanel({ slackActivities }: MemberSlac
                     onClick={() => setSlackChannelFilter(channel === slackChannelFilter ? null : channel)}
                     className={`px-3 py-1 rounded-full text-sm border transition-colors cursor-pointer ${
                       slackChannelFilter === channel
-                        ? "bg-blue-200 dark:bg-blue-800 text-blue-900 dark:text-blue-100 border-blue-400 dark:border-blue-600"
-                        : "bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-900/40"
+                        ? "bg-plum-200 dark:bg-plum-800 text-plum-900 dark:text-plum-100 border-plum-400 dark:border-plum-600"
+                        : "bg-plum-50 dark:bg-plum-900/20 text-plum-700 dark:text-plum-300 border-plum-200 dark:border-plum-800 hover:bg-plum-100 dark:hover:bg-plum-900/40"
                     }`}
                   >
                     #{channel}
@@ -241,7 +241,7 @@ export default function MemberSlackActivityPanel({ slackActivities }: MemberSlac
                           <div className="flex items-center gap-2">
                             {isMessage ? (
                               <>
-                                <svg className="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <svg className="w-4 h-4 text-plum-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                                 </svg>
                                 <span className="text-xs text-slate-600 dark:text-slate-400">

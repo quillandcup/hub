@@ -189,7 +189,7 @@ export default function AllPricklesTable({
                 {dayRows.map((row) => (
                   <tr
                     key={row.seriesKey}
-                    className={`group ${selection?.selected.has(row.seriesKey) ? "bg-blue-50 dark:bg-blue-950/40" : ""}`}
+                    className={`group ${selection?.selected.has(row.seriesKey) ? "bg-plum-50 dark:bg-plum-950/40" : ""}`}
                   >
                     {selection && (
                       <td className="py-2 pr-2">
@@ -199,7 +199,7 @@ export default function AllPricklesTable({
                             checked={selection.selected.has(row.seriesKey)}
                             onChange={() => selection.onToggle(row.seriesKey)}
                             aria-label={`Commit to ${row.dayOfWeek} ${row.timeLabel} ${row.typeName}`}
-                            className="h-4 w-4 rounded border-slate-300 text-blue-600"
+                            className="h-4 w-4 rounded border-slate-300 text-plum-600"
                           />
                         )}
                       </td>
@@ -207,7 +207,7 @@ export default function AllPricklesTable({
                     <td className="py-0">
                       <Link
                         href={`/prickles/${row.nextOccurrenceId}`}
-                        className="flex items-center py-2 pr-2 text-slate-900 dark:text-slate-100 group-hover:text-blue-600 dark:group-hover:text-blue-400"
+                        className="flex items-center py-2 pr-2 text-slate-900 dark:text-slate-100 group-hover:text-plum-600 dark:group-hover:text-plum-400"
                       >
                         {row.timeLabel}
                       </Link>

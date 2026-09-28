@@ -70,8 +70,8 @@ export default function ImportPhotosClient({ eventId, pickerUri }: { eventId: st
             Open Google Photos, navigate to this event&apos;s album, and select the photos to import (or select all).
             Come back to this tab once you&apos;re done — it&apos;ll pick up automatically.
           </p>
-          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
-            <p className="text-sm text-blue-800 dark:text-blue-200">
+          <div className="bg-plum-50 dark:bg-plum-900/20 border border-plum-200 dark:border-plum-800 rounded-lg p-3">
+            <p className="text-sm text-plum-800 dark:text-plum-200">
               Trying to select from a Shared Album? Make sure you&apos;ve joined the album and
               added at least one photo to it in Google Photos so it becomes searchable — otherwise
               searching for the album won&apos;t return anything, even for an exact match on an
@@ -82,7 +82,7 @@ export default function ImportPhotosClient({ eventId, pickerUri }: { eventId: st
             href={`${pickerUri}/autoclose`}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-block px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm"
+            className="inline-block px-4 py-2 bg-plum-600 text-white rounded hover:bg-plum-700 text-sm"
           >
             Open Google Photos picker
           </a>
@@ -97,7 +97,7 @@ export default function ImportPhotosClient({ eventId, pickerUri }: { eventId: st
             <div>
               <div className="w-full h-2 bg-gray-200 dark:bg-slate-700 rounded overflow-hidden">
                 <div
-                  className="h-full bg-blue-600"
+                  className="h-full bg-plum-600"
                   style={{ width: `${Math.round(((progress.imported + progress.skipped) / Math.max(progress.total, 1)) * 100)}%` }}
                 />
               </div>
@@ -116,7 +116,7 @@ export default function ImportPhotosClient({ eventId, pickerUri }: { eventId: st
             Done — {progress?.imported ?? 0} of {progress?.total ?? 0} photos imported
             {progress?.skipped ? ` (${progress.skipped} were already imported)` : ""}.
           </p>
-          <Link href={`/admin/events/${eventId}`} className="text-blue-600 dark:text-blue-400 hover:underline text-sm">
+          <Link href={`/admin/events/${eventId}`} className="text-plum-600 dark:text-plum-400 hover:underline text-sm">
             ← Back to event
           </Link>
         </>
@@ -125,7 +125,7 @@ export default function ImportPhotosClient({ eventId, pickerUri }: { eventId: st
       {phase === "error" && (
         <>
           <p className="text-sm text-red-800 dark:text-red-300">{error}</p>
-          <Link href={`/admin/events/${eventId}`} className="text-blue-600 dark:text-blue-400 hover:underline text-sm">
+          <Link href={`/admin/events/${eventId}`} className="text-plum-600 dark:text-plum-400 hover:underline text-sm">
             ← Back to event
           </Link>
         </>

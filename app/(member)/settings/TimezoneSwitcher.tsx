@@ -102,7 +102,7 @@ export function TimezoneSwitcher({ initialTimezone = "browser" }: TimezoneSwitch
         value={timezone}
         onChange={(e) => handleChange(e.target.value)}
         disabled={saving}
-        className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50"
+        className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-plum-500 focus:border-transparent disabled:opacity-50"
       >
         {TIMEZONES.map((tz) =>
           tz.disabled ? (

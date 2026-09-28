@@ -43,12 +43,12 @@ describe('AttendanceMonthGrid', () => {
 
     it('highlights today with a blue border', () => {
       expect(src).toContain('isToday');
-      expect(src).toContain('border-blue-500');
+      expect(src).toContain('border-plum-500');
     });
 
     it('shows prickle type pills on days with attendance', () => {
       expect(src).toContain('prickle_types?.name');
-      expect(src).toContain('bg-blue-100');
+      expect(src).toContain('bg-plum-100');
     });
 
     it('shows overflow count when more than 3 events on a day', () => {

@@ -15,7 +15,7 @@ interface MergeFixClientProps {
 }
 
 const AVATAR_COLORS = [
-  "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300",
+  "bg-plum-100 dark:bg-plum-900/30 text-plum-700 dark:text-plum-300",
   "bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300",
   "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300",
   "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300",
@@ -162,7 +162,7 @@ export default function MergeFixClient({ duplicateGroups, dismissedKeys }: Merge
                         <div className="flex items-center gap-1.5">
                           <Link
                             href={`/admin/members/${member.id}`}
-                            className="text-sm font-medium text-slate-900 dark:text-slate-100 hover:text-blue-600 dark:hover:text-blue-400 hover:underline truncate"
+                            className="text-sm font-medium text-slate-900 dark:text-slate-100 hover:text-plum-600 dark:hover:text-plum-400 hover:underline truncate"
                           >
                             {member.name}
                           </Link>
@@ -203,7 +203,7 @@ export default function MergeFixClient({ duplicateGroups, dismissedKeys }: Merge
         <button
           onClick={mergeAll}
           disabled={mergingAll}
-          className="px-4 py-2 text-sm font-medium bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg transition-colors"
+          className="px-4 py-2 text-sm font-medium bg-plum-600 hover:bg-plum-700 disabled:bg-plum-400 text-white rounded-lg transition-colors"
         >
           {mergingAll ? "Merging all…" : "Merge All"}
         </button>
@@ -243,7 +243,7 @@ export default function MergeFixClient({ duplicateGroups, dismissedKeys }: Merge
                     <div className="flex items-center gap-1.5">
                       <Link
                         href={`/admin/members/${member.id}`}
-                        className="text-sm font-medium text-slate-900 dark:text-slate-100 hover:text-blue-600 dark:hover:text-blue-400 hover:underline truncate"
+                        className="text-sm font-medium text-slate-900 dark:text-slate-100 hover:text-plum-600 dark:hover:text-plum-400 hover:underline truncate"
                       >
                         {member.name}
                       </Link>
@@ -265,7 +265,7 @@ export default function MergeFixClient({ duplicateGroups, dismissedKeys }: Merge
                       {member.stripe_customer_id && (
                         <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
                           member.stripe_active
-                            ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
+                            ? "bg-plum-100 text-plum-700 dark:bg-plum-900/30 dark:text-plum-400"
                             : "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400"
                         }`}>
                           {member.stripe_active ? "active in Stripe" : "in Stripe"}
@@ -286,7 +286,7 @@ export default function MergeFixClient({ duplicateGroups, dismissedKeys }: Merge
               </button>
               <button
                 onClick={() => setMergeTarget(group)}
-                className="px-4 py-1.5 text-sm font-medium bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+                className="px-4 py-1.5 text-sm font-medium bg-plum-600 hover:bg-plum-700 text-white rounded-lg transition-colors"
               >
                 Merge
               </button>

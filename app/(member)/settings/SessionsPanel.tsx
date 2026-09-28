@@ -133,7 +133,7 @@ export function SessionsPanel() {
                     {session.user_agent || "Unknown device"}
                   </span>
                   {session.is_current && (
-                    <span className="shrink-0 text-xs font-medium px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300">
+                    <span className="shrink-0 text-xs font-medium px-2 py-0.5 rounded-full bg-plum-100 text-plum-700 dark:bg-plum-900 dark:text-plum-300">
                       This device
                     </span>
                   )}

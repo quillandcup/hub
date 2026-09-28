@@ -16,7 +16,7 @@ export interface PrickleTypeRow {
 }
 
 const PURPOSE_STYLES: Record<string, string> = {
-  writing: "bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300",
+  writing: "bg-plum-50 text-plum-700 dark:bg-plum-900/30 dark:text-plum-300",
   work: "bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300",
   social: "bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300",
   mixed: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
@@ -118,7 +118,7 @@ export default function PrickleTypesTable({ rows }: { rows: PrickleTypeRow[] }) 
               <td className="px-6 py-4">
                 <Link
                   href={`/admin/data/prickle-types/${type.id}/edit`}
-                  className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                  className="text-xs text-plum-600 dark:text-plum-400 hover:underline"
                 >
                   Edit
                 </Link>

@@ -90,7 +90,7 @@ export default function CommitPanel({
     <form
       onSubmit={handleSubmit}
       aria-label="Commit to these prickles"
-      className="mb-4 rounded-lg border border-blue-200 dark:border-blue-900 bg-blue-50/60 dark:bg-blue-950/30 p-4 space-y-3"
+      className="mb-4 rounded-lg border border-plum-200 dark:border-plum-900 bg-plum-50/60 dark:bg-plum-950/30 p-4 space-y-3"
     >
       <div className="flex items-start justify-between gap-3">
         <div>
@@ -167,7 +167,7 @@ export default function CommitPanel({
             <button
               type="submit"
               disabled={submitting}
-              className="px-4 py-2 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+              className="px-4 py-2 text-sm font-medium rounded-lg bg-plum-600 text-white hover:bg-plum-700 disabled:opacity-50"
             >
               {submitting ? "Saving…" : slots.length === 1 ? "Commit to this" : `Commit to these ${slots.length}`}
             </button>

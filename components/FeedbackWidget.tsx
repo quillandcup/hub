@@ -104,7 +104,7 @@ export default function FeedbackWidget() {
                   onClick={() => setFeedbackType(t.value)}
                   className={`flex-1 text-xs px-2 py-1.5 rounded-md border text-center transition-colors ${
                     feedbackType === t.value
-                      ? "bg-blue-50 dark:bg-blue-900/20 border-blue-400 text-blue-700 dark:text-blue-300"
+                      ? "bg-plum-50 dark:bg-plum-900/20 border-plum-400 text-plum-700 dark:text-plum-300"
                       : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800"
                   }`}
                 >
@@ -119,7 +119,7 @@ export default function FeedbackWidget() {
               onChange={(e) => setMessage(e.target.value)}
               placeholder="What's going on?"
               rows={4}
-              className="w-full text-sm rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 p-2 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full text-sm rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 p-2 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-plum-500"
             />
 
             <div className="text-xs text-slate-500 dark:text-slate-400" role="status">
@@ -140,7 +140,7 @@ export default function FeedbackWidget() {
             <button
               onClick={submit}
               disabled={!message.trim() || submitStatus === "submitting"}
-              className="w-full text-sm font-medium bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-md py-2 transition-colors"
+              className="w-full text-sm font-medium bg-plum-600 hover:bg-plum-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-md py-2 transition-colors"
             >
               {submitStatus === "submitting" ? "Sending…" : "Send"}
             </button>
@@ -151,7 +151,7 @@ export default function FeedbackWidget() {
       <button
         onClick={() => (isOpen ? setIsOpen(false) : open())}
         aria-label="Send feedback"
-        className="w-12 h-12 rounded-full bg-blue-600 hover:bg-blue-700 text-white shadow-lg flex items-center justify-center text-xl transition-colors"
+        className="w-12 h-12 rounded-full bg-plum-600 hover:bg-plum-700 text-white shadow-lg flex items-center justify-center text-xl transition-colors"
       >
         💬
       </button>

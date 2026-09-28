@@ -403,7 +403,7 @@ export default function HostsClient({ prickleTypes }: { prickleTypes: PrickleTyp
           {!showForm && (
             <button
               onClick={() => setShowForm(true)}
-              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+              className="px-4 py-2 bg-plum-600 text-white rounded hover:bg-plum-700"
             >
               Add Schedule
             </button>
@@ -592,7 +592,7 @@ export default function HostsClient({ prickleTypes }: { prickleTypes: PrickleTyp
           </label>
 
           <div className="flex gap-2">
-            <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+            <button type="submit" className="px-4 py-2 bg-plum-600 text-white rounded hover:bg-plum-700">
               Create
             </button>
             <button
@@ -640,7 +640,7 @@ export default function HostsClient({ prickleTypes }: { prickleTypes: PrickleTyp
                     <div>
                       <Link
                         href={`/admin/members/${s.member.id}`}
-                        className="font-medium text-blue-600 hover:underline dark:text-blue-400"
+                        className="font-medium text-plum-600 hover:underline dark:text-plum-400"
                       >
                         {s.member.name}
                       </Link>

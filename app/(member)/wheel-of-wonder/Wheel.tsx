@@ -32,7 +32,7 @@ function getInitials(name: string): string {
 }
 
 function getAvatarColor(name: string): string {
-  const colors = ["bg-violet-500", "bg-blue-500", "bg-emerald-500", "bg-amber-500", "bg-rose-500", "bg-cyan-500"];
+  const colors = ["bg-violet-500", "bg-plum-500", "bg-emerald-500", "bg-amber-500", "bg-rose-500", "bg-cyan-500"];
   let hash = 0;
   for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
   return colors[Math.abs(hash) % colors.length];
@@ -293,7 +293,7 @@ export default function Wheel({ confirmedConnectionCount = 0 }: WheelProps) {
         <button
           onClick={handleSpin}
           disabled={phase === "spinning"}
-          className="px-6 py-3 rounded-full font-semibold text-white bg-gradient-to-r from-blue-600 to-purple-600 shadow hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
+          className="px-6 py-3 rounded-full font-semibold text-white bg-gradient-to-r from-plum-500 to-plum-700 shadow hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
         >
           {phase === "spinning" ? "Spinning…" : "Spin the Wheel"}
         </button>
@@ -317,7 +317,7 @@ export default function Wheel({ confirmedConnectionCount = 0 }: WheelProps) {
                   <p className="text-sm text-slate-700 dark:text-slate-300 flex-1">{winner.starterText}</p>
                   <button
                     onClick={() => handleCopyStarter(winner.starterText!)}
-                    className="text-xs px-2 py-1 rounded font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors flex-shrink-0"
+                    className="text-xs px-2 py-1 rounded font-medium text-plum-600 dark:text-plum-400 hover:bg-plum-50 dark:hover:bg-plum-900/20 transition-colors flex-shrink-0"
                   >
                     {starterCopied ? "Copied!" : "Copy"}
                   </button>

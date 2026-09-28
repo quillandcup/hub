@@ -218,7 +218,7 @@ export default function MemberTimelinePanel({
         {!currentHiatus && !showForm && (
           <button
             onClick={() => setShowForm(true)}
-            className="px-3 py-1.5 text-sm font-medium bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+            className="px-3 py-1.5 text-sm font-medium bg-plum-600 hover:bg-plum-700 text-white rounded-lg transition-colors"
           >
             Start Hiatus
           </button>
@@ -290,7 +290,7 @@ export default function MemberTimelinePanel({
               <button
                 type="submit"
                 disabled={submitting}
-                className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg text-sm font-medium transition-colors"
+                className="px-4 py-1.5 bg-plum-600 hover:bg-plum-700 disabled:bg-plum-400 text-white rounded-lg text-sm font-medium transition-colors"
               >
                 {submitting ? "Saving..." : "Start Hiatus"}
               </button>
@@ -341,7 +341,7 @@ export default function MemberTimelinePanel({
                     <form
                       key={key}
                       onSubmit={(e) => handleEditSubmit(e, hiatus.id)}
-                      className="p-4 border border-blue-200 dark:border-blue-800 rounded-lg bg-blue-50/60 dark:bg-blue-950/20 space-y-3"
+                      className="p-4 border border-plum-200 dark:border-plum-800 rounded-lg bg-plum-50/60 dark:bg-plum-950/20 space-y-3"
                     >
                       <div className="flex flex-wrap gap-3">
                         <div>
@@ -382,7 +382,7 @@ export default function MemberTimelinePanel({
                         <button
                           type="submit"
                           disabled={busyId === hiatus.id}
-                          className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg text-sm font-medium transition-colors"
+                          className="px-4 py-1.5 bg-plum-600 hover:bg-plum-700 disabled:bg-plum-400 text-white rounded-lg text-sm font-medium transition-colors"
                         >
                           {busyId === hiatus.id ? "Saving..." : "Save"}
                         </button>
@@ -423,7 +423,7 @@ export default function MemberTimelinePanel({
                           <button
                             onClick={() => openReturnPrompt(hiatus.id)}
                             disabled={busyId === hiatus.id}
-                            className="text-xs text-blue-600 dark:text-blue-400 hover:underline disabled:opacity-50"
+                            className="text-xs text-plum-600 dark:text-plum-400 hover:underline disabled:opacity-50"
                           >
                             {endDateOnly ? "Return Early" : "End Now"}
                           </button>
@@ -448,7 +448,7 @@ export default function MemberTimelinePanel({
                       </div>
                     </div>
                     {returnPromptId === hiatus.id && (
-                      <div className="mt-2 flex items-center gap-2 p-3 rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50/60 dark:bg-blue-950/20">
+                      <div className="mt-2 flex items-center gap-2 p-3 rounded-lg border border-plum-200 dark:border-plum-800 bg-plum-50/60 dark:bg-plum-950/20">
                         <label className="text-xs text-slate-500 dark:text-slate-400" htmlFor={`return-date-${hiatus.id}`}>
                           Return on
                         </label>
@@ -462,7 +462,7 @@ export default function MemberTimelinePanel({
                         <button
                           onClick={() => handleEndNow(hiatus.id, returnDate)}
                           disabled={busyId === hiatus.id || !returnDate}
-                          className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg text-xs font-medium transition-colors"
+                          className="px-3 py-1.5 bg-plum-600 hover:bg-plum-700 disabled:bg-plum-400 text-white rounded-lg text-xs font-medium transition-colors"
                         >
                           {busyId === hiatus.id ? "Saving..." : "Confirm"}
                         </button>
@@ -492,7 +492,7 @@ export default function MemberTimelinePanel({
               return (
                 <div
                   key={key}
-                  className="flex items-center justify-between p-3 rounded-lg border bg-blue-50/60 dark:bg-blue-950/20 border-blue-200 dark:border-blue-900"
+                  className="flex items-center justify-between p-3 rounded-lg border bg-plum-50/60 dark:bg-plum-950/20 border-plum-200 dark:border-plum-900"
                 >
                   <div className="flex items-center gap-3 flex-wrap">
                     <span className="text-sm font-medium text-slate-900 dark:text-slate-100">

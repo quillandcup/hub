@@ -96,7 +96,7 @@ export default function FeaturePreviewsModal({
                   onClick={() => setSelected(feature.key)}
                   className={`w-full flex items-center gap-2.5 px-4 py-3 text-left text-sm transition-colors ${
                     isActive
-                      ? "bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-medium border-l-2 border-blue-600"
+                      ? "bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-medium border-l-2 border-plum-600"
                       : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 border-l-2 border-transparent"
                   }`}
                 >
@@ -130,9 +130,9 @@ export default function FeaturePreviewsModal({
                   aria-checked={isSelectedEnabled}
                   disabled={loading === selected}
                   onClick={() => toggleFeature(selected, !isSelectedEnabled)}
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-plum-500 focus:ring-offset-2 ${
                     isSelectedEnabled
-                      ? "bg-blue-600"
+                      ? "bg-plum-600"
                       : "bg-slate-300 dark:bg-slate-600"
                   }`}
                 >

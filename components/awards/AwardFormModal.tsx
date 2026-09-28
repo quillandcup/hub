@@ -172,7 +172,7 @@ export default function AwardFormModal({ isOpen, onClose, onSaved, award, myBook
           <button
             type="submit"
             disabled={isPending}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg text-sm font-medium"
+            className="px-4 py-2 bg-plum-600 hover:bg-plum-700 disabled:bg-plum-400 text-white rounded-lg text-sm font-medium"
           >
             {isPending ? (award ? "Saving..." : "Adding...") : award ? "Save changes" : "Add award"}
           </button>

@@ -318,8 +318,8 @@ export default function NetworkGraph({ nodes: initialNodes, edges }: NetworkGrap
                         cx={node.x}
                         cy={node.y}
                         r={getNodeSize(node)}
-                        fill={isSelected ? "#3b82f6" : isHighlighted ? "#60a5fa" : "#64748b"}
-                        stroke={isSelected ? "#1e40af" : "none"}
+                        fill={isSelected ? "#b65a88" : isHighlighted ? "#c7779e" : "#64748b"}
+                        stroke={isSelected ? "#733654" : "none"}
                         strokeWidth={isSelected ? 3 : 0}
                         opacity={searchTerm && !node.name.toLowerCase().includes(searchTerm.toLowerCase()) ? 0.2 : 1}
                       />
@@ -358,7 +358,7 @@ export default function NetworkGraph({ nodes: initialNodes, edges }: NetworkGrap
                 </p>
                 <button
                   onClick={() => router.push(`/admin/members/${selectedNode.id}`)}
-                  className="mt-2 text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 hover:underline"
+                  className="mt-2 text-sm text-plum-600 hover:text-plum-700 dark:text-plum-400 hover:underline"
                 >
                   View profile →
                 </button>

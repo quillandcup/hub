@@ -82,7 +82,7 @@ export default function AllPricklesView({
             <button
               type="button"
               onClick={() => setCommitting(true)}
-              className="px-3 py-1.5 text-sm rounded-lg border border-blue-300 dark:border-blue-800 text-blue-700 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-950/40"
+              className="px-3 py-1.5 text-sm rounded-lg border border-plum-300 dark:border-plum-800 text-plum-700 dark:text-plum-300 hover:bg-plum-50 dark:hover:bg-plum-950/40"
             >
               📌 Make a commitment
             </button>

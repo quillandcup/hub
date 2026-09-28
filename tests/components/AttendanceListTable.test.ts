@@ -45,7 +45,7 @@ describe('AttendanceListTable', () => {
     it('highlights the active date header in blue', () => {
       expect(src).toContain('isActive');
       expect(src).toContain('dateKey === activeListDateKey');
-      expect(src).toContain('border-blue-500');
+      expect(src).toContain('border-plum-500');
     });
   });
 

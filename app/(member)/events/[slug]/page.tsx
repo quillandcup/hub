@@ -49,7 +49,7 @@ export default async function EventDetailPage({ params }: { params: Promise<{ sl
 
   return (
     <div className="container mx-auto px-6 py-6 max-w-4xl">
-      <Link href="/events" className="text-sm text-blue-600 dark:text-blue-400 hover:underline">
+      <Link href="/events" className="text-sm text-plum-600 dark:text-plum-400 hover:underline">
         ← All Events
       </Link>
       <EventDetailClient event={event} photos={visiblePhotos || []} calendarControl={calendarControl} />

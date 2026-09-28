@@ -142,7 +142,7 @@ export default function AttendanceListTable({
                       colSpan={4}
                       className={`px-6 py-2 text-sm font-semibold border-t-2 ${
                         isActive
-                          ? "border-blue-500 bg-blue-50 dark:bg-blue-950 text-blue-900 dark:text-blue-100"
+                          ? "border-plum-500 bg-plum-50 dark:bg-plum-950 text-plum-900 dark:text-plum-100"
                           : "border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300"
                       }`}
                     >
@@ -178,7 +178,7 @@ export default function AttendanceListTable({
                           {prickle.host ? (
                             <Link
                               href={`${memberBasePath}/${prickle.host.id}`}
-                              className="text-blue-600 hover:text-blue-700 dark:text-blue-400 hover:underline"
+                              className="text-plum-600 hover:text-plum-700 dark:text-plum-400 hover:underline"
                               onClick={(e) => e.stopPropagation()}
                             >
                               {prickle.host.name}

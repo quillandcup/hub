@@ -36,10 +36,10 @@ function buildHeatmapWeeks(totalsByDate: Map<string, number>, today: Date): { da
 function heatmapColor(total: number, max: number): string {
   if (total <= 0) return "bg-slate-100 dark:bg-slate-800";
   const ratio = max > 0 ? total / max : 0;
-  if (ratio > 0.75) return "bg-blue-700";
-  if (ratio > 0.5) return "bg-blue-600";
-  if (ratio > 0.25) return "bg-blue-400";
-  return "bg-blue-200 dark:bg-blue-900";
+  if (ratio > 0.75) return "bg-plum-700";
+  if (ratio > 0.5) return "bg-plum-600";
+  if (ratio > 0.25) return "bg-plum-400";
+  return "bg-plum-200 dark:bg-plum-900";
 }
 
 interface ProjectChartsProps {
@@ -108,7 +108,7 @@ export default function ProjectCharts({ entries }: ProjectChartsProps) {
               color: "var(--tooltip-text, #fff)",
             }}
           />
-          <Area type="monotone" dataKey="total" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.5} name="Total" />
+          <Area type="monotone" dataKey="total" stroke="#b65a88" fill="#b65a88" fillOpacity={0.5} name="Total" />
         </AreaChart>
       </ResponsiveContainer>
 

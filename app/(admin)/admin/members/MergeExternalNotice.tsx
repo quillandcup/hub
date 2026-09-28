@@ -76,7 +76,7 @@ export function MergeExternalNotice({
                 href={`https://app.kajabi.com/admin/contacts/${secondaryStatus.kajabi_id}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-blue-600 dark:text-blue-400 hover:underline"
+                className="text-plum-600 dark:text-plum-400 hover:underline"
               >
                 {secondaryStatus.kajabi_id} ↗
               </a>
@@ -97,7 +97,7 @@ export function MergeExternalNotice({
                 href={`https://dashboard.stripe.com/customers/${secondaryStatus.stripe_customer_id}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-blue-600 dark:text-blue-400 hover:underline"
+                className="text-plum-600 dark:text-plum-400 hover:underline"
               >
                 {secondaryStatus.stripe_customer_id} ↗
               </a>

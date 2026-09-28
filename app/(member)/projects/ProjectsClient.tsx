@@ -37,7 +37,7 @@ export default function ProjectsClient({ initialProjects }: ProjectsClientProps)
         <button
           type="button"
           onClick={() => setShowNewProject(true)}
-          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium"
+          className="px-4 py-2 bg-plum-600 hover:bg-plum-700 text-white rounded-lg text-sm font-medium"
         >
           New project
         </button>
@@ -46,7 +46,7 @@ export default function ProjectsClient({ initialProjects }: ProjectsClientProps)
           <button
             type="button"
             onClick={() => setShowImport(true)}
-            className="text-blue-600 dark:text-blue-400 hover:underline"
+            className="text-plum-600 dark:text-plum-400 hover:underline"
           >
             Import your projects
           </button>
@@ -70,7 +70,7 @@ export default function ProjectsClient({ initialProjects }: ProjectsClientProps)
         <button
           type="button"
           onClick={() => setShowNewProject(true)}
-          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium"
+          className="px-4 py-2 bg-plum-600 hover:bg-plum-700 text-white rounded-lg text-sm font-medium"
         >
           New project
         </button>
@@ -99,7 +99,7 @@ export default function ProjectsClient({ initialProjects }: ProjectsClientProps)
                 <div className="min-w-0">
                   <Link
                     href={`/projects/${project.id}`}
-                    className="text-lg font-semibold text-slate-900 dark:text-slate-100 hover:text-blue-600 dark:hover:text-blue-400"
+                    className="text-lg font-semibold text-slate-900 dark:text-slate-100 hover:text-plum-600 dark:hover:text-plum-400"
                   >
                     {project.title}
                   </Link>
