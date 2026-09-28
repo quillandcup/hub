@@ -70,6 +70,13 @@ function hostColumn() {
 }
 
 describe("HostsClient schedule table", () => {
+  it("links each host to their member profile and doesn't show emails", async () => {
+    await renderLoaded("Juniper Quill");
+    const link = screen.getByRole("link", { name: "Juniper Quill" });
+    expect(link.getAttribute("href")).toMatch(/^\/admin\/members\/member-\d+$/);
+    expect(screen.queryByText(/@example\.test/)).toBeNull();
+  });
+
   it("sorts by Host and by Status (proposed first), keeping the eligibility badge", async () => {
     await renderLoaded("Juniper Quill");
     await userEvent.click(screen.getByText("Host"));

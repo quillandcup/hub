@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { TabBar } from "@/components/Tabs";
 import {
   DAY_NAMES,
@@ -636,8 +637,14 @@ export default function HostsClient({ prickleTypes }: { prickleTypes: PrickleTyp
               table.rows.map((s) => (
                 <tr key={s.id} className="hover:bg-gray-50 dark:hover:bg-slate-800">
                   <td className="px-4 py-3">
-                    <div className="font-medium dark:text-slate-100">{s.member.name}</div>
-                    <div className="text-sm text-gray-600 dark:text-slate-400">{s.member.email}</div>
+                    <div>
+                      <Link
+                        href={`/admin/members/${s.member.id}`}
+                        className="font-medium text-blue-600 hover:underline dark:text-blue-400"
+                      >
+                        {s.member.name}
+                      </Link>
+                    </div>
                     <HostEligibilityBadge eligibility={s.host_eligibility} />
                   </td>
                   <td className="px-4 py-3">

@@ -29,7 +29,7 @@ describe('ProfilePanel', () => {
     vi.mocked(profileActions.getProfileSettings).mockResolvedValue(baseSettings)
     render(<ProfilePanel />)
 
-    expect(await screen.findByLabelText('Instagram handle')).toHaveValue('@old_handle')
+    expect(await screen.findByLabelText('Instagram')).toHaveValue('@old_handle')
     expect(screen.getByLabelText('Bio')).toHaveValue('Writes cozy mysteries.')
     expect(screen.getByLabelText('Facebook')).toHaveValue('https://facebook.com/someone')
     expect(screen.getByLabelText('X / Twitter')).toHaveValue('')
@@ -98,34 +98,54 @@ describe('ProfilePanel', () => {
     expect(profileActions.updateProfileDetails).not.toHaveBeenCalled()
   })
 
-  it('saves a new Instagram handle separately', async () => {
+  it('saves a new Instagram handle with the same Save button as the other fields', async () => {
     vi.mocked(profileActions.getProfileSettings)
       .mockResolvedValueOnce(baseSettings)
       .mockResolvedValueOnce({ ...baseSettings, instagramHandle: 'new_handle', syncPending: true })
     vi.mocked(profileActions.updateInstagramHandle).mockResolvedValue({ success: true, syncPending: true })
+    vi.mocked(profileActions.updateProfileDetails).mockResolvedValue({ success: true, syncPending: false })
 
     render(<ProfilePanel />)
-    const input = await screen.findByLabelText('Instagram handle')
+    const input = await screen.findByLabelText('Instagram')
     await userEvent.clear(input)
     await userEvent.type(input, '@new_handle')
-    await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(screen.getAllByRole('button', { name: /save/i })).toHaveLength(1)
+    await userEvent.click(screen.getByRole('button', { name: 'Save profile' }))
 
     expect(profileActions.updateInstagramHandle).toHaveBeenCalledWith('@new_handle')
-    expect(profileActions.updateProfileDetails).not.toHaveBeenCalled()
-    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Saved.'))
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Saved. Your profile will update'))
+  })
+
+  it('surfaces the Kajabi warning when Instagram saved but the profile refresh lagged', async () => {
+    vi.mocked(profileActions.getProfileSettings).mockResolvedValue(baseSettings)
+    vi.mocked(profileActions.updateInstagramHandle).mockResolvedValue({
+      success: true,
+      syncPending: true,
+      warning: 'Saved. It may take until tomorrow to show on your profile.',
+    })
+    vi.mocked(profileActions.updateProfileDetails).mockResolvedValue({ success: true, syncPending: false })
+
+    render(<ProfilePanel />)
+    const input = await screen.findByLabelText('Instagram')
+    await userEvent.clear(input)
+    await userEvent.type(input, '@new_handle')
+    await userEvent.click(screen.getByRole('button', { name: 'Save profile' }))
+
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('until tomorrow'))
   })
 
   it('rejects a non-Instagram link client-side', async () => {
     vi.mocked(profileActions.getProfileSettings).mockResolvedValue(baseSettings)
     render(<ProfilePanel />)
 
-    const input = await screen.findByLabelText('Instagram handle')
+    const input = await screen.findByLabelText('Instagram')
     await userEvent.clear(input)
     await userEvent.type(input, 'https://evil.example.com/me')
-    await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Save profile' }))
 
-    expect(screen.getByRole('status')).toHaveTextContent("doesn't go to a profile on instagram.com")
+    expect(screen.getByRole('status')).toHaveTextContent("Instagram: That link doesn't go to a profile on instagram.com")
     expect(profileActions.updateInstagramHandle).not.toHaveBeenCalled()
+    expect(profileActions.updateProfileDetails).not.toHaveBeenCalled()
   })
 
   it('shows the server error and keeps typed values when a save fails', async () => {
@@ -154,6 +174,6 @@ describe('ProfilePanel', () => {
 
     expect(await screen.findByLabelText('Bio')).toBeEnabled()
     expect(screen.getByRole('link', { name: 'support@quillandcup.com' })).toBeInTheDocument()
-    expect(screen.queryByLabelText('Instagram handle')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Instagram')).not.toBeInTheDocument()
   })
 })

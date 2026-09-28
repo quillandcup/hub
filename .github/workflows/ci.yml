@@ -289,6 +289,20 @@ jobs:
           SUPABASE_PROJECT_ID: ${{ vars.SUPABASE_PROJECT_ID }}
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
 
+      # Leaked password protection (HaveIBeenPwned check on sign-up/password change) has no
+      # config.toml key as of CLI 2.118.0, so set it through the Management API instead.
+      # Idempotent; needs the Pro plan. Drop this once `config push` can declare it.
+      - name: Enable leaked password protection
+        run: |
+          curl -fsS -X PATCH "https://api.supabase.com/v1/projects/$SUPABASE_PROJECT_ID/config/auth" \
+            -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d '{"password_hibp_enabled": true}' \
+            -o /dev/null
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_ID: ${{ vars.SUPABASE_PROJECT_ID }}
+
   deploy:
     name: Build and deploy to production
     needs: push-migrations
