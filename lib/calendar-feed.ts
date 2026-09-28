@@ -288,6 +288,11 @@ export async function loadCalendarFeedEvents(
 ): Promise<ICalEvent[]> {
   const since = new Date(now.getTime() - FEED_LOOKBACK_DAYS * 24 * 60 * 60 * 1000);
 
+  // Added items don't depend on hosting or commitments: start them now, collect them at the end.
+  const addedPromise = loadAddedItems(supabase, memberId, since);
+  // Keep a rejection from going unhandled while the steps below run; it's rethrown at the await.
+  addedPromise.catch(() => {});
+
   const [hostedRows, { data: commitmentData, error: commitmentError }] = await Promise.all([
     fetchAllRows<PrickleRow>((from, to) =>
       supabase
@@ -374,7 +379,7 @@ export async function loadCalendarFeedEvents(
     });
   }
 
-  const { added, events } = await loadAddedItems(supabase, memberId, since);
+  const { added, events } = await addedPromise;
 
   return buildCalendarFeedEvents({
     memberId,
@@ -423,19 +428,24 @@ async function loadAddedItems(
     .map((i) => ({ typeId: i.type_id!, dayOfWeek: i.day_of_week!, startTimeLocal: i.start_time_local!, timezone: i.timezone! }));
   const eventIds = items.filter((i) => i.kind === "event").map((i) => i.event_id!);
 
-  const added: FeedPrickle[] = [];
+  // The three lookups are independent, so they run in parallel (one round trip, not three).
+  const loadOnce = async (): Promise<FeedPrickle[]> => {
+    const batches = await Promise.all(
+      chunk(prickleIds, ID_BATCH_SIZE).map(async (ids) => {
+        const { data: rows, error: prickleError } = await supabase
+          .from("prickles")
+          .select(PRICKLE_DETAIL_SELECT)
+          .in("id", ids)
+          .gte("start_time", since.toISOString());
+        if (prickleError) throw new Error(prickleError.message);
+        return ((rows ?? []) as PrickleRow[]).map(toFeedPrickle);
+      })
+    );
+    return batches.flat();
+  };
 
-  for (const ids of chunk(prickleIds, ID_BATCH_SIZE)) {
-    const { data: rows, error: prickleError } = await supabase
-      .from("prickles")
-      .select(PRICKLE_DETAIL_SELECT)
-      .in("id", ids)
-      .gte("start_time", since.toISOString());
-    if (prickleError) throw new Error(prickleError.message);
-    added.push(...((rows ?? []) as PrickleRow[]).map(toFeedPrickle));
-  }
-
-  if (slots.length > 0) {
+  const loadWeekly = async (): Promise<FeedPrickle[]> => {
+    if (slots.length === 0) return [];
     const typeIds = [...new Set(slots.map((s) => s.typeId))];
     const candidates = (
       await fetchAllRows<PrickleRow>((from, to) =>
@@ -449,20 +459,18 @@ async function loadAddedItems(
           .range(from, to)
       )
     ).map(toFeedPrickle);
-    for (const p of candidates) {
-      if (slots.some((slot) => prickleMatchesSlot(p, slot))) added.push(p);
-    }
-  }
+    return candidates.filter((p) => slots.some((slot) => prickleMatchesSlot(p, slot)));
+  };
 
-  let events: FeedEventRow[] = [];
-  if (eventIds.length > 0) {
+  const loadEvents = async (): Promise<FeedEventRow[]> => {
+    if (eventIds.length === 0) return [];
     const { data: eventRows, error: eventError } = await supabase
       .from("events")
       .select("id, slug, title, location, starts_at, ends_at")
       .in("id", eventIds)
       .gte("ends_at", since.toISOString().slice(0, 10));
     if (eventError) throw new Error(eventError.message);
-    events = (eventRows ?? []).map((e) => ({
+    return (eventRows ?? []).map((e) => ({
       id: e.id,
       slug: e.slug,
       title: e.title,
@@ -470,7 +478,8 @@ async function loadAddedItems(
       startsAt: e.starts_at,
       endsAt: e.ends_at,
     }));
-  }
+  };
 
-  return { added, events };
+  const [once, weekly, events] = await Promise.all([loadOnce(), loadWeekly(), loadEvents()]);
+  return { added: [...once, ...weekly], events };
 }

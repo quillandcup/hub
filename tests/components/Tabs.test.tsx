@@ -4,6 +4,10 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Tabs, TabBar } from '@/components/Tabs'
 
+// Outside the App Router useSearchParams returns null; tests that need the param set it here.
+const navigation = vi.hoisted(() => ({ useSearchParams: vi.fn((): URLSearchParams | null => null) }))
+vi.mock('next/navigation', () => navigation)
+
 const TABS = [
   { id: 'projects', label: 'Projects', content: <p>Projects panel</p> },
   { id: 'books', label: 'Books', content: <p>Books panel</p> },
@@ -31,6 +35,23 @@ describe('Tabs', () => {
     expect(`${window.location.pathname}${window.location.search}${window.location.hash}`).toBe(
       '/my-prickles?tab=books&keep=1#top'
     )
+  })
+
+  it('with syncToUrl, follows a link that changes ?tab= while the page stays mounted', async () => {
+    const params = { value: new URLSearchParams('tab=projects') }
+    navigation.useSearchParams.mockImplementation(() => params.value)
+    const { rerender } = render(<Tabs tabs={TABS} initialTab="projects" syncToUrl={{ param: 'tab' }} />)
+    await userEvent.click(screen.getByRole('tab', { name: 'Awards' }))
+    params.value = new URLSearchParams('tab=awards')
+    rerender(<Tabs tabs={TABS} initialTab="projects" syncToUrl={{ param: 'tab' }} />)
+    expect(screen.getByText('Awards panel')).toBeInTheDocument()
+
+    // A link back to ?tab=projects: same initialTab from the server, so only the param moves.
+    params.value = new URLSearchParams('tab=projects&commit=')
+    rerender(<Tabs tabs={TABS} initialTab="projects" syncToUrl={{ param: 'tab' }} />)
+    expect(screen.getByRole('tab', { name: 'Projects' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByText('Projects panel')).toBeInTheDocument()
+    navigation.useSearchParams.mockReset()
   })
 
   it('leaves the URL alone without syncToUrl', async () => {

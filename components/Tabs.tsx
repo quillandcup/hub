@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { Suspense, useEffect, useRef, useState, type ReactNode } from "react";
+import { useSearchParams } from "next/navigation";
 
 export interface TabItem<T extends string> {
   id: T;
@@ -54,6 +55,37 @@ export function replaceTabInUrl(param: string, tabId: string, clear: readonly st
   window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
 }
 
+/**
+ * Switch tabs when a link changes the `?tab=` param on the page we're already on, e.g. a link
+ * from one tab to `?tab=all` while the page was first loaded as `?tab=all`: the server renders
+ * the same `initialTab`, so `key={initialTab}` alone doesn't remount and the old tab would stay.
+ * Our own tab clicks also change the param (replaceTabInUrl), to the tab already showing, so
+ * following it is a no-op. Its own component so only `syncToUrl` users need the Suspense
+ * boundary useSearchParams asks for.
+ */
+function FollowTabParam({
+  param,
+  tabIds,
+  onChange,
+}: {
+  param: string;
+  tabIds: readonly string[];
+  onChange: (id: string) => void;
+}) {
+  // Null outside the App Router (e.g. component tests): nothing to follow.
+  const value = useSearchParams()?.get(param) ?? null;
+  const onChangeRef = useRef(onChange);
+  const tabIdsRef = useRef(tabIds);
+  useEffect(() => {
+    onChangeRef.current = onChange;
+    tabIdsRef.current = tabIds;
+  });
+  useEffect(() => {
+    if (value && tabIdsRef.current.includes(value)) onChangeRef.current(value);
+  }, [value]);
+  return null;
+}
+
 export interface TabPanel<T extends string> extends TabItem<T> {
   content: ReactNode;
 }
@@ -86,6 +118,15 @@ export function Tabs<T extends string>({
 
   return (
     <div className={className}>
+      {syncToUrl && (
+        <Suspense fallback={null}>
+          <FollowTabParam
+            param={syncToUrl.param}
+            tabIds={tabs.map((t) => t.id)}
+            onChange={(id) => setActiveTab(id as T)}
+          />
+        </Suspense>
+      )}
       <TabBar tabs={tabs} activeTab={active.id} onTabChange={handleTabChange} className="mb-6" />
       <div role="tabpanel">{active.content}</div>
     </div>
