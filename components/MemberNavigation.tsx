@@ -27,6 +27,7 @@ function NavLinks({ isAdmin, enabledFeatures, pathname, collapsed, onNavigate }:
   const isStreaksActive = pathname === '/streaks';
   const isWheelActive = pathname === '/wheel-of-wonder';
   const isBookshelfActive = pathname === '/bookshelf';
+  const isDirectoryActive = pathname === '/members' || pathname.startsWith('/members/');
   const isEventsActive = pathname === '/events' || pathname.startsWith('/events/');
 
   const showEvents = enabledFeatures.includes('events');
@@ -109,6 +110,16 @@ function NavLinks({ isAdmin, enabledFeatures, pathname, collapsed, onNavigate }:
             </h2>
           )}
           <div className="space-y-1">
+            <Link
+              href="/members"
+              onClick={onNavigate}
+              className={linkClass(isDirectoryActive)}
+              title={collapsed ? "Member Directory" : undefined}
+            >
+              <span className="text-lg">📇</span>
+              {!collapsed && <span>Member Directory</span>}
+            </Link>
+
             <Link
               href="/wheel-of-wonder"
               onClick={onNavigate}
