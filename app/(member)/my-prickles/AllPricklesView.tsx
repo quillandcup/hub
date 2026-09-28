@@ -39,7 +39,7 @@ export default function AllPricklesView({
   const [view, setView] = useState<ViewMode>("table");
 
   // Committable slots = the recurring schedule rows (each has an upcoming occurrence).
-  const slotOptions = useMemo(() => buildSlotOptions(rows, timeZone), [rows, timeZone]);
+  const slotOptions = useMemo(() => buildSlotOptions(rows), [rows]);
   const optionByKey = useMemo(() => new Map(slotOptions.map((o) => [o.key, o])), [slotOptions]);
   const selectable = useMemo(() => new Set(optionByKey.keys()), [optionByKey]);
 

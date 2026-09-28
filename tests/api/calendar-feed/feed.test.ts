@@ -26,6 +26,8 @@ describe('calendar feed', () => {
   let typeId: string
   let eduTypeId: string
   let eventId: string
+  let addedOnceId: string
+  let notAddedId: string
   let memberAClient: ReturnType<typeof getTestSupabaseClient>
   let adminClient: ReturnType<typeof getTestSupabaseClient>
 
@@ -131,10 +133,10 @@ describe('calendar feed', () => {
     await insertPrickle(hostedByALongAgo, memberAId)
     await insertPrickle(hostedByB, memberBId)
     await insertPrickle(committedByA, memberBId)
-    await insertPrickle(addedOnce, memberBId, eduTypeId)
+    addedOnceId = await insertPrickle(addedOnce, memberBId, eduTypeId)
     await insertPrickle(weekly1, memberBId, eduTypeId)
     await insertPrickle(weekly2, memberBId, eduTypeId)
-    await insertPrickle(notAdded, memberBId, eduTypeId)
+    notAddedId = await insertPrickle(notAdded, memberBId, eduTypeId)
 
     // A 1-week commitment by A to the UTC slot of `committedByA`.
     const { error: commitError } = await admin.rpc('create_prickle_commitment', {
@@ -160,7 +162,7 @@ describe('calendar feed', () => {
 
     const weeklySlot = slotTimeForInstant(weekly1.toISOString(), SCHEDULE_TIMEZONE)
     const { error: itemsError } = await admin.from('calendar_feed_items').insert([
-      { member_id: memberAId, kind: 'prickle', type_id: eduTypeId, start_time: addedOnce.toISOString() },
+      { member_id: memberAId, kind: 'prickle', prickle_id: addedOnceId },
       {
         member_id: memberAId,
         kind: 'slot',
@@ -244,7 +246,7 @@ describe('calendar feed', () => {
     it("lets a member add and remove their own calendar items, and not see or touch anyone else's", async () => {
       const { data: added, error: addError } = await memberAClient
         .from('calendar_feed_items')
-        .insert({ member_id: memberAId, kind: 'prickle', type_id: eduTypeId, start_time: notAdded.toISOString() })
+        .insert({ member_id: memberAId, kind: 'prickle', prickle_id: notAddedId })
         .select('id')
         .single()
       expect(addError).toBeNull()
@@ -252,7 +254,7 @@ describe('calendar feed', () => {
       // Adding the same thing twice hits the unique index (the app treats 23505 as "already added").
       const { error: dupError } = await memberAClient
         .from('calendar_feed_items')
-        .insert({ member_id: memberAId, kind: 'prickle', type_id: eduTypeId, start_time: notAdded.toISOString() })
+        .insert({ member_id: memberAId, kind: 'prickle', prickle_id: notAddedId })
       expect(dupError?.code).toBe('23505')
 
       const { error: otherError } = await memberAClient
@@ -348,6 +350,31 @@ describe('calendar feed', () => {
       expect([...body.matchAll(/^BEGIN:VEVENT$/gm)]).toHaveLength(6)
       expect(body).not.toContain('Part of your commitment')
       expect(body).not.toContain('Feed Retreat')
+    })
+
+    it('keeps an added prickle, under the same UID, when it is rescheduled', async () => {
+      const uidFor = (body: string, start: Date) => {
+        const utc = start.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '')
+        const event = body.split('BEGIN:VEVENT').find((e) => e.includes(`DTSTART:${utc}`))
+        return event?.match(/^UID:(\S+)$/m)?.[1]
+      }
+      const before = (await (await fetchFeed(`${TOKEN_A}.ics`)).text()).replace(/\r\n /g, '')
+      const moved = new Date(addedOnce.getTime() + 3 * 60 * 60 * 1000)
+      await admin
+        .from('prickles')
+        .update({ start_time: moved.toISOString(), end_time: new Date(moved.getTime() + 60 * 60 * 1000).toISOString() })
+        .eq('id', addedOnceId)
+      try {
+        const after = (await (await fetchFeed(`${TOKEN_A}.ics`)).text()).replace(/\r\n /g, '')
+        expect(uidFor(after, moved)).toBeDefined()
+        expect(uidFor(after, moved)).toBe(uidFor(before, addedOnce))
+        expect(uidFor(after, addedOnce)).toBeUndefined()
+      } finally {
+        await admin
+          .from('prickles')
+          .update({ start_time: addedOnce.toISOString(), end_time: new Date(addedOnce.getTime() + 60 * 60 * 1000).toISOString() })
+          .eq('id', addedOnceId)
+      }
     })
 
     it('404s for an unknown or malformed token', async () => {

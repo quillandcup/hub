@@ -14,6 +14,8 @@ import {
   formatCommitmentTitle,
   formatSlotLabel,
   prickleMatchesSlot,
+  SCHEDULE_TIMEZONE,
+  slotInTimeZone,
   slotOccurrenceDates,
   slotTimeForInstant,
   validateCommitmentInput,
@@ -371,8 +373,7 @@ describe("slots", () => {
           hostName: null,
           nextOccurrenceStart: "2026-09-29T13:00:00Z",
         },
-      ],
-      ET
+      ]
     );
     expect(options).toEqual([
       {
@@ -413,6 +414,7 @@ describe("validateCommitmentInput", () => {
     [{ slots: [slot({ dayOfWeek: 7 })] }, "Day of week must be between 0 and 6"],
     [{ slots: [slot({ startTimeLocal: "7am" })] }, "Start time must be HH:MM"],
     [{ slots: [slot({ timezone: "Mars/Olympus" })] }, "Unknown timezone"],
+    [{ slots: [slot({ timezone: "Europe/London" })] }, "Pick prickles from All Prickles"],
     [{ slots: [slot(), slot({ startTimeLocal: "07:00:00" })] }, "The same prickle is picked twice"],
     [{ slots: [slot(), slot({ dayOfWeek: 3, timezone: "Europe/London" })] }, "All prickles in a commitment must use the same timezone"],
     [{ slots: Array.from({ length: 15 }, (_, i) => slot({ dayOfWeek: i % 7, startTimeLocal: `${String(i).padStart(2, "0")}:00` })) }, "Pick at most 14 prickles per commitment"],
@@ -433,6 +435,68 @@ describe("validateCommitmentInput", () => {
       "One of these prickles has already started this week -- start from a later date"
     );
     expect(validateCommitmentInput({ ...valid, startDate: "2026-09-26", slots: [saturday7pm] }, NOW)).toBeNull();
+  });
+});
+
+describe("schedule timezone", () => {
+  it("is the timezone commitment slots are stored in", () => {
+    expect(SCHEDULE_TIMEZONE).toBe(ET);
+  });
+
+  it("builds commit options in the schedule's timezone even when the row labels are another viewer's", () => {
+    // A Los Angeles viewer's row: Monday 4:00 PM PDT = Monday 7:00 PM EDT.
+    const [option] = buildSlotOptions([
+      {
+        seriesKey: `${TYPE}:1-16:00`,
+        typeId: TYPE,
+        typeName: "Progress Prickle",
+        dayOfWeek: "Monday",
+        timeLabel: "4:00 PM PDT",
+        hostName: null,
+        nextOccurrenceStart: "2026-09-28T23:00:00Z",
+      },
+    ]);
+    expect(option).toMatchObject({ dayOfWeek: 1, startTimeLocal: "19:00", timezone: ET, nextDate: "2026-09-28" });
+    expect(option.label).toBe("Monday 4:00 PM PDT · Progress Prickle");
+  });
+
+  it("uses the schedule's date when the slot crosses midnight for the viewer", () => {
+    // Tuesday 00:30 in London is Monday 7:30 PM in New York.
+    const [option] = buildSlotOptions([
+      {
+        seriesKey: "k",
+        typeId: TYPE,
+        typeName: "Late Sprint",
+        dayOfWeek: "Tuesday",
+        timeLabel: "12:30 AM BST",
+        hostName: null,
+        nextOccurrenceStart: "2026-09-28T23:30:00Z",
+      },
+    ]);
+    expect(option).toMatchObject({ dayOfWeek: 1, startTimeLocal: "19:30", nextDate: "2026-09-28" });
+  });
+});
+
+describe("slotInTimeZone", () => {
+  const NOW = new Date("2026-09-26T15:00:00Z");
+
+  it("re-expresses a schedule slot in the viewer's timezone for display", () => {
+    const london = slotInTimeZone(slot({ dayOfWeek: 1, startTimeLocal: "19:30" }), "Europe/London", NOW);
+    expect(london).toEqual({ typeId: TYPE, dayOfWeek: 2, startTimeLocal: "00:30", timezone: "Europe/London" });
+  });
+
+  it("returns the slot unchanged in its own timezone", () => {
+    const s = slot();
+    expect(slotInTimeZone(s, ET, NOW)).toBe(s);
+  });
+
+  it("follows the next occurrence, so it reflects the DST gap in weeks the zones disagree", () => {
+    // EU DST ends 2026-10-25, US DST ends 2026-11-01. Usually 7 AM ET is noon in London; on
+    // Monday 2026-10-26 (between the two changes) it's 11 AM.
+    const mondaySeven = slot({ dayOfWeek: 1, startTimeLocal: "07:00" });
+    expect(slotInTimeZone(mondaySeven, "Europe/London", NOW).startTimeLocal).toBe("12:00");
+    const mondayOct26Early = new Date("2026-10-26T10:00:00Z"); // 6 AM ET, before that day's session
+    expect(slotInTimeZone(mondaySeven, "Europe/London", mondayOct26Early).startTimeLocal).toBe("11:00");
   });
 });
 

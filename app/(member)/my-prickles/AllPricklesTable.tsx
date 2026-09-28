@@ -62,14 +62,13 @@ function nextDateLabel(iso: string, timeZone: string): string {
 
 function RowCalendarControl({ row, calendar }: { row: PrickleScheduleRow; calendar: TableCalendarContext }) {
   if (!row.typeId) return null;
-  // "Every week" items are anchored to the schedule's timezone; commitments to the viewer's.
+  // Recurring slots (commitments, "every week" items) are keyed in the schedule's timezone.
   const scheduleSlot = slotFromScheduleRow(row, SCHEDULE_TIMEZONE);
   const weeklyKey = scheduleSlot ? slotKey(scheduleSlot) : null;
-  const viewerSlot = slotFromScheduleRow(row, calendar.timeZone);
   const autoIncluded =
     row.hostId === calendar.memberId
       ? "hosting"
-      : viewerSlot && calendar.committedSlotKeys.has(slotKey(viewerSlot))
+      : weeklyKey && calendar.committedSlotKeys.has(weeklyKey)
         ? "committed"
         : null;
   return (
@@ -78,7 +77,7 @@ function RowCalendarControl({ row, calendar }: { row: PrickleScheduleRow; calend
       prickleId={row.nextOccurrenceId}
       typeName={`${row.dayOfWeek} ${row.timeLabel} ${row.typeName}`}
       nextLabel={nextDateLabel(row.nextOccurrenceStart, calendar.timeZone)}
-      state={prickleCalendarState(calendar.items, { typeId: row.typeId, startTime: row.nextOccurrenceStart }, weeklyKey)}
+      state={prickleCalendarState(calendar.items, row.nextOccurrenceId, weeklyKey)}
       autoIncluded={autoIncluded}
     />
   );

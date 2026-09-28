@@ -10,11 +10,13 @@ vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
 vi.mock("@/lib/auth", () => ({ getCurrentUser: vi.fn() }));
 vi.mock("@/lib/sudo", () => ({ getEffectiveIdentity: vi.fn() }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+vi.mock("@/lib/timezone", () => ({ getUserTimezonePreference: vi.fn(async () => "America/New_York") }));
 
 import { cancelCommitment, createCommitment, getMyCommitments } from "@/app/(member)/my-prickles/commitment-actions";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
 import { getEffectiveIdentity } from "@/lib/sudo";
+import { getUserTimezonePreference } from "@/lib/timezone";
 
 const IDENTITY = { memberId: "member-1", memberName: "Member One", memberEmail: "m1@example.com", isSudo: false };
 const SUDO_IDENTITY = { memberId: "sudo-target", memberName: "Target", memberEmail: "t@example.com", isSudo: true };
@@ -258,6 +260,15 @@ describe("getMyCommitments", () => {
     });
     expect(c.status).toBe("active");
     expect(c.endDate).toBe("2026-10-11");
+
+    // Stored in the schedule's timezone, shown in the member's.
+    vi.mocked(getUserTimezonePreference).mockResolvedValueOnce("Europe/London");
+    const [inLondon] = await getMyCommitments();
+    expect(inLondon.slots.map((s) => [s.dayOfWeek, s.startTimeLocal, s.timezone])).toEqual([
+      [1, "07:00", "America/New_York"],
+      [3, "07:00", "America/New_York"],
+    ]);
+    expect(inLondon.title).toMatch(/^Progress Prickle · Mon, Wed · 12 PM GMT\+1$/);
   });
 });
 

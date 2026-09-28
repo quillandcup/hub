@@ -8,7 +8,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { getEffectiveIdentity } from "@/lib/sudo";
 import { getUserTimezonePreference } from "@/lib/timezone";
 import { calendarFeedUrls, SCHEDULE_TIMEZONE, type CalendarFeedUrls, type MyCalendarItem } from "@/lib/calendar-feed";
-import { formatSlotLabel, slotKey, slotTimeForInstant } from "@/lib/commitments";
+import { formatSlotLabel, slotInTimeZone, slotKey, slotTimeForInstant } from "@/lib/commitments";
 
 /** Labels fall back to the org's timezone when the member's preference is "browser" (the server
  * can't see the browser's), same as the My Prickles page. Labels always name the zone. */
@@ -138,7 +138,7 @@ export async function getMyCalendarItems(): Promise<MyCalendarItem[]> {
     supabase
       .from("calendar_feed_items")
       .select(
-        "id, kind, type_id, start_time, day_of_week, start_time_local, timezone, event_id, created_at, prickle_types(name), events(title, starts_at, ends_at)"
+        "id, kind, prickle_id, type_id, day_of_week, start_time_local, timezone, event_id, created_at, prickle_types(name), prickles(start_time, prickle_types(name)), events(title, starts_at, ends_at)"
       )
       .eq("member_id", memberId)
       .order("created_at"),
@@ -154,17 +154,25 @@ export async function getMyCalendarItems(): Promise<MyCalendarItem[]> {
   for (const row of data ?? []) {
     const typeName = first(row.prickle_types as NameRef)?.name ?? "Prickle";
     if (row.kind === "prickle") {
-      if (new Date(row.start_time).getTime() < now) continue;
+      const prickle = first(row.prickles as NameRef) as
+        | { start_time: string; prickle_types: NameRef }
+        | null;
+      if (!prickle || new Date(prickle.start_time).getTime() < now) continue;
+      const prickleTypeName = first(prickle.prickle_types)?.name ?? "Prickle";
       items.push({
         id: row.id,
         kind: "prickle",
-        label: `${typeName} · ${formatWhen(row.start_time, timeZone)}`,
-        typeId: row.type_id,
-        startTime: new Date(row.start_time).toISOString(),
+        label: `${prickleTypeName} · ${formatWhen(prickle.start_time, timeZone)}`,
+        prickleId: row.prickle_id,
       });
     } else if (row.kind === "slot") {
       const slot = { typeId: row.type_id, dayOfWeek: row.day_of_week, startTimeLocal: row.start_time_local, timezone: row.timezone };
-      items.push({ id: row.id, kind: "slot", label: formatSlotLabel(typeName, slot), slotKey: slotKey(slot) });
+      items.push({
+        id: row.id,
+        kind: "slot",
+        label: formatSlotLabel(typeName, slotInTimeZone(slot, timeZone)),
+        slotKey: slotKey(slot),
+      });
     } else {
       const event = first(row.events as NameRef) as { title: string; starts_at: string; ends_at: string } | null;
       if (!event || event.ends_at < today) continue;
@@ -197,20 +205,19 @@ async function addItem(row: Record<string, unknown>): Promise<ItemResult> {
 }
 
 /**
- * Add a prickle to the acting member's calendar feed: just this occurrence ("once"), or its
- * weekly slot, ongoing ("weekly"). The prickle is looked up server-side and stored by type + time
- * (its id changes when prickles are reprocessed). A weekly slot is the prickle's weekday and
- * start time in SCHEDULE_TIMEZONE, the timezone the schedule repeats in.
+ * Add a prickle to the acting member's calendar feed: just this prickle ("once", by id -- prickle
+ * ids are stable), or its weekly slot, ongoing ("weekly"): the prickle's weekday and start time in
+ * SCHEDULE_TIMEZONE, the timezone the schedule repeats in.
  */
 export async function addPrickleToMyCalendar(prickleId: string, mode: "once" | "weekly"): Promise<ItemResult> {
   if (mode !== "once" && mode !== "weekly") return { error: "Invalid option" };
   const supabase = await createClient();
-  const { data: prickle } = await supabase.from("prickles").select("type_id, start_time").eq("id", prickleId).maybeSingle();
+  const { data: prickle } = await supabase.from("prickles").select("id, type_id, start_time").eq("id", prickleId).maybeSingle();
   if (!prickle) return { error: "That prickle isn't on the schedule anymore." };
   if (!prickle.type_id) return { error: "That prickle can't be added to your calendar." };
 
   if (mode === "once") {
-    return addItem({ kind: "prickle", type_id: prickle.type_id, start_time: prickle.start_time });
+    return addItem({ kind: "prickle", prickle_id: prickle.id });
   }
   const { dayOfWeek, startTimeLocal } = slotTimeForInstant(prickle.start_time, SCHEDULE_TIMEZONE);
   return addItem({

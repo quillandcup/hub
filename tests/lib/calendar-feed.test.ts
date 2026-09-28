@@ -114,21 +114,22 @@ describe("buildCalendarFeedEvents", () => {
     expect(event.url).toBeUndefined();
   });
 
-  it("keeps UIDs stable when a prickle is reprocessed under a new id", () => {
-    const before = buildCalendarFeedEvents({ memberId: "m1", origin: ORIGIN, hosted: [prickle({ id: "old" })], committed: [] });
-    const after = buildCalendarFeedEvents({ memberId: "m1", origin: ORIGIN, hosted: [prickle({ id: "new" })], committed: [] });
+  it("keys a scheduled prickle's UID on its (stable) id, so a rescheduled prickle moves instead of duplicating", () => {
+    const before = buildCalendarFeedEvents({ memberId: "m1", origin: ORIGIN, hosted: [prickle()], committed: [] });
+    const moved = prickle({ startTime: "2026-09-29T13:00:00.000Z", endTime: "2026-09-29T14:00:00.000Z" });
+    const after = buildCalendarFeedEvents({ memberId: "m1", origin: ORIGIN, hosted: [moved], committed: [] });
     expect(after[0].uid).toBe(before[0].uid);
+    expect(before[0].uid).toBe("prickle-p1.m1@hub.quillandcup.com");
   });
 
-  it("gives an unscheduled occurrence the same UID its prickle gets once scheduled at that time", () => {
-    const tentative = buildCalendarFeedEvents({
+  it("keys an unscheduled committed occurrence on its slot type and expected time", () => {
+    const [event] = buildCalendarFeedEvents({
       memberId: "m1",
       origin: ORIGIN,
       hosted: [],
       committed: [committed({ prickle: null })],
     });
-    const scheduled = buildCalendarFeedEvents({ memberId: "m1", origin: ORIGIN, hosted: [], committed: [committed()] });
-    expect(scheduled[0].uid).toBe(tentative[0].uid);
+    expect(event.uid).toBe("unscheduled-type-progress-20260929T110000Z.m1@hub.quillandcup.com");
   });
 
   it("sorts events by start time", () => {
@@ -148,7 +149,7 @@ describe("buildCalendarFeedEvents", () => {
       origin: ORIGIN,
       hosted: [prickle()],
       committed: [],
-      added: [prickle({ id: "dup" }), added],
+      added: [prickle(), added], // p1 is hosted too
     });
     expect(events.map((e) => e.summary)).toEqual(["Hosting: Progress Prickle", "Educational Prickle with Jenn P"]);
     expect(events[1].description).toContain("Added from Hedgie Hub");
@@ -176,13 +177,13 @@ describe("buildCalendarFeedEvents", () => {
 
 describe("prickleCalendarState", () => {
   const items: MyCalendarItem[] = [
-    { id: "i1", kind: "prickle", label: "", typeId: "t1", startTime: "2026-10-06T23:00:00.000Z" },
+    { id: "i1", kind: "prickle", label: "", prickleId: "p1" },
     { id: "i2", kind: "slot", label: "", slotKey: "t2|1|19:00|America/New_York" },
     { id: "i3", kind: "event", label: "", eventId: "e1" },
   ];
 
-  it("finds a one-off item by type and start instant, whatever the ISO spelling", () => {
-    expect(prickleCalendarState(items, { typeId: "t1", startTime: "2026-10-06T23:00:00+00:00" }, null)).toEqual({
+  it("finds a one-off item by prickle id", () => {
+    expect(prickleCalendarState(items, "p1", null)).toEqual({
       onceItemId: "i1",
       weeklyItemId: null,
     });
@@ -190,12 +191,12 @@ describe("prickleCalendarState", () => {
 
   it("finds a weekly item by slot key", () => {
     expect(
-      prickleCalendarState(items, { typeId: "t2", startTime: "2026-10-12T23:00:00Z" }, "t2|1|19:00|America/New_York")
+      prickleCalendarState(items, "p2", "t2|1|19:00|America/New_York")
     ).toEqual({ onceItemId: null, weeklyItemId: "i2" });
   });
 
   it("reports nothing for a prickle that isn't added", () => {
-    expect(prickleCalendarState(items, { typeId: "t1", startTime: "2026-10-13T23:00:00Z" }, "t1|1|19:00|America/New_York")).toEqual({
+    expect(prickleCalendarState(items, "p3", "t1|1|19:00|America/New_York")).toEqual({
       onceItemId: null,
       weeklyItemId: null,
     });

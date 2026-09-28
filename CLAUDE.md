@@ -198,7 +198,7 @@ Before committing changes to API routes, verify:
 
 **Silver Layer** (canonical state, computed from Bronze + Local):
 - `members`, `prickles`, `attendance`, `member_activities`
-- **Pattern**: DELETE + INSERT for `prickles`/`attendance`; `members` uses a custom atomic upsert (see below) to preserve historical attendance via the `ON DELETE CASCADE` FK; `member_activities` uses two patterns depending on source — DELETE+INSERT by `source` + date range for reprocessable mirrors (Slack, prickle attendance, mirrored atomically inside `reprocess_prickle_attendance_atomic`), and a best-effort single insert alongside the primary action for append-only sources (writing-progress, outreach touches, logins) that are never reprocessed. See `docs/ACTIVITY_AND_AUDIT_LOG.md`.
+- **Pattern**: `prickles` UPSERT on their source key (`calendar_event_id` for calendar prickles, `zoom_meeting_uuid` for PUPs) and DELETE orphans whose source is gone, so **prickle ids — and `/prickles/<id>` URLs — are stable** across reprocessing (safe to reference; add `ON DELETE CASCADE`/`SET NULL` for the rare real delete); DELETE + INSERT for `attendance`; `members` uses a custom atomic upsert (see below) to preserve historical attendance via the `ON DELETE CASCADE` FK; `member_activities` uses two patterns depending on source — DELETE+INSERT by `source` + date range for reprocessable mirrors (Slack, prickle attendance, mirrored atomically inside `reprocess_prickle_attendance_atomic`), and a best-effort single insert alongside the primary action for append-only sources (writing-progress, outreach touches, logins) that are never reprocessed. See `docs/ACTIVITY_AND_AUDIT_LOG.md`.
 
 **Gold Layer** (aggregated views):
 - Currently computed on-demand in dashboard queries
@@ -212,7 +212,7 @@ Before committing changes to API routes, verify:
 - UPSERT patterns leave orphaned data (e.g., deleted calendar event stays in prickles)
 - The pipeline must always reflect current truth from ALL sources (Bronze + Local)
 
-**Note on `members`**: Former members are intentionally retained (status set to cancelled) rather than deleted, because `prickle_attendance.member_id` has `ON DELETE CASCADE` — deleting a member would wipe their full attendance history. `prickles` and `attendance` use the canonical DELETE + INSERT pattern.
+**Note on `members`**: Former members are intentionally retained (status set to cancelled) rather than deleted, because `prickle_attendance.member_id` has `ON DELETE CASCADE` — deleting a member would wipe their full attendance history. `attendance` uses the canonical DELETE + INSERT pattern; `prickles` upsert on their source key and delete orphans, which keeps their ids stable.
 
 **Required Pattern for ALL Silver Processing**:
 
@@ -253,14 +253,14 @@ await supabase.from("silver_table").upsert(silverData, { onConflict: "id" });
    - Scope: All members (full refresh of fields, never a row delete)
 
 2. **`/api/process/calendar`** ✅
-   - DELETE calendar prickles in date range
-   - INSERT fresh from `calendar_events` in date range
+   - UPSERT calendar prickles from `calendar_events` on `calendar_event_id` (existing prickles keep their id)
+   - DELETE prickles in the date range whose calendar event is gone (orphans)
    - Scope: Date range (fromDate, toDate)
 
 3. **`/api/process/attendance`** ✅
    - DELETE attendance in date range
-   - DELETE PUPs (zoom-sourced prickles) in date range
-   - INSERT fresh from `zoom_attendees` in date range
+   - UPSERT PUPs (zoom-sourced prickles) on `zoom_meeting_uuid` (+ start/end), DELETE orphaned PUPs
+   - INSERT fresh attendance from `zoom_attendees` in date range
    - Scope: Date range (fromDate, toDate)
 
 **Bronze Layer Idempotency** (different pattern):

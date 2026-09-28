@@ -9,6 +9,16 @@ import { formatScheduleLabel, zonedTimeToUtc } from "@/lib/prickle-schedules";
 
 export type CommitmentStatus = "active" | "completed" | "cancelled";
 
+/**
+ * The timezone the prickle schedule is kept in: prickles repeat at a fixed wall-clock time here,
+ * across DST (prickle_schedules.timezone defaults to it too). Recurring slots -- commitment slots
+ * and "every week" calendar items -- are stored in this timezone, not the member's own. A slot
+ * stored as, say, Europe/London would sit an hour off the schedule for the weeks when US and UK
+ * daylight saving start or end on different dates. Labels are still shown in the member's
+ * timezone (slotInTimeZone).
+ */
+export const SCHEDULE_TIMEZONE = "America/New_York";
+
 export const MIN_COMMITMENT_WEEKS = 1;
 export const MAX_COMMITMENT_WEEKS = 12;
 export const DEFAULT_COMMITMENT_WEEKS = 4;
@@ -19,10 +29,8 @@ export const MAX_START_DAYS_AHEAD = 60;
 
 /**
  * How far a prickle's start may drift from the committed wall-clock time and still count as
- * that week's occurrence. 60 minutes covers the one case that routinely happens: the member's
- * timezone and the org's (ET) switch DST on different dates (e.g. Europe/London vs.
- * America/New_York for ~1 week each spring and fall), so an unchanged 7am ET prickle lands an
- * hour off the member's committed local time. Matching is one-to-one and closest-first (see
+ * that week's occurrence -- e.g. a one-off time change. (It also absorbed the DST gap for slots
+ * stored in a member's own timezone, before slots moved to SCHEDULE_TIMEZONE.) Matching is one-to-one and closest-first (see
  * assignOccurrencePrickles), so an adjacent-hour slot of the same type only matches when the
  * committed one didn't happen -- and two slots of one commitment never claim the same prickle.
  */
@@ -160,6 +168,18 @@ export function localDateFor(instant: Date, timeZone: string): string {
   }).formatToParts(instant);
   const get = (type: string) => parts.find((p) => p.type === type)!.value;
   return `${get("year")}-${get("month")}-${get("day")}`;
+}
+
+/**
+ * The same slot expressed in another timezone, for display: the weekday and time its occurrence
+ * on/after `onDate` (a local date in the slot's timezone; defaults to today there) falls on in
+ * `timeZone`. Across a DST boundary the result can differ week to week, so never store it.
+ */
+export function slotInTimeZone(slot: CommitmentSlot, timeZone: string, now: Date = new Date()): CommitmentSlot {
+  if (slot.timezone === timeZone) return slot;
+  const date = firstOccurrenceDate(localDateFor(now, slot.timezone), slot.dayOfWeek);
+  const instant = expectedOccurrenceStart(date, slot);
+  return { typeId: slot.typeId, ...slotTimeForInstant(instant.toISOString(), timeZone), timezone: timeZone };
 }
 
 /** The commitment slot a schedule row (from getPrickleScheduleOverview) represents, as seen in `timeZone`. */
@@ -400,6 +420,7 @@ export function validateCommitmentInput(input: Partial<CommitmentInput>, now: Da
   if (new Set(slots.map(slotKey)).size !== slots.length) return "The same prickle is picked twice";
   const timezone = slots[0].timezone;
   if (slots.some((s) => s.timezone !== timezone)) return "All prickles in a commitment must use the same timezone";
+  if (timezone !== SCHEDULE_TIMEZONE) return "Pick prickles from All Prickles";
 
   const today = localDateFor(now, timezone);
   if (!input.startDate || !/^\d{4}-\d{2}-\d{2}$/.test(input.startDate) || Number.isNaN(Date.parse(input.startDate)))
@@ -466,13 +487,14 @@ export interface CommitmentSlotOption extends CommitmentSlot {
   key: string;
   typeName: string;
   label: string;
-  /** Local date of the slot's next occurrence. */
+  /** Date of the slot's next occurrence, local to the slot's timezone (SCHEDULE_TIMEZONE). */
   nextDate: string;
 }
 
 /**
  * The slots a member can commit to: exactly the recurring rows on the All Prickles schedule
  * (getPrickleScheduleOverview), so a commitment can only target a slot that actually exists.
+ * Slots are in SCHEDULE_TIMEZONE; the label keeps the row's own (viewer-timezone) day and time.
  */
 export function buildSlotOptions(
   rows: {
@@ -483,19 +505,18 @@ export function buildSlotOptions(
     timeLabel: string;
     hostName: string | null;
     nextOccurrenceStart: string;
-  }[],
-  timeZone: string
+  }[]
 ): CommitmentSlotOption[] {
   const options: CommitmentSlotOption[] = [];
   for (const row of rows) {
-    const slot = slotFromScheduleRow(row, timeZone);
+    const slot = slotFromScheduleRow(row, SCHEDULE_TIMEZONE);
     if (!slot) continue;
     options.push({
       ...slot,
       key: row.seriesKey,
       typeName: row.typeName,
       label: `${row.dayOfWeek} ${row.timeLabel} · ${row.typeName}${row.hostName ? ` with ${row.hostName}` : ""}`,
-      nextDate: localDateFor(new Date(row.nextOccurrenceStart), timeZone),
+      nextDate: localDateFor(new Date(row.nextOccurrenceStart), SCHEDULE_TIMEZONE),
     });
   }
   return options;

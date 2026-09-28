@@ -199,11 +199,7 @@ export default async function PrickleDetailPage({
           month: "short",
           day: "numeric",
         }).format(new Date(prickle.start_time))}
-        state={prickleCalendarState(
-          calendarItems,
-          { typeId: prickle.type_id, startTime: prickle.start_time },
-          scheduleSlot ? slotKey(scheduleSlot) : null
-        )}
+        state={prickleCalendarState(calendarItems, prickle.id, scheduleSlot ? slotKey(scheduleSlot) : null)}
         autoIncluded={prickleHost?.id === effectiveIdentity.memberId ? "hosting" : null}
       />
     ) : null;

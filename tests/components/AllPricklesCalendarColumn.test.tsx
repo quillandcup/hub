@@ -50,8 +50,8 @@ function renderTable(items: MyCalendarItem[]) {
         items,
         memberId: "me",
         timeZone: TZ,
-        // Commitments are keyed in the viewer's timezone.
-        committedSlotKeys: new Set(["t-commit|2|16:00|America/Los_Angeles"]),
+        // Commitment slots are keyed in the schedule's timezone, whatever the viewer's.
+        committedSlotKeys: new Set(["t-commit|2|19:00|America/New_York"]),
       }}
     />
   );
@@ -65,7 +65,7 @@ describe("All Prickles calendar column", () => {
   });
 
   it("marks a row whose next occurrence is added", () => {
-    renderTable([{ id: "i2", kind: "prickle", label: "", typeId: "t-sprint", startTime: "2026-10-06T23:00:00.000Z" }]);
+    renderTable([{ id: "i2", kind: "prickle", label: "", prickleId: "next-sprint" }]);
     expect(screen.getByRole("button", { name: "Tuesday 4:00 PM PDT Sprint is in your calendar" })).toBeInTheDocument();
   });
 

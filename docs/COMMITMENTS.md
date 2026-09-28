@@ -52,16 +52,16 @@ reprocessed.
 | `type_id` | FK `prickle_types`, `ON DELETE CASCADE` |
 | `day_of_week` | 0=Sun..6=Sat, same convention as `prickle_schedules.day_of_week` |
 | `start_time_local` | `TIME`, wall-clock time in `timezone` |
-| `timezone` | IANA tz the member saw the schedule in (their preference, or `America/New_York` when set to "browser"). The commitment's dates are local to it. The app gives every slot of one commitment the same timezone |
+| `timezone` | Always the schedule's timezone, `America/New_York` (`SCHEDULE_TIMEZONE` in `lib/commitments.ts`): prickles repeat at a fixed New York wall-clock time across DST. The commitment's dates are local to it. The app shows slots in the member's own timezone (`slotInTimeZone`). Before migration `20260928000200` it was the member's timezone; that migration converted existing rows |
 | | UNIQUE `(commitment_id, type_id, day_of_week, start_time_local, timezone)` |
 
 Design choices:
 
-- **Slot identity matches Hosting.** A slot is type + weekday + local time + timezone. There's no
-  FK to `prickles(id)`, because prickles are DELETE+INSERT reprocessed from the calendar and their
-  ids aren't stable. (The existing `writing_nudge_log` does reference `prickles(id)` with `ON DELETE
-  CASCADE`, so a calendar reprocess silently erases its dedup rows. We shouldn't copy that. See
-  Part 2.)
+- **Slot identity matches Hosting.** A slot is type + weekday + local time + timezone: a commitment
+  is to a recurring slot, not to specific prickles. (Prickle ids themselves are stable: calendar
+  prickles upsert on `calendar_event_id` and PUPs on `zoom_meeting_uuid`, so only a prickle whose
+  calendar event or Zoom meeting is deleted goes away. That's why `writing_nudge_log` and
+  `calendar_feed_items` can reference `prickles(id)` directly.)
 - **One window per commitment.** All of a commitment's slots share `start_date`/`weeks`, so "M/W/F
   for 4 weeks" is one thing to track, renew, or cancel. Week *N* is the *N*th 7-day block from
   `start_date`. A slot whose weekday comes before the start date's weekday gets its week-1 session
@@ -143,9 +143,8 @@ For every slot × week of the window:
 2. **Match prickles to occurrences one-to-one** (`assignOccurrencePrickles`). Take every
    same-type prickle within **±60 minutes** of an expected start, closest first, and use each
    occurrence and each prickle at most once.
-   - The tolerance covers weeks when the member's timezone and the org's (ET) switch DST on
-     different dates. For example, a London member's "12:00" is 7am ET for most of the year, but
-     for one week in spring and one in fall the ET prickle lands an hour off.
+   - The tolerance covers one-off time changes. (It also absorbed the DST gap for slots stored in a
+     member's own timezone, before slots moved to the schedule's timezone.)
    - Closest-first matching means an adjacent-hour slot of the same type only matches when the
      committed one didn't run.
    - Two slots of one commitment can never claim the same prickle.
@@ -174,7 +173,7 @@ Data fetching happens in `getMyCommitments`
 
 `createCommitment` validates input in the pure layer (`validateCommitmentInput`):
 
-- 1–14 distinct slots, all in one timezone.
+- 1–14 distinct slots, all in the schedule's timezone (`SCHEDULE_TIMEZONE`).
 - A start date between today and 60 days out, and 1–12 weeks.
 - No picked session has already started on the start date.
 
@@ -269,7 +268,7 @@ CREATE TABLE commitment_nudge_log (
   occurrence_date DATE NOT NULL,          -- local date in the slot's timezone
   kind TEXT NOT NULL CHECK (kind IN ('pre_nudge', 'post_followup', 'missed_checkin', 'end_summary')),
   channel TEXT NOT NULL DEFAULT 'slack',
-  prickle_id UUID,                        -- informational only, no FK (prickle ids aren't stable)
+  prickle_id UUID,                        -- informational (prickle ids are stable; a FK would work too)
   sent_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   UNIQUE NULLS NOT DISTINCT (commitment_id, slot_id, occurrence_date, kind)
 );

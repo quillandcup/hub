@@ -1,10 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
-  assignOccurrencePrickles,
   commitmentsFetchWindow,
   computeCommitmentProgress,
   formatCommitmentTitle,
-  MATCH_TOLERANCE_MINUTES,
   prickleMatchesSlot,
   type Commitment,
   type CommitmentSlot,
@@ -13,7 +11,7 @@ import {
 } from "@/lib/commitments";
 import { hostShortName } from "@/lib/formatters";
 import { formatUtc, type ICalEvent } from "@/lib/ical";
-import { fetchAllRows } from "@/lib/supabase/paginate";
+import { chunk, fetchAllRows } from "@/lib/supabase/paginate";
 
 /**
  * A member's personal calendar feed (/api/calendar/feed/<token>.ics). It includes the prickles
@@ -52,17 +50,12 @@ export function calendarFeedUrls(origin: string, token: string): CalendarFeedUrl
   };
 }
 
-/**
- * The timezone the prickle schedule is kept in (prickle_schedules.timezone defaults to it; prickles
- * repeat at a fixed wall-clock time here, across DST). "Every week" items are anchored to it rather
- * than to the member's own timezone: a slot defined in, say, Europe/London would stop matching for
- * the weeks when US and UK daylight saving start or end on different dates.
- */
-export const SCHEDULE_TIMEZONE = "America/New_York";
+/** Re-exported for the feed's callers; see lib/commitments.ts. */
+export { SCHEDULE_TIMEZONE } from "@/lib/commitments";
 
 /** An item the member added to their feed by hand (calendar_feed_items), as listed in the UI. */
 export type MyCalendarItem =
-  | { id: string; kind: "prickle"; label: string; typeId: string; startTime: string }
+  | { id: string; kind: "prickle"; label: string; prickleId: string }
   | { id: string; kind: "slot"; label: string; slotKey: string }
   | { id: string; kind: "event"; label: string; eventId: string };
 
@@ -74,14 +67,13 @@ export interface PrickleCalendarState {
 
 export function prickleCalendarState(
   items: readonly MyCalendarItem[],
-  prickle: { typeId: string | null; startTime: string },
+  prickleId: string,
   weeklySlotKey: string | null
 ): PrickleCalendarState {
-  const startMs = new Date(prickle.startTime).getTime();
   let onceItemId: string | null = null;
   let weeklyItemId: string | null = null;
   for (const item of items) {
-    if (item.kind === "prickle" && item.typeId === prickle.typeId && new Date(item.startTime).getTime() === startMs) {
+    if (item.kind === "prickle" && item.prickleId === prickleId) {
       onceItemId = item.id;
     } else if (item.kind === "slot" && weeklySlotKey && item.slotKey === weeklySlotKey) {
       weeklyItemId = item.id;
@@ -125,16 +117,22 @@ export interface FeedEventRow {
   endsAt: string;
 }
 
-function eventKey(typeId: string | null, start: Date): string {
-  return `${typeId ?? "untyped"}-${formatUtc(start)}`;
+/** Scheduled prickles are keyed (and UID'd) by id: prickle ids are stable across reprocessing
+ * (calendar prickles upsert on calendar_event_id, PUPs on zoom_meeting_uuid), so a rescheduled
+ * prickle moves in the member's calendar instead of being dropped and re-added. */
+function prickleKey(prickleId: string): string {
+  return `prickle-${prickleId}`;
+}
+
+/** A committed occurrence with no prickle on the schedule yet: keyed by slot type + expected time. */
+function unscheduledKey(typeId: string, start: Date): string {
+  return `unscheduled-${typeId}-${formatUtc(start)}`;
 }
 
 /**
  * Hosted prickles, committed occurrences, and added prickles and events as calendar events, one
  * per prickle: a prickle that qualifies more than once shows once, as hosting, else as committed,
- * else as added. UIDs come from the prickle's type and
- * start time (plus the member), not its id -- prickles are DELETE+INSERT reprocessed, so their ids
- * change, and a changing UID would make calendar apps drop and re-add the event.
+ * else as added.
  */
 export function buildCalendarFeedEvents({
   memberId,
@@ -158,7 +156,7 @@ export function buildCalendarFeedEvents({
 
   for (const p of hosted) {
     const start = new Date(p.startTime);
-    const key = eventKey(p.typeId, start);
+    const key = prickleKey(p.id);
     events.set(key, {
       uid: uid(key),
       start,
@@ -174,7 +172,7 @@ export function buildCalendarFeedEvents({
     if (o.prickle) {
       const p = o.prickle;
       const start = new Date(p.startTime);
-      const key = eventKey(p.typeId, start);
+      const key = prickleKey(p.id);
       if (events.has(key)) continue; // hosting it too
       events.set(key, {
         uid: uid(key),
@@ -187,7 +185,7 @@ export function buildCalendarFeedEvents({
       });
     } else {
       const start = new Date(o.expectedStart);
-      const key = eventKey(o.typeId, start);
+      const key = unscheduledKey(o.typeId, start);
       if (events.has(key)) continue;
       events.set(key, {
         uid: uid(key),
@@ -205,7 +203,7 @@ export function buildCalendarFeedEvents({
 
   for (const p of added) {
     const start = new Date(p.startTime);
-    const key = eventKey(p.typeId, start);
+    const key = prickleKey(p.id);
     if (events.has(key)) continue; // hosting or committed
     events.set(key, {
       uid: uid(key),
@@ -390,21 +388,22 @@ export async function loadCalendarFeedEvents(
 
 interface FeedItemRow {
   kind: "prickle" | "slot" | "event";
+  prickle_id: string | null;
   type_id: string | null;
-  start_time: string | null;
   day_of_week: number | null;
   start_time_local: string | null;
   timezone: string | null;
   event_id: string | null;
 }
 
+/** Ids per .in() request -- keeps the URL short (a member adds a handful, but stay safe). */
+const ID_BATCH_SIZE = 100;
 const PRICKLE_DETAIL_SELECT = "id, type_id, start_time, end_time, prickle_types(name), host:members(name)";
 
 /**
- * calendar_feed_items resolved to prickles and events. A 'prickle' item is its closest same-type
- * prickle within the commitment match tolerance (reprocessing can nudge a time); one that no
- * longer matches anything was cancelled or moved, and drops out. A 'slot' item is every prickle
- * on that slot from `since` on.
+ * calendar_feed_items resolved to prickles and events. A 'prickle' item is that prickle (its row
+ * cascades away if the prickle is deleted); a 'slot' item is every prickle on that slot from
+ * `since` on.
  */
 async function loadAddedItems(
   supabase: SupabaseClient,
@@ -413,13 +412,12 @@ async function loadAddedItems(
 ): Promise<{ added: FeedPrickle[]; events: FeedEventRow[] }> {
   const { data, error } = await supabase
     .from("calendar_feed_items")
-    .select("kind, type_id, start_time, day_of_week, start_time_local, timezone, event_id")
+    .select("kind, prickle_id, type_id, day_of_week, start_time_local, timezone, event_id")
     .eq("member_id", memberId);
   if (error) throw new Error(error.message);
   const items = (data ?? []) as FeedItemRow[];
 
-  const toleranceMs = MATCH_TOLERANCE_MINUTES * 60 * 1000;
-  const onceItems = items.filter((i) => i.kind === "prickle" && new Date(i.start_time!).getTime() + toleranceMs >= since.getTime());
+  const prickleIds = items.filter((i) => i.kind === "prickle").map((i) => i.prickle_id!);
   const slots: CommitmentSlot[] = items
     .filter((i) => i.kind === "slot")
     .map((i) => ({ typeId: i.type_id!, dayOfWeek: i.day_of_week!, startTimeLocal: i.start_time_local!, timezone: i.timezone! }));
@@ -427,31 +425,14 @@ async function loadAddedItems(
 
   const added: FeedPrickle[] = [];
 
-  if (onceItems.length > 0) {
-    const starts = onceItems.map((i) => new Date(i.start_time!).getTime());
-    const typeIds = [...new Set(onceItems.map((i) => i.type_id!))];
-    const candidates = (
-      await fetchAllRows<PrickleRow>((from, to) =>
-        supabase
-          .from("prickles")
-          .select(PRICKLE_DETAIL_SELECT)
-          .in("type_id", typeIds)
-          .gte("start_time", new Date(Math.min(...starts) - toleranceMs).toISOString())
-          .lte("start_time", new Date(Math.max(...starts) + toleranceMs).toISOString())
-          .order("start_time")
-          .order("id")
-          .range(from, to)
-      )
-    ).map(toFeedPrickle);
-    const matches = assignOccurrencePrickles(
-      onceItems.map((i) => ({ typeId: i.type_id!, start: new Date(i.start_time!) })),
-      candidates.map((p) => ({ id: p.id, typeId: p.typeId, startTime: p.startTime, endTime: p.endTime }))
-    );
-    const byId = new Map(candidates.map((p) => [p.id, p]));
-    for (const m of matches) {
-      const p = m ? byId.get(m.id) : undefined;
-      if (p && new Date(p.startTime) >= since) added.push(p);
-    }
+  for (const ids of chunk(prickleIds, ID_BATCH_SIZE)) {
+    const { data: rows, error: prickleError } = await supabase
+      .from("prickles")
+      .select(PRICKLE_DETAIL_SELECT)
+      .in("id", ids)
+      .gte("start_time", since.toISOString());
+    if (prickleError) throw new Error(prickleError.message);
+    added.push(...((rows ?? []) as PrickleRow[]).map(toFeedPrickle));
   }
 
   if (slots.length > 0) {
