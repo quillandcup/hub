@@ -31,6 +31,16 @@ vi.mock("@/app/(member)/hosting/actions", () => ({
   getMyHostEligibility: vi.fn(async () => null),
 }));
 vi.mock("@/app/(member)/my-prickles/commitment-actions", () => ({ getMyCommitments: vi.fn(async () => []) }));
+vi.mock("@/app/(member)/my-prickles/calendar-feed-actions", () => ({
+  getMyCalendarFeedUrls: vi.fn(async () => ({
+    https: "https://hub.example/api/calendar/feed/t.ics",
+    webcal: "webcal://hub.example/api/calendar/feed/t.ics",
+    google: "https://calendar.google.com/calendar/r?cid=x",
+    outlook: "https://outlook.live.com/calendar/0/addfromweb?url=x",
+  })),
+  regenerateMyCalendarFeedToken: vi.fn(),
+  getMyCalendarItems: vi.fn(async () => []),
+}));
 vi.mock("@/components/MemberCalendarClient", () => ({
   default: ({ memberId }: { memberId: string }) => <div data-testid="history-calendar">member: {memberId}</div>,
 }));
@@ -98,7 +108,24 @@ describe("My Prickles Hosting tab for members who can't host yet", () => {
     await renderServerPage(MyPricklesPage, props("hosting"));
     const panel = screen.getByRole("tabpanel");
     expect(within(panel).queryByTestId("hosting-stats")).not.toBeInTheDocument();
+    expect(within(panel).queryByRole("heading", { name: /Sync your prickles/ })).not.toBeInTheDocument();
     expect(within(panel).getByTestId("hosting-schedule-manager")).toBeInTheDocument();
+  });
+});
+
+describe("My Prickles calendar sync", () => {
+  it("offers calendar sync on the Commitments tab", async () => {
+    await renderServerPage(MyPricklesPage, props("commitments"));
+    expect(
+      within(screen.getByRole("tabpanel")).getByRole("heading", { name: "Sync your prickles with your calendar" })
+    ).toBeInTheDocument();
+  });
+
+  it("offers calendar sync on the Hosting tab", async () => {
+    await renderServerPage(MyPricklesPage, props("hosting"));
+    expect(
+      within(screen.getByRole("tabpanel")).getByRole("heading", { name: "Sync your prickles with your calendar" })
+    ).toBeInTheDocument();
   });
 });
 

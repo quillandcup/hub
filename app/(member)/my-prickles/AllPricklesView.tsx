@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { PrickleScheduleRow, PrickleInstance } from "@/lib/prickle-schedule";
 import { buildSlotOptions } from "@/lib/commitments";
-import AllPricklesTable from "./AllPricklesTable";
+import AllPricklesTable, { type TableCalendarContext } from "./AllPricklesTable";
 import AllPricklesCalendar from "./AllPricklesCalendar";
 import CommitPanel from "./CommitPanel";
 import { PillFilter } from "@/components/PillFilter";
@@ -23,6 +23,7 @@ export default function AllPricklesView({
   upcomingWindowDays,
   lookbackDays,
   initialCommitKeys,
+  calendar,
 }: {
   rows: PrickleScheduleRow[];
   instances: PrickleInstance[];
@@ -31,6 +32,8 @@ export default function AllPricklesView({
   lookbackDays: number;
   /** From ?commit=<seriesKey>[,<seriesKey>...]: open commit mode with these slots picked. null = closed. */
   initialCommitKeys?: string[] | null;
+  /** Enables the per-row "add to my calendar" control. */
+  calendar?: Omit<TableCalendarContext, "timeZone">;
 }) {
   const router = useRouter();
   const [view, setView] = useState<ViewMode>("table");
@@ -101,7 +104,7 @@ export default function AllPricklesView({
       )}
 
       {view === "table" ? (
-        <AllPricklesTable rows={rows} selection={selection} />
+        <AllPricklesTable rows={rows} selection={selection} calendar={calendar ? { ...calendar, timeZone } : undefined} />
       ) : (
         <AllPricklesCalendar
           instances={instances}

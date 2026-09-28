@@ -6,6 +6,9 @@ import type { PrickleScheduleRow } from "@/lib/prickle-schedule";
 import { SortableTh } from "@/components/SortableTh";
 import { useDataTable } from "@/lib/hooks/useDataTable";
 import type { SortValue } from "@/lib/hooks/useTableSort";
+import { prickleCalendarState, SCHEDULE_TIMEZONE, type MyCalendarItem } from "@/lib/calendar-feed";
+import { slotFromScheduleRow, slotKey } from "@/lib/commitments";
+import { AddPrickleToCalendar } from "./AddToCalendar";
 
 const DAY_ORDER = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
@@ -44,14 +47,53 @@ export interface TableSlotSelection {
   onToggle: (seriesKey: string) => void;
 }
 
+/** Per-row "add to my calendar" (see AddToCalendar). */
+export interface TableCalendarContext {
+  items: readonly MyCalendarItem[];
+  memberId: string;
+  timeZone: string;
+  /** slotKeys of the member's active commitments -- already in their calendar. */
+  committedSlotKeys: ReadonlySet<string>;
+}
+
+function nextDateLabel(iso: string, timeZone: string): string {
+  return new Intl.DateTimeFormat("en-US", { timeZone, weekday: "short", month: "short", day: "numeric" }).format(new Date(iso));
+}
+
+function RowCalendarControl({ row, calendar }: { row: PrickleScheduleRow; calendar: TableCalendarContext }) {
+  if (!row.typeId) return null;
+  // "Every week" items are anchored to the schedule's timezone; commitments to the viewer's.
+  const scheduleSlot = slotFromScheduleRow(row, SCHEDULE_TIMEZONE);
+  const weeklyKey = scheduleSlot ? slotKey(scheduleSlot) : null;
+  const viewerSlot = slotFromScheduleRow(row, calendar.timeZone);
+  const autoIncluded =
+    row.hostId === calendar.memberId
+      ? "hosting"
+      : viewerSlot && calendar.committedSlotKeys.has(slotKey(viewerSlot))
+        ? "committed"
+        : null;
+  return (
+    <AddPrickleToCalendar
+      variant="icon"
+      prickleId={row.nextOccurrenceId}
+      typeName={`${row.dayOfWeek} ${row.timeLabel} ${row.typeName}`}
+      nextLabel={nextDateLabel(row.nextOccurrenceStart, calendar.timeZone)}
+      state={prickleCalendarState(calendar.items, { typeId: row.typeId, startTime: row.nextOccurrenceStart }, weeklyKey)}
+      autoIncluded={autoIncluded}
+    />
+  );
+}
+
 export default function AllPricklesTable({
   rows,
   selection,
+  calendar,
 }: {
   rows: PrickleScheduleRow[];
   selection?: TableSlotSelection;
+  calendar?: TableCalendarContext;
 }) {
-  const columnCount = selection ? 5 : 4;
+  const columnCount = 4 + (selection ? 1 : 0) + (calendar ? 1 : 0);
   const [typeFilter, setTypeFilter] = useState<string>("all");
   // Grouped under day headers, so it never pages (a page break would split a day).
   const { sortColumn, sortDirection, handleSort, rows: sortedRows } = useDataTable<PrickleScheduleRow, SortColumn>({
@@ -127,6 +169,11 @@ export default function AllPricklesTable({
                   onClick={() => handleSort(column)}
                 />
               ))}
+              {calendar && (
+                <th className="pb-2 pl-2 font-medium w-8">
+                  <span className="sr-only">Calendar</span>
+                </th>
+              )}
             </tr>
           </thead>
           <tbody>
@@ -171,6 +218,11 @@ export default function AllPricklesTable({
                     <td className="py-2 text-right">
                       <AttendanceHint row={row} />
                     </td>
+                    {calendar && (
+                      <td className="py-1 pl-2 text-right">
+                        <RowCalendarControl row={row} calendar={calendar} />
+                      </td>
+                    )}
                   </tr>
                 ))}
               </Fragment>

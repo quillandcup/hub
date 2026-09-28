@@ -18,6 +18,9 @@ import HostingScheduleManager from "@/app/(member)/hosting/HostingScheduleManage
 import AllPricklesView from "./AllPricklesView";
 import CommitmentsManager from "./CommitmentsManager";
 import { getMyCommitments } from "./commitment-actions";
+import { getMyCalendarFeedUrls, getMyCalendarItems } from "./calendar-feed-actions";
+import { slotKey } from "@/lib/commitments";
+import CalendarSyncCard from "./CalendarSyncCard";
 import { Tabs } from "@/components/Tabs";
 import { RememberTabUrl } from "@/components/ReturnToTab";
 
@@ -73,6 +76,8 @@ export default async function MyPricklesPage({ searchParams }: { searchParams: P
     hostEligibility,
     members,
     commitments,
+    calendarFeedUrls,
+    calendarItems,
   ] = await Promise.all([
     getRankedUpcomingPrickles(supabase, memberId, timeZone, now, UPCOMING_WINDOW_DAYS),
     getPrickleScheduleOverview(supabase, now, timeZone, SCHEDULE_LOOKBACK_DAYS, UPCOMING_WINDOW_DAYS),
@@ -90,6 +95,8 @@ export default async function MyPricklesPage({ searchParams }: { searchParams: P
     getMyHostEligibility(),
     fetchOtherMembers(supabase, memberId),
     getMyCommitments(),
+    getMyCalendarFeedUrls(),
+    getMyCalendarItems(),
   ]);
 
   const overrides = (lockRows ?? []).map((r) => ({ month: r.month as string, locked: r.locked as boolean }));
@@ -100,6 +107,11 @@ export default async function MyPricklesPage({ searchParams }: { searchParams: P
   // first), capped the same way -- this tab is a dedicated home for it, not
   // a raw feed of every prickle happening org-wide in the window.
   const displayedUpcoming = ranked.slice(0, MAX_UPCOMING_DISPLAY);
+
+  // Active commitments' slots are already in the member's calendar feed.
+  const committedSlotKeys = new Set(
+    commitments.filter((c) => c.status === "active").flatMap((c) => c.slots.map((slot) => slotKey(slot)))
+  );
 
   // Members who can't host yet get only the "Settle in first" welcome from
   // HostingScheduleManager (same condition), not an empty stats banner above it.
@@ -181,6 +193,7 @@ export default async function MyPricklesPage({ searchParams }: { searchParams: P
                   upcomingWindowDays={UPCOMING_WINDOW_DAYS}
                   lookbackDays={SCHEDULE_LOOKBACK_DAYS}
                   initialCommitKeys={initialCommitKeys}
+                  calendar={{ items: calendarItems, memberId, committedSlotKeys }}
                 />
               ),
             },
@@ -197,7 +210,10 @@ export default async function MyPricklesPage({ searchParams }: { searchParams: P
               id: "commitments",
               label: "Commitments",
               content: (
-                <CommitmentsManager commitments={commitments} />
+                <>
+                  {calendarFeedUrls && <CalendarSyncCard initialUrls={calendarFeedUrls} items={calendarItems} />}
+                  <CommitmentsManager commitments={commitments} />
+                </>
               ),
             },
             {
@@ -205,6 +221,7 @@ export default async function MyPricklesPage({ searchParams }: { searchParams: P
               label: "Hosting",
               content: (
                 <div>
+                  {!settleInFirst && calendarFeedUrls && <CalendarSyncCard initialUrls={calendarFeedUrls} items={calendarItems} />}
                   {!settleInFirst && <HostingStats stats={hostingStats} />}
                   <HostingScheduleManager
                     initialSchedules={schedules}

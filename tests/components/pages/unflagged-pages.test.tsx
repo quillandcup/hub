@@ -49,6 +49,11 @@ vi.mock("@/app/(member)/hosting/actions", () => ({
   getMyHostEligibility: vi.fn(async () => null),
 }));
 vi.mock("@/app/(member)/my-prickles/commitment-actions", () => ({ getMyCommitments: vi.fn(async () => []) }));
+vi.mock("@/app/(member)/my-prickles/calendar-feed-actions", () => ({
+  getMyCalendarFeedUrls: vi.fn(async () => null),
+  regenerateMyCalendarFeedToken: vi.fn(),
+  getMyCalendarItems: vi.fn(async () => []),
+}));
 vi.mock("@/components/MemberCalendarClient", () => ({ default: () => <div data-testid="history-calendar" /> }));
 vi.mock("@/components/UpcomingPrickleRow", () => ({
   default: ({ prickle }: { prickle: { id: string } }) => <div data-testid="upcoming-row">{prickle.id}</div>,

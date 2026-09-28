@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import PhotoLightbox from "@/components/PhotoLightbox";
 
 interface EventData {
@@ -33,7 +33,16 @@ function fmtDate(d: string) {
   return new Date(`${d}T00:00:00`).toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" });
 }
 
-export default function EventDetailClient({ event, photos }: { event: EventData; photos: Photo[] }) {
+export default function EventDetailClient({
+  event,
+  photos,
+  calendarControl,
+}: {
+  event: EventData;
+  photos: Photo[];
+  /** "Add to my calendar", rendered by the page for upcoming events. */
+  calendarControl?: ReactNode;
+}) {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const lightboxPhotos = photos.map((p) => ({ id: p.id, src: `/api/events/${event.id}/photos/${p.id}` }));
 
@@ -48,6 +57,7 @@ export default function EventDetailClient({ event, photos }: { event: EventData;
           {fmtDate(event.starts_at)} – {fmtDate(event.ends_at)}
           {event.location ? ` · ${event.location}` : ""}
         </p>
+        {calendarControl && <div className="mt-3">{calendarControl}</div>}
       </div>
 
       {(event.focus || event.description || event.agenda || event.results) && (
