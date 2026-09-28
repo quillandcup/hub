@@ -12,6 +12,12 @@ import type { SortValue } from "@/lib/hooks/useTableSort";
 import { DataTablePager } from "@/components/DataTablePager";
 import BookFormModal from "@/components/books/BookFormModal";
 import ProjectDetailsModal from "@/components/writing/ProjectDetailsModal";
+import {
+  StarToggle,
+  ProfileVisibilityToggle,
+  STAR_ON,
+  PROFILE_PUBLIC,
+} from "@/components/writing/VisibilityToggles";
 import { deleteBook } from "@/app/(member)/bookshelf/actions";
 import {
   WRITING_MEASURES,
@@ -28,6 +34,7 @@ import {
   deleteGoal,
   getPrickleAnchorOptions,
   toggleGoalStar,
+  toggleGoalVisibility,
   toggleProjectVisibility,
   updateGoal,
   updateProjectPhase,
@@ -147,16 +154,14 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
     <div className="max-w-3xl mx-auto space-y-6">
       <div className="flex items-center justify-between text-sm">
         <div className="flex items-center gap-4">
-          <label className="flex items-center gap-2 text-slate-600 dark:text-slate-400 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={showOnProfile}
-              disabled={visibilityPending}
-              onChange={handleToggleVisibility}
-              className="rounded"
-            />
-            Show on my profile
-          </label>
+          <ProfileVisibilityToggle
+            on={showOnProfile}
+            disabled={visibilityPending}
+            onToggle={handleToggleVisibility}
+            noun="project"
+            withText
+            className="text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
+          />
           {!project.book && (
             <label className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
               Status
@@ -289,18 +294,24 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
               />
             ) : (
               <div key={goal.id} className="flex items-start gap-3">
-                <button
-                  type="button"
-                  onClick={async () => {
-                    const result = await toggleGoalStar(goal.id, !goal.isStarred);
-                    if ("error" in result) alert(result.error);
-                    else handleChanged();
-                  }}
-                  title={goal.isStarred ? "Unstar (remove from dashboard)" : "Star (show on dashboard)"}
-                  className="flex-shrink-0 mt-1 text-lg leading-none"
-                >
-                  {goal.isStarred ? "⭐" : "☆"}
-                </button>
+                <div className="flex-shrink-0 mt-1 flex flex-col items-center gap-2">
+                  <StarToggle
+                    on={goal.isStarred}
+                    onToggle={async () => {
+                      const result = await toggleGoalStar(goal.id, !goal.isStarred);
+                      if ("error" in result) alert(result.error);
+                      else handleChanged();
+                    }}
+                  />
+                  <ProfileVisibilityToggle
+                    on={goal.showOnProfile}
+                    onToggle={async () => {
+                      const result = await toggleGoalVisibility(goal.id, !goal.showOnProfile);
+                      if ("error" in result) alert(result.error);
+                      else handleChanged();
+                    }}
+                  />
+                </div>
                 <div className="flex-1">
                   <GoalDisplay goal={goal} />
                 </div>
@@ -532,6 +543,7 @@ function GoalForm({
   const [title, setTitle] = useState(goal?.title ?? "");
   const [description, setDescription] = useState(goal?.description ?? "");
   const [showOnProfile, setShowOnProfile] = useState(goal?.showOnProfile ?? false);
+  const [isStarred, setIsStarred] = useState(goal?.isStarred ?? false);
   const [goalType, setGoalType] = useState<"target" | "habit">(goal?.kind ?? "target");
   // Prickles is the default for new goals -- it's the input (attending), word/page/etc counts
   // are outputs, so the form leads with the thing that causes the others.
@@ -556,7 +568,7 @@ function GoalForm({
     setError(null);
 
     const anchorPayload = measure === "prickles" && (!isEditing || anchorTouched) ? anchorScheduleId ?? null : undefined;
-    const details = { title: title.trim() || null, description: description.trim() || null, showOnProfile };
+    const details = { title: title.trim() || null, description: description.trim() || null, showOnProfile, isStarred };
 
     setIsPending(true);
     const result =
@@ -768,15 +780,28 @@ function GoalForm({
           />
         ))}
 
-      <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400 cursor-pointer">
-        <input
-          type="checkbox"
-          checked={showOnProfile}
-          onChange={(e) => setShowOnProfile(e.target.checked)}
-          className="rounded"
-        />
-        Show on my profile
-      </label>
+      <div className="space-y-1.5">
+        <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={isStarred}
+            onChange={(e) => setIsStarred(e.target.checked)}
+            className="rounded"
+          />
+          <span aria-hidden="true">{STAR_ON}</span>
+          Pin to my dashboard <span className="text-slate-400">(only you see your dashboard)</span>
+        </label>
+        <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={showOnProfile}
+            onChange={(e) => setShowOnProfile(e.target.checked)}
+            className="rounded"
+          />
+          <span aria-hidden="true">{PROFILE_PUBLIC}</span>
+          Show on my profile <span className="text-slate-400">(other members can see this goal)</span>
+        </label>
+      </div>
 
       {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
 

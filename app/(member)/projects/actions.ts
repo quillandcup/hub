@@ -1011,16 +1011,19 @@ export interface CreateGoalInput {
   title?: string | null;
   description?: string | null;
   showOnProfile?: boolean;
+  isStarred?: boolean;
 }
 
 const GOAL_TITLE_MAX = 200;
 const GOAL_DESCRIPTION_MAX = 2000;
 
-/** Trims/validates the optional title, description and profile flag; only fields present in the input are returned. */
+type GoalDetails = { title?: string | null; description?: string | null; show_on_profile?: boolean; is_starred?: boolean };
+
+/** Trims/validates the optional title, description, profile and dashboard flags; only fields present in the input are returned. */
 function buildGoalDetails(
-  input: Pick<CreateGoalInput, "title" | "description" | "showOnProfile">
-): { title?: string | null; description?: string | null; show_on_profile?: boolean } | { error: string } {
-  const details: { title?: string | null; description?: string | null; show_on_profile?: boolean } = {};
+  input: Pick<CreateGoalInput, "title" | "description" | "showOnProfile" | "isStarred">
+): GoalDetails | { error: string } {
+  const details: GoalDetails = {};
   if (input.title !== undefined) {
     const title = input.title?.trim() || null;
     if (title && title.length > GOAL_TITLE_MAX) return { error: `Title must be ${GOAL_TITLE_MAX} characters or fewer` };
@@ -1034,6 +1037,7 @@ function buildGoalDetails(
     details.description = description;
   }
   if (input.showOnProfile !== undefined) details.show_on_profile = !!input.showOnProfile;
+  if (input.isStarred !== undefined) details.is_starred = !!input.isStarred;
   return details;
 }
 
@@ -1178,6 +1182,7 @@ export type UpdateGoalInput = Partial<
     | "title"
     | "description"
     | "showOnProfile"
+    | "isStarred"
   >
 >;
 
@@ -1410,6 +1415,27 @@ export async function toggleGoalStar(
 
   revalidatePath("/projects");
   revalidatePath("/dashboard");
+  return { success: true };
+}
+
+export async function toggleGoalVisibility(
+  goalId: string,
+  showOnProfile: boolean
+): Promise<{ success: true } | { error: string }> {
+  const ctx = await requireIdentity();
+  if ("error" in ctx) return ctx;
+  const { supabase, effectiveIdentity } = ctx;
+
+  const { error } = await supabase
+    .from("writing_goals")
+    .update({ show_on_profile: showOnProfile })
+    .eq("id", goalId)
+    .eq("member_id", effectiveIdentity.memberId);
+
+  if (error) return { error: error.message };
+
+  revalidatePath("/projects");
+  revalidatePath(`/members/${effectiveIdentity.memberId}`);
   return { success: true };
 }
 
