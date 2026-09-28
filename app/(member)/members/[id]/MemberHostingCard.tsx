@@ -29,8 +29,6 @@ export default function MemberHostingCard({
 }) {
   if (summary.totalHosted === 0 && slots.length === 0) return null
 
-  const avg = summary.avgAttendance === null ? null : Math.round(summary.avgAttendance)
-
   return (
     <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 p-6 mb-6">
       <h2 className="text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-4">
@@ -39,7 +37,7 @@ export default function MemberHostingCard({
 
       {summary.totalHosted > 0 && (
         <>
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 gap-4">
             <div className="text-center">
               <p className="text-2xl font-bold">{summary.totalHosted}</p>
               <p className="text-xs text-slate-500 dark:text-slate-400">
@@ -50,14 +48,6 @@ export default function MemberHostingCard({
               <div className="text-center">
                 <p className="text-2xl font-bold">{formatMonthYear(summary.firstHostedAt, timeZone)}</p>
                 <p className="text-xs text-slate-500 dark:text-slate-400">hosting since</p>
-              </div>
-            )}
-            {avg !== null && (
-              <div className="text-center">
-                <p className="text-2xl font-bold">~{avg}</p>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  {avg === 1 ? "Hedgie" : "Hedgies"} per session
-                </p>
               </div>
             )}
           </div>

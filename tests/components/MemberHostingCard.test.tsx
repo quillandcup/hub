@@ -46,7 +46,9 @@ describe("MemberHostingCard", () => {
     expect(screen.getByText("42")).toBeInTheDocument();
     expect(screen.getByText("prickles hosted")).toBeInTheDocument();
     expect(screen.getByText("Mar 2024")).toBeInTheDocument();
-    expect(screen.getByText("~6")).toBeInTheDocument();
+    // Average attendance was dropped from the public card (founding-hedgies feedback).
+    expect(screen.queryByText("~6")).not.toBeInTheDocument();
+    expect(screen.queryByText(/per session/)).not.toBeInTheDocument();
     expect(screen.getByText("Sprint")).toBeInTheDocument();
     expect(screen.queryByText(/on-time/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/no-show/i)).not.toBeInTheDocument();

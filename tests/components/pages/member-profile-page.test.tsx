@@ -116,13 +116,13 @@ describe("member profile page: Hosting card", () => {
     const card = hostingCard();
     expect(card).not.toBeNull();
     expect(within(card!).getByText("prickles hosted").previousElementSibling).toHaveTextContent("3");
-    expect(within(card!).getByText("~4")).toBeInTheDocument();
+    expect(within(card!).queryByText(/per session/)).not.toBeInTheDocument();
     expect(within(card!).getByText("Join Hazel at")).toBeInTheDocument();
     expect(within(card!).getByRole("link", { name: /Tuesdays · 10:00 AM EDT/ })).toHaveAttribute(
       "href",
       "/prickles/prickle-next"
     );
-    // The page asks for attendee counts (for "~N Hedgies per session") and the viewer's timezone.
+    // The viewer's timezone drives the schedule.
     expect(fetchHostedPrickleRecords).toHaveBeenCalledWith(
       expect.anything(),
       PROFILE_ID,
@@ -156,6 +156,33 @@ describe("member profile page: Hosting card", () => {
     const { container } = await renderServerPage(MemberProfilePage, params);
     expect(hostingCard()).not.toBeNull();
     expect(container).not.toHaveTextContent(/on[- ]time|no[- ]show|punctual|\blate\b|show[- ]up|missed/i);
+  });
+});
+
+describe("member profile page: header", () => {
+  it("shows the member's last prickle instead of a Community Stats card", async () => {
+    const supabase = useFakeSupabase(
+      tables({ prickle_attendance: { data: [{ join_time: "2026-09-24T14:00:00Z" }] } })
+    );
+    await renderServerPage(MemberProfilePage, params);
+
+    expect(screen.getByText(/^Last prickle/)).toHaveTextContent(/^Last prickle Sep 24(, 2026)?$/);
+    expect(screen.queryByRole("heading", { name: "Community Stats" })).not.toBeInTheDocument();
+    expect(screen.queryByText(/current streak/)).not.toBeInTheDocument();
+    const lastQuery = supabase.queries.find(
+      (q) => q.table === "prickle_attendance" && q.calls.some((c) => c.method === "limit")
+    );
+    expect(lastQuery?.calls).toEqual(
+      expect.arrayContaining([
+        { method: "eq", args: ["member_id", PROFILE_ID] },
+        { method: "order", args: ["join_time", { ascending: false }] },
+      ])
+    );
+  });
+
+  it("omits the last-prickle line for a member who has never attended", async () => {
+    await renderServerPage(MemberProfilePage, params);
+    expect(screen.queryByText(/^Last prickle/)).not.toBeInTheDocument();
   });
 });
 

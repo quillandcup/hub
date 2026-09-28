@@ -6,7 +6,6 @@ import { redirect, notFound } from "next/navigation"
 import type { Metadata } from "next"
 import { getEffectiveIdentity } from "@/lib/sudo"
 import { getUserTimezonePreference } from "@/lib/timezone"
-import { computeStreaks } from "@/lib/streaks"
 import MemberAvatar from "./MemberAvatar"
 import WelcomeBackBanner from "./WelcomeBackBanner"
 import { parseDateOnly } from "@/lib/member-tenure"
@@ -25,6 +24,18 @@ import MemberHostingCard from "./MemberHostingCard"
 const ORG_TIMEZONE = "America/New_York"
 // Long enough to catch a monthly slot's next occurrence, not just weekly ones.
 const HOSTING_SCHEDULE_WINDOW_DAYS = 35
+
+/** "Sep 24", or "Sep 24, 2025" when it wasn't this year (both in the viewer's timezone). */
+function formatLastPrickle(iso: string, now: Date, timeZone: string): string {
+  const yearOf = (d: Date) => d.toLocaleDateString("en-US", { year: "numeric", timeZone })
+  const date = new Date(iso)
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    ...(yearOf(date) === yearOf(now) ? {} : { year: "numeric" }),
+    timeZone,
+  })
+}
 
 const getMember = cache(async (id: string) => {
   const supabase = await createClient()
@@ -88,39 +99,28 @@ export default async function MemberProfilePage({
   const awards = awardsData ?? []
   const timeZone = tzPref === "browser" ? ORG_TIMEZONE : tzPref
 
-  // Total prickles attended feeds both the Tier 3 "Community Stats" card and the Badges section
-  // below. Computed live from prickle_attendance (distinct prickle_id, per CLAUDE.md) rather
+  // Total prickles attended feeds the Badges section below. Computed live from prickle_attendance (distinct prickle_id, per CLAUDE.md) rather
   // than the member_metrics table, which nothing in the app populates -- see
   // docs/MEDALLION_ARCHITECTURE.md.
   // Hosting stats are the public subset only (no punctuality), and the schedule is the
   // member's upcoming calendar prickles grouped into recurring slots in the viewer's timezone.
+  // "Last prickle" is the member's most recent join, shown in the header instead of stats.
   const now = new Date()
-  const [totalPricklesAttended, hostedRecords, hostingSlots] = await Promise.all([
+  const [totalPricklesAttended, hostedRecords, hostingSlots, { data: lastAttendance }] = await Promise.all([
     getAttendedPrickleCount(supabase, id),
     fetchHostedPrickleRecords(supabase, id, { now, includeAttendeeCounts: true }),
     getMemberHostingSchedule(supabase, id, now, timeZone, HOSTING_SCHEDULE_WINDOW_DAYS),
-  ])
-  const hostingSummary = computePublicHostingSummary(hostedRecords)
-
-  // Paginate all join_times for the streak shown in Community Stats.
-  let streakJoinTimes: string[] = []
-  const BATCH_SIZE = 1000
-  let offset = 0
-  let hasMore = true
-  while (hasMore) {
-    const { data: batch } = await supabase
+    supabase
       .from("prickle_attendance")
       .select("join_time")
       .eq("member_id", id)
-      .range(offset, offset + BATCH_SIZE - 1)
-    if (batch && batch.length > 0) {
-      streakJoinTimes = streakJoinTimes.concat(batch.map((r) => r.join_time))
-      offset += batch.length
-      hasMore = batch.length === BATCH_SIZE
-    } else {
-      hasMore = false
-    }
-  }
+      .lte("join_time", now.toISOString())
+      .order("join_time", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ])
+  const lastPrickleAt: string | null = lastAttendance?.join_time ?? null
+  const hostingSummary = computePublicHostingSummary(hostedRecords)
 
   const earnedBadges = await getMemberBadges(
     supabase,
@@ -128,8 +128,6 @@ export default async function MemberProfilePage({
     totalPricklesAttended,
     member.first_joined_at
   )
-
-  const streaks = computeStreaks(streakJoinTimes, now, timeZone)
 
   // No fallback to joined_at (Kajabi contact creation) — a lead who never
   // had a real subscription has no first_joined_at, and isn't a member, so
@@ -173,6 +171,11 @@ export default async function MemberProfilePage({
               Hedgie since {formatMonthYear(firstJoinedDate)}
               {totalActiveMonths > 0 && <span className="mx-1.5">·</span>}
               {totalActiveMonths > 0 && <span>{hedgieversaryLabel}</span>}
+            </p>
+          )}
+          {lastPrickleAt && (
+            <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
+              Last prickle {formatLastPrickle(lastPrickleAt, now, timeZone)}
             </p>
           )}
         </div>
@@ -245,31 +248,6 @@ export default async function MemberProfilePage({
           )}
         </div>
       )}
-
-      {/* Tier 3: visible to all */}
-      <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 p-6 mb-6">
-        <h2 className="text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-4">
-          Community Stats
-        </h2>
-        <div className="grid grid-cols-3 gap-4">
-          <div className="text-center">
-            <p className="text-2xl font-bold">{totalPricklesAttended}</p>
-            <p className="text-xs text-slate-500 dark:text-slate-400">prickles attended</p>
-          </div>
-          <div className="text-center">
-            <p className="text-2xl font-bold">{streaks.currentStreak}</p>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              {streaks.currentStreak === 1 ? "week" : "weeks"} current streak
-            </p>
-          </div>
-          <div className="text-center">
-            <p className="text-2xl font-bold">{streaks.longestStreak}</p>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              {streaks.longestStreak === 1 ? "week" : "weeks"} best streak
-            </p>
-          </div>
-        </div>
-      </div>
 
       {/* Tier 3: visible to all -- renders nothing for members who don't host */}
       <MemberHostingCard
