@@ -90,11 +90,17 @@ curl https://hub.quillandcup.com/api/reconcile/members \
 
 ## Monitoring
 
-Check reconciliation job status in Vercel:
+Each job pings a Checkly heartbeat monitor after a successful run, and Checkly emails
+the owner when a ping is late (failed run, or a run that never fired). The job list,
+periods and grace windows are in `lib/cron-heartbeats.ts`; the monitors are built from
+it in `__checks__/cron-heartbeats.check.ts`. `tests/lib/cron-heartbeats.test.ts` fails if
+a `vercel.json` cron has no heartbeat.
 
-1. Go to Vercel dashboard → Project → Cron
-2. View execution history and logs
-3. Set up notifications for failures (recommended)
+Adding a cron job: add it to `CRON_HEARTBEATS`, ping from its route
+(`pingCronHeartbeat` / `withCronHeartbeat`), merge so CI deploys the monitor, then copy
+the monitor's ping URL from Checkly into `.env.prod` and run `npm run env:sync:vercel`.
+
+Execution history and logs are in Vercel dashboard → Project → Cron.
 
 ## Configuration
 

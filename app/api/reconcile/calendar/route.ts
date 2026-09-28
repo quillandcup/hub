@@ -1,5 +1,6 @@
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { triggerCalendarSync } from "@/lib/processing/trigger";
+import { pingCronHeartbeat } from "@/lib/cron-heartbeats";
 import { NextRequest, NextResponse } from "next/server";
 
 // Extend timeout for reconciliation jobs
@@ -19,6 +20,8 @@ export async function GET(request: NextRequest) {
 
   try {
     const result = await triggerCalendarSync({ daysBack: 90, daysForward: 90 });
+    await pingCronHeartbeat("reconcile-calendar");
+
     return NextResponse.json({ success: true, reconciliation: "calendar", ...result });
   } catch (error: any) {
     console.error("[Reconciliation] Error in calendar reconciliation:", error);

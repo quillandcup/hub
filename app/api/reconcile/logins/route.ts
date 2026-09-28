@@ -1,5 +1,6 @@
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { mirrorLoginEvents } from "@/lib/processing/login-events";
+import { pingCronHeartbeat } from "@/lib/cron-heartbeats";
 import { NextRequest, NextResponse } from "next/server";
 
 // Extend timeout for reconciliation jobs
@@ -28,6 +29,8 @@ export async function GET(request: NextRequest) {
     const result = await mirrorLoginEvents(supabase, { from, to });
 
     console.log(`[Reconciliation] Login activity mirror complete:`, result);
+
+    await pingCronHeartbeat("reconcile-logins");
 
     return NextResponse.json({
       success: true,

@@ -19,6 +19,8 @@
 // SOPS-encrypting .env.devel/.env.prod so they can be committed is a planned follow-up,
 // tracked separately -- unrelated to this file, which has nothing sensitive to encrypt.
 
+import { CRON_HEARTBEATS } from "./lib/cron-heartbeats";
+
 /** A Vercel environment `vercel env add` can target. */
 export type VercelTarget = "development" | "preview" | "production";
 
@@ -295,6 +297,17 @@ export const ENV_VARS: readonly EnvVarSpec[] = [
     secret: true,
     destinations: [{ kind: "vercel", target: "production" }],
   },
+
+  ...Object.values(CRON_HEARTBEATS).map(
+    (heartbeat): EnvVarSpec => ({
+      name: heartbeat.envVar,
+      group: "Analytics & Monitoring",
+      description: `Checkly heartbeat ping URL for ${heartbeat.path}, copied from the Checkly monitor after \`checkly deploy\`. Unset = no ping. Production only so manual preview runs don't mask a missed production run. See lib/cron-heartbeats.ts.`,
+      // Not a credential, but anyone holding it can fake a successful run.
+      secret: true,
+      destinations: [{ kind: "vercel", target: "production" }],
+    })
+  ),
 
   // --- GitHub Actions CI credentials (not Vercel/app vars) --------------------------------
   {
