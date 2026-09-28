@@ -10,6 +10,7 @@ import { getEffectiveIdentity } from "@/lib/sudo";
 import { findUnmatchedZoomAttendees } from "@/lib/prickle-unmatched";
 import AliasSearchForm from "@/app/(admin)/admin/hygiene/unmatched-zoom/AliasSearchForm";
 import { formatPrickleTitle } from "@/lib/formatters";
+import { computeHostStatus } from "@/lib/hosting-stats";
 import { getMyProjects } from "@/app/(member)/projects/actions";
 
 const getPrickle = cache(async (id: string) => {
@@ -102,16 +103,11 @@ export default async function PrickleDetailPage({
   let hostLate = false;
 
   if (hostId) {
+    // Records are ordered by join_time, so the first match is the host's earliest join.
     const hostAttendance = attendanceRecords?.find((a: any) => a.member_id === hostId);
-    if (!hostAttendance) {
-      hostMissing = true;
-    } else {
-      const prickleStart = new Date(prickle.start_time);
-      const hostJoin = new Date(hostAttendance.join_time);
-      if (hostJoin.getTime() - prickleStart.getTime() > 5 * 60 * 1000) {
-        hostLate = true;
-      }
-    }
+    const hostStatus = computeHostStatus(prickle.start_time, prickle.end_time, hostAttendance?.join_time ?? null);
+    hostMissing = hostStatus === "missing";
+    hostLate = hostStatus === "late";
   }
 
   const userTimezone = await getUserTimezonePreference();

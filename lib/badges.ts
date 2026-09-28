@@ -11,6 +11,11 @@ export interface BadgeType {
   has_levels: boolean;
   is_automatic: boolean;
   program_id: string | null;
+  /** The events row a retreat badge commemorates (see badge_types.event_id), if linked. */
+  event_id?: string | null;
+  /** That event's slug, for linking to its member-facing /events/[slug] page. Only populated by
+   * getMemberBadges. */
+  event_slug?: string | null;
 }
 
 export interface BadgeLevel {
@@ -714,6 +719,8 @@ export async function getBadgeRecipients(
   });
 }
 
+type BadgeTypeWithEvent = BadgeType & { event: { slug: string } | { slug: string }[] | null };
+
 /** Fetches every badge_type + badge_levels once (shared across all members on a page), this
  * member's manual award rows, and the query-backed automatic metrics (hosted quarters,
  * published books), then merges them into their earned badges. */
@@ -725,7 +732,7 @@ export async function getMemberBadges(
 ): Promise<EarnedBadge[]> {
   const [{ data: badgeTypes }, { data: levels }, { data: awards }, hostedQuarterCount, publishedBookCount, programCompletions] =
     await Promise.all([
-      supabase.from("badge_types").select("*").order("category").order("name"),
+      supabase.from("badge_types").select("*, event:events(slug)").order("category").order("name"),
       supabase.from("badge_levels").select("*").order("level"),
       supabase
         .from("member_badges")
@@ -744,7 +751,10 @@ export async function getMemberBadges(
   }
 
   return computeEarnedBadges(
-    (badgeTypes ?? []) as BadgeType[],
+    ((badgeTypes ?? []) as BadgeTypeWithEvent[]).map(({ event, ...badgeType }) => ({
+      ...badgeType,
+      event_slug: (Array.isArray(event) ? event[0]?.slug : event?.slug) ?? null,
+    })),
     levelsByBadgeType,
     (awards ?? []) as { badge_type_id: string; occurred_at: string; note: string | null }[],
     { totalPricklesAttended, firstJoinedAt, hostedQuarterCount, publishedBookCount, programCompletions }

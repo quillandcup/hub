@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { EarnedBadge } from "@/lib/badges";
 
 const CATEGORY_STYLES: Record<string, string> = {
@@ -8,20 +9,33 @@ const CATEGORY_STYLES: Record<string, string> = {
   special: "bg-rose-50 dark:bg-rose-900/20 border-rose-200 dark:border-rose-800",
 };
 
-export default function BadgeChip({ badge }: { badge: EarnedBadge }) {
+/** `href` makes the chip a link, e.g. a retreat badge to its event page. */
+export default function BadgeChip({ badge, href }: { badge: EarnedBadge; href?: string | null }) {
   const title = [badge.badgeType.description, badge.occurrences > 1 ? `Awarded ${badge.occurrences} times` : null]
     .filter(Boolean)
     .join(" — ");
 
-  return (
-    <div
-      className={`flex items-center gap-2 px-3 py-2 rounded-lg border ${
-        CATEGORY_STYLES[badge.badgeType.category] ?? CATEGORY_STYLES.community
-      }`}
-      title={title || undefined}
-    >
+  const className = `flex items-center gap-2 px-3 py-2 rounded-lg border ${
+    CATEGORY_STYLES[badge.badgeType.category] ?? CATEGORY_STYLES.community
+  }`;
+  const content = (
+    <>
       <span className="text-xl leading-none">{badge.badgeType.icon}</span>
       <span className="text-sm font-medium text-slate-800 dark:text-slate-200">{badge.levelName}</span>
+    </>
+  );
+
+  if (href) {
+    return (
+      <Link href={href} className={`${className} hover:shadow-sm hover:brightness-95 transition`} title={title || undefined}>
+        {content}
+      </Link>
+    );
+  }
+
+  return (
+    <div className={className} title={title || undefined}>
+      {content}
     </div>
   );
 }

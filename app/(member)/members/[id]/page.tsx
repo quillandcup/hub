@@ -286,7 +286,11 @@ export default async function MemberProfilePage({
           </h2>
           <div className="flex flex-wrap gap-2">
             {earnedBadges.map((badge) => (
-              <BadgeChip key={badge.badgeType.id} badge={badge} />
+              <BadgeChip
+                key={badge.badgeType.id}
+                badge={badge}
+                href={badge.badgeType.event_slug ? `/events/${badge.badgeType.event_slug}` : null}
+              />
             ))}
           </div>
         </div>

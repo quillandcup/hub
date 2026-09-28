@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import CalendarWeekView from "@/components/CalendarWeekView";
 import { getUserTimezonePreference } from "@/lib/timezone";
-import { computeHostPunctuality } from "@/lib/hosting-stats";
+import { computeHostStatus } from "@/lib/hosting-stats";
 import { requireAdminPage } from "@/lib/admin-auth";
 
 export const metadata: Metadata = {
@@ -106,7 +106,7 @@ export default async function CalendarPage({
               hostAttendanceRecords[0].join_time
             )
           : null;
-      const punctuality = computeHostPunctuality(prickle.start_time, earliestJoinTime);
+      const punctuality = computeHostStatus(prickle.start_time, prickle.end_time, earliestJoinTime);
       hostMissing = punctuality === "missing";
       hostLate = punctuality === "late";
     }

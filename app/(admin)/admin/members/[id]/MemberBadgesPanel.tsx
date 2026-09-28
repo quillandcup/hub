@@ -89,7 +89,11 @@ export default function MemberBadgesPanel({
       {earnedBadges.length > 0 ? (
         <div className="flex flex-wrap gap-2 mb-6">
           {earnedBadges.map((badge) => (
-            <BadgeChip key={badge.badgeType.id} badge={badge} />
+            <BadgeChip
+              key={badge.badgeType.id}
+              badge={badge}
+              href={badge.badgeType.event_id ? `/admin/events/${badge.badgeType.event_id}` : null}
+            />
           ))}
         </div>
       ) : (

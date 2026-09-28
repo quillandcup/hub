@@ -50,6 +50,7 @@ vi.mock("@/app/(member)/my-prickles/CommitmentsManager", () => ({
 }));
 
 import MyPricklesPage from "@/app/(member)/my-prickles/page";
+import { getMyHostEligibility } from "@/app/(member)/hosting/actions";
 
 const props = (tab: string, extra: Record<string, string> = {}) => ({
   searchParams: Promise.resolve({ tab, ...extra }),
@@ -76,6 +77,28 @@ describe("My Prickles tabs that replaced standalone pages", () => {
     expect(within(screen.getByRole("tabpanel")).getByTestId("history-calendar")).toHaveTextContent(
       `member: ${MEMBER_IDENTITY.memberId}`
     );
+  });
+});
+
+describe("My Prickles tab order", () => {
+  it("puts Attendance History last", async () => {
+    await renderServerPage(MyPricklesPage, props("upcoming"));
+    const tabs = screen.getAllByRole("tab");
+    expect(tabs[tabs.length - 1]).toHaveTextContent("Attendance History");
+  });
+});
+
+describe("My Prickles Hosting tab for members who can't host yet", () => {
+  it("hides the hosting stats banner when they'd see \"Settle in first\"", async () => {
+    vi.mocked(getMyHostEligibility).mockResolvedValueOnce({
+      eligible: false,
+      tenureStartDate: "2026-09-01",
+      eligibleOn: "2026-10-01",
+    } as any);
+    await renderServerPage(MyPricklesPage, props("hosting"));
+    const panel = screen.getByRole("tabpanel");
+    expect(within(panel).queryByTestId("hosting-stats")).not.toBeInTheDocument();
+    expect(within(panel).getByTestId("hosting-schedule-manager")).toBeInTheDocument();
   });
 });
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { computeHostPunctuality, computeHostingStats, type HostedPrickleRecord } from "@/lib/hosting-stats";
+import { computeHostPunctuality, computeHostStatus, computeHostingStats, type HostedPrickleRecord } from "@/lib/hosting-stats";
 
 const NOW = new Date("2026-06-15T12:00:00.000Z");
 
@@ -26,6 +26,26 @@ describe("computeHostPunctuality", () => {
 
   it("is missing when the host never joined", () => {
     expect(computeHostPunctuality(start, null)).toBe("missing");
+  });
+});
+
+describe("computeHostStatus", () => {
+  const start = "2026-06-01T10:00:00.000Z";
+  const end = "2026-06-01T11:00:00.000Z";
+
+  it("is pending, not missing, for an upcoming or in-progress prickle with no host join", () => {
+    expect(computeHostStatus(start, end, null, new Date("2026-05-31T10:00:00.000Z"))).toBe("pending");
+    expect(computeHostStatus(start, end, null, new Date("2026-06-01T10:30:00.000Z"))).toBe("pending");
+  });
+
+  it("is missing once the prickle has ended with no host join", () => {
+    expect(computeHostStatus(start, end, null, new Date("2026-06-01T11:00:00.000Z"))).toBe("missing");
+  });
+
+  it("judges punctuality from the host's join even while the prickle is in progress", () => {
+    const now = new Date("2026-06-01T10:30:00.000Z");
+    expect(computeHostStatus(start, end, "2026-06-01T10:02:00.000Z", now)).toBe("on_time");
+    expect(computeHostStatus(start, end, "2026-06-01T10:20:00.000Z", now)).toBe("late");
   });
 });
 

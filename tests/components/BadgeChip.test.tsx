@@ -61,4 +61,14 @@ describe("BadgeChip", () => {
     render(<BadgeChip badge={badge} />);
     expect(screen.getByTitle(/Awarded 3 times/)).toBeInTheDocument();
   });
+
+  it("links to the given href (a retreat badge's event page)", () => {
+    render(<BadgeChip badge={makeBadge()} href="/events/fall-2025-virtual-retreat" />);
+    expect(screen.getByRole("link")).toHaveAttribute("href", "/events/fall-2025-virtual-retreat");
+  });
+
+  it("is not a link without an href", () => {
+    render(<BadgeChip badge={makeBadge()} />);
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
+  });
 });

@@ -24,6 +24,13 @@ export default function UserMenu({
 }: UserMenuProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [isSudoModalOpen, setIsSudoModalOpen] = useState(false)
+  // This menu lives in the layout, so its state survives sudo's navigation. Close
+  // the modal when sudo starts, or it pops back open the moment sudo is exited.
+  const [prevIsSudo, setPrevIsSudo] = useState(isSudo)
+  if (isSudo !== prevIsSudo) {
+    setPrevIsSudo(isSudo)
+    setIsSudoModalOpen(false)
+  }
   const [isFeaturePreviewsOpen, setIsFeaturePreviewsOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
 

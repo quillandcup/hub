@@ -17,6 +17,19 @@ export function computeHostPunctuality(
   return hostJoin - prickleStart > HOST_LATE_THRESHOLD_MS ? "late" : "on_time";
 }
 
+/** Host punctuality for display on a single prickle. A prickle that hasn't ended yet (upcoming or
+ * in progress) with no host join is "pending", not a no-show: host attendance only lands once Zoom
+ * reports the meeting ended. */
+export function computeHostStatus(
+  prickleStartTime: string,
+  prickleEndTime: string,
+  earliestJoinTime: string | null,
+  now: Date = new Date()
+): HostPunctuality | "pending" {
+  if (!earliestJoinTime && new Date(prickleEndTime).getTime() > now.getTime()) return "pending";
+  return computeHostPunctuality(prickleStartTime, earliestJoinTime);
+}
+
 // "YYYY-MM" for a timestamptz, in UTC -- matches quarterKey's UTC convention in lib/badges.ts.
 function monthKey(isoTimestamp: string): string {
   const d = new Date(isoTimestamp);

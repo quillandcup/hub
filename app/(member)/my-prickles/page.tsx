@@ -99,6 +99,11 @@ export default async function MyPricklesPage({ searchParams }: { searchParams: P
   // a raw feed of every prickle happening org-wide in the window.
   const displayedUpcoming = ranked.slice(0, MAX_UPCOMING_DISPLAY);
 
+  // Members who can't host yet get only the "Settle in first" welcome from
+  // HostingScheduleManager (same condition), not an empty stats banner above it.
+  const settleInFirst =
+    schedules.length === 0 && hostingStats.totalHosted === 0 && !!hostEligibility && !hostEligibility.eligible;
+
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
       <header className="border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
@@ -183,19 +188,6 @@ export default async function MyPricklesPage({ searchParams }: { searchParams: P
               ),
             },
             {
-              id: "history",
-              label: "Attendance History",
-              content: (
-                <MemberCalendarClient
-                  memberId={memberId}
-                  attendance={attendance || []}
-                  defaultTimezone={tzPref}
-                  memberBasePath="/members"
-                  initialView="month"
-                />
-              ),
-            },
-            {
               id: "commitments",
               label: "Commitments",
               content: (
@@ -207,7 +199,7 @@ export default async function MyPricklesPage({ searchParams }: { searchParams: P
               label: "Hosting",
               content: (
                 <div>
-                  <HostingStats stats={hostingStats} />
+                  {!settleInFirst && <HostingStats stats={hostingStats} />}
                   <HostingScheduleManager
                     initialSchedules={schedules}
                     prickleTypes={prickleTypes ?? []}
@@ -219,6 +211,19 @@ export default async function MyPricklesPage({ searchParams }: { searchParams: P
                     calendarHostedCount={hostingStats.totalHosted}
                   />
                 </div>
+              ),
+            },
+            {
+              id: "history",
+              label: "Attendance History",
+              content: (
+                <MemberCalendarClient
+                  memberId={memberId}
+                  attendance={attendance || []}
+                  defaultTimezone={tzPref}
+                  memberBasePath="/members"
+                  initialView="month"
+                />
               ),
             },
           ]}
