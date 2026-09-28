@@ -30,6 +30,7 @@ vi.mock("@/lib/kajabi/client", async (importOriginal) => {
 });
 
 import {
+  updateAskMeAbout,
   updateInstagramHandle,
   updateProfileDetails,
   getProfileSettings,
@@ -52,18 +53,23 @@ type MemberRow = {
 
 type OverrideRow = { bio: string | null; facebook_url: string | null; twitter_url: string | null };
 
-/** The caller's own (RLS-scoped) session: only member_profile_overrides goes through it. */
+/** The caller's own (RLS-scoped) session: member_profile_overrides and member_ask_me_about go through it. */
 function makeUserClient({
   override = null as OverrideRow | null,
   upsertError = null as { message: string } | null,
+  topics = null as string[] | null,
+  askUpsertError = null as { message: string } | null,
 } = {}) {
   const upsert = vi.fn(async () => ({ error: upsertError }));
   const overrideEq = vi.fn(() => ({ maybeSingle: async () => ({ data: override, error: null }) }));
+  const askUpsert = vi.fn(async () => ({ error: askUpsertError }));
+  const askEq = vi.fn(() => ({ maybeSingle: async () => ({ data: topics ? { topics } : null, error: null }) }));
   const from = vi.fn((table: string) => {
     if (table === "member_profile_overrides") return { select: () => ({ eq: overrideEq }), upsert };
+    if (table === "member_ask_me_about") return { select: () => ({ eq: askEq }), upsert: askUpsert };
     throw new Error(`unexpected user-session table ${table}`);
   });
-  return { from, upsert, overrideEq };
+  return { from, upsert, overrideEq, askUpsert, askEq };
 }
 
 /** Service role: members row, alias lookup and Bronze, each scoped to the member by the action. */
@@ -148,10 +154,17 @@ function setup(
     member?: MemberRow;
     override?: OverrideRow | null;
     overrideUpsertError?: { message: string };
+    topics?: string[] | null;
+    askUpsertError?: { message: string };
     service?: Omit<Parameters<typeof makeServiceClient>[0], "member">;
   } = {}
 ) {
-  userClient = makeUserClient({ override: opts.override ?? null, upsertError: opts.overrideUpsertError ?? null });
+  userClient = makeUserClient({
+    override: opts.override ?? null,
+    upsertError: opts.overrideUpsertError ?? null,
+    topics: opts.topics ?? null,
+    askUpsertError: opts.askUpsertError ?? null,
+  });
   service = makeServiceClient({
     member: opts.member ?? MEMBER,
     contactCustom1: "old_handle",
@@ -405,9 +418,41 @@ describe("updateProfileDetails", () => {
   });
 });
 
+describe("updateAskMeAbout", () => {
+  it("saves normalized topics for the effective member, with no reprocessing", async () => {
+    setup({ topics: ["plot"] });
+    const result = await updateAskMeAbout([" cozy  mysteries ", "Plot", "plot", ""]);
+
+    expect(result).toEqual({ success: true, syncPending: false });
+    expect(userClient.askUpsert).toHaveBeenCalledWith(
+      { member_id: "member-1", topics: ["cozy mysteries", "Plot"], updated_by: "auth-1" },
+      { onConflict: "member_id" }
+    );
+    expect(afterCallbacks).toHaveLength(0);
+  });
+
+  it("skips the write when nothing changed", async () => {
+    setup({ topics: ["cozy mysteries"] });
+    expect(await updateAskMeAbout(["cozy mysteries"])).toEqual({ success: true, syncPending: false });
+    expect(userClient.askUpsert).not.toHaveBeenCalled();
+  });
+
+  it("rejects invalid input without writing", async () => {
+    setup();
+    expect(await updateAskMeAbout(["x".repeat(41)])).toHaveProperty("error");
+    expect(await updateAskMeAbout("nope" as unknown as string[])).toEqual({ error: "Invalid topics" });
+    expect(userClient.askUpsert).not.toHaveBeenCalled();
+  });
+
+  it("reports a failed save", async () => {
+    setup({ askUpsertError: { message: "boom" } });
+    expect(await updateAskMeAbout(["pacing"])).toEqual({ error: "Couldn't save your topics — please try again." });
+  });
+});
+
 describe("getProfileSettings", () => {
   it("flags a pending sync when Bronze has a handle Silver doesn't show yet", async () => {
-    setup({ service: { contactCustom1: "new_handle" } });
+    setup({ service: { contactCustom1: "new_handle" }, topics: ["worldbuilding"] });
     const result = await getProfileSettings();
     expect(result).toEqual({
       memberId: "member-1",
@@ -415,6 +460,7 @@ describe("getProfileSettings", () => {
       instagramHandle: "new_handle",
       instagramFallbackUrl: null,
       details: { bio: "Writes cozy mysteries.", facebookUrl: null, twitterUrl: null },
+      askMeAbout: ["worldbuilding"],
       syncPending: true,
     });
   });

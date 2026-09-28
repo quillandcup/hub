@@ -82,7 +82,7 @@ export default async function MemberProfilePage({
   // Everything below is Tier 3 (visible to all): the profile shows the same thing to the member
   // themselves as it shows to any other member, per docs -- no account info, engagement scores,
   // or prickle history (that's on My Prickles > Attendance History instead).
-  const [{ data: booksData }, { data: awardsData }, tzPref] = await Promise.all([
+  const [{ data: booksData }, { data: awardsData }, tzPref, { data: askMeAboutRow }] = await Promise.all([
     supabase
       .from("member_books")
       .select("id, title, cover_url, purchase_url, published_date")
@@ -94,7 +94,9 @@ export default async function MemberProfilePage({
       .eq("member_id", id)
       .order("award_date", { ascending: false }),
     getUserTimezonePreference(),
+    supabase.from("member_ask_me_about").select("topics").eq("member_id", id).maybeSingle(),
   ])
+  const askMeAbout: string[] = askMeAboutRow?.topics ?? []
   const books = booksData ?? []
   const awards = awardsData ?? []
   const timeZone = tzPref === "browser" ? ORG_TIMEZONE : tzPref
@@ -202,6 +204,25 @@ export default async function MemberProfilePage({
         <p className="text-slate-700 dark:text-slate-300 mb-6 leading-relaxed whitespace-pre-line">
           {member.bio}
         </p>
+      )}
+
+      {askMeAbout.length > 0 && (
+        <div className="mb-6">
+          <h2 className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-2">Ask me about…</h2>
+          <ul className="flex flex-wrap gap-1.5">
+            {askMeAbout.map((topic) => (
+              <li key={topic}>
+                <Link
+                  href={`/members?q=${encodeURIComponent(topic)}`}
+                  className="inline-block rounded-full bg-plum-50 dark:bg-plum-900/30 text-plum-700 dark:text-plum-300 text-sm px-3 py-1 hover:bg-plum-100 dark:hover:bg-plum-900/50"
+                  title={`Find other Hedgies who talk about ${topic}`}
+                >
+                  {topic}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
 
       {/* Social links */}

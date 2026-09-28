@@ -281,6 +281,24 @@ describe("member profile page: Writing Progress", () => {
   });
 });
 
+describe("member profile page: Ask me about", () => {
+  it("shows the member's topics as chips linking to a directory search", async () => {
+    useFakeSupabase(tables({ member_ask_me_about: { data: { topics: ["cozy mysteries", "querying agents"] } } }));
+    await renderServerPage(MemberProfilePage, params);
+
+    expect(screen.getByRole("heading", { name: "Ask me about…" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "querying agents" })).toHaveAttribute(
+      "href",
+      "/members?q=querying%20agents"
+    );
+  });
+
+  it("omits the section when the member has no topics", async () => {
+    await renderServerPage(MemberProfilePage, params);
+    expect(screen.queryByRole("heading", { name: "Ask me about…" })).not.toBeInTheDocument();
+  });
+});
+
 describe("member profile page: access", () => {
   it("redirects a user with no effective member identity to /admin", async () => {
     signInAs(ADMIN_USER, null);

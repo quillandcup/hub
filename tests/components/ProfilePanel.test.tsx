@@ -9,6 +9,7 @@ vi.mock('@/app/(member)/settings/profileActions', () => ({
   getProfileSettings: vi.fn(),
   updateInstagramHandle: vi.fn(),
   updateProfileDetails: vi.fn(),
+  updateAskMeAbout: vi.fn(),
 }))
 
 const baseSettings: profileActions.ProfileSettings = {
@@ -17,6 +18,7 @@ const baseSettings: profileActions.ProfileSettings = {
   instagramHandle: 'old_handle',
   instagramFallbackUrl: null,
   details: { bio: 'Writes cozy mysteries.', facebookUrl: 'https://facebook.com/someone', twitterUrl: null },
+  askMeAbout: ['cozy mysteries'],
   syncPending: false,
 }
 
@@ -175,5 +177,32 @@ describe('ProfilePanel', () => {
     expect(await screen.findByLabelText('Bio')).toBeEnabled()
     expect(screen.getByRole('link', { name: 'support@quillandcup.com' })).toBeInTheDocument()
     expect(screen.queryByLabelText('Instagram')).not.toBeInTheDocument()
+  })
+
+  it('adds and removes "Ask me about" topics as chips and saves only when they changed', async () => {
+    vi.mocked(profileActions.getProfileSettings).mockResolvedValue(baseSettings)
+    vi.mocked(profileActions.updateProfileDetails).mockResolvedValue({ success: true, syncPending: false })
+    vi.mocked(profileActions.updateAskMeAbout).mockResolvedValue({ success: true, syncPending: false })
+    render(<ProfilePanel />)
+
+    const input = await screen.findByLabelText('Ask me about…')
+    expect(screen.getByText('cozy mysteries')).toBeInTheDocument()
+    await userEvent.type(input, 'querying agents{Enter}Worldbuilding,cozy MYSTERIES,')
+    await userEvent.click(screen.getByRole('button', { name: 'Remove Worldbuilding' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Save profile' }))
+
+    expect(profileActions.updateAskMeAbout).toHaveBeenCalledWith(['cozy mysteries', 'querying agents'])
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(/^Saved\.$/))
+  })
+
+  it('does not call the topics action when the topics are unchanged', async () => {
+    vi.mocked(profileActions.getProfileSettings).mockResolvedValue(baseSettings)
+    vi.mocked(profileActions.updateProfileDetails).mockResolvedValue({ success: true, syncPending: false })
+    render(<ProfilePanel />)
+
+    await screen.findByLabelText('Ask me about…')
+    await userEvent.click(screen.getByRole('button', { name: 'Save profile' }))
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('No changes to save.'))
+    expect(profileActions.updateAskMeAbout).not.toHaveBeenCalled()
   })
 })

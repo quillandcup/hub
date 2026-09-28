@@ -19,6 +19,7 @@ import {
 } from "@/lib/kajabi/profile-fields";
 import { applyProfileOverride, nextOverrideValue, type ProfileFields } from "@/lib/member-profile-overrides";
 import { FACEBOOK_BASE_URL, X_BASE_URL, parseBioInput, parseFacebookInput, parseXInput } from "@/lib/social-links";
+import { normalizeTopics } from "@/lib/ask-me-about";
 
 /**
  * Member self-service for the public profile shown on /members/[id].
@@ -61,6 +62,8 @@ export interface ProfileSettings {
   instagramFallbackUrl: string | null;
   /** Bio / Facebook / X as the profile will show them (member override, else Kajabi). */
   details: ProfileDetails;
+  /** "Ask me about ..." topics (member_ask_me_about; Hub-only, no Kajabi sync). */
+  askMeAbout: string[];
   /** A saved change hasn't reached the profile yet (member processing still running). */
   syncPending: boolean;
 }
@@ -169,6 +172,14 @@ async function loadOverride(ctx: Ctx) {
     .maybeSingle();
 }
 
+async function loadAskMeAbout(ctx: Ctx) {
+  return ctx.supabase
+    .from("member_ask_me_about")
+    .select("topics")
+    .eq("member_id", ctx.effectiveIdentity.memberId)
+    .maybeSingle();
+}
+
 function toDetails(fields: ProfileFields): ProfileDetails {
   return { bio: fields.bio, facebookUrl: fields.facebook_url, twitterUrl: fields.twitter_url };
 }
@@ -178,13 +189,11 @@ export async function getProfileSettings(): Promise<ProfileSettings | { error: s
   if ("error" in ctx) return ctx;
   const memberId = ctx.effectiveIdentity.memberId;
 
-  const [{ data: member, error }, { data: override, error: overrideError }] = await Promise.all([
-    loadMember(ctx),
-    loadOverride(ctx),
-  ]);
+  const [{ data: member, error }, { data: override, error: overrideError }, { data: askRow, error: askError }] =
+    await Promise.all([loadMember(ctx), loadOverride(ctx), loadAskMeAbout(ctx)]);
   if (error || !member) return { error: error?.message ?? "Couldn't load your profile" };
-  if (overrideError) {
-    console.error("[profile] Failed to load profile overrides for member", memberId, overrideError);
+  if (overrideError || askError) {
+    console.error("[profile] Failed to load profile overrides for member", memberId, overrideError ?? askError);
     return { error: "Couldn't load your profile" };
   }
 
@@ -212,6 +221,7 @@ export async function getProfileSettings(): Promise<ProfileSettings | { error: s
     instagramHandle: snapshot.instagramHandle,
     instagramFallbackUrl: toSocialUrl(INSTAGRAM_BASE_URL, snapshot.socialsInstagram),
     details: toDetails(effective),
+    askMeAbout: askRow?.topics ?? [],
     syncPending,
   };
 }
@@ -314,6 +324,52 @@ export async function updateProfileDetails(input: ProfileDetailsInput): Promise<
   revalidatePath("/settings");
   revalidatePath(`/members/${effectiveIdentity.memberId}`);
   return { success: true, syncPending: true };
+}
+
+/**
+ * Save the "Ask me about ..." topics (the whole list, in the member's order).
+ * Hub-only data read straight from member_ask_me_about by the profile and the
+ * directory, so no reprocessing: the change shows as soon as it's saved.
+ */
+export async function updateAskMeAbout(input: string[]): Promise<UpdateProfileResult> {
+  const ctx = await requireIdentity();
+  if ("error" in ctx) return ctx;
+  const { supabase, effectiveIdentity, user } = ctx;
+
+  if (!Array.isArray(input) || input.some((t) => typeof t !== "string")) return { error: "Invalid topics" };
+  const parsed = normalizeTopics(input);
+  if ("error" in parsed) return parsed;
+
+  const { data: existing, error: loadError } = await loadAskMeAbout(ctx);
+  if (loadError) {
+    console.error("[profile] Failed to load ask-me-about for member", effectiveIdentity.memberId, loadError);
+    return { error: "Couldn't load your profile" };
+  }
+  const current = existing?.topics ?? [];
+  if (current.length === parsed.topics.length && current.every((t: string, i: number) => t === parsed.topics[i])) {
+    return { success: true, syncPending: false };
+  }
+
+  const { error } = await supabase
+    .from("member_ask_me_about")
+    .upsert(
+      { member_id: effectiveIdentity.memberId, topics: parsed.topics, updated_by: user.id },
+      { onConflict: "member_id" }
+    );
+  if (error) {
+    console.error("[profile] Saving ask-me-about failed for member", effectiveIdentity.memberId, error);
+    return { error: "Couldn't save your topics — please try again." };
+  }
+
+  console.log(
+    `[profile] Ask-me-about topics updated for member ${effectiveIdentity.memberId}` +
+      (effectiveIdentity.isSudo ? " (by an admin in sudo mode)" : "")
+  );
+  revalidatePath("/settings");
+  revalidatePath("/members");
+  revalidatePath(`/members/${effectiveIdentity.memberId}`);
+  // Saved and already live -- nothing to wait for.
+  return { success: true, syncPending: false };
 }
 
 export async function updateInstagramHandle(input: string): Promise<UpdateProfileResult> {

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import {
   getProfileSettings,
+  updateAskMeAbout,
   updateInstagramHandle,
   updateProfileDetails,
   type ProfileSettings,
@@ -11,6 +12,8 @@ import {
 } from "./profileActions";
 import { parseInstagramInput } from "@/lib/kajabi/profile-fields";
 import { MAX_BIO_LENGTH, parseBioInput, parseFacebookInput, parseXInput } from "@/lib/social-links";
+import { MAX_TOPICS, MAX_TOPIC_LENGTH, normalizeTopics } from "@/lib/ask-me-about";
+import TagInput from "@/components/TagInput";
 
 const INPUT_CLASS =
   "w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-sm";
@@ -55,6 +58,7 @@ export function ProfilePanel() {
   const [bioInput, setBioInput] = useState("");
   const [facebookInput, setFacebookInput] = useState("");
   const [xInput, setXInput] = useState("");
+  const [topics, setTopics] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
@@ -69,6 +73,7 @@ export function ProfilePanel() {
       setBioInput(result.details.bio ?? "");
       setFacebookInput(result.details.facebookUrl ?? "");
       setXInput(result.details.twitterUrl ?? "");
+      setTopics(result.askMeAbout);
     }
     setLoading(false);
   }, []);
@@ -90,14 +95,19 @@ export function ProfilePanel() {
     if (data.kajabiLinked && "error" in instagram) return setError(`Instagram: ${instagram.error}`);
     if ("error" in facebook) return setError(`Facebook: ${facebook.error}`);
     if ("error" in x) return setError(`X: ${x.error}`);
+    const askMeAbout = normalizeTopics(topics);
+    if ("error" in askMeAbout) return setError(`Ask me about: ${askMeAbout.error}`);
 
     // Instagram lives in Kajabi, so only call out to it when the handle actually changed.
     const instagramChanged = data.kajabiLinked && instagramInput.trim() !== formatHandle(data.instagramHandle);
+    // Topics are Hub-only and show immediately, so they don't count toward "will update in a minute".
+    const topicsChanged = askMeAbout.topics.join("\n") !== data.askMeAbout.join("\n");
 
     setSaving(true);
     const results = await Promise.all([
       updateProfileDetails({ bio: bioInput, facebook: facebookInput, x: xInput }),
       ...(instagramChanged ? [updateInstagramHandle(instagramInput)] : []),
+      ...(topicsChanged ? [updateAskMeAbout(askMeAbout.topics)] : []),
     ]);
     setSaving(false);
 
@@ -107,7 +117,11 @@ export function ProfilePanel() {
     const saved = results.filter((r): r is Extract<UpdateProfileResult, { success: true }> => "success" in r);
     setMessage(
       saved.find((r) => r.warning)?.warning ??
-        (saved.some((r) => r.syncPending) ? "Saved. Your profile will update in a minute or two." : "No changes to save.")
+        (saved.some((r) => r.syncPending)
+          ? "Saved. Your profile will update in a minute or two."
+          : topicsChanged
+            ? "Saved."
+            : "No changes to save.")
     );
     await load();
   }
@@ -172,6 +186,22 @@ export function ProfilePanel() {
             className={INPUT_CLASS}
           />
           <ClearHint value={bioInput} noun="bio" onClear={() => setBioInput("")} />
+        </div>
+        <div>
+          <label htmlFor="profile-ask-me-about" className="block text-sm font-medium text-slate-900 dark:text-slate-100 mb-1">
+            Ask me about…
+          </label>
+          <TagInput
+            id="profile-ask-me-about"
+            tags={topics}
+            onChange={setTopics}
+            placeholder="e.g. cozy mysteries, querying agents, worldbuilding"
+            maxTags={MAX_TOPICS}
+            maxTagLength={MAX_TOPIC_LENGTH}
+          />
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            Topics you&apos;re happy to chat about. Press Enter or comma after each one.
+          </p>
         </div>
         {/* Instagram — written to Kajabi's "Instagram Handle" contact custom field. */}
         <div>
