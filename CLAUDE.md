@@ -142,7 +142,7 @@ Layers, per the Next.js auth guide (`node_modules/next/dist/docs/01-app/02-guide
 
 Sudo doesn't affect any of these checks: the sudo cookie changes the effective *member*, not the signed-in admin. API routes use `requireAdmin` (`lib/supabase/api-auth.ts`) instead.
 
-The hook is tested by `supabase/tests/database/custom_access_token_hook.test.sql` (pgTAP, rolled back; run instructions in its header). Because the proxy has no fallback, **no one reaches `/admin` on a project until the hook is enabled there** (and they've signed in again or their token has refreshed). See "Supabase config as code" below for how it gets enabled.
+The hook is tested by `supabase/tests/database/custom_access_token_hook.test.sql` (pgTAP, rolled back; `npm run test:pgtap`, which CI also runs). Because the proxy has no fallback, **no one reaches `/admin` on a project until the hook is enabled there** (and they've signed in again or their token has refreshed). See "Supabase config as code" below for how it gets enabled.
 
 ### Supabase config as code
 
@@ -166,6 +166,8 @@ Required test coverage:
 - `/api/sync/calendar` - Test pagination
 
 **Component tests**: React Testing Library is available for interactive components (`@testing-library/react`, `@testing-library/user-event`, `@testing-library/jest-dom`). Put `.tsx` test files under `tests/components/`, with `// @vitest-environment jsdom` as the first line. Prefer rendering the component and asserting on the DOM (`render` + `userEvent`/`fireEvent` + `screen`) over the older pattern in some `tests/components/*.test.ts` files of `fs.readFileSync`-ing the source and asserting `expect(src).toContain(...)` — that pattern doesn't verify behavior. See `tests/components/SortableTh.test.tsx` and `tests/components/MembersTable.test.tsx` for the current example.
+
+**SQL tests (pgTAP)**: RLS policies, `SECURITY DEFINER` functions and auth hooks — anything only observable as a particular Postgres role — go in `supabase/tests/database/*.test.sql`. Each file wraps itself in `BEGIN … ROLLBACK`, creates the `pgtap` extension, and ends with `SELECT * FROM finish(true);` so a failed assertion raises. `npm run test:pgtap` (`scripts/test-pgtap.sh`) runs them all as `supabase_admin` against the local stack; CI runs it in the test-db job.
 
 **Server-component page tests**: Async `page.tsx` files are tested the same way — `await` the page's default export with its props (e.g. `{ searchParams: Promise.resolve({ tab: "find" }) }`), then `render()` the returned JSX. `tests/helpers/server-page.ts` supplies the shared module mocks (point `vi.mock("next/navigation" | "@/lib/auth" | "@/lib/sudo" | "@/lib/supabase/server", ...)` at them), a chainable fake Supabase client (`useFakeSupabase({ table: { data } })`), `signInAs(user, identity)`, `renderServerPage` and `expectRedirect` (the mocked `redirect()` throws like Next's). Mock other lib/action calls and heavy client children per test. Put these under `tests/components/pages/`; see `tests/components/pages/unflagged-pages.test.tsx`.
 

@@ -76,6 +76,9 @@ interface GoalRowBase {
   projectId: string;
   measure: WritingMeasure;
   isStarred: boolean;
+  title: string | null;
+  description: string | null;
+  showOnProfile: boolean;
   /** e.g. "<host>'s Progress Prickle" -- only set for measure='prickles' goals with an anchor. */
   anchorLabel: string | null;
 }
@@ -89,6 +92,7 @@ export interface TargetGoalRow extends GoalRowBase {
   percent: number;
   parTarget: number | null;
   onPace: boolean | null;
+  status: "active" | "achieved" | "ended";
 }
 
 export interface HabitGoalRow extends GoalRowBase {
@@ -134,11 +138,18 @@ export async function getMyPrickleAttendance(): Promise<PrickleAttendanceRow[]> 
 
   const tzPref = await getUserTimezonePreference();
   const timeZone = tzPref === "browser" ? ORG_TIMEZONE : tzPref;
+  return fetchWritingPrickleAttendance(supabase, effectiveIdentity.memberId, timeZone);
+}
 
+async function fetchWritingPrickleAttendance(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  memberId: string,
+  timeZone: string
+): Promise<PrickleAttendanceRow[]> {
   const { data } = await supabase
     .from("prickle_attendance")
     .select("prickles!inner(type_id, host, start_time, prickle_types!inner(purpose))")
-    .eq("member_id", effectiveIdentity.memberId)
+    .eq("member_id", memberId)
     .eq("prickles.prickle_types.purpose", "writing");
 
   return ((data ?? []) as any[])
@@ -409,6 +420,9 @@ interface RawGoal {
   habit_period: string | null;
   habit_threshold: number | null;
   is_starred: boolean;
+  title: string | null;
+  description: string | null;
+  show_on_profile: boolean;
   anchor_type_id: string | null;
   anchor_host_id: string | null;
   anchor_day_of_week: number | null;
@@ -417,7 +431,7 @@ interface RawGoal {
 }
 
 const GOAL_SELECT_COLUMNS =
-  "id, project_id, goal_type, measure, target_amount, start_date, end_date, habit_period, habit_threshold, is_starred, anchor_type_id, anchor_host_id, anchor_day_of_week, anchor_type:anchor_type_id(name), anchor_host:anchor_host_id(name)";
+  "id, project_id, goal_type, measure, target_amount, start_date, end_date, habit_period, habit_threshold, is_starred, title, description, show_on_profile, anchor_type_id, anchor_host_id, anchor_day_of_week, anchor_type:anchor_type_id(name), anchor_host:anchor_host_id(name)";
 
 function singleRelation<T>(rel: T | T[] | null | undefined): T | null {
   return Array.isArray(rel) ? rel[0] ?? null : rel ?? null;
@@ -455,6 +469,9 @@ function buildGoalRow(
     projectId: g.project_id,
     measure: g.measure as WritingMeasure,
     isStarred: g.is_starred,
+    title: g.title,
+    description: g.description,
+    showOnProfile: g.show_on_profile,
     anchorLabel: buildAnchorLabel(g),
   };
 
@@ -991,6 +1008,33 @@ export interface CreateGoalInput {
   habitThreshold?: number | null;
   // prickles anchor -- id of a confirmed prickle_schedules row, or null/omitted for "any writing prickle"
   anchorScheduleId?: string | null;
+  title?: string | null;
+  description?: string | null;
+  showOnProfile?: boolean;
+}
+
+const GOAL_TITLE_MAX = 200;
+const GOAL_DESCRIPTION_MAX = 2000;
+
+/** Trims/validates the optional title, description and profile flag; only fields present in the input are returned. */
+function buildGoalDetails(
+  input: Pick<CreateGoalInput, "title" | "description" | "showOnProfile">
+): { title?: string | null; description?: string | null; show_on_profile?: boolean } | { error: string } {
+  const details: { title?: string | null; description?: string | null; show_on_profile?: boolean } = {};
+  if (input.title !== undefined) {
+    const title = input.title?.trim() || null;
+    if (title && title.length > GOAL_TITLE_MAX) return { error: `Title must be ${GOAL_TITLE_MAX} characters or fewer` };
+    details.title = title;
+  }
+  if (input.description !== undefined) {
+    const description = input.description?.trim() || null;
+    if (description && description.length > GOAL_DESCRIPTION_MAX) {
+      return { error: `Description must be ${GOAL_DESCRIPTION_MAX} characters or fewer` };
+    }
+    details.description = description;
+  }
+  if (input.showOnProfile !== undefined) details.show_on_profile = !!input.showOnProfile;
+  return details;
 }
 
 interface ResolvedAnchor {
@@ -1103,10 +1147,12 @@ export async function createGoal(
 
   const fields = buildGoalFields(input.goalType, input.measure, input, anchor);
   if ("error" in fields) return fields;
+  const details = buildGoalDetails(input);
+  if ("error" in details) return details;
 
   const { data, error } = await supabase
     .from("writing_goals")
-    .insert({ member_id: effectiveIdentity.memberId, project_id: input.projectId, ...fields })
+    .insert({ member_id: effectiveIdentity.memberId, project_id: input.projectId, ...fields, ...details })
     .select("id")
     .single();
 
@@ -1121,7 +1167,17 @@ export async function createGoal(
 export type UpdateGoalInput = Partial<
   Pick<
     CreateGoalInput,
-    "measure" | "goalType" | "targetAmount" | "startDate" | "endDate" | "habitPeriod" | "habitThreshold" | "anchorScheduleId"
+    "measure"
+    | "goalType"
+    | "targetAmount"
+    | "startDate"
+    | "endDate"
+    | "habitPeriod"
+    | "habitThreshold"
+    | "anchorScheduleId"
+    | "title"
+    | "description"
+    | "showOnProfile"
   >
 >;
 
@@ -1144,7 +1200,7 @@ export async function updateGoal(
   const { data: existing } = await supabase
     .from("writing_goals")
     .select(
-      "id, project_id, member_id, goal_type, measure, target_amount, start_date, end_date, habit_period, habit_threshold, is_starred, anchor_schedule_id, anchor_type_id, anchor_host_id, anchor_day_of_week"
+      "id, project_id, member_id, goal_type, measure, target_amount, start_date, end_date, habit_period, habit_threshold, is_starred, title, description, show_on_profile, anchor_schedule_id, anchor_type_id, anchor_host_id, anchor_day_of_week"
     )
     .eq("id", goalId)
     .single();
@@ -1185,6 +1241,8 @@ export async function updateGoal(
     anchor
   );
   if ("error" in fields) return fields;
+  const details = buildGoalDetails(patch);
+  if ("error" in details) return details;
 
   const existingAnchor: ResolvedAnchor = {
     scheduleId: null, // not compared -- provenance only, see resolveAnchor/anchorsMatch
@@ -1214,7 +1272,11 @@ export async function updateGoal(
         member_id: effectiveIdentity.memberId,
         project_id: existing.project_id,
         is_starred: existing.is_starred,
+        title: existing.title,
+        description: existing.description,
+        show_on_profile: existing.show_on_profile,
         ...fields,
+        ...details,
       })
       .select("id")
       .single();
@@ -1228,7 +1290,7 @@ export async function updateGoal(
 
   const { error } = await supabase
     .from("writing_goals")
-    .update(fields)
+    .update({ ...fields, ...details })
     .eq("id", goalId)
     .eq("member_id", effectiveIdentity.memberId);
 
@@ -1423,42 +1485,89 @@ export async function getProjectSeries(
   return series.map((point) => ({ ...point, total: applyStartingBalance(point.total, startingBalance) }));
 }
 
-/** A member's opted-in project (highest total, if more than one) for surfacing on their public profile. */
-export async function getProfileWritingSummary(
+export interface ProfileWritingProject {
+  id: string;
+  title: string;
+  /** The project's largest total (starting balance included), or null if nothing's logged yet. */
+  headline: { measure: WritingMeasure; total: number } | null;
+}
+
+export type ProfileWritingGoal = GoalRow & { projectTitle: string };
+
+/**
+ * A member's "Show on profile" projects and goals, for their profile page. Read through the
+ * get_profile_writing function: the writing tables are owner-only, so reading them as the viewer
+ * would show nothing on anyone else's profile.
+ */
+export async function getProfileWriting(
   memberId: string
-): Promise<{ projectTitle: string; measure: WritingMeasure; total: number } | null> {
+): Promise<{ projects: ProfileWritingProject[]; goals: ProfileWritingGoal[] }> {
   const supabase = await createClient();
+  const { data, error } = await supabase.rpc("get_profile_writing", { p_member_id: memberId });
+  if (error) console.error("getProfileWriting: get_profile_writing failed", error);
 
-  const { data: projects } = await supabase
-    .from("writing_projects")
-    .select("id, title")
-    .eq("member_id", memberId)
-    .eq("show_on_profile", true)
-    .is("archived_at", null);
+  const payload = (data ?? null) as {
+    projects: { id: string; title: string }[];
+    goals: (Omit<RawGoal, "is_starred" | "show_on_profile" | "anchor_type" | "anchor_host"> & {
+      project_title: string;
+      anchor_type_name: string | null;
+      anchor_host_name: string | null;
+    })[];
+    entries: RawEntry[];
+    starting_balances: RawStartingBalance[];
+  } | null;
+  if (!payload) return { projects: [], goals: [] };
 
-  if (!projects || projects.length === 0) return null;
+  const now = new Date();
+  const entriesFor = (projectId: string) => payload.entries.filter((e) => e.project_id === projectId);
 
-  const projectIds = projects.map((p) => p.id);
-  const { data: entries } = await supabase
-    .from("writing_progress_entries")
-    .select("project_id, entry_date, measure, mode, amount, created_at")
-    .in("project_id", projectIds);
-
-  let best: { projectTitle: string; measure: WritingMeasure; total: number } | null = null;
-  for (const project of projects) {
+  const projects = payload.projects.map((project) => {
+    const projectEntries = entriesFor(project.id);
+    let headline: ProfileWritingProject["headline"] = null;
     for (const measure of WRITING_MEASURES) {
-      const measureEntries = (entries ?? []).filter((e) => e.project_id === project.id && e.measure === measure);
-      if (measureEntries.length === 0) continue;
-      const total = computeCumulativeTotal(
-        measureEntries.map((e) => ({
-          entryDate: e.entry_date,
-          createdAt: e.created_at,
-          mode: e.mode as EntryMode,
-          amount: e.amount,
-        }))
+      const measureEntries = projectEntries.filter((e) => e.measure === measure);
+      const startingBalance = payload.starting_balances.find(
+        (b) => b.project_id === project.id && b.measure === measure
+      )?.amount;
+      if (measureEntries.length === 0 && startingBalance === undefined) continue;
+      const total = applyStartingBalance(
+        computeCumulativeTotal(
+          measureEntries.map((e) => ({
+            entryDate: e.entry_date,
+            createdAt: e.created_at,
+            mode: e.mode as EntryMode,
+            amount: e.amount,
+          }))
+        ),
+        startingBalance
       );
-      if (!best || total > best.total) best = { projectTitle: project.title, measure, total };
+      if (!headline || total > headline.total) headline = { measure, total };
     }
+    return { id: project.id, title: project.title, headline };
+  });
+
+  // Prickles-measure goals count attendance, which any member can already read.
+  let attendance: PrickleAttendanceRow[] = [];
+  if (payload.goals.some((g) => g.measure === "prickles")) {
+    const tzPref = await getUserTimezonePreference();
+    attendance = await fetchWritingPrickleAttendance(supabase, memberId, tzPref === "browser" ? ORG_TIMEZONE : tzPref);
   }
-  return best;
+
+  const goals = payload.goals.map((g) => ({
+    ...buildGoalRow(
+      {
+        ...g,
+        is_starred: false,
+        show_on_profile: true,
+        anchor_type: g.anchor_type_name ? { name: g.anchor_type_name } : null,
+        anchor_host: g.anchor_host_name ? { name: g.anchor_host_name } : null,
+      },
+      entriesFor(g.project_id),
+      now,
+      attendance
+    ),
+    projectTitle: g.project_title,
+  }));
+
+  return { projects, goals };
 }

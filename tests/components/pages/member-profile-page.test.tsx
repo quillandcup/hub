@@ -26,7 +26,9 @@ vi.mock("@/lib/auth", () => import("@/tests/helpers/server-page").then((m) => m.
 vi.mock("@/lib/sudo", () => import("@/tests/helpers/server-page").then((m) => m.sudoModule));
 vi.mock("@/lib/supabase/server", () => import("@/tests/helpers/server-page").then((m) => m.supabaseServerModule));
 
-vi.mock("@/app/(member)/projects/actions", () => ({ getProfileWritingSummary: vi.fn(async () => null) }));
+vi.mock("@/app/(member)/projects/actions", () => ({
+  getProfileWriting: vi.fn(async () => ({ projects: [], goals: [] })),
+}));
 vi.mock("@/lib/badges", () => ({
   getMemberBadges: vi.fn(async () => []),
   getAttendedPrickleCount: vi.fn(async () => 17),
@@ -37,6 +39,7 @@ vi.mock("@/lib/prickle-schedule", () => ({ getMemberHostingSchedule: vi.fn(async
 import MemberProfilePage from "@/app/(member)/members/[id]/page";
 import { fetchHostedPrickleRecords } from "@/lib/hosted-prickles";
 import { getMemberHostingSchedule } from "@/lib/prickle-schedule";
+import { getProfileWriting, type ProfileWritingGoal } from "@/app/(member)/projects/actions";
 
 const PROFILE_ID = "member-hazel";
 
@@ -97,6 +100,7 @@ beforeEach(() => {
   useFakeSupabase(tables());
   vi.mocked(fetchHostedPrickleRecords).mockResolvedValue([]);
   vi.mocked(getMemberHostingSchedule).mockResolvedValue([]);
+  vi.mocked(getProfileWriting).mockResolvedValue({ projects: [], goals: [] });
 });
 
 function hostingCard(): HTMLElement | null {
@@ -202,6 +206,51 @@ describe("member profile page: Books and Awards", () => {
     await renderServerPage(MemberProfilePage, params);
     expect(screen.queryByRole("heading", { name: "Published Books" })).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Awards" })).not.toBeInTheDocument();
+  });
+});
+
+describe("member profile page: Writing Progress", () => {
+  const GOAL: ProfileWritingGoal = {
+    id: "goal-1",
+    projectId: "project-2",
+    projectTitle: "Safe in Sound",
+    measure: "chapters",
+    isStarred: false,
+    title: "Finish Draft 3",
+    description: "Get the manuscript ready for beta readers",
+    showOnProfile: true,
+    anchorLabel: null,
+    kind: "target",
+    targetAmount: 18,
+    startDate: "2026-06-01",
+    endDate: "2026-08-15",
+    current: 18,
+    percent: 100,
+    parTarget: 18,
+    onPace: true,
+    status: "achieved",
+  };
+
+  it("shows opted-in projects and goals, with the goal's title, description and status", async () => {
+    vi.mocked(getProfileWriting).mockResolvedValue({
+      projects: [{ id: "project-1", title: "2626", headline: { measure: "words", total: 63338 } }],
+      goals: [GOAL],
+    });
+    await renderServerPage(MemberProfilePage, params);
+
+    expect(getProfileWriting).toHaveBeenCalledWith(PROFILE_ID);
+    const card = screen.getByRole("heading", { name: "Writing Progress" }).parentElement!;
+    expect(within(card).getByText("63,338")).toBeInTheDocument();
+    expect(within(card).getByText("words on 2626")).toBeInTheDocument();
+    expect(within(card).getByText("Safe in Sound")).toBeInTheDocument();
+    expect(within(card).getByText("Finish Draft 3")).toBeInTheDocument();
+    expect(within(card).getByText("Get the manuscript ready for beta readers")).toBeInTheDocument();
+    expect(within(card).getByText("Achieved!")).toBeInTheDocument();
+  });
+
+  it("omits the section when nothing is opted in", async () => {
+    await renderServerPage(MemberProfilePage, params);
+    expect(screen.queryByRole("heading", { name: "Writing Progress" })).not.toBeInTheDocument();
   });
 });
 

@@ -211,6 +211,39 @@ describe("computeGoalProgress", () => {
     expect(progress.parTarget).toBe(50000);
     expect(progress.onPace).toBe(false);
   });
+
+  it("is ended once the end date has passed without reaching the target", () => {
+    const progress = computeGoalProgress({
+      entries: [entry({ entryDate: "2026-08-01", amount: 10000 })],
+      targetAmount: 50000,
+      startDate: "2026-08-01",
+      endDate: "2026-08-15",
+      now,
+    });
+    expect(progress.status).toBe("ended");
+  });
+
+  it("is still active on its end date", () => {
+    const progress = computeGoalProgress({
+      entries: [entry({ entryDate: "2026-08-01", amount: 10000 })],
+      targetAmount: 50000,
+      startDate: "2026-08-01",
+      endDate: "2026-08-16",
+      now,
+    });
+    expect(progress.status).toBe("active");
+  });
+
+  it("is achieved once the target is reached, even after the end date", () => {
+    const progress = computeGoalProgress({
+      entries: [entry({ entryDate: "2026-08-01", amount: 50000 })],
+      targetAmount: 50000,
+      startDate: "2026-08-01",
+      endDate: "2026-08-05",
+      now,
+    });
+    expect(progress.status).toBe("achieved");
+  });
 });
 
 describe("computeHabitGoalProgress", () => {

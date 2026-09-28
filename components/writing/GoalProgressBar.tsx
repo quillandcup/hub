@@ -7,19 +7,41 @@ interface GoalProgressBarProps {
   percent: number;
   parTarget: number | null;
   onPace: boolean | null;
+  status?: "active" | "achieved" | "ended";
+  endDate?: string | null;
 }
 
-export default function GoalProgressBar({ measure, current, target, percent, parTarget, onPace }: GoalProgressBarProps) {
+export default function GoalProgressBar({
+  measure,
+  current,
+  target,
+  percent,
+  parTarget,
+  onPace,
+  status = "active",
+  endDate = null,
+}: GoalProgressBarProps) {
   const clampedPercent = Math.min(100, Math.max(0, percent));
-  const parPercent = parTarget !== null && target > 0 ? Math.min(100, Math.max(0, (parTarget / target) * 100)) : null;
+  // Pace only matters while the goal is running.
+  const isActive = status === "active";
+  const parPercent =
+    isActive && parTarget !== null && target > 0 ? Math.min(100, Math.max(0, (parTarget / target) * 100)) : null;
 
-  const barColor = onPace === false ? "bg-amber-500" : "bg-blue-600";
+  const barColor =
+    status === "achieved"
+      ? "bg-emerald-600"
+      : status === "ended"
+        ? "bg-slate-400 dark:bg-slate-500"
+        : onPace === false
+          ? "bg-amber-500"
+          : "bg-blue-600";
 
   return (
     <div>
       <div className="flex items-baseline justify-between text-sm mb-1">
         <span className="text-slate-600 dark:text-slate-400">
           {current.toLocaleString()} / {target.toLocaleString()} {MEASURE_LABELS[measure].toLowerCase()}
+          {endDate && <span className="text-slate-400"> by {endDate}</span>}
         </span>
         <span className="text-slate-400 text-xs">{Math.round(percent)}%</span>
       </div>
@@ -33,10 +55,16 @@ export default function GoalProgressBar({ measure, current, target, percent, par
           />
         )}
       </div>
-      {onPace !== null && (
-        <p className={`mt-1 text-xs ${onPace ? "text-blue-600 dark:text-blue-400" : "text-amber-600 dark:text-amber-400"}`}>
-          {onPace ? "On pace" : "Behind pace"}
-        </p>
+      {status === "achieved" ? (
+        <p className="mt-1 text-xs font-medium text-emerald-600 dark:text-emerald-400">Achieved!</p>
+      ) : status === "ended" ? (
+        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Ended</p>
+      ) : (
+        onPace !== null && (
+          <p className={`mt-1 text-xs ${onPace ? "text-blue-600 dark:text-blue-400" : "text-amber-600 dark:text-amber-400"}`}>
+            {onPace ? "On pace" : "Behind pace"}
+          </p>
+        )
       )}
     </div>
   );

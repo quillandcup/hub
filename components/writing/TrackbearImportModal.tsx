@@ -169,6 +169,11 @@ function ImportResult({ result, onDone }: { result: TrackbearImportResult; onDon
             {plural(alreadyImported.goals, "goal")}.
           </p>
         )}
+        {result.updated.goalDetails > 0 && (
+          <p className="mt-2 text-slate-500 dark:text-slate-400">
+            Added TrackBear titles and descriptions to {plural(result.updated.goalDetails, "previously imported goal")}.
+          </p>
+        )}
       </div>
 
       {bySeverity.map(({ severity, items }) => (

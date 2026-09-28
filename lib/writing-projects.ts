@@ -172,6 +172,8 @@ export interface GoalProgress {
   parTarget: number | null;
   /** True if current >= parTarget; null when parTarget is null. */
   onPace: boolean | null;
+  /** achieved: reached the target. ended: past its end date without reaching it. Else active. */
+  status: "active" | "achieved" | "ended";
 }
 
 /**
@@ -196,12 +198,20 @@ export function computeGoalProgress(input: GoalProgressInput): GoalProgress {
     parTarget = targetAmount * fraction;
   }
 
+  const status =
+    targetAmount > 0 && current >= targetAmount
+      ? "achieved"
+      : endDate && isoDate(now) > endDate
+        ? "ended"
+        : "active";
+
   return {
     current,
     target: targetAmount,
     percent,
     parTarget,
     onPace: parTarget === null ? null : current >= parTarget,
+    status,
   };
 }
 

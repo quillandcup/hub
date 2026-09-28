@@ -93,7 +93,7 @@ describe("planTrackbearImport", () => {
     expect(plan.newEntries[3]).toMatchObject({ projectExternalId: P2, measure: "lines" });
   });
 
-  it("maps a single-project target and a daily habit", () => {
+  it("maps a single-project target and a daily habit, with their titles, descriptions and profile flag", () => {
     expect(plan.newGoals).toEqual([
       {
         externalId: trackbearExternalId("20202020-2020-4020-8020-202020202020"),
@@ -106,9 +106,20 @@ describe("planTrackbearImport", () => {
         habitPeriod: null,
         habitThreshold: null,
         isStarred: true,
+        title: "Finish draft",
+        description: "80k by summer",
+        showOnProfile: true,
         createdAt: "2025-01-02T11:00:00.000Z",
       },
-      expect.objectContaining({ goalType: "habit", measure: "time_minutes", habitPeriod: "day", habitThreshold: 30 }),
+      expect.objectContaining({
+        goalType: "habit",
+        measure: "time_minutes",
+        habitPeriod: "day",
+        habitThreshold: 30,
+        title: null,
+        description: null,
+        showOnProfile: false,
+      }),
     ]);
   });
 
@@ -121,10 +132,7 @@ describe("planTrackbearImport", () => {
     expect(issuesFor("The Hedgehog's Journey")).toEqual([
       expect.objectContaining({ severity: "dropped", detail: expect.stringMatching(/Starred/) }),
     ]);
-    expect(issuesFor("Finish draft").map((i) => i.detail)).toEqual([
-      expect.stringMatching(/^Title "Finish draft"/),
-      expect.stringMatching(/^Description/),
-    ]);
+    expect(issuesFor("Finish draft")).toEqual([]);
     expect(plan.issues).toContainEqual(expect.objectContaining({ kind: "tag", severity: "dropped", detail: expect.stringMatching(/colors/) }));
     expect(plan.issues).toContainEqual(expect.objectContaining({ kind: "tag", severity: "skipped", label: "unused" }));
   });
@@ -166,5 +174,23 @@ describe("planTrackbearImport", () => {
     expect(p.newEntries.map((e) => e.projectExternalId)).toEqual([P2]);
     expect(p.newGoals).toEqual([]);
     expect(p.alreadyImported).toEqual({ projects: 2, entries: 3, goals: 2 });
+    expect(p.goalDetailBackfills).toEqual([]);
+  });
+
+  it("backfills title, description and profile flag onto goals imported before Hub goals had them", () => {
+    const data = makeTrackbearData();
+    const target = trackbearExternalId(data.targets[0].uuid);
+    const habit = trackbearExternalId(data.habits[0].uuid);
+    const p = planTrackbearImport(data, {
+      projectIdsByExternalId: new Map([[P1, "hub-p1"], [P2, "hub-p2"]]),
+      entryExternalIds: new Set(),
+      goalExternalIds: new Set([target, habit]),
+      // The habit has no details in TrackBear either, so there's nothing to backfill for it.
+      goalExternalIdsMissingDetails: new Set([target, habit]),
+    });
+    expect(p.newGoals).toEqual([]);
+    expect(p.goalDetailBackfills).toEqual([
+      { externalId: target, title: "Finish draft", description: "80k by summer", showOnProfile: true },
+    ]);
   });
 });

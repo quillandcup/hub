@@ -10,8 +10,9 @@ import { computeStreaks } from "@/lib/streaks"
 import MemberAvatar from "./MemberAvatar"
 import WelcomeBackBanner from "./WelcomeBackBanner"
 import { parseDateOnly } from "@/lib/member-tenure"
-import { getProfileWritingSummary } from "@/app/(member)/projects/actions"
+import { getProfileWriting } from "@/app/(member)/projects/actions"
 import { MEASURE_LABELS } from "@/lib/writing-projects"
+import GoalDisplay from "@/components/writing/GoalDisplay"
 import { getMemberBadges, getAttendedPrickleCount } from "@/lib/badges"
 import BadgeChip from "@/components/BadgeChip"
 import { safeUrl } from "@/lib/url"
@@ -65,7 +66,7 @@ export default async function MemberProfilePage({
 
   if (!member) notFound()
 
-  const writingSummary = await getProfileWritingSummary(id)
+  const writing = await getProfileWriting(id)
 
   // Everything below is Tier 3 (visible to all): the profile shows the same thing to the member
   // themselves as it shows to any other member, per docs -- no account info, engagement scores,
@@ -296,18 +297,40 @@ export default async function MemberProfilePage({
         </div>
       )}
 
-      {/* Tier 3: visible to all -- only shown if the member opted a project in via "Show on my profile" */}
-      {writingSummary && (
+      {/* Tier 3: visible to all -- only projects and goals the member opted in via "Show on my profile" */}
+      {(writing.projects.length > 0 || writing.goals.length > 0) && (
         <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 p-6 mb-6">
           <h2 className="text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-4">
             Writing Progress
           </h2>
-          <div className="flex items-center gap-2">
-            <span className="text-3xl font-bold">{writingSummary.total.toLocaleString()}</span>
-            <span className="text-slate-500 dark:text-slate-400">
-              {MEASURE_LABELS[writingSummary.measure].toLowerCase()} on {writingSummary.projectTitle}
-            </span>
-          </div>
+          {writing.projects.length > 0 && (
+            <ul className="space-y-2">
+              {writing.projects.map((project) => (
+                <li key={project.id} className="flex items-baseline gap-2">
+                  {project.headline ? (
+                    <>
+                      <span className="text-3xl font-bold">{project.headline.total.toLocaleString()}</span>
+                      <span className="text-slate-500 dark:text-slate-400">
+                        {MEASURE_LABELS[project.headline.measure].toLowerCase()} on {project.title}
+                      </span>
+                    </>
+                  ) : (
+                    <span className="text-slate-500 dark:text-slate-400">{project.title}</span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+          {writing.goals.length > 0 && (
+            <div className={`space-y-4 ${writing.projects.length > 0 ? "mt-6" : ""}`}>
+              {writing.goals.map((goal) => (
+                <div key={goal.id}>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">{goal.projectTitle}</p>
+                  <GoalDisplay goal={goal} />
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

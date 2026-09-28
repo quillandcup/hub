@@ -16,10 +16,13 @@ import {
 const BATCH_SIZE = 500;
 const PAGE_SIZE = 1000;
 const COVER_CONCURRENCY = 4;
+const UPDATE_CONCURRENCY = 50;
 
 export interface TrackbearImportResult {
   created: { projects: number; entries: number; goals: number; startingBalances: number; covers: number };
   alreadyImported: { projects: number; entries: number; goals: number };
+  /** Already-imported goals that got their TrackBear title/description/show-on-profile filled in. */
+  updated: { goalDetails: number };
   issues: ImportIssue[];
 }
 
@@ -65,10 +68,10 @@ async function loadExistingImports(supabase: SupabaseClient, memberId: string): 
         .order("id")
         .range(from, to)
     ),
-    selectAllPages<{ external_id: string }>((from, to) =>
+    selectAllPages<{ external_id: string; title: string | null; description: string | null }>((from, to) =>
       supabase
         .from("writing_goals")
-        .select("external_id")
+        .select("external_id, title, description")
         .eq("member_id", memberId)
         .like("external_id", "trackbear:%")
         .order("id")
@@ -79,6 +82,9 @@ async function loadExistingImports(supabase: SupabaseClient, memberId: string): 
     projectIdsByExternalId: new Map(projects.map((p) => [p.external_id, p.id])),
     entryExternalIds: new Set(entries.map((e) => e.external_id)),
     goalExternalIds: new Set(goals.map((g) => g.external_id)),
+    goalExternalIdsMissingDetails: new Set(
+      goals.filter((g) => g.title === null && g.description === null).map((g) => g.external_id)
+    ),
   };
 }
 
@@ -189,6 +195,9 @@ export async function runTrackbearImport(
           habit_period: g.habitPeriod,
           habit_threshold: g.habitThreshold,
           is_starred: g.isStarred,
+          title: g.title,
+          description: g.description,
+          show_on_profile: g.showOnProfile,
           created_at: g.createdAt,
         })),
         { onConflict: "member_id,external_id", ignoreDuplicates: true }
@@ -196,6 +205,28 @@ export async function runTrackbearImport(
       .select("id");
     if (error) throw new Error(`Failed to save goals: ${error.message}`);
     created.goals += rows?.length ?? 0;
+  }
+
+  // 4b. Goals imported before Hub goals had titles/descriptions/show-on-profile. The null checks
+  // keep this from overwriting details the member has since added in Hub.
+  const updated = { goalDetails: 0 };
+  for (const batch of chunk(plan.goalDetailBackfills, UPDATE_CONCURRENCY)) {
+    const results = await Promise.all(
+      batch.map((g) =>
+        supabase
+          .from("writing_goals")
+          .update({ title: g.title, description: g.description, show_on_profile: g.showOnProfile })
+          .eq("member_id", memberId)
+          .eq("external_id", g.externalId)
+          .is("title", null)
+          .is("description", null)
+          .select("id")
+      )
+    );
+    for (const { data: rows, error } of results) {
+      if (error) throw new Error(`Failed to update goals: ${error.message}`);
+      updated.goalDetails += rows?.length ?? 0;
+    }
   }
 
   // 5. Covers -- best-effort network copies, a few at a time; a failure is reported, not fatal.
@@ -230,5 +261,5 @@ export async function runTrackbearImport(
     );
   }
 
-  return { created, alreadyImported: plan.alreadyImported, issues };
+  return { created, alreadyImported: plan.alreadyImported, updated, issues };
 }

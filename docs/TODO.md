@@ -103,7 +103,8 @@ Import Prickles schedule from:
 ### TrackBear Import Gaps
 
 The TrackBear importer (Projects → "Import from TrackBear"; `lib/trackbear-import.ts`) brings over
-projects, all progress, starting balances, covers, tags-on-entries, and single-project goals. It lists
+projects, all progress, starting balances, covers, tags-on-entries, and single-project goals (with their
+titles, descriptions and show-on-profile; re-importing fills these in on goals imported before Hub had them). It lists
 everything else per import instead of silently dropping it. Closing these gaps needs Hub features first:
 
 - **Cross-project goals** (a TrackBear goal counting all projects or several): `writing_goals.project_id` is already nullable, but nothing displays or computes a goal with no project, or with several.
@@ -111,7 +112,6 @@ everything else per import instead of silently dropping it. Closing these gaps n
 - **Habit cadences**: "every N days/weeks" (N > 1) and yearly habits; Hub habits are every 1 day/week/month.
 - **"Any measure" habits** (TrackBear habit with no threshold): Hub habits need one measure.
 - **Habit date ranges**: Hub habits are open-ended; imported habits' start/end dates are dropped.
-- **Goal title, description, show-on-profile**: no columns/UI for these.
 - **Project "starred"**: no star on Hub projects.
 - **Tag colors, unused tags**: Hub tags are plain labels on each entry.
 - **Negative starting balances**: `writing_project_starting_balances` has `CHECK (amount >= 0)`.

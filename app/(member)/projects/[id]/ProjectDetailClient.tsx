@@ -529,6 +529,9 @@ function GoalForm({
   onArchive?: () => void;
 }) {
   const isEditing = !!goal;
+  const [title, setTitle] = useState(goal?.title ?? "");
+  const [description, setDescription] = useState(goal?.description ?? "");
+  const [showOnProfile, setShowOnProfile] = useState(goal?.showOnProfile ?? false);
   const [goalType, setGoalType] = useState<"target" | "habit">(goal?.kind ?? "target");
   // Prickles is the default for new goals -- it's the input (attending), word/page/etc counts
   // are outputs, so the form leads with the thing that causes the others.
@@ -553,6 +556,7 @@ function GoalForm({
     setError(null);
 
     const anchorPayload = measure === "prickles" && (!isEditing || anchorTouched) ? anchorScheduleId ?? null : undefined;
+    const details = { title: title.trim() || null, description: description.trim() || null, showOnProfile };
 
     setIsPending(true);
     const result =
@@ -569,6 +573,7 @@ function GoalForm({
               startDate: startDate || null,
               endDate: endDate || null,
               anchorScheduleId: anchorPayload,
+              ...details,
             };
             return isEditing ? updateGoal(goal.id, payload) : createGoal({ projectId, ...payload });
           })()
@@ -579,6 +584,7 @@ function GoalForm({
               habitPeriod,
               habitThreshold: habitThreshold.trim() ? Number(habitThreshold) : null,
               anchorScheduleId: anchorPayload,
+              ...details,
             };
             return isEditing ? updateGoal(goal.id, payload) : createGoal({ projectId, ...payload });
           })();
@@ -615,6 +621,36 @@ function GoalForm({
         >
           Habit
         </button>
+      </div>
+
+      <div>
+        <label htmlFor="goal-title" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+          Title <span className="text-slate-400 font-normal">(optional)</span>
+        </label>
+        <input
+          id="goal-title"
+          type="text"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          maxLength={200}
+          placeholder="e.g. Finish Draft 1"
+          className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-sm"
+        />
+      </div>
+
+      <div>
+        <label htmlFor="goal-description" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+          Description <span className="text-slate-400 font-normal">(optional)</span>
+        </label>
+        <textarea
+          id="goal-description"
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          maxLength={2000}
+          rows={2}
+          placeholder="What's this goal for?"
+          className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-sm"
+        />
       </div>
 
       <div className="grid grid-cols-2 gap-3">
@@ -731,6 +767,16 @@ function GoalForm({
             }}
           />
         ))}
+
+      <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400 cursor-pointer">
+        <input
+          type="checkbox"
+          checked={showOnProfile}
+          onChange={(e) => setShowOnProfile(e.target.checked)}
+          className="rounded"
+        />
+        Show on my profile
+      </label>
 
       {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
 
