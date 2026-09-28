@@ -87,6 +87,7 @@ export default function MemberSearch({
               {filteredMembers.map((member) => (
                 <button
                   key={member.id}
+                  type="button"
                   onClick={() => handleSelect(member)}
                   className="w-full px-3 py-2 text-left hover:bg-gray-100 dark:hover:bg-slate-700 border-b border-slate-100 dark:border-slate-700 last:border-b-0"
                 >

@@ -124,6 +124,8 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
   const [editMemberId, setEditMemberId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
+  const [inviteMember, setInviteMember] = useState<MemberRecord | null>(null);
+  const [inviteByEmail, setInviteByEmail] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
   const [showInviteForm, setShowInviteForm] = useState(false);
   const [inviting, setInviting] = useState(false);
@@ -208,20 +210,34 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
     });
   }
 
+  function closeInviteForm() {
+    setShowInviteForm(false);
+    setInviteMember(null);
+    setInviteByEmail(false);
+    setInviteEmail("");
+    setInviteError(null);
+  }
+
   async function handleInvite(e: React.FormEvent) {
     e.preventDefault();
+    // The API links the new user to the member whose email matches, so
+    // inviting a member is just inviting their email.
+    const email = inviteByEmail ? inviteEmail : inviteMember?.email;
+    if (!email) {
+      setInviteError("Choose a member to invite");
+      return;
+    }
     setInviting(true);
     setInviteError(null);
     try {
       const res = await fetch("/api/admin/users", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: inviteEmail }),
+        body: JSON.stringify({ email }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to invite user");
-      setInviteEmail("");
-      setShowInviteForm(false);
+      closeInviteForm();
       await fetchUsers();
     } catch (err: unknown) {
       setInviteError(err instanceof Error ? err.message : "Failed to invite user");
@@ -320,7 +336,7 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
           </p>
         </div>
         <button
-          onClick={() => { setShowInviteForm(!showInviteForm); setInviteError(null); }}
+          onClick={() => (showInviteForm ? closeInviteForm() : setShowInviteForm(true))}
           className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors"
         >
           + Invite User
@@ -336,29 +352,49 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
             </div>
           )}
           <form onSubmit={handleInvite} className="flex gap-3">
-            <input
-              type="email"
-              value={inviteEmail}
-              onChange={(e) => setInviteEmail(e.target.value)}
-              placeholder="user@example.com"
-              required
-              className="flex-1 px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-sm"
-            />
+            {inviteByEmail ? (
+              <input
+                type="email"
+                value={inviteEmail}
+                onChange={(e) => setInviteEmail(e.target.value)}
+                placeholder="user@example.com"
+                required
+                className="flex-1 px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-sm"
+              />
+            ) : (
+              <MemberSearch
+                members={availableMemberOptions(null)}
+                selectedMemberId={inviteMember?.id ?? null}
+                onSelect={(m) => setInviteMember(m ? allMembers.find((r) => r.id === m.id) ?? null : null)}
+                placeholder="Search members by name or email..."
+                className="flex-1"
+              />
+            )}
             <button
               type="submit"
-              disabled={inviting}
+              disabled={inviting || (inviteByEmail ? !inviteEmail.trim() : !inviteMember)}
               className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg text-sm font-medium transition-colors"
             >
               {inviting ? "Sending..." : "Send Invite"}
             </button>
             <button
               type="button"
-              onClick={() => setShowInviteForm(false)}
+              onClick={closeInviteForm}
               className="px-4 py-2 bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 rounded-lg text-sm font-medium transition-colors"
             >
               Cancel
             </button>
           </form>
+          <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
+            {inviteByEmail ? "Inviting someone who's already a member? " : "Not a member (e.g. staff-only)? "}
+            <button
+              type="button"
+              onClick={() => { setInviteByEmail(!inviteByEmail); setInviteError(null); }}
+              className="text-blue-600 dark:text-blue-400 hover:underline"
+            >
+              {inviteByEmail ? "Pick a member instead" : "Invite by email instead"}
+            </button>
+          </p>
         </div>
       )}
 
