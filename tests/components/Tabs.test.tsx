@@ -24,6 +24,22 @@ describe('Tabs', () => {
     expect(screen.getByText('Awards panel')).toBeInTheDocument()
   })
 
+  it('with syncToUrl, writes the selected tab to the URL and drops the cleared params', async () => {
+    window.history.replaceState(null, '', '/my-prickles?tab=projects&commit=abc&keep=1#top')
+    render(<Tabs tabs={TABS} initialTab="projects" syncToUrl={{ param: 'tab', clear: ['commit'] }} />)
+    await userEvent.click(screen.getByRole('tab', { name: 'Books' }))
+    expect(`${window.location.pathname}${window.location.search}${window.location.hash}`).toBe(
+      '/my-prickles?tab=books&keep=1#top'
+    )
+  })
+
+  it('leaves the URL alone without syncToUrl', async () => {
+    window.history.replaceState(null, '', '/somewhere?tab=projects')
+    render(<Tabs tabs={TABS} />)
+    await userEvent.click(screen.getByRole('tab', { name: 'Books' }))
+    expect(`${window.location.pathname}${window.location.search}`).toBe('/somewhere?tab=projects')
+  })
+
   it('switches panels on click', async () => {
     render(<Tabs tabs={TABS} />)
     await userEvent.click(screen.getByRole('tab', { name: 'Books' }))

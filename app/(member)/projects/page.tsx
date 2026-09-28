@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import type { Metadata } from "next";
 import { getCurrentUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
@@ -9,6 +10,7 @@ import ProjectsClient from "./ProjectsClient";
 import MyBooksPanel from "./MyBooksPanel";
 import MyAwardsPanel from "./MyAwardsPanel";
 import { Tabs } from "@/components/Tabs";
+import { RememberTabUrl } from "@/components/ReturnToTab";
 
 export const metadata: Metadata = {
   title: "My Writing",
@@ -42,9 +44,13 @@ export default async function ProjectsPage({ searchParams }: { searchParams: Pro
       </header>
 
       <main className="container mx-auto px-6 py-8">
+        <Suspense fallback={null}>
+          <RememberTabUrl path="/projects" />
+        </Suspense>
         <Tabs
           key={initialTab}
           initialTab={initialTab}
+          syncToUrl={{ param: "tab" }}
           className="max-w-3xl mx-auto"
           tabs={[
             {

@@ -34,12 +34,15 @@ export async function generateMetadata({
 
 export default async function MemberDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ tab?: string }>;
 }) {
   await requireAdminPage();
   const supabase = await createClient();
   const { id } = await params;
+  const { tab: initialTab } = await searchParams;
 
   const user = await getCurrentUser();
 
@@ -314,6 +317,8 @@ export default async function MemberDetailPage({
 
       <main className="container mx-auto px-6 py-8 space-y-6">
         <MemberDetails
+          key={initialTab ?? "overview"}
+          initialTab={initialTab}
           member={member}
           attendanceRecords={attendance || []}
           hiatusHistory={hiatusHistory || []}

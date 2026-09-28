@@ -15,11 +15,17 @@ export const metadata: Metadata = {
   title: "Settings",
 };
 
+const SETTINGS_TAB_IDS = ["account", "profile", "identity", "preferences", "hosting"] as const;
+type SettingsTabId = (typeof SETTINGS_TAB_IDS)[number];
+
 export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
   const supabase = await createClient();
-  // Deep link from the "Edit profile" button on a member's own profile page.
+  // ?tab= deep links (e.g. "Edit profile" on a member's own profile page) and keeps the selected
+  // tab across reloads/Back. An unknown id -- or "hosting" for a non-host -- shows the first tab.
   const { tab: rawTab } = await searchParams;
-  const initialTab = rawTab === "profile" ? ("profile" as const) : undefined;
+  const initialTab = (SETTINGS_TAB_IDS as readonly string[]).includes(rawTab ?? "")
+    ? (rawTab as SettingsTabId)
+    : undefined;
 
   const user = await getCurrentUser();
 
@@ -57,6 +63,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
           <Tabs
             key={initialTab ?? "default"}
             initialTab={initialTab}
+            syncToUrl={{ param: "tab" }}
             tabs={[
               {
                 id: "account",

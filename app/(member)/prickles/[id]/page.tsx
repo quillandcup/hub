@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import type { Metadata } from "next";
 import PrickleDetails from "@/components/PrickleDetails";
+import { ReturnToTabLink } from "@/components/ReturnToTab";
 import { getUserTimezonePreference } from "@/lib/timezone";
 import { getEffectiveIdentity } from "@/lib/sudo";
 import { findUnmatchedZoomAttendees } from "@/lib/prickle-unmatched";
@@ -70,15 +71,24 @@ export default async function PrickleDetailPage({
   const memberBasePath = isActingAsAdmin ? "/admin/members" : "/members";
   const backHref = isActingAsAdmin ? "/admin/calendar" : "/my-prickles?tab=history";
   const backLabel = isActingAsAdmin ? "← Back to Calendar" : "← Back to My Prickles";
+  // Members go back to the My Prickles tab they came from (e.g. All Prickles), when known.
+  const backLink = (className: string) =>
+    isActingAsAdmin ? (
+      <Link href={backHref} className={className}>
+        {backLabel}
+      </Link>
+    ) : (
+      <ReturnToTabLink path="/my-prickles" fallbackHref={backHref} className={className}>
+        {backLabel}
+      </ReturnToTabLink>
+    );
 
   if (!prickle) {
     return (
       <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center">
         <div className="text-center">
           <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 mb-2">Prickle not found</h1>
-          <Link href={backHref} className="text-blue-600 hover:text-blue-700 dark:text-blue-400">
-            {backLabel}
-          </Link>
+          {backLink("text-blue-600 hover:text-blue-700 dark:text-blue-400")}
         </div>
       </div>
     );
@@ -166,9 +176,7 @@ export default async function PrickleDetailPage({
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
       <header className="border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
         <div className="container mx-auto px-6 py-4">
-          <Link href={backHref} className="text-blue-600 hover:text-blue-700 dark:text-blue-400 text-sm mb-2 inline-block">
-            {backLabel}
-          </Link>
+          {backLink("text-blue-600 hover:text-blue-700 dark:text-blue-400 text-sm mb-2 inline-block")}
           <h1 className="text-2xl font-bold mt-2">Prickle Details</h1>
         </div>
       </header>

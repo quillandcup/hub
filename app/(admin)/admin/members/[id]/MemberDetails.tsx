@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import MemberAttendanceView from "@/components/MemberAttendanceView";
 import { MemberStatusBadge } from "@/components/MemberStatusBadge";
-import { TabBar } from "@/components/Tabs";
+import { TabBar, replaceTabInUrl } from "@/components/Tabs";
 import { parseDateOnly } from "@/lib/member-tenure";
 import { countDistinctPrickles } from "@/lib/attendance-grouping";
 import MemberTimelinePanel from "./MemberTimelinePanel";
@@ -14,6 +14,8 @@ import MemberIdentityPanel, { type NameAliasRow } from "./MemberIdentityPanel";
 import type { EarnedBadge } from "@/lib/badges";
 
 interface MemberDetailsProps {
+  /** From ?tab=; an unknown value shows Overview. */
+  initialTab?: string;
   member: any;
   attendanceRecords: any[];
   hiatusHistory: any[];
@@ -39,9 +41,11 @@ interface MemberDetailsProps {
   emailAliases: string[];
 }
 
-type Tab = "overview" | "identity" | "attendance" | "slack";
+const TAB_IDS = ["overview", "identity", "attendance", "slack"] as const;
+type Tab = (typeof TAB_IDS)[number];
 
 export default function MemberDetails({
+  initialTab,
   member,
   attendanceRecords,
   hiatusHistory,
@@ -56,7 +60,14 @@ export default function MemberDetails({
   nameAliases,
   emailAliases,
 }: MemberDetailsProps) {
-  const [activeTab, setActiveTab] = useState<Tab>("overview");
+  const [activeTab, setActiveTabState] = useState<Tab>(
+    (TAB_IDS as readonly string[]).includes(initialTab ?? "") ? (initialTab as Tab) : "overview"
+  );
+  // Keep the tab in the URL so Back from a prickle/detail page returns to it.
+  const setActiveTab = (tab: Tab) => {
+    setActiveTabState(tab);
+    if (tab !== activeTab) replaceTabInUrl("tab", tab);
+  };
 
   const memberMetrics = member.member_metrics || {};
   const memberEngagement = member.member_engagement || {};

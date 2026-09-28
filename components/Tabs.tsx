@@ -44,28 +44,49 @@ export function TabBar<T extends string>({
   );
 }
 
+/** Record the selected tab in the URL without navigating (replaces the history entry), so
+ * browser Back, a reload, or a remembered link lands on it. For controlled `TabBar` users;
+ * `Tabs` does this itself with `syncToUrl`. Next's router picks the change up (useSearchParams). */
+export function replaceTabInUrl(param: string, tabId: string, clear: readonly string[] = []) {
+  const url = new URL(window.location.href);
+  url.searchParams.set(param, tabId);
+  for (const other of clear) url.searchParams.delete(other);
+  window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+}
+
 export interface TabPanel<T extends string> extends TabItem<T> {
   content: ReactNode;
 }
 
 /** Tab strip plus panels, with the active tab held internally. Only the active panel is
  * mounted. To honor a `?tab=` param, pass it as `initialTab` along with `key={initialTab}`
- * so client-side navigation to a different tab remounts with the new selection. */
+ * so client-side navigation to a different tab remounts with the new selection.
+ *
+ * `syncToUrl` writes the selected tab back to the URL (replacing the history entry, no
+ * navigation), so returning to the page -- browser Back, a reload, a remembered link -- lands
+ * on the same tab. `clear` lists other params that only apply to the initial tab. */
 export function Tabs<T extends string>({
   tabs,
   initialTab,
   className,
+  syncToUrl,
 }: {
   tabs: readonly TabPanel<T>[];
   initialTab?: T;
   className?: string;
+  syncToUrl?: { param: string; clear?: readonly string[] };
 }) {
   const [activeTab, setActiveTab] = useState<T>(initialTab ?? tabs[0].id);
   const active = tabs.find((t) => t.id === activeTab) ?? tabs[0];
 
+  function handleTabChange(id: T) {
+    setActiveTab(id);
+    if (syncToUrl && id !== active.id) replaceTabInUrl(syncToUrl.param, id, syncToUrl.clear);
+  }
+
   return (
     <div className={className}>
-      <TabBar tabs={tabs} activeTab={active.id} onTabChange={setActiveTab} className="mb-6" />
+      <TabBar tabs={tabs} activeTab={active.id} onTabChange={handleTabChange} className="mb-6" />
       <div role="tabpanel">{active.content}</div>
     </div>
   );

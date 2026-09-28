@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
@@ -18,6 +19,7 @@ import AllPricklesView from "./AllPricklesView";
 import CommitmentsManager from "./CommitmentsManager";
 import { getMyCommitments } from "./commitment-actions";
 import { Tabs } from "@/components/Tabs";
+import { RememberTabUrl } from "@/components/ReturnToTab";
 
 export const metadata: Metadata = {
   title: "My Prickles",
@@ -116,9 +118,13 @@ export default async function MyPricklesPage({ searchParams }: { searchParams: P
       </header>
 
       <main className="container mx-auto px-6 py-8">
+        <Suspense fallback={null}>
+          <RememberTabUrl path="/my-prickles" />
+        </Suspense>
         <Tabs
           key={initialTab}
           initialTab={initialTab}
+          syncToUrl={{ param: "tab", clear: ["commit", "slot"] }}
           className="max-w-3xl mx-auto"
           tabs={[
             {
