@@ -114,10 +114,10 @@ function NavLinks({ isAdmin, enabledFeatures, pathname, collapsed, onNavigate }:
               href="/members"
               onClick={onNavigate}
               className={linkClass(isDirectoryActive)}
-              title={collapsed ? "Member Directory" : undefined}
+              title={collapsed ? "Members" : undefined}
             >
-              <span className="text-lg">📇</span>
-              {!collapsed && <span>Member Directory</span>}
+              <span className="text-lg">👭</span>
+              {!collapsed && <span>Members</span>}
             </Link>
 
             <Link
