@@ -195,7 +195,7 @@ Before committing changes to API routes, verify:
 - **Pattern**: UPSERT on natural keys for idempotency
 
 **Local Layer** (operational data owned by this app):
-- `member_hiatus_history`, `member_name_aliases`, `ignored_zoom_names`, `prickle_types`, `staff`, `calendar_feed_tokens` (secret per-member token for the subscribable `/api/calendar/feed/<token>.ics` feed), `calendar_feed_items` (prickles, weekly slots and events a member added to that feed by hand), `member_ask_me_about` (profile "Ask me about…" topics)
+- `member_hiatus_history`, `member_name_aliases`, `ignored_zoom_names`, `prickle_types`, `staff`, `calendar_feed_tokens` (secret per-member token for the subscribable `/api/calendar/feed/<token>.ics` feed), `calendar_feed_items` (prickles, weekly slots and events a member added to that feed by hand), `member_ask_me_about` (profile "Ask me about…" topics), `member_notes` (a member's private notes to self about another member; author-only RLS with no admin access, hidden in sudo)
 - **Pattern**: Normal CRUD operations (INSERT, UPDATE, DELETE)
 - **NOT reprocessed** - these tables ARE the source of truth
 

@@ -20,6 +20,7 @@ import { fetchHostedPrickleRecords } from "@/lib/hosted-prickles"
 import { computePublicHostingSummary } from "@/lib/hosting-stats"
 import { getMemberHostingSchedule } from "@/lib/prickle-schedule"
 import MemberHostingCard from "./MemberHostingCard"
+import MemberNotesCard from "./MemberNotesCard"
 
 const ORG_TIMEZONE = "America/New_York"
 // Long enough to catch a monthly slot's next occurrence, not just weekly ones.
@@ -82,7 +83,10 @@ export default async function MemberProfilePage({
   // Everything below is Tier 3 (visible to all): the profile shows the same thing to the member
   // themselves as it shows to any other member, per docs -- no account info, engagement scores,
   // or prickle history (that's on My Prickles > Attendance History instead).
-  const [{ data: booksData }, { data: awardsData }, tzPref, { data: askMeAboutRow }] = await Promise.all([
+  // Private notes (Tier 1: author only) are skipped on your own profile and in sudo, where RLS
+  // would resolve the admin as the author -- see app/(member)/members/[id]/noteActions.ts.
+  const showNotes = member.id !== effectiveIdentity.memberId && !effectiveIdentity.isSudo
+  const [{ data: booksData }, { data: awardsData }, tzPref, { data: askMeAboutRow }, { data: noteRow }] = await Promise.all([
     supabase
       .from("member_books")
       .select("id, title, cover_url, purchase_url, published_date")
@@ -95,6 +99,14 @@ export default async function MemberProfilePage({
       .order("award_date", { ascending: false }),
     getUserTimezonePreference(),
     supabase.from("member_ask_me_about").select("topics").eq("member_id", id).maybeSingle(),
+    showNotes
+      ? supabase
+          .from("member_notes")
+          .select("body, updated_at")
+          .eq("author_member_id", effectiveIdentity.memberId)
+          .eq("subject_member_id", id)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
   ])
   const askMeAbout: string[] = askMeAboutRow?.topics ?? []
   const books = booksData ?? []
@@ -268,6 +280,15 @@ export default async function MemberProfilePage({
             </a>
           )}
         </div>
+      )}
+
+      {showNotes && (
+        <MemberNotesCard
+          subjectMemberId={member.id}
+          firstName={displayName.split(" ")[0]}
+          initialBody={noteRow?.body ?? ""}
+          initialUpdatedAt={noteRow?.updated_at ?? null}
+        />
       )}
 
       {/* Tier 3: visible to all -- renders nothing for members who don't host */}

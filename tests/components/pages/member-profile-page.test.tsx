@@ -35,6 +35,7 @@ vi.mock("@/lib/badges", () => ({
 }));
 vi.mock("@/lib/hosted-prickles", () => ({ fetchHostedPrickleRecords: vi.fn(async () => []) }));
 vi.mock("@/lib/prickle-schedule", () => ({ getMemberHostingSchedule: vi.fn(async () => []) }));
+vi.mock("@/app/(member)/members/[id]/noteActions", () => ({ saveMemberNote: vi.fn() }));
 
 import MemberProfilePage from "@/app/(member)/members/[id]/page";
 import { fetchHostedPrickleRecords } from "@/lib/hosted-prickles";
@@ -296,6 +297,41 @@ describe("member profile page: Ask me about", () => {
   it("omits the section when the member has no topics", async () => {
     await renderServerPage(MemberProfilePage, params);
     expect(screen.queryByRole("heading", { name: "Ask me about…" })).not.toBeInTheDocument();
+  });
+});
+
+describe("member profile page: private notes", () => {
+  it("shows the viewer's own note about this member", async () => {
+    const supabase = useFakeSupabase(
+      tables({ member_notes: { data: { body: "Ask about the query letter", updated_at: "2026-09-20T12:00:00Z" } } })
+    );
+    await renderServerPage(MemberProfilePage, params);
+
+    expect(screen.getByLabelText("My notes")).toHaveValue("Ask about the query letter");
+    expect(screen.getByText(/Only you can see this/)).toBeInTheDocument();
+    const noteQuery = supabase.queries.find((q) => q.table === "member_notes");
+    expect(noteQuery?.calls).toEqual(
+      expect.arrayContaining([
+        { method: "eq", args: ["author_member_id", MEMBER_IDENTITY.memberId] },
+        { method: "eq", args: ["subject_member_id", PROFILE_ID] },
+      ])
+    );
+  });
+
+  it("hides notes on the member's own profile", async () => {
+    signInAs(MEMBER_USER, { ...MEMBER_IDENTITY, memberId: PROFILE_ID });
+    const supabase = useFakeSupabase(tables());
+    await renderServerPage(MemberProfilePage, params);
+    expect(screen.queryByLabelText("My notes")).not.toBeInTheDocument();
+    expect(supabase.queries.some((q) => q.table === "member_notes")).toBe(false);
+  });
+
+  it("hides notes in sudo mode, where they'd be the admin's own", async () => {
+    signInAs(ADMIN_USER, { ...MEMBER_IDENTITY, isSudo: true });
+    const supabase = useFakeSupabase(tables());
+    await renderServerPage(MemberProfilePage, params);
+    expect(screen.queryByLabelText("My notes")).not.toBeInTheDocument();
+    expect(supabase.queries.some((q) => q.table === "member_notes")).toBe(false);
   });
 });
 
