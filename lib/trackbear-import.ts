@@ -186,6 +186,8 @@ export interface ExistingImports {
   projectIdsByExternalId: Map<string, string>;
   entryExternalIds: Set<string>;
   goalExternalIds: Set<string>;
+  /** Already-imported goals with no title and no description -- imported before Hub goals had them. */
+  goalExternalIdsMissingDetails?: Set<string>;
 }
 
 export interface PlannedProject {
@@ -223,7 +225,18 @@ export interface PlannedGoal {
   habitPeriod: HabitPeriod | null;
   habitThreshold: number | null;
   isStarred: boolean;
+  title: string | null;
+  description: string | null;
+  showOnProfile: boolean;
   createdAt: string;
+}
+
+/** Title/description/show-on-profile for a goal that was imported before Hub goals had them. */
+export interface GoalDetailBackfill {
+  externalId: string;
+  title: string | null;
+  description: string | null;
+  showOnProfile: boolean;
 }
 
 /**
@@ -247,6 +260,7 @@ export interface TrackbearImportPlan {
   /** Every importable entry not already imported, whether its project is new or already in Hub. */
   newEntries: PlannedEntry[];
   newGoals: PlannedGoal[];
+  goalDetailBackfills: GoalDetailBackfill[];
   alreadyImported: { projects: number; entries: number; goals: number };
   issues: ImportIssue[];
 }
@@ -401,10 +415,22 @@ export function planTrackbearImport(data: TrackbearData, existing: ExistingImpor
 
   // --- Goals (TrackBear "targets" and "habits") ---
   const newGoals: PlannedGoal[] = [];
+  const goalDetailBackfills: GoalDetailBackfill[] = [];
   for (const goal of [...data.targets, ...data.habits]) {
     const externalId = trackbearExternalId(goal.uuid);
+    const details = {
+      title: goal.title?.trim() || null,
+      description: goal.description?.trim() || null,
+      showOnProfile: !!goal.displayOnProfile,
+    };
     if (existing.goalExternalIds.has(externalId)) {
       alreadyImported.goals++;
+      if (
+        existing.goalExternalIdsMissingDetails?.has(externalId) &&
+        (details.title || details.description || details.showOnProfile)
+      ) {
+        goalDetailBackfills.push({ externalId, ...details });
+      }
       continue;
     }
     const label = goalLabel(goal);
@@ -437,6 +463,7 @@ export function planTrackbearImport(data: TrackbearData, existing: ExistingImpor
       externalId,
       projectExternalId: trackbearExternalId(project.uuid),
       isStarred: !!goal.starred,
+      ...details,
       createdAt: goal.createdAt,
     };
     const dropped: string[] = [];
@@ -491,11 +518,8 @@ export function planTrackbearImport(data: TrackbearData, existing: ExistingImpor
       continue;
     }
 
-    if (goal.title?.trim()) dropped.push(`Title "${goal.title.trim()}" -- Hub goals don't have titles.`);
-    if (goal.description?.trim()) dropped.push("Description -- Hub goals don't have descriptions.");
-    if (goal.displayOnProfile) dropped.push("\"Show on profile\" -- Hub goals aren't shown on profiles.");
     for (const detail of dropped) issues.push({ severity: "dropped", kind: "goal", label, detail });
   }
 
-  return { newProjects, newEntries, newGoals, alreadyImported, issues };
+  return { newProjects, newEntries, newGoals, goalDetailBackfills, alreadyImported, issues };
 }

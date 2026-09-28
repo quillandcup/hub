@@ -7,7 +7,8 @@ import type { TrackbearImportResult } from '@/lib/trackbear-import-runner'
 
 const RESULT: TrackbearImportResult = {
   created: { projects: 2, entries: 1, goals: 1, startingBalances: 0, covers: 1 },
-  alreadyImported: { projects: 0, entries: 3, goals: 0 },
+  alreadyImported: { projects: 0, entries: 3, goals: 2 },
+  updated: { goalDetails: 2 },
   issues: [
     { severity: 'skipped', kind: 'goal', label: 'Yearly words', detail: 'Counts progress across all projects.' },
     { severity: 'dropped', kind: 'project', label: 'Poems', detail: 'Starred flag.' },
@@ -43,6 +44,7 @@ describe('TrackbearImportModal', () => {
     expect(await screen.findByText('2 projects')).toBeInTheDocument()
     expect(screen.getByText('1 progress entry')).toBeInTheDocument()
     expect(screen.getByText(/3 progress entries/)).toBeInTheDocument()
+    expect(screen.getByText(/Added TrackBear titles and descriptions to 2 previously imported goals/)).toBeInTheDocument()
     expect(screen.getByText('Not imported')).toBeInTheDocument()
     expect(screen.getByText('Yearly words:')).toBeInTheDocument()
     expect(screen.getByText(/some details couldn't come along/)).toBeInTheDocument()

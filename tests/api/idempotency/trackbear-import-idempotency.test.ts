@@ -93,12 +93,12 @@ describe("TrackBear import idempotency", () => {
 
     const { data: goals } = await supabase
       .from("writing_goals")
-      .select("goal_type, measure, target_amount, start_date, end_date, habit_period, habit_threshold, is_starred, project_id")
+      .select("goal_type, measure, target_amount, start_date, end_date, habit_period, habit_threshold, is_starred, title, description, show_on_profile, project_id")
       .eq("member_id", memberId)
       .order("goal_type", { ascending: false });
     expect(goals).toEqual([
-      { goal_type: "target", measure: "words", target_amount: 80000, start_date: "2025-01-01", end_date: "2025-06-30", habit_period: null, habit_threshold: null, is_starred: true, project_id: project!.id },
-      { goal_type: "habit", measure: "time_minutes", target_amount: null, start_date: null, end_date: null, habit_period: "day", habit_threshold: 30, is_starred: false, project_id: project!.id },
+      { goal_type: "target", measure: "words", target_amount: 80000, start_date: "2025-01-01", end_date: "2025-06-30", habit_period: null, habit_threshold: null, is_starred: true, title: "Finish draft", description: "80k by summer", show_on_profile: true, project_id: project!.id },
+      { goal_type: "habit", measure: "time_minutes", target_amount: null, start_date: null, end_date: null, habit_period: "day", habit_threshold: 30, is_starred: false, title: null, description: null, show_on_profile: false, project_id: project!.id },
     ]);
   });
 
@@ -108,6 +108,7 @@ describe("TrackBear import idempotency", () => {
 
     expect(result.created).toEqual({ projects: 0, entries: 0, goals: 0, startingBalances: 0, covers: 0 });
     expect(result.alreadyImported).toEqual({ projects: 2, entries: 4, goals: 2 });
+    expect(result.updated).toEqual({ goalDetails: 0 });
     expect(coverCalls).toEqual([]);
     expect(await countRows("writing_projects")).toBe(2);
     expect(await countRows("writing_progress_entries")).toBe(4);
@@ -144,6 +145,34 @@ describe("TrackBear import idempotency", () => {
       .eq("external_id", trackbearExternalId("99999999-9999-4999-8999-999999999999"))
       .single();
     expect(newEntry).toEqual({ project_id: project!.id, amount: 700 });
+  });
+
+  it("re-importing fills in goal details only on goals that have none in Hub", async () => {
+    const targetId = trackbearExternalId("20202020-2020-4020-8020-202020202020");
+    // As imported before Hub goals had titles.
+    await supabase
+      .from("writing_goals")
+      .update({ title: null, description: null, show_on_profile: false })
+      .eq("member_id", memberId)
+      .eq("external_id", targetId);
+
+    const first = await runTrackbearImport(supabase, memberId, makeTrackbearData(), fakeCoverCopier);
+    expect(first.updated).toEqual({ goalDetails: 1 });
+    const { data: backfilled } = await supabase
+      .from("writing_goals")
+      .select("title, description, show_on_profile")
+      .eq("member_id", memberId)
+      .eq("external_id", targetId)
+      .single();
+    expect(backfilled).toEqual({ title: "Finish draft", description: "80k by summer", show_on_profile: true });
+
+    await supabase
+      .from("writing_goals")
+      .update({ title: "Renamed in Hub" })
+      .eq("member_id", memberId)
+      .eq("external_id", targetId);
+    const second = await runTrackbearImport(supabase, memberId, makeTrackbearData(), fakeCoverCopier);
+    expect(second.updated).toEqual({ goalDetails: 0 });
   });
 
   it("paginates existing-entry lookups past Supabase's 1000-row limit", async () => {

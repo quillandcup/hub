@@ -98,7 +98,7 @@ export function makeTrackbearData(): TrackbearData {
         startDate: "2025-01-01",
         endDate: "2025-06-30",
         starred: true,
-        displayOnProfile: false,
+        displayOnProfile: true,
         workIds: [1],
         tagIds: [],
         createdAt: "2025-01-02T11:00:00.000Z",
