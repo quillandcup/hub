@@ -11,6 +11,7 @@
     "test:ui": "vitest --ui",
     "test:unit": "vitest run --project unit",
     "test:db": "vitest run --project db",
+    "test:pgtap": "scripts/test-pgtap.sh",
     "test:run": "vitest run",
     "export:slack": "NODE_OPTIONS='--dns-result-order=ipv4first' tsx scripts/export-slack-data.ts",
     "supabase:start": "supabase start &",

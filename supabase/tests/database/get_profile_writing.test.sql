@@ -1,9 +1,8 @@
 -- pgTAP test for public.get_profile_writing (20260928000400_writing_goal_details_and_profile.sql).
 -- Runs in one transaction that is rolled back, so it leaves the shared local DB untouched.
--- Run as supabase_admin (it uses SET ROLE authenticated):
---   docker cp supabase/tests/database/get_profile_writing.test.sql supabase_db_hub:/tmp/profile_writing.sql
---   docker exec supabase_db_hub psql -U supabase_admin -d postgres -X -q -v ON_ERROR_STOP=1 -f /tmp/profile_writing.sql
--- Every line of the TAP output should read "ok"; a "not ok" or an ERROR is a failure.
+-- Run with `npm run test:pgtap` (scripts/test-pgtap.sh; CI runs it in the test-db job). It runs
+-- as supabase_admin, since tests here SET ROLE to roles postgres can't. finish(true) raises on
+-- any "not ok", so a failed assertion fails the run.
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;
@@ -84,5 +83,5 @@ SELECT ok(
   NOT has_function_privilege('anon', 'public.get_profile_writing(uuid)', 'EXECUTE'),
   'anon can''t call it');
 
-SELECT * FROM finish();
+SELECT * FROM finish(true);
 ROLLBACK;

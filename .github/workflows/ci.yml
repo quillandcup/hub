@@ -235,6 +235,11 @@ jobs:
       - name: Run db test suite
         run: npm run test:db
 
+      # SQL-level tests (pgTAP) in supabase/tests/database: RLS, SECURITY DEFINER functions,
+      # auth hooks -- things only observable as a specific Postgres role. Each file rolls back.
+      - name: Run pgTAP test suite
+        run: npm run test:pgtap
+
       - name: Stop app server
         if: always()
         run: kill "$(cat /tmp/next-server.pid)" 2>/dev/null || true
