@@ -4,10 +4,11 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import Link from "next/link";
 import { resendPendingInvite } from "./actions";
+import SlackSignIn from "./SlackSignIn";
 
 const LAST_EMAIL_KEY = "hedgiehub:lastEmail";
 
-export default function LoginForm() {
+export default function LoginForm({ slackHomeUrl }: { slackHomeUrl: string | null }) {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
@@ -137,6 +138,13 @@ export default function LoginForm() {
               We'll email you a magic link for a password-free sign in.
             </p>
           </div>
+
+          {/* Shown only once SLACK_TEAM_ID and SLACK_APP_ID are set, i.e. the Slack app is live. */}
+          {slackHomeUrl && (
+            <div className="mt-6 pt-6 border-t border-slate-200 dark:border-slate-700">
+              <SlackSignIn slackHomeUrl={slackHomeUrl} />
+            </div>
+          )}
         </div>
 
         <div className="mt-6 text-center">

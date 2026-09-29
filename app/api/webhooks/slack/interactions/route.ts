@@ -4,13 +4,21 @@ import { WebClient } from "@slack/web-api";
 import { verifySlackSignature } from "@/lib/slack-signature";
 import { resolveMemberIdForSlackUser } from "@/lib/writing-nudges";
 import { MEASURE_LABELS, type WritingMeasure } from "@/lib/writing-projects";
+import {
+  publishSlackHome,
+  sendSlackSignInMessage,
+  SLACK_REFRESH_ACTION_ID,
+  SLACK_SEND_LINK_ACTION_ID,
+} from "@/lib/slack-sign-in";
+import { createServiceRoleClient } from "@/lib/supabase/service";
 
 // Webhook should respond quickly
 export const maxDuration = 60;
 
 /**
- * Slack Interactivity webhook -- handles block_actions payloads (currently just the
- * post-prickle quick-log dropdown, item 10). Separate from app/api/webhooks/slack/route.ts
+ * Slack Interactivity webhook -- handles block_actions payloads: the
+ * post-prickle quick-log dropdown (item 10) and the Slack sign-in buttons ("Get a fresh
+ * link", "Send me a link I can copy"; lib/slack-sign-in.ts). Separate from app/api/webhooks/slack/route.ts
  * (the Events API handler) because interactivity payloads are application/x-www-form-urlencoded
  * with a `payload` JSON field, not the plain JSON body the Events API sends -- can't share a
  * parser, so this is its own endpoint per the roadmap spec's own note. Requires
@@ -42,6 +50,23 @@ export async function POST(request: NextRequest) {
   if (payload.type !== "block_actions") return NextResponse.json({ received: true });
 
   const action = payload.actions?.[0];
+
+  // Slack sign-in buttons (lib/slack-sign-in.ts): "Get a fresh link" republishes the Home tab;
+  // "Send me a link I can copy" DMs a copyable one-time link.
+  const signInActions: Record<string, typeof publishSlackHome> = {
+    [SLACK_REFRESH_ACTION_ID]: publishSlackHome,
+    [SLACK_SEND_LINK_ACTION_ID]: sendSlackSignInMessage,
+  };
+  const signInAction = action?.action_id ? signInActions[action.action_id] : undefined;
+  if (signInAction && typeof payload.user?.id === "string") {
+    try {
+      await signInAction(createServiceRoleClient(), payload.user.id, new URL(request.url).origin);
+    } catch (error) {
+      console.error("Error handling Slack sign-in action %s:", action.action_id, error);
+    }
+    return NextResponse.json({ received: true });
+  }
+
   if (action?.action_id !== "writing_quick_log") return NextResponse.json({ received: true });
 
   try {

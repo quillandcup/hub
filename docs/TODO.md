@@ -134,6 +134,13 @@ everything else per import instead of silently dropping it. Closing these gaps n
 
 ## Infrastructure & Deployment
 
+### Test Slack Integrations at the HTTP Level with MSW
+Slack tests currently replace the `@slack/web-api` `WebClient` class with a hand-written fake (e.g. `tests/api/slack-sign-in.test.ts`). That skips the real client's request encoding, retries and error handling, and only returns the happy responses each test remembers to stub. Intercept `https://slack.com/api/*` with MSW instead (the shared server is already set up in `tests/setup-msw.ts`):
+- A reusable Slack fake: handlers for `users.info`, `views.publish`, `chat.postMessage`, `conversations.*` that record calls and return realistic responses, including `ok: false` errors (`user_not_found`, `invalid_blocks`, `ratelimited` with `Retry-After`).
+- Assertions on what was actually sent over the wire (form/JSON bodies, `Authorization: Bearer` token), not on mock call arguments.
+- Migrate every Slack-touching test (sign-in, nudges, wheel of wonder, feedback, private channel access) and delete the per-file `vi.mock('@slack/web-api')` fakes.
+- Keep the complementary layers: `@slack/types` typing on block builders, Block Kit limit tests (`tests/lib/slack-sign-in-blocks.test.ts`), real HMAC-signed webhook requests. Optionally, a nightly non-hermetic smoke test that publishes to a test user in a Slack developer sandbox workspace, since only Slack itself fully validates Block Kit.
+
 ### Multi-Environment Setup
 **Status:** Documentation created, awaiting implementation
 
@@ -519,6 +526,22 @@ Show a `/live` page displaying the currently active prickle and its attendees in
 
 ## UI Enhancements
 
+### Site-wide "Return To" Handling (Needs Design)
+"Take me back to where I was" is solved ad hoc in several places, each with its own storage, validation and fallback. Build one system for it, like Rails' `redirect_back_or_to` / Devise's `store_location_for` + `stored_location_for`.
+
+**Today's separate implementations:**
+- **Sign-in:** the proxy (`lib/supabase/middleware.ts`) stores the requested page in the `hub_next` cookie before redirecting to `/login`. The email callback, Slack button and Slack code read it back via `takeNextPath()` (`lib/next-path-cookie.ts`), validated by `safeNextPath()` (`lib/safe-next.ts`).
+- **Sudo:** `startSudo` stores the Referer in `sudo_return_to`, and exiting returns there (`app/actions/sudo.ts`, `lib/sudo-redirect.ts` — `toSafeRelativePath`, which `safeNextPath` builds on).
+- **"← Back to …" links:** hardcoded per page, sometimes chosen by role (e.g. `app/(member)/prickles/[id]/page.tsx` picks "Back to Calendar" vs "Back to My Prickles"). They ignore where the visitor actually came from, e.g. a prickle opened from a member profile still links back to the calendar.
+- **Future:** auto-logout / idle timeout on any page, and session expiry mid-form, need to return the member to the same page (ideally with unsaved input kept) after they sign in again.
+
+**Shape to design:**
+- One module (e.g. `lib/return-to.ts`) with `storeReturnTo`, `takeReturnTo` and `peekReturnTo`, one validator (same-origin path only; see `safeNextPath`), and named slots (`sign_in`, `sudo_exit`, …) so flows don't overwrite each other.
+- Only store top-level GET navigations: never POSTs, server actions, RSC or router prefetches, or API routes.
+- Back links: carry the origin page (e.g. a `?from=` param or history state) and derive the label from a route registry ("Back to Alex's profile"). Keep today's role-based default as the fallback when there's no origin.
+- Client-side session expiry: whatever detects a 401 or expired session in the browser should send the member to `/login` with the current location stored, instead of relying on the next full page load hitting the proxy.
+- Tests: one shared suite for the validator (open-redirect cases), plus a flow test per slot.
+
 ### Custom Date Picker (Needs Scoping)
 Every date field in the app (`<input type="date">` — e.g. Writing Projects' Log Progress date, goal start/end dates) uses the browser's native date picker. Feedback: the native picker's up/down arrows for month navigation aren't intuitive — unclear which direction is "forward" in time. Left/right arrows (with the month view sliding left/right on change, not up/down as it does now) would read more clearly.
 
@@ -669,6 +692,9 @@ Query: `SELECT * FROM bronze.kajabi_purchases WHERE effective_start_at - created
 ---
 
 ## Bug Fixes
+
+### Members Reprocessing Deadlocks / Statement Timeouts on Concurrent Webhooks
+Production logs show members reprocessing deadlocking and hitting statement timeouts when Slack and Zoom webhooks start it at the same time (webhooks trigger reprocessing via `lib/processing/trigger.ts`; confirm the exact path from the logs first). Noted while reviewing PR #27 (email aliases → member ids); needs its own change. Options to weigh: serialize runs with a Postgres advisory lock (skip or queue when one is already running), debounce/coalesce webhook-triggered runs, or narrow each run's scope so concurrent runs don't touch the same rows.
 
 ### Bronze-Tier Pagination Gap in `/api/process/members`
 - **Where:** `app/api/process/members/route.ts` — Bronze table fetches (lines ~41-42)

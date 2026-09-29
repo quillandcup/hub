@@ -3,6 +3,8 @@ import { NextRequest, NextResponse, after } from "next/server";
 import { triggerReprocessing } from "@/lib/processing/trigger";
 import { CONNECTION_CONFIRMATION_MESSAGE_THRESHOLD } from "@/lib/wheel-of-wonder";
 import { verifySlackSignature } from "@/lib/slack-signature";
+import { publishSlackHome } from "@/lib/slack-sign-in";
+import { createServiceRoleClient } from "@/lib/supabase/service";
 
 // Webhook should respond quickly
 export const maxDuration = 60;
@@ -20,6 +22,7 @@ export const maxDuration = 60;
  * - message (new message posted)
  * - reaction_added (emoji reaction added to message)
  * - reaction_removed (emoji reaction removed from message)
+ * - app_home_opened (member opened the app's Home tab -- publish their one-time sign-in button)
  */
 export async function POST(request: NextRequest) {
   try {
@@ -60,7 +63,11 @@ export async function POST(request: NextRequest) {
 
     // Handle event callbacks
     if (payload.type === "event_callback") {
-      await processSlackEvent(payload.event);
+      if (payload.event?.type === "app_home_opened") {
+        await publishHomeTab(payload.event, new URL(request.url).origin);
+      } else {
+        await processSlackEvent(payload.event);
+      }
     }
 
     // Return 200 OK immediately (webhook expects fast response)
@@ -193,6 +200,20 @@ async function processSlackEvent(event: any) {
   } catch (error: any) {
     console.error("Error processing Slack event:", error);
     // Don't throw - we already returned 200 OK to Slack
+  }
+}
+
+/**
+ * Home tab: a fresh single-use "Open Hedgie Hub" sign-in button every time the member opens it
+ * (see lib/slack-sign-in.ts). The Messages tab fires the same event with tab="messages" -- ignored.
+ */
+async function publishHomeTab(event: any, origin: string) {
+  if (event.tab !== "home" || typeof event.user !== "string") return;
+
+  try {
+    await publishSlackHome(createServiceRoleClient(), event.user, origin);
+  } catch (error) {
+    console.error("Error publishing Slack Home tab for %s:", event.user, error);
   }
 }
 

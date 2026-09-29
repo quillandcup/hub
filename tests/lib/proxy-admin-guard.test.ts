@@ -174,6 +174,23 @@ describe("proxy admin guard", () => {
   });
 });
 
+describe("remembering where a signed-out visitor was headed", () => {
+  it("stores the requested path in an httpOnly cookie and sends them to a bare /login", async () => {
+    const res = await proxy(request("/prickles/42?tab=notes"));
+    expect(res.headers.get("location")).toBe("http://localhost:3000/login");
+    const cookie = res.cookies.get("hub_next");
+    expect(cookie?.value).toBe("/prickles/42?tab=notes");
+    expect(cookie?.httpOnly).toBe(true);
+  });
+
+  it("doesn't remember router prefetches", async () => {
+    const req = request("/prickles/42");
+    req.headers.set("next-router-prefetch", "1");
+    const res = await proxy(req);
+    expect(res.cookies.get("hub_next")).toBeUndefined();
+  });
+});
+
 describe("isAdminPath", () => {
   it.each([
     ["/admin", true],

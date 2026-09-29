@@ -6,6 +6,15 @@ features:
   bot_user:
     display_name: Billie Bot
     always_online: true
+  # Home tab carries each member's one-time "Open Hedgie Hub" sign-in button (lib/slack-sign-in.ts)
+  app_home:
+    home_tab_enabled: true
+    messages_tab_enabled: true
+  slash_commands:
+    - command: /hub
+      url: https://hub.quillandcup.com/api/webhooks/slack/commands
+      description: Get a one-click sign-in button for Hedgie Hub
+      should_escape: false
 oauth_config:
   scopes:
     bot:
@@ -31,6 +40,8 @@ oauth_config:
       # Feedback widget notifications
       - chat:write
       - files:write
+      # /hub slash command (Slack sign-in)
+      - commands
   pkce_enabled: false
 settings:
   interactivity:
@@ -47,6 +58,8 @@ settings:
       # Reactions
       - reaction_added
       - reaction_removed
+      # Home tab sign-in button
+      - app_home_opened
       # Phase 2 candidates (not yet enabled — uncomment and add live if needed)
       # - message.deleted
       # - message.changed

@@ -193,6 +193,14 @@ export const ENV_VARS: readonly EnvVarSpec[] = [
     destinations: vercelAllEnvs,
   },
   {
+    name: "SLACK_SIGNING_SECRET",
+    group: "Slack",
+    description:
+      "Verifies requests from Slack (events, interactions, /hub). Slack sign-in refuses to issue links without it.",
+    type: "secret",
+    destinations: vercelAllEnvs,
+  },
+  {
     name: "SLACK_FEEDBACK_CHANNEL_ID",
     group: "Slack",
     description: "Channel ID feedback-widget submissions post to.",
@@ -217,6 +225,20 @@ export const ENV_VARS: readonly EnvVarSpec[] = [
     name: "SLACK_DEV_USER_ID",
     group: "Slack",
     description: "Slack member ID that redirected test-mode DMs go to.",
+    type: "config",
+    destinations: vercelAllEnvs,
+  },
+  {
+    name: "SLACK_TEAM_ID",
+    group: "Slack",
+    description: "Workspace ID (T...) for slack:// links to the app's Home tab (Slack sign-in). Optional.",
+    type: "config",
+    destinations: vercelAllEnvs,
+  },
+  {
+    name: "SLACK_APP_ID",
+    group: "Slack",
+    description: "Slack app ID (A...) for slack:// links to the app's Home tab (Slack sign-in). Optional.",
     type: "config",
     destinations: vercelAllEnvs,
   },

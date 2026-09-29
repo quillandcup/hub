@@ -18,14 +18,20 @@ vi.mock('@/app/login/actions', () => ({
 
 const signupDisabled = { error: { code: 'signup_disabled', message: 'Signups not allowed for this instance' } }
 
+const { signInWithSlackCode } = vi.hoisted(() => ({ signInWithSlackCode: vi.fn() }))
+vi.mock('@/app/auth/slack/actions', () => ({ signInWithSlackCode }))
+
+const SLACK_HOME = 'slack://app?team=T1&id=A1&tab=home'
+
 beforeEach(() => {
   window.localStorage.clear()
   signInWithOtp.mockReset().mockResolvedValue({ error: null })
   resendPendingInvite.mockReset()
+  signInWithSlackCode.mockReset()
 })
 
 async function submit(email: string) {
-  render(<LoginForm />)
+  render(<LoginForm slackHomeUrl={null} />)
   await userEvent.type(screen.getByLabelText('Email address'), email)
   await userEvent.click(screen.getByRole('button', { name: 'Send Magic Link' }))
 }
@@ -34,19 +40,19 @@ describe('LoginForm', () => {
   it('pre-fills the email input from a previously saved address', () => {
     window.localStorage.setItem(LAST_EMAIL_KEY, 'returning@example.com')
 
-    render(<LoginForm />)
+    render(<LoginForm slackHomeUrl={null} />)
 
     expect(screen.getByLabelText('Email address')).toHaveValue('returning@example.com')
   })
 
   it('leaves the email input blank when nothing was saved before', () => {
-    render(<LoginForm />)
+    render(<LoginForm slackHomeUrl={null} />)
 
     expect(screen.getByLabelText('Email address')).toHaveValue('')
   })
 
   it('saves the email to localStorage as the user types', async () => {
-    render(<LoginForm />)
+    render(<LoginForm slackHomeUrl={null} />)
 
     await userEvent.type(screen.getByLabelText('Email address'), 'new@example.com')
 
@@ -79,5 +85,90 @@ describe('LoginForm', () => {
 
     expect(await screen.findByText(/couldn't find a Hedgie Hub account/)).toBeInTheDocument()
     expect(screen.queryByText(/Signups not allowed/)).not.toBeInTheDocument()
+  })
+
+  it("links to the Slack app's Home tab when configured", () => {
+    render(<LoginForm slackHomeUrl={SLACK_HOME} />)
+
+    expect(screen.getByRole('link', { name: 'Open Hedgie Hub in Slack' })).toHaveAttribute('href', SLACK_HOME)
+  })
+
+  it('shows no Slack sign-in at all until the Slack app is configured', () => {
+    render(<LoginForm slackHomeUrl={null} />)
+
+    expect(screen.queryByRole('link', { name: 'Open Hedgie Hub in Slack' })).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(/paste the sign-in link or code from Slack/)).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Paste from Slack' })).not.toBeInTheDocument()
+  })
+
+  describe('pasting from Slack', () => {
+    const TOKEN = 'x'.repeat(43)
+    let assign: ReturnType<typeof vi.fn>
+
+    beforeEach(() => {
+      assign = vi.fn()
+      Object.defineProperty(window, 'location', { configurable: true, value: { ...window.location, assign } })
+    })
+
+    function codeInput() {
+      return screen.getByLabelText(/paste the sign-in link or code/)
+    }
+
+    it('submits a typed code as soon as it is complete, with no extra click', async () => {
+      signInWithSlackCode.mockResolvedValue({ error: "That code didn't work." })
+      render(<LoginForm slackHomeUrl={SLACK_HOME} />)
+
+      await userEvent.type(codeInput(), 'abcde-12345')
+
+      expect(await screen.findByRole('alert')).toHaveTextContent("That code didn't work.")
+      expect(signInWithSlackCode).toHaveBeenCalledTimes(1)
+      expect((signInWithSlackCode.mock.calls[0][1] as FormData).get('code')).toBe('ABCDE-12345')
+    })
+
+    it('submits a pasted code immediately', async () => {
+      signInWithSlackCode.mockResolvedValue({ error: 'nope' })
+      render(<LoginForm slackHomeUrl={SLACK_HOME} />)
+
+      await userEvent.click(codeInput())
+      await userEvent.paste('Or enter this code on the sign-in page: `ABCDE-12345`')
+
+      await screen.findByRole('alert')
+      expect((signInWithSlackCode.mock.calls[0][1] as FormData).get('code')).toBe('ABCDE-12345')
+    })
+
+    it('follows a pasted sign-in link on our own site, whatever host it was copied from', async () => {
+      render(<LoginForm slackHomeUrl={SLACK_HOME} />)
+
+      await userEvent.click(codeInput())
+      await userEvent.paste(`https://evil.example/auth/slack?token=${TOKEN}`)
+
+      expect(assign).toHaveBeenCalledWith(`/auth/slack?token=${TOKEN}`)
+      expect(signInWithSlackCode).not.toHaveBeenCalled()
+    })
+
+    it('"Paste from Slack" reads the clipboard and signs in', async () => {
+      render(<LoginForm slackHomeUrl={SLACK_HOME} />)
+      Object.defineProperty(navigator, 'clipboard', {
+        configurable: true,
+        value: { readText: vi.fn().mockResolvedValue(`https://hub.quillandcup.com/auth/slack?token=${TOKEN}`) },
+      })
+
+      await userEvent.click(screen.getByRole('button', { name: 'Paste from Slack' }))
+
+      expect(assign).toHaveBeenCalledWith(`/auth/slack?token=${TOKEN}`)
+    })
+
+    it('"Paste from Slack" explains an empty or unrelated clipboard', async () => {
+      render(<LoginForm slackHomeUrl={SLACK_HOME} />)
+      Object.defineProperty(navigator, 'clipboard', {
+        configurable: true,
+        value: { readText: vi.fn().mockResolvedValue('shopping list') },
+      })
+
+      await userEvent.click(screen.getByRole('button', { name: 'Paste from Slack' }))
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(/no Hedgie Hub link or code on your clipboard/)
+      expect(assign).not.toHaveBeenCalled()
+    })
   })
 })

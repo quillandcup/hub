@@ -3,6 +3,7 @@ import { NextResponse, after, type NextRequest } from 'next/server'
 import { withTimeout, AUTH_CHECK_TIMEOUT_MS } from '@/lib/with-timeout'
 import { getAppRoleFromAccessToken, getSessionIdFromAccessToken } from '@/lib/supabase/session-claims'
 import { ADMIN_NO_ACCESS_PATH, isAdminPath } from '@/lib/admin-paths'
+import { NEXT_PATH_COOKIE, NEXT_PATH_COOKIE_MAX_AGE_SECONDS, safeNextPath } from '@/lib/safe-next'
 
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })
@@ -116,7 +117,21 @@ export async function updateSession(request: NextRequest) {
   if (!user && !isPublic && !authCheckTimedOut) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
-    return NextResponse.redirect(url)
+    url.search = ''
+    const loginRedirect = NextResponse.redirect(url)
+    // Remember where they were headed so every sign-in path can bring them back (lib/safe-next.ts).
+    // Skip router prefetches: they aren't somewhere the member asked to go.
+    const nextPath = safeNextPath(`${pathname}${request.nextUrl.search}`)
+    if (nextPath && !request.headers.get('next-router-prefetch')) {
+      loginRedirect.cookies.set(NEXT_PATH_COOKIE, nextPath, {
+        httpOnly: true,
+        sameSite: 'lax',
+        secure: request.nextUrl.protocol === 'https:',
+        path: '/',
+        maxAge: NEXT_PATH_COOKIE_MAX_AGE_SECONDS,
+      })
+    }
+    return loginRedirect
   }
 
   // Admin area: optimistic role check so a signed-in non-admin is sent to

@@ -1,4 +1,4 @@
-import { createHmac } from "crypto";
+import { createHmac, timingSafeEqual } from "crypto";
 
 export type SlackSignatureResult =
   | { valid: true }
@@ -32,5 +32,9 @@ export function verifySlackSignature(
   const sigBasestring = `v0:${timestamp}:${body}`;
   const expected = "v0=" + createHmac("sha256", signingSecret).update(sigBasestring).digest("hex");
 
-  return signature === expected ? { valid: true } : { valid: false, reason: "mismatch" };
+  // Constant-time compare: this check also gates Slack sign-in links (lib/slack-sign-in.ts).
+  const given = Buffer.from(signature);
+  const want = Buffer.from(expected);
+  const matches = given.length === want.length && timingSafeEqual(given, want);
+  return matches ? { valid: true } : { valid: false, reason: "mismatch" };
 }
