@@ -165,7 +165,8 @@ export default function MemberImportForm() {
               <p className="font-semibold">Status:</p>
               <p>• {processResult.statusBreakdown.active} active</p>
               <p>• {processResult.statusBreakdown.on_hiatus} on hiatus</p>
-              <p>• {processResult.statusBreakdown.inactive} inactive</p>
+              <p>• {processResult.statusBreakdown.cancelled} cancelled</p>
+              <p>• {processResult.statusBreakdown.lead} leads</p>
             </div>
           )}
         </div>

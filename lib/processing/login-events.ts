@@ -1,6 +1,22 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { buildAliasMap, resolveEmail } from "@/lib/email-aliases";
 
+const PAGE_SIZE = 1000;
+const ID_CHUNK_SIZE = 200;
+
+async function fetchAllPages<T>(
+  fetchPage: (start: number, end: number) => PromiseLike<{ data: unknown; error: unknown }>
+): Promise<T[]> {
+  const rows: T[] = [];
+  for (let offset = 0; ; offset += PAGE_SIZE) {
+    const { data, error } = await fetchPage(offset, offset + PAGE_SIZE - 1);
+    if (error) throw error;
+    const batch = (data ?? []) as T[];
+    rows.push(...batch);
+    if (batch.length < PAGE_SIZE) return rows;
+  }
+}
+
 interface LoginSessionRow {
   session_id: string;
   user_id: string;
@@ -30,28 +46,27 @@ export async function mirrorLoginEvents(
   supabase: SupabaseClient,
   { from, to }: { from: Date; to: Date }
 ) {
-  const { data: sessions, error: sessionsError } = await supabase.rpc(
-    "get_recent_login_sessions",
-    { from_date: from.toISOString(), to_date: to.toISOString() }
+  const loginSessions = await fetchAllPages<LoginSessionRow>((start, end) =>
+    supabase
+      .rpc("get_recent_login_sessions", { from_date: from.toISOString(), to_date: to.toISOString() })
+      .order("session_id")
+      .range(start, end)
   );
-  if (sessionsError) throw sessionsError;
-
-  const loginSessions = (sessions ?? []) as LoginSessionRow[];
   if (loginSessions.length === 0) {
     return { sessionsSeen: 0, activitiesUpserted: 0 };
   }
 
-  const [{ data: members, error: membersError }, { data: emailAliases, error: aliasesError }] =
-    await Promise.all([
-      supabase.from("members").select("id, user_id, email"),
-      supabase.from("member_email_aliases").select("*").eq("active", true),
-    ]);
-  if (membersError) throw membersError;
+  const [members, { data: emailAliases, error: aliasesError }] = await Promise.all([
+    fetchAllPages<{ id: string; user_id: string | null; email: string | null }>((start, end) =>
+      supabase.from("members").select("id, user_id, email").order("id").range(start, end)
+    ),
+    supabase.from("member_email_aliases").select("*").eq("active", true),
+  ]);
   if (aliasesError) throw aliasesError;
 
   const memberIdByUserId = new Map<string, string>();
   const memberIdByEmail = new Map<string, string>();
-  for (const m of members ?? []) {
+  for (const m of members) {
     if (m.user_id) memberIdByUserId.set(m.user_id, m.id);
     if (m.email) memberIdByEmail.set(m.email.toLowerCase(), m.id);
   }
@@ -82,14 +97,17 @@ export async function mirrorLoginEvents(
     return { sessionsSeen: loginSessions.length, activitiesInserted: 0 };
   }
 
-  const { data: existing, error: existingError } = await supabase
-    .from("member_activities")
-    .select("related_id")
-    .eq("source", "access_events")
-    .in("related_id", activities.map((a) => a.related_id));
-  if (existingError) throw existingError;
-
-  const alreadyMirrored = new Set((existing ?? []).map((e) => e.related_id));
+  // Chunked so a long lookback doesn't overflow the request URL with ids.
+  const alreadyMirrored = new Set<string>();
+  for (let i = 0; i < activities.length; i += ID_CHUNK_SIZE) {
+    const { data: existing, error: existingError } = await supabase
+      .from("member_activities")
+      .select("related_id")
+      .eq("source", "access_events")
+      .in("related_id", activities.slice(i, i + ID_CHUNK_SIZE).map((a) => a.related_id));
+    if (existingError) throw existingError;
+    for (const e of existing ?? []) alreadyMirrored.add(e.related_id);
+  }
   const newActivities = activities.filter((a) => !alreadyMirrored.has(a.related_id));
 
   if (newActivities.length === 0) {

@@ -44,7 +44,7 @@ export default function ApplyAliasesButton() {
       <button
         onClick={handleApply}
         disabled={loading}
-        className="px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-purple-400 text-white rounded-lg font-medium transition-colors"
+        className="px-4 py-2 bg-plum-600 hover:bg-plum-700 disabled:bg-plum-400 text-white rounded-lg font-medium transition-colors"
       >
         {loading ? "Applying..." : "Apply Aliases"}
       </button>

@@ -70,8 +70,9 @@ management).
 ### Zoom
 - https://marketplace.zoom.us/develop/apps/gcFgx-76S8aaL4AiYqaHng/credentials -- log in as
   **ania@quillandcup.com** -- regenerate Client Secret.
-- Webhook Secret Token: same app, Event Subscriptions page (currently blank in `.env.prod` --
-  nothing to rotate until one's actually issued).
+- Webhook Secret Token: same app, **Features -> Event Subscriptions** -> Secret Token (regenerate
+  there). Production's value is a Vercel Secret and can't be pulled back out of Vercel -- copy
+  it from Zoom (see "Backfilling vars missing from `.env.*`" below).
 
 ### Kajabi
 - https://app.kajabi.com/admin/settings/public_api
@@ -131,6 +132,34 @@ openssl rand -hex 32
 ```
 `CRON_INTERNAL_SECRET` additionally needs `npm run env:sync:vault` (pg_cron reads it from
 Supabase Vault, not from Vercel's `process.env`).
+
+## Backfilling vars missing from `.env.*`
+
+`.env.devel`/`.env.prod` are the source of truth, but as of 2026-09-29 some vars exist only in
+Vercel, so `npm run env:sync` ends with "Missing values" (it skips them and leaves Vercel's
+copy alone -- nothing breaks, but the files aren't authoritative for them). Fill these in:
+
+| Var | `.env.prod` | `.env.devel` | Where the value comes from |
+|---|---|---|---|
+| `ZOOM_WEBHOOK_SECRET_TOKEN` | missing | missing | Zoom app -> Features -> Event Subscriptions -> Secret Token (see Zoom above). Only production receives Zoom webhooks, so `.env.devel` can reuse the same value. |
+| `SENTRY_DSN` | missing | missing | Sentry -> Settings -> Projects -> `hub` -> Client Keys (DSN). Same DSN in both files; Sentry separates environments itself. Vercel only has it in production today. |
+| `NEXT_PUBLIC_SENTRY_DSN` | missing | missing | Same DSN as `SENTRY_DSN` (Vercel has the identical value in all three environments). |
+| `NEXT_PUBLIC_GA_ID` | missing | missing | GA4 -> Admin -> Data streams -> the hub stream's Measurement ID (`G-...`). Vercel has the identical value in all three environments. |
+| `CRON_SECRET` | present | missing | Self-generated: `openssl rand -hex 32`. Use a **different** value from production -- Vercel Cron only runs in production, so dev/preview values only matter for calling `/api/reconcile/*` by hand. |
+| `CRON_INTERNAL_SECRET` | present | missing | Self-generated, different from production, same reasoning. pg_cron (via Supabase Vault) only ever calls production. |
+
+The Config-type values (the two Sentry DSNs and the GA ID) can also be copied out of Vercel
+instead of each provider's dashboard -- pull to a throwaway file, copy the lines, delete it:
+
+```bash
+npx vercel env pull /tmp/vercel-prod.env --environment=production --yes
+# copy NEXT_PUBLIC_SENTRY_DSN / SENTRY_DSN / NEXT_PUBLIC_GA_ID into .env.prod and .env.devel
+rm /tmp/vercel-prod.env
+```
+
+Secret-type values (`ZOOM_WEBHOOK_SECRET_TOKEN`, the cron secrets) come back as `[SENSITIVE]`
+from `vercel env pull`, so they have to come from the provider (or be generated). Then run
+`npm run env:sync` -- it should finish with no "Missing values".
 
 ## Gotchas learned the hard way (2026-09-25 incident)
 

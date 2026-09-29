@@ -2,6 +2,7 @@ import { WebClient } from '@slack/web-api';
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/supabase/api-auth';
 import { extractSlackImageUrl } from '@/lib/member-avatar';
+import { deleteRemovedSlackReactions } from '@/lib/slack-reactions';
 
 export const maxDuration = 300; // 5 minutes for Slack API calls
 
@@ -71,7 +72,20 @@ export async function POST(request: NextRequest) {
       await sleep(1200);
     }
 
-    console.log(`  Fetched ${allMessages.length} messages, ${allReactions.length} reactions`);
+    // conversations.history only returns top-level messages; replies (more than
+    // half of all messages) need one conversations.replies call per thread.
+    const threads = allMessages.filter(m => m.reply_count > 0);
+    console.log(`Fetching replies for ${threads.length} threads...`);
+    const threadReplies = await fetchThreadReplies(slack, threads);
+    allMessages.push(...threadReplies.messages);
+    allReactions.push(...threadReplies.reactions);
+
+    // A thread_broadcast reply shows up in both history and its thread, and one
+    // upsert statement can't touch the same row twice.
+    dedupeBy(allMessages, m => `${m.channel_id}|${m.message_ts}`);
+    dedupeBy(allReactions, r => `${r.channel_id}|${r.message_ts}|${r.reaction}|${r.user_id}`);
+
+    console.log(`  Fetched ${allMessages.length} messages (${threadReplies.messages.length} thread replies), ${allReactions.length} reactions`);
 
     // 4. Fill in user details (email, name) from users map
     const usersById = new Map(users.map(u => [u.user_id, u]));
@@ -128,6 +142,11 @@ export async function POST(request: NextRequest) {
     if (messagesError) throw messagesError;
     if (reactionsError) throw reactionsError;
 
+    // Upserts can't express "this reaction was taken back", so drop stored
+    // reactions on the fetched messages that Slack no longer reports.
+    const reactionsRemoved = await deleteRemovedSlackReactions(supabase, allMessages, allReactions);
+    if (reactionsRemoved > 0) console.log(`  Removed ${reactionsRemoved} reactions no longer in Slack`);
+
     // Detect date range from imported messages
     let dateRange = null;
     if (allMessages.length > 0) {
@@ -163,6 +182,7 @@ export async function POST(request: NextRequest) {
         users: users.length,
         channels: channels.length,
         messages: allMessages.length,
+        threadReplies: threadReplies.messages.length,
         reactions: allReactions.length,
       },
       daysBack,
@@ -171,6 +191,7 @@ export async function POST(request: NextRequest) {
         channels: channels.length,
         messages: allMessages.length,
         reactions: allReactions.length,
+        reactionsRemoved,
       },
       importTimestamp,
       dateRange,
@@ -306,59 +327,115 @@ async function fetchChannelHistory(
       limit: 200
     });
 
-    if (result.messages) {
-      for (const msg of result.messages) {
-        // Skip join/leave messages (keep file_share, thread_broadcast)
-        if (msg.subtype && !['file_share', 'thread_broadcast'].includes(msg.subtype)) {
-          continue;
-        }
-
-        messages.push({
-          message_ts: msg.ts,
-          channel_id: channelId,
-          channel_name: channelName,
-          channel_type: channelType,
-          user_id: msg.user || msg.bot_id || 'unknown',
-          user_email: '', // Will be filled from users map later
-          user_name: '', // Will be filled from users map later
-          text: msg.text || '',
-          message_type: msg.subtype || 'message',
-          thread_ts: msg.thread_ts || null,
-          reply_count: msg.reply_count || 0,
-          reply_users_count: msg.reply_users_count || 0,
-          occurred_at: new Date(parseFloat(msg.ts) * 1000).toISOString(),
-          edited_at: msg.edited ? new Date(msg.edited.ts * 1000).toISOString() : null,
-          deleted_at: null,
-          files: msg.files ? msg.files : null,
-          raw_payload: msg
-        });
-
-        // Extract reactions
-        if (msg.reactions) {
-          for (const reaction of msg.reactions) {
-            for (const userId of reaction.users) {
-              reactions.push({
-                message_ts: msg.ts,
-                channel_id: channelId,
-                channel_name: channelName,
-                reaction: reaction.name,
-                user_id: userId,
-                user_email: '', // Will be filled later
-                user_name: '', // Will be filled later
-                occurred_at: new Date(parseFloat(msg.ts) * 1000).toISOString(),
-                removed_at: null,
-                raw_payload: reaction
-              });
-            }
-          }
-        }
-      }
+    for (const msg of result.messages ?? []) {
+      addMessage(msg, channelId, channelName, channelType, messages, reactions);
     }
 
     cursor = result.response_metadata?.next_cursor;
   } while (cursor);
 
   return { messages, reactions };
+}
+
+const THREAD_CONCURRENCY = 5;
+
+/**
+ * Fetch every reply in the given threads (5 at a time; Slack answered 150
+ * reply calls in ~4s without throttling). If Slack does rate-limit, WebClient
+ * waits out the 429's Retry-After and retries.
+ */
+async function fetchThreadReplies(slack: WebClient, parents: any[]) {
+  const messages: any[] = [];
+  const reactions: any[] = [];
+  const queue = [...parents];
+
+  const worker = async () => {
+    for (let parent = queue.shift(); parent; parent = queue.shift()) {
+      let cursor: string | undefined;
+      do {
+        const result: any = await slack.conversations.replies({
+          channel: parent.channel_id,
+          ts: parent.message_ts,
+          cursor,
+          limit: 200
+        });
+        for (const msg of result.messages ?? []) {
+          if (msg.ts === parent.message_ts) continue; // the parent is already in history
+          addMessage(msg, parent.channel_id, parent.channel_name, parent.channel_type, messages, reactions);
+        }
+        cursor = result.response_metadata?.next_cursor;
+      } while (cursor);
+    }
+  };
+
+  await Promise.all(Array.from({ length: THREAD_CONCURRENCY }, worker));
+  return { messages, reactions };
+}
+
+function addMessage(
+  msg: any,
+  channelId: string,
+  channelName: string,
+  channelType: string,
+  messages: any[],
+  reactions: any[]
+) {
+  // Skip join/leave messages (keep file_share, thread_broadcast)
+  if (msg.subtype && !['file_share', 'thread_broadcast'].includes(msg.subtype)) {
+    return;
+  }
+
+  messages.push({
+    message_ts: msg.ts,
+    channel_id: channelId,
+    channel_name: channelName,
+    channel_type: channelType,
+    user_id: msg.user || msg.bot_id || 'unknown',
+    user_email: '', // Will be filled from users map later
+    user_name: '', // Will be filled from users map later
+    text: msg.text || '',
+    message_type: msg.subtype || 'message',
+    thread_ts: msg.thread_ts || null,
+    reply_count: msg.reply_count || 0,
+    reply_users_count: msg.reply_users_count || 0,
+    occurred_at: new Date(parseFloat(msg.ts) * 1000).toISOString(),
+    edited_at: msg.edited ? new Date(msg.edited.ts * 1000).toISOString() : null,
+    deleted_at: null,
+    files: msg.files ? msg.files : null,
+    raw_payload: msg
+  });
+
+  // Extract reactions
+  if (msg.reactions) {
+    for (const reaction of msg.reactions) {
+      for (const userId of reaction.users) {
+        reactions.push({
+          message_ts: msg.ts,
+          channel_id: channelId,
+          channel_name: channelName,
+          reaction: reaction.name,
+          user_id: userId,
+          user_email: '', // Will be filled later
+          user_name: '', // Will be filled later
+          occurred_at: new Date(parseFloat(msg.ts) * 1000).toISOString(),
+          removed_at: null,
+          raw_payload: reaction
+        });
+      }
+    }
+  }
+}
+
+function dedupeBy<T>(rows: T[], key: (row: T) => string) {
+  const seen = new Set<string>();
+  let kept = 0;
+  for (const row of rows) {
+    const k = key(row);
+    if (seen.has(k)) continue;
+    seen.add(k);
+    rows[kept++] = row;
+  }
+  rows.length = kept;
 }
 
 function sleep(ms: number) {

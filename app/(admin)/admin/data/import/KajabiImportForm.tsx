@@ -160,7 +160,8 @@ export default function KajabiImportForm() {
                               <>
                                 <p>Active: {p.statusBreakdown.active}</p>
                                 <p>On hiatus: {p.statusBreakdown.on_hiatus}</p>
-                                <p>Inactive: {p.statusBreakdown.inactive}</p>
+                                <p>Cancelled: {p.statusBreakdown.cancelled}</p>
+                                <p>Leads: {p.statusBreakdown.lead}</p>
                               </>
                             )}
                           </div>

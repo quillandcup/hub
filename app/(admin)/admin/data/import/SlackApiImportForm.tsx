@@ -91,7 +91,7 @@ export default function SlackApiImportForm() {
           <div className="text-sm text-plum-700 dark:text-plum-300 space-y-1">
             <p>• {result.fetched?.users || 0} users fetched</p>
             <p>• {result.fetched?.channels || 0} channels fetched</p>
-            <p>• {result.fetched?.messages || 0} messages fetched</p>
+            <p>• {result.fetched?.messages || 0} messages fetched{result.fetched?.threadReplies ? ` (${result.fetched.threadReplies} thread replies)` : ''}</p>
             <p>• {result.fetched?.reactions || 0} reactions fetched</p>
           </div>
           {result.dateRange && (
@@ -106,6 +106,9 @@ export default function SlackApiImportForm() {
               <p>• {result.imported?.channels || 0} channels</p>
               <p>• {result.imported?.messages || 0} messages</p>
               <p>• {result.imported?.reactions || 0} reactions</p>
+              {result.imported?.reactionsRemoved > 0 && (
+                <p>• {result.imported.reactionsRemoved} removed reactions deleted</p>
+              )}
             </div>
           </div>
           {result.processing && result.processing.length > 0 && (
@@ -114,6 +117,9 @@ export default function SlackApiImportForm() {
               {result.processing.map((p: any, i: number) => (
                 <div key={i} className="text-sm text-plum-700 dark:text-plum-300">
                   <p className="font-semibold">• {p.table}: {p.success ? '✓' : '✗'}</p>
+                  {!p.success && p.error && (
+                    <p className="pl-4 text-red-700 dark:text-red-300 break-words">{p.error}</p>
+                  )}
                   {p.processed && (
                     <div className="pl-4 space-y-0.5">
                       {p.processed.messages !== undefined && <p>Message activities: {p.processed.messages}</p>}

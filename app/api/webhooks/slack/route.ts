@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { triggerReprocessing } from "@/lib/processing/trigger";
 import { CONNECTION_CONFIRMATION_MESSAGE_THRESHOLD } from "@/lib/wheel-of-wonder";
 import { verifySlackSignature } from "@/lib/slack-signature";
@@ -270,9 +270,17 @@ function triggerSlackProcessing(messageTs: string) {
 
   // Call the process/slack handler directly — avoids VERCEL_URL routing through
   // Vercel deployment protection which blocks unauthenticated *.vercel.app requests.
-  triggerReprocessing("slack_messages", "bronze", { dateRange: { from, to } })
-    .then(() => console.log("Slack processing triggered successfully"))
-    .catch((error) => console.error("Error triggering Slack processing:", error));
+  // Wrapped in after() so Vercel keeps the function alive until processing
+  // finishes; a bare floating promise can be cut off once the response is sent
+  // (see docs/TODO.md Bug Fixes for the Slack webhook data-loss incident).
+  after(async () => {
+    try {
+      await triggerReprocessing("slack_messages", "bronze", { dateRange: { from, to } });
+      console.log("Slack processing triggered successfully");
+    } catch (error) {
+      console.error("Error triggering Slack processing:", error);
+    }
+  });
 }
 
 /**

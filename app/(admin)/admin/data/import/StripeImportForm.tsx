@@ -46,7 +46,7 @@ export default function StripeImportForm() {
         <button
           type="submit"
           disabled={loading}
-          className="w-full px-6 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white font-semibold rounded-lg transition-colors"
+          className="w-full px-6 py-3 bg-plum-600 hover:bg-plum-700 disabled:bg-plum-400 text-white font-semibold rounded-lg transition-colors"
         >
           {loading ? "Syncing from Stripe API..." : "Sync from Stripe API"}
         </button>
@@ -61,11 +61,11 @@ export default function StripeImportForm() {
 
       {result && result.stripe && (
         <div className="mt-6">
-          <div className="p-4 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800 rounded-lg">
-            <p className="text-sm text-indigo-800 dark:text-indigo-200 font-semibold mb-2">
+          <div className="p-4 bg-plum-50 dark:bg-plum-900/20 border border-plum-200 dark:border-plum-800 rounded-lg">
+            <p className="text-sm text-plum-800 dark:text-plum-200 font-semibold mb-2">
               ✓ Stripe Sync Complete
             </p>
-            <div className="text-sm text-indigo-700 dark:text-indigo-300 space-y-1">
+            <div className="text-sm text-plum-700 dark:text-plum-300 space-y-1">
               <p className="font-semibold">Bronze Layer (raw data):</p>
               <div className="pl-4 space-y-0.5">
                 <p>• {result.stripe.customers} customers</p>
@@ -74,7 +74,7 @@ export default function StripeImportForm() {
               </div>
 
               {result.stripe.statusBreakdown && (
-                <div className="mt-2 pt-2 border-t border-indigo-200 dark:border-indigo-700">
+                <div className="mt-2 pt-2 border-t border-plum-200 dark:border-plum-700">
                   <p className="font-semibold">Subscription Status Breakdown:</p>
                   <div className="pl-4 space-y-0.5">
                     {Object.entries(result.stripe.statusBreakdown).map(([status, count]) => (
