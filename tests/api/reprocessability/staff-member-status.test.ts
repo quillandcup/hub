@@ -133,11 +133,22 @@ describe('Staff Member Status', () => {
     // processed first consumed the one-shot staff match, so if the alias
     // contact happened to win the dedup collision, the canonical contact
     // that survived into `members` never got staff_role/status='active'.
-    await supabase.from('member_email_aliases').insert({
+    // An alias belongs to a member, so the canonical member exists first.
+    const { data: canonicalMember, error: memberError } = await supabase.from('members').insert({
+      email: staffCanonicalEmail,
+      kajabi_id: `staff-alias-canonical-${ts}`,
+      name: 'Staff Canonical',
+      joined_at: '2022-01-01',
+      status: 'lead',
+      source: 'kajabi',
+    }).select('id').single()
+    if (memberError) throw memberError
+    const { error: aliasError } = await supabase.from('member_email_aliases').insert({
       alias_email: staffAliasEmail,
-      canonical_email: staffCanonicalEmail,
+      member_id: canonicalMember!.id,
       source: 'manual',
     })
+    if (aliasError) throw aliasError
     await supabase.schema('bronze').from('kajabi_contacts').insert([
       {
         kajabi_contact_id: `staff-alias-old-${ts}`,

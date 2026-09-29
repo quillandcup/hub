@@ -39,7 +39,7 @@ export async function recomputeMemberStatus(
   } else {
     const [{ data: emailAliasRows }, { data: hiatusRows }, { data: enrollmentRows }, { data: overrideRows }] =
       await Promise.all([
-        supabase.from("member_email_aliases").select("alias_email").eq("canonical_email", member.email),
+        supabase.from("member_email_aliases").select("alias_email").eq("member_id", memberId),
         supabase
           .from("member_hiatus_history")
           .select("id, start_date, end_date, reason, notes")

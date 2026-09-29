@@ -1,8 +1,12 @@
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { NextRequest, NextResponse } from "next/server";
 
-async function run(query: PromiseLike<unknown>) {
-  await query;
+// Throws on a Supabase error instead of letting the merge carry on: the
+// secondary is deleted at the end, and anything still pointing at it then
+// cascades away (email aliases, schedules) or is nulled.
+async function run(query: PromiseLike<{ error: unknown }>) {
+  const { error } = await query;
+  if (error) throw error;
 }
 
 export async function POST(request: NextRequest) {
@@ -144,21 +148,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Patch primary with any external IDs it was missing, record secondary's email as an alias
-    // (and re-point any existing aliases that had secondary as their canonical), and clean up
-    // derived records that will be recomputed for the primary.
+    // Email aliases belong to a member (member_id, ON DELETE CASCADE): move the secondary's
+    // to the primary, then record the secondary's own email as one of the primary's. Both
+    // must land before the delete below.
+    await run(supabase.from("member_email_aliases").update({ member_id: primaryId }).eq("member_id", secondaryId));
+    await run(supabase.from("member_email_aliases").upsert(
+      { member_id: primaryId, alias_email: secondary.email.toLowerCase(), source: "manual" },
+      { onConflict: "alias_email" }
+    ));
+
+    // Patch primary with any external IDs it was missing, and clean up derived records that
+    // will be recomputed for the primary.
     const patchAndCleanup: Promise<unknown>[] = [
-      // Add secondary email as an alias pointing to primary
-      run(supabase.from("member_email_aliases").upsert(
-        { canonical_email: primary.email, alias_email: secondary.email, source: "manual" },
-        { onConflict: "alias_email" }
-      )),
-      // Re-point any existing aliases that had secondary as their canonical email
-      run(supabase
-        .from("member_email_aliases")
-        .update({ canonical_email: primary.email })
-        .eq("canonical_email", secondary.email)
-      ),
       run(supabase.from("member_metrics").delete().eq("member_id", secondaryId)),
       run(supabase.from("member_engagement").delete().eq("member_id", secondaryId)),
     ];
@@ -177,7 +178,8 @@ export async function POST(request: NextRequest) {
       conflicts,
     });
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Failed to merge members";
+    // Supabase errors are plain objects with a message, not Error instances.
+    const message = (error as { message?: string } | null)?.message || "Failed to merge members";
     console.error("Error merging members:", error);
     return NextResponse.json({ error: message }, { status: 500 });
   }
