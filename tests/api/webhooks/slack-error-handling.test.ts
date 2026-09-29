@@ -8,6 +8,19 @@ import { loadWebhookFixture } from '../../helpers/webhook-helpers'
 // constructs internally so the upsert can be forced to fail.
 const upsertMock = vi.fn(() => Promise.resolve({ data: null, error: { message: 'simulated failure' } }))
 
+// The route wraps Silver processing in next/server's after(). Tests call the
+// handler directly (no Next.js request scope), where after() throws -- so run
+// the callback the way Vercel would after the response.
+vi.mock('next/server', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('next/server')>()
+  return {
+    ...actual,
+    after: (callback: () => void | Promise<void>) => {
+      void callback()
+    },
+  }
+})
+
 vi.mock('@supabase/supabase-js', () => ({
   createClient: vi.fn(() => ({
     schema: () => ({

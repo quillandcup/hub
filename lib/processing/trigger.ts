@@ -17,8 +17,16 @@ export interface TableDependencies {
 
 export const SILVER_DEPENDENCIES: Record<string, TableDependencies> = {
   members: {
-    bronze: ['kajabi_contacts', 'kajabi_customers', 'kajabi_purchases', 'kajabi_offers'],
-    local: ['member_email_aliases', 'member_profile_overrides'],
+    bronze: [
+      'kajabi_contacts', 'kajabi_customers', 'kajabi_purchases', 'kajabi_offers',
+      'slack_users',       // avatars
+      'stripe_customers',  // trial-conversion dates
+    ],
+    local: [
+      'member_email_aliases', 'member_profile_overrides', 'staff',
+      'member_hiatus_history', 'member_join_date_overrides',
+      'member_status_overrides', 'member_program_enrollments',
+    ],
     silver: [],
     processingScope: 'full'  // Entity state, no date scoping
   },
@@ -37,7 +45,7 @@ export const SILVER_DEPENDENCIES: Record<string, TableDependencies> = {
   attendance: {
     bronze: ['zoom_attendees'],
     local: ['member_name_aliases', 'ignored_zoom_names'],
-    silver: ['members', 'calendar'],  // Must process members and calendar prickles first
+    silver: ['members', 'calendar'],  // Runs after members and calendar when they're reprocessed too
     processingScope: 'date-range',
     dateField: 'join_time'
   },
@@ -45,7 +53,7 @@ export const SILVER_DEPENDENCIES: Record<string, TableDependencies> = {
   slack: {
     bronze: ['slack_messages', 'slack_reactions'],
     local: ['ignored_slack_users'],
-    silver: ['members'],  // Must process members first for matching
+    silver: ['members'],  // Runs after members when it's reprocessed too (matching reads members)
     processingScope: 'date-range',
     dateField: 'occurred_at'
   }
@@ -100,11 +108,18 @@ function getDownstreamSilverTables(silverTable: string): string[] {
 }
 
 /**
- * Compute processing order using topological sort
+ * Order the given tables so each runs after any Silver table it depends on.
+ *
+ * Only orders the tables passed in; it never adds their Silver dependencies.
+ * An unaffected dependency's inputs haven't changed, so rebuilding it is wasted
+ * work -- and for members it was worse than wasted: every Slack webhook event
+ * rebuilt all members, and a burst of events ran enough of those at once to
+ * hit statement timeouts.
  */
 export function getProcessingOrder(
   tables: string[]
 ): string[] {
+  const requested = new Set(tables);
   const visited = new Set<string>();
   const order: string[] = [];
 
@@ -117,9 +132,9 @@ export function getProcessingOrder(
       throw new Error(`No dependencies defined for table: ${table}`);
     }
 
-    // Visit Silver dependencies first (Bronze/Local are always available)
+    // Visit requested Silver dependencies first
     for (const dep of deps.silver) {
-      visit(dep);
+      if (requested.has(dep)) visit(dep);
     }
 
     order.push(table);

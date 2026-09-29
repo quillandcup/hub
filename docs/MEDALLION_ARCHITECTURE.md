@@ -224,19 +224,24 @@ graph LR
 
 This mirrors `SILVER_DEPENDENCIES` in `lib/processing/trigger.ts`, which is the
 source of truth for both processing order and which Bronze/Local table changes
-trigger which Silver reprocessing. Two things worth calling out:
+trigger which Silver reprocessing. Three things worth calling out:
 
 1. **Silver-to-Silver dependencies are ordering constraints, not change triggers.**
    Only a Bronze or Local table change triggers reprocessing; `attendance` depending
-   on `members`/`calendar` in the map just means "if attendance reprocesses, do
-   members and calendar first," not "changing members always reprocesses attendance."
+   on `members`/`calendar` in the map just means "when a change reprocesses more than
+   one of them, run members and calendar before attendance." It neither adds members
+   and calendar to an attendance-only run nor makes a members change reprocess
+   attendance. (Until 2026-09 it did add them, so every Slack webhook event rebuilt
+   all members; a burst of events hit statement timeouts.)
 2. **`calendar_events` changes are a special case.** Reprocessing `prickles` from
    calendar data assigns new UUIDs, which would orphan any `prickle_attendance` rows
    pointing at the old UUIDs — so a calendar change always cascades into attendance
    reprocessing, hardcoded as an exception rather than a declared dependency.
-3. **Slack has no cron.** Unlike Members/Calendar/Attendance (each has a nightly
-   `/api/reconcile/*` job), Slack processing only runs from the webhook or a manual
-   admin backfill — see `SEQUENCE_DIAGRAMS.md`.
+3. **Slack runs from the webhook and a nightly import.** `/api/reconcile/slack`
+   re-imports the last 90 days (top-level messages and every thread's replies)
+   alongside the real-time webhook — see `SEQUENCE_DIAGRAMS.md`. Slack users feed
+   members (avatars), so the import also triggers a members rebuild; messages and
+   reactions don't.
 
 ## Reprocessability Guarantees
 

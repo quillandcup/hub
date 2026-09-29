@@ -5,6 +5,19 @@ import { getTestSupabaseAdminClient } from '../../helpers/supabase'
 import { POST, GET } from '@/app/api/webhooks/slack/route'
 import { createHmac } from 'crypto'
 
+// The route wraps Silver processing in next/server's after(). Tests call the
+// handler directly (no Next.js request scope), where after() throws -- so run
+// the callback the way Vercel would after the response.
+vi.mock('next/server', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('next/server')>()
+  return {
+    ...actual,
+    after: (callback: () => void | Promise<void>) => {
+      void callback()
+    },
+  }
+})
+
 // Mock triggerReprocessing — webhook now calls it directly (no HTTP)
 vi.mock('@/lib/processing/trigger', () => ({
   triggerReprocessing: vi.fn(() => Promise.resolve({ processed: [] })),

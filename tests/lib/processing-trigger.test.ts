@@ -46,6 +46,17 @@ describe('getAffectedSilverTables', () => {
   })
 })
 
+describe('slack reprocessing scope', () => {
+  it('a Slack message or reaction only reprocesses slack, not members', () => {
+    expect(getProcessingOrder(getAffectedSilverTables('slack_messages', 'bronze'))).toEqual(['slack'])
+    expect(getProcessingOrder(getAffectedSilverTables('slack_reactions', 'bronze'))).toEqual(['slack'])
+  })
+
+  it('a Slack user change reprocesses members', () => {
+    expect(getAffectedSilverTables('slack_users', 'bronze')).toEqual(['members'])
+  })
+})
+
 describe('getProcessingOrder', () => {
   it('processes calendar before attendance when both are affected', () => {
     const order = getProcessingOrder(['calendar', 'attendance'])
@@ -55,6 +66,15 @@ describe('getProcessingOrder', () => {
   it('processes members before attendance', () => {
     const order = getProcessingOrder(['members', 'attendance'])
     expect(order.indexOf('members')).toBeLessThan(order.indexOf('attendance'))
+  })
+
+  it('processes members before slack regardless of input order', () => {
+    expect(getProcessingOrder(['slack', 'members'])).toEqual(['members', 'slack'])
+  })
+
+  it('does not add unaffected Silver dependencies', () => {
+    expect(getProcessingOrder(['slack'])).toEqual(['slack'])
+    expect(getProcessingOrder(['attendance'])).toEqual(['attendance'])
   })
 })
 
