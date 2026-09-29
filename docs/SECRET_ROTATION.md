@@ -143,12 +143,11 @@ Supabase Vault, not from Vercel's `process.env`).
    into the client bundle at build time, so a Sensitive `NEXT_PUBLIC_*` var ships the literal
    string `"[SENSITIVE]"` to every visitor's browser. Always pass `--type config` explicitly
    (`scripts/sync-to-vercel.ts` does this automatically).
-3. **This project has `vercel@^56.3.2` pinned as a devDependency.** Running any script via
-   `npx` from a directory with `node_modules` silently shadows the global Vercel CLI with that
-   ancient local one (no `--type` flag support at all) -- bit us mid-rotation, briefly leaving
-   `NEXT_PUBLIC_SUPABASE_ANON_KEY` unset in production. `sync-to-vercel.ts` now strips
-   `node_modules/.bin` from `PATH` before spawning `vercel` to guard against this; be aware if
-   you ever write a new ad hoc `vercel` command by hand.
+3. **Use the project's Vercel CLI (`npx vercel`), which must stay at v59+.** The devDependency
+   used to be pinned at `^56.3.2`, which has no `--type` flag; `npx` picked it over the global
+   CLI mid-rotation and briefly left `NEXT_PUBLIC_SUPABASE_ANON_KEY` unset in production. It's
+   now `^60`, and `sync-to-vercel.ts` runs `npx vercel`, so no global install is needed. Don't
+   downgrade it.
 4. **Vercel tokens must be team-scoped, not project-scoped**, for the CI `pull`/`build`/
    `deploy` pattern -- see the Vercel section above.
 5. **`SUPABASE_DB_PASSWORD` must actually be reset on Supabase's side**, not just edited in

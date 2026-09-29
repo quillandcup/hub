@@ -6,7 +6,7 @@
 // .env.prod  -> Vercel Production
 
 import { existsSync, readFileSync } from "node:fs";
-import { spawnSync } from "node:child_process";
+import { spawnSync, type SpawnSyncOptions } from "node:child_process";
 import { parse as parseDotenv } from "dotenv";
 import { ENV_VARS, type VercelTarget } from "../env-vars.config";
 
@@ -16,18 +16,11 @@ const SOURCE_FILE: Record<VercelTarget, string> = {
   production: ".env.prod",
 };
 
-// This project has `vercel` pinned as a devDependency (used by other tooling), which is a
-// much older CLI (no --type flag support) than the one this script needs. Running this
-// script via `npx` from a directory with node_modules prepends that local node_modules/.bin
-// onto PATH, silently shadowing the real global `vercel` install -- bit us in production on
-// 2026-09-25 (a bare `spawnSync("vercel", ...)` resolved the local 56.x instead of the
-// intended 59.x/60.x). Stripping node_modules/.bin PATH entries forces global resolution
-// regardless of where/how this script is invoked from.
-const GLOBAL_PATH = (process.env.PATH ?? "")
-  .split(":")
-  .filter((p) => !p.includes("node_modules"))
-  .join(":");
-const spawnEnv = { ...process.env, PATH: GLOBAL_PATH };
+// Runs the project's `vercel` devDependency via npx, so no global install is needed. It must
+// be v59+ for `env add --type` (older CLIs reject the flag), which package.json guarantees.
+function vercel(args: string[], options: SpawnSyncOptions) {
+  return spawnSync("npx", ["vercel", ...args], options);
+}
 
 function loadEnvFile(path: string): Record<string, string> {
   if (!existsSync(path)) {
@@ -38,7 +31,7 @@ function loadEnvFile(path: string): Record<string, string> {
 }
 
 function run(args: string[]): boolean {
-  const result = spawnSync("vercel", args, { stdio: "inherit", env: spawnEnv });
+  const result = vercel(args, { stdio: "inherit" });
   return result.status === 0;
 }
 
@@ -52,22 +45,12 @@ function syncOne(name: string, target: VercelTarget, value: string): void {
   // stdin, same as plain ones; `config` only controls whether Vercel can ever return the
   // value again, not how it's transmitted here.
   const target_arg = target === "preview" ? [name, target, ""] : [name, target];
-  const add = spawnSync(
-    "vercel",
-    ["env", "add", ...target_arg, "--yes", "--type", "config"],
-    {
-      input: value,
-      stdio: ["pipe", "inherit", "inherit"],
-      env: spawnEnv,
-    },
-  );
+  const add = vercel(["env", "add", ...target_arg, "--yes", "--type", "config"], {
+    input: value,
+    stdio: ["pipe", "inherit", "inherit"],
+  });
   if (add.status !== 0) {
-    // A missing global CLI fails silently (ENOENT, no output) -- say so.
-    const reason =
-      (add.error as NodeJS.ErrnoException | undefined)?.code === "ENOENT"
-        ? ": no global `vercel` CLI on PATH (install it with `npm i -g vercel`)"
-        : "";
-    console.error(`❌ Failed to add ${name} to ${target}${reason}`);
+    console.error(`❌ Failed to add ${name} to ${target}`);
     process.exit(1);
   }
 }
