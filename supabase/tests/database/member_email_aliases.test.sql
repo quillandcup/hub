@@ -1,5 +1,5 @@
 -- pgTAP tests for member_email_aliases pointing at members.id
--- (20260928000800_email_aliases_point_at_member_id.sql):
+-- (20260929000200_email_aliases_point_at_member_id.sql):
 --   * member_id is the identity; canonical_email is a trigger-kept copy of members.email.
 --   * legacy writes by canonical_email still resolve to a member, or fail.
 --   * RLS ownership follows member_id, including after the member's email changes.
