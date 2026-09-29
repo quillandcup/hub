@@ -213,8 +213,9 @@ secure_password_change = false
 max_frequency = "1s"
 # Number of characters used in the email OTP.
 otp_length = 6
-# Number of seconds before the email OTP expires (defaults to 1 hour).
-otp_expiry = 3600
+# Number of seconds before the email OTP expires (defaults to 1 hour; 86400 is the max). Covers
+# invite, magic link, recovery and confirmation links; the email copy in supabase/emails says 24 hours.
+otp_expiry = 86400
 
 # Hosted auth emails go out through Resend SMTP; local dev keeps using Mailpit, so this stays
 # commented out. Production's SMTP is declared in [remotes.prod.auth.email.smtp] at the bottom of this file.

@@ -21,7 +21,7 @@ export function MagicLinkEmail({ confirmationUrl }: { confirmationUrl: string })
       </EmailBody>
 
       <EmailBody>
-        This link expires in one hour and can only be used once.
+        This link expires in 24 hours and can only be used once.
       </EmailBody>
 
       <Button

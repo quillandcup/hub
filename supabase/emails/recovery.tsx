@@ -21,7 +21,7 @@ export function RecoveryEmail({ confirmationUrl }: { confirmationUrl: string }) 
       </EmailBody>
 
       <EmailBody>
-        This link is good for one hour. After that, you're welcome to request another.
+        This link is good for 24 hours. After that, you're welcome to request another.
       </EmailBody>
 
       <Button
