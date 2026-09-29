@@ -62,7 +62,12 @@ function syncOne(name: string, target: VercelTarget, value: string): void {
     },
   );
   if (add.status !== 0) {
-    console.error(`❌ Failed to add ${name} to ${target}`);
+    // A missing global CLI fails silently (ENOENT, no output) -- say so.
+    const reason =
+      (add.error as NodeJS.ErrnoException | undefined)?.code === "ENOENT"
+        ? ": no global `vercel` CLI on PATH (install it with `npm i -g vercel`)"
+        : "";
+    console.error(`❌ Failed to add ${name} to ${target}${reason}`);
     process.exit(1);
   }
 }
