@@ -119,8 +119,8 @@ the rename did take). `next.config.ts`'s `withSentryConfig({ org: "quillandcup",
 already matches this. Org ID `4512131993501696` and project ID `4512132010672208` are what's
 actually baked into the DSN, unaffected by any slug renaming either way.
 
-DSN env vars: `SENTRY_DSN` / `NEXT_PUBLIC_SENTRY_DSN` (all environments), `SENTRY_AUTH_TOKEN`
-(production-only, source-map upload -- org-level tokens only offer one scope preset, `org:ci`,
+DSN env vars: `SENTRY_DSN` / `NEXT_PUBLIC_SENTRY_DSN` (all environments), `SENTRY_AUTH_TOKEN` (GitHub secret passed to the CI build;
+production-only source-map upload -- org-level tokens only offer one scope preset, `org:ci`,
 which bundles Source Map Upload + Release Creation + Code Mappings; nothing to individually
 select).
 

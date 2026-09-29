@@ -33,9 +33,9 @@ function main(): void {
         missing.push(spec.name);
         continue;
       }
-      const label = dest.type === "secret" ? "🔒 secret" : "📤 variable";
+      const label = spec.type === "secret" ? "🔒 secret" : "📤 variable";
       console.log(`${label} ${spec.name}...`);
-      const cmd = dest.type === "secret" ? "secret" : "variable";
+      const cmd = spec.type === "secret" ? "secret" : "variable";
       const result = spawnSync("gh", [cmd, "set", spec.name, "--repo", REPO], {
         input: value,
         stdio: ["pipe", "inherit", "inherit"],
