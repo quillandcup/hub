@@ -55,6 +55,21 @@ function syncOne(spec: EnvVarSpec, target: VercelTarget, value: string): void {
   }
 }
 
+/** URL of the newest ready preview deployment, for a copy-pasteable redeploy command. */
+function latestPreviewUrl(): string | null {
+  const res = vercel(["list", "--environment", "preview", "--status", "READY", "--format", "json", "--limit", "1"], {
+    stdio: "pipe",
+    encoding: "utf8",
+  });
+  try {
+    const parsed = JSON.parse(String(res.stdout));
+    const url: string | undefined = (parsed.deployments ?? parsed)[0]?.url;
+    return url ? `https://${url.replace(/^https?:\/\//, "")}` : null;
+  } catch {
+    return null;
+  }
+}
+
 function parseArgs(): {
   only: Set<string> | null;
   targets: Set<VercelTarget> | null;
@@ -89,6 +104,7 @@ function main(): void {
   // Var name -> targets skipped because the source file has no value.
   const missing = new Map<string, VercelTarget[]>();
   const syncedNames = new Set<string>();
+  const syncedTargets = new Set<VercelTarget>();
 
   for (const spec of specs) {
     const specTargets = TARGETS.filter((t) =>
@@ -107,6 +123,7 @@ function main(): void {
       process.stdout.write(" ✓");
       synced++;
       syncedNames.add(spec.name);
+      syncedTargets.add(target);
     }
     process.stdout.write("\n");
   }
@@ -117,10 +134,23 @@ function main(): void {
     console.log(`    ${name.padEnd(width)}  missing from ${files}`);
   }
 
-  console.log("\nNext: redeploy for the new values to take effect.");
-  if (syncedNames.has("CRON_INTERNAL_SECRET") && (!targets || targets.has("production"))) {
-    console.log("      CRON_INTERNAL_SECRET was synced -- also run `npm run env:sync:vault` (pg_cron reads it from Supabase Vault).");
+  // Deployments snapshot env vars when they're created, so changes need a redeploy.
+  const next: string[] = [];
+  if (syncedTargets.has("production")) {
+    // CI runs tests + migrations, then builds and deploys (see ci.yml's workflow_dispatch).
+    next.push("prod     gh workflow run ci.yml --ref main");
   }
+  if (syncedTargets.has("preview")) {
+    const url = latestPreviewUrl();
+    next.push(url ? `preview  npx vercel redeploy ${url}` : "preview  push to the PR branch to rebuild its preview");
+  }
+  if (syncedTargets.has("development")) {
+    next.push("dev      nothing to redeploy (read by `vercel dev` / `vercel env pull`)");
+  }
+  if (syncedNames.has("CRON_INTERNAL_SECRET") && syncedTargets.has("production")) {
+    next.push("vault    npm run env:sync:vault   # pg_cron reads CRON_INTERNAL_SECRET from Supabase Vault");
+  }
+  if (next.length) console.log(`\nRedeploy to apply:\n${next.map((l) => `  ${l}`).join("\n")}`);
 
   if (missing.size > 0) process.exit(1);
 }

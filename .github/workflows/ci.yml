@@ -253,8 +253,10 @@ jobs:
     needs: [test-unit, test-db]
     # needs: [test-unit, test-db] succeeding already gates this on both test
     # buckets (and the build, which test-db also runs) passing; the event/ref
-    # check keeps it off pull_request runs.
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # check keeps it off pull_request runs. workflow_dispatch on main is the
+    # manual redeploy (`gh workflow run ci.yml --ref main`), e.g. after
+    # `npm run env:sync` changes production env vars.
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
