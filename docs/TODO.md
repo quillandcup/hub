@@ -60,6 +60,17 @@ Some people who attend prickles have no Kajabi footprint at all (not a member, t
 - [ ] Show progress indicator (Slack API is rate-limited)
 - [ ] Replace placeholder in `/data/import/page.tsx`
 
+### Silver Change Propagation in the Processing DAG
+- **Where:** `lib/processing/trigger.ts` (`SILVER_DEPENDENCIES`, `getProcessingOrder`, `triggerReprocessing`)
+- **Today:** a Bronze/Local change selects the Silver steps that read that table, and Silver→Silver edges only order the selected steps ("if both run, members and calendar before attendance"). Since 2026-09-29, an edge no longer pulls in an unselected upstream step (it used to, so every Slack webhook event rebuilt all members).
+- **Missing half: downstream propagation.** When an upstream step's output changes, the steps that read it don't rerun. A Kajabi import that adds a member should re-match that member's past Zoom attendance and Slack activity. `getDownstreamSilverTables` exists but is unused. Instead:
+  - `app/api/process/members/route.ts` hard-codes a 90-day attendance reprocess in `after()` at the end of every members rebuild.
+  - Nothing reprocesses Slack after members change, so a new member's Slack messages stay unmatched until something else reprocesses Slack.
+  - `getAffectedSilverTables` special-cases `calendar_events` → attendance.
+- **Fix:** make propagation part of the graph. When a step runs, its downstream steps run in the same pass, in topological order, over the same date range (members → attendance and Slack; calendar → attendance). Then remove the hard-coded attendance reprocess and the `calendar_events` special case. Changes to Slack messages/reactions and Zoom attendees stay local, since nothing is downstream of `slack` or `attendance`.
+- **Later refinement:** cascade only when the upstream step actually changed rows (each step reports whether it did), so a members rebuild that changes nothing costs nothing downstream.
+- **Cause of the members deadlocks / statement timeouts** (see "Members Reprocessing Deadlocks / Statement Timeouts on Concurrent Webhooks", noted in PR #27 review): before the 2026-09-29 fix, every Slack message/reaction webhook and every Zoom import ran a full members rebuild, and each members rebuild then ran the hard-coded 90-day attendance reprocess. A burst of events (e.g. the bot joining 16 channels during an import) ran many at once and hit statement timeouts (`57014`) on `reprocess_members_atomic`. Webhooks no longer start members runs, but members can still run concurrently (Kajabi import + nightly reconcile + a Slack import's user rebuild), and so can attendance (several Zoom `meeting.ended` events). Propagation must not reintroduce the pile-up: serialize or coalesce concurrent runs of the same step (e.g. a Postgres advisory lock), as that entry suggests.
+
 ### Testing Page CSV Imports (Lower Priority)
 - [ ] Add Zoom CSV import to `/data/import/testing`
   - Component for uploading meeting/attendee CSV files
