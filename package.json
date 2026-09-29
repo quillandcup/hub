@@ -132,5 +132,12 @@
     },
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0"
+  },
+  "allowScripts": {
+    "@sentry/cli": false,
+    "esbuild": false,
+    "fsevents": false,
+    "msw": false,
+    "unrs-resolver": false
   }
 }
