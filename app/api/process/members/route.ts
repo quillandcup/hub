@@ -2,7 +2,7 @@ import { requireAdmin } from "@/lib/supabase/api-auth";
 import { isMembershipOffer } from "@/lib/membership";
 import { buildMembershipStints, fetchStripeTrialInfoByEmail, isRealMembershipStint } from "@/lib/kajabi/membership-history";
 import { computeMemberTenure, computeActiveDays, type HiatusWindow } from "@/lib/member-tenure";
-import { buildAliasMap, resolveEmail as resolveEmailShared } from "@/lib/email-aliases";
+import { buildMembersRunAliasMap, partitionEmailConflicts, resolveEmail as resolveEmailShared } from "@/lib/email-aliases";
 import { toKajabiPhotoUrl } from "@/lib/member-avatar";
 import { NextRequest, NextResponse, after } from "next/server";
 import { triggerAttendanceReprocessing } from "@/lib/processing/trigger";
@@ -109,7 +109,7 @@ export async function POST(request: NextRequest) {
       fetchAllBronzeRows(supabase, "kajabi_offers"),
       fetchAllBronzeRows(supabase, "slack_users", "email, image_url"),
       supabase.from("staff").select("*"),
-      supabase.from("member_email_aliases").select("*").eq("active", true),
+      supabase.from("member_email_aliases").select("alias_email, member_id").eq("active", true),
       fetchAllBronzeRows(supabase, "stripe_customers", "stripe_customer_id, email"),
       fetchAllPublicRows(supabase, "members", "id, email, kajabi_id"),
       fetchAllPublicRows(supabase, "member_hiatus_history", "member_id, start_date, end_date"),
@@ -120,12 +120,29 @@ export async function POST(request: NextRequest) {
     if (staffError) throw staffError;
     if (aliasesError) throw aliasesError;
 
+    // Email alias resolution. Aliases point at a member (member_id); each
+    // resolves to the email that member will have after this run — their
+    // Kajabi contact's current email — not members.email, which is last
+    // run's. See buildMembersRunAliasMap.
+    const { aliasMap, runEmailByMemberId } = buildMembersRunAliasMap({
+      aliases: emailAliases || [],
+      members: existingMembers || [],
+      contacts: contacts || [],
+    });
+
+    function resolveEmail(email: string): string {
+      return resolveEmailShared(email, aliasMap);
+    }
+
     // Stripe subscriptions' real trial-conversion dates, keyed by canonical
     // email — see lib/kajabi/membership-history.ts for why this matters
     // (Kajabi's created_at_kajabi is when a trial *started*, not when it
     // converted to a real transaction) and why it's keyed by email rather
     // than Kajabi customer ID (survives Kajabi-side contact merges).
-    const stripeTrialInfoByEmail = await fetchStripeTrialInfoByEmail(supabase, emailAliases || []);
+    const stripeTrialInfoByEmail = await fetchStripeTrialInfoByEmail(
+      supabase,
+      Array.from(aliasMap, ([alias_email, canonical_email]) => ({ alias_email, canonical_email }))
+    );
 
     console.log('[DEBUG] Bronze sources:', {
       contacts_count: contacts?.length || 0,
@@ -144,19 +161,14 @@ export async function POST(request: NextRequest) {
 
     // STEP 2: Build lookup maps
 
-    // Email alias resolution
-    const aliasMap = buildAliasMap(emailAliases || []);
-
-    function resolveEmail(email: string): string {
-      return resolveEmailShared(email, aliasMap);
-    }
-
     // Hiatus windows for tenure calculations (lib/member-tenure.ts): resolve
     // member_hiatus_history.member_id (our internal UUID) to the email this
-    // run's tenure computation is keyed by, via the members table.
+    // run's tenure computation is keyed by: the member's email after this
+    // run, so a member whose Kajabi email just changed keeps their hiatus,
+    // join-date and profile overrides.
     const emailByMemberId = new Map<string, string>();
-    for (const m of existingMembers || []) {
-      if (m.email) emailByMemberId.set(m.id, resolveEmail(m.email));
+    for (const [memberId, email] of runEmailByMemberId) {
+      emailByMemberId.set(memberId, resolveEmail(email));
     }
     const hiatusWindowsByEmail = new Map<string, HiatusWindow[]>();
     for (const hiatus of hiatusHistory || []) {
@@ -480,7 +492,17 @@ export async function POST(request: NextRequest) {
       if (override) Object.assign(member, applyProfileOverride(member, override));
     }
 
-    const allMembers = Array.from(membersByEmail.values());
+    // A row whose email another member already has would fail the whole
+    // run on members_email_key; hold it back and report it instead.
+    const { rows: allMembers, conflicts: emailConflicts } = partitionEmailConflicts(
+      Array.from(membersByEmail.values()),
+      existingMembers || []
+    );
+    for (const conflict of emailConflicts) {
+      console.error(
+        `Skipping Kajabi contact ${conflict.kajabi_id}: email ${conflict.email} already belongs to member ${conflict.conflicting_member_id} (updating ${conflict.member_ids.join(", ")}). Merge the two members.`
+      );
+    }
 
     // NOTE: We deliberately do NOT early-return when allMembers is empty
     // (e.g. Kajabi/staff Bronze sources are both empty). reprocess_members_atomic's
@@ -554,6 +576,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       processed: allMembers.length,
+      emailConflicts,
       statusBreakdown: {
         active: allMembers.filter((m) => m.status === "active").length,
         on_hiatus: allMembers.filter((m) => m.status === "on_hiatus").length,

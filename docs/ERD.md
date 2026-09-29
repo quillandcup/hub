@@ -255,7 +255,8 @@ erDiagram
 
     member_email_aliases {
         uuid id PK
-        text canonical_email "no FK, value match on members.email"
+        uuid member_id FK "members, ON DELETE CASCADE"
+        text canonical_email "trigger-kept copy of members.email"
         text alias_email UK
         text source "manual | auto_detected"
         timestamptz created_at
@@ -485,7 +486,7 @@ erDiagram
     kajabi_offers }o..o{ members : "processed into (plan, trial)"
     staff }o..o{ members : "merged into (always active)"
     stripe_customers }o..o{ members : "stripe_customer_id backfill"
-    member_email_aliases }o..o{ members : "email resolution"
+    member_email_aliases }o--|| members : "member_id"
     calendar_events }o..o{ prickles : "processed into (calendar-sourced)"
     zoom_attendees }o..o{ prickle_attendance : "processed into"
     zoom_attendees }o..o{ prickles : "processed into (PUP segments, zoom-sourced)"

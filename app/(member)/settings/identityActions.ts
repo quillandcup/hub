@@ -81,7 +81,7 @@ export async function getIdentitySettings(): Promise<IdentitySettings | { error:
     supabase
       .from("member_email_aliases")
       .select("id, alias_email, source, active, created_at")
-      .eq("canonical_email", effectiveIdentity.memberEmail)
+      .eq("member_id", effectiveIdentity.memberId)
       .order("created_at", { ascending: false }),
     supabase
       .from("prickle_attendance")
@@ -277,8 +277,9 @@ export async function addEmailAlias(email: string): Promise<{ success: true } | 
     return { error: "That's already your primary email" };
   }
 
+  // canonical_email is filled in from member_id by a trigger.
   const { error } = await supabase.from("member_email_aliases").insert({
-    canonical_email: effectiveIdentity.memberEmail,
+    member_id: effectiveIdentity.memberId,
     alias_email: trimmed,
     source: "manual",
   });
@@ -310,7 +311,7 @@ export async function setEmailAliasActive(
     .from("member_email_aliases")
     .update({ active })
     .eq("id", id)
-    .eq("canonical_email", effectiveIdentity.memberEmail)
+    .eq("member_id", effectiveIdentity.memberId)
     .select("id")
     .single();
 

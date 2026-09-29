@@ -71,7 +71,9 @@ async function addEmailAlias() {
     .single();
 
   if (!canonicalMember) {
-    console.warn(`⚠  No member found for canonical email: ${canonicalEmail}`);
+    // Aliases belong to a member (member_email_aliases.member_id).
+    console.error(`❌ No member found for canonical email: ${canonicalEmail}`);
+    process.exit(1);
   } else {
     console.log(`✓ Canonical member: ${canonicalMember.name} (${canonicalMember.email})`);
   }
@@ -84,7 +86,7 @@ async function addEmailAlias() {
 
   // Insert the alias
   const { error } = await supabase.from("member_email_aliases").insert({
-    canonical_email: canonicalEmail.toLowerCase(),
+    member_id: canonicalMember.id,
     alias_email: aliasEmail.toLowerCase(),
     source: "manual",
   });

@@ -23,8 +23,8 @@ All three flows call the same API endpoint: `POST /api/admin/members/merge`.
 | `ambiguous_zoom_names` | `resolved_member_id` | Reassigned to primary |
 | `ambiguous_zoom_names` | `candidate_member_ids[]` | Secondary ID replaced in-place; deduplicated if primary already present |
 | `member_name_aliases` | `member_id` | Non-conflicting aliases reassigned; conflicting aliases dropped; secondary's name added as a new alias |
-| `member_email_aliases` | `alias_email` | Secondary email added as alias pointing to primary |
-| `member_email_aliases` | `canonical_email` | Rows where secondary was the canonical email re-pointed to primary |
+| `member_email_aliases` | `member_id` | Reassigned to primary (before the delete: aliases cascade with their member) |
+| `member_email_aliases` | `alias_email` | Secondary email added as an alias of the primary |
 | `members` | `kajabi_id` | Copied to primary if primary is missing it; conflict noted if both differ |
 | `members` | `stripe_customer_id` | Same as above |
 | `members` | `user_id` | Same as above |

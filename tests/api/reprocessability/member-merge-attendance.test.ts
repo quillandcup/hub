@@ -56,11 +56,12 @@ describe('Attendance reprocessing after member merge', () => {
     primaryMemberId = member!.id
 
     // Simulate the state after a merge: secondary member is gone, email alias points to primary
-    await supabase.from('member_email_aliases').insert({
+    const { error: aliasError } = await supabase.from('member_email_aliases').insert({
       alias_email: secondaryEmail,
-      canonical_email: primaryEmail,
+      member_id: primaryMemberId,
       source: 'manual',
     })
+    if (aliasError) throw aliasError
 
     // Seed zoom data where attendee joined with the secondary (merged-away) email
     await supabase.schema('bronze').from('zoom_meetings').insert({
@@ -87,6 +88,23 @@ describe('Attendance reprocessing after member merge', () => {
   afterAll(cleanUp)
 
   it('matches attendee to primary member via email alias on first process', async () => {
+    const result = await processAttendance()
+    expect(result.success).toBe(true)
+
+    const { data: attendance } = await supabase
+      .from('prickle_attendance')
+      .select('member_id')
+      .eq('member_id', primaryMemberId)
+
+    expect(attendance).not.toHaveLength(0)
+  }, 30000)
+
+  it('still matches via the alias after the primary member\'s email changes', async () => {
+    // Aliases point at the member (member_id) and canonical_email follows
+    // members.email, so the alias -> email map attendance builds stays current.
+    // (Runs before the next test, which only needs *some* match to exist.)
+    await supabase.from('members').update({ email: `merge-renamed-primary-${ts}@example.com` }).eq('id', primaryMemberId)
+
     const result = await processAttendance()
     expect(result.success).toBe(true)
 

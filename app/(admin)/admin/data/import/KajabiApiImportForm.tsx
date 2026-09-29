@@ -80,6 +80,26 @@ export default function KajabiApiImportForm() {
                   {result.members.processing.map((p: any, i: number) => (
                     <div key={i} className="pl-4">
                       <p className="font-semibold">• {p.table}: {p.success ? '✓' : '✗'}</p>
+                      {!p.success && p.error && (
+                        <p className="pl-4 text-sm text-red-700 dark:text-red-300 break-words">{p.error}</p>
+                      )}
+                      {p.emailConflicts?.length > 0 && (
+                        <div className="pl-4 text-sm text-amber-700 dark:text-amber-300">
+                          <p>
+                            {p.emailConflicts.length} member{p.emailConflicts.length === 1 ? '' : 's'} not updated: their
+                            new Kajabi email already belongs to another member. Merge the two, then sync again.
+                          </p>
+                          {p.emailConflicts.map((c: any) => (
+                            <p key={c.kajabi_id}>
+                              • {c.email}:{' '}
+                              {c.member_ids.map((id: string) => (
+                                <a key={id} href={`/admin/members/${id}`} className="underline mr-1">this member</a>
+                              ))}
+                              vs <a href={`/admin/members/${c.conflicting_member_id}`} className="underline">existing member</a>
+                            </p>
+                          ))}
+                        </div>
+                      )}
                       {p.processed !== undefined && (
                         <div className="pl-4 space-y-0.5 text-sm">
                           <p>Total members: {p.processed}</p>

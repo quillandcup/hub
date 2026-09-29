@@ -137,7 +137,7 @@ export default async function MemberDetailPage({
   const { data: emailAliases } = await supabase
     .from("member_email_aliases")
     .select("alias_email")
-    .eq("canonical_email", member.email)
+    .eq("member_id", id)
     .order("alias_email");
 
   // Fetch hiatus history — member_hiatus_history is the live source of
