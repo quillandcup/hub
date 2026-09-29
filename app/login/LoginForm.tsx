@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import Link from "next/link";
+import { resendPendingInvite } from "./actions";
 
 const LAST_EMAIL_KEY = "hedgiehub:lastEmail";
 
@@ -47,6 +48,23 @@ export default function LoginForm() {
         },
       });
 
+      if (error?.code === "signup_disabled") {
+        // No confirmed account for this email. If they were invited but never accepted
+        // (e.g. the invite link expired), send them a fresh invitation instead.
+        const { invited } = await resendPendingInvite(email);
+        setMessage(
+          invited
+            ? {
+                type: "success",
+                text: "You've been invited but haven't accepted yet, so we've emailed you a fresh invitation. Click the link in it to sign in.",
+              }
+            : {
+                type: "error",
+                text: "We couldn't find a Hedgie Hub account for that email. Check the address, or ask us for an invite.",
+              }
+        );
+        return;
+      }
       if (error) throw error;
 
       setMessage({
