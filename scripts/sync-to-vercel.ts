@@ -8,7 +8,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { spawnSync, type SpawnSyncOptions } from "node:child_process";
 import { parse as parseDotenv } from "dotenv";
-import { ENV_VARS, type VercelTarget } from "../env-vars.config";
+import { ENV_VARS, type EnvVarSpec, type VercelTarget } from "../env-vars.config";
 
 const SOURCE_FILE: Record<VercelTarget, string> = {
   development: ".env.devel",
@@ -35,17 +35,16 @@ function run(args: string[]): boolean {
   return result.status === 0;
 }
 
-function syncOne(name: string, target: VercelTarget, value: string): void {
-  console.log(`📤 Syncing ${name} to ${target}...`);
+function syncOne(spec: EnvVarSpec, target: VercelTarget, value: string): void {
+  const { name, type } = spec;
+  console.log(`${type === "secret" ? "🔒" : "📤"} Syncing ${name} to ${target} as ${type}...`);
   // Ignore failure: fine if it didn't already exist.
   run(["env", "rm", name, target, "--yes"]);
-  // Always --type config, never left to default (which is `secret`/`sensitive` as of
-  // Vercel CLI 59+) -- see env-vars.config.ts's `vercel` destination doc comment for why
-  // that default silently breaks NEXT_PUBLIC_* vars. `secret` values are still passed via
-  // stdin, same as plain ones; `config` only controls whether Vercel can ever return the
-  // value again, not how it's transmitted here.
+  // Always pass --type explicitly rather than taking the CLI default, which is secret for
+  // production/preview since CLI 59 -- see `type` in env-vars.config.ts for why a secret
+  // NEXT_PUBLIC_* var breaks the build. Both types pass the value via stdin.
   const target_arg = target === "preview" ? [name, target, ""] : [name, target];
-  const add = vercel(["env", "add", ...target_arg, "--yes", "--type", "config"], {
+  const add = vercel(["env", "add", ...target_arg, "--yes", "--type", type], {
     input: value,
     stdio: ["pipe", "inherit", "inherit"],
   });
@@ -101,7 +100,7 @@ function main(): void {
         );
         continue;
       }
-      syncOne(spec.name, dest.target, value);
+      syncOne(spec, dest.target, value);
     }
   }
 

@@ -363,6 +363,9 @@ jobs:
         run: vercel build --prod
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          # Source map upload (next.config.ts). A GitHub secret rather than a Vercel var:
+          # `vercel pull` above only gets a "[SENSITIVE]" placeholder for Vercel Secrets.
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
 
       # Uploads the local build output as-is instead of triggering another
       # remote build -- and unlike the old curl to the deploy hook, this step

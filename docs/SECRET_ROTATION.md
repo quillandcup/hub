@@ -138,11 +138,14 @@ Supabase Vault, not from Vercel's `process.env`).
    transcript.** The harness shows a full diff when it has nothing to diff against -- this is
    how `.env.prod` ended up in plaintext across 16 local session logs from one `sed` call.
    Read a file once, safely, before any edit tool touches it for the first time in a session.
-2. **Vercel's `env add` defaults to `Secret`/`Sensitive` type (CLI 59+), which is never
-   retrievable again by anyone, including `vercel pull`.** `NEXT_PUBLIC_*` vars get inlined
-   into the client bundle at build time, so a Sensitive `NEXT_PUBLIC_*` var ships the literal
-   string `"[SENSITIVE]"` to every visitor's browser. Always pass `--type config` explicitly
-   (`scripts/sync-to-vercel.ts` does this automatically).
+2. **A Vercel Secret can't be read back by anyone, including `vercel pull`, which writes the
+   literal `"[SENSITIVE]"` instead.** CI builds production from `vercel pull`, so any var the
+   build reads must be Config: `NEXT_PUBLIC_*` vars get inlined into the client bundle, and a
+   Sensitive one shipped `"[SENSITIVE]"` to every visitor's browser. Runtime-only secrets are
+   fine as Secrets (prebuilt deployments get the real value at runtime), and build-only
+   secrets like `SENTRY_AUTH_TOKEN` are GitHub secrets passed to the CI build step. Each var's
+   `type` in `env-vars.config.ts` decides this, and `scripts/sync-to-vercel.ts` always passes
+   it explicitly -- never rely on the CLI default (Secret for production/preview since CLI 59).
 3. **Use the project's Vercel CLI (`npx vercel`), which must stay at v59+.** The devDependency
    used to be pinned at `^56.3.2`, which has no `--type` flag; `npx` picked it over the global
    CLI mid-rotation and briefly left `NEXT_PUBLIC_SUPABASE_ANON_KEY` unset in production. It's

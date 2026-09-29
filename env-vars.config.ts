@@ -2,7 +2,7 @@
 //
 // Single source of truth for every environment variable this project uses outside of
 // local dev (see .env.example for the local .env.local template). Declares, per var:
-// whether it's a secret, and which systems it gets synced to.
+// its type (config or secret), and which systems it gets synced to.
 //
 // scripts/sync-to-vercel.ts, scripts/sync-to-github.ts, and scripts/sync-vault-secrets.ts
 // all read this file instead of maintaining their own hardcoded var lists -- that
@@ -25,20 +25,10 @@ import { CRON_HEARTBEATS } from "./lib/cron-heartbeats";
 export type VercelTarget = "development" | "preview" | "production";
 
 export type Destination =
-  /**
-   * Synced via `vercel env add <name> <target> --type config`. Always `config` type
-   * (never `secret`/`sensitive`) regardless of this var's `secret` flag below -- Vercel's
-   * "Sensitive" type is write-only and can never be retrieved again, by anyone, including
-   * `vercel pull`. Next.js inlines `NEXT_PUBLIC_*` vars into the client bundle at build
-   * time, so a Sensitive `NEXT_PUBLIC_*` var silently bakes the literal string
-   * "[SENSITIVE]" into every page shipped to browsers -- this happened in production on
-   * 2026-09-25 (NEXT_PUBLIC_SUPABASE_URL/ANON_KEY/SENTRY_DSN) and broke Supabase access
-   * for every visitor. `secret: true` here still matters for docs/GitHub Actions below --
-   * just never let it drive Vercel's env type.
-   */
+  /** Synced via `vercel env add <name> <target> --type <the var's type>`. */
   | { readonly kind: "vercel"; readonly target: VercelTarget }
-  /** Synced via `gh secret set` (secret) or `gh variable set` (plain), GitHub Actions only. */
-  | { readonly kind: "github"; readonly type: "secret" | "variable" }
+  /** Synced via `gh secret set` (type "secret") or `gh variable set` (type "config"). */
+  | { readonly kind: "github" }
   /**
    * Synced into Supabase Vault (`vault.decrypted_secrets`), read by SQL/PL-pgSQL/pg_cron.
    * `vaultName` is the name SQL code looks it up by, independent of this env var's name.
@@ -51,13 +41,22 @@ export interface EnvVarSpec {
   readonly group: string;
   readonly description: string;
   /**
-   * True for credentials/keys/tokens that grant access or bypass protections. False for
-   * identifiers, channel/account IDs, and values explicitly designed to be public
-   * (NEXT_PUBLIC_* by Next.js convention, Sentry DSNs by Sentry's own design). Drives
-   * GitHub secret-vs-variable choice; deliberately does NOT drive Vercel env type -- see
-   * the `vercel` destination kind's doc comment above.
+   * "secret" for credentials/keys/tokens that grant access or bypass protections: stored
+   * write-only wherever the destination supports it (a Vercel Secret, a GitHub secret), so
+   * no one can read them back. "config" for identifiers, channel/account IDs, and values
+   * designed to be public (NEXT_PUBLIC_* by Next.js convention, Sentry DSNs by Sentry's
+   * design): readable after saving (a Vercel Config var, a GitHub variable).
+   *
+   * A var the production *build* reads must not be a Vercel "secret". CI builds production
+   * with `vercel pull` + `vercel build`, and `vercel pull` writes the literal placeholder
+   * "[SENSITIVE]" for Secret values (vercel/vercel#17514), which the build then uses. A
+   * Sensitive NEXT_PUBLIC_* var baked that placeholder into every page on 2026-09-25 and
+   * broke Supabase access for every visitor. At runtime, prebuilt deployments do get the
+   * real Secret values (verified 2026-09-29 with a throwaway preview var). So NEXT_PUBLIC_*
+   * vars are always "config", and build-only secrets (SENTRY_AUTH_TOKEN) go to GitHub and
+   * are passed to the CI build step instead of living in Vercel.
    */
-  readonly secret: boolean;
+  readonly type: "config" | "secret";
   readonly destinations: readonly Destination[];
 }
 
@@ -73,7 +72,7 @@ export const ENV_VARS: readonly EnvVarSpec[] = [
     name: "NEXT_PUBLIC_SUPABASE_URL",
     group: "Supabase",
     description: "Supabase project URL. Public by design.",
-    secret: false,
+    type: "config",
     destinations: vercelAllEnvs,
   },
   {
@@ -81,14 +80,14 @@ export const ENV_VARS: readonly EnvVarSpec[] = [
     group: "Supabase",
     description:
       "Supabase anon key. Public by design -- RLS is what protects data, not this key's secrecy.",
-    secret: false,
+    type: "config",
     destinations: vercelAllEnvs,
   },
   {
     name: "SUPABASE_SERVICE_ROLE_KEY",
     group: "Supabase",
     description: "Bypasses RLS. Server-only.",
-    secret: true,
+    type: "secret",
     destinations: vercelAllEnvs,
   },
 
@@ -97,35 +96,35 @@ export const ENV_VARS: readonly EnvVarSpec[] = [
     name: "ZOOM_ACCOUNT_ID",
     group: "Zoom",
     description: "Zoom account identifier.",
-    secret: false,
+    type: "config",
     destinations: vercelAllEnvs,
   },
   {
     name: "ZOOM_CLIENT_ID",
     group: "Zoom",
     description: "Zoom OAuth app client ID.",
-    secret: false,
+    type: "config",
     destinations: vercelAllEnvs,
   },
   {
     name: "ZOOM_CLIENT_SECRET",
     group: "Zoom",
     description: "Zoom OAuth app client secret.",
-    secret: true,
+    type: "secret",
     destinations: vercelAllEnvs,
   },
   {
     name: "ZOOM_WEBHOOK_SECRET_TOKEN",
     group: "Zoom",
     description: "Verifies Zoom webhook signatures.",
-    secret: true,
+    type: "secret",
     destinations: vercelAllEnvs,
   },
   {
     name: "ZOOM_USER_EMAIL",
     group: "Zoom",
     description: "Zoom account email used for API calls.",
-    secret: false,
+    type: "config",
     destinations: vercelAllEnvs,
   },
 
@@ -134,21 +133,21 @@ export const ENV_VARS: readonly EnvVarSpec[] = [
     name: "KAJABI_CLIENT_ID",
     group: "Kajabi",
     description: "Kajabi OAuth app client ID.",
-    secret: false,
+    type: "config",
     destinations: vercelAllEnvs,
   },
   {
     name: "KAJABI_CLIENT_SECRET",
     group: "Kajabi",
     description: "Kajabi OAuth app client secret.",
-    secret: true,
+    type: "secret",
     destinations: vercelAllEnvs,
   },
   {
     name: "KAJABI_SITE_ID",
     group: "Kajabi",
     description: "Kajabi site identifier.",
-    secret: false,
+    type: "config",
     destinations: vercelAllEnvs,
   },
 
@@ -157,14 +156,14 @@ export const ENV_VARS: readonly EnvVarSpec[] = [
     name: "GOOGLE_CALENDAR_ID",
     group: "Google Calendar",
     description: "Google Calendar ID synced for events.",
-    secret: false,
+    type: "config",
     destinations: vercelAllEnvs,
   },
   {
     name: "GOOGLE_SERVICE_ACCOUNT_KEY",
     group: "Google Calendar",
     description: "Full Google service account JSON key.",
-    secret: true,
+    type: "secret",
     destinations: vercelAllEnvs,
   },
 
@@ -174,14 +173,14 @@ export const ENV_VARS: readonly EnvVarSpec[] = [
     group: "Google OAuth",
     description:
       "Google OAuth Web Client ID (per-user consent flows, e.g. Photos Picker).",
-    secret: false,
+    type: "config",
     destinations: vercelAllEnvs,
   },
   {
     name: "GOOGLE_OAUTH_CLIENT_SECRET",
     group: "Google OAuth",
     description: "Google OAuth Web Client secret.",
-    secret: true,
+    type: "secret",
     destinations: vercelAllEnvs,
   },
 
@@ -190,42 +189,42 @@ export const ENV_VARS: readonly EnvVarSpec[] = [
     name: "SLACK_BOT_TOKEN",
     group: "Slack",
     description: "Slack bot OAuth token.",
-    secret: true,
+    type: "secret",
     destinations: vercelAllEnvs,
   },
   {
     name: "SLACK_FEEDBACK_CHANNEL_ID",
     group: "Slack",
     description: "Channel ID feedback-widget submissions post to.",
-    secret: false,
+    type: "config",
     destinations: vercelAllEnvs,
   },
   {
     name: "SLACK_NEW_BOOKS_CHANNEL_ID",
     group: "Slack",
     description: "Channel ID for new-book staff notifications. Optional.",
-    secret: false,
+    type: "config",
     destinations: vercelAllEnvs,
   },
   {
     name: "SLACK_NEW_AWARDS_CHANNEL_ID",
     group: "Slack",
     description: "Channel ID for new-award staff notifications. Optional.",
-    secret: false,
+    type: "config",
     destinations: vercelAllEnvs,
   },
   {
     name: "SLACK_DEV_USER_ID",
     group: "Slack",
     description: "Slack member ID that redirected test-mode DMs go to.",
-    secret: false,
+    type: "config",
     destinations: vercelAllEnvs,
   },
   {
     name: "SLACK_TEST_MODE",
     group: "Slack",
     description: "Overrides default DM-redirect behavior outside production.",
-    secret: false,
+    type: "config",
     destinations: vercelAllEnvs,
   },
 
@@ -234,7 +233,7 @@ export const ENV_VARS: readonly EnvVarSpec[] = [
     name: "STRIPE_API_KEY",
     group: "Stripe",
     description: "Stripe secret API key.",
-    secret: true,
+    type: "secret",
     destinations: vercelAllEnvs,
   },
 
@@ -243,14 +242,14 @@ export const ENV_VARS: readonly EnvVarSpec[] = [
     name: "SUDO_SECRET",
     group: "Admin & Cron",
     description: "Signing secret for the admin sudo cookie.",
-    secret: true,
+    type: "secret",
     destinations: vercelAllEnvs,
   },
   {
     name: "CRON_SECRET",
     group: "Admin & Cron",
     description: "Authenticates Vercel's own native cron job requests.",
-    secret: true,
+    type: "secret",
     destinations: vercelAllEnvs,
   },
   {
@@ -258,7 +257,7 @@ export const ENV_VARS: readonly EnvVarSpec[] = [
     group: "Admin & Cron",
     description:
       "Authenticates Supabase pg_cron -> internal API route calls via pg_net.",
-    secret: true,
+    type: "secret",
     destinations: [
       ...vercelAllEnvs,
       { kind: "vault", vaultName: "writing_nudge_cron_secret" },
@@ -270,7 +269,7 @@ export const ENV_VARS: readonly EnvVarSpec[] = [
     name: "NEXT_PUBLIC_GA_ID",
     group: "Analytics & Monitoring",
     description: "GA4 measurement ID. Public by design.",
-    secret: false,
+    type: "config",
     destinations: vercelAllEnvs,
   },
   {
@@ -278,7 +277,7 @@ export const ENV_VARS: readonly EnvVarSpec[] = [
     group: "Analytics & Monitoring",
     description:
       "Server-side Sentry DSN. DSNs are designed to be safe to expose (write-only ingest endpoint).",
-    secret: false,
+    type: "config",
     destinations: vercelAllEnvs,
   },
   {
@@ -286,16 +285,16 @@ export const ENV_VARS: readonly EnvVarSpec[] = [
     group: "Analytics & Monitoring",
     description:
       "Client-side Sentry DSN. Public by design, same reasoning as SENTRY_DSN.",
-    secret: false,
+    type: "config",
     destinations: vercelAllEnvs,
   },
   {
     name: "SENTRY_AUTH_TOKEN",
     group: "Analytics & Monitoring",
     description:
-      "Build-time secret for uploading production source maps. Not needed for dev/preview builds -- production only.",
-    secret: true,
-    destinations: [{ kind: "vercel", target: "production" }],
+      "Build-time secret for uploading production source maps. A GitHub secret passed to CI's `vercel build` step, not a Vercel var: the production build runs in CI and can't read Vercel Secret values (see `type` above). Preview builds skip source map upload without it.",
+    type: "secret",
+    destinations: [{ kind: "github" }],
   },
 
   ...Object.values(CRON_HEARTBEATS).map(
@@ -304,7 +303,7 @@ export const ENV_VARS: readonly EnvVarSpec[] = [
       group: "Analytics & Monitoring",
       description: `Checkly heartbeat ping URL for ${heartbeat.path}, copied from the Checkly monitor after \`checkly deploy\`. Unset = no ping. Production only so manual preview runs don't mask a missed production run. See lib/cron-heartbeats.ts.`,
       // Not a credential, but anyone holding it can fake a successful run.
-      secret: true,
+      type: "secret",
       destinations: [{ kind: "vercel", target: "production" }],
     })
   ),
@@ -314,55 +313,55 @@ export const ENV_VARS: readonly EnvVarSpec[] = [
     name: "CHECKLY_API_KEY",
     group: "GitHub Actions CI",
     description: "Authenticates `checkly deploy` in CI.",
-    secret: true,
-    destinations: [{ kind: "github", type: "secret" }],
+    type: "secret",
+    destinations: [{ kind: "github" }],
   },
   {
     name: "CHECKLY_ACCOUNT_ID",
     group: "GitHub Actions CI",
     description: "Checkly account ID used by CI.",
-    secret: false,
-    destinations: [{ kind: "github", type: "variable" }],
+    type: "config",
+    destinations: [{ kind: "github" }],
   },
   {
     name: "SUPABASE_ACCESS_TOKEN",
     group: "GitHub Actions CI",
     description:
       "Authenticates `supabase` CLI calls in CI (migration push, config push).",
-    secret: true,
-    destinations: [{ kind: "github", type: "secret" }],
+    type: "secret",
+    destinations: [{ kind: "github" }],
   },
   {
     name: "SUPABASE_DB_PASSWORD",
     group: "GitHub Actions CI",
     description:
       "Production Supabase DB password, used when linking the project in CI.",
-    secret: true,
-    destinations: [{ kind: "github", type: "secret" }],
+    type: "secret",
+    destinations: [{ kind: "github" }],
   },
   {
     name: "VERCEL_TOKEN",
     group: "GitHub Actions CI",
     description:
       "Authenticates `vercel pull`/`build`/`deploy` in CI. Must be a normal team-scoped token, NOT project-scoped -- project-scoped tokens can't resolve org/user identity, which `vercel pull` requires (only `vercel deploy` has a fallback for that). Learned the hard way 2026-09-25.",
-    secret: true,
-    destinations: [{ kind: "github", type: "secret" }],
+    type: "secret",
+    destinations: [{ kind: "github" }],
   },
   {
     name: "VERCEL_ORG_ID",
     group: "GitHub Actions CI",
     description:
       "Vercel team ID (team_...), used to link the project non-interactively in CI.",
-    secret: false,
-    destinations: [{ kind: "github", type: "secret" }],
+    type: "secret", // an ID, but ci.yml reads it as secrets.* -- keep in sync
+    destinations: [{ kind: "github" }],
   },
   {
     name: "VERCEL_PROJECT_ID",
     group: "GitHub Actions CI",
     description:
       "Vercel project ID (prj_...), used to link the project non-interactively in CI.",
-    secret: false,
-    destinations: [{ kind: "github", type: "secret" }],
+    type: "secret", // an ID, but ci.yml reads it as secrets.* -- keep in sync
+    destinations: [{ kind: "github" }],
   },
 
   // --- Supabase config push: read by `supabase config push` locally and in CI, never by the app ---
@@ -371,7 +370,7 @@ export const ENV_VARS: readonly EnvVarSpec[] = [
     group: "Supabase config push (local + CI)",
     description:
       "SMTP auth for Supabase Auth emails. Read by `supabase config push` (`npm run config:push` locally, and CI's push-migrations job on every push to main) via config.toml's env(RESEND_API_KEY). CI refuses to push config without it, since the push would otherwise overwrite production's SMTP password. The app itself never reads it, so it isn't synced to Vercel.",
-    secret: true,
-    destinations: [{ kind: "github", type: "secret" }],
+    type: "secret",
+    destinations: [{ kind: "github" }],
   },
 ];
