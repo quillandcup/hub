@@ -49,17 +49,6 @@ Some people who attend prickles have no Kajabi footprint at all (not a member, t
 
 ## Data Import
 
-### Slack API Import (`/data/import`)
-- [ ] Create `SlackApiImportForm.tsx` component
-- [ ] Use `SLACK_BOT_TOKEN` from env
-- [ ] Convert `scripts/export-slack-data.ts` logic into API endpoint:
-  - Create `/api/import/slack-api/route.ts`
-  - Fetch users, channels, messages, reactions from Slack API
-  - Format into CSV-like structure or call Bronze insert directly
-- [ ] Add date range selector (last 7 days, 30 days, 90 days)
-- [ ] Show progress indicator (Slack API is rate-limited)
-- [ ] Replace placeholder in `/data/import/page.tsx`
-
 ### Silver Change Propagation in the Processing DAG
 - **Where:** `lib/processing/trigger.ts` (`SILVER_DEPENDENCIES`, `getProcessingOrder`, `triggerReprocessing`)
 - **Today:** a Bronze/Local change selects the Silver steps that read that table, and Silver→Silver edges only order the selected steps ("if both run, members and calendar before attendance"). Since 2026-09-29, an edge no longer pulls in an unselected upstream step (it used to, so every Slack webhook event rebuilt all members).
@@ -723,14 +712,11 @@ Query: `SELECT * FROM bronze.kajabi_purchases WHERE effective_start_at - created
 ## Bug Fixes
 
 ### Members Reprocessing Deadlocks / Statement Timeouts on Concurrent Webhooks
-Production logs show members reprocessing deadlocking and hitting statement timeouts when Slack and Zoom webhooks start it at the same time (webhooks trigger reprocessing via `lib/processing/trigger.ts`; confirm the exact path from the logs first). Noted while reviewing PR #27 (email aliases → member ids); needs its own change. Options to weigh: serialize runs with a Postgres advisory lock (skip or queue when one is already running), debounce/coalesce webhook-triggered runs, or narrow each run's scope so concurrent runs don't touch the same rows.
+Production logs show members reprocessing deadlocking and hitting statement timeouts when Slack and Zoom webhooks start it at the same time. Noted while reviewing PR #27 (email aliases → member ids).
 
-### Bronze-Tier Pagination Gap in `/api/process/members`
-- **Where:** `app/api/process/members/route.ts` — Bronze table fetches (lines ~41-42)
-- **Tables affected:** `kajabi_contacts`, `kajabi_customers`, `kajabi_purchases`, `kajabi_offers`
-- **Problem:** All four Bronze tables are fetched with a single unguarded `.select("*")` (no pagination). When any table exceeds 1000 rows, Silver processing silently truncates — members beyond row 1000 get incorrect status/plan and null profile fields (photo_url, bio, socials) with no error or warning.
-- **Fix:** Add paginated fetch for all four Bronze sources, then merge results in memory before processing
-- **Why not fixed yet:** Pre-existing in codebase; requires a larger refactor to paginate + merge all four Bronze sources
+- **Path (confirmed from logs 2026-09-29):** every Slack message/reaction webhook ran `triggerReprocessing("slack_messages")`, and `getProcessingOrder` added `members` in front of `slack` because of the Silver edge, so each event ran a full `reprocess_members_atomic` and then the 90-day attendance reprocess hard-coded at the end of `/api/process/members`. Zoom imports (from the `meeting.ended` webhook) did the same via `attendance`'s edge to `members`. A burst of Slack events ran many at once: `57014 canceling statement due to statement timeout`.
+- **Fixed 2026-09-29 (`e974c08`):** Silver edges only order the steps a change selects, so webhooks no longer start members runs at all.
+- **Remaining:** members can still run concurrently from a Kajabi import, the nightly reconcile, and a Slack import's user rebuild, and attendance from several Zoom meetings ending together. Options: serialize runs with a Postgres advisory lock (skip or queue when one is already running), coalesce overlapping runs, or narrow each run's scope so concurrent runs don't touch the same rows. Needed before adding downstream propagation (see "Silver Change Propagation in the Processing DAG").
 
 ### Member Filters
 - **At-risk and highly-engaged filters don't work**

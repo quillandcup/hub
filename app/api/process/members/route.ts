@@ -568,21 +568,31 @@ export async function POST(request: NextRequest) {
       }
     });
 
-    // Note: on_hiatus is always 0 here — hiatus (member_hiatus_history), gift
-    // overrides (member_status_overrides), and program-cohort enrollments
-    // (member_program_enrollments) are applied inside reprocess_members_atomic
-    // after this snapshot is taken, so this breakdown reflects pre-override
-    // Kajabi-derived status only.
+    // Counted from the members table after reprocess_members_atomic, so hiatus,
+    // gift overrides and program-cohort enrollments (applied inside the RPC)
+    // are reflected -- the in-memory allMembers list is pre-override.
+    const statuses = ["active", "on_hiatus", "cancelled", "lead"] as const;
+    const counts = await Promise.all(
+      statuses.map((status) =>
+        supabase.from("members").select("id", { count: "exact", head: true }).eq("status", status)
+      )
+    );
+    const statusBreakdown: Record<(typeof statuses)[number], number> = {
+      active: 0,
+      on_hiatus: 0,
+      cancelled: 0,
+      lead: 0,
+    };
+    statuses.forEach((status, i) => {
+      if (counts[i].error) throw counts[i].error;
+      statusBreakdown[status] = counts[i].count ?? 0;
+    });
+
     return NextResponse.json({
       success: true,
       processed: allMembers.length,
       emailConflicts,
-      statusBreakdown: {
-        active: allMembers.filter((m) => m.status === "active").length,
-        on_hiatus: allMembers.filter((m) => m.status === "on_hiatus").length,
-        cancelled: allMembers.filter((m) => m.status === "cancelled").length,
-        lead: allMembers.filter((m) => m.status === "lead").length,
-      },
+      statusBreakdown,
     });
   } catch (error: any) {
     console.error("Error processing members:", error);

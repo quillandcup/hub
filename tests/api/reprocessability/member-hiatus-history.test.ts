@@ -90,6 +90,15 @@ describe('Member Hiatus History applied during reprocessing', () => {
     expect(member?.status).toBe('on_hiatus')
   })
 
+  it('counts hiatus members in the response status breakdown', async () => {
+    const body = await processMembers()
+    const { count } = await supabase.from('members').select('id', { count: 'exact', head: true }).eq('status', 'on_hiatus')
+    // Counted after overrides are applied, not from the pre-override Kajabi list
+    // (which is never on_hiatus).
+    expect(body.statusBreakdown.on_hiatus).toBe(count)
+    expect(body.statusBreakdown.on_hiatus).toBeGreaterThanOrEqual(2)
+  })
+
   it('keeps status on_hiatus after a second reprocess run (does not revert)', async () => {
     await processMembers()
     await processMembers()
