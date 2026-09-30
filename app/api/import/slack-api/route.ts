@@ -1,4 +1,5 @@
 import { WebClient } from '@slack/web-api';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/supabase/api-auth';
 import { extractSlackImageUrl } from '@/lib/member-avatar';
@@ -109,38 +110,13 @@ export async function POST(request: NextRequest) {
     // 5. UPSERT to Bronze tables (idempotent)
     const importTimestamp = new Date().toISOString();
 
-    const { error: usersError } = await supabase
-      .schema('bronze').from("slack_users")
-      .upsert(
-        users.map(u => ({ ...u, imported_at: importTimestamp })),
-        { onConflict: "user_id" }
-      );
-
-    const { error: channelsError } = await supabase
-      .schema('bronze').from("slack_channels")
-      .upsert(
-        channels.map(c => ({ ...c, imported_at: importTimestamp })),
-        { onConflict: "channel_id" }
-      );
-
-    const { error: messagesError } = await supabase
-      .schema('bronze').from("slack_messages")
-      .upsert(
-        allMessages.map(m => ({ ...m, imported_at: importTimestamp })),
-        { onConflict: "channel_id,message_ts" }
-      );
-
-    const { error: reactionsError } = await supabase
-      .schema('bronze').from("slack_reactions")
-      .upsert(
-        allReactions.map(r => ({ ...r, imported_at: importTimestamp })),
-        { onConflict: "channel_id,message_ts,reaction,user_id" }
-      );
-
-    if (usersError) throw usersError;
-    if (channelsError) throw channelsError;
-    if (messagesError) throw messagesError;
-    if (reactionsError) throw reactionsError;
+    // Batched: a 90-day import (with thread replies) is thousands of messages
+    // and 10k+ reactions, and one statement that size hits Postgres's
+    // statement timeout when an admin runs the import from the page.
+    await upsertInBatches(supabase, "slack_users", users.map(u => ({ ...u, imported_at: importTimestamp })), "user_id");
+    await upsertInBatches(supabase, "slack_channels", channels.map(c => ({ ...c, imported_at: importTimestamp })), "channel_id");
+    await upsertInBatches(supabase, "slack_messages", allMessages.map(m => ({ ...m, imported_at: importTimestamp })), "channel_id,message_ts");
+    await upsertInBatches(supabase, "slack_reactions", allReactions.map(r => ({ ...r, imported_at: importTimestamp })), "channel_id,message_ts,reaction,user_id");
 
     // Upserts can't express "this reaction was taken back", so drop stored
     // reactions on the fetched messages that Slack no longer reports.
@@ -282,9 +258,19 @@ async function autoJoinPublicChannels(slack: WebClient, channels: any[]) {
     if (channel.is_private || channel.is_archived) {
       continue;
     }
+    if (channel.raw_payload?.is_member) {
+      alreadyMember++;
+      continue;
+    }
 
     try {
-      await slack.conversations.join({ channel: channel.channel_id });
+      // Slack answers a join to a channel we're already in with ok plus an
+      // already_in_channel warning, not an error.
+      const result: any = await slack.conversations.join({ channel: channel.channel_id });
+      if (result.already_in_channel || result.warning === 'already_in_channel') {
+        alreadyMember++;
+        continue;
+      }
       joined++;
       console.log(`  ✓ Joined #${channel.name}`);
 
@@ -429,6 +415,24 @@ function addMessage(
         });
       }
     }
+  }
+}
+
+const UPSERT_BATCH_SIZE = 500;
+const UPSERT_CONCURRENCY = 4;
+
+async function upsertInBatches(supabase: SupabaseClient, table: string, rows: any[], onConflict: string) {
+  const batches: any[][] = [];
+  for (let i = 0; i < rows.length; i += UPSERT_BATCH_SIZE) batches.push(rows.slice(i, i + UPSERT_BATCH_SIZE));
+
+  for (let i = 0; i < batches.length; i += UPSERT_CONCURRENCY) {
+    const results = await Promise.all(
+      batches.slice(i, i + UPSERT_CONCURRENCY).map(batch =>
+        supabase.schema('bronze').from(table).upsert(batch, { onConflict })
+      )
+    );
+    const failed = results.find(r => r.error);
+    if (failed?.error) throw failed.error;
   }
 }
 
