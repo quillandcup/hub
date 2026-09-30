@@ -106,6 +106,15 @@ management).
 - Slack-dependent features (feedback widget notifications, new book/award pings, writing
   nudge DMs) are down between the revoke and the reinstall+resync+redeploy -- do this in one
   sitting.
+- **The revoke uninstalls Billie Bot, which removes it from every channel.** Public channels
+  come back on the next Slack import (it auto-joins them), but each **private channel and
+  group DM** needs a member to run `/invite @Billie Bot` there. Before revoking, note which
+  private channels it's in (`bronze.slack_channels` where `is_private`); after reinstalling,
+  re-invite it to each one, then run a manual Slack API import from the admin import page.
+  The next morning, `/admin/hygiene` must show no "Billie Bot lost access" warning. The
+  2026-09-25 rotation skipped this and silently cut 13 private channels out of the import
+  for days. Long-term fix: Slack token rotation (see `docs/SLACK_BRIDGED_CHAT.md`), which
+  never needs an uninstall.
 
 ### Sentry
 - https://quillandcup.sentry.io/settings/auth-tokens/ (org slug is `quillandcup` -- matches

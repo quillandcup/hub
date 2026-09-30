@@ -160,7 +160,7 @@ Counts from prod `bronze.slack_messages`, 4,835 rows:
 - **344 rows exist only because the webhook caught them** (the 90-day API import didn't return them):
   - 75 `channel_join` / `channel_leave` notices stored as messages. `process/slack` doesn't filter subtypes, so each counts as a `slack_message` activity and inflates engagement. Fix: the webhook routes these to membership, not messages; delete the 75 rows from Bronze and reprocess Slack activity.
   - 24 in group DMs (Wheel of Wonder rooms) that the import never fetches. Fix: add `mpim` to the import.
-  - 243 real member messages (216 plain + 12 file shares in private channels, 15 in public). Leading hypothesis: replies to threads whose first message is older than the 90-day window, since the reply pass only walks threads whose first message falls inside the window. Alternative: messages since deleted in Slack. Being confirmed; if it's old threads, the reply pass must also refresh threads that are still active (by the parent's `latest_reply`, or thread ids seen in recent webhook rows), or those replies stay webhook-only.
+  - 243 real member messages, almost all thread replies in private channels. Cause: the 2026-09-25 bot token rotation (`auth.revoke` + reinstall, per `docs/SECRET_ROTATION.md`) fully uninstalled Billie Bot, which removed it from all 13 private channels. The import only sees private channels the bot is in, so it has skipped them since, and the thread-reply pass (added 2026-09-29) never reached them. `/admin/hygiene` flagged it, but nothing notified anyone. Fix: re-invite the bot to each private channel and run a manual 90-day import before replies age out of Slack's window.
 
 ## Hub → Slack
 
@@ -211,6 +211,10 @@ Per channel: switch `bridge_mode` from `bridged` to `app_only`. The bot posts a 
 
 ## Slack app configuration
 
+**Never uninstall Billie Bot casually.** Uninstalling removes it from every channel; public channels come back through the import's auto-join, but every private channel and group DM needs a manual `/invite @Billie Bot` from a member, and with the bridge live those conversations stop syncing until then. Scope changes use "Reinstall to Workspace", which should keep memberships.
+
+**Token rotation:** classic bot tokens never expire, so rotating one means `auth.revoke` + reinstall, which is an uninstall. Before the bridge ships, opt the app into Slack's token rotation (12-hour access tokens + refresh tokens). Rotation then happens continuously with no uninstall, and a leaked token dies on its own. Opting in is irreversible and means tokens live in the database (service-role only), not an env var, with a refresh before use when near expiry. `member_slack_connections` user tokens rotate the same way.
+
 - **Bot scopes** (add what's missing): `channels:history`, `groups:history`, `channels:read`, `groups:read`, `chat:write`, `chat:write.customize`, `reactions:read`, `reactions:write`, `users:read`, `users:read.email`, `emoji:read`, `mpim:history`, `mpim:read`, `channels:manage`, `groups:write`, `files:read`, `files:write` (later).
 - **User scopes** (per-member connect): `chat:write`, `reactions:write`, `channels:write`, `groups:write`.
 - **Events**: `message.channels`, `message.groups`, `message.mpim`, `reaction_added`, `reaction_removed`, `member_joined_channel`, `member_left_channel`, `channel_rename`, `channel_archive`, `channel_unarchive`, `group_rename`, `group_archive`, `group_unarchive`, `channel_created`, `emoji_changed`, `user_change`.
@@ -221,8 +225,8 @@ Per channel: switch `bridge_mode` from `bridged` to `app_only`. The bot posts a 
    - `audit_log` v1 (from `docs/ACTIVITY_AND_AUDIT_LOG.md`) plus an admin view with a break-glass / restriction-change filter.
    - Bronze fixes: webhook subtypes, soft delete for messages and reactions, membership and emoji pulls, content lock-down + `slack_messages_meta` view; move the admin pages that read Bronze content (Slack engagement insights, reconciliation) to server-side metadata reads.
    - Stop copying message text into `member_activities.description` for restricted channels and DMs.
-   - From the Bronze audit: webhook stops storing join/leave notices as messages (and the 75 existing rows are removed + Slack activity reprocessed); import fetches `mpim`; reply pass refreshes active old threads (if confirmed).
-   - Alert on reconcile failures, including partial ones.
+   - From the Bronze audit: webhook stops storing join/leave notices as messages (and the 75 existing rows are removed + Slack activity reprocessed); import fetches `mpim`; re-invite the bot to the private channels it lost on 2026-09-25 and backfill.
+   - Alert on reconcile failures, including partial ones, and when the bot loses access to a private channel (today that only shows on `/admin/hygiene`).
    - Copy Slack files into Supabase Storage.
 2. **Read-only mirror**: `chat_*` schema with the content/metadata split and RLS (pgTAP), projection + backfill, channel list and channel view, search v1, `restricted` flag and "staff can read this" indicator.
 3. **Two-way bridge**: posting with bot fallback, Slack connect (OAuth), outbox, loop prevention, edits/deletes/reactions, membership invite/kick, gap-fill + catch-up on open, attribution fixes in `process/slack` and Wheel of Wonder, `member_interactions`.
