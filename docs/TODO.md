@@ -71,6 +71,12 @@ Some people who attend prickles have no Kajabi footprint at all (not a member, t
 - **Later refinement:** cascade only when the upstream step actually changed rows (each step reports whether it did), so a members rebuild that changes nothing costs nothing downstream.
 - **Cause of the members deadlocks / statement timeouts** (see "Members Reprocessing Deadlocks / Statement Timeouts on Concurrent Webhooks", noted in PR #27 review): before the 2026-09-29 fix, every Slack message/reaction webhook and every Zoom import ran a full members rebuild, and each members rebuild then ran the hard-coded 90-day attendance reprocess. A burst of events (e.g. the bot joining 16 channels during an import) ran many at once and hit statement timeouts (`57014`) on `reprocess_members_atomic`. Webhooks no longer start members runs, but members can still run concurrently (Kajabi import + nightly reconcile + a Slack import's user rebuild), and so can attendance (several Zoom `meeting.ended` events). Propagation must not reintroduce the pile-up: serialize or coalesce concurrent runs of the same step (e.g. a Postgres advisory lock), as that entry suggests.
 
+### On-Demand Incremental Fetch for Every Source
+Rule (CLAUDE.md, "Nothing through webhooks alone"): nightly reconciliation is the guaranteed path; webhooks and incremental fetches only reduce latency. Add a targeted incremental fetch per source so gaps heal in minutes instead of by the next nightly run:
+- Slack: a webhook for a thread reply, reaction or edit on a message we don't have fetches that thread (`conversations.replies`) or the channel since the newest known message; opening a bridged chat channel does the same. Coalesce bursts to one fetch per channel.
+- Zoom, Google Calendar, Kajabi: equivalent "fetch since the newest record we have" paths, triggered on demand (webhook gaps, admin button, page views).
+- Record each gap-fill (source, scope, rows recovered) and surface it on `/admin/data-health`. A fill that recovers many rows means the webhook was down. Checkly can't see this: it monitors endpoints and heartbeats, not processed requests or logs.
+
 ### Testing Page CSV Imports (Lower Priority)
 - [ ] Add Zoom CSV import to `/data/import/testing`
   - Component for uploading meeting/attendee CSV files
@@ -393,6 +399,29 @@ Per-user login/access history (`access_events` table + `get_access_sessions()`, 
 **Idea:** Add PostHog's free tier (1M events/mo, session replay included) as a bolt-on for that specific need — `posthog.identify(userId)` client-side, tied to the same Supabase auth id. Not a replacement for the custom table: PostHog's dashboard is a separate view, not integrated into `/admin/users`, and self-hosting PostHog was ruled out as too much infra for this app's all-serverless Vercel+Supabase stack.
 
 **Why deferred:** The custom table already answers the primary ask (login history + page trail inside the existing admin UI) with no new infrastructure or third-party script. Session replay is a nice-to-have for UX debugging, not a blocker.
+
+---
+
+## Notifications
+
+### Notification Framework _(Needs Scoping — prerequisite for in-app chat adoption)_
+One system for everything the app tells a member, instead of each feature hand-rolling a Slack DM (pre-prickle nudges, writing nudges, Wheel of Wonder, payment failures). In-app chat especially needs this: members won't move off Slack without being told about new messages, mentions and DMs.
+
+**Delivery channels:**
+- In-app: notification inbox + unread badges
+- Browser/OS: Web Push (service worker + VAPID keys); also covers installed-PWA push on mobile (iOS requires home-screen install, 16.4+)
+- Mobile push: native app later; Web Push covers it until then
+- Email: Resend + `react-email` (both already in the stack), including digests
+- Slack DM: existing `sendSlackDM` becomes one backend among several
+
+**Framework pieces:**
+- A single `notify(memberId, eventType, payload)` entry point writing to a `notifications` table/outbox, with fan-out to channels done asynchronously
+- Per-member preferences per event type × channel (e.g. DMs → push + email, channel messages → in-app only, @mentions → push), plus quiet hours / time zone
+- Escalation and dedupe: don't email what was already seen in-app; delay-then-send (e.g. email only if a DM is still unread after N minutes)
+- Digests: batch low-priority events into a daily/weekly email
+- Unsubscribe links and delivery tracking (Resend webhooks), logged to `member_activities` where useful
+
+Subsumes the "Messaging Abstraction Layer" under CRM Features → Slack Integration; build that on this rather than separately.
 
 ---
 

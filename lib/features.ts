@@ -1,4 +1,4 @@
-export type FeatureKey = 'member_overrides' | 'hedgieversaries' | 'work_queue' | 'program_cohorts' | 'events';
+export type FeatureKey = 'member_overrides' | 'hedgieversaries' | 'work_queue' | 'program_cohorts' | 'events' | 'message_privacy';
 
 export interface FeaturePreview {
   key: FeatureKey;
@@ -31,6 +31,11 @@ export const FEATURE_PREVIEWS: FeaturePreview[] = [
     key: 'events',
     name: 'Events',
     description: 'Retreats and other events, with metadata and a photo gallery imported from Google Photos',
+  },
+  {
+    key: 'message_privacy',
+    name: 'Message Privacy Page',
+    description: 'Member-facing /privacy page explaining what staff can see in Slack and Hub chat. Describes the planned chat bridge; keep off until that ships',
   },
 ];
 

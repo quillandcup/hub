@@ -289,6 +289,10 @@ await supabase.from("kajabi_members").insert({
 // Processing uses latest snapshot, making it idempotent at processing level
 ```
 
+**Soft delete in Bronze and Local, not hard delete**: When a source stops reporting something (a Slack message or reaction removed, a member leaving a channel), mark it (`deleted_at`, `removed_at`, `left_at`) rather than deleting the row. Silver can still DELETE + INSERT: it re-derives the soft-deleted state from Bronze/Local on every run, so nothing is lost. Hard delete only when the row has no history worth keeping, or when a Silver rebuild re-creates it. Before marking something deleted because it's missing from a fetch, confirm that fetch fully succeeded for that scope, or a failed API call reads as a mass deletion.
+
+**Nothing through webhooks alone**: Every webhook-handled event type (created, changed, deleted, membership, etc.) must also be caught by a pull-based import that runs in the nightly reconciliation cron and from the manual admin import. Webhooks and on-demand incremental fetches (e.g. fetch a missing thread when a webhook references a message we don't have) are latency optimizations layered on top, never the only path. New integrations follow this; extending on-demand incremental fetch to every source is tracked in `docs/TODO.md`.
+
 **Testing Requirements**:
 
 Every Silver processing route MUST have reprocessability tests verifying:
