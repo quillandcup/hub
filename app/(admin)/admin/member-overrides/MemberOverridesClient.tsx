@@ -300,7 +300,7 @@ export default function MemberOverridesClient() {
                         override.override_type === "gift"
                           ? "bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300"
                           : override.override_type === "direct_stripe"
-                          ? "bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300"
+                          ? "bg-mist-100 dark:bg-mist-900/30 text-mist-800 dark:text-mist-300"
                           : "bg-plum-100 dark:bg-plum-900/30 text-plum-800 dark:text-plum-300"
                       }`}
                     >

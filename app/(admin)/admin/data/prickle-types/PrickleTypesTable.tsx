@@ -18,7 +18,7 @@ export interface PrickleTypeRow {
 const PURPOSE_STYLES: Record<string, string> = {
   writing: "bg-plum-50 text-plum-700 dark:bg-plum-900/30 dark:text-plum-300",
   work: "bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300",
-  social: "bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300",
+  social: "bg-mist-50 text-mist-700 dark:bg-mist-900/30 dark:text-mist-300",
   mixed: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
 };
 

@@ -346,7 +346,7 @@ export default function CalendarWeekView({
                               title={`${slot.label} (${slot.status})`}
                               className={`absolute left-1 right-1 rounded border-2 border-dashed p-1 overflow-hidden text-xs ${
                                 slot.status === "confirmed"
-                                  ? "border-purple-400 bg-purple-50/70 text-purple-700 dark:border-purple-600 dark:bg-purple-950/40 dark:text-purple-300"
+                                  ? "border-mist-400 bg-mist-50/70 text-mist-700 dark:border-mist-600 dark:bg-mist-950/40 dark:text-mist-300"
                                   : "border-amber-400 bg-amber-50/70 text-amber-700 dark:border-amber-600 dark:bg-amber-950/40 dark:text-amber-300"
                               }`}
                               style={{ top: `${top}px`, height: `${height}px` }}

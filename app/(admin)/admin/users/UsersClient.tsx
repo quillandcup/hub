@@ -70,7 +70,7 @@ const ROLE_LABELS: Record<Role, string> = {
 };
 
 const ROLE_COLORS: Record<Role, string> = {
-  admin: "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300",
+  admin: "bg-mist-100 text-mist-800 dark:bg-mist-900/30 dark:text-mist-300",
   assistant: "bg-plum-100 text-plum-800 dark:bg-plum-900/30 dark:text-plum-300",
   member: "bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300",
 };

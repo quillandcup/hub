@@ -36,7 +36,7 @@ const SECTION_META: Record<
     title: "Hiatus Nudges",
     description: "Send a check-in at the 25%, 50%, and 75% marks of a hiatus.",
     emptyText: "No hiatus nudges due right now.",
-    badgeClass: "bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300",
+    badgeClass: "bg-mist-100 text-mist-800 dark:bg-mist-900/40 dark:text-mist-300",
   },
 };
 

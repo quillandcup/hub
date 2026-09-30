@@ -411,7 +411,7 @@ export default function HostsClient({ prickleTypes }: { prickleTypes: PrickleTyp
           <button
             onClick={handleBootstrap}
             disabled={bootstrapping}
-            className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50"
+            className="px-4 py-2 bg-plum-600 text-white rounded hover:bg-plum-700 disabled:opacity-50"
             title={`Create confirmed schedules from who's hosting on the calendar in ${monthLabel(month)}, then copy them to the following month`}
           >
             {bootstrapping ? "Bootstrapping…" : `Bootstrap ${monthLabel(month)} from calendar`}

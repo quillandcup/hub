@@ -20,6 +20,27 @@ const plum = {
   950: "#3a1628",
 };
 
+/**
+ * Second accent, built around the brand's mist #c7dfdf (at 200). Used wherever a
+ * palette needs a color next to plum that's clearly different from it (roles,
+ * badge categories, prickle types, avatar colors) -- in place of Tailwind's
+ * purple/indigo/violet, which sit too close to plum. Plain `mist` is the brand color.
+ */
+const mist = {
+  DEFAULT: "#c7dfdf",
+  50: "#f3f8f8",
+  100: "#e6f0f0",
+  200: "#c7dfdf",
+  300: "#a3c8c8",
+  400: "#74a8a9",
+  500: "#548b8c",
+  600: "#437273",
+  700: "#385d5e",
+  800: "#304d4e",
+  900: "#2a4142",
+  950: "#172627",
+};
+
 export default {
   content: [
     "./pages/**/*.{js,ts,jsx,tsx,mdx}",
@@ -42,7 +63,7 @@ export default {
         // Secondary colors.
         cream: "#f4ece8",
         blush: "#eadada",
-        mist: "#c7dfdf",
+        mist,
         beige: "#c19d85",
         brown: { DEFAULT: "#8e583d", deep: "#482815" },
       },

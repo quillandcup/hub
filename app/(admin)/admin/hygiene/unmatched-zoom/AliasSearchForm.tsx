@@ -252,7 +252,7 @@ export default function AliasSearchForm({
                         </span>
                       )}
                       {/[^\x00-\x7F]/.test(attendee.zoomName) && (
-                        <span className="text-xs px-2 py-0.5 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded">
+                        <span className="text-xs px-2 py-0.5 bg-mist-100 dark:bg-mist-900/30 text-mist-700 dark:text-mist-300 rounded">
                           special chars
                         </span>
                       )}

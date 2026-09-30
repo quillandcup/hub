@@ -291,7 +291,7 @@ export default async function DashboardPage() {
         </div>
 
         {/* Hedgie Welcome */}
-        <div className="bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 rounded-lg p-6 mb-8 flex items-center gap-6">
+        <div className="bg-gradient-to-r from-plum-50 to-cream dark:from-plum-900/20 dark:to-slate-900 rounded-lg p-6 mb-8 flex items-center gap-6">
           <img
             src="/hedgie-admin.png"
             alt="Hedgie Administrator"

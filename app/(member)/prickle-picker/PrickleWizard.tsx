@@ -81,7 +81,7 @@ function ChipGroup<T extends string>({
 
 function VibeBadge({ vibe }: { vibe: PickerRecommendation["vibe"] }) {
   const styles: Record<string, string> = {
-    focused: "bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300",
+    focused: "bg-mist-50 text-mist-700 dark:bg-mist-900/30 dark:text-mist-300",
     balanced: "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300",
     chatty: "bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300",
     unknown: "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400",

@@ -412,12 +412,12 @@ export default function SegmentsClient() {
                     f.segments.map((s) => (
                       <span
                         key={s.id}
-                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300"
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-mist-100 text-mist-800 dark:bg-mist-900/30 dark:text-mist-300"
                       >
                         {s.name}
                         <button
                           onClick={() => detachSegmentFromFlag(f.key, s.id)}
-                          className="hover:text-purple-900 dark:hover:text-purple-100"
+                          className="hover:text-mist-900 dark:hover:text-mist-100"
                           aria-label={`Remove ${s.name}`}
                         >
                           ×

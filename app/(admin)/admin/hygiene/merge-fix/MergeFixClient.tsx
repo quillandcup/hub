@@ -16,7 +16,7 @@ interface MergeFixClientProps {
 
 const AVATAR_COLORS = [
   "bg-plum-100 dark:bg-plum-900/30 text-plum-700 dark:text-plum-300",
-  "bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300",
+  "bg-mist-100 dark:bg-mist-900/30 text-mist-700 dark:text-mist-300",
   "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300",
   "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300",
 ];

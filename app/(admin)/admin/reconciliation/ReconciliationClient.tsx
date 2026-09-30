@@ -344,7 +344,7 @@ export default function ReconciliationClient() {
           <div className="text-sm text-gray-600 dark:text-gray-400">Active (Kajabi)</div>
         </div>
         <div className="p-4 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded">
-          <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">
+          <div className="text-2xl font-bold text-mist-600 dark:text-mist-400">
             {data.summary.total_overrides}
           </div>
           <div className="text-sm text-gray-600 dark:text-gray-400">Overrides</div>
@@ -521,9 +521,9 @@ export default function ReconciliationClient() {
                           <span
                             className={`px-2 py-1 text-xs rounded font-medium ${
                               member.override_type === "gift"
-                                ? "bg-purple-100 dark:bg-purple-900/40 text-purple-800 dark:text-purple-300"
+                                ? "bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300"
                                 : member.override_type === "direct_stripe"
-                                ? "bg-indigo-100 dark:bg-indigo-900/40 text-indigo-800 dark:text-indigo-300"
+                                ? "bg-mist-100 dark:bg-mist-900/40 text-mist-800 dark:text-mist-300"
                                 : "bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300"
                             }`}
                           >
@@ -559,7 +559,7 @@ export default function ReconciliationClient() {
                         </div>
                       ) : suggestedOverride(member) ? (
                         <div>
-                          <span className="px-2 py-1 text-xs rounded font-medium bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+                          <span className="px-2 py-1 text-xs rounded font-medium bg-mist-50 dark:bg-mist-950/40 text-mist-700 dark:text-mist-300 border border-mist-200 dark:border-mist-800">
                             ⚡ Suggested: direct_stripe
                           </span>
                           <button
