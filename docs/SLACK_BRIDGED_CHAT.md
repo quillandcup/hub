@@ -6,7 +6,7 @@ Status: **design agreed, not built.** Written 2026-09-29 from a design walkthrou
 
 - Chat in the Hub that mirrors our Slack channels: a message typed in either place shows up in both.
 - Room to migrate: app-only channels alongside bridged ones, and Slack-only channels (anything the bot isn't in) left alone. Moving a channel off Slack is a per-channel switch.
-- DMs and group DMs in the Hub (app-native; Slack DMs are never bridged).
+- DMs and group DMs in the Hub. Slack 1:1 DMs between people are never bridged (the bot can't be in them); Slack group DMs are bridged once someone adds the bot.
 - **The Hub is the permanent archive.** Slack's plan limits how much history Slack shows; the Hub keeps everything, so search is a first-class feature, not an add-on.
 - Chat activity (including private channels and DMs) feeds engagement and the member network graph as **metadata**, never content.
 
@@ -17,7 +17,8 @@ Status: **design agreed, not built.** Written 2026-09-29 from a design walkthrou
 | Topic | Decision |
 |---|---|
 | Where chat lives | Local layer (`chat_*` tables). Slack-origin rows are projected from Bronze by one shared function; app-origin rows are written by the app. |
-| Which Slack channels are bridged | Every channel Billie Bot is in, public or private, unless marked `bridge_disabled`. Channels the bot isn't in stay Slack-only. |
+| Which Slack conversations are bridged | Every conversation Billie Bot is in: public channels, private channels, and group DMs (members can add the bot to a group DM, and Wheel of Wonder rooms are group DMs the bot opens). Unless marked `bridge_disabled`. Anything the bot isn't in stays Slack-only. |
+| Slack group DMs | Bridged as `group_dm`, always `restricted` (content needs break-glass, metadata visible), and counted toward engagement and the network graph. Slack can't add people to an existing group DM, so their membership is read-only in the Hub. |
 | Membership | `chat_channel_members` for **all** channels = "subscribed" (sidebar, feed, notifications, read state). Mirrors Slack membership, public channels included. Required for access only on private channels and DMs. |
 | Adding/removing people in the app | Propagates to Slack (`conversations.invite` / `conversations.kick` by the bot). |
 | How app posts appear in Slack | Member's own Slack token if they connected Slack (native); otherwise the bot posts with the member's name and avatar (`chat:write.customize`). |
@@ -40,7 +41,7 @@ All `chat_*` tables are Local layer (the app is the source of truth), except tha
 | Column | Notes |
 |---|---|
 | `id` uuid | Stable; `/chat/<id>` URLs are safe to share |
-| `kind` | `channel` \| `dm` \| `group_dm` |
+| `kind` | `channel` \| `dm` \| `group_dm` (Hub-native, or a Slack group DM the bot is in) |
 | `bridge_mode` | `bridged` \| `app_only` |
 | `slack_channel_id` | Unique, nullable (null for app-only) |
 | `visibility` | `public` \| `private` |
@@ -136,13 +137,30 @@ Every webhook-handled event type has a pull:
 | Deletes | Messages in the window that Slack no longer returns → `deleted_at` |
 | Reactions | Reactions on fetched messages; missing → `removed_at` |
 | Membership | `conversations.members` per bridged channel; missing → `left_at` |
-| Channels | `conversations.list` |
+| Channels and group DMs | `conversations.list` with `public_channel,private_channel,mpim` (today it omits `mpim`, so group DMs are webhook-only) |
 | Custom emoji | `emoji.list`; missing → `removed_at` |
 | Users | `users.list` |
 
 Soft-deleting what's "missing" only happens for scopes whose fetch fully succeeded.
 
-History limit: the Hub can only archive what we've captured. Bronze has what previous imports and the webhook collected; anything Slack has already hidden is gone. Start the bridge's ingest early.
+### Slack free plan
+
+We're on Slack's free plan, which changes what "archive" means:
+
+- **The API only serves about the last 90 days.** Anything older that we didn't capture at the time is gone for good. A reconcile that fails, or silently skips part of its scope, for 90 days is permanent data loss, so reconcile failures (including partial ones: a channel's fetch erroring, the thread-reply pass timing out) must alert, not just log. Checkly's heartbeat only covers "the cron didn't run".
+- **Slack deletes messages and files older than one year** on free workspaces. Our earliest capture is 2026-03-27, so from about 2027-03 the Hub copy becomes the only copy, oldest first.
+- **Files have to be copied while Slack still has them.** Copying file contents into Supabase Storage moves from "later" into the groundwork phase: it only needs Bronze, so it can start long before any chat UI.
+
+### Bronze audit (2026-09-30)
+
+Counts from prod `bronze.slack_messages`, 4,835 rows:
+
+- **Permanent gaps** (unrecoverable on the free plan): nothing before 2026-03-27; almost no thread replies before July (3 in April–June vs. ~500/month from July on, so roughly 1,200–1,500 missing); private channels only from about June 1 (the bot was invited late).
+- Top-level messages in public channels from 2026-03-27 on look complete (~400–480/month).
+- **344 rows exist only because the webhook caught them** (the 90-day API import didn't return them):
+  - 75 `channel_join` / `channel_leave` notices stored as messages. `process/slack` doesn't filter subtypes, so each counts as a `slack_message` activity and inflates engagement. Fix: the webhook routes these to membership, not messages; delete the 75 rows from Bronze and reprocess Slack activity.
+  - 24 in group DMs (Wheel of Wonder rooms) that the import never fetches. Fix: add `mpim` to the import.
+  - 243 real member messages (216 plain + 12 file shares in private channels, 15 in public). Leading hypothesis: replies to threads whose first message is older than the 90-day window, since the reply pass only walks threads whose first message falls inside the window. Alternative: messages since deleted in Slack. Being confirmed; if it's old threads, the reply pass must also refresh threads that are still active (by the parent's `latest_reply`, or thread ids seen in recent webhook rows), or those replies stay webhook-only.
 
 ## Hub → Slack
 
@@ -159,7 +177,7 @@ The app writes the message (`slack_sync_status = 'pending'`), then calls `chat.p
 Every post carries `metadata: { event_type: "hub_message", event_payload: { app_message_id } }`. The webhook drops events carrying our `app_message_id`, which works even if Slack's event arrives before we've stored `slack_ts`. Verify in phase 2 that metadata comes back on events and in `conversations.history` (`include_all_metadata`); the fallback is matching on our bot id + a short-lived pending row.
 
 ### Membership
-Adding someone in the Hub → `conversations.invite`; removing → `conversations.kick` (Slack shows "removed by Billie Bot"); leaving yourself → your own token's `conversations.leave` when connected. A member without a Slack account gets Hub-only membership (Slack users won't see them in the member list; the UI notes this).
+Adding someone in the Hub → `conversations.invite`; removing → `conversations.kick` (Slack shows "removed by Billie Bot"); leaving yourself → your own token's `conversations.leave` when connected. A member without a Slack account gets Hub-only membership (Slack users won't see them in the member list; the UI notes this). Bridged Slack group DMs are the exception: Slack can't change a group DM's members, so their membership is read-only in the Hub.
 
 ## Content handling
 
@@ -170,7 +188,7 @@ Adding someone in the Hub → `conversations.invite`; removing → `conversation
   - Third-party apps (polls, Workflow Builder, Zoom, Calendar): clicks go to that app's server with Slack's signature, so the Hub shows them disabled with "Open in Slack".
   - Longer term, our notifications become Hub-native cards, rendered to Block Kit only when sent to Slack.
 - **Emoji**: replace the hand-picked `lib/slack-emoji.ts` with a full dataset (`emoji-datasource` or `emojibase`), lazy-loaded in the picker. Custom emoji from `bronze.slack_custom_emoji`; lookup order custom → Unicode → plain `:name:`. Images link to Slack's CDN at first; copy to Supabase Storage before leaving Slack. Hub-only custom emoji wait for app-only channels (Slack only accepts reactions it knows).
-- **Files**: phase 1 shows "view attachment in Slack". Later: copy Slack files to Supabase Storage on ingest, and upload Hub files with `files.uploadV2`.
+- **Files**: copy Slack files into Supabase Storage on ingest, starting in the groundwork phase (free plan: Slack deletes them after a year). Until the chat UI renders them, they're just archived. Hub uploads go to Slack with `files.uploadV2`.
 
 ## Search
 
@@ -193,9 +211,9 @@ Per channel: switch `bridge_mode` from `bridged` to `app_only`. The bot posts a 
 
 ## Slack app configuration
 
-- **Bot scopes** (add what's missing): `channels:history`, `groups:history`, `channels:read`, `groups:read`, `chat:write`, `chat:write.customize`, `reactions:read`, `reactions:write`, `users:read`, `users:read.email`, `emoji:read`, `channels:manage`, `groups:write`, `files:read` (later), `files:write` (later).
+- **Bot scopes** (add what's missing): `channels:history`, `groups:history`, `channels:read`, `groups:read`, `chat:write`, `chat:write.customize`, `reactions:read`, `reactions:write`, `users:read`, `users:read.email`, `emoji:read`, `mpim:history`, `mpim:read`, `channels:manage`, `groups:write`, `files:read`, `files:write` (later).
 - **User scopes** (per-member connect): `chat:write`, `reactions:write`, `channels:write`, `groups:write`.
-- **Events**: `message.channels`, `message.groups`, `reaction_added`, `reaction_removed`, `member_joined_channel`, `member_left_channel`, `channel_rename`, `channel_archive`, `channel_unarchive`, `group_rename`, `group_archive`, `group_unarchive`, `channel_created`, `emoji_changed`, `user_change`.
+- **Events**: `message.channels`, `message.groups`, `message.mpim`, `reaction_added`, `reaction_removed`, `member_joined_channel`, `member_left_channel`, `channel_rename`, `channel_archive`, `channel_unarchive`, `group_rename`, `group_archive`, `group_unarchive`, `channel_created`, `emoji_changed`, `user_change`.
 
 ## Phases
 
@@ -203,10 +221,13 @@ Per channel: switch `bridge_mode` from `bridged` to `app_only`. The bot posts a 
    - `audit_log` v1 (from `docs/ACTIVITY_AND_AUDIT_LOG.md`) plus an admin view with a break-glass / restriction-change filter.
    - Bronze fixes: webhook subtypes, soft delete for messages and reactions, membership and emoji pulls, content lock-down + `slack_messages_meta` view; move the admin pages that read Bronze content (Slack engagement insights, reconciliation) to server-side metadata reads.
    - Stop copying message text into `member_activities.description` for restricted channels and DMs.
+   - From the Bronze audit: webhook stops storing join/leave notices as messages (and the 75 existing rows are removed + Slack activity reprocessed); import fetches `mpim`; reply pass refreshes active old threads (if confirmed).
+   - Alert on reconcile failures, including partial ones.
+   - Copy Slack files into Supabase Storage.
 2. **Read-only mirror**: `chat_*` schema with the content/metadata split and RLS (pgTAP), projection + backfill, channel list and channel view, search v1, `restricted` flag and "staff can read this" indicator.
 3. **Two-way bridge**: posting with bot fallback, Slack connect (OAuth), outbox, loop prevention, edits/deletes/reactions, membership invite/kick, gap-fill + catch-up on open, attribution fixes in `process/slack` and Wheel of Wonder, `member_interactions`.
 4. **Hub-native**: app-only channels, DMs and group DMs, Realtime, unread counts, break-glass UI, report/flag path. Turn on `message_privacy` once every statement on `/privacy` is true.
-5. **Later**: files, notification framework, Block Kit subset + shared action handlers, custom emoji copies, migration tooling, forum exploration.
+5. **Later**: rendering files in chat, notification framework, Block Kit subset + shared action handlers, custom emoji copies, migration tooling, forum exploration.
 
 ## Testing
 

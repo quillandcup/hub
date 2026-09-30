@@ -42,6 +42,6 @@ describe("/privacy (message_privacy flag)", () => {
     await renderServerPage(PrivacyPage, {});
     expect(screen.getByRole("heading", { name: "Message Privacy" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Break-glass access" })).toBeInTheDocument();
-    expect(screen.getByText("Direct messages and group DMs in the Hub")).toBeInTheDocument();
+    expect(screen.getByText(/^Direct messages and group DMs in the Hub/)).toBeInTheDocument();
   });
 });
