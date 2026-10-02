@@ -295,18 +295,10 @@ export const ENV_VARS: readonly EnvVarSpec[] = [
     destinations: vercelAllEnvs,
   },
   {
-    name: "SENTRY_DSN",
-    group: "Analytics & Monitoring",
-    description:
-      "Server-side Sentry DSN. DSNs are designed to be safe to expose (write-only ingest endpoint).",
-    type: "config",
-    destinations: vercelAllEnvs,
-  },
-  {
     name: "NEXT_PUBLIC_SENTRY_DSN",
     group: "Analytics & Monitoring",
     description:
-      "Client-side Sentry DSN. Public by design, same reasoning as SENTRY_DSN.",
+      "Sentry DSN for the browser, server and edge configs alike (one var: NEXT_PUBLIC_ vars are readable server-side too). Public by design -- a write-only ingest endpoint. Unset disables Sentry.",
     type: "config",
     destinations: vercelAllEnvs,
   },
