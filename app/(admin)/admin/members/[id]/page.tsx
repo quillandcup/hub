@@ -136,7 +136,7 @@ export default async function MemberDetailPage({
   // Fetch email aliases
   const { data: emailAliases } = await supabase
     .from("member_email_aliases")
-    .select("alias_email")
+    .select("id, alias_email, source, active")
     .eq("member_id", id)
     .order("alias_email");
 
@@ -331,7 +331,7 @@ export default async function MemberDetailPage({
           awardableBadgeTypes={awardableBadgeTypes ?? []}
           awards={awards}
           nameAliases={nameAliasRows ?? []}
-          emailAliases={(emailAliases ?? []).map((a: any) => a.alias_email)}
+          emailAliases={emailAliases ?? []}
         />
       </main>
     </div>
