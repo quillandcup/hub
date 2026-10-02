@@ -35,7 +35,7 @@ done
 # Set defaults based on --env
 if [[ "$ENV" == "prod" ]]; then
   ENV_FILE=".env.prod"
-  : "${BASE_URL:=$(node -p 'require("./app.config.json").appUrl')}"
+  : "${BASE_URL:=$(node -p 'require("./app.config.ts").appConfig.appUrl')}"
 else
   ENV_FILE=".env.local"
   : "${BASE_URL:=http://localhost:3000}"  # the local `npm run dev` server

@@ -8,7 +8,7 @@
 
 // Relative, not "@/": also loaded outside Next (scripts/render-email-templates.ts via
 // supabase/emails/layout.tsx).
-import appConfig from "../app.config.json";
+import appConfig from "../app.config";
 
 /**
  * Environment type
@@ -42,7 +42,7 @@ export const deployment = {
 };
 
 /**
- * Organization settings shared by every environment, from app.config.json at the repo root.
+ * Organization settings shared by every environment, from app.config.ts at the repo root.
  * Per-environment values and secrets are env vars (env-vars.config.ts) instead.
  */
 

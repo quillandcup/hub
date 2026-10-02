@@ -26,9 +26,9 @@ import { existsSync, readFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { parse as parseDotenv } from "dotenv";
 import { ENV_VARS } from "../env-vars.config";
-import appConfig from "../app.config.json";
+import appConfig from "../app.config";
 
-/** app.config.json values that SQL (pg_cron jobs) reads from Vault, by Vault name. */
+/** app.config.ts values that SQL (pg_cron jobs) reads from Vault, by Vault name. */
 const SHARED_CONFIG_IN_VAULT: readonly {
   key: "appUrl";
   vaultName: string;
@@ -37,7 +37,7 @@ const SHARED_CONFIG_IN_VAULT: readonly {
   {
     key: "appUrl",
     vaultName: "app_url",
-    description: "Canonical app base URL (app.config.json appUrl), read by pg_cron jobs.",
+    description: "Canonical app base URL (app.config.ts appUrl), read by pg_cron jobs.",
   },
 ];
 
@@ -102,9 +102,9 @@ function main(): void {
     }
   }
 
-  // Shared (non-env-scoped) config that SQL needs, from app.config.json.
+  // Shared (non-env-scoped) config that SQL needs, from app.config.ts.
   for (const { key, vaultName, description } of SHARED_CONFIG_IN_VAULT) {
-    syncVaultSecret(`app.config.json ${key}`, String(appConfig[key]), vaultName, description);
+    syncVaultSecret(`app.config.ts ${key}`, String(appConfig[key]), vaultName, description);
   }
 
   console.log("\n✅ Vault secrets synced!\n");

@@ -1,7 +1,0 @@
-{
-  "appUrl": "https://hub.quillandcup.com",
-  "orgTimezone": "America/New_York",
-  "supportEmail": "support@quillandcup.com",
-  "sentry": { "org": "quillandcup", "project": "hub" },
-  "checkly": { "alertEmail": "cody@quillandcup.com" }
-}

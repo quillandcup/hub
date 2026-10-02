@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 import path from "path";
 import { withSentryConfig } from "@sentry/nextjs/config";
-import appConfig from "./app.config.json";
+import appConfig from "./app.config";
 
 // Preview deployments have intermittently hung indefinitely (~45 min, then
 // force-errored with no diagnostic output) during Next.js's "checking
@@ -32,7 +32,7 @@ const nextConfig: NextConfig = {
 };
 
 export default withSentryConfig(nextConfig, {
-  // Only used for the source map upload. Slugs from app.config.json; the auth token is a
+  // Only used for the source map upload. Slugs from app.config.ts; the auth token is a
   // GitHub secret passed to CI's production `vercel build` (see env-vars.config.ts).
   org: appConfig.sentry.org,
   project: appConfig.sentry.project,
