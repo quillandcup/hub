@@ -48,6 +48,7 @@ vi.mock('@/lib/processing/trigger', () => ({ triggerReprocessing: vi.fn(async ()
 
 import { requireAdmin } from '@/lib/supabase/api-auth'
 import { POST } from '@/app/api/import/slack-api/route'
+import { slackImportLimits } from '@/lib/slack-messages'
 
 /** A thread: parent (as history returns it) plus its replies (as replies returns them). */
 function makeThread(label: number, parentAgeDays: number, replyAgesDays: number[]) {
@@ -106,39 +107,38 @@ describe('POST /api/import/slack-api thread selection', () => {
     return (data ?? []).map((r) => r.message_ts)
   }
 
+  // No fake timers or Date.now mocks here: advancing timers also fires the
+  // HTTP client's headers timeout on in-flight Supabase requests (it failed
+  // that way in CI). The one channel's 1.2s pause is real, and the time
+  // budget is lowered through slackImportLimits instead.
+  const defaultBudget = slackImportLimits.fetchBudgetMs
+
   beforeEach(async () => {
     vi.clearAllMocks()
-    vi.useFakeTimers({ toFake: ['setTimeout'] }) // skip the 1.2s per-channel pause
     vi.stubEnv('SLACK_BOT_TOKEN', 'xoxb-test')
     vi.mocked(requireAdmin).mockResolvedValue({ user: { id: 'admin' } as any, forbidden: false, supabase } as any)
     slackState.onReplies = undefined
+    slackImportLimits.fetchBudgetMs = defaultBudget
     await cleanup()
   })
 
   afterEach(() => {
-    vi.useRealTimers()
-    vi.restoreAllMocks()
+    slackImportLimits.fetchBudgetMs = defaultBudget
   })
 
   afterAll(cleanup)
-
-  async function runImportAdvancingTimers() {
-    const pending = runImport()
-    await vi.runAllTimersAsync()
-    return pending
-  }
 
   it('fetches every thread on the first run, then only changed or recently active ones', async () => {
     const quiet = makeThread(1, 40, [39, 38])
     const active = makeThread(2, 40, [39, 1])
     serve([quiet, active])
 
-    const first = await runImportAdvancingTimers()
+    const first = await runImport()
     expect(repliesCalls.sort()).toEqual([quiet.parentTs, active.parentTs].sort())
     expect(first.fetched.threadsFetched).toBe(2)
     expect(await storedReplyTs(quiet.parentTs)).toEqual(quiet.replies.map((r) => r.ts))
 
-    const second = await runImportAdvancingTimers()
+    const second = await runImport()
     expect(repliesCalls).toEqual([active.parentTs])
     expect(second.fetched.threadsFetched).toBe(1)
     expect(second.fetched.threadsDeferred).toBe(0)
@@ -147,7 +147,7 @@ describe('POST /api/import/slack-api thread selection', () => {
   it('refetches an old thread once it gets a new reply', async () => {
     const t = makeThread(3, 40, [39])
     serve([t])
-    await runImportAdvancingTimers()
+    await runImport()
 
     const newReply = { ts: `${nowSec - 20 * day}.000399`, user: userId, text: 'late reply', thread_ts: t.parentTs }
     t.replies.push(newReply)
@@ -155,7 +155,7 @@ describe('POST /api/import/slack-api thread selection', () => {
     t.parent.latest_reply = newReply.ts
     serve([t])
 
-    await runImportAdvancingTimers()
+    await runImport()
     expect(repliesCalls).toEqual([t.parentTs])
     expect(await storedReplyTs(t.parentTs)).toEqual(t.replies.map((r) => r.ts))
   })
@@ -163,7 +163,7 @@ describe('POST /api/import/slack-api thread selection', () => {
   it('keeps reactions on replies of threads it skipped', async () => {
     const t = makeThread(4, 40, [39])
     serve([t])
-    await runImportAdvancingTimers()
+    await runImport()
     await supabase.schema('bronze').from('slack_reactions').insert({
       channel_id: channelId,
       message_ts: t.replies[0].ts,
@@ -173,7 +173,7 @@ describe('POST /api/import/slack-api thread selection', () => {
       raw_payload: {},
     })
 
-    const body = await runImportAdvancingTimers()
+    const body = await runImport()
     expect(repliesCalls).toEqual([])
     expect(body.imported.reactionsRemoved).toBe(0)
     const { data } = await supabase.schema('bronze').from('slack_reactions').select('reaction').eq('message_ts', t.replies[0].ts)
@@ -184,17 +184,14 @@ describe('POST /api/import/slack-api thread selection', () => {
     const threads = Array.from({ length: 8 }, (_, i) => makeThread(10 + i, 60 - i, [50 - i]))
     serve(threads)
 
-    // Once the first reply call starts, jump past the fetch budget.
-    const realNow = Date.now.bind(Date)
-    let offset = 0
-    vi.spyOn(Date, 'now').mockImplementation(() => realNow() + offset)
+    // Once the first reply call starts, the budget is used up.
     slackState.onReplies = () => {
-      offset = 10 * 60 * 1000
+      slackImportLimits.fetchBudgetMs = 0
     }
 
-    const first = await runImportAdvancingTimers()
-    // The clock jumps as the first call starts, so only that thread (the one
-    // with the newest reply) is fetched; the other workers see the deadline.
+    const first = await runImport()
+    // The budget runs out as the first call starts, so only that thread (the
+    // one with the newest reply) is fetched; the other workers see it's spent.
     const newest = threads[threads.length - 1]
     expect(repliesCalls).toEqual([newest.parentTs])
     expect(first.fetched.threadsFetched).toBe(1)
@@ -203,8 +200,8 @@ describe('POST /api/import/slack-api thread selection', () => {
     for (const t of threads.slice(0, -1)) expect(await storedReplyTs(t.parentTs)).toEqual([])
 
     slackState.onReplies = undefined
-    offset = 0
-    const second = await runImportAdvancingTimers()
+    slackImportLimits.fetchBudgetMs = defaultBudget
+    const second = await runImport()
     expect(repliesCalls.sort()).toEqual(threads.slice(0, -1).map((t) => t.parentTs).sort())
     expect(second.fetched.threadsDeferred).toBe(0)
     for (const t of threads) expect(await storedReplyTs(t.parentTs)).toEqual(t.replies.map((r) => r.ts))

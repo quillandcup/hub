@@ -23,6 +23,21 @@ export function slackTsToIso(ts: string | number): string {
   return new Date(parseFloat(String(ts)) * 1000).toISOString();
 }
 
+/**
+ * Limits for /api/import/slack-api. An object rather than constants so tests
+ * can lower them without faking timers or Date.now, which would also fire
+ * the HTTP client's own timeouts on in-flight Supabase requests.
+ */
+export const slackImportLimits = {
+  // Thread replies get whatever is left of this after channel history,
+  // leaving the rest of the 300s maxDuration for the upserts and Silver
+  // reprocessing. Threads that don't fit are fetched on the next run.
+  fetchBudgetMs: 170_000,
+  // Replies to threads active this recently are refetched every run, to
+  // catch reactions added or removed on them.
+  recentThreadDays: 3,
+};
+
 export interface SlackThreadParent {
   channel_id: string;
   message_ts: string;

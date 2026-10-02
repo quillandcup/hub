@@ -10,18 +10,11 @@ import {
   slackTsToIso,
   threadKey,
   threadsNeedingReplies,
+  slackImportLimits,
   type StoredThreadReplies,
 } from '@/lib/slack-messages';
 
 export const maxDuration = 300; // 5 minutes for Slack API calls
-
-// Thread replies get whatever is left of this budget after channel history,
-// leaving the rest of maxDuration for the upserts and Silver reprocessing.
-// Threads that don't fit are fetched on the next run (see threadsNeedingReplies).
-const FETCH_BUDGET_MS = 170_000;
-// Replies to threads active this recently are refetched every run, to catch
-// reactions added or removed on them.
-const RECENT_THREAD_DAYS = 3;
 
 interface SlackApiImportRequest {
   daysBack: number;
@@ -95,9 +88,9 @@ export async function POST(request: NextRequest) {
     // only threads that changed (or are still active) are fetched.
     const parents = allMessages.filter(m => m.reply_count > 0);
     const storedReplies = await loadStoredThreadReplies(supabase, parents);
-    const threads = threadsNeedingReplies(parents, storedReplies, latest - RECENT_THREAD_DAYS * 24 * 60 * 60);
+    const threads = threadsNeedingReplies(parents, storedReplies, latest - slackImportLimits.recentThreadDays * 24 * 60 * 60);
     console.log(`Fetching replies for ${threads.length} of ${parents.length} threads...`);
-    const threadReplies = await fetchThreadReplies(slack, threads, startedAt + FETCH_BUDGET_MS);
+    const threadReplies = await fetchThreadReplies(slack, threads, startedAt);
     if (threadReplies.deferred > 0) {
       console.warn(`  Out of time: ${threadReplies.deferred} threads deferred to the next run`);
     }
@@ -402,16 +395,17 @@ async function loadStoredThreadReplies(supabase: SupabaseClient, parents: any[])
 /**
  * Fetch every reply in the given threads, 5 at a time. When Slack
  * rate-limits, WebClient waits out the 429's Retry-After and retries. Stops
- * starting new threads at `deadline`; the rest are counted as deferred.
+ * starting new threads once slackImportLimits.fetchBudgetMs has passed since
+ * `startedAt`; the rest are counted as deferred.
  */
-async function fetchThreadReplies(slack: WebClient, parents: any[], deadline: number) {
+async function fetchThreadReplies(slack: WebClient, parents: any[], startedAt: number) {
   const messages: any[] = [];
   const reactions: any[] = [];
   const queue = [...parents];
 
   const worker = async () => {
     for (let parent = queue.shift(); parent; parent = queue.shift()) {
-      if (Date.now() >= deadline) {
+      if (Date.now() - startedAt >= slackImportLimits.fetchBudgetMs) {
         queue.unshift(parent);
         return;
       }
