@@ -29,11 +29,6 @@ export const appConfig = {
 
   /** Sentry org/project slugs for the production build's source map upload. */
   sentry: { org: "quillandcup", project: "hub" },
-
-  checkly: {
-    /** Where Checkly sends monitor alerts. */
-    alertEmail: "cody@quillandcup.com",
-  },
 } as const;
 
 export default appConfig;

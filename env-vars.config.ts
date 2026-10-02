@@ -310,6 +310,14 @@ export const ENV_VARS: readonly EnvVarSpec[] = [
     type: "secret",
     destinations: [{ kind: "github" }],
   },
+  {
+    name: "ALERTS_EMAIL",
+    group: "Analytics & Monitoring",
+    description:
+      "Engineering alerts address for this environment (eng-alerts-prod@ / eng-alerts-preview@). The GitHub copy (from .env.prod) is what Checkly alerts at `checkly deploy` -- the monitors watch production. The Vercel copies are for app-side alerting per environment.",
+    type: "config",
+    destinations: [...vercelAllEnvs, { kind: "github" }],
+  },
 
   ...Object.values(CRON_HEARTBEATS).map(
     (heartbeat): EnvVarSpec => ({

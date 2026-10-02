@@ -1,8 +1,8 @@
 import { EmailAlertChannel } from 'checkly/constructs'
 import { alertEmail } from './config'
 
-// Notifies the account owner's email on failure/recovery for both uptime
-// and SSL monitors. Add more channels here (Slack, etc.) as the team grows.
+// Notifies the engineering alerts list on failure/recovery for every monitor
+// (uptime, SSL, cron heartbeats). Add more channels here (Slack, etc.) as needed.
 export const ownerEmailAlert = new EmailAlertChannel('owner-email-alert', {
   address: alertEmail,
   sslExpiry: true,

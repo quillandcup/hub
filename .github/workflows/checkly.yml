@@ -48,6 +48,7 @@ jobs:
         env:
           CHECKLY_API_KEY: ${{ secrets.CHECKLY_API_KEY }}
           CHECKLY_ACCOUNT_ID: ${{ vars.CHECKLY_ACCOUNT_ID }}
+          ALERTS_EMAIL: ${{ vars.ALERTS_EMAIL }} # read by __checks__/config.ts
 
   checkly-deploy:
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
@@ -59,3 +60,4 @@ jobs:
         env:
           CHECKLY_API_KEY: ${{ secrets.CHECKLY_API_KEY }}
           CHECKLY_ACCOUNT_ID: ${{ vars.CHECKLY_ACCOUNT_ID }}
+          ALERTS_EMAIL: ${{ vars.ALERTS_EMAIL }} # read by __checks__/config.ts
