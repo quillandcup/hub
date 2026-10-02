@@ -9,6 +9,7 @@ import {
   Text,
   Hr,
 } from "react-email";
+import { SUPPORT_EMAIL } from "../../lib/config";
 
 const colors = {
   bg: "#faf8f5",
@@ -83,8 +84,8 @@ export function EmailLayout({
             Hedgie Hub · The members' home of Quill &amp; Cup, a community for writers
             <br />
             Questions? Email{" "}
-            <a href="mailto:support@quillandcup.com" style={{ color: colors.accent }}>
-              support@quillandcup.com
+            <a href={`mailto:${SUPPORT_EMAIL}`} style={{ color: colors.accent }}>
+              {SUPPORT_EMAIL}
             </a>{" "}
             — replies to this address aren't monitored.
           </Text>

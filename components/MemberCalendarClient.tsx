@@ -5,6 +5,7 @@ import CalendarWeekView, { type Prickle } from "./CalendarWeekView";
 import CalendarScrollContainer from "./CalendarScrollContainer";
 import AttendanceMonthGrid from "./AttendanceMonthGrid";
 import AttendanceListTable from "./AttendanceListTable";
+import { ORG_TIMEZONE } from "@/lib/config";
 
 interface Props {
   memberId: string;
@@ -55,7 +56,7 @@ export default function MemberCalendarClient({
   }, [defaultTimezone]);
 
   const timezone =
-    defaultTimezone === "browser" ? detectedTimezone || "America/New_York" : defaultTimezone;
+    defaultTimezone === "browser" ? detectedTimezone || ORG_TIMEZONE : defaultTimezone;
 
   const [view, setView] = useState<"month" | "week" | "list">(initialView);
   const [currentMonthDate, setCurrentMonthDate] = useState(() => new Date());

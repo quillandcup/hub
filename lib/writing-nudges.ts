@@ -1,10 +1,10 @@
 import { matchSlackUsersToMembers } from "@/lib/slack-matching";
 import { sendSlackDM } from "@/lib/slack";
 import { MEASURE_QUICK_LOG_PRESETS, type WritingMeasure } from "@/lib/writing-projects";
+import { ORG_TIMEZONE } from "@/lib/config";
 
-// Mirrors the same fallback convention used in app/(member)/dashboard/page.tsx,
-// app/(member)/projects/actions.ts, and app/(member)/streaks/page.tsx.
-export const ORG_TIMEZONE = "America/New_York";
+// Re-exported for existing importers; the value comes from env (lib/config.ts).
+export { ORG_TIMEZONE };
 
 const BATCH_SIZE = 1000;
 

@@ -31,15 +31,16 @@ const nextConfig: NextConfig = {
 };
 
 export default withSentryConfig(nextConfig, {
-  org: "quillandcup",
-  project: "hub",
+  // Org/project slugs and the auth token are only used for the source map upload. All three
+  // are GitHub Actions config passed to CI's production `vercel build` (see env-vars.config.ts).
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
 
-  // Source map upload auth token — set SENTRY_AUTH_TOKEN in the environment
-  // (build-time secret, generated at sentry.io/settings/account/api/auth-tokens)
-  // to enable readable production stack traces. Builds succeed without it;
-  // source maps just won't upload. It's deliberately Production-only in
-  // Vercel, so skip the upload attempt entirely on Preview/dev instead of
-  // just accepting the "No auth token provided" warning noise every build.
+  // Source map upload auth token (build-time secret, generated at
+  // sentry.io/settings/account/api/auth-tokens) for readable production stack
+  // traces. Builds succeed without it; source maps just won't upload. Only the
+  // CI production build has it, so skip the upload attempt entirely elsewhere
+  // instead of accepting the "No auth token provided" warning noise every build.
   authToken: process.env.SENTRY_AUTH_TOKEN,
   sourcemaps: {
     disable: !process.env.SENTRY_AUTH_TOKEN,

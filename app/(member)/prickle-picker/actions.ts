@@ -18,10 +18,11 @@ import {
   type Vibe,
   type VibePreference,
 } from "@/lib/prickle-picker";
+import { ORG_TIMEZONE } from "@/lib/config";
 
 const BATCH_SIZE = 1000;
 const HISTORY_MONTHS = 6;
-const DEFAULT_TIMEZONE = "America/New_York";
+const DEFAULT_TIMEZONE = ORG_TIMEZONE;
 
 export interface WizardAnswers {
   /** How many days out from now to look for candidates. */

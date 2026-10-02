@@ -24,12 +24,12 @@ import CalendarSyncCard from "./CalendarSyncCard";
 import AddedToCalendarList from "./AddedToCalendarList";
 import { Tabs } from "@/components/Tabs";
 import { RememberTabUrl } from "@/components/ReturnToTab";
+import { ORG_TIMEZONE } from "@/lib/config";
 
 export const metadata: Metadata = {
   title: "My Prickles",
 };
 
-const ORG_TIMEZONE = "America/New_York";
 const UPCOMING_WINDOW_DAYS = 14;
 const MAX_UPCOMING_DISPLAY = 8;
 const SCHEDULE_LOOKBACK_DAYS = 90;

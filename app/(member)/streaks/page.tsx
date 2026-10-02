@@ -19,8 +19,8 @@ import {
   type PrickleStreak,
   type SisterStreak,
 } from "@/lib/streaks"
+import { ORG_TIMEZONE } from "@/lib/config";
 
-const ORG_TIMEZONE = "America/New_York"
 const STREAK_LIST_LIMIT = 10
 
 function formatHour(hour: number): string {

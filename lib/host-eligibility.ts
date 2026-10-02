@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { addMonthsClamped } from "@/lib/member-tenure";
+import { ORG_TIMEZONE } from "@/lib/config";
 
 // Business rule: we don't invite people to host until they've been a member
 // for a full calendar month. Wherever the app invites, suggests, or accepts
@@ -8,7 +9,6 @@ export const HOST_ELIGIBILITY_MIN_MONTHS = 1;
 
 // "Today" for the rule is the org-local calendar date, so a member becomes
 // eligible at local midnight on their eligibility date, not at UTC midnight.
-const ORG_TIMEZONE = "America/New_York";
 
 export interface HostEligibilityMember {
   firstJoinedAt: string | null; // members.first_joined_at (date-only)

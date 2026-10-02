@@ -14,6 +14,7 @@ import { parseInstagramInput } from "@/lib/kajabi/profile-fields";
 import { MAX_BIO_LENGTH, parseBioInput, parseFacebookInput, parseXInput } from "@/lib/social-links";
 import { MAX_TOPICS, MAX_TOPIC_LENGTH, normalizeTopics } from "@/lib/ask-me-about";
 import TagInput from "@/components/TagInput";
+import { SUPPORT_EMAIL } from "@/lib/config";
 
 const INPUT_CLASS =
   "w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-sm";
@@ -231,8 +232,8 @@ export function ProfilePanel() {
           ) : (
             <p className="text-xs text-slate-500 dark:text-slate-400">
               Instagram isn&apos;t set up for your account yet. Email{" "}
-              <a href="mailto:support@quillandcup.com" className="underline">
-                support@quillandcup.com
+              <a href={`mailto:${SUPPORT_EMAIL}`} className="underline">
+                {SUPPORT_EMAIL}
               </a>{" "}
               and we&apos;ll sort it out.
             </p>

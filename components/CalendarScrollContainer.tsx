@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { ORG_TIMEZONE } from "@/lib/config";
 
 function earliestPrickleHour(startTimes: string[], timezone: string): number {
   if (startTimes.length === 0) return 7;
   const tz = timezone === "browser"
     ? Intl.DateTimeFormat().resolvedOptions().timeZone
-    : (timezone || "America/New_York");
+    : (timezone || ORG_TIMEZONE);
   let min = 24;
   for (const t of startTimes) {
     const h = parseInt(

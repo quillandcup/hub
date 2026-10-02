@@ -65,6 +65,6 @@ describe('IdentityPanel', () => {
 
     await waitFor(() => expect(screen.getByText('Ada Lovelace')).toBeInTheDocument())
     expect(screen.queryByDisplayValue('Ada Lovelace')).not.toBeInTheDocument()
-    expect(screen.getByText(/support@quillandcup\.com/)).toBeInTheDocument()
+    expect(screen.getByText(/support@example\.com/)).toBeInTheDocument()
   })
 })

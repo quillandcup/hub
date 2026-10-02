@@ -18,8 +18,9 @@ import {
 import { computeHostingStats, type HostingStats } from "@/lib/hosting-stats";
 import { fetchHostedPrickleRecords } from "@/lib/hosted-prickles";
 import { fetchHostEligibilityByMember, hostEligibilityMessage, type HostEligibility } from "@/lib/host-eligibility";
+import { ORG_TIMEZONE } from "@/lib/config";
 
-const DEFAULT_TIMEZONE = "America/New_York";
+const DEFAULT_TIMEZONE = ORG_TIMEZONE;
 
 export interface MyScheduleRow {
   id: string;

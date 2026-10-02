@@ -35,17 +35,21 @@ done
 # Set defaults based on --env
 if [[ "$ENV" == "prod" ]]; then
   ENV_FILE=".env.prod"
-  : "${BASE_URL:=https://hub.quillandcup.com}"
 else
   ENV_FILE=".env.local"
-  : "${BASE_URL:=http://localhost:3000}"
 fi
-BASE_URL="${BASE_URL%/}"
 
-# Load service role key from env file
+# Load service role key (and, unless BASE_URL is set, the app URL) from env file
 if [[ -f "$ENV_FILE" ]]; then
   SERVICE_ROLE_KEY=$(grep '^SUPABASE_SERVICE_ROLE_KEY=' "$ENV_FILE" | head -1 | cut -d= -f2- | tr -d '"'"'" )
+  : "${BASE_URL:=$(grep '^NEXT_PUBLIC_APP_URL=' "$ENV_FILE" | head -1 | cut -d= -f2- | tr -d '"'"'" )}"
 fi
+
+if [[ -z "${BASE_URL:-}" ]]; then
+  echo "Error: set BASE_URL or NEXT_PUBLIC_APP_URL in $ENV_FILE"
+  exit 1
+fi
+BASE_URL="${BASE_URL%/}"
 
 if [[ -z "${SERVICE_ROLE_KEY:-}" ]]; then
   echo "Error: SUPABASE_SERVICE_ROLE_KEY not found in $ENV_FILE"

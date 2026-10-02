@@ -129,6 +129,12 @@ const memberBasePath = isActingAsAdmin ? "/admin/members" : "/members";
 
 **Auth lookups in server code**: Use `getCurrentUser()` from `lib/auth.ts` (returns `{ id, email }` or `null`) in layouts, pages, server actions and API routes. It verifies the JWT locally via `supabase.auth.getClaims()` and is memoized per render with React `cache()`, so layout + page share one check. Only `lib/supabase/middleware.ts` (token refresh + live-session check) and code that needs fields absent from the JWT (`last_sign_in_at`, `identities`, etc.) or must confirm the session is still live server-side (e.g. session management in `app/(member)/settings/actions.ts`) should call `supabase.auth.getUser()`.
 
+### No Hardcoded Config
+
+**RULE**: Deployment/org config (URLs, hosts, emails, timezones, IDs, slugs) comes from env vars declared in `env-vars.config.ts`, never literals or `??` fallbacks in code. App code reads it through `lib/config.ts` (`APP_URL`, `ORG_TIMEZONE`, `SUPPORT_EMAIL`, ...), which throws at load when a var is unset -- add new values there the same way. Checkly checks read `__checks__/env.ts`; SQL/pg_cron reads Vault (a `vault` destination in `env-vars.config.ts`).
+
+Tests use example values (`tests/setup.ts`, and the test jobs' `env` in `ci.yml`), so assert against those, not production values. A new required var must be in Vercel (`npm run env:sync`) before the code that needs it deploys, or the build fails.
+
 ### Admin Route Protection
 
 **RULE**: Every `app/(admin)/admin/**/page.tsx` starts with `await requireAdminPage()`, and every admin-only server action starts with `const auth = await requireAdminAction(); if (!auth.ok) return { error: auth.error };` (both from `lib/admin-auth.ts`). Don't hand-roll `user_profiles` role checks, and don't rely on the admin layout or the page to protect an action.

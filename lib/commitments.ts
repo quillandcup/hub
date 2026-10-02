@@ -6,6 +6,7 @@
 // app/(member)/my-prickles/commitment-actions.ts do the fetching.
 
 import { formatScheduleLabel, zonedTimeToUtc } from "@/lib/prickle-schedules";
+import { ORG_TIMEZONE } from "@/lib/config";
 
 export type CommitmentStatus = "active" | "completed" | "cancelled";
 
@@ -17,7 +18,7 @@ export type CommitmentStatus = "active" | "completed" | "cancelled";
  * daylight saving start or end on different dates. Labels are still shown in the member's
  * timezone (slotInTimeZone).
  */
-export const SCHEDULE_TIMEZONE = "America/New_York";
+export const SCHEDULE_TIMEZONE = ORG_TIMEZONE;
 
 export const MIN_COMMITMENT_WEEKS = 1;
 export const MAX_COMMITMENT_WEEKS = 12;

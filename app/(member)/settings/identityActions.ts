@@ -7,6 +7,7 @@ import { getEffectiveIdentity } from "@/lib/sudo";
 import { triggerReprocessing } from "@/lib/processing/trigger";
 import { createKajabiClient } from "@/lib/kajabi/client";
 import { revalidatePath } from "next/cache";
+import { SUPPORT_EMAIL } from "@/lib/config";
 
 export interface NameAliasRow {
   id: string;
@@ -132,7 +133,7 @@ export async function updateRealName(name: string): Promise<{ success: true } | 
 
   if (current.self_service_name_changed_at != null) {
     return {
-      error: "You've already used your one name change. Email support@quillandcup.com to update it further.",
+      error: `You've already used your one name change. Email ${SUPPORT_EMAIL} to update it further.`,
     };
   }
 

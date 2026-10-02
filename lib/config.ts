@@ -38,6 +38,32 @@ export const deployment = {
 };
 
 /**
+ * Organization/deployment settings (declared in env-vars.config.ts). No defaults: a missing var
+ * throws when this module loads, so a misconfigured build or server fails fast instead of
+ * quietly using a value baked into the code.
+ *
+ * NEXT_PUBLIC_* names must be written out literally (`process.env.NEXT_PUBLIC_X`), not looked
+ * up by a variable key: Next.js inlines them into client bundles by matching that exact text.
+ */
+function required(name: string, value: string | undefined): string {
+  if (!value) throw new Error(`${name} is not set -- see env-vars.config.ts`);
+  return value;
+}
+
+/**
+ * The organization's home timezone (IANA name): org-wide calendars, streak/day boundaries,
+ * default schedule timezone, and the fallback when a member has no preference. Stored
+ * commitment slots are in this timezone, so changing it needs a data migration.
+ */
+export const ORG_TIMEZONE = required("NEXT_PUBLIC_ORG_TIMEZONE", process.env.NEXT_PUBLIC_ORG_TIMEZONE);
+
+/** Where members are told to email for help. */
+export const SUPPORT_EMAIL = required("NEXT_PUBLIC_SUPPORT_EMAIL", process.env.NEXT_PUBLIC_SUPPORT_EMAIL);
+
+/** Canonical base URL of this deployment, no trailing slash (links in Slack messages, iCal UIDs). */
+export const APP_URL = required("NEXT_PUBLIC_APP_URL", process.env.NEXT_PUBLIC_APP_URL).replace(/\/+$/, "");
+
+/**
  * Supabase configuration
  */
 export const supabase = {

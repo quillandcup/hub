@@ -7,12 +7,12 @@ import { getUserTimezonePreference } from "@/lib/timezone";
 import { localDateString, parseEventFilter } from "@/lib/events-filter";
 import { fetchUpcomingEducationalPrickles } from "@/lib/educational-prickles";
 import EventsBrowser, { type EventRow } from "./EventsBrowser";
+import { ORG_TIMEZONE } from "@/lib/config";
 
 export const metadata: Metadata = {
   title: "Events",
 };
 
-const ORG_TIMEZONE = "America/New_York";
 type RawEvent = Omit<EventRow, "cover_photo_id"> & { event_photos: { id: string; hidden_at: string | null }[] | null };
 
 export default async function EventsPage({ searchParams }: { searchParams: Promise<{ type?: string }> }) {

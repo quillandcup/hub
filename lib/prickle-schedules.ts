@@ -6,6 +6,7 @@
 // is the one function that touches the database.
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { ORG_TIMEZONE } from "@/lib/config";
 
 export type RecurrenceType = "weekly" | "biweekly" | "monthly" | "one_off";
 export type ScheduleStatus = "proposed" | "confirmed" | "declined";
@@ -263,7 +264,7 @@ function toLocalDateAndTime(isoTimestamp: string, timezone: string): { date: Dat
   };
 }
 
-const BOOTSTRAP_TIMEZONE = "America/New_York"; // org default, matches DEFAULT_TIMEZONE convention elsewhere
+const BOOTSTRAP_TIMEZONE = ORG_TIMEZONE;
 
 interface BootstrapPrickleRow {
   host: string;

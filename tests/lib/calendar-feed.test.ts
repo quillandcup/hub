@@ -119,7 +119,7 @@ describe("buildCalendarFeedEvents", () => {
     const moved = prickle({ startTime: "2026-09-29T13:00:00.000Z", endTime: "2026-09-29T14:00:00.000Z" });
     const after = buildCalendarFeedEvents({ memberId: "m1", origin: ORIGIN, hosted: [moved], committed: [] });
     expect(after[0].uid).toBe(before[0].uid);
-    expect(before[0].uid).toBe("prickle-p1.m1@hub.quillandcup.com");
+    expect(before[0].uid).toBe("prickle-p1.m1@hub.example.com");
   });
 
   it("keys an unscheduled committed occurrence on its slot type and expected time", () => {
@@ -129,7 +129,7 @@ describe("buildCalendarFeedEvents", () => {
       hosted: [],
       committed: [committed({ prickle: null })],
     });
-    expect(event.uid).toBe("unscheduled-type-progress-20260929T110000Z.m1@hub.quillandcup.com");
+    expect(event.uid).toBe("unscheduled-type-progress-20260929T110000Z.m1@hub.example.com");
   });
 
   it("sorts events by start time", () => {
@@ -171,7 +171,7 @@ describe("buildCalendarFeedEvents", () => {
     expect(event.end.toISOString()).toBe("2026-10-12T00:00:00.000Z"); // exclusive
     expect(event.location).toBe("Asheville, NC");
     expect(event.url).toBe(`${ORIGIN}/events/fall-retreat`);
-    expect(event.uid).toBe("event-e1.m1@hub.quillandcup.com");
+    expect(event.uid).toBe("event-e1.m1@hub.example.com");
   });
 });
 

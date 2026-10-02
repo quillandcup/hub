@@ -21,8 +21,8 @@ import { computePublicHostingSummary } from "@/lib/hosting-stats"
 import { getMemberHostingSchedule } from "@/lib/prickle-schedule"
 import MemberHostingCard from "./MemberHostingCard"
 import MemberNotesCard from "./MemberNotesCard"
+import { ORG_TIMEZONE } from "@/lib/config";
 
-const ORG_TIMEZONE = "America/New_York"
 // Long enough to catch a monthly slot's next occurrence, not just weekly ones.
 const HOSTING_SCHEDULE_WINDOW_DAYS = 35
 

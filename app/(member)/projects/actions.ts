@@ -27,6 +27,7 @@ import {
 import { computePrickleStreaks, seriesKeyFor } from "@/lib/streaks";
 import { getUserTimezonePreference } from "@/lib/timezone";
 import { DAY_NAMES, formatScheduleLabel, getMonthStart, getNextMonthStart } from "@/lib/prickle-schedules";
+import { ORG_TIMEZONE } from "@/lib/config";
 
 const PHASES = PROJECT_PHASES;
 type Phase = ProjectPhase;
@@ -40,7 +41,6 @@ const STARTING_BALANCE_MEASURES = WRITING_MEASURES.filter((m) => m !== "prickles
 >[];
 
 const HABIT_PERIODS: HabitPeriod[] = ["day", "week", "month"];
-const ORG_TIMEZONE = "America/New_York"; // mirrors the same fallback convention used in app/(member)/dashboard/page.tsx
 
 export interface WritingProjectRow {
   id: string;

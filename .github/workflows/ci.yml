@@ -56,6 +56,13 @@ jobs:
     name: Test (unit)
     runs-on: ubuntu-24.04
     timeout-minutes: 10
+    # App config the code requires (lib/config.ts throws without it). Test values, set per
+    # job rather than workflow-wide: a workflow-level env would override the real values
+    # `vercel pull` gives the production build in the deploy job.
+    env: &test-app-config
+      NEXT_PUBLIC_ORG_TIMEZONE: America/New_York
+      NEXT_PUBLIC_SUPPORT_EMAIL: support@example.com
+      NEXT_PUBLIC_APP_URL: https://hub.example.com
     steps:
       - uses: actions/checkout@v5
 
@@ -85,6 +92,7 @@ jobs:
     name: Test (db) & build
     runs-on: ubuntu-24.04
     timeout-minutes: 20
+    env: *test-app-config
     steps:
       - uses: actions/checkout@v5
 
@@ -368,6 +376,8 @@ jobs:
           # Source map upload (next.config.ts). A GitHub secret rather than a Vercel var:
           # `vercel pull` above only gets a "[SENSITIVE]" placeholder for Vercel Secrets.
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
 
       # Uploads the local build output as-is instead of triggering another
       # remote build -- and unlike the old curl to the deploy hook, this step

@@ -13,6 +13,7 @@ import {
   type NameAliasRow,
   type EmailAliasRow,
 } from "./identityActions";
+import { SUPPORT_EMAIL } from "@/lib/config";
 
 const MONTHS = [
   "January", "February", "March", "April", "May", "June",
@@ -255,8 +256,8 @@ export function IdentityPanel() {
             </p>
             <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
               You&apos;ve already changed your name once. Email{" "}
-              <a href="mailto:support@quillandcup.com" className="underline">
-                support@quillandcup.com
+              <a href={`mailto:${SUPPORT_EMAIL}`} className="underline">
+                {SUPPORT_EMAIL}
               </a>{" "}
               if it needs to change again.
             </p>

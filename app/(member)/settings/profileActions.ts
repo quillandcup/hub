@@ -20,6 +20,7 @@ import {
 import { applyProfileOverride, nextOverrideValue, type ProfileFields } from "@/lib/member-profile-overrides";
 import { FACEBOOK_BASE_URL, X_BASE_URL, parseBioInput, parseFacebookInput, parseXInput } from "@/lib/social-links";
 import { normalizeTopics } from "@/lib/ask-me-about";
+import { SUPPORT_EMAIL } from "@/lib/config";
 
 /**
  * Member self-service for the public profile shown on /members/[id].
@@ -385,7 +386,7 @@ export async function updateInstagramHandle(input: string): Promise<UpdateProfil
   if (!member.kajabi_id) {
     return {
       error:
-        "Your profile isn't linked to a Kajabi account, so it can't be edited here. Email support@quillandcup.com for help.",
+        `Your profile isn't linked to a Kajabi account, so it can't be edited here. Email ${SUPPORT_EMAIL} for help.`,
     };
   }
 

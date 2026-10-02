@@ -22,7 +22,7 @@
     "env:sync": "tsx scripts/sync-to-vercel.ts",
     "env:sync:github": "tsx scripts/sync-to-github.ts",
     "env:sync:vault": "tsx scripts/sync-vault-secrets.ts",
-    "templates:render": "tsx scripts/render-email-templates.ts",
+    "templates:render": "tsx --env-file=.env.prod scripts/render-email-templates.ts",
     "config:diff": "dotenv -e .env.prod -- supabase config diff",
     "config:push": "dotenv -e .env.prod -- supabase config push",
     "quarantine:remove": "xattr -r -d com.apple.quarantine node_modules",

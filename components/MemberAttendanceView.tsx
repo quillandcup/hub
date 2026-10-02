@@ -8,6 +8,7 @@ import { SortableTh } from "@/components/SortableTh";
 import { useDataTable } from "@/lib/hooks/useDataTable";
 import type { SortValue } from "@/lib/hooks/useTableSort";
 import { DataTablePager } from "@/components/DataTablePager";
+import { ORG_TIMEZONE } from "@/lib/config";
 
 type SortColumn = "type" | "date" | "time" | "duration" | "host";
 
@@ -45,7 +46,7 @@ export default function MemberAttendanceView({
 
   const defaultTimezone =
     userTimezonePreference === "browser"
-      ? detectedTimezone || "America/New_York"
+      ? detectedTimezone || ORG_TIMEZONE
       : userTimezonePreference;
 
   const [timezone, setTimezone] = useState(defaultTimezone);
