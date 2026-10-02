@@ -1,4 +1,5 @@
 import { buildAttendanceMap, getScheduleSlot } from "@/lib/scheduled-prickle-stats";
+import { ORG_TIMEZONE } from "@/lib/config";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -79,7 +80,7 @@ export interface PickerRecommendation {
   occurrences: { id: string; startTime: string }[];
 }
 
-const DEFAULT_TIMEZONE = "America/New_York";
+const DEFAULT_TIMEZONE = ORG_TIMEZONE;
 
 // Heuristic thresholds used only when a series has no explicit host vibe tag.
 // Never a hard filter — always a low-confidence nudge.

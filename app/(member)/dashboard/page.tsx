@@ -9,12 +9,12 @@ import { getStarredGoals } from "../projects/actions"
 import GoalDisplay from "@/components/writing/GoalDisplay"
 import UpcomingPrickleRow from "@/components/UpcomingPrickleRow"
 import { getRankedUpcomingPrickles } from "@/lib/upcoming-prickles"
+import { ORG_TIMEZONE } from "@/lib/config";
 
 export const metadata: Metadata = {
   title: "Dashboard",
 }
 
-const ORG_TIMEZONE = "America/New_York"
 const UPCOMING_WINDOW_DAYS = 7
 const MAX_UPCOMING_DISPLAY = 5
 

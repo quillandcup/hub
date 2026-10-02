@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import SignOutButton from "@/components/SignOutButton";
+import { SUPPORT_EMAIL } from "@/lib/config";
 
 export const metadata: Metadata = {
   title: "No access",
@@ -29,8 +30,8 @@ export default function NoAccessPage() {
         </Link>
         <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">
           Think you should have a membership? Email{" "}
-          <a href="mailto:support@quillandcup.com" className="text-plum-600 dark:text-plum-400 hover:underline">
-            support@quillandcup.com
+          <a href={`mailto:${SUPPORT_EMAIL}`} className="text-plum-600 dark:text-plum-400 hover:underline">
+            {SUPPORT_EMAIL}
           </a>{" "}
           and we&apos;ll sort it out.
         </p>

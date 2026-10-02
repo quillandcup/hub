@@ -114,9 +114,9 @@ describe("/no-access", () => {
     await renderServerPage(NoAccessPage, {});
     expect(screen.getByRole("heading", { name: /for Quill & Cup staff/ })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Go to your dashboard" })).toHaveAttribute("href", "/dashboard");
-    expect(screen.getByRole("link", { name: "support@quillandcup.com" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "support@example.com" })).toHaveAttribute(
       "href",
-      "mailto:support@quillandcup.com"
+      "mailto:support@example.com"
     );
     expect(screen.getByRole("button", { name: "Sign Out" })).toBeInTheDocument();
     expect(redirect).not.toHaveBeenCalled();

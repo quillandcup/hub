@@ -2,6 +2,7 @@ import { requireAdmin } from "@/lib/supabase/api-auth";
 import { getMonthStart, getNextMonthStart, seedNextMonthSchedules, validateScheduleInput } from "@/lib/prickle-schedules";
 import { fetchHostEligibilityByMember } from "@/lib/host-eligibility";
 import { NextRequest, NextResponse } from "next/server";
+import { ORG_TIMEZONE } from "@/lib/config";
 
 export async function GET(request: NextRequest) {
   const auth = await requireAdmin(request);
@@ -95,7 +96,7 @@ export async function POST(request: NextRequest) {
       week_of_month: body.week_of_month ?? null,
       event_date: body.event_date ?? null,
       start_time_local: body.start_time_local,
-      timezone: body.timezone || "America/New_York",
+      timezone: body.timezone || ORG_TIMEZONE,
       notes: notes || null,
       status: status || "proposed",
       updated_by: user.id !== "service-role" ? user.id : null,

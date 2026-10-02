@@ -1,5 +1,5 @@
 import { WebClient } from "@slack/web-api";
-import { isProduction } from "@/lib/config";
+import { APP_URL, isProduction } from "@/lib/config";
 
 /**
  * Whether outbound Slack DMs sent via this module should be redirected to SLACK_DEV_USER_ID
@@ -49,10 +49,6 @@ export async function sendSlackDM(params: SendSlackDMParams): Promise<void> {
   await slack.chat.postMessage({ channel: slackUserId, text, blocks });
 }
 
-// No NEXT_PUBLIC base-URL env var exists yet (app/api/reconcile/README.md hardcodes the same
-// domain for its curl examples) -- this is a staff-facing Slack link, so pointing it at the real
-// production site regardless of which environment triggered the notification is fine.
-const APP_URL = "https://hub.quillandcup.com";
 
 export interface NotifyStaffNewBookParams {
   title: string;

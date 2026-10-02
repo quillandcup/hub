@@ -175,7 +175,7 @@ describe('ProfilePanel', () => {
     render(<ProfilePanel />)
 
     expect(await screen.findByLabelText('Bio')).toBeEnabled()
-    expect(screen.getByRole('link', { name: 'support@quillandcup.com' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'support@example.com' })).toBeInTheDocument()
     expect(screen.queryByLabelText('Instagram')).not.toBeInTheDocument()
   })
 

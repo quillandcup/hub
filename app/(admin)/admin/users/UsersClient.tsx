@@ -7,6 +7,7 @@ import type { SortValue } from "@/lib/hooks/useTableSort";
 import { DataTablePager } from "@/components/DataTablePager";
 import { FEATURE_PREVIEWS } from "@/lib/features";
 import MemberSearch from "@/components/MemberSearch";
+import { ORG_TIMEZONE } from "@/lib/config";
 
 type Role = "admin" | "assistant" | "member";
 type StaffRole = "owner" | "staff" | "contractor";
@@ -42,14 +43,14 @@ interface AccessSession {
 }
 
 const ET_TIME_FORMAT = new Intl.DateTimeFormat("en-US", {
-  timeZone: "America/New_York",
+  timeZone: ORG_TIMEZONE,
   hour: "numeric",
   minute: "2-digit",
   timeZoneName: "short",
 });
 
 const ET_DATE_FORMAT = new Intl.DateTimeFormat("en-US", {
-  timeZone: "America/New_York",
+  timeZone: ORG_TIMEZONE,
   weekday: "short",
   month: "short",
   day: "numeric",

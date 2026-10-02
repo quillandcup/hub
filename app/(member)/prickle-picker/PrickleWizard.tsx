@@ -5,6 +5,7 @@ import Link from "next/link";
 import MultiMemberSearch from "@/components/MultiMemberSearch";
 import { getWizardRecommendations, type WizardAnswers } from "./actions";
 import type { PickerRecommendation, TimeOfDay, VibePreference, PurposePreference } from "@/lib/prickle-picker";
+import { ORG_TIMEZONE } from "@/lib/config";
 
 interface Member {
   id: string;
@@ -122,7 +123,7 @@ export default function PrickleWizard({ members }: PrickleWizardProps) {
   const [error, setError] = useState<string | null>(null);
   const [results, setResults] = useState<PickerRecommendation[] | null>(null);
 
-  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "America/New_York";
+  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || ORG_TIMEZONE;
 
   async function handleSubmit() {
     setLoading(true);

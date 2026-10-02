@@ -12,6 +12,7 @@ import {
 import { hostShortName } from "@/lib/formatters";
 import { formatUtc, type ICalEvent } from "@/lib/ical";
 import { chunk, fetchAllRows } from "@/lib/supabase/paginate";
+import { APP_URL } from "@/lib/config";
 
 /**
  * A member's personal calendar feed (/api/calendar/feed/<token>.ics). It includes the prickles
@@ -28,7 +29,9 @@ export const FEED_REMINDER_MINUTES = 15;
 export const FEED_REFRESH_MINUTES = 60;
 /** Length of a committed occurrence that isn't on the prickle calendar yet. */
 const UNSCHEDULED_DURATION_MINUTES = 60;
-const UID_DOMAIN = "hub.quillandcup.com";
+// Event UIDs must stay stable or subscribed calendars duplicate every event, so this follows
+// the canonical app URL (production: hub.quillandcup.com), not whichever host served the request.
+const UID_DOMAIN = new URL(APP_URL).host;
 
 export interface CalendarFeedUrls {
   /** The feed itself -- what "Copy link" copies and what Outlook fetches. */
