@@ -37,34 +37,54 @@ export interface StoredThreadReplies {
 }
 
 /**
- * Threads whose replies the import should fetch this run, newest activity first.
+ * Threads whose replies the import should fetch this run, in the order to fetch them.
  *
  * One conversations.replies call per thread across 90 days (600+) runs into
  * Slack's rate limit and the 300s function limit, so only threads that need
  * it are fetched:
- *  - Slack reports more or newer replies than we have stored (new or missed
- *    replies). Because this compares against the replies actually stored, a
- *    thread deferred by the time budget is still "behind" on the next run.
- *  - The thread had a reply within `recentSince`: replies there can still
- *    gain or lose reactions, which don't change reply_count/latest_reply.
+ *  - Behind: Slack reports more or newer replies than we have stored (new or
+ *    missed replies). Because this compares against the replies actually
+ *    stored, a thread deferred by the time budget is still behind on the next
+ *    run; nothing else tracks it. Oldest thread first: on Slack's free plan,
+ *    history older than 90 days is gone, so the oldest threads are the ones a
+ *    backlog would otherwise lose for good.
+ *  - Recent: the thread had a reply within `recentSince`, so replies there can
+ *    still gain or lose reactions, which don't change reply_count or
+ *    latest_reply. Fetched after every behind thread, newest activity first,
+ *    since missing one only delays a reaction until the next run.
  * Edits and deletes of older replies arrive through the webhook.
  */
+/** Slack reports more or newer replies than we have stored for this thread. */
+export function isThreadBehind(p: SlackThreadParent, stored: Map<string, StoredThreadReplies>): boolean {
+  if (!(p.reply_count > 0)) return false;
+  const have = stored.get(threadKey(p.channel_id, p.message_ts));
+  const latest = p.raw_payload?.latest_reply;
+  return (
+    !have ||
+    have.count < p.reply_count ||
+    (!!latest && (!have.latestTs || parseFloat(have.latestTs) < parseFloat(latest)))
+  );
+}
+
 export function threadsNeedingReplies<T extends SlackThreadParent>(
   parents: T[],
   stored: Map<string, StoredThreadReplies>,
   recentSince: number
 ): T[] {
   const latestReply = (p: T) => parseFloat(p.raw_payload?.latest_reply ?? p.message_ts);
-  return parents
-    .filter((p) => {
-      if (!(p.reply_count > 0)) return false;
-      const have = stored.get(threadKey(p.channel_id, p.message_ts));
-      if (!have || have.count < p.reply_count) return true;
-      const latest = p.raw_payload?.latest_reply;
-      if (latest && (!have.latestTs || parseFloat(have.latestTs) < parseFloat(latest))) return true;
-      return latestReply(p) >= recentSince;
-    })
-    .sort((a, b) => latestReply(b) - latestReply(a));
+  const behind: T[] = [];
+  const recent: T[] = [];
+  for (const p of parents) {
+    if (!(p.reply_count > 0)) continue;
+    if (isThreadBehind(p, stored)) {
+      behind.push(p);
+    } else if (latestReply(p) >= recentSince) {
+      recent.push(p);
+    }
+  }
+  behind.sort((a, b) => parseFloat(a.message_ts) - parseFloat(b.message_ts));
+  recent.sort((a, b) => latestReply(b) - latestReply(a));
+  return [...behind, ...recent];
 }
 
 export function threadKey(channelId: string, threadTs: string): string {

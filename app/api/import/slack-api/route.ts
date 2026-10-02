@@ -9,7 +9,7 @@ import {
   slackMessageUserId,
   slackTsToIso,
   threadKey,
-  threadsNeedingReplies,
+  isThreadBehind, threadsNeedingReplies,
   type StoredThreadReplies,
 } from '@/lib/slack-messages';
 import { clock } from '@/lib/clock';
@@ -97,7 +97,8 @@ export async function POST(request: NextRequest) {
     const parents = allMessages.filter(m => m.reply_count > 0);
     const storedReplies = await loadStoredThreadReplies(supabase, parents);
     const threads = threadsNeedingReplies(parents, storedReplies, latest - RECENT_THREAD_DAYS * 24 * 60 * 60);
-    console.log(`Fetching replies for ${threads.length} of ${parents.length} threads...`);
+    const behindCount = threads.filter(t => isThreadBehind(t, storedReplies)).length;
+    console.log(`Fetching replies for ${threads.length} of ${parents.length} threads (${behindCount} behind Slack)...`);
     const threadReplies = await fetchThreadReplies(slack, threads, startedAt);
     if (threadReplies.deferred > 0) {
       console.warn(`  Out of time: ${threadReplies.deferred} threads deferred to the next run`);
@@ -191,6 +192,10 @@ export async function POST(request: NextRequest) {
         threadReplies: threadReplies.messages.length,
         threadsFetched: threads.length - threadReplies.deferred,
         threadsDeferred: threadReplies.deferred,
+        // Threads behind Slack come first, so the ones fetched are a prefix of
+        // the list; this is how many behind threads didn't fit. Deferred
+        // recent-reply re-checks don't count: they only delay reactions.
+        threadsBehindDeferred: Math.max(0, behindCount - (threads.length - threadReplies.deferred)),
         reactions: allReactions.length,
       },
       daysBack,

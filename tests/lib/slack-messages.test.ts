@@ -91,10 +91,28 @@ describe('threadsNeedingReplies', () => {
     expect(threadsNeedingReplies([a, b], have, recentSince)).toEqual([b])
   })
 
-  it('orders by most recent reply first, so a time budget spends itself on live threads', () => {
+  it('fetches threads that are behind oldest first, since they leave Slack’s 90-day history first', () => {
     const older = thread(now - 60 * day, 1, now - 50 * day)
     const newest = thread(now - 40 * day, 1, now - 2 * day)
     const middle = thread(now - 50 * day, 1, now - 20 * day)
-    expect(threadsNeedingReplies([older, newest, middle], new Map(), recentSince)).toEqual([newest, middle, older])
+    expect(threadsNeedingReplies([newest, older, middle], new Map(), recentSince)).toEqual([older, middle, newest])
+  })
+
+  it('puts recent-reply re-checks after every thread that is behind, newest activity first', () => {
+    const upToDate = { count: 1, latestTs: null as string | null }
+    const recentA = thread(now - 30 * day, 1, now - 2 * day)
+    const recentB = thread(now - 20 * day, 1, now - day)
+    const behindOld = thread(now - 80 * day, 1, now - 70 * day)
+    const behindNew = thread(now - 10 * day, 1, now - 5 * day)
+    const have = stored([
+      [recentA, { ...upToDate, latestTs: recentA.raw_payload.latest_reply! }],
+      [recentB, { ...upToDate, latestTs: recentB.raw_payload.latest_reply! }],
+    ])
+    expect(threadsNeedingReplies([recentA, behindNew, recentB, behindOld], have, recentSince)).toEqual([
+      behindOld,
+      behindNew,
+      recentB,
+      recentA,
+    ])
   })
 })

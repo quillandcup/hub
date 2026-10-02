@@ -191,18 +191,21 @@ describe('POST /api/import/slack-api thread selection', () => {
 
     const first = await runImport()
     // The budget runs out as the first call starts, so only that thread (the
-    // one with the newest reply) is fetched; the other workers see it's spent.
-    const newest = threads[threads.length - 1]
-    expect(repliesCalls).toEqual([newest.parentTs])
+    // oldest one, closest to leaving Slack's history) is fetched; the other
+    // workers see it's spent.
+    const oldest = threads[0]
+    expect(repliesCalls).toEqual([oldest.parentTs])
     expect(first.fetched.threadsFetched).toBe(1)
     expect(first.fetched.threadsDeferred).toBe(7)
-    expect(await storedReplyTs(newest.parentTs)).toEqual(newest.replies.map((r) => r.ts))
-    for (const t of threads.slice(0, -1)) expect(await storedReplyTs(t.parentTs)).toEqual([])
+    expect(first.fetched.threadsBehindDeferred).toBe(7)
+    expect(await storedReplyTs(oldest.parentTs)).toEqual(oldest.replies.map((r) => r.ts))
+    for (const t of threads.slice(1)) expect(await storedReplyTs(t.parentTs)).toEqual([])
 
     slackState.onReplies = undefined
     const second = await runImport()
-    expect(repliesCalls.sort()).toEqual(threads.slice(0, -1).map((t) => t.parentTs).sort())
+    expect(repliesCalls.sort()).toEqual(threads.slice(1).map((t) => t.parentTs).sort())
     expect(second.fetched.threadsDeferred).toBe(0)
+    expect(second.fetched.threadsBehindDeferred).toBe(0)
     for (const t of threads) expect(await storedReplyTs(t.parentTs)).toEqual(t.replies.map((r) => r.ts))
   })
 })

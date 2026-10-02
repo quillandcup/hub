@@ -27,9 +27,17 @@ export async function GET(request: NextRequest) {
 
     const result = await triggerSlackSync({ daysBack: 90 });
 
-    console.log(`[Reconciliation] Slack reconciliation complete`);
-
-    await pingCronHeartbeat("reconcile-slack");
+    // Threads still behind Slack wait for the next run (nothing else tracks
+    // them). Only ping the heartbeat when none were left, so a backlog that
+    // keeps not clearing alerts instead of looking healthy. On Slack's free
+    // plan a thread left behind long enough falls out of its 90-day history.
+    const behindDeferred = result.fetched?.threadsBehindDeferred ?? 0;
+    if (behindDeferred > 0) {
+      console.warn(`[Reconciliation] Slack reconciliation left ${behindDeferred} threads behind; next run continues`);
+    } else {
+      console.log(`[Reconciliation] Slack reconciliation complete`);
+      await pingCronHeartbeat("reconcile-slack");
+    }
 
     return NextResponse.json({
       success: true,

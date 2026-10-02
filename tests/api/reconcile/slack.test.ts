@@ -10,8 +10,13 @@ vi.mock('@/lib/supabase/api-auth', () => ({
   requireAdmin: vi.fn(),
 }))
 
+vi.mock('@/lib/cron-heartbeats', () => ({
+  pingCronHeartbeat: vi.fn(),
+}))
+
 import { triggerSlackSync } from '@/lib/processing/trigger'
 import { requireAdmin } from '@/lib/supabase/api-auth'
+import { pingCronHeartbeat } from '@/lib/cron-heartbeats'
 
 function makeRequest() {
   return new Request('http://localhost:3000/api/reconcile/slack') as unknown as NextRequest
@@ -66,6 +71,30 @@ describe('GET /api/reconcile/slack', () => {
       expect(body.reconciliation).toBe('slack')
       expect(body.imported.messages).toBe(120)
       expect(body.processing[0].success).toBe(true)
+      expect(pingCronHeartbeat).toHaveBeenCalledWith('reconcile-slack')
+    })
+
+    it('pings the heartbeat when only recent-reply re-checks were deferred', async () => {
+      vi.mocked(triggerSlackSync).mockResolvedValue({
+        success: true,
+        fetched: { threadsFetched: 90, threadsDeferred: 12, threadsBehindDeferred: 0 },
+      })
+
+      await GET(makeRequest())
+
+      expect(pingCronHeartbeat).toHaveBeenCalledWith('reconcile-slack')
+    })
+
+    it('does not ping the heartbeat when threads behind Slack were left for the next run', async () => {
+      vi.mocked(triggerSlackSync).mockResolvedValue({
+        success: true,
+        fetched: { threadsFetched: 90, threadsDeferred: 40, threadsBehindDeferred: 25 },
+      })
+
+      const response = await GET(makeRequest())
+
+      expect(response.status).toBe(200)
+      expect(pingCronHeartbeat).not.toHaveBeenCalled()
     })
   })
 
