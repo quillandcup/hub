@@ -314,6 +314,38 @@ Bumped `next` 15.5.26 → 16.3.6, `eslint-config-next` 15.5.14 → 16.3.6, `@nex
 
 ## Security & Access Control
 
+### Scrub private data from the public repo and its history _(Needs Scheduling)_
+
+The repo is public. A full-history scan (2026-10-02, every blob in every commit) found private
+values in docs, tests and code. Don't copy any of them into this file or a PR -- refer to the
+location instead.
+
+1. **Remove from the current files** (normal PR), replacing each with a pointer to where the
+   value lives (`.env.shared` / `.env.prod`, see `docs/ENV_MANAGEMENT.md`):
+   - Staff email (the Zoom login line) -- `docs/SECRET_ROTATION.md`
+   - Real Google Calendar ID -- `docs/CALENDAR_SETUP.md`, `docs/CALENDAR_SYNC.md`, `docs/INTEGRATION_LINKS.md`
+   - Google service-account emails -- `docs/INTEGRATION_LINKS.md`, `docs/SECRET_ROTATION.md`
+   - Kajabi client ID -- `docs/INTEGRATION_LINKS.md`
+   - Slack workspace/app IDs -- `docs/INTEGRATION_LINKS.md`, `docs/SECRET_ROTATION.md`
+   - Org addresses (team, no-reply) -- `docs/TODO.md`, `docs/MEMBER_MATCHING.md`
+   - **Member emails (PII)** -- `tests/components/AmbiguousNamesResolver.test.tsx`; swap for
+     `@example.com` fixtures like the rest of the tests
+2. **Rewrite history** to drop the values above plus ones only in older commits: the same
+   calendar ID in the deleted `.env.local.example`, member emails in earlier versions of
+   `tests/lib/member-matching.test.ts`, `tests/lib/member-suggestions.test.ts`,
+   `app/api/analyze/subscription-reconciliation/route.ts` and `scripts/add-email-alias.ts`, a
+   personal alerts address (`__checks__/alert-channels.ts`, `app.config.*`), and the
+   engineering-alerts addresses (PR #44's commit message and `env-vars.config.ts`).
+   - Tool: `git filter-repo --replace-text` with a local (never committed) replacements file;
+     regenerate the list by re-running the scan, since new commits may add more.
+   - It's a force-push of `main`: coordinate first -- merge or close open PRs, and have every
+     session/worktree re-clone or hard-reset afterwards (old branches would reintroduce it).
+   - GitHub keeps the old commits reachable through PR refs (`refs/pull/*`) and caches until
+     GitHub Support purges them -- request that after the push. Forks and existing clones keep
+     the old history regardless.
+   - Not found anywhere in history: real API tokens or keys. The Supabase key and Slack-token
+     look-alikes are the public local-dev demo key and placeholders.
+
 ### User Invitations
 - **In-app invite management**
   - Admin page to send invites with pre-set roles
