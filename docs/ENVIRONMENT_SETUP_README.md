@@ -17,18 +17,9 @@ This directory contains all the documentation you need to set up custom domains 
    - Environment variable management
    - Step-by-step instructions
 
-3. **[VERIFICATION_CHECKLIST.md](./VERIFICATION_CHECKLIST.md)** - Verify your setup
-   - Pre-setup checklist
-   - Environment-by-environment verification
-   - Common issues and solutions
-   - Final sign-off checklist
-
 ### Helper Resources
 
-- **`/scripts/setup-environments.sh`** - Interactive setup script
-  - Quick Supabase credential setup
-  - Full environment configuration
-  - Pull environment variables
+- **[ENV_MANAGEMENT.md](./ENV_MANAGEMENT.md)** - Which env file feeds which environment, and `npm run env:sync`
 
 ## What You'll Set Up
 
@@ -115,30 +106,11 @@ Follow these guides in order:
    - Take your time with DNS configuration
    - Document your custom domain choice
 
-2. **[VERIFICATION_CHECKLIST.md](./VERIFICATION_CHECKLIST.md)**
-   - Work through each section
-   - Check off items as you complete them
-   - Don't skip verification steps
-
-3. **Test everything**
+2. **Test everything**
    - Create test data in development
    - Verify isolation from production
    - Deploy a test preview
    - Deploy to production
-
-### Path 3: Using the Setup Script
-
-For interactive guided setup:
-
-```bash
-./scripts/setup-environments.sh
-```
-
-Choose from:
-1. Quick Setup - Configure Supabase credentials only
-2. Full Setup - Configure all environment variables
-3. List current environment variables
-4. Pull environment variables to .env.local
 
 ## What Gets Created
 
@@ -187,7 +159,6 @@ Choose from:
 ### Documentation
 - Full setup guide: [DEPLOYMENT_SETUP.md](./DEPLOYMENT_SETUP.md)
 - Quick reference: [QUICK_START.md](./QUICK_START.md)
-- Verification: [VERIFICATION_CHECKLIST.md](./VERIFICATION_CHECKLIST.md)
 
 ### External Resources
 - [Vercel Domains Documentation](https://vercel.com/docs/projects/domains)
@@ -198,7 +169,6 @@ Choose from:
 ### Troubleshooting
 See the "Common Issues" sections in:
 - [DEPLOYMENT_SETUP.md](./DEPLOYMENT_SETUP.md#common-issues-and-solutions)
-- [VERIFICATION_CHECKLIST.md](./VERIFICATION_CHECKLIST.md#common-issues-checklist)
 
 ## Next Steps
 
@@ -226,7 +196,6 @@ docs/
 ├── ENVIRONMENT_SETUP_README.md  ← You are here
 ├── QUICK_START.md               ← Start here for local development
 ├── DEPLOYMENT_SETUP.md          ← Complete setup guide
-├── VERIFICATION_CHECKLIST.md    ← Verify your setup
 ├── TODO.md                      ← Project roadmap and future work
 ├── KAJABI_DATA_MODEL.md         ← Kajabi integration design
 ├── KAJABI_SCRAPER_DESIGN.md     ← Automation plans
@@ -237,6 +206,5 @@ docs/
 
 1. Review [QUICK_START.md](./QUICK_START.md) for immediate local development
 2. Follow [DEPLOYMENT_SETUP.md](./DEPLOYMENT_SETUP.md) for full production setup
-3. Use [VERIFICATION_CHECKLIST.md](./VERIFICATION_CHECKLIST.md) to confirm everything works
 
 Good luck with your setup! The investment in proper environment separation will pay off in development velocity and production stability.

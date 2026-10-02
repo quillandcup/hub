@@ -170,8 +170,7 @@ Slack tests currently replace the `@slack/web-api` `WebClient` class with a hand
 **Documentation:**
 - Setup guide: `docs/DEPLOYMENT_SETUP.md`
 - Quick start: `docs/QUICK_START.md`
-- Verification checklist: `docs/VERIFICATION_CHECKLIST.md`
-- Setup script: `scripts/setup-environments.sh`
+- Env files and syncing: `docs/ENV_MANAGEMENT.md`
 
 **Benefits:**
 - Safe testing without affecting production data
