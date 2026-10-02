@@ -10,11 +10,19 @@ import {
   slackTsToIso,
   threadKey,
   threadsNeedingReplies,
-  slackImportLimits,
   type StoredThreadReplies,
 } from '@/lib/slack-messages';
+import { clock } from '@/lib/clock';
 
 export const maxDuration = 300; // 5 minutes for Slack API calls
+
+// Thread replies get whatever is left of this budget after channel history,
+// leaving the rest of maxDuration for the upserts and Silver reprocessing.
+// Threads that don't fit are fetched on the next run (see threadsNeedingReplies).
+const FETCH_BUDGET_MS = 170_000;
+// Replies to threads active this recently are refetched every run, to catch
+// reactions added or removed on them.
+const RECENT_THREAD_DAYS = 3;
 
 interface SlackApiImportRequest {
   daysBack: number;
@@ -36,7 +44,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const startedAt = Date.now();
+    const startedAt = clock.now();
     const body: SlackApiImportRequest = await request.json();
     const daysBack = body.daysBack || 7;
 
@@ -45,8 +53,8 @@ export async function POST(request: NextRequest) {
     const slack = new WebClient(SLACK_BOT_TOKEN);
 
     // Calculate date range
-    const oldest = Math.floor(Date.now() / 1000) - (daysBack * 24 * 60 * 60);
-    const latest = Math.floor(Date.now() / 1000);
+    const oldest = Math.floor(clock.now() / 1000) - (daysBack * 24 * 60 * 60);
+    const latest = Math.floor(clock.now() / 1000);
 
     console.log(`Date range: ${new Date(oldest * 1000).toISOString()} to ${new Date(latest * 1000).toISOString()}`);
 
@@ -80,7 +88,7 @@ export async function POST(request: NextRequest) {
       allReactions.push(...reactions);
 
       // Rate limit: ~50 channels/min
-      await sleep(1200);
+      await clock.sleep(1200);
     }
 
     // conversations.history only returns top-level messages; replies (more than
@@ -88,7 +96,7 @@ export async function POST(request: NextRequest) {
     // only threads that changed (or are still active) are fetched.
     const parents = allMessages.filter(m => m.reply_count > 0);
     const storedReplies = await loadStoredThreadReplies(supabase, parents);
-    const threads = threadsNeedingReplies(parents, storedReplies, latest - slackImportLimits.recentThreadDays * 24 * 60 * 60);
+    const threads = threadsNeedingReplies(parents, storedReplies, latest - RECENT_THREAD_DAYS * 24 * 60 * 60);
     console.log(`Fetching replies for ${threads.length} of ${parents.length} threads...`);
     const threadReplies = await fetchThreadReplies(slack, threads, startedAt);
     if (threadReplies.deferred > 0) {
@@ -293,7 +301,7 @@ async function autoJoinPublicChannels(slack: WebClient, channels: any[]) {
       console.log(`  ✓ Joined #${channel.name}`);
 
       // Small delay to avoid rate limits
-      await sleep(100);
+      await clock.sleep(100);
     } catch (error: any) {
       if (error.data?.error === 'already_in_channel') {
         alreadyMember++;
@@ -395,7 +403,7 @@ async function loadStoredThreadReplies(supabase: SupabaseClient, parents: any[])
 /**
  * Fetch every reply in the given threads, 5 at a time. When Slack
  * rate-limits, WebClient waits out the 429's Retry-After and retries. Stops
- * starting new threads once slackImportLimits.fetchBudgetMs has passed since
+ * starting new threads once FETCH_BUDGET_MS has passed since
  * `startedAt`; the rest are counted as deferred.
  */
 async function fetchThreadReplies(slack: WebClient, parents: any[], startedAt: number) {
@@ -405,7 +413,7 @@ async function fetchThreadReplies(slack: WebClient, parents: any[], startedAt: n
 
   const worker = async () => {
     for (let parent = queue.shift(); parent; parent = queue.shift()) {
-      if (Date.now() - startedAt >= slackImportLimits.fetchBudgetMs) {
+      if (clock.now() - startedAt >= FETCH_BUDGET_MS) {
         queue.unshift(parent);
         return;
       }
@@ -517,8 +525,4 @@ function dedupeBy<T>(rows: T[], key: (row: T) => string) {
     rows[kept++] = row;
   }
   rows.length = kept;
-}
-
-function sleep(ms: number) {
-  return new Promise(resolve => setTimeout(resolve, ms));
 }
