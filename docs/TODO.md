@@ -178,6 +178,27 @@ Slack tests currently replace the `@slack/web-api` `WebClient` class with a hand
 - Clear separation of development and production
 - Easier onboarding for new developers
 
+### Sentry Alert Routing _(Needs Scheduling)_
+
+Sentry alert rules don't follow the alert-routing rule in `docs/INTEGRATION_LINKS.md` yet.
+Events are tagged `production` / `preview` (`NEXT_PUBLIC_SENTRY_ENVIRONMENT`) as of PR #46, so
+rules can filter by environment, but Sentry can't email an arbitrary address: an alert action
+notifies org members/teams, an integration (Slack etc.), or a webhook. The free Developer
+plan has one user, so the alerts mailbox can't be its own member.
+
+- [ ] Point every rule at an environment: Alerts -> rule -> Edit Rule -> environment =
+      `production` (duplicate for `preview` if wanted). Any filter on the old
+      `vercel-production` tag needs switching too.
+- [ ] Route the email: User Settings -> Emails -> add + verify the alerts address; User
+      Settings -> Notifications -> Issue Alerts -> Fine tune -> project `hub` -> that address.
+      Rule action: notify Member (you).
+- [ ] Decide on per-environment vs one address. Email routing is per project, not per
+      environment, so preview and production alerts land in the same inbox anyway. Simplest
+      option: **one alerts address for everything** -- make `ALERTS_EMAIL` a single
+      `.env.shared` value (drop it from `.env.preview`/`.env.prod`) and keep per-environment
+      separation for Slack, once the alert channels exist (one per environment; set each
+      rule's action to its channel).
+
 ### Un-pin CI Runners from ubuntu-24.04
 **Status:** Pinned 2026-09-24, needs revisiting after 2026-11-19
 
