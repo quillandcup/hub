@@ -297,15 +297,24 @@ export const ENV_VARS: readonly EnvVarSpec[] = [
   {
     name: "NEXT_PUBLIC_GA_ID",
     group: "Analytics & Monitoring",
-    description: "GA4 measurement ID. Public by design.",
+    description:
+      "GA4 measurement ID. Public by design. Production only: app/layout.tsx skips GA when it's unset, so testing on previews isn't tracked.",
     type: "config",
-    destinations: vercelAllEnvs,
+    destinations: [{ kind: "vercel", target: "production" }],
   },
   {
     name: "NEXT_PUBLIC_SENTRY_DSN",
     group: "Analytics & Monitoring",
     description:
       "Sentry DSN for the browser, server and edge configs alike (one var: NEXT_PUBLIC_ vars are readable server-side too). Public by design -- a write-only ingest endpoint. Unset disables Sentry.",
+    type: "config",
+    destinations: vercelAllEnvs,
+  },
+  {
+    name: "NEXT_PUBLIC_SENTRY_ENVIRONMENT",
+    group: "Analytics & Monitoring",
+    description:
+      "Sentry environment tag (production / preview) for browser, server and edge events alike -- what separates production errors from preview ones (the DSN is shared). Explicit because Sentry's own Vercel detection never reaches the browser bundle CI builds for production.",
     type: "config",
     destinations: vercelAllEnvs,
   },
@@ -321,7 +330,7 @@ export const ENV_VARS: readonly EnvVarSpec[] = [
     name: "ALERTS_EMAIL",
     group: "Analytics & Monitoring",
     description:
-      "Engineering alerts address for this environment (eng-alerts-prod@ / eng-alerts-preview@). The GitHub copy (from .env.prod) is what Checkly alerts at `checkly deploy` -- the monitors watch production. The Vercel copies are for app-side alerting per environment.",
+      "Engineering alerts address for this environment. The GitHub copy (from .env.prod) is what Checkly alerts at `checkly deploy` -- the monitors watch production. The Vercel copies are for app-side alerting per environment.",
     type: "config",
     destinations: [...vercelAllEnvs, { kind: "github" }],
   },
