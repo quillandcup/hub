@@ -40,6 +40,7 @@ import AdminWheelOfWonderPage from "@/app/(admin)/admin/wheel-of-wonder/page";
 import StreaksPage from "@/app/(member)/streaks/page";
 import NoAccessPage from "@/app/no-access/page";
 import { dismissGroup, undismissGroup } from "@/app/(admin)/admin/hygiene/merge-fix/actions";
+import { SUPPORT_EMAIL } from "@/lib/config"
 
 const ROLES: Record<string, string> = { [ADMIN_USER.id]: "admin", [MEMBER_USER.id]: "member" };
 const userProfiles = (q: FakeQuery) => {
@@ -114,9 +115,9 @@ describe("/no-access", () => {
     await renderServerPage(NoAccessPage, {});
     expect(screen.getByRole("heading", { name: /for Quill & Cup staff/ })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Go to your dashboard" })).toHaveAttribute("href", "/dashboard");
-    expect(screen.getByRole("link", { name: "support@example.com" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: SUPPORT_EMAIL })).toHaveAttribute(
       "href",
-      "mailto:support@example.com"
+      `mailto:${SUPPORT_EMAIL}`
     );
     expect(screen.getByRole("button", { name: "Sign Out" })).toBeInTheDocument();
     expect(redirect).not.toHaveBeenCalled();

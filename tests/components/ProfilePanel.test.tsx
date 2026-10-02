@@ -4,6 +4,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { ProfilePanel } from '@/app/(member)/settings/ProfilePanel'
 import * as profileActions from '@/app/(member)/settings/profileActions'
+import { SUPPORT_EMAIL } from '@/lib/config'
 
 vi.mock('@/app/(member)/settings/profileActions', () => ({
   getProfileSettings: vi.fn(),
@@ -175,7 +176,7 @@ describe('ProfilePanel', () => {
     render(<ProfilePanel />)
 
     expect(await screen.findByLabelText('Bio')).toBeEnabled()
-    expect(screen.getByRole('link', { name: 'support@example.com' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: SUPPORT_EMAIL })).toBeInTheDocument()
     expect(screen.queryByLabelText('Instagram')).not.toBeInTheDocument()
   })
 

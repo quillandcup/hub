@@ -67,36 +67,6 @@ const vercelAllEnvs: readonly Destination[] = [
 ];
 
 export const ENV_VARS: readonly EnvVarSpec[] = [
-  // --- App -----------------------------------------------------------------------------------
-  // Read through lib/config.ts, which throws if any is unset -- there are no in-code defaults.
-  {
-    name: "NEXT_PUBLIC_APP_URL",
-    group: "App",
-    description:
-      "Canonical base URL of the deployment, e.g. https://hub.quillandcup.com (links in Slack messages, iCal event UIDs -- keep it stable or calendar subscribers see duplicates). Also the Checkly monitors' target, and pg_cron's base URL via Vault `app_url`.",
-    type: "config",
-    destinations: [
-      ...vercelAllEnvs,
-      { kind: "github" },
-      { kind: "vault", vaultName: "app_url" },
-    ],
-  },
-  {
-    name: "NEXT_PUBLIC_ORG_TIMEZONE",
-    group: "App",
-    description:
-      "Organization home timezone (IANA name, e.g. America/New_York): org calendars, day boundaries, default schedule timezone. Stored commitment slots are in this timezone, so changing it needs a data migration.",
-    type: "config",
-    destinations: vercelAllEnvs,
-  },
-  {
-    name: "NEXT_PUBLIC_SUPPORT_EMAIL",
-    group: "App",
-    description: "Support address shown to members (settings, /no-access, auth email footer).",
-    type: "config",
-    destinations: vercelAllEnvs,
-  },
-
   // --- Supabase ------------------------------------------------------------------------------
   {
     name: "NEXT_PUBLIC_SUPABASE_URL",
@@ -364,27 +334,6 @@ export const ENV_VARS: readonly EnvVarSpec[] = [
     name: "CHECKLY_ACCOUNT_ID",
     group: "GitHub Actions CI",
     description: "Checkly account ID used by CI.",
-    type: "config",
-    destinations: [{ kind: "github" }],
-  },
-  {
-    name: "CHECKLY_ALERT_EMAIL",
-    group: "GitHub Actions CI",
-    description: "Where Checkly sends monitor alerts (__checks__/alert-channels.ts), read at `checkly deploy`.",
-    type: "config",
-    destinations: [{ kind: "github" }],
-  },
-  {
-    name: "SENTRY_ORG",
-    group: "GitHub Actions CI",
-    description: "Sentry org slug for the CI production build's source map upload (next.config.ts).",
-    type: "config",
-    destinations: [{ kind: "github" }],
-  },
-  {
-    name: "SENTRY_PROJECT",
-    group: "GitHub Actions CI",
-    description: "Sentry project slug for the CI production build's source map upload (next.config.ts).",
     type: "config",
     destinations: [{ kind: "github" }],
   },
