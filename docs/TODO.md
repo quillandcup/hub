@@ -230,7 +230,7 @@ previews actually useful means:
        be able to notify a real user or incur a real charge.
 3. [ ] Evaluate [Supabase branching](https://supabase.com/docs/guides/deployment/branching)
        (native per-PR ephemeral DB branches) as the mechanism, instead of the single static
-       `.env.devel` Supabase project previews currently point to. Note: that existing devel
+       `.env.preview` Supabase project previews currently point to. Note: that existing devel
        project has no migration-push path today at all (`supabase/config.toml` only has
        `[remotes.prod]`, and `package.json` only has `db:push` targeting `.env.prod`) --
        worth confirming whether Supabase branching solves this automatically or whether it's
@@ -246,7 +246,7 @@ A persistent (not per-PR-ephemeral) staging environment, sitting between preview
 production:
 
 1. [ ] Add a persistent Supabase branch for devel (see Supabase branching link above --
-       distinct from today's single static `.env.devel` project, if branching replaces it).
+       distinct from today's single static `.env.preview` project, if branching replaces it).
 2. [ ] Same secrets/notification-disabling work as preview environments above -- no real
        Slack/Kajabi/Zoom/billing side effects from devel either.
 3. [ ] Clarify the relationship to Supabase DB branching from the preview-environments work

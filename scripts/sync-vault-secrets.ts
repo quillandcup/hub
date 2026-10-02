@@ -22,9 +22,8 @@
 // the env var name used to source the value -- env-vars.config.ts's `vault` destination maps
 // one to the other explicitly via `vaultName`.
 
-import { existsSync, readFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
-import { parse as parseDotenv } from "dotenv";
+import { loadTargetEnv, sourceFilesFor } from "./env-files";
 import { ENV_VARS } from "../env-vars.config";
 import appConfig from "../app.config";
 
@@ -41,7 +40,8 @@ const SHARED_CONFIG_IN_VAULT: readonly {
   },
 ];
 
-const ENV_FILE = ".env.prod";
+// Production's values: .env.shared overridden by .env.prod.
+const ENV_FILE = sourceFilesFor("production");
 
 /** Idempotent: updates the existing secret in place (preserving its id) if one with this
  * name already exists, otherwise creates it -- safe to re-run whenever the underlying value
@@ -80,11 +80,7 @@ end $sync$;
 }
 
 function main(): void {
-  if (!existsSync(ENV_FILE)) {
-    console.error(`❌ ${ENV_FILE} not found!`);
-    process.exit(1);
-  }
-  const env = parseDotenv(readFileSync(ENV_FILE));
+  const env = loadTargetEnv("production");
 
   console.log(
     `🔐 Syncing Vault secrets to Supabase (linked project, source: ${ENV_FILE})...\n`,
