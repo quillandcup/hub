@@ -14,6 +14,8 @@ import { formatPrickleTitle } from "@/lib/formatters";
 import { computeHostStatus } from "@/lib/hosting-stats";
 import { getMyEntriesForPrickle, getMyProjects } from "@/app/(member)/projects/actions";
 import PrickleWritingPanel from "@/components/writing/PrickleWritingPanel";
+import PrickleCheckIn from "@/components/writing/PrickleCheckIn";
+import { getMyCheckin } from "@/app/(member)/prickles/checkin-actions";
 import { localDateOf } from "@/lib/prickle-writing";
 import { ORG_TIMEZONE } from "@/lib/config";
 import { getMyCalendarItems } from "@/app/(member)/my-prickles/calendar-feed-actions";
@@ -71,13 +73,14 @@ export default async function PrickleDetailPage({
     redirect("/login");
   }
 
-  const [profileResult, effectiveIdentity, prickle, myProjects, calendarItems, myPrickleEntries] = await Promise.all([
+  const [profileResult, effectiveIdentity, prickle, myProjects, calendarItems, myPrickleEntries, myCheckin] = await Promise.all([
     supabase.from("user_profiles").select("role").eq("id", user.id).single(),
     getEffectiveIdentity(user),
     getPrickle(id),
     getMyProjects(),
     getMyCalendarItems(),
     getMyEntriesForPrickle(id),
+    getMyCheckin(id),
   ]);
   const isAdmin = profileResult.data?.role === "admin";
   const isActingAsAdmin = isAdmin && !effectiveIdentity?.isSudo;
@@ -222,6 +225,12 @@ export default async function PrickleDetailPage({
       />
     ) : null;
 
+  // Check-ins are private to the member (no admin access), so they're hidden in sudo.
+  const checkIn =
+    !isActingAsAdmin && effectiveIdentity && !effectiveIdentity.isSudo ? (
+      <PrickleCheckIn prickleId={prickle.id} hasStarted={!hasNotStarted(prickle.start_time)} initial={myCheckin} />
+    ) : null;
+
   return (
     <div className="min-h-screen bg-canvas dark:bg-slate-950">
       <header className="border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
@@ -236,6 +245,7 @@ export default async function PrickleDetailPage({
 
       <main className="container mx-auto px-6 py-8">
         <div className="max-w-4xl mx-auto space-y-6">
+          {checkIn}
           {writingPanel}
           <PrickleDetails
             prickle={prickle}
