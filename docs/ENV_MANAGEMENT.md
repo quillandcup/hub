@@ -9,7 +9,7 @@ This project uses separate environments for local development, Vercel previews, 
 │ Environment     │ .env File        │ Supabase Instance       │
 ├─────────────────┼──────────────────┼─────────────────────────┤
 │ Local Dev       │ .env.local       │ Local (127.0.0.1:54321) │
-│ Vercel Preview  │ .env.devel       │ Remote Dev              │
+│ Vercel Preview  │ .env.preview     │ Remote Dev              │
 │ Vercel Prod     │ .env.prod        │ Remote Prod             │
 └─────────────────┴──────────────────┴─────────────────────────┘
 ```
@@ -17,11 +17,16 @@ This project uses separate environments for local development, Vercel previews, 
 ## File Structure
 
 ```
-.env.local      # Local Supabase (supabase start) - git-ignored
-.env.devel      # Remote dev Supabase credentials - git-ignored
-.env.prod       # Remote prod Supabase credentials - git-ignored
+.env.local      # Local dev (local Supabase from supabase start) - git-ignored
+.env.shared     # Same in every Vercel environment (one Zoom/Kajabi/Google/Slack account) - git-ignored
+.env.preview    # Vercel Preview overrides (e.g. the dev Supabase project) - git-ignored
+.env.prod       # Vercel Production overrides + CI/ops credentials - git-ignored
 .env.example    # Template with no real values - committed to git
+app.config.ts   # Shared settings that are fine to publish (timezone, URLs, ...) - committed
 ```
+
+A var set in `.env.preview`/`.env.prod` overrides `.env.shared` for that environment.
+`env-vars.config.ts` declares every var; `scripts/env-files.ts` does the layering.
 
 ## Local Development Workflow
 
@@ -53,15 +58,17 @@ Your app connects to **local** Supabase (completely isolated from dev/prod).
 
 ## Syncing Remote Environments to Vercel
 
-After editing `.env.devel` or `.env.prod`:
+After editing `.env.shared`, `.env.preview` or `.env.prod`:
 
 ```bash
 npm run env:sync
 ```
 
 This updates Vercel's environment variables:
-- `.env.devel` → Vercel **Development** & **Preview** environments
-- `.env.prod` → Vercel **Production** environment
+- `.env.shared` + `.env.preview` → Vercel **Preview**
+- `.env.shared` + `.env.prod` → Vercel **Production**
+
+Vercel's **Development** environment isn't used (local dev runs on `.env.local`), so it isn't synced.
 
 ## When to Use Which Environment
 
@@ -88,8 +95,8 @@ npm run dev
 Only if you need to test with shared dev data:
 
 ```bash
-# Temporarily point to remote dev
-cp .env.devel .env.local
+# Temporarily point to remote dev: copy the dev Supabase values from .env.preview
+# into .env.local
 
 # Start Next.js
 npm run dev
@@ -124,7 +131,7 @@ vercel env ls
 ```
 
 You should see:
-- **Development & Preview**: Dev Supabase URL (from .env.devel)
+- **Preview**: Dev Supabase URL (from .env.preview)
 - **Production**: Prod Supabase URL (from .env.prod)
 
 ## Common Tasks
@@ -136,7 +143,8 @@ You should see:
 supabase start
 
 # 2. .env.local should auto-populate with local credentials
-# 3. Add your remote credentials to .env.devel and .env.prod
+# 3. Add remote credentials: shared ones to .env.shared, per-environment ones to
+#    .env.preview / .env.prod
 # 4. Sync remote envs to Vercel
 npm run env:sync
 
@@ -157,7 +165,7 @@ npm run dev
 ### After Changing Remote Environment Variables
 
 ```bash
-# 1. Edit .env.devel or .env.prod
+# 1. Edit .env.shared, .env.preview or .env.prod
 # 2. Sync to Vercel
 npm run env:sync
 
@@ -249,8 +257,7 @@ git push
 
 ❌ **Never commit**:
 - `.env.local` (local credentials)
-- `.env.devel` (remote dev credentials)
-- `.env.prod` (remote prod credentials)
+- `.env.shared`, `.env.preview`, `.env.prod` (remote credentials)
 
 ## Environment Best Practices
 

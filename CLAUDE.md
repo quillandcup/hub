@@ -134,7 +134,7 @@ const memberBasePath = isActingAsAdmin ? "/admin/members" : "/members";
 **RULE**: Deployment/org config (URLs, hosts, emails, timezones, IDs, slugs) lives outside the code, never as literals or `??` fallbacks. Two places, by whether the value varies:
 
 - **Same in every environment** -> `app.config.ts` (committed). App code reads it through `lib/config.ts` (`APP_URL`, `ORG_TIMEZONE`, `SUPPORT_EMAIL`); `next.config.ts`, `__checks__/config.ts` and scripts import the JSON directly. SQL/pg_cron can't read the file, so `npm run env:sync:vault` copies the values it needs into Vault (`SHARED_CONFIG_IN_VAULT` in `scripts/sync-vault-secrets.ts`, e.g. `app_url`).
-- **Differs per environment, or secret** -> an env var declared in `env-vars.config.ts`, synced to Vercel/GitHub/Vault by the `env:sync*` scripts. Sync a new required var before the code that reads it deploys.
+- **Secret, or not fit to publish (the repo is public)** -> an env var declared in `env-vars.config.ts`, synced to Vercel/GitHub/Vault by the `env:sync*` scripts. Its value goes in `.env.shared` when every environment uses the same one (one Zoom/Kajabi/Google/Slack account), else in `.env.preview`/`.env.prod`, which override `.env.shared` (`scripts/env-files.ts`). Keep a client ID with its secret. Sync a new required var before the code that reads it deploys.
 
 Tests assert against the imported config values (e.g. `SUPPORT_EMAIL` from `@/lib/config`), not repeated literals.
 

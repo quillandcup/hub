@@ -10,19 +10,27 @@
 // replaced, and let .env.example drift out of sync with what's actually required. Add or
 // remove a var here and every sync script picks it up automatically.
 //
-// `group` is also the canonical section ordering for .env.example/.env.devel/.env.prod --
-// those files are grouped and commented to match this array's order and each var's
-// `description`, so there's one layout to keep in sync instead of three independent ones.
+// `group` is also the canonical section ordering for .env.example and the value files below --
+// they're grouped and commented to match this array's order and each var's `description`, so
+// there's one layout to keep in sync instead of several independent ones.
 //
-// Values themselves are NOT stored here -- they stay in .env.devel / .env.prod (gitignored
-// dotenv files) as before. This file is just the schema: name, secrecy, and destinations.
-// SOPS-encrypting .env.devel/.env.prod so they can be committed is a planned follow-up,
-// tracked separately -- unrelated to this file, which has nothing sensitive to encrypt.
+// Values themselves are NOT stored here -- they live in gitignored dotenv files:
+//   .env.shared   values that are the same in every environment (one Zoom/Kajabi/Google/Slack
+//                 account, ...); the base for every target
+//   .env.preview  Vercel Preview overrides (e.g. its own Supabase project)
+//   .env.prod     Vercel Production overrides, plus CI/ops credentials (GitHub, Vault)
+// A var set in .env.preview/.env.prod overrides .env.shared for that target. Shared config
+// that's also fine to publish goes in app.config.ts instead (committed, not an env var).
+// This file is just the schema: name, secrecy, and destinations. SOPS-encrypting the value
+// files so they can be committed is a planned follow-up, tracked separately.
 
 import { CRON_HEARTBEATS } from "./lib/cron-heartbeats";
 
-/** A Vercel environment `vercel env add` can target. */
-export type VercelTarget = "development" | "preview" | "production";
+/**
+ * A Vercel environment the sync manages. Vercel's "development" target (read only by
+ * `vercel dev` / `vercel env pull`) isn't used -- local dev runs on .env.local.
+ */
+export type VercelTarget = "preview" | "production";
 
 export type Destination =
   /** Synced via `vercel env add <name> <target> --type <the var's type>`. */
@@ -61,7 +69,6 @@ export interface EnvVarSpec {
 }
 
 const vercelAllEnvs: readonly Destination[] = [
-  { kind: "vercel", target: "development" },
   { kind: "vercel", target: "preview" },
   { kind: "vercel", target: "production" },
 ];
