@@ -2,7 +2,7 @@ import { SslMonitor, SslAssertionBuilder } from 'checkly/constructs'
 import { ownerEmailAlert } from './alert-channels'
 import { appHost } from './config'
 
-// The app's own host (appUrl in app.config.json) specifically -- NOT the root domain, which is the
+// The app's own host (appUrl in app.config.ts) specifically -- NOT the root domain, which is the
 // Kajabi-hosted marketing site with an unrelated cert.
 new SslMonitor('hub-ssl', {
   name: `Hedgie Hub SSL certificate (${appHost})`,
