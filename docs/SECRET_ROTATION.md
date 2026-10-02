@@ -116,6 +116,21 @@ management).
   for days. Long-term fix: Slack token rotation (see `docs/SLACK_BRIDGED_CHAT.md`), which
   never needs an uninstall.
 
+- **Signing secret** (`SLACK_SIGNING_SECRET`): https://api.slack.com/apps/A0AS93BKT09/general
+  -> App Credentials -> Regenerate. Events, interactions and `/hub` are rejected between the
+  regenerate and the resync+redeploy.
+- **App configuration refresh token** (`SLACK_CONFIG_REFRESH_TOKEN`, used only by CI's
+  `push-slack-manifest` job): https://api.slack.com/apps -> "Your App Configuration Tokens"
+  -> Generate Token, then `gh secret set SLACK_CONFIG_REFRESH_TOKEN --repo quillandcup/hub`
+  with the refresh token (`xoxe-...`). This is not the app's "App-Level Tokens" section, and
+  it isn't synced from `.env.prod`: CI replaces it on every run. See `docs/SLACK_MANIFEST.md`.
+
+### GitHub
+- `GH_TOKEN_SLACK_MANIFEST`: https://github.com/settings/personal-access-tokens -> generate a
+  fine-grained token, resource owner `quillandcup`, only this repository, **Secrets: Read and
+  write**. Put it in `.env.prod`, run `npm run env:sync:github`, then delete the old token on
+  that page. It has an expiry date; the Slack manifest job fails once it passes.
+
 ### Sentry
 - https://quillandcup.sentry.io/settings/auth-tokens/ (org slug is `quillandcup` -- matches
   `next.config.ts`'s `withSentryConfig({ org: "quillandcup" })`).

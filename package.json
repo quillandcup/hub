@@ -25,6 +25,8 @@
     "templates:render": "tsx scripts/render-email-templates.ts",
     "config:diff": "dotenv -e .env.prod -- supabase config diff",
     "config:push": "dotenv -e .env.prod -- supabase config push",
+    "slack:manifest:diff": "dotenv -e .env.prod -e .env.shared -- tsx scripts/slack-manifest.ts diff",
+    "slack:manifest:push": "dotenv -e .env.prod -e .env.shared -- tsx scripts/slack-manifest.ts push",
     "quarantine:remove": "xattr -r -d com.apple.quarantine node_modules",
     "prepare": "husky"
   },
@@ -79,7 +81,8 @@
     "tsx": "^4.23.15",
     "typescript": "^5",
     "vercel": "^60.1.3",
-    "vitest": "^4.1.11"
+    "vitest": "^4.1.11",
+    "yaml": "^2.9.1"
   },
   "overrides": {
     "tar": "^7.5.16",
