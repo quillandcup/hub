@@ -6,6 +6,25 @@ Rotating a credential (or all of them, after an exposure)? See `docs/SECRET_ROTA
 the step-by-step per-service runbook — this file has the dashboard links, that one has the
 "how to actually rotate it without breaking something" steps.
 
+## Alert routing
+
+Every system that sends alerts uses the same per-environment destinations:
+
+| Environment | Email | Slack channel |
+|---|---|---|
+| Production | `eng-alerts-prod@quillandcup.com` | not set up yet |
+| Preview | `eng-alerts-preview@quillandcup.com` | not set up yet |
+
+The email is `ALERTS_EMAIL` in `.env.prod` / `.env.preview` (see `env-vars.config.ts`). When the
+Slack channels exist, add their IDs as a per-environment var the same way.
+
+| System | Where it's configured | Status |
+|---|---|---|
+| Checkly (uptime, SSL, cron heartbeats) | Code: `__checks__/alert-channels.ts` reads `ALERTS_EMAIL` | Production address |
+| Sentry (error alerts) | Sentry UI: Alerts -> rules, filtered by environment (`production` / `preview`, from `NEXT_PUBLIC_SENTRY_ENVIRONMENT`) | Set each rule's action to that environment's address |
+| Vercel (deploy failures) | Per-user notification settings; Vercel Alerts needs Observability Plus (not enabled) | Not routable per environment today |
+| GitHub Actions (failed runs) | Per-user notification settings | Not routable per environment today |
+
 ## Zoom
 
 **App:** https://marketplace.zoom.us/develop/apps/gcFgx-76S8aaL4AiYqaHng/credentials
