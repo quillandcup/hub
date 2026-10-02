@@ -10,7 +10,7 @@ import { countDistinctPrickles } from "@/lib/attendance-grouping";
 import MemberTimelinePanel from "./MemberTimelinePanel";
 import MemberSlackActivityPanel, { computeSlackSummary } from "./MemberSlackActivityPanel";
 import MemberBadgesPanel from "./MemberBadgesPanel";
-import MemberIdentityPanel, { type NameAliasRow } from "./MemberIdentityPanel";
+import MemberIdentityPanel, { type NameAliasRow, type EmailAliasRow } from "./MemberIdentityPanel";
 import type { EarnedBadge } from "@/lib/badges";
 
 interface MemberDetailsProps {
@@ -38,7 +38,7 @@ interface MemberDetailsProps {
     eventSlug: string | null;
   }[];
   nameAliases: NameAliasRow[];
-  emailAliases: string[];
+  emailAliases: EmailAliasRow[];
 }
 
 const TAB_IDS = ["overview", "identity", "attendance", "slack"] as const;
