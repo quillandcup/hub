@@ -1,9 +1,9 @@
 import * as Sentry from "@sentry/nextjs";
 
 Sentry.init({
-  dsn:
-    process.env.NEXT_PUBLIC_SENTRY_DSN ??
-    "https://1909f5f182e68bb97e908d89983eb454@o4512131993501696.ingest.de.sentry.io/4512132010672208",
+  // From env-vars.config.ts. NEXT_PUBLIC_ so the browser bundle can read it too; unset
+  // (e.g. local dev without it in .env.local) disables Sentry.
+  dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
 
   // Small member platform, not high traffic — capture all errors but keep
   // performance trace volume modest to control event usage.

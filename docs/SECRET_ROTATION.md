@@ -142,18 +142,17 @@ copy alone -- nothing breaks, but the files aren't authoritative for them). Fill
 | Var | `.env.prod` | `.env.devel` | Where the value comes from |
 |---|---|---|---|
 | `ZOOM_WEBHOOK_SECRET_TOKEN` | missing | missing | Zoom app -> Features -> Event Subscriptions -> Secret Token (see Zoom above). Only production receives Zoom webhooks, so `.env.devel` can reuse the same value. |
-| `SENTRY_DSN` | missing | missing | Sentry -> Settings -> Projects -> `hub` -> Client Keys (DSN). Same DSN in both files; Sentry separates environments itself. Vercel only has it in production today. |
-| `NEXT_PUBLIC_SENTRY_DSN` | missing | missing | Same DSN as `SENTRY_DSN` (Vercel has the identical value in all three environments). |
-| `NEXT_PUBLIC_GA_ID` | missing | missing | GA4 -> Admin -> Data streams -> the hub stream's Measurement ID (`G-...`). Vercel has the identical value in all three environments. |
+| `NEXT_PUBLIC_SENTRY_DSN` | present | missing | Copy from `.env.prod` (Vercel has the identical value in all three environments), or Sentry -> Settings -> Projects -> `hub` -> Client Keys (DSN). The only Sentry DSN var -- server and edge read it too. |
+| `NEXT_PUBLIC_GA_ID` | present | missing | Copy from `.env.prod`, or GA4 -> Admin -> Data streams -> the hub stream's Measurement ID (`G-...`). Vercel has the identical value in all three environments. |
 | `CRON_SECRET` | present | missing | Self-generated: `openssl rand -hex 32`. Use a **different** value from production -- Vercel Cron only runs in production, so dev/preview values only matter for calling `/api/reconcile/*` by hand. |
 | `CRON_INTERNAL_SECRET` | present | missing | Self-generated, different from production, same reasoning. pg_cron (via Supabase Vault) only ever calls production. |
 
-The Config-type values (the two Sentry DSNs and the GA ID) can also be copied out of Vercel
+The Config-type values (the Sentry DSN and the GA ID) can also be copied out of Vercel
 instead of each provider's dashboard -- pull to a throwaway file, copy the lines, delete it:
 
 ```bash
 npx vercel env pull /tmp/vercel-prod.env --environment=production --yes
-# copy NEXT_PUBLIC_SENTRY_DSN / SENTRY_DSN / NEXT_PUBLIC_GA_ID into .env.prod and .env.devel
+# copy NEXT_PUBLIC_SENTRY_DSN / NEXT_PUBLIC_GA_ID into .env.devel
 rm /tmp/vercel-prod.env
 ```
 
