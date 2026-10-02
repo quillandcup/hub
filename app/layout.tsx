@@ -23,7 +23,8 @@ export const metadata: Metadata = {
     default: "Hedgie Hub",
     template: "%s | Hedgie Hub",
   },
-  description: "Attendance and engagement analytics for Quill & Cup writing sessions",
+  description:
+    "The Quill & Cup member hub: find prickles and events, track your writing streaks and projects, and connect with fellow writers.",
   icons: {
     icon: '/icon.png',
   },
