@@ -5,7 +5,9 @@ import { redirect } from "next/navigation"
 import Link from "next/link"
 import { getEffectiveIdentity } from "@/lib/sudo"
 import { getUserTimezonePreference } from "@/lib/timezone"
-import { getStarredGoals } from "../projects/actions"
+import { getStarredGoals, getUnloggedRecentPrickles } from "../projects/actions"
+import UnloggedPricklesCard from "@/components/writing/UnloggedPricklesCard"
+import { localDateOf } from "@/lib/prickle-writing"
 import GoalDisplay from "@/components/writing/GoalDisplay"
 import UpcomingPrickleRow from "@/components/UpcomingPrickleRow"
 import { getRankedUpcomingPrickles } from "@/lib/upcoming-prickles"
@@ -17,6 +19,7 @@ export const metadata: Metadata = {
 
 const UPCOMING_WINDOW_DAYS = 7
 const MAX_UPCOMING_DISPLAY = 5
+const MAX_UNLOGGED_DISPLAY = 5
 
 export default async function DashboardPage() {
   const supabase = await createClient()
@@ -34,10 +37,25 @@ export default async function DashboardPage() {
 
   const now = new Date()
 
-  const [ranked, starredGoals] = await Promise.all([
+  const [ranked, starredGoals, { data: projectRows }, unlogged] = await Promise.all([
     getRankedUpcomingPrickles(supabase, memberId, timeZone, now, UPCOMING_WINDOW_DAYS),
     getStarredGoals(),
+    supabase
+      .from("writing_projects")
+      .select("id, title")
+      .eq("member_id", memberId)
+      .is("archived_at", null)
+      .order("created_at", { ascending: false }),
+    getUnloggedRecentPrickles(),
   ])
+  const projects = projectRows ?? []
+  // Only prompt members who track writing -- there's nothing to log progress against otherwise.
+  const unloggedPrickles =
+    projects.length > 0
+      ? unlogged
+          .slice(0, MAX_UNLOGGED_DISPLAY)
+          .map((p) => ({ ...p, entryDate: localDateOf(p.startTime, timeZone) }))
+      : []
   const upcoming = ranked.map((r) => r.prickle)
   const displayedUpcoming = ranked.slice(0, MAX_UPCOMING_DISPLAY)
 
@@ -72,6 +90,8 @@ export default async function DashboardPage() {
           </div>
         </div>
       )}
+
+      {unloggedPrickles.length > 0 && <UnloggedPricklesCard prickles={unloggedPrickles} projects={projects} />}
 
       {upcoming.length === 0 ? (
         <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 p-6 text-center">

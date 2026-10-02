@@ -28,6 +28,12 @@ import { computePrickleStreaks, seriesKeyFor } from "@/lib/streaks";
 import { getUserTimezonePreference } from "@/lib/timezone";
 import { DAY_NAMES, formatScheduleLabel, getMonthStart, getNextMonthStart } from "@/lib/prickle-schedules";
 import { ORG_TIMEZONE } from "@/lib/config";
+import {
+  formatPrickleLabel,
+  localDateOf,
+  sortPrickleOptions,
+  type PrickleOption,
+} from "@/lib/prickle-writing";
 
 const PHASES = PROJECT_PHASES;
 type Phase = ProjectPhase;
@@ -69,6 +75,8 @@ export interface EntryRow {
   tags: string[];
   createdAt: string;
   prickleId: string | null;
+  /** e.g. "Tue, Oct 1 · 9:00 AM · Morning Sprint with Jo" when prickleId is set. */
+  prickleLabel: string | null;
 }
 
 interface GoalRowBase {
@@ -136,9 +144,7 @@ export async function getMyPrickleAttendance(): Promise<PrickleAttendanceRow[]> 
   if ("error" in ctx) return [];
   const { supabase, effectiveIdentity } = ctx;
 
-  const tzPref = await getUserTimezonePreference();
-  const timeZone = tzPref === "browser" ? ORG_TIMEZONE : tzPref;
-  return fetchWritingPrickleAttendance(supabase, effectiveIdentity.memberId, timeZone);
+  return fetchWritingPrickleAttendance(supabase, effectiveIdentity.memberId, await viewerTimeZone());
 }
 
 async function fetchWritingPrickleAttendance(
@@ -345,7 +351,7 @@ export async function getProject(
         .single(),
       supabase
         .from("writing_progress_entries")
-        .select("id, project_id, entry_date, measure, mode, amount, note, tags, created_at, prickle_id")
+        .select(`id, project_id, entry_date, measure, mode, amount, note, tags, created_at, prickle_id, ${ENTRY_PRICKLE_EMBED}`)
         .eq("project_id", projectId)
         .eq("member_id", effectiveIdentity.memberId)
         .order("entry_date", { ascending: false })
@@ -375,7 +381,8 @@ export async function getProject(
     attendance,
     books
   );
-  const entries: EntryRow[] = (entryRows ?? []).map(toEntryRow);
+  const timeZone = await viewerTimeZone();
+  const entries: EntryRow[] = ((entryRows ?? []) as unknown as RawEntry[]).map((e) => toEntryRow(e, timeZone));
 
   return { project, entries };
 }
@@ -407,6 +414,33 @@ interface RawEntry {
   tags: string[] | null;
   created_at: string;
   prickle_id?: string | null;
+  prickle?: RawEmbeddedPrickle | RawEmbeddedPrickle[] | null;
+}
+
+interface RawEmbeddedPrickle {
+  id: string;
+  start_time: string;
+  host: { name: string | null } | { name: string | null }[] | null;
+  prickle_types: { name: string | null } | { name: string | null }[] | null;
+}
+
+/** Embeds the entry's prickle with what formatPrickleLabel needs. */
+const ENTRY_PRICKLE_EMBED = "prickle:prickles(id, start_time, host:prickle_host(name), prickle_types:type_id(name))";
+
+function one<T>(ref: T | T[] | null | undefined): T | null {
+  return (Array.isArray(ref) ? ref[0] : ref) ?? null;
+}
+
+function labelForPrickle(p: RawEmbeddedPrickle, timeZone: string): string {
+  return formatPrickleLabel(
+    { startTime: p.start_time, typeName: one(p.prickle_types)?.name ?? null, hostName: one(p.host)?.name ?? null },
+    timeZone
+  );
+}
+
+async function viewerTimeZone(): Promise<string> {
+  const tzPref = await getUserTimezonePreference();
+  return tzPref === "browser" ? ORG_TIMEZONE : tzPref;
 }
 
 interface RawGoal {
@@ -562,7 +596,8 @@ function buildProjectRows(
   });
 }
 
-function toEntryRow(e: RawEntry): EntryRow {
+function toEntryRow(e: RawEntry, timeZone: string): EntryRow {
+  const prickle = one(e.prickle);
   return {
     id: e.id,
     projectId: e.project_id,
@@ -574,6 +609,7 @@ function toEntryRow(e: RawEntry): EntryRow {
     tags: e.tags ?? [],
     createdAt: e.created_at,
     prickleId: e.prickle_id ?? null,
+    prickleLabel: prickle ? labelForPrickle(prickle, timeZone) : null,
   };
 }
 
@@ -900,12 +936,16 @@ export async function logProgress(
   revalidatePath("/projects");
   revalidatePath(`/projects/${input.projectId}`);
   revalidatePath("/dashboard");
+  if (input.prickleId) revalidatePath(`/prickles/${input.prickleId}`);
   return { success: true, id: data.id };
 }
 
 export type UpdateEntryInput = Partial<
   Pick<LogProgressInput, "entryDate" | "measure" | "mode" | "amount" | "note" | "tags">
->;
+> & {
+  /** null detaches the entry from its prickle. */
+  prickleId?: string | null;
+};
 
 export async function updateEntry(
   entryId: string,
@@ -917,7 +957,7 @@ export async function updateEntry(
 
   const { data: existing } = await supabase
     .from("writing_progress_entries")
-    .select("id, project_id, member_id")
+    .select("id, project_id, member_id, prickle_id")
     .eq("id", entryId)
     .single();
 
@@ -941,6 +981,7 @@ export async function updateEntry(
   if (patch.amount !== undefined) updates.amount = patch.amount;
   if (patch.note !== undefined) updates.note = patch.note.trim() || null;
   if (patch.tags !== undefined) updates.tags = normalizeTags(patch.tags);
+  if (patch.prickleId !== undefined) updates.prickle_id = patch.prickleId;
 
   const { error } = await supabase
     .from("writing_progress_entries")
@@ -953,6 +994,9 @@ export async function updateEntry(
   revalidatePath("/projects");
   revalidatePath(`/projects/${existing.project_id}`);
   revalidatePath("/dashboard");
+  for (const id of new Set([existing.prickle_id, patch.prickleId])) {
+    if (id) revalidatePath(`/prickles/${id}`);
+  }
   return { success: true };
 }
 
@@ -963,7 +1007,7 @@ export async function deleteEntry(entryId: string): Promise<{ success: true } | 
 
   const { data: existing } = await supabase
     .from("writing_progress_entries")
-    .select("id, project_id, member_id")
+    .select("id, project_id, member_id, prickle_id")
     .eq("id", entryId)
     .single();
 
@@ -992,7 +1036,124 @@ export async function deleteEntry(entryId: string): Promise<{ success: true } | 
   revalidatePath("/projects");
   revalidatePath(`/projects/${existing.project_id}`);
   revalidatePath("/dashboard");
+  if (existing.prickle_id) revalidatePath(`/prickles/${existing.prickle_id}`);
   return { success: true };
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Every prickle on a calendar date (the viewer's timezone), for the "During which prickle?"
+ * picker -- the ones the member attended first. Not only attended ones: attendance is imported
+ * after the meeting ends and some Zoom names never match, so the member can still link a
+ * prickle we have no attendance record for.
+ */
+export async function getPricklesOnDate(date: string): Promise<PrickleOption[]> {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return [];
+  const ctx = await requireIdentity();
+  if ("error" in ctx) return [];
+  const { supabase, effectiveIdentity } = ctx;
+  const timeZone = await viewerTimeZone();
+
+  // A UTC window wide enough for any timezone offset, narrowed to the local date below.
+  const dayStartUtc = new Date(`${date}T00:00:00Z`).getTime();
+  const { data: prickles } = await supabase
+    .from("prickles")
+    .select("id, start_time, host:prickle_host(name), prickle_types:type_id(name)")
+    .gte("start_time", new Date(dayStartUtc - DAY_MS).toISOString())
+    .lt("start_time", new Date(dayStartUtc + 2 * DAY_MS).toISOString())
+    .order("start_time", { ascending: true });
+
+  const onDate = ((prickles ?? []) as unknown as RawEmbeddedPrickle[]).filter(
+    (p) => localDateOf(p.start_time, timeZone) === date
+  );
+  if (onDate.length === 0) return [];
+
+  const { data: attendance } = await supabase
+    .from("prickle_attendance")
+    .select("prickle_id")
+    .eq("member_id", effectiveIdentity.memberId)
+    .in(
+      "prickle_id",
+      onDate.map((p) => p.id)
+    );
+  const attendedIds = new Set(((attendance ?? []) as { prickle_id: string }[]).map((a) => a.prickle_id));
+
+  return sortPrickleOptions(
+    onDate.map((p) => ({
+      id: p.id,
+      label: labelForPrickle(p, timeZone),
+      startTime: p.start_time,
+      attended: attendedIds.has(p.id),
+    }))
+  );
+}
+
+export interface PrickleEntryRow extends EntryRow {
+  projectTitle: string;
+}
+
+/** The acting member's progress entries linked to one prickle, for the prickle page. */
+export async function getMyEntriesForPrickle(prickleId: string): Promise<PrickleEntryRow[]> {
+  const ctx = await requireIdentity();
+  if ("error" in ctx) return [];
+  const { supabase, effectiveIdentity } = ctx;
+
+  const [{ data }, timeZone] = await Promise.all([
+    supabase
+      .from("writing_progress_entries")
+      .select(
+        `id, project_id, entry_date, measure, mode, amount, note, tags, created_at, prickle_id, ${ENTRY_PRICKLE_EMBED}, writing_projects!inner(title)`
+      )
+      .eq("member_id", effectiveIdentity.memberId)
+      .eq("prickle_id", prickleId)
+      .order("created_at", { ascending: true }),
+    viewerTimeZone(),
+  ]);
+
+  return ((data ?? []) as unknown as (RawEntry & { writing_projects: { title: string } | { title: string }[] })[]).map(
+    (e) => ({ ...toEntryRow(e, timeZone), projectTitle: one(e.writing_projects)?.title ?? "" })
+  );
+}
+
+const UNLOGGED_LOOKBACK_DAYS = 14;
+
+/**
+ * Writing prickles the acting member attended in the last two weeks with no progress entry
+ * linked yet -- the dashboard's "What did you write?" prompt. Newest first.
+ */
+export async function getUnloggedRecentPrickles(): Promise<PrickleOption[]> {
+  const ctx = await requireIdentity();
+  if ("error" in ctx) return [];
+  const { supabase, effectiveIdentity } = ctx;
+  const since = new Date(Date.now() - UNLOGGED_LOOKBACK_DAYS * DAY_MS).toISOString();
+
+  const [{ data: attendance }, { data: linked }, timeZone] = await Promise.all([
+    supabase
+      .from("prickle_attendance")
+      .select(
+        "prickle_id, prickles!inner(id, start_time, host:prickle_host(name), prickle_types!inner(name, purpose))"
+      )
+      .eq("member_id", effectiveIdentity.memberId)
+      .eq("prickles.prickle_types.purpose", "writing")
+      .gte("prickles.start_time", since),
+    supabase
+      .from("writing_progress_entries")
+      .select("prickle_id")
+      .eq("member_id", effectiveIdentity.memberId)
+      .not("prickle_id", "is", null)
+      .gte("created_at", since),
+    viewerTimeZone(),
+  ]);
+
+  const linkedIds = new Set(((linked ?? []) as { prickle_id: string }[]).map((e) => e.prickle_id));
+  const byId = new Map<string, PrickleOption>();
+  for (const row of (attendance ?? []) as unknown as { prickles: RawEmbeddedPrickle | RawEmbeddedPrickle[] }[]) {
+    const p = one(row.prickles);
+    if (!p || linkedIds.has(p.id) || byId.has(p.id)) continue;
+    byId.set(p.id, { id: p.id, label: labelForPrickle(p, timeZone), startTime: p.start_time, attended: true });
+  }
+  return [...byId.values()].sort((a, b) => b.startTime.localeCompare(a.startTime));
 }
 
 export interface CreateGoalInput {

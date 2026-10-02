@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Modal from "@/components/Modal";
 import { WRITING_MEASURES, MEASURE_LABELS, type WritingMeasure, type EntryMode } from "@/lib/writing-projects";
 
@@ -8,7 +8,8 @@ import { WRITING_MEASURES, MEASURE_LABELS, type WritingMeasure, type EntryMode }
 // lib/writing-projects.ts) -- writing_progress_entries.measure's CHECK constraint doesn't allow
 // it, so it must never appear as a manually-loggable option here.
 const LOGGABLE_MEASURES = WRITING_MEASURES.filter((m) => m !== "prickles");
-import { logProgress, updateEntry, type EntryRow } from "@/app/(member)/projects/actions";
+import { getPricklesOnDate, logProgress, updateEntry, type EntryRow } from "@/app/(member)/projects/actions";
+import { defaultPrickleId, type PrickleOption } from "@/lib/prickle-writing";
 
 interface LogProgressModalProps {
   isOpen: boolean;
@@ -18,7 +19,7 @@ interface LogProgressModalProps {
   /** Present when editing an existing entry instead of logging a new one. */
   editingEntry?: EntryRow;
   onSaved: () => void;
-  /** Attaches the new entry to a prickle (creation only -- see item 7). */
+  /** Preselects this prickle in the "During which prickle?" picker (e.g. logging from the prickle's page). */
   prickleId?: string;
   defaultEntryDate?: string;
 }
@@ -47,6 +48,32 @@ export default function LogProgressModal({
   const [isPending, setIsPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // "During which prickle?" -- "" means not during a prickle. Options are the prickles on the
+  // entry's date; a new entry defaults to the one the member attended that day, if exactly one.
+  const initialPrickleId = editingEntry ? editingEntry.prickleId ?? "" : prickleId ?? "";
+  const [prickleChoice, setPrickleChoice] = useState(initialPrickleId);
+  const [prickleOptions, setPrickleOptions] = useState<PrickleOption[]>([]);
+  const [optionsLoadedFor, setOptionsLoadedFor] = useState<string | null>(null);
+  // Only a new, not-yet-linked entry gets the default; an edit keeps what was saved.
+  const prickleTouched = useRef(!!editingEntry || initialPrickleId !== "");
+
+  useEffect(() => {
+    if (!isOpen || !entryDate) return;
+    let cancelled = false;
+    getPricklesOnDate(entryDate).then((options) => {
+      if (cancelled) return;
+      setPrickleOptions(options);
+      setOptionsLoadedFor(entryDate);
+      if (!prickleTouched.current) setPrickleChoice(defaultPrickleId(options) ?? "");
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, entryDate]);
+
+  // Keep a linked prickle selectable even when it isn't on the chosen date.
+  const selectedMissing = prickleChoice !== "" && !prickleOptions.some((o) => o.id === prickleChoice);
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
@@ -65,7 +92,15 @@ export default function LogProgressModal({
 
     setIsPending(true);
     const result = editingEntry
-      ? await updateEntry(editingEntry.id, { entryDate, measure, mode, amount: parsedAmount, note, tags })
+      ? await updateEntry(editingEntry.id, {
+          entryDate,
+          measure,
+          mode,
+          amount: parsedAmount,
+          note,
+          tags,
+          prickleId: prickleChoice || null,
+        })
       : await logProgress({
           projectId,
           entryDate,
@@ -74,7 +109,7 @@ export default function LogProgressModal({
           amount: parsedAmount,
           note,
           tags,
-          ...(prickleId ? { prickleId } : {}),
+          ...(prickleChoice ? { prickleId: prickleChoice } : {}),
         });
     setIsPending(false);
 
@@ -131,6 +166,38 @@ export default function LogProgressModal({
               className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-sm"
             />
           </div>
+        </div>
+
+        <div>
+          <label
+            htmlFor="log-progress-prickle"
+            className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1"
+          >
+            During which prickle?
+          </label>
+          <select
+            id="log-progress-prickle"
+            value={prickleChoice}
+            onChange={(e) => {
+              prickleTouched.current = true;
+              setPrickleChoice(e.target.value);
+            }}
+            className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-sm"
+          >
+            <option value="">Not during a prickle</option>
+            {selectedMissing && (
+              <option value={prickleChoice}>{editingEntry?.prickleLabel ?? "The linked prickle"}</option>
+            )}
+            {prickleOptions.map((o) => (
+              <option key={o.id} value={o.id}>
+                {o.label}
+                {o.attended ? " (you attended)" : ""}
+              </option>
+            ))}
+          </select>
+          {optionsLoadedFor === entryDate && prickleOptions.length === 0 && !selectedMissing && (
+            <p className="mt-1 text-xs text-slate-400">No prickles on this date.</p>
+          )}
         </div>
 
         <div>
