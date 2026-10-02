@@ -4,8 +4,25 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/supabase/api-auth';
 import { extractSlackImageUrl } from '@/lib/member-avatar';
 import { deleteRemovedSlackReactions } from '@/lib/slack-reactions';
+import {
+  isKeptSlackMessage,
+  slackMessageUserId,
+  slackTsToIso,
+  threadKey,
+  threadsNeedingReplies,
+  type StoredThreadReplies,
+} from '@/lib/slack-messages';
+import { clock } from '@/lib/clock';
 
 export const maxDuration = 300; // 5 minutes for Slack API calls
+
+// Thread replies get whatever is left of this budget after channel history,
+// leaving the rest of maxDuration for the upserts and Silver reprocessing.
+// Threads that don't fit are fetched on the next run (see threadsNeedingReplies).
+const FETCH_BUDGET_MS = 170_000;
+// Replies to threads active this recently are refetched every run, to catch
+// reactions added or removed on them.
+const RECENT_THREAD_DAYS = 3;
 
 interface SlackApiImportRequest {
   daysBack: number;
@@ -27,6 +44,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const startedAt = clock.now();
     const body: SlackApiImportRequest = await request.json();
     const daysBack = body.daysBack || 7;
 
@@ -35,8 +53,8 @@ export async function POST(request: NextRequest) {
     const slack = new WebClient(SLACK_BOT_TOKEN);
 
     // Calculate date range
-    const oldest = Math.floor(Date.now() / 1000) - (daysBack * 24 * 60 * 60);
-    const latest = Math.floor(Date.now() / 1000);
+    const oldest = Math.floor(clock.now() / 1000) - (daysBack * 24 * 60 * 60);
+    const latest = Math.floor(clock.now() / 1000);
 
     console.log(`Date range: ${new Date(oldest * 1000).toISOString()} to ${new Date(latest * 1000).toISOString()}`);
 
@@ -70,14 +88,20 @@ export async function POST(request: NextRequest) {
       allReactions.push(...reactions);
 
       // Rate limit: ~50 channels/min
-      await sleep(1200);
+      await clock.sleep(1200);
     }
 
     // conversations.history only returns top-level messages; replies (more than
-    // half of all messages) need one conversations.replies call per thread.
-    const threads = allMessages.filter(m => m.reply_count > 0);
-    console.log(`Fetching replies for ${threads.length} threads...`);
-    const threadReplies = await fetchThreadReplies(slack, threads);
+    // half of all messages) need one conversations.replies call per thread, so
+    // only threads that changed (or are still active) are fetched.
+    const parents = allMessages.filter(m => m.reply_count > 0);
+    const storedReplies = await loadStoredThreadReplies(supabase, parents);
+    const threads = threadsNeedingReplies(parents, storedReplies, latest - RECENT_THREAD_DAYS * 24 * 60 * 60);
+    console.log(`Fetching replies for ${threads.length} of ${parents.length} threads...`);
+    const threadReplies = await fetchThreadReplies(slack, threads, startedAt);
+    if (threadReplies.deferred > 0) {
+      console.warn(`  Out of time: ${threadReplies.deferred} threads deferred to the next run`);
+    }
     allMessages.push(...threadReplies.messages);
     allReactions.push(...threadReplies.reactions);
 
@@ -165,6 +189,8 @@ export async function POST(request: NextRequest) {
         channels: channels.length,
         messages: allMessages.length,
         threadReplies: threadReplies.messages.length,
+        threadsFetched: threads.length - threadReplies.deferred,
+        threadsDeferred: threadReplies.deferred,
         reactions: allReactions.length,
       },
       daysBack,
@@ -275,7 +301,7 @@ async function autoJoinPublicChannels(slack: WebClient, channels: any[]) {
       console.log(`  ✓ Joined #${channel.name}`);
 
       // Small delay to avoid rate limits
-      await sleep(100);
+      await clock.sleep(100);
     } catch (error: any) {
       if (error.data?.error === 'already_in_channel') {
         alreadyMember++;
@@ -332,17 +358,68 @@ async function fetchChannelHistory(
 const THREAD_CONCURRENCY = 5;
 
 /**
- * Fetch every reply in the given threads (5 at a time; Slack answered 150
- * reply calls in ~4s without throttling). If Slack does rate-limit, WebClient
- * waits out the 429's Retry-After and retries.
+ * Replies already stored for these threads, keyed by threadKey. Compared with
+ * what Slack reports to decide which threads need fetching.
  */
-async function fetchThreadReplies(slack: WebClient, parents: any[]) {
+async function loadStoredThreadReplies(supabase: SupabaseClient, parents: any[]) {
+  const stored = new Map<string, StoredThreadReplies>();
+  const tsByChannel = new Map<string, string[]>();
+  for (const p of parents) {
+    const list = tsByChannel.get(p.channel_id) ?? [];
+    list.push(p.message_ts);
+    tsByChannel.set(p.channel_id, list);
+  }
+
+  const CHUNK = 100;
+  const PAGE = 1000;
+  for (const [channelId, threadTs] of tsByChannel) {
+    for (let i = 0; i < threadTs.length; i += CHUNK) {
+      const chunk = threadTs.slice(i, i + CHUNK);
+      for (let offset = 0; ; offset += PAGE) {
+        const { data, error } = await supabase
+          .schema('bronze')
+          .from('slack_messages')
+          .select('thread_ts, message_ts')
+          .eq('channel_id', channelId)
+          .in('thread_ts', chunk)
+          .order('message_ts')
+          .range(offset, offset + PAGE - 1);
+        if (error) throw error;
+        for (const row of data ?? []) {
+          if (row.message_ts === row.thread_ts) continue; // the parent itself
+          const key = threadKey(channelId, row.thread_ts);
+          const have = stored.get(key) ?? { count: 0, latestTs: null };
+          have.count++;
+          if (!have.latestTs || parseFloat(row.message_ts) > parseFloat(have.latestTs)) have.latestTs = row.message_ts;
+          stored.set(key, have);
+        }
+        if (!data || data.length < PAGE) break;
+      }
+    }
+  }
+  return stored;
+}
+
+/**
+ * Fetch every reply in the given threads, 5 at a time. When Slack
+ * rate-limits, WebClient waits out the 429's Retry-After and retries. Stops
+ * starting new threads once FETCH_BUDGET_MS has passed since
+ * `startedAt`; the rest are counted as deferred.
+ */
+async function fetchThreadReplies(slack: WebClient, parents: any[], startedAt: number) {
   const messages: any[] = [];
   const reactions: any[] = [];
   const queue = [...parents];
 
   const worker = async () => {
     for (let parent = queue.shift(); parent; parent = queue.shift()) {
+      if (clock.now() - startedAt >= FETCH_BUDGET_MS) {
+        queue.unshift(parent);
+        return;
+      }
+      // Buffer per thread so a thread is stored whole or not at all.
+      const threadMessages: any[] = [];
+      const threadReactions: any[] = [];
       let cursor: string | undefined;
       do {
         const result: any = await slack.conversations.replies({
@@ -353,15 +430,17 @@ async function fetchThreadReplies(slack: WebClient, parents: any[]) {
         });
         for (const msg of result.messages ?? []) {
           if (msg.ts === parent.message_ts) continue; // the parent is already in history
-          addMessage(msg, parent.channel_id, parent.channel_name, parent.channel_type, messages, reactions);
+          addMessage(msg, parent.channel_id, parent.channel_name, parent.channel_type, threadMessages, threadReactions);
         }
         cursor = result.response_metadata?.next_cursor;
       } while (cursor);
+      messages.push(...threadMessages);
+      reactions.push(...threadReactions);
     }
   };
 
   await Promise.all(Array.from({ length: THREAD_CONCURRENCY }, worker));
-  return { messages, reactions };
+  return { messages, reactions, deferred: queue.length };
 }
 
 function addMessage(
@@ -373,7 +452,7 @@ function addMessage(
   reactions: any[]
 ) {
   // Skip join/leave messages (keep file_share, thread_broadcast)
-  if (msg.subtype && !['file_share', 'thread_broadcast'].includes(msg.subtype)) {
+  if (!isKeptSlackMessage(msg)) {
     return;
   }
 
@@ -382,7 +461,7 @@ function addMessage(
     channel_id: channelId,
     channel_name: channelName,
     channel_type: channelType,
-    user_id: msg.user || msg.bot_id || 'unknown',
+    user_id: slackMessageUserId(msg),
     user_email: '', // Will be filled from users map later
     user_name: '', // Will be filled from users map later
     text: msg.text || '',
@@ -390,7 +469,7 @@ function addMessage(
     thread_ts: msg.thread_ts || null,
     reply_count: msg.reply_count || 0,
     reply_users_count: msg.reply_users_count || 0,
-    occurred_at: new Date(parseFloat(msg.ts) * 1000).toISOString(),
+    occurred_at: slackTsToIso(msg.ts),
     edited_at: msg.edited ? new Date(msg.edited.ts * 1000).toISOString() : null,
     deleted_at: null,
     files: msg.files ? msg.files : null,
@@ -446,8 +525,4 @@ function dedupeBy<T>(rows: T[], key: (row: T) => string) {
     rows[kept++] = row;
   }
   rows.length = kept;
-}
-
-function sleep(ms: number) {
-  return new Promise(resolve => setTimeout(resolve, ms));
 }

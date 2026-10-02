@@ -5,6 +5,8 @@ import { CONNECTION_CONFIRMATION_MESSAGE_THRESHOLD } from "@/lib/wheel-of-wonder
 import { verifySlackSignature } from "@/lib/slack-signature";
 import { publishSlackHome } from "@/lib/slack-sign-in";
 import { createServiceRoleClient } from "@/lib/supabase/service";
+import { isKeptSlackMessage, slackMessageUserId, slackTsToIso } from "@/lib/slack-messages";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 // Webhook should respond quickly
 export const maxDuration = 60;
@@ -115,16 +117,25 @@ async function processSlackEvent(event: any) {
   });
 
   try {
-    if (eventType === "message") {
+    if (eventType === "message" && event.subtype === "message_changed") {
+      await applyMessageEdit(supabase, event);
+    } else if (eventType === "message" && event.subtype === "message_deleted") {
+      await applyMessageDelete(supabase, event);
+    } else if (eventType === "message" && !isKeptSlackMessage(event)) {
+      // Joins, leaves, topic changes etc.: the import skips these too.
+      return;
+    } else if (eventType === "message") {
       // UPSERT message to Bronze layer
       const { error } = await supabase.schema("bronze").from("slack_messages").upsert(
         {
           channel_id: event.channel,
           message_ts: event.ts,
-          user_id: event.user,
+          user_id: slackMessageUserId(event),
           text: event.text,
+          message_type: event.subtype || "message",
           thread_ts: event.thread_ts || null,
-          occurred_at: new Date(parseFloat(event.ts) * 1000).toISOString(),
+          occurred_at: slackTsToIso(event.ts),
+          files: event.files ?? null,
           raw_payload: event,
         },
         {
@@ -201,6 +212,60 @@ async function processSlackEvent(event: any) {
     console.error("Error processing Slack event:", error);
     // Don't throw - we already returned 200 OK to Slack
   }
+}
+
+/**
+ * A message_changed event describes an edit to an earlier message
+ * (event.message, keyed by its own ts); it isn't a message itself. Updates the
+ * stored message if we have it. Messages we don't have yet are left to the
+ * nightly import, which stores the edited text.
+ */
+async function applyMessageEdit(supabase: SupabaseClient, event: any) {
+  const message = event.message;
+  if (!message?.ts) return;
+
+  const { error } = await supabase
+    .schema("bronze")
+    .from("slack_messages")
+    .update({
+      text: message.text ?? "",
+      edited_at: message.edited?.ts ? slackTsToIso(message.edited.ts) : null,
+      reply_count: message.reply_count ?? 0,
+      reply_users_count: message.reply_users_count ?? 0,
+      files: message.files ?? null,
+      raw_payload: message,
+    })
+    .eq("channel_id", event.channel)
+    .eq("message_ts", message.ts);
+
+  if (error) {
+    console.error("Error applying Slack message edit:", error);
+    return;
+  }
+  triggerSlackProcessing(message.ts);
+}
+
+/**
+ * A message_deleted event names the deleted message by event.deleted_ts.
+ * Soft delete: Silver processing skips rows with deleted_at set.
+ */
+async function applyMessageDelete(supabase: SupabaseClient, event: any) {
+  const deletedTs = event.deleted_ts ?? event.previous_message?.ts;
+  if (!deletedTs) return;
+
+  const { error } = await supabase
+    .schema("bronze")
+    .from("slack_messages")
+    .update({ deleted_at: slackTsToIso(event.event_ts ?? event.ts) })
+    .eq("channel_id", event.channel)
+    .eq("message_ts", deletedTs)
+    .is("deleted_at", null);
+
+  if (error) {
+    console.error("Error applying Slack message delete:", error);
+    return;
+  }
+  triggerSlackProcessing(deletedTs);
 }
 
 /**

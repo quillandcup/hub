@@ -180,6 +180,8 @@ Required test coverage:
 
 **Server-component page tests**: Async `page.tsx` files are tested the same way — `await` the page's default export with its props (e.g. `{ searchParams: Promise.resolve({ tab: "find" }) }`), then `render()` the returned JSX. `tests/helpers/server-page.ts` supplies the shared module mocks (point `vi.mock("next/navigation" | "@/lib/auth" | "@/lib/sudo" | "@/lib/supabase/server", ...)` at them), a chainable fake Supabase client (`useFakeSupabase({ table: { data } })`), `signInAs(user, identity)`, `renderServerPage` and `expectRedirect` (the mocked `redirect()` throws like Next's). Mock other lib/action calls and heavy client children per test. Put these under `tests/components/pages/`; see `tests/components/pages/unflagged-pages.test.tsx`.
 
+**Time in tests: fake clock, never real waits**: Tests must not spend real time waiting on pauses, retries or deadlines. Server code that sleeps or keeps a time budget reads time through `lib/clock.ts` (`clock.now()`, `clock.sleep(ms)`), not `Date.now()`/`setTimeout` directly. Tests call `useFakeClock()` from `tests/helpers/fake-clock.ts`: `sleep` moves virtual time forward and resolves at once, and `fake.clock.advance(ms)` jumps ahead to hit a deadline or trigger a callback. See `tests/api/idempotency/slack-api-thread-selection.test.ts`. Don't use `vi.useFakeTimers()` with `runAllTimersAsync()`/`advanceTimersByTime()` in tests that make real HTTP calls (the local Supabase): it also fires the HTTP client's own timeouts on in-flight requests (`UND_ERR_HEADERS_TIMEOUT`), which fails only on slower CI. `vi.useFakeTimers({ toFake: ["Date"] })` + `vi.setSystemTime()` is fine for pinning "now".
+
 ## Code Review Checklist
 
 Before committing changes to API routes, verify:

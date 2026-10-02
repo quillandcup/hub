@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest'
 import { NextRequest } from 'next/server'
 import { getTestSupabaseAdminClient } from '../../helpers/supabase'
+import { useFakeClock } from '../../helpers/fake-clock'
 
 /**
  * /api/import/slack-api with Slack mocked and the local DB real: thread replies
@@ -56,6 +57,7 @@ import { POST } from '@/app/api/import/slack-api/route'
 
 describe('POST /api/import/slack-api thread replies', () => {
   const supabase = getTestSupabaseAdminClient()
+  useFakeClock() // the per-channel pause costs no real time
 
   const cleanup = async () => {
     await supabase.schema('bronze').from('slack_reactions').delete().eq('channel_id', channelId)
