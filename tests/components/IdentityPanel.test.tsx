@@ -4,6 +4,7 @@ import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { IdentityPanel } from '@/app/(member)/settings/IdentityPanel'
 import * as identityActions from '@/app/(member)/settings/identityActions'
+import { SUPPORT_EMAIL } from '@/lib/config'
 
 vi.mock('@/app/(member)/settings/identityActions', () => ({
   getIdentitySettings: vi.fn(),
@@ -65,6 +66,6 @@ describe('IdentityPanel', () => {
 
     await waitFor(() => expect(screen.getByText('Ada Lovelace')).toBeInTheDocument())
     expect(screen.queryByDisplayValue('Ada Lovelace')).not.toBeInTheDocument()
-    expect(screen.getByText(/support@example\.com/)).toBeInTheDocument()
+    expect(screen.getByText(SUPPORT_EMAIL)).toBeInTheDocument()
   })
 })

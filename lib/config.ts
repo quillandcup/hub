@@ -6,6 +6,10 @@
  * based on Vercel system environment variables.
  */
 
+// Relative, not "@/": also loaded outside Next (scripts/render-email-templates.ts via
+// supabase/emails/layout.tsx).
+import appConfig from "../app.config.json";
+
 /**
  * Environment type
  */
@@ -38,30 +42,26 @@ export const deployment = {
 };
 
 /**
- * Organization/deployment settings (declared in env-vars.config.ts). No defaults: a missing var
- * throws when this module loads, so a misconfigured build or server fails fast instead of
- * quietly using a value baked into the code.
- *
- * NEXT_PUBLIC_* names must be written out literally (`process.env.NEXT_PUBLIC_X`), not looked
- * up by a variable key: Next.js inlines them into client bundles by matching that exact text.
+ * Organization settings shared by every environment, from app.config.json at the repo root.
+ * Per-environment values and secrets are env vars (env-vars.config.ts) instead.
  */
-function required(name: string, value: string | undefined): string {
-  if (!value) throw new Error(`${name} is not set -- see env-vars.config.ts`);
-  return value;
-}
 
 /**
  * The organization's home timezone (IANA name): org-wide calendars, streak/day boundaries,
  * default schedule timezone, and the fallback when a member has no preference. Stored
  * commitment slots are in this timezone, so changing it needs a data migration.
  */
-export const ORG_TIMEZONE = required("NEXT_PUBLIC_ORG_TIMEZONE", process.env.NEXT_PUBLIC_ORG_TIMEZONE);
+export const ORG_TIMEZONE = appConfig.orgTimezone;
 
 /** Where members are told to email for help. */
-export const SUPPORT_EMAIL = required("NEXT_PUBLIC_SUPPORT_EMAIL", process.env.NEXT_PUBLIC_SUPPORT_EMAIL);
+export const SUPPORT_EMAIL = appConfig.supportEmail;
 
-/** Canonical base URL of this deployment, no trailing slash (links in Slack messages, iCal UIDs). */
-export const APP_URL = required("NEXT_PUBLIC_APP_URL", process.env.NEXT_PUBLIC_APP_URL).replace(/\/+$/, "");
+/**
+ * Canonical (production) base URL, no trailing slash, the same in every environment: links in
+ * Slack messages and iCal event UIDs, which must stay stable or calendar subscribers see
+ * duplicates. Links that should follow the serving deployment use the request's origin.
+ */
+export const APP_URL = appConfig.appUrl.replace(/\/+$/, "");
 
 /**
  * Supabase configuration

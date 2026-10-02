@@ -1,6 +1,6 @@
 import { UrlMonitor, UrlAssertionBuilder } from 'checkly/constructs'
 import { ownerEmailAlert } from './alert-channels'
-import { appHost, appUrl } from './env'
+import { appHost, appUrl } from './config'
 
 // Hits the public health-check route (app/api/health) which confirms
 // Supabase connectivity, not just that Next.js is responding.

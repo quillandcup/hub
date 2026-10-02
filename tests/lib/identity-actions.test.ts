@@ -24,6 +24,7 @@ vi.mock("@/lib/kajabi/client", () => ({
 import { updateRealName } from "@/app/(member)/settings/identityActions";
 import { createClient } from "@/lib/supabase/server";
 import { getEffectiveIdentity } from "@/lib/sudo";
+import { SUPPORT_EMAIL } from "@/lib/config"
 
 const IDENTITY = {
   memberId: "member-1",
@@ -71,7 +72,7 @@ describe("updateRealName", () => {
     vi.mocked(createClient).mockResolvedValue(mock as any);
 
     const result = await updateRealName("Erica Haraldsen");
-    expect(result).toEqual({ error: expect.stringContaining("support@example.com") });
+    expect(result).toEqual({ error: expect.stringContaining(SUPPORT_EMAIL) });
     expect(updateContactMock).not.toHaveBeenCalled();
     expect(mock.__update).not.toHaveBeenCalled();
   });

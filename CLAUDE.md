@@ -131,9 +131,12 @@ const memberBasePath = isActingAsAdmin ? "/admin/members" : "/members";
 
 ### No Hardcoded Config
 
-**RULE**: Deployment/org config (URLs, hosts, emails, timezones, IDs, slugs) comes from env vars declared in `env-vars.config.ts`, never literals or `??` fallbacks in code. App code reads it through `lib/config.ts` (`APP_URL`, `ORG_TIMEZONE`, `SUPPORT_EMAIL`, ...), which throws at load when a var is unset -- add new values there the same way. Checkly checks read `__checks__/env.ts`; SQL/pg_cron reads Vault (a `vault` destination in `env-vars.config.ts`).
+**RULE**: Deployment/org config (URLs, hosts, emails, timezones, IDs, slugs) lives outside the code, never as literals or `??` fallbacks. Two places, by whether the value varies:
 
-Tests use example values (`tests/setup.ts`, and the test jobs' `env` in `ci.yml`), so assert against those, not production values. A new required var must be in Vercel (`npm run env:sync`) before the code that needs it deploys, or the build fails.
+- **Same in every environment** -> `app.config.json` (committed). App code reads it through `lib/config.ts` (`APP_URL`, `ORG_TIMEZONE`, `SUPPORT_EMAIL`); `next.config.ts`, `__checks__/config.ts` and scripts import the JSON directly. SQL/pg_cron can't read the file, so `npm run env:sync:vault` copies the values it needs into Vault (`SHARED_CONFIG_IN_VAULT` in `scripts/sync-vault-secrets.ts`, e.g. `app_url`).
+- **Differs per environment, or secret** -> an env var declared in `env-vars.config.ts`, synced to Vercel/GitHub/Vault by the `env:sync*` scripts. Sync a new required var before the code that reads it deploys.
+
+Tests assert against the imported config values (e.g. `SUPPORT_EMAIL` from `@/lib/config`), not repeated literals.
 
 ### Admin Route Protection
 

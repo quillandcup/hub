@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 import path from "path";
 import { withSentryConfig } from "@sentry/nextjs/config";
+import appConfig from "./app.config.json";
 
 // Preview deployments have intermittently hung indefinitely (~45 min, then
 // force-errored with no diagnostic output) during Next.js's "checking
@@ -31,10 +32,10 @@ const nextConfig: NextConfig = {
 };
 
 export default withSentryConfig(nextConfig, {
-  // Org/project slugs and the auth token are only used for the source map upload. All three
-  // are GitHub Actions config passed to CI's production `vercel build` (see env-vars.config.ts).
-  org: process.env.SENTRY_ORG,
-  project: process.env.SENTRY_PROJECT,
+  // Only used for the source map upload. Slugs from app.config.json; the auth token is a
+  // GitHub secret passed to CI's production `vercel build` (see env-vars.config.ts).
+  org: appConfig.sentry.org,
+  project: appConfig.sentry.project,
 
   // Source map upload auth token (build-time secret, generated at
   // sentry.io/settings/account/api/auth-tokens) for readable production stack

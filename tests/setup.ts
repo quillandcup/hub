@@ -8,10 +8,6 @@ process.env.NEXT_PUBLIC_SUPABASE_URL ||= 'http://127.0.0.1:54321'
 process.env.SUPABASE_SERVICE_ROLE_KEY ||=
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU'
 
-// App config lib/config.ts requires (CI sets the same test values per job in ci.yml).
-process.env.NEXT_PUBLIC_ORG_TIMEZONE ||= 'America/New_York'
-process.env.NEXT_PUBLIC_SUPPORT_EMAIL ||= 'support@example.com'
-process.env.NEXT_PUBLIC_APP_URL ||= 'https://hub.example.com'
 
 // Setup runs once before all tests
 beforeAll(async () => {

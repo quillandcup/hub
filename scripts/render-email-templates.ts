@@ -1,7 +1,6 @@
 /**
  * Render React Email templates to supabase/templates/ for local Supabase dev.
- * No credentials required — run this after editing templates in supabase/emails/. Reads
- * NEXT_PUBLIC_SUPPORT_EMAIL (email footer) from .env.prod via `npm run templates:render`.
+ * No credentials required — run this after editing templates in supabase/emails/.
  *
  * Usage:
  *   npm run templates:render
