@@ -10,13 +10,8 @@ the step-by-step per-service runbook — this file has the dashboard links, that
 
 Every system that sends alerts uses the same per-environment destinations:
 
-| Environment | Email | Slack channel |
-|---|---|---|
-| Production | `eng-alerts-prod@quillandcup.com` | not set up yet |
-| Preview | `eng-alerts-preview@quillandcup.com` | not set up yet |
-
-The email is `ALERTS_EMAIL` in `.env.prod` / `.env.preview` (see `env-vars.config.ts`). When the
-Slack channels exist, add their IDs as a per-environment var the same way.
+- **Email**: `ALERTS_EMAIL` -- check `.env.prod` / `.env.preview` (declared in `env-vars.config.ts`).
+- **Slack channel**: not set up yet. When it exists, add its ID as a per-environment var the same way.
 
 | System | Where it's configured | Status |
 |---|---|---|

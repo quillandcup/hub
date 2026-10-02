@@ -6,7 +6,7 @@ import appConfig from '../app.config'
 export const appUrl = appConfig.appUrl.replace(/\/+$/, '')
 export const appHost = new URL(appUrl).host
 
-/** The monitors watch production, so they alert production's address (eng-alerts-prod@). */
+/** The monitors watch production, so they alert production's ALERTS_EMAIL. */
 const alertsEmail = process.env.ALERTS_EMAIL
 if (!alertsEmail) throw new Error('ALERTS_EMAIL is not set -- see env-vars.config.ts')
 export const alertEmail: string = alertsEmail
