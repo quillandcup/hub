@@ -39,7 +39,7 @@
     "@vercel/speed-insights": "^2.0.0",
     "dotenv": "^17.4.2",
     "fflate": "^0.8.3",
-    "googleapis": "^171.4.0",
+    "googleapis": "^182.0.0",
     "html-to-image": "^1.11.13",
     "image-size": "^2.0.2",
     "json2csv": "^6.0.0-alpha.2",
