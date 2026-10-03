@@ -880,6 +880,11 @@ Refine `engagement_score` calculation based on activity types and recency
 
 Full roadmap: `docs/superpowers/specs/writing-projects-tracking.md`. Core single-author flow (log progress against a project/goal, prickle-linked nudges, streak/chart stats) is scoped there phase-by-phase.
 
+### Prickle Check-ins: Visibility Wording + Host Aggregates (Needs Scoping)
+`prickle_checkins` (feelings before/after, need, rating) is readable by the member and admins, never hosts or other members. The check-in card deliberately says nothing about who can see responses yet. Open questions:
+- Whether the card should say something (e.g. "Hosts can't see your individual responses").
+- Whether hosts get aggregate trends for their prickles. Small prickles make aggregates identifying, so only show a prickle's (or a host series') aggregate once at least 5 distinct members checked in, and serve it through a SECURITY DEFINER function, never row access.
+
 ### In-App Pipeline Visualization + Next-Stage Nudges (Needs Scoping)
 Show each member, on their own writing project, a visual of where they sit in the overall Quill & Cup pipeline (idea → draft → self-edit → feedback → publish → launch/sell) — both to make the system visible ("we have a system, and you're on it") and to nudge them toward the next stage as they approach it, which doubles as adoption/revenue for the programs at each stage as they get built.
 
