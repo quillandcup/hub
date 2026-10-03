@@ -3,9 +3,11 @@
 import {
   FEELING_DISPLAY_GROUPS,
   MAX_FEELINGS,
+  NEEDS,
   SESSION_RATINGS,
   toggleFeeling,
   type Feeling,
+  type Need,
 } from "@/lib/prickle-checkins";
 
 // Check-in inputs shared by the prickle page's Check in card and the Log Progress modal.
@@ -87,6 +89,43 @@ export function RatingPicker({
               className={chipClass(isSelected)}
             >
               {r.label}
+            </button>
+          );
+        })}
+      </div>
+    </fieldset>
+  );
+}
+
+export function NeedPicker({
+  label,
+  value,
+  onChange,
+  readOnly = false,
+}: {
+  label: string;
+  value: Need | null;
+  onChange: (next: Need | null) => void;
+  readOnly?: boolean;
+}) {
+  return (
+    <fieldset>
+      <legend className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">{label}</legend>
+      <div className="flex flex-wrap gap-2">
+        {NEEDS.map((n) => {
+          const isSelected = value === n.key;
+          return (
+            <button
+              key={n.key}
+              type="button"
+              aria-pressed={isSelected}
+              title={n.hint}
+              disabled={readOnly}
+              onClick={() => onChange(isSelected ? null : n.key)}
+              className={chipClass(isSelected)}
+            >
+              {n.label}
+              <span className={`ml-1 text-xs ${isSelected ? "text-plum-100" : "text-slate-400"}`}>· {n.hint}</span>
             </button>
           );
         })}

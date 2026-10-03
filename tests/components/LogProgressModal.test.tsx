@@ -220,6 +220,36 @@ describe("LogProgressModal check-in", () => {
     expect(logProgress).not.toHaveBeenCalled();
   });
 
+  it("early in the prickle, only asks about coming in", async () => {
+    const startedFiveMinutesAgo = new Date(Date.now() - 5 * 60_000).toISOString();
+    vi.mocked(getPricklesOnDate).mockResolvedValue([{ ...OTHER, startTime: startedFiveMinutesAgo }]);
+    const user = userEvent.setup();
+    renderForPrickle();
+
+    expect(await screen.findByText(/Coming in, I'm feeling/)).toBeInTheDocument();
+    expect(screen.getByText("What I need from this session")).toBeInTheDocument();
+    expect(screen.queryByText("How did it go?")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Feeling now/)).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Anxious" }));
+    await user.click(screen.getByRole("button", { name: /^Deep focus/ }));
+    await fillAmountAndSubmit(user, "Log progress");
+    expect(saveCheckin).toHaveBeenCalledWith("prickle-other", {
+      feelingsBefore: ["anxious"],
+      need: "deep_focus",
+      sessionRating: null,
+      feelingsAfter: [],
+    });
+  });
+
+  it("afterwards, asks both halves when nothing was answered yet", async () => {
+    renderForPrickle();
+    expect(await screen.findByText(/Coming in, I was feeling/)).toBeInTheDocument();
+    expect(screen.getByText("What I needed from this session")).toBeInTheDocument();
+    expect(screen.getByText("How did it go?")).toBeInTheDocument();
+    expect(screen.getByText(/Feeling now/)).toBeInTheDocument();
+  });
+
   it("has no check-in without a prickle, or in sudo", async () => {
     vi.mocked(getPricklesOnDate).mockResolvedValue([OTHER]);
     const { unmount } = render(

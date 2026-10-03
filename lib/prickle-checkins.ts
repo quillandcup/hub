@@ -95,6 +95,17 @@ export const SESSION_RATINGS = [
   { value: 5, label: "Great" },
 ] as const;
 
+/**
+ * How far into a prickle "How did it go?" and "Feeling now…" start being asked. Before that (and
+ * before the start) a check-in is only about coming in: feelings and what the member needs. After
+ * it, e.g. leaving early or logging afterwards, both halves are asked.
+ */
+export const CHECKIN_AFTER_MINUTES = 15;
+
+export function asksHowItWent(prickleStartTime: string, nowMs: number): boolean {
+  return nowMs >= Date.parse(prickleStartTime) + CHECKIN_AFTER_MINUTES * 60_000;
+}
+
 export interface CheckinInput {
   feelingsBefore: Feeling[];
   need: Need | null;

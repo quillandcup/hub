@@ -2,13 +2,16 @@
 
 import { useState } from "react";
 import { saveCheckin } from "@/app/(member)/prickles/checkin-actions";
-import { NEEDS, isEmptyCheckin, type CheckinInput } from "@/lib/prickle-checkins";
-import { FeelingPicker, RatingPicker, chipClass } from "@/components/writing/CheckinFields";
+import { isEmptyCheckin, type CheckinInput } from "@/lib/prickle-checkins";
+import { FeelingPicker, NeedPicker, RatingPicker } from "@/components/writing/CheckinFields";
 
 interface PrickleCheckInProps {
   prickleId: string;
-  /** Before it starts, only the "coming in" questions are shown. */
-  hasStarted: boolean;
+  /**
+   * Past the first CHECKIN_AFTER_MINUTES of the prickle (see asksHowItWent): also ask how it went
+   * and how they feel now. Before that, only the "coming in" questions.
+   */
+  askHowItWent: boolean;
   initial: CheckinInput | null;
   /** Sudo: an admin sees the member's answers but can't change them. */
   readOnly?: boolean;
@@ -24,7 +27,7 @@ const EMPTY: CheckinInput = { feelingsBefore: [], need: null, sessionRating: nul
 /** Private check-in for a prickle: feelings coming in, what the member needs, and how it went. */
 export default function PrickleCheckIn({
   prickleId,
-  hasStarted,
+  askHowItWent,
   initial,
   readOnly = false,
   prefill = null,
@@ -78,32 +81,14 @@ export default function PrickleCheckIn({
         readOnly={readOnly}
       />
 
-      <fieldset>
-        <legend className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-          What I need from this session
-        </legend>
-        <div className="flex flex-wrap gap-2">
-          {NEEDS.map((n) => {
-            const isSelected = checkin.need === n.key;
-            return (
-              <button
-                key={n.key}
-                type="button"
-                aria-pressed={isSelected}
-                title={n.hint}
-                disabled={readOnly}
-                onClick={() => update({ need: isSelected ? null : n.key })}
-                className={chipClass(isSelected)}
-              >
-                {n.label}
-                <span className={`ml-1 text-xs ${isSelected ? "text-plum-100" : "text-slate-400"}`}>· {n.hint}</span>
-              </button>
-            );
-          })}
-        </div>
-      </fieldset>
+      <NeedPicker
+        label="What I need from this session"
+        value={checkin.need}
+        onChange={(need) => update({ need })}
+        readOnly={readOnly}
+      />
 
-      {hasStarted && (
+      {askHowItWent && (
         <>
           <RatingPicker
             label="How did it go?"

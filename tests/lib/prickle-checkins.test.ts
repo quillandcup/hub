@@ -6,6 +6,8 @@ import {
   FEELING_DISPLAY_GROUPS,
   FEELING_GROUP,
   FEELING_KEYS,
+  CHECKIN_AFTER_MINUTES,
+  asksHowItWent,
   NEED_KEYS,
   isEmptyCheckin,
   parseCheckinPrefill,
@@ -117,5 +119,20 @@ describe("prickleHref / parseCheckinPrefill", () => {
       feelingsAfter: [],
     });
     expect(parseCheckinPrefill({ feel: "hangry", need: "snacks" })).toBeNull();
+  });
+});
+
+describe("asksHowItWent", () => {
+  const start = "2026-10-01T15:00:00Z";
+  const at = (minutes: number) => Date.parse(start) + minutes * 60_000;
+
+  it("only asks about coming in before the start and early in the session", () => {
+    expect(asksHowItWent(start, at(-30))).toBe(false);
+    expect(asksHowItWent(start, at(CHECKIN_AFTER_MINUTES - 1))).toBe(false);
+  });
+
+  it("also asks how it went from CHECKIN_AFTER_MINUTES in, and afterwards", () => {
+    expect(asksHowItWent(start, at(CHECKIN_AFTER_MINUTES))).toBe(true);
+    expect(asksHowItWent(start, at(60 * 24))).toBe(true);
   });
 });
