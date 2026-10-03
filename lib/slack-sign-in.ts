@@ -439,7 +439,7 @@ export function buildSlackSignInBlocks(
       type: "section",
       text: {
         type: "mrkdwn",
-        text: `*Using a different browser, like Safari on iPhone?* Tap *Send me a link I can copy*, copy the link from that message, and paste it on <${loginUrl}|${loginHost}/login>. Or enter this code there:\n\`${formatSlackSignInCode(issued.code)}\``,
+        text: `*Using a different browser, like Safari on iPhone?* Tap *Send me a link I can copy*, then press and hold the link in that message and choose *Open in Browser*. Or enter this code on <${loginUrl}|${loginHost}/login>:\n\`${formatSlackSignInCode(issued.code)}\``,
       },
     },
   ];
@@ -466,7 +466,7 @@ export async function sendSlackSignInMessage(service: SupabaseClient, slackUserI
   if (resolution.status !== "ok") return;
   const issued = await issueSlackSignIn(service, { slackUserId, origin, ttlMinutes: slackSignInTtlMinutes(resolution) });
 
-  const text = `Your one-time Hedgie Hub sign-in link (works once, until ${expiryMarkup(issued)}):\n${issued.url}\n\nOr enter this code on the sign-in page: \`${formatSlackSignInCode(issued.code)}\``;
+  const text = `Your one-time Hedgie Hub sign-in link (works once, until ${expiryMarkup(issued)}):\n${issued.url}\n\nOr enter this code on the sign-in page: \`${formatSlackSignInCode(issued.code)}\`\n\nOn iPhone: press and hold the link, then tap *Open in Browser*.`;
   await new WebClient(botToken).chat.postMessage({
     channel: slackUserId,
     text,
