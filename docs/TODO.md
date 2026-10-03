@@ -885,6 +885,19 @@ Full roadmap: `docs/superpowers/specs/writing-projects-tracking.md`. Core single
 - Whether the card should say something (e.g. "Hosts can't see your individual responses").
 - Whether hosts get aggregate trends for their prickles. Small prickles make aggregates identifying, so only show a prickle's (or a host series') aggregate once at least 5 distinct members checked in, and serve it through a SECURITY DEFINER function, never row access.
 
+### Prickle Check-ins Phase 3: Admin Check-in Patterns (Needs Scoping)
+Check-ins (`prickle_checkins`) and progress entries linked to prickles (`writing_progress_entries.prickle_id`) are live, and the Prickle Picker already uses a member's own rated check-ins (#54). Next is an admin view of each member's patterns, as a reach-out prompt:
+- Per member: recent feelings before/after, needs, average session rating against their own baseline, and trend over time.
+- Flag members who've checked in "running low" or "wound up" repeatedly over a recent window (e.g. 3+ of their last 5 check-ins), or whose ratings have dropped well below their usual. Feeds the existing outreach touches (`/api/admin/outreach-touches`).
+- Admins already have row read access to `prickle_checkins` (RLS), so this is an admin page plus queries, no schema change. Check-in feeling groups come from `FEELING_GROUP` in `lib/prickle-checkins.ts`.
+- Open: where it lives (member admin page tab vs a dedicated "check-ins" admin page) and the exact flag thresholds.
+
+### Prickle Check-ins Phase 3: Member Insights + Normalized Prickle Ratings (Wait for Data)
+Only meaningful once a few weeks of check-ins exist.
+- **Member insights:** a "What works for you" view on the member's own pages, e.g. "When you came in stressed, focused prickles with Host X were your best sessions", and which prickles lift their mood most (feelings after vs before). Reuse `similarCheckins` from `lib/prickle-picker.ts`.
+- **Normalized prickle ratings:** score a prickle series by each member's rating minus that member's own average, so a member who always rates low doesn't drag a series down (and one who rates everything Great doesn't inflate it). Use it wherever series ratings surface (Prickle Picker ranking, host stats).
+- Same privacy rules as check-ins: members see only their own; any host-facing aggregate needs at least 5 distinct members (see the check-in visibility entry above).
+
 ### In-App Pipeline Visualization + Next-Stage Nudges (Needs Scoping)
 Show each member, on their own writing project, a visual of where they sit in the overall Quill & Cup pipeline (idea → draft → self-edit → feedback → publish → launch/sell) — both to make the system visible ("we have a system, and you're on it") and to nudge them toward the next stage as they approach it, which doubles as adoption/revenue for the programs at each stage as they get built.
 

@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import LogProgressModal from "@/components/writing/LogProgressModal";
+import { dismissUnloggedPrickle } from "@/app/(member)/projects/actions";
 import type { PrickleOption } from "@/lib/prickle-writing";
 
 interface UnloggedPricklesCardProps {
@@ -16,6 +17,28 @@ interface UnloggedPricklesCardProps {
 export default function UnloggedPricklesCard({ prickles, projects }: UnloggedPricklesCardProps) {
   const router = useRouter();
   const [logging, setLogging] = useState<(PrickleOption & { entryDate: string }) | null>(null);
+  // Hidden as soon as the member dismisses them; restored if the save fails.
+  const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleDismiss(prickleId: string) {
+    setError(null);
+    setDismissedIds((ids) => new Set(ids).add(prickleId));
+    const result = await dismissUnloggedPrickle(prickleId);
+    if ("error" in result) {
+      setDismissedIds((ids) => {
+        const next = new Set(ids);
+        next.delete(prickleId);
+        return next;
+      });
+      setError(result.error);
+      return;
+    }
+    router.refresh();
+  }
+
+  const visible = prickles.filter((p) => !dismissedIds.has(p.id));
+  if (visible.length === 0 && !error) return null;
 
   return (
     <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 p-6 mb-6">
@@ -26,7 +49,7 @@ export default function UnloggedPricklesCard({ prickles, projects }: UnloggedPri
         Log your progress from recent prickles so you can see which sessions work best for you.
       </p>
       <ul className="divide-y divide-slate-100 dark:divide-slate-800">
-        {prickles.map((p) => (
+        {visible.map((p) => (
           <li key={p.id} className="py-2 flex items-center justify-between gap-3">
             <Link
               href={`/prickles/${p.id}`}
@@ -34,16 +57,28 @@ export default function UnloggedPricklesCard({ prickles, projects }: UnloggedPri
             >
               {p.label}
             </Link>
-            <button
-              type="button"
-              onClick={() => setLogging(p)}
-              className="flex-shrink-0 px-3 py-1 text-xs bg-plum-600 text-white rounded-lg hover:bg-plum-700 transition-colors"
-            >
-              Log
-            </button>
+            <div className="flex items-center gap-1 flex-shrink-0">
+              <button
+                type="button"
+                onClick={() => setLogging(p)}
+                className="px-3 py-1 text-xs bg-plum-600 text-white rounded-lg hover:bg-plum-700 transition-colors"
+              >
+                Log
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDismiss(p.id)}
+                aria-label={`Dismiss ${p.label}`}
+                title="Not logging this one"
+                className="px-2 py-1 text-sm text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 rounded-lg"
+              >
+                ×
+              </button>
+            </div>
           </li>
         ))}
       </ul>
+      {error && <p className="mt-2 text-sm text-red-600 dark:text-red-400">{error}</p>}
 
       {logging && (
         <LogProgressModal
