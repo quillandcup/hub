@@ -1,10 +1,10 @@
 display_information:
-  name: Billie Bot
+  name: Billie Bot (Hedgie Hub)
   description: Ambassador from Hedgie Hub, the Quill & Cup member hub for prickles, events, writing streaks and community
   background_color: "#4A154B"
 features:
   bot_user:
-    display_name: Billie Bot
+    display_name: Billie Bot (Hedgie Hub)
     always_online: true
   # Home tab carries each member's one-time "Open Hedgie Hub" sign-in button (lib/slack-sign-in.ts)
   app_home:
