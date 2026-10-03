@@ -1,10 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createServiceRoleClient } from "@/lib/supabase/service";
-import { sendSlackDM } from "@/lib/slack";
 import { withCronHeartbeat } from "@/lib/cron-heartbeats";
 import {
-  buildCheckinBlocks,
   checkinAnswered,
   CHECKOUT_LOOKBACK_MS,
   getActiveGoalCandidates,
@@ -12,6 +10,7 @@ import {
   loadCheckins,
   planCheckinDMs,
   resolveSlackUserIds,
+  sendCheckinDM,
   sendCheckoutDMs,
   tryRecordCheckinDM,
   type GoalCandidate,
@@ -125,11 +124,7 @@ async function sendCheckins(supabase: SupabaseClient, candidates: GoalCandidate[
     const shouldSend = await tryRecordCheckinDM(supabase, prickle.id, memberId, "prickle_checkin");
     if (!shouldSend) continue;
 
-    await sendSlackDM({
-      slackUserId,
-      text: `Ready for ${prickle.typeName} in ~20 min? Check in: how are you feeling coming in?`,
-      blocks: buildCheckinBlocks(prickle.id, prickle.typeName, saved),
-    });
+    await sendCheckinDM(slackUserId, prickle, saved);
     sent++;
   }
   return sent;

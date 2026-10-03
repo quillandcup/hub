@@ -689,19 +689,86 @@ export async function sendCheckoutDMs(
     const shouldSend = await tryRecordCheckinDM(supabase, prickle.id, memberId, "prickle_checkout");
     if (!shouldSend) continue;
 
-    // Two goals on one project in the same measure would be the same question -- ask it once.
-    const prompts = new Map<string, QuickLogPrompt>();
-    for (const goal of unlogged) {
-      const measure = await quickLogMeasureFor(supabase, goal);
-      prompts.set(`${goal.projectId}:${measure}`, { projectId: goal.projectId, projectTitle: goal.projectTitle, measure });
-    }
-
-    await sendSlackDM({
-      slackUserId,
-      text: `Checking out of ${prickle.typeName}: how did it go?`,
-      blocks: buildCheckoutBlocks(prickle.id, prickle.typeName, saved, [...prompts.values()]),
-    });
+    await sendCheckoutDM(slackUserId, prickle, saved, await quickLogPrompts(supabase, unlogged));
     sent++;
   }
   return sent;
+}
+
+/** The check-out DM's quick-log prompts for these goals. Two goals on one project in the same measure would be the same question -- asked once. */
+async function quickLogPrompts(supabase: any, goals: GoalCandidate[]): Promise<QuickLogPrompt[]> {
+  const prompts = new Map<string, QuickLogPrompt>();
+  for (const goal of goals) {
+    const measure = await quickLogMeasureFor(supabase, goal);
+    prompts.set(`${goal.projectId}:${measure}`, { projectId: goal.projectId, projectTitle: goal.projectTitle, measure });
+  }
+  return [...prompts.values()];
+}
+
+/** A DM's prickle: enough to word the message and link the check-in. */
+type DMPrickle = { id: string; typeName: string };
+
+/** First block of a test send, so it isn't mistaken for the real thing. */
+const TEST_BANNER = {
+  type: "context",
+  elements: [
+    { type: "mrkdwn", text: "🧪 Test send from the admin prickle page. Answers still save to your check-in for this prickle." },
+  ],
+};
+
+/** Sends the check-in DM. No dedup or skip checks: the caller has decided it's due. */
+export async function sendCheckinDM(
+  slackUserId: string,
+  prickle: DMPrickle,
+  saved: CheckinInput | null,
+  { test = false }: { test?: boolean } = {}
+): Promise<void> {
+  const blocks = buildCheckinBlocks(prickle.id, prickle.typeName, saved);
+  await sendSlackDM({
+    slackUserId,
+    text: `${test ? "[Test] " : ""}Ready for ${prickle.typeName} in ~20 min? Check in: how are you feeling coming in?`,
+    blocks: test ? [TEST_BANNER, ...blocks] : blocks,
+  });
+}
+
+/** Sends the check-out DM. No dedup or skip checks: the caller has decided it's due. */
+export async function sendCheckoutDM(
+  slackUserId: string,
+  prickle: DMPrickle,
+  saved: CheckinInput | null,
+  prompts: QuickLogPrompt[],
+  { test = false }: { test?: boolean } = {}
+): Promise<void> {
+  const blocks = buildCheckoutBlocks(prickle.id, prickle.typeName, saved, prompts);
+  await sendSlackDM({
+    slackUserId,
+    text: `${test ? "[Test] " : ""}Checking out of ${prickle.typeName}: how did it go?`,
+    blocks: test ? [TEST_BANNER, ...blocks] : blocks,
+  });
+}
+
+/**
+ * Sends `memberId` a test check-in or check-out DM for `prickle`, worded as the cron would but
+ * skipping everything that decides whether one is due: their calendar, attendance/presence, the
+ * dedup log (nothing is logged, so it can't block the real one) and the already-answered checks.
+ * It still shows their saved answers, and the check-out asks about every active goal (none, with
+ * no goals). Returns an error message, or null when sent.
+ */
+export async function sendTestCheckinDM(
+  supabase: any,
+  memberId: string,
+  prickle: DMPrickle,
+  kind: CheckinDMKind
+): Promise<string | null> {
+  const slackUserId = (await resolveSlackUserIds(supabase, [memberId])).get(memberId);
+  if (!slackUserId) return "No Slack account is matched to your member record.";
+
+  const saved = (await loadCheckins(supabase, [memberId], [prickle.id])).get(`${memberId}:${prickle.id}`) ?? null;
+  if (kind === "prickle_checkin") {
+    await sendCheckinDM(slackUserId, prickle, saved, { test: true });
+  } else {
+    const goals = (await getActiveGoalCandidates(supabase)).filter((g) => g.memberId === memberId);
+    await sendCheckoutDM(slackUserId, prickle, saved, await quickLogPrompts(supabase, goals), { test: true });
+  }
+  return null;
 }
