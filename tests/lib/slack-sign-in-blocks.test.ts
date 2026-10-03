@@ -1,6 +1,10 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, afterEach, vi } from "vitest";
 import type { KnownBlock } from "@slack/types";
-import { buildSlackSignInBlocks, type SlackSignInResolution } from "@/lib/slack-sign-in";
+import {
+  buildSlackSignInBlocks,
+  SLACK_SEND_LINK_ACTION_ID,
+  type SlackSignInResolution,
+} from "@/lib/slack-sign-in";
 
 /**
  * Block Kit limits Slack enforces at runtime (views.publish / chat.postMessage fail with
@@ -76,5 +80,31 @@ describe.each(variants)("Slack sign-in blocks: %s", (_name, resolution, issuedFo
       }
     }
     expect(new Set(actionIds).size).toBe(actionIds.length);
+  });
+});
+
+describe("Slack sign-in blocks: send-link button deep link", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  function sendLinkButton() {
+    const blocks = buildSlackSignInBlocks({ status: "ok", userId: "u", email: "member@example.com" }, issued, origin, {
+      withRefresh: true,
+    });
+    const actions = blocks.find((b) => b.type === "actions") as { elements: any[] };
+    return actions.elements.find((e) => e.action_id === SLACK_SEND_LINK_ACTION_ID);
+  }
+
+  it("opens the app's Messages tab when the Slack team and app ids are configured", () => {
+    vi.stubEnv("SLACK_TEAM_ID", "T123");
+    vi.stubEnv("SLACK_APP_ID", "A456");
+    expect(sendLinkButton().url).toBe("slack://app?team=T123&id=A456&tab=messages");
+  });
+
+  it("has no url when the Slack team or app id is missing", () => {
+    vi.stubEnv("SLACK_TEAM_ID", "T123");
+    vi.stubEnv("SLACK_APP_ID", "");
+    expect(sendLinkButton()).not.toHaveProperty("url");
   });
 });

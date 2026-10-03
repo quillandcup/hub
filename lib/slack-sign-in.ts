@@ -355,12 +355,16 @@ export async function signInSlackUser(
   return { ok: true };
 }
 
-/** slack:// link that opens the app's Home tab (desktop and mobile), or null if not configured. */
-export function slackHomeDeepLink(): string | null {
+/** slack:// link that opens one of the app's tabs (desktop and mobile), or null if not configured. */
+function slackAppDeepLink(tab: "home" | "messages"): string | null {
   const team = process.env.SLACK_TEAM_ID;
   const app = process.env.SLACK_APP_ID;
   if (!team || !app) return null;
-  return `slack://app?team=${encodeURIComponent(team)}&id=${encodeURIComponent(app)}&tab=home`;
+  return `slack://app?team=${encodeURIComponent(team)}&id=${encodeURIComponent(app)}&tab=${tab}`;
+}
+
+export function slackHomeDeepLink(): string | null {
+  return slackAppDeepLink("home");
 }
 
 /** Block Kit for the Home tab (withRefresh) and the /hub reply, for a given resolution. */
@@ -382,6 +386,9 @@ export function buildSlackSignInBlocks(
   }
 
   const expires = expiryMarkup(issued);
+  // A button with a url still posts block_actions, so one click DMs the link and, where the
+  // deep link is configured, flips the member to the Messages tab to find it.
+  const messagesLink = slackAppDeepLink("messages");
   const buttons: Button[] = [
     {
       type: "button",
@@ -395,6 +402,7 @@ export function buildSlackSignInBlocks(
       action_id: SLACK_SEND_LINK_ACTION_ID,
       text: { type: "plain_text", text: "Send me a link I can copy", emoji: true },
       value: "send",
+      ...(messagesLink ? { url: messagesLink } : {}),
     },
   ];
   if (withRefresh) {
