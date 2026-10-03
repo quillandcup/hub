@@ -19,7 +19,7 @@ import { effectiveChannels, type NotificationKindId, type NotificationPreference
  * Check canReach before claiming a dedup row, so turning a kind back on later still sends.
  */
 
-export const NOTIFICATION_SETTINGS_PATH = "/settings?tab=notifications";
+export const NOTIFICATION_SETTINGS_PATH = "/settings/notifications";
 
 // Keeps each `.in("member_id", ...)` URL well under PostgREST's length limit.
 const MEMBER_ID_CHUNK = 200;

@@ -344,7 +344,7 @@ export async function createCommitment(
   });
   if (activityError) console.error("createCommitment: failed to insert member_activities row", activityError);
 
-  revalidatePath("/my-prickles");
+  revalidatePath("/my-prickles", "layout");
   return { success: true, id: commitmentId };
 }
 
@@ -373,6 +373,6 @@ export async function cancelCommitment(id: string): Promise<{ success: true } | 
     .eq("member_id", effectiveIdentity.memberId);
   if (error) return { error: error.message };
 
-  revalidatePath("/my-prickles");
+  revalidatePath("/my-prickles", "layout");
   return { success: true };
 }

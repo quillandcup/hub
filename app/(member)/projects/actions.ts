@@ -492,7 +492,7 @@ export async function createProject(
 
   if (error || !data) return { error: error?.message ?? "Failed to create project" };
 
-  revalidatePath("/projects");
+  revalidatePath("/projects", "layout");
   return { success: true, id: data.id };
 }
 
@@ -515,7 +515,7 @@ export async function updateProjectDetails(
 
   if (error) return { error: error.message };
 
-  revalidatePath("/projects");
+  revalidatePath("/projects", "layout");
   revalidatePath(`/projects/${projectId}`);
   return { success: true };
 }
@@ -539,7 +539,7 @@ export async function updateProjectCover(
 
   if (error) return { error: error.message };
 
-  revalidatePath("/projects");
+  revalidatePath("/projects", "layout");
   revalidatePath(`/projects/${projectId}`);
   return { success: true };
 }
@@ -584,7 +584,7 @@ export async function setStartingBalances(
     if (deleteError) return { error: deleteError.message };
   }
 
-  revalidatePath("/projects");
+  revalidatePath("/projects", "layout");
   revalidatePath(`/projects/${projectId}`);
   return { success: true };
 }
@@ -633,7 +633,7 @@ export async function updateProjectPhase(
 
   if (error) return { error: error.message };
 
-  revalidatePath("/projects");
+  revalidatePath("/projects", "layout");
   revalidatePath(`/projects/${projectId}`);
   return { success: true };
 }
@@ -716,7 +716,7 @@ export async function publishProject(
     purchaseUrl: safeUrl(book.purchaseUrl),
   }).catch((err) => console.error("New book Slack notification failed:", err));
 
-  revalidatePath("/projects");
+  revalidatePath("/projects", "layout");
   revalidatePath(`/projects/${projectId}`);
   revalidatePath("/bookshelf");
   revalidatePath(`/members/${effectiveIdentity.memberId}`);
@@ -792,7 +792,7 @@ export async function logProgress(
   });
   if (activityError) console.error("logProgress: failed to insert member_activities row", activityError);
 
-  revalidatePath("/projects");
+  revalidatePath("/projects", "layout");
   revalidatePath(`/projects/${input.projectId}`);
   revalidatePath("/dashboard");
   if (input.prickleId) revalidatePath(`/prickles/${input.prickleId}`);
@@ -850,7 +850,7 @@ export async function updateEntry(
 
   if (error) return { error: error.message };
 
-  revalidatePath("/projects");
+  revalidatePath("/projects", "layout");
   revalidatePath(`/projects/${existing.project_id}`);
   revalidatePath("/dashboard");
   for (const id of new Set([existing.prickle_id, patch.prickleId])) {
@@ -892,7 +892,7 @@ export async function deleteEntry(entryId: string): Promise<{ success: true } | 
     .eq("source", "writing_progress");
   if (activityDeleteError) console.error("deleteEntry: failed to delete member_activities row", activityDeleteError);
 
-  revalidatePath("/projects");
+  revalidatePath("/projects", "layout");
   revalidatePath(`/projects/${existing.project_id}`);
   revalidatePath("/dashboard");
   if (existing.prickle_id) revalidatePath(`/prickles/${existing.prickle_id}`);
@@ -1161,7 +1161,7 @@ export async function createGoal(
 
   if (error || !data) return { error: error?.message ?? "Failed to create goal" };
 
-  revalidatePath("/projects");
+  revalidatePath("/projects", "layout");
   revalidatePath(`/projects/${input.projectId}`);
   revalidatePath("/dashboard");
   return { success: true, id: data.id };
@@ -1225,7 +1225,7 @@ export async function updateGoal(
 
   if (error) return { error: error.message };
 
-  revalidatePath("/projects");
+  revalidatePath("/projects", "layout");
   revalidatePath(`/projects/${existing.project_id}`);
   revalidatePath("/dashboard");
   return { success: true };
@@ -1254,7 +1254,7 @@ export async function deleteGoal(goalId: string): Promise<{ success: true } | { 
 
   if (error) return { error: error.message };
 
-  revalidatePath("/projects");
+  revalidatePath("/projects", "layout");
   revalidatePath(`/projects/${existing.project_id}`);
   revalidatePath("/dashboard");
   return { success: true };
@@ -1288,7 +1288,7 @@ export async function archiveGoal(goalId: string): Promise<{ success: true } | {
 
   if (error) return { error: error.message };
 
-  revalidatePath("/projects");
+  revalidatePath("/projects", "layout");
   revalidatePath(`/projects/${existing.project_id}`);
   revalidatePath("/dashboard");
   return { success: true };
@@ -1335,7 +1335,7 @@ export async function toggleGoalStar(
 
   if (error) return { error: error.message };
 
-  revalidatePath("/projects");
+  revalidatePath("/projects", "layout");
   revalidatePath("/dashboard");
   return { success: true };
 }
@@ -1356,7 +1356,7 @@ export async function toggleGoalVisibility(
 
   if (error) return { error: error.message };
 
-  revalidatePath("/projects");
+  revalidatePath("/projects", "layout");
   revalidatePath(`/members/${effectiveIdentity.memberId}`);
   return { success: true };
 }

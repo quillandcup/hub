@@ -4,7 +4,8 @@ import { useState } from "react";
 import Link from "next/link";
 import MemberAttendanceView from "@/components/MemberAttendanceView";
 import { MemberStatusBadge } from "@/components/MemberStatusBadge";
-import { TabBar, replaceTabInUrl } from "@/components/Tabs";
+import { TabBar, replaceTabPath, setTabDocumentTitle, useFollowTabPath } from "@/components/Tabs";
+import { MEMBER_TAB_IDS, MEMBER_TAB_LABELS, type MemberTabId } from "./tabs";
 import { parseDateOnly } from "@/lib/member-tenure";
 import { countDistinctPrickles } from "@/lib/attendance-grouping";
 import MemberTimelinePanel from "./MemberTimelinePanel";
@@ -14,8 +15,8 @@ import MemberIdentityPanel, { type NameAliasRow, type EmailAliasRow } from "./Me
 import type { EarnedBadge } from "@/lib/badges";
 
 interface MemberDetailsProps {
-  /** From ?tab=; an unknown value shows Overview. */
-  initialTab?: string;
+  /** The tab the route opened (/admin/members/<id>[/<tab>]). */
+  initialTab: MemberTabId;
   member: any;
   attendanceRecords: any[];
   hiatusHistory: any[];
@@ -41,8 +42,7 @@ interface MemberDetailsProps {
   emailAliases: EmailAliasRow[];
 }
 
-const TAB_IDS = ["overview", "identity", "attendance", "slack"] as const;
-type Tab = (typeof TAB_IDS)[number];
+type Tab = MemberTabId;
 
 export default function MemberDetails({
   initialTab,
@@ -60,13 +60,15 @@ export default function MemberDetails({
   nameAliases,
   emailAliases,
 }: MemberDetailsProps) {
-  const [activeTab, setActiveTabState] = useState<Tab>(
-    (TAB_IDS as readonly string[]).includes(initialTab ?? "") ? (initialTab as Tab) : "overview"
-  );
-  // Keep the tab in the URL so Back from a prickle/detail page returns to it.
+  const [activeTab, setActiveTabState] = useState<Tab>(initialTab);
+  // Keep the tab in the URL path so a reload, or Back from a prickle/detail page, returns to it.
+  const basePath = `/admin/members/${member.id}`;
+  useFollowTabPath(basePath, MEMBER_TAB_IDS, setActiveTabState);
   const setActiveTab = (tab: Tab) => {
     setActiveTabState(tab);
-    if (tab !== activeTab) replaceTabInUrl("tab", tab);
+    if (tab === activeTab) return;
+    replaceTabPath(basePath, tab, "overview");
+    setTabDocumentTitle({ record: member.name }, MEMBER_TAB_LABELS[tab], tab === "overview");
   };
 
   const memberMetrics = member.member_metrics || {};
@@ -83,10 +85,10 @@ export default function MemberDetails({
   const distinctPrickleCount = countDistinctPrickles(attendanceRecords);
 
   const tabs: { id: Tab; label: string }[] = [
-    { id: "overview", label: "Overview" },
-    { id: "attendance", label: `Attendance History (${distinctPrickleCount})` },
-    { id: "slack", label: `Slack Activity (${slackActivities.length})` },
-    { id: "identity", label: "Identity" },
+    { id: "overview", label: MEMBER_TAB_LABELS.overview },
+    { id: "attendance", label: `${MEMBER_TAB_LABELS.attendance} (${distinctPrickleCount})` },
+    { id: "slack", label: `${MEMBER_TAB_LABELS.slack} (${slackActivities.length})` },
+    { id: "identity", label: MEMBER_TAB_LABELS.identity },
   ];
 
   return (

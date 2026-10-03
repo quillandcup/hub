@@ -137,7 +137,7 @@ describe("All Prickles commit mode", () => {
     expect(await screen.findByText(/Commitment saved/)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /See your commitments/ })).toHaveAttribute(
       "href",
-      "/my-prickles?tab=commitments"
+      "/my-prickles/commitments"
     );
     expect(refresh).toHaveBeenCalled();
     expect(checkbox(MON)).not.toBeChecked();

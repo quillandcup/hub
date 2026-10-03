@@ -100,7 +100,7 @@ describe("createNotifier", () => {
     await notifier.send("m1", { text: "Hello" });
 
     const blocks = sendSlackDM.mock.calls[0][0].blocks!;
-    expect(blocks.at(-1).elements.at(-1).text).toBe(`<${APP_URL}/settings?tab=notifications|Notification settings>`);
+    expect(blocks.at(-1).elements.at(-1).text).toBe(`<${APP_URL}/settings/notifications|Notification settings>`);
   });
 
   it("sends on forced channels regardless of preferences, without loading them", async () => {

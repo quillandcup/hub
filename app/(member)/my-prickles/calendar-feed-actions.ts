@@ -194,7 +194,7 @@ export async function getMyCalendarItems(): Promise<MyCalendarItem[]> {
  * second router.refresh() round trip.
  */
 function revalidateCalendarViews() {
-  revalidatePath("/my-prickles");
+  revalidatePath("/my-prickles", "layout");
   refresh();
 }
 

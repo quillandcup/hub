@@ -322,7 +322,7 @@ export async function updateProfileDetails(input: ProfileDetailsInput): Promise<
   );
 
   scheduleMemberReprocess("member_profile_overrides", "profile details");
-  revalidatePath("/settings");
+  revalidatePath("/settings", "layout");
   revalidatePath(`/members/${effectiveIdentity.memberId}`);
   return { success: true, syncPending: true };
 }
@@ -366,7 +366,7 @@ export async function updateAskMeAbout(input: string[]): Promise<UpdateProfileRe
     `[profile] Ask-me-about topics updated for member ${effectiveIdentity.memberId}` +
       (effectiveIdentity.isSudo ? " (by an admin in sudo mode)" : "")
   );
-  revalidatePath("/settings");
+  revalidatePath("/settings", "layout");
   revalidatePath("/members");
   revalidatePath(`/members/${effectiveIdentity.memberId}`);
   // Saved and already live -- nothing to wait for.
@@ -433,7 +433,7 @@ export async function updateInstagramHandle(input: string): Promise<UpdateProfil
   }
 
   scheduleMemberReprocess("kajabi_contacts", "Instagram");
-  revalidatePath("/settings");
+  revalidatePath("/settings", "layout");
   revalidatePath(`/members/${effectiveIdentity.memberId}`);
   return { success: true, syncPending: true };
 }

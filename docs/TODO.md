@@ -466,7 +466,7 @@ One system for everything the Hub sends members, instead of each feature hand-ro
 - `lib/notifications/registry.ts`: notification kinds (id, category, label, description, default channels). Client-safe; the settings grid renders from it.
 - `notification_preferences` (Local layer, migration `20261003160000`): one row per (member, kind, channel) the member changed; no row = the kind's default. Kinds/channels are free text, so adding either needs no migration. Member reads/writes own, admins read, read-only in sudo.
 - `createNotifier(supabase, kind, memberIds, { channels? })` (`lib/notifications/notify.ts`): loads preferences and addresses for a batch, then `canReach(memberId)` / `send(memberId, message)`, adding a "Notification settings" link. A failed channel is logged and doesn't stop the others. Check `canReach` before claiming a dedup row so re-enabling a kind still sends. `channels` forces channels and skips preferences, only for sends the member just asked for (admin test DMs).
-- `/settings?tab=notifications`: a switch per kind × channel.
+- `/settings/notifications`: a switch per kind × channel.
 - Kinds today: `prickle_checkin`, `prickle_checkout`.
 
 **Next channels** (each = `CHANNELS` entry + adapter + whatever it needs to resolve an address; every notification kind gets it at once):
@@ -640,6 +640,15 @@ Show a `/live` page displaying the currently active prickle and its attendees in
 - Back links: carry the origin page (e.g. a `?from=` param or history state) and derive the label from a route registry ("Back to Alex's profile"). Keep today's role-based default as the fallback when there's no origin.
 - Client-side session expiry: whatever detects a 401 or expired session in the browser should send the member to `/login` with the current location stored, instead of relying on the next full page load hitting the proxy.
 - Tests: one shared suite for the validator (open-redirect cases), plus a flow test per slot.
+
+### Remove legacy `?tab=` redirects _(Cleanup, review on or after 2027-01-03)_
+Tabs became URL paths on 2026-10-03 (`/settings/notifications`, `/my-prickles/all`; see `lib/tab-routes.ts` and CLAUDE.md "Tabbed Pages"). Old `?tab=` links still work because each base page calls `redirectLegacyTabParam`. Nothing is stored; it's four one-line calls plus the helper:
+- `app/(member)/settings/page.tsx`, `app/(member)/my-prickles/page.tsx` (also rewrites `?tab=commitments&slot=X` to `/my-prickles/all?commit=X`), `app/(member)/projects/page.tsx`, `app/(admin)/admin/members/[id]/page.tsx`
+- `redirectLegacyTabParam` in `lib/tab-routes.ts`, its tests in `tests/lib/tab-routes.test.ts`, and the legacy cases in the page tests (`settings-routes`, `my-prickles-tabs`, `my-writing-page`)
+
+Old links come from Slack DMs (the check-in/check-out "Notification settings" link, sent from 2026-10-03 until this change deploys; Slack keeps them forever), calendar feed descriptions (refreshed by calendar apps within a day), and bookmarks or links pasted into Slack, emails and docs.
+
+**When:** each redirect logs `[legacy-tab-redirect]` with the page and tab. After 2027-01-03, search the Vercel logs for it. If none (or only a stray few) in the last 30 days, delete the calls, the helper and their tests, and drop the "old `?tab=` links" bullet from CLAUDE.md. A `?tab=` URL then just opens the page's first tab, which is a fine fallback. If they're still being hit, look at which page and tab and check again in another quarter.
 
 ### Custom Date Picker (Needs Scoping)
 Every date field in the app (`<input type="date">` — e.g. Writing Projects' Log Progress date, goal start/end dates) uses the browser's native date picker. Feedback: the native picker's up/down arrows for month navigation aren't intuitive — unclear which direction is "forward" in time. Left/right arrows (with the month view sliding left/right on change, not up/down as it does now) would read more clearly.

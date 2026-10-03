@@ -105,7 +105,7 @@ export async function addAward(input: AwardInput): Promise<{ success: true } | {
     url: safeUrl(input.url),
   }).catch((err) => console.error("New award Slack notification failed:", err));
 
-  revalidatePath("/projects");
+  revalidatePath("/projects", "layout");
   revalidatePath("/awards");
   return { success: true };
 }
@@ -141,7 +141,7 @@ export async function updateAward(
 
   if (error || !data) return { error: error?.message ?? "Award not found" };
 
-  revalidatePath("/projects");
+  revalidatePath("/projects", "layout");
   revalidatePath("/awards");
   return { success: true };
 }
@@ -155,7 +155,7 @@ export async function deleteAward(awardId: string): Promise<{ success: true } | 
 
   if (error || !data) return { error: error?.message ?? "Award not found" };
 
-  revalidatePath("/projects");
+  revalidatePath("/projects", "layout");
   revalidatePath("/awards");
   return { success: true };
 }

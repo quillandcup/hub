@@ -111,7 +111,7 @@ export async function addBook(input: BookInput): Promise<{ success: true } | { e
   }).catch((err) => console.error("New book Slack notification failed:", err));
 
   revalidatePath("/bookshelf");
-  revalidatePath("/projects");
+  revalidatePath("/projects", "layout");
   revalidatePath(`/members/${effectiveIdentity.memberId}`);
   return { success: true };
 }
@@ -148,7 +148,7 @@ export async function updateBook(
   if (error || !data) return { error: error?.message ?? "Book not found" };
 
   revalidatePath("/bookshelf");
-  revalidatePath("/projects");
+  revalidatePath("/projects", "layout");
   revalidatePath(`/members/${effectiveIdentity.memberId}`);
   return { success: true };
 }
@@ -163,7 +163,7 @@ export async function deleteBook(bookId: string): Promise<{ success: true } | { 
   if (error || !data) return { error: error?.message ?? "Book not found" };
 
   revalidatePath("/bookshelf");
-  revalidatePath("/projects");
+  revalidatePath("/projects", "layout");
   revalidatePath(`/members/${effectiveIdentity.memberId}`);
   return { success: true };
 }

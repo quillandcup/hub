@@ -14,7 +14,7 @@ const OPTIMISTIC_ID = "pending";
  * already in it, so those show as included instead.
  */
 
-const SYNC_HINT_HREF = "/my-prickles?tab=commitments";
+const SYNC_HINT_HREF = "/my-prickles/commitments";
 
 function CalendarGlyph({ added, className = "w-4 h-4" }: { added: boolean; className?: string }) {
   return (
