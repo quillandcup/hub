@@ -90,3 +90,21 @@ export function threadsNeedingReplies<T extends SlackThreadParent>(
 export function threadKey(channelId: string, threadTs: string): string {
   return `${channelId}|${threadTs}`;
 }
+
+/**
+ * Whether a Slack import changed anything members are built from. Member
+ * processing reads only email and image_url (avatar) from bronze.slack_users,
+ * so an import that changed neither for any user, and added or removed no one,
+ * doesn't need to rebuild members (or the 90-day attendance rebuild that
+ * follows a member change).
+ */
+export function slackUsersChangedForMembers(
+  stored: { user_id: string; email: string | null; image_url: string | null }[],
+  fetched: { user_id: string; email: string | null; image_url: string | null }[]
+): boolean {
+  const key = (u: { email: string | null; image_url: string | null }) => `${u.email ?? ""}\u0000${u.image_url ?? ""}`;
+  const before = new Map(stored.map((u) => [u.user_id, key(u)]));
+  // A removed user leaves its bronze row in place (the import only upserts),
+  // so only additions and changes can alter what members read.
+  return fetched.some((u) => before.get(u.user_id) !== key(u));
+}

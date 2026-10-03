@@ -10,6 +10,7 @@ import { fetchAllBronzeRows } from "@/lib/supabase/bronze-pagination";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { INSTAGRAM_CUSTOM_FIELD_HANDLE, resolveInstagramUrl, toSocialUrl } from "@/lib/kajabi/profile-fields";
 import { applyProfileOverride, type ProfileOverride } from "@/lib/member-profile-overrides";
+import { attendanceMatchInputsChanged } from "@/lib/processing/attendance";
 
 // toSocialUrl, the "Instagram Handle" custom-field handle, and the Instagram
 // precedence (custom field first, socials.instagram as fallback) live in
@@ -111,7 +112,7 @@ export async function POST(request: NextRequest) {
       supabase.from("staff").select("*"),
       supabase.from("member_email_aliases").select("alias_email, member_id").eq("active", true),
       fetchAllBronzeRows(supabase, "stripe_customers", "stripe_customer_id, email"),
-      fetchAllPublicRows(supabase, "members", "id, email, kajabi_id"),
+      fetchAllPublicRows(supabase, "members", "id, email, kajabi_id, name"),
       fetchAllPublicRows(supabase, "member_hiatus_history", "member_id, start_date, end_date"),
       fetchAllPublicRows(supabase, "member_join_date_overrides", "member_id, first_joined_at"),
       fetchAllPublicRows(supabase, "member_profile_overrides", "member_id, bio, facebook_url, twitter_url"),
@@ -537,8 +538,8 @@ export async function POST(request: NextRequest) {
     // resolveEmail() (staffByEmail, above) — this just persists the result
     // as a real FK so other code (e.g. the admin Users page) can join on an
     // id instead of re-deriving the relationship by email every time.
+    const freshMembers = await fetchAllPublicRows(supabase, "members", "id, email, name");
     if (staffMembers && staffMembers.length > 0) {
-      const freshMembers = await fetchAllPublicRows(supabase, "members", "id, email");
       const memberIdByEmail = new Map(freshMembers.map((m: any) => [resolveEmail(m.email), m.id]));
       const staffUpdates: { id: string; member_id: string | null }[] = [];
       for (const staff of staffMembers) {
@@ -557,16 +558,23 @@ export async function POST(request: NextRequest) {
     // After the response is sent, reprocess attendance for the last 90 days.
     // This ensures any newly-added or newly-matchable members get their historical
     // Zoom attendance records created — making "matched → no attendance record" impossible.
-    const reprocessTo = new Date();
-    const reprocessFrom = new Date(reprocessTo);
-    reprocessFrom.setDate(reprocessFrom.getDate() - 90);
-    after(async () => {
-      try {
-        await triggerAttendanceReprocessing({ from: reprocessFrom, to: reprocessTo });
-      } catch (err) {
-        console.error('Background attendance reprocessing failed after member change:', err);
-      }
-    });
+    // Skipped when no member's id, name or email changed: attendance matching
+    // reads nothing else from members, so the rebuild would rewrite the same rows.
+    // (Every Slack import reprocesses members, so this used to run nightly.)
+    if (attendanceMatchInputsChanged(existingMembers || [], freshMembers)) {
+      const reprocessTo = new Date();
+      const reprocessFrom = new Date(reprocessTo);
+      reprocessFrom.setDate(reprocessFrom.getDate() - 90);
+      after(async () => {
+        try {
+          await triggerAttendanceReprocessing({ from: reprocessFrom, to: reprocessTo });
+        } catch (err) {
+          console.error('Background attendance reprocessing failed after member change:', err);
+        }
+      });
+    } else {
+      console.log('No member id/name/email changed; skipping attendance reprocessing');
+    }
 
     // Counted from the members table after reprocess_members_atomic, so hiatus,
     // gift overrides and program-cohort enrollments (applied inside the RPC)

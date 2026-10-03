@@ -1,10 +1,15 @@
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { NextRequest, NextResponse } from "next/server";
 import { matchAttendeeToMember, type MatchResult, type MemberEmailAlias } from "@/lib/member-matching";
-import { filterTrivialPups } from "@/lib/processing/attendance";
+import { chunkAttendanceWrites, filterTrivialPups } from "@/lib/processing/attendance";
 
 // Extend timeout for processing large batches of attendance records
 export const maxDuration = 300; // 5 minutes
+
+// Rows (attendance + PUPs) per reprocess_prickle_attendance_atomic call. One
+// call for 90 days (~2,400 attendance rows plus the member_activities mirror)
+// hit Postgres's statement timeout; see chunkAttendanceWrites.
+const MAX_ROWS_PER_ATOMIC_WRITE = 400;
 
 // Helper to normalize name for matching
 function normalizeName(name: string): string {
@@ -178,7 +183,8 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { fromDate, toDate } = body;
+    // maxRowsPerWrite: tests use it to force several chunks on a small range.
+    const { fromDate, toDate, maxRowsPerWrite } = body;
 
     if (!fromDate || !toDate) {
       return NextResponse.json(
@@ -541,19 +547,41 @@ export async function POST(request: NextRequest) {
 
     console.log(`Collected ${attendanceToUpsert.length} attendance records and ${pupsToCreate.length} PUPs to insert atomically`);
 
-    // STEP 5: Atomically reprocess attendance and PUPs using database function
-    // This ensures DELETE + INSERT happens in a single transaction,
-    // preventing users from seeing partial state during reprocessing
-    const { error: reprocessError } = await supabase.rpc('reprocess_prickle_attendance_atomic', {
-      from_date: fromDateTime,
-      to_date: toDateTime,
-      new_pup_data: pupsToCreate,
-      new_attendance_data: attendanceToUpsert,
-    });
+    // STEP 5: Atomically reprocess attendance and PUPs using database function.
+    // Each call does DELETE + INSERT in one transaction, so users never see a
+    // partial state. Long ranges are written in several calls, split only at
+    // quiet gaps (no Zoom session, calendar prickle or PUP in progress) so no
+    // row crosses from one call's range into another's.
+    const busy = [
+      ...zoomAttendees.map((a) => ({ start: a.join_time, end: a.leave_time })),
+      ...allPrickles.map((p) => ({ start: p.start_time, end: p.end_time })),
+      ...pupsToCreate.map((p) => ({ start: p.start_time, end: p.end_time })),
+    ];
+    const writeChunks = chunkAttendanceWrites(
+      fromDateTime,
+      toDateTime,
+      busy,
+      pupsToCreate,
+      attendanceToUpsert,
+      maxRowsPerWrite ?? MAX_ROWS_PER_ATOMIC_WRITE
+    );
+    if (writeChunks.length > 1) console.log(`Writing attendance in ${writeChunks.length} atomic chunks`);
 
-    if (reprocessError) {
-      console.error("Error atomically reprocessing attendance:", reprocessError);
-      throw reprocessError;
+    for (const [i, chunk] of writeChunks.entries()) {
+      const { error: reprocessError } = await supabase.rpc('reprocess_prickle_attendance_atomic', {
+        from_date: chunk.from,
+        to_date: chunk.to,
+        new_pup_data: chunk.pups,
+        new_attendance_data: chunk.attendance,
+      });
+
+      if (reprocessError) {
+        console.error(
+          `Error atomically reprocessing attendance (chunk ${i + 1}/${writeChunks.length}, ${chunk.from} to ${chunk.to}):`,
+          reprocessError
+        );
+        throw reprocessError;
+      }
     }
 
     attendanceRecords = attendanceToUpsert.length;
@@ -604,6 +632,7 @@ export async function POST(request: NextRequest) {
       matchedToCalendar,
       createdNewPrickles,
       attendanceRecords,
+      atomicWrites: writeChunks.length,
       matchRate: zoomAttendees.length > 0
         ? Math.round((matchedAttendees / zoomAttendees.length) * 100)
         : 0,
