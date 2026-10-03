@@ -374,7 +374,6 @@ export function buildSlackSignInBlocks(
   { withRefresh }: { withRefresh: boolean }
 ): KnownBlock[] {
   const loginUrl = new URL("/login", origin).toString();
-  const loginHost = new URL(origin).host;
 
   if (resolution.status !== "ok" || !issued) {
     const text =
@@ -428,7 +427,7 @@ export function buildSlackSignInBlocks(
       type: "section",
       text: {
         type: "mrkdwn",
-        text: `*Using a different browser, like Safari on iPhone?* Tap *Send me a link I can copy*, then press and hold the link in that message and choose *Open in Browser*. Or sign in by email at <${loginUrl}|${loginHost}/login>.`,
+        text: `*On iPhone?* To open Hedgie Hub outside Slack, tap *Send me a link I can copy*, then press and hold the link in that message and tap *Open in Browser*.`,
       },
     },
   ];
@@ -455,7 +454,7 @@ export async function sendSlackSignInMessage(service: SupabaseClient, slackUserI
   if (resolution.status !== "ok") return;
   const issued = await issueSlackSignIn(service, { slackUserId, origin, ttlMinutes: slackSignInTtlMinutes(resolution) });
 
-  const text = `Your one-time Hedgie Hub sign-in link (works once, until ${expiryMarkup(issued)}):\n${issued.url}\n\nOr enter this code on the sign-in page: \`${formatSlackSignInCode(issued.code)}\`\n\nOn iPhone: press and hold the link, then tap *Open in Browser*.`;
+  const text = `Your one-time Hedgie Hub sign-in link (works once, until ${expiryMarkup(issued)}):\n${issued.url}\n\nOr enter this code on the sign-in page: \`${formatSlackSignInCode(issued.code)}\`\n\nOn iPhone: press and hold the link and tap *Open in Browser* to open it outside Slack.`;
   await new WebClient(botToken).chat.postMessage({
     channel: slackUserId,
     text,
