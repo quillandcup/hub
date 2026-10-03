@@ -63,7 +63,7 @@ export default function SlackSignIn({ slackHomeUrl }: { slackHomeUrl: string }) 
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <a
         href={slackHomeUrl}
         className="flex w-full items-center justify-center px-6 py-3 border border-plum-600 text-plum-700 dark:text-plum-300 font-semibold rounded-lg transition-colors hover:bg-plum-50 dark:hover:bg-slate-800"
@@ -74,18 +74,10 @@ export default function SlackSignIn({ slackHomeUrl }: { slackHomeUrl: string }) 
         Then tap <strong>Open Hedgie Hub</strong> in the app&apos;s Home tab.
       </p>
 
-      <form ref={formRef} action={formAction} className="space-y-3">
+      <form ref={formRef} action={formAction} className="space-y-2">
         <label htmlFor="slack-code" className="block text-sm font-medium text-slate-700 dark:text-slate-300">
-          Or paste the sign-in link or code from Slack
+          Paste the sign-in link or code from Slack
         </label>
-        <button
-          type="button"
-          onClick={pasteFromClipboard}
-          disabled={pending}
-          className="w-full px-6 py-3 bg-plum-600 hover:bg-plum-700 disabled:bg-plum-400 text-white font-semibold rounded-lg transition-colors"
-        >
-          {pending ? "Signing in…" : "Paste from Slack"}
-        </button>
         <div className="flex gap-2">
           <input
             id="slack-code"
@@ -102,11 +94,13 @@ export default function SlackSignIn({ slackHomeUrl }: { slackHomeUrl: string }) 
             className="min-w-0 flex-1 px-4 py-3 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-mono tracking-wider focus:outline-none focus:ring-2 focus:ring-plum-500"
           />
           <button
-            type="submit"
+            type="button"
+            onClick={pasteFromClipboard}
             disabled={pending}
-            className="px-5 py-3 border border-plum-600 text-plum-700 dark:text-plum-300 disabled:opacity-50 font-semibold rounded-lg transition-colors"
+            aria-label="Paste from Slack"
+            className="px-5 py-3 border border-plum-600 text-plum-700 dark:text-plum-300 disabled:opacity-50 font-semibold rounded-lg transition-colors hover:bg-plum-50 dark:hover:bg-slate-800"
           >
-            Sign in
+            {pending ? "Signing in…" : "Paste"}
           </button>
         </div>
         {(hint || state?.error) && (
