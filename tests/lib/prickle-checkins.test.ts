@@ -8,6 +8,8 @@ import {
   FEELING_KEYS,
   NEED_KEYS,
   isEmptyCheckin,
+  parseCheckinPrefill,
+  prickleHref,
   toggleFeeling,
   validateCheckin,
   type CheckinInput,
@@ -86,5 +88,34 @@ describe("isEmptyCheckin", () => {
   it("is true only when every answer is cleared", () => {
     expect(isEmptyCheckin({ feelingsBefore: [], need: null, sessionRating: null, feelingsAfter: [] })).toBe(true);
     expect(isEmptyCheckin({ feelingsBefore: [], need: null, sessionRating: 3, feelingsAfter: [] })).toBe(false);
+  });
+});
+
+describe("prickleHref / parseCheckinPrefill", () => {
+  it("round-trips feelings and need through the query string", () => {
+    const href = prickleHref("p1", ["stressed", "lonely"], "company");
+    expect(href).toBe("/prickles/p1?feel=stressed%2Clonely&need=company");
+    const params = Object.fromEntries(new URL(href, "http://x").searchParams);
+    expect(parseCheckinPrefill(params)).toEqual({
+      feelingsBefore: ["stressed", "lonely"],
+      need: "company",
+      sessionRating: null,
+      feelingsAfter: [],
+    });
+  });
+
+  it("links plainly when there's nothing to carry", () => {
+    expect(prickleHref("p1", [], null)).toBe("/prickles/p1");
+    expect(parseCheckinPrefill({})).toBeNull();
+  });
+
+  it("drops unknown keys and caps feelings at two", () => {
+    expect(parseCheckinPrefill({ feel: "hangry,calm,tired,meh", need: "snacks" })).toEqual({
+      feelingsBefore: ["calm", "tired"],
+      need: null,
+      sessionRating: null,
+      feelingsAfter: [],
+    });
+    expect(parseCheckinPrefill({ feel: "hangry", need: "snacks" })).toBeNull();
   });
 });

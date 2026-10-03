@@ -99,6 +99,41 @@ describe("PrickleCheckIn", () => {
     expect(screen.queryByRole("button", { name: /check-in/ })).not.toBeInTheDocument();
   });
 
+  it("starts from an unsaved prefill when there's no saved check-in", async () => {
+    const user = userEvent.setup();
+    render(
+      <PrickleCheckIn
+        prickleId="prickle-1"
+        hasStarted={false}
+        initial={null}
+        prefill={{ feelingsBefore: ["stressed"], need: "gentle", sessionRating: null, feelingsAfter: [] }}
+      />
+    );
+    expect(chip("Stressed")).toHaveAttribute("aria-pressed", "true");
+    expect(chip(/^Gentle/)).toHaveAttribute("aria-pressed", "true");
+
+    await user.click(screen.getByRole("button", { name: "Save check-in" }));
+    expect(saveCheckin).toHaveBeenCalledWith("prickle-1", {
+      feelingsBefore: ["stressed"],
+      need: "gentle",
+      sessionRating: null,
+      feelingsAfter: [],
+    });
+  });
+
+  it("prefers the saved check-in over a prefill", () => {
+    render(
+      <PrickleCheckIn
+        prickleId="prickle-1"
+        hasStarted={false}
+        initial={{ feelingsBefore: ["calm"], need: null, sessionRating: null, feelingsAfter: [] }}
+        prefill={{ feelingsBefore: ["stressed"], need: "gentle", sessionRating: null, feelingsAfter: [] }}
+      />
+    );
+    expect(chip("Calm")).toHaveAttribute("aria-pressed", "true");
+    expect(chip("Stressed")).toHaveAttribute("aria-pressed", "false");
+  });
+
   it("shows a save error", async () => {
     vi.mocked(saveCheckin).mockResolvedValue({ error: "Couldn't save your check-in — please try again." });
     const user = userEvent.setup();

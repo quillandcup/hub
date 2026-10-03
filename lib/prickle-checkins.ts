@@ -72,6 +72,19 @@ export const NEEDS = [
 
 export type Need = (typeof NEEDS)[number]["key"];
 
+/**
+ * The prickle vibe a need points at, used to pre-select the Prickle Picker's mood step (the
+ * member can still change it). Accountability is about showing up, not the room, so no vibe.
+ */
+export const NEED_VIBE: Record<Need, "focused" | "balanced" | "chatty" | null> = {
+  momentum: "focused",
+  deep_focus: "focused",
+  accountability: null,
+  company: "chatty",
+  gentle: "balanced",
+  unstick: "chatty",
+};
+
 export const NEED_KEYS: readonly Need[] = NEEDS.map((n) => n.key);
 
 export const SESSION_RATINGS = [
@@ -119,4 +132,34 @@ export function toggleFeeling(selected: Feeling[], feeling: Feeling): Feeling[] 
   if (selected.includes(feeling)) return selected.filter((f) => f !== feeling);
   if (selected.length >= MAX_FEELINGS) return selected;
   return [...selected, feeling];
+}
+
+/**
+ * A prickle page link carrying "coming in" answers (e.g. from the Prickle Picker), so the
+ * check-in card there starts pre-filled. Nothing is saved until the member saves the card.
+ */
+export function prickleHref(prickleId: string, feelings: Feeling[], need: Need | null): string {
+  const params = new URLSearchParams();
+  if (feelings.length > 0) params.set("feel", feelings.join(","));
+  if (need) params.set("need", need);
+  const query = params.toString();
+  return `/prickles/${prickleId}${query ? `?${query}` : ""}`;
+}
+
+/**
+ * Reads prickleHref's query back into a check-in prefill. Unknown keys are dropped and feelings
+ * capped at MAX_FEELINGS; null when nothing usable is left.
+ */
+export function parseCheckinPrefill(params: {
+  feel?: string | string[];
+  need?: string | string[];
+}): CheckinInput | null {
+  const feelRaw = Array.isArray(params.feel) ? params.feel[0] : params.feel;
+  const needRaw = Array.isArray(params.need) ? params.need[0] : params.need;
+  const feelings = [...new Set((feelRaw ?? "").split(","))]
+    .filter((f): f is Feeling => (FEELING_KEYS as readonly string[]).includes(f))
+    .slice(0, MAX_FEELINGS);
+  const need = (NEED_KEYS as readonly string[]).includes(needRaw ?? "") ? (needRaw as Need) : null;
+  if (feelings.length === 0 && need === null) return null;
+  return { feelingsBefore: feelings, need, sessionRating: null, feelingsAfter: [] };
 }
