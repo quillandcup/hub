@@ -428,6 +428,14 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
                     <span className="text-slate-500 dark:text-slate-400">{MEASURE_LABELS[entry.measure]}</span>
                   </td>
                   <td className="px-5 py-3 text-slate-500 dark:text-slate-400 truncate max-w-xs">
+                    {entry.prickleId && (
+                      <Link
+                        href={`/prickles/${entry.prickleId}`}
+                        className="block text-xs text-plum-600 hover:text-plum-700 dark:text-plum-400 hover:underline truncate"
+                      >
+                        During {entry.prickleLabel ?? "a prickle"} →
+                      </Link>
+                    )}
                     {entry.note}
                     {entry.tags.length > 0 && (
                       <span className="ml-2 inline-flex flex-wrap gap-1 align-middle">

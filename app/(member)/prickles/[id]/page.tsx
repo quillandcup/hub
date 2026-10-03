@@ -12,7 +12,10 @@ import { findUnmatchedZoomAttendees } from "@/lib/prickle-unmatched";
 import AliasSearchForm from "@/app/(admin)/admin/hygiene/unmatched-zoom/AliasSearchForm";
 import { formatPrickleTitle } from "@/lib/formatters";
 import { computeHostStatus } from "@/lib/hosting-stats";
-import { getMyProjects } from "@/app/(member)/projects/actions";
+import { getMyEntriesForPrickle, getMyProjects } from "@/app/(member)/projects/actions";
+import PrickleWritingPanel from "@/components/writing/PrickleWritingPanel";
+import { localDateOf } from "@/lib/prickle-writing";
+import { ORG_TIMEZONE } from "@/lib/config";
 import { getMyCalendarItems } from "@/app/(member)/my-prickles/calendar-feed-actions";
 import { AddPrickleToCalendar } from "@/app/(member)/my-prickles/AddToCalendar";
 import { prickleCalendarState, SCHEDULE_TIMEZONE } from "@/lib/calendar-feed";
@@ -68,12 +71,13 @@ export default async function PrickleDetailPage({
     redirect("/login");
   }
 
-  const [profileResult, effectiveIdentity, prickle, myProjects, calendarItems] = await Promise.all([
+  const [profileResult, effectiveIdentity, prickle, myProjects, calendarItems, myPrickleEntries] = await Promise.all([
     supabase.from("user_profiles").select("role").eq("id", user.id).single(),
     getEffectiveIdentity(user),
     getPrickle(id),
     getMyProjects(),
     getMyCalendarItems(),
+    getMyEntriesForPrickle(id),
   ]);
   const isAdmin = profileResult.data?.role === "admin";
   const isActingAsAdmin = isAdmin && !effectiveIdentity?.isSudo;
@@ -204,6 +208,20 @@ export default async function PrickleDetailPage({
       />
     ) : null;
 
+  // Members log what they wrote here once the prickle has started; the entry is linked to it.
+  const writingPanel =
+    !isActingAsAdmin && effectiveIdentity && !hasNotStarted(prickle.start_time) ? (
+      <PrickleWritingPanel
+        prickleId={prickle.id}
+        entryDate={localDateOf(prickle.start_time, userTimezone === "browser" ? ORG_TIMEZONE : userTimezone)}
+        attended={((attendanceRecords ?? []) as unknown as { member_id: string }[]).some(
+          (a) => a.member_id === effectiveIdentity.memberId
+        )}
+        projects={myProjects.map((p) => ({ id: p.id, title: p.title }))}
+        entries={myPrickleEntries}
+      />
+    ) : null;
+
   return (
     <div className="min-h-screen bg-canvas dark:bg-slate-950">
       <header className="border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
@@ -218,6 +236,7 @@ export default async function PrickleDetailPage({
 
       <main className="container mx-auto px-6 py-8">
         <div className="max-w-4xl mx-auto space-y-6">
+          {writingPanel}
           <PrickleDetails
             prickle={prickle}
             attendanceRecords={attendanceRecords || []}
@@ -226,8 +245,6 @@ export default async function PrickleDetailPage({
             userTimezonePreference={userTimezone}
             memberBasePath={memberBasePath}
             showMemberEmails={isActingAsAdmin}
-            viewerMemberId={effectiveIdentity?.memberId ?? null}
-            viewerProjects={myProjects.map((p) => ({ id: p.id, title: p.title }))}
           />
           {isActingAsAdmin && unmatchedZoomAttendees.length > 0 && (
             <AliasSearchForm
