@@ -57,7 +57,7 @@ function main(): void {
     `  1. Verify: gh secret list --repo ${REPO} / gh variable list --repo ${REPO}`,
   );
   console.log(
-    `  2. Trigger a workflow run to confirm: gh workflow run checkly.yml --repo ${REPO}\n`,
+    `  2. Confirm with a run: gh workflow run ci.yml --ref main --repo ${REPO} (Supabase, Vercel, Slack) and gh workflow run checkly.yml --ref main --repo ${REPO} (Checkly)\n`,
   );
 }
 

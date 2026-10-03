@@ -22,6 +22,8 @@ on:
       - "package.json"
       - "package-lock.json"
       - ".github/workflows/checkly.yml"
+  # Manual deploy, e.g. to check a rotated CHECKLY_API_KEY: `gh workflow run checkly.yml --ref main`.
+  workflow_dispatch:
 
 # Least-privilege GITHUB_TOKEN for both jobs. Neither job needs write access:
 # checkly/checkly-action@v1 talks to the Checkly API directly with
@@ -51,7 +53,7 @@ jobs:
           ALERTS_EMAIL: ${{ vars.ALERTS_EMAIL }} # read by __checks__/config.ts
 
   checkly-deploy:
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5

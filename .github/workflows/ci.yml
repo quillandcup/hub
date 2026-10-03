@@ -6,7 +6,7 @@ name: CI
 # note on RLS/SQL functions/bronze-silver-gold -- plus the production build). See
 # vitest.config.ts for how tests are split between the two. On push to main, once
 # (and only once) both jobs pass, also auto-pushes any pending Supabase migrations
-# to production.
+# to production, deploys, and then pushes slack-app-manifest.yml to the Slack app.
 #
 # Why the migration push exists: nobody was reliably running `supabase db push`
 # after a merge -- new code has 500'd in prod waiting on a table/column that
@@ -378,3 +378,43 @@ jobs:
         run: vercel deploy --prebuilt --prod
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+
+  # slack-app-manifest.yml is the source of truth for the Slack app (Billie Bot): its
+  # description, scopes, slash commands, event subscriptions and request URLs. The push
+  # REPLACES the live configuration, so anything changed in the Slack dashboard but not in
+  # the manifest is reset here -- change the manifest instead. See docs/SLACK_MANIFEST.md.
+  #
+  # Runs after deploy on purpose: the manifest points at app routes (the /hub command, the
+  # events and interactivity request URLs), so those must be live first.
+  #
+  # No `cancel-in-progress` on main (see `concurrency` above), so runs queue instead of
+  # being killed between rotating the Slack token and saving its replacement.
+  push-slack-manifest:
+    name: Push Slack app manifest
+    needs: deploy
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: ".nvmrc"
+          cache: npm
+
+      - run: npm ci
+
+      # Calls scripts/slack-manifest.ts directly rather than `npm run slack:manifest:push`,
+      # which wraps it in dotenv for the local .env files.
+      - name: Push Slack app manifest
+        run: |
+          if [ -z "$SLACK_CONFIG_REFRESH_TOKEN" ] || [ -z "$GH_TOKEN" ] || [ -z "$SLACK_APP_ID" ]; then
+            echo "SLACK_CONFIG_REFRESH_TOKEN, GH_TOKEN_SLACK_MANIFEST (secrets) and SLACK_APP_ID (variable) must all be set -- see docs/SLACK_MANIFEST.md."
+            exit 1
+          fi
+          npx tsx scripts/slack-manifest.ts push
+        env:
+          SLACK_APP_ID: ${{ vars.SLACK_APP_ID }}
+          SLACK_CONFIG_REFRESH_TOKEN: ${{ secrets.SLACK_CONFIG_REFRESH_TOKEN }}
+          # A fine-grained token with Secrets write: the job's GITHUB_TOKEN can't set secrets.
+          GH_TOKEN: ${{ secrets.GH_TOKEN_SLACK_MANIFEST }}

@@ -245,9 +245,10 @@ export const ENV_VARS: readonly EnvVarSpec[] = [
   {
     name: "SLACK_APP_ID",
     group: "Slack",
-    description: "Slack app ID (A...) for slack:// links to the app's Home tab (Slack sign-in). Optional.",
+    description:
+      "Slack app ID (A...). In the app, for slack:// links to the app's Home tab (Slack sign-in); optional there. In CI, the app whose manifest the push-slack-manifest job replaces (GitHub variable); required there.",
     type: "config",
-    destinations: vercelAllEnvs,
+    destinations: [...vercelAllEnvs, { kind: "github" }],
   },
   {
     name: "SLACK_TEST_MODE",
@@ -399,6 +400,18 @@ export const ENV_VARS: readonly EnvVarSpec[] = [
     description:
       "Vercel project ID (prj_...), used to link the project non-interactively in CI.",
     type: "secret", // an ID, but ci.yml reads it as secrets.* -- keep in sync
+    destinations: [{ kind: "github" }],
+  },
+  // SLACK_CONFIG_REFRESH_TOKEN (GitHub secret, also read by the push-slack-manifest job) is
+  // deliberately NOT declared here. Slack replaces it every time it's used, so CI rewrites
+  // the secret on each run and a copy in .env.prod would be stale after the first one --
+  // syncing it would break the job. Seed it by hand; see docs/SLACK_MANIFEST.md.
+  {
+    name: "GH_TOKEN_SLACK_MANIFEST",
+    group: "GitHub Actions CI",
+    description:
+      "GitHub fine-grained token with Secrets read/write on this repo only. Lets the push-slack-manifest job save the rotated SLACK_CONFIG_REFRESH_TOKEN back to GitHub secrets (the job's own GITHUB_TOKEN can't write secrets).",
+    type: "secret",
     destinations: [{ kind: "github" }],
   },
 

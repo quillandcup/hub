@@ -165,6 +165,10 @@ The hook is tested by `supabase/tests/database/custom_access_token_hook.test.sql
 - Where local defaults differ from production's values (auth email rate limit, storage analytics/vector), `[remotes.prod]` pins production's values so a push doesn't change them. If `config:diff` shows anything besides the change you intend, pin or fix it in `config.toml` before pushing.
 - Local: the auth container reads hooks only at startup, so after changing `[auth.hook.*]` restart the stack (`supabase stop && supabase start`; no reset needed).
 
+### Slack app manifest as code
+
+`slack-app-manifest.yml` is the source of truth for the Slack app (Billie Bot). On every push to main, after the production deploy (the manifest points at app routes, so they must be live first), the `push-slack-manifest` job runs `scripts/slack-manifest.ts push`, which **replaces** the live app's configuration. Anything set in the Slack dashboard but missing from the manifest is removed, so change the manifest, not the dashboard. Before merging a manifest change, run `npm run slack:manifest:diff` (read-only) and check it shows only what you intend. `SLACK_CONFIG_REFRESH_TOKEN` is rewritten by CI on every run and is deliberately not in `env-vars.config.ts`. Setup, token rotation and recovery: `docs/SLACK_MANIFEST.md`.
+
 ### Testing Requirements
 
 **RULE**: Critical data processing routes must have integration tests.
