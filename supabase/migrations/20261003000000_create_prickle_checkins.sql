@@ -20,6 +20,10 @@
 -- real delete removes one).
 
 CREATE TABLE IF NOT EXISTS public.prickle_checkins (
+  -- A surrogate key, with (member_id, prickle_id) UNIQUE below, on purpose: a composite primary
+  -- key of the two FKs would make PostgREST read this table as a members<->prickles junction,
+  -- making every existing `prickles` -> `host:members(...)` embed ambiguous (PGRST201).
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   member_id UUID NOT NULL REFERENCES public.members(id) ON DELETE CASCADE,
   prickle_id UUID NOT NULL REFERENCES public.prickles(id) ON DELETE CASCADE,
   feelings_before TEXT[] NOT NULL DEFAULT '{}'
@@ -51,14 +55,14 @@ CREATE TABLE IF NOT EXISTS public.prickle_checkins (
     ),
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  PRIMARY KEY (member_id, prickle_id),
+  UNIQUE (member_id, prickle_id),
   CHECK (
     cardinality(feelings_before) > 0 OR need IS NOT NULL OR session_rating IS NOT NULL
     OR cardinality(feelings_after) > 0
   )
 );
 
--- The PK covers lookups by member; this one serves the prickle-side FK cascade.
+-- The UNIQUE index covers lookups by member; this one serves the prickle-side FK cascade.
 CREATE INDEX IF NOT EXISTS prickle_checkins_prickle_id_idx ON public.prickle_checkins (prickle_id);
 
 COMMENT ON TABLE public.prickle_checkins IS
