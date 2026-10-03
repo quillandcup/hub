@@ -1128,7 +1128,7 @@ export async function getUnloggedRecentPrickles(): Promise<PrickleOption[]> {
   const { supabase, effectiveIdentity } = ctx;
   const since = new Date(Date.now() - UNLOGGED_LOOKBACK_DAYS * DAY_MS).toISOString();
 
-  const [{ data: attendance }, { data: linked }, timeZone] = await Promise.all([
+  const [{ data: attendance }, { data: linked }, { data: dismissed }, timeZone] = await Promise.all([
     supabase
       .from("prickle_attendance")
       .select(
@@ -1143,10 +1143,18 @@ export async function getUnloggedRecentPrickles(): Promise<PrickleOption[]> {
       .eq("member_id", effectiveIdentity.memberId)
       .not("prickle_id", "is", null)
       .gte("created_at", since),
+    supabase
+      .from("writing_prompt_dismissals")
+      .select("prickle_id")
+      .eq("member_id", effectiveIdentity.memberId)
+      .gte("dismissed_at", since),
     viewerTimeZone(),
   ]);
 
-  const linkedIds = new Set(((linked ?? []) as { prickle_id: string }[]).map((e) => e.prickle_id));
+  // Linked to an entry, or dismissed from this prompt: either way, nothing to ask about.
+  const linkedIds = new Set(
+    [...(linked ?? []), ...(dismissed ?? [])].map((e) => (e as { prickle_id: string }).prickle_id)
+  );
   const byId = new Map<string, PrickleOption>();
   for (const row of (attendance ?? []) as unknown as { prickles: RawEmbeddedPrickle | RawEmbeddedPrickle[] }[]) {
     const p = one(row.prickles);
@@ -1154,6 +1162,31 @@ export async function getUnloggedRecentPrickles(): Promise<PrickleOption[]> {
     byId.set(p.id, { id: p.id, label: labelForPrickle(p, timeZone), startTime: p.start_time, attended: true });
   }
   return [...byId.values()].sort((a, b) => b.startTime.localeCompare(a.startTime));
+}
+
+/**
+ * Hides a prickle from the dashboard's "What did you write?" prompt for good -- for sessions the
+ * member won't log (forgot to track, not a writing session for them, untracked work).
+ */
+export async function dismissUnloggedPrickle(prickleId: string): Promise<{ success: true } | { error: string }> {
+  const ctx = await requireIdentity();
+  if ("error" in ctx) return ctx;
+  const { supabase, effectiveIdentity } = ctx;
+  if (typeof prickleId !== "string" || !prickleId) return { error: "Invalid prickle" };
+
+  const { error } = await supabase
+    .from("writing_prompt_dismissals")
+    .upsert(
+      { member_id: effectiveIdentity.memberId, prickle_id: prickleId },
+      { onConflict: "member_id,prickle_id", ignoreDuplicates: true }
+    );
+  if (error) {
+    console.error("dismissUnloggedPrickle: insert failed", { prickleId, error });
+    return { error: "Couldn't dismiss that prickle — please try again." };
+  }
+
+  revalidatePath("/dashboard");
+  return { success: true };
 }
 
 export interface CreateGoalInput {
