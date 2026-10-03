@@ -99,14 +99,20 @@ export const SESSION_RATINGS = [
 ] as const;
 
 /**
- * How far into a prickle "How did it go?" and "Feeling now…" start being asked. Before that (and
- * before the start) a check-in is only about coming in: feelings and what the member needs. After
- * it, e.g. leaving early or logging afterwards, both halves are asked.
+ * A prickle check-in has two halves, asked at different times, in Slack DMs
+ * (lib/prickle-checkin-dms.ts) and on the site alike:
+ * - Check-in, coming in: how they're feeling (feelingsBefore) and what they need (need).
+ * - Check-out, afterwards: how it went (sessionRating) and how they feel now (feelingsAfter).
+ * Both are stored on the same prickle_checkins row.
+ *
+ * On the site, the check-out opens this far into the prickle (canCheckOut). Before that, only the
+ * check-in is offered; after it (leaving early, or logging later) both are. The Slack check-out
+ * DM keeps its own timing (5 min after the end, or 10 min after leaving early).
  */
-export const CHECKIN_AFTER_MINUTES = 15;
+export const CHECKOUT_OPENS_AFTER_MINUTES = 15;
 
-export function asksHowItWent(prickleStartTime: string, nowMs: number): boolean {
-  return nowMs >= Date.parse(prickleStartTime) + CHECKIN_AFTER_MINUTES * 60_000;
+export function canCheckOut(prickleStartTime: string, nowMs: number): boolean {
+  return nowMs >= Date.parse(prickleStartTime) + CHECKOUT_OPENS_AFTER_MINUTES * 60_000;
 }
 
 export interface CheckinInput {
@@ -139,6 +145,19 @@ export function validateCheckin(input: unknown): string | null {
     return "Invalid rating";
   }
   return null;
+}
+
+/**
+ * Whether the check-in half is fully answered. A partly answered check-in is still offered, to
+ * finish it (the Slack check-in DM is sent for one too).
+ */
+export function checkinAnswered(saved: CheckinInput | null): boolean {
+  return !!saved && saved.feelingsBefore.length > 0 && saved.need !== null;
+}
+
+/** Same for the check-out half. */
+export function checkoutAnswered(saved: CheckinInput | null): boolean {
+  return !!saved && saved.sessionRating !== null && saved.feelingsAfter.length > 0;
 }
 
 /** A prickle_checkins row's answers (live rows only: callers filter `deleted_at IS NULL`). */

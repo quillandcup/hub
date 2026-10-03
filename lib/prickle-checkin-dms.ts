@@ -5,7 +5,9 @@ import { createNotifier } from "@/lib/notifications/notify";
 import type { OutboundMessage } from "@/lib/channels";
 import { loadPresenceByMember, presenceDue, type PresenceInterval } from "@/lib/zoom-presence";
 import {
+  checkinAnswered,
   checkinFromRow,
+  checkoutAnswered,
   FEELINGS,
   isEmptyCheckin,
   MAX_FEELINGS,
@@ -354,18 +356,9 @@ function checkinFooter(prickleId: string): any {
   };
 }
 
-/**
- * Whether the check-in DM's questions are all answered already (e.g. on the prickle page), so
- * there's nothing to send. A partly answered check-in still gets the DM, to finish it.
- */
-export function checkinAnswered(saved: CheckinInput | null): boolean {
-  return !!saved && saved.feelingsBefore.length > 0 && saved.need !== null;
-}
-
-/** Same for the check-out's two questions; the DM is skipped only if no quick-log is left either. */
-export function checkoutAnswered(saved: CheckinInput | null): boolean {
-  return !!saved && saved.sessionRating !== null && saved.feelingsAfter.length > 0;
-}
+// Shared with the web check-in/check-out (lib/prickle-checkins.ts), so "answered" means the
+// same thing in Slack and on the site.
+export { checkinAnswered, checkoutAnswered };
 
 /** The check-in DM, before a prickle: how they're feeling coming in and what they need. */
 export function buildCheckinBlocks(prickleId: string, typeName: string, saved: CheckinInput | null): any[] {

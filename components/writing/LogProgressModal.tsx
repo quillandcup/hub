@@ -11,7 +11,7 @@ const LOGGABLE_MEASURES = WRITING_MEASURES.filter((m) => m !== "prickles");
 import { getPricklesOnDate, logProgress, updateEntry, type EntryRow } from "@/app/(member)/projects/actions";
 import { defaultPrickleId, type PrickleOption } from "@/lib/prickle-writing";
 import { getCheckinForLogging, saveCheckin } from "@/app/(member)/prickles/checkin-actions";
-import { asksHowItWent, type CheckinInput } from "@/lib/prickle-checkins";
+import { canCheckOut, checkinAnswered, type CheckinInput } from "@/lib/prickle-checkins";
 import { FeelingPicker, NeedPicker, RatingPicker } from "@/components/writing/CheckinFields";
 
 const EMPTY_CHECKIN: CheckinInput = { feelingsBefore: [], need: null, sessionRating: null, feelingsAfter: [] };
@@ -104,16 +104,15 @@ export default function LogProgressModal({
     };
   }, [isOpen, prickleChoice]);
 
-  // Which half of the check-in to ask follows the prickle's timing (asksHowItWent): early on,
-  // only "coming in"; from CHECKIN_AFTER_MINUTES in, how it went too. A linked prickle that isn't
-  // on the chosen date is in the past, so it gets the full check-in.
+  // Which half to ask follows the prickle's timing (canCheckOut): before the check-out opens,
+  // the check-in; after it, the check-out, plus the check-in if it isn't fully answered yet
+  // (checkinAnswered, same rule as the Slack check-in DM). A linked prickle that isn't on the
+  // chosen date is in the past, so its check-out is open.
   const optionsLoaded = optionsLoadedFor === entryDate;
   const selectedStart = prickleOptions.find((o) => o.id === prickleChoice)?.startTime;
-  const askHowItWent = selectedStart ? asksHowItWent(selectedStart, openedAt) : true;
+  const checkoutOpen = selectedStart ? canCheckOut(selectedStart, openedAt) : true;
   const showCheckin = canCheckIn && prickleChoice !== "" && checkinFor === prickleChoice && optionsLoaded;
-  // After the session, "coming in" is only asked if nobody answered it earlier.
-  const comingInAnswered = (savedCheckin?.feelingsBefore.length ?? 0) > 0 || savedCheckin?.need != null;
-  const askComingIn = !askHowItWent || !comingInAnswered;
+  const askCheckin = !checkoutOpen || !checkinAnswered(savedCheckin);
   const checkinChanged =
     showCheckin && JSON.stringify(checkinDraft) !== JSON.stringify(savedCheckin ?? EMPTY_CHECKIN);
   function updateCheckin(patch: Partial<CheckinInput>) {
@@ -331,7 +330,7 @@ export default function LogProgressModal({
           />
         </div>
 
-        {showCheckin && (
+        {showCheckin && askCheckin && (
           <section
             aria-labelledby="log-progress-checkin"
             className="space-y-4 border-t border-slate-200 dark:border-slate-800 pt-4"
@@ -339,36 +338,39 @@ export default function LogProgressModal({
             <h3 id="log-progress-checkin" className="text-sm font-medium text-slate-700 dark:text-slate-300">
               Check in <span className="text-slate-400 font-normal">(optional)</span>
             </h3>
-            {askComingIn && (
-              <>
-                <FeelingPicker
-                  label={askHowItWent ? "Coming in, I was feeling…" : "Coming in, I'm feeling…"}
-                  selected={checkinDraft.feelingsBefore}
-                  onChange={(feelingsBefore) => updateCheckin({ feelingsBefore })}
-                  readOnly={false}
-                />
-                <NeedPicker
-                  label={askHowItWent ? "What I needed from this session" : "What I need from this session"}
-                  value={checkinDraft.need}
-                  onChange={(need) => updateCheckin({ need })}
-                />
-              </>
-            )}
-            {askHowItWent && (
-              <>
-                <RatingPicker
-                  label="How did it go?"
-                  value={checkinDraft.sessionRating}
-                  onChange={(sessionRating) => updateCheckin({ sessionRating })}
-                />
-                <FeelingPicker
-                  label="Feeling now…"
-                  selected={checkinDraft.feelingsAfter}
-                  onChange={(feelingsAfter) => updateCheckin({ feelingsAfter })}
-                  readOnly={false}
-                />
-              </>
-            )}
+            <FeelingPicker
+              label={checkoutOpen ? "Coming in, I was feeling…" : "Coming in, I'm feeling…"}
+              selected={checkinDraft.feelingsBefore}
+              onChange={(feelingsBefore) => updateCheckin({ feelingsBefore })}
+              readOnly={false}
+            />
+            <NeedPicker
+              label={checkoutOpen ? "What I needed from this session" : "What I need from this session"}
+              value={checkinDraft.need}
+              onChange={(need) => updateCheckin({ need })}
+            />
+          </section>
+        )}
+
+        {showCheckin && checkoutOpen && (
+          <section
+            aria-labelledby="log-progress-checkout"
+            className="space-y-4 border-t border-slate-200 dark:border-slate-800 pt-4"
+          >
+            <h3 id="log-progress-checkout" className="text-sm font-medium text-slate-700 dark:text-slate-300">
+              Check out <span className="text-slate-400 font-normal">(optional)</span>
+            </h3>
+            <RatingPicker
+              label="How did it go?"
+              value={checkinDraft.sessionRating}
+              onChange={(sessionRating) => updateCheckin({ sessionRating })}
+            />
+            <FeelingPicker
+              label="Feeling now…"
+              selected={checkinDraft.feelingsAfter}
+              onChange={(feelingsAfter) => updateCheckin({ feelingsAfter })}
+              readOnly={false}
+            />
           </section>
         )}
 

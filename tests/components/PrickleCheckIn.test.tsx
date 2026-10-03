@@ -18,17 +18,25 @@ beforeEach(() => {
 });
 
 describe("PrickleCheckIn", () => {
-  it("only asks the coming-in questions early on", () => {
-    render(<PrickleCheckIn prickleId="prickle-1" askHowItWent={false} initial={null} />);
+  it("only shows the check-in before the check-out opens", () => {
+    render(<PrickleCheckIn prickleId="prickle-1" showCheckout={false} initial={null} />);
     expect(screen.getByText(/Coming in, I'm feeling/)).toBeInTheDocument();
     expect(screen.getByText("What I need from this session")).toBeInTheDocument();
     expect(screen.queryByText("How did it go?")).not.toBeInTheDocument();
     expect(screen.queryByText(/Feeling now/)).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Check in" })).toBeInTheDocument();
+  });
+
+  it("shows check-in and check-out as separate sections once the check-out opens", () => {
+    render(<PrickleCheckIn prickleId="prickle-1" showCheckout initial={null} />);
+    expect(screen.getByRole("heading", { name: "Check in & out" })).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "Check in" })).toHaveTextContent(/Coming in, I was feeling/);
+    expect(screen.getByRole("group", { name: "Check out" })).toHaveTextContent(/How did it go\?/);
   });
 
   it("saves feelings, need, rating and feelings after", async () => {
     const user = userEvent.setup();
-    render(<PrickleCheckIn prickleId="prickle-1" askHowItWent initial={null} />);
+    render(<PrickleCheckIn prickleId="prickle-1" showCheckout initial={null} />);
 
     // Each feeling appears twice once the session has started: before (index 0) and after (1).
     await user.click(chip("Stressed", 0));
@@ -36,7 +44,7 @@ describe("PrickleCheckIn", () => {
     await user.click(chip(/^Gentle/));
     await user.click(chip("Good"));
     await user.click(chip("Calm", 1));
-    await user.click(screen.getByRole("button", { name: "Save check-in" }));
+    await user.click(screen.getByRole("button", { name: "Save" }));
 
     expect(saveCheckin).toHaveBeenCalledWith("prickle-1", {
       feelingsBefore: ["stressed", "tired"],
@@ -49,7 +57,7 @@ describe("PrickleCheckIn", () => {
 
   it("caps feelings at two by disabling the rest", async () => {
     const user = userEvent.setup();
-    render(<PrickleCheckIn prickleId="prickle-1" askHowItWent={false} initial={null} />);
+    render(<PrickleCheckIn prickleId="prickle-1" showCheckout={false} initial={null} />);
     await user.click(chip("Stressed"));
     await user.click(chip("Tired"));
     expect(chip("Calm")).toBeDisabled();
@@ -64,15 +72,15 @@ describe("PrickleCheckIn", () => {
     render(
       <PrickleCheckIn
         prickleId="prickle-1"
-        askHowItWent={false}
+        showCheckout={false}
         initial={{ feelingsBefore: ["lonely"], need: null, sessionRating: null, feelingsAfter: [] }}
       />
     );
     expect(chip("Lonely")).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByRole("button", { name: "Save check-in" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
 
     await user.click(chip("Lonely"));
-    await user.click(screen.getByRole("button", { name: "Clear check-in" }));
+    await user.click(screen.getByRole("button", { name: "Clear answers" }));
     expect(saveCheckin).toHaveBeenCalledWith("prickle-1", {
       feelingsBefore: [],
       need: null,
@@ -85,7 +93,7 @@ describe("PrickleCheckIn", () => {
     render(
       <PrickleCheckIn
         prickleId="prickle-1"
-        askHowItWent
+        showCheckout
         readOnly
         initial={{ feelingsBefore: ["drained"], need: "gentle", sessionRating: 2, feelingsAfter: [] }}
       />
@@ -96,7 +104,7 @@ describe("PrickleCheckIn", () => {
     expect(chip(/^Gentle/)).toBeDisabled();
     expect(chip("Meh")).toBeDisabled();
     expect(chip("Calm", 1)).toBeDisabled();
-    expect(screen.queryByRole("button", { name: /check-in/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^(Save|Clear answers)$/ })).not.toBeInTheDocument();
   });
 
   it("starts from an unsaved prefill when there's no saved check-in", async () => {
@@ -104,7 +112,7 @@ describe("PrickleCheckIn", () => {
     render(
       <PrickleCheckIn
         prickleId="prickle-1"
-        askHowItWent={false}
+        showCheckout={false}
         initial={null}
         prefill={{ feelingsBefore: ["stressed"], need: "gentle", sessionRating: null, feelingsAfter: [] }}
       />
@@ -112,7 +120,7 @@ describe("PrickleCheckIn", () => {
     expect(chip("Stressed")).toHaveAttribute("aria-pressed", "true");
     expect(chip(/^Gentle/)).toHaveAttribute("aria-pressed", "true");
 
-    await user.click(screen.getByRole("button", { name: "Save check-in" }));
+    await user.click(screen.getByRole("button", { name: "Save" }));
     expect(saveCheckin).toHaveBeenCalledWith("prickle-1", {
       feelingsBefore: ["stressed"],
       need: "gentle",
@@ -125,7 +133,7 @@ describe("PrickleCheckIn", () => {
     render(
       <PrickleCheckIn
         prickleId="prickle-1"
-        askHowItWent={false}
+        showCheckout={false}
         initial={{ feelingsBefore: ["calm"], need: null, sessionRating: null, feelingsAfter: [] }}
         prefill={{ feelingsBefore: ["stressed"], need: "gentle", sessionRating: null, feelingsAfter: [] }}
       />
@@ -137,9 +145,9 @@ describe("PrickleCheckIn", () => {
   it("shows a save error", async () => {
     vi.mocked(saveCheckin).mockResolvedValue({ error: "Couldn't save your check-in — please try again." });
     const user = userEvent.setup();
-    render(<PrickleCheckIn prickleId="prickle-1" askHowItWent={false} initial={null} />);
+    render(<PrickleCheckIn prickleId="prickle-1" showCheckout={false} initial={null} />);
     await user.click(chip("Curious"));
-    await user.click(screen.getByRole("button", { name: "Save check-in" }));
+    await user.click(screen.getByRole("button", { name: "Save" }));
     expect(await screen.findByText("Couldn't save your check-in — please try again.")).toBeInTheDocument();
   });
 });

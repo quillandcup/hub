@@ -244,10 +244,23 @@ describe("LogProgressModal check-in", () => {
 
   it("afterwards, asks both halves when nothing was answered yet", async () => {
     renderForPrickle();
-    expect(await screen.findByText(/Coming in, I was feeling/)).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: /Check out/ })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /Check in/ })).toBeInTheDocument();
+    expect(screen.getByText(/Coming in, I was feeling/)).toBeInTheDocument();
     expect(screen.getByText("What I needed from this session")).toBeInTheDocument();
     expect(screen.getByText("How did it go?")).toBeInTheDocument();
     expect(screen.getByText(/Feeling now/)).toBeInTheDocument();
+  });
+
+  it("afterwards, still offers a partly answered check-in to finish", async () => {
+    vi.mocked(getCheckinForLogging).mockResolvedValue({
+      checkin: { feelingsBefore: ["tired"], need: null, sessionRating: null, feelingsAfter: [] },
+      canEdit: true,
+    });
+    renderForPrickle();
+    expect(await screen.findByRole("heading", { name: /Check out/ })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /Check in/ })).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "Tired" })[0]).toHaveAttribute("aria-pressed", "true");
   });
 
   it("has no check-in without a prickle, or in sudo", async () => {

@@ -8,10 +8,10 @@ import { FeelingPicker, NeedPicker, RatingPicker } from "@/components/writing/Ch
 interface PrickleCheckInProps {
   prickleId: string;
   /**
-   * Past the first CHECKIN_AFTER_MINUTES of the prickle (see asksHowItWent): also ask how it went
-   * and how they feel now. Before that, only the "coming in" questions.
+   * The check-out half is open (canCheckOut: CHECKOUT_OPENS_AFTER_MINUTES into the prickle).
+   * Before that, only the check-in half is shown.
    */
-  askHowItWent: boolean;
+  showCheckout: boolean;
   initial: CheckinInput | null;
   /** Sudo: an admin sees the member's answers but can't change them. */
   readOnly?: boolean;
@@ -24,10 +24,14 @@ interface PrickleCheckInProps {
 
 const EMPTY: CheckinInput = { feelingsBefore: [], need: null, sessionRating: null, feelingsAfter: [] };
 
-/** Private check-in for a prickle: feelings coming in, what the member needs, and how it went. */
+/**
+ * A member's check-in (feelings coming in, what they need) and, once open, check-out (how it went,
+ * feeling now) for a prickle. Both halves are one prickle_checkins row, also answered from the
+ * Slack check-in/check-out DMs and the Log Progress modal.
+ */
 export default function PrickleCheckIn({
   prickleId,
-  askHowItWent,
+  showCheckout,
   initial,
   readOnly = false,
   prefill = null,
@@ -65,7 +69,7 @@ export default function PrickleCheckIn({
     >
       <div>
         <h2 id="prickle-checkin-heading" className="text-lg font-semibold text-slate-900 dark:text-slate-100">
-          Check in
+          {showCheckout ? "Check in & out" : "Check in"}
         </h2>
         <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
           {readOnly
@@ -74,36 +78,48 @@ export default function PrickleCheckIn({
         </p>
       </div>
 
-      <FeelingPicker
-        label="Coming in, I'm feeling…"
-        selected={checkin.feelingsBefore}
-        onChange={(feelingsBefore) => update({ feelingsBefore })}
-        readOnly={readOnly}
-      />
+      <div role="group" aria-labelledby="prickle-checkin-in" className="space-y-4">
+        {showCheckout && (
+          <h3 id="prickle-checkin-in" className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+            Check in
+          </h3>
+        )}
+        <FeelingPicker
+          label={showCheckout ? "Coming in, I was feeling…" : "Coming in, I'm feeling…"}
+          selected={checkin.feelingsBefore}
+          onChange={(feelingsBefore) => update({ feelingsBefore })}
+          readOnly={readOnly}
+        />
+        <NeedPicker
+          label={showCheckout ? "What I needed from this session" : "What I need from this session"}
+          value={checkin.need}
+          onChange={(need) => update({ need })}
+          readOnly={readOnly}
+        />
+      </div>
 
-      <NeedPicker
-        label="What I need from this session"
-        value={checkin.need}
-        onChange={(need) => update({ need })}
-        readOnly={readOnly}
-      />
-
-      {askHowItWent && (
-        <>
+      {showCheckout && (
+        <div
+          role="group"
+          aria-labelledby="prickle-checkin-out"
+          className="space-y-4 border-t border-slate-200 dark:border-slate-800 pt-5"
+        >
+          <h3 id="prickle-checkin-out" className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+            Check out
+          </h3>
           <RatingPicker
             label="How did it go?"
             value={checkin.sessionRating}
             onChange={(sessionRating) => update({ sessionRating })}
             readOnly={readOnly}
           />
-
           <FeelingPicker
             label="Feeling now…"
             selected={checkin.feelingsAfter}
             onChange={(feelingsAfter) => update({ feelingsAfter })}
             readOnly={readOnly}
           />
-        </>
+        </div>
       )}
 
       {!readOnly && (
@@ -116,7 +132,7 @@ export default function PrickleCheckIn({
             disabled={isPending || !isDirty}
             className="px-4 py-2 text-sm bg-plum-600 text-white rounded-lg hover:bg-plum-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
-            {isPending ? "Saving..." : isEmptyCheckin(checkin) && !isEmptyCheckin(saved) ? "Clear check-in" : "Save check-in"}
+            {isPending ? "Saving..." : isEmptyCheckin(checkin) && !isEmptyCheckin(saved) ? "Clear answers" : "Save"}
           </button>
         </div>
       )}

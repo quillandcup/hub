@@ -6,8 +6,10 @@ import {
   FEELING_DISPLAY_GROUPS,
   FEELING_GROUP,
   FEELING_KEYS,
-  CHECKIN_AFTER_MINUTES,
-  asksHowItWent,
+  CHECKOUT_OPENS_AFTER_MINUTES,
+  canCheckOut,
+  checkinAnswered,
+  checkoutAnswered,
   NEED_KEYS,
   isEmptyCheckin,
   parseCheckinPrefill,
@@ -122,17 +124,29 @@ describe("prickleHref / parseCheckinPrefill", () => {
   });
 });
 
-describe("asksHowItWent", () => {
+describe("canCheckOut", () => {
   const start = "2026-10-01T15:00:00Z";
   const at = (minutes: number) => Date.parse(start) + minutes * 60_000;
 
-  it("only asks about coming in before the start and early in the session", () => {
-    expect(asksHowItWent(start, at(-30))).toBe(false);
-    expect(asksHowItWent(start, at(CHECKIN_AFTER_MINUTES - 1))).toBe(false);
+  it("is closed before the start and early in the session", () => {
+    expect(canCheckOut(start, at(-30))).toBe(false);
+    expect(canCheckOut(start, at(CHECKOUT_OPENS_AFTER_MINUTES - 1))).toBe(false);
   });
 
-  it("also asks how it went from CHECKIN_AFTER_MINUTES in, and afterwards", () => {
-    expect(asksHowItWent(start, at(CHECKIN_AFTER_MINUTES))).toBe(true);
-    expect(asksHowItWent(start, at(60 * 24))).toBe(true);
+  it("opens CHECKOUT_OPENS_AFTER_MINUTES in, and stays open afterwards", () => {
+    expect(canCheckOut(start, at(CHECKOUT_OPENS_AFTER_MINUTES))).toBe(true);
+    expect(canCheckOut(start, at(60 * 24))).toBe(true);
+  });
+});
+
+describe("checkinAnswered / checkoutAnswered", () => {
+  const empty: CheckinInput = { feelingsBefore: [], need: null, sessionRating: null, feelingsAfter: [] };
+
+  it("needs both of a half's answers", () => {
+    expect(checkinAnswered(null)).toBe(false);
+    expect(checkinAnswered({ ...empty, feelingsBefore: ["tired"] })).toBe(false);
+    expect(checkinAnswered({ ...empty, feelingsBefore: ["tired"], need: "gentle" })).toBe(true);
+    expect(checkoutAnswered({ ...empty, sessionRating: 4 })).toBe(false);
+    expect(checkoutAnswered({ ...empty, sessionRating: 4, feelingsAfter: ["calm"] })).toBe(true);
   });
 });
