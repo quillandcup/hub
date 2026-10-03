@@ -1,11 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import LogProgressModal from "@/components/writing/LogProgressModal";
 import GoalDisplay from "@/components/writing/GoalDisplay";
 import ProjectCharts from "@/components/writing/ProjectCharts";
-import ReasonBadges from "@/components/ReasonBadges";
 import { SortableTh } from "@/components/SortableTh";
 import { useDataTable } from "@/lib/hooks/useDataTable";
 import type { SortValue } from "@/lib/hooks/useTableSort";
@@ -32,13 +31,11 @@ import {
   createGoal,
   deleteEntry,
   deleteGoal,
-  getPrickleAnchorOptions,
   toggleGoalStar,
   toggleGoalVisibility,
   toggleProjectVisibility,
   updateGoal,
   updateProjectPhase,
-  type AnchorOption,
   type WritingProjectRow,
   type EntryRow,
   type GoalRow,
@@ -360,6 +357,7 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
             setShowNewGoal((v) => !v);
             setEditingGoal(null);
           }}
+          data-tour="add-goal"
           className="text-sm text-plum-600 hover:text-plum-700 dark:text-plum-400 font-medium"
         >
           {showNewGoal ? "Cancel" : "+ Add a goal"}
@@ -563,11 +561,6 @@ function GoalForm({
   const [habitThreshold, setHabitThreshold] = useState(
     goal?.kind === "habit" && goal.habitThreshold != null ? String(goal.habitThreshold) : ""
   );
-  // undefined = anchor not touched by this edit -- server keeps whatever's already stored.
-  // Editing a goal that already has an anchor starts collapsed (see AnchorPicker below) so a
-  // threshold/period-only edit can't accidentally re-derive/clear the anchor.
-  const [anchorScheduleId, setAnchorScheduleId] = useState<string | null | undefined>(undefined);
-  const [anchorTouched, setAnchorTouched] = useState(false);
   const [isPending, setIsPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -575,7 +568,6 @@ function GoalForm({
     e.preventDefault();
     setError(null);
 
-    const anchorPayload = measure === "prickles" && (!isEditing || anchorTouched) ? anchorScheduleId ?? null : undefined;
     const details = { title: title.trim() || null, description: description.trim() || null, showOnProfile, isStarred };
 
     setIsPending(true);
@@ -592,7 +584,6 @@ function GoalForm({
               targetAmount: parsed,
               startDate: startDate || null,
               endDate: endDate || null,
-              anchorScheduleId: anchorPayload,
               ...details,
             };
             return isEditing ? updateGoal(goal.id, payload) : createGoal({ projectId, ...payload });
@@ -603,7 +594,6 @@ function GoalForm({
               goalType: "habit" as const,
               habitPeriod,
               habitThreshold: habitThreshold.trim() ? Number(habitThreshold) : null,
-              anchorScheduleId: anchorPayload,
               ...details,
             };
             return isEditing ? updateGoal(goal.id, payload) : createGoal({ projectId, ...payload });
@@ -760,33 +750,9 @@ function GoalForm({
         </div>
       )}
 
-      {measure === "prickles" &&
-        (isEditing && !anchorTouched ? (
-          <div className="text-sm text-slate-600 dark:text-slate-400">
-            {goal?.anchorLabel ? (
-              <>
-                Anchored to: <span className="font-medium text-slate-900 dark:text-slate-100">{goal.anchorLabel}</span>
-              </>
-            ) : (
-              "Counts any writing prickle attended"
-            )}{" "}
-            <button
-              type="button"
-              onClick={() => setAnchorTouched(true)}
-              className="text-plum-600 hover:text-plum-800 dark:text-plum-400 underline"
-            >
-              Change
-            </button>
-          </div>
-        ) : (
-          <AnchorPicker
-            value={anchorScheduleId ?? null}
-            onChange={(id) => {
-              setAnchorScheduleId(id);
-              setAnchorTouched(true);
-            }}
-          />
-        ))}
+      {measure === "prickles" && (
+        <p className="text-sm text-slate-600 dark:text-slate-400">Counts every writing prickle you attend.</p>
+      )}
 
       <div className="space-y-1.5">
         <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400 cursor-pointer">
@@ -846,75 +812,5 @@ function GoalForm({
         </div>
       </div>
     </form>
-  );
-}
-
-/**
- * Ranked, searchable, badged picker over this month/next month's confirmed writing-purpose
- * prickle_schedules -- with 50+ options in a given month, a plain <select> doesn't scale.
- * Ranking/badges are computed server-side (getPrickleAnchorOptions) reusing the exact same
- * hosting/streak/lostStreak priority scheme and ReasonBadges component as the dashboard's
- * "Upcoming Prickles" list -- this only does client-side text filtering over the already-ranked
- * list, since a month or two of schedules is small enough to filter instantly in the browser.
- */
-function AnchorPicker({ value, onChange }: { value: string | null; onChange: (id: string | null) => void }) {
-  const [options, setOptions] = useState<AnchorOption[] | null>(null);
-  const [search, setSearch] = useState("");
-
-  useEffect(() => {
-    let cancelled = false;
-    getPrickleAnchorOptions().then((opts) => {
-      if (!cancelled) setOptions(opts);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const filtered = options?.filter((o) => o.label.toLowerCase().includes(search.toLowerCase())) ?? [];
-
-  return (
-    <div>
-      <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-        Which prickle? <span className="text-slate-400 font-normal">(optional -- leave on &quot;any writing prickle&quot; to count any)</span>
-      </label>
-      <input
-        type="search"
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        placeholder="Search by type or host…"
-        className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-sm mb-2"
-      />
-      <div className="max-h-64 overflow-y-auto border border-slate-200 dark:border-slate-700 rounded-lg divide-y divide-slate-100 dark:divide-slate-800">
-        <button
-          type="button"
-          onClick={() => onChange(null)}
-          className={`w-full flex items-center justify-between gap-2 px-3 py-2 text-sm text-left ${
-            value === null ? "bg-plum-50 dark:bg-plum-900/20" : "hover:bg-slate-50 dark:hover:bg-slate-800"
-          }`}
-        >
-          <span className="text-slate-900 dark:text-slate-100">Any writing prickle</span>
-        </button>
-        {options === null ? (
-          <p className="px-3 py-2 text-sm text-slate-500 dark:text-slate-400">Loading…</p>
-        ) : filtered.length === 0 ? (
-          <p className="px-3 py-2 text-sm text-slate-500 dark:text-slate-400">No matching scheduled prickles.</p>
-        ) : (
-          filtered.map((o) => (
-            <button
-              key={o.scheduleId}
-              type="button"
-              onClick={() => onChange(o.scheduleId)}
-              className={`w-full flex items-center justify-between gap-2 px-3 py-2 text-sm text-left ${
-                value === o.scheduleId ? "bg-plum-50 dark:bg-plum-900/20" : "hover:bg-slate-50 dark:hover:bg-slate-800"
-              }`}
-            >
-              <span className="text-slate-900 dark:text-slate-100">{o.label}</span>
-              <ReasonBadges reasons={o.reasons} />
-            </button>
-          ))
-        )}
-      </div>
-    </div>
   );
 }

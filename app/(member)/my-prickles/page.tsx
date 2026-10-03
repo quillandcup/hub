@@ -205,7 +205,10 @@ export default async function MyPricklesPage({ searchParams }: { searchParams: P
               label: "Find a Prickle",
               content: (
                 <div className="flex justify-center">
-                  <PrickleWizard members={members} />
+                  {/* Hugs the wizard so the Getting started tour's spotlight outlines just it. */}
+                  <div data-tour="find-prickle">
+                    <PrickleWizard members={members} />
+                  </div>
                 </div>
               ),
             },
@@ -227,16 +230,18 @@ export default async function MyPricklesPage({ searchParams }: { searchParams: P
                 <div>
                   {!settleInFirst && calendarFeedUrls && <CalendarSyncCard initialUrls={calendarFeedUrls} />}
                   {!settleInFirst && <HostingStats stats={hostingStats} />}
-                  <HostingScheduleManager
-                    initialSchedules={schedules}
-                    prickleTypes={prickleTypes ?? []}
-                    currentMonth={currentMonth}
-                    nextMonth={nextMonth}
-                    currentMonthLocked={currentMonthLocked}
-                    nextMonthLocked={nextMonthLocked}
-                    hostEligibility={hostEligibility}
-                    calendarHostedCount={hostingStats.totalHosted}
-                  />
+                  <div data-tour="hosting-schedule">
+                    <HostingScheduleManager
+                      initialSchedules={schedules}
+                      prickleTypes={prickleTypes ?? []}
+                      currentMonth={currentMonth}
+                      nextMonth={nextMonth}
+                      currentMonthLocked={currentMonthLocked}
+                      nextMonthLocked={nextMonthLocked}
+                      hostEligibility={hostEligibility}
+                      calendarHostedCount={hostingStats.totalHosted}
+                    />
+                  </div>
                 </div>
               ),
             },

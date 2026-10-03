@@ -140,4 +140,14 @@ describe('POST /api/import/slack-api thread replies', () => {
     const calls = vi.mocked(triggerReprocessing).mock.calls.map(([table]) => table)
     expect(calls).toEqual(['slack_users', 'slack_messages'])
   })
+
+  it('skips rebuilding members when no Slack user changed', async () => {
+    await runImport()
+    vi.mocked(triggerReprocessing).mockClear()
+
+    await runImport()
+
+    const calls = vi.mocked(triggerReprocessing).mock.calls.map(([table]) => table)
+    expect(calls).toEqual(['slack_messages'])
+  })
 })

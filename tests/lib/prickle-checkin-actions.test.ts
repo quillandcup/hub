@@ -23,15 +23,17 @@ const EMPTY: CheckinInput = { feelingsBefore: [], need: null, sessionRating: nul
 
 function makeSupabase({ row = null as unknown, error = null as unknown } = {}) {
   const upsert = vi.fn().mockResolvedValue({ error });
-  const deleteEq2 = vi.fn().mockResolvedValue({ error });
-  const deleteFn = vi.fn(() => ({ eq: vi.fn(() => ({ eq: deleteEq2 })) }));
+  const updateIs = vi.fn().mockResolvedValue({ error });
+  const update = vi.fn(() => ({ eq: vi.fn(() => ({ eq: vi.fn(() => ({ is: updateIs })) })) }));
+  const deleteFn = vi.fn();
   const maybeSingle = vi.fn().mockResolvedValue({ data: row });
-  const selectEq2 = vi.fn(() => ({ maybeSingle }));
+  const selectIs = vi.fn(() => ({ maybeSingle }));
+  const selectEq2 = vi.fn(() => ({ is: selectIs }));
   const selectEq1 = vi.fn(() => ({ eq: selectEq2 }));
   const select = vi.fn(() => ({ eq: selectEq1 }));
-  const from = vi.fn(() => ({ upsert, delete: deleteFn, select }));
+  const from = vi.fn(() => ({ upsert, update, delete: deleteFn, select }));
   vi.mocked(createClient).mockResolvedValue({ from } as never);
-  return { from, upsert, deleteFn, deleteEq2, selectEq1, selectEq2 };
+  return { from, upsert, update, updateIs, deleteFn, selectEq1, selectEq2, selectIs };
 }
 
 beforeEach(() => {
@@ -53,16 +55,19 @@ describe("saveCheckin", () => {
         need: "gentle",
         session_rating: null,
         feelings_after: [],
+        deleted_at: null,
       },
       { onConflict: "member_id,prickle_id" }
     );
     expect(revalidatePath).toHaveBeenCalledWith("/prickles/prickle-1");
   });
 
-  it("deletes the row when every answer is cleared", async () => {
+  it("soft-deletes the live row when every answer is cleared", async () => {
     const sb = makeSupabase();
     expect(await saveCheckin("prickle-1", EMPTY)).toEqual({ success: true });
-    expect(sb.deleteFn).toHaveBeenCalled();
+    expect(sb.update).toHaveBeenCalledWith({ deleted_at: expect.any(String) });
+    expect(sb.updateIs).toHaveBeenCalledWith("deleted_at", null);
+    expect(sb.deleteFn).not.toHaveBeenCalled();
     expect(sb.upsert).not.toHaveBeenCalled();
   });
 
@@ -100,6 +105,7 @@ describe("getMyCheckin", () => {
     });
     expect(sb.selectEq1).toHaveBeenCalledWith("member_id", "member-1");
     expect(sb.selectEq2).toHaveBeenCalledWith("prickle_id", "prickle-1");
+    expect(sb.selectIs).toHaveBeenCalledWith("deleted_at", null);
   });
 
   it("reads the sudo'd member's check-in in sudo mode", async () => {

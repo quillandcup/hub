@@ -4,12 +4,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/supabase/api-auth';
 import { extractSlackImageUrl } from '@/lib/member-avatar';
 import { deleteRemovedSlackReactions } from '@/lib/slack-reactions';
+import { fetchAllBronzeRows } from '@/lib/supabase/bronze-pagination';
 import {
   isKeptSlackMessage,
   slackMessageUserId,
   slackTsToIso,
   threadKey,
-  isThreadBehind, threadsNeedingReplies,
+  isThreadBehind, slackUsersChangedForMembers,
+  threadsNeedingReplies,
   type StoredThreadReplies,
 } from '@/lib/slack-messages';
 import { clock } from '@/lib/clock';
@@ -138,6 +140,8 @@ export async function POST(request: NextRequest) {
     // Batched: a 90-day import (with thread replies) is thousands of messages
     // and 10k+ reactions, and one statement that size hits Postgres's
     // statement timeout when an admin runs the import from the page.
+    const storedUsers = await fetchAllBronzeRows(supabase, "slack_users", "user_id, email, image_url");
+    const usersChanged = slackUsersChangedForMembers(storedUsers, users);
     await upsertInBatches(supabase, "slack_users", users.map(u => ({ ...u, imported_at: importTimestamp })), "user_id");
     await upsertInBatches(supabase, "slack_channels", channels.map(c => ({ ...c, imported_at: importTimestamp })), "channel_id");
     await upsertInBatches(supabase, "slack_messages", allMessages.map(m => ({ ...m, imported_at: importTimestamp })), "channel_id,message_ts");
@@ -166,10 +170,11 @@ export async function POST(request: NextRequest) {
 
     // Auto-trigger Slack processing if we have a date range (wait for completion)
     const { triggerReprocessing } = await import('@/lib/processing/trigger');
-    // Members read Slack users (avatars), so rebuild them before matching
-    // messages; message and reaction changes alone never touch members.
+    // Members read Slack users (email, avatar), so rebuild them before matching
+    // messages when those changed; message and reaction changes alone never
+    // touch members.
     const processed: any[] = [];
-    if (users.length > 0) {
+    if (usersChanged) {
       processed.push(...(await triggerReprocessing('slack_users', 'bronze')).processed);
     }
     if (dateRange) {

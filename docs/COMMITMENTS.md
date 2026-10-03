@@ -5,8 +5,8 @@ number of weeks: "Mondays 7am Progress Prickle for the next 4 weeks", or "M/W/F 
 weeks." It's the attendee-side sibling of Hosting (`prickle_schedules`): Hosting is "I'll run
 this slot", a commitment is "I'll show up to these slots."
 
-Commitments give us an explicit, opt-in signal of intent. That's the anchor for **pre-prickle
-nudges** and **post-prickle follow-ups**. We build those on top of commitments first, and only
+Commitments give us an explicit, opt-in signal of intent. That's the anchor for **prickle check-ins**
+(before) and **check-outs** (after). We build those on top of commitments first, and only
 later try to infer intent heuristically for members who never commit (see
 [Generalizing beyond commitments](#generalizing-beyond-commitments)).
 
@@ -60,7 +60,7 @@ Design choices:
 - **Slot identity matches Hosting.** A slot is type + weekday + local time + timezone: a commitment
   is to a recurring slot, not to specific prickles. (Prickle ids themselves are stable: calendar
   prickles upsert on `calendar_event_id` and PUPs on `zoom_meeting_uuid`, so only a prickle whose
-  calendar event or Zoom meeting is deleted goes away. That's why `writing_nudge_log` and
+  calendar event or Zoom meeting is deleted goes away. That's why `prickle_checkin_dm_log` and
   `calendar_feed_items` can reference `prickles(id)` directly.)
 - **One window per commitment.** All of a commitment's slots share `start_date`/`weeks`, so "M/W/F
   for 4 weeks" is one thing to track, renew, or cancel. Week *N* is the *N*th 7-day block from
@@ -200,17 +200,17 @@ A failure here is logged and never fails the commitment itself. Cancellations ar
 
 ---
 
-## Part 2: Proposal — pre-prickle nudges and post-prickle follow-ups
+## Part 2: Proposal — commitment check-ins and check-outs
 
 ### What already exists (reuse, don't rebuild)
 
 | Piece | Where | Notes |
 |---|---|---|
-| Slack DM sender | `lib/slack.ts` `sendSlackDM` | Honors `SLACK_TEST_MODE` / `SLACK_DEV_USER_ID` |
-| Member → Slack user resolution | `lib/writing-nudges.ts` `resolveSlackUserIds` | Matches by alias, then email, then normalized name |
-| Pre-prickle nudge job | `app/api/internal/nudges/pre-prickle/route.ts` | Polled every 5 min by **Supabase pg_cron + pg_net** (`20260831170001_enable_pg_cron_pre_prickle_nudges.sql`). Vercel Hobby cron is once a day only, so it can't do this. Auth via `CRON_INTERNAL_SECRET`. Currently gated on writing goals with `measure='prickles'` |
-| Post-prickle prompt | `sendPostPricklePrompts` in `lib/writing-nudges.ts`, fired from the Zoom `meeting.ended` webhook after attendance import | Slack static-select quick-log. Handled in `app/api/webhooks/slack/interactions/route.ts` (`writing_quick_log`), which writes `writing_progress_entries` (with `prickle_id`) and a `member_activities` row |
-| Dedup log | `writing_nudge_log`, UNIQUE `(prickle_id, member_id, kind)` | Insert-first, send only if the insert landed. Keyed on a `prickles.id` FK with `ON DELETE CASCADE`, so a calendar reprocess can wipe it and allow a resend |
+| Notifications | `lib/notifications/` `createNotifier` | Honors each member's per-kind, per-channel settings (`notification_preferences`, `/settings?tab=notifications`). Slack is the only channel today, sent via `sendSlackDM` (honors `SLACK_TEST_MODE` / `SLACK_DEV_USER_ID`). Commitment nudges should be new kinds here, not their own opt-out columns |
+| Member → Slack user resolution | `lib/slack-member-ids.ts` `resolveSlackUserIds` | Matches by alias, then email, then normalized name |
+| Check-in DM job | `app/api/internal/prickle-checkins/route.ts` | Polled every 5 min by **Supabase pg_cron + pg_net** (job `send-prickle-checkins`, `20261003130000_rename_nudges_to_prickle_checkins.sql`). Vercel Hobby cron is once a day only, so it can't do this. Auth via `CRON_INTERNAL_SECRET`. Goes to members with any active writing goal, for prickles on their calendar feed (hosting, an active commitment, or added by hand), using the feed's own loader (`loadCalendarFeedPrickleIds`). Asks the check-in's "coming in" questions (feelings, need) |
+| Check-out DM | `sendCheckoutDMs` in `lib/prickle-checkin-dms.ts`, run by the same 5-minute cron as the check-ins. Live presence from the Zoom participant webhooks (`bronze.zoom_participant_events`, `lib/zoom-presence.ts`) makes it due 5 minutes after the prickle ends, or 10 minutes after an early leaver leaves; attendance (imported only after the Zoom meeting ends) is the backstop, up to 6 hours after the prickle | Asks how it went and how they feel now, then a static-select progress quick-log per goal. Handled in `app/api/webhooks/slack/interactions/route.ts`: check-in answers (`prickle_checkin_answer`) save to `prickle_checkins`, the same row as the prickle page's check-in; the quick-log (`writing_quick_log`) writes `writing_progress_entries` (with `prickle_id`) and a `member_activities` row |
+| Dedup log | `prickle_checkin_dm_log`, UNIQUE `(prickle_id, member_id, kind)` | Insert-first, send only if the insert landed. Keyed on a `prickles.id` FK with `ON DELETE CASCADE`, so a calendar reprocess can wipe it and allow a resend |
 | In-app progress logging | `components/writing/LogProgressModal.tsx` (accepts `prickleId`), `app/(member)/projects/` `logProgress` | |
 | Email | **None for app messages.** Resend is only configured as Supabase Auth's SMTP (invites, magic links, in `supabase/config.toml`); React Email templates exist for those auth emails only | Sending app email would need a Resend API key and a sender module |
 | In-app notifications | **None.** There's no notifications table or inbox UI. The only banners are `SudoBanner` and `ConsentBanner` | |
@@ -228,11 +228,14 @@ A failure here is logged and never fails the commitment itself. Cancellations ar
 
 ### Timing
 
-- **Pre-prickle nudge**: about 20 minutes before (the existing 15–30 min window, every 5 min). If
+- **Check-in**: about 20 minutes before (the existing 15–30 min window, every 5 min). If
   the member also has a matching writing goal, send one message, not two (see dedup below).
   Optional later: a "day-before" heads-up for the first week of a commitment only.
-- **Post-prickle follow-up**: after attendance import (Zoom `meeting.ended` → import resolved). This
-  is where `sendPostPricklePrompts` already runs.
+- **Check-out**: about 5 minutes after the prickle's scheduled end for everyone who was in the
+  room, even if the Zoom meeting keeps going into the next prickle; about 10 minutes after an
+  early leaver leaves, if they haven't rejoined. Both come from the Zoom participant webhooks. If
+  those are lost, the attendance import when the meeting ends is the backstop. This is where
+  `sendCheckoutDMs` already runs.
   - **Kept**: ask for progress (see [what to collect](#what-to-collect-post-prickle)).
   - **Missed**: send a gentle note the next day, from a daily sweep (the Vercel daily cron is
     fine). Only after the 24h grace period, never on the webhook, because attendance can lag and a
@@ -254,8 +257,8 @@ either by adding a second `cron.schedule` or by folding it into the current rout
    "what we nudged about" and "what counts as kept" never disagree.
 3. For each match, claim the send, then send the DM.
 
-**Post-prickle.** Extend `sendPostPricklePrompts`, or add a sibling that's called from the same
-webhook branch. Attendees with an active commitment covering this prickle get the commitment
+**Check-out.** Extend `sendCheckoutDMs`, or add a sibling that runs in the same
+cron tick. Attendees with an active commitment covering this prickle get the commitment
 follow-up.
 
 **Idempotency: new table `commitment_nudge_log`.**
@@ -275,12 +278,12 @@ CREATE TABLE commitment_nudge_log (
 ```
 
 - Keyed on `(commitment_id, slot_id, occurrence_date, kind)`, **not** on `prickle_id`. That
-  survives calendar reprocessing, which the existing `writing_nudge_log` doesn't. `slot_id` keeps
+  survives calendar reprocessing, which the existing `prickle_checkin_dm_log` doesn't. `slot_id` keeps
   two slots on the same date (e.g. a 5am and a 7pm) distinct.
-- Use the same insert-first protocol as `tryRecordNudge`: insert; treat a unique violation (`23505`)
+- Use the same insert-first protocol as `tryRecordCheckinDM`: insert; treat a unique violation (`23505`)
   as "already sent"; send only if the insert landed. Service-role only (RLS on, no policies).
-- **Cross-feature dedup.** Before sending a commitment pre-nudge, skip it if `writing_nudge_log`
-  already has `pre_prickle_nudge` for the same prickle and member, and have the writing-goal
+- **Cross-feature dedup.** Before sending a commitment pre-nudge, skip it if `prickle_checkin_dm_log`
+  already has `prickle_checkin` for the same prickle and member, and have the writing-goal
   sender check the reverse. Simpler option: let the commitment nudge take precedence and have the
   writing-goal sender skip members with a matching active commitment.
 - Record a send before calling Slack, so a failed Slack call means one missed nudge rather than
@@ -291,8 +294,9 @@ CREATE TABLE commitment_nudge_log (
 - **Per commitment**: add a `nudges_enabled BOOLEAN NOT NULL DEFAULT true` column, set with a
   checkbox on the commitment form ("Remind me before each session"). Committing is itself the
   opt-in, so the default is on.
-- **Global**: a `user_profiles.commitment_nudges` preference, `'slack' | 'off'`, later adding
-  `'email'`. Show it on `/settings` next to the timezone preference.
+- **Global**: commitment nudges are notification kinds (`lib/notifications/registry.ts`), so
+  members turn them off, or pick their channels, on `/settings?tab=notifications` like any other
+  notification. No separate preference column.
 - **In the message**: every DM gets a "Stop these reminders" button, handled in
   `app/api/webhooks/slack/interactions/route.ts`. It sets `nudges_enabled = false` on that
   commitment. Pausing the commitment is a separate action from muting its reminders.
@@ -306,11 +310,10 @@ Keep it to **one tap**, with an optional second step. For attended occurrences:
    `pickQuickLogMeasure`). It writes `writing_progress_entries` with `prickle_id` set and mirrors to
    `member_activities`. If the member has no writing project, link to
    `/projects` → `LogProgressModal` with `prickleId` prefilled instead.
-2. **Optional**: a 1–5 "how focused were you?" (or 🔥/🙂/😐) and a free-text "what did you work
-   on?". Store these in a new `commitment_checkins` table
-   `(commitment_id, occurrence_date, prickle_id, focus_rating, note, created_at)`, or as `data` on a
-   `member_activities` row of type `prickle_commitment_checkin`. The table is better if we want to
-   show a per-commitment journal.
+2. **Optional**: how it went and how they feel now. The check-out DM already asks both and saves
+   them to the member's check-in (`prickle_checkins.session_rating` and `feelings_after`), so a
+   per-commitment journal can read them from there by `prickle_id` rather than from a new table.
+   A free-text "what did you work on?" would be a new `prickle_checkins` column.
 3. **Missed weeks**: a single reason chip ("schedule conflict", "forgot", "not feeling it", "other")
    plus "still on for next week?". This is cheap, high-signal data for the product owner about
    *why* commitments break.
@@ -326,8 +329,9 @@ Commitments are the explicit case. The same pipeline generalizes by swapping in 
 - Define an interface: an intent source yields `(member_id, slot, confidence, source)` for an
   upcoming occurrence. Commitments yield confidence 1.0. A heuristic source yields "attended this
   slot 3 of the last 4 weeks" with confidence of about 0.75, using the same slot matching as
-  `lib/commitments.ts` over `prickle_attendance`. Writing goals with an anchor are a third source,
-  which means the existing `lib/writing-nudges.ts` becomes one implementation.
+  `lib/commitments.ts` over `prickle_attendance`. Today `lib/prickle-checkin-dms.ts` takes its intent
+  from the member's calendar feed (hosting, commitments, hand-added prickles), so it already
+  consumes the explicit sources.
 - Generalize the dedup log to `(member_id, occurrence_key, kind)`, where `occurrence_key` is
   `type:date:time`, so every source shares one "sent once per occurrence" guarantee.
 - Heuristic nudges should be **opt-in** (or at least softer, with a lower frequency cap), since
@@ -335,6 +339,85 @@ Commitments are the explicit case. The same pipeline generalizes by swapping in 
   running — want to commit to the next 4?" That turns inferred intent into an explicit commitment.
 - Enforce frequency caps per member per day across all sources. This is easy once there's one log
   table.
+
+---
+
+## Part 3: Follow-up — commitments say which prickles, goals say how much
+
+**Status:** proposed. Prerequisite done: goal anchors are gone (migration
+`20261003120000_drop_writing_goal_anchors.sql`; no production goal had one).
+
+### Why
+
+A `measure='prickles'` goal used to have an optional anchor (one schedule's type + host +
+weekday) that limited which prickles counted. That was a second, separate way to say "these are
+my prickles", with its own picker, next to commitments. The two should be one concept:
+
+- A **commitment** says *where and when I'll show up*: specific prickle slots, for a window. It
+  drives the calendar feed, check-in DMs, and kept/missed tracking.
+- A **goal** says *how much I want to do* on a writing project: words, chapters, scenes, minutes,
+  or prickles attended. It drives progress, streaks and charts.
+
+A prickles goal that should only count certain prickles links to a commitment, rather than
+copying the slot details.
+
+### Slots include the host
+
+A commitment is to a specific prickle slot, e.g. "Monday 5am Progress Prickle with <host>", not
+just type + weekday + time. Add `host_id` (FK `members`) to `prickle_commitment_slots`:
+
+- Matching a prickle to a slot (`prickleMatchesSlot`, `assignOccurrencePrickles`) also requires
+  `prickle.host = slot.host_id`.
+- The slot picker already labels schedules with their host's name (`buildSlotOptions` over
+  `prickle_schedules`); carry the schedule's host id through to the saved slot too.
+- Unique key becomes `(commitment_id, type_id, host_id, day_of_week, start_time_local, timezone)`.
+- **Host changes.** If the slot's host changes (a substitute, or a new regular host), the
+  occurrence no longer matches. Show it as "no session with <host> this week", not "missed". For a
+  permanent change, prompt the member to switch the slot to the new host or leave it.
+- Existing rows: backfill `host_id` from the confirmed `prickle_schedules` row with the same
+  type/weekday/time, if there is exactly one; otherwise leave it null and treat null as "any host"
+  until the member edits it. Check how many production rows exist before choosing.
+
+### Linking goals to commitments
+
+- Add `writing_goals.commitment_id` (FK `prickle_commitments`, `ON DELETE SET NULL`), only valid
+  for `measure='prickles'`. Null means "every writing prickle counts" (today's behavior).
+- `derivePrickleHabitEntries` takes an optional set of slots; when the goal has a commitment, only
+  attendance at prickles matching its slots counts (same matching as kept/missed).
+- **Creating a commitment** ends with an optional step: "Track this on a writing project?" Pick a
+  project (or create one) and a target, e.g. "3 prickles a week". That creates a linked prickles
+  goal.
+- **Creating a prickles goal** asks "Which prickles count?": *Any writing prickle*, one of the
+  member's active commitments, or *Commit to specific prickles…*, which opens the commitment flow
+  inline and links the result.
+- Switching a goal to a different commitment archives the old goal row and inserts a new one, so
+  an earned streak isn't recomputed against the new slots (see "Point-in-Time Goal Versioning" in
+  `docs/TODO.md`).
+
+### When a commitment ends: "Renew your commitment?"
+
+Commitments are 1–12 weeks; goals can be open-ended. When a linked commitment's window ends:
+
+- Send the end-of-commitment message from Part 2 as a Slack DM: the kept/missed summary, then
+  **"Renew your commitment?"** with one-tap *Renew for N more weeks* (same slots, same length)
+  and *Not now*. Renewing creates a new commitment and moves the linked goal to it, so the goal
+  continues without a break.
+- Show the same prompt on `/my-prickles` and on the goal card until the member answers.
+- If they don't renew, the goal keeps counting nothing new from those slots. After a grace period
+  (one week?), ask whether to switch the goal to "any writing prickle" or mark it done.
+
+### Nudges
+
+Nothing to change: check-in DMs already follow the calendar feed, which includes active
+commitments. Once slots carry a host, the feed and check-ins become host-specific automatically
+because they use the same matching.
+
+### Rollout order
+
+1. `host_id` on slots, with matching and picker changes. Commitments alone, no goal changes.
+2. `writing_goals.commitment_id` and the goal-side picker.
+3. "Track this on a writing project?" step in the commitment flow.
+4. Renewal prompt (Slack DM + in-app), together with the Part 2 end-of-commitment summary.
 
 ---
 
@@ -347,8 +430,8 @@ Commitments are the explicit case. The same pipeline generalizes by swapping in 
    again.
 3. **What counts as kept?** Any attendance at all, or a minimum (e.g. ≥30 minutes, or joined within
    15 minutes of start)? The MVP counts any join.
-4. **Host changes and substitutes.** Commitments are to a slot, not a host. If the host changes,
-   the commitment still applies. Is that right, or do some members commit to a specific host?
+4. **Host changes and substitutes.** *Answered:* commitments are to a specific slot including its
+   host ("Monday 5am Progress Prickle with <host>"); see Part 3 for how host changes are handled.
 5. **Canceled weeks.** When a slot doesn't run (holiday), should the commitment auto-extend by a
    week, or just show "no session"? The MVP shows "no session".
 6. **Visibility.** Should commitments be visible to hosts ("5 Hedgies committed to your Monday
@@ -360,5 +443,5 @@ Commitments are the explicit case. The same pipeline generalizes by swapping in 
    too much pressure? What should the default nudge lead time be (20 minutes today)?
 9. **Rewards.** Should kept commitments feed badges or streaks (`lib/badges.ts`, `lib/streaks.ts`),
    or engagement scoring beyond the +3 on creation? Should cancellations be logged as activity?
-10. **Renewal.** One-tap renew at the end is proposed. Should we also auto-renew by default with an
-    opt-out?
+10. **Renewal.** *Partly answered:* a "Renew your commitment?" prompt at the end (Part 3). Should we
+    also auto-renew by default with an opt-out?

@@ -129,6 +129,23 @@ const memberBasePath = isActingAsAdmin ? "/admin/members" : "/members";
 
 **Auth lookups in server code**: Use `getCurrentUser()` from `lib/auth.ts` (returns `{ id, email }` or `null`) in layouts, pages, server actions and API routes. It verifies the JWT locally via `supabase.auth.getClaims()` and is memoized per render with React `cache()`, so layout + page share one check. Only `lib/supabase/middleware.ts` (token refresh + live-session check) and code that needs fields absent from the JWT (`last_sign_in_at`, `identities`, etc.) or must confirm the session is still live server-side (e.g. session management in `app/(member)/settings/actions.ts`) should call `supabase.auth.getUser()`.
 
+### Member Notifications
+
+**RULE**: Anything the app sends a member on its own initiative (reminders, check-ins, alerts) goes through `createNotifier` (`lib/notifications/notify.ts`) as a notification kind registered in `lib/notifications/registry.ts`, never a direct `sendSlackDM`/`chat.postMessage`. That's what makes it show up on `/settings?tab=notifications` and honor the member's opt-outs and channel choices, and it's how new channels (email, push, SMS...) reach every kind at once.
+
+```typescript
+const notifier = await createNotifier(serviceRoleClient, "prickle_checkin", memberIds); // batched lookups
+for (const memberId of memberIds) {
+  if (!notifier.canReach(memberId)) continue; // check BEFORE claiming a dedup row
+  // ...claim the send in the feature's dedup log...
+  const delivered = await notifier.send(memberId, { text, url, slackBlocks }); // [] if nothing went out
+}
+```
+
+Layers: **channels** (`lib/channels/`: Slack today, later email/SMS/WhatsApp/push/in-app) are the shared delivery adapters; **notifications** sit on them and add per-kind member preferences; **messaging** (two-way chat, planned) will use the same adapters. Never call a provider from a feature. Adding a channel: `CHANNELS` entry in `lib/channels/catalog.ts` + adapter + register it in `lib/channels/index.ts`; no migration.
+
+Exceptions that stay direct: replies the member just asked for (Slack sign-in link), shared rooms (Wheel of Wonder intro), and staff-channel posts (`notifyStaffNewBook`, `notifyStaffNewAward`, the feedback widget). For a send the member explicitly requested that should still look like the notification (admin test DMs), use `createNotifier(..., { channels: ["slack"] })`, which skips preferences.
+
 ### No Hardcoded Config
 
 **RULE**: Deployment/org config (URLs, hosts, emails, timezones, IDs, slugs) lives outside the code, never as literals or `??` fallbacks. Two places, by whether the value varies:
@@ -167,7 +184,7 @@ The hook is tested by `supabase/tests/database/custom_access_token_hook.test.sql
 
 ### Slack app manifest as code
 
-`slack-app-manifest.yml` is the source of truth for the Slack app (Billie Bot). On every push to main, after the production deploy (the manifest points at app routes, so they must be live first), the `push-slack-manifest` job runs `scripts/slack-manifest.ts push`, which **replaces** the live app's configuration. Anything set in the Slack dashboard but missing from the manifest is removed, so change the manifest, not the dashboard. Before merging a manifest change, run `npm run slack:manifest:diff` (read-only) and check it shows only what you intend. `SLACK_CONFIG_REFRESH_TOKEN` is rewritten by CI on every run and is deliberately not in `env-vars.config.ts`. Setup, token rotation and recovery: `docs/SLACK_MANIFEST.md`.
+`slack-app-manifest.yml` is the source of truth for the Slack app (Billie Bot). On a push to main that changes it or `scripts/slack-manifest.ts` (or a manual `workflow_dispatch` run), after the production deploy (the manifest points at app routes, so they must be live first), the `push-slack-manifest` job runs `scripts/slack-manifest.ts push`, which **replaces** the live app's configuration. Anything set in the Slack dashboard but missing from the manifest is removed, so change the manifest, not the dashboard. Before merging a manifest change, run `npm run slack:manifest:diff` (read-only) and check it shows only what you intend. `SLACK_CONFIG_REFRESH_TOKEN` is rewritten by CI on every run and is deliberately not in `env-vars.config.ts`. Setup, token rotation and recovery: `docs/SLACK_MANIFEST.md`.
 
 ### Testing Requirements
 
@@ -210,7 +227,7 @@ Before committing changes to API routes, verify:
 - **Pattern**: UPSERT on natural keys for idempotency
 
 **Local Layer** (operational data owned by this app):
-- `member_hiatus_history`, `member_name_aliases`, `ignored_zoom_names`, `prickle_types`, `staff`, `calendar_feed_tokens` (secret per-member token for the subscribable `/api/calendar/feed/<token>.ics` feed), `calendar_feed_items` (prickles, weekly slots and events a member added to that feed by hand), `member_ask_me_about` (profile "Ask me about…" topics), `member_notes` (a member's private notes to self about another member; author-only RLS with no admin access, hidden in sudo), `prickle_checkins` (a member's check-in for a prickle: feelings before/after, what they needed, how it went; readable by the member and admins, writable only by the member, read-only in sudo; option keys in `lib/prickle-checkins.ts`), `writing_prompt_dismissals` (prickles a member dismissed from the dashboard's "What did you write?" prompt), `slack_identities` (Slack user id → Hub account allowed to sign in from Slack; server-written only) and `slack_sign_in_tokens` (hashed single-use button tokens and codes the Slack app hands out); see `lib/slack-sign-in.ts`, both service role only
+- `member_hiatus_history`, `member_name_aliases`, `ignored_zoom_names`, `prickle_types`, `staff`, `calendar_feed_tokens` (secret per-member token for the subscribable `/api/calendar/feed/<token>.ics` feed), `calendar_feed_items` (prickles, weekly slots and events a member added to that feed by hand), `member_ask_me_about` (profile "Ask me about…" topics), `member_notes` (a member's private notes to self about another member; author-only RLS with no admin access, hidden in sudo), `prickle_checkins` (a member's check-in for a prickle: feelings before/after, what they needed, how it went; readable by the member and admins, writable only by the member, read-only in sudo; option keys in `lib/prickle-checkins.ts`), `writing_prompt_dismissals` (prickles a member dismissed from the dashboard's "What did you write?" prompt), `notification_preferences` (a member's per-kind, per-channel overrides of the notification defaults in `lib/notifications/registry.ts`; no row = default; member-writable, admin-readable, read-only in sudo), `member_onboarding` (a member's Getting started tour: steps marked done by hand, dismissed/completed; other steps count as done from the member's own data, see `lib/onboarding.ts`; hidden and read-only in sudo), `slack_identities` (Slack user id → Hub account allowed to sign in from Slack; server-written only) and `slack_sign_in_tokens` (hashed single-use button tokens and codes the Slack app hands out); see `lib/slack-sign-in.ts`, both service role only
 - **Pattern**: Normal CRUD operations (INSERT, UPDATE, DELETE)
 - **NOT reprocessed** - these tables ARE the source of truth
 

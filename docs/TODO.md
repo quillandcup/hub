@@ -66,6 +66,15 @@ Rule (CLAUDE.md, "Nothing through webhooks alone"): nightly reconciliation is th
 - Zoom, Google Calendar, Kajabi: equivalent "fetch since the newest record we have" paths, triggered on demand (webhook gaps, admin button, page views).
 - Record each gap-fill (source, scope, rows recovered) and surface it on `/admin/data-health`. A fill that recovers many rows means the webhook was down. Checkly can't see this: it monitors endpoints and heartbeats, not processed requests or logs.
 
+### Secondary Zoom Rooms _(Needs Scoping)_
+We have a couple of secondary Zoom links/rooms that aren't imported. The Zoom import (`lib/zoom/client.ts`) reads one host's meetings (`ZOOM_USER_EMAIL`), and everything downstream assumes prickles run in that host's room, one meeting at a time. Checked against prod on 2026-10-03: all 417 imported meetings in the last 60 days had the same `host_id`, and only 1 pair of them overlapped in time. The main room's meeting id also changes roughly monthly.
+
+What relies on that, and what to change when a second room is imported:
+- **Attendance** (`app/api/process/attendance`): matches a Zoom meeting to scheduled prickles by time overlap alone (`findOverlappingPricklesInMemory`). Two rooms running at once would both match the same prickle, and a social room's attendees would count as attending a writing prickle. It needs a room → prickle (or prickle type) mapping, e.g. a meeting id or host per type, and that mapping must survive the monthly meeting id change.
+- **Live presence** (`lib/zoom-presence.ts`, `bronze.zoom_participant_events`): the participant webhooks may already arrive for every room on the account. `loadPresenceByMember` only counts events from hosts seen in `bronze.zoom_meetings` (`host_id`), so secondary rooms are ignored today. Once one is imported, that filter lets it in, and presence needs the same room → prickle mapping, since it currently treats being in any covered meeting during a prickle as being at that prickle.
+- **Check-out DMs** (`dueCheckoutMembers` in `lib/prickle-checkin-dms.ts`): inherit both of the above.
+- **PUPs**: unscheduled time in a secondary room would become PUPs, which may or may not be wanted.
+
 ### Testing Page CSV Imports (Lower Priority)
 - [ ] Add Zoom CSV import to `/data/import/testing`
   - Component for uploading meeting/attendee CSV files
@@ -445,24 +454,44 @@ Per-user login/access history (`access_events` table + `get_access_sessions()`, 
 
 ## Notifications
 
-### Notification Framework _(Needs Scoping — prerequisite for in-app chat adoption)_
-One system for everything the app tells a member, instead of each feature hand-rolling a Slack DM (pre-prickle nudges, writing nudges, Wheel of Wonder, payment failures). In-app chat especially needs this: members won't move off Slack without being told about new messages, mentions and DMs.
+### Channels, Notifications & Messaging _(v1 live: Slack + per-kind notification settings; more channels next)_
+One system for everything the Hub sends members, instead of each feature hand-rolling a Slack DM. Three layers (this replaces the CRM section's "Messaging Abstraction Layer" item):
 
-**Delivery channels:**
-- In-app: notification inbox + unread badges
-- Browser/OS: Web Push (service worker + VAPID keys); also covers installed-PWA push on mobile (iOS requires home-screen install, 16.4+)
+- **Channels** (`lib/channels/`): the delivery systems (Slack today; email, SMS, WhatsApp, web push, in-app next). Each adapter resolves a member to an address and sends an `OutboundMessage` (`text`, `url`, per-channel rich bodies like `slackBlocks`, `footerLinks`). Shared by both layers below; nothing above it talks to a provider directly.
+- **Notifications** (`lib/notifications/`): the app reaching out, governed by the member's per-kind channel choices. Mostly one-way, but some ask for an answer (check-in/check-out selects); the reply comes back over the same channel's inbound webhook.
+- **Messaging** (planned): two-way conversations, e.g. in-app chat bridged to Slack (`docs/SLACK_BRIDGED_CHAT.md`), and later SMS/WhatsApp threads. Uses the same channel adapters, plus the inbound half they don't have yet. Members won't move off Slack for chat without notifications for new messages, mentions and DMs, so chat events become notification kinds too.
+
+**Built (v1):**
+- `lib/channels/`: `CHANNELS` catalog (client-safe), `ChannelAdapter`, `CHANNEL_ADAPTERS`. Slack adapter (`slack.ts`) DMs via `sendSlackDM` and renders `footerLinks` into the message's context footer.
+- `lib/notifications/registry.ts`: notification kinds (id, category, label, description, default channels). Client-safe; the settings grid renders from it.
+- `notification_preferences` (Local layer, migration `20261003160000`): one row per (member, kind, channel) the member changed; no row = the kind's default. Kinds/channels are free text, so adding either needs no migration. Member reads/writes own, admins read, read-only in sudo.
+- `createNotifier(supabase, kind, memberIds, { channels? })` (`lib/notifications/notify.ts`): loads preferences and addresses for a batch, then `canReach(memberId)` / `send(memberId, message)`, adding a "Notification settings" link. A failed channel is logged and doesn't stop the others. Check `canReach` before claiming a dedup row so re-enabling a kind still sends. `channels` forces channels and skips preferences, only for sends the member just asked for (admin test DMs).
+- `/settings?tab=notifications`: a switch per kind × channel.
+- Kinds today: `prickle_checkin`, `prickle_checkout`.
+
+**Next channels** (each = `CHANNELS` entry + adapter + whatever it needs to resolve an address; every notification kind gets it at once):
+- In-app: notification inbox + unread badges (needs a `notifications` table, which also becomes the outbox below)
+- Browser/OS: Web Push (service worker + VAPID keys, per-device subscriptions table); also covers installed-PWA push on mobile (iOS requires home-screen install, 16.4+)
 - Mobile push: native app later; Web Push covers it until then
-- Email: Resend + `react-email` (both already in the stack), including digests
-- Slack DM: existing `sendSlackDM` becomes one backend among several
+- Email: Resend API sender module + `react-email` templates, `List-Unsubscribe`, including digests
+- SMS / WhatsApp: important for non-US hedgies; needs a provider (e.g. Twilio), a verified phone number per member, and explicit opt-in (carrier/WhatsApp template rules)
 
-**Framework pieces:**
-- A single `notify(memberId, eventType, payload)` entry point writing to a `notifications` table/outbox, with fan-out to channels done asynchronously
-- Per-member preferences per event type × channel (e.g. DMs → push + email, channel messages → in-app only, @mentions → push), plus quiet hours / time zone
+**Still to build:**
+- Inbound on the channel layer: a shared shape for replies (member, channel, conversation ref, text or action) so Messaging and interactive notifications don't each parse provider webhooks. Today only Slack replies exist, handled in `app/api/webhooks/slack/interactions/route.ts`.
+- Move remaining hand-rolled member messages onto `createNotifier`: payment-failure DMs (below), Host Confirmation Flow (CRM section). Wheel of Wonder's group intro and the Slack sign-in DM stay direct: one is a shared room, the other a transactional reply the member just asked for.
+- Staff channel posts as admin notification kinds, so each admin picks their channels: new book (`notifyStaffNewBook`), new award (`notifyStaffNewAward`), new feedback (`app/api/feedback/route.ts`). They post to a shared Slack channel today.
+- A `notifications` outbox with async fan-out, once a channel is slow or needs retries (email, push)
+- Quiet hours / time zone, and per-member frequency caps across kinds
 - Escalation and dedupe: don't email what was already seen in-app; delay-then-send (e.g. email only if a DM is still unread after N minutes)
 - Digests: batch low-priority events into a daily/weekly email
 - Unsubscribe links and delivery tracking (Resend webhooks), logged to `member_activities` where useful
+- A per-message "Stop these" Slack button that writes `notification_preferences` (the settings link covers it for now)
+- Show on the settings page when a channel can't reach the member (e.g. no matched Slack account)
 
-Subsumes the "Messaging Abstraction Layer" under CRM Features → Slack Integration; build that on this rather than separately.
+### Finish renaming "pre-prickle nudges" to prickle check-ins _(Cleanup)_
+Migration `20261003130000` renamed the code, route, cron job and dedup log to check-in/check-out names. Two names stayed because changing them needs steps outside the repo:
+- **Checkly heartbeat**: `CRON_HEARTBEATS["pre-prickle-nudges"]` (`lib/cron-heartbeats.ts`) and `CHECKLY_HEARTBEAT_PRE_PRICKLE_NUDGES`. The key is the monitor's logical id (`cron-pre-prickle-nudges`), so renaming it (e.g. to `prickle-checkins` / `CHECKLY_HEARTBEAT_PRICKLE_CHECKINS`) replaces the monitor. Deploy the checks, copy the new ping URL into `.env.prod` under the new var, run `npm run env:sync`, then remove the old var.
+- **Vault secret** `writing_nudge_cron_secret` (cron → route auth; `env-vars.config.ts` destination for `CRON_INTERNAL_SECRET`). Rename the `vaultName`, run `npm run env:sync:vault`, then a migration that reschedules `send-prickle-checkins` to read the new name. Delete the old secret only after that migration is live.
 
 ---
 
@@ -577,7 +606,7 @@ Show a `/live` page displaying the currently active prickle and its attendees in
 
 **The blocker:** `prickle_attendance` (silver layer) is populated from Zoom reports, which are only available *after* a meeting ends. The page would always show 0 attendees during an active session.
 
-**The Zoom webhook gap:** Webhooks are set up at `/api/webhooks/zoom` and do receive `meeting.participant_joined` events, but currently ignore them — only `meeting.ended` and `meeting.participant_left` trigger a Zoom API import (with a 10-second delay). Even the `participant_left` import only captures who has already left, not who is currently present.
+**The Zoom webhook gap (partly closed):** `/api/webhooks/zoom` now records every `meeting.participant_joined` / `meeting.participant_left` event in `bronze.zoom_participant_events` (migration `20261003150000`), and `lib/zoom-presence.ts` pairs them into per-member presence intervals, matched with the attendance import's rules. The prickle check-out DM already uses it. The live page can build on the same table and helpers instead of the `live_participants` table sketched below (steps 1, 2 and 5 are done; "currently present" = an interval with no leave).
 
 **What's needed to build this properly:**
 
@@ -843,12 +872,7 @@ Production logs show members reprocessing deadlocking and hitting statement time
 - After each prickle ends, message the host to confirm participants and resolve unmatched Zoom attendees
 - For unhosted prickles: TBD — options include assigning to a random active member or the most "senior" hedgie (by join date or total duration excluding hiatus periods)
 
-**Messaging Abstraction Layer (prerequisite for Host Confirmation and future integrations):**
-- Abstract all outbound member messaging behind a common interface so backends are swappable per member
-- Initial backends: Slack, SMS, in-app notifications
-- Future backends: WhatsApp (important for non-US hedgies), email, etc.
-- Per-member preference: each member picks their preferred channel (or falls back to a default priority order)
-- The Host Confirmation Flow and any future interactive flows (confirmations, reminders, outreach) should be built on top of this abstraction, not wired directly to Slack
+**Messaging abstraction layer:** see Channels, Notifications & Messaging (Notifications section above). Build the Host Confirmation Flow and other interactive flows (confirmations, reminders, outreach) as notification kinds sent with `createNotifier`, not wired directly to Slack.
 
 **Phase 1 Progress:**
 - [x] Database migrations (Bronze tables, aliases extension)
@@ -862,7 +886,7 @@ Production logs show members reprocessing deadlocking and hitting statement time
 - [x] Dashboard updates (member profiles show Slack activity, engagement scoring)
 
 ### Payment Failure Notifications
-On payment failure, send a Slack DM to the member to prompt them to update their payment method.
+On payment failure, notify the member (a `payment_failed` notification kind via `createNotifier`, Slack by default) to prompt them to update their payment method.
 
 ### Activity Feed Expansion (Future)
 Beyond Slack, expand `member_activities` tracking:
@@ -935,11 +959,11 @@ Two genuinely different problems, not yet scoped:
 ### Point-in-Time Goal Versioning (Deferred)
 `writing_goals` rows are edited in place — `computeHabitGoalProgress`/`computeGoalProgress` always evaluate a goal's *current* definition (period, threshold, measure) against its *full* entry history. Editing period or threshold on an existing goal retroactively reshapes how every past period scores, with no record of what the goal used to say.
 
-One specific case of this — changing a `measure='prickles'` goal's anchor (the real scheduled slot it's tracking, e.g. a host's Progress Prickle) — is already fixed without full versioning: `updateGoal` archives the old row (freezing its streak/history exactly as earned) and forks a new one under the new anchor, rather than mutating in place. See `app/(member)/writing/actions.ts` (`buildGoalFields`/`resolveAnchor`/the `anchorChanged` branch) and the "Archiving on anchor change" section of the plan that introduced it.
+There used to be one narrow fix: changing a `measure='prickles'` goal's anchor archived the old row and forked a new one. Anchors were removed in October 2026 (no production goal used one; see Part 3 of `docs/COMMITMENTS.md`), and that fork went with them. When goals link to commitments instead, switching a goal to a different commitment should archive-and-fork the same way, so an earned streak isn't recomputed against the new slots.
 
-**Still open:** the general case — editing threshold/period on any goal, or changing measure on a goal that isn't `prickles` — still silently rewrites history. Real point-in-time versioning (a goal "changed as of" record, with past periods evaluated against whatever was true then) would fix this properly but is a meaningfully bigger feature than the narrow anchor-change fix above.
+**Still open:** editing threshold/period on any goal, or changing its measure, silently rewrites history. Real point-in-time versioning (a goal "changed as of" record, with past periods evaluated against whatever was true then) would fix this properly.
 
-**Why deferred:** the anchor-change case was the one with a concrete, reported failure mode (an editing member silently loses an earned streak); the general case is a known gap but hasn't caused a reported problem yet, and versioning every field is real design work (schema for change history, UI for "goal changed on this date," how charts/exports treat a versioned goal) beyond what's warranted to build speculatively.
+**Why deferred:** it's a known gap but hasn't caused a reported problem yet, and versioning every field is real design work (schema for change history, UI for "goal changed on this date," how charts/exports treat a versioned goal) beyond what's warranted to build speculatively.
 
 ### Browse Past/Archived Projects (Deferred)
 `writing_projects` already has `phase IN ('complete', 'abandoned')` and `archived_at`, but there's no UI to list/browse projects in those states — `getMyProjects()` only returns `archived_at IS NULL` projects, so a completed or abandoned project effectively disappears from `/writing` once marked as such.

@@ -1,9 +1,9 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse, after } from "next/server";
-import { createHmac } from "crypto";
-import { createClient as createSupabaseClient } from "@supabase/supabase-js";
+import { createHmac, timingSafeEqual } from "crypto";
 import { triggerZoomImport } from "@/lib/processing/trigger";
-import { sendPostPricklePrompts } from "@/lib/writing-nudges";
+import { createServiceRoleClient } from "@/lib/supabase/service";
+import { parseParticipantEvent } from "@/lib/zoom-presence";
 
 // Webhook should respond quickly
 export const maxDuration = 60;
@@ -23,36 +23,32 @@ export const maxDuration = 60;
  * - meeting.participant_joined
  * - meeting.participant_left
  */
+/**
+ * Zoom's HMAC-SHA256 signature over `v0:{timestamp}:{body}`. Required: participant events write
+ * to the database and drive check-out DMs, so an unsigned request is refused, not waved through.
+ */
+function hasValidSignature(body: string, signature: string | null, timestamp: string | null): boolean {
+  const secretToken = process.env.ZOOM_WEBHOOK_SECRET_TOKEN;
+  if (!secretToken || !signature || !timestamp) return false;
+  const expected = `v0=${createHmac("sha256", secretToken).update(`v0:${timestamp}:${body}`).digest("hex")}`;
+  const a = Buffer.from(signature);
+  const b = Buffer.from(expected);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.text();
-    const payload = JSON.parse(body);
-
-    // Verify webhook signature
-    // Zoom uses HMAC-SHA256 signature verification
     const signature = request.headers.get("x-zm-signature");
     const timestamp = request.headers.get("x-zm-request-timestamp");
 
-    console.log("Zoom webhook received:", {
-      event: payload.event,
-      signature: signature ? "present" : "missing",
-      timestamp,
-    });
-
-    // Verify signature if secret token is configured
-    const secretToken = process.env.ZOOM_WEBHOOK_SECRET_TOKEN;
-    if (secretToken && signature) {
-      const message = `v0:${timestamp}:${body}`;
-      const hashForVerify = createHmac('sha256', secretToken)
-        .update(message)
-        .digest('hex');
-      const expectedSignature = `v0=${hashForVerify}`;
-
-      if (signature !== expectedSignature) {
-        console.error("Invalid Zoom webhook signature");
-        return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
-      }
+    if (!hasValidSignature(body, signature, timestamp)) {
+      console.error("Missing or invalid Zoom webhook signature");
+      return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
     }
+
+    const payload = JSON.parse(body);
+    console.log("Zoom webhook received: %s", payload.event, { timestamp });
 
     const eventType = payload.event;
 
@@ -112,9 +108,20 @@ async function processMeetingEvent(payload: any) {
     topic: meetingData.topic,
   });
 
-  // For meeting start/end events, we can store basic meeting metadata
-  // For participant events, we would need to fetch full participant data from Zoom API
-  // Since webhooks should be fast, we'll trigger a background sync instead
+  // Live presence: who joined or left, and when. Zoom's Report API (the import below) only covers
+  // ended meetings, so this is the only record of who's in the room while a meeting runs. The
+  // prickle check-out cron reads it; the import after the meeting ends is the backstop.
+  const participantEvent = parseParticipantEvent(payload);
+  if (participantEvent) {
+    const { error } = await createServiceRoleClient()
+      .schema("bronze")
+      .from("zoom_participant_events")
+      .upsert(participantEvent, {
+        onConflict: "meeting_uuid,participant_key,event,event_time",
+        ignoreDuplicates: true,
+      });
+    if (error) console.error("Error recording Zoom participant event:", error);
+  }
 
   if (
     eventType === "meeting.ended" ||
@@ -138,41 +145,13 @@ async function processMeetingEvent(payload: any) {
     // incident this pattern is meant to avoid).
     after(async () => {
       await new Promise((resolve) => setTimeout(resolve, 10000));
+      // Prickle check-out DMs follow from this import: the 5-minute check-in cron
+      // (app/api/internal/prickle-checkins) sends them once a prickle's attendance exists.
       try {
         await triggerZoomImport({ fromDate, toDate });
         console.log("Zoom import triggered successfully");
       } catch (error) {
         console.error("Error triggering Zoom import:", error);
-        return;
-      }
-
-      // Writing Projects Phase 1, item 10: only on the real meeting-end event (not every
-      // participant_left, which can fire multiple times per meeting) and only after
-      // triggerZoomImport above has resolved, since prickle_attendance must exist first --
-      // sendPostPricklePrompts reads attendance directly.
-      if (eventType === "meeting.ended") {
-        try {
-          const supabase = createSupabaseClient(
-            process.env.NEXT_PUBLIC_SUPABASE_URL!,
-            process.env.SUPABASE_SERVICE_ROLE_KEY!,
-            { auth: { autoRefreshToken: false, persistSession: false } }
-          );
-          // zoom_meeting_uuid alone is the right key here -- it's unique per meeting instance,
-          // and fromDate/toDate above are day-granularity strings meant for the Zoom import API,
-          // not safe timestamp bounds (a same-day meeting's start_time would compare against
-          // midnight, not the actual day span).
-          const { data: prickles } = await supabase
-            .from("prickles")
-            .select("id")
-            .eq("zoom_meeting_uuid", meetingData.uuid);
-
-          for (const prickle of prickles ?? []) {
-            const sent = await sendPostPricklePrompts(supabase, prickle.id);
-            console.log(`Post-prickle prompts sent for prickle ${prickle.id}: ${sent}`);
-          }
-        } catch (error) {
-          console.error("Error sending post-prickle prompts:", error);
-        }
       }
     });
   }

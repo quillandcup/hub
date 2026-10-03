@@ -184,7 +184,7 @@ Adding someone in the Hub → `conversations.invite`; removing → `conversation
 - **Formatting**: render from Slack's `rich_text` block (exact mentions, links, lists, code), falling back to `text`. Translate both ways: `<@U123>` ↔ member mention, `<#C123>` ↔ channel link, links, emoji shortcodes.
 - **Block Kit (display)**: render a supported subset (section, context, header, divider, image). Anything else falls back to the message's `text` with "Open in Slack".
 - **Interactive elements**:
-  - Our own bot's messages (Wheel of Wonder, writing nudges, pre-prickle nudges): action handlers become Slack-independent (`handleAction(actionId, value, memberId)`), called by both the Slack interactions webhook and a Hub server action; the resulting update goes to both sides.
+  - Our own bot's messages (Wheel of Wonder, prickle check-in and check-out DMs): action handlers become Slack-independent (`handleAction(actionId, value, memberId)`), called by both the Slack interactions webhook and a Hub server action; the resulting update goes to both sides.
   - Third-party apps (polls, Workflow Builder, Zoom, Calendar): clicks go to that app's server with Slack's signature, so the Hub shows them disabled with "Open in Slack".
   - Longer term, our notifications become Hub-native cards, rendered to Block Kit only when sent to Slack.
 - **Emoji**: replace the hand-picked `lib/slack-emoji.ts` with a full dataset (`emoji-datasource` or `emojibase`), lazy-loaded in the picker. Custom emoji from `bronze.slack_custom_emoji`; lookup order custom → Unicode → plain `:name:`. Images link to Slack's CDN at first; copy to Supabase Storage before leaving Slack. Hub-only custom emoji wait for app-only channels (Slack only accepts reactions it knows).
@@ -226,6 +226,7 @@ Per channel: switch `bridge_mode` from `bridged` to `app_only`. The bot posts a 
    - Bronze fixes: webhook subtypes, soft delete for messages and reactions, membership and emoji pulls, content lock-down + `slack_messages_meta` view; move the admin pages that read Bronze content (Slack engagement insights, reconciliation) to server-side metadata reads.
    - Stop copying message text into `member_activities.description` for restricted channels and DMs.
    - From the Bronze audit: webhook stops storing join/leave notices as messages (and the 75 existing rows are removed + Slack activity reprocessed); import fetches `mpim`; re-invite the bot to the private channels it lost on 2026-09-25 and backfill.
+   - Rebuild Slack `member_activities` atomically (DELETE + INSERT in one SQL function, like `reprocess_prickle_attendance_atomic`). Today `/api/process/slack` deletes the range and then inserts in batches, so a failed batch leaves a gap until the next run (2026-10-03: ~7,000 activities missing after Supabase returned 520s).
    - Alert on reconcile failures, including partial ones, and when the bot loses access to a private channel (today that only shows on `/admin/hygiene`).
    - Copy Slack files into Supabase Storage.
 2. **Read-only mirror**: `chat_*` schema with the content/metadata split and RLS (pgTAP), projection + backfill, channel list and channel view, search v1, `restricted` flag and "staff can read this" indicator.

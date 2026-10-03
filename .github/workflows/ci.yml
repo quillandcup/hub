@@ -6,7 +6,8 @@ name: CI
 # note on RLS/SQL functions/bronze-silver-gold -- plus the production build). See
 # vitest.config.ts for how tests are split between the two. On push to main, once
 # (and only once) both jobs pass, also auto-pushes any pending Supabase migrations
-# to production, deploys, and then pushes slack-app-manifest.yml to the Slack app.
+# to production, deploys, and then pushes slack-app-manifest.yml to the Slack app if
+# it changed.
 #
 # Why the migration push exists: nobody was reliably running `supabase db push`
 # after a merge -- new code has 500'd in prod waiting on a table/column that
@@ -389,6 +390,12 @@ jobs:
   #
   # No `cancel-in-progress` on main (see `concurrency` above), so runs queue instead of
   # being killed between rotating the Slack token and saving its replacement.
+  #
+  # Only pushes when the push to main changed the manifest or the script. Every run spends
+  # the stored refresh token, and a run reads its secrets when it's queued: a run queued
+  # while an earlier one was rotating gets the old, already-spent token and fails with
+  # invalid_refresh_token. Skipping the push when nothing changed makes that collision rare.
+  # workflow_dispatch (and a push whose previous commit can't be fetched) always pushes.
   push-slack-manifest:
     name: Push Slack app manifest
     needs: deploy
@@ -397,16 +404,34 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      - name: Check whether the manifest changed
+        id: manifest
+        run: |
+          if [ "$GITHUB_EVENT_NAME" != "push" ] || ! git fetch --quiet --depth=1 origin "$BEFORE"; then
+            echo "No previous commit to compare against: pushing the manifest."
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          elif git diff --quiet "$BEFORE" HEAD -- slack-app-manifest.yml scripts/slack-manifest.ts; then
+            echo "slack-app-manifest.yml and scripts/slack-manifest.ts are unchanged: skipping the push."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          BEFORE: ${{ github.event.before }}
+
       - uses: actions/setup-node@v5
+        if: steps.manifest.outputs.changed == 'true'
         with:
           node-version-file: ".nvmrc"
           cache: npm
 
       - run: npm ci
+        if: steps.manifest.outputs.changed == 'true'
 
       # Calls scripts/slack-manifest.ts directly rather than `npm run slack:manifest:push`,
       # which wraps it in dotenv for the local .env files.
       - name: Push Slack app manifest
+        if: steps.manifest.outputs.changed == 'true'
         run: |
           if [ -z "$SLACK_CONFIG_REFRESH_TOKEN" ] || [ -z "$GH_TOKEN" ] || [ -z "$SLACK_APP_ID" ]; then
             echo "SLACK_CONFIG_REFRESH_TOKEN, GH_TOKEN_SLACK_MANIFEST (secrets) and SLACK_APP_ID (variable) must all be set -- see docs/SLACK_MANIFEST.md."

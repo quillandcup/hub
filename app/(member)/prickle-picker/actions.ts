@@ -19,12 +19,12 @@ import {
   type TimeOfDay,
   type Vibe,
   type VibePreference,
+  PICKER_HISTORY_MONTHS as HISTORY_MONTHS,
 } from "@/lib/prickle-picker";
 import { ORG_TIMEZONE } from "@/lib/config";
 import { validateCheckin, type Feeling, type Need } from "@/lib/prickle-checkins";
 
 const BATCH_SIZE = 1000;
-const HISTORY_MONTHS = 6;
 const DEFAULT_TIMEZONE = ORG_TIMEZONE;
 
 export interface WizardAnswers {
@@ -102,6 +102,7 @@ async function fetchMyRatedCheckins(supabase: SupabaseClient, memberId: string):
       .from("prickle_checkins")
       .select("feelings_before, need, session_rating, prickles!inner(type_id, host)")
       .eq("member_id", memberId)
+      .is("deleted_at", null)
       .not("session_rating", "is", null)
       .order("id")
       .range(offset, offset + BATCH_SIZE - 1)

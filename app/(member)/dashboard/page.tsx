@@ -78,7 +78,7 @@ export default async function DashboardPage() {
               <div key={goal.id}>
                 <Link
                   href={`/projects/${goal.projectId}`}
-                  className="text-sm font-medium text-slate-900 dark:text-slate-100 hover:text-plum-600 dark:hover:text-plum-400"
+                  className="text-lg font-semibold text-slate-900 dark:text-slate-100 hover:text-plum-600 dark:hover:text-plum-400"
                 >
                   {goal.projectTitle}
                 </Link>

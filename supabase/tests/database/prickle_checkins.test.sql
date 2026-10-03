@@ -1,12 +1,12 @@
--- pgTAP tests for prickle_checkins (20261003000000): the member and admins read, only the member
--- writes, and the CHECKs on the option keys.
+-- pgTAP tests for prickle_checkins (20261003000000, 20261003140000): the member and admins read,
+-- only the member writes, nobody but a cascade hard-deletes, and the CHECKs on the option keys.
 -- Runs in one transaction that is rolled back, so it leaves the shared local DB untouched.
 -- Run with `npm run test:pgtap` (scripts/test-pgtap.sh; CI runs it in the test-db job).
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;
 
-SELECT plan(12);
+SELECT plan(14);
 
 -- Alice and Bob are regular members, Dana an admin. Fixed ids nothing else uses.
 INSERT INTO auth.users (id, instance_id, aud, role, email) VALUES
@@ -46,16 +46,21 @@ INSERT INTO result SELECT 'alice_sees', jsonb_agg(member_id) FROM public.prickle
   WHERE prickle_id = '00000000-0000-4000-a000-00000000d1f1';
 UPDATE public.prickle_checkins SET need = 'momentum'
   WHERE member_id = '00000000-0000-4000-a000-00000000d102';
-DELETE FROM public.prickle_checkins WHERE member_id = '00000000-0000-4000-a000-00000000d102';
+UPDATE public.prickle_checkins SET deleted_at = now()
+  WHERE member_id = '00000000-0000-4000-a000-00000000d102';
+-- Clearing her own check-in soft-deletes it.
+UPDATE public.prickle_checkins SET deleted_at = now()
+  WHERE member_id = '00000000-0000-4000-a000-00000000d101';
+INSERT INTO result SELECT 'alice_soft_deleted', to_jsonb(deleted_at IS NOT NULL) FROM public.prickle_checkins
+  WHERE member_id = '00000000-0000-4000-a000-00000000d101';
 
 -- As Dana (admin): reads everyone's check-ins, can't change them.
 SELECT set_config('request.jwt.claims',
   '{"sub": "00000000-0000-4000-a000-00000000d1a4", "email": "checkin-dana@example.test", "role": "authenticated"}', true);
 INSERT INTO result SELECT 'admin_sees', to_jsonb(count(*)) FROM public.prickle_checkins
   WHERE prickle_id = '00000000-0000-4000-a000-00000000d1f1';
-UPDATE public.prickle_checkins SET need = 'momentum'
+UPDATE public.prickle_checkins SET need = 'momentum', deleted_at = now()
   WHERE member_id = '00000000-0000-4000-a000-00000000d102';
-DELETE FROM public.prickle_checkins WHERE member_id = '00000000-0000-4000-a000-00000000d101';
 RESET ROLE;
 
 SELECT is(
@@ -74,11 +79,24 @@ SELECT is(
   'neither another member nor an admin can update someone else''s check-in'
 );
 SELECT is(
-  (SELECT count(*)::int FROM public.prickle_checkins
-    WHERE member_id IN ('00000000-0000-4000-a000-00000000d101', '00000000-0000-4000-a000-00000000d102')),
-  2,
-  'neither another member nor an admin can delete someone else''s check-in'
+  (SELECT deleted_at FROM public.prickle_checkins WHERE member_id = '00000000-0000-4000-a000-00000000d102'),
+  NULL,
+  'neither another member nor an admin can soft-delete someone else''s check-in'
 );
+SELECT is(
+  (SELECT value FROM result WHERE label = 'alice_soft_deleted'),
+  'true'::jsonb,
+  'a member can soft-delete their own check-in'
+);
+SELECT throws_ok(
+  $$SET LOCAL ROLE authenticated;
+    SELECT set_config('request.jwt.claims', '{"sub": "00000000-0000-4000-a000-00000000d1a1", "email": "checkin-alice@example.test", "role": "authenticated"}', true);
+    DELETE FROM public.prickle_checkins WHERE member_id = '00000000-0000-4000-a000-00000000d101'$$,
+  '42501',
+  NULL,
+  'a member cannot hard-delete a check-in, even their own'
+);
+RESET ROLE;
 
 SELECT throws_ok(
   $$SET LOCAL ROLE authenticated;
@@ -135,7 +153,7 @@ SELECT throws_ok(
     VALUES ('00000000-0000-4000-a000-00000000d104', '00000000-0000-4000-a000-00000000d1f1')$$,
   '23514',
   NULL,
-  'an empty check-in is rejected (clearing deletes the row instead)'
+  'an empty check-in is rejected (clearing soft-deletes the row instead)'
 );
 
 DELETE FROM public.prickles WHERE id = '00000000-0000-4000-a000-00000000d1f1';

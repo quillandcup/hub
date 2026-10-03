@@ -12,6 +12,7 @@ import { getScheduleSlot } from "@/lib/scheduled-prickle-stats";
 import { formatPrickleTitle } from "@/lib/formatters";
 import { computeHostStatus } from "@/lib/hosting-stats";
 import { requireAdminPage } from "@/lib/admin-auth";
+import TestCheckinDMs from "./TestCheckinDMs";
 
 const getPrickle = cache(async (id: string) => {
   const supabase = await createClient();
@@ -180,6 +181,7 @@ export default async function AdminPrickleDetailPage({
             showMemberEmails={true}
             insightsSlotUrl={insightsSlotUrl}
           />
+          <TestCheckinDMs prickleId={prickle.id} />
           {unmatchedZoomAttendees.length > 0 && (
             <AliasSearchForm
               unmatchedAttendees={unmatchedZoomAttendees}
