@@ -1,6 +1,6 @@
 display_information:
   name: Billie Bot
-  description: Community engagement tracking and analytics
+  description: Ambassador from Hedgie Hub, the Quill & Cup member hub for prickles, events, writing streaks and community
   background_color: "#4A154B"
 features:
   bot_user:
