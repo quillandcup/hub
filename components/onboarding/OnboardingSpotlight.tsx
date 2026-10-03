@@ -196,15 +196,16 @@ export default function OnboardingSpotlight({
       <div
         ref={calloutRef}
         role="dialog"
-        aria-label={step.title}
+        aria-label={step.calloutTitle}
         // Above the mobile menu button (fixed, z-50), which would otherwise poke through it.
         className="fixed z-[55] rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl p-4"
         style={{ top, left, width: calloutW }}
       >
         <p className="text-xs font-medium text-plum-600 dark:text-plum-400">
           Step {stepNumber} of {totalSteps}
+          {step.stop && step.stop.count > 1 && ` · ${step.stop.number} of ${step.stop.count}`}
         </p>
-        <h2 className="mt-1 text-base font-semibold text-slate-900 dark:text-slate-100">{step.title}</h2>
+        <h2 className="mt-1 text-base font-semibold text-slate-900 dark:text-slate-100">{step.calloutTitle}</h2>
         <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">{step.hint}</p>
         <div className="mt-3 flex flex-wrap items-center gap-2">
           {onConfirm && step.confirmLabel && (

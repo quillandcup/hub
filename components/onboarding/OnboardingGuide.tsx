@@ -115,8 +115,8 @@ export default function OnboardingGuide({ initialState }: { initialState: Onboar
           stepNumber={state.steps.indexOf(current) + 1}
           totalSteps={total}
           pending={isPending}
-          onConfirm={current.confirmLabel ? () => run(() => markOnboardingStep(current.id)) : undefined}
-          onSkip={() => run(() => markOnboardingStep(current.id))}
+          onConfirm={current.confirmLabel ? () => run(() => markOnboardingStep(current.markKey)) : undefined}
+          onSkip={() => run(() => markOnboardingStep(current.markKey))}
           onHide={hideSpotlight}
         />
       )}

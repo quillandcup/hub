@@ -4,8 +4,12 @@
  * behind the `onboarding` feature flag; state is loaded by lib/onboarding.server.ts.
  *
  * A step is done when the member's data shows it (`signals`), or when they marked it by hand
- * (confirmed or skipped it; stored in member_onboarding.marked_steps). Identity has no data
- * signal: the names are usually already on file from Kajabi, so the step asks them to check.
+ * (confirmed or skipped it; stored in member_onboarding.marked_steps). Much of what an account
+ * starts with comes over from Kajabi (name, bio, socials), so steps about that data ask the member
+ * to check it rather than counting it as done.
+ *
+ * A step can have several stops on its page, spotlit one after another and each confirmed on its
+ * own (marked as `<step>.<stop>`, e.g. `identity.basics`); the step is done once every stop is.
  *
  * Hosts get two more steps (most members never host, so nobody else sees them): their hosting
  * schedule on My Prickles → Hosting, and, once they've hosted recently enough to have prickle
@@ -20,7 +24,8 @@ export const ONBOARDING_AUTO_START_DAYS = 30;
 
 /** What the member's own data says, gathered once per page load. */
 export interface OnboardingSignals {
-  hasProfile: boolean;
+  /** Saved a bio or socials in the Hub, or added "Ask me about" topics: not just Kajabi's copy. */
+  hasHubProfile: boolean;
   /** Most recent unarchived project, so the writing step can point at its "Add a goal" button. */
   latestProjectId: string | null;
   hasGoal: boolean;
@@ -43,12 +48,18 @@ export interface OnboardingStepView {
   summary: string;
   /** Page the step happens on (pathname + optional query). */
   href: string;
-  /** `data-tour` value of the element to spotlight on that page. */
+  /** `data-tour` value of the element to spotlight on that page (the current stop's, if it has stops). */
   target: string;
+  /** Heading on the spotlight's callout. */
+  calloutTitle: string;
   /** Text on the spotlight's callout. */
   hint: string;
   /** Label for the callout's "this is done" button, for steps the member confirms by hand. */
   confirmLabel?: string;
+  /** What confirming or skipping marks: the step id, or `<step>.<stop>` for the current stop. */
+  markKey: string;
+  /** Position of the current stop, for a step with several. */
+  stop?: { number: number; count: number };
   done: boolean;
 }
 
@@ -67,8 +78,63 @@ export interface OnboardingRecord {
   completed_at: string | null;
 }
 
+interface OnboardingStop {
+  id: string;
+  target: string;
+  title: string;
+  hint: string;
+  confirmLabel: string;
+}
+
+/** Checked one at a time on Settings → Identity, top to bottom. */
+const IDENTITY_STOPS: OnboardingStop[] = [
+  {
+    id: "basics",
+    target: "identity-basics",
+    title: "Your name and birthday",
+    hint: "Is this the name you go by here? And add your birthday, just the month and day, so we can celebrate you!",
+    confirmLabel: "Looks right",
+  },
+  {
+    id: "names",
+    target: "identity-names",
+    title: "Pen names and Zoom/Slack names",
+    hint: "We match Zoom and Slack to you by name. If you ever join as something other than your real name, like a pen name or a nickname, add it here.",
+    confirmLabel: "My names look right",
+  },
+  {
+    id: "emails",
+    target: "identity-emails",
+    title: "Other email addresses",
+    hint: "Used another email with us, like an old Kajabi or Slack one? Add it here so it all counts as you.",
+    confirmLabel: "My emails look right",
+  },
+];
+
 export function isOnboardingStepId(value: unknown): value is OnboardingStepId {
   return typeof value === "string" && (ONBOARDING_STEP_IDS as readonly string[]).includes(value);
+}
+
+/** A step id, or `<step>.<stop>` for one of a step's stops: what member_onboarding.marked_steps holds. */
+export function isOnboardingMarkKey(value: unknown): value is string {
+  if (isOnboardingStepId(value)) return true;
+  return typeof value === "string" && IDENTITY_STOPS.some((stop) => value === `identity.${stop.id}`);
+}
+
+/** A step's view fields for its first unconfirmed stop (or its last, once all are confirmed). */
+function stopFields(stepId: OnboardingStepId, stops: OnboardingStop[], marked: Set<string>) {
+  const firstOpen = stops.findIndex((stop) => !marked.has(`${stepId}.${stop.id}`));
+  const index = firstOpen === -1 ? stops.length - 1 : firstOpen;
+  const stop = stops[index];
+  return {
+    target: stop.target,
+    calloutTitle: stop.title,
+    hint: stop.hint,
+    confirmLabel: stop.confirmLabel,
+    markKey: `${stepId}.${stop.id}`,
+    stop: { number: index + 1, count: stops.length },
+    done: firstOpen === -1,
+  };
 }
 
 function stepViews(signals: OnboardingSignals, marked: Set<string>): OnboardingStepView[] {
@@ -76,22 +142,23 @@ function stepViews(signals: OnboardingSignals, marked: Set<string>): OnboardingS
   const steps: OnboardingStepView[] = [
     {
       id: "identity",
-      title: "Check your names",
-      summary: "Add any pen name or Zoom/Slack name, so your prickles count toward you.",
+      title: "Check your details",
+      summary: "Your name and birthday, then any other names and emails you use.",
       href: "/settings?tab=identity",
-      target: "identity-names",
-      hint: "We match Zoom and Slack to you by name. If you ever join as something other than your real name, like a pen name or a nickname, add it here.",
-      confirmLabel: "My names look right",
-      done: marked.has("identity"),
+      ...stopFields("identity", IDENTITY_STOPS, marked),
     },
     {
       id: "profile",
       title: "Introduce yourself",
-      summary: "Write a short bio and what people can ask you about.",
+      summary: "Check your bio and add what people can ask you about.",
       href: "/settings?tab=profile",
       target: "profile-bio",
-      hint: "Other members see this on your profile and in the directory. A sentence or two about what you write is plenty.",
-      done: signals.hasProfile || marked.has("profile"),
+      calloutTitle: "Introduce yourself",
+      hint: "Other members see this on your profile and in the directory. If it came over from Kajabi, check it still sounds like you. A sentence or two about what you write is plenty.",
+      // A bio carried over from Kajabi isn't one they've looked at here, so it doesn't count alone.
+      confirmLabel: "My profile looks right",
+      markKey: "profile",
+      done: signals.hasHubProfile || marked.has("profile"),
     },
     {
       id: "writing",
@@ -99,9 +166,11 @@ function stepViews(signals: OnboardingSignals, marked: Set<string>): OnboardingS
       summary: "Add a project and give it a goal to work toward.",
       href: latestProjectId ? `/projects/${latestProjectId}` : "/projects",
       target: latestProjectId ? "add-goal" : "new-project",
+      calloutTitle: "Set a writing goal",
       hint: latestProjectId
         ? "Give this project a goal, like a word count or a habit such as writing three days a week. Star it to see it on your dashboard."
         : "Start with whatever you're working on now. Next you'll give it a goal.",
+      markKey: "writing",
       done: signals.hasGoal || marked.has("writing"),
     },
     {
@@ -110,7 +179,9 @@ function stepViews(signals: OnboardingSignals, marked: Set<string>): OnboardingS
       summary: "Find a prickle that fits your week and commit to it.",
       href: "/my-prickles?tab=find",
       target: "find-prickle",
+      calloutTitle: "Join a prickle",
       hint: "Answer a few questions to find prickles that fit your schedule, then commit to one. You can add it to your own calendar from there too.",
+      markKey: "prickles",
       done: signals.hasPricklePlan || marked.has("prickles"),
     },
   ];
@@ -122,7 +193,9 @@ function stepViews(signals: OnboardingSignals, marked: Set<string>): OnboardingS
     summary: "Check the slots you'll host this month and next.",
     href: "/my-prickles?tab=hosting",
     target: "hosting-schedule",
+    calloutTitle: "Set up your hosting",
     hint: "These are the prickles you host. Request a slot for a month you'd like to host, or change one that's moved. An admin confirms requests.",
+    markKey: "hosting",
     done: signals.hasHostingSchedule || marked.has("hosting"),
   });
   if (signals.hostedRecently) {
@@ -132,9 +205,11 @@ function stepViews(signals: OnboardingSignals, marked: Set<string>): OnboardingS
       summary: "Say how you run each prickle you host: focused, balanced or chatty.",
       href: "/settings?tab=hosting",
       target: "host-vibe",
+      calloutTitle: "Set your hosting vibe",
       hint: "The Prickle Picker uses this to match members with prickles that suit them. Add a note about how you run it if you like.",
       // Each type shows "balanced" until saved, so a host happy with that has nothing to save.
       confirmLabel: "My vibe looks right",
+      markKey: "host-vibe",
       done: signals.hasHostVibe || marked.has("host-vibe"),
     });
   }

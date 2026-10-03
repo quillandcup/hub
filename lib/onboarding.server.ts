@@ -20,7 +20,6 @@ export const getOnboardingState = cache(async (userId: string, memberId: string)
   const [
     record,
     profile,
-    member,
     override,
     askMeAbout,
     latestProject,
@@ -38,9 +37,9 @@ export const getOnboardingState = cache(async (userId: string, memberId: string)
       .eq("member_id", memberId)
       .maybeSingle(),
     supabase.from("user_profiles").select("created_at").eq("id", userId).maybeSingle(),
-    supabase.from("members").select("bio").eq("id", memberId).maybeSingle(),
-    // A just-saved bio sits here until member processing copies it to members.bio.
-    supabase.from("member_profile_overrides").select("bio").eq("member_id", memberId).maybeSingle(),
+    // Written only when the member saves their bio or socials in the Hub. members.bio isn't read:
+    // it's usually Kajabi's copy, which they haven't necessarily looked at here.
+    supabase.from("member_profile_overrides").select("member_id").eq("member_id", memberId).maybeSingle(),
     supabase.from("member_ask_me_about").select("topics").eq("member_id", memberId).maybeSingle(),
     supabase
       .from("writing_projects")
@@ -80,7 +79,7 @@ export const getOnboardingState = cache(async (userId: string, memberId: string)
 
   return buildOnboardingState(
     {
-      hasProfile: !!(member.data?.bio?.trim() || override.data?.bio?.trim()) || topics.length > 0,
+      hasHubProfile: override.data !== null || topics.length > 0,
       latestProjectId: latestProject.data?.id ?? null,
       hasGoal: (goals.count ?? 0) > 0,
       hasPricklePlan: (commitments.count ?? 0) > 0 || (calendarItems.count ?? 0) > 0,

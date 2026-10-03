@@ -82,7 +82,17 @@ describe("onboarding actions", () => {
   it("markOnboardingStep rejects an unknown step without writing", async () => {
     const sb = makeSupabase();
     expect(await markOnboardingStep("nope")).toEqual({ error: "Unknown step" });
+    expect(await markOnboardingStep("identity.nope")).toEqual({ error: "Unknown step" });
     expect(sb.upsert).not.toHaveBeenCalled();
+  });
+
+  it("markOnboardingStep accepts a stop of a step", async () => {
+    const sb = makeSupabase({ existing: { marked_steps: ["identity.basics"] } });
+    expect(await markOnboardingStep("identity.names")).toEqual({ success: true });
+    expect(sb.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ marked_steps: ["identity.basics", "identity.names"] }),
+      { onConflict: "member_id" }
+    );
   });
 
   it("refuses during sudo, so an admin can't change a member's tour", async () => {

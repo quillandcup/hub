@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
 import { getEffectiveIdentity } from "@/lib/sudo";
-import { isOnboardingStepId, type OnboardingState } from "@/lib/onboarding";
+import { isOnboardingMarkKey, type OnboardingState } from "@/lib/onboarding";
 import { getOnboardingState } from "@/lib/onboarding.server";
 
 type Result = { success: true } | { error: string };
@@ -66,7 +66,7 @@ export async function completeOnboarding(): Promise<Result> {
 
 /** Count a step as done without data to show it: confirmed ("my names look right") or skipped. */
 export async function markOnboardingStep(stepId: string): Promise<Result> {
-  if (!isOnboardingStepId(stepId)) return { error: "Unknown step" };
+  if (!isOnboardingMarkKey(stepId)) return { error: "Unknown step" };
   const ctx = await requireOwnMember();
   if (!ctx.ok) return { error: ctx.error };
 

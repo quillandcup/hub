@@ -243,96 +243,99 @@ export function IdentityPanel() {
         </div>
       )}
 
-      {/* Real Name */}
-      <div>
-        <h3 className="text-sm font-medium text-slate-900 dark:text-slate-100 mb-1">Real Name</h3>
-        <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">
-          Your canonical name — used across the app unless a pen name below matches instead.
-        </p>
-        {data.nameChangeLocked ? (
-          <div className="max-w-md">
-            <p className="px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-md bg-slate-50 dark:bg-slate-800 text-sm text-slate-900 dark:text-slate-100">
-              {data.realName}
-            </p>
-            <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-              You&apos;ve already changed your name once. Email{" "}
-              <a href={`mailto:${SUPPORT_EMAIL}`} className="underline">
-                {SUPPORT_EMAIL}
-              </a>{" "}
-              if it needs to change again.
-            </p>
-          </div>
-        ) : (
-          <form onSubmit={handleSaveName} className="flex gap-2 max-w-md">
-            <input
-              type="text"
-              value={nameInput}
-              onChange={(e) => setNameInput(e.target.value)}
-              className="flex-1 px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-sm"
-              maxLength={200}
-            />
+      {/* Real name and birthday: the Getting started tour checks these together. */}
+      <div data-tour="identity-basics" className="space-y-8">
+        {/* Real Name */}
+        <div>
+          <h3 className="text-sm font-medium text-slate-900 dark:text-slate-100 mb-1">Real Name</h3>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">
+            Your canonical name — used across the app unless a pen name below matches instead.
+          </p>
+          {data.nameChangeLocked ? (
+            <div className="max-w-md">
+              <p className="px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-md bg-slate-50 dark:bg-slate-800 text-sm text-slate-900 dark:text-slate-100">
+                {data.realName}
+              </p>
+              <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                You&apos;ve already changed your name once. Email{" "}
+                <a href={`mailto:${SUPPORT_EMAIL}`} className="underline">
+                  {SUPPORT_EMAIL}
+                </a>{" "}
+                if it needs to change again.
+              </p>
+            </div>
+          ) : (
+            <form onSubmit={handleSaveName} className="flex gap-2 max-w-md">
+              <input
+                type="text"
+                value={nameInput}
+                onChange={(e) => setNameInput(e.target.value)}
+                className="flex-1 px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-sm"
+                maxLength={200}
+              />
+              <button
+                type="submit"
+                disabled={savingName || nameInput.trim() === data.realName || !nameInput.trim()}
+                className="px-4 py-2 bg-plum-600 text-white text-sm rounded-md hover:bg-plum-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {savingName ? "Saving…" : "Save"}
+              </button>
+            </form>
+          )}
+        </div>
+
+        {/* Birthday */}
+        <div>
+          <h3 className="text-sm font-medium text-slate-900 dark:text-slate-100 mb-1">Birthday</h3>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">
+            Month and day only — no year needed. Used to celebrate your hedgie birthday with you.
+          </p>
+          <form onSubmit={handleSaveBirthday} className="flex gap-2 max-w-md">
+            <select
+              value={birthdayMonth}
+              onChange={(e) => {
+                setBirthdayMonth(e.target.value);
+                setBirthdayDay("");
+              }}
+              className="px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-sm"
+            >
+              <option value="">Month</option>
+              {MONTHS.map((label, i) => (
+                <option key={label} value={i + 1}>
+                  {label}
+                </option>
+              ))}
+            </select>
+            <select
+              value={birthdayDay}
+              onChange={(e) => setBirthdayDay(e.target.value)}
+              disabled={!birthdayMonth}
+              className="px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-sm disabled:opacity-50"
+            >
+              <option value="">Day</option>
+              {Array.from(
+                { length: birthdayMonth ? DAYS_IN_MONTH[Number(birthdayMonth) - 1] : 31 },
+                (_, i) => i + 1
+              ).map((d) => (
+                <option key={d} value={d}>
+                  {d}
+                </option>
+              ))}
+            </select>
             <button
               type="submit"
-              disabled={savingName || nameInput.trim() === data.realName || !nameInput.trim()}
+              disabled={
+                savingBirthday ||
+                (!!birthdayMonth !== !!birthdayDay) ||
+                (Number(birthdayMonth) === (data.birthdayMonth ?? 0) &&
+                  Number(birthdayDay) === (data.birthdayDay ?? 0))
+              }
               className="px-4 py-2 bg-plum-600 text-white text-sm rounded-md hover:bg-plum-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {savingName ? "Saving…" : "Save"}
+              {savingBirthday ? "Saving…" : "Save"}
             </button>
           </form>
-        )}
-      </div>
-
-      {/* Birthday */}
-      <div>
-        <h3 className="text-sm font-medium text-slate-900 dark:text-slate-100 mb-1">Birthday</h3>
-        <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">
-          Month and day only — no year needed. Used to celebrate your hedgie birthday with you.
-        </p>
-        <form onSubmit={handleSaveBirthday} className="flex gap-2 max-w-md">
-          <select
-            value={birthdayMonth}
-            onChange={(e) => {
-              setBirthdayMonth(e.target.value);
-              setBirthdayDay("");
-            }}
-            className="px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-sm"
-          >
-            <option value="">Month</option>
-            {MONTHS.map((label, i) => (
-              <option key={label} value={i + 1}>
-                {label}
-              </option>
-            ))}
-          </select>
-          <select
-            value={birthdayDay}
-            onChange={(e) => setBirthdayDay(e.target.value)}
-            disabled={!birthdayMonth}
-            className="px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-sm disabled:opacity-50"
-          >
-            <option value="">Day</option>
-            {Array.from(
-              { length: birthdayMonth ? DAYS_IN_MONTH[Number(birthdayMonth) - 1] : 31 },
-              (_, i) => i + 1
-            ).map((d) => (
-              <option key={d} value={d}>
-                {d}
-              </option>
-            ))}
-          </select>
-          <button
-            type="submit"
-            disabled={
-              savingBirthday ||
-              (!!birthdayMonth !== !!birthdayDay) ||
-              (Number(birthdayMonth) === (data.birthdayMonth ?? 0) &&
-                Number(birthdayDay) === (data.birthdayDay ?? 0))
-            }
-            className="px-4 py-2 bg-plum-600 text-white text-sm rounded-md hover:bg-plum-700 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {savingBirthday ? "Saving…" : "Save"}
-          </button>
-        </form>
+        </div>
       </div>
 
       {/* Pen Names / Zoom & Slack aliases */}
@@ -378,7 +381,7 @@ export function IdentityPanel() {
       </div>
 
       {/* Email aliases */}
-      <div>
+      <div data-tour="identity-emails">
         <h3 className="text-sm font-medium text-slate-900 dark:text-slate-100 mb-1">Email Aliases</h3>
         <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">
           Other email addresses that should also count as you (e.g. an old Kajabi or Slack email). Your

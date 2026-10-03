@@ -13,7 +13,8 @@ const NEW_ACCOUNT = new Date(NOW.getTime() - 2 * DAY);
 const OLD_ACCOUNT = new Date(NOW.getTime() - (ONBOARDING_AUTO_START_DAYS + 1) * DAY);
 
 const NOT_HOST = { isHost: false, hasHostingSchedule: false, hostedRecently: false, hasHostVibe: false };
-const NOTHING: OnboardingSignals = { hasProfile: false, latestProjectId: null, hasGoal: false, hasPricklePlan: false, ...NOT_HOST };
+const IDENTITY_DONE = ["identity.basics", "identity.names", "identity.emails"];
+const NOTHING: OnboardingSignals = { hasHubProfile: false, latestProjectId: null, hasGoal: false, hasPricklePlan: false, ...NOT_HOST };
 const record = (r: Partial<OnboardingRecord> = {}): OnboardingRecord => ({
   marked_steps: [],
   dismissed_at: null,
@@ -46,8 +47,8 @@ describe("buildOnboardingState", () => {
 
   it("counts steps done from data or from a hand mark, and moves to the first undone one", () => {
     const state = buildOnboardingState(
-      { ...NOTHING, hasProfile: true },
-      record({ marked_steps: ["identity"] }),
+      { ...NOTHING, hasHubProfile: true },
+      record({ marked_steps: IDENTITY_DONE }),
       NEW_ACCOUNT,
       NOW
     );
@@ -56,9 +57,42 @@ describe("buildOnboardingState", () => {
   });
 
   it("only a hand mark finishes identity: names on file don't show they were checked", () => {
-    const state = buildOnboardingState({ ...NOTHING, hasProfile: true, hasGoal: true, hasPricklePlan: true, ...NOT_HOST }, null, NEW_ACCOUNT, NOW);
+    const state = buildOnboardingState({ ...NOTHING, hasHubProfile: true, hasGoal: true, hasPricklePlan: true, ...NOT_HOST }, null, NEW_ACCOUNT, NOW);
     expect(state.currentStepId).toBe("identity");
     expect(state.steps[0].confirmLabel).toBeTruthy();
+  });
+
+  it("walks identity's stops in order: name and birthday, pen names, then emails", () => {
+    const identityWith = (marked: string[]) =>
+      buildOnboardingState(NOTHING, record({ marked_steps: marked }), NEW_ACCOUNT, NOW).steps[0];
+
+    expect(identityWith([])).toMatchObject({
+      target: "identity-basics",
+      markKey: "identity.basics",
+      stop: { number: 1, count: 3 },
+      done: false,
+    });
+    expect(identityWith(["identity.basics"])).toMatchObject({
+      target: "identity-names",
+      markKey: "identity.names",
+      stop: { number: 2, count: 3 },
+      done: false,
+    });
+    expect(identityWith(["identity.basics", "identity.names"])).toMatchObject({
+      target: "identity-emails",
+      markKey: "identity.emails",
+      stop: { number: 3, count: 3 },
+      done: false,
+    });
+    expect(identityWith(IDENTITY_DONE).done).toBe(true);
+  });
+
+  it("doesn't count a bio carried over from Kajabi: the profile step asks them to check it", () => {
+    const profile = buildOnboardingState(NOTHING, null, NEW_ACCOUNT, NOW).steps.find((s) => s.id === "profile")!;
+    expect(profile).toMatchObject({ done: false, confirmLabel: "My profile looks right", markKey: "profile" });
+
+    const confirmed = buildOnboardingState(NOTHING, record({ marked_steps: ["profile"] }), NEW_ACCOUNT, NOW);
+    expect(confirmed.steps.find((s) => s.id === "profile")!.done).toBe(true);
   });
 
   it("points the writing step at New project, then at the latest project's Add a goal", () => {
@@ -73,8 +107,8 @@ describe("buildOnboardingState", () => {
 
   it("is completed and still active (to say all set) when every step is done but not yet finished", () => {
     const state = buildOnboardingState(
-      { hasProfile: true, latestProjectId: "p1", hasGoal: true, hasPricklePlan: true, ...NOT_HOST },
-      record({ marked_steps: ["identity"] }),
+      { hasHubProfile: true, latestProjectId: "p1", hasGoal: true, hasPricklePlan: true, ...NOT_HOST },
+      record({ marked_steps: IDENTITY_DONE }),
       OLD_ACCOUNT,
       NOW
     );
@@ -121,7 +155,7 @@ describe("hosting steps", () => {
 
   it("a host isn't finished until the hosting steps are done", () => {
     const allButHosting = {
-      hasProfile: true,
+      hasHubProfile: true,
       latestProjectId: "p1",
       hasGoal: true,
       hasPricklePlan: true,
@@ -130,7 +164,7 @@ describe("hosting steps", () => {
       hostedRecently: false,
       hasHostVibe: false,
     };
-    const state = buildOnboardingState(allButHosting, record({ marked_steps: ["identity"] }), NEW_ACCOUNT, NOW);
+    const state = buildOnboardingState(allButHosting, record({ marked_steps: IDENTITY_DONE }), NEW_ACCOUNT, NOW);
     expect(state).toMatchObject({ completed: false, currentStepId: "hosting" });
   });
 });
