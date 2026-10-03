@@ -1,6 +1,5 @@
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { NextRequest, NextResponse } from "next/server";
-import { writeInBatches } from "@/lib/supabase/batched-insert";
 import { matchSlackUsersToMembers } from "@/lib/slack-matching";
 
 // Extend timeout for processing large batches
@@ -10,12 +9,12 @@ export const maxDuration = 300; // 5 minutes
  * Process Bronze layer (slack_messages, slack_reactions) into Silver layer (member_activities)
  *
  * This endpoint:
- * 1. Loads all reference data upfront (members, aliases)
- * 2. Loads Slack Bronze data in date range
- * 3. Matches Slack users to members
- * 4. Transforms to member_activities
- * 5. DELETEs existing Slack activities in range
- * 6. INSERTs fresh activities (reprocessable)
+ * 1. Loads reference data upfront (members, aliases, Slack users)
+ * 2. Matches Slack users to members in memory
+ * 3. Calls reprocess_slack_activities_atomic, which transforms Bronze messages
+ *    and reactions in the date range into member_activities, DELETEing the
+ *    range's existing Slack activities and INSERTing fresh ones in a single
+ *    transaction (reprocessable, and a failure leaves the old rows in place)
  */
 export async function POST(request: NextRequest) {
   const auth = await requireAdmin(request);
@@ -40,31 +39,14 @@ export async function POST(request: NextRequest) {
     const [
       { data: members },
       { data: aliases },
+      { data: slackUsers },
     ] = await Promise.all([
       supabase.from("members").select("id, name, email"),
       supabase.from("member_name_aliases").select("alias, member_id, source").eq("active", true),
+      supabase.schema('bronze').from("slack_users").select("user_id, email, real_name"),
     ]);
 
-    // STEP 2: Load Bronze Slack data in date range (with pagination)
-    const slackMessages = await loadAllMessages(supabase, fromDate, toDate);
-    const slackReactions = await loadAllReactions(supabase, fromDate, toDate);
-
-    console.log(`Loaded ${slackMessages.length} messages, ${slackReactions.length} reactions`);
-
-    if (slackMessages.length === 0 && slackReactions.length === 0) {
-      return NextResponse.json({
-        success: true,
-        message: "No Slack data found in date range",
-        processed: { messages: 0, reactions: 0 },
-      });
-    }
-
-    // STEP 3: Load Slack users for matching
-    const { data: slackUsers } = await supabase
-      .schema('bronze').from("slack_users")
-      .select("user_id, email, real_name");
-
-    // Match Slack users to members (in memory)
+    // STEP 2: Match Slack users to members (in memory)
     const userToMemberMap = await matchSlackUsersToMembers(
       slackUsers || [],
       members || [],
@@ -73,99 +55,31 @@ export async function POST(request: NextRequest) {
 
     console.log(`Matched ${userToMemberMap.size} Slack users to members`);
 
-    // STEP 4: Transform messages → member_activities
-    const messageActivities = slackMessages
-      .map(msg => {
-        const memberId = userToMemberMap.get(msg.user_id);
-        if (!memberId) return null; // Skip non-members
+    // STEP 3: Transform + DELETE + INSERT in one transaction. Does nothing when
+    // Bronze has no Slack data in the range, so an empty range never wipes
+    // existing activities.
+    const { data: result, error } = await supabase.rpc("reprocess_slack_activities_atomic", {
+      from_date: fromDate,
+      to_date: toDate,
+      user_member_map: Object.fromEntries(userToMemberMap),
+    });
 
-        const isThreadReply = msg.thread_ts && msg.thread_ts !== msg.message_ts;
-
-        return {
-          member_id: memberId,
-          activity_type: isThreadReply ? 'slack_thread_reply' : 'slack_message',
-          activity_category: 'communication',
-          title: `Posted in #${msg.channel_name}`,
-          description: msg.text?.substring(0, 200) || null,
-          data: {
-            channel_id: msg.channel_id,
-            channel_name: msg.channel_name,
-            channel_type: msg.channel_type,
-            message_ts: msg.message_ts,
-            thread_ts: msg.thread_ts,
-            is_thread_reply: isThreadReply,
-            has_files: msg.files ? true : false,
-          },
-          related_id: `${msg.channel_id}:${msg.message_ts}`,
-          engagement_value: calculateMessageValue(msg),
-          occurred_at: msg.occurred_at,
-          source: 'slack',
-        };
-      })
-      .filter(a => a !== null);
-
-    // STEP 5: Transform reactions → member_activities
-    const reactionActivities = slackReactions
-      .map(reaction => {
-        const memberId = userToMemberMap.get(reaction.user_id);
-        if (!memberId) return null;
-
-        return {
-          member_id: memberId,
-          activity_type: 'slack_reaction',
-          activity_category: 'communication',
-          title: `Reacted :${reaction.reaction}:`,
-          description: null,
-          data: {
-            channel_id: reaction.channel_id,
-            channel_name: reaction.channel_name,
-            message_ts: reaction.message_ts,
-            reaction: reaction.reaction,
-          },
-          related_id: `${reaction.channel_id}:${reaction.message_ts}`,
-          engagement_value: 1,
-          occurred_at: reaction.occurred_at,
-          source: 'slack',
-        };
-      })
-      .filter(a => a !== null);
-
-    console.log(`Transformed: ${messageActivities.length} message activities, ${reactionActivities.length} reaction activities`);
-
-    // STEP 6: DELETE existing Slack activities in date range (reprocessability)
-    console.log(`Deleting existing Slack activities in date range`);
-    const { error: deleteError } = await supabase
-      .from("member_activities")
-      .delete()
-      .eq("source", "slack")
-      .gte("occurred_at", fromDate)
-      .lte("occurred_at", toDate);
-
-    if (deleteError) {
-      console.error("Error deleting existing activities:", deleteError);
-      throw deleteError;
+    if (error) {
+      console.error("Error reprocessing Slack activities:", error);
+      throw error;
     }
 
-    // STEP 7: INSERT all activities (batched)
-    const allActivities = [...messageActivities, ...reactionActivities];
-    let inserted = 0;
+    const messages: number = result?.messages ?? 0;
+    const reactions: number = result?.reactions ?? 0;
 
-    if (allActivities.length > 0) {
-      // A few 500-row batches at a time: all ~47 at once got Cloudflare 520s
-      // from Supabase and lost a third of them (after the DELETE above).
-      inserted = await writeInBatches(allActivities, (batch) =>
-        supabase.from("member_activities").insert(batch)
-      );
-    }
-
-    console.log(`Processing complete: inserted ${inserted} activities`);
+    console.log(`Processing complete: inserted ${messages} message activities, ${reactions} reaction activities`);
 
     return NextResponse.json({
       success: true,
       processed: {
-        messages: messageActivities.length,
-        reactions: reactionActivities.length,
-        total_activities: inserted,
+        messages,
+        reactions,
+        total_activities: messages + reactions,
       },
     });
   } catch (error: any) {
@@ -175,86 +89,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
-
-async function loadAllMessages(supabase: any, fromDate: string, toDate: string) {
-  let allMessages: any[] = [];
-  let offset = 0;
-  const BATCH_SIZE = 1000;
-  let hasMore = true;
-
-  while (hasMore) {
-    const { data: batch } = await supabase
-      .schema('bronze').from("slack_messages")
-      .select("*")
-      .gte("occurred_at", fromDate)
-      .lte("occurred_at", toDate)
-      .is("deleted_at", null) // Skip deleted messages
-      .order("occurred_at")
-      .range(offset, offset + BATCH_SIZE - 1);
-
-    if (batch && batch.length > 0) {
-      allMessages = allMessages.concat(batch);
-      offset += batch.length;
-      hasMore = batch.length === BATCH_SIZE;
-    } else {
-      hasMore = false;
-    }
-  }
-
-  return allMessages;
-}
-
-async function loadAllReactions(supabase: any, fromDate: string, toDate: string) {
-  let allReactions: any[] = [];
-  let offset = 0;
-  const BATCH_SIZE = 1000;
-  let hasMore = true;
-
-  while (hasMore) {
-    const { data: batch } = await supabase
-      .schema('bronze').from("slack_reactions")
-      .select("*")
-      .gte("occurred_at", fromDate)
-      .lte("occurred_at", toDate)
-      .is("removed_at", null) // Skip removed reactions
-      .order("occurred_at")
-      .range(offset, offset + BATCH_SIZE - 1);
-
-    if (batch && batch.length > 0) {
-      allReactions = allReactions.concat(batch);
-      offset += batch.length;
-      hasMore = batch.length === BATCH_SIZE;
-    } else {
-      hasMore = false;
-    }
-  }
-
-  return allReactions;
-}
-
-function calculateMessageValue(msg: any): number {
-  let value = 1; // Base value for any message
-
-  // Thread starter = higher value (initiates conversation)
-  if (!msg.thread_ts) {
-    value += 2;
-  }
-
-  // Thread reply = medium value (participates in conversation)
-  if (msg.thread_ts && msg.thread_ts !== msg.message_ts) {
-    value += 1;
-  }
-
-  // File share = extra value (content contribution)
-  if (msg.files) {
-    value += 2;
-  }
-
-  // Long message = more engagement
-  if (msg.text && msg.text.length > 500) {
-    value += 1;
-  }
-
-  return value;
 }
