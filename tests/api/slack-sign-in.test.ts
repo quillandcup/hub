@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, vi } from 'vitest'
 import { NextRequest } from 'next/server'
 import { createHmac } from 'crypto'
 import { getTestSupabaseAdminClient, getTestSupabaseClient } from '../helpers/supabase'
@@ -54,6 +54,7 @@ import {
   formatSlackSignInCode,
   SLACK_REFRESH_ACTION_ID,
   SLACK_SEND_LINK_ACTION_ID,
+  SLACK_ADMIN_SIGN_IN_TTL_MINUTES,
 } from '@/lib/slack-sign-in'
 import { extractSlackSignInCredential } from '@/lib/slack-sign-in-code'
 import { completeSlackSignIn, signInWithSlackCode } from '@/app/auth/slack/actions'
@@ -284,6 +285,69 @@ describe('Slack sign-in', () => {
       expect(await resolveHubUserForSlackUser(supabase, slack.admin)).toEqual({ status: 'admin' })
       const { data } = await supabase.from('slack_identities').select('slack_user_id').eq('slack_user_id', slack.admin)
       expect(data).toHaveLength(0)
+    })
+  })
+
+  describe('admins who opted in (slack_admin_sign_in preview)', () => {
+    const optIn = () => supabase.from('user_feature_previews').upsert({ user_id: adminUserId, feature_key: 'slack_admin_sign_in' })
+    const optOut = () => supabase.from('user_feature_previews').delete().eq('user_id', adminUserId).eq('feature_key', 'slack_admin_sign_in')
+
+    beforeEach(optIn)
+    afterEach(optOut)
+
+    it('resolves and binds them, marked as admin', async () => {
+      slackUsersInfo.mockResolvedValue(slackProfile(adminEmail))
+      expect(await resolveHubUserForSlackUser(supabase, slack.admin)).toEqual({
+        status: 'ok',
+        userId: adminUserId,
+        email: adminEmail,
+        admin: true,
+      })
+      const { data } = await supabase.from('slack_identities').select('user_id').eq('slack_user_id', slack.admin).single()
+      expect(data?.user_id).toBe(adminUserId)
+    })
+
+    it('ignores the global switch: only their own opt-in counts', async () => {
+      await optOut()
+      await supabase.from('feature_flags').upsert({ feature_key: 'slack_admin_sign_in', enabled_globally: true })
+      try {
+        slackUsersInfo.mockResolvedValue(slackProfile(adminEmail))
+        expect(await resolveHubUserForSlackUser(supabase, slack.admin)).toEqual({ status: 'admin' })
+      } finally {
+        await supabase.from('feature_flags').delete().eq('feature_key', 'slack_admin_sign_in')
+      }
+    })
+
+    it(`gives them ${SLACK_ADMIN_SIGN_IN_TTL_MINUTES}-minute links that sign them in`, async () => {
+      slackUsersInfo.mockResolvedValue(slackProfile(adminEmail))
+      const body = new URLSearchParams({ command: '/hub', user_id: slack.admin }).toString()
+      const json = await (
+        await commandsPOST(signedRequest(`${ORIGIN}/api/webhooks/slack/commands`, body, 'application/x-www-form-urlencoded'))
+      ).json()
+      const open = json.blocks.find((b: { type: string }) => b.type === 'actions').elements[0]
+
+      const { data: row } = await supabase
+        .from('slack_sign_in_tokens')
+        .select('expires_at')
+        .eq('slack_user_id', slack.admin)
+        .is('used_at', null)
+        .single()
+      const minutesLeft = (new Date(row!.expires_at).getTime() - Date.now()) / 60_000
+      expect(minutesLeft).toBeGreaterThan(SLACK_ADMIN_SIGN_IN_TTL_MINUTES - 1)
+      expect(minutesLeft).toBeLessThanOrEqual(SLACK_ADMIN_SIGN_IN_TTL_MINUTES)
+
+      await buttonGET(buttonRequest(tokenOf(open.url), true))
+      expect(await signedInUserId()).toBe(adminUserId)
+    })
+
+    it('revokes their outstanding links when they opt out', async () => {
+      slackUsersInfo.mockResolvedValue(slackProfile(adminEmail))
+      await resolveHubUserForSlackUser(supabase, slack.admin)
+      const issued = await issueSlackSignIn(supabase, { slackUserId: slack.admin, origin: ORIGIN, ttlMinutes: SLACK_ADMIN_SIGN_IN_TTL_MINUTES })
+      await optOut()
+
+      const res = await buttonGET(buttonRequest(tokenOf(issued.url), true))
+      expect(res.headers.get('location')).toBe(`${ORIGIN}/auth/slack/continue?error=unavailable`)
     })
   })
 
