@@ -1,0 +1,216 @@
+// @vitest-environment jsdom
+import React from "react";
+import { describe, it, expect, vi, beforeEach, beforeAll } from "vitest";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { buildOnboardingState, type OnboardingState } from "@/lib/onboarding";
+
+const nav = vi.hoisted(() => ({ pathname: "/dashboard", search: "" }));
+vi.mock("next/navigation", () => ({
+  usePathname: () => nav.pathname,
+  useSearchParams: () => new URLSearchParams(nav.search),
+}));
+vi.mock("next/link", () => ({
+  default: ({ href, children, ...rest }: { href: string; children: React.ReactNode }) => (
+    <a href={href} {...rest}>
+      {children}
+    </a>
+  ),
+}));
+vi.mock("@/app/actions/onboarding", () => ({
+  getMyOnboardingState: vi.fn(),
+  markOnboardingStep: vi.fn(),
+  dismissOnboarding: vi.fn(),
+  completeOnboarding: vi.fn(),
+}));
+
+import OnboardingGuide from "@/components/onboarding/OnboardingGuide";
+import {
+  completeOnboarding,
+  dismissOnboarding,
+  getMyOnboardingState,
+  markOnboardingStep,
+} from "@/app/actions/onboarding";
+
+const NOW = new Date();
+const NOT_HOST = { isHost: false, hasHostingSchedule: false, hostedRecently: false, hasHostVibe: false };
+const fresh = (): OnboardingState =>
+  buildOnboardingState(
+    { hasProfile: false, latestProjectId: null, hasGoal: false, hasPricklePlan: false, ...NOT_HOST },
+    null,
+    NOW,
+    NOW
+  );
+
+beforeAll(() => {
+  globalThis.ResizeObserver ??= class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  } as unknown as typeof ResizeObserver;
+  Element.prototype.scrollIntoView ??= function () {};
+});
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  nav.pathname = "/dashboard";
+  nav.search = "";
+  document.body.innerHTML = "";
+});
+
+describe("OnboardingGuide", () => {
+  it("lists the steps and links the current one to its page", async () => {
+    vi.mocked(getMyOnboardingState).mockResolvedValue(fresh());
+    render(<OnboardingGuide initialState={fresh()} />);
+
+    expect(screen.getByRole("region", { name: "Getting started" })).toBeInTheDocument();
+    expect(screen.getByText("0 of 4 done ▾")).toBeInTheDocument();
+    expect(screen.getByText("Check your names")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Show me →" })).toHaveAttribute("href", "/settings?tab=identity");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("renders nothing when the tour isn't active", () => {
+    const state = { ...fresh(), active: false };
+    vi.mocked(getMyOnboardingState).mockResolvedValue(state);
+    const { container } = render(<OnboardingGuide initialState={state} />);
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it("spotlights the step's control on its page, and the confirm button marks the step", async () => {
+    nav.pathname = "/settings";
+    nav.search = "tab=identity";
+    const target = document.createElement("div");
+    target.setAttribute("data-tour", "identity-names");
+    document.body.appendChild(target);
+
+    const after = buildOnboardingState(
+      { hasProfile: false, latestProjectId: null, hasGoal: false, hasPricklePlan: false, ...NOT_HOST },
+      { marked_steps: ["identity"], dismissed_at: null, completed_at: null },
+      NOW,
+      NOW
+    );
+    vi.mocked(getMyOnboardingState).mockResolvedValueOnce(fresh()).mockResolvedValue(after);
+    vi.mocked(markOnboardingStep).mockResolvedValue({ success: true });
+
+    render(<OnboardingGuide initialState={fresh()} />);
+
+    const dialog = await screen.findByRole("dialog", { name: "Check your names" });
+    expect(dialog).toHaveTextContent("Step 1 of 4");
+    expect(screen.getByTestId("onboarding-highlight")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Show me →" })).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "My names look right" }));
+    expect(markOnboardingStep).toHaveBeenCalledWith("identity");
+    await waitFor(() => expect(screen.getByText("1 of 4 done ▾")).toBeInTheDocument());
+    expect(screen.queryByRole("dialog", { name: "Check your names" })).not.toBeInTheDocument();
+  });
+
+  it("Hide closes the spotlight and offers Show me again", async () => {
+    nav.pathname = "/settings";
+    nav.search = "tab=identity";
+    const target = document.createElement("div");
+    target.setAttribute("data-tour", "identity-names");
+    document.body.appendChild(target);
+    vi.mocked(getMyOnboardingState).mockResolvedValue(fresh());
+
+    render(<OnboardingGuide initialState={fresh()} />);
+    await userEvent.click(await screen.findByRole("button", { name: "Hide" }));
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("link", { name: "Show me →" }));
+    expect(await screen.findByRole("dialog", { name: "Check your names" })).toBeInTheDocument();
+  });
+
+  it("using the spotlit control works as normal and steps the spotlight aside", async () => {
+    nav.pathname = "/projects";
+    vi.mocked(getMyOnboardingState).mockResolvedValue({ ...fresh(), currentStepId: "writing" });
+    const state = { ...fresh(), currentStepId: "writing" as const };
+
+    function Page() {
+      const [open, setOpen] = React.useState(false);
+      return (
+        <>
+          <button type="button" data-tour="new-project" onClick={() => setOpen(true)}>
+            New project
+          </button>
+          {open && <p>New project form</p>}
+          <OnboardingGuide initialState={state} />
+        </>
+      );
+    }
+    render(<Page />);
+
+    expect(await screen.findByRole("dialog", { name: "Set a writing goal" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "New project" }));
+
+    expect(screen.getByText("New project form")).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("folds the checklist to its header while a spotlight is up, and opens it on request", async () => {
+    nav.pathname = "/settings";
+    nav.search = "tab=identity";
+    const target = document.createElement("div");
+    target.setAttribute("data-tour", "identity-names");
+    document.body.appendChild(target);
+    vi.mocked(getMyOnboardingState).mockResolvedValue(fresh());
+    render(<OnboardingGuide initialState={fresh()} />);
+
+    await screen.findByRole("dialog", { name: "Check your names" });
+    const header = screen.getByRole("button", { name: /Getting started/ });
+    expect(header).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByText("Introduce yourself")).not.toBeInTheDocument();
+
+    await userEvent.click(header);
+    expect(header).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByText("Introduce yourself")).toBeInTheDocument();
+  });
+
+  it("starts folded on a phone-width screen", () => {
+    const matchMedia = vi.fn().mockReturnValue({ matches: true, addEventListener() {}, removeEventListener() {} });
+    vi.stubGlobal("matchMedia", matchMedia);
+    try {
+      vi.mocked(getMyOnboardingState).mockResolvedValue(fresh());
+      render(<OnboardingGuide initialState={fresh()} />);
+      expect(screen.getByRole("button", { name: /Getting started/ })).toHaveAttribute("aria-expanded", "false");
+      expect(matchMedia).toHaveBeenCalledWith("(max-width: 767px)");
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("Close the tour dismisses it", async () => {
+    vi.mocked(getMyOnboardingState).mockResolvedValue(fresh());
+    vi.mocked(dismissOnboarding).mockResolvedValue({ success: true });
+    render(<OnboardingGuide initialState={fresh()} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Close the tour" }));
+    expect(dismissOnboarding).toHaveBeenCalled();
+  });
+
+  it("says all set once every step is done, and Finish completes it", async () => {
+    const done = buildOnboardingState(
+      { hasProfile: true, latestProjectId: "p1", hasGoal: true, hasPricklePlan: true, ...NOT_HOST },
+      { marked_steps: ["identity"], dismissed_at: null, completed_at: null },
+      NOW,
+      NOW
+    );
+    vi.mocked(getMyOnboardingState).mockResolvedValue(done);
+    vi.mocked(completeOnboarding).mockResolvedValue({ success: true });
+    render(<OnboardingGuide initialState={done} />);
+
+    expect(screen.getByText(/You're all set/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Finish" }));
+    expect(completeOnboarding).toHaveBeenCalled();
+  });
+
+  it("shows an error from a failed action", async () => {
+    vi.mocked(getMyOnboardingState).mockResolvedValue(fresh());
+    vi.mocked(dismissOnboarding).mockResolvedValue({ error: "Couldn't save that" });
+    render(<OnboardingGuide initialState={fresh()} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Close the tour" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't save that");
+  });
+});

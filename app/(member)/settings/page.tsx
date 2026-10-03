@@ -133,7 +133,11 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
                     {
                       id: "hosting" as const,
                       label: "Hosting",
-                      content: <HostVibePanel hostedVibes={hostedVibes} />,
+                      content: (
+                        <div data-tour="host-vibe">
+                          <HostVibePanel hostedVibes={hostedVibes} />
+                        </div>
+                      ),
                     },
                   ]
                 : []),

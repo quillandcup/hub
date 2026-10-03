@@ -112,6 +112,10 @@ const WEIGHT_PERSONAL = 2;
 /** Similar rated sessions needed before a series' personal history counts at all. */
 export const MIN_PERSONAL_SESSIONS = 2;
 
+/** How far back the picker looks at attendance and hosting (and so which prickle types a host
+ * sets a vibe for in Settings → Hosting). */
+export const PICKER_HISTORY_MONTHS = 6;
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------

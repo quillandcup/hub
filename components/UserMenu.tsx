@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useTransition } from 'react'
 import Link from 'next/link'
+import { startOnboarding } from '@/app/actions/onboarding'
 import SignOutButton from './SignOutButton'
 import SudoModal from './SudoModal'
 import FeaturePreviewsModal from './FeaturePreviewsModal'
@@ -13,6 +14,8 @@ interface UserMenuProps {
   isAdmin?: boolean
   isSudo?: boolean
   enabledFeatures?: FeatureKey[]
+  /** Show "Take the tour" (the `onboarding` flag is on and this isn't sudo). */
+  canStartOnboarding?: boolean
 }
 
 export default function UserMenu({
@@ -21,8 +24,10 @@ export default function UserMenu({
   isAdmin = false,
   isSudo = false,
   enabledFeatures = [],
+  canStartOnboarding = false,
 }: UserMenuProps) {
   const [isOpen, setIsOpen] = useState(false)
+  const [isStartingTour, startTourTransition] = useTransition()
   const [isSudoModalOpen, setIsSudoModalOpen] = useState(false)
   // This menu lives in the layout, so its state survives sudo's navigation. Close
   // the modal when sudo starts, or it pops back open the moment sudo is exited.
@@ -91,6 +96,23 @@ export default function UserMenu({
             >
               Settings
             </Link>
+
+            {canStartOnboarding && (
+              <button
+                type="button"
+                disabled={isStartingTour}
+                onClick={() =>
+                  startTourTransition(async () => {
+                    // Revalidates the layout, which re-renders the guide with the restarted tour.
+                    await startOnboarding()
+                    setIsOpen(false)
+                  })
+                }
+                className="w-full text-left px-4 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors disabled:opacity-60"
+              >
+                Take the tour
+              </button>
+            )}
 
             {isAdmin && (
               <button

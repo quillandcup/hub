@@ -1,4 +1,4 @@
-export type FeatureKey = 'member_overrides' | 'hedgieversaries' | 'work_queue' | 'program_cohorts' | 'events' | 'message_privacy' | 'slack_admin_sign_in';
+export type FeatureKey = 'member_overrides' | 'hedgieversaries' | 'work_queue' | 'program_cohorts' | 'events' | 'message_privacy' | 'slack_admin_sign_in' | 'onboarding';
 
 export interface FeaturePreview {
   key: FeatureKey;
@@ -41,6 +41,11 @@ export const FEATURE_PREVIEWS: FeaturePreview[] = [
     key: 'slack_admin_sign_in',
     name: 'Slack Sign-In for Admins',
     description: 'Lets you sign in to your admin account from Billie Bot (/hub or its Home tab), with links that last 10 minutes. Anyone who can use your Slack can then get into the Hub as you. Only your own opt-in counts: the global switch and segments do not turn this on',
+  },
+  {
+    key: 'onboarding',
+    name: 'Getting Started Tour',
+    description: 'A guided tour that walks members page to page through setting up their names, profile, a writing goal and their first prickle (and, for hosts, their hosting schedule and vibe). Starts on its own for accounts under 30 days old; anyone can start it from the user menu',
   },
 ];
 

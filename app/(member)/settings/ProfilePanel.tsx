@@ -168,7 +168,7 @@ export function ProfilePanel() {
       )}
 
       <form onSubmit={handleSave} className="space-y-4 max-w-md">
-        <div>
+        <div data-tour="profile-bio">
           <div className="flex items-baseline justify-between mb-1">
             <label htmlFor="profile-bio" className="text-sm font-medium text-slate-900 dark:text-slate-100">
               Bio

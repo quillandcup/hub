@@ -336,7 +336,7 @@ export function IdentityPanel() {
       </div>
 
       {/* Pen Names / Zoom & Slack aliases */}
-      <div>
+      <div data-tour="identity-names">
         <h3 className="text-sm font-medium text-slate-900 dark:text-slate-100 mb-1">Pen Names &amp; Zoom/Slack Names</h3>
         <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">
           Other names people know you by — a pen name, or a different name you use in Zoom or Slack. Add

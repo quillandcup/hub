@@ -357,6 +357,7 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
             setShowNewGoal((v) => !v);
             setEditingGoal(null);
           }}
+          data-tour="add-goal"
           className="text-sm text-plum-600 hover:text-plum-700 dark:text-plum-400 font-medium"
         >
           {showNewGoal ? "Cancel" : "+ Add a goal"}
