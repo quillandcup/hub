@@ -17,7 +17,7 @@ Vercel values. `env-vars.config.ts` is the source of truth for which var goes wh
 |---|---|---|
 | `SUPABASE_SERVICE_ROLE_KEY` (and the public anon key) | https://supabase.com/dashboard/project/bxwtougjidectvjegdlr/settings/api | `npm run env:sync` |
 | `SUPABASE_ACCESS_TOKEN` | https://supabase.com/dashboard/account/tokens | `npm run env:sync:github` |
-| `SUPABASE_DB_PASSWORD` | https://supabase.com/dashboard/project/bxwtougjidectvjegdlr/settings/database -> Reset database password | `npm run env:sync:github` |
+| `SUPABASE_DB_PASSWORD` | https://supabase.com/dashboard/project/bxwtougjidectvjegdlr/settings/database -> Reset database password (`.env.prod` only) | `npm run env:sync:github`, then re-link the local CLI (see Supabase below) |
 | `ZOOM_CLIENT_SECRET` | https://marketplace.zoom.us/develop/apps/gcFgx-76S8aaL4AiYqaHng/credentials | `npm run env:sync` |
 | `ZOOM_WEBHOOK_SECRET_TOKEN` | https://marketplace.zoom.us/develop/apps/gcFgx-76S8aaL4AiYqaHng/event-subscriptions | `npm run env:sync` |
 | `KAJABI_CLIENT_SECRET` | https://app.kajabi.com/admin/settings/public_api | `npm run env:sync` |
@@ -155,6 +155,23 @@ as the last step of `.github/workflows/ci.yml`, after tests pass and migrations 
 |-------------|-----|
 | Production | https://supabase.com/dashboard/project/bxwtougjidectvjegdlr |
 | Development | https://supabase.com/dashboard/project/odgzkogzmzcnwgyfqvvt |
+
+The production database password (`SUPABASE_DB_PASSWORD`) lives in `.env.prod` only: preview
+uses the separate Development project. CI needs it for `supabase db push` (migrations connect
+straight to Postgres); everything else goes through the Management API with
+`SUPABASE_ACCESS_TOKEN`.
+
+After resetting the password, update `.env.prod`, run `npm run env:sync:github`, and re-link
+your local CLI (it saves the password it linked with, so plain `supabase` commands otherwise
+keep the old one):
+
+```bash
+npx dotenv -e .env.prod -- supabase link --project-ref bxwtougjidectvjegdlr
+npx dotenv -e .env.prod -- supabase migration list --linked   # auth error = still the old password
+```
+
+The repo's `npm run db:push` / `config:diff` / `config:push` need no re-link: they load
+`.env.prod` on every run.
 
 ---
 
