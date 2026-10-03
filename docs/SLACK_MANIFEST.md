@@ -2,9 +2,9 @@
 
 `slack-app-manifest.yml` is the source of truth for the Slack app (Billie Bot): its name and description, bot scopes, the `/hub` slash command, event subscriptions and request URLs.
 
-On every push to main, after the production deploy, CI's `push-slack-manifest` job runs `scripts/slack-manifest.ts push`, which prints the difference between the manifest and the live app and then replaces the live configuration (it skips the update when there is no difference).
+On a push to main that changes `slack-app-manifest.yml` or `scripts/slack-manifest.ts`, after the production deploy, CI's `push-slack-manifest` job runs `scripts/slack-manifest.ts push`, which prints the difference between the manifest and the live app and then replaces the live configuration (it skips the update when there is no difference). Pushes that change neither file skip the job's steps, so they don't spend the refresh token (see [If the job fails on the token](#if-the-job-fails-on-the-token)). A manual run (`gh workflow run ci.yml --ref main`) always pushes.
 
-**The push replaces everything.** Anything set in the Slack dashboard but absent from the manifest is removed on the next push to main. Change the manifest, not the dashboard.
+**The push replaces everything.** Anything set in the Slack dashboard but absent from the manifest is removed on the next manifest push. Change the manifest, not the dashboard.
 
 ## Before merging a manifest change
 
@@ -44,5 +44,9 @@ Configuration tokens belong to a user and workspace, not to the app, so the job 
 ## If the job fails on the token
 
 `tooling.tokens.rotate: invalid_refresh_token` (or the "could not save the new refresh token" message) means the stored refresh token is spent or lost. That happens if a run died between rotating and saving, if `GH_TOKEN_SLACK_MANIFEST` expired, or if someone used that same refresh token elsewhere. Repeat step 3 above, fix `GH_TOKEN_SLACK_MANIFEST` if that was the cause, then re-run the job (`gh run rerun <run-id> --failed`).
+
+It can also be a race rather than a spent token. A run seems to fix its secret values around when it's queued, so a run queued while an earlier run's job was rotating carries the old refresh token. Check `gh secret list` first: if `SLACK_CONFIG_REFRESH_TOKEN` was updated after the failed run was created, the stored token is probably fine. Re-run the failed job before generating a new token.
+
+A failed push isn't retried by later pushes that don't touch the manifest, so re-run the failed job (or start a manual run) rather than waiting for the next merge.
 
 The production deploy has already finished by the time this job runs, so a failure here never blocks a release.
