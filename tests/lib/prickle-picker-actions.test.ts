@@ -17,7 +17,11 @@ vi.mock("next/cache", () => ({
   revalidatePath: vi.fn(),
 }));
 
-import { saveHostVibe } from "@/app/(member)/prickle-picker/actions";
+vi.mock("@/lib/timezone", () => ({
+  getUserTimezonePreference: vi.fn().mockResolvedValue("America/New_York"),
+}));
+
+import { getWizardRecommendations, saveHostVibe } from "@/app/(member)/prickle-picker/actions";
 import { createClient } from "@/lib/supabase/server";
 import { getEffectiveIdentity } from "@/lib/sudo";
 
@@ -135,5 +139,79 @@ describe("saveHostVibe authorization scoping", () => {
 
     const result = await saveHostVibe("type-a", "chatty", "");
     expect(result).toEqual({ error: "constraint violation" });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// getWizardRecommendations: feelings + personal history
+// ---------------------------------------------------------------------------
+
+/** A chainable query fake: every filter returns itself, awaiting resolves the table's rows. */
+function makeQueryFake(tables: Record<string, unknown[]>) {
+  const calls: { table: string; method: string; args: unknown[] }[] = [];
+  const from = vi.fn((table: string) => {
+    const result = { data: tables[table] ?? [], error: null };
+    const builder: Record<string, unknown> = {
+      then: (resolve: (v: unknown) => unknown, reject?: (e: unknown) => unknown) =>
+        Promise.resolve(result).then(resolve, reject),
+    };
+    for (const method of ["select", "eq", "gte", "lte", "lt", "order", "not", "in", "range"]) {
+      builder[method] = (...args: unknown[]) => {
+        calls.push({ table, method, args });
+        return builder;
+      };
+    }
+    return builder;
+  });
+  return {
+    client: {
+      auth: { getClaims: vi.fn().mockResolvedValue({ data: { claims: { sub: "auth-user-1" } }, error: null }) },
+      from,
+    },
+    calls,
+  };
+}
+
+const MEMBER = { memberId: "member-1", memberName: "Member One", memberEmail: "m1@example.com", isSudo: false };
+const BASE_ANSWERS = { windowDays: 7, timeOfDay: "any" as const, vibe: "any" as const, purpose: "any" as const, withMemberIds: [] };
+
+describe("getWizardRecommendations", () => {
+  it("rejects unknown feelings before querying anything", async () => {
+    const fake = makeQueryFake({});
+    vi.mocked(createClient).mockResolvedValue(fake.client as any);
+    vi.mocked(getEffectiveIdentity).mockResolvedValue(MEMBER);
+
+    const result = await getWizardRecommendations({ ...BASE_ANSWERS, feelings: ["hangry" as any] });
+    expect(result).toEqual({ error: "Invalid feelings" });
+    expect(fake.client.from).not.toHaveBeenCalled();
+  });
+
+  it("ranks with the member's own rated check-ins from similar times", async () => {
+    const soon = (h: number) => new Date(Date.now() + h * 3600_000).toISOString();
+    const fake = makeQueryFake({
+      prickle_types: [{ id: "t1", name: "Heads Down", purpose: "writing", solo_task_friendly: true }],
+      member_directory: [],
+      prickles: [
+        { id: "p-a", type_id: "t1", host_id: "host-a", start_time: soon(2) },
+        { id: "p-b", type_id: "t1", host_id: "host-b", start_time: soon(3) },
+      ],
+      prickle_host_vibes: [],
+      prickle_attendance: [],
+      prickle_checkins: [
+        { feelings_before: ["anxious"], need: null, session_rating: 5, prickles: { type_id: "t1", host: "host-b" } },
+        { feelings_before: ["anxious"], need: null, session_rating: 5, prickles: { type_id: "t1", host: "host-b" } },
+        { feelings_before: ["calm"], need: null, session_rating: 1, prickles: { type_id: "t1", host: "host-a" } },
+      ],
+    });
+    vi.mocked(createClient).mockResolvedValue(fake.client as any);
+    vi.mocked(getEffectiveIdentity).mockResolvedValue(MEMBER);
+
+    const result = await getWizardRecommendations({ ...BASE_ANSWERS, feelings: ["stressed"], need: null });
+    if ("error" in result) throw new Error(result.error);
+
+    expect(result.recommendations[0].hostId).toBe("host-b");
+    expect(result.recommendations[0].personal).toEqual({ sessions: 2, avgRating: 5 });
+    expect(fake.calls).toContainEqual({ table: "prickle_checkins", method: "eq", args: ["member_id", "member-1"] });
+    expect(fake.calls).toContainEqual({ table: "prickle_checkins", method: "not", args: ["session_rating", "is", null] });
   });
 });

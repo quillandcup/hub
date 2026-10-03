@@ -20,6 +20,11 @@ interface PrickleCheckInProps {
   initial: CheckinInput | null;
   /** Sudo: an admin sees the member's answers but can't change them. */
   readOnly?: boolean;
+  /**
+   * Unsaved starting answers (e.g. from the Prickle Picker) when there's no saved check-in yet.
+   * Shown selected with Save enabled; nothing is stored until the member saves.
+   */
+  prefill?: CheckinInput | null;
 }
 
 const EMPTY: CheckinInput = { feelingsBefore: [], need: null, sessionRating: null, feelingsAfter: [] };
@@ -75,8 +80,14 @@ function FeelingPicker({
 }
 
 /** Private check-in for a prickle: feelings coming in, what the member needs, and how it went. */
-export default function PrickleCheckIn({ prickleId, hasStarted, initial, readOnly = false }: PrickleCheckInProps) {
-  const [checkin, setCheckin] = useState<CheckinInput>(initial ?? EMPTY);
+export default function PrickleCheckIn({
+  prickleId,
+  hasStarted,
+  initial,
+  readOnly = false,
+  prefill = null,
+}: PrickleCheckInProps) {
+  const [checkin, setCheckin] = useState<CheckinInput>(initial ?? (readOnly ? null : prefill) ?? EMPTY);
   const [saved, setSaved] = useState<CheckinInput>(initial ?? EMPTY);
   const [isPending, setIsPending] = useState(false);
   const [error, setError] = useState<string | null>(null);

@@ -2,6 +2,8 @@ import { describe, it, expect } from "vitest";
 import {
   getPrickleRecommendations,
   seriesKeyFor,
+  similarCheckins,
+  type PersonalCheckin,
   type CandidatePrickle,
   type HistoricalAttendanceRow,
   type HostVibeRow,
@@ -452,5 +454,91 @@ describe("window filtering", () => {
     );
     expect(result).toHaveLength(1);
     expect(result[0].occurrences[0].id).toBe("in");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Personal history (the member's own rated check-ins)
+// ---------------------------------------------------------------------------
+
+describe("similarCheckins", () => {
+  const checkins: PersonalCheckin[] = [
+    { seriesKey: "a", feelingsBefore: ["anxious"], need: null, sessionRating: 4 },
+    { seriesKey: "b", feelingsBefore: ["tired"], need: "gentle", sessionRating: 5 },
+    { seriesKey: "c", feelingsBefore: ["lonely"], need: null, sessionRating: 3 },
+    { seriesKey: "d", feelingsBefore: ["stuck"], need: null, sessionRating: 2 },
+  ];
+
+  it("matches a feeling in the same group", () => {
+    // Stressed and Anxious are both "wound up".
+    expect(similarCheckins(checkins, ["stressed"], null).map((c) => c.seriesKey)).toEqual(["a"]);
+  });
+
+  it("matches the same need regardless of feelings", () => {
+    expect(similarCheckins(checkins, ["motivated"], "gentle").map((c) => c.seriesKey)).toEqual(["b"]);
+  });
+
+  it("only matches an ungrouped feeling exactly", () => {
+    expect(similarCheckins(checkins, ["lonely"], null).map((c) => c.seriesKey)).toEqual(["c"]);
+    expect(similarCheckins(checkins, ["scattered"], null)).toEqual([]);
+  });
+
+  it("counts every check-in when the member didn't say how they feel", () => {
+    expect(similarCheckins(checkins, [], null)).toHaveLength(4);
+  });
+});
+
+describe("personal history ranking", () => {
+  const focusSeries = seriesKeyFor(writingType.id, hostA.id);
+  const sprintSeries = seriesKeyFor(sprintType.id, hostB.id);
+  const upcoming = [
+    candidate("c-focus", writingType.id, hostA.id, "2026-01-10T15:00:00Z"),
+    candidate("c-sprint", sprintType.id, hostB.id, "2026-01-10T16:00:00Z"),
+  ];
+
+  function rated(seriesKey: string, rating: number, feelings: PersonalCheckin["feelingsBefore"] = ["stressed"]) {
+    return { seriesKey, feelingsBefore: feelings, need: null, sessionRating: rating };
+  }
+
+  it("ranks the series the member rated above their own average, when they felt similar", () => {
+    const history = [rated(focusSeries, 5), rated(focusSeries, 5), rated(sprintSeries, 2), rated(sprintSeries, 2)];
+    const result = getPrickleRecommendations(
+      upcoming, types, hosts, [], [], [], baseAnswers({ feelings: ["anxious"] }), 8, history
+    );
+    expect(result.map((r) => r.seriesKey)).toEqual([focusSeries, sprintSeries]);
+    expect(result[0].personal).toEqual({ sessions: 2, avgRating: 5 });
+    expect(result[0].score).toBeGreaterThan(result[1].score);
+  });
+
+  it("ignores history from times the member felt differently", () => {
+    // Only "motivated" sessions loved the sprint; today they're stressed.
+    const history = [
+      rated(sprintSeries, 5, ["motivated"]),
+      rated(sprintSeries, 5, ["motivated"]),
+      rated(focusSeries, 3),
+      rated(focusSeries, 3),
+    ];
+    const result = getPrickleRecommendations(
+      upcoming, types, hosts, [], [], [], baseAnswers({ feelings: ["stressed"] }), 8, history
+    );
+    expect(result.find((r) => r.seriesKey === sprintSeries)!.personal).toBeNull();
+    expect(result.find((r) => r.seriesKey === focusSeries)!.personal).toEqual({ sessions: 2, avgRating: 3 });
+  });
+
+  it("needs at least two similar sessions before history counts", () => {
+    const result = getPrickleRecommendations(
+      upcoming, types, hosts, [], [], [], baseAnswers({ feelings: ["stressed"] }), 8, [rated(focusSeries, 5)]
+    );
+    expect(result.every((r) => r.personal === null)).toBe(true);
+    expect(result[0].score).toBe(result[1].score);
+  });
+
+  it("compares against the member's own average, so a harsh rater's best still ranks first", () => {
+    // Everything this member rates is low; the focus series is merely less low.
+    const history = [rated(focusSeries, 3), rated(focusSeries, 3), rated(sprintSeries, 1), rated(sprintSeries, 1)];
+    const result = getPrickleRecommendations(
+      upcoming, types, hosts, [], [], [], baseAnswers({ feelings: ["stressed"] }), 8, history
+    );
+    expect(result[0].seriesKey).toBe(focusSeries);
   });
 });
