@@ -55,7 +55,7 @@ export const MEASURE_LABELS: Record<WritingMeasure, string> = {
 };
 
 /**
- * Preset amounts for the post-prickle quick-log Slack DM's one-tap dropdown (Phase 1, item 10).
+ * Preset amounts for the prickle check-out Slack DM's one-tap dropdown (Phase 1, item 10).
  * 'prickles' is intentionally absent -- that measure is computed live from prickle_attendance
  * (see derivePrickleHabitEntries below), never manually logged, so there's nothing to quick-log
  * for it. The DM always targets one of the other six measures instead (see

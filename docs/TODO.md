@@ -446,7 +446,7 @@ Per-user login/access history (`access_events` table + `get_access_sessions()`, 
 ## Notifications
 
 ### Notification Framework _(Needs Scoping — prerequisite for in-app chat adoption)_
-One system for everything the app tells a member, instead of each feature hand-rolling a Slack DM (pre-prickle nudges, writing nudges, Wheel of Wonder, payment failures). In-app chat especially needs this: members won't move off Slack without being told about new messages, mentions and DMs.
+One system for everything the app tells a member, instead of each feature hand-rolling a Slack DM (prickle check-in and check-out DMs, Wheel of Wonder, payment failures). In-app chat especially needs this: members won't move off Slack without being told about new messages, mentions and DMs.
 
 **Delivery channels:**
 - In-app: notification inbox + unread badges
@@ -463,6 +463,11 @@ One system for everything the app tells a member, instead of each feature hand-r
 - Unsubscribe links and delivery tracking (Resend webhooks), logged to `member_activities` where useful
 
 Subsumes the "Messaging Abstraction Layer" under CRM Features → Slack Integration; build that on this rather than separately.
+
+### Finish renaming "pre-prickle nudges" to prickle check-ins _(Cleanup)_
+Migration `20261003130000` renamed the code, route, cron job and dedup log to check-in/check-out names. Two names stayed because changing them needs steps outside the repo:
+- **Checkly heartbeat**: `CRON_HEARTBEATS["pre-prickle-nudges"]` (`lib/cron-heartbeats.ts`) and `CHECKLY_HEARTBEAT_PRE_PRICKLE_NUDGES`. The key is the monitor's logical id (`cron-pre-prickle-nudges`), so renaming it (e.g. to `prickle-checkins` / `CHECKLY_HEARTBEAT_PRICKLE_CHECKINS`) replaces the monitor. Deploy the checks, copy the new ping URL into `.env.prod` under the new var, run `npm run env:sync`, then remove the old var.
+- **Vault secret** `writing_nudge_cron_secret` (cron → route auth; `env-vars.config.ts` destination for `CRON_INTERNAL_SECRET`). Rename the `vaultName`, run `npm run env:sync:vault`, then a migration that reschedules `send-prickle-checkins` to read the new name. Delete the old secret only after that migration is live.
 
 ---
 

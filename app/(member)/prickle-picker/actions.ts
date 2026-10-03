@@ -102,6 +102,7 @@ async function fetchMyRatedCheckins(supabase: SupabaseClient, memberId: string):
       .from("prickle_checkins")
       .select("feelings_before, need, session_rating, prickles!inner(type_id, host)")
       .eq("member_id", memberId)
+      .is("deleted_at", null)
       .not("session_rating", "is", null)
       .order("id")
       .range(offset, offset + BATCH_SIZE - 1)

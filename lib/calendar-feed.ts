@@ -297,8 +297,8 @@ export async function loadCalendarFeedEvents(
 /**
  * Ids of the scheduled prickles on one member's calendar feed starting at or after `since`:
  * hosting, committed occurrences and prickles added by hand -- exactly what the feed shows,
- * because it's the same loader. Used by the pre-prickle nudge ("if it's on their calendar,
- * nudge them").
+ * because it's the same loader. Used by the prickle check-in DM ("if it's on their calendar,
+ * check in with them").
  */
 export async function loadCalendarFeedPrickleIds(
   supabase: SupabaseClient,

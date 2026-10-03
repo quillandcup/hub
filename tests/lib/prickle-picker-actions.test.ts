@@ -155,7 +155,7 @@ function makeQueryFake(tables: Record<string, unknown[]>) {
       then: (resolve: (v: unknown) => unknown, reject?: (e: unknown) => unknown) =>
         Promise.resolve(result).then(resolve, reject),
     };
-    for (const method of ["select", "eq", "gte", "lte", "lt", "order", "not", "in", "range"]) {
+    for (const method of ["select", "eq", "gte", "lte", "lt", "order", "not", "is", "in", "range"]) {
       builder[method] = (...args: unknown[]) => {
         calls.push({ table, method, args });
         return builder;
@@ -213,5 +213,6 @@ describe("getWizardRecommendations", () => {
     expect(result.recommendations[0].personal).toEqual({ sessions: 2, avgRating: 5 });
     expect(fake.calls).toContainEqual({ table: "prickle_checkins", method: "eq", args: ["member_id", "member-1"] });
     expect(fake.calls).toContainEqual({ table: "prickle_checkins", method: "not", args: ["session_rating", "is", null] });
+    expect(fake.calls).toContainEqual({ table: "prickle_checkins", method: "is", args: ["deleted_at", null] });
   });
 });

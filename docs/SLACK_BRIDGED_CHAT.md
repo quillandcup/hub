@@ -184,7 +184,7 @@ Adding someone in the Hub → `conversations.invite`; removing → `conversation
 - **Formatting**: render from Slack's `rich_text` block (exact mentions, links, lists, code), falling back to `text`. Translate both ways: `<@U123>` ↔ member mention, `<#C123>` ↔ channel link, links, emoji shortcodes.
 - **Block Kit (display)**: render a supported subset (section, context, header, divider, image). Anything else falls back to the message's `text` with "Open in Slack".
 - **Interactive elements**:
-  - Our own bot's messages (Wheel of Wonder, writing nudges, pre-prickle nudges): action handlers become Slack-independent (`handleAction(actionId, value, memberId)`), called by both the Slack interactions webhook and a Hub server action; the resulting update goes to both sides.
+  - Our own bot's messages (Wheel of Wonder, prickle check-in and check-out DMs): action handlers become Slack-independent (`handleAction(actionId, value, memberId)`), called by both the Slack interactions webhook and a Hub server action; the resulting update goes to both sides.
   - Third-party apps (polls, Workflow Builder, Zoom, Calendar): clicks go to that app's server with Slack's signature, so the Hub shows them disabled with "Open in Slack".
   - Longer term, our notifications become Hub-native cards, rendered to Block Kit only when sent to Slack.
 - **Emoji**: replace the hand-picked `lib/slack-emoji.ts` with a full dataset (`emoji-datasource` or `emojibase`), lazy-loaded in the picker. Custom emoji from `bronze.slack_custom_emoji`; lookup order custom → Unicode → plain `:name:`. Images link to Slack's CDN at first; copy to Supabase Storage before leaving Slack. Hub-only custom emoji wait for app-only channels (Slack only accepts reactions it knows).

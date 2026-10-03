@@ -20,8 +20,8 @@ export interface SendSlackDMParams {
 }
 
 /**
- * Shared DM sender for new Writing Projects Phase 1 senders (pre-prickle nudge, post-prickle
- * quick-log prompt). Existing senders (wheel-of-wonder/actions.ts, feedback/route.ts) keep their
+ * Shared DM sender for new Writing Projects Phase 1 senders (the prickle check-in and check-out
+ * DMs). Existing senders (wheel-of-wonder/actions.ts, feedback/route.ts) keep their
  * own direct WebClient calls for now -- migrating them onto this helper is a flagged fast-follow,
  * not part of this change, so their sends are unaffected by SLACK_TEST_MODE.
  */

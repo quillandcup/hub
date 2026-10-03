@@ -1,5 +1,5 @@
 // Checkly heartbeat monitors for every scheduled job (Vercel Cron in vercel.json, plus the
-// Supabase pg_cron job that polls the pre-prickle nudge route). Each job pings its heartbeat
+// Supabase pg_cron job that polls the prickle check-in DM route). Each job pings its heartbeat
 // URL after a successful run; Checkly alerts when a ping doesn't arrive within period + grace,
 // which catches both failed runs and runs that never fired.
 //
@@ -65,9 +65,11 @@ export const CRON_HEARTBEATS = {
     envVar: "CHECKLY_HEARTBEAT_RECONCILE_LOGINS",
     ...daily,
   },
+  // The key and envVar keep the job's old "pre-prickle nudges" name on purpose: the key is the
+  // Checkly monitor's logical id, so renaming it would replace the monitor and its ping URL.
   "pre-prickle-nudges": {
-    name: "Cron: pre-prickle nudges (every 5 min, pg_cron)",
-    path: "/api/internal/nudges/pre-prickle",
+    name: "Cron: prickle check-in DMs (every 5 min, pg_cron)",
+    path: "/api/internal/prickle-checkins",
     scheduler: "pg_cron",
     envVar: "CHECKLY_HEARTBEAT_PRE_PRICKLE_NUDGES",
     // Two or three missed polls in a row is a real outage; one is a blip.

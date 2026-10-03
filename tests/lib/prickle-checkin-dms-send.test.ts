@@ -1,0 +1,262 @@
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { NextRequest } from "next/server";
+import { createFakeSupabase, type FakeSupabase, type FakeTables } from "@/tests/helpers/server-page";
+
+// End-to-end through the real senders with Supabase, Slack and the calendar loader faked: what
+// matters here is how many DMs go out, not what the queries look like.
+const sendSlackDM = vi.fn(async (_params: { slackUserId: string; text: string; blocks?: any[] }) => {});
+vi.mock("@/lib/slack", () => ({ sendSlackDM: (p: any) => sendSlackDM(p) }));
+
+// Slack user id = "U-" + member id for every member in members.
+vi.mock("@/lib/slack-matching", () => ({
+  matchSlackUsersToMembers: (_slack: unknown, members: { id: string }[]) =>
+    new Map(members.map((m) => [`U-${m.id}`, m.id])),
+}));
+
+const calendarPrickleIds = vi.fn(async (_supabase: unknown, _memberId: string): Promise<Set<string>> => new Set());
+vi.mock("@/lib/calendar-feed", () => ({
+  loadCalendarFeedPrickleIds: (supabase: unknown, memberId: string) => calendarPrickleIds(supabase, memberId),
+}));
+
+vi.mock("@/lib/cron-heartbeats", () => ({ withCronHeartbeat: async (_job: string, res: Response) => res }));
+
+let fake: FakeSupabase;
+vi.mock("@supabase/supabase-js", () => ({ createClient: () => fake }));
+
+const { POST } = await import("@/app/api/internal/prickle-checkins/route");
+const { getActiveGoalCandidates, sendCheckoutDMs, tryRecordCheckinDM } = await import("@/lib/prickle-checkin-dms");
+
+const goalRow = (id: string, memberId: string, projectId: string, measure: string, title = "Novel") => ({
+  id,
+  member_id: memberId,
+  project_id: projectId,
+  measure,
+  writing_projects: { title, archived_at: null },
+});
+
+/**
+ * prickle_checkin_dm_log that behaves like its UNIQUE (prickle_id, member_id, kind) constraint;
+ * a select returns the rows logged so far, filtered by `kind`.
+ */
+function dmLog() {
+  const rows = new Map<string, { id: string; prickle_id: string; member_id: string; kind: string }>();
+  return (query: { calls: { method: string; args: unknown[] }[] }) => {
+    const insert = query.calls.find((c) => c.method === "insert");
+    if (!insert) {
+      const kind = query.calls.find((c) => c.method === "eq" && c.args[0] === "kind")?.args[1];
+      return { data: [...rows.values()].filter((r) => !kind || r.kind === kind) };
+    }
+    const row = insert.args[0] as { prickle_id: string; member_id: string; kind: string };
+    const key = `${row.prickle_id}:${row.member_id}:${row.kind}`;
+    if (rows.has(key)) return { data: null, error: { code: "23505" } };
+    rows.set(key, { id: key, ...row });
+    return { data: [{ id: key }] };
+  };
+}
+
+const PRICKLE = {
+  id: "p1",
+  type_id: "t1",
+  host: "host",
+  start_time: new Date(Date.now() + 20 * 60 * 1000).toISOString(),
+  prickle_types: { name: "Progress Prickle", purpose: "writing" },
+};
+
+function cronRequest() {
+  return new NextRequest("http://localhost/api/internal/prickle-checkins", {
+    method: "POST",
+    headers: { authorization: "Bearer test-secret" },
+  });
+}
+
+beforeEach(() => {
+  sendSlackDM.mockClear();
+  calendarPrickleIds.mockReset();
+  calendarPrickleIds.mockResolvedValue(new Set());
+  process.env.CRON_INTERNAL_SECRET = "test-secret";
+});
+
+describe("prickle check-in route", () => {
+  function setup(goals: object[], extra: FakeTables = {}) {
+    fake = createFakeSupabase({
+      writing_goals: { data: goals },
+      prickles: { data: [PRICKLE] },
+      members: { data: [{ id: "m1" }, { id: "m2" }] },
+      prickle_checkin_dm_log: dmLog(),
+      ...extra,
+    });
+  }
+
+  it("sends one DM to a member with several goals that all match the same prickle", async () => {
+    setup([
+      goalRow("g1", "m1", "proj1", "words"),
+      goalRow("g2", "m1", "proj2", "chapters"),
+      goalRow("g3", "m1", "proj3", "prickles"),
+    ]);
+    calendarPrickleIds.mockResolvedValue(new Set(["p1"]));
+
+    const res = await POST(cronRequest());
+
+    expect(await res.json()).toEqual({ checkins: 1, checkouts: 0 });
+    expect(sendSlackDM).toHaveBeenCalledTimes(1);
+    expect(sendSlackDM.mock.calls[0][0].slackUserId).toBe("U-m1");
+  });
+
+  it("skips a member who already answered every check-in question", async () => {
+    setup([goalRow("g1", "m1", "proj1", "words")], {
+      prickle_checkins: { data: [{ id: "c1", member_id: "m1", prickle_id: "p1", feelings_before: ["tired"], need: "gentle", session_rating: null, feelings_after: [] }] },
+    });
+    calendarPrickleIds.mockResolvedValue(new Set(["p1"]));
+
+    expect(await (await POST(cronRequest())).json()).toEqual({ checkins: 0, checkouts: 0 });
+    expect(sendSlackDM).not.toHaveBeenCalled();
+    // Not logged as sent, so clearing an answer before the window closes still gets the DM.
+    expect(fake.queries.some((q) => q.table === "prickle_checkin_dm_log" && q.calls.some((c) => c.method === "insert"))).toBe(false);
+  });
+
+  it("asks the check-in questions, starting from answers already saved", async () => {
+    setup([goalRow("g1", "m1", "proj1", "words")], {
+      prickle_checkins: { data: [{ id: "c1", member_id: "m1", prickle_id: "p1", feelings_before: [], need: "company", session_rating: null, feelings_after: [] }] },
+    });
+    calendarPrickleIds.mockResolvedValue(new Set(["p1"]));
+
+    await POST(cronRequest());
+
+    const [feelings, need] = sendSlackDM.mock.calls[0][0].blocks!;
+    expect(feelings.block_id).toBe("prickle_checkin:p1:feelings_before");
+    expect(feelings.accessory.initial_options).toBeUndefined();
+    expect(need.block_id).toBe("prickle_checkin:p1:need");
+    expect(need.accessory.initial_option.value).toBe("company");
+  });
+
+  it("doesn't check in with the same member for the same prickle again on the next tick", async () => {
+    setup([goalRow("g1", "m1", "proj1", "words")]);
+    calendarPrickleIds.mockResolvedValue(new Set(["p1"]));
+
+    await POST(cronRequest());
+    const second = await POST(cronRequest());
+
+    expect(await second.json()).toEqual({ checkins: 0, checkouts: 0 });
+    expect(sendSlackDM).toHaveBeenCalledTimes(1);
+  });
+
+  it("checks in on a word-count goal only for prickles on that member's calendar", async () => {
+    setup([goalRow("g1", "m1", "proj1", "words"), goalRow("g2", "m2", "proj2", "words")]);
+    calendarPrickleIds.mockImplementation(async (_s, memberId) => new Set(memberId === "m2" ? ["p1"] : []));
+
+    await POST(cronRequest());
+
+    expect(sendSlackDM.mock.calls.map((c) => c[0].slackUserId)).toEqual(["U-m2"]);
+  });
+
+  it("sends check-outs for a recent prickle once its attendance has been imported", async () => {
+    setup([goalRow("g1", "m1", "proj1", "words")], {
+      prickle_attendance: { data: [{ id: "a1", member_id: "m1", prickle_id: "p1" }] },
+    });
+
+    expect(await (await POST(cronRequest())).json()).toEqual({ checkins: 0, checkouts: 1 });
+    expect(sendSlackDM.mock.calls[0][0].text).toBe("Checking out of Progress Prickle: how did it go?");
+    // Later ticks see the log row and leave it alone.
+    expect(await (await POST(cronRequest())).json()).toEqual({ checkins: 0, checkouts: 0 });
+  });
+
+  it("rejects a request without the cron secret", async () => {
+    setup([goalRow("g1", "m1", "proj1", "words")]);
+    const res = await POST(new NextRequest("http://localhost/api/internal/prickle-checkins", { method: "POST" }));
+    expect(res.status).toBe(401);
+    expect(sendSlackDM).not.toHaveBeenCalled();
+  });
+});
+
+describe("sendCheckoutDMs", () => {
+  const checkout = async () =>
+    sendCheckoutDMs(fake, [{ id: "p1", typeName: "Progress Prickle" }], await getActiveGoalCandidates(fake));
+
+  function setup(goals: object[], extra: FakeTables = {}) {
+    fake = createFakeSupabase({
+      // m1 left and rejoined: two attendance rows, still one check-out.
+      prickle_attendance: {
+        data: [
+          { id: "a1", member_id: "m1", prickle_id: "p1" },
+          { id: "a2", member_id: "m1", prickle_id: "p1" },
+        ],
+      },
+      writing_goals: { data: goals },
+      members: { data: [{ id: "m1" }, { id: "m2" }] },
+      prickle_checkin_dm_log: dmLog(),
+      ...extra,
+    });
+  }
+
+  it("sends an attendee one DM with a dropdown per goal, in each goal's measure", async () => {
+    setup([
+      goalRow("g1", "m1", "proj1", "words", "Novel"),
+      goalRow("g2", "m1", "proj2", "scenes", "Memoir"),
+      goalRow("g3", "m1", "proj1", "words", "Novel"), // same project + measure: asked once
+      goalRow("g4", "m2", "proj4", "words"), // didn't attend
+    ]);
+
+    expect(await checkout()).toBe(1);
+    expect(sendSlackDM).toHaveBeenCalledTimes(1);
+    const { slackUserId, blocks } = sendSlackDM.mock.calls[0][0];
+    expect(slackUserId).toBe("U-m1");
+    expect(blocks!.map((b: any) => b.block_id)).toEqual([
+      "prickle_checkin:p1:session_rating",
+      "prickle_checkin:p1:feelings_after",
+      "quick_log:proj1:words",
+      "quick_log:proj2:scenes",
+      undefined, // footer
+    ]);
+  });
+
+  it("skips an attendee who answered both questions and logged every project", async () => {
+    setup([goalRow("g1", "m1", "proj1", "words")], {
+      prickle_checkins: { data: [{ id: "c1", member_id: "m1", prickle_id: "p1", feelings_before: [], need: null, session_rating: 4, feelings_after: ["calm"] }] },
+      writing_progress_entries: { data: [{ id: "e1", member_id: "m1", prickle_id: "p1", project_id: "proj1", measure: "words" }] },
+    });
+
+    expect(await checkout()).toBe(0);
+    expect(sendSlackDM).not.toHaveBeenCalled();
+  });
+
+  it("still sends a fully answered check-out for a project not yet logged, asking only about that one", async () => {
+    setup([goalRow("g1", "m1", "proj1", "words"), goalRow("g2", "m1", "proj2", "scenes", "Memoir")], {
+      prickle_checkins: { data: [{ id: "c1", member_id: "m1", prickle_id: "p1", feelings_before: [], need: null, session_rating: 4, feelings_after: ["calm"] }] },
+      writing_progress_entries: { data: [{ id: "e1", member_id: "m1", prickle_id: "p1", project_id: "proj1", measure: "words" }] },
+    });
+
+    expect(await checkout()).toBe(1);
+    const ids = sendSlackDM.mock.calls[0][0].blocks!.map((b: any) => b.block_id);
+    expect(ids).toContain("quick_log:proj2:scenes");
+    expect(ids).not.toContain("quick_log:proj1:words");
+  });
+
+  it("shows answers the attendee already saved", async () => {
+    setup([goalRow("g1", "m1", "proj1", "words")], {
+      prickle_checkins: { data: [{ id: "c1", member_id: "m1", prickle_id: "p1", feelings_before: ["tired"], need: null, session_rating: 4, feelings_after: [] }] },
+    });
+
+    await checkout();
+    const [rating, feelingsAfter] = sendSlackDM.mock.calls[0][0].blocks!;
+    expect(rating.accessory.initial_option.value).toBe("4");
+    expect(feelingsAfter.accessory.initial_options).toBeUndefined();
+  });
+
+  it("doesn't prompt the same attendee twice for one prickle", async () => {
+    setup([goalRow("g1", "m1", "proj1", "words")]);
+
+    await checkout();
+    expect(await checkout()).toBe(0);
+    expect(sendSlackDM).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("tryRecordCheckinDM", () => {
+  it("is true only for the first record of a (prickle, member, kind)", async () => {
+    fake = createFakeSupabase({ prickle_checkin_dm_log: dmLog() });
+    expect(await tryRecordCheckinDM(fake, "p1", "m1", "prickle_checkin")).toBe(true);
+    expect(await tryRecordCheckinDM(fake, "p1", "m1", "prickle_checkin")).toBe(false);
+    expect(await tryRecordCheckinDM(fake, "p1", "m1", "prickle_checkout")).toBe(true);
+    expect(await tryRecordCheckinDM(fake, "p1", "m2", "prickle_checkin")).toBe(true);
+  });
+});

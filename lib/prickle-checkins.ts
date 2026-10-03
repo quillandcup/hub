@@ -1,7 +1,10 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
+
 /**
  * Prickle check-ins: how a member felt coming into a prickle, what they needed from it, and how
  * it went. One row per (member, prickle) in prickle_checkins (migration 20261003000000),
- * readable by the member and admins, never hosts or other members. The keys below are what's stored; labels can be reworded freely, but adding,
+ * readable by the member and admins, never hosts or other members. Clearing every answer
+ * soft-deletes the row (deleted_at), so every read filters `deleted_at IS NULL`. The keys below are what's stored; labels can be reworded freely, but adding,
  * removing or renaming a key needs a migration (the table's CHECKs list the same keys --
  * tests/lib/prickle-checkins.test.ts fails if they drift).
  */
@@ -125,6 +128,52 @@ export function validateCheckin(input: unknown): string | null {
     return "Invalid rating";
   }
   return null;
+}
+
+/** A prickle_checkins row's answers (live rows only: callers filter `deleted_at IS NULL`). */
+export function checkinFromRow(row: {
+  feelings_before: string[] | null;
+  need: string | null;
+  session_rating: number | null;
+  feelings_after: string[] | null;
+}): CheckinInput {
+  return {
+    feelingsBefore: (row.feelings_before ?? []) as Feeling[],
+    need: (row.need ?? null) as Need | null,
+    sessionRating: row.session_rating ?? null,
+    feelingsAfter: (row.feelings_after ?? []) as Feeling[],
+  };
+}
+
+/**
+ * Writes a validated check-in: upserts it (restoring one that was cleared), or, when every
+ * answer is cleared, soft-deletes it, keeping its last answers (migration 20261003140000).
+ * Shared by the prickle page (session client, RLS owner-only) and the Slack DMs (service role,
+ * caller has matched the Slack user to `memberId`). Returns the Supabase error, if any.
+ */
+export async function writeCheckin(supabase: SupabaseClient, memberId: string, prickleId: string, checkin: CheckinInput) {
+  if (isEmptyCheckin(checkin)) {
+    const { error } = await supabase
+      .from("prickle_checkins")
+      .update({ deleted_at: new Date().toISOString() })
+      .eq("member_id", memberId)
+      .eq("prickle_id", prickleId)
+      .is("deleted_at", null);
+    return error ?? null;
+  }
+  const { error } = await supabase.from("prickle_checkins").upsert(
+    {
+      member_id: memberId,
+      prickle_id: prickleId,
+      feelings_before: checkin.feelingsBefore,
+      need: checkin.need,
+      session_rating: checkin.sessionRating,
+      feelings_after: checkin.feelingsAfter,
+      deleted_at: null,
+    },
+    { onConflict: "member_id,prickle_id" }
+  );
+  return error ?? null;
 }
 
 /** Toggles a feeling in a selection capped at MAX_FEELINGS; at the cap, a new pick is ignored. */
