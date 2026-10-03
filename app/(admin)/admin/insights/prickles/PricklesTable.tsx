@@ -205,7 +205,7 @@ export default function PricklesTable({ rows, from, to }: Props) {
                 <td className="px-6 py-4">
                   <Link
                     href={`/admin/insights/prickles/${row.normalizedName}${buildRangeUrl(from, to)}`}
-                    className="text-sm font-medium text-plum-600 hover:text-plum-700 dark:text-plum-400 dark:hover:text-plum-300"
+                    className="text-sm font-medium text-slate-900 dark:text-slate-100 hover:text-plum-600 dark:hover:text-plum-400 hover:underline transition-colors"
                   >
                     {row.typeName}
                   </Link>
