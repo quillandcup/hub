@@ -5,11 +5,11 @@ import {
   parseCheckinAnswer,
   QUICK_LOG_ACTION_ID,
   replaceAnsweredBlock,
-  resolveMemberIdForSlackUser,
   saveCheckinAnswer,
   withSavedAnswer,
   type CheckinAnswer,
 } from "@/lib/prickle-checkin-dms";
+import { resolveMemberIdForSlackUser } from "@/lib/slack-member-ids";
 import { MEASURE_LABELS, type WritingMeasure } from "@/lib/writing-projects";
 import {
   sendSlackSignInMessage,

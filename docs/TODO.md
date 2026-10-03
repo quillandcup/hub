@@ -454,24 +454,39 @@ Per-user login/access history (`access_events` table + `get_access_sessions()`, 
 
 ## Notifications
 
-### Notification Framework _(Needs Scoping — prerequisite for in-app chat adoption)_
-One system for everything the app tells a member, instead of each feature hand-rolling a Slack DM (prickle check-in and check-out DMs, Wheel of Wonder, payment failures). In-app chat especially needs this: members won't move off Slack without being told about new messages, mentions and DMs.
+### Channels, Notifications & Messaging _(v1 live: Slack + per-kind notification settings; more channels next)_
+One system for everything the Hub sends members, instead of each feature hand-rolling a Slack DM. Three layers (this replaces the CRM section's "Messaging Abstraction Layer" item):
 
-**Delivery channels:**
-- In-app: notification inbox + unread badges
-- Browser/OS: Web Push (service worker + VAPID keys); also covers installed-PWA push on mobile (iOS requires home-screen install, 16.4+)
+- **Channels** (`lib/channels/`): the delivery systems (Slack today; email, SMS, WhatsApp, web push, in-app next). Each adapter resolves a member to an address and sends an `OutboundMessage` (`text`, `url`, per-channel rich bodies like `slackBlocks`, `footerLinks`). Shared by both layers below; nothing above it talks to a provider directly.
+- **Notifications** (`lib/notifications/`): the app reaching out, governed by the member's per-kind channel choices. Mostly one-way, but some ask for an answer (check-in/check-out selects); the reply comes back over the same channel's inbound webhook.
+- **Messaging** (planned): two-way conversations, e.g. in-app chat bridged to Slack (`docs/SLACK_BRIDGED_CHAT.md`), and later SMS/WhatsApp threads. Uses the same channel adapters, plus the inbound half they don't have yet. Members won't move off Slack for chat without notifications for new messages, mentions and DMs, so chat events become notification kinds too.
+
+**Built (v1):**
+- `lib/channels/`: `CHANNELS` catalog (client-safe), `ChannelAdapter`, `CHANNEL_ADAPTERS`. Slack adapter (`slack.ts`) DMs via `sendSlackDM` and renders `footerLinks` into the message's context footer.
+- `lib/notifications/registry.ts`: notification kinds (id, category, label, description, default channels). Client-safe; the settings grid renders from it.
+- `notification_preferences` (Local layer, migration `20261003160000`): one row per (member, kind, channel) the member changed; no row = the kind's default. Kinds/channels are free text, so adding either needs no migration. Member reads/writes own, admins read, read-only in sudo.
+- `createNotifier(supabase, kind, memberIds, { channels? })` (`lib/notifications/notify.ts`): loads preferences and addresses for a batch, then `canReach(memberId)` / `send(memberId, message)`, adding a "Notification settings" link. A failed channel is logged and doesn't stop the others. Check `canReach` before claiming a dedup row so re-enabling a kind still sends. `channels` forces channels and skips preferences, only for sends the member just asked for (admin test DMs).
+- `/settings?tab=notifications`: a switch per kind × channel.
+- Kinds today: `prickle_checkin`, `prickle_checkout`.
+
+**Next channels** (each = `CHANNELS` entry + adapter + whatever it needs to resolve an address; every notification kind gets it at once):
+- In-app: notification inbox + unread badges (needs a `notifications` table, which also becomes the outbox below)
+- Browser/OS: Web Push (service worker + VAPID keys, per-device subscriptions table); also covers installed-PWA push on mobile (iOS requires home-screen install, 16.4+)
 - Mobile push: native app later; Web Push covers it until then
-- Email: Resend + `react-email` (both already in the stack), including digests
-- Slack DM: existing `sendSlackDM` becomes one backend among several
+- Email: Resend API sender module + `react-email` templates, `List-Unsubscribe`, including digests
+- SMS / WhatsApp: important for non-US hedgies; needs a provider (e.g. Twilio), a verified phone number per member, and explicit opt-in (carrier/WhatsApp template rules)
 
-**Framework pieces:**
-- A single `notify(memberId, eventType, payload)` entry point writing to a `notifications` table/outbox, with fan-out to channels done asynchronously
-- Per-member preferences per event type × channel (e.g. DMs → push + email, channel messages → in-app only, @mentions → push), plus quiet hours / time zone
+**Still to build:**
+- Inbound on the channel layer: a shared shape for replies (member, channel, conversation ref, text or action) so Messaging and interactive notifications don't each parse provider webhooks. Today only Slack replies exist, handled in `app/api/webhooks/slack/interactions/route.ts`.
+- Move remaining hand-rolled member messages onto `createNotifier`: payment-failure DMs (below), Host Confirmation Flow (CRM section). Wheel of Wonder's group intro and the Slack sign-in DM stay direct: one is a shared room, the other a transactional reply the member just asked for.
+- Staff channel posts as admin notification kinds, so each admin picks their channels: new book (`notifyStaffNewBook`), new award (`notifyStaffNewAward`), new feedback (`app/api/feedback/route.ts`). They post to a shared Slack channel today.
+- A `notifications` outbox with async fan-out, once a channel is slow or needs retries (email, push)
+- Quiet hours / time zone, and per-member frequency caps across kinds
 - Escalation and dedupe: don't email what was already seen in-app; delay-then-send (e.g. email only if a DM is still unread after N minutes)
 - Digests: batch low-priority events into a daily/weekly email
 - Unsubscribe links and delivery tracking (Resend webhooks), logged to `member_activities` where useful
-
-Subsumes the "Messaging Abstraction Layer" under CRM Features → Slack Integration; build that on this rather than separately.
+- A per-message "Stop these" Slack button that writes `notification_preferences` (the settings link covers it for now)
+- Show on the settings page when a channel can't reach the member (e.g. no matched Slack account)
 
 ### Finish renaming "pre-prickle nudges" to prickle check-ins _(Cleanup)_
 Migration `20261003130000` renamed the code, route, cron job and dedup log to check-in/check-out names. Two names stayed because changing them needs steps outside the repo:
@@ -857,12 +872,7 @@ Production logs show members reprocessing deadlocking and hitting statement time
 - After each prickle ends, message the host to confirm participants and resolve unmatched Zoom attendees
 - For unhosted prickles: TBD — options include assigning to a random active member or the most "senior" hedgie (by join date or total duration excluding hiatus periods)
 
-**Messaging Abstraction Layer (prerequisite for Host Confirmation and future integrations):**
-- Abstract all outbound member messaging behind a common interface so backends are swappable per member
-- Initial backends: Slack, SMS, in-app notifications
-- Future backends: WhatsApp (important for non-US hedgies), email, etc.
-- Per-member preference: each member picks their preferred channel (or falls back to a default priority order)
-- The Host Confirmation Flow and any future interactive flows (confirmations, reminders, outreach) should be built on top of this abstraction, not wired directly to Slack
+**Messaging abstraction layer:** see Channels, Notifications & Messaging (Notifications section above). Build the Host Confirmation Flow and other interactive flows (confirmations, reminders, outreach) as notification kinds sent with `createNotifier`, not wired directly to Slack.
 
 **Phase 1 Progress:**
 - [x] Database migrations (Bronze tables, aliases extension)
@@ -876,7 +886,7 @@ Production logs show members reprocessing deadlocking and hitting statement time
 - [x] Dashboard updates (member profiles show Slack activity, engagement scoring)
 
 ### Payment Failure Notifications
-On payment failure, send a Slack DM to the member to prompt them to update their payment method.
+On payment failure, notify the member (a `payment_failed` notification kind via `createNotifier`, Slack by default) to prompt them to update their payment method.
 
 ### Activity Feed Expansion (Future)
 Beyond Slack, expand `member_activities` tracking:

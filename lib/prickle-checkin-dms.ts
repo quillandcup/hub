@@ -1,8 +1,8 @@
-import { matchSlackUsersToMembers } from "@/lib/slack-matching";
-import { sendSlackDM } from "@/lib/slack";
 import { MEASURE_QUICK_LOG_PRESETS, type WritingMeasure } from "@/lib/writing-projects";
 import { loadCalendarFeedPrickleIds } from "@/lib/calendar-feed";
 import { APP_URL } from "@/lib/config";
+import { createNotifier } from "@/lib/notifications/notify";
+import type { OutboundMessage } from "@/lib/channels";
 import { loadPresenceByMember, presenceDue, type PresenceInterval } from "@/lib/zoom-presence";
 import {
   checkinFromRow,
@@ -156,38 +156,6 @@ export function planCheckinDMs<P extends UpcomingPrickle>(
     }
   }
   return plan;
-}
-
-/** Full slackUserId -> memberId map, same 3-tier matching (alias > email > normalized name) Wheel of Wonder uses. */
-async function buildSlackUserIdToMemberIdMap(supabase: any): Promise<Map<string, string>> {
-  const [allMembersResult, aliases, slackUsersResult] = await Promise.all([
-    supabase.from("members").select("id, name, email"),
-    fetchAllPaginated<{ member_id: string; alias: string; source: "zoom" | "slack" }>((offset) =>
-      supabase.from("member_name_aliases").select("member_id, alias, source").range(offset, offset + BATCH_SIZE - 1)
-    ),
-    supabase.schema("bronze").from("slack_users").select("user_id, email, real_name"),
-  ]);
-
-  return matchSlackUsersToMembers(slackUsersResult.data ?? [], allMembersResult.data ?? [], aliases);
-}
-
-/** memberId -> slackUserId, for a specific set of members. */
-export async function resolveSlackUserIds(supabase: any, memberIds: string[]): Promise<Map<string, string>> {
-  const slackUserIdByMember = new Map<string, string>();
-  if (memberIds.length === 0) return slackUserIdByMember;
-
-  const memberIdSet = new Set(memberIds);
-  const slackUserToMemberId = await buildSlackUserIdToMemberIdMap(supabase);
-  for (const [slackUserId, memberId] of slackUserToMemberId) {
-    if (memberIdSet.has(memberId)) slackUserIdByMember.set(memberId, slackUserId);
-  }
-  return slackUserIdByMember;
-}
-
-/** Reverse lookup for an inbound Slack interaction: the Slack user id we're handed, resolved to a member id. */
-export async function resolveMemberIdForSlackUser(supabase: any, slackUserId: string): Promise<string | null> {
-  const map = await buildSlackUserIdToMemberIdMap(supabase);
-  return map.get(slackUserId) ?? null;
 }
 
 export type CheckinDMKind = "prickle_checkin" | "prickle_checkout";
@@ -667,8 +635,8 @@ export async function sendCheckoutDMs(
 
   const memberIds = [...new Set(plan.map((p) => p.memberId))];
   const plannedPrickleIds = [...new Set(plan.map((p) => p.prickle.id))];
-  const [slackUserIdByMember, checkins, loggedProjects] = await Promise.all([
-    resolveSlackUserIds(supabase, memberIds),
+  const [notifier, checkins, loggedProjects] = await Promise.all([
+    createNotifier(supabase, "prickle_checkout", memberIds),
     loadCheckins(supabase, memberIds, plannedPrickleIds),
     loadLoggedProjects(supabase, memberIds, plannedPrickleIds),
   ]);
@@ -676,8 +644,9 @@ export async function sendCheckoutDMs(
 
   let sent = 0;
   for (const { memberId, prickle } of plan) {
-    const slackUserId = slackUserIdByMember.get(memberId);
-    if (!slackUserId) continue;
+    // Opted out on every channel, or unreachable on the ones they kept. Not logged, so turning
+    // check-outs back on (or linking Slack) before the lookback ends still sends one.
+    if (!notifier.canReach(memberId)) continue;
 
     // Not logged when skipped, so a later tick still sends if they clear an answer.
     const saved = checkins.get(`${memberId}:${prickle.id}`) ?? null;
@@ -689,8 +658,11 @@ export async function sendCheckoutDMs(
     const shouldSend = await tryRecordCheckinDM(supabase, prickle.id, memberId, "prickle_checkout");
     if (!shouldSend) continue;
 
-    await sendCheckoutDM(slackUserId, prickle, saved, await quickLogPrompts(supabase, unlogged));
-    sent++;
+    const delivered = await notifier.send(
+      memberId,
+      checkoutMessage(prickle, saved, await quickLogPrompts(supabase, unlogged))
+    );
+    if (delivered.length > 0) sent++;
   }
   return sent;
 }
@@ -716,35 +688,29 @@ const TEST_BANNER = {
   ],
 };
 
-/** Sends the check-in DM. No dedup or skip checks: the caller has decided it's due. */
-export async function sendCheckinDM(
-  slackUserId: string,
-  prickle: DMPrickle,
-  saved: CheckinInput | null,
-  { test = false }: { test?: boolean } = {}
-): Promise<void> {
+/** The check-in DM. Sending it is the caller's call: no dedup or skip checks here. */
+export function checkinMessage(prickle: DMPrickle, saved: CheckinInput | null, { test = false } = {}): OutboundMessage {
   const blocks = buildCheckinBlocks(prickle.id, prickle.typeName, saved);
-  await sendSlackDM({
-    slackUserId,
+  return {
     text: `${test ? "[Test] " : ""}Ready for ${prickle.typeName} in ~20 min? Check in: how are you feeling coming in?`,
-    blocks: test ? [TEST_BANNER, ...blocks] : blocks,
-  });
+    url: `${APP_URL}/prickles/${prickle.id}`,
+    slackBlocks: test ? [TEST_BANNER, ...blocks] : blocks,
+  };
 }
 
-/** Sends the check-out DM. No dedup or skip checks: the caller has decided it's due. */
-export async function sendCheckoutDM(
-  slackUserId: string,
+/** The check-out DM. Sending it is the caller's call: no dedup or skip checks here. */
+export function checkoutMessage(
   prickle: DMPrickle,
   saved: CheckinInput | null,
   prompts: QuickLogPrompt[],
-  { test = false }: { test?: boolean } = {}
-): Promise<void> {
+  { test = false } = {}
+): OutboundMessage {
   const blocks = buildCheckoutBlocks(prickle.id, prickle.typeName, saved, prompts);
-  await sendSlackDM({
-    slackUserId,
+  return {
     text: `${test ? "[Test] " : ""}Checking out of ${prickle.typeName}: how did it go?`,
-    blocks: test ? [TEST_BANNER, ...blocks] : blocks,
-  });
+    url: `${APP_URL}/prickles/${prickle.id}`,
+    slackBlocks: test ? [TEST_BANNER, ...blocks] : blocks,
+  };
 }
 
 /**
@@ -752,7 +718,8 @@ export async function sendCheckoutDM(
  * skipping everything that decides whether one is due: their calendar, attendance/presence, the
  * dedup log (nothing is logged, so it can't block the real one) and the already-answered checks.
  * It still shows their saved answers, and the check-out asks about every active goal (none, with
- * no goals). Returns an error message, or null when sent.
+ * no goals). Always over Slack, whatever their notification settings: they just asked for it.
+ * Returns an error message, or null when sent.
  */
 export async function sendTestCheckinDM(
   supabase: any,
@@ -760,15 +727,17 @@ export async function sendTestCheckinDM(
   prickle: DMPrickle,
   kind: CheckinDMKind
 ): Promise<string | null> {
-  const slackUserId = (await resolveSlackUserIds(supabase, [memberId])).get(memberId);
-  if (!slackUserId) return "No Slack account is matched to your member record.";
+  const notifier = await createNotifier(supabase, kind, [memberId], { channels: ["slack"] });
+  if (!notifier.canReach(memberId)) return "No Slack account is matched to your member record.";
 
   const saved = (await loadCheckins(supabase, [memberId], [prickle.id])).get(`${memberId}:${prickle.id}`) ?? null;
+  let message: OutboundMessage;
   if (kind === "prickle_checkin") {
-    await sendCheckinDM(slackUserId, prickle, saved, { test: true });
+    message = checkinMessage(prickle, saved, { test: true });
   } else {
     const goals = (await getActiveGoalCandidates(supabase)).filter((g) => g.memberId === memberId);
-    await sendCheckoutDM(slackUserId, prickle, saved, await quickLogPrompts(supabase, goals), { test: true });
+    message = checkoutMessage(prickle, saved, await quickLogPrompts(supabase, goals), { test: true });
   }
-  return null;
+  const delivered = await notifier.send(memberId, message);
+  return delivered.length > 0 ? null : "Slack didn't accept the message; check the server logs.";
 }

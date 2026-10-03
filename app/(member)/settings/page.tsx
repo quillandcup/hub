@@ -7,6 +7,8 @@ import { TimezoneSwitcher } from "./TimezoneSwitcher";
 import { SessionsPanel } from "./SessionsPanel";
 import { IdentityPanel } from "./IdentityPanel";
 import { ProfilePanel } from "./ProfilePanel";
+import { NotificationsPanel } from "./NotificationsPanel";
+import { getNotificationSettings } from "./notificationActions";
 import { getHostedVibes } from "@/app/(member)/prickle-picker/actions";
 import HostVibePanel from "@/components/HostVibePanel";
 import { Tabs } from "@/components/Tabs";
@@ -15,7 +17,7 @@ export const metadata: Metadata = {
   title: "Settings",
 };
 
-const SETTINGS_TAB_IDS = ["account", "profile", "identity", "preferences", "hosting"] as const;
+const SETTINGS_TAB_IDS = ["account", "profile", "identity", "preferences", "notifications", "hosting"] as const;
 type SettingsTabId = (typeof SETTINGS_TAB_IDS)[number];
 
 export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
@@ -45,7 +47,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
 
   const timezonePreference = profile?.timezone_preference || "browser";
 
-  const hostedVibes = await getHostedVibes();
+  const [hostedVibes, notificationSettings] = await Promise.all([getHostedVibes(), getNotificationSettings()]);
 
   return (
     <div className="min-h-screen bg-canvas dark:bg-slate-950">
@@ -117,6 +119,15 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
                   </div>
                 ),
               },
+              ...(notificationSettings
+                ? [
+                    {
+                      id: "notifications" as const,
+                      label: "Notifications",
+                      content: <NotificationsPanel initial={notificationSettings} />,
+                    },
+                  ]
+                : []),
               ...(hostedVibes.length > 0
                 ? [
                     {

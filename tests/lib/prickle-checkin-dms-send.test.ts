@@ -132,6 +132,25 @@ describe("prickle check-in route", () => {
     expect(need.accessory.initial_option.value).toBe("company");
   });
 
+  it("skips a member who turned check-ins off, without logging it", async () => {
+    setup([goalRow("g1", "m1", "proj1", "words"), goalRow("g2", "m2", "proj2", "words")], {
+      notification_preferences: { data: [{ member_id: "m1", kind: "prickle_checkin", channel: "slack", enabled: false }] },
+    });
+    calendarPrickleIds.mockResolvedValue(new Set(["p1"]));
+
+    expect(await (await POST(cronRequest())).json()).toEqual({ checkins: 1, checkouts: 0 });
+    expect(sendSlackDM.mock.calls.map((c) => c[0].slackUserId)).toEqual(["U-m2"]);
+  });
+
+  it("doesn't count a check-in whose Slack send failed as sent", async () => {
+    setup([goalRow("g1", "m1", "proj1", "words")]);
+    calendarPrickleIds.mockResolvedValue(new Set(["p1"]));
+    sendSlackDM.mockRejectedValueOnce(new Error("channel_not_found"));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+
+    expect(await (await POST(cronRequest())).json()).toEqual({ checkins: 0, checkouts: 0 });
+  });
+
   it("doesn't check in with the same member for the same prickle again on the next tick", async () => {
     setup([goalRow("g1", "m1", "proj1", "words")]);
     calendarPrickleIds.mockResolvedValue(new Set(["p1"]));
@@ -215,6 +234,26 @@ describe("sendCheckoutDMs", () => {
       "quick_log:proj2:scenes",
       undefined, // footer
     ]);
+    expect(blocks!.at(-1).elements.at(-1).text).toContain("/settings?tab=notifications|Notification settings");
+  });
+
+  it("skips an attendee who turned check-outs off, without logging it", async () => {
+    setup([goalRow("g1", "m1", "proj1", "words")], {
+      notification_preferences: { data: [{ member_id: "m1", kind: "prickle_checkout", channel: "slack", enabled: false }] },
+    });
+
+    expect(await checkout()).toBe(0);
+    expect(sendSlackDM).not.toHaveBeenCalled();
+    // Turning them back on before the lookback ends still sends one.
+    expect(fake.queries.some((q) => q.table === "prickle_checkin_dm_log" && q.calls.some((c) => c.method === "insert"))).toBe(false);
+  });
+
+  it("still sends check-outs to a member who only turned check-ins off", async () => {
+    setup([goalRow("g1", "m1", "proj1", "words")], {
+      notification_preferences: { data: [{ member_id: "m1", kind: "prickle_checkin", channel: "slack", enabled: false }] },
+    });
+
+    expect(await checkout()).toBe(1);
   });
 
   it("skips an attendee who answered both questions and logged every project", async () => {
@@ -332,5 +371,18 @@ describe("sendTestCheckinDM", () => {
     setup();
     expect(await sendTestCheckinDM(fake, "m-unknown", PRICKLE_REF, "prickle_checkin")).toMatch(/No Slack account/);
     expect(sendSlackDM).not.toHaveBeenCalled();
+  });
+
+  it("sends even when the admin turned that kind off: they just asked for it", async () => {
+    setup({ notification_preferences: { data: [{ member_id: "m1", kind: "prickle_checkin", channel: "slack", enabled: false }] } });
+    expect(await sendTestCheckinDM(fake, "m1", PRICKLE_REF, "prickle_checkin")).toBeNull();
+    expect(sendSlackDM).toHaveBeenCalledTimes(1);
+  });
+
+  it("reports a Slack send that failed", async () => {
+    setup();
+    sendSlackDM.mockRejectedValueOnce(new Error("channel_not_found"));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(await sendTestCheckinDM(fake, "m1", PRICKLE_REF, "prickle_checkin")).toMatch(/Slack didn't accept/);
   });
 });

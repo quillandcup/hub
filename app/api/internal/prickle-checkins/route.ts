@@ -1,16 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createServiceRoleClient } from "@/lib/supabase/service";
+import { createNotifier } from "@/lib/notifications/notify";
 import { withCronHeartbeat } from "@/lib/cron-heartbeats";
 import {
   checkinAnswered,
+  checkinMessage,
   CHECKOUT_LOOKBACK_MS,
   getActiveGoalCandidates,
   loadCalendarPrickleIdsByMember,
   loadCheckins,
   planCheckinDMs,
-  resolveSlackUserIds,
-  sendCheckinDM,
   sendCheckoutDMs,
   tryRecordCheckinDM,
   type GoalCandidate,
@@ -96,23 +96,27 @@ async function sendCheckins(supabase: SupabaseClient, candidates: GoalCandidate[
   if (upcomingPrickles.length === 0) return 0;
 
   const memberIds = [...new Set(candidates.map((c) => c.memberId))];
-  const [slackUserIdByMember, calendarPrickleIdsByMember] = await Promise.all([
-    resolveSlackUserIds(supabase, memberIds),
-    loadCalendarPrickleIdsByMember(supabase, memberIds, new Date(windowStart), new Date(now)),
-  ]);
+  const calendarPrickleIdsByMember = await loadCalendarPrickleIdsByMember(
+    supabase,
+    memberIds,
+    new Date(windowStart),
+    new Date(now)
+  );
 
   const plan = planCheckinDMs(candidates, upcomingPrickles, calendarPrickleIdsByMember);
-  // Answers already saved (e.g. from the prickle page) show as the DM's starting picks.
-  const checkins = await loadCheckins(
-    supabase,
-    [...new Set(plan.map((p) => p.memberId))],
-    [...new Set(plan.map((p) => p.prickle.id))]
-  );
+  if (plan.length === 0) return 0;
+  const plannedMemberIds = [...new Set(plan.map((p) => p.memberId))];
+  const [notifier, checkins] = await Promise.all([
+    createNotifier(supabase, "prickle_checkin", plannedMemberIds),
+    // Answers already saved (e.g. from the prickle page) show as the DM's starting picks.
+    loadCheckins(supabase, plannedMemberIds, [...new Set(plan.map((p) => p.prickle.id))]),
+  ]);
 
   let sent = 0;
   for (const { memberId, prickle } of plan) {
-    const slackUserId = slackUserIdByMember.get(memberId);
-    if (!slackUserId) continue;
+    // Opted out on every channel, or unreachable on the ones they kept. Not logged, so turning
+    // check-ins back on before the window closes still sends one.
+    if (!notifier.canReach(memberId)) continue;
 
     // Already fully checked in (e.g. on the prickle page): nothing to ask. Not logged, so a later
     // tick still sends if they clear an answer before the window closes.
@@ -124,8 +128,8 @@ async function sendCheckins(supabase: SupabaseClient, candidates: GoalCandidate[
     const shouldSend = await tryRecordCheckinDM(supabase, prickle.id, memberId, "prickle_checkin");
     if (!shouldSend) continue;
 
-    await sendCheckinDM(slackUserId, prickle, saved);
-    sent++;
+    const delivered = await notifier.send(memberId, checkinMessage(prickle, saved));
+    if (delivered.length > 0) sent++;
   }
   return sent;
 }

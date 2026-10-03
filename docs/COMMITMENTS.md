@@ -206,8 +206,8 @@ A failure here is logged and never fails the commitment itself. Cancellations ar
 
 | Piece | Where | Notes |
 |---|---|---|
-| Slack DM sender | `lib/slack.ts` `sendSlackDM` | Honors `SLACK_TEST_MODE` / `SLACK_DEV_USER_ID` |
-| Member → Slack user resolution | `lib/prickle-checkin-dms.ts` `resolveSlackUserIds` | Matches by alias, then email, then normalized name |
+| Notifications | `lib/notifications/` `createNotifier` | Honors each member's per-kind, per-channel settings (`notification_preferences`, `/settings?tab=notifications`). Slack is the only channel today, sent via `sendSlackDM` (honors `SLACK_TEST_MODE` / `SLACK_DEV_USER_ID`). Commitment nudges should be new kinds here, not their own opt-out columns |
+| Member → Slack user resolution | `lib/slack-member-ids.ts` `resolveSlackUserIds` | Matches by alias, then email, then normalized name |
 | Check-in DM job | `app/api/internal/prickle-checkins/route.ts` | Polled every 5 min by **Supabase pg_cron + pg_net** (job `send-prickle-checkins`, `20261003130000_rename_nudges_to_prickle_checkins.sql`). Vercel Hobby cron is once a day only, so it can't do this. Auth via `CRON_INTERNAL_SECRET`. Goes to members with any active writing goal, for prickles on their calendar feed (hosting, an active commitment, or added by hand), using the feed's own loader (`loadCalendarFeedPrickleIds`). Asks the check-in's "coming in" questions (feelings, need) |
 | Check-out DM | `sendCheckoutDMs` in `lib/prickle-checkin-dms.ts`, run by the same 5-minute cron as the check-ins. Live presence from the Zoom participant webhooks (`bronze.zoom_participant_events`, `lib/zoom-presence.ts`) makes it due 5 minutes after the prickle ends, or 10 minutes after an early leaver leaves; attendance (imported only after the Zoom meeting ends) is the backstop, up to 6 hours after the prickle | Asks how it went and how they feel now, then a static-select progress quick-log per goal. Handled in `app/api/webhooks/slack/interactions/route.ts`: check-in answers (`prickle_checkin_answer`) save to `prickle_checkins`, the same row as the prickle page's check-in; the quick-log (`writing_quick_log`) writes `writing_progress_entries` (with `prickle_id`) and a `member_activities` row |
 | Dedup log | `prickle_checkin_dm_log`, UNIQUE `(prickle_id, member_id, kind)` | Insert-first, send only if the insert landed. Keyed on a `prickles.id` FK with `ON DELETE CASCADE`, so a calendar reprocess can wipe it and allow a resend |
@@ -294,8 +294,9 @@ CREATE TABLE commitment_nudge_log (
 - **Per commitment**: add a `nudges_enabled BOOLEAN NOT NULL DEFAULT true` column, set with a
   checkbox on the commitment form ("Remind me before each session"). Committing is itself the
   opt-in, so the default is on.
-- **Global**: a `user_profiles.commitment_nudges` preference, `'slack' | 'off'`, later adding
-  `'email'`. Show it on `/settings` next to the timezone preference.
+- **Global**: commitment nudges are notification kinds (`lib/notifications/registry.ts`), so
+  members turn them off, or pick their channels, on `/settings?tab=notifications` like any other
+  notification. No separate preference column.
 - **In the message**: every DM gets a "Stop these reminders" button, handled in
   `app/api/webhooks/slack/interactions/route.ts`. It sets `nudges_enabled = false` on that
   commitment. Pausing the commitment is a separate action from muting its reminders.

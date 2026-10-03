@@ -20,10 +20,10 @@ export interface SendSlackDMParams {
 }
 
 /**
- * Shared DM sender for new Writing Projects Phase 1 senders (the prickle check-in and check-out
- * DMs). Existing senders (wheel-of-wonder/actions.ts, feedback/route.ts) keep their
- * own direct WebClient calls for now -- migrating them onto this helper is a flagged fast-follow,
- * not part of this change, so their sends are unaffected by SLACK_TEST_MODE.
+ * Low-level Slack DM sender. Member notifications don't call this directly: they go through
+ * createNotifier (lib/notifications/notify.ts), whose Slack channel uses it, so they honor the
+ * member's notification settings. wheel-of-wonder/actions.ts and feedback/route.ts keep their own
+ * WebClient calls, so their sends are unaffected by SLACK_TEST_MODE.
  */
 export async function sendSlackDM(params: SendSlackDMParams): Promise<void> {
   const token = process.env.SLACK_BOT_TOKEN;
