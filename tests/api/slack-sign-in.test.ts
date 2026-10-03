@@ -52,7 +52,6 @@ import {
   issueSlackSignIn,
   consumeSlackSignIn,
   formatSlackSignInCode,
-  SLACK_REFRESH_ACTION_ID,
   SLACK_SEND_LINK_ACTION_ID,
   SLACK_ADMIN_SIGN_IN_TTL_MINUTES,
 } from '@/lib/slack-sign-in'
@@ -552,12 +551,6 @@ describe('Slack sign-in', () => {
       const body = new URLSearchParams({ payload }).toString()
       return interactionsPOST(signedRequest(`${ORIGIN}/api/webhooks/slack/interactions`, body, 'application/x-www-form-urlencoded'))
     }
-
-    it('a "Get a fresh link" click from an older cached view still republishes the tab', async () => {
-      await bindMember()
-      await clickButton(SLACK_REFRESH_ACTION_ID, slack.member)
-      expect(slackViewsPublish).toHaveBeenCalledWith(expect.objectContaining({ user_id: slack.member }))
-    })
 
     it('"Send me a link I can copy" DMs the member a working one-time link, without unfurling it', async () => {
       await bindMember()

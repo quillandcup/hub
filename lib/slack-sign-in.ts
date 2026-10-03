@@ -41,7 +41,6 @@ export const SLACK_SIGN_IN_TTL_MINUTES = 60;
 /** Shorter-lived links for admins who opted in: a stray admin link is worth more. */
 export const SLACK_ADMIN_SIGN_IN_TTL_MINUTES = 10;
 const ADMIN_OPT_IN_FEATURE: FeatureKey = "slack_admin_sign_in";
-export const SLACK_REFRESH_ACTION_ID = "hub_refresh_sign_in";
 export const SLACK_SEND_LINK_ACTION_ID = "hub_send_sign_in_link";
 
 /**
