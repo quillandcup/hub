@@ -25,6 +25,7 @@ const issued = {
   url: `${origin}/auth/slack?token=${"x".repeat(43)}`,
   code: "ABCDE12345",
   expiresAt: new Date("2026-09-29T15:00:00Z"),
+  ttlMinutes: 60,
 };
 const longEmail = `${"a".repeat(64)}@${"b".repeat(180)}.example.com`;
 
@@ -32,6 +33,7 @@ const variants: [string, SlackSignInResolution, typeof issued | null, boolean][]
   ["member, Home tab", { status: "ok", userId: "u", email: longEmail }, issued, true],
   ["member, /hub reply", { status: "ok", userId: "u", email: longEmail }, issued, false],
   ["admin", { status: "admin" }, null, true],
+  ["opted-in admin", { status: "ok", userId: "u", email: longEmail, admin: true }, { ...issued, ttlMinutes: 10 }, true],
   ["no account", { status: "no_account" }, null, true],
 ];
 

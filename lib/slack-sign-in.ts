@@ -8,6 +8,7 @@ import {
   normalizeSlackSignInCode,
 } from "@/lib/slack-sign-in-code";
 import type { RateLimit } from "@/lib/rate-limit";
+import type { FeatureKey } from "@/lib/features";
 import type { Button, KnownBlock } from "@slack/types";
 
 /**
@@ -23,7 +24,11 @@ import type { Button, KnownBlock } from "@slack/types";
  * email, or one of their active email aliases; see findProfileForSlackEmail); after that the
  * binding holds by id even if either email changes. Never handles, display names or member-managed
  * aliases, and never the fuzzy name matching lib/slack-matching.ts uses for analytics. Admins are
- * left out on purpose: they keep the normal email login.
+ * left out by default: they keep the normal email login, because Slack sign-in hands their whole
+ * admin account to whoever can use their Slack. An admin can opt in for themselves with the
+ * slack_admin_sign_in feature preview (only their own user_feature_previews row counts, never the
+ * global switch or a segment); their links then last SLACK_ADMIN_SIGN_IN_TTL_MINUTES. Turning the
+ * preview off revokes outstanding links, since the role and opt-in are re-checked when one is spent.
  *
  * Credentials: each issue creates one row in public.slack_sign_in_tokens holding the hash of a
  * 256-bit URL token (the button) and of a 10-character code (for typing into /login elsewhere --
@@ -33,6 +38,9 @@ import type { Button, KnownBlock } from "@slack/types";
  */
 
 export const SLACK_SIGN_IN_TTL_MINUTES = 60;
+/** Shorter-lived links for admins who opted in: a stray admin link is worth more. */
+export const SLACK_ADMIN_SIGN_IN_TTL_MINUTES = 10;
+const ADMIN_OPT_IN_FEATURE: FeatureKey = "slack_admin_sign_in";
 export const SLACK_REFRESH_ACTION_ID = "hub_refresh_sign_in";
 export const SLACK_SEND_LINK_ACTION_ID = "hub_send_sign_in_link";
 
@@ -50,7 +58,8 @@ export function slackCodeRateLimits(clientIp: string): RateLimit[] {
 export { normalizeSlackSignInCode, formatSlackSignInCode };
 
 export type SlackSignInResolution =
-  | { status: "ok"; userId: string; email: string }
+  /** `admin` is set only for an admin who opted in; their links use the admin TTL. */
+  | { status: "ok"; userId: string; email: string; admin?: true }
   | { status: "admin" }
   | { status: "no_account" };
 
@@ -58,6 +67,7 @@ export interface IssuedSlackSignIn {
   url: string;
   code: string;
   expiresAt: Date;
+  ttlMinutes: number;
 }
 
 interface ProfileRow {
@@ -170,10 +180,33 @@ async function findBoundProfile(service: SupabaseClient, slackUserId: string): P
   return binding?.user_id ? findProfileById(service, binding.user_id as string) : null;
 }
 
-function toResolution(profile: ProfileRow | null): SlackSignInResolution {
+/** Whether this admin turned on Slack sign-in for themselves (their own preview row only). */
+async function adminOptedIn(service: SupabaseClient, userId: string): Promise<boolean> {
+  const { data, error } = await service
+    .from("user_feature_previews")
+    .select("user_id")
+    .eq("user_id", userId)
+    .eq("feature_key", ADMIN_OPT_IN_FEATURE)
+    .maybeSingle();
+  if (error) {
+    console.error("slack-sign-in: admin opt-in lookup failed for %s:", userId, error);
+    return false;
+  }
+  return data !== null;
+}
+
+async function toResolution(service: SupabaseClient, profile: ProfileRow | null): Promise<SlackSignInResolution> {
   if (!profile?.email) return { status: "no_account" };
-  if (profile.role === "admin") return { status: "admin" };
+  if (profile.role === "admin") {
+    if (!(await adminOptedIn(service, profile.id))) return { status: "admin" };
+    return { status: "ok", userId: profile.id, email: profile.email, admin: true };
+  }
   return { status: "ok", userId: profile.id, email: profile.email };
+}
+
+/** Link lifetime for a resolved account. */
+export function slackSignInTtlMinutes(resolution: SlackSignInResolution): number {
+  return resolution.status === "ok" && resolution.admin ? SLACK_ADMIN_SIGN_IN_TTL_MINUTES : SLACK_SIGN_IN_TTL_MINUTES;
 }
 
 /**
@@ -185,11 +218,11 @@ export async function resolveHubUserForSlackUser(
   slackUserId: string
 ): Promise<SlackSignInResolution> {
   const bound = await findBoundProfile(service, slackUserId);
-  if (bound) return toResolution(bound);
+  if (bound) return toResolution(service, bound);
 
   const slackEmail = await fetchSlackEmail(slackUserId);
   const match = slackEmail ? await findProfileForSlackEmail(service, slackEmail) : null;
-  const resolution = toResolution(match?.profile ?? null);
+  const resolution = await toResolution(service, match?.profile ?? null);
   if (resolution.status !== "ok" || !match) return resolution;
 
   const { error } = await service
@@ -207,12 +240,13 @@ export async function resolveHubUserForSlackUser(
 /** Issue a fresh single-use button URL + code for this Slack user. */
 export async function issueSlackSignIn(
   service: SupabaseClient,
-  params: { slackUserId: string; origin: string }
+  params: { slackUserId: string; origin: string; ttlMinutes?: number }
 ): Promise<IssuedSlackSignIn> {
   const token = randomBytes(32).toString("base64url");
   const code = randomCode();
   const now = Date.now();
-  const expiresAt = new Date(now + SLACK_SIGN_IN_TTL_MINUTES * 60_000);
+  const ttlMinutes = params.ttlMinutes ?? SLACK_SIGN_IN_TTL_MINUTES;
+  const expiresAt = new Date(now + ttlMinutes * 60_000);
 
   const { error } = await service.from("slack_sign_in_tokens").insert({
     token_hash: sha256(token),
@@ -231,7 +265,7 @@ export async function issueSlackSignIn(
 
   const url = new URL("/auth/slack", params.origin);
   url.searchParams.set("token", token);
-  return { url: url.toString(), code, expiresAt };
+  return { url: url.toString(), code, expiresAt, ttlMinutes };
 }
 
 /**
@@ -295,8 +329,9 @@ export async function signInSlackUser(
   sessionClient: SessionClient,
   slackUserId: string
 ): Promise<{ ok: true } | { ok: false; reason: "unavailable" | "failed" }> {
-  const resolution = toResolution(await findBoundProfile(service, slackUserId));
+  const resolution = await toResolution(service, await findBoundProfile(service, slackUserId));
   if (resolution.status !== "ok") return { ok: false, reason: "unavailable" };
+  if (resolution.admin) console.info("slack-sign-in: admin %s signing in from Slack (%s)", resolution.userId, slackUserId);
 
   const { data: link, error: linkError } = await service.auth.admin.generateLink({
     type: "magiclink",
@@ -341,7 +376,7 @@ export function buildSlackSignInBlocks(
   if (resolution.status !== "ok" || !issued) {
     const text =
       resolution.status === "admin"
-        ? `Admins sign in to Hedgie Hub by email: <${loginUrl}|go to the sign-in page>.`
+        ? `Admins sign in to Hedgie Hub by email: <${loginUrl}|go to the sign-in page>. To sign in from here instead, turn on *Slack Sign-In for Admins* in your Feature Previews.`
         : `We couldn't match your Slack account to a Hedgie Hub account. If your Slack email is different from your Hedgie Hub one, <${loginUrl}|sign in by email>, add your Slack email under *Email Aliases* in <${new URL("/settings", origin).toString()}|Settings>, then come back here. Or ask the Quill & Cup team for help.`;
     return [{ type: "section", text: { type: "mrkdwn", text } }];
   }
@@ -404,7 +439,7 @@ export function buildSlackSignInBlocks(
 
 function expiryMarkup(issued: IssuedSlackSignIn): string {
   const expiresUnix = Math.floor(issued.expiresAt.getTime() / 1000);
-  return `<!date^${expiresUnix}^{time}|in ${SLACK_SIGN_IN_TTL_MINUTES} minutes>`;
+  return `<!date^${expiresUnix}^{time}|in ${issued.ttlMinutes} minutes>`;
 }
 
 /**
@@ -421,7 +456,7 @@ export async function sendSlackSignInMessage(service: SupabaseClient, slackUserI
 
   const resolution = await resolveHubUserForSlackUser(service, slackUserId);
   if (resolution.status !== "ok") return;
-  const issued = await issueSlackSignIn(service, { slackUserId, origin });
+  const issued = await issueSlackSignIn(service, { slackUserId, origin, ttlMinutes: slackSignInTtlMinutes(resolution) });
 
   const text = `Your one-time Hedgie Hub sign-in link (works once, until ${expiryMarkup(issued)}):\n${issued.url}\n\nOr enter this code on the sign-in page: \`${formatSlackSignInCode(issued.code)}\``;
   await new WebClient(botToken).chat.postMessage({
@@ -450,7 +485,10 @@ export async function prepareSlackSignIn(
   if (!assertSigningSecret()) return null;
 
   const resolution = await resolveHubUserForSlackUser(service, slackUserId);
-  const issued = resolution.status === "ok" ? await issueSlackSignIn(service, { slackUserId, origin }) : null;
+  const issued =
+    resolution.status === "ok"
+      ? await issueSlackSignIn(service, { slackUserId, origin, ttlMinutes: slackSignInTtlMinutes(resolution) })
+      : null;
 
   return {
     blocks: buildSlackSignInBlocks(resolution, issued, origin, options),
