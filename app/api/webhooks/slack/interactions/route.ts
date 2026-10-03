@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { WebClient } from "@slack/web-api";
 import { verifySlackSignature } from "@/lib/slack-signature";
-import { resolveMemberIdForSlackUser } from "@/lib/writing-nudges";
+import { QUICK_LOG_ACTION_ID, replaceAnsweredBlock, resolveMemberIdForSlackUser } from "@/lib/writing-nudges";
 import { MEASURE_LABELS, type WritingMeasure } from "@/lib/writing-projects";
 import {
   sendSlackSignInMessage,
@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ received: true });
   }
 
-  if (action?.action_id !== "writing_quick_log") return NextResponse.json({ received: true });
+  if (action?.action_id !== QUICK_LOG_ACTION_ID) return NextResponse.json({ received: true });
 
   try {
     await handleWritingQuickLog(payload, action);
@@ -152,10 +152,12 @@ async function handleWritingQuickLog(payload: any, action: any) {
     if (token) {
       const slack = new WebClient(token);
       const measureLabel = MEASURE_LABELS[measure as WritingMeasure] ?? measure;
+      const confirmation = `✅ Logged ${amount} ${measureLabel.toLowerCase()} — nice work!`;
       await slack.chat.update({
         channel: channelId,
         ts: messageTs,
-        text: `✅ Logged ${amount} ${measureLabel.toLowerCase()} — nice work!`,
+        text: confirmation,
+        blocks: replaceAnsweredBlock(payload.message?.blocks, action.block_id, confirmation),
       });
     }
   }

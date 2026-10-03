@@ -226,46 +226,26 @@ function isoDate(date: Date): string {
 }
 
 export interface PrickleAttendanceRow {
-  typeId: string;
-  hostId: string | null;
+  prickleId: string;
   localDate: string; // YYYY-MM-DD, already resolved to the member's local calendar date
 }
 
-/** A prickles-measure goal's frozen anchor snapshot (see writing_goals.anchor_* columns) -- never a live prickle_schedules lookup. */
-export interface PrickleGoalAnchor {
-  typeId: string | null;
-  hostId: string | null;
-  dayOfWeek: number | null; // 0=Sunday..6=Saturday
-}
-
-function localDateDayOfWeek(localDate: string): number {
-  return new Date(`${localDate}T00:00:00Z`).getUTCDay();
-}
-
 /**
- * Filters a member's prickle attendance down to what a prickles-measure habit goal should
- * count, then groups by date -- output feeds directly into computeHabitGoalProgress unchanged.
- * Each anchor field applies independently when set; all three null means "any (writing-purpose)
- * prickle attended counts" -- purpose filtering itself happens upstream, at the query that
- * produces `attendance` (see getMyPrickleAttendance), not here.
+ * A prickles-measure goal's entries: distinct prickles attended per local date -- output feeds
+ * directly into computeHabitGoalProgress unchanged. Every writing prickle counts; purpose
+ * filtering happens upstream, at the query that produces `attendance` (see
+ * getMyPrickleAttendance). A member who left and rejoined has several rows for one prickle
+ * (see CLAUDE.md), and that's still one prickle.
  */
-export function derivePrickleHabitEntries(
-  attendance: PrickleAttendanceRow[],
-  anchor: PrickleGoalAnchor
-): { entryDate: string; amount: number }[] {
-  const matching = attendance.filter((row) => {
-    if (anchor.typeId != null && row.typeId !== anchor.typeId) return false;
-    if (anchor.hostId != null && row.hostId !== anchor.hostId) return false;
-    if (anchor.dayOfWeek != null && localDateDayOfWeek(row.localDate) !== anchor.dayOfWeek) return false;
-    return true;
-  });
-
-  const totalsByDate = new Map<string, number>();
-  for (const row of matching) {
-    totalsByDate.set(row.localDate, (totalsByDate.get(row.localDate) ?? 0) + 1);
+export function derivePrickleHabitEntries(attendance: PrickleAttendanceRow[]): { entryDate: string; amount: number }[] {
+  const pricklesByDate = new Map<string, Set<string>>();
+  for (const row of attendance) {
+    const ids = pricklesByDate.get(row.localDate) ?? new Set<string>();
+    ids.add(row.prickleId);
+    pricklesByDate.set(row.localDate, ids);
   }
 
-  return [...totalsByDate.entries()].map(([entryDate, amount]) => ({ entryDate, amount }));
+  return [...pricklesByDate.entries()].map(([entryDate, ids]) => ({ entryDate, amount: ids.size }));
 }
 
 export type HabitPeriod = "day" | "week" | "month";

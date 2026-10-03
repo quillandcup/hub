@@ -1,10 +1,7 @@
 import { matchSlackUsersToMembers } from "@/lib/slack-matching";
 import { sendSlackDM } from "@/lib/slack";
 import { MEASURE_QUICK_LOG_PRESETS, type WritingMeasure } from "@/lib/writing-projects";
-import { ORG_TIMEZONE } from "@/lib/config";
-
-// Re-exported for existing importers; the value comes from env (lib/config.ts).
-export { ORG_TIMEZONE };
+import { loadCalendarFeedPrickleIds } from "@/lib/calendar-feed";
 
 const BATCH_SIZE = 1000;
 
@@ -27,46 +24,85 @@ async function fetchAllPaginated<T>(
   return all;
 }
 
-export interface PrickleGoalCandidate {
+export interface GoalCandidate {
   memberId: string;
   goalId: string;
   projectId: string;
-  /** All three null means "any writing prickle" -- the member's own explicit choice, not a gap to infer around. */
-  anchorTypeId: string | null;
-  anchorHostId: string | null;
-  anchorDayOfWeek: number | null;
+  projectTitle: string;
+  measure: WritingMeasure;
 }
 
 /**
- * Every member's active (non-archived project, non-archived goal) measure='prickles' goal --
- * the single consent gate for both the pre-prickle nudge and the post-prickle prompt (see Phase 1
- * plan's Context section for why one shared gate instead of two).
+ * Every member's active (non-archived project, non-archived goal) writing goal, whatever its
+ * measure -- the consent gate for both the pre-prickle nudge and the post-prickle prompt. A
+ * member who is tracking words, chapters, scenes etc. wants the prompts as much as one counting
+ * prickles; the measure only decides what the post-prickle prompt asks about.
  */
-export async function getActivePrickleGoalCandidates(supabase: any): Promise<PrickleGoalCandidate[]> {
-  const { data } = await supabase
-    .from("writing_goals")
-    .select("id, member_id, project_id, anchor_type_id, anchor_host_id, anchor_day_of_week, writing_projects!inner(archived_at)")
-    .eq("measure", "prickles")
-    .is("archived_at", null)
-    .is("writing_projects.archived_at", null);
+export async function getActiveGoalCandidates(supabase: any): Promise<GoalCandidate[]> {
+  const rows = await fetchAllPaginated<any>((offset) =>
+    supabase
+      .from("writing_goals")
+      .select(
+        "id, member_id, project_id, measure, writing_projects!inner(title, archived_at)"
+      )
+      .is("archived_at", null)
+      .is("writing_projects.archived_at", null)
+      .order("id")
+      .range(offset, offset + BATCH_SIZE - 1)
+  );
 
-  return ((data ?? []) as any[]).map((g) => ({
-    memberId: g.member_id,
-    goalId: g.id,
-    projectId: g.project_id,
-    anchorTypeId: g.anchor_type_id,
-    anchorHostId: g.anchor_host_id,
-    anchorDayOfWeek: g.anchor_day_of_week,
-  }));
+  return rows.map((g) => {
+    const project = Array.isArray(g.writing_projects) ? g.writing_projects[0] : g.writing_projects;
+    return {
+      memberId: g.member_id,
+      goalId: g.id,
+      projectId: g.project_id,
+      projectTitle: project?.title ?? "your project",
+      measure: g.measure as WritingMeasure,
+    };
+  });
 }
 
-/** 0=Sunday..6=Saturday in the given IANA timezone -- matches prickle_schedules.day_of_week / JS Date.getDay() convention. */
-export function localDayOfWeek(isoTimestamp: string, timeZone: string): number {
-  const parts = new Intl.DateTimeFormat("en-US", { timeZone, weekday: "short" }).formatToParts(
-    new Date(isoTimestamp)
-  );
-  const weekday = parts.find((p) => p.type === "weekday")?.value ?? "Sun";
-  return ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(weekday);
+/** Candidates grouped by member, in first-seen order. */
+export function groupByMember<T extends { memberId: string }>(candidates: T[]): Map<string, T[]> {
+  const byMember = new Map<string, T[]>();
+  for (const c of candidates) {
+    const list = byMember.get(c.memberId);
+    if (list) list.push(c);
+    else byMember.set(c.memberId, [c]);
+  }
+  return byMember;
+}
+
+/** Members whose calendars load at once -- each is a handful of queries. */
+const CALENDAR_LOAD_CONCURRENCY = 10;
+
+/**
+ * memberId -> ids of the prickles on that member's calendar feed from `since` on: hosting,
+ * commitments and prickles added by hand. It's the same loader the .ics feed uses
+ * (lib/calendar-feed.ts), so "nudge them if it's on their calendar" can't drift from what the
+ * calendar shows. A member whose calendar fails to load is logged and gets no nudges this tick.
+ */
+export async function loadCalendarPrickleIdsByMember(
+  supabase: any,
+  memberIds: string[],
+  since: Date,
+  now: Date = new Date()
+): Promise<Map<string, Set<string>>> {
+  const result = new Map<string, Set<string>>();
+  for (let i = 0; i < memberIds.length; i += CALENDAR_LOAD_CONCURRENCY) {
+    await Promise.all(
+      memberIds.slice(i, i + CALENDAR_LOAD_CONCURRENCY).map(async (memberId) => {
+        try {
+          result.set(memberId, await loadCalendarFeedPrickleIds(supabase, memberId, since, now));
+        } catch (error) {
+          console.error(`loadCalendarPrickleIdsByMember: calendar failed to load for member=${memberId}:`, error);
+          result.set(memberId, new Set());
+        }
+      })
+    );
+  }
+  return result;
 }
 
 export interface UpcomingPrickle {
@@ -78,20 +114,25 @@ export interface UpcomingPrickle {
 }
 
 /**
- * Whether an upcoming prickle satisfies a prickles-measure goal's anchor. Each set anchor field
- * applies independently; all three null ("any writing prickle") matches everything -- mirrors
- * derivePrickleHabitEntries' own matching semantics (lib/writing-projects.ts) so targeting here
- * agrees with what the goal will actually count once attendance is imported.
+ * Which (member, prickle) pairs get a pre-prickle nudge: a member with any active goal, for each
+ * upcoming prickle on their calendar (hosting, commitments, added by hand). Nothing else -- a
+ * prickle they haven't put on their calendar never triggers a DM. Exactly one entry per member
+ * per prickle, however many goals they have.
  */
-export function prickleMatchesAnchor(
-  prickle: { typeId: string; hostId: string | null; startTime: string },
-  anchor: { typeId: string | null; hostId: string | null; dayOfWeek: number | null },
-  timeZone: string = ORG_TIMEZONE
-): boolean {
-  if (anchor.typeId != null && prickle.typeId !== anchor.typeId) return false;
-  if (anchor.hostId != null && prickle.hostId !== anchor.hostId) return false;
-  if (anchor.dayOfWeek != null && localDayOfWeek(prickle.startTime, timeZone) !== anchor.dayOfWeek) return false;
-  return true;
+export function planPrePrickleNudges<P extends UpcomingPrickle>(
+  candidates: GoalCandidate[],
+  upcomingPrickles: P[],
+  calendarPrickleIdsByMember: Map<string, Set<string>>
+): { memberId: string; prickle: P }[] {
+  const plan: { memberId: string; prickle: P }[] = [];
+  for (const memberId of new Set(candidates.map((c) => c.memberId))) {
+    const onCalendar = calendarPrickleIdsByMember.get(memberId);
+    if (!onCalendar) continue;
+    for (const prickle of upcomingPrickles) {
+      if (onCalendar.has(prickle.id)) plan.push({ memberId, prickle });
+    }
+  }
+  return plan;
 }
 
 /** Full slackUserId -> memberId map, same 3-tier matching (alias > email > normalized name) Wheel of Wonder uses. */
@@ -173,12 +214,67 @@ async function pickQuickLogMeasure(supabase: any, projectId: string, memberId: s
   return distinct.length === 1 ? distinct[0] : "time_minutes";
 }
 
+
+/** The measure a goal's quick-log prompt asks about: its own, unless it's 'prickles' (counted automatically from attendance). */
+async function quickLogMeasureFor(supabase: any, goal: GoalCandidate): Promise<WritingMeasure> {
+  if (MEASURE_QUICK_LOG_PRESETS[goal.measure]) return goal.measure;
+  return pickQuickLogMeasure(supabase, goal.projectId, goal.memberId);
+}
+
+export const QUICK_LOG_ACTION_ID = "writing_quick_log";
+
+/**
+ * After a quick-log answer: swap just the answered dropdown for its confirmation so the DM's
+ * other dropdowns stay answerable. With no blocks to work from (an older single-dropdown DM),
+ * the whole message becomes the confirmation.
+ */
+export function replaceAnsweredBlock(blocks: any[] | undefined, blockId: string | undefined, confirmation: string): any[] {
+  const confirmationBlock = { type: "section", text: { type: "mrkdwn", text: confirmation } };
+  if (!Array.isArray(blocks) || !blockId || !blocks.some((b) => b.block_id === blockId)) return [confirmationBlock];
+  return blocks.map((b) => (b.block_id === blockId ? confirmationBlock : b));
+}
+
+/** One project + measure to ask about in a post-prickle prompt. */
+export interface QuickLogPrompt {
+  projectId: string;
+  projectTitle: string;
+  measure: WritingMeasure;
+}
+
+/**
+ * Slack blocks for one post-prickle DM: a dropdown per project + measure. Each section's block_id
+ * is unique so the interaction handler can replace just the answered one and leave the rest.
+ */
+export function buildQuickLogBlocks(typeName: string, prickleId: string, prompts: QuickLogPrompt[]): any[] {
+  return prompts.map((prompt) => {
+    const presets = MEASURE_QUICK_LOG_PRESETS[prompt.measure]!;
+    const question =
+      prompts.length === 1
+        ? `How much did you write during *${typeName}*?`
+        : `How much did you get done on *${prompt.projectTitle}* during *${typeName}*?`;
+    return {
+      type: "section",
+      block_id: `quick_log:${prompt.projectId}:${prompt.measure}`,
+      text: { type: "mrkdwn", text: question },
+      accessory: {
+        type: "static_select",
+        action_id: QUICK_LOG_ACTION_ID,
+        placeholder: { type: "plain_text", text: "Pick an amount" },
+        options: presets.map((p) => ({
+          text: { type: "plain_text", text: p.label },
+          value: `${prompt.projectId}:${prickleId}:${prompt.measure}:${p.amount}`,
+        })),
+      },
+    };
+  });
+}
+
 /**
  * Phase 1, item 10: post-prickle quick-log prompt. Called after a prickle's attendance has been
  * imported (see app/api/webhooks/zoom/route.ts's meeting.ended branch, which only calls this
- * once triggerZoomImport resolves). Sends attendees with an active prickles-measure goal a
- * one-tap inline dropdown -- not the prickles measure itself (already automatic), but the output
- * (words/minutes/pages/etc.) attendance tracking can't capture. Returns the number of DMs sent.
+ * once triggerZoomImport resolves). Sends each attendee with any active writing goal one DM with
+ * an inline dropdown per goal, asking in that goal's measure (words, chapters, scenes...) -- or,
+ * for a prickles goal, the output attendance tracking can't capture. Returns the number of DMs sent.
  */
 export async function sendPostPricklePrompts(supabase: any, prickleId: string): Promise<number> {
   const { data: prickleRow } = await supabase
@@ -190,44 +286,34 @@ export async function sendPostPricklePrompts(supabase: any, prickleId: string): 
   const typeName = type?.name ?? "that prickle";
 
   const { data: attendanceRows } = await supabase.from("prickle_attendance").select("member_id").eq("prickle_id", prickleId);
-  const attendeeIds = [...new Set(((attendanceRows ?? []) as any[]).map((r) => r.member_id as string))];
-  if (attendeeIds.length === 0) return 0;
+  const attendeeIds = new Set(((attendanceRows ?? []) as any[]).map((r) => r.member_id as string));
+  if (attendeeIds.size === 0) return 0;
 
-  const candidates = await getActivePrickleGoalCandidates(supabase);
-  const eligible = candidates.filter((c) => attendeeIds.includes(c.memberId));
-  if (eligible.length === 0) return 0;
+  const candidates = await getActiveGoalCandidates(supabase);
+  const goalsByMember = groupByMember(candidates.filter((c) => attendeeIds.has(c.memberId)));
+  if (goalsByMember.size === 0) return 0;
 
-  const slackUserIdByMember = await resolveSlackUserIds(supabase, eligible.map((c) => c.memberId));
+  const slackUserIdByMember = await resolveSlackUserIds(supabase, [...goalsByMember.keys()]);
 
   let sent = 0;
-  for (const candidate of eligible) {
-    const slackUserId = slackUserIdByMember.get(candidate.memberId);
+  for (const [memberId, goals] of goalsByMember) {
+    const slackUserId = slackUserIdByMember.get(memberId);
     if (!slackUserId) continue;
 
-    const shouldSend = await tryRecordNudge(supabase, prickleId, candidate.memberId, "post_prickle_prompt");
+    const shouldSend = await tryRecordNudge(supabase, prickleId, memberId, "post_prickle_prompt");
     if (!shouldSend) continue;
 
-    const measure = await pickQuickLogMeasure(supabase, candidate.projectId, candidate.memberId);
-    const presets = MEASURE_QUICK_LOG_PRESETS[measure]!;
+    // Two goals on one project in the same measure would be the same question -- ask it once.
+    const prompts = new Map<string, QuickLogPrompt>();
+    for (const goal of goals) {
+      const measure = await quickLogMeasureFor(supabase, goal);
+      prompts.set(`${goal.projectId}:${measure}`, { projectId: goal.projectId, projectTitle: goal.projectTitle, measure });
+    }
 
     await sendSlackDM({
       slackUserId,
       text: `How much did you write during ${typeName}?`,
-      blocks: [
-        {
-          type: "section",
-          text: { type: "mrkdwn", text: `How much did you write during *${typeName}*?` },
-          accessory: {
-            type: "static_select",
-            action_id: "writing_quick_log",
-            placeholder: { type: "plain_text", text: "Pick an amount" },
-            options: presets.map((p) => ({
-              text: { type: "plain_text", text: p.label },
-              value: `${candidate.projectId}:${prickleId}:${measure}:${p.amount}`,
-            })),
-          },
-        },
-      ],
+      blocks: buildQuickLogBlocks(typeName, prickleId, [...prompts.values()]),
     });
     sent++;
   }
