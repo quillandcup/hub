@@ -385,7 +385,6 @@ export function buildSlackSignInBlocks(
     return [{ type: "section", text: { type: "mrkdwn", text } }];
   }
 
-  const expires = expiryMarkup(issued);
   // A button with a url still posts block_actions, so one click DMs the link and, where the
   // deep link is configured, flips the member to the Messages tab to find it.
   const messagesLink = slackAppDeepLink("messages");
@@ -405,15 +404,6 @@ export function buildSlackSignInBlocks(
       ...(messagesLink ? { url: messagesLink } : {}),
     },
   ];
-  if (withRefresh) {
-    buttons.push({
-      type: "button",
-      action_id: SLACK_REFRESH_ACTION_ID,
-      text: { type: "plain_text", text: "Get a fresh link", emoji: true },
-      value: "refresh",
-    });
-  }
-
   return [
     {
       type: "section",
@@ -428,8 +418,8 @@ export function buildSlackSignInBlocks(
       elements: [
         {
           type: "mrkdwn",
-          text: `Signs you in as ${resolution.email}. Just for you: works once, until ${expires}. ${
-            withRefresh ? "Reopening this tab also gets you a fresh one." : "Run `/hub` again for a fresh one."
+          text: `Signs you in as ${resolution.email}. Just for you, and works once. ${
+            withRefresh ? "If it stops working, click it, then come back to this tab for a fresh one." : "If it stops working, run `/hub` again."
           }`,
         },
       ],
@@ -439,7 +429,7 @@ export function buildSlackSignInBlocks(
       type: "section",
       text: {
         type: "mrkdwn",
-        text: `*Using a different browser, like Safari on iPhone?* Tap *Send me a link I can copy*, then press and hold the link in that message and choose *Open in Browser*. Or enter this code on <${loginUrl}|${loginHost}/login>:\n\`${formatSlackSignInCode(issued.code)}\``,
+        text: `*Using a different browser, like Safari on iPhone?* Tap *Send me a link I can copy*, then press and hold the link in that message and choose *Open in Browser*. Or sign in by email at <${loginUrl}|${loginHost}/login>.`,
       },
     },
   ];
