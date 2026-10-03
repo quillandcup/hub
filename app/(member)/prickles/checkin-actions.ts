@@ -37,6 +37,20 @@ export async function getMyCheckin(prickleId: string): Promise<CheckinInput | nu
 }
 
 /**
+ * The check-in for a prickle as the Log Progress modal needs it: the saved answers (if any) and
+ * whether the member may change them -- not in sudo, where saveCheckin refuses.
+ */
+export async function getCheckinForLogging(
+  prickleId: string
+): Promise<{ checkin: CheckinInput | null; canEdit: boolean }> {
+  const user = await getCurrentUser();
+  if (!user) return { checkin: null, canEdit: false };
+  const identity = await getEffectiveIdentity(user);
+  if (!identity) return { checkin: null, canEdit: false };
+  return { checkin: await getMyCheckin(prickleId), canEdit: !identity.isSudo };
+}
+
+/**
  * Save (or, when every answer is cleared, delete) the signed-in member's check-in for a prickle.
  * Refused in sudo: a check-in is the member's own feelings, so nobody records them on someone's
  * behalf (RLS also keeps writes owner-only, resolving the member from the session).

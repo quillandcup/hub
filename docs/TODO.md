@@ -892,6 +892,11 @@ Check-ins (`prickle_checkins`) and progress entries linked to prickles (`writing
 - Admins already have row read access to `prickle_checkins` (RLS), so this is an admin page plus queries, no schema change. Check-in feeling groups come from `FEELING_GROUP` in `lib/prickle-checkins.ts`.
 - Open: where it lives (member admin page tab vs a dedicated "check-ins" admin page) and the exact flag thresholds.
 
+### Prickle Check-ins: Ask "Coming In" Before the Session (Needs a Nudge)
+The "Coming in, I'm feeling…" and "What I need" answers are only reliably asked after the fact: the Log Progress modal asks "Coming in, I was feeling…" retroactively when it's unanswered, and the prickle page's Check in card only gets them before the session if the member opens the page first (most join straight from their calendar). The Prickle Picker pre-fills the card but doesn't save. Ideas, not yet decided:
+- Add the two "coming in" questions to the existing pre-prickle Slack nudge (`lib/writing-nudges.ts`), as one-tap buttons that save to `prickle_checkins`. Today that nudge only reaches members with a prickles-measure goal; deliberately not widened yet.
+- Or save the Picker's answers to the prickle the member clicks through to, instead of only pre-filling.
+
 ### Prickle Check-ins Phase 3: Member Insights + Normalized Prickle Ratings (Wait for Data)
 Only meaningful once a few weeks of check-ins exist.
 - **Member insights:** a "What works for you" view on the member's own pages, e.g. "When you came in stressed, focused prickles with Host X were your best sessions", and which prickles lift their mood most (feelings after vs before). Reuse `similarCheckins` from `lib/prickle-picker.ts`.

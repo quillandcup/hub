@@ -16,7 +16,7 @@ import { getMyEntriesForPrickle, getMyProjects } from "@/app/(member)/projects/a
 import PrickleWritingPanel from "@/components/writing/PrickleWritingPanel";
 import PrickleCheckIn from "@/components/writing/PrickleCheckIn";
 import { getMyCheckin } from "@/app/(member)/prickles/checkin-actions";
-import { parseCheckinPrefill } from "@/lib/prickle-checkins";
+import { asksHowItWent, parseCheckinPrefill } from "@/lib/prickle-checkins";
 import { localDateOf } from "@/lib/prickle-writing";
 import { ORG_TIMEZONE } from "@/lib/config";
 import { getMyCalendarItems } from "@/app/(member)/my-prickles/calendar-feed-actions";
@@ -54,6 +54,10 @@ export async function generateMetadata({
   if (!prickle) return { title: "Prickle" };
 
   return { title: formatPrickleTitle(prickle) };
+}
+
+function asksHowItWentNow(startTime: string): boolean {
+  return asksHowItWent(startTime, Date.now());
 }
 
 function hasNotStarted(startTime: string): boolean {
@@ -235,7 +239,7 @@ export default async function PrickleDetailPage({
     !isActingAsAdmin && effectiveIdentity ? (
       <PrickleCheckIn
         prickleId={prickle.id}
-        hasStarted={!hasNotStarted(prickle.start_time)}
+        askHowItWent={asksHowItWentNow(prickle.start_time)}
         initial={myCheckin}
         prefill={checkinPrefill}
         readOnly={effectiveIdentity.isSudo}

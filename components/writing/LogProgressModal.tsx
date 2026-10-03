@@ -10,6 +10,11 @@ import { WRITING_MEASURES, MEASURE_LABELS, type WritingMeasure, type EntryMode }
 const LOGGABLE_MEASURES = WRITING_MEASURES.filter((m) => m !== "prickles");
 import { getPricklesOnDate, logProgress, updateEntry, type EntryRow } from "@/app/(member)/projects/actions";
 import { defaultPrickleId, type PrickleOption } from "@/lib/prickle-writing";
+import { getCheckinForLogging, saveCheckin } from "@/app/(member)/prickles/checkin-actions";
+import { asksHowItWent, type CheckinInput } from "@/lib/prickle-checkins";
+import { FeelingPicker, NeedPicker, RatingPicker } from "@/components/writing/CheckinFields";
+
+const EMPTY_CHECKIN: CheckinInput = { feelingsBefore: [], need: null, sessionRating: null, feelingsAfter: [] };
 
 interface LogProgressModalProps {
   isOpen: boolean;
@@ -71,6 +76,50 @@ export default function LogProgressModal({
     };
   }, [isOpen, entryDate]);
 
+  // The selected prickle's check-in, so logging from anywhere asks how it went (and, if nobody
+  // asked before the session, how they felt coming in). Saved with the entry; hidden in sudo,
+  // where nobody records feelings on a member's behalf.
+  const [checkinFor, setCheckinFor] = useState<string | null>(null);
+  // "Now" for the check-in's timing, fixed when the modal opens so the questions don't shift
+  // while the member is filling them in.
+  const [openedAt] = useState(() => Date.now());
+  const [savedCheckin, setSavedCheckin] = useState<CheckinInput | null>(null);
+  const [checkinDraft, setCheckinDraft] = useState<CheckinInput>(EMPTY_CHECKIN);
+  const [canCheckIn, setCanCheckIn] = useState(false);
+
+  useEffect(() => {
+    // No reset needed when the prickle is cleared or changes: the section only shows once
+    // checkinFor matches the current choice.
+    if (!isOpen || !prickleChoice) return;
+    let cancelled = false;
+    getCheckinForLogging(prickleChoice).then(({ checkin, canEdit }) => {
+      if (cancelled) return;
+      setSavedCheckin(checkin);
+      setCheckinDraft(checkin ?? EMPTY_CHECKIN);
+      setCanCheckIn(canEdit);
+      setCheckinFor(prickleChoice);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, prickleChoice]);
+
+  // Which half of the check-in to ask follows the prickle's timing (asksHowItWent): early on,
+  // only "coming in"; from CHECKIN_AFTER_MINUTES in, how it went too. A linked prickle that isn't
+  // on the chosen date is in the past, so it gets the full check-in.
+  const optionsLoaded = optionsLoadedFor === entryDate;
+  const selectedStart = prickleOptions.find((o) => o.id === prickleChoice)?.startTime;
+  const askHowItWent = selectedStart ? asksHowItWent(selectedStart, openedAt) : true;
+  const showCheckin = canCheckIn && prickleChoice !== "" && checkinFor === prickleChoice && optionsLoaded;
+  // After the session, "coming in" is only asked if nobody answered it earlier.
+  const comingInAnswered = (savedCheckin?.feelingsBefore.length ?? 0) > 0 || savedCheckin?.need != null;
+  const askComingIn = !askHowItWent || !comingInAnswered;
+  const checkinChanged =
+    showCheckin && JSON.stringify(checkinDraft) !== JSON.stringify(savedCheckin ?? EMPTY_CHECKIN);
+  function updateCheckin(patch: Partial<CheckinInput>) {
+    setCheckinDraft((c) => ({ ...c, ...patch }));
+  }
+
   // Keep a linked prickle selectable even when it isn't on the chosen date.
   const selectedMissing = prickleChoice !== "" && !prickleOptions.some((o) => o.id === prickleChoice);
 
@@ -91,6 +140,16 @@ export default function LogProgressModal({
     const tags = tagsInput.split(",").map((t) => t.trim()).filter(Boolean);
 
     setIsPending(true);
+    // Check-in first: it's an idempotent upsert, so a failure here leaves nothing half-saved
+    // (the progress entry isn't, and a retry would duplicate it).
+    if (checkinChanged) {
+      const checkinResult = await saveCheckin(prickleChoice, checkinDraft);
+      if ("error" in checkinResult) {
+        setIsPending(false);
+        setError(checkinResult.error);
+        return;
+      }
+    }
     const result = editingEntry
       ? await updateEntry(editingEntry.id, {
           entryDate,
@@ -271,6 +330,47 @@ export default function LogProgressModal({
             className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-sm"
           />
         </div>
+
+        {showCheckin && (
+          <section
+            aria-labelledby="log-progress-checkin"
+            className="space-y-4 border-t border-slate-200 dark:border-slate-800 pt-4"
+          >
+            <h3 id="log-progress-checkin" className="text-sm font-medium text-slate-700 dark:text-slate-300">
+              Check in <span className="text-slate-400 font-normal">(optional)</span>
+            </h3>
+            {askComingIn && (
+              <>
+                <FeelingPicker
+                  label={askHowItWent ? "Coming in, I was feeling…" : "Coming in, I'm feeling…"}
+                  selected={checkinDraft.feelingsBefore}
+                  onChange={(feelingsBefore) => updateCheckin({ feelingsBefore })}
+                  readOnly={false}
+                />
+                <NeedPicker
+                  label={askHowItWent ? "What I needed from this session" : "What I need from this session"}
+                  value={checkinDraft.need}
+                  onChange={(need) => updateCheckin({ need })}
+                />
+              </>
+            )}
+            {askHowItWent && (
+              <>
+                <RatingPicker
+                  label="How did it go?"
+                  value={checkinDraft.sessionRating}
+                  onChange={(sessionRating) => updateCheckin({ sessionRating })}
+                />
+                <FeelingPicker
+                  label="Feeling now…"
+                  selected={checkinDraft.feelingsAfter}
+                  onChange={(feelingsAfter) => updateCheckin({ feelingsAfter })}
+                  readOnly={false}
+                />
+              </>
+            )}
+          </section>
+        )}
 
         {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
 
