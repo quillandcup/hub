@@ -9,7 +9,7 @@ vi.mock("@/lib/auth", () => ({ getCurrentUser: vi.fn() }));
 vi.mock("@/lib/sudo", () => ({ getEffectiveIdentity: vi.fn() }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 
-import { getMyCheckin, saveCheckin } from "@/app/(member)/prickles/checkin-actions";
+import { getCheckinForLogging, getMyCheckin, saveCheckin } from "@/app/(member)/prickles/checkin-actions";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
 import { getEffectiveIdentity } from "@/lib/sudo";
@@ -114,5 +114,26 @@ describe("getMyCheckin", () => {
       feelingsAfter: [],
     });
     expect(sb.selectEq1).toHaveBeenCalledWith("member_id", "member-2");
+  });
+});
+
+describe("getCheckinForLogging", () => {
+  const row = { feelings_before: ["tired"], need: null, session_rating: null, feelings_after: [] };
+  const mapped = { feelingsBefore: ["tired"], need: null, sessionRating: null, feelingsAfter: [] };
+
+  it("returns the member's check-in, editable", async () => {
+    makeSupabase({ row });
+    expect(await getCheckinForLogging("prickle-1")).toEqual({ checkin: mapped, canEdit: true });
+  });
+
+  it("is read-only in sudo, where saving is refused", async () => {
+    vi.mocked(getEffectiveIdentity).mockResolvedValue({ ...IDENTITY, isSudo: true } as never);
+    makeSupabase({ row });
+    expect(await getCheckinForLogging("prickle-1")).toEqual({ checkin: mapped, canEdit: false });
+  });
+
+  it("is not editable when signed out", async () => {
+    vi.mocked(getCurrentUser).mockResolvedValue(null);
+    expect(await getCheckinForLogging("prickle-1")).toEqual({ checkin: null, canEdit: false });
   });
 });

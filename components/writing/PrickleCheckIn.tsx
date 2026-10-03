@@ -2,16 +2,8 @@
 
 import { useState } from "react";
 import { saveCheckin } from "@/app/(member)/prickles/checkin-actions";
-import {
-  FEELING_DISPLAY_GROUPS,
-  MAX_FEELINGS,
-  NEEDS,
-  SESSION_RATINGS,
-  isEmptyCheckin,
-  toggleFeeling,
-  type CheckinInput,
-  type Feeling,
-} from "@/lib/prickle-checkins";
+import { NEEDS, isEmptyCheckin, type CheckinInput } from "@/lib/prickle-checkins";
+import { FeelingPicker, RatingPicker, chipClass } from "@/components/writing/CheckinFields";
 
 interface PrickleCheckInProps {
   prickleId: string;
@@ -28,56 +20,6 @@ interface PrickleCheckInProps {
 }
 
 const EMPTY: CheckinInput = { feelingsBefore: [], need: null, sessionRating: null, feelingsAfter: [] };
-
-function chipClass(selected: boolean, disabled = false): string {
-  const base = "px-3 py-1 rounded-full text-sm border transition-colors";
-  if (selected) return `${base} bg-plum-600 border-plum-600 text-white`;
-  if (disabled) return `${base} border-slate-200 dark:border-slate-800 text-slate-400 dark:text-slate-600 cursor-not-allowed`;
-  return `${base} border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:border-plum-400`;
-}
-
-function FeelingPicker({
-  label,
-  selected,
-  onChange,
-  readOnly,
-}: {
-  label: string;
-  selected: Feeling[];
-  onChange: (next: Feeling[]) => void;
-  readOnly: boolean;
-}) {
-  const atMax = selected.length >= MAX_FEELINGS;
-  return (
-    <fieldset>
-      <legend className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-        {label} <span className="text-slate-400 font-normal">(up to {MAX_FEELINGS})</span>
-      </legend>
-      {/* Groups are spaced apart but deliberately unnamed -- see lib/prickle-checkins.ts. */}
-      <div className="space-y-2">
-        {FEELING_DISPLAY_GROUPS.map((group) => (
-          <div key={group[0].key} className="flex flex-wrap gap-2">
-            {group.map((f) => {
-              const isSelected = selected.includes(f.key);
-              return (
-                <button
-                  key={f.key}
-                  type="button"
-                  aria-pressed={isSelected}
-                  disabled={readOnly || (!isSelected && atMax)}
-                  onClick={() => onChange(toggleFeeling(selected, f.key))}
-                  className={chipClass(isSelected, !isSelected && atMax)}
-                >
-                  {f.label}
-                </button>
-              );
-            })}
-          </div>
-        ))}
-      </div>
-    </fieldset>
-  );
-}
 
 /** Private check-in for a prickle: feelings coming in, what the member needs, and how it went. */
 export default function PrickleCheckIn({
@@ -163,26 +105,12 @@ export default function PrickleCheckIn({
 
       {hasStarted && (
         <>
-          <fieldset>
-            <legend className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">How did it go?</legend>
-            <div className="flex flex-wrap gap-2">
-              {SESSION_RATINGS.map((r) => {
-                const isSelected = checkin.sessionRating === r.value;
-                return (
-                  <button
-                    key={r.value}
-                    type="button"
-                    aria-pressed={isSelected}
-                    disabled={readOnly}
-                    onClick={() => update({ sessionRating: isSelected ? null : r.value })}
-                    className={chipClass(isSelected)}
-                  >
-                    {r.label}
-                  </button>
-                );
-              })}
-            </div>
-          </fieldset>
+          <RatingPicker
+            label="How did it go?"
+            value={checkin.sessionRating}
+            onChange={(sessionRating) => update({ sessionRating })}
+            readOnly={readOnly}
+          />
 
           <FeelingPicker
             label="Feeling now…"
