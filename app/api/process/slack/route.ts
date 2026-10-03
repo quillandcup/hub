@@ -1,18 +1,10 @@
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { NextRequest, NextResponse } from "next/server";
+import { writeInBatches } from "@/lib/supabase/batched-insert";
 import { matchSlackUsersToMembers } from "@/lib/slack-matching";
 
 // Extend timeout for processing large batches
 export const maxDuration = 300; // 5 minutes
-
-// Helper to chunk array for batch processing
-function chunk<T>(array: T[], size: number): T[][] {
-  const chunks: T[][] = [];
-  for (let i = 0; i < array.length; i += size) {
-    chunks.push(array.slice(i, i + size));
-  }
-  return chunks;
-}
 
 /**
  * Process Bronze layer (slack_messages, slack_reactions) into Silver layer (member_activities)
@@ -159,20 +151,11 @@ export async function POST(request: NextRequest) {
     let inserted = 0;
 
     if (allActivities.length > 0) {
-      const CHUNK_SIZE = 500;
-      const chunks = chunk(allActivities, CHUNK_SIZE);
-
-      const insertResults = await Promise.all(
-        chunks.map(batch => supabase.from("member_activities").insert(batch))
+      // A few 500-row batches at a time: all ~47 at once got Cloudflare 520s
+      // from Supabase and lost a third of them (after the DELETE above).
+      inserted = await writeInBatches(allActivities, (batch) =>
+        supabase.from("member_activities").insert(batch)
       );
-
-      const failedChunks = insertResults.filter(r => r.error);
-      if (failedChunks.length > 0) {
-        console.error(`Failed to insert ${failedChunks.length} chunks:`, failedChunks[0].error);
-        throw failedChunks[0].error;
-      }
-
-      inserted = allActivities.length;
     }
 
     console.log(`Processing complete: inserted ${inserted} activities`);

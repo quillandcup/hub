@@ -226,6 +226,7 @@ Per channel: switch `bridge_mode` from `bridged` to `app_only`. The bot posts a 
    - Bronze fixes: webhook subtypes, soft delete for messages and reactions, membership and emoji pulls, content lock-down + `slack_messages_meta` view; move the admin pages that read Bronze content (Slack engagement insights, reconciliation) to server-side metadata reads.
    - Stop copying message text into `member_activities.description` for restricted channels and DMs.
    - From the Bronze audit: webhook stops storing join/leave notices as messages (and the 75 existing rows are removed + Slack activity reprocessed); import fetches `mpim`; re-invite the bot to the private channels it lost on 2026-09-25 and backfill.
+   - Rebuild Slack `member_activities` atomically (DELETE + INSERT in one SQL function, like `reprocess_prickle_attendance_atomic`). Today `/api/process/slack` deletes the range and then inserts in batches, so a failed batch leaves a gap until the next run (2026-10-03: ~7,000 activities missing after Supabase returned 520s).
    - Alert on reconcile failures, including partial ones, and when the bot loses access to a private channel (today that only shows on `/admin/hygiene`).
    - Copy Slack files into Supabase Storage.
 2. **Read-only mirror**: `chat_*` schema with the content/metadata split and RLS (pgTAP), projection + backfill, channel list and channel view, search v1, `restricted` flag and "staff can read this" indicator.
