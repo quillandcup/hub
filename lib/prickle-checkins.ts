@@ -1,7 +1,7 @@
 /**
  * Prickle check-ins: how a member felt coming into a prickle, what they needed from it, and how
- * it went. One row per (member, prickle) in prickle_checkins (migration 20261003000000), private
- * to the member. The keys below are what's stored; labels can be reworded freely, but adding,
+ * it went. One row per (member, prickle) in prickle_checkins (migration 20261003000000),
+ * readable by the member and admins, never hosts or other members. The keys below are what's stored; labels can be reworded freely, but adding,
  * removing or renaming a key needs a migration (the table's CHECKs list the same keys --
  * tests/lib/prickle-checkins.test.ts fails if they drift).
  */

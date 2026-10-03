@@ -3,11 +3,13 @@
 -- writing_progress_entries.prickle_id this is the raw material for "which prickles help me when
 -- I'm feeling X" -- see lib/prickle-checkins.ts for the option lists and their groups.
 --
--- Strictly private, like member_notes: every policy is owner-only with NO is_admin() branch, so
--- admins can't read these over the API. Sudo is an app-layer cookie invisible to Postgres
--- (current_member_id() is the admin's own member during sudo), so the app hides check-ins while
--- sudo is active. Any future admin view gets aggregates through a SECURITY DEFINER function,
--- never row access.
+-- Visibility: the member and admins. Admins read every row (is_admin() on SELECT) so staff can
+-- spot per-member patterns (e.g. someone checking in drained for weeks, a reach-out moment) and
+-- normalize a member's ratings against their own baseline. Hosts and other members can't see
+-- them. Writes stay owner-only, with no admin branch: a check-in records the member's own
+-- feelings, so nobody records them on someone's behalf. Sudo is an app-layer cookie invisible to
+-- Postgres (current_member_id() is the admin's own member during sudo), so in sudo the app shows
+-- the member's check-in read-only and refuses to save.
 --
 -- Only the specific feeling is stored; its group is derived in app code so regrouping applies
 -- to past rows. The key lists in the CHECKs must match lib/prickle-checkins.ts
@@ -60,7 +62,7 @@ CREATE TABLE IF NOT EXISTS public.prickle_checkins (
 CREATE INDEX IF NOT EXISTS prickle_checkins_prickle_id_idx ON public.prickle_checkins (prickle_id);
 
 COMMENT ON TABLE public.prickle_checkins IS
-  'Local layer: a member''s private check-in for a prickle (feelings before/after, need, rating). Owner-only under RLS (no admin access); hidden in sudo mode by the app.';
+  'Local layer: a member''s check-in for a prickle (feelings before/after, need, rating). Readable by the member and admins; writable only by the member (read-only in sudo).';
 
 DROP TRIGGER IF EXISTS update_prickle_checkins_updated_at ON public.prickle_checkins;
 CREATE TRIGGER update_prickle_checkins_updated_at
@@ -69,10 +71,10 @@ CREATE TRIGGER update_prickle_checkins_updated_at
 
 ALTER TABLE public.prickle_checkins ENABLE ROW LEVEL SECURITY;
 
-DROP POLICY IF EXISTS "Members read own check-ins" ON public.prickle_checkins;
-CREATE POLICY "Members read own check-ins" ON public.prickle_checkins
+DROP POLICY IF EXISTS "Members and admins read check-ins" ON public.prickle_checkins;
+CREATE POLICY "Members and admins read check-ins" ON public.prickle_checkins
   FOR SELECT TO authenticated
-  USING (member_id = (SELECT public.current_member_id()));
+  USING (member_id = (SELECT public.current_member_id()) OR (SELECT public.is_admin()));
 
 DROP POLICY IF EXISTS "Members insert own check-ins" ON public.prickle_checkins;
 CREATE POLICY "Members insert own check-ins" ON public.prickle_checkins

@@ -81,6 +81,24 @@ describe("PrickleCheckIn", () => {
     });
   });
 
+  it("is read-only in sudo: answers shown, nothing editable or saveable", () => {
+    render(
+      <PrickleCheckIn
+        prickleId="prickle-1"
+        hasStarted
+        readOnly
+        initial={{ feelingsBefore: ["drained"], need: "gentle", sessionRating: 2, feelingsAfter: [] }}
+      />
+    );
+    expect(screen.getByText("Read-only while browsing as this member.")).toBeInTheDocument();
+    expect(chip("Drained", 0)).toHaveAttribute("aria-pressed", "true");
+    expect(chip("Drained", 0)).toBeDisabled();
+    expect(chip(/^Gentle/)).toBeDisabled();
+    expect(chip("Meh")).toBeDisabled();
+    expect(chip("Calm", 1)).toBeDisabled();
+    expect(screen.queryByRole("button", { name: /check-in/ })).not.toBeInTheDocument();
+  });
+
   it("shows a save error", async () => {
     vi.mocked(saveCheckin).mockResolvedValue({ error: "Couldn't save your check-in — please try again." });
     const user = userEvent.setup();

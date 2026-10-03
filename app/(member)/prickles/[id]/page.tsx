@@ -225,10 +225,15 @@ export default async function PrickleDetailPage({
       />
     ) : null;
 
-  // Check-ins are private to the member (no admin access), so they're hidden in sudo.
+  // Admins can read check-ins but never write one for someone else, so in sudo it's read-only.
   const checkIn =
-    !isActingAsAdmin && effectiveIdentity && !effectiveIdentity.isSudo ? (
-      <PrickleCheckIn prickleId={prickle.id} hasStarted={!hasNotStarted(prickle.start_time)} initial={myCheckin} />
+    !isActingAsAdmin && effectiveIdentity ? (
+      <PrickleCheckIn
+        prickleId={prickle.id}
+        hasStarted={!hasNotStarted(prickle.start_time)}
+        initial={myCheckin}
+        readOnly={effectiveIdentity.isSudo}
+      />
     ) : null;
 
   return (

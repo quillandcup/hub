@@ -1,12 +1,12 @@
--- pgTAP tests for prickle_checkins (20261003000000): owner-only, no admin access, and the
--- CHECKs on the option keys.
+-- pgTAP tests for prickle_checkins (20261003000000): the member and admins read, only the member
+-- writes, and the CHECKs on the option keys.
 -- Runs in one transaction that is rolled back, so it leaves the shared local DB untouched.
 -- Run with `npm run test:pgtap` (scripts/test-pgtap.sh; CI runs it in the test-db job).
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;
 
-SELECT plan(10);
+SELECT plan(12);
 
 -- Alice and Bob are regular members, Dana an admin. Fixed ids nothing else uses.
 INSERT INTO auth.users (id, instance_id, aud, role, email) VALUES
@@ -27,7 +27,7 @@ INSERT INTO public.members (id, name, email, joined_at, status) VALUES
 INSERT INTO public.prickles (id, start_time, end_time, source) VALUES
   ('00000000-0000-4000-a000-00000000d1f1', '2026-01-05T15:00:00Z', '2026-01-05T16:00:00Z', 'calendar');
 
--- Bob's existing check-in, which Alice and Dana must not see or change.
+-- Bob's existing check-in: Alice must not see or change it; Dana (admin) can see but not change it.
 INSERT INTO public.prickle_checkins (member_id, prickle_id, feelings_before, need) VALUES
   ('00000000-0000-4000-a000-00000000d102', '00000000-0000-4000-a000-00000000d1f1', ARRAY['lonely'], 'company');
 
@@ -48,11 +48,14 @@ UPDATE public.prickle_checkins SET need = 'momentum'
   WHERE member_id = '00000000-0000-4000-a000-00000000d102';
 DELETE FROM public.prickle_checkins WHERE member_id = '00000000-0000-4000-a000-00000000d102';
 
--- As Dana (admin): no admin bypass.
+-- As Dana (admin): reads everyone's check-ins, can't change them.
 SELECT set_config('request.jwt.claims',
   '{"sub": "00000000-0000-4000-a000-00000000d1a4", "email": "checkin-dana@example.test", "role": "authenticated"}', true);
 INSERT INTO result SELECT 'admin_sees', to_jsonb(count(*)) FROM public.prickle_checkins
   WHERE prickle_id = '00000000-0000-4000-a000-00000000d1f1';
+UPDATE public.prickle_checkins SET need = 'momentum'
+  WHERE member_id = '00000000-0000-4000-a000-00000000d102';
+DELETE FROM public.prickle_checkins WHERE member_id = '00000000-0000-4000-a000-00000000d101';
 RESET ROLE;
 
 SELECT is(
@@ -62,13 +65,19 @@ SELECT is(
 );
 SELECT is(
   (SELECT value FROM result WHERE label = 'admin_sees'),
-  '0'::jsonb,
-  'admins cannot read check-ins'
+  '2'::jsonb,
+  'admins can read every member''s check-ins'
 );
 SELECT is(
   (SELECT need FROM public.prickle_checkins WHERE member_id = '00000000-0000-4000-a000-00000000d102'),
   'company',
-  'a member cannot update or delete someone else''s check-in'
+  'neither another member nor an admin can update someone else''s check-in'
+);
+SELECT is(
+  (SELECT count(*)::int FROM public.prickle_checkins
+    WHERE member_id IN ('00000000-0000-4000-a000-00000000d101', '00000000-0000-4000-a000-00000000d102')),
+  2,
+  'neither another member nor an admin can delete someone else''s check-in'
 );
 
 SELECT throws_ok(
@@ -79,6 +88,17 @@ SELECT throws_ok(
   '42501',
   NULL,
   'a member cannot write a check-in for someone else'
+);
+RESET ROLE;
+
+SELECT throws_ok(
+  $$SET LOCAL ROLE authenticated;
+    SELECT set_config('request.jwt.claims', '{"sub": "00000000-0000-4000-a000-00000000d1a4", "email": "checkin-dana@example.test", "role": "authenticated"}', true);
+    INSERT INTO public.prickle_checkins (member_id, prickle_id, need)
+    VALUES ('00000000-0000-4000-a000-00000000d102', '00000000-0000-4000-a000-00000000d1f1', 'gentle')$$,
+  '42501',
+  NULL,
+  'an admin cannot write a check-in for a member'
 );
 RESET ROLE;
 

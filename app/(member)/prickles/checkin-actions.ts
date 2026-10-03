@@ -9,15 +9,15 @@ import { isEmptyCheckin, validateCheckin, type CheckinInput, type Feeling, type 
 export type SaveCheckinResult = { success: true } | { error: string };
 
 /**
- * The signed-in member's check-in for a prickle, or null if they haven't made one. Also null in
- * sudo mode: check-ins are owner-only under RLS with no admin branch (migration 20261003000000),
- * and RLS resolves the member from the session, not the sudo cookie.
+ * The effective member's check-in for a prickle, or null if they haven't made one. Works in sudo:
+ * admins can read every check-in (migration 20261003000000), so an admin browsing as a member
+ * sees that member's answers.
  */
 export async function getMyCheckin(prickleId: string): Promise<CheckinInput | null> {
   const user = await getCurrentUser();
   if (!user) return null;
   const identity = await getEffectiveIdentity(user);
-  if (!identity || identity.isSudo) return null;
+  if (!identity) return null;
 
   const supabase = await createClient();
   const { data } = await supabase
@@ -36,7 +36,11 @@ export async function getMyCheckin(prickleId: string): Promise<CheckinInput | nu
   };
 }
 
-/** Save (or, when every answer is cleared, delete) the signed-in member's check-in for a prickle. */
+/**
+ * Save (or, when every answer is cleared, delete) the signed-in member's check-in for a prickle.
+ * Refused in sudo: a check-in is the member's own feelings, so nobody records them on someone's
+ * behalf (RLS also keeps writes owner-only, resolving the member from the session).
+ */
 export async function saveCheckin(prickleId: string, input: CheckinInput): Promise<SaveCheckinResult> {
   const user = await getCurrentUser();
   if (!user) return { error: "Not authenticated" };

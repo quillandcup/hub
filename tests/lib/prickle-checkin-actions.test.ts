@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-// The actions scope every read/write to effectiveIdentity.memberId and rely on RLS (owner-only,
-// no admin branch -- see supabase/tests/database/prickle_checkins.test.sql) to enforce it. These
+// The actions scope every read/write to effectiveIdentity.memberId and rely on RLS (member or
+// admin reads, owner-only writes -- see supabase/tests/database/prickle_checkins.test.sql). These
 // tests cover the app-level sudo refusal, validation, and the query shape sent to Supabase.
 
 vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
@@ -102,10 +102,17 @@ describe("getMyCheckin", () => {
     expect(sb.selectEq2).toHaveBeenCalledWith("prickle_id", "prickle-1");
   });
 
-  it("returns null in sudo mode", async () => {
-    vi.mocked(getEffectiveIdentity).mockResolvedValue({ ...IDENTITY, isSudo: true } as never);
-    const sb = makeSupabase();
-    expect(await getMyCheckin("prickle-1")).toBeNull();
-    expect(sb.from).not.toHaveBeenCalled();
+  it("reads the sudo'd member's check-in in sudo mode", async () => {
+    vi.mocked(getEffectiveIdentity).mockResolvedValue({ ...IDENTITY, memberId: "member-2", isSudo: true } as never);
+    const sb = makeSupabase({
+      row: { feelings_before: ["drained"], need: null, session_rating: null, feelings_after: [] },
+    });
+    expect(await getMyCheckin("prickle-1")).toEqual({
+      feelingsBefore: ["drained"],
+      need: null,
+      sessionRating: null,
+      feelingsAfter: [],
+    });
+    expect(sb.selectEq1).toHaveBeenCalledWith("member_id", "member-2");
   });
 });

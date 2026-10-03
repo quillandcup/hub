@@ -18,6 +18,8 @@ interface PrickleCheckInProps {
   /** Before it starts, only the "coming in" questions are shown. */
   hasStarted: boolean;
   initial: CheckinInput | null;
+  /** Sudo: an admin sees the member's answers but can't change them. */
+  readOnly?: boolean;
 }
 
 const EMPTY: CheckinInput = { feelingsBefore: [], need: null, sessionRating: null, feelingsAfter: [] };
@@ -33,10 +35,12 @@ function FeelingPicker({
   label,
   selected,
   onChange,
+  readOnly,
 }: {
   label: string;
   selected: Feeling[];
   onChange: (next: Feeling[]) => void;
+  readOnly: boolean;
 }) {
   const atMax = selected.length >= MAX_FEELINGS;
   return (
@@ -55,7 +59,7 @@ function FeelingPicker({
                   key={f.key}
                   type="button"
                   aria-pressed={isSelected}
-                  disabled={!isSelected && atMax}
+                  disabled={readOnly || (!isSelected && atMax)}
                   onClick={() => onChange(toggleFeeling(selected, f.key))}
                   className={chipClass(isSelected, !isSelected && atMax)}
                 >
@@ -71,7 +75,7 @@ function FeelingPicker({
 }
 
 /** Private check-in for a prickle: feelings coming in, what the member needs, and how it went. */
-export default function PrickleCheckIn({ prickleId, hasStarted, initial }: PrickleCheckInProps) {
+export default function PrickleCheckIn({ prickleId, hasStarted, initial, readOnly = false }: PrickleCheckInProps) {
   const [checkin, setCheckin] = useState<CheckinInput>(initial ?? EMPTY);
   const [saved, setSaved] = useState<CheckinInput>(initial ?? EMPTY);
   const [isPending, setIsPending] = useState(false);
@@ -108,8 +112,9 @@ export default function PrickleCheckIn({ prickleId, hasStarted, initial }: Prick
           Check in
         </h2>
         <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-          Optional, and only you can see it. Over time it shows which prickles help most when you&apos;re feeling a
-          certain way.
+          {readOnly
+            ? "Read-only while browsing as this member."
+            : "Optional. Over time it shows which prickles help most when you're feeling a certain way."}
         </p>
       </div>
 
@@ -117,6 +122,7 @@ export default function PrickleCheckIn({ prickleId, hasStarted, initial }: Prick
         label="Coming in, I'm feeling…"
         selected={checkin.feelingsBefore}
         onChange={(feelingsBefore) => update({ feelingsBefore })}
+        readOnly={readOnly}
       />
 
       <fieldset>
@@ -132,6 +138,7 @@ export default function PrickleCheckIn({ prickleId, hasStarted, initial }: Prick
                 type="button"
                 aria-pressed={isSelected}
                 title={n.hint}
+                disabled={readOnly}
                 onClick={() => update({ need: isSelected ? null : n.key })}
                 className={chipClass(isSelected)}
               >
@@ -155,6 +162,7 @@ export default function PrickleCheckIn({ prickleId, hasStarted, initial }: Prick
                     key={r.value}
                     type="button"
                     aria-pressed={isSelected}
+                    disabled={readOnly}
                     onClick={() => update({ sessionRating: isSelected ? null : r.value })}
                     className={chipClass(isSelected)}
                   >
@@ -169,22 +177,25 @@ export default function PrickleCheckIn({ prickleId, hasStarted, initial }: Prick
             label="Feeling now…"
             selected={checkin.feelingsAfter}
             onChange={(feelingsAfter) => update({ feelingsAfter })}
+            readOnly={readOnly}
           />
         </>
       )}
 
-      <div className="flex items-center justify-end gap-3">
-        {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
-        {justSaved && !isDirty && <p className="text-sm text-slate-500 dark:text-slate-400">Saved</p>}
-        <button
-          type="button"
-          onClick={handleSave}
-          disabled={isPending || !isDirty}
-          className="px-4 py-2 text-sm bg-plum-600 text-white rounded-lg hover:bg-plum-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-        >
-          {isPending ? "Saving..." : isEmptyCheckin(checkin) && !isEmptyCheckin(saved) ? "Clear check-in" : "Save check-in"}
-        </button>
-      </div>
+      {!readOnly && (
+        <div className="flex items-center justify-end gap-3">
+          {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+          {justSaved && !isDirty && <p className="text-sm text-slate-500 dark:text-slate-400">Saved</p>}
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={isPending || !isDirty}
+            className="px-4 py-2 text-sm bg-plum-600 text-white rounded-lg hover:bg-plum-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {isPending ? "Saving..." : isEmptyCheckin(checkin) && !isEmptyCheckin(saved) ? "Clear check-in" : "Save check-in"}
+          </button>
+        </div>
+      )}
     </section>
   );
 }
