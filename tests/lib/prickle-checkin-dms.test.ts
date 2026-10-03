@@ -6,6 +6,7 @@ import {
   buildQuickLogBlocks,
   CHECKIN_ANSWER_ACTION_ID,
   groupByMember,
+  dueCheckoutMembers,
   parseCheckinAnswer,
   planCheckinDMs,
   planCheckoutDMs,
@@ -78,8 +79,8 @@ describe("planCheckinDMs", () => {
 
 describe("planCheckoutDMs", () => {
   const prickles = [
-    { id: "p1", typeName: "Progress Prickle" },
-    { id: "p2", typeName: "Sprint" },
+    { id: "p1", typeName: "Progress Prickle", startTime: "2026-10-05T11:00:00.000Z", endTime: "2026-10-05T12:00:00.000Z" },
+    { id: "p2", typeName: "Sprint", startTime: "2026-10-05T12:00:00.000Z", endTime: "2026-10-05T13:00:00.000Z" },
   ];
   const attendees = (entries: Record<string, string[]>) =>
     new Map(Object.entries(entries).map(([prickle, members]) => [prickle, new Set(members)]));
@@ -97,6 +98,33 @@ describe("planCheckoutDMs", () => {
   it("skips pairs already sent and prickles with no attendance yet", () => {
     const plan = planCheckoutDMs(prickles, attendees({ p1: ["m1"] }), [goal()], new Set(["m1:p1"]));
     expect(plan).toEqual([]);
+  });
+});
+
+describe("dueCheckoutMembers", () => {
+  const P = { id: "p1", typeName: "Progress Prickle", startTime: "2026-10-05T11:00:00.000Z", endTime: "2026-10-05T12:00:00.000Z" };
+  const t = (hhmm: string) => new Date(`2026-10-05T${hhmm}:00.000Z`).getTime();
+  const due = (presence: Record<string, { join: number; leave: number | null }[]>, now: number, attendance: string[] = []) =>
+    [...(dueCheckoutMembers([P], new Map([["p1", new Set(attendance)]]), new Map(Object.entries(presence)), now).get("p1") ?? [])];
+
+  it("checks out someone still in the room 5 minutes after the prickle ends (back-to-back room)", () => {
+    const presence = { m1: [{ join: t("10:55"), leave: null }] };
+    expect(due(presence, t("12:04"))).toEqual([]);
+    expect(due(presence, t("12:05"))).toEqual(["m1"]);
+  });
+
+  it("checks out an early leaver 10 minutes after they leave, unless they rejoin", () => {
+    expect(due({ m1: [{ join: t("11:00"), leave: t("11:30") }] }, t("11:40"))).toEqual(["m1"]);
+    expect(due({ m1: [{ join: t("11:00"), leave: t("11:30") }] }, t("11:39"))).toEqual([]);
+    expect(due({ m1: [{ join: t("11:00"), leave: t("11:30") }, { join: t("11:35"), leave: null }] }, t("11:45"))).toEqual([]);
+  });
+
+  it("ignores presence that didn't overlap the prickle", () => {
+    expect(due({ m1: [{ join: t("09:00"), leave: t("10:30") }] }, t("12:30"))).toEqual([]);
+  });
+
+  it("adds attendees from the import, whatever presence says", () => {
+    expect(due({}, t("11:10"), ["m2"])).toEqual(["m2"]);
   });
 });
 

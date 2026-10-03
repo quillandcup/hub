@@ -29,8 +29,9 @@ export const maxDuration = 60;
  * - Check-ins: ~15-30 min before an upcoming writing prickle on the member's calendar feed
  *   (hosting, a commitment, or added by hand), how they're feeling coming in and what they need.
  *   See planCheckinDMs.
- * - Check-outs: once a recent writing prickle's attendance has been imported (after its Zoom
- *   meeting ends), how it went, how they feel now, and progress. See sendCheckoutDMs.
+ * - Check-outs: 5 minutes after a writing prickle ends, or 10 minutes after an early leaver
+ *   leaves, from live Zoom presence; failing that, once its attendance is imported (after the
+ *   Zoom meeting ends). How it went, how they feel now, and progress. See sendCheckoutDMs.
  * At most one of each per member per prickle.
  */
 export async function POST(request: NextRequest) {
@@ -54,12 +55,12 @@ async function runPrickleCheckins(request: NextRequest): Promise<NextResponse> {
 
   const now = Date.now();
   const checkins = await sendCheckins(supabase, candidates, now);
-  const checkouts = await sendCheckoutDMs(supabase, await loadRecentPrickles(supabase, now), candidates);
+  const checkouts = await sendCheckoutDMs(supabase, await loadRecentPrickles(supabase, now), candidates, now);
   return NextResponse.json({ checkins, checkouts });
 }
 
 /** Maps prickle rows with an inner-joined prickle_types(name) to id + type name, dropping unnamed ones. */
-function withTypeName<T extends object>(rows: any[], extra: (r: any) => T): (T & RecentPrickle)[] {
+function withTypeName<T extends object>(rows: any[], extra: (r: any) => T): (T & { id: string; typeName: string })[] {
   return rows.flatMap((r) => {
     const type = Array.isArray(r.prickle_types) ? r.prickle_types[0] : r.prickle_types;
     return type?.name ? [{ id: r.id as string, typeName: type.name as string, ...extra(r) }] : [];
@@ -70,11 +71,11 @@ function withTypeName<T extends object>(rows: any[], extra: (r: any) => T): (T &
 async function loadRecentPrickles(supabase: SupabaseClient, now: number): Promise<RecentPrickle[]> {
   const { data } = await supabase
     .from("prickles")
-    .select("id, prickle_types!inner(name, purpose)")
+    .select("id, start_time, end_time, prickle_types!inner(name, purpose)")
     .lte("start_time", new Date(now).toISOString())
     .gte("end_time", new Date(now - CHECKOUT_LOOKBACK_MS).toISOString())
     .eq("prickle_types.purpose", "writing");
-  return withTypeName((data ?? []) as any[], () => ({}));
+  return withTypeName((data ?? []) as any[], (r) => ({ startTime: r.start_time, endTime: r.end_time }));
 }
 
 async function sendCheckins(supabase: SupabaseClient, candidates: GoalCandidate[], now: number): Promise<number> {

@@ -3,6 +3,7 @@ import { sendSlackDM } from "@/lib/slack";
 import { MEASURE_QUICK_LOG_PRESETS, type WritingMeasure } from "@/lib/writing-projects";
 import { loadCalendarFeedPrickleIds } from "@/lib/calendar-feed";
 import { APP_URL } from "@/lib/config";
+import { loadPresenceByMember, presenceDue, type PresenceInterval } from "@/lib/zoom-presence";
 import {
   checkinFromRow,
   FEELINGS,
@@ -516,35 +517,70 @@ export async function saveCheckinAnswer(supabase: any, memberId: string, answer:
 // --- Check-out sender ------------------------------------------------------------------------
 
 /**
- * How long after a prickle ends a check-out can still go out. Attendance only arrives once the
- * whole Zoom meeting ends (Zoom's Report API covers finished meetings only), up to ~3 hours past a
- * prickle's end when one room runs several prickles back to back. Anything imported later (e.g.
- * by the nightly reconcile) is too stale to ask "how did it go?" about.
+ * How long after a prickle ends a check-out can still go out. Live presence (the Zoom participant
+ * webhooks) normally triggers it within minutes; the fallback is attendance, which only arrives
+ * once the whole Zoom meeting ends (up to ~3 hours later when one room runs several prickles back
+ * to back). Anything imported later (e.g. by the nightly reconcile) is too stale to ask "how did
+ * it go?" about.
  */
 export const CHECKOUT_LOOKBACK_MS = 6 * 60 * 60 * 1000;
+
+/** How far before a prickle's start to read presence events: a member can join a room hours early. */
+const PRESENCE_LOOKBEHIND_MS = 12 * 60 * 60 * 1000;
 
 /** A started writing prickle, from the last CHECKOUT_LOOKBACK_MS, that may be due a check-out. */
 export interface RecentPrickle {
   id: string;
   typeName: string;
+  startTime: string;
+  endTime: string;
 }
 
 /**
- * Which (member, prickle) pairs are due a check-out: attendees with any active goal, minus pairs
- * already sent one. Attendance existing is the signal the session is over for them -- it's only
- * imported after their Zoom meeting ends. Exactly one entry per member per prickle, however many
- * attendance rows (leave/rejoin) or goals they have.
+ * prickleId -> members due a check-out, from two sources:
+ * - Live presence (Zoom participant webhooks): in a Zoom meeting during the prickle -- any
+ *   meeting from a host the attendance import covers, since those run one at a time (1
+ *   overlapping pair in 417 meetings over 60 days, checked 2026-10-03; see docs/TODO.md,
+ *   "Secondary Zoom rooms") -- and either it
+ *   ended 5 minutes ago (so a room running prickles back to back doesn't hold them up) or they
+ *   left more than 10 minutes ago without rejoining (an early leaver). See presenceDue.
+ * - Attendance: imported once their Zoom meeting ends, so its existence means the session is
+ *   over for them. The backstop for any lost or late webhook.
+ */
+export function dueCheckoutMembers(
+  prickles: RecentPrickle[],
+  attendeesByPrickle: Map<string, Set<string>>,
+  presenceByMember: Map<string, PresenceInterval[]>,
+  now: number
+): Map<string, Set<string>> {
+  const due = new Map<string, Set<string>>();
+  for (const prickle of prickles) {
+    const members = new Set(attendeesByPrickle.get(prickle.id) ?? []);
+    const start = new Date(prickle.startTime).getTime();
+    const end = new Date(prickle.endTime).getTime();
+    for (const [memberId, intervals] of presenceByMember) {
+      if (presenceDue(intervals, start, end, now)) members.add(memberId);
+    }
+    if (members.size > 0) due.set(prickle.id, members);
+  }
+  return due;
+}
+
+/**
+ * Which (member, prickle) pairs get a check-out now: members due one (dueCheckoutMembers) with
+ * any active goal, minus pairs already sent one. Exactly one entry per member per prickle, however
+ * many attendance rows (leave/rejoin), devices or goals they have.
  */
 export function planCheckoutDMs<P extends RecentPrickle>(
   prickles: P[],
-  attendeesByPrickle: Map<string, Set<string>>,
+  dueByPrickle: Map<string, Set<string>>,
   candidates: GoalCandidate[],
   alreadySent: Set<string>
 ): { memberId: string; prickle: P }[] {
   const withGoals = new Set(candidates.map((c) => c.memberId));
   const plan: { memberId: string; prickle: P }[] = [];
   for (const prickle of prickles) {
-    for (const memberId of attendeesByPrickle.get(prickle.id) ?? []) {
+    for (const memberId of dueByPrickle.get(prickle.id) ?? []) {
       if (withGoals.has(memberId) && !alreadySent.has(`${memberId}:${prickle.id}`)) plan.push({ memberId, prickle });
     }
   }
@@ -601,7 +637,8 @@ async function loadLoggedProjects(supabase: any, memberIds: string[], prickleIds
 /**
  * Check-out DMs, run from the same 5-minute cron as the check-ins
  * (app/api/internal/prickle-checkins/route.ts) over `prickles`: started writing prickles from the
- * last CHECKOUT_LOOKBACK_MS. Each attendee with any active writing goal gets one DM: how it went,
+ * last CHECKOUT_LOOKBACK_MS. Each member due one (dueCheckoutMembers) with any active writing
+ * goal gets one DM: how it went,
  * how they feel now, and a progress dropdown per goal in that goal's measure (words, chapters,
  * scenes...) -- or, for a prickles goal, the output attendance tracking can't capture. A project
  * they've already logged progress against for this prickle gets no dropdown, and with both
@@ -610,15 +647,22 @@ async function loadLoggedProjects(supabase: any, memberIds: string[], prickleIds
 export async function sendCheckoutDMs(
   supabase: any,
   prickles: RecentPrickle[],
-  candidates: GoalCandidate[]
+  candidates: GoalCandidate[],
+  now: number
 ): Promise<number> {
   if (prickles.length === 0 || candidates.length === 0) return 0;
   const prickleIds = prickles.map((p) => p.id);
-  const [attendeesByPrickle, alreadySent] = await Promise.all([
+  const earliestStart = Math.min(...prickles.map((p) => new Date(p.startTime).getTime()));
+  const presenceSince = Number.isFinite(earliestStart)
+    ? earliestStart - PRESENCE_LOOKBEHIND_MS
+    : now - CHECKOUT_LOOKBACK_MS - PRESENCE_LOOKBEHIND_MS;
+  const [attendeesByPrickle, alreadySent, presenceByMember] = await Promise.all([
     loadAttendees(supabase, prickleIds),
     loadSentCheckouts(supabase, prickleIds),
+    loadPresenceByMember(supabase, new Date(presenceSince), new Date(now)),
   ]);
-  const plan = planCheckoutDMs(prickles, attendeesByPrickle, candidates, alreadySent);
+  const dueByPrickle = dueCheckoutMembers(prickles, attendeesByPrickle, presenceByMember, now);
+  const plan = planCheckoutDMs(prickles, dueByPrickle, candidates, alreadySent);
   if (plan.length === 0) return 0;
 
   const memberIds = [...new Set(plan.map((p) => p.memberId))];

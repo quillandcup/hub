@@ -59,6 +59,7 @@ const PRICKLE = {
   type_id: "t1",
   host: "host",
   start_time: new Date(Date.now() + 20 * 60 * 1000).toISOString(),
+  end_time: new Date(Date.now() + 80 * 60 * 1000).toISOString(),
   prickle_types: { name: "Progress Prickle", purpose: "writing" },
 };
 
@@ -170,7 +171,12 @@ describe("prickle check-in route", () => {
 
 describe("sendCheckoutDMs", () => {
   const checkout = async () =>
-    sendCheckoutDMs(fake, [{ id: "p1", typeName: "Progress Prickle" }], await getActiveGoalCandidates(fake));
+    sendCheckoutDMs(
+      fake,
+      [{ id: "p1", typeName: "Progress Prickle", startTime: "2026-10-05T11:00:00.000Z", endTime: "2026-10-05T12:00:00.000Z" }],
+      await getActiveGoalCandidates(fake),
+      new Date("2026-10-05T12:10:00.000Z").getTime()
+    );
 
   function setup(goals: object[], extra: FakeTables = {}) {
     fake = createFakeSupabase({

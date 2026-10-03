@@ -209,7 +209,7 @@ A failure here is logged and never fails the commitment itself. Cancellations ar
 | Slack DM sender | `lib/slack.ts` `sendSlackDM` | Honors `SLACK_TEST_MODE` / `SLACK_DEV_USER_ID` |
 | Member → Slack user resolution | `lib/prickle-checkin-dms.ts` `resolveSlackUserIds` | Matches by alias, then email, then normalized name |
 | Check-in DM job | `app/api/internal/prickle-checkins/route.ts` | Polled every 5 min by **Supabase pg_cron + pg_net** (job `send-prickle-checkins`, `20261003130000_rename_nudges_to_prickle_checkins.sql`). Vercel Hobby cron is once a day only, so it can't do this. Auth via `CRON_INTERNAL_SECRET`. Goes to members with any active writing goal, for prickles on their calendar feed (hosting, an active commitment, or added by hand), using the feed's own loader (`loadCalendarFeedPrickleIds`). Asks the check-in's "coming in" questions (feelings, need) |
-| Check-out DM | `sendCheckoutDMs` in `lib/prickle-checkin-dms.ts`, run by the same 5-minute cron as the check-ins once a writing prickle from the last 6 hours has attendance (imported only after its Zoom meeting ends) | Asks how it went and how they feel now, then a static-select progress quick-log per goal. Handled in `app/api/webhooks/slack/interactions/route.ts`: check-in answers (`prickle_checkin_answer`) save to `prickle_checkins`, the same row as the prickle page's check-in; the quick-log (`writing_quick_log`) writes `writing_progress_entries` (with `prickle_id`) and a `member_activities` row |
+| Check-out DM | `sendCheckoutDMs` in `lib/prickle-checkin-dms.ts`, run by the same 5-minute cron as the check-ins. Live presence from the Zoom participant webhooks (`bronze.zoom_participant_events`, `lib/zoom-presence.ts`) makes it due 5 minutes after the prickle ends, or 10 minutes after an early leaver leaves; attendance (imported only after the Zoom meeting ends) is the backstop, up to 6 hours after the prickle | Asks how it went and how they feel now, then a static-select progress quick-log per goal. Handled in `app/api/webhooks/slack/interactions/route.ts`: check-in answers (`prickle_checkin_answer`) save to `prickle_checkins`, the same row as the prickle page's check-in; the quick-log (`writing_quick_log`) writes `writing_progress_entries` (with `prickle_id`) and a `member_activities` row |
 | Dedup log | `prickle_checkin_dm_log`, UNIQUE `(prickle_id, member_id, kind)` | Insert-first, send only if the insert landed. Keyed on a `prickles.id` FK with `ON DELETE CASCADE`, so a calendar reprocess can wipe it and allow a resend |
 | In-app progress logging | `components/writing/LogProgressModal.tsx` (accepts `prickleId`), `app/(member)/projects/` `logProgress` | |
 | Email | **None for app messages.** Resend is only configured as Supabase Auth's SMTP (invites, magic links, in `supabase/config.toml`); React Email templates exist for those auth emails only | Sending app email would need a Resend API key and a sender module |
@@ -231,10 +231,11 @@ A failure here is logged and never fails the commitment itself. Cancellations ar
 - **Check-in**: about 20 minutes before (the existing 15–30 min window, every 5 min). If
   the member also has a matching writing goal, send one message, not two (see dedup below).
   Optional later: a "day-before" heads-up for the first week of a commitment only.
-- **Check-out**: the first cron tick after the prickle's attendance is imported, which happens
-  when its Zoom meeting ends. That's usually 10–15 minutes after the prickle; when one room runs
-  several prickles back to back, it waits until the room closes. This is where `sendCheckoutDMs`
-  already runs.
+- **Check-out**: about 5 minutes after the prickle's scheduled end for everyone who was in the
+  room, even if the Zoom meeting keeps going into the next prickle; about 10 minutes after an
+  early leaver leaves, if they haven't rejoined. Both come from the Zoom participant webhooks. If
+  those are lost, the attendance import when the meeting ends is the backstop. This is where
+  `sendCheckoutDMs` already runs.
   - **Kept**: ask for progress (see [what to collect](#what-to-collect-post-prickle)).
   - **Missed**: send a gentle note the next day, from a daily sweep (the Vercel daily cron is
     fine). Only after the 24h grace period, never on the webhook, because attendance can lag and a

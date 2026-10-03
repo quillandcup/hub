@@ -28,6 +28,23 @@ vi.mock('@/lib/processing/trigger', () => ({
 
 import { triggerZoomImport } from '@/lib/processing/trigger'
 
+// Participant events are recorded with the service-role client; capture the upserts.
+const upsert = vi.fn(async (..._args: unknown[]) => ({ error: null }))
+const schemaFrom = vi.fn((_table: string) => ({ upsert }))
+vi.mock('@/lib/supabase/service', () => ({
+  createServiceRoleClient: () => ({ schema: () => ({ from: schemaFrom }) }),
+}))
+
+/** A request signed the way Zoom signs it, with the test secret. */
+function signedRequest(body: string, timestamp = '1234567890') {
+  const signature = 'v0=' + createHmac('sha256', 'test-zoom-secret').update(`v0:${timestamp}:${body}`).digest('hex')
+  return new Request('http://localhost:3000/api/webhooks/zoom', {
+    method: 'POST',
+    headers: new Headers({ 'x-zm-signature': signature, 'x-zm-request-timestamp': timestamp }),
+    body,
+  }) as unknown as NextRequest
+}
+
 describe('Zoom Webhook', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -178,17 +195,7 @@ describe('Zoom Webhook', () => {
     })
 
     it('should handle malformed JSON payload', async () => {
-      const request = new Request('http://localhost:3000/api/webhooks/zoom', {
-        method: 'POST',
-        headers: new Headers({
-          'content-type': 'application/json',
-          'x-zm-signature': 'v0=test',
-          'x-zm-request-timestamp': '1234567890',
-        }),
-        body: 'invalid-json',
-      })
-
-      const response = await POST(request as unknown as NextRequest)
+      const response = await POST(signedRequest('invalid-json'))
       const body = await response.json()
 
       // Should return 200 with error message
@@ -240,24 +247,99 @@ describe('Zoom Webhook', () => {
       expect(errorBody.error).toBe('Invalid signature')
     })
 
-    it('should allow requests when no secret is configured', async () => {
-      // Save original env var
-      const original = process.env.ZOOM_WEBHOOK_SECRET_TOKEN
-      delete process.env.ZOOM_WEBHOOK_SECRET_TOKEN
-
+    it('should reject an unsigned request', async () => {
       const fixture = loadWebhookFixture('zoom', 'meeting-ended.json')
-
       const request = new Request('http://localhost:3000/api/webhooks/zoom', {
         method: 'POST',
-        headers: new Headers(fixture.headers),
+        headers: new Headers({ 'x-zm-request-timestamp': '1234567890' }),
         body: JSON.stringify(fixture.body),
       })
 
       const response = await POST(request as unknown as NextRequest)
-      expect(response.status).toBe(200)
+      expect(response.status).toBe(401)
+      expect(triggerZoomImport).not.toHaveBeenCalled()
+    })
 
-      // Restore env var
-      if (original) process.env.ZOOM_WEBHOOK_SECRET_TOKEN = original
+    it('should reject every request when no secret is configured', async () => {
+      const original = process.env.ZOOM_WEBHOOK_SECRET_TOKEN
+      delete process.env.ZOOM_WEBHOOK_SECRET_TOKEN
+      try {
+        const fixture = loadWebhookFixture('zoom', 'meeting-ended.json')
+        const response = await POST(signedRequest(JSON.stringify(fixture.body)))
+        expect(response.status).toBe(401)
+      } finally {
+        if (original) process.env.ZOOM_WEBHOOK_SECRET_TOKEN = original
+      }
+    })
+  })
+
+  describe('Live presence', () => {
+    const participantEvent = (event: string, participant: Record<string, unknown>) =>
+      JSON.stringify({
+        event,
+        event_ts: 1791198000000,
+        payload: { object: { id: 123456789, uuid: 'meeting-uuid-1', topic: 'Writing', start_time: '2026-10-05T10:55:00Z', participant } },
+      })
+
+    it('records a participant joining', async () => {
+      const response = await POST(
+        signedRequest(
+          participantEvent('meeting.participant_joined', {
+            participant_uuid: 'device-1',
+            user_id: '16778240',
+            user_name: 'Test Writer',
+            email: 'writer@example.test',
+            join_time: '2026-10-05T11:02:00Z',
+          })
+        )
+      )
+
+      expect(response.status).toBe(200)
+      expect(schemaFrom).toHaveBeenCalledWith('zoom_participant_events')
+      expect(upsert.mock.calls[0][0]).toMatchObject({
+        meeting_uuid: 'meeting-uuid-1',
+        meeting_id: '123456789',
+        event: 'joined',
+        participant_key: 'device-1',
+        participant_name: 'Test Writer',
+        participant_email: 'writer@example.test',
+        event_time: '2026-10-05T11:02:00.000Z',
+      })
+      expect(upsert.mock.calls[0][1]).toEqual({
+        onConflict: 'meeting_uuid,participant_key,event,event_time',
+        ignoreDuplicates: true,
+      })
+    })
+
+    it('records a participant leaving, and still starts the attendance import', async () => {
+      vi.useFakeTimers()
+      await POST(
+        signedRequest(
+          participantEvent('meeting.participant_left', {
+            user_id: '16778240',
+            user_name: 'Test Writer',
+            leave_time: '2026-10-05T11:40:00Z',
+            leave_reason: 'left the meeting',
+          })
+        )
+      )
+
+      expect(upsert.mock.calls[0][0]).toMatchObject({
+        event: 'left',
+        participant_key: '16778240',
+        participant_email: null,
+        event_time: '2026-10-05T11:40:00.000Z',
+        leave_reason: 'left the meeting',
+      })
+      await vi.runAllTimersAsync()
+      expect(triggerZoomImport).toHaveBeenCalledOnce()
+    })
+
+    it('records nothing for other meeting events', async () => {
+      const fixture = loadWebhookFixture('zoom', 'meeting-ended.json')
+      vi.useFakeTimers()
+      await POST(signedRequest(JSON.stringify(fixture.body)))
+      expect(upsert).not.toHaveBeenCalled()
     })
   })
 })
