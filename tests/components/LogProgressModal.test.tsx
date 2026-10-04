@@ -144,7 +144,7 @@ describe("LogProgressModal prickle picker", () => {
   });
 });
 
-describe("LogProgressModal check-in", () => {
+describe("LogProgressModal check-out", () => {
   function renderForPrickle(prickleId = "prickle-other") {
     return render(
       <LogProgressModal
@@ -158,20 +158,40 @@ describe("LogProgressModal check-in", () => {
     );
   }
 
-  it("asks how it went for the selected prickle and saves the check-in before the entry", async () => {
+  it("asks only how it went, linking to the prickle page for the check-in", async () => {
+    renderForPrickle();
+    expect(await screen.findByRole("heading", { name: /Check out/ })).toBeInTheDocument();
+    expect(getCheckinForLogging).toHaveBeenCalledWith("prickle-other");
+    expect(screen.getByText("How did it go?")).toBeInTheDocument();
+    expect(screen.getByText(/Feeling now/)).toBeInTheDocument();
+    expect(screen.queryByText(/Coming in/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/What I need/)).not.toBeInTheDocument();
+
+    const link = screen.getByRole("link", { name: /Edit check-in/ });
+    expect(link).toHaveAttribute("href", "/prickles/prickle-other");
+    expect(link).toHaveAttribute("target", "_blank");
+  });
+
+  it("saves the check-out before the entry, keeping the latest check-in answers", async () => {
+    vi.mocked(getCheckinForLogging).mockResolvedValue({
+      checkin: { feelingsBefore: ["tired"], need: "gentle", sessionRating: null, feelingsAfter: [] },
+      canEdit: true,
+    });
     const user = userEvent.setup();
     renderForPrickle();
-    expect(await screen.findByText(/Coming in, I was feeling/)).toBeInTheDocument();
-    expect(getCheckinForLogging).toHaveBeenCalledWith("prickle-other");
+    await user.click(await screen.findByRole("button", { name: "Good" }));
+    await user.click(screen.getByRole("button", { name: "Calm" }));
 
-    await user.click(screen.getAllByRole("button", { name: "Stressed" })[0]);
-    await user.click(screen.getByRole("button", { name: "Good" }));
-    await user.click(screen.getAllByRole("button", { name: "Calm" })[1]);
+    // The check-in was edited in another tab while the modal was open.
+    vi.mocked(getCheckinForLogging).mockResolvedValue({
+      checkin: { feelingsBefore: ["stressed"], need: "company", sessionRating: null, feelingsAfter: [] },
+      canEdit: true,
+    });
     await fillAmountAndSubmit(user, "Log progress");
 
     expect(saveCheckin).toHaveBeenCalledWith("prickle-other", {
       feelingsBefore: ["stressed"],
-      need: null,
+      need: "company",
       sessionRating: 4,
       feelingsAfter: ["calm"],
     });
@@ -180,27 +200,17 @@ describe("LogProgressModal check-in", () => {
     );
   });
 
-  it("skips 'coming in' when it was answered before the session, keeping the saved answers", async () => {
+  it("starts from the saved check-out", async () => {
     vi.mocked(getCheckinForLogging).mockResolvedValue({
-      checkin: { feelingsBefore: ["tired"], need: "gentle", sessionRating: null, feelingsAfter: [] },
+      checkin: { feelingsBefore: [], need: null, sessionRating: 2, feelingsAfter: ["drained"] },
       canEdit: true,
     });
-    const user = userEvent.setup();
     renderForPrickle();
-    await screen.findByText("How did it go?");
-    expect(screen.queryByText(/Coming in, I was feeling/)).not.toBeInTheDocument();
-
-    await user.click(screen.getByRole("button", { name: "Great" }));
-    await fillAmountAndSubmit(user, "Log progress");
-    expect(saveCheckin).toHaveBeenCalledWith("prickle-other", {
-      feelingsBefore: ["tired"],
-      need: "gentle",
-      sessionRating: 5,
-      feelingsAfter: [],
-    });
+    expect(await screen.findByRole("button", { name: "Meh" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Drained" })).toHaveAttribute("aria-pressed", "true");
   });
 
-  it("doesn't touch the check-in when it wasn't changed", async () => {
+  it("doesn't touch the check-in when the check-out wasn't changed", async () => {
     const user = userEvent.setup();
     renderForPrickle();
     await screen.findByText("How did it go?");
@@ -209,7 +219,7 @@ describe("LogProgressModal check-in", () => {
     expect(logProgress).toHaveBeenCalled();
   });
 
-  it("stops before saving the entry when the check-in fails", async () => {
+  it("stops before saving the entry when the check-out fails", async () => {
     vi.mocked(saveCheckin).mockResolvedValue({ error: "Couldn't save your check-in — please try again." });
     const user = userEvent.setup();
     renderForPrickle();
@@ -220,50 +230,7 @@ describe("LogProgressModal check-in", () => {
     expect(logProgress).not.toHaveBeenCalled();
   });
 
-  it("early in the prickle, only asks about coming in", async () => {
-    const startedFiveMinutesAgo = new Date(Date.now() - 5 * 60_000).toISOString();
-    vi.mocked(getPricklesOnDate).mockResolvedValue([{ ...OTHER, startTime: startedFiveMinutesAgo }]);
-    const user = userEvent.setup();
-    renderForPrickle();
-
-    expect(await screen.findByText(/Coming in, I'm feeling/)).toBeInTheDocument();
-    expect(screen.getByText("What I need from this session")).toBeInTheDocument();
-    expect(screen.queryByText("How did it go?")).not.toBeInTheDocument();
-    expect(screen.queryByText(/Feeling now/)).not.toBeInTheDocument();
-
-    await user.click(screen.getByRole("button", { name: "Anxious" }));
-    await user.click(screen.getByRole("button", { name: /^Deep focus/ }));
-    await fillAmountAndSubmit(user, "Log progress");
-    expect(saveCheckin).toHaveBeenCalledWith("prickle-other", {
-      feelingsBefore: ["anxious"],
-      need: "deep_focus",
-      sessionRating: null,
-      feelingsAfter: [],
-    });
-  });
-
-  it("afterwards, asks both halves when nothing was answered yet", async () => {
-    renderForPrickle();
-    expect(await screen.findByRole("heading", { name: /Check out/ })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: /Check in/ })).toBeInTheDocument();
-    expect(screen.getByText(/Coming in, I was feeling/)).toBeInTheDocument();
-    expect(screen.getByText("What I needed from this session")).toBeInTheDocument();
-    expect(screen.getByText("How did it go?")).toBeInTheDocument();
-    expect(screen.getByText(/Feeling now/)).toBeInTheDocument();
-  });
-
-  it("afterwards, still offers a partly answered check-in to finish", async () => {
-    vi.mocked(getCheckinForLogging).mockResolvedValue({
-      checkin: { feelingsBefore: ["tired"], need: null, sessionRating: null, feelingsAfter: [] },
-      canEdit: true,
-    });
-    renderForPrickle();
-    expect(await screen.findByRole("heading", { name: /Check out/ })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: /Check in/ })).toBeInTheDocument();
-    expect(screen.getAllByRole("button", { name: "Tired" })[0]).toHaveAttribute("aria-pressed", "true");
-  });
-
-  it("has no check-in without a prickle, or in sudo", async () => {
+  it("has no check-out without a prickle, or in sudo", async () => {
     vi.mocked(getPricklesOnDate).mockResolvedValue([OTHER]);
     const { unmount } = render(
       <LogProgressModal isOpen onClose={() => {}} onSaved={() => {}} projects={PROJECTS} defaultEntryDate="2026-10-01" />
@@ -276,5 +243,6 @@ describe("LogProgressModal check-in", () => {
     renderForPrickle();
     await waitFor(() => expect(getCheckinForLogging).toHaveBeenCalled());
     expect(screen.queryByText("How did it go?")).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Edit check-in/ })).not.toBeInTheDocument();
   });
 });

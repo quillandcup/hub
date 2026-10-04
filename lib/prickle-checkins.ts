@@ -76,7 +76,7 @@ export const NEEDS = [
 export type Need = (typeof NEEDS)[number]["key"];
 
 /**
- * The prickle vibe a need points at, used to pre-select the Prickle Picker's mood step (the
+ * The prickle vibe a need points at, used to pre-select Find a Prickle's mood step (the
  * member can still change it). Accountability is about showing up, not the room, so no vibe.
  */
 export const NEED_VIBE: Record<Need, "focused" | "balanced" | "chatty" | null> = {
@@ -105,16 +105,11 @@ export const SESSION_RATINGS = [
  * - Check-out, afterwards: how it went (sessionRating) and how they feel now (feelingsAfter).
  * Both are stored on the same prickle_checkins row.
  *
- * On the site, the check-out opens this far into the prickle (canCheckOut). Before that, only the
- * check-in is offered; after it (leaving early, or logging later) both are. The Slack check-out
- * DM keeps its own timing (5 min after the end, or 10 min after leaving early).
+ * On the site, the prickle page is where both halves live and stay editable any time: the
+ * check-in always, the check-out once the prickle has started. The Log Progress
+ * modal asks only the check-out and links to the page for the check-in. The Slack DMs keep their
+ * own timing (check-in ~20 min before, check-out 5 min after the end or 10 min after leaving early).
  */
-export const CHECKOUT_OPENS_AFTER_MINUTES = 15;
-
-export function canCheckOut(prickleStartTime: string, nowMs: number): boolean {
-  return nowMs >= Date.parse(prickleStartTime) + CHECKOUT_OPENS_AFTER_MINUTES * 60_000;
-}
-
 export interface CheckinInput {
   feelingsBefore: Feeling[];
   need: Need | null;
@@ -214,7 +209,7 @@ export function toggleFeeling(selected: Feeling[], feeling: Feeling): Feeling[] 
 }
 
 /**
- * A prickle page link carrying "coming in" answers (e.g. from the Prickle Picker), so the
+ * A prickle page link carrying "coming in" answers (e.g. from Find a Prickle), so the
  * check-in card there starts pre-filled. Nothing is saved until the member saves the card.
  */
 export function prickleHref(prickleId: string, feelings: Feeling[], need: Need | null): string {

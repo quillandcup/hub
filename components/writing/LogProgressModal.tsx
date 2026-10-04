@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import Modal from "@/components/Modal";
 import { WRITING_MEASURES, MEASURE_LABELS, type WritingMeasure, type EntryMode } from "@/lib/writing-projects";
 
@@ -11,10 +12,16 @@ const LOGGABLE_MEASURES = WRITING_MEASURES.filter((m) => m !== "prickles");
 import { getPricklesOnDate, logProgress, updateEntry, type EntryRow } from "@/app/(member)/projects/actions";
 import { defaultPrickleId, type PrickleOption } from "@/lib/prickle-writing";
 import { getCheckinForLogging, saveCheckin } from "@/app/(member)/prickles/checkin-actions";
-import { canCheckOut, checkinAnswered, type CheckinInput } from "@/lib/prickle-checkins";
-import { FeelingPicker, NeedPicker, RatingPicker } from "@/components/writing/CheckinFields";
+import type { CheckinInput } from "@/lib/prickle-checkins";
+import { FeelingPicker, RatingPicker } from "@/components/writing/CheckinFields";
 
 const EMPTY_CHECKIN: CheckinInput = { feelingsBefore: [], need: null, sessionRating: null, feelingsAfter: [] };
+
+type Checkout = Pick<CheckinInput, "sessionRating" | "feelingsAfter">;
+
+function checkoutOf(c: CheckinInput | null): Checkout {
+  return { sessionRating: c?.sessionRating ?? null, feelingsAfter: c?.feelingsAfter ?? [] };
+}
 
 interface LogProgressModalProps {
   isOpen: boolean;
@@ -76,15 +83,12 @@ export default function LogProgressModal({
     };
   }, [isOpen, entryDate]);
 
-  // The selected prickle's check-in, so logging from anywhere asks how it went (and, if nobody
-  // asked before the session, how they felt coming in). Saved with the entry; hidden in sudo,
-  // where nobody records feelings on a member's behalf.
+  // The selected prickle's check-out, so logging from anywhere asks how it went. The check-in
+  // lives on the prickle page (linked below). Saved with the entry; hidden in sudo, where nobody
+  // records feelings on a member's behalf.
   const [checkinFor, setCheckinFor] = useState<string | null>(null);
-  // "Now" for the check-in's timing, fixed when the modal opens so the questions don't shift
-  // while the member is filling them in.
-  const [openedAt] = useState(() => Date.now());
-  const [savedCheckin, setSavedCheckin] = useState<CheckinInput | null>(null);
-  const [checkinDraft, setCheckinDraft] = useState<CheckinInput>(EMPTY_CHECKIN);
+  const [savedCheckout, setSavedCheckout] = useState<Checkout>(checkoutOf(null));
+  const [checkoutDraft, setCheckoutDraft] = useState<Checkout>(checkoutOf(null));
   const [canCheckIn, setCanCheckIn] = useState(false);
 
   useEffect(() => {
@@ -94,8 +98,8 @@ export default function LogProgressModal({
     let cancelled = false;
     getCheckinForLogging(prickleChoice).then(({ checkin, canEdit }) => {
       if (cancelled) return;
-      setSavedCheckin(checkin);
-      setCheckinDraft(checkin ?? EMPTY_CHECKIN);
+      setSavedCheckout(checkoutOf(checkin));
+      setCheckoutDraft(checkoutOf(checkin));
       setCanCheckIn(canEdit);
       setCheckinFor(prickleChoice);
     });
@@ -104,19 +108,10 @@ export default function LogProgressModal({
     };
   }, [isOpen, prickleChoice]);
 
-  // Which half to ask follows the prickle's timing (canCheckOut): before the check-out opens,
-  // the check-in; after it, the check-out, plus the check-in if it isn't fully answered yet
-  // (checkinAnswered, same rule as the Slack check-in DM). A linked prickle that isn't on the
-  // chosen date is in the past, so its check-out is open.
-  const optionsLoaded = optionsLoadedFor === entryDate;
-  const selectedStart = prickleOptions.find((o) => o.id === prickleChoice)?.startTime;
-  const checkoutOpen = selectedStart ? canCheckOut(selectedStart, openedAt) : true;
-  const showCheckin = canCheckIn && prickleChoice !== "" && checkinFor === prickleChoice && optionsLoaded;
-  const askCheckin = !checkoutOpen || !checkinAnswered(savedCheckin);
-  const checkinChanged =
-    showCheckin && JSON.stringify(checkinDraft) !== JSON.stringify(savedCheckin ?? EMPTY_CHECKIN);
-  function updateCheckin(patch: Partial<CheckinInput>) {
-    setCheckinDraft((c) => ({ ...c, ...patch }));
+  const showCheckout = canCheckIn && prickleChoice !== "" && checkinFor === prickleChoice;
+  const checkoutChanged = showCheckout && JSON.stringify(checkoutDraft) !== JSON.stringify(savedCheckout);
+  function updateCheckout(patch: Partial<Checkout>) {
+    setCheckoutDraft((c) => ({ ...c, ...patch }));
   }
 
   // Keep a linked prickle selectable even when it isn't on the chosen date.
@@ -139,10 +134,13 @@ export default function LogProgressModal({
     const tags = tagsInput.split(",").map((t) => t.trim()).filter(Boolean);
 
     setIsPending(true);
-    // Check-in first: it's an idempotent upsert, so a failure here leaves nothing half-saved
-    // (the progress entry isn't, and a retry would duplicate it).
-    if (checkinChanged) {
-      const checkinResult = await saveCheckin(prickleChoice, checkinDraft);
+    // Check-out first: it's an idempotent upsert, so a failure here leaves nothing half-saved
+    // (the progress entry isn't, and a retry would duplicate it). Re-read the row first and only
+    // replace the check-out answers, so a check-in edited meanwhile (e.g. in the tab the "Edit
+    // check-in" link opens) isn't overwritten.
+    if (checkoutChanged) {
+      const { checkin: latest } = await getCheckinForLogging(prickleChoice);
+      const checkinResult = await saveCheckin(prickleChoice, { ...(latest ?? EMPTY_CHECKIN), ...checkoutDraft });
       if ("error" in checkinResult) {
         setIsPending(false);
         setError(checkinResult.error);
@@ -330,45 +328,34 @@ export default function LogProgressModal({
           />
         </div>
 
-        {showCheckin && askCheckin && (
-          <section
-            aria-labelledby="log-progress-checkin"
-            className="space-y-4 border-t border-slate-200 dark:border-slate-800 pt-4"
-          >
-            <h3 id="log-progress-checkin" className="text-sm font-medium text-slate-700 dark:text-slate-300">
-              Check in <span className="text-slate-400 font-normal">(optional)</span>
-            </h3>
-            <FeelingPicker
-              label={checkoutOpen ? "Coming in, I was feeling…" : "Coming in, I'm feeling…"}
-              selected={checkinDraft.feelingsBefore}
-              onChange={(feelingsBefore) => updateCheckin({ feelingsBefore })}
-              readOnly={false}
-            />
-            <NeedPicker
-              label={checkoutOpen ? "What I needed from this session" : "What I need from this session"}
-              value={checkinDraft.need}
-              onChange={(need) => updateCheckin({ need })}
-            />
-          </section>
-        )}
-
-        {showCheckin && checkoutOpen && (
+        {showCheckout && (
           <section
             aria-labelledby="log-progress-checkout"
             className="space-y-4 border-t border-slate-200 dark:border-slate-800 pt-4"
           >
-            <h3 id="log-progress-checkout" className="text-sm font-medium text-slate-700 dark:text-slate-300">
-              Check out <span className="text-slate-400 font-normal">(optional)</span>
-            </h3>
+            <div className="flex items-baseline justify-between gap-3">
+              <h3 id="log-progress-checkout" className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                Check out <span className="text-slate-400 font-normal">(optional)</span>
+              </h3>
+              {/* New tab, so following it doesn't lose what's typed here. */}
+              <Link
+                href={`/prickles/${prickleChoice}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-plum-600 dark:text-plum-400 hover:underline"
+              >
+                Edit check-in ↗
+              </Link>
+            </div>
             <RatingPicker
               label="How did it go?"
-              value={checkinDraft.sessionRating}
-              onChange={(sessionRating) => updateCheckin({ sessionRating })}
+              value={checkoutDraft.sessionRating}
+              onChange={(sessionRating) => updateCheckout({ sessionRating })}
             />
             <FeelingPicker
               label="Feeling now…"
-              selected={checkinDraft.feelingsAfter}
-              onChange={(feelingsAfter) => updateCheckin({ feelingsAfter })}
+              selected={checkoutDraft.feelingsAfter}
+              onChange={(feelingsAfter) => updateCheckout({ feelingsAfter })}
               readOnly={false}
             />
           </section>

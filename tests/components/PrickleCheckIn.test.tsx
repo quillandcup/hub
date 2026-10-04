@@ -18,25 +18,26 @@ beforeEach(() => {
 });
 
 describe("PrickleCheckIn", () => {
-  it("only shows the check-in before the check-out opens", () => {
-    render(<PrickleCheckIn prickleId="prickle-1" showCheckout={false} initial={null} />);
-    expect(screen.getByText(/Coming in, I'm feeling/)).toBeInTheDocument();
-    expect(screen.getByText("What I need from this session")).toBeInTheDocument();
+  it("before the prickle starts, asks the check-in and holds the check-out", () => {
+    render(<PrickleCheckIn prickleId="prickle-1" hasStarted={false} initial={null} />);
+    expect(screen.getByRole("heading", { name: "Check in & out" })).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "Check in" })).toHaveTextContent(/Coming in, I'm feeling/);
+    expect(screen.getByRole("group", { name: "Check in" })).toHaveTextContent("What I need from this session");
+    const checkout = screen.getByRole("group", { name: "Check out" });
+    expect(checkout).toHaveTextContent("Available once the prickle starts.");
     expect(screen.queryByText("How did it go?")).not.toBeInTheDocument();
-    expect(screen.queryByText(/Feeling now/)).not.toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Check in" })).toBeInTheDocument();
   });
 
-  it("shows check-in and check-out as separate sections once the check-out opens", () => {
-    render(<PrickleCheckIn prickleId="prickle-1" showCheckout initial={null} />);
-    expect(screen.getByRole("heading", { name: "Check in & out" })).toBeInTheDocument();
+  it("once it starts, both are editable, the check-in in the past tense", () => {
+    render(<PrickleCheckIn prickleId="prickle-1" hasStarted initial={null} />);
     expect(screen.getByRole("group", { name: "Check in" })).toHaveTextContent(/Coming in, I was feeling/);
     expect(screen.getByRole("group", { name: "Check out" })).toHaveTextContent(/How did it go\?/);
+    expect(screen.queryByText("Available once the prickle starts.")).not.toBeInTheDocument();
   });
 
   it("saves feelings, need, rating and feelings after", async () => {
     const user = userEvent.setup();
-    render(<PrickleCheckIn prickleId="prickle-1" showCheckout initial={null} />);
+    render(<PrickleCheckIn prickleId="prickle-1" hasStarted initial={null} />);
 
     // Each feeling appears twice once the session has started: before (index 0) and after (1).
     await user.click(chip("Stressed", 0));
@@ -57,7 +58,7 @@ describe("PrickleCheckIn", () => {
 
   it("caps feelings at two by disabling the rest", async () => {
     const user = userEvent.setup();
-    render(<PrickleCheckIn prickleId="prickle-1" showCheckout={false} initial={null} />);
+    render(<PrickleCheckIn prickleId="prickle-1" hasStarted={false} initial={null} />);
     await user.click(chip("Stressed"));
     await user.click(chip("Tired"));
     expect(chip("Calm")).toBeDisabled();
@@ -72,7 +73,7 @@ describe("PrickleCheckIn", () => {
     render(
       <PrickleCheckIn
         prickleId="prickle-1"
-        showCheckout={false}
+        hasStarted={false}
         initial={{ feelingsBefore: ["lonely"], need: null, sessionRating: null, feelingsAfter: [] }}
       />
     );
@@ -93,7 +94,7 @@ describe("PrickleCheckIn", () => {
     render(
       <PrickleCheckIn
         prickleId="prickle-1"
-        showCheckout
+        hasStarted
         readOnly
         initial={{ feelingsBefore: ["drained"], need: "gentle", sessionRating: 2, feelingsAfter: [] }}
       />
@@ -112,7 +113,7 @@ describe("PrickleCheckIn", () => {
     render(
       <PrickleCheckIn
         prickleId="prickle-1"
-        showCheckout={false}
+        hasStarted={false}
         initial={null}
         prefill={{ feelingsBefore: ["stressed"], need: "gentle", sessionRating: null, feelingsAfter: [] }}
       />
@@ -133,7 +134,7 @@ describe("PrickleCheckIn", () => {
     render(
       <PrickleCheckIn
         prickleId="prickle-1"
-        showCheckout={false}
+        hasStarted={false}
         initial={{ feelingsBefore: ["calm"], need: null, sessionRating: null, feelingsAfter: [] }}
         prefill={{ feelingsBefore: ["stressed"], need: "gentle", sessionRating: null, feelingsAfter: [] }}
       />
@@ -145,7 +146,7 @@ describe("PrickleCheckIn", () => {
   it("shows a save error", async () => {
     vi.mocked(saveCheckin).mockResolvedValue({ error: "Couldn't save your check-in — please try again." });
     const user = userEvent.setup();
-    render(<PrickleCheckIn prickleId="prickle-1" showCheckout={false} initial={null} />);
+    render(<PrickleCheckIn prickleId="prickle-1" hasStarted={false} initial={null} />);
     await user.click(chip("Curious"));
     await user.click(screen.getByRole("button", { name: "Save" }));
     expect(await screen.findByText("Couldn't save your check-in — please try again.")).toBeInTheDocument();

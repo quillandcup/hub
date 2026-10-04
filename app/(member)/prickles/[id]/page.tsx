@@ -16,7 +16,7 @@ import { getMyEntriesForPrickle, getMyProjects } from "@/app/(member)/projects/a
 import PrickleWritingPanel from "@/components/writing/PrickleWritingPanel";
 import PrickleCheckIn from "@/components/writing/PrickleCheckIn";
 import { getMyCheckin } from "@/app/(member)/prickles/checkin-actions";
-import { canCheckOut, parseCheckinPrefill } from "@/lib/prickle-checkins";
+import { parseCheckinPrefill } from "@/lib/prickle-checkins";
 import { localDateOf } from "@/lib/prickle-writing";
 import { ORG_TIMEZONE } from "@/lib/config";
 import { getMyCalendarItems } from "@/app/(member)/my-prickles/calendar-feed-actions";
@@ -56,10 +56,6 @@ export async function generateMetadata({
   return { title: formatPrickleTitle(prickle) };
 }
 
-function checkoutOpenNow(startTime: string): boolean {
-  return canCheckOut(startTime, Date.now());
-}
-
 function hasNotStarted(startTime: string): boolean {
   return new Date(startTime).getTime() > Date.now();
 }
@@ -72,7 +68,7 @@ export default async function PrickleDetailPage({
   searchParams?: Promise<{ feel?: string | string[]; need?: string | string[] }>;
 }) {
   const { id } = await params;
-  // "Coming in" answers carried from the Prickle Picker, to pre-fill an unsaved check-in.
+  // "Coming in" answers carried from Find a Prickle, to pre-fill an unsaved check-in.
   const checkinPrefill = parseCheckinPrefill((await searchParams) ?? {});
   const supabase = await createClient();
 
@@ -239,7 +235,7 @@ export default async function PrickleDetailPage({
     !isActingAsAdmin && effectiveIdentity ? (
       <PrickleCheckIn
         prickleId={prickle.id}
-        showCheckout={checkoutOpenNow(prickle.start_time)}
+        hasStarted={!hasNotStarted(prickle.start_time)}
         initial={myCheckin}
         prefill={checkinPrefill}
         readOnly={effectiveIdentity.isSudo}

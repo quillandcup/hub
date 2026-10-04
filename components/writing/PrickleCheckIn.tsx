@@ -7,16 +7,13 @@ import { FeelingPicker, NeedPicker, RatingPicker } from "@/components/writing/Ch
 
 interface PrickleCheckInProps {
   prickleId: string;
-  /**
-   * The check-out half is open (canCheckOut: CHECKOUT_OPENS_AFTER_MINUTES into the prickle).
-   * Before that, only the check-in half is shown.
-   */
-  showCheckout: boolean;
+  /** The prickle has started, so the check-out can be answered. */
+  hasStarted: boolean;
   initial: CheckinInput | null;
   /** Sudo: an admin sees the member's answers but can't change them. */
   readOnly?: boolean;
   /**
-   * Unsaved starting answers (e.g. from the Prickle Picker) when there's no saved check-in yet.
+   * Unsaved starting answers (e.g. from Find a Prickle) when there's no saved check-in yet.
    * Shown selected with Save enabled; nothing is stored until the member saves.
    */
   prefill?: CheckinInput | null;
@@ -25,13 +22,14 @@ interface PrickleCheckInProps {
 const EMPTY: CheckinInput = { feelingsBefore: [], need: null, sessionRating: null, feelingsAfter: [] };
 
 /**
- * A member's check-in (feelings coming in, what they need) and, once open, check-out (how it went,
- * feeling now) for a prickle. Both halves are one prickle_checkins row, also answered from the
- * Slack check-in/check-out DMs and the Log Progress modal.
+ * The home for a member's check-in (feelings coming in, what they need) and check-out (how it
+ * went, feeling now) for a prickle, editable any time: the check-in always, the check-out once
+ * the prickle starts. Both halves are one prickle_checkins row, also answered from the Slack
+ * check-in/check-out DMs, and the check-out from the Log Progress modal.
  */
 export default function PrickleCheckIn({
   prickleId,
-  showCheckout,
+  hasStarted,
   initial,
   readOnly = false,
   prefill = null,
@@ -69,7 +67,7 @@ export default function PrickleCheckIn({
     >
       <div>
         <h2 id="prickle-checkin-heading" className="text-lg font-semibold text-slate-900 dark:text-slate-100">
-          {showCheckout ? "Check in & out" : "Check in"}
+          Check in &amp; out
         </h2>
         <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
           {readOnly
@@ -79,48 +77,50 @@ export default function PrickleCheckIn({
       </div>
 
       <div role="group" aria-labelledby="prickle-checkin-in" className="space-y-4">
-        {showCheckout && (
-          <h3 id="prickle-checkin-in" className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-            Check in
-          </h3>
-        )}
+        <h3 id="prickle-checkin-in" className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+          Check in
+        </h3>
         <FeelingPicker
-          label={showCheckout ? "Coming in, I was feeling…" : "Coming in, I'm feeling…"}
+          label={hasStarted ? "Coming in, I was feeling…" : "Coming in, I'm feeling…"}
           selected={checkin.feelingsBefore}
           onChange={(feelingsBefore) => update({ feelingsBefore })}
           readOnly={readOnly}
         />
         <NeedPicker
-          label={showCheckout ? "What I needed from this session" : "What I need from this session"}
+          label={hasStarted ? "What I needed from this session" : "What I need from this session"}
           value={checkin.need}
           onChange={(need) => update({ need })}
           readOnly={readOnly}
         />
       </div>
 
-      {showCheckout && (
-        <div
-          role="group"
-          aria-labelledby="prickle-checkin-out"
-          className="space-y-4 border-t border-slate-200 dark:border-slate-800 pt-5"
-        >
-          <h3 id="prickle-checkin-out" className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-            Check out
-          </h3>
-          <RatingPicker
-            label="How did it go?"
-            value={checkin.sessionRating}
-            onChange={(sessionRating) => update({ sessionRating })}
-            readOnly={readOnly}
-          />
-          <FeelingPicker
-            label="Feeling now…"
-            selected={checkin.feelingsAfter}
-            onChange={(feelingsAfter) => update({ feelingsAfter })}
-            readOnly={readOnly}
-          />
-        </div>
-      )}
+      <div
+        role="group"
+        aria-labelledby="prickle-checkin-out"
+        className="space-y-4 border-t border-slate-200 dark:border-slate-800 pt-5"
+      >
+        <h3 id="prickle-checkin-out" className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+          Check out
+        </h3>
+        {hasStarted ? (
+          <>
+            <RatingPicker
+              label="How did it go?"
+              value={checkin.sessionRating}
+              onChange={(sessionRating) => update({ sessionRating })}
+              readOnly={readOnly}
+            />
+            <FeelingPicker
+              label="Feeling now…"
+              selected={checkin.feelingsAfter}
+              onChange={(feelingsAfter) => update({ feelingsAfter })}
+              readOnly={readOnly}
+            />
+          </>
+        ) : (
+          <p className="text-sm text-slate-500 dark:text-slate-400">Available once the prickle starts.</p>
+        )}
+      </div>
 
       {!readOnly && (
         <div className="flex items-center justify-end gap-3">

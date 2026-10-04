@@ -6,8 +6,6 @@ import {
   FEELING_DISPLAY_GROUPS,
   FEELING_GROUP,
   FEELING_KEYS,
-  CHECKOUT_OPENS_AFTER_MINUTES,
-  canCheckOut,
   checkinAnswered,
   checkoutAnswered,
   NEED_KEYS,
@@ -121,21 +119,6 @@ describe("prickleHref / parseCheckinPrefill", () => {
       feelingsAfter: [],
     });
     expect(parseCheckinPrefill({ feel: "hangry", need: "snacks" })).toBeNull();
-  });
-});
-
-describe("canCheckOut", () => {
-  const start = "2026-10-01T15:00:00Z";
-  const at = (minutes: number) => Date.parse(start) + minutes * 60_000;
-
-  it("is closed before the start and early in the session", () => {
-    expect(canCheckOut(start, at(-30))).toBe(false);
-    expect(canCheckOut(start, at(CHECKOUT_OPENS_AFTER_MINUTES - 1))).toBe(false);
-  });
-
-  it("opens CHECKOUT_OPENS_AFTER_MINUTES in, and stays open afterwards", () => {
-    expect(canCheckOut(start, at(CHECKOUT_OPENS_AFTER_MINUTES))).toBe(true);
-    expect(canCheckOut(start, at(60 * 24))).toBe(true);
   });
 });
 
