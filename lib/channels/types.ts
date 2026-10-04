@@ -10,6 +10,25 @@ export interface OutboundMessage {
   slackBlocks?: any[];
   /** Small trailing links (e.g. "Notification settings"); each channel renders them its own way. */
   footerLinks?: { label: string; url: string }[];
+  /**
+   * Time-sensitive until this moment (ISO timestamp): worth interrupting the member for from when
+   * it's sent until then, because it's about something happening now (e.g. a prickle starting).
+   * Omitted = never time-sensitive. Each channel decides what that means: in-app shows a banner
+   * until then and otherwise only lists it under the bell; a push channel could use the OS's
+   * time-sensitive level, email could skip it once it has passed.
+   */
+  timeSensitiveUntil?: string;
+  /**
+   * For channels that keep a message around (in-app): what it's about, e.g. a prickle id, so the
+   * feature can mark it read once it's dealt with (resolveInAppNotifications).
+   */
+  ref?: string;
+}
+
+/** What a channel knows about the send besides the message itself. */
+export interface SendContext {
+  /** The notification kind (lib/notifications/registry.ts). */
+  kind: string;
 }
 
 /**
@@ -22,5 +41,5 @@ export interface ChannelAdapter {
   id: ChannelId;
   /** memberId -> this channel's address (e.g. Slack user id). Members missing from the map can't be reached on it. */
   resolveAddresses(supabase: any, memberIds: string[]): Promise<Map<string, string>>;
-  send(address: string, message: OutboundMessage): Promise<void>;
+  send(address: string, message: OutboundMessage, context: SendContext): Promise<void>;
 }

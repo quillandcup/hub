@@ -8,12 +8,14 @@ vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
 vi.mock("@/lib/auth", () => ({ getCurrentUser: vi.fn() }));
 vi.mock("@/lib/sudo", () => ({ getEffectiveIdentity: vi.fn() }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+vi.mock("@/lib/prickle-checkin-dms", () => ({ resolveAnsweredCheckinNotifications: vi.fn() }));
 
 import { getCheckinForLogging, getMyCheckin, saveCheckin } from "@/app/(member)/prickles/checkin-actions";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
 import { getEffectiveIdentity } from "@/lib/sudo";
 import { revalidatePath } from "next/cache";
+import { resolveAnsweredCheckinNotifications } from "@/lib/prickle-checkin-dms";
 import type { CheckinInput } from "@/lib/prickle-checkins";
 
 const USER = { id: "user-1", email: "m1@example.com" };
@@ -60,6 +62,8 @@ describe("saveCheckin", () => {
       { onConflict: "member_id,prickle_id" }
     );
     expect(revalidatePath).toHaveBeenCalledWith("/prickles/prickle-1");
+    // Resolves the in-app check-in/check-out notifications it answered (tested in prickle-checkin-dms).
+    expect(resolveAnsweredCheckinNotifications).toHaveBeenCalledWith({ from: sb.from }, "member-1", "prickle-1", CHECKIN);
   });
 
   it("soft-deletes the live row when every answer is cleared", async () => {

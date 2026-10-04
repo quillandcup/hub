@@ -25,18 +25,19 @@ beforeEach(() => {
 
 describe("effectiveChannels", () => {
   it("uses the kind's defaults when the member has no overrides", () => {
-    expect(effectiveChannels("prickle_checkin", [])).toEqual(["slack"]);
+    expect(effectiveChannels("prickle_checkin", [])).toEqual(["slack", "in_app"]);
   });
 
   it("applies an override for that kind only", () => {
     const overrides = [{ kind: "prickle_checkin", channel: "slack", enabled: false }];
-    expect(effectiveChannels("prickle_checkin", overrides)).toEqual([]);
-    expect(effectiveChannels("prickle_checkout", overrides)).toEqual(["slack"]);
+    expect(effectiveChannels("prickle_checkin", overrides)).toEqual(["in_app"]);
+    expect(effectiveChannels("prickle_checkout", overrides)).toEqual(["slack", "in_app"]);
   });
 
   it("ignores overrides for channels it doesn't know", () => {
     expect(effectiveChannels("prickle_checkin", [{ kind: "prickle_checkin", channel: "carrier_pigeon", enabled: true }])).toEqual([
       "slack",
+      "in_app",
     ]);
   });
 

@@ -12,6 +12,12 @@ import FeedbackWidget from '@/components/FeedbackWidget'
 import OnboardingGuide from '@/components/onboarding/OnboardingGuide'
 import { getOnboardingState } from '@/lib/onboarding.server'
 import { Suspense } from 'react'
+import {
+  InAppNotificationBanner,
+  InAppNotificationBell,
+  InAppNotificationsProvider,
+} from '@/components/InAppNotifications'
+import { BELL_LIMIT, countInAppNotifications, loadInAppNotifications } from '@/lib/channels/in-app'
 
 export default async function MemberLayout({
   children,
@@ -45,9 +51,37 @@ export default async function MemberLayout({
   // The tour is the member's own: hidden during sudo, so an admin browsing as them doesn't see or
   // change it (app/actions/onboarding.ts refuses then too).
   const showOnboarding = enabledFeatures.includes('onboarding') && !effectiveIdentity.isSudo
-  const onboardingState = showOnboarding
-    ? await getOnboardingState(user.id, effectiveIdentity.memberId)
-    : null
+  // In-app notifications are the member's own too (app/actions/in-app-notifications.ts).
+  const showInApp = enabledFeatures.includes('in_app_notifications') && !effectiveIdentity.isSudo
+  const [onboardingState, inAppNotifications] = await Promise.all([
+    showOnboarding ? getOnboardingState(user.id, effectiveIdentity.memberId) : null,
+    showInApp
+      ? Promise.all([
+          loadInAppNotifications(supabase, effectiveIdentity.memberId, new Date(), { limit: BELL_LIMIT }),
+          countInAppNotifications(supabase, effectiveIdentity.memberId, { unreadOnly: true }),
+        ]).then(([latest, unreadCount]) => ({ latest, unreadCount }))
+      : null,
+  ])
+
+  const header = (bell: React.ReactNode) => (
+    <header className="h-16 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex items-center justify-end gap-2 px-6 flex-shrink-0 relative z-30">
+      {bell}
+      <UserMenu
+        userEmail={effectiveIdentity.memberName}
+        memberId={effectiveIdentity.memberId}
+        isAdmin={isAdmin}
+        isSudo={effectiveIdentity.isSudo}
+        enabledFeatures={enabledFeatures}
+        canStartOnboarding={showOnboarding}
+      />
+    </header>
+  )
+  // While the tour shows, room to scroll the page's last controls clear of its bar.
+  const main = (
+    <main className={`flex-1 overflow-auto ${onboardingState?.active ? 'pb-36' : ''}`}>
+      {children}
+    </main>
+  )
 
   return (
     <div className="flex h-dvh overflow-hidden bg-canvas dark:bg-slate-950">
@@ -59,20 +93,18 @@ export default async function MemberLayout({
             memberEmail={effectiveIdentity.memberEmail}
           />
         )}
-        <header className="h-16 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex items-center justify-end px-6 flex-shrink-0 relative z-30">
-          <UserMenu
-            userEmail={effectiveIdentity.memberName}
-            memberId={effectiveIdentity.memberId}
-            isAdmin={isAdmin}
-            isSudo={effectiveIdentity.isSudo}
-            enabledFeatures={enabledFeatures}
-            canStartOnboarding={showOnboarding}
-          />
-        </header>
-        {/* While the tour shows, room to scroll the page's last controls clear of its bar. */}
-        <main className={`flex-1 overflow-auto ${onboardingState?.active ? 'pb-36' : ''}`}>
-          {children}
-        </main>
+        {inAppNotifications ? (
+          <InAppNotificationsProvider initial={inAppNotifications}>
+            {header(<InAppNotificationBell />)}
+            <InAppNotificationBanner />
+            {main}
+          </InAppNotificationsProvider>
+        ) : (
+          <>
+            {header(null)}
+            {main}
+          </>
+        )}
         <TimezoneInitializer storedTimezone={storedTimezone} isSudo={effectiveIdentity.isSudo} />
       </div>
       <FeedbackWidget />

@@ -11,6 +11,9 @@ import { createFakeSupabase, type FakeSupabase } from "@/tests/helpers/server-pa
 
 let fake: FakeSupabase;
 vi.mock("@/lib/supabase/server", () => ({ createClient: async () => fake }));
+// Whether "In the Hub" shows is the member's in_app_notifications flag, read with the service role.
+let serviceFake: FakeSupabase;
+vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => serviceFake }));
 vi.mock("@/lib/auth", () => ({ getCurrentUser: vi.fn() }));
 vi.mock("@/lib/sudo", () => ({ getEffectiveIdentity: vi.fn() }));
 
@@ -25,6 +28,7 @@ const upserts = () => fake.queries.filter((q) => q.calls.some((c) => c.method ==
 
 beforeEach(() => {
   fake = createFakeSupabase();
+  serviceFake = createFakeSupabase();
   vi.mocked(getCurrentUser).mockResolvedValue({ id: "user-1", email: "m1@example.com" } as never);
   vi.mocked(getEffectiveIdentity).mockResolvedValue(IDENTITY as never);
 });
@@ -36,11 +40,20 @@ describe("getNotificationSettings", () => {
     });
 
     expect(await getNotificationSettings()).toEqual({
-      channelsByKind: { prickle_checkin: ["slack"], prickle_checkout: [] },
+      channels: ["slack"],
+      channelsByKind: { prickle_checkin: ["slack", "in_app"], prickle_checkout: ["in_app"] },
       readOnly: false,
     });
     const query = fake.queries.find((q) => q.table === "notification_preferences")!;
     expect(query.calls).toContainEqual({ method: "eq", args: ["member_id", "member-1"] });
+  });
+
+  it("offers In the Hub only with the member's in_app_notifications flag", async () => {
+    serviceFake = createFakeSupabase({
+      feature_flags: { data: { enabled_globally: true } },
+      members: { data: [{ id: "member-1", user_id: "user-1" }] },
+    });
+    expect((await getNotificationSettings())?.channels).toEqual(["slack", "in_app"]);
   });
 
   it("is read-only in sudo", async () => {
@@ -72,7 +85,11 @@ describe("setNotificationChannel", () => {
 });
 
 describe("NotificationsPanel", () => {
-  const initial = { channelsByKind: { prickle_checkin: ["slack" as const], prickle_checkout: [] }, readOnly: false };
+  const initial = {
+    channels: ["slack" as const],
+    channelsByKind: { prickle_checkin: ["slack" as const], prickle_checkout: [] },
+    readOnly: false,
+  };
 
   it("shows each kind as a pressed or unpressed channel logo's channels and saves a switch", async () => {
     render(<NotificationsPanel initial={initial} />);
@@ -97,6 +114,20 @@ describe("NotificationsPanel", () => {
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't save");
     expect(checkin).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("shows In the Hub only when it's one of the member's channels", () => {
+    const { unmount } = render(<NotificationsPanel initial={initial} />);
+    expect(screen.queryByRole("button", { name: "Prickle check-ins via In the Hub" })).not.toBeInTheDocument();
+    unmount();
+
+    render(
+      <NotificationsPanel
+        initial={{ ...initial, channels: ["slack", "in_app"], channelsByKind: { prickle_checkin: ["in_app"], prickle_checkout: [] } }}
+      />
+    );
+    expect(screen.getByRole("button", { name: "Prickle check-ins via In the Hub" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Prickle check-ins via Slack" })).toHaveAttribute("aria-pressed", "false");
   });
 
   it("disables every switch when read-only", () => {

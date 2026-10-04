@@ -5,6 +5,9 @@ import {
   buildCheckoutBlocks,
   buildQuickLogBlocks,
   CHECKIN_ANSWER_ACTION_ID,
+  CHECKOUT_TIME_SENSITIVE_MS,
+  checkinMessage,
+  checkoutMessage,
   groupByMember,
   dueCheckoutMembers,
   parseCheckinAnswer,
@@ -318,5 +321,40 @@ describe("saveCheckinAnswer", () => {
     const fake = createFakeSupabase({ prickle_checkins: { data: [] } });
     expect(await saveCheckinAnswer(fake, "m1", { prickleId: "p1", field: "need", values: ["nap"] })).toBe("Invalid need");
     expect(writes(fake)).toEqual([]);
+  });
+});
+
+describe("in-app notifications", () => {
+  const cleared = (fake: ReturnType<typeof createFakeSupabase>) =>
+    fake.queries
+      .filter((q) => q.table === "in_app_notifications")
+      .map((q) => Object.fromEntries(q.calls.filter((c) => c.method === "eq").map((c) => c.args)));
+
+  it("resolves the in-app check-in once a DM answer completes it", async () => {
+    const fake = createFakeSupabase({
+      prickle_checkins: { data: [{ feelings_before: ["tired"], need: null, session_rating: null, feelings_after: [] }] },
+    });
+    expect(await saveCheckinAnswer(fake, "m1", { prickleId: "p1", field: "need", values: ["gentle"] })).toBeNull();
+    expect(cleared(fake)).toEqual([{ member_id: "m1", kind: "prickle_checkin", ref: "p1" }]);
+  });
+
+  it("leaves both unresolved while the answers are partial", async () => {
+    const fake = createFakeSupabase({ prickle_checkins: { data: [] } });
+    await saveCheckinAnswer(fake, "m1", { prickleId: "p1", field: "session_rating", values: ["4"] });
+    expect(cleared(fake)).toEqual([]);
+  });
+
+  it("ties the messages to the prickle, time-sensitive on its timing", () => {
+    expect(checkinMessage({ ...P1 }, null)).toMatchObject({
+      ref: "p1",
+      timeSensitiveUntil: P1.startTime,
+    });
+
+    const end = "2026-10-05T12:00:00.000Z";
+    const checkout = checkoutMessage({ id: "p1", typeName: "Progress Prickle", startTime: P1.startTime, endTime: end }, null, []);
+    expect(checkout).toMatchObject({
+      ref: "p1",
+      timeSensitiveUntil: new Date(Date.parse(end) + CHECKOUT_TIME_SENSITIVE_MS).toISOString(),
+    });
   });
 });

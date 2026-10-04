@@ -109,7 +109,7 @@ export async function createNotifier(
       const delivered: ChannelId[] = [];
       for (const channel of channelsFor(memberId)) {
         try {
-          await CHANNEL_ADAPTERS[channel].send(addresses.get(channel)!.get(memberId)!, withSettingsLink);
+          await CHANNEL_ADAPTERS[channel].send(addresses.get(channel)!.get(memberId)!, withSettingsLink, { kind });
           delivered.push(channel);
         } catch (error) {
           console.error(`[notifications] ${kind} via ${channel} to member ${memberId} failed`, error);
