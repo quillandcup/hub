@@ -1,28 +1,30 @@
 import { APP_URL } from "@/lib/config";
 import { membersWithFeature } from "@/lib/features.server";
 import { createServiceRoleClient } from "@/lib/supabase/service";
+import type { SortConfig } from "@/lib/hooks/useTableSort";
+import { pageBounds } from "@/lib/pagination";
+import type { InboxFilter, InboxFilterCounts, InboxSortColumn } from "@/lib/notifications/inbox";
 import type { ChannelAdapter, OutboundMessage, SendContext } from "./types";
 
 /**
  * "In the Hub", stored in in_app_notifications (migration 20261004000000) and shown by
- * components/InAppNotifications.tsx in two places:
- * - The bell in the member header lists every recent one, with a count of the unread.
- * - A banner under the header shows an unread one while it's time-sensitive
+ * components/InAppNotifications.tsx:
+ * - The bell in the member header: an unread count, the latest few, "Mark all as read", and a
+ *   link to the inbox (/notifications): every one, as a sortable, filterable, paginated table.
+ * - A banner under the header for an unread one while it's time-sensitive
  *   (OutboundMessage.timeSensitiveUntil). Something not time-sensitive, or no longer, is only in
- *   the bell.
- * It's read once the member dismisses the banner or opens the bell, or once the feature resolves
- * it with resolveInAppNotifications (e.g. a check-in once they've checked in). It leaves the list
- * at `expiresAt`, or after IN_APP_LIST_DAYS.
+ *   the bell and inbox.
+ * Nothing is ever dropped. It's read once the member opens it, dismisses its banner or marks all
+ * read, or once the feature resolves it with resolveInAppNotifications (e.g. a check-in once
+ * they've checked in).
  *
  * Behind the in_app_notifications feature flag: members without it can't be reached here, so
  * senders fall back to their other channels exactly as before. The address is the member id.
  */
 export const IN_APP_FEATURE = "in_app_notifications" as const;
 
-/** The bell lists at most this many, newest first... */
-export const IN_APP_LIST_LIMIT = 20;
-/** ...from at most this far back. */
-export const IN_APP_LIST_DAYS = 30;
+/** How many the bell shows; the inbox has the rest. */
+export const BELL_LIMIT = 10;
 
 export const inAppChannel: ChannelAdapter = {
   id: "in_app",
@@ -44,11 +46,10 @@ export function inAppRow(memberId: string, message: OutboundMessage, { kind }: S
     text: message.text,
     url: hubPath(message.url),
     banner_until: message.timeSensitiveUntil ?? null,
-    expires_at: message.expiresAt ?? null,
   };
 }
 
-/** A Hub link as a path the bell and banner can navigate to in place; anything else isn't linked. */
+/** A Hub link as a path the bell, inbox and banner can navigate to in place; anything else isn't linked. */
 export function hubPath(url: string | undefined): string | null {
   if (!url) return null;
   if (url.startsWith("/") && !url.startsWith("//")) return url;
@@ -68,22 +69,10 @@ export interface InAppNotification {
   banner: boolean;
 }
 
-/** A member's bell list (unexpired, from the last IN_APP_LIST_DAYS, newest first), as of `now`. */
-export async function loadInAppNotifications(supabase: any, memberId: string, now: Date): Promise<InAppNotification[]> {
-  const since = new Date(now.getTime() - IN_APP_LIST_DAYS * 24 * 60 * 60 * 1000);
-  const { data, error } = await supabase
-    .from("in_app_notifications")
-    .select("id, kind, text, url, created_at, banner_until, read_at")
-    .eq("member_id", memberId)
-    .gte("created_at", since.toISOString())
-    .or(`expires_at.is.null,expires_at.gt.${now.toISOString()}`)
-    .order("created_at", { ascending: false })
-    .limit(IN_APP_LIST_LIMIT);
-  if (error) {
-    console.error("[in-app] Loading notifications failed", { member: memberId, error });
-    return [];
-  }
-  return (data ?? []).map((row: any) => ({
+const COLUMNS = "id, kind, text, url, created_at, banner_until, read_at";
+
+function toNotification(row: any, now: Date): InAppNotification {
+  return {
     id: row.id,
     kind: row.kind,
     text: row.text,
@@ -91,9 +80,111 @@ export async function loadInAppNotifications(supabase: any, memberId: string, no
     createdAt: row.created_at,
     read: row.read_at !== null,
     banner: row.read_at === null && row.banner_until !== null && Date.parse(row.banner_until) > now.getTime(),
-  }));
+  };
 }
 
+/** A member's latest `limit` notifications, newest first, as of `now` (the bell and banner). */
+export async function loadInAppNotifications(
+  supabase: any,
+  memberId: string,
+  now: Date,
+  { limit }: { limit: number }
+): Promise<InAppNotification[]> {
+  const { data, error } = await supabase
+    .from("in_app_notifications")
+    .select(COLUMNS)
+    .eq("member_id", memberId)
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: false })
+    .limit(limit);
+  if (error) {
+    console.error("[in-app] Loading notifications failed", { member: memberId, error });
+    return [];
+  }
+  return (data ?? []).map((row: any) => toNotification(row, now));
+}
+
+export interface InboxPage {
+  items: InAppNotification[];
+  /** Matching the filter and kind, across every page. */
+  total: number;
+  /** Per filter tab, for the kind chosen. */
+  counts: InboxFilterCounts;
+  /** What was served: `page` clamped to the last page. */
+  page: number;
+  pageSize: number;
+}
+
+/**
+ * One page of the /notifications inbox: the member's notifications matching `filter` and `kind`
+ * (null = every kind), sorted (newest first breaks ties). Counts come from the same filters, so the
+ * pager and tab counts agree with the rows; a page past the end serves the last one.
+ */
+export async function loadInboxPage(
+  supabase: any,
+  memberId: string,
+  now: Date,
+  {
+    filter,
+    kind,
+    sort,
+    page,
+    pageSize,
+  }: { filter: InboxFilter; kind: string | null; sort: SortConfig<InboxSortColumn>; page: number; pageSize: number }
+): Promise<InboxPage> {
+  const scoped = (query: any) => {
+    let q = query.eq("member_id", memberId);
+    if (kind) q = q.eq("kind", kind);
+    return q;
+  };
+  const count = async (unread: boolean) => {
+    let q = scoped(supabase.from("in_app_notifications").select("id", { count: "exact", head: true }));
+    if (unread) q = q.is("read_at", null);
+    const { count: n, error } = await q;
+    if (error) console.error("[in-app] Counting inbox failed", { member: memberId, error });
+    return n ?? 0;
+  };
+
+  const [all, unread] = await Promise.all([count(false), count(true)]);
+  const counts = { all, unread };
+  const bounds = pageBounds(page, pageSize, counts[filter]);
+
+  let rows = scoped(supabase.from("in_app_notifications").select(COLUMNS));
+  if (filter === "unread") rows = rows.is("read_at", null);
+  rows = rows.order(sort.column, { ascending: sort.direction === "asc" });
+  if (sort.column !== "created_at") rows = rows.order("created_at", { ascending: false });
+  const { data, error } = await rows
+    .order("id", { ascending: false })
+    .range(bounds.offset, bounds.offset + bounds.pageSize - 1);
+  if (error) console.error("[in-app] Loading inbox failed", { member: memberId, error });
+
+  return {
+    items: (data ?? []).map((row: any) => toNotification(row, now)),
+    total: counts[filter],
+    counts,
+    page: bounds.page,
+    pageSize: bounds.pageSize,
+  };
+}
+
+/** How many notifications the member has (all of them, not just a page's), or just the unread. */
+export async function countInAppNotifications(
+  supabase: any,
+  memberId: string,
+  { unreadOnly = false }: { unreadOnly?: boolean } = {}
+): Promise<number> {
+  let query = supabase
+    .from("in_app_notifications")
+    .select("id", { count: "exact", head: true })
+    .eq("member_id", memberId);
+  if (unreadOnly) query = query.is("read_at", null);
+  const { count, error } = await query;
+  if (error) {
+    console.error("[in-app] Counting notifications failed", { member: memberId, unreadOnly, error });
+    return 0;
+  }
+  return count ?? 0;
+}
 
 /** Marks these of the member's notifications read (scoped to the member, whichever client). */
 export async function markInAppNotificationsRead(supabase: any, memberId: string, ids: string[]) {
@@ -105,10 +196,19 @@ export async function markInAppNotificationsRead(supabase: any, memberId: string
     .is("read_at", null);
 }
 
+/** Marks every one of the member's notifications read. */
+export async function markAllInAppNotificationsRead(supabase: any, memberId: string) {
+  return supabase
+    .from("in_app_notifications")
+    .update({ read_at: new Date().toISOString() })
+    .eq("member_id", memberId)
+    .is("read_at", null);
+}
+
 /**
  * Marks a member's unread notifications of `kind` about `ref` read once the feature has what it
  * asked for, so they stop asking (e.g. the check-in after they check in, on the web or in Slack):
- * the banner goes and the bell's count drops. Works with the member's session client (RLS lets
+ * the banner goes and the unread count drops. Works with the member's session client (RLS lets
  * them mark their own) or the service role. Best effort: a failure is logged, never thrown, since
  * the answer itself is already saved.
  */

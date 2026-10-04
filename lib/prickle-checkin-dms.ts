@@ -692,17 +692,15 @@ async function quickLogPrompts(supabase: any, goals: GoalCandidate[]): Promise<Q
 
 /**
  * A DM's prickle: enough to word the message and link the check-in. The times, when known, set
- * how long it's time-sensitive (in-app: a banner, then only under the bell) and when it's dropped:
- * - Check-in: time-sensitive until the prickle starts (its text says "in ~20 min"; the prickle
- *   page still takes one after), kept CHECKIN_KEEP_MS past the start.
- * - Check-out: time-sensitive for CHECKOUT_TIME_SENSITIVE_MS after the prickle ends (one sent
- *   later, e.g. from the attendance backstop, goes straight to the bell), kept CHECKOUT_KEEP_MS.
+ * how long it's time-sensitive (in-app: a banner, then only in the bell and inbox):
+ * - Check-in: until the prickle starts (its text says "in ~20 min"; the prickle page still takes
+ *   one after).
+ * - Check-out: for CHECKOUT_TIME_SENSITIVE_MS after the prickle ends (one sent later, e.g. from
+ *   the attendance backstop, goes straight to the bell).
  */
 type DMPrickle = { id: string; typeName: string; startTime?: string; endTime?: string };
 
-export const CHECKIN_KEEP_MS = 24 * 60 * 60 * 1000;
 export const CHECKOUT_TIME_SENSITIVE_MS = 3 * 60 * 60 * 1000;
-export const CHECKOUT_KEEP_MS = 7 * 24 * 60 * 60 * 1000;
 
 function offsetIso(time: string | undefined, ms: number): string | undefined {
   return time ? new Date(Date.parse(time) + ms).toISOString() : undefined;
@@ -725,7 +723,6 @@ export function checkinMessage(prickle: DMPrickle, saved: CheckinInput | null, {
     slackBlocks: test ? [TEST_BANNER, ...blocks] : blocks,
     ref: prickle.id,
     timeSensitiveUntil: offsetIso(prickle.startTime, 0),
-    expiresAt: offsetIso(prickle.startTime, CHECKIN_KEEP_MS),
   };
 }
 
@@ -743,7 +740,6 @@ export function checkoutMessage(
     slackBlocks: test ? [TEST_BANNER, ...blocks] : blocks,
     ref: prickle.id,
     timeSensitiveUntil: offsetIso(prickle.endTime, CHECKOUT_TIME_SENSITIVE_MS),
-    expiresAt: offsetIso(prickle.endTime, CHECKOUT_KEEP_MS),
   };
 }
 

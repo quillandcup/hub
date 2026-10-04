@@ -20,11 +20,9 @@ export interface OutboundMessage {
   timeSensitiveUntil?: string;
   /**
    * For channels that keep a message around (in-app): what it's about, e.g. a prickle id, so the
-   * feature can resolve it once it's dealt with (resolveInAppNotifications)...
+   * feature can mark it read once it's dealt with (resolveInAppNotifications).
    */
   ref?: string;
-  /** ...and when it stops being worth keeping at all (ISO timestamp); omitted = kept. */
-  expiresAt?: string;
 }
 
 /** What a channel knows about the send besides the message itself. */

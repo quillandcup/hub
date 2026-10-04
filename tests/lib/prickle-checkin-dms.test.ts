@@ -5,8 +5,6 @@ import {
   buildCheckoutBlocks,
   buildQuickLogBlocks,
   CHECKIN_ANSWER_ACTION_ID,
-  CHECKIN_KEEP_MS,
-  CHECKOUT_KEEP_MS,
   CHECKOUT_TIME_SENSITIVE_MS,
   checkinMessage,
   checkoutMessage,
@@ -346,12 +344,10 @@ describe("in-app notifications", () => {
     expect(cleared(fake)).toEqual([]);
   });
 
-  it("ties the messages to the prickle, time-sensitive and kept on its timing", () => {
-    const start = Date.parse(P1.startTime);
+  it("ties the messages to the prickle, time-sensitive on its timing", () => {
     expect(checkinMessage({ ...P1 }, null)).toMatchObject({
       ref: "p1",
       timeSensitiveUntil: P1.startTime,
-      expiresAt: new Date(start + CHECKIN_KEEP_MS).toISOString(),
     });
 
     const end = "2026-10-05T12:00:00.000Z";
@@ -359,7 +355,6 @@ describe("in-app notifications", () => {
     expect(checkout).toMatchObject({
       ref: "p1",
       timeSensitiveUntil: new Date(Date.parse(end) + CHECKOUT_TIME_SENSITIVE_MS).toISOString(),
-      expiresAt: new Date(Date.parse(end) + CHECKOUT_KEEP_MS).toISOString(),
     });
   });
 });

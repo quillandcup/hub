@@ -17,7 +17,7 @@ import {
   InAppNotificationBell,
   InAppNotificationsProvider,
 } from '@/components/InAppNotifications'
-import { loadInAppNotifications } from '@/lib/channels/in-app'
+import { BELL_LIMIT, countInAppNotifications, loadInAppNotifications } from '@/lib/channels/in-app'
 
 export default async function MemberLayout({
   children,
@@ -55,7 +55,12 @@ export default async function MemberLayout({
   const showInApp = enabledFeatures.includes('in_app_notifications') && !effectiveIdentity.isSudo
   const [onboardingState, inAppNotifications] = await Promise.all([
     showOnboarding ? getOnboardingState(user.id, effectiveIdentity.memberId) : null,
-    showInApp ? loadInAppNotifications(supabase, effectiveIdentity.memberId, new Date()) : [],
+    showInApp
+      ? Promise.all([
+          loadInAppNotifications(supabase, effectiveIdentity.memberId, new Date(), { limit: BELL_LIMIT }),
+          countInAppNotifications(supabase, effectiveIdentity.memberId, { unreadOnly: true }),
+        ]).then(([latest, unreadCount]) => ({ latest, unreadCount }))
+      : null,
   ])
 
   const header = (bell: React.ReactNode) => (
@@ -88,7 +93,7 @@ export default async function MemberLayout({
             memberEmail={effectiveIdentity.memberEmail}
           />
         )}
-        {showInApp ? (
+        {inAppNotifications ? (
           <InAppNotificationsProvider initial={inAppNotifications}>
             {header(<InAppNotificationBell />)}
             <InAppNotificationBanner />

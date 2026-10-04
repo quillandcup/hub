@@ -9,9 +9,16 @@ vi.mock("@/lib/slack-member-ids", () => ({ resolveSlackUserIds: async () => new 
 vi.mock("@/lib/slack", () => ({ sendSlackDM: vi.fn() }));
 
 const { membersWithFeature } = await import("@/lib/features.server");
-const { hubPath, inAppRow, loadInAppNotifications, markInAppNotificationsRead, resolveInAppNotifications } = await import(
-  "@/lib/channels/in-app"
-);
+const {
+  countInAppNotifications,
+  hubPath,
+  inAppRow,
+  loadInAppNotifications,
+  loadInboxPage,
+  markAllInAppNotificationsRead,
+  markInAppNotificationsRead,
+  resolveInAppNotifications,
+} = await import("@/lib/channels/in-app");
 const { createNotifier } = await import("@/lib/notifications/notify");
 
 const callsOf = (fake: FakeSupabase, table: string) => fake.queries.filter((q) => q.table === table).flatMap((q) => q.calls);
@@ -68,7 +75,7 @@ describe("hubPath", () => {
 });
 
 describe("inAppRow", () => {
-  it("stores the kind, what it's about, the text, a Hub path, the banner window and the expiry", () => {
+  it("stores the kind, what it's about, the text, a Hub path and how long it's a banner", () => {
     expect(
       inAppRow(
         "m1",
@@ -77,7 +84,6 @@ describe("inAppRow", () => {
           url: `${APP_URL}/prickles/p1`,
           ref: "p1",
           timeSensitiveUntil: "2026-10-05T11:00:00.000Z",
-          expiresAt: "2026-10-06T11:00:00.000Z",
           slackBlocks: [{}],
         },
         { kind: "prickle_checkin" }
@@ -89,12 +95,11 @@ describe("inAppRow", () => {
       text: "Check in?",
       url: "/prickles/p1",
       banner_until: "2026-10-05T11:00:00.000Z",
-      expires_at: "2026-10-06T11:00:00.000Z",
     });
   });
 
   it("isn't a banner when the message isn't time-sensitive", () => {
-    expect(inAppRow("m1", { text: "FYI" }, { kind: "prickle_checkout" })).toMatchObject({ banner_until: null, expires_at: null });
+    expect(inAppRow("m1", { text: "FYI" }, { kind: "prickle_checkout" })).toMatchObject({ banner_until: null });
   });
 });
 
@@ -154,7 +159,7 @@ describe("loadInAppNotifications", () => {
         ],
       },
     });
-    const list = await loadInAppNotifications(fake, "m1", now);
+    const list = await loadInAppNotifications(fake, "m1", now, { limit: 10 });
     expect(list.map((n) => [n.id, n.read, n.banner])).toEqual([
       ["live", false, true],
       ["past", false, false],
@@ -164,14 +169,91 @@ describe("loadInAppNotifications", () => {
     expect(list[0]).toMatchObject({ kind: "prickle_checkin", text: "Check in?", url: "/prickles/p1", createdAt: "2026-10-05T10:40:00Z" });
   });
 
-  it("reads the member's recent, unexpired ones, newest first", async () => {
+  it("reads the member's latest, newest first, however old", async () => {
     const fake = createFakeSupabase();
-    await loadInAppNotifications(fake, "m1", now);
+    await loadInAppNotifications(fake, "m1", now, { limit: 10 });
     const calls = callsOf(fake, "in_app_notifications");
     expect(calls).toContainEqual({ method: "eq", args: ["member_id", "m1"] });
-    expect(calls).toContainEqual({ method: "gte", args: ["created_at", "2026-09-05T10:45:00.000Z"] });
-    expect(calls).toContainEqual({ method: "or", args: [`expires_at.is.null,expires_at.gt.${now.toISOString()}`] });
     expect(calls).toContainEqual({ method: "order", args: ["created_at", { ascending: false }] });
+    expect(calls).toContainEqual({ method: "limit", args: [10] });
+    expect(calls.some((c) => ["gte", "or", "lt"].includes(c.method))).toBe(false);
+  });
+});
+
+describe("countInAppNotifications", () => {
+  it("counts all of the member's, or just the unread", async () => {
+    const fake = createFakeSupabase({ in_app_notifications: { count: 4 } });
+    expect(await countInAppNotifications(fake, "m1")).toBe(4);
+    expect(await countInAppNotifications(fake, "m1", { unreadOnly: true })).toBe(4);
+    const [all, unread] = fake.queries;
+    expect(all.calls.some((c) => c.method === "is")).toBe(false);
+    expect(unread.calls).toContainEqual({ method: "is", args: ["read_at", null] });
+    expect(unread.calls).toContainEqual({ method: "select", args: ["id", { count: "exact", head: true }] });
+  });
+});
+
+describe("loadInboxPage", () => {
+  const now = new Date("2026-10-05T10:45:00Z");
+  const rowsQuery = (fake: FakeSupabase) => fake.queries.find((q) => q.calls.some((c) => c.method === "range"))!;
+
+  it("counts per tab, then serves the page asked for", async () => {
+    const fake = createFakeSupabase({ in_app_notifications: { data: [], count: 120 } });
+    const page = await loadInboxPage(fake, "m1", now, {
+      filter: "all",
+      kind: null,
+      sort: { column: "created_at", direction: "desc" },
+      page: 2,
+      pageSize: 50,
+    });
+    expect(page).toMatchObject({ total: 120, counts: { all: 120, unread: 120 }, page: 2, pageSize: 50 });
+    expect(rowsQuery(fake).calls).toContainEqual({ method: "range", args: [50, 99] });
+  });
+
+  it("clamps a page past the end to the last one", async () => {
+    const fake = createFakeSupabase({ in_app_notifications: { data: [], count: 30 } });
+    const page = await loadInboxPage(fake, "m1", now, {
+      filter: "all",
+      kind: null,
+      sort: { column: "created_at", direction: "desc" },
+      page: 9,
+      pageSize: 25,
+    });
+    expect(page.page).toBe(2);
+    expect(rowsQuery(fake).calls).toContainEqual({ method: "range", args: [25, 49] });
+  });
+
+  it("filters unread and by kind everywhere, and breaks sort ties newest first", async () => {
+    const fake = createFakeSupabase({ in_app_notifications: { data: [], count: 3 } });
+    await loadInboxPage(fake, "m1", now, {
+      filter: "unread",
+      kind: "prickle_checkout",
+      sort: { column: "kind", direction: "asc" },
+      page: 1,
+      pageSize: 50,
+    });
+    for (const q of fake.queries) {
+      expect(q.calls).toContainEqual({ method: "eq", args: ["member_id", "m1"] });
+      expect(q.calls).toContainEqual({ method: "eq", args: ["kind", "prickle_checkout"] });
+    }
+    const orders = rowsQuery(fake).calls.filter((c) => c.method === "order").map((c) => c.args);
+    expect(orders).toEqual([
+      ["kind", { ascending: true }],
+      ["created_at", { ascending: false }],
+      ["id", { ascending: false }],
+    ]);
+    expect(rowsQuery(fake).calls).toContainEqual({ method: "is", args: ["read_at", null] });
+  });
+});
+
+describe("markAllInAppNotificationsRead", () => {
+  it("marks every unread one of the member's", async () => {
+    const fake = createFakeSupabase();
+    await markAllInAppNotificationsRead(fake, "m1");
+    const calls = callsOf(fake, "in_app_notifications");
+    expect(calls).toContainEqual({ method: "update", args: [{ read_at: expect.any(String) }] });
+    expect(calls).toContainEqual({ method: "eq", args: ["member_id", "m1"] });
+    expect(calls).toContainEqual({ method: "is", args: ["read_at", null] });
+    expect(calls.some((c) => c.method === "in")).toBe(false);
   });
 });
 

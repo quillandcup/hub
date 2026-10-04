@@ -50,7 +50,7 @@ export const FEATURE_PREVIEWS: FeaturePreview[] = [
   {
     key: 'in_app_notifications',
     name: 'In-App Notifications',
-    description: 'Notifications in the Hub, next to Slack: a bell in the header listing them, and a banner while one is time-sensitive (a check-in until the prickle starts, a check-out for a few hours after it ends). Adds an "In the Hub" switch to Settings → Notifications (on by default)',
+    description: 'Notifications in the Hub, next to Slack: a bell in the header with the latest, an inbox page with all of them, and a banner while one is time-sensitive (a check-in until the prickle starts, a check-out for a few hours after it ends). Adds an "In the Hub" switch to Settings → Notifications (on by default)',
   },
 ];
 
