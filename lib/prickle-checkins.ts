@@ -76,7 +76,7 @@ export const NEEDS = [
 export type Need = (typeof NEEDS)[number]["key"];
 
 /**
- * The prickle vibe a need points at, used to pre-select the Prickle Picker's mood step (the
+ * The prickle vibe a need points at, used to pre-select Find a Prickle's mood step (the
  * member can still change it). Accountability is about showing up, not the room, so no vibe.
  */
 export const NEED_VIBE: Record<Need, "focused" | "balanced" | "chatty" | null> = {
@@ -98,6 +98,18 @@ export const SESSION_RATINGS = [
   { value: 5, label: "Great" },
 ] as const;
 
+/**
+ * A prickle check-in has two halves, asked at different times, in Slack DMs
+ * (lib/prickle-checkin-dms.ts) and on the site alike:
+ * - Check-in, coming in: how they're feeling (feelingsBefore) and what they need (need).
+ * - Check-out, afterwards: how it went (sessionRating) and how they feel now (feelingsAfter).
+ * Both are stored on the same prickle_checkins row.
+ *
+ * On the site, the prickle page is where both halves live and stay editable any time: the
+ * check-in always, the check-out once the prickle has started. The Log Progress
+ * modal asks only the check-out and links to the page for the check-in. The Slack DMs keep their
+ * own timing (check-in ~20 min before, check-out 5 min after the end or 10 min after leaving early).
+ */
 export interface CheckinInput {
   feelingsBefore: Feeling[];
   need: Need | null;
@@ -128,6 +140,19 @@ export function validateCheckin(input: unknown): string | null {
     return "Invalid rating";
   }
   return null;
+}
+
+/**
+ * Whether the check-in half is fully answered. A partly answered check-in is still offered, to
+ * finish it (the Slack check-in DM is sent for one too).
+ */
+export function checkinAnswered(saved: CheckinInput | null): boolean {
+  return !!saved && saved.feelingsBefore.length > 0 && saved.need !== null;
+}
+
+/** Same for the check-out half. */
+export function checkoutAnswered(saved: CheckinInput | null): boolean {
+  return !!saved && saved.sessionRating !== null && saved.feelingsAfter.length > 0;
 }
 
 /** A prickle_checkins row's answers (live rows only: callers filter `deleted_at IS NULL`). */
@@ -184,7 +209,7 @@ export function toggleFeeling(selected: Feeling[], feeling: Feeling): Feeling[] 
 }
 
 /**
- * A prickle page link carrying "coming in" answers (e.g. from the Prickle Picker), so the
+ * A prickle page link carrying "coming in" answers (e.g. from Find a Prickle), so the
  * check-in card there starts pre-filled. Nothing is saved until the member saves the card.
  */
 export function prickleHref(prickleId: string, feelings: Feeling[], need: Need | null): string {

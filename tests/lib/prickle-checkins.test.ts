@@ -6,6 +6,8 @@ import {
   FEELING_DISPLAY_GROUPS,
   FEELING_GROUP,
   FEELING_KEYS,
+  checkinAnswered,
+  checkoutAnswered,
   NEED_KEYS,
   isEmptyCheckin,
   parseCheckinPrefill,
@@ -117,5 +119,17 @@ describe("prickleHref / parseCheckinPrefill", () => {
       feelingsAfter: [],
     });
     expect(parseCheckinPrefill({ feel: "hangry", need: "snacks" })).toBeNull();
+  });
+});
+
+describe("checkinAnswered / checkoutAnswered", () => {
+  const empty: CheckinInput = { feelingsBefore: [], need: null, sessionRating: null, feelingsAfter: [] };
+
+  it("needs both of a half's answers", () => {
+    expect(checkinAnswered(null)).toBe(false);
+    expect(checkinAnswered({ ...empty, feelingsBefore: ["tired"] })).toBe(false);
+    expect(checkinAnswered({ ...empty, feelingsBefore: ["tired"], need: "gentle" })).toBe(true);
+    expect(checkoutAnswered({ ...empty, sessionRating: 4 })).toBe(false);
+    expect(checkoutAnswered({ ...empty, sessionRating: 4, feelingsAfter: ["calm"] })).toBe(true);
   });
 });

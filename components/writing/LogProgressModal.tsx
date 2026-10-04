@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import Modal from "@/components/Modal";
 import { WRITING_MEASURES, MEASURE_LABELS, type WritingMeasure, type EntryMode } from "@/lib/writing-projects";
 
@@ -10,6 +11,17 @@ import { WRITING_MEASURES, MEASURE_LABELS, type WritingMeasure, type EntryMode }
 const LOGGABLE_MEASURES = WRITING_MEASURES.filter((m) => m !== "prickles");
 import { getPricklesOnDate, logProgress, updateEntry, type EntryRow } from "@/app/(member)/projects/actions";
 import { defaultPrickleId, type PrickleOption } from "@/lib/prickle-writing";
+import { getCheckinForLogging, saveCheckin } from "@/app/(member)/prickles/checkin-actions";
+import type { CheckinInput } from "@/lib/prickle-checkins";
+import { FeelingPicker, RatingPicker } from "@/components/writing/CheckinFields";
+
+const EMPTY_CHECKIN: CheckinInput = { feelingsBefore: [], need: null, sessionRating: null, feelingsAfter: [] };
+
+type Checkout = Pick<CheckinInput, "sessionRating" | "feelingsAfter">;
+
+function checkoutOf(c: CheckinInput | null): Checkout {
+  return { sessionRating: c?.sessionRating ?? null, feelingsAfter: c?.feelingsAfter ?? [] };
+}
 
 interface LogProgressModalProps {
   isOpen: boolean;
@@ -71,6 +83,37 @@ export default function LogProgressModal({
     };
   }, [isOpen, entryDate]);
 
+  // The selected prickle's check-out, so logging from anywhere asks how it went. The check-in
+  // lives on the prickle page (linked below). Saved with the entry; hidden in sudo, where nobody
+  // records feelings on a member's behalf.
+  const [checkinFor, setCheckinFor] = useState<string | null>(null);
+  const [savedCheckout, setSavedCheckout] = useState<Checkout>(checkoutOf(null));
+  const [checkoutDraft, setCheckoutDraft] = useState<Checkout>(checkoutOf(null));
+  const [canCheckIn, setCanCheckIn] = useState(false);
+
+  useEffect(() => {
+    // No reset needed when the prickle is cleared or changes: the section only shows once
+    // checkinFor matches the current choice.
+    if (!isOpen || !prickleChoice) return;
+    let cancelled = false;
+    getCheckinForLogging(prickleChoice).then(({ checkin, canEdit }) => {
+      if (cancelled) return;
+      setSavedCheckout(checkoutOf(checkin));
+      setCheckoutDraft(checkoutOf(checkin));
+      setCanCheckIn(canEdit);
+      setCheckinFor(prickleChoice);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, prickleChoice]);
+
+  const showCheckout = canCheckIn && prickleChoice !== "" && checkinFor === prickleChoice;
+  const checkoutChanged = showCheckout && JSON.stringify(checkoutDraft) !== JSON.stringify(savedCheckout);
+  function updateCheckout(patch: Partial<Checkout>) {
+    setCheckoutDraft((c) => ({ ...c, ...patch }));
+  }
+
   // Keep a linked prickle selectable even when it isn't on the chosen date.
   const selectedMissing = prickleChoice !== "" && !prickleOptions.some((o) => o.id === prickleChoice);
 
@@ -91,6 +134,19 @@ export default function LogProgressModal({
     const tags = tagsInput.split(",").map((t) => t.trim()).filter(Boolean);
 
     setIsPending(true);
+    // Check-out first: it's an idempotent upsert, so a failure here leaves nothing half-saved
+    // (the progress entry isn't, and a retry would duplicate it). Re-read the row first and only
+    // replace the check-out answers, so a check-in edited meanwhile (e.g. in the tab the "Edit
+    // check-in" link opens) isn't overwritten.
+    if (checkoutChanged) {
+      const { checkin: latest } = await getCheckinForLogging(prickleChoice);
+      const checkinResult = await saveCheckin(prickleChoice, { ...(latest ?? EMPTY_CHECKIN), ...checkoutDraft });
+      if ("error" in checkinResult) {
+        setIsPending(false);
+        setError(checkinResult.error);
+        return;
+      }
+    }
     const result = editingEntry
       ? await updateEntry(editingEntry.id, {
           entryDate,
@@ -271,6 +327,39 @@ export default function LogProgressModal({
             className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-sm"
           />
         </div>
+
+        {showCheckout && (
+          <section
+            aria-labelledby="log-progress-checkout"
+            className="space-y-4 border-t border-slate-200 dark:border-slate-800 pt-4"
+          >
+            <div className="flex items-baseline justify-between gap-3">
+              <h3 id="log-progress-checkout" className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                Check out <span className="text-slate-400 font-normal">(optional)</span>
+              </h3>
+              {/* New tab, so following it doesn't lose what's typed here. */}
+              <Link
+                href={`/prickles/${encodeURIComponent(prickleChoice)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-plum-600 dark:text-plum-400 hover:underline"
+              >
+                Edit check-in ↗
+              </Link>
+            </div>
+            <RatingPicker
+              label="How did it go?"
+              value={checkoutDraft.sessionRating}
+              onChange={(sessionRating) => updateCheckout({ sessionRating })}
+            />
+            <FeelingPicker
+              label="Feeling now…"
+              selected={checkoutDraft.feelingsAfter}
+              onChange={(feelingsAfter) => updateCheckout({ feelingsAfter })}
+              readOnly={false}
+            />
+          </section>
+        )}
 
         {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
 

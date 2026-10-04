@@ -6,6 +6,10 @@ import PrickleWritingPanel from "@/components/writing/PrickleWritingPanel";
 import type { PrickleEntryRow } from "@/app/(member)/projects/actions";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
+vi.mock("@/app/(member)/prickles/checkin-actions", () => ({
+  getCheckinForLogging: vi.fn().mockResolvedValue({ checkin: null, canEdit: true }),
+  saveCheckin: vi.fn().mockResolvedValue({ success: true }),
+}));
 vi.mock("@/app/(member)/projects/actions", () => ({
   getPricklesOnDate: vi.fn().mockResolvedValue([]),
   logProgress: vi.fn(),

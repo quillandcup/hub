@@ -7,6 +7,10 @@ import { dismissUnloggedPrickle } from "@/app/(member)/projects/actions";
 
 const refresh = vi.fn();
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh }) }));
+vi.mock("@/app/(member)/prickles/checkin-actions", () => ({
+  getCheckinForLogging: vi.fn().mockResolvedValue({ checkin: null, canEdit: true }),
+  saveCheckin: vi.fn().mockResolvedValue({ success: true }),
+}));
 vi.mock("@/app/(member)/projects/actions", () => ({
   dismissUnloggedPrickle: vi.fn(),
   getPricklesOnDate: vi.fn().mockResolvedValue([]),

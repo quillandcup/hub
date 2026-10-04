@@ -2,26 +2,18 @@
 
 import { useState } from "react";
 import { saveCheckin } from "@/app/(member)/prickles/checkin-actions";
-import {
-  FEELING_DISPLAY_GROUPS,
-  MAX_FEELINGS,
-  NEEDS,
-  SESSION_RATINGS,
-  isEmptyCheckin,
-  toggleFeeling,
-  type CheckinInput,
-  type Feeling,
-} from "@/lib/prickle-checkins";
+import { isEmptyCheckin, type CheckinInput } from "@/lib/prickle-checkins";
+import { FeelingPicker, NeedPicker, RatingPicker } from "@/components/writing/CheckinFields";
 
 interface PrickleCheckInProps {
   prickleId: string;
-  /** Before it starts, only the "coming in" questions are shown. */
+  /** The prickle has started, so the check-out can be answered. */
   hasStarted: boolean;
   initial: CheckinInput | null;
   /** Sudo: an admin sees the member's answers but can't change them. */
   readOnly?: boolean;
   /**
-   * Unsaved starting answers (e.g. from the Prickle Picker) when there's no saved check-in yet.
+   * Unsaved starting answers (e.g. from Find a Prickle) when there's no saved check-in yet.
    * Shown selected with Save enabled; nothing is stored until the member saves.
    */
   prefill?: CheckinInput | null;
@@ -29,57 +21,12 @@ interface PrickleCheckInProps {
 
 const EMPTY: CheckinInput = { feelingsBefore: [], need: null, sessionRating: null, feelingsAfter: [] };
 
-function chipClass(selected: boolean, disabled = false): string {
-  const base = "px-3 py-1 rounded-full text-sm border transition-colors";
-  if (selected) return `${base} bg-plum-600 border-plum-600 text-white`;
-  if (disabled) return `${base} border-slate-200 dark:border-slate-800 text-slate-400 dark:text-slate-600 cursor-not-allowed`;
-  return `${base} border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:border-plum-400`;
-}
-
-function FeelingPicker({
-  label,
-  selected,
-  onChange,
-  readOnly,
-}: {
-  label: string;
-  selected: Feeling[];
-  onChange: (next: Feeling[]) => void;
-  readOnly: boolean;
-}) {
-  const atMax = selected.length >= MAX_FEELINGS;
-  return (
-    <fieldset>
-      <legend className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-        {label} <span className="text-slate-400 font-normal">(up to {MAX_FEELINGS})</span>
-      </legend>
-      {/* Groups are spaced apart but deliberately unnamed -- see lib/prickle-checkins.ts. */}
-      <div className="space-y-2">
-        {FEELING_DISPLAY_GROUPS.map((group) => (
-          <div key={group[0].key} className="flex flex-wrap gap-2">
-            {group.map((f) => {
-              const isSelected = selected.includes(f.key);
-              return (
-                <button
-                  key={f.key}
-                  type="button"
-                  aria-pressed={isSelected}
-                  disabled={readOnly || (!isSelected && atMax)}
-                  onClick={() => onChange(toggleFeeling(selected, f.key))}
-                  className={chipClass(isSelected, !isSelected && atMax)}
-                >
-                  {f.label}
-                </button>
-              );
-            })}
-          </div>
-        ))}
-      </div>
-    </fieldset>
-  );
-}
-
-/** Private check-in for a prickle: feelings coming in, what the member needs, and how it went. */
+/**
+ * The home for a member's check-in (feelings coming in, what they need) and check-out (how it
+ * went, feeling now) for a prickle, editable any time: the check-in always, the check-out once
+ * the prickle starts. Both halves are one prickle_checkins row, also answered from the Slack
+ * check-in/check-out DMs, and the check-out from the Log Progress modal.
+ */
 export default function PrickleCheckIn({
   prickleId,
   hasStarted,
@@ -120,7 +67,7 @@ export default function PrickleCheckIn({
     >
       <div>
         <h2 id="prickle-checkin-heading" className="text-lg font-semibold text-slate-900 dark:text-slate-100">
-          Check in
+          Check in &amp; out
         </h2>
         <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
           {readOnly
@@ -129,69 +76,51 @@ export default function PrickleCheckIn({
         </p>
       </div>
 
-      <FeelingPicker
-        label="Coming in, I'm feeling…"
-        selected={checkin.feelingsBefore}
-        onChange={(feelingsBefore) => update({ feelingsBefore })}
-        readOnly={readOnly}
-      />
+      <div role="group" aria-labelledby="prickle-checkin-in" className="space-y-4">
+        <h3 id="prickle-checkin-in" className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+          Check in
+        </h3>
+        <FeelingPicker
+          label={hasStarted ? "Coming in, I was feeling…" : "Coming in, I'm feeling…"}
+          selected={checkin.feelingsBefore}
+          onChange={(feelingsBefore) => update({ feelingsBefore })}
+          readOnly={readOnly}
+        />
+        <NeedPicker
+          label={hasStarted ? "What I needed from this session" : "What I need from this session"}
+          value={checkin.need}
+          onChange={(need) => update({ need })}
+          readOnly={readOnly}
+        />
+      </div>
 
-      <fieldset>
-        <legend className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-          What I need from this session
-        </legend>
-        <div className="flex flex-wrap gap-2">
-          {NEEDS.map((n) => {
-            const isSelected = checkin.need === n.key;
-            return (
-              <button
-                key={n.key}
-                type="button"
-                aria-pressed={isSelected}
-                title={n.hint}
-                disabled={readOnly}
-                onClick={() => update({ need: isSelected ? null : n.key })}
-                className={chipClass(isSelected)}
-              >
-                {n.label}
-                <span className={`ml-1 text-xs ${isSelected ? "text-plum-100" : "text-slate-400"}`}>· {n.hint}</span>
-              </button>
-            );
-          })}
-        </div>
-      </fieldset>
-
-      {hasStarted && (
-        <>
-          <fieldset>
-            <legend className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">How did it go?</legend>
-            <div className="flex flex-wrap gap-2">
-              {SESSION_RATINGS.map((r) => {
-                const isSelected = checkin.sessionRating === r.value;
-                return (
-                  <button
-                    key={r.value}
-                    type="button"
-                    aria-pressed={isSelected}
-                    disabled={readOnly}
-                    onClick={() => update({ sessionRating: isSelected ? null : r.value })}
-                    className={chipClass(isSelected)}
-                  >
-                    {r.label}
-                  </button>
-                );
-              })}
-            </div>
-          </fieldset>
-
-          <FeelingPicker
-            label="Feeling now…"
-            selected={checkin.feelingsAfter}
-            onChange={(feelingsAfter) => update({ feelingsAfter })}
-            readOnly={readOnly}
-          />
-        </>
-      )}
+      <div
+        role="group"
+        aria-labelledby="prickle-checkin-out"
+        className="space-y-4 border-t border-slate-200 dark:border-slate-800 pt-5"
+      >
+        <h3 id="prickle-checkin-out" className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+          Check out
+        </h3>
+        {hasStarted ? (
+          <>
+            <RatingPicker
+              label="How did it go?"
+              value={checkin.sessionRating}
+              onChange={(sessionRating) => update({ sessionRating })}
+              readOnly={readOnly}
+            />
+            <FeelingPicker
+              label="Feeling now…"
+              selected={checkin.feelingsAfter}
+              onChange={(feelingsAfter) => update({ feelingsAfter })}
+              readOnly={readOnly}
+            />
+          </>
+        ) : (
+          <p className="text-sm text-slate-500 dark:text-slate-400">Available once the prickle starts.</p>
+        )}
+      </div>
 
       {!readOnly && (
         <div className="flex items-center justify-end gap-3">
@@ -203,7 +132,7 @@ export default function PrickleCheckIn({
             disabled={isPending || !isDirty}
             className="px-4 py-2 text-sm bg-plum-600 text-white rounded-lg hover:bg-plum-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
-            {isPending ? "Saving..." : isEmptyCheckin(checkin) && !isEmptyCheckin(saved) ? "Clear check-in" : "Save check-in"}
+            {isPending ? "Saving..." : isEmptyCheckin(checkin) && !isEmptyCheckin(saved) ? "Clear answers" : "Save"}
           </button>
         </div>
       )}

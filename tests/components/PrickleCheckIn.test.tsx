@@ -18,12 +18,21 @@ beforeEach(() => {
 });
 
 describe("PrickleCheckIn", () => {
-  it("only asks the coming-in questions before the prickle starts", () => {
+  it("before the prickle starts, asks the check-in and holds the check-out", () => {
     render(<PrickleCheckIn prickleId="prickle-1" hasStarted={false} initial={null} />);
-    expect(screen.getByText(/Coming in, I'm feeling/)).toBeInTheDocument();
-    expect(screen.getByText("What I need from this session")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Check in & out" })).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "Check in" })).toHaveTextContent(/Coming in, I'm feeling/);
+    expect(screen.getByRole("group", { name: "Check in" })).toHaveTextContent("What I need from this session");
+    const checkout = screen.getByRole("group", { name: "Check out" });
+    expect(checkout).toHaveTextContent("Available once the prickle starts.");
     expect(screen.queryByText("How did it go?")).not.toBeInTheDocument();
-    expect(screen.queryByText(/Feeling now/)).not.toBeInTheDocument();
+  });
+
+  it("once it starts, both are editable, the check-in in the past tense", () => {
+    render(<PrickleCheckIn prickleId="prickle-1" hasStarted initial={null} />);
+    expect(screen.getByRole("group", { name: "Check in" })).toHaveTextContent(/Coming in, I was feeling/);
+    expect(screen.getByRole("group", { name: "Check out" })).toHaveTextContent(/How did it go\?/);
+    expect(screen.queryByText("Available once the prickle starts.")).not.toBeInTheDocument();
   });
 
   it("saves feelings, need, rating and feelings after", async () => {
@@ -36,7 +45,7 @@ describe("PrickleCheckIn", () => {
     await user.click(chip(/^Gentle/));
     await user.click(chip("Good"));
     await user.click(chip("Calm", 1));
-    await user.click(screen.getByRole("button", { name: "Save check-in" }));
+    await user.click(screen.getByRole("button", { name: "Save" }));
 
     expect(saveCheckin).toHaveBeenCalledWith("prickle-1", {
       feelingsBefore: ["stressed", "tired"],
@@ -69,10 +78,10 @@ describe("PrickleCheckIn", () => {
       />
     );
     expect(chip("Lonely")).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByRole("button", { name: "Save check-in" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
 
     await user.click(chip("Lonely"));
-    await user.click(screen.getByRole("button", { name: "Clear check-in" }));
+    await user.click(screen.getByRole("button", { name: "Clear answers" }));
     expect(saveCheckin).toHaveBeenCalledWith("prickle-1", {
       feelingsBefore: [],
       need: null,
@@ -96,7 +105,7 @@ describe("PrickleCheckIn", () => {
     expect(chip(/^Gentle/)).toBeDisabled();
     expect(chip("Meh")).toBeDisabled();
     expect(chip("Calm", 1)).toBeDisabled();
-    expect(screen.queryByRole("button", { name: /check-in/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^(Save|Clear answers)$/ })).not.toBeInTheDocument();
   });
 
   it("starts from an unsaved prefill when there's no saved check-in", async () => {
@@ -112,7 +121,7 @@ describe("PrickleCheckIn", () => {
     expect(chip("Stressed")).toHaveAttribute("aria-pressed", "true");
     expect(chip(/^Gentle/)).toHaveAttribute("aria-pressed", "true");
 
-    await user.click(screen.getByRole("button", { name: "Save check-in" }));
+    await user.click(screen.getByRole("button", { name: "Save" }));
     expect(saveCheckin).toHaveBeenCalledWith("prickle-1", {
       feelingsBefore: ["stressed"],
       need: "gentle",
@@ -139,7 +148,7 @@ describe("PrickleCheckIn", () => {
     const user = userEvent.setup();
     render(<PrickleCheckIn prickleId="prickle-1" hasStarted={false} initial={null} />);
     await user.click(chip("Curious"));
-    await user.click(screen.getByRole("button", { name: "Save check-in" }));
+    await user.click(screen.getByRole("button", { name: "Save" }));
     expect(await screen.findByText("Couldn't save your check-in — please try again.")).toBeInTheDocument();
   });
 });

@@ -68,7 +68,7 @@ export default async function PrickleDetailPage({
   searchParams?: Promise<{ feel?: string | string[]; need?: string | string[] }>;
 }) {
   const { id } = await params;
-  // "Coming in" answers carried from the Prickle Picker, to pre-fill an unsaved check-in.
+  // "Coming in" answers carried from Find a Prickle, to pre-fill an unsaved check-in.
   const checkinPrefill = parseCheckinPrefill((await searchParams) ?? {});
   const supabase = await createClient();
 
