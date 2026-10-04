@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState, useSyncExternalStore, useTransition } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { isOnStepPage, type OnboardingState, type OnboardingStepView } from "@/lib/onboarding";
+import { isOnStepPage, type OnboardingState, type OnboardingStepId, type OnboardingStepView } from "@/lib/onboarding";
 import {
   completeOnboarding,
   dismissOnboarding,
@@ -25,6 +25,21 @@ const subscribeSmallScreen = (onChange: () => void) => {
 };
 const isSmallScreenNow = () => window.matchMedia?.(SMALL_SCREEN_QUERY).matches ?? false;
 
+/** A finished step shown at one of its stops for a revisit: Next through the stops, Done on the last. */
+function revisitViewOf(step: OnboardingStepView, stopIndex: number): OnboardingStepView {
+  const stops = step.revisitStops;
+  const index = Math.min(stopIndex, stops.length - 1);
+  const stop = stops[index];
+  return {
+    ...step,
+    target: stop.target,
+    calloutTitle: stop.calloutTitle,
+    hint: stop.hint,
+    confirmLabel: index < stops.length - 1 ? "Next" : "Done",
+    stop: stops.length > 1 ? { number: index + 1, count: stops.length } : undefined,
+  };
+}
+
 /**
  * The "Getting started" tour: a checklist card in the corner of every member page, and on the
  * page of the current step, a spotlight on the control to use there. See lib/onboarding.ts.
@@ -41,6 +56,10 @@ export default function OnboardingGuide({ initialState }: { initialState: Onboar
   const isSmallScreen = useSyncExternalStore(subscribeSmallScreen, isSmallScreenNow, () => false);
   // Spotlight closed with "Hide" for this page; shows again on the next visit.
   const [hiddenOn, setHiddenOn] = useState<string | null>(null);
+  // A finished step being walked again; `arrived` once its page is open.
+  const [revisit, setRevisit] = useState<{ stepId: OnboardingStepId; stopIndex: number; arrived: boolean } | null>(
+    null
+  );
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -76,8 +95,18 @@ export default function OnboardingGuide({ initialState }: { initialState: Onboar
 
   const current: OnboardingStepView | null = state.steps.find((s) => s.id === state.currentStepId) ?? null;
   const pageKey = `${pathname}?${search}`;
+
+  // Walking a finished step again from the checklist: its stops in order, with Next / Done
+  // instead of marking anything. Ends with Done or Hide, or on leaving the step's page.
+  const revisitStep = revisit ? (state.steps.find((s) => s.id === revisit.stepId) ?? null) : null;
+  const onRevisitPage = !!revisitStep && isOnStepPage(revisitStep, pathname, search);
+  if (revisit && !revisit.arrived && onRevisitPage) setRevisit({ ...revisit, arrived: true });
+  if (revisit && ((revisit.arrived && !onRevisitPage) || !revisitStep)) setRevisit(null);
+  const revisitView = revisit && revisitStep && onRevisitPage ? revisitViewOf(revisitStep, revisit.stopIndex) : null;
+
   const onStepPage = !!current && isOnStepPage(current, pathname, search);
-  const showSpotlight = onStepPage && hiddenOn !== pageKey;
+  const spotlitStep = revisitView ?? (onStepPage ? current : null);
+  const showSpotlight = !!spotlitStep && hiddenOn !== pageKey;
   // Folded to its header while a spotlight is up (the callout carries the step) and on phones,
   // where the open list covers half the screen. Opening or closing it holds until the next page.
   const expanded =
@@ -91,7 +120,17 @@ export default function OnboardingGuide({ initialState }: { initialState: Onboar
     return () => window.clearInterval(id);
   }, [onStepPage, refresh]);
 
-  const hideSpotlight = useCallback(() => setHiddenOn(pageKey), [pageKey]);
+  // Hiding a revisit ends it; hiding the current step's spotlight holds for this page.
+  const isRevisiting = !!revisitView;
+  const hideSpotlight = useCallback(() => {
+    if (isRevisiting) setRevisit(null);
+    else setHiddenOn(pageKey);
+  }, [isRevisiting, pageKey]);
+  const advanceRevisit = () => {
+    if (!revisit || !revisitStep) return;
+    const next = revisit.stopIndex + 1;
+    setRevisit(next < revisitStep.revisitStops.length ? { ...revisit, stopIndex: next } : null);
+  };
 
   const run = (action: () => Promise<{ success: true } | { error: string }>) => {
     setError(null);
@@ -109,14 +148,20 @@ export default function OnboardingGuide({ initialState }: { initialState: Onboar
 
   return (
     <>
-      {showSpotlight && current && (
+      {showSpotlight && spotlitStep && (
         <OnboardingSpotlight
-          step={current}
-          stepNumber={state.steps.indexOf(current) + 1}
+          step={spotlitStep}
+          stepNumber={state.steps.findIndex((s) => s.id === spotlitStep.id) + 1}
           totalSteps={total}
           pending={isPending}
-          onConfirm={current.confirmLabel ? () => run(() => markOnboardingStep(current.markKey)) : undefined}
-          onSkip={() => run(() => markOnboardingStep(current.markKey))}
+          onConfirm={
+            isRevisiting
+              ? advanceRevisit
+              : spotlitStep.confirmLabel
+                ? () => run(() => markOnboardingStep(spotlitStep.markKey))
+                : undefined
+          }
+          onSkip={() => run(() => markOnboardingStep(spotlitStep.markKey))}
           onHide={hideSpotlight}
         />
       )}
@@ -146,7 +191,71 @@ export default function OnboardingGuide({ initialState }: { initialState: Onboar
 
         {expanded && (
           <div className="px-4 py-3 space-y-3">
-            {state.completed ? (
+            <ol className="space-y-2">
+              {state.steps.map((step) => {
+                const isCurrent = step.id === state.currentStepId;
+                return (
+                  <li key={step.id} className="flex gap-2">
+                    <span
+                      aria-hidden="true"
+                      className={`mt-0.5 flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-xs ${
+                        step.done
+                          ? "bg-plum-600 text-white"
+                          : isCurrent
+                            ? "border-2 border-plum-600"
+                            : "border border-slate-300 dark:border-slate-600"
+                      }`}
+                    >
+                      {step.done ? "✓" : ""}
+                    </span>
+                    <div className="min-w-0">
+                      <p
+                        className={`text-sm ${
+                          step.done
+                            ? "text-slate-400 dark:text-slate-500 line-through"
+                            : "font-medium text-slate-900 dark:text-slate-100"
+                        }`}
+                      >
+                        {step.title}
+                        <span className="sr-only">{step.done ? " (done)" : ""}</span>
+                      </p>
+                      {step.done && (
+                        <Link
+                          href={step.href}
+                          onClick={() => {
+                            setRevisit({ stepId: step.id, stopIndex: 0, arrived: false });
+                            setHiddenOn(null);
+                          }}
+                          aria-label={`Revisit ${step.title}`}
+                          className="text-xs text-plum-600 dark:text-plum-400 hover:underline"
+                        >
+                          Revisit
+                        </Link>
+                      )}
+                      {isCurrent && (
+                        <>
+                          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{step.summary}</p>
+                          {!isOnStepPage(step, pathname, search) || hiddenOn === pageKey ? (
+                            <Link
+                              href={step.href}
+                              onClick={() => {
+                                setRevisit(null);
+                                setHiddenOn(null);
+                              }}
+                              className="inline-block mt-2 px-3 py-1.5 bg-plum-600 hover:bg-plum-700 text-white rounded-md text-xs font-medium"
+                            >
+                              Show me →
+                            </Link>
+                          ) : null}
+                        </>
+                      )}
+                    </div>
+                  </li>
+                );
+              })}
+            </ol>
+
+            {state.completed && (
               <div className="space-y-3">
                 <p className="text-sm text-slate-700 dark:text-slate-300">
                   You&apos;re all set! You can find the tour again in your menu at the top right.
@@ -160,54 +269,6 @@ export default function OnboardingGuide({ initialState }: { initialState: Onboar
                   Finish
                 </button>
               </div>
-            ) : (
-              <ol className="space-y-2">
-                {state.steps.map((step) => {
-                  const isCurrent = step.id === state.currentStepId;
-                  return (
-                    <li key={step.id} className="flex gap-2">
-                      <span
-                        aria-hidden="true"
-                        className={`mt-0.5 flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-xs ${
-                          step.done
-                            ? "bg-plum-600 text-white"
-                            : isCurrent
-                              ? "border-2 border-plum-600"
-                              : "border border-slate-300 dark:border-slate-600"
-                        }`}
-                      >
-                        {step.done ? "✓" : ""}
-                      </span>
-                      <div className="min-w-0">
-                        <p
-                          className={`text-sm ${
-                            step.done
-                              ? "text-slate-400 dark:text-slate-500 line-through"
-                              : "font-medium text-slate-900 dark:text-slate-100"
-                          }`}
-                        >
-                          {step.title}
-                          <span className="sr-only">{step.done ? " (done)" : ""}</span>
-                        </p>
-                        {isCurrent && (
-                          <>
-                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{step.summary}</p>
-                            {!isOnStepPage(step, pathname, search) || hiddenOn === pageKey ? (
-                              <Link
-                                href={step.href}
-                                onClick={() => setHiddenOn(null)}
-                                className="inline-block mt-2 px-3 py-1.5 bg-plum-600 hover:bg-plum-700 text-white rounded-md text-xs font-medium"
-                              >
-                                Show me →
-                              </Link>
-                            ) : null}
-                          </>
-                        )}
-                      </div>
-                    </li>
-                  );
-                })}
-              </ol>
             )}
 
             {error && (

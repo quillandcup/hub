@@ -184,13 +184,15 @@ export default function OnboardingSpotlight({
       <div
         data-testid="onboarding-highlight"
         aria-hidden="true"
-        className="fixed z-40 pointer-events-none rounded-lg ring-2 ring-plum-400"
+        // One box-shadow for both the plum outline and the dimming around it: a `ring` class would
+        // be overridden by a separate dimming shadow. Darker dimming in dark mode, where the page
+        // is already dark and a light veil barely shows.
+        className="fixed z-40 pointer-events-none rounded-lg shadow-[0_0_0_2px_theme(colors.plum.400),0_0_0_9999px_rgba(15,23,42,0.45)] dark:shadow-[0_0_0_2px_theme(colors.plum.400),0_0_0_9999px_rgba(0,0,0,0.65)]"
         style={{
           top: rect.top - PADDING,
           left: rect.left - PADDING,
           width: rect.width + PADDING * 2,
           height: rect.height + PADDING * 2,
-          boxShadow: "0 0 0 9999px rgba(15, 23, 42, 0.45)",
         }}
       />
       <div

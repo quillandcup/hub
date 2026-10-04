@@ -60,6 +60,8 @@ export interface OnboardingStepView {
   markKey: string;
   /** Position of the current stop, for a step with several. */
   stop?: { number: number; count: number };
+  /** Every spot the step points at, in order, for walking a finished step again from the checklist. */
+  revisitStops: OnboardingRevisitStop[];
   done: boolean;
 }
 
@@ -76,6 +78,12 @@ export interface OnboardingRecord {
   marked_steps: string[];
   dismissed_at: string | null;
   completed_at: string | null;
+}
+
+export interface OnboardingRevisitStop {
+  target: string;
+  calloutTitle: string;
+  hint: string;
 }
 
 interface OnboardingStop {
@@ -137,9 +145,20 @@ function stopFields(stepId: OnboardingStepId, stops: OnboardingStop[], marked: S
   };
 }
 
-function stepViews(signals: OnboardingSignals, marked: Set<string>): OnboardingStepView[] {
+type StepWithoutRevisit = Omit<OnboardingStepView, "revisitStops">;
+
+/** All of a step's stops (identity's three), or just the one spot a single-stop step points at. */
+function withRevisitStops(step: StepWithoutRevisit): OnboardingStepView {
+  const revisitStops =
+    step.id === "identity"
+      ? IDENTITY_STOPS.map((stop) => ({ target: stop.target, calloutTitle: stop.title, hint: stop.hint }))
+      : [{ target: step.target, calloutTitle: step.calloutTitle, hint: step.hint }];
+  return { ...step, revisitStops };
+}
+
+function stepViews(signals: OnboardingSignals, marked: Set<string>): StepWithoutRevisit[] {
   const { latestProjectId } = signals;
-  const steps: OnboardingStepView[] = [
+  const steps: StepWithoutRevisit[] = [
     {
       id: "identity",
       title: "Check your details",
@@ -222,7 +241,7 @@ export function buildOnboardingState(
   accountCreatedAt: Date | null,
   now: Date
 ): OnboardingState {
-  const steps = stepViews(signals, new Set(record?.marked_steps ?? []));
+  const steps = stepViews(signals, new Set(record?.marked_steps ?? [])).map(withRevisitStops);
   const current = steps.find((s) => !s.done) ?? null;
   const completed = current === null;
 

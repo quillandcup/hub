@@ -194,6 +194,71 @@ describe("OnboardingGuide", () => {
     }
   });
 
+  describe("revisiting a finished step", () => {
+    const identityDone = () =>
+      buildOnboardingState(
+        { hasHubProfile: false, latestProjectId: null, hasGoal: false, hasPricklePlan: false, ...NOT_HOST },
+        { marked_steps: IDENTITY_DONE, dismissed_at: null, completed_at: null },
+        NOW,
+        NOW
+      );
+    const addTargets = () => {
+      for (const id of ["identity-basics", "identity-names", "identity-emails"]) {
+        const target = document.createElement("div");
+        target.setAttribute("data-tour", id);
+        document.body.appendChild(target);
+      }
+    };
+
+    it("walks its stops again with Next and Done, without marking anything", async () => {
+      vi.mocked(getMyOnboardingState).mockResolvedValue(identityDone());
+      const { rerender } = render(<OnboardingGuide initialState={identityDone()} />);
+
+      const revisit = screen.getByRole("link", { name: "Revisit Check your details" });
+      expect(revisit).toHaveAttribute("href", "/settings/identity");
+      await userEvent.click(revisit);
+
+      // The link navigates; the mocked router just changes the path.
+      nav.pathname = "/settings/identity";
+      addTargets();
+      rerender(<OnboardingGuide initialState={identityDone()} />);
+
+      const first = await screen.findByRole("dialog", { name: "Your name and birthday" });
+      expect(first).toHaveTextContent("1 of 3");
+      await userEvent.click(screen.getByRole("button", { name: "Next" }));
+      await screen.findByRole("dialog", { name: "Pen names and Zoom/Slack names" });
+      await userEvent.click(screen.getByRole("button", { name: "Next" }));
+      await screen.findByRole("dialog", { name: "Other email addresses" });
+      await userEvent.click(screen.getByRole("button", { name: "Done" }));
+
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      expect(markOnboardingStep).not.toHaveBeenCalled();
+    });
+
+    it("ends when they leave the step's page", async () => {
+      vi.mocked(getMyOnboardingState).mockResolvedValue(identityDone());
+      const { rerender } = render(<OnboardingGuide initialState={identityDone()} />);
+      await userEvent.click(screen.getByRole("link", { name: "Revisit Check your details" }));
+      nav.pathname = "/settings/identity";
+      addTargets();
+      rerender(<OnboardingGuide initialState={identityDone()} />);
+      await screen.findByRole("dialog", { name: "Your name and birthday" });
+
+      nav.pathname = "/dashboard";
+      rerender(<OnboardingGuide initialState={identityDone()} />);
+      nav.pathname = "/settings/identity";
+      rerender(<OnboardingGuide initialState={identityDone()} />);
+
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+
+    it("isn't offered for steps that aren't done", () => {
+      vi.mocked(getMyOnboardingState).mockResolvedValue(fresh());
+      render(<OnboardingGuide initialState={fresh()} />);
+      expect(screen.queryByRole("link", { name: /^Revisit/ })).not.toBeInTheDocument();
+    });
+  });
+
   it("Close the tour dismisses it", async () => {
     vi.mocked(getMyOnboardingState).mockResolvedValue(fresh());
     vi.mocked(dismissOnboarding).mockResolvedValue({ success: true });
