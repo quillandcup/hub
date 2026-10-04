@@ -454,16 +454,16 @@ Per-user login/access history (`access_events` table + `get_access_sessions()`, 
 
 ## Notifications
 
-### Channels, Notifications & Messaging _(v1 live: Slack, in-app banners (flagged) + per-kind notification settings; more channels next)_
+### Channels, Notifications & Messaging _(v1 live: Slack, in-app (flagged) + per-kind notification settings; more channels next)_
 One system for everything the Hub sends members, instead of each feature hand-rolling a Slack DM. Three layers (this replaces the CRM section's "Messaging Abstraction Layer" item):
 
-- **Channels** (`lib/channels/`): the delivery systems (Slack and in-app banners today; email, SMS, WhatsApp, web push next). Each adapter resolves a member to an address and sends an `OutboundMessage` (`text`, `url`, per-channel rich bodies like `slackBlocks`, `footerLinks`). Shared by both layers below; nothing above it talks to a provider directly.
+- **Channels** (`lib/channels/`): the delivery systems (Slack and in-app today; email, SMS, WhatsApp, web push next). Each adapter resolves a member to an address and sends an `OutboundMessage` (`text`, `url`, per-channel rich bodies like `slackBlocks`, `footerLinks`, and `timeSensitive: { from?, until }`: the window it's worth interrupting for, which each channel interprets, e.g. in-app banner vs bell only). Shared by both layers below; nothing above it talks to a provider directly.
 - **Notifications** (`lib/notifications/`): the app reaching out, governed by the member's per-kind channel choices. Mostly one-way, but some ask for an answer (check-in/check-out selects); the reply comes back over the same channel's inbound webhook.
 - **Messaging** (planned): two-way conversations, e.g. in-app chat bridged to Slack (`docs/SLACK_BRIDGED_CHAT.md`), and later SMS/WhatsApp threads. Uses the same channel adapters, plus the inbound half they don't have yet. Members won't move off Slack for chat without notifications for new messages, mentions and DMs, so chat events become notification kinds too.
 
 **Built (v1):**
 - `lib/channels/`: `CHANNELS` catalog (client-safe), `ChannelAdapter`, `CHANNEL_ADAPTERS`. Slack adapter (`slack.ts`) DMs via `sendSlackDM` and renders `footerLinks` into the message's context footer.
-- In-app adapter (`in-app.ts`, "In the Hub"): writes `in_app_notifications` (Local layer, migration `20261004000000`), shown by `components/InAppNotificationBanner.tsx` as a strip under the member header (polls every minute while the tab is visible). A banner goes away when dismissed, at `OutboundMessage.expiresAt`, or when the feature calls `resolveInAppNotifications(kind, ref)` (check-ins clear once answered, wherever). Behind the `in_app_notifications` feature flag: unflagged members can't be reached on it and don't see its switch. Default on for both check-in kinds.
+- In-app adapter (`in-app.ts`, "In the Hub"): writes `in_app_notifications` (Local layer, migration `20261004000000`), shown by `components/InAppNotifications.tsx` (polls every minute while the tab is visible): a bell in the member header listing the last 30 days with an unread count, and a banner under the header for unread ones inside their `timeSensitive` window. Read when the banner is dismissed, the bell opened, or the feature calls `resolveInAppNotifications(kind, ref)` (check-ins once answered, wherever); dropped from the list at `expiresAt`. Behind the `in_app_notifications` feature flag: unflagged members can't be reached on it and don't see its switch. Default on for both check-in kinds: a check-in is time-sensitive until the prickle starts, a check-out for 3 hours after it ends.
 - `lib/notifications/registry.ts`: notification kinds (id, category, label, description, default channels). Client-safe; the settings grid renders from it.
 - `notification_preferences` (Local layer, migration `20261003160000`): one row per (member, kind, channel) the member changed; no row = the kind's default. Kinds/channels are free text, so adding either needs no migration. Member reads/writes own, admins read, read-only in sudo.
 - `createNotifier(supabase, kind, memberIds, { channels? })` (`lib/notifications/notify.ts`): loads preferences and addresses for a batch, then `canReach(memberId)` / `send(memberId, message)`, adding a "Notification settings" link. A failed channel is logged and doesn't stop the others. Check `canReach` before claiming a dedup row so re-enabling a kind still sends. `channels` forces channels and skips preferences, only for sends the member just asked for (admin test DMs).
@@ -471,7 +471,7 @@ One system for everything the Hub sends members, instead of each feature hand-ro
 - Kinds today: `prickle_checkin`, `prickle_checkout`.
 
 **Next channels** (each = `CHANNELS` entry + adapter + whatever it needs to resolve an address; every notification kind gets it at once):
-- In-app, beyond the banner: a notification inbox with history and unread badges, built on `in_app_notifications`; roll the banner out past the flag
+- In-app: a full notification page (history past the bell's 30 days, mark unread); roll it out past the flag
 - Browser/OS: Web Push (service worker + VAPID keys, per-device subscriptions table); also covers installed-PWA push on mobile (iOS requires home-screen install, 16.4+)
 - Mobile push: native app later; Web Push covers it until then
 - Email: Resend API sender module + `react-email` templates, `List-Unsubscribe`, including digests

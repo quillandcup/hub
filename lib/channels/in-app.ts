@@ -4,18 +4,25 @@ import { createServiceRoleClient } from "@/lib/supabase/service";
 import type { ChannelAdapter, OutboundMessage, SendContext } from "./types";
 
 /**
- * "In the Hub": a banner at the top of the member pages (components/InAppNotificationBanner.tsx),
- * stored in in_app_notifications (migration 20261004000000). Behind the in_app_notifications
- * feature flag: members without it can't be reached here, so senders fall back to their other
- * channels exactly as before. The address is the member id.
+ * "In the Hub", stored in in_app_notifications (migration 20261004000000) and shown by
+ * components/InAppNotifications.tsx in two places:
+ * - The bell in the member header lists every recent one, with a count of the unread.
+ * - A banner under the header shows an unread one inside its time-sensitive window
+ *   (OutboundMessage.timeSensitive). Something not time-sensitive, not yet or no longer, is only
+ *   in the bell.
+ * It's read once the member dismisses the banner or opens the bell, or once the feature resolves
+ * it with resolveInAppNotifications (e.g. a check-in once they've checked in). It leaves the list
+ * at `expiresAt`, or after IN_APP_LIST_DAYS.
  *
- * A banner shows until the member dismisses it, it reaches `expiresAt`, or the feature clears it
- * with resolveInAppNotifications once it's dealt with (e.g. a check-in banner once they check in).
+ * Behind the in_app_notifications feature flag: members without it can't be reached here, so
+ * senders fall back to their other channels exactly as before. The address is the member id.
  */
 export const IN_APP_FEATURE = "in_app_notifications" as const;
 
-/** How many banners show at once (newest first); older ones wait their turn. */
-export const MAX_ACTIVE_IN_APP = 3;
+/** The bell lists at most this many, newest first... */
+export const IN_APP_LIST_LIMIT = 20;
+/** ...from at most this far back. */
+export const IN_APP_LIST_DAYS = 30;
 
 export const inAppChannel: ChannelAdapter = {
   id: "in_app",
@@ -36,11 +43,13 @@ export function inAppRow(memberId: string, message: OutboundMessage, { kind }: S
     ref: message.ref ?? null,
     text: message.text,
     url: hubPath(message.url),
+    banner_from: message.timeSensitive?.from ?? null,
+    banner_until: message.timeSensitive?.until ?? null,
     expires_at: message.expiresAt ?? null,
   };
 }
 
-/** A Hub link as a path the banner can navigate to in place; anything else isn't linked. */
+/** A Hub link as a path the bell and banner can navigate to in place; anything else isn't linked. */
 export function hubPath(url: string | undefined): string | null {
   if (!url) return null;
   if (url.startsWith("/") && !url.startsWith("//")) return url;
@@ -55,22 +64,22 @@ export interface InAppNotification {
   text: string;
   url: string | null;
   createdAt: string;
+  read: boolean;
+  /** Unread and inside its time-sensitive window (as of the read): shown as a banner too. */
+  banner: boolean;
 }
 
-/** A member's banners still worth showing: undismissed and unexpired, newest first. */
-export async function loadActiveInAppNotifications(
-  supabase: any,
-  memberId: string,
-  now: Date
-): Promise<InAppNotification[]> {
+/** A member's bell list (unexpired, from the last IN_APP_LIST_DAYS, newest first), as of `now`. */
+export async function loadInAppNotifications(supabase: any, memberId: string, now: Date): Promise<InAppNotification[]> {
+  const since = new Date(now.getTime() - IN_APP_LIST_DAYS * 24 * 60 * 60 * 1000);
   const { data, error } = await supabase
     .from("in_app_notifications")
-    .select("id, kind, text, url, created_at")
+    .select("id, kind, text, url, created_at, banner_from, banner_until, read_at")
     .eq("member_id", memberId)
-    .is("dismissed_at", null)
+    .gte("created_at", since.toISOString())
     .or(`expires_at.is.null,expires_at.gt.${now.toISOString()}`)
     .order("created_at", { ascending: false })
-    .limit(MAX_ACTIVE_IN_APP);
+    .limit(IN_APP_LIST_LIMIT);
   if (error) {
     console.error("[in-app] Loading notifications failed", { member: memberId, error });
     return [];
@@ -81,22 +90,42 @@ export async function loadActiveInAppNotifications(
     text: row.text,
     url: row.url,
     createdAt: row.created_at,
+    read: row.read_at !== null,
+    banner: row.read_at === null && inWindow(row.banner_from, row.banner_until, now),
   }));
 }
 
+/** Inside [from, until): no `until` means never; no `from` means since it was sent. */
+export function inWindow(from: string | null, until: string | null, now: Date): boolean {
+  if (until === null) return false;
+  const t = now.getTime();
+  return t < Date.parse(until) && (from === null || t >= Date.parse(from));
+}
+
+/** Marks these of the member's notifications read (scoped to the member, whichever client). */
+export async function markInAppNotificationsRead(supabase: any, memberId: string, ids: string[]) {
+  return supabase
+    .from("in_app_notifications")
+    .update({ read_at: new Date().toISOString() })
+    .eq("member_id", memberId)
+    .in("id", ids)
+    .is("read_at", null);
+}
+
 /**
- * Clears a member's banners of `kind` about `ref` once the feature has what it asked for, so they
- * don't linger (e.g. the check-in banner after they check in, on the web or in Slack). Works with
- * the member's session client (RLS lets them dismiss their own) or the service role. Best effort:
- * a failure is logged, never thrown, since the answer itself is already saved.
+ * Marks a member's unread notifications of `kind` about `ref` read once the feature has what it
+ * asked for, so they stop asking (e.g. the check-in after they check in, on the web or in Slack):
+ * the banner goes and the bell's count drops. Works with the member's session client (RLS lets
+ * them mark their own) or the service role. Best effort: a failure is logged, never thrown, since
+ * the answer itself is already saved.
  */
 export async function resolveInAppNotifications(supabase: any, memberId: string, kind: string, ref: string) {
   const { error } = await supabase
     .from("in_app_notifications")
-    .update({ dismissed_at: new Date().toISOString() })
+    .update({ read_at: new Date().toISOString() })
     .eq("member_id", memberId)
     .eq("kind", kind)
     .eq("ref", ref)
-    .is("dismissed_at", null);
-  if (error) console.error("[in-app] Clearing notifications failed", { member: memberId, kind, ref, error });
+    .is("read_at", null);
+  if (error) console.error("[in-app] Resolving notifications failed", { member: memberId, kind, ref, error });
 }

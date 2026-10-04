@@ -14,7 +14,7 @@ export const CHANNELS = [
   { id: "slack", label: "Slack", description: "A direct message from Billie Bot" },
   // Behind the in_app_notifications feature flag: members without it can't be reached on it and
   // don't see it in settings (lib/channels/in-app.ts).
-  { id: "in_app", label: "In the Hub", description: "A banner at the top of the Hub" },
+  { id: "in_app", label: "In the Hub", description: "Under the bell in the Hub, and as a banner while it's time-sensitive" },
 ] as const;
 
 export type ChannelId = (typeof CHANNELS)[number]["id"];

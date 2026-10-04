@@ -1,5 +1,11 @@
 import type { ChannelId } from "./catalog";
 
+/** A span of time (ISO timestamps); no `from` means from now. */
+export interface TimeWindow {
+  from?: string;
+  until: string;
+}
+
 /** One outbound message, with whatever each channel needs to render it. */
 export interface OutboundMessage {
   /** Plain text: the whole message on text-only channels, and the fallback/preview everywhere else. */
@@ -11,11 +17,19 @@ export interface OutboundMessage {
   /** Small trailing links (e.g. "Notification settings"); each channel renders them its own way. */
   footerLinks?: { label: string; url: string }[];
   /**
+   * When it's worth interrupting the member for, because it's about something happening then
+   * (e.g. a prickle starting): from `from` (ISO timestamp; omitted = as soon as it's sent) until
+   * `until`. Omitted = never time-sensitive. Each channel decides what that means: in-app shows it
+   * as a banner inside the window and otherwise only under the bell; a push channel could use the
+   * OS's time-sensitive level, email could skip it once the window has passed.
+   */
+  timeSensitive?: TimeWindow;
+  /**
    * For channels that keep a message around (in-app): what it's about, e.g. a prickle id, so the
-   * feature can clear it once it's dealt with (resolveInAppNotifications)...
+   * feature can resolve it once it's dealt with (resolveInAppNotifications)...
    */
   ref?: string;
-  /** ...and when it stops being worth showing (ISO timestamp). */
+  /** ...and when it stops being worth keeping at all (ISO timestamp); omitted = kept. */
   expiresAt?: string;
 }
 

@@ -3,7 +3,7 @@ import { loadCalendarFeedPrickleIds } from "@/lib/calendar-feed";
 import { APP_URL } from "@/lib/config";
 import { createNotifier } from "@/lib/notifications/notify";
 import { resolveInAppNotifications } from "@/lib/channels/in-app";
-import type { OutboundMessage } from "@/lib/channels";
+import type { OutboundMessage, TimeWindow } from "@/lib/channels";
 import { loadPresenceByMember, presenceDue, type PresenceInterval } from "@/lib/zoom-presence";
 import {
   checkinAnswered,
@@ -474,15 +474,16 @@ export async function saveCheckinAnswer(supabase: any, memberId: string, answer:
 
   const error = await writeCheckin(supabase, memberId, prickleId, next);
   if (error) return `couldn't save check-in: ${error.message}`;
-  await clearAnsweredCheckinBanners(supabase, memberId, prickleId, next);
+  await resolveAnsweredCheckinNotifications(supabase, memberId, prickleId, next);
   return null;
 }
 
 /**
- * Clears the in-app check-in/check-out banners a saved check-in has now answered, wherever it was
- * answered (prickle page, Log Progress, Slack), so they don't keep asking.
+ * Resolves the in-app check-in/check-out notifications a saved check-in has now answered, wherever
+ * it was answered (prickle page, Log Progress, Slack), so they don't keep asking: the banner goes
+ * and the bell stops counting them.
  */
-export async function clearAnsweredCheckinBanners(
+export async function resolveAnsweredCheckinNotifications(
   supabase: any,
   memberId: string,
   prickleId: string,
@@ -691,14 +692,22 @@ async function quickLogPrompts(supabase: any, goals: GoalCandidate[]): Promise<Q
 
 /**
  * A DM's prickle: enough to word the message and link the check-in. The times, when known, set
- * how long the in-app banner version stays up: a check-in until the prickle starts (its text says
- * "in ~20 min"; the prickle page still takes one after), a check-out for CHECKOUT_BANNER_TTL_MS
- * after it ends.
+ * how long it's time-sensitive (in-app: a banner, then only under the bell) and when it's dropped:
+ * - Check-in: time-sensitive until the prickle starts (its text says "in ~20 min"; the prickle
+ *   page still takes one after), kept CHECKIN_KEEP_MS past the start.
+ * - Check-out: time-sensitive for CHECKOUT_TIME_SENSITIVE_MS after the prickle ends (one sent
+ *   later, e.g. from the attendance backstop, goes straight to the bell), kept CHECKOUT_KEEP_MS.
  */
 type DMPrickle = { id: string; typeName: string; startTime?: string; endTime?: string };
 
-/** The in-app check-out banner stays up this long after the prickle ends. */
-export const CHECKOUT_BANNER_TTL_MS = 24 * 60 * 60 * 1000;
+export const CHECKIN_KEEP_MS = 24 * 60 * 60 * 1000;
+export const CHECKOUT_TIME_SENSITIVE_MS = 3 * 60 * 60 * 1000;
+export const CHECKOUT_KEEP_MS = 7 * 24 * 60 * 60 * 1000;
+
+/** Time-sensitive from when it's sent until `until`, if known. */
+function windowUntil(until: string | undefined): TimeWindow | undefined {
+  return until ? { until } : undefined;
+}
 
 function offsetIso(time: string | undefined, ms: number): string | undefined {
   return time ? new Date(Date.parse(time) + ms).toISOString() : undefined;
@@ -720,7 +729,8 @@ export function checkinMessage(prickle: DMPrickle, saved: CheckinInput | null, {
     url: `${APP_URL}/prickles/${prickle.id}`,
     slackBlocks: test ? [TEST_BANNER, ...blocks] : blocks,
     ref: prickle.id,
-    expiresAt: offsetIso(prickle.startTime, 0),
+    timeSensitive: windowUntil(offsetIso(prickle.startTime, 0)),
+    expiresAt: offsetIso(prickle.startTime, CHECKIN_KEEP_MS),
   };
 }
 
@@ -737,7 +747,8 @@ export function checkoutMessage(
     url: `${APP_URL}/prickles/${prickle.id}`,
     slackBlocks: test ? [TEST_BANNER, ...blocks] : blocks,
     ref: prickle.id,
-    expiresAt: offsetIso(prickle.endTime, CHECKOUT_BANNER_TTL_MS),
+    timeSensitive: windowUntil(offsetIso(prickle.endTime, CHECKOUT_TIME_SENSITIVE_MS)),
+    expiresAt: offsetIso(prickle.endTime, CHECKOUT_KEEP_MS),
   };
 }
 

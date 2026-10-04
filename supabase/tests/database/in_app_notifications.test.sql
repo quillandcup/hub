@@ -1,12 +1,12 @@
 -- pgTAP tests for in_app_notifications (20261004000000): the member and admins read; the member
--- can only dismiss their own (dismissed_at), never write anything else; only the server inserts.
+-- can only mark their own read (read_at), never write anything else; only the server inserts.
 -- Runs in one transaction that is rolled back, so it leaves the shared local DB untouched.
 -- Run with `npm run test:pgtap` (scripts/test-pgtap.sh; CI runs it in the test-db job).
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;
 
-SELECT plan(7);
+SELECT plan(8);
 
 -- Alice and Bob are regular members, Dana an admin. Fixed ids nothing else uses.
 INSERT INTO auth.users (id, instance_id, aud, role, email) VALUES
@@ -34,12 +34,12 @@ GRANT INSERT ON result TO authenticated;
 
 SET LOCAL ROLE authenticated;
 
--- As Alice: sees only her own; dismisses hers; trying Bob's changes nothing.
+-- As Alice: sees only her own; marks hers read; trying Bob's changes nothing.
 SELECT set_config('request.jwt.claims',
   '{"sub": "00000000-0000-4000-a000-00000000f1a1", "email": "inapp-alice@example.test", "role": "authenticated"}', true);
 INSERT INTO result SELECT 'alice_sees', jsonb_agg(id) FROM public.in_app_notifications;
-UPDATE public.in_app_notifications SET dismissed_at = now() WHERE id = '00000000-0000-4000-a000-00000000f201';
-UPDATE public.in_app_notifications SET dismissed_at = now() WHERE id = '00000000-0000-4000-a000-00000000f202';
+UPDATE public.in_app_notifications SET read_at = now() WHERE id = '00000000-0000-4000-a000-00000000f201';
+UPDATE public.in_app_notifications SET read_at = now() WHERE id = '00000000-0000-4000-a000-00000000f202';
 
 -- As Dana (admin): sees everyone's.
 SELECT set_config('request.jwt.claims',
@@ -55,14 +55,14 @@ SELECT is(
 );
 SELECT is((SELECT value FROM result WHERE label = 'admin_sees'), '2'::jsonb, 'admins see everyone''s');
 SELECT isnt(
-  (SELECT dismissed_at FROM public.in_app_notifications WHERE id = '00000000-0000-4000-a000-00000000f201'),
+  (SELECT read_at FROM public.in_app_notifications WHERE id = '00000000-0000-4000-a000-00000000f201'),
   NULL,
-  'a member can dismiss their own'
+  'a member can mark their own read'
 );
 SELECT is(
-  (SELECT dismissed_at FROM public.in_app_notifications WHERE id = '00000000-0000-4000-a000-00000000f202'),
+  (SELECT read_at FROM public.in_app_notifications WHERE id = '00000000-0000-4000-a000-00000000f202'),
   NULL,
-  'a member cannot dismiss someone else''s'
+  'a member cannot mark someone else''s read'
 );
 
 SELECT throws_ok(
@@ -71,7 +71,7 @@ SELECT throws_ok(
     UPDATE public.in_app_notifications SET text = 'Edited' WHERE id = '00000000-0000-4000-a000-00000000f201'$$,
   '42501',
   NULL,
-  'a member can change only dismissed_at'
+  'a member can change only read_at'
 );
 RESET ROLE;
 
@@ -85,6 +85,14 @@ SELECT throws_ok(
   'members cannot create in-app notifications'
 );
 RESET ROLE;
+
+SELECT throws_ok(
+  $$INSERT INTO public.in_app_notifications (member_id, kind, text, banner_from, banner_until)
+    VALUES ('00000000-0000-4000-a000-00000000f101', 'prickle_checkin', 'Hi', '2026-10-05T11:00:00Z', '2026-10-05T10:00:00Z')$$,
+  '23514',
+  NULL,
+  'a banner window must end after it starts'
+);
 
 DELETE FROM public.members WHERE id = '00000000-0000-4000-a000-00000000f102';
 SELECT is(
