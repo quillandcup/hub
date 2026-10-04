@@ -197,7 +197,7 @@ export function buildCalendarFeedEvents({
         summary: o.typeName,
         description:
           `Part of your commitment: ${o.commitmentTitle}\n\n` +
-          `This prickle isn't on the schedule yet, so the time may change.\n\n${origin}/my-prickles?tab=commitments`,
+          `This prickle isn't on the schedule yet, so the time may change.\n\n${origin}/my-prickles/commitments`,
         status: "TENTATIVE",
         reminderMinutes: FEED_REMINDER_MINUTES,
       });

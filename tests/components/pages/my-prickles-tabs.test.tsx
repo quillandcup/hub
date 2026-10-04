@@ -1,15 +1,17 @@
 // @vitest-environment jsdom
 /**
  * The standalone /hosting and /calendar pages were removed in favor of My Prickles tabs (and /prickle-picker in
- * favor of Find a Prickle, covered in unflagged-pages.test.tsx). These check each tab serves that content when
- * linked to directly via `?tab=`.
+ * favor of Find a Prickle, covered in unflagged-pages.test.tsx). These check each tab's route
+ * (/my-prickles/<tab>, lib/tab-routes.ts) serves that content when linked to directly, and that
+ * legacy ?tab= links redirect there.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, within } from "@testing-library/react";
 import {
   MEMBER_IDENTITY,
   MEMBER_USER,
-  renderServerPage,
+  expectRedirect,
+  renderServerRoute,
   resetServerPageMocks,
   signInAs,
   useFakeSupabase,
@@ -59,12 +61,18 @@ vi.mock("@/app/(member)/my-prickles/CommitmentsManager", () => ({
   default: () => <div data-testid="commitments-manager" />,
 }));
 
-import MyPricklesPage from "@/app/(member)/my-prickles/page";
+import MyPricklesIndex from "@/app/(member)/my-prickles/page";
+import AllPricklesRoute from "@/app/(member)/my-prickles/all/page";
+import CommitmentsRoute from "@/app/(member)/my-prickles/commitments/page";
+import HostingRoute from "@/app/(member)/my-prickles/hosting/page";
+import HistoryRoute from "@/app/(member)/my-prickles/history/page";
 import { getMyHostEligibility } from "@/app/(member)/hosting/actions";
 
-const props = (tab: string, extra: Record<string, string> = {}) => ({
-  searchParams: Promise.resolve({ tab, ...extra }),
+const routeProps = (searchParams: Record<string, string> = {}) => ({
+  params: Promise.resolve({}),
+  searchParams: Promise.resolve(searchParams),
 });
+const renderTab = (Route: () => React.ReactNode) => renderServerRoute(Route, undefined as never);
 
 beforeEach(() => {
   resetServerPageMocks();
@@ -73,16 +81,16 @@ beforeEach(() => {
 });
 
 describe("My Prickles tabs that replaced standalone pages", () => {
-  it("?tab=hosting opens Hosting with stats and the schedule manager (was /hosting)", async () => {
-    await renderServerPage(MyPricklesPage, props("hosting"));
+  it("/my-prickles/hosting opens Hosting with stats and the schedule manager (was /hosting)", async () => {
+    await renderTab(HostingRoute);
     expect(screen.getByRole("tab", { name: "Hosting" })).toHaveAttribute("aria-selected", "true");
     const panel = screen.getByRole("tabpanel");
     expect(within(panel).getByTestId("hosting-stats")).toBeInTheDocument();
     expect(within(panel).getByTestId("hosting-schedule-manager")).toBeInTheDocument();
   });
 
-  it("?tab=history opens the effective member's attendance calendar (was /calendar)", async () => {
-    await renderServerPage(MyPricklesPage, props("history"));
+  it("/my-prickles/history opens the effective member's attendance calendar (was /calendar)", async () => {
+    await renderTab(HistoryRoute);
     expect(screen.getByRole("tab", { name: "Attendance History" })).toHaveAttribute("aria-selected", "true");
     expect(within(screen.getByRole("tabpanel")).getByTestId("history-calendar")).toHaveTextContent(
       `member: ${MEMBER_IDENTITY.memberId}`
@@ -92,7 +100,7 @@ describe("My Prickles tabs that replaced standalone pages", () => {
 
 describe("My Prickles tab order", () => {
   it("puts Attendance History last", async () => {
-    await renderServerPage(MyPricklesPage, props("upcoming"));
+    await renderServerRoute(MyPricklesIndex, routeProps());
     const tabs = screen.getAllByRole("tab");
     expect(tabs[tabs.length - 1]).toHaveTextContent("Attendance History");
   });
@@ -105,7 +113,7 @@ describe("My Prickles Hosting tab for members who can't host yet", () => {
       tenureStartDate: "2026-09-01",
       eligibleOn: "2026-10-01",
     } as any);
-    await renderServerPage(MyPricklesPage, props("hosting"));
+    await renderTab(HostingRoute);
     const panel = screen.getByRole("tabpanel");
     expect(within(panel).queryByTestId("hosting-stats")).not.toBeInTheDocument();
     expect(within(panel).queryByRole("heading", { name: /Sync your prickles/ })).not.toBeInTheDocument();
@@ -115,14 +123,14 @@ describe("My Prickles Hosting tab for members who can't host yet", () => {
 
 describe("My Prickles calendar sync", () => {
   it("offers calendar sync on the Commitments tab", async () => {
-    await renderServerPage(MyPricklesPage, props("commitments"));
+    await renderTab(CommitmentsRoute);
     expect(
       within(screen.getByRole("tabpanel")).getByRole("heading", { name: "Sync your prickles with your calendar" })
     ).toBeInTheDocument();
   });
 
   it("offers calendar sync on the Hosting tab", async () => {
-    await renderServerPage(MyPricklesPage, props("hosting"));
+    await renderTab(HostingRoute);
     expect(
       within(screen.getByRole("tabpanel")).getByRole("heading", { name: "Sync your prickles with your calendar" })
     ).toBeInTheDocument();
@@ -130,19 +138,19 @@ describe("My Prickles calendar sync", () => {
 });
 
 describe("My Prickles commitment links", () => {
-  it("?tab=commitments lists commitments", async () => {
-    await renderServerPage(MyPricklesPage, props("commitments"));
+  it("/my-prickles/commitments lists commitments", async () => {
+    await renderTab(CommitmentsRoute);
     expect(screen.getByRole("tab", { name: "Commitments" })).toHaveAttribute("aria-selected", "true");
     expect(within(screen.getByRole("tabpanel")).getByTestId("commitments-manager")).toBeInTheDocument();
   });
 
-  it("?tab=all opens All Prickles with commit mode closed", async () => {
-    await renderServerPage(MyPricklesPage, props("all"));
+  it("/my-prickles/all opens All Prickles with commit mode closed", async () => {
+    await renderServerRoute(AllPricklesRoute, routeProps());
     expect(within(screen.getByRole("tabpanel")).getByTestId("all-prickles")).toHaveTextContent("commit: null");
   });
 
   it("?commit=<keys> opens All Prickles in commit mode with those slots picked", async () => {
-    await renderServerPage(MyPricklesPage, props("all", { commit: "t1:1-05:00,t1:3-05:00" }));
+    await renderServerRoute(AllPricklesRoute, routeProps({ commit: "t1:1-05:00,t1:3-05:00" }));
     expect(screen.getByRole("tab", { name: "All Prickles" })).toHaveAttribute("aria-selected", "true");
     expect(within(screen.getByRole("tabpanel")).getByTestId("all-prickles")).toHaveTextContent(
       'commit: ["t1:1-05:00","t1:3-05:00"]'
@@ -150,13 +158,28 @@ describe("My Prickles commitment links", () => {
   });
 
   it("an empty ?commit= opens commit mode with nothing picked", async () => {
-    await renderServerPage(MyPricklesPage, props("all", { commit: "" }));
+    await renderServerRoute(AllPricklesRoute, routeProps({ commit: "" }));
     expect(within(screen.getByRole("tabpanel")).getByTestId("all-prickles")).toHaveTextContent("commit: []");
   });
 
-  it("the older ?tab=commitments&slot=<key> link lands on All Prickles with that slot picked", async () => {
-    await renderServerPage(MyPricklesPage, props("commitments", { slot: "t1:1-07:00" }));
-    expect(screen.getByRole("tab", { name: "All Prickles" })).toHaveAttribute("aria-selected", "true");
-    expect(within(screen.getByRole("tabpanel")).getByTestId("all-prickles")).toHaveTextContent('commit: ["t1:1-07:00"]');
+  it("the older ?tab=commitments&slot=<key> link redirects to All Prickles with that slot picked", async () => {
+    await expectRedirect(
+      MyPricklesIndex,
+      routeProps({ tab: "commitments", slot: "t1:1-07:00" }),
+      "/my-prickles/all?commit=t1%3A1-07%3A00"
+    );
+  });
+});
+
+describe("My Prickles legacy ?tab= links", () => {
+  it("redirect to the tab's path, keeping other params", async () => {
+    await expectRedirect(MyPricklesIndex, routeProps({ tab: "history" }), "/my-prickles/history");
+    await expectRedirect(MyPricklesIndex, routeProps({ tab: "all", commit: "" }), "/my-prickles/all?commit=");
+  });
+
+  it("send the first tab to the bare path, and ignore an unknown tab", async () => {
+    await expectRedirect(MyPricklesIndex, routeProps({ tab: "upcoming" }), "/my-prickles");
+    await renderServerRoute(MyPricklesIndex, routeProps({ tab: "bogus" }));
+    expect(screen.getByRole("tab", { name: "Upcoming" })).toHaveAttribute("aria-selected", "true");
   });
 });

@@ -199,6 +199,20 @@ export async function renderServerPage<P>(
   return render(ui as ReactElement);
 }
 
+/**
+ * Like renderServerPage, for a thin route page that returns one async server component (e.g. a
+ * path-based tab route returning `<MyPricklesPage tab="all" />`, lib/tab-routes.ts): awaits the
+ * route, then that component, and renders the result.
+ */
+export async function renderServerRoute<P>(
+  Route: (props: P) => Promise<ReactNode> | ReactNode,
+  props: P
+): Promise<ReturnType<typeof render>> {
+  const element = (await Route(props)) as ReactElement<Record<string, unknown>>;
+  const Component = element.type as (props: Record<string, unknown>) => Promise<ReactNode> | ReactNode;
+  return renderServerPage(Component, element.props);
+}
+
 /** Asserts the page redirects to `url` (via the mocked `redirect()`) instead of rendering. */
 export async function expectRedirect<P>(
   Page: (props: P) => Promise<ReactNode> | ReactNode,

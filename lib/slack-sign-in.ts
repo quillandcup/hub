@@ -379,7 +379,7 @@ export function buildSlackSignInBlocks(
     const text =
       resolution.status === "admin"
         ? `Admins sign in to Hedgie Hub by email: <${loginUrl}|go to the sign-in page>. To sign in from here instead, turn on *Slack Sign-In for Admins* in your Feature Previews.`
-        : `We couldn't match your Slack account to a Hedgie Hub account. If your Slack email is different from your Hedgie Hub one, <${loginUrl}|sign in by email>, add your Slack email under *Email Aliases* in <${new URL("/settings", origin).toString()}|Settings>, then come back here. Or ask the Quill & Cup team for help.`;
+        : `We couldn't match your Slack account to a Hedgie Hub account. If your Slack email is different from your Hedgie Hub one, <${loginUrl}|sign in by email>, add your Slack email under *Email Aliases* in <${new URL("/settings/identity", origin).toString()}|Settings>, then come back here. Or ask the Quill & Cup team for help.`;
     return [{ type: "section", text: { type: "mrkdwn", text } }];
   }
 

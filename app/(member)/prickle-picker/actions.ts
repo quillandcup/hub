@@ -326,6 +326,6 @@ export async function saveHostVibe(
 
   if (error) return { error: error.message };
 
-  revalidatePath("/settings");
+  revalidatePath("/settings", "layout");
   return { success: true };
 }

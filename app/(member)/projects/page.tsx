@@ -1,76 +1,11 @@
-import { Suspense } from "react";
 import type { Metadata } from "next";
-import { getCurrentUser } from "@/lib/auth";
-import { redirect } from "next/navigation";
-import { getEffectiveIdentity } from "@/lib/sudo";
-import { getMyProjects } from "./actions";
-import { getMyBooks } from "@/app/(member)/bookshelf/actions";
-import { getMyAwards } from "@/app/(member)/awards/actions";
-import ProjectsClient from "./ProjectsClient";
-import MyBooksPanel from "./MyBooksPanel";
-import MyAwardsPanel from "./MyAwardsPanel";
-import { Tabs } from "@/components/Tabs";
-import { RememberTabUrl } from "@/components/ReturnToTab";
+import { redirectLegacyTabParam } from "@/lib/tab-routes";
+import ProjectsPage, { MY_WRITING_TAB_IDS, MY_WRITING_TITLE } from "./ProjectsPage";
 
-export const metadata: Metadata = {
-  title: "My Writing",
-};
+export const metadata: Metadata = { title: MY_WRITING_TITLE };
 
-const TAB_IDS = ["projects", "books", "awards"] as const;
-type TabId = (typeof TAB_IDS)[number];
-
-export default async function ProjectsPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
-  const user = await getCurrentUser();
-  if (!user) redirect("/login");
-
-  const effectiveIdentity = await getEffectiveIdentity(user);
-  if (!effectiveIdentity) redirect("/admin");
-
-  const { tab: rawTab } = await searchParams;
-  const initialTab: TabId = (TAB_IDS as readonly string[]).includes(rawTab ?? "") ? (rawTab as TabId) : "projects";
-
-  const [projects, books, awards] = await Promise.all([getMyProjects(), getMyBooks(), getMyAwards()]);
-  const projectTitles = Object.fromEntries(projects.map((p) => [p.id, p.title]));
-
-  return (
-    <div className="min-h-screen bg-canvas dark:bg-slate-950">
-      <header className="border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
-        <div className="container mx-auto px-6 py-4">
-          <h1 className="text-2xl font-bold">My Writing</h1>
-          <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
-            Track what you&apos;re writing, the books you&apos;ve published, and the awards you&apos;ve won.
-          </p>
-        </div>
-      </header>
-
-      <main className="container mx-auto px-6 py-8">
-        <Suspense fallback={null}>
-          <RememberTabUrl path="/projects" />
-        </Suspense>
-        <Tabs
-          key={initialTab}
-          initialTab={initialTab}
-          syncToUrl={{ param: "tab" }}
-          className="max-w-3xl mx-auto"
-          tabs={[
-            {
-              id: "projects",
-              label: "Projects",
-              content: <ProjectsClient initialProjects={projects} />,
-            },
-            {
-              id: "books",
-              label: "Books",
-              content: <MyBooksPanel initialBooks={books} projectTitles={projectTitles} />,
-            },
-            {
-              id: "awards",
-              label: "Awards",
-              content: <MyAwardsPanel initialAwards={awards} myBooks={books} />,
-            },
-          ]}
-        />
-      </main>
-    </div>
-  );
+/** My Writing, Projects tab. Legacy ?tab=<id> links redirect to /projects/<id>. */
+export default async function MyWritingIndex({ searchParams }: PageProps<"/projects">) {
+  redirectLegacyTabParam("/projects", MY_WRITING_TAB_IDS, await searchParams);
+  return <ProjectsPage tab="projects" />;
 }

@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 /**
- * Page wiring for My Writing (app/(member)/projects/page.tsx): the Projects/Books/Awards tabs, the
- * `?tab=` param, and the data each panel receives. MyBooksPanel renders for real (its own behavior
+ * Page wiring for My Writing (app/(member)/projects/ProjectsPage.tsx): the Projects/Books/Awards
+ * tabs and their routes (/projects, /projects/books, /projects/awards; legacy ?tab= redirects), and
+ * the data each panel receives. MyBooksPanel renders for real (its own behavior
  * is covered in MyBooksPanel.test.tsx); the Projects and Awards panels are stubbed to show what they
  * were given.
  */
@@ -12,7 +13,7 @@ import {
   MEMBER_IDENTITY,
   MEMBER_USER,
   expectRedirect,
-  renderServerPage,
+  renderServerRoute,
   resetServerPageMocks,
   signInAs,
 } from "@/tests/helpers/server-page";
@@ -46,7 +47,10 @@ vi.mock("@/app/(member)/projects/MyAwardsPanel", () => ({
   ),
 }));
 
-import ProjectsPage from "@/app/(member)/projects/page";
+import MyWritingIndex from "@/app/(member)/projects/page";
+import BooksRoute from "@/app/(member)/projects/books/page";
+import AwardsRoute from "@/app/(member)/projects/awards/page";
+import ProjectsPage from "@/app/(member)/projects/ProjectsPage";
 import { getMyProjects } from "@/app/(member)/projects/actions";
 import { getMyBooks } from "@/app/(member)/bookshelf/actions";
 import { getMyAwards } from "@/app/(member)/awards/actions";
@@ -79,7 +83,7 @@ const BOOKS = [
 
 const AWARDS = [{ id: "award-1", awardName: "Golden Quill" }] as MyAwardRow[];
 
-const props = (tab?: string) => ({ searchParams: Promise.resolve(tab ? { tab } : {}) });
+const props = (tab?: string) => ({ params: Promise.resolve({}), searchParams: Promise.resolve(tab ? { tab } : {}) });
 
 beforeEach(() => {
   resetServerPageMocks();
@@ -91,7 +95,7 @@ beforeEach(() => {
 
 describe("My Writing page", () => {
   it("renders the heading and Projects/Books/Awards tabs, defaulting to Projects", async () => {
-    await renderServerPage(ProjectsPage, props());
+    await renderServerRoute(MyWritingIndex, props());
     expect(screen.getByRole("heading", { level: 1, name: "My Writing" })).toBeInTheDocument();
     expect(screen.getAllByRole("tab").map((t) => t.textContent)).toEqual(["Projects", "Books", "Awards"]);
     expect(screen.getByRole("tab", { name: "Projects" })).toHaveAttribute("aria-selected", "true");
@@ -101,13 +105,18 @@ describe("My Writing page", () => {
   });
 
   it("falls back to Projects for an unknown ?tab=", async () => {
-    await renderServerPage(ProjectsPage, props("bogus"));
+    await renderServerRoute(MyWritingIndex, props("bogus"));
     expect(screen.getByRole("tab", { name: "Projects" })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByTestId("projects-client")).toBeInTheDocument();
   });
 
-  it("honors ?tab=books and passes all books with project titles to MyBooksPanel", async () => {
-    await renderServerPage(ProjectsPage, props("books"));
+  it("redirects a legacy ?tab= link to the tab's path", async () => {
+    await expectRedirect(MyWritingIndex, props("books"), "/projects/books");
+    await expectRedirect(MyWritingIndex, props("projects"), "/projects");
+  });
+
+  it("/projects/books passes all books with project titles to MyBooksPanel", async () => {
+    await renderServerRoute(BooksRoute, undefined as never);
     expect(screen.getByRole("tab", { name: "Books" })).toHaveAttribute("aria-selected", "true");
     const panel = screen.getByRole("tabpanel");
     expect(within(panel).getByText("The Lantern Keeper")).toBeInTheDocument();
@@ -122,8 +131,8 @@ describe("My Writing page", () => {
     expect(soloRow).not.toHaveTextContent("From");
   });
 
-  it("honors ?tab=awards and passes awards plus the member's books to MyAwardsPanel", async () => {
-    await renderServerPage(ProjectsPage, props("awards"));
+  it("/projects/awards passes awards plus the member's books to MyAwardsPanel", async () => {
+    await renderServerRoute(AwardsRoute, undefined as never);
     expect(screen.getByRole("tab", { name: "Awards" })).toHaveAttribute("aria-selected", "true");
     expect(within(screen.getByRole("tabpanel")).getByTestId("awards-panel")).toHaveTextContent(
       "awards: Golden Quill; books: 2"
@@ -132,6 +141,6 @@ describe("My Writing page", () => {
 
   it("redirects a user with no effective member identity to /admin", async () => {
     signInAs(ADMIN_USER, null);
-    await expectRedirect(ProjectsPage, props(), "/admin");
+    await expectRedirect(ProjectsPage, { tab: "projects" }, "/admin");
   });
 });

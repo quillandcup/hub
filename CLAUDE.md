@@ -131,7 +131,7 @@ const memberBasePath = isActingAsAdmin ? "/admin/members" : "/members";
 
 ### Member Notifications
 
-**RULE**: Anything the app sends a member on its own initiative (reminders, check-ins, alerts) goes through `createNotifier` (`lib/notifications/notify.ts`) as a notification kind registered in `lib/notifications/registry.ts`, never a direct `sendSlackDM`/`chat.postMessage`. That's what makes it show up on `/settings?tab=notifications` and honor the member's opt-outs and channel choices, and it's how new channels (email, push, SMS...) reach every kind at once.
+**RULE**: Anything the app sends a member on its own initiative (reminders, check-ins, alerts) goes through `createNotifier` (`lib/notifications/notify.ts`) as a notification kind registered in `lib/notifications/registry.ts`, never a direct `sendSlackDM`/`chat.postMessage`. That's what makes it show up on `/settings/notifications` and honor the member's opt-outs and channel choices, and it's how new channels (email, push, SMS...) reach every kind at once.
 
 ```typescript
 const notifier = await createNotifier(serviceRoleClient, "prickle_checkin", memberIds); // batched lookups
@@ -145,6 +145,16 @@ for (const memberId of memberIds) {
 Layers: **channels** (`lib/channels/`: Slack today, later email/SMS/WhatsApp/push/in-app) are the shared delivery adapters; **notifications** sit on them and add per-kind member preferences; **messaging** (two-way chat, planned) will use the same adapters. Never call a provider from a feature. Adding a channel: `CHANNELS` entry in `lib/channels/catalog.ts` + adapter + register it in `lib/channels/index.ts`; no migration.
 
 Exceptions that stay direct: replies the member just asked for (Slack sign-in link), shared rooms (Wheel of Wonder intro), and staff-channel posts (`notifyStaffNewBook`, `notifyStaffNewAward`, the feedback widget). For a send the member explicitly requested that should still look like the notification (admin test DMs), use `createNotifier(..., { channels: ["slack"] })`, which skips preferences.
+
+### Tabbed Pages: Tabs Are Paths
+
+**RULE**: A tabbed page's tabs are URL paths, never `?tab=`: the first tab at the base path, the rest at `<basePath>/<id>` (`/my-prickles`, `/my-prickles/all`; `/settings/notifications`). See `lib/tab-routes.ts`.
+
+- The page's content lives in a shared server component taking `tab` (e.g. `app/(member)/my-prickles/MyPricklesPage.tsx`). The base `page.tsx` renders the first tab and calls `redirectLegacyTabParam` so old `?tab=` links (Slack DMs, calendar feeds, bookmarks) still land; each other tab is a folder whose `page.tsx` renders the shared component with its id. Static folders, not a catch-all, so they coexist with `[id]` siblings (`/projects/books` vs `/projects/[id]`).
+- Render `<Tabs basePath="/my-prickles" initialTab={tab} key={tab}>`: clicks switch instantly on the client and rewrite the path with `history.replaceState` (no server round trip). Controlled `TabBar` users call `replaceTabPath` + `useFollowTabPath`. Keep tab ids in a plain module, not a `"use client"` file, if a server page needs them.
+- Titles: export the page title and a tab-label map from the shared component and use them for the tab labels, each route's `metadata.title` (`tabTitle()` in `lib/tab-routes.ts` from `{ record?, section? }`: always most specific first, record · tab · section, since browsers cut titles off on the right; "All Prickles · My Prickles", "Fern Quillsby · Slack Activity"; no tab name on the first tab) and `<Tabs pageTitle>`, which sets `document.title` to the same string on a client tab switch (controlled `TabBar`: `setTabDocumentTitle`).
+- Server actions `revalidatePath(basePath, "layout")` so every tab path refreshes.
+- Query params are for state within a tab (`/my-prickles/all?commit=...`); switching tabs drops them.
 
 ### No Hardcoded Config
 

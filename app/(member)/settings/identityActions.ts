@@ -157,7 +157,7 @@ export async function updateRealName(name: string): Promise<{ success: true } | 
 
   if (error || !data) return { error: error?.message ?? "Couldn't update your name" };
 
-  revalidatePath("/settings");
+  revalidatePath("/settings", "layout");
   revalidatePath(`/members/${effectiveIdentity.memberId}`);
   return { success: true };
 }
@@ -193,7 +193,7 @@ export async function updateBirthday(
 
   if (error || !data) return { error: error?.message ?? "Couldn't update your birthday" };
 
-  revalidatePath("/settings");
+  revalidatePath("/settings", "layout");
   return { success: true };
 }
 
@@ -226,7 +226,7 @@ export async function addNameAlias(alias: string): Promise<{ success: true } | {
   // the response is sent so the member isn't stuck waiting on it.
   after(() => triggerReprocessing("member_name_aliases", "local"));
 
-  revalidatePath("/settings");
+  revalidatePath("/settings", "layout");
   return { success: true };
 }
 
@@ -260,7 +260,7 @@ export async function setNameAliasActive(
     after(() => triggerReprocessing("member_name_aliases", "local"));
   }
 
-  revalidatePath("/settings");
+  revalidatePath("/settings", "layout");
   return { success: true };
 }
 
@@ -296,7 +296,7 @@ export async function addEmailAlias(email: string): Promise<{ success: true } | 
 
   after(() => triggerReprocessing("member_email_aliases", "local"));
 
-  revalidatePath("/settings");
+  revalidatePath("/settings", "layout");
   return { success: true };
 }
 
@@ -322,6 +322,6 @@ export async function setEmailAliasActive(
     after(() => triggerReprocessing("member_email_aliases", "local"));
   }
 
-  revalidatePath("/settings");
+  revalidatePath("/settings", "layout");
   return { success: true };
 }

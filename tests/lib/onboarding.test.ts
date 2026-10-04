@@ -139,12 +139,12 @@ describe("hosting steps", () => {
     const host = { ...NOTHING, isHost: true, hostedRecently: true };
     const steps = buildOnboardingState(host, null, NEW_ACCOUNT, NOW).steps;
     expect(steps.find((s) => s.id === "hosting")).toMatchObject({
-      href: "/my-prickles?tab=hosting",
+      href: "/my-prickles/hosting",
       target: "hosting-schedule",
       done: false,
     });
     expect(steps.find((s) => s.id === "host-vibe")).toMatchObject({
-      href: "/settings?tab=hosting",
+      href: "/settings/hosting",
       target: "host-vibe",
       done: false,
     });

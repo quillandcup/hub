@@ -67,7 +67,7 @@ describe("OnboardingGuide", () => {
     expect(screen.getByRole("region", { name: "Getting started" })).toBeInTheDocument();
     expect(screen.getByText("0 of 4 done ▾")).toBeInTheDocument();
     expect(screen.getByText("Check your details")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Show me →" })).toHaveAttribute("href", "/settings?tab=identity");
+    expect(screen.getByRole("link", { name: "Show me →" })).toHaveAttribute("href", "/settings/identity");
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
@@ -79,8 +79,8 @@ describe("OnboardingGuide", () => {
   });
 
   it("spotlights each stop on the step's page in turn, and the step is done after the last", async () => {
-    nav.pathname = "/settings";
-    nav.search = "tab=identity";
+    nav.pathname = "/settings/identity";
+    nav.search = "";
     for (const id of ["identity-basics", "identity-names", "identity-emails"]) {
       const target = document.createElement("div");
       target.setAttribute("data-tour", id);
@@ -121,8 +121,8 @@ describe("OnboardingGuide", () => {
   });
 
   it("Hide closes the spotlight and offers Show me again", async () => {
-    nav.pathname = "/settings";
-    nav.search = "tab=identity";
+    nav.pathname = "/settings/identity";
+    nav.search = "";
     const target = document.createElement("div");
     target.setAttribute("data-tour", "identity-basics");
     document.body.appendChild(target);
@@ -163,8 +163,8 @@ describe("OnboardingGuide", () => {
   });
 
   it("folds the checklist to its header while a spotlight is up, and opens it on request", async () => {
-    nav.pathname = "/settings";
-    nav.search = "tab=identity";
+    nav.pathname = "/settings/identity";
+    nav.search = "";
     const target = document.createElement("div");
     target.setAttribute("data-tour", "identity-basics");
     document.body.appendChild(target);

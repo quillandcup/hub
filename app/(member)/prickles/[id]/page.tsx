@@ -94,7 +94,7 @@ export default async function PrickleDetailPage({
   const isAdmin = profileResult.data?.role === "admin";
   const isActingAsAdmin = isAdmin && !effectiveIdentity?.isSudo;
   const memberBasePath = isActingAsAdmin ? "/admin/members" : "/members";
-  const backHref = isActingAsAdmin ? "/admin/calendar" : "/my-prickles?tab=history";
+  const backHref = isActingAsAdmin ? "/admin/calendar" : "/my-prickles/history";
   const backLabel = isActingAsAdmin ? "← Back to Calendar" : "← Back to My Prickles";
   // Members go back to the My Prickles tab they came from (e.g. All Prickles), when known.
   const backLink = (className: string) =>

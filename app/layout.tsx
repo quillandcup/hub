@@ -10,6 +10,7 @@ import { GoogleAnalytics } from "@next/third-parties/google";
 import { EnvironmentIndicator } from "@/components/EnvironmentIndicator";
 import { ConsentBanner } from "@/components/ConsentBanner";
 import { countryNeedsConsent } from "@/lib/gdpr-countries";
+import { DEFAULT_TITLE, TITLE_TEMPLATE } from "@/lib/page-title";
 
 // Brand display serif for headings and the wordmark (tailwind `font-display`).
 const displayFont = Playfair_Display({
@@ -20,8 +21,8 @@ const displayFont = Playfair_Display({
 
 export const metadata: Metadata = {
   title: {
-    default: "Hedgie Hub",
-    template: "%s | Hedgie Hub",
+    default: DEFAULT_TITLE,
+    template: TITLE_TEMPLATE,
   },
   description:
     "The Quill & Cup member hub: find prickles and events, track your writing streaks and projects, and connect with fellow writers.",

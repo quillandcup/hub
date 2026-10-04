@@ -111,7 +111,7 @@ export default function CommitPanel({
       {saved && slots.length === 0 && (
         <p className="text-sm text-emerald-700 dark:text-emerald-400">
           Commitment saved. You&apos;ve got this!{" "}
-          <Link href="/my-prickles?tab=commitments" className="underline">
+          <Link href="/my-prickles/commitments" className="underline">
             See your commitments →
           </Link>
         </p>

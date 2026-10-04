@@ -415,7 +415,7 @@ export default function PrickleWizard({ members }: PrickleWizardProps) {
       </div>
 
       <p className="text-xs text-center text-slate-400 dark:text-slate-500">
-        <Link href="/my-prickles?tab=history" className="hover:underline">
+        <Link href="/my-prickles/history" className="hover:underline">
           Never mind, back to my calendar
         </Link>
       </p>

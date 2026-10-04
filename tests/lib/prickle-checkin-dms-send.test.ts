@@ -234,7 +234,7 @@ describe("sendCheckoutDMs", () => {
       "quick_log:proj2:scenes",
       undefined, // footer
     ]);
-    expect(blocks!.at(-1).elements.at(-1).text).toContain("/settings?tab=notifications|Notification settings");
+    expect(blocks!.at(-1).elements.at(-1).text).toContain("/settings/notifications|Notification settings");
   });
 
   it("skips an attendee who turned check-outs off, without logging it", async () => {

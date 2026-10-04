@@ -74,34 +74,34 @@ describe("setNotificationChannel", () => {
 describe("NotificationsPanel", () => {
   const initial = { channelsByKind: { prickle_checkin: ["slack" as const], prickle_checkout: [] }, readOnly: false };
 
-  it("shows each kind's channels and saves a switch", async () => {
+  it("shows each kind as a pressed or unpressed channel logo's channels and saves a switch", async () => {
     render(<NotificationsPanel initial={initial} />);
-    const checkin = screen.getByRole("checkbox", { name: "Prickle check-ins via Slack" });
-    const checkout = screen.getByRole("checkbox", { name: "Prickle check-outs via Slack" });
-    expect(checkin).toBeChecked();
-    expect(checkout).not.toBeChecked();
+    const checkin = screen.getByRole("button", { name: "Prickle check-ins via Slack" });
+    const checkout = screen.getByRole("button", { name: "Prickle check-outs via Slack" });
+    expect(checkin).toHaveAttribute("aria-pressed", "true");
+    expect(checkout).toHaveAttribute("aria-pressed", "false");
 
     await userEvent.click(checkin);
 
     await waitFor(() => expect(upserts()).toHaveLength(1));
-    expect(checkin).not.toBeChecked();
+    expect(checkin).toHaveAttribute("aria-pressed", "false");
   });
 
   it("reverts a switch whose save failed and says so", async () => {
     fake = createFakeSupabase({ notification_preferences: { error: { message: "boom" } } });
     vi.spyOn(console, "error").mockImplementation(() => {});
     render(<NotificationsPanel initial={initial} />);
-    const checkin = screen.getByRole("checkbox", { name: "Prickle check-ins via Slack" });
+    const checkin = screen.getByRole("button", { name: "Prickle check-ins via Slack" });
 
     await userEvent.click(checkin);
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't save");
-    expect(checkin).toBeChecked();
+    expect(checkin).toHaveAttribute("aria-pressed", "true");
   });
 
   it("disables every switch when read-only", () => {
     render(<NotificationsPanel initial={{ ...initial, readOnly: true }} />);
-    for (const box of screen.getAllByRole("checkbox")) expect(box).toBeDisabled();
+    for (const box of screen.getAllByRole("button")) expect(box).toBeDisabled();
     expect(screen.getByText(/sudo mode/)).toBeInTheDocument();
   });
 });
