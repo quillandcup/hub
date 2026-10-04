@@ -201,7 +201,7 @@ export default async function PrickleDetailPage({
     ? { typeId: prickle.type_id, ...slotTimeForInstant(prickle.start_time, SCHEDULE_TIMEZONE), timezone: SCHEDULE_TIMEZONE }
     : null;
   const calendarControl =
-    !isActingAsAdmin && effectiveIdentity && prickle.type_id && hasNotStarted(prickle.start_time) ? (
+    effectiveIdentity && prickle.type_id && hasNotStarted(prickle.start_time) ? (
       <AddPrickleToCalendar
         prickleId={prickle.id}
         typeName={typeName}
@@ -218,7 +218,7 @@ export default async function PrickleDetailPage({
 
   // Members log what they wrote here once the prickle has started; the entry is linked to it.
   const writingPanel =
-    !isActingAsAdmin && effectiveIdentity && !hasNotStarted(prickle.start_time) ? (
+    effectiveIdentity && !hasNotStarted(prickle.start_time) ? (
       <PrickleWritingPanel
         prickleId={prickle.id}
         entryDate={localDateOf(prickle.start_time, userTimezone === "browser" ? ORG_TIMEZONE : userTimezone)}
@@ -230,9 +230,10 @@ export default async function PrickleDetailPage({
       />
     ) : null;
 
+  // A check-in is the viewer's own, so admins with a member record get it too (the DM links here).
   // Admins can read check-ins but never write one for someone else, so in sudo it's read-only.
   const checkIn =
-    !isActingAsAdmin && effectiveIdentity ? (
+    effectiveIdentity ? (
       <PrickleCheckIn
         prickleId={prickle.id}
         hasStarted={!hasNotStarted(prickle.start_time)}

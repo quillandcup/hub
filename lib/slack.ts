@@ -46,7 +46,7 @@ export async function sendSlackDM(params: SendSlackDMParams): Promise<void> {
   }
 
   const slack = new WebClient(token);
-  await slack.chat.postMessage({ channel: slackUserId, text, blocks });
+  await slack.chat.postMessage({ channel: slackUserId, text, blocks, unfurl_links: false, unfurl_media: false });
 }
 
 
@@ -78,7 +78,7 @@ export async function notifyStaffNewBook(params: NotifyStaffNewBookParams): Prom
   ].join("\n");
 
   const slack = new WebClient(token);
-  await slack.chat.postMessage({ channel, text });
+  await slack.chat.postMessage({ channel, text, unfurl_links: false, unfurl_media: false });
 }
 
 export interface NotifyStaffNewAwardParams {
@@ -109,5 +109,5 @@ export async function notifyStaffNewAward(params: NotifyStaffNewAwardParams): Pr
   ].join("\n");
 
   const slack = new WebClient(token);
-  await slack.chat.postMessage({ channel, text });
+  await slack.chat.postMessage({ channel, text, unfurl_links: false, unfurl_media: false });
 }
