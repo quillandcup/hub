@@ -215,11 +215,11 @@ describe("sendCheckoutDMs", () => {
     });
   }
 
-  it("sends an attendee one DM with a dropdown per goal, in each goal's measure", async () => {
+  it("sends an attendee one DM with a number question per project, in its goal's measure", async () => {
     setup([
       goalRow("g1", "m1", "proj1", "words", "Novel"),
       goalRow("g2", "m1", "proj2", "scenes", "Memoir"),
-      goalRow("g3", "m1", "proj1", "words", "Novel"), // same project + measure: asked once
+      goalRow("g3", "m1", "proj1", "words", "Novel"), // same project: asked once
       goalRow("g4", "m2", "proj4", "words"), // didn't attend
     ]);
 
@@ -228,10 +228,11 @@ describe("sendCheckoutDMs", () => {
     const { slackUserId, blocks } = sendSlackDM.mock.calls[0][0];
     expect(slackUserId).toBe("U-m1");
     expect(blocks!.map((b: any) => b.block_id)).toEqual([
+      undefined, // rating question
       "prickle_checkin:p1:session_rating",
       "prickle_checkin:p1:feelings_after",
-      "quick_log:proj1:words",
-      "quick_log:proj2:scenes",
+      "quick_log:p1:proj1:words",
+      "quick_log:p1:proj2:scenes",
       undefined, // footer
     ]);
     expect(blocks!.at(-1).elements.at(-1).text).toContain("/settings/notifications|Notification settings");
@@ -274,8 +275,8 @@ describe("sendCheckoutDMs", () => {
 
     expect(await checkout()).toBe(1);
     const ids = sendSlackDM.mock.calls[0][0].blocks!.map((b: any) => b.block_id);
-    expect(ids).toContain("quick_log:proj2:scenes");
-    expect(ids).not.toContain("quick_log:proj1:words");
+    expect(ids).toContain("quick_log:p1:proj2:scenes");
+    expect(ids).not.toContain("quick_log:p1:proj1:words");
   });
 
   it("shows answers the attendee already saved", async () => {
@@ -284,8 +285,8 @@ describe("sendCheckoutDMs", () => {
     });
 
     await checkout();
-    const [rating, feelingsAfter] = sendSlackDM.mock.calls[0][0].blocks!;
-    expect(rating.accessory.initial_option.value).toBe("4");
+    const [, rating, feelingsAfter] = sendSlackDM.mock.calls[0][0].blocks!;
+    expect(rating.elements.filter((e: any) => e.style === "primary").map((e: any) => e.value)).toEqual(["4"]);
     expect(feelingsAfter.accessory.initial_options).toBeUndefined();
   });
 
@@ -356,7 +357,7 @@ describe("sendTestCheckinDM", () => {
     expect(dm.blocks!.map((b: any) => b.block_id).filter(Boolean)).toEqual([
       "prickle_checkin:p1:session_rating",
       "prickle_checkin:p1:feelings_after",
-      "quick_log:proj1:words",
+      "quick_log:p1:proj1:words",
     ]);
     expect(loggedAny()).toBe(false);
   });

@@ -24,6 +24,8 @@ import AddedToCalendarList from "./AddedToCalendarList";
 import { Tabs } from "@/components/Tabs";
 import { RememberTabUrl } from "@/components/ReturnToTab";
 import { ORG_TIMEZONE } from "@/lib/config";
+import { getMyCheckins, type CheckinHalf } from "@/app/(member)/prickles/checkin-actions";
+import type { CheckinInput } from "@/lib/prickle-checkins";
 
 const UPCOMING_WINDOW_DAYS = 14;
 const MAX_UPCOMING_DISPLAY = 8;
@@ -49,7 +51,16 @@ export const MY_PRICKLES_TAB_LABELS: Record<MyPricklesTabId, string> = {
  * ?commit=<seriesKey>[,...]) opens commit mode with those slots picked; an empty value opens it
  * with nothing picked.
  */
-export default async function MyPricklesPage({ tab, commit }: { tab: MyPricklesTabId; commit?: string }) {
+export default async function MyPricklesPage({
+  tab,
+  commit,
+  check,
+}: {
+  tab: MyPricklesTabId;
+  commit?: string;
+  /** History tab: open the check-in/check-out modal for this prickle on load (?checkin=<id> / ?checkout=<id>). */
+  check?: { prickleId: string; half: CheckinHalf; prefill: CheckinInput | null };
+}) {
   const supabase = await createClient();
   const user = await getCurrentUser();
   if (!user) redirect("/login");
@@ -79,6 +90,7 @@ export default async function MyPricklesPage({ tab, commit }: { tab: MyPricklesT
     commitments,
     calendarFeedUrls,
     calendarItems,
+    checkins,
   ] = await Promise.all([
     getRankedUpcomingPrickles(supabase, memberId, timeZone, now, UPCOMING_WINDOW_DAYS),
     getPrickleScheduleOverview(supabase, now, timeZone, SCHEDULE_LOOKBACK_DAYS, UPCOMING_WINDOW_DAYS),
@@ -98,6 +110,7 @@ export default async function MyPricklesPage({ tab, commit }: { tab: MyPricklesT
     getMyCommitments(),
     getMyCalendarFeedUrls(),
     getMyCalendarItems(),
+    getMyCheckins(),
   ]);
 
   const overrides = (lockRows ?? []).map((r) => ({ month: r.month as string, locked: r.locked as boolean }));
@@ -255,7 +268,9 @@ export default async function MyPricklesPage({ tab, commit }: { tab: MyPricklesT
                   attendance={attendance || []}
                   defaultTimezone={tzPref}
                   memberBasePath="/members"
-                  initialView="month"
+                  initialView={check ? "list" : "month"}
+                  checkins={checkins}
+                  initialCheck={check ?? null}
                 />
               ),
             },

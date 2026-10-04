@@ -4,6 +4,7 @@ import { requireAdminAction } from "@/lib/admin-auth";
 import { getEffectiveIdentity } from "@/lib/sudo";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { sendTestCheckinDM, type CheckinDMKind } from "@/lib/prickle-checkin-dms";
+import { formatPrickleTitle } from "@/lib/formatters";
 
 /**
  * Sends the signed-in admin a test check-in or check-out DM for this prickle, to see what members
@@ -21,7 +22,7 @@ export async function sendTestPrickleDM(prickleId: string, kind: CheckinDMKind) 
 
   const { data: prickle } = await auth.supabase
     .from("prickles")
-    .select("id, prickle_types:type_id(name)")
+    .select("id, start_time, host:prickle_host(name), prickle_types:type_id(name)")
     .eq("id", prickleId)
     .maybeSingle();
   const type = Array.isArray(prickle?.prickle_types) ? prickle.prickle_types[0] : prickle?.prickle_types;
@@ -32,7 +33,7 @@ export async function sendTestPrickleDM(prickleId: string, kind: CheckinDMKind) 
   const error = await sendTestCheckinDM(
     createServiceRoleClient(),
     identity.memberId,
-    { id: prickle.id, typeName: type.name },
+    { id: prickle.id, typeName: type.name, title: formatPrickleTitle(prickle) },
     kind
   );
   return error ? { error } : { success: true };

@@ -6,7 +6,9 @@ import {
   computeGoalProgress,
   computeHabitGoalProgress,
   derivePrickleHabitEntries,
-  MEASURE_QUICK_LOG_PRESETS,
+  PROGRESS_QUESTION_MEASURES,
+  progressMeasureFor,
+  progressQuestion,
   PROJECT_PHASES,
   PHASE_LABELS,
   WRITING_MEASURES,
@@ -39,21 +41,30 @@ describe("applyStartingBalance", () => {
   });
 });
 
-describe("MEASURE_QUICK_LOG_PRESETS", () => {
-  it("has a non-empty preset list for every loggable measure except 'prickles'", () => {
-    for (const measure of WRITING_MEASURES) {
-      if (measure === "prickles") {
-        expect(MEASURE_QUICK_LOG_PRESETS[measure]).toBeUndefined();
-        continue;
-      }
-      const presets = MEASURE_QUICK_LOG_PRESETS[measure];
-      expect(presets).toBeDefined();
-      expect(presets!.length).toBeGreaterThan(0);
-      for (const preset of presets!) {
-        expect(preset.label.length).toBeGreaterThan(0);
-        expect(preset.amount).toBeGreaterThanOrEqual(0);
-      }
-    }
+describe("progressQuestion", () => {
+  it("words the question for the measure, naming the project and prickle", () => {
+    expect(progressQuestion("words", "The Hedgehog's Journey", "Monday Progress Prickle with Jenn P")).toBe(
+      "How many words did you write on The Hedgehog's Journey during Monday Progress Prickle with Jenn P?"
+    );
+    expect(progressQuestion("time_minutes", "Novel", "Tuesday Sprint")).toBe(
+      "How many minutes did you spend on Novel during Tuesday Sprint?"
+    );
+    expect(progressQuestion("chapters", "Novel", "Tuesday Sprint")).toContain("chapters did you finish");
+  });
+
+  it("covers every measure except 'prickles', which is counted from attendance", () => {
+    expect(PROGRESS_QUESTION_MEASURES).toEqual(WRITING_MEASURES.filter((m) => m !== "prickles"));
+  });
+});
+
+describe("progressMeasureFor", () => {
+  it("uses the first goal measure that can be asked about, skipping 'prickles'", () => {
+    expect(progressMeasureFor(["prickles", "pages"], ["words"])).toBe("pages");
+  });
+
+  it("falls back to the measure last logged, then to minutes", () => {
+    expect(progressMeasureFor(["prickles"], ["scenes", "words"])).toBe("scenes");
+    expect(progressMeasureFor(["prickles"], [])).toBe("time_minutes");
   });
 });
 

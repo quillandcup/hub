@@ -10,7 +10,7 @@ import {
   type Need,
 } from "@/lib/prickle-checkins";
 
-// Check-in inputs shared by the prickle page's Check in card and the Log Progress modal.
+// Check-in inputs shared by the check-in/check-out modal and the Log Progress modal.
 
 export function chipClass(selected: boolean, disabled = false): string {
   const base = "px-3 py-1 rounded-full text-sm border transition-colors";
@@ -62,6 +62,7 @@ export function FeelingPicker({
   );
 }
 
+/** "How did it go?" as five stars side by side: picking one fills it and every star before it. */
 export function RatingPicker({
   label,
   value,
@@ -73,25 +74,32 @@ export function RatingPicker({
   onChange: (next: number | null) => void;
   readOnly?: boolean;
 }) {
+  const current = SESSION_RATINGS.find((r) => r.value === value);
   return (
     <fieldset>
       <legend className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">{label}</legend>
-      <div className="flex flex-wrap gap-2">
+      <div className="flex items-center gap-1">
         {SESSION_RATINGS.map((r) => {
           const isSelected = value === r.value;
+          const filled = value !== null && r.value <= value;
           return (
             <button
               key={r.value}
               type="button"
               aria-pressed={isSelected}
+              aria-label={`${r.value} of ${SESSION_RATINGS.length}: ${r.label}`}
+              title={r.label}
               disabled={readOnly}
               onClick={() => onChange(isSelected ? null : r.value)}
-              className={chipClass(isSelected)}
+              className={`text-2xl leading-none px-0.5 transition-colors disabled:cursor-default ${
+                filled ? "text-amber-500" : "text-slate-300 dark:text-slate-600 hover:text-amber-300"
+              }`}
             >
-              {r.label}
+              {filled ? "★" : "☆"}
             </button>
           );
         })}
+        {current && <span className="ml-2 text-sm text-slate-500 dark:text-slate-400">{current.label}</span>}
       </div>
     </fieldset>
   );

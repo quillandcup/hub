@@ -1,4 +1,9 @@
-import { MEASURE_QUICK_LOG_PRESETS, type WritingMeasure } from "@/lib/writing-projects";
+import {
+  PROGRESS_QUESTION_MEASURES,
+  progressMeasureFor,
+  progressQuestion,
+  type WritingMeasure,
+} from "@/lib/writing-projects";
 import { loadCalendarFeedPrickleIds } from "@/lib/calendar-feed";
 import { APP_URL } from "@/lib/config";
 import { createNotifier } from "@/lib/notifications/notify";
@@ -8,6 +13,7 @@ import { loadPresenceByMember, presenceDue, type PresenceInterval } from "@/lib/
 import {
   checkinAnswered,
   checkinFromRow,
+  checkinHref,
   checkoutAnswered,
   FEELINGS,
   isEmptyCheckin,
@@ -190,29 +196,16 @@ export async function tryRecordCheckinDM(
   return (data?.length ?? 0) > 0;
 }
 
-/**
- * Which measure the check-out DM's quick-log should ask about for this project. 'prickles'
- * itself is never a candidate -- it's computed live from attendance, nothing to quick-log (see
- * MEASURE_QUICK_LOG_PRESETS). If the member has logged entries in exactly one other measure on
- * this project, ask about that one; otherwise default to time_minutes, the fastest to estimate
- * right after a session and the universal fallback.
- */
-async function pickQuickLogMeasure(supabase: any, projectId: string, memberId: string): Promise<WritingMeasure> {
+/** Measures this member has logged on the project, most recent first (a recency hint, so only the latest entries are read). */
+async function recentMeasures(supabase: any, projectId: string, memberId: string): Promise<WritingMeasure[]> {
   const { data } = await supabase
     .from("writing_progress_entries")
     .select("measure")
     .eq("project_id", projectId)
-    .eq("member_id", memberId);
-
-  const distinct = [...new Set(((data ?? []) as any[]).map((e) => e.measure as WritingMeasure))];
-  return distinct.length === 1 ? distinct[0] : "time_minutes";
-}
-
-
-/** The measure a goal's quick-log prompt asks about: its own, unless it's 'prickles' (counted automatically from attendance). */
-async function quickLogMeasureFor(supabase: any, goal: GoalCandidate): Promise<WritingMeasure> {
-  if (MEASURE_QUICK_LOG_PRESETS[goal.measure]) return goal.measure;
-  return pickQuickLogMeasure(supabase, goal.projectId, goal.memberId);
+    .eq("member_id", memberId)
+    .order("created_at", { ascending: false })
+    .limit(50);
+  return [...new Set(((data ?? []) as any[]).map((e) => e.measure as WritingMeasure))];
 }
 
 export const QUICK_LOG_ACTION_ID = "writing_quick_log";
@@ -236,31 +229,58 @@ export interface QuickLogPrompt {
 }
 
 /**
- * The check-out DM's progress quick-log: a dropdown per project + measure. Each section's block_id
- * is unique so the interaction handler can replace just the answered one and leave the rest.
+ * The check-out DM's progress questions: a fill-in-the-blank number per project, worded for its
+ * measure ("How many words did you write on X during Y?"), answered by typing a number and
+ * pressing Enter (an input block with dispatch_action, so the answer arrives as a block_actions
+ * payload). Each block's id is unique and carries the prickle and project, so the interaction
+ * handler logs the right entry and replaces just the answered one.
  */
-export function buildQuickLogBlocks(typeName: string, prickleId: string, prompts: QuickLogPrompt[]): any[] {
-  return prompts.map((prompt) => {
-    const presets = MEASURE_QUICK_LOG_PRESETS[prompt.measure]!;
-    const question =
-      prompts.length === 1
-        ? `How much did you write during *${typeName}*?`
-        : `How much did you get done on *${prompt.projectTitle}* during *${typeName}*?`;
-    return {
-      type: "section",
-      block_id: `quick_log:${prompt.projectId}:${prompt.measure}`,
-      text: { type: "mrkdwn", text: question },
-      accessory: {
-        type: "static_select",
-        action_id: QUICK_LOG_ACTION_ID,
-        placeholder: { type: "plain_text", text: "Pick an amount" },
-        options: presets.map((p) => ({
-          text: { type: "plain_text", text: p.label },
-          value: `${prompt.projectId}:${prickleId}:${prompt.measure}:${p.amount}`,
-        })),
-      },
-    };
-  });
+export function buildQuickLogBlocks(prickleTitle: string, prickleId: string, prompts: QuickLogPrompt[]): any[] {
+  return prompts.map((prompt) => ({
+    type: "input",
+    block_id: `quick_log:${prickleId}:${prompt.projectId}:${prompt.measure}`,
+    dispatch_action: true,
+    optional: true,
+    label: plain(progressQuestion(prompt.measure, prompt.projectTitle, prickleTitle)),
+    element: {
+      type: "number_input",
+      action_id: QUICK_LOG_ACTION_ID,
+      is_decimal_allowed: false,
+      min_value: "0",
+      placeholder: plain("Type a number, press Enter"),
+      dispatch_action_config: { trigger_actions_on: ["on_enter_pressed"] },
+    },
+  }));
+}
+
+export interface QuickLogAnswer {
+  prickleId: string;
+  projectId: string;
+  measure: WritingMeasure;
+  amount: number;
+}
+
+/**
+ * Reads a progress answer out of a Slack block_actions action; null if it isn't a valid one. Also
+ * reads the one-tap dropdown older DMs still in people's Slack carry (value
+ * `project:prickle:measure:amount`).
+ */
+export function parseQuickLogAnswer(action: any): QuickLogAnswer | null {
+  if (action?.action_id !== QUICK_LOG_ACTION_ID) return null;
+  let prickleId: string | undefined;
+  let projectId: string | undefined;
+  let measure: string | undefined;
+  let amountRaw: unknown;
+  if (action.selected_option) {
+    [projectId, prickleId, measure, amountRaw] = String(action.selected_option.value ?? "").split(":");
+  } else {
+    [, prickleId, projectId, measure] = String(action.block_id ?? "").split(":");
+    amountRaw = action.value;
+  }
+  const amount = typeof amountRaw === "string" && amountRaw.trim() !== "" ? Number(amountRaw) : NaN;
+  if (!prickleId || !projectId || !(PROGRESS_QUESTION_MEASURES as string[]).includes(measure ?? "")) return null;
+  if (!Number.isFinite(amount) || amount < 0) return null;
+  return { prickleId, projectId, measure: measure as WritingMeasure, amount };
 }
 
 // --- Check-in questions ----------------------------------------------------------------------
@@ -281,13 +301,12 @@ type SlackOption = { text: { type: string; text: string }; value: string };
 
 const FEELING_OPTIONS: SlackOption[] = FEELINGS.map((f) => ({ text: plain(f.label), value: f.key }));
 const NEED_OPTIONS: SlackOption[] = NEEDS.map((n) => ({ text: plain(`${n.label} · ${n.hint}`), value: n.key }));
-const RATING_OPTIONS: SlackOption[] = SESSION_RATINGS.map((r) => ({ text: plain(r.label), value: String(r.value) }));
 
 /** Each field's Slack options, so a saved answer can be shown as the select's initial value. */
-const FIELD_OPTIONS: Record<CheckinField, SlackOption[]> = {
+/** Select fields only: the rating is a row of star buttons (ratingBlocks), not a select. */
+const FIELD_OPTIONS: Partial<Record<CheckinField, SlackOption[]>> = {
   feelings_before: FEELING_OPTIONS,
   need: NEED_OPTIONS,
-  session_rating: RATING_OPTIONS,
   feelings_after: FEELING_OPTIONS,
 };
 
@@ -317,7 +336,7 @@ function withInitial(accessory: any, field: CheckinField, values: string[]): any
   const rest = { ...accessory };
   delete rest.initial_option;
   delete rest.initial_options;
-  const selected = FIELD_OPTIONS[field].filter((o) => values.includes(o.value));
+  const selected = (FIELD_OPTIONS[field] ?? []).filter((o) => values.includes(o.value));
   if (selected.length === 0) return rest;
   return isMultiField(field) ? { ...rest, initial_options: selected } : { ...rest, initial_option: selected[0] };
 }
@@ -345,13 +364,35 @@ function checkinQuestion(prickleId: string, field: CheckinField, question: strin
   };
 }
 
+/**
+ * "How did it go?" as five star buttons side by side (Slack has no rating element): the question,
+ * then one row of buttons, the saved rating's button highlighted. Each button's value is its
+ * rating; the row's block_id is the usual check-in one so the answer saves like any other.
+ */
+function ratingBlocks(prickleId: string, question: string, saved: CheckinInput | null): any[] {
+  return [
+    { type: "section", text: { type: "mrkdwn", text: question } },
+    {
+      type: "actions",
+      block_id: checkinBlockId(prickleId, "session_rating"),
+      elements: SESSION_RATINGS.map((r) => ({
+        type: "button",
+        action_id: `${CHECKIN_ANSWER_ACTION_ID}:${r.value}`,
+        text: plain("★".repeat(r.value)),
+        value: String(r.value),
+        ...(saved?.sessionRating === r.value ? { style: "primary" } : {}),
+      })),
+    },
+  ];
+}
+
 function checkinFooter(prickleId: string): any {
   return {
     type: "context",
     elements: [
       {
         type: "mrkdwn",
-        text: `Optional. Answers save to your <${APP_URL}/prickles/${prickleId}|check-in for this prickle>, which only you and the admins can see.`,
+        text: `Optional. Answers save to your <${APP_URL}${checkinHref(prickleId, "checkin")}|check-in for this prickle>, which only you and the admins can see.`,
       },
     ],
   };
@@ -375,12 +416,13 @@ export function buildCheckoutBlocks(
   prickleId: string,
   typeName: string,
   saved: CheckinInput | null,
-  prompts: QuickLogPrompt[]
+  prompts: QuickLogPrompt[],
+  prickleTitle: string = typeName
 ): any[] {
   return [
-    checkinQuestion(prickleId, "session_rating", `Checking out of *${typeName}*: how did it go?`, saved),
+    ...ratingBlocks(prickleId, `Checking out of *${typeName}*: how did it go?`, saved),
     checkinQuestion(prickleId, "feelings_after", "How are you feeling now?", saved),
-    ...buildQuickLogBlocks(typeName, prickleId, prompts),
+    ...buildQuickLogBlocks(prickleTitle, prickleId, prompts),
     checkinFooter(prickleId),
   ];
 }
@@ -394,12 +436,16 @@ export interface CheckinAnswer {
 
 /** Reads a check-in answer out of a Slack block_actions action; null if it isn't one. */
 export function parseCheckinAnswer(action: any): CheckinAnswer | null {
-  if (action?.action_id !== CHECKIN_ANSWER_ACTION_ID) return null;
+  // Selects use the bare action id; each rating star button appends its value (action ids are unique per block).
+  if (action?.action_id !== CHECKIN_ANSWER_ACTION_ID && !String(action?.action_id).startsWith(`${CHECKIN_ANSWER_ACTION_ID}:`)) {
+    return null;
+  }
   const [prefix, prickleId, field] = String(action.block_id ?? "").split(":");
   if (prefix !== "prickle_checkin" || !prickleId || !(CHECKIN_FIELDS as readonly string[]).includes(field)) return null;
   let values: string[] = [];
   if (Array.isArray(action.selected_options)) values = action.selected_options.map((o: any) => String(o?.value));
   else if (action.selected_option) values = [String(action.selected_option.value)];
+  else if (action.type === "button" && action.value !== undefined) values = [String(action.value)];
   return { prickleId, field: field as CheckinField, values };
 }
 
@@ -421,9 +467,21 @@ export function applyCheckinAnswer(checkin: CheckinInput, field: CheckinField, v
 export function withSavedAnswer(blocks: any[] | undefined, answer: CheckinAnswer): any[] | undefined {
   if (!Array.isArray(blocks)) return blocks;
   const blockId = checkinBlockId(answer.prickleId, answer.field);
-  return blocks.map((b) =>
-    b.block_id === blockId && b.accessory ? { ...b, accessory: withInitial(b.accessory, answer.field, answer.values) } : b
-  );
+  return blocks.map((b) => {
+    if (b.block_id !== blockId) return b;
+    if (b.accessory) return { ...b, accessory: withInitial(b.accessory, answer.field, answer.values) };
+    // The star row: highlight the picked button only.
+    if (Array.isArray(b.elements)) {
+      return {
+        ...b,
+        elements: b.elements.map((el: any) => {
+          const { style: _style, ...rest } = el;
+          return el.value === answer.values[0] ? { ...rest, style: "primary" } : rest;
+        }),
+      };
+    }
+    return b;
+  });
 }
 
 const EMPTY_CHECKIN: CheckinInput = { feelingsBefore: [], need: null, sessionRating: null, feelingsAfter: [] };
@@ -513,6 +571,8 @@ const PRESENCE_LOOKBEHIND_MS = 12 * 60 * 60 * 1000;
 export interface RecentPrickle {
   id: string;
   typeName: string;
+  /** How the prickle is named in a question, e.g. "Monday Progress Prickle with Jenn P" (see formatPrickleTitle); the type name when unknown. */
+  title?: string;
   startTime: string;
   endTime: string;
 }
@@ -680,14 +740,24 @@ export async function sendCheckoutDMs(
   return sent;
 }
 
-/** The check-out DM's quick-log prompts for these goals. Two goals on one project in the same measure would be the same question -- asked once. */
+/**
+ * The check-out DM's progress prompts for these goals: one question per project, in the measure
+ * its goals track (or, for a prickles-only goal, what they last logged, else minutes), the same
+ * rule the web check-out follows (progressMeasureFor).
+ */
 async function quickLogPrompts(supabase: any, goals: GoalCandidate[]): Promise<QuickLogPrompt[]> {
-  const prompts = new Map<string, QuickLogPrompt>();
+  const byProject = new Map<string, { goal: GoalCandidate; measures: WritingMeasure[] }>();
   for (const goal of goals) {
-    const measure = await quickLogMeasureFor(supabase, goal);
-    prompts.set(`${goal.projectId}:${measure}`, { projectId: goal.projectId, projectTitle: goal.projectTitle, measure });
+    const entry = byProject.get(goal.projectId) ?? { goal, measures: [] };
+    entry.measures.push(goal.measure);
+    byProject.set(goal.projectId, entry);
   }
-  return [...prompts.values()];
+  const prompts: QuickLogPrompt[] = [];
+  for (const { goal, measures } of byProject.values()) {
+    const measure = progressMeasureFor(measures, await recentMeasures(supabase, goal.projectId, goal.memberId));
+    prompts.push({ projectId: goal.projectId, projectTitle: goal.projectTitle, measure });
+  }
+  return prompts;
 }
 
 /**
@@ -698,7 +768,7 @@ async function quickLogPrompts(supabase: any, goals: GoalCandidate[]): Promise<Q
  * - Check-out: for CHECKOUT_TIME_SENSITIVE_MS after the prickle ends (one sent later, e.g. from
  *   the attendance backstop, goes straight to the bell).
  */
-type DMPrickle = { id: string; typeName: string; startTime?: string; endTime?: string };
+type DMPrickle = { id: string; typeName: string; title?: string; startTime?: string; endTime?: string };
 
 export const CHECKOUT_TIME_SENSITIVE_MS = 3 * 60 * 60 * 1000;
 
@@ -719,7 +789,7 @@ export function checkinMessage(prickle: DMPrickle, saved: CheckinInput | null, {
   const blocks = buildCheckinBlocks(prickle.id, prickle.typeName, saved);
   return {
     text: `${test ? "[Test] " : ""}Ready for ${prickle.typeName} in ~20 min? Check in: how are you feeling coming in?`,
-    url: `${APP_URL}/prickles/${prickle.id}`,
+    url: `${APP_URL}${checkinHref(prickle.id, "checkin")}`,
     slackBlocks: test ? [TEST_BANNER, ...blocks] : blocks,
     ref: prickle.id,
     timeSensitiveUntil: offsetIso(prickle.startTime, 0),
@@ -733,10 +803,10 @@ export function checkoutMessage(
   prompts: QuickLogPrompt[],
   { test = false } = {}
 ): OutboundMessage {
-  const blocks = buildCheckoutBlocks(prickle.id, prickle.typeName, saved, prompts);
+  const blocks = buildCheckoutBlocks(prickle.id, prickle.typeName, saved, prompts, prickle.title ?? prickle.typeName);
   return {
     text: `${test ? "[Test] " : ""}Checking out of ${prickle.typeName}: how did it go?`,
-    url: `${APP_URL}/prickles/${prickle.id}`,
+    url: `${APP_URL}${checkinHref(prickle.id, "checkout")}`,
     slackBlocks: test ? [TEST_BANNER, ...blocks] : blocks,
     ref: prickle.id,
     timeSensitiveUntil: offsetIso(prickle.endTime, CHECKOUT_TIME_SENSITIVE_MS),

@@ -36,7 +36,9 @@ beforeEach(() => {
   sendTestCheckinDM.mockClear();
   useFakeSupabase({
     user_profiles: userProfiles,
-    prickles: { data: [{ id: "p1", prickle_types: { name: "Progress Prickle" } }] },
+    prickles: {
+      data: [{ id: "p1", start_time: "2026-10-05T17:00:00Z", host: { name: "Jenn Parker" }, prickle_types: { name: "Progress Prickle" } }],
+    },
   });
 });
 
@@ -47,7 +49,7 @@ describe("sendTestPrickleDM", () => {
     expect(sendTestCheckinDM).toHaveBeenCalledWith(
       "service-client",
       "member-bramble",
-      { id: "p1", typeName: "Progress Prickle" },
+      { id: "p1", typeName: "Progress Prickle", title: "Monday Progress Prickle with Jenn P" },
       "prickle_checkout"
     );
   });

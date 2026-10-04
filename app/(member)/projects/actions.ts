@@ -795,7 +795,10 @@ export async function logProgress(
   revalidatePath("/projects", "layout");
   revalidatePath(`/projects/${input.projectId}`);
   revalidatePath("/dashboard");
-  if (input.prickleId) revalidatePath(`/prickles/${input.prickleId}`);
+  if (input.prickleId) {
+    revalidatePath(`/prickles/${input.prickleId}`);
+    revalidatePath("/my-prickles", "layout");
+  }
   return { success: true, id: data.id };
 }
 

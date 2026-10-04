@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { createNotifier } from "@/lib/notifications/notify";
 import { withCronHeartbeat } from "@/lib/cron-heartbeats";
+import { formatPrickleTitle } from "@/lib/formatters";
 import {
   checkinAnswered,
   checkinMessage,
@@ -58,11 +59,16 @@ async function runPrickleCheckins(request: NextRequest): Promise<NextResponse> {
   return NextResponse.json({ checkins, checkouts });
 }
 
-/** Maps prickle rows with an inner-joined prickle_types(name) to id + type name, dropping unnamed ones. */
-function withTypeName<T extends object>(rows: any[], extra: (r: any) => T): (T & { id: string; typeName: string })[] {
+/** Maps prickle rows with an inner-joined prickle_types(name) to id, type name and title, dropping unnamed ones. */
+function withTypeName<T extends object>(
+  rows: any[],
+  extra: (r: any) => T
+): (T & { id: string; typeName: string; title: string })[] {
   return rows.flatMap((r) => {
     const type = Array.isArray(r.prickle_types) ? r.prickle_types[0] : r.prickle_types;
-    return type?.name ? [{ id: r.id as string, typeName: type.name as string, ...extra(r) }] : [];
+    return type?.name
+      ? [{ id: r.id as string, typeName: type.name as string, title: formatPrickleTitle(r), ...extra(r) }]
+      : [];
   });
 }
 
@@ -70,7 +76,7 @@ function withTypeName<T extends object>(rows: any[], extra: (r: any) => T): (T &
 async function loadRecentPrickles(supabase: SupabaseClient, now: number): Promise<RecentPrickle[]> {
   const { data } = await supabase
     .from("prickles")
-    .select("id, start_time, end_time, prickle_types!inner(name, purpose)")
+    .select("id, start_time, end_time, host:prickle_host(name), prickle_types!inner(name, purpose)")
     .lte("start_time", new Date(now).toISOString())
     .gte("end_time", new Date(now - CHECKOUT_LOOKBACK_MS).toISOString())
     .eq("prickle_types.purpose", "writing");

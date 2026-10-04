@@ -11,6 +11,7 @@ import {
   groupByMember,
   dueCheckoutMembers,
   parseCheckinAnswer,
+  parseQuickLogAnswer,
   planCheckinDMs,
   planCheckoutDMs,
   replaceAnsweredBlock,
@@ -144,29 +145,66 @@ describe("groupByMember", () => {
 });
 
 describe("buildQuickLogBlocks", () => {
-  it("asks a single goal in its own measure", () => {
-    const [block] = buildQuickLogBlocks("Progress Prickle", "p1", [
-      { projectId: "proj", projectTitle: "Novel", measure: "chapters" },
+  it("asks for a number, worded for the measure, naming the project and prickle", () => {
+    const [block] = buildQuickLogBlocks("Monday Progress Prickle with Jenn P", "p1", [
+      { projectId: "proj", projectTitle: "The Hedgehog's Journey", measure: "words" },
     ]);
-    expect(block.text.text).toBe("How much did you write during *Progress Prickle*?");
-    expect(block.accessory.action_id).toBe(QUICK_LOG_ACTION_ID);
-    expect(block.accessory.options[0]).toEqual({
-      text: { type: "plain_text", text: "1 chapter" },
-      value: "proj:p1:chapters:1",
+    expect(block.type).toBe("input");
+    expect(block.dispatch_action).toBe(true);
+    expect(block.label.text).toBe(
+      "How many words did you write on The Hedgehog's Journey during Monday Progress Prickle with Jenn P?"
+    );
+    expect(block.block_id).toBe("quick_log:p1:proj:words");
+    expect(block.element).toMatchObject({
+      type: "number_input",
+      action_id: QUICK_LOG_ACTION_ID,
+      is_decimal_allowed: false,
+      dispatch_action_config: { trigger_actions_on: ["on_enter_pressed"] },
     });
   });
 
-  it("names each project when asking about several goals, with distinct block ids", () => {
+  it("varies the question by measure and keeps block ids distinct per project", () => {
     const blocks = buildQuickLogBlocks("Progress Prickle", "p1", [
-      { projectId: "a", projectTitle: "Novel", measure: "words" },
+      { projectId: "a", projectTitle: "Novel", measure: "time_minutes" },
       { projectId: "b", projectTitle: "Memoir", measure: "scenes" },
     ]);
-    expect(blocks.map((b) => b.text.text)).toEqual([
-      "How much did you get done on *Novel* during *Progress Prickle*?",
-      "How much did you get done on *Memoir* during *Progress Prickle*?",
+    expect(blocks.map((b) => b.label.text)).toEqual([
+      "How many minutes did you spend on Novel during Progress Prickle?",
+      "How many scenes did you write on Memoir during Progress Prickle?",
     ]);
     expect(new Set(blocks.map((b) => b.block_id)).size).toBe(2);
-    expect(blocks[1].accessory.options[0].value).toBe("b:p1:scenes:1");
+  });
+});
+
+describe("parseQuickLogAnswer", () => {
+  const base = { action_id: QUICK_LOG_ACTION_ID, block_id: "quick_log:p1:proj:words" };
+
+  it("reads a typed amount", () => {
+    expect(parseQuickLogAnswer({ ...base, type: "number_input", value: "450" })).toEqual({
+      prickleId: "p1",
+      projectId: "proj",
+      measure: "words",
+      amount: 450,
+    });
+    expect(parseQuickLogAnswer({ ...base, value: "0" })?.amount).toBe(0);
+  });
+
+  it("still reads the dropdown from an older DM", () => {
+    expect(
+      parseQuickLogAnswer({
+        action_id: QUICK_LOG_ACTION_ID,
+        block_id: "quick_log:proj:words",
+        selected_option: { value: "proj:p1:words:500" },
+      })
+    ).toEqual({ prickleId: "p1", projectId: "proj", measure: "words", amount: 500 });
+  });
+
+  it("rejects blanks, negatives, non-numbers, unknown measures and other actions", () => {
+    expect(parseQuickLogAnswer({ ...base, value: "" })).toBeNull();
+    expect(parseQuickLogAnswer({ ...base, value: "-5" })).toBeNull();
+    expect(parseQuickLogAnswer({ ...base, value: "lots" })).toBeNull();
+    expect(parseQuickLogAnswer({ ...base, block_id: "quick_log:p1:proj:prickles", value: "3" })).toBeNull();
+    expect(parseQuickLogAnswer({ action_id: "other", block_id: base.block_id, value: "3" })).toBeNull();
   });
 });
 
@@ -176,7 +214,7 @@ describe("replaceAnsweredBlock", () => {
     { projectId: "b", projectTitle: "Memoir", measure: "scenes" },
   ]);
 
-  it("replaces only the answered dropdown", () => {
+  it("replaces only the answered question", () => {
     const updated = replaceAnsweredBlock(blocks, blocks[0].block_id, "✅ Logged");
     expect(updated[0]).toEqual({ type: "section", text: { type: "mrkdwn", text: "✅ Logged" } });
     expect(updated[1]).toBe(blocks[1]);
@@ -202,7 +240,7 @@ describe("buildCheckinBlocks", () => {
     expect(feelings.accessory.options.map((o: any) => o.value)).toContain("tired");
     expect(need.accessory.type).toBe("static_select");
     expect(need.accessory.options[0]).toEqual({ text: { type: "plain_text", text: "Momentum · Get words down" }, value: "momentum" });
-    expect(footer.elements[0].text).toContain("/prickles/p1|check-in for this prickle>");
+    expect(footer.elements[0].text).toContain("/my-prickles/history?checkin=p1|check-in for this prickle>");
   });
 
   it("starts from the saved answers", () => {
@@ -213,18 +251,28 @@ describe("buildCheckinBlocks", () => {
 });
 
 describe("buildCheckoutBlocks", () => {
-  it("asks how it went and how they feel now before the quick-log", () => {
-    const blocks = buildCheckoutBlocks("p1", "Progress Prickle", { ...EMPTY, sessionRating: 5 }, [
-      { projectId: "a", projectTitle: "Novel", measure: "words" },
-    ]);
+  it("asks how it went as five star buttons, then how they feel now, then the progress questions", () => {
+    const blocks = buildCheckoutBlocks(
+      "p1",
+      "Progress Prickle",
+      { ...EMPTY, sessionRating: 4 },
+      [{ projectId: "a", projectTitle: "Novel", measure: "words" }],
+      "Monday Progress Prickle with Jenn P"
+    );
     expect(blocks.map((b) => b.block_id)).toEqual([
+      undefined,
       "prickle_checkin:p1:session_rating",
       "prickle_checkin:p1:feelings_after",
-      "quick_log:a:words",
+      "quick_log:p1:a:words",
       undefined,
     ]);
-    expect(blocks[0].accessory.initial_option).toEqual({ text: { type: "plain_text", text: "Great" }, value: "5" });
-    expect(blocks[1].accessory.initial_options).toBeUndefined();
+    const stars = blocks[1];
+    expect(stars.type).toBe("actions");
+    expect(stars.elements.map((e: any) => e.text.text)).toEqual(["★", "★★", "★★★", "★★★★", "★★★★★"]);
+    expect(stars.elements.map((e: any) => e.value)).toEqual(["1", "2", "3", "4", "5"]);
+    expect(stars.elements.filter((e: any) => e.style === "primary").map((e: any) => e.value)).toEqual(["4"]);
+    expect(blocks[3].label.text).toContain("during Monday Progress Prickle with Jenn P?");
+    expect(blocks[2].accessory.initial_options).toBeUndefined();
   });
 });
 
@@ -245,6 +293,17 @@ describe("parseCheckinAnswer", () => {
     ).toEqual({ prickleId: "p1", field: "session_rating", values: ["3"] });
   });
 
+  it("reads a star button, whose action id carries its rating", () => {
+    expect(
+      parseCheckinAnswer({
+        action_id: `${CHECKIN_ANSWER_ACTION_ID}:5`,
+        block_id: "prickle_checkin:p1:session_rating",
+        type: "button",
+        value: "5",
+      })
+    ).toEqual({ prickleId: "p1", field: "session_rating", values: ["5"] });
+  });
+
   it("ignores other actions and unknown fields", () => {
     expect(parseCheckinAnswer({ action_id: QUICK_LOG_ACTION_ID, block_id: "prickle_checkin:p1:need" })).toBeNull();
     expect(parseCheckinAnswer({ action_id: CHECKIN_ANSWER_ACTION_ID, block_id: "prickle_checkin:p1:host" })).toBeNull();
@@ -262,6 +321,13 @@ describe("applyCheckinAnswer", () => {
 });
 
 describe("withSavedAnswer", () => {
+  it("highlights the picked star and clears the previous one", () => {
+    const blocks = buildCheckoutBlocks("p1", "Progress Prickle", { ...EMPTY, sessionRating: 2 }, []);
+    const updated = withSavedAnswer(blocks, { prickleId: "p1", field: "session_rating", values: ["5"] })!;
+    const row = updated.find((b) => b.block_id === "prickle_checkin:p1:session_rating");
+    expect(row.elements.filter((e: any) => e.style === "primary").map((e: any) => e.value)).toEqual(["5"]);
+  });
+
   it("writes the pick into that question only", () => {
     const blocks = buildCheckinBlocks("p1", "Progress Prickle", null);
     const updated = withSavedAnswer(blocks, { prickleId: "p1", field: "need", values: ["company"] })!;

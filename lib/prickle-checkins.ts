@@ -105,9 +105,10 @@ export const SESSION_RATINGS = [
  * - Check-out, afterwards: how it went (sessionRating) and how they feel now (feelingsAfter).
  * Both are stored on the same prickle_checkins row.
  *
- * On the site, the prickle page is where both halves live and stay editable any time: the
- * check-in always, the check-out once the prickle has started. The Log Progress
- * modal asks only the check-out and links to the page for the check-in. The Slack DMs keep their
+ * On the site, both halves live in the check-in / check-out modal opened from the Attendance
+ * History rows (checkinHref), editable any time: the check-in always, the check-out (with the
+ * progress question per project) once the prickle has started. The prickle page only links there.
+ * The Log Progress modal asks only the check-out and links to the modal for the check-in. The Slack DMs keep their
  * own timing (check-in ~20 min before, check-out 5 min after the end or 10 min after leaving early).
  */
 export interface CheckinInput {
@@ -209,8 +210,26 @@ export function toggleFeeling(selected: Feeling[], feeling: Feeling): Feeling[] 
 }
 
 /**
- * A prickle page link carrying "coming in" answers (e.g. from Find a Prickle), so the
- * check-in card there starts pre-filled. Nothing is saved until the member saves the card.
+ * Where a member checks in or out of a prickle: its row on My Prickles' Attendance History, with
+ * the check-in / check-out modal open. Slack DMs, notifications and the prickle page link here.
+ * `feelings` / `need` carry "coming in" answers (e.g. from Find a Prickle) to pre-fill the check-in.
+ */
+export function checkinHref(
+  prickleId: string,
+  half: "checkin" | "checkout",
+  feelings: Feeling[] = [],
+  need: Need | null = null
+): string {
+  const params = new URLSearchParams({ [half]: prickleId });
+  if (feelings.length > 0) params.set("feel", feelings.join(","));
+  if (need) params.set("need", need);
+  return `/my-prickles/history?${params.toString()}`;
+}
+
+/**
+ * A prickle page link carrying "coming in" answers (e.g. from Find a Prickle). The page passes
+ * them on to its check-in link (checkinHref), so the check-in starts pre-filled. Nothing is saved
+ * until the member saves.
  */
 export function prickleHref(prickleId: string, feelings: Feeling[], need: Need | null): string {
   const params = new URLSearchParams();

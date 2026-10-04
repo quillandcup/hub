@@ -12,13 +12,10 @@ import { findUnmatchedZoomAttendees } from "@/lib/prickle-unmatched";
 import AliasSearchForm from "@/app/(admin)/admin/hygiene/unmatched-zoom/AliasSearchForm";
 import { formatPrickleTitle } from "@/lib/formatters";
 import { computeHostStatus } from "@/lib/hosting-stats";
-import { getMyEntriesForPrickle, getMyProjects } from "@/app/(member)/projects/actions";
-import PrickleWritingPanel from "@/components/writing/PrickleWritingPanel";
-import PrickleCheckIn from "@/components/writing/PrickleCheckIn";
+import { getMyEntriesForPrickle } from "@/app/(member)/projects/actions";
 import { getMyCheckin } from "@/app/(member)/prickles/checkin-actions";
 import { parseCheckinPrefill } from "@/lib/prickle-checkins";
-import { localDateOf } from "@/lib/prickle-writing";
-import { ORG_TIMEZONE } from "@/lib/config";
+import PrickleCheckLinks from "@/components/writing/PrickleCheckLinks";
 import { getMyCalendarItems } from "@/app/(member)/my-prickles/calendar-feed-actions";
 import { AddPrickleToCalendar } from "@/app/(member)/my-prickles/AddToCalendar";
 import { prickleCalendarState, SCHEDULE_TIMEZONE } from "@/lib/calendar-feed";
@@ -78,11 +75,10 @@ export default async function PrickleDetailPage({
     redirect("/login");
   }
 
-  const [profileResult, effectiveIdentity, prickle, myProjects, calendarItems, myPrickleEntries, myCheckin] = await Promise.all([
+  const [profileResult, effectiveIdentity, prickle, calendarItems, myPrickleEntries, myCheckin] = await Promise.all([
     supabase.from("user_profiles").select("role").eq("id", user.id).single(),
     getEffectiveIdentity(user),
     getPrickle(id),
-    getMyProjects(),
     getMyCalendarItems(),
     getMyEntriesForPrickle(id),
     getMyCheckin(id),
@@ -216,30 +212,22 @@ export default async function PrickleDetailPage({
       />
     ) : null;
 
-  // Members log what they wrote here once the prickle has started; the entry is linked to it.
-  const writingPanel =
-    effectiveIdentity && !hasNotStarted(prickle.start_time) ? (
-      <PrickleWritingPanel
+  // Check-in, check-out and logged progress are the viewer's own and live in a modal on My Prickles'
+  // Attendance History; here, only a link, and only when it's relevant: before the prickle (to
+  // check in) or after it for someone who was there or already has something saved. Admins with a
+  // member record get it too (the DM links there).
+  const started = !hasNotStarted(prickle.start_time);
+  const attended = ((attendanceRecords ?? []) as unknown as { member_id: string }[]).some(
+    (a) => a.member_id === effectiveIdentity?.memberId
+  );
+  const checkLinks =
+    effectiveIdentity && (!started || attended || myCheckin || myPrickleEntries.length > 0) ? (
+      <PrickleCheckLinks
         prickleId={prickle.id}
-        entryDate={localDateOf(prickle.start_time, userTimezone === "browser" ? ORG_TIMEZONE : userTimezone)}
-        attended={((attendanceRecords ?? []) as unknown as { member_id: string }[]).some(
-          (a) => a.member_id === effectiveIdentity.memberId
-        )}
-        projects={myProjects.map((p) => ({ id: p.id, title: p.title }))}
+        hasStarted={started}
+        checkin={myCheckin}
         entries={myPrickleEntries}
-      />
-    ) : null;
-
-  // A check-in is the viewer's own, so admins with a member record get it too (the DM links here).
-  // Admins can read check-ins but never write one for someone else, so in sudo it's read-only.
-  const checkIn =
-    effectiveIdentity ? (
-      <PrickleCheckIn
-        prickleId={prickle.id}
-        hasStarted={!hasNotStarted(prickle.start_time)}
-        initial={myCheckin}
         prefill={checkinPrefill}
-        readOnly={effectiveIdentity.isSudo}
       />
     ) : null;
 
@@ -257,8 +245,7 @@ export default async function PrickleDetailPage({
 
       <main className="container mx-auto px-6 py-8">
         <div className="max-w-4xl mx-auto space-y-6">
-          {checkIn}
-          {writingPanel}
+          {checkLinks}
           <PrickleDetails
             prickle={prickle}
             attendanceRecords={attendanceRecords || []}

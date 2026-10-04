@@ -72,7 +72,7 @@ const routeProps = (searchParams: Record<string, string> = {}) => ({
   params: Promise.resolve({}),
   searchParams: Promise.resolve(searchParams),
 });
-const renderTab = (Route: () => React.ReactNode) => renderServerRoute(Route, undefined as never);
+const renderTab = (Route: (props: never) => React.ReactNode) => renderServerRoute(Route, undefined as never);
 
 beforeEach(() => {
   resetServerPageMocks();
@@ -90,7 +90,7 @@ describe("My Prickles tabs that replaced standalone pages", () => {
   });
 
   it("/my-prickles/history opens the effective member's attendance calendar (was /calendar)", async () => {
-    await renderTab(HistoryRoute);
+    await renderServerRoute(HistoryRoute, routeProps());
     expect(screen.getByRole("tab", { name: "Attendance History" })).toHaveAttribute("aria-selected", "true");
     expect(within(screen.getByRole("tabpanel")).getByTestId("history-calendar")).toHaveTextContent(
       `member: ${MEMBER_IDENTITY.memberId}`

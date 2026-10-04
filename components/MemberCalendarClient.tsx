@@ -6,6 +6,8 @@ import CalendarScrollContainer from "./CalendarScrollContainer";
 import AttendanceMonthGrid from "./AttendanceMonthGrid";
 import AttendanceListTable from "./AttendanceListTable";
 import { ORG_TIMEZONE } from "@/lib/config";
+import type { CheckinInput } from "@/lib/prickle-checkins";
+import type { CheckinHalf } from "@/app/(member)/prickles/checkin-actions";
 
 interface Props {
   memberId: string;
@@ -14,6 +16,10 @@ interface Props {
   memberBasePath?: string;
   prickleBasePath?: string;
   initialView?: "month" | "week" | "list";
+  /** The viewer's own check-ins by prickle id: adds Check in / Check out pills to the list view. */
+  checkins?: Record<string, CheckinInput>;
+  /** Opens the check-in modal on load, in the list view. */
+  initialCheck?: { prickleId: string; half: CheckinHalf; prefill: CheckinInput | null } | null;
 }
 
 function formatWeekRange(start: Date, endExclusive: Date): string {
@@ -47,6 +53,8 @@ export default function MemberCalendarClient({
   memberBasePath = "/members",
   prickleBasePath = "/prickles",
   initialView = "month",
+  checkins,
+  initialCheck = null,
 }: Props) {
   const [detectedTimezone, setDetectedTimezone] = useState<string | null>(null);
   useEffect(() => {
@@ -290,6 +298,8 @@ export default function MemberCalendarClient({
           memberId={memberId}
           memberBasePath={memberBasePath}
           prickleBasePath={prickleBasePath}
+          checkins={checkins}
+          initialCheck={initialCheck}
         />
       )}
     </div>

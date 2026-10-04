@@ -158,7 +158,7 @@ describe("LogProgressModal check-out", () => {
     );
   }
 
-  it("asks only how it went, linking to the prickle page for the check-in", async () => {
+  it("asks only how it went, linking to the check-in modal for the check-in", async () => {
     renderForPrickle();
     expect(await screen.findByRole("heading", { name: /Check out/ })).toBeInTheDocument();
     expect(getCheckinForLogging).toHaveBeenCalledWith("prickle-other");
@@ -168,7 +168,7 @@ describe("LogProgressModal check-out", () => {
     expect(screen.queryByText(/What I need/)).not.toBeInTheDocument();
 
     const link = screen.getByRole("link", { name: /Edit check-in/ });
-    expect(link).toHaveAttribute("href", "/prickles/prickle-other");
+    expect(link).toHaveAttribute("href", "/my-prickles/history?checkin=prickle-other");
     expect(link).toHaveAttribute("target", "_blank");
   });
 
@@ -179,7 +179,7 @@ describe("LogProgressModal check-out", () => {
     });
     const user = userEvent.setup();
     renderForPrickle();
-    await user.click(await screen.findByRole("button", { name: "Good" }));
+    await user.click(await screen.findByRole("button", { name: /: Good$/ }));
     await user.click(screen.getByRole("button", { name: "Calm" }));
 
     // The check-in was edited in another tab while the modal was open.
@@ -206,7 +206,7 @@ describe("LogProgressModal check-out", () => {
       canEdit: true,
     });
     renderForPrickle();
-    expect(await screen.findByRole("button", { name: "Meh" })).toHaveAttribute("aria-pressed", "true");
+    expect(await screen.findByRole("button", { name: /: Meh$/ })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByRole("button", { name: "Drained" })).toHaveAttribute("aria-pressed", "true");
   });
 
@@ -223,7 +223,7 @@ describe("LogProgressModal check-out", () => {
     vi.mocked(saveCheckin).mockResolvedValue({ error: "Couldn't save your check-in — please try again." });
     const user = userEvent.setup();
     renderForPrickle();
-    await user.click(await screen.findByRole("button", { name: "OK" }));
+    await user.click(await screen.findByRole("button", { name: /: OK$/ }));
     await fillAmountAndSubmit(user, "Log progress");
 
     expect(await screen.findByText("Couldn't save your check-in — please try again.")).toBeInTheDocument();

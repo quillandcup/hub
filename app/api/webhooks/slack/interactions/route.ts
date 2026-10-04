@@ -3,11 +3,13 @@ import { WebClient } from "@slack/web-api";
 import { verifySlackSignature } from "@/lib/slack-signature";
 import {
   parseCheckinAnswer,
+  parseQuickLogAnswer,
   QUICK_LOG_ACTION_ID,
   replaceAnsweredBlock,
   saveCheckinAnswer,
   withSavedAnswer,
   type CheckinAnswer,
+  type QuickLogAnswer,
 } from "@/lib/prickle-checkin-dms";
 import { resolveMemberIdForSlackUser } from "@/lib/slack-member-ids";
 import { MEASURE_LABELS, type WritingMeasure } from "@/lib/writing-projects";
@@ -22,7 +24,8 @@ export const maxDuration = 60;
 
 /**
  * Slack Interactivity webhook -- handles block_actions payloads: answers to the prickle check-in
- * and check-out DMs (check-in questions and the progress quick-log; lib/prickle-checkin-dms.ts)
+ * and check-out DMs (check-in questions, the star rating buttons and the progress number inputs;
+ * lib/prickle-checkin-dms.ts)
  * and the Slack sign-in button ("Send me a link I can copy"; lib/slack-sign-in.ts). Separate
  * from app/api/webhooks/slack/route.ts (the Events API handler) because interactivity payloads
  * are application/x-www-form-urlencoded with a `payload` JSON field, not the plain JSON body the
@@ -84,8 +87,14 @@ export async function POST(request: NextRequest) {
 
   if (action?.action_id !== QUICK_LOG_ACTION_ID) return NextResponse.json({ received: true });
 
+  const quickLog = parseQuickLogAnswer(action);
+  if (!quickLog) {
+    console.error("writing_quick_log: malformed action or missing amount", action.block_id, action.value);
+    return NextResponse.json({ received: true });
+  }
+
   try {
-    await handleWritingQuickLog(payload, action);
+    await handleWritingQuickLog(payload, action, quickLog);
   } catch (error) {
     console.error("Error handling writing_quick_log interaction:", error);
   }
@@ -124,15 +133,13 @@ async function handleCheckinAnswer(payload: any, answer: CheckinAnswer) {
   }
 }
 
-async function handleWritingQuickLog(payload: any, action: any) {
-  const [projectId, prickleId, measure, amountStr] = String(action.selected_option?.value ?? "").split(":");
-  const amount = Number(amountStr);
+async function handleWritingQuickLog(payload: any, action: any, { projectId, prickleId, measure, amount }: QuickLogAnswer) {
   const slackUserId = payload.user?.id as string | undefined;
   const channelId = payload.channel?.id as string | undefined;
   const messageTs = payload.message?.ts as string | undefined;
 
-  if (!projectId || !prickleId || !measure || Number.isNaN(amount) || !slackUserId) {
-    console.error("writing_quick_log: malformed action value or missing user", action.selected_option?.value);
+  if (!slackUserId) {
+    console.error("writing_quick_log: missing Slack user");
     return;
   }
 

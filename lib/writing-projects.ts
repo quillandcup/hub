@@ -55,50 +55,39 @@ export const MEASURE_LABELS: Record<WritingMeasure, string> = {
 };
 
 /**
- * Preset amounts for the prickle check-out Slack DM's one-tap dropdown (Phase 1, item 10).
- * 'prickles' is intentionally absent -- that measure is computed live from prickle_attendance
- * (see derivePrickleHabitEntries below), never manually logged, so there's nothing to quick-log
- * for it. The DM always targets one of the other six measures instead (see
- * app/api/webhooks/slack/interactions/route.ts).
+ * The prickle check-out's progress question, by measure: a fill-in-the-blank number (web modal
+ * and Slack DM alike), worded for what's being counted. 'prickles' is intentionally absent -- that
+ * measure is computed live from prickle_attendance (see derivePrickleHabitEntries below), never
+ * manually logged, so there's nothing to ask for it.
  */
-export const MEASURE_QUICK_LOG_PRESETS: Partial<Record<WritingMeasure, { label: string; amount: number }[]>> = {
-  words: [
-    { label: "0–250 words", amount: 0 },
-    { label: "250–500 words", amount: 250 },
-    { label: "500–1000 words", amount: 500 },
-    { label: "1000+ words", amount: 1000 },
-  ],
-  time_minutes: [
-    { label: "0–15 min", amount: 0 },
-    { label: "15–30 min", amount: 15 },
-    { label: "30–60 min", amount: 30 },
-    { label: "60+ min", amount: 60 },
-  ],
-  pages: [
-    { label: "1 page", amount: 1 },
-    { label: "2 pages", amount: 2 },
-    { label: "3 pages", amount: 3 },
-    { label: "4+ pages", amount: 4 },
-  ],
-  chapters: [
-    { label: "1 chapter", amount: 1 },
-    { label: "2 chapters", amount: 2 },
-    { label: "3 chapters", amount: 3 },
-    { label: "4+ chapters", amount: 4 },
-  ],
-  scenes: [
-    { label: "1 scene", amount: 1 },
-    { label: "2 scenes", amount: 2 },
-    { label: "3 scenes", amount: 3 },
-    { label: "4+ scenes", amount: 4 },
-  ],
-  lines: [
-    { label: "1 line", amount: 1 },
-    { label: "2 lines", amount: 2 },
-    { label: "3 lines", amount: 3 },
-    { label: "4+ lines", amount: 4 },
-  ],
+const PROGRESS_VERBS: Partial<Record<WritingMeasure, string>> = {
+  words: "How many words did you write",
+  time_minutes: "How many minutes did you spend",
+  pages: "How many pages did you write",
+  chapters: "How many chapters did you finish",
+  scenes: "How many scenes did you write",
+  lines: "How many lines did you write",
 };
+
+/** Measures the check-out can ask about (everything except 'prickles'). */
+export const PROGRESS_QUESTION_MEASURES = Object.keys(PROGRESS_VERBS) as WritingMeasure[];
+
+/** e.g. "How many words did you write on The Hedgehog's Journey during Monday Progress Prickle with Jenn P?" */
+export function progressQuestion(measure: WritingMeasure, projectTitle: string, prickleTitle: string): string {
+  return `${PROGRESS_VERBS[measure] ?? "How much did you get done"} on ${projectTitle} during ${prickleTitle}?`;
+}
+
+/**
+ * The measure a project's check-out question asks about: its first active goal's, skipping
+ * 'prickles' (counted from attendance, nothing to ask). Without one, the measure the member
+ * has logged most recently on it, else time_minutes -- the fastest to estimate right after a
+ * session and the universal fallback.
+ */
+export function progressMeasureFor(goalMeasures: WritingMeasure[], recentlyLogged: WritingMeasure[]): WritingMeasure {
+  return (
+    goalMeasures.find((m) => PROGRESS_VERBS[m]) ?? recentlyLogged.find((m) => PROGRESS_VERBS[m]) ?? "time_minutes"
+  );
+}
 
 export interface ProgressEntryInput {
   entryDate: string; // YYYY-MM-DD
