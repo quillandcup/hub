@@ -9,7 +9,7 @@ vi.mock("@/lib/slack-member-ids", () => ({ resolveSlackUserIds: async () => new 
 vi.mock("@/lib/slack", () => ({ sendSlackDM: vi.fn() }));
 
 const { membersWithFeature } = await import("@/lib/features.server");
-const { hubPath, inAppRow, inWindow, loadInAppNotifications, markInAppNotificationsRead, resolveInAppNotifications } = await import(
+const { hubPath, inAppRow, loadInAppNotifications, markInAppNotificationsRead, resolveInAppNotifications } = await import(
   "@/lib/channels/in-app"
 );
 const { createNotifier } = await import("@/lib/notifications/notify");
@@ -76,7 +76,7 @@ describe("inAppRow", () => {
           text: "Check in?",
           url: `${APP_URL}/prickles/p1`,
           ref: "p1",
-          timeSensitive: { from: "2026-10-05T10:40:00.000Z", until: "2026-10-05T11:00:00.000Z" },
+          timeSensitiveUntil: "2026-10-05T11:00:00.000Z",
           expiresAt: "2026-10-06T11:00:00.000Z",
           slackBlocks: [{}],
         },
@@ -88,14 +88,13 @@ describe("inAppRow", () => {
       ref: "p1",
       text: "Check in?",
       url: "/prickles/p1",
-      banner_from: "2026-10-05T10:40:00.000Z",
       banner_until: "2026-10-05T11:00:00.000Z",
       expires_at: "2026-10-06T11:00:00.000Z",
     });
   });
 
   it("isn't a banner when the message isn't time-sensitive", () => {
-    expect(inAppRow("m1", { text: "FYI" }, { kind: "prickle_checkout" })).toMatchObject({ banner_from: null, banner_until: null, expires_at: null });
+    expect(inAppRow("m1", { text: "FYI" }, { kind: "prickle_checkout" })).toMatchObject({ banner_until: null, expires_at: null });
   });
 });
 
@@ -139,19 +138,17 @@ describe("loadInAppNotifications", () => {
     text: "Check in?",
     url: "/prickles/p1",
     created_at: "2026-10-05T10:40:00Z",
-    banner_from: null,
     banner_until: null,
     read_at: null,
     ...over,
   });
 
-  it("is a banner only while unread and inside its window", async () => {
+  it("is a banner only while unread and still time-sensitive", async () => {
     const fake = createFakeSupabase({
       in_app_notifications: {
         data: [
           row({ id: "live", banner_until: "2026-10-05T11:00:00Z" }),
           row({ id: "past", banner_until: "2026-10-05T10:30:00Z" }),
-          row({ id: "later", banner_from: "2026-10-05T11:00:00Z", banner_until: "2026-10-05T11:30:00Z" }),
           row({ id: "read", banner_until: "2026-10-05T11:00:00Z", read_at: "2026-10-05T10:41:00Z" }),
           row({ id: "plain" }),
         ],
@@ -161,7 +158,6 @@ describe("loadInAppNotifications", () => {
     expect(list.map((n) => [n.id, n.read, n.banner])).toEqual([
       ["live", false, true],
       ["past", false, false],
-      ["later", false, false],
       ["read", true, false],
       ["plain", false, false],
     ]);
@@ -176,17 +172,6 @@ describe("loadInAppNotifications", () => {
     expect(calls).toContainEqual({ method: "gte", args: ["created_at", "2026-09-05T10:45:00.000Z"] });
     expect(calls).toContainEqual({ method: "or", args: [`expires_at.is.null,expires_at.gt.${now.toISOString()}`] });
     expect(calls).toContainEqual({ method: "order", args: ["created_at", { ascending: false }] });
-  });
-});
-
-describe("inWindow", () => {
-  const now = new Date("2026-10-05T10:45:00Z");
-  it("is [from, until), from defaulting to when it was sent", () => {
-    expect(inWindow(null, "2026-10-05T11:00:00Z", now)).toBe(true);
-    expect(inWindow("2026-10-05T10:45:00Z", "2026-10-05T11:00:00Z", now)).toBe(true);
-    expect(inWindow("2026-10-05T10:50:00Z", "2026-10-05T11:00:00Z", now)).toBe(false);
-    expect(inWindow(null, "2026-10-05T10:45:00Z", now)).toBe(false);
-    expect(inWindow(null, null, now)).toBe(false);
   });
 });
 

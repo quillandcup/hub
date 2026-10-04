@@ -3,7 +3,7 @@ import { loadCalendarFeedPrickleIds } from "@/lib/calendar-feed";
 import { APP_URL } from "@/lib/config";
 import { createNotifier } from "@/lib/notifications/notify";
 import { resolveInAppNotifications } from "@/lib/channels/in-app";
-import type { OutboundMessage, TimeWindow } from "@/lib/channels";
+import type { OutboundMessage } from "@/lib/channels";
 import { loadPresenceByMember, presenceDue, type PresenceInterval } from "@/lib/zoom-presence";
 import {
   checkinAnswered,
@@ -704,11 +704,6 @@ export const CHECKIN_KEEP_MS = 24 * 60 * 60 * 1000;
 export const CHECKOUT_TIME_SENSITIVE_MS = 3 * 60 * 60 * 1000;
 export const CHECKOUT_KEEP_MS = 7 * 24 * 60 * 60 * 1000;
 
-/** Time-sensitive from when it's sent until `until`, if known. */
-function windowUntil(until: string | undefined): TimeWindow | undefined {
-  return until ? { until } : undefined;
-}
-
 function offsetIso(time: string | undefined, ms: number): string | undefined {
   return time ? new Date(Date.parse(time) + ms).toISOString() : undefined;
 }
@@ -729,7 +724,7 @@ export function checkinMessage(prickle: DMPrickle, saved: CheckinInput | null, {
     url: `${APP_URL}/prickles/${prickle.id}`,
     slackBlocks: test ? [TEST_BANNER, ...blocks] : blocks,
     ref: prickle.id,
-    timeSensitive: windowUntil(offsetIso(prickle.startTime, 0)),
+    timeSensitiveUntil: offsetIso(prickle.startTime, 0),
     expiresAt: offsetIso(prickle.startTime, CHECKIN_KEEP_MS),
   };
 }
@@ -747,7 +742,7 @@ export function checkoutMessage(
     url: `${APP_URL}/prickles/${prickle.id}`,
     slackBlocks: test ? [TEST_BANNER, ...blocks] : blocks,
     ref: prickle.id,
-    timeSensitive: windowUntil(offsetIso(prickle.endTime, CHECKOUT_TIME_SENSITIVE_MS)),
+    timeSensitiveUntil: offsetIso(prickle.endTime, CHECKOUT_TIME_SENSITIVE_MS),
     expiresAt: offsetIso(prickle.endTime, CHECKOUT_KEEP_MS),
   };
 }

@@ -350,7 +350,7 @@ describe("in-app notifications", () => {
     const start = Date.parse(P1.startTime);
     expect(checkinMessage({ ...P1 }, null)).toMatchObject({
       ref: "p1",
-      timeSensitive: { until: P1.startTime },
+      timeSensitiveUntil: P1.startTime,
       expiresAt: new Date(start + CHECKIN_KEEP_MS).toISOString(),
     });
 
@@ -358,7 +358,7 @@ describe("in-app notifications", () => {
     const checkout = checkoutMessage({ id: "p1", typeName: "Progress Prickle", startTime: P1.startTime, endTime: end }, null, []);
     expect(checkout).toMatchObject({
       ref: "p1",
-      timeSensitive: { until: new Date(Date.parse(end) + CHECKOUT_TIME_SENSITIVE_MS).toISOString() },
+      timeSensitiveUntil: new Date(Date.parse(end) + CHECKOUT_TIME_SENSITIVE_MS).toISOString(),
       expiresAt: new Date(Date.parse(end) + CHECKOUT_KEEP_MS).toISOString(),
     });
   });

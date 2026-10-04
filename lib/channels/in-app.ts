@@ -7,9 +7,9 @@ import type { ChannelAdapter, OutboundMessage, SendContext } from "./types";
  * "In the Hub", stored in in_app_notifications (migration 20261004000000) and shown by
  * components/InAppNotifications.tsx in two places:
  * - The bell in the member header lists every recent one, with a count of the unread.
- * - A banner under the header shows an unread one inside its time-sensitive window
- *   (OutboundMessage.timeSensitive). Something not time-sensitive, not yet or no longer, is only
- *   in the bell.
+ * - A banner under the header shows an unread one while it's time-sensitive
+ *   (OutboundMessage.timeSensitiveUntil). Something not time-sensitive, or no longer, is only in
+ *   the bell.
  * It's read once the member dismisses the banner or opens the bell, or once the feature resolves
  * it with resolveInAppNotifications (e.g. a check-in once they've checked in). It leaves the list
  * at `expiresAt`, or after IN_APP_LIST_DAYS.
@@ -43,8 +43,7 @@ export function inAppRow(memberId: string, message: OutboundMessage, { kind }: S
     ref: message.ref ?? null,
     text: message.text,
     url: hubPath(message.url),
-    banner_from: message.timeSensitive?.from ?? null,
-    banner_until: message.timeSensitive?.until ?? null,
+    banner_until: message.timeSensitiveUntil ?? null,
     expires_at: message.expiresAt ?? null,
   };
 }
@@ -65,7 +64,7 @@ export interface InAppNotification {
   url: string | null;
   createdAt: string;
   read: boolean;
-  /** Unread and inside its time-sensitive window (as of the read): shown as a banner too. */
+  /** Unread and still time-sensitive (as of the read): shown as a banner too. */
   banner: boolean;
 }
 
@@ -74,7 +73,7 @@ export async function loadInAppNotifications(supabase: any, memberId: string, no
   const since = new Date(now.getTime() - IN_APP_LIST_DAYS * 24 * 60 * 60 * 1000);
   const { data, error } = await supabase
     .from("in_app_notifications")
-    .select("id, kind, text, url, created_at, banner_from, banner_until, read_at")
+    .select("id, kind, text, url, created_at, banner_until, read_at")
     .eq("member_id", memberId)
     .gte("created_at", since.toISOString())
     .or(`expires_at.is.null,expires_at.gt.${now.toISOString()}`)
@@ -91,16 +90,10 @@ export async function loadInAppNotifications(supabase: any, memberId: string, no
     url: row.url,
     createdAt: row.created_at,
     read: row.read_at !== null,
-    banner: row.read_at === null && inWindow(row.banner_from, row.banner_until, now),
+    banner: row.read_at === null && row.banner_until !== null && Date.parse(row.banner_until) > now.getTime(),
   }));
 }
 
-/** Inside [from, until): no `until` means never; no `from` means since it was sent. */
-export function inWindow(from: string | null, until: string | null, now: Date): boolean {
-  if (until === null) return false;
-  const t = now.getTime();
-  return t < Date.parse(until) && (from === null || t >= Date.parse(from));
-}
 
 /** Marks these of the member's notifications read (scoped to the member, whichever client). */
 export async function markInAppNotificationsRead(supabase: any, memberId: string, ids: string[]) {

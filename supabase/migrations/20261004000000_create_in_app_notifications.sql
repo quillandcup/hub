@@ -1,8 +1,7 @@
 -- In-app notifications (Local layer): what the "In the Hub" channel (lib/channels/in-app.ts) has
 -- sent a member. Every one is listed under the bell in the member header (unread ones counted);
--- a time-sensitive one also shows as a banner under the header while it's unread and inside its
--- window: from banner_from (NULL = from when it was sent) until banner_until (NULL = never a
--- banner). Server-written only, through createNotifier (lib/notifications/notify.ts).
+-- a time-sensitive one also shows as a banner under the header while it's unread, from when it
+-- was sent until banner_until (NULL = never a banner). Server-written only, through createNotifier (lib/notifications/notify.ts).
 --
 -- read_at is set when the member dismisses the banner or opens the bell, or when the feature
 -- resolves it because it's been dealt with (e.g. a check-in once the member has checked in).
@@ -24,13 +23,9 @@ CREATE TABLE IF NOT EXISTS public.in_app_notifications (
   text TEXT NOT NULL CHECK (text <> ''),
   url TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  banner_from TIMESTAMPTZ,
   banner_until TIMESTAMPTZ,
   expires_at TIMESTAMPTZ,
-  read_at TIMESTAMPTZ,
-  CONSTRAINT in_app_notifications_banner_window CHECK (
-    banner_from IS NULL OR (banner_until IS NOT NULL AND banner_from < banner_until)
-  )
+  read_at TIMESTAMPTZ
 );
 
 -- The bell and banner read a member's recent ones, newest first.

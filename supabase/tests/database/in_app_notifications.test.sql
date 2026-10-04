@@ -6,7 +6,7 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;
 
-SELECT plan(8);
+SELECT plan(7);
 
 -- Alice and Bob are regular members, Dana an admin. Fixed ids nothing else uses.
 INSERT INTO auth.users (id, instance_id, aud, role, email) VALUES
@@ -85,14 +85,6 @@ SELECT throws_ok(
   'members cannot create in-app notifications'
 );
 RESET ROLE;
-
-SELECT throws_ok(
-  $$INSERT INTO public.in_app_notifications (member_id, kind, text, banner_from, banner_until)
-    VALUES ('00000000-0000-4000-a000-00000000f101', 'prickle_checkin', 'Hi', '2026-10-05T11:00:00Z', '2026-10-05T10:00:00Z')$$,
-  '23514',
-  NULL,
-  'a banner window must end after it starts'
-);
 
 DELETE FROM public.members WHERE id = '00000000-0000-4000-a000-00000000f102';
 SELECT is(
