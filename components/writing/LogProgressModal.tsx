@@ -339,7 +339,7 @@ export default function LogProgressModal({
               </h3>
               {/* New tab, so following it doesn't lose what's typed here. */}
               <Link
-                href={`/prickles/${prickleChoice}`}
+                href={`/prickles/${encodeURIComponent(prickleChoice)}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-xs text-plum-600 dark:text-plum-400 hover:underline"
