@@ -1,4 +1,4 @@
-export type FeatureKey = 'member_overrides' | 'hedgieversaries' | 'work_queue' | 'program_cohorts' | 'events' | 'message_privacy' | 'slack_admin_sign_in' | 'onboarding';
+export type FeatureKey = 'member_overrides' | 'hedgieversaries' | 'work_queue' | 'program_cohorts' | 'events' | 'message_privacy' | 'slack_admin_sign_in' | 'onboarding' | 'in_app_notifications';
 
 export interface FeaturePreview {
   key: FeatureKey;
@@ -46,6 +46,11 @@ export const FEATURE_PREVIEWS: FeaturePreview[] = [
     key: 'onboarding',
     name: 'Getting Started Tour',
     description: 'A guided tour that walks members page to page through setting up their names, profile, a writing goal and their first prickle (and, for hosts, their hosting schedule and vibe). Starts on its own for accounts under 30 days old; anyone can start it from the user menu',
+  },
+  {
+    key: 'in_app_notifications',
+    name: 'In-App Notifications',
+    description: 'Notifications as a banner at the top of the Hub, next to Slack: prickle check-ins before a prickle on your calendar and check-outs after one you attended. Adds an "In the Hub" switch to Settings → Notifications (on by default)',
   },
 ];
 

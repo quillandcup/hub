@@ -12,6 +12,8 @@ import FeedbackWidget from '@/components/FeedbackWidget'
 import OnboardingGuide from '@/components/onboarding/OnboardingGuide'
 import { getOnboardingState } from '@/lib/onboarding.server'
 import { Suspense } from 'react'
+import InAppNotificationBanner from '@/components/InAppNotificationBanner'
+import { loadActiveInAppNotifications } from '@/lib/channels/in-app'
 
 export default async function MemberLayout({
   children,
@@ -45,9 +47,12 @@ export default async function MemberLayout({
   // The tour is the member's own: hidden during sudo, so an admin browsing as them doesn't see or
   // change it (app/actions/onboarding.ts refuses then too).
   const showOnboarding = enabledFeatures.includes('onboarding') && !effectiveIdentity.isSudo
-  const onboardingState = showOnboarding
-    ? await getOnboardingState(user.id, effectiveIdentity.memberId)
-    : null
+  // In-app notifications are the member's own too (app/actions/in-app-notifications.ts).
+  const showInApp = enabledFeatures.includes('in_app_notifications') && !effectiveIdentity.isSudo
+  const [onboardingState, inAppNotifications] = await Promise.all([
+    showOnboarding ? getOnboardingState(user.id, effectiveIdentity.memberId) : null,
+    showInApp ? loadActiveInAppNotifications(supabase, effectiveIdentity.memberId, new Date()) : [],
+  ])
 
   return (
     <div className="flex h-dvh overflow-hidden bg-canvas dark:bg-slate-950">
@@ -69,6 +74,7 @@ export default async function MemberLayout({
             canStartOnboarding={showOnboarding}
           />
         </header>
+        {showInApp && <InAppNotificationBanner initial={inAppNotifications} />}
         {/* While the tour shows, room to scroll the page's last controls clear of its bar. */}
         <main className={`flex-1 overflow-auto ${onboardingState?.active ? 'pb-36' : ''}`}>
           {children}

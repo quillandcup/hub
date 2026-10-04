@@ -74,7 +74,7 @@ export function NotificationsPanel({ initial }: { initial: NotificationSettings 
                   <div className="text-slate-500 dark:text-slate-400">{kind.description}</div>
                 </div>
                 <div className="flex shrink-0 gap-1">
-                  {NOTIFICATION_CHANNELS.map((channel) => {
+                  {NOTIFICATION_CHANNELS.filter((c) => initial.channels.includes(c.id)).map((channel) => {
                     const on = channelsByKind[kind.id].includes(channel.id);
                     const busy = saving === `${kind.id}:${channel.id}`;
                     return (

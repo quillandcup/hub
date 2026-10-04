@@ -3,7 +3,11 @@
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
 import { getEffectiveIdentity } from "@/lib/sudo";
+import { createServiceRoleClient } from "@/lib/supabase/service";
+import { membersWithFeature } from "@/lib/features.server";
+import { IN_APP_FEATURE } from "@/lib/channels/in-app";
 import {
+  NOTIFICATION_CHANNELS,
   effectiveSettings,
   isNotificationChannel,
   isNotificationKind,
@@ -12,6 +16,8 @@ import {
 } from "@/lib/notifications/registry";
 
 export interface NotificationSettings {
+  /** Channels this member can use, as switches: "In the Hub" only with the in_app_notifications flag. */
+  channels: NotificationChannelId[];
   channelsByKind: Record<NotificationKindId, NotificationChannelId[]>;
   /** True in sudo: an admin can see a member's settings but not change them. */
   readOnly: boolean;
@@ -31,7 +37,13 @@ export async function getNotificationSettings(): Promise<NotificationSettings | 
     .eq("member_id", identity.memberId);
   if (error) console.error("[notifications] Loading settings failed", { member: identity.memberId, error });
 
-  return { channelsByKind: effectiveSettings(data ?? []), readOnly: identity.isSudo };
+  // The member's flag, not the signed-in admin's in sudo. Service role: it reads their previews.
+  const inApp = (await membersWithFeature(createServiceRoleClient(), IN_APP_FEATURE, [identity.memberId])).has(
+    identity.memberId
+  );
+  const channels = NOTIFICATION_CHANNELS.map((c) => c.id).filter((id) => id !== "in_app" || inApp);
+
+  return { channels, channelsByKind: effectiveSettings(data ?? []), readOnly: identity.isSudo };
 }
 
 /**

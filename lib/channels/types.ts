@@ -10,6 +10,19 @@ export interface OutboundMessage {
   slackBlocks?: any[];
   /** Small trailing links (e.g. "Notification settings"); each channel renders them its own way. */
   footerLinks?: { label: string; url: string }[];
+  /**
+   * For channels that keep a message around (in-app): what it's about, e.g. a prickle id, so the
+   * feature can clear it once it's dealt with (resolveInAppNotifications)...
+   */
+  ref?: string;
+  /** ...and when it stops being worth showing (ISO timestamp). */
+  expiresAt?: string;
+}
+
+/** What a channel knows about the send besides the message itself. */
+export interface SendContext {
+  /** The notification kind (lib/notifications/registry.ts). */
+  kind: string;
 }
 
 /**
@@ -22,5 +35,5 @@ export interface ChannelAdapter {
   id: ChannelId;
   /** memberId -> this channel's address (e.g. Slack user id). Members missing from the map can't be reached on it. */
   resolveAddresses(supabase: any, memberIds: string[]): Promise<Map<string, string>>;
-  send(address: string, message: OutboundMessage): Promise<void>;
+  send(address: string, message: OutboundMessage, context: SendContext): Promise<void>;
 }

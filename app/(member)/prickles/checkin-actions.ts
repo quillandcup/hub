@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
 import { getEffectiveIdentity } from "@/lib/sudo";
 import { checkinFromRow, validateCheckin, writeCheckin, type CheckinInput } from "@/lib/prickle-checkins";
+import { clearAnsweredCheckinBanners } from "@/lib/prickle-checkin-dms";
 
 export type SaveCheckinResult = { success: true } | { error: string };
 
@@ -66,6 +67,7 @@ export async function saveCheckin(prickleId: string, input: CheckinInput): Promi
     console.error("[prickle-checkins] Saving check-in failed", { member: identity.memberId, prickleId, error });
     return { error: "Couldn't save your check-in — please try again." };
   }
+  await clearAnsweredCheckinBanners(supabase, identity.memberId, prickleId, input);
 
   revalidatePath(`/prickles/${prickleId}`);
   return { success: true };

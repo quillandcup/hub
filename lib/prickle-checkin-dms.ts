@@ -2,6 +2,7 @@ import { MEASURE_QUICK_LOG_PRESETS, type WritingMeasure } from "@/lib/writing-pr
 import { loadCalendarFeedPrickleIds } from "@/lib/calendar-feed";
 import { APP_URL } from "@/lib/config";
 import { createNotifier } from "@/lib/notifications/notify";
+import { resolveInAppNotifications } from "@/lib/channels/in-app";
 import type { OutboundMessage } from "@/lib/channels";
 import { loadPresenceByMember, presenceDue, type PresenceInterval } from "@/lib/zoom-presence";
 import {
@@ -472,7 +473,25 @@ export async function saveCheckinAnswer(supabase: any, memberId: string, answer:
   if (isEmptyCheckin(next) && !existing) return null;
 
   const error = await writeCheckin(supabase, memberId, prickleId, next);
-  return error ? `couldn't save check-in: ${error.message}` : null;
+  if (error) return `couldn't save check-in: ${error.message}`;
+  await clearAnsweredCheckinBanners(supabase, memberId, prickleId, next);
+  return null;
+}
+
+/**
+ * Clears the in-app check-in/check-out banners a saved check-in has now answered, wherever it was
+ * answered (prickle page, Log Progress, Slack), so they don't keep asking.
+ */
+export async function clearAnsweredCheckinBanners(
+  supabase: any,
+  memberId: string,
+  prickleId: string,
+  checkin: CheckinInput
+): Promise<void> {
+  await Promise.all([
+    checkinAnswered(checkin) ? resolveInAppNotifications(supabase, memberId, "prickle_checkin", prickleId) : null,
+    checkoutAnswered(checkin) ? resolveInAppNotifications(supabase, memberId, "prickle_checkout", prickleId) : null,
+  ]);
 }
 
 // --- Check-out sender ------------------------------------------------------------------------
@@ -670,8 +689,20 @@ async function quickLogPrompts(supabase: any, goals: GoalCandidate[]): Promise<Q
   return [...prompts.values()];
 }
 
-/** A DM's prickle: enough to word the message and link the check-in. */
-type DMPrickle = { id: string; typeName: string };
+/**
+ * A DM's prickle: enough to word the message and link the check-in. The times, when known, set
+ * how long the in-app banner version stays up: a check-in until the prickle starts (its text says
+ * "in ~20 min"; the prickle page still takes one after), a check-out for CHECKOUT_BANNER_TTL_MS
+ * after it ends.
+ */
+type DMPrickle = { id: string; typeName: string; startTime?: string; endTime?: string };
+
+/** The in-app check-out banner stays up this long after the prickle ends. */
+export const CHECKOUT_BANNER_TTL_MS = 24 * 60 * 60 * 1000;
+
+function offsetIso(time: string | undefined, ms: number): string | undefined {
+  return time ? new Date(Date.parse(time) + ms).toISOString() : undefined;
+}
 
 /** First block of a test send, so it isn't mistaken for the real thing. */
 const TEST_BANNER = {
@@ -688,6 +719,8 @@ export function checkinMessage(prickle: DMPrickle, saved: CheckinInput | null, {
     text: `${test ? "[Test] " : ""}Ready for ${prickle.typeName} in ~20 min? Check in: how are you feeling coming in?`,
     url: `${APP_URL}/prickles/${prickle.id}`,
     slackBlocks: test ? [TEST_BANNER, ...blocks] : blocks,
+    ref: prickle.id,
+    expiresAt: offsetIso(prickle.startTime, 0),
   };
 }
 
@@ -703,6 +736,8 @@ export function checkoutMessage(
     text: `${test ? "[Test] " : ""}Checking out of ${prickle.typeName}: how did it go?`,
     url: `${APP_URL}/prickles/${prickle.id}`,
     slackBlocks: test ? [TEST_BANNER, ...blocks] : blocks,
+    ref: prickle.id,
+    expiresAt: offsetIso(prickle.endTime, CHECKOUT_BANNER_TTL_MS),
   };
 }
 

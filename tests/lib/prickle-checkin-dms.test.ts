@@ -5,6 +5,9 @@ import {
   buildCheckoutBlocks,
   buildQuickLogBlocks,
   CHECKIN_ANSWER_ACTION_ID,
+  CHECKOUT_BANNER_TTL_MS,
+  checkinMessage,
+  checkoutMessage,
   groupByMember,
   dueCheckoutMembers,
   parseCheckinAnswer,
@@ -318,5 +321,38 @@ describe("saveCheckinAnswer", () => {
     const fake = createFakeSupabase({ prickle_checkins: { data: [] } });
     expect(await saveCheckinAnswer(fake, "m1", { prickleId: "p1", field: "need", values: ["nap"] })).toBe("Invalid need");
     expect(writes(fake)).toEqual([]);
+  });
+});
+
+describe("in-app banners", () => {
+  const cleared = (fake: ReturnType<typeof createFakeSupabase>) =>
+    fake.queries
+      .filter((q) => q.table === "in_app_notifications")
+      .map((q) => Object.fromEntries(q.calls.filter((c) => c.method === "eq").map((c) => c.args)));
+
+  it("clears the check-in banner once a DM answer completes the check-in", async () => {
+    const fake = createFakeSupabase({
+      prickle_checkins: { data: [{ feelings_before: ["tired"], need: null, session_rating: null, feelings_after: [] }] },
+    });
+    expect(await saveCheckinAnswer(fake, "m1", { prickleId: "p1", field: "need", values: ["gentle"] })).toBeNull();
+    expect(cleared(fake)).toEqual([{ member_id: "m1", kind: "prickle_checkin", ref: "p1" }]);
+  });
+
+  it("leaves both banners while the answers are partial", async () => {
+    const fake = createFakeSupabase({ prickle_checkins: { data: [] } });
+    await saveCheckinAnswer(fake, "m1", { prickleId: "p1", field: "session_rating", values: ["4"] });
+    expect(cleared(fake)).toEqual([]);
+  });
+
+  it("ties the messages to the prickle and expires them on its timing", () => {
+    const checkin = checkinMessage({ ...P1 }, null);
+    expect(checkin).toMatchObject({ ref: "p1", expiresAt: P1.startTime });
+
+    const end = "2026-10-05T12:00:00.000Z";
+    const checkout = checkoutMessage({ id: "p1", typeName: "Progress Prickle", startTime: P1.startTime, endTime: end }, null, []);
+    expect(checkout).toMatchObject({
+      ref: "p1",
+      expiresAt: new Date(Date.parse(end) + CHECKOUT_BANNER_TTL_MS).toISOString(),
+    });
   });
 });

@@ -25,6 +25,20 @@ const ICONS: Record<ChannelId, (props: { className?: string }) => React.ReactEle
       />
     </svg>
   ),
+  in_app: ({ className }) => (
+    // A bell, in the Hub's plum.
+    <svg
+      viewBox="0 0 24 24"
+      className={`text-plum-600 dark:text-plum-400 ${className ?? ""}`}
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path
+        fill="currentColor"
+        d="M12 2a1 1 0 0 1 1 1v.6A6 6 0 0 1 18 9.5v3.8l1.7 2.6a1 1 0 0 1-.8 1.6H5.1a1 1 0 0 1-.8-1.6L6 13.3V9.5a6 6 0 0 1 5-5.9V3a1 1 0 0 1 1-1zm-2.4 17h4.8a2.4 2.4 0 0 1-4.8 0z"
+      />
+    </svg>
+  ),
 };
 
 export function ChannelIcon({ channel, className }: { channel: ChannelId; className?: string }) {

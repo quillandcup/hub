@@ -213,7 +213,7 @@ A failure here is logged and never fails the commitment itself. Cancellations ar
 | Dedup log | `prickle_checkin_dm_log`, UNIQUE `(prickle_id, member_id, kind)` | Insert-first, send only if the insert landed. Keyed on a `prickles.id` FK with `ON DELETE CASCADE`, so a calendar reprocess can wipe it and allow a resend |
 | In-app progress logging | `components/writing/LogProgressModal.tsx` (accepts `prickleId`), `app/(member)/projects/` `logProgress` | |
 | Email | **None for app messages.** Resend is only configured as Supabase Auth's SMTP (invites, magic links, in `supabase/config.toml`); React Email templates exist for those auth emails only | Sending app email would need a Resend API key and a sender module |
-| In-app notifications | **None.** There's no notifications table or inbox UI. The only banners are `SudoBanner` and `ConsentBanner` | |
+| In-app notifications | The "In the Hub" channel (`lib/channels/in-app.ts`, `in_app_notifications`): a dismissible banner under the member header, sent through `createNotifier` like Slack. Behind the `in_app_notifications` flag | Check-ins and check-outs use it today |
 
 ### Channels, in recommended order
 
