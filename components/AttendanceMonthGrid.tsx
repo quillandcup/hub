@@ -3,6 +3,9 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import CheckinPills from "@/components/CheckinPills";
+import type { CheckinInput } from "@/lib/prickle-checkins";
+import type { CheckinHalf } from "@/app/(member)/prickles/checkin-actions";
 
 interface Props {
   attendance: any[];
@@ -11,6 +14,9 @@ interface Props {
   memberId: string;
   memberBasePath?: string;
   prickleBasePath?: string;
+  /** The viewer's own check-ins by prickle id; with onOpenCheck, adds the Check in / Check out pills to the day panel. */
+  checkins?: Record<string, CheckinInput>;
+  onOpenCheck?: (prickleId: string, half: CheckinHalf) => void;
 }
 
 function shortName(name: string): string {
@@ -35,6 +41,8 @@ export default function AttendanceMonthGrid({
   memberId,
   memberBasePath = "/members",
   prickleBasePath = "/prickles",
+  checkins,
+  onOpenCheck,
 }: Props) {
   const router = useRouter();
   const [selectedDay, setSelectedDay] = useState<Date | null>(null);
@@ -159,6 +167,11 @@ export default function AttendanceMonthGrid({
                     className="p-3 bg-white dark:bg-slate-900 rounded border border-slate-200 dark:border-slate-700 hover:border-plum-500 dark:hover:border-plum-400 cursor-pointer transition-colors"
                   >
                     <div className="flex-1">
+                      {checkins && onOpenCheck && (
+                        <div className="float-right ml-3">
+                          <CheckinPills prickleId={prickle.id} checkin={checkins[prickle.id] ?? null} onOpen={onOpenCheck} />
+                        </div>
+                      )}
                       <div className="font-medium text-slate-900 dark:text-slate-100">
                         {prickle.host?.id === memberId && "⭐ "}
                         {prickle.prickle_types?.name || "Unknown"}

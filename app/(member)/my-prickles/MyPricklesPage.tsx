@@ -268,7 +268,7 @@ export default async function MyPricklesPage({
                   attendance={attendance || []}
                   defaultTimezone={tzPref}
                   memberBasePath="/members"
-                  initialView={check ? "list" : "month"}
+                  initialView="list"
                   checkins={checkins}
                   initialCheck={check ?? null}
                 />

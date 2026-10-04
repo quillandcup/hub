@@ -1,14 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { SortableTh } from "@/components/SortableTh";
 import { useDataTable } from "@/lib/hooks/useDataTable";
 import type { SortValue } from "@/lib/hooks/useTableSort";
-import PrickleCheckModal from "@/components/writing/PrickleCheckModal";
-import { checkinAnswered, checkoutAnswered, type CheckinInput } from "@/lib/prickle-checkins";
+import CheckinPills from "@/components/CheckinPills";
+import type { CheckinInput } from "@/lib/prickle-checkins";
 import type { CheckinHalf } from "@/app/(member)/prickles/checkin-actions";
+import { DataTablePager } from "@/components/DataTablePager";
 
 interface Props {
   attendance: any[];
@@ -18,19 +19,12 @@ interface Props {
   memberBasePath?: string;
   prickleBasePath?: string;
   /**
-   * The viewer's own saved check-ins by prickle id. Passing it (even empty) adds a "Check in →" /
-   * "Check out →" pill pair to each row that opens the check-in modal; omit it to show someone
-   * else's history without them.
+   * The viewer's own saved check-ins by prickle id. Passing it (even empty) with onOpenCheck adds a
+   * "Check in →" / "Check out →" pill pair to each row; omit them to show someone else's history.
    */
   checkins?: Record<string, CheckinInput>;
-  /** Opens the modal on load (a link from a DM, a notification or the prickle page). */
-  initialCheck?: { prickleId: string; half: CheckinHalf; prefill: CheckinInput | null } | null;
+  onOpenCheck?: (prickleId: string, half: CheckinHalf) => void;
 }
-
-const pillClass =
-  "px-3 py-1 rounded-full text-xs font-medium border transition-colors whitespace-nowrap";
-const pillTodo = `${pillClass} border-plum-300 dark:border-plum-700 text-plum-700 dark:text-plum-300 hover:bg-plum-50 dark:hover:bg-plum-950`;
-const pillDone = `${pillClass} border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800`;
 
 // dateKey format: "MM/DD/YYYY"
 function parseDateKey(k: string): number {
@@ -72,49 +66,31 @@ export default function AttendanceListTable({
   memberBasePath = "/members",
   prickleBasePath = "/prickles",
   checkins,
-  initialCheck = null,
+  onOpenCheck,
 }: Props) {
   const router = useRouter();
-  const [saved, setSaved] = useState<Record<string, CheckinInput>>(checkins ?? {});
-  const [open, setOpen] = useState<{ prickleId: string; half: CheckinHalf } | null>(
-    initialCheck ? { prickleId: initialCheck.prickleId, half: initialCheck.half } : null
-  );
-  const showPills = checkins !== undefined;
+  const showPills = checkins !== undefined && onOpenCheck !== undefined;
   const columnCount = showPills ? 5 : 4;
-
-  const modal = open ? (
-    <PrickleCheckModal
-      key={`${open.prickleId}:${open.half}`}
-      prickleId={open.prickleId}
-      half={open.half}
-      prefill={initialCheck?.prickleId === open.prickleId ? initialCheck.prefill : null}
-      onClose={() => setOpen(null)}
-      onSaved={(prickleId, checkin) => {
-        setSaved((s) => {
-          const next = { ...s };
-          if (checkin) next[prickleId] = checkin;
-          return next;
-        });
-        router.refresh();
-      }}
-    />
-  ) : null;
-  // Grouped by date and scrolled into from the month grid, so it never pages.
-  const { sortColumn, sortDirection, handleSort, rows: sortedRows } = useDataTable<any, SortColumn>({
-    rows: attendance,
-    getSortValue,
-    defaultSort: null,
-    paginate: false,
-  });
-
-  const byDate = new Map<string, any[]>();
-  sortedRows.forEach((record) => {
-    const key = new Date(record.join_time).toLocaleDateString("en-US", {
+  // Pages once there are many rows; the date groups are formed from the current page. Moving to
+  // another date (the calendar's prev/next) jumps to the page holding it (reveal).
+  const dateKeyOf = (record: any) =>
+    new Date(record.join_time).toLocaleDateString("en-US", {
       timeZone: timezone,
       year: "numeric",
       month: "2-digit",
       day: "2-digit",
     });
+  const table = useDataTable<any, SortColumn>({
+    rows: attendance,
+    getSortValue,
+    defaultSort: null,
+    reveal: { key: activeListDateKey, getRowKey: dateKeyOf },
+  });
+  const { sortColumn, sortDirection, handleSort, rows: sortedRows } = table;
+
+  const byDate = new Map<string, any[]>();
+  sortedRows.forEach((record) => {
+    const key = dateKeyOf(record);
     if (!byDate.has(key)) byDate.set(key, []);
     byDate.get(key)!.push(record);
   });
@@ -137,7 +113,6 @@ export default function AttendanceListTable({
         <div className="p-12 text-center text-slate-500 dark:text-slate-400">
           No attendance records for this member
         </div>
-        {modal}
       </div>
     );
   }
@@ -237,24 +212,7 @@ export default function AttendanceListTable({
                         </td>
                         {showPills && (
                           <td className="px-6 py-4">
-                            <div className="flex gap-2">
-                              {([
-                                ["checkin", "Check in", "Checked in", checkinAnswered],
-                                ["checkout", "Check out", "Checked out", checkoutAnswered],
-                              ] as const).map(([half, todo, done, answered]) => (
-                                <button
-                                  key={half}
-                                  type="button"
-                                  className={answered(saved[prickle.id] ?? null) ? pillDone : pillTodo}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setOpen({ prickleId: prickle.id, half });
-                                  }}
-                                >
-                                  {answered(saved[prickle.id] ?? null) ? `${done} ✓` : `${todo} →`}
-                                </button>
-                              ))}
-                            </div>
+                            <CheckinPills prickleId={prickle.id} checkin={checkins![prickle.id] ?? null} onOpen={onOpenCheck!} />
                           </td>
                         )}
                       </tr>
@@ -266,7 +224,7 @@ export default function AttendanceListTable({
           </tbody>
         </table>
       </div>
-      {modal}
+      <DataTablePager table={table} itemLabel="attendances" />
     </div>
   );
 }

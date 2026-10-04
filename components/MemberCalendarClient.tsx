@@ -5,6 +5,8 @@ import CalendarWeekView, { type Prickle } from "./CalendarWeekView";
 import CalendarScrollContainer from "./CalendarScrollContainer";
 import AttendanceMonthGrid from "./AttendanceMonthGrid";
 import AttendanceListTable from "./AttendanceListTable";
+import PrickleCheckModal from "@/components/writing/PrickleCheckModal";
+import { useRouter } from "next/navigation";
 import { ORG_TIMEZONE } from "@/lib/config";
 import type { CheckinInput } from "@/lib/prickle-checkins";
 import type { CheckinHalf } from "@/app/(member)/prickles/checkin-actions";
@@ -65,6 +67,16 @@ export default function MemberCalendarClient({
 
   const timezone =
     defaultTimezone === "browser" ? detectedTimezone || ORG_TIMEZONE : defaultTimezone;
+
+  const router = useRouter();
+  // Check-in / check-out modal, shared by the list rows and the month view's day panel.
+  const [savedCheckins, setSavedCheckins] = useState<Record<string, CheckinInput>>(checkins ?? {});
+  const [openCheck, setOpenCheck] = useState<{ prickleId: string; half: CheckinHalf } | null>(
+    initialCheck ? { prickleId: initialCheck.prickleId, half: initialCheck.half } : null
+  );
+  const pillProps = checkins
+    ? { checkins: savedCheckins, onOpenCheck: (prickleId: string, half: CheckinHalf) => setOpenCheck({ prickleId, half }) }
+    : {};
 
   const [view, setView] = useState<"month" | "week" | "list">(initialView);
   const [currentMonthDate, setCurrentMonthDate] = useState(() => new Date());
@@ -269,6 +281,7 @@ export default function MemberCalendarClient({
           memberId={memberId}
           memberBasePath={memberBasePath}
           prickleBasePath={prickleBasePath}
+          {...pillProps}
         />
       )}
 
@@ -298,8 +311,21 @@ export default function MemberCalendarClient({
           memberId={memberId}
           memberBasePath={memberBasePath}
           prickleBasePath={prickleBasePath}
-          checkins={checkins}
-          initialCheck={initialCheck}
+          {...pillProps}
+        />
+      )}
+
+      {openCheck && (
+        <PrickleCheckModal
+          key={`${openCheck.prickleId}:${openCheck.half}`}
+          prickleId={openCheck.prickleId}
+          half={openCheck.half}
+          prefill={initialCheck?.prickleId === openCheck.prickleId ? initialCheck.prefill : null}
+          onClose={() => setOpenCheck(null)}
+          onSaved={(prickleId, checkin) => {
+            if (checkin) setSavedCheckins((s) => ({ ...s, [prickleId]: checkin }));
+            router.refresh();
+          }}
         />
       )}
     </div>
