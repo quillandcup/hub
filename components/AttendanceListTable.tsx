@@ -84,6 +84,7 @@ export default function AttendanceListTable({
     rows: attendance,
     getSortValue,
     defaultSort: null,
+    pageSize: 25,
     reveal: { key: activeListDateKey, getRowKey: dateKeyOf },
   });
   const { sortColumn, sortDirection, handleSort, rows: sortedRows } = table;

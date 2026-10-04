@@ -4,7 +4,7 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import AttendanceListTable from "@/components/AttendanceListTable";
 import type { CheckinInput } from "@/lib/prickle-checkins";
-import { DEFAULT_PAGE_SIZE } from "@/lib/pagination";
+const PAGE_SIZE = 25;
 
 const push = vi.fn();
 Element.prototype.scrollIntoView = vi.fn();
@@ -59,14 +59,14 @@ describe("AttendanceListTable check-in / check-out pills", () => {
 
 describe("AttendanceListTable pagination", () => {
   // One prickle a day, newest first, as the attendance query returns them.
-  const many = Array.from({ length: DEFAULT_PAGE_SIZE + 5 }, (_, i) =>
+  const many = Array.from({ length: PAGE_SIZE + 5 }, (_, i) =>
     row(`a${i}`, `p${i}`, new Date(Date.UTC(2026, 9, 31, 17) - i * 86_400_000).toISOString())
   );
 
-  it("pages a long history, with a pager", () => {
+  it("pages a long history 25 at a time, with a pager", () => {
     renderTable({ attendance: many });
     expect(screen.getAllByRole("row").filter((r) => within(r).queryByText("Progress Prickle"))).toHaveLength(
-      DEFAULT_PAGE_SIZE
+      PAGE_SIZE
     );
     expect(screen.getByRole("navigation", { name: "Pagination" })).toBeInTheDocument();
   });

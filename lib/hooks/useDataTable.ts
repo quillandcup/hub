@@ -111,7 +111,8 @@ export function useDataTable<TRow, TColumn extends string>({
     setState({ ...state, page, resetKey: fullResetKey });
   }
 
-  const paginated = paginate === "auto" && sortedRows.length > AUTO_PAGINATE_THRESHOLD;
+  // A table that starts with a smaller page than the default pages as soon as it exceeds that page.
+  const paginated = paginate === "auto" && sortedRows.length > Math.min(AUTO_PAGINATE_THRESHOLD, initialPageSize);
   const bounds = pageBounds(page, state.pageSize, sortedRows.length);
   const visibleRows = useMemo(
     () => (paginated ? sortedRows.slice(bounds.offset, bounds.offset + bounds.pageSize) : sortedRows),
