@@ -34,6 +34,15 @@ describe('findStalePrivateChannels', () => {
     expect(findStalePrivateChannels(channels)).toEqual([])
   })
 
+  it('ignores stale group DMs: the bot cannot be removed from one, and they need their own scope to list', () => {
+    const channels = [
+      channel({ channel_id: 'G1', name: 'mpdm-fern--bramble-1', is_private: true, is_mpim: true, imported_at: '2026-08-20T02:45:00.000Z' }),
+      channel({ channel_id: 'C2', name: 'huddle', is_private: true, imported_at: '2026-08-27T02:45:00.000Z' }),
+    ]
+
+    expect(findStalePrivateChannels(channels)).toEqual([])
+  })
+
   it('flags a private channel not refreshed in the latest import batch', () => {
     const channels = [
       channel({ channel_id: 'C1', name: 'general', is_private: false, imported_at: '2026-08-27T02:45:00.000Z' }),

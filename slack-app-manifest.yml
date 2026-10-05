@@ -30,12 +30,14 @@ oauth_config:
       - im:history
       - im:write
       - mpim:history
+      - mpim:read
       - mpim:write
       # User data
       - users:read
       - users:read.email
-      # Reactions and files
+      # Reactions, custom emoji and files
       - reactions:read
+      - emoji:read
       - files:read
       # Feedback widget notifications
       - chat:write
@@ -58,6 +60,10 @@ settings:
       # Reactions
       - reaction_added
       - reaction_removed
+      # Who is in each conversation, and custom emoji
+      - member_joined_channel
+      - member_left_channel
+      - emoji_changed
       # Home tab sign-in button
       - app_home_opened
       # Phase 2 candidates (not yet enabled — uncomment and add live if needed)

@@ -6,6 +6,7 @@ import { verifySlackSignature } from "@/lib/slack-signature";
 import { publishSlackHome } from "@/lib/slack-sign-in";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { isKeptSlackMessage, slackMessageUserId, slackTsToIso } from "@/lib/slack-messages";
+import { applySlackEmojiEvent, applySlackMembershipEvent } from "@/lib/slack-capture";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 // Webhook should respond quickly
@@ -25,6 +26,8 @@ export const maxDuration = 60;
  * - reaction_added (emoji reaction added to message)
  * - reaction_removed (emoji reaction removed from message)
  * - app_home_opened (member opened the app's Home tab -- publish their one-time sign-in button)
+ * - member_joined_channel / member_left_channel (who is in each conversation)
+ * - emoji_changed (custom emoji added, removed or renamed)
  */
 export async function POST(request: NextRequest) {
   try {
@@ -117,7 +120,11 @@ async function processSlackEvent(event: any) {
   });
 
   try {
-    if (eventType === "message" && event.subtype === "message_changed") {
+    if (eventType === "member_joined_channel" || eventType === "member_left_channel") {
+      await applySlackMembershipEvent(supabase, event);
+    } else if (eventType === "emoji_changed") {
+      await applySlackEmojiEvent(supabase, event);
+    } else if (eventType === "message" && event.subtype === "message_changed") {
       await applyMessageEdit(supabase, event);
     } else if (eventType === "message" && event.subtype === "message_deleted") {
       await applyMessageDelete(supabase, event);

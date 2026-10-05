@@ -96,6 +96,31 @@ describe('GET /api/reconcile/slack', () => {
       expect(response.status).toBe(200)
       expect(pingCronHeartbeat).not.toHaveBeenCalled()
     })
+
+    it('does not ping the heartbeat when membership, emoji or file capture failed', async () => {
+      vi.mocked(triggerSlackSync).mockResolvedValue({
+        success: true,
+        fetched: { threadsBehindDeferred: 0 },
+        capture: { errors: ['channel members: boom'] },
+      })
+
+      const response = await GET(makeRequest())
+
+      expect(response.status).toBe(200)
+      expect(pingCronHeartbeat).not.toHaveBeenCalled()
+    })
+
+    it('still pings when a capture step was only skipped for a missing scope', async () => {
+      vi.mocked(triggerSlackSync).mockResolvedValue({
+        success: true,
+        fetched: { threadsBehindDeferred: 0 },
+        capture: { groupDms: { skipped: 'missing_scope' }, emoji: { skipped: 'missing_scope' }, errors: [] },
+      })
+
+      await GET(makeRequest())
+
+      expect(pingCronHeartbeat).toHaveBeenCalledWith('reconcile-slack')
+    })
   })
 
   describe('error handling', () => {

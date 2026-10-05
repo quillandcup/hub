@@ -235,7 +235,7 @@ Before committing changes to API routes, verify:
 ## Data Architecture
 
 **Bronze Layer** (raw imports from external systems):
-- `calendar_events`, `zoom_attendees`, `zoom_meetings`, `kajabi_members`, `subscription_history`, `slack_messages`, `slack_reactions`, `slack_channels`, `slack_users`
+- `calendar_events`, `zoom_attendees`, `zoom_meetings`, `kajabi_members`, `subscription_history`, `slack_messages`, `slack_reactions`, `slack_channels` (channels and, with `is_mpim`, group DMs the bot is in), `slack_users`, `slack_channel_members` (who is in each conversation; `left_at` soft delete), `slack_custom_emoji` (`removed_at` soft delete), `slack_files` (files on messages and the path of our copy in the private `slack-files` bucket; service role only)
 - **Pattern**: UPSERT on natural keys for idempotency
 
 **Local Layer** (operational data owned by this app):

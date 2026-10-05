@@ -15,6 +15,15 @@ import {
   type StoredThreadReplies,
 } from '@/lib/slack-messages';
 import { clock } from '@/lib/clock';
+import { createServiceRoleClient } from '@/lib/supabase/service';
+import {
+  copySlackFiles,
+  fetchGroupDms,
+  slackChannelType,
+  syncChannelMembers,
+  syncCustomEmoji,
+  toSlackChannelRow,
+} from '@/lib/slack-capture';
 
 export const maxDuration = 300; // 5 minutes for Slack API calls
 
@@ -25,6 +34,9 @@ const FETCH_BUDGET_MS = 170_000;
 // Replies to threads active this recently are refetched every run, to catch
 // reactions added or removed on them.
 const RECENT_THREAD_DAYS = 3;
+// Message files are copied to Storage last, with whatever time is left before
+// this point; the rest stay pending for the next run.
+const FILE_COPY_DEADLINE_MS = 260_000;
 
 interface SlackApiImportRequest {
   daysBack: number;
@@ -64,9 +76,12 @@ export async function POST(request: NextRequest) {
     const users = await fetchAllUsers(slack);
     console.log(`Fetched ${users.length} users`);
 
-    // 2. Fetch channels
+    // 2. Fetch channels, plus the group DMs the bot is in
     const channels = await fetchAllChannels(slack);
-    console.log(`Fetched ${channels.length} channels`);
+    const groupDms = await fetchGroupDms(slack);
+    const knownChannelIds = new Set(channels.map(c => c.channel_id));
+    channels.push(...groupDms.channels.filter(c => !knownChannelIds.has(c.channel_id)));
+    console.log(`Fetched ${channels.length} channels (${groupDms.channels.length} group DMs)`);
 
     // 2.5. Auto-join public channels
     await autoJoinPublicChannels(slack, channels);
@@ -82,7 +97,7 @@ export async function POST(request: NextRequest) {
         slack,
         channel.channel_id,
         channel.name,
-        channel.is_private ? 'private_channel' : 'public_channel',
+        slackChannelType(channel),
         oldest,
         latest
       );
@@ -152,6 +167,25 @@ export async function POST(request: NextRequest) {
     const reactionsRemoved = await deleteRemovedSlackReactions(supabase, allMessages, allReactions);
     if (reactionsRemoved > 0) console.log(`  Removed ${reactionsRemoved} reactions no longer in Slack`);
 
+    // 5.5. Who is in each conversation, and the custom emoji. The caller is a
+    // verified admin (or the cron); these tables are written by the service role.
+    // A failure here is reported but doesn't lose the messages already saved.
+    const service = createServiceRoleClient();
+    const captureErrors: string[] = [];
+    const capture = async <T>(label: string, run: () => Promise<T>): Promise<T | null> => {
+      try {
+        return await run();
+      } catch (error: any) {
+        console.error(`Slack import: ${label} failed:`, error);
+        captureErrors.push(`${label}: ${error?.message || error}`);
+        return null;
+      }
+    };
+    const membership = await capture('channel members', () => syncChannelMembers(service, slack, channels, importTimestamp));
+    if (membership) console.log(`  Members: ${membership.members} across ${membership.channelsSynced} channels (${membership.left} left, ${membership.channelsFailed} channels failed)`);
+    const emoji = await capture('custom emoji', () => syncCustomEmoji(service, slack, importTimestamp));
+    if (emoji && !emoji.skipped) console.log(`  Custom emoji: ${emoji.emoji} (${emoji.removed} removed)`);
+
     // Detect date range from imported messages
     let dateRange = null;
     if (allMessages.length > 0) {
@@ -188,8 +222,22 @@ export async function POST(request: NextRequest) {
       processed.push(...slackResults.processed);
     }
 
+    // 6. Copy message files into Storage with the time that's left. Last, so it
+    // never takes time from messages or Silver processing.
+    const files = await capture('files', () =>
+      copySlackFiles(service, SLACK_BOT_TOKEN, allMessages, importTimestamp, startedAt + FILE_COPY_DEADLINE_MS)
+    );
+    if (files) console.log(`  Files: ${files.copied} copied, ${files.skipped} skipped, ${files.failed} failed, ${files.pending} still pending`);
+
     return NextResponse.json({
       success: true,
+      capture: {
+        groupDms: groupDms.skipped ? { skipped: groupDms.skipped } : { conversations: groupDms.channels.length },
+        membership,
+        emoji,
+        files,
+        errors: captureErrors,
+      },
       fetched: {
         users: users.length,
         channels: channels.length,
@@ -264,17 +312,7 @@ async function fetchAllChannels(slack: WebClient) {
     });
 
     if (result.channels) {
-      channels.push(...result.channels.map((c: any) => ({
-        channel_id: c.id,
-        name: c.name,
-        is_private: c.is_private || false,
-        is_archived: c.is_archived || false,
-        member_count: c.num_members || 0,
-        topic: c.topic?.value || null,
-        purpose: c.purpose?.value || null,
-        created: c.created ? new Date(c.created * 1000).toISOString() : null,
-        raw_payload: c
-      })));
+      channels.push(...result.channels.map(toSlackChannelRow));
     }
 
     cursor = result.response_metadata?.next_cursor;

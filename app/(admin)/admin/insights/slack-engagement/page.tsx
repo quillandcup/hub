@@ -172,16 +172,26 @@ export default async function SlackEngagementPage({
     supabase
       .schema("bronze")
       .from("slack_channels")
-      .select("channel_id, name, is_archived, is_private, member_count, created"),
+      .select("channel_id, name, is_archived, is_private, is_mpim, member_count, created"),
     fetchAllTimeMessageActivity(supabase),
   ])
 
-  const channels = (channelRows ?? []) as unknown as SlackChannelRow[]
+  // Group DMs count toward the totals, but they aren't channels: keep them (and
+  // their names, which list the members) out of the per-channel tables.
+  const allConversations = (channelRows ?? []) as unknown as (SlackChannelRow & { is_mpim: boolean })[]
+  const groupDmIds = new Set(allConversations.filter((c) => c.is_mpim).map((c) => c.channel_id))
+  const channels: SlackChannelRow[] = allConversations.filter((c) => !c.is_mpim)
+  const channelMessages = messages.filter((m) => !groupDmIds.has(m.channel_id))
+  const channelReactions = reactions.filter((r) => !groupDmIds.has(r.channel_id))
 
   const hero = computeHeroStats(messages, reactions)
   const heatmap = computeDayHourHeatmap(messages, reactions)
-  const channelEngagement = computeChannelEngagement(messages, reactions, channels, since, until)
-  const archivalCandidates = computeArchivalCandidates(allTimeActivity, channels, new Date())
+  const channelEngagement = computeChannelEngagement(channelMessages, channelReactions, channels, since, until)
+  const archivalCandidates = computeArchivalCandidates(
+    allTimeActivity.filter((a) => !groupDmIds.has(a.channel_id)),
+    channels,
+    new Date()
+  )
   const topEmoji = computeTopEmoji(reactions)
 
   return (

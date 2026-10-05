@@ -145,7 +145,7 @@ export default async function DataHygienePage() {
     // Members for duplicate detection (limit 1000; members table stays small)
     supabase.from("members").select("id, name, email, status").order("name"),
     // Slack channels Billie Bot can currently see (workspace channel count stays well under 1000)
-    supabase.schema('bronze').from("slack_channels").select("channel_id, name, is_private, imported_at"),
+    supabase.schema('bronze').from("slack_channels").select("channel_id, name, is_private, is_mpim, imported_at"),
   ]);
 
   // Dedupe by zoom_name -- UNIQUE(zoom_name, zoom_email) doesn't dedupe when

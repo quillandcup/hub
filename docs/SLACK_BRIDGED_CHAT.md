@@ -221,6 +221,10 @@ Per channel: switch `bridge_mode` from `bridged` to `app_only`. The bot posts a 
 
 ## Phases
 
+Status, 2026-10-04. Done in groundwork: webhook edits/deletes/bot posts/join filtering; resumable import (only threads behind Slack, oldest first, heartbeat only when none are left behind); atomic Slack activity rebuild; chunked attendance rebuilds; and the capture work (group DMs via `mpim`, `bronze.slack_channel_members`, `bronze.slack_custom_emoji`, `bronze.slack_files` + the private `slack-files` bucket, with direct-message text kept out of `member_activities`). Capture details: `lib/slack-capture.ts`. Files over 20 MB and files hosted outside Slack are recorded but not copied. The notification framework (listed under "Later") also exists now: `lib/notifications/`.
+
+Still open in groundwork: `audit_log` v1; soft delete for removed reactions and import-detected message deletes; removing the 75 join/leave rows; Bronze content lock-down + `slack_messages_meta`; message text in `member_activities.description` for *restricted channels* (direct messages are done); alerting when the bot loses a private channel.
+
 1. **Groundwork**
    - `audit_log` v1 (from `docs/ACTIVITY_AND_AUDIT_LOG.md`) plus an admin view with a break-glass / restriction-change filter.
    - Bronze fixes: webhook subtypes, soft delete for messages and reactions, membership and emoji pulls, content lock-down + `slack_messages_meta` view; move the admin pages that read Bronze content (Slack engagement insights, reconciliation) to server-side metadata reads.

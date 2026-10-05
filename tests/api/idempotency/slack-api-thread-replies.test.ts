@@ -39,8 +39,14 @@ vi.mock('@slack/web-api', () => ({
     users = {
       list: async () => ({ members: [{ id: userId, name: 'threads-test', real_name: 'Threads Test', profile: {} }] }),
     }
+    emoji = {
+      list: async () => {
+        throw Object.assign(new Error('missing_scope'), { data: { error: 'missing_scope' } })
+      },
+    }
     conversations = {
-      list: async () => ({ channels: [{ id: channelId, name: 'threads-test', is_private: false, is_archived: false }] }),
+      list: async ({ types }: { types?: string }) => ({ channels: types === 'mpim' ? [] : [{ id: channelId, name: 'threads-test', is_private: false, is_archived: false }] }),
+      members: async () => ({ members: [userId] }),
       join: async () => ({ ok: true }),
       history: async () => ({ messages: [broadcast, parent] }),
       replies: async ({ ts }: { ts: string }) => ({ messages: ts === parentTs ? [parent, reply, broadcast] : [] }),
@@ -49,6 +55,11 @@ vi.mock('@slack/web-api', () => ({
 }))
 
 vi.mock('@/lib/supabase/api-auth', () => ({ requireAdmin: vi.fn() }))
+// The import writes membership, emoji and file records with the service role.
+vi.mock('@/lib/supabase/service', async () => {
+  const { getTestSupabaseAdminClient } = await import('../../helpers/supabase')
+  return { createServiceRoleClient: () => getTestSupabaseAdminClient() }
+})
 vi.mock('@/lib/processing/trigger', () => ({ triggerReprocessing: vi.fn(async () => ({ processed: [] })) }))
 
 import { requireAdmin } from '@/lib/supabase/api-auth'
@@ -62,6 +73,7 @@ describe('POST /api/import/slack-api thread replies', () => {
   const cleanup = async () => {
     await supabase.schema('bronze').from('slack_reactions').delete().eq('channel_id', channelId)
     await supabase.schema('bronze').from('slack_messages').delete().eq('channel_id', channelId)
+    await supabase.schema('bronze').from('slack_channel_members').delete().eq('channel_id', channelId)
     await supabase.schema('bronze').from('slack_channels').delete().eq('channel_id', channelId)
     await supabase.schema('bronze').from('slack_users').delete().eq('user_id', userId)
   }
