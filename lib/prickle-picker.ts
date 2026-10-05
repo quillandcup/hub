@@ -62,6 +62,11 @@ export interface PickerAnswers {
   windowStart: string;
   /** ISO datetime, inclusive upper bound on start_time */
   windowEnd: string;
+  /**
+   * Later cutoff for prickles outside the window: they're still returned, flagged as a
+   * "window" mismatch, so the picker has something to offer when the window is empty.
+   */
+  fallbackWindowEnd?: string;
   timeOfDay: TimeOfDay;
   vibe: VibePreference;
   purpose: PurposePreference;
@@ -94,9 +99,18 @@ export interface PickerRecommendation {
    * similarCheckins), or null when there are fewer than MIN_PERSONAL_SESSIONS of them.
    */
   personal: { sessions: number; avgRating: number } | null;
+  /**
+   * Preferences this series is known to miss (mood differs from what was asked, the requested
+   * people have never all attended together, nothing falls in the chosen window or time of day,
+   * or it isn't the chosen purpose). Empty = a real match. Unknown vibe/history is not a
+   * mismatch, just unproven.
+   */
+  mismatches: PickerMismatch[];
   score: number;
   occurrences: { id: string; startTime: string }[];
 }
+
+export type PickerMismatch = "vibe" | "people" | "window" | "timeOfDay" | "purpose";
 
 const DEFAULT_TIMEZONE = ORG_TIMEZONE;
 
@@ -245,14 +259,12 @@ export function getPrickleRecommendations(
   limit = 8,
   personalCheckins: PersonalCheckin[] = []
 ): PickerRecommendation[] {
-  const filteredCandidates = candidates.filter(
-    (c) =>
-      withinWindow(c.start_time, answers.windowStart, answers.windowEnd) &&
-      passesTimeOfDayFilter(c.start_time, answers.timeOfDay, answers.timezone)
+  const considered = candidates.filter((c) =>
+    withinWindow(c.start_time, answers.windowStart, answers.fallbackWindowEnd ?? answers.windowEnd)
   );
 
   const candidatesBySeries = new Map<string, CandidatePrickle[]>();
-  for (const c of filteredCandidates) {
+  for (const c of considered) {
     const key = seriesKeyFor(c.type_id, c.host_id);
     if (!candidatesBySeries.has(key)) candidatesBySeries.set(key, []);
     candidatesBySeries.get(key)!.push(c);
@@ -291,7 +303,11 @@ export function getPrickleRecommendations(
     const purpose = typeInfo?.purpose ?? "writing";
     const soloTaskFriendly = typeInfo?.soloTaskFriendly ?? true;
 
-    if (!passesPurposeFilter(answers.purpose, purpose, soloTaskFriendly)) continue;
+    // Occurrences that fit both the window and the time of day; a series with none of them is
+    // still offered (flagged), showing all its occurrences.
+    const inWindow = seriesCandidates.filter((c) => withinWindow(c.start_time, answers.windowStart, answers.windowEnd));
+    const fitting = inWindow.filter((c) => passesTimeOfDayFilter(c.start_time, answers.timeOfDay, answers.timezone));
+    const shown = fitting.length > 0 ? fitting : inWindow.length > 0 ? inWindow : seriesCandidates;
 
     const hostInfo = first.host_id ? candidateHosts.get(first.host_id) : undefined;
     const historical = historicalBySeries.get(seriesKey) ?? [];
@@ -345,7 +361,14 @@ export function getPrickleRecommendations(
       scoreConfidence(sessionCount) +
       (personal && memberAvgRating !== null ? WEIGHT_PERSONAL * (personal.avgRating - memberAvgRating) : 0);
 
-    const sortedOccurrences = [...seriesCandidates].sort(
+    const mismatches: PickerMismatch[] = [];
+    if (inWindow.length === 0) mismatches.push("window");
+    else if (fitting.length === 0) mismatches.push("timeOfDay");
+    if (!passesPurposeFilter(answers.purpose, purpose, soloTaskFriendly)) mismatches.push("purpose");
+    if (answers.vibe !== "any" && vibe !== "unknown" && vibe !== answers.vibe) mismatches.push("vibe");
+    if (withMemberIds.size > 0 && sessionCount > 0 && coAttendanceRate === 0) mismatches.push("people");
+
+    const sortedOccurrences = [...shown].sort(
       (a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime()
     );
 
@@ -364,24 +387,17 @@ export function getPrickleRecommendations(
       sessionCount,
       coAttendanceRate,
       personal,
+      mismatches,
       score,
       occurrences: sortedOccurrences.slice(0, 3).map((o) => ({ id: o.id, startTime: o.start_time })),
     });
   }
 
-  // A proven zero -- the requested people have historically never all shown
-  // up together at this series -- shouldn't be outranked into the results by
-  // vibe/purpose scoring alone. Rank those series behind everything else
-  // (unknown/no-history and nonzero co-attendance) rather than blending them
-  // into one score-sorted list, but still show them if there isn't enough
-  // else to fill the list.
-  const isProvenMismatch = (r: PickerRecommendation) =>
-    withMemberIds.size > 0 && r.sessionCount > 0 && r.coAttendanceRate === 0;
-
+  // Real matches first, then the series that miss the fewest preferences (e.g. requested people
+  // who have never all shown up together rank behind everything else), then by score. Misses
+  // are still returned so the member always has something to look at.
   recommendations.sort((a, b) => {
-    const aMismatch = isProvenMismatch(a);
-    const bMismatch = isProvenMismatch(b);
-    if (aMismatch !== bMismatch) return aMismatch ? 1 : -1;
+    if (a.mismatches.length !== b.mismatches.length) return a.mismatches.length - b.mismatches.length;
     if (b.score !== a.score) return b.score - a.score;
     return new Date(a.occurrences[0].startTime).getTime() - new Date(b.occurrences[0].startTime).getTime();
   });

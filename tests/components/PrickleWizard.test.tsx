@@ -39,6 +39,7 @@ const sampleRecommendation: PickerRecommendation = {
   sessionCount: 10,
   coAttendanceRate: null,
   personal: null,
+  mismatches: [],
   score: 1.5,
   occurrences: [{ id: "p1", startTime: "2026-01-05T15:00:00Z" }],
 };
@@ -51,21 +52,22 @@ async function goToLastStep() {
   for (let i = 0; i < 4; i++) await next();
 }
 
+async function goToPeopleStep() {
+  for (let i = 0; i < 3; i++) await next();
+}
+
 beforeEach(() => {
   vi.mocked(getWizardRecommendations).mockReset();
 });
 
 describe("PrickleWizard", () => {
-  it("starts on the 'how are you feeling' step", () => {
+  it("starts on the 'when works for you' step", () => {
     render(<PrickleWizard members={members} />);
-    expect(screen.getByText("How are you feeling?")).toBeInTheDocument();
+    expect(screen.getByText("When works for you?")).toBeInTheDocument();
   });
 
-  it("walks through all five steps via Next/Back", async () => {
+  it("walks through all five steps via Next/Back, with feelings last", async () => {
     render(<PrickleWizard members={members} />);
-
-    await next();
-    expect(screen.getByText("When works for you?")).toBeInTheDocument();
 
     await next();
     expect(screen.getByText("What's the mood?")).toBeInTheDocument();
@@ -76,27 +78,26 @@ describe("PrickleWizard", () => {
     await next();
     expect(screen.getByText("Anyone you're hoping to see there?")).toBeInTheDocument();
 
+    await next();
+    expect(screen.getByText("How are you feeling?")).toBeInTheDocument();
+    expect(screen.getByText(/skip it if you like/)).toBeInTheDocument();
+
     await userEvent.click(screen.getByRole("button", { name: /back/i }));
-    expect(screen.getByText("What are you here for?")).toBeInTheDocument();
+    expect(screen.getByText("Anyone you're hoping to see there?")).toBeInTheDocument();
   });
 
-  it("submits feelings and need, and pre-selects the mood the need points at", async () => {
+  it("submits feelings and need, and fills in the mood the need points at when none was chosen", async () => {
     vi.mocked(getWizardRecommendations).mockResolvedValue({ recommendations: [sampleRecommendation] });
     render(<PrickleWizard members={members} />);
 
+    await goToLastStep();
     await userEvent.click(screen.getByRole("button", { name: "Stressed" }));
     await userEvent.click(screen.getByRole("button", { name: "Lonely" }));
     expect(screen.getByRole("button", { name: "Calm" })).toBeDisabled();
     await userEvent.click(screen.getByRole("button", { name: "Company" }));
-    await next();
-    await next();
-    // Company points at a chatty room.
-    expect(screen.getByRole("button", { name: "Chatty" })).toHaveClass("bg-plum-600");
-
-    await next();
-    await next();
     await userEvent.click(screen.getByRole("button", { name: /show me prickles/i }));
 
+    // Company points at a chatty room.
     expect(getWizardRecommendations).toHaveBeenCalledWith(
       expect.objectContaining({ feelings: ["stressed", "lonely"], need: "company", vibe: "chatty" })
     );
@@ -112,12 +113,11 @@ describe("PrickleWizard", () => {
     render(<PrickleWizard members={members} />);
 
     await next();
-    await next();
     await userEvent.click(screen.getByRole("button", { name: "Focused" }));
-    await userEvent.click(screen.getByRole("button", { name: /back/i }));
-    await userEvent.click(screen.getByRole("button", { name: /back/i }));
+    await next();
+    await next();
+    await next();
     await userEvent.click(screen.getByRole("button", { name: "Company" }));
-    await goToLastStep();
     await userEvent.click(screen.getByRole("button", { name: /show me prickles/i }));
 
     expect(getWizardRecommendations).toHaveBeenCalledWith(expect.objectContaining({ vibe: "focused" }));
@@ -139,9 +139,8 @@ describe("PrickleWizard", () => {
 
     render(<PrickleWizard members={members} />);
 
-    await next();
     await userEvent.click(screen.getByRole("button", { name: "Evening" }));
-    for (let i = 0; i < 3; i++) await next();
+    await goToLastStep();
     await userEvent.click(screen.getByRole("button", { name: /show me prickles/i }));
 
     expect(await screen.findByText("Heads Down")).toBeInTheDocument();
@@ -154,16 +153,69 @@ describe("PrickleWizard", () => {
     vi.mocked(getWizardRecommendations).mockResolvedValue({ recommendations: [] });
 
     render(<PrickleWizard members={members} />);
-    await goToLastStep();
+    await goToPeopleStep();
 
     await userEvent.type(screen.getByPlaceholderText(/search for a hedgie/i), "Sue");
     await userEvent.click(await screen.findByText("Sue"));
+    await next();
 
     await userEvent.click(screen.getByRole("button", { name: /show me prickles/i }));
 
     expect(await screen.findByText("No matches this time")).toBeInTheDocument();
     expect(getWizardRecommendations).toHaveBeenCalledWith(
       expect.objectContaining({ withMemberIds: ["sue"] })
+    );
+  });
+
+  it("says nothing matches the chosen mood and offers the rest as others to consider", async () => {
+    vi.mocked(getWizardRecommendations).mockResolvedValue({
+      recommendations: [{ ...sampleRecommendation, vibe: "balanced", mismatches: ["vibe"] }],
+    });
+    render(<PrickleWizard members={members} />);
+    await next();
+    await userEvent.click(screen.getByRole("button", { name: "Chatty" }));
+    await goToPeopleStep();
+    await userEvent.click(screen.getByRole("button", { name: /show me prickles/i }));
+
+    expect(await screen.findByText("No exact matches")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Nothing matches a chatty mood, but here is another to consider."
+    );
+    expect(screen.getByText("Heads Down")).toBeInTheDocument();
+  });
+
+  it("separates real matches from mismatches and names the people who never overlap", async () => {
+    vi.mocked(getWizardRecommendations).mockResolvedValue({
+      recommendations: [
+        sampleRecommendation,
+        { ...sampleRecommendation, seriesKey: "other", typeName: "Elsewhere", mismatches: ["people"] },
+      ],
+    });
+    render(<PrickleWizard members={members} />);
+    await goToPeopleStep();
+    await userEvent.type(screen.getByPlaceholderText(/search for a hedgie/i), "Sue");
+    await userEvent.click(await screen.findByText("Sue"));
+    await next();
+    await userEvent.click(screen.getByRole("button", { name: /show me prickles/i }));
+
+    expect(await screen.findByText("Here's what looks good 🦔")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Others to consider: these don't match seeing Sue.");
+  });
+
+  it("lists every kind of miss when nothing fits the time, time of day or purpose", async () => {
+    vi.mocked(getWizardRecommendations).mockResolvedValue({
+      recommendations: [{ ...sampleRecommendation, mismatches: ["window", "purpose"] }],
+    });
+    render(<PrickleWizard members={members} />);
+    await next();
+    await next();
+    await userEvent.click(screen.getByRole("button", { name: "Writing" }));
+    await next();
+    await next();
+    await userEvent.click(screen.getByRole("button", { name: /show me prickles/i }));
+
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Nothing matches that time window and being for writing, but here is another to consider."
     );
   });
 
@@ -186,6 +238,6 @@ describe("PrickleWizard", () => {
     await screen.findByText("Heads Down");
 
     await userEvent.click(screen.getByRole("button", { name: /start over/i }));
-    expect(screen.getByText("How are you feeling?")).toBeInTheDocument();
+    expect(screen.getByText("When works for you?")).toBeInTheDocument();
   });
 });

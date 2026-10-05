@@ -81,6 +81,11 @@ function attend(prickleId: string, memberId: string): HistoricalAttendanceRow {
   return { prickle_id: prickleId, member_id: memberId };
 }
 
+/** Only the series that fully match the answers (misses are returned too, flagged). */
+function exact(recs: ReturnType<typeof getPrickleRecommendations>) {
+  return recs.filter((r) => r.mismatches.length === 0);
+}
+
 function baseAnswers(overrides: Partial<PickerAnswers> = {}): PickerAnswers {
   return {
     windowStart: "2026-01-01T00:00:00Z",
@@ -114,8 +119,10 @@ describe("purpose filter", () => {
       [],
       baseAnswers({ purpose: "work" })
     );
-    expect(result).toHaveLength(1);
-    expect(result[0].typeId).toBe(writingType.id);
+    expect(exact(result)).toHaveLength(1);
+    expect(exact(result)[0].typeId).toBe(writingType.id);
+    expect(result).toHaveLength(3);
+    expect(result.slice(1).every((r) => r.mismatches.includes("purpose"))).toBe(true);
   });
 
   it("ranks an on-topic solo-friendly work session above a generic solo-friendly writing session", () => {
@@ -152,7 +159,8 @@ describe("purpose filter", () => {
       [],
       baseAnswers({ purpose: "work" })
     );
-    expect(result).toHaveLength(0);
+    expect(exact(result)).toHaveLength(0);
+    expect(result.length).toBeGreaterThan(0);
   });
 
   it("does not extend solo-task-friendliness leniency to 'social' or 'writing' requests", () => {
@@ -166,7 +174,8 @@ describe("purpose filter", () => {
       [],
       baseAnswers({ purpose: "social" })
     );
-    expect(result).toHaveLength(0);
+    expect(exact(result)).toHaveLength(0);
+    expect(result.length).toBeGreaterThan(0);
   });
 
   it("always includes 'mixed' purpose types for non-work requests, regardless of the requested purpose", () => {
@@ -201,7 +210,8 @@ describe("purpose filter", () => {
       [],
       baseAnswers({ purpose: "work" })
     );
-    expect(result).toHaveLength(0);
+    expect(exact(result)).toHaveLength(0);
+    expect(result.length).toBeGreaterThan(0);
   });
 
   it("'any' purpose preference includes everything", () => {
@@ -228,6 +238,26 @@ describe("vibe resolution", () => {
     expect(result[0].vibe).toBe("chatty");
     expect(result[0].vibeSource).toBe("tagged");
     expect(result[0].vibeNotes).toBe("goofy crew");
+  });
+
+  it("flags a vibe mismatch, but not a match or an unknown vibe", () => {
+    const candidates = [
+      candidate("p1", writingType.id, hostA.id, "2026-01-05T15:00:00Z"),
+      candidate("p2", workType.id, hostA.id, "2026-01-06T15:00:00Z"),
+    ];
+    const vibes: HostVibeRow[] = [{ type_id: writingType.id, host_id: hostA.id, vibe: "balanced", notes: null }];
+    const byType = (vibe: PickerAnswers["vibe"]) =>
+      new Map(
+        getPrickleRecommendations(candidates, types, hosts, [], [], vibes, { ...baseAnswers(), vibe }).map((r) => [
+          r.typeId,
+          r.mismatches,
+        ])
+      );
+
+    expect(byType("chatty").get(writingType.id)).toEqual(["vibe"]);
+    expect(byType("balanced").get(writingType.id)).toEqual([]);
+    expect(byType("any").get(writingType.id)).toEqual([]);
+    expect(byType("chatty").get(workType.id)).toEqual([]);
   });
 
   it("infers a low-confidence vibe from average attendance when untagged", () => {
@@ -346,7 +376,7 @@ describe("time-of-day filtering", () => {
       [],
       baseAnswers({ timeOfDay: "evening", timezone: "America/New_York" })
     );
-    expect(result).toHaveLength(1);
+    expect(exact(result)).toHaveLength(1);
     expect(result[0].occurrences[0].id).toBe("evening");
   });
 
@@ -373,7 +403,8 @@ describe("time-of-day filtering", () => {
       baseAnswers({ timeOfDay: "evening", timezone: "Asia/Tokyo" })
     );
     expect(inNY).toHaveLength(1); // 18:30 ET -> evening
-    expect(inTokyo).toHaveLength(0); // 08:30 JST -> morning, not evening
+    expect(exact(inTokyo)).toHaveLength(0); // 08:30 JST -> morning, not evening
+    expect(inTokyo[0].mismatches).toEqual(["timeOfDay"]);
   });
 
   it("'any' time of day includes candidates at every hour", () => {
@@ -454,6 +485,42 @@ describe("window filtering", () => {
     );
     expect(result).toHaveLength(1);
     expect(result[0].occurrences[0].id).toBe("in");
+  });
+
+  it("offers prickles past the window, flagged, when a fallback cutoff is given", () => {
+    const candidates = [
+      candidate("in", writingType.id, hostA.id, "2026-01-15T15:00:00Z"),
+      candidate("later", writingType.id, hostB.id, "2026-02-05T15:00:00Z"),
+      candidate("too-late", writingType.id, hostB.id, "2026-03-15T15:00:00Z"),
+    ];
+    const result = getPrickleRecommendations(
+      candidates,
+      types,
+      hosts,
+      [],
+      [],
+      [],
+      baseAnswers({ windowEnd: "2026-01-31T23:59:59Z", fallbackWindowEnd: "2026-02-28T23:59:59Z" })
+    );
+    expect(result.map((r) => [r.occurrences[0].id, r.mismatches])).toEqual([
+      ["in", []],
+      ["later", ["window"]],
+    ]);
+  });
+
+  it("returns something even when nothing is in the window", () => {
+    const candidates = [candidate("later", writingType.id, hostA.id, "2026-02-05T15:00:00Z")];
+    const result = getPrickleRecommendations(
+      candidates,
+      types,
+      hosts,
+      [],
+      [],
+      [],
+      baseAnswers({ windowEnd: "2026-01-31T23:59:59Z", fallbackWindowEnd: "2026-02-28T23:59:59Z" })
+    );
+    expect(result).toHaveLength(1);
+    expect(result[0].mismatches).toEqual(["window"]);
   });
 });
 

@@ -26,6 +26,7 @@ import { validateCheckin, type Feeling, type Need } from "@/lib/prickle-checkins
 
 const BATCH_SIZE = 1000;
 const DEFAULT_TIMEZONE = ORG_TIMEZONE;
+const FALLBACK_WINDOW_DAYS = 14;
 
 export interface WizardAnswers {
   /** How many days out from now to look for candidates. */
@@ -146,6 +147,10 @@ export async function getWizardRecommendations(
   const now = new Date();
   const windowStart = now.toISOString();
   const windowEnd = new Date(now.getTime() + answers.windowDays * 24 * 60 * 60 * 1000).toISOString();
+  // Look further ahead than asked so there's something to offer when the window is empty.
+  const fallbackWindowEnd = new Date(
+    now.getTime() + Math.max(answers.windowDays, FALLBACK_WINDOW_DAYS) * 24 * 60 * 60 * 1000
+  ).toISOString();
   const historyStart = new Date(now);
   historyStart.setMonth(historyStart.getMonth() - HISTORY_MONTHS);
 
@@ -159,7 +164,7 @@ export async function getWizardRecommendations(
         .from("prickles")
         .select("id, type_id, host_id:host, start_time")
         .gte("start_time", windowStart)
-        .lte("start_time", windowEnd)
+        .lte("start_time", fallbackWindowEnd)
         .order("start_time")
         .range(offset, offset + BATCH_SIZE - 1)
     ),
@@ -204,6 +209,7 @@ export async function getWizardRecommendations(
     {
       windowStart,
       windowEnd,
+      fallbackWindowEnd,
       timeOfDay: answers.timeOfDay,
       vibe: answers.vibe,
       purpose: answers.purpose,
