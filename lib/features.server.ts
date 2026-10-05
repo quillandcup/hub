@@ -1,5 +1,6 @@
 import { cache } from 'react';
 import { createClient } from '@/lib/supabase/server';
+import { createServiceRoleClient } from '@/lib/supabase/service';
 import type { FeatureKey } from '@/lib/features';
 
 /**
@@ -98,4 +99,18 @@ export async function membersWithFeature(supabase: any, key: FeatureKey, memberI
   }
   for (const row of (segmentBatches as any[]).flatMap((r: any) => r.data ?? [])) enabled.add(row.member_id);
   return enabled;
+}
+
+/**
+ * Whether the effective member has `key` on: the signed-in user's own flags normally, the sudo'd
+ * member's (not the admin's) in sudo, so an admin sees exactly what that member would.
+ * `ownFeatures` is the signed-in user's getUserFeaturePreviews result.
+ */
+export async function effectiveMemberHasFeature(
+  key: FeatureKey,
+  identity: { memberId: string; isSudo: boolean },
+  ownFeatures: FeatureKey[]
+): Promise<boolean> {
+  if (!identity.isSudo) return ownFeatures.includes(key);
+  return (await membersWithFeature(createServiceRoleClient(), key, [identity.memberId])).has(identity.memberId);
 }

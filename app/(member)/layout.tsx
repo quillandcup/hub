@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getCurrentUser } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import { getEffectiveIdentity } from '@/lib/sudo'
-import { getUserFeaturePreviews } from '@/lib/features.server'
+import { effectiveMemberHasFeature, getUserFeaturePreviews } from '@/lib/features.server'
 import type { FeatureKey } from '@/lib/features'
 import MemberNavigation from '@/components/MemberNavigation'
 import UserMenu from '@/components/UserMenu'
@@ -51,9 +51,9 @@ export default async function MemberLayout({
   // The tour is the member's own: hidden during sudo, so an admin browsing as them doesn't see or
   // change it (app/actions/onboarding.ts refuses then too).
   const showOnboarding = enabledFeatures.includes('onboarding') && !effectiveIdentity.isSudo
-  // In-app notifications show in sudo like the rest of the member's experience
-  // (app/actions/in-app-notifications.ts).
-  const showInApp = enabledFeatures.includes('in_app_notifications')
+  // In-app notifications show in sudo like the rest of the member's experience, behind the
+  // member's own flag (app/actions/in-app-notifications.ts).
+  const showInApp = await effectiveMemberHasFeature('in_app_notifications', effectiveIdentity, enabledFeatures)
   const [onboardingState, inAppNotifications] = await Promise.all([
     showOnboarding ? getOnboardingState(user.id, effectiveIdentity.memberId) : null,
     showInApp

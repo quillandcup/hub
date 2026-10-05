@@ -19,7 +19,16 @@ vi.mock("next/navigation", () => import("@/tests/helpers/server-page").then((m) 
 vi.mock("@/lib/auth", () => import("@/tests/helpers/server-page").then((m) => m.authModule));
 vi.mock("@/lib/sudo", () => import("@/tests/helpers/server-page").then((m) => m.sudoModule));
 vi.mock("@/lib/supabase/server", () => import("@/tests/helpers/server-page").then((m) => m.supabaseServerModule));
-vi.mock("@/lib/features.server", () => ({ getUserFeaturePreviews: vi.fn() }));
+// The member's own flag in sudo is looked up through the service role; stub that lookup.
+let sudoMemberHasFlag = true;
+vi.mock("@/lib/features.server", () => ({
+  getUserFeaturePreviews: vi.fn(),
+  effectiveMemberHasFeature: async (
+    key: string,
+    identity: { isSudo: boolean },
+    own: string[]
+  ) => (identity.isSudo ? sudoMemberHasFlag : own.includes(key)),
+}));
 
 const { getUserFeaturePreviews } = await import("@/lib/features.server");
 const { default: NotificationsPage } = await import("@/app/(member)/notifications/page");
@@ -46,12 +55,22 @@ beforeEach(() => {
   routerMock.push.mockClear();
   signInAs(MEMBER_USER, MEMBER_IDENTITY);
   vi.mocked(getUserFeaturePreviews).mockResolvedValue(["in_app_notifications"]);
+  sudoMemberHasFlag = true;
   fake = useFakeSupabase({ in_app_notifications: { data: ROWS, count: 2 } });
 });
 
 describe("/notifications", () => {
   it("is a 404 without the in_app_notifications flag", async () => {
     vi.mocked(getUserFeaturePreviews).mockResolvedValue([]);
+    await expect(NotificationsPage({ searchParams: Promise.resolve({}) })).rejects.toThrow();
+    expect(notFound).toHaveBeenCalled();
+  });
+
+  it("uses the sudo'd member's flag, not the admin's", async () => {
+    signInAs(MEMBER_USER, { ...MEMBER_IDENTITY, isSudo: true });
+    // The admin has it on, the member doesn't.
+    vi.mocked(getUserFeaturePreviews).mockResolvedValue(["in_app_notifications"]);
+    sudoMemberHasFlag = false;
     await expect(NotificationsPage({ searchParams: Promise.resolve({}) })).rejects.toThrow();
     expect(notFound).toHaveBeenCalled();
   });
