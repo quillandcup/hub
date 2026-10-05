@@ -406,7 +406,7 @@ export { checkinAnswered, checkoutAnswered };
 export function buildCheckinBlocks(prickleId: string, typeName: string, saved: CheckinInput | null): any[] {
   return [
     checkinQuestion(prickleId, "feelings_before", `*${typeName}* starts in about 20 minutes. How are you feeling coming in?`, saved),
-    checkinQuestion(prickleId, "need", "What do you need from this session?", saved),
+    checkinQuestion(prickleId, "need", "What do you need most from this session?", saved),
     checkinFooter(prickleId),
   ];
 }

@@ -41,7 +41,7 @@ SELECT set_config('request.jwt.claims',
   '{"sub": "00000000-0000-4000-a000-00000000d1a1", "email": "checkin-alice@example.test", "role": "authenticated"}', true);
 INSERT INTO public.prickle_checkins (member_id, prickle_id, feelings_before, need, session_rating, feelings_after)
 VALUES ('00000000-0000-4000-a000-00000000d101', '00000000-0000-4000-a000-00000000d1f1',
-        ARRAY['stressed', 'tired'], 'gentle', 4, ARRAY['calm']);
+        ARRAY['stressed', 'tired'], 'company', 4, ARRAY['calm']);
 INSERT INTO result SELECT 'alice_sees', jsonb_agg(member_id) FROM public.prickle_checkins
   WHERE prickle_id = '00000000-0000-4000-a000-00000000d1f1';
 UPDATE public.prickle_checkins SET need = 'momentum'
@@ -102,7 +102,7 @@ SELECT throws_ok(
   $$SET LOCAL ROLE authenticated;
     SELECT set_config('request.jwt.claims', '{"sub": "00000000-0000-4000-a000-00000000d1a1", "email": "checkin-alice@example.test", "role": "authenticated"}', true);
     INSERT INTO public.prickle_checkins (member_id, prickle_id, need)
-    VALUES ('00000000-0000-4000-a000-00000000d104', '00000000-0000-4000-a000-00000000d1f1', 'gentle')$$,
+    VALUES ('00000000-0000-4000-a000-00000000d104', '00000000-0000-4000-a000-00000000d1f1', 'company')$$,
   '42501',
   NULL,
   'a member cannot write a check-in for someone else'
@@ -113,7 +113,7 @@ SELECT throws_ok(
   $$SET LOCAL ROLE authenticated;
     SELECT set_config('request.jwt.claims', '{"sub": "00000000-0000-4000-a000-00000000d1a4", "email": "checkin-dana@example.test", "role": "authenticated"}', true);
     INSERT INTO public.prickle_checkins (member_id, prickle_id, need)
-    VALUES ('00000000-0000-4000-a000-00000000d102', '00000000-0000-4000-a000-00000000d1f1', 'gentle')$$,
+    VALUES ('00000000-0000-4000-a000-00000000d102', '00000000-0000-4000-a000-00000000d1f1', 'company')$$,
   '42501',
   NULL,
   'an admin cannot write a check-in for a member'

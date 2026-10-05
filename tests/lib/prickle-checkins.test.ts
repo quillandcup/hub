@@ -17,22 +17,22 @@ import {
   type CheckinInput,
 } from "@/lib/prickle-checkins";
 
-const VALID: CheckinInput = { feelingsBefore: ["stressed"], need: "gentle", sessionRating: 4, feelingsAfter: ["calm"] };
+const VALID: CheckinInput = { feelingsBefore: ["stressed"], need: "company", sessionRating: 4, feelingsAfter: ["calm"] };
 
 describe("feeling options", () => {
   it("derives each feeling's group, leaving the off-grid ones ungrouped", () => {
-    expect(FEELING_GROUP.drained).toBe("running_low");
+    expect(FEELING_GROUP.tired).toBe("running_low");
     expect(FEELING_GROUP.overwhelmed).toBe("wound_up");
     expect(FEELING_GROUP.lonely).toBeNull();
   });
 
   it("splits the display into one row per group, ungrouped feelings together last", () => {
     expect(FEELING_DISPLAY_GROUPS.map((g) => g.map((f) => f.key))).toEqual([
-      ["motivated", "inspired", "determined"],
-      ["calm", "content", "curious"],
-      ["tired", "drained", "meh"],
+      ["motivated"],
+      ["calm", "content"],
+      ["tired", "meh"],
       ["stressed", "anxious", "overwhelmed", "frustrated"],
-      ["stuck", "scattered", "lonely"],
+      ["stuck", "lonely"],
     ]);
     expect(FEELING_DISPLAY_GROUPS.flat()).toHaveLength(FEELINGS.length);
   });
@@ -41,7 +41,7 @@ describe("feeling options", () => {
   // rejected by Postgres or never offered in the UI.
   it("matches the keys allowed by the prickle_checkins migration", () => {
     const sql = fs.readFileSync(
-      path.join(__dirname, "../../supabase/migrations/20261003000000_create_prickle_checkins.sql"),
+      path.join(__dirname, "../../supabase/migrations/20261005000000_trim_prickle_checkin_options.sql"),
       "utf8"
     );
     const arrays = [...sql.matchAll(/ARRAY\[([^\]]+)\]::TEXT\[\]/g)].map((m) =>
@@ -74,7 +74,7 @@ describe("validateCheckin", () => {
 
   it.each([
     ["unknown feeling", { ...VALID, feelingsBefore: ["hangry"] }],
-    ["too many feelings", { ...VALID, feelingsAfter: ["calm", "content", "curious"] }],
+    ["too many feelings", { ...VALID, feelingsAfter: ["calm", "content", "tired"] }],
     ["duplicate feelings", { ...VALID, feelingsBefore: ["calm", "calm"] }],
     ["feelings not an array", { ...VALID, feelingsBefore: "calm" }],
     ["unknown need", { ...VALID, need: "snacks" }],
@@ -128,7 +128,7 @@ describe("checkinAnswered / checkoutAnswered", () => {
   it("needs both of a half's answers", () => {
     expect(checkinAnswered(null)).toBe(false);
     expect(checkinAnswered({ ...empty, feelingsBefore: ["tired"] })).toBe(false);
-    expect(checkinAnswered({ ...empty, feelingsBefore: ["tired"], need: "gentle" })).toBe(true);
+    expect(checkinAnswered({ ...empty, feelingsBefore: ["tired"], need: "company" })).toBe(true);
     expect(checkoutAnswered({ ...empty, sessionRating: 4 })).toBe(false);
     expect(checkoutAnswered({ ...empty, sessionRating: 4, feelingsAfter: ["calm"] })).toBe(true);
   });

@@ -244,9 +244,9 @@ describe("buildCheckinBlocks", () => {
   });
 
   it("starts from the saved answers", () => {
-    const [feelings, need] = buildCheckinBlocks("p1", "Progress Prickle", { ...EMPTY, feelingsBefore: ["tired", "stuck"], need: "unstick" });
+    const [feelings, need] = buildCheckinBlocks("p1", "Progress Prickle", { ...EMPTY, feelingsBefore: ["tired", "stuck"], need: "unstuck" });
     expect(feelings.accessory.initial_options.map((o: any) => o.value)).toEqual(["tired", "stuck"]);
-    expect(need.accessory.initial_option.value).toBe("unstick");
+    expect(need.accessory.initial_option.value).toBe("unstuck");
   });
 });
 
@@ -314,7 +314,7 @@ describe("parseCheckinAnswer", () => {
 
 describe("applyCheckinAnswer", () => {
   it("replaces only the answered field", () => {
-    const base: CheckinInput = { feelingsBefore: ["tired"], need: "gentle", sessionRating: 2, feelingsAfter: [] };
+    const base: CheckinInput = { feelingsBefore: ["tired"], need: "company", sessionRating: 2, feelingsAfter: [] };
     expect(applyCheckinAnswer(base, "session_rating", ["4"])).toEqual({ ...base, sessionRating: 4 });
     expect(applyCheckinAnswer(base, "feelings_before", [])).toEqual({ ...base, feelingsBefore: [] });
     expect(applyCheckinAnswer(base, "need", ["company"])).toEqual({ ...base, need: "company" });
@@ -351,19 +351,19 @@ describe("saveCheckinAnswer", () => {
 
   it("reads only the live check-in", async () => {
     const fake = createFakeSupabase({ prickle_checkins: { data: [] } });
-    await saveCheckinAnswer(fake, "m1", { prickleId: "p1", field: "need", values: ["gentle"] });
+    await saveCheckinAnswer(fake, "m1", { prickleId: "p1", field: "need", values: ["company"] });
     const read = fake.queries.find((q) => q.calls.some((c) => c.method === "maybeSingle"))!;
     expect(read.calls).toContainEqual({ method: "is", args: ["deleted_at", null] });
   });
 
   it("merges the answer into the saved check-in", async () => {
     const fake = createFakeSupabase({
-      prickle_checkins: { data: [{ feelings_before: ["tired"], need: "gentle", session_rating: null, feelings_after: [] }] },
+      prickle_checkins: { data: [{ feelings_before: ["tired"], need: "company", session_rating: null, feelings_after: [] }] },
     });
     expect(await saveCheckinAnswer(fake, "m1", { prickleId: "p1", field: "session_rating", values: ["4"] })).toBeNull();
     const [upsert] = writes(fake);
     expect(upsert.args).toEqual([
-      { member_id: "m1", prickle_id: "p1", feelings_before: ["tired"], need: "gentle", session_rating: 4, feelings_after: [], deleted_at: null },
+      { member_id: "m1", prickle_id: "p1", feelings_before: ["tired"], need: "company", session_rating: 4, feelings_after: [], deleted_at: null },
       { onConflict: "member_id,prickle_id" },
     ]);
   });
@@ -401,7 +401,7 @@ describe("in-app notifications", () => {
     const fake = createFakeSupabase({
       prickle_checkins: { data: [{ feelings_before: ["tired"], need: null, session_rating: null, feelings_after: [] }] },
     });
-    expect(await saveCheckinAnswer(fake, "m1", { prickleId: "p1", field: "need", values: ["gentle"] })).toBeNull();
+    expect(await saveCheckinAnswer(fake, "m1", { prickleId: "p1", field: "need", values: ["company"] })).toBeNull();
     expect(cleared(fake)).toEqual([{ member_id: "m1", kind: "prickle_checkin", ref: "p1" }]);
   });
 

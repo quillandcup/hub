@@ -20,7 +20,7 @@ import type { CheckinInput } from "@/lib/prickle-checkins";
 
 const USER = { id: "user-1", email: "m1@example.com" };
 const IDENTITY = { memberId: "member-1", memberName: "Member One", memberEmail: "m1@example.com", isSudo: false };
-const CHECKIN: CheckinInput = { feelingsBefore: ["stressed"], need: "gentle", sessionRating: null, feelingsAfter: [] };
+const CHECKIN: CheckinInput = { feelingsBefore: ["stressed"], need: "company", sessionRating: null, feelingsAfter: [] };
 const EMPTY: CheckinInput = { feelingsBefore: [], need: null, sessionRating: null, feelingsAfter: [] };
 
 function makeSupabase({ row = null as unknown, error = null as unknown } = {}) {
@@ -54,7 +54,7 @@ describe("saveCheckin", () => {
         member_id: "member-1",
         prickle_id: "prickle-1",
         feelings_before: ["stressed"],
-        need: "gentle",
+        need: "company",
         session_rating: null,
         feelings_after: [],
         deleted_at: null,
@@ -115,10 +115,10 @@ describe("getMyCheckin", () => {
   it("reads the sudo'd member's check-in in sudo mode", async () => {
     vi.mocked(getEffectiveIdentity).mockResolvedValue({ ...IDENTITY, memberId: "member-2", isSudo: true } as never);
     const sb = makeSupabase({
-      row: { feelings_before: ["drained"], need: null, session_rating: null, feelings_after: [] },
+      row: { feelings_before: ["tired"], need: null, session_rating: null, feelings_after: [] },
     });
     expect(await getMyCheckin("prickle-1")).toEqual({
-      feelingsBefore: ["drained"],
+      feelingsBefore: ["tired"],
       need: null,
       sessionRating: null,
       feelingsAfter: [],

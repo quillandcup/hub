@@ -62,7 +62,7 @@ describe("getUnloggedRecentPrickles", () => {
       prickle_checkins: [
         { prickle_id: "p-checked-out", feelings_before: [], need: null, session_rating: 4, feelings_after: ["calm"] },
         // Only the check-in half answered: still owed a check-out.
-        { prickle_id: "p-checked-in", feelings_before: ["calm"], need: "gentle", session_rating: null, feelings_after: [] },
+        { prickle_id: "p-checked-in", feelings_before: ["calm"], need: "company", session_rating: null, feelings_after: [] },
       ],
     });
 

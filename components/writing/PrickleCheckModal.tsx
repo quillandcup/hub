@@ -130,7 +130,7 @@ export default function PrickleCheckModal({ prickleId, half, onClose, onSaved, p
                 readOnly={readOnly}
               />
               <NeedPicker
-                label={data.hasStarted ? "What I needed from this session" : "What I need from this session"}
+                label={data.hasStarted ? "What I needed most from this session" : "What I need most from this session"}
                 value={draft.need}
                 onChange={(need) => setDraft((d) => ({ ...d, need }))}
                 readOnly={readOnly}

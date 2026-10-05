@@ -531,7 +531,7 @@ describe("window filtering", () => {
 describe("similarCheckins", () => {
   const checkins: PersonalCheckin[] = [
     { seriesKey: "a", feelingsBefore: ["anxious"], need: null, sessionRating: 4 },
-    { seriesKey: "b", feelingsBefore: ["tired"], need: "gentle", sessionRating: 5 },
+    { seriesKey: "b", feelingsBefore: ["tired"], need: "company", sessionRating: 5 },
     { seriesKey: "c", feelingsBefore: ["lonely"], need: null, sessionRating: 3 },
     { seriesKey: "d", feelingsBefore: ["stuck"], need: null, sessionRating: 2 },
   ];
@@ -542,12 +542,12 @@ describe("similarCheckins", () => {
   });
 
   it("matches the same need regardless of feelings", () => {
-    expect(similarCheckins(checkins, ["motivated"], "gentle").map((c) => c.seriesKey)).toEqual(["b"]);
+    expect(similarCheckins(checkins, ["motivated"], "company").map((c) => c.seriesKey)).toEqual(["b"]);
   });
 
   it("only matches an ungrouped feeling exactly", () => {
     expect(similarCheckins(checkins, ["lonely"], null).map((c) => c.seriesKey)).toEqual(["c"]);
-    expect(similarCheckins(checkins, ["scattered"], null)).toEqual([]);
+    expect(similarCheckins(checkins, ["stuck"], null).map((c) => c.seriesKey)).toEqual(["d"]);
   });
 
   it("counts every check-in when the member didn't say how they feel", () => {

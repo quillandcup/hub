@@ -107,7 +107,7 @@ describe("prickle check-in route", () => {
 
   it("skips a member who already answered every check-in question", async () => {
     setup([goalRow("g1", "m1", "proj1", "words")], {
-      prickle_checkins: { data: [{ id: "c1", member_id: "m1", prickle_id: "p1", feelings_before: ["tired"], need: "gentle", session_rating: null, feelings_after: [] }] },
+      prickle_checkins: { data: [{ id: "c1", member_id: "m1", prickle_id: "p1", feelings_before: ["tired"], need: "company", session_rating: null, feelings_after: [] }] },
     });
     calendarPrickleIds.mockResolvedValue(new Set(["p1"]));
 
@@ -316,7 +316,7 @@ describe("sendTestCheckinDM", () => {
     member_id: "m1",
     prickle_id: "p1",
     feelings_before: ["tired"],
-    need: "gentle",
+    need: "company",
     session_rating: 4,
     feelings_after: ["calm"],
   };

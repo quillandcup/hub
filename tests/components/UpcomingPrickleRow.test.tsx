@@ -29,7 +29,7 @@ describe("UpcomingPrickleRow check-in pill", () => {
   });
 
   it("shows a finished check-in as done", () => {
-    renderRow(10 * 60 * 1000, { feelingsBefore: ["calm"], need: "gentle", sessionRating: null, feelingsAfter: [] });
+    renderRow(10 * 60 * 1000, { feelingsBefore: ["calm"], need: "company", sessionRating: null, feelingsAfter: [] });
     expect(screen.getByRole("link", { name: "Checked in ✓" })).toBeInTheDocument();
   });
 

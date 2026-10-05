@@ -392,7 +392,7 @@ export default function PrickleWizard({ members }: PrickleWizardProps) {
             </div>
           </div>
           <div>
-            <p className="text-sm font-medium text-slate-600 dark:text-slate-400 mb-2">What I need from this session</p>
+            <p className="text-sm font-medium text-slate-600 dark:text-slate-400 mb-2">What I need most from this session</p>
             <div className="flex flex-wrap gap-2">
               {NEEDS.map((n) => {
                 const selected = need === n.key;

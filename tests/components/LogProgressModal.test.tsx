@@ -174,7 +174,7 @@ describe("LogProgressModal check-out", () => {
 
   it("saves the check-out before the entry, keeping the latest check-in answers", async () => {
     vi.mocked(getCheckinForLogging).mockResolvedValue({
-      checkin: { feelingsBefore: ["tired"], need: "gentle", sessionRating: null, feelingsAfter: [] },
+      checkin: { feelingsBefore: ["tired"], need: "company", sessionRating: null, feelingsAfter: [] },
       canEdit: true,
     });
     const user = userEvent.setup();
@@ -202,12 +202,12 @@ describe("LogProgressModal check-out", () => {
 
   it("starts from the saved check-out", async () => {
     vi.mocked(getCheckinForLogging).mockResolvedValue({
-      checkin: { feelingsBefore: [], need: null, sessionRating: 2, feelingsAfter: ["drained"] },
+      checkin: { feelingsBefore: [], need: null, sessionRating: 2, feelingsAfter: ["tired"] },
       canEdit: true,
     });
     renderForPrickle();
     expect(await screen.findByRole("button", { name: /: Meh$/ })).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByRole("button", { name: "Drained" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Tired" })).toHaveAttribute("aria-pressed", "true");
   });
 
   it("doesn't touch the check-in when the check-out wasn't changed", async () => {

@@ -90,12 +90,12 @@ describe("PrickleCheckModal check-out", () => {
     const user = userEvent.setup();
     const { onClose } = renderModal("checkout");
     await user.click(await screen.findByRole("button", { name: /4 of 5/ }));
-    await user.click(screen.getByRole("button", { name: "Drained" }));
+    await user.click(screen.getByRole("button", { name: "Tired" }));
     await user.type(screen.getByLabelText(NOVEL_QUESTION), "450");
     await user.click(screen.getByRole("button", { name: "Save" }));
 
     await waitFor(() => expect(onClose).toHaveBeenCalled());
-    expect(saveCheckinHalf).toHaveBeenCalledWith("p1", "checkout", { sessionRating: 4, feelingsAfter: ["drained"] });
+    expect(saveCheckinHalf).toHaveBeenCalledWith("p1", "checkout", { sessionRating: 4, feelingsAfter: ["tired"] });
     expect(logProgress).toHaveBeenCalledTimes(1);
     expect(logProgress).toHaveBeenCalledWith({
       projectId: "proj-1",

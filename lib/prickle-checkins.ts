@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 /**
  * Prickle check-ins: how a member felt coming into a prickle, what they needed from it, and how
- * it went. One row per (member, prickle) in prickle_checkins (migration 20261003000000),
+ * it went. One row per (member, prickle) in prickle_checkins (migration 20261003000000, trimmed by 20261005000000),
  * readable by the member and admins, never hosts or other members. Clearing every answer
  * soft-deletes the row (deleted_at), so every read filters `deleted_at IS NULL`. The keys below are what's stored; labels can be reworded freely, but adding,
  * removing or renaming a key needs a migration (the table's CHECKs list the same keys --
@@ -18,13 +18,9 @@ export type FeelingGroup = "charged_up" | "steady" | "running_low" | "wound_up";
 
 export const FEELINGS = [
   { key: "motivated", label: "Motivated", group: "charged_up" },
-  { key: "inspired", label: "Inspired", group: "charged_up" },
-  { key: "determined", label: "Determined", group: "charged_up" },
   { key: "calm", label: "Calm", group: "steady" },
   { key: "content", label: "Content", group: "steady" },
-  { key: "curious", label: "Curious", group: "steady" },
   { key: "tired", label: "Tired", group: "running_low" },
-  { key: "drained", label: "Drained", group: "running_low" },
   { key: "meh", label: "Meh / unmotivated", group: "running_low" },
   { key: "stressed", label: "Stressed", group: "wound_up" },
   { key: "anxious", label: "Anxious", group: "wound_up" },
@@ -33,7 +29,6 @@ export const FEELINGS = [
   // Don't fit the energy/pleasantness grid, so they never pool: each is a signal on its own
   // (e.g. lonely points straight at the social prickles).
   { key: "stuck", label: "Stuck", group: null },
-  { key: "scattered", label: "Scattered", group: null },
   { key: "lonely", label: "Lonely", group: null },
 ] as const satisfies readonly { key: string; label: string; group: FeelingGroup | null }[];
 
@@ -68,9 +63,8 @@ export const NEEDS = [
   { key: "momentum", label: "Momentum", hint: "Get words down" },
   { key: "deep_focus", label: "Deep focus", hint: "Heads-down, no distractions" },
   { key: "accountability", label: "Accountability", hint: "Just show up and do something" },
-  { key: "company", label: "Company", hint: "Work alongside people" },
-  { key: "gentle", label: "Gentle", hint: "Low pressure, fill my cup" },
-  { key: "unstick", label: "Unstick", hint: "Talk it through or brainstorm" },
+  { key: "company", label: "Company", hint: "Work alongside people, fill my cup" },
+  { key: "unstuck", label: "Unstuck", hint: "Talk it through or brainstorm" },
 ] as const;
 
 export type Need = (typeof NEEDS)[number]["key"];
@@ -84,8 +78,7 @@ export const NEED_VIBE: Record<Need, "focused" | "balanced" | "chatty" | null> =
   deep_focus: "focused",
   accountability: null,
   company: "chatty",
-  gentle: "balanced",
-  unstick: "chatty",
+  unstuck: "chatty",
 };
 
 export const NEED_KEYS: readonly Need[] = NEEDS.map((n) => n.key);
