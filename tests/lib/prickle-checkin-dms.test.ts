@@ -272,6 +272,7 @@ describe("buildCheckoutBlocks", () => {
     expect(stars.elements.map((e: any) => e.value)).toEqual(["1", "2", "3", "4", "5"]);
     expect(stars.elements.filter((e: any) => e.style === "primary").map((e: any) => e.value)).toEqual(["4"]);
     expect(blocks[3].label.text).toContain("during Monday Progress Prickle with Jenn P?");
+    expect(blocks[4].elements[0].text).toContain("/my-prickles/history?checkout=p1|check-out for this prickle>");
     expect(blocks[2].accessory.initial_options).toBeUndefined();
   });
 });

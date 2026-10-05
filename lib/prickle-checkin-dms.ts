@@ -386,13 +386,13 @@ function ratingBlocks(prickleId: string, question: string, saved: CheckinInput |
   ];
 }
 
-function checkinFooter(prickleId: string): any {
+function checkinFooter(prickleId: string, kind: "checkin" | "checkout" = "checkin"): any {
   return {
     type: "context",
     elements: [
       {
         type: "mrkdwn",
-        text: `Optional. Answers save to your <${APP_URL}${checkinHref(prickleId, "checkin")}|check-in for this prickle>, which only you and the admins can see.`,
+        text: `Optional. Answers save to your <${APP_URL}${checkinHref(prickleId, kind)}|${kind === "checkout" ? "check-out" : "check-in"} for this prickle>, which only you and the admins can see.`,
       },
     ],
   };
@@ -423,7 +423,7 @@ export function buildCheckoutBlocks(
     ...ratingBlocks(prickleId, `Checking out of *${typeName}*: how did it go?`, saved),
     checkinQuestion(prickleId, "feelings_after", "How are you feeling now?", saved),
     ...buildQuickLogBlocks(prickleTitle, prickleId, prompts),
-    checkinFooter(prickleId),
+    checkinFooter(prickleId, "checkout"),
   ];
 }
 
