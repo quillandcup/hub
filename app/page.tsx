@@ -1,24 +1,9 @@
-import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
 
+// Everyone lands on the member dashboard, admins included. An admin with no member record is
+// sent on to /admin by the dashboard itself.
 export default async function Home() {
-  const supabase = await createClient();
   const user = await getCurrentUser();
-
-  if (!user) {
-    redirect("/login");
-  }
-
-  const { data: profile } = await supabase
-    .from("user_profiles")
-    .select("role")
-    .eq("id", user.id)
-    .single();
-
-  if (profile?.role === "admin") {
-    redirect("/admin");
-  }
-
-  redirect("/dashboard");
+  redirect(user ? "/dashboard" : "/login");
 }
