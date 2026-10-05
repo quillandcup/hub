@@ -30,7 +30,7 @@ function makeQueryFake(tables: Record<string, unknown[]>, upsertError: unknown =
         return Promise.resolve({ error: upsertError });
       },
     };
-    for (const method of ["select", "eq", "gte", "not"]) {
+    for (const method of ["select", "eq", "gte", "not", "in", "is"]) {
       builder[method] = (...args: unknown[]) => {
         calls.push({ table, method, args });
         return builder;
@@ -53,17 +53,22 @@ beforeEach(() => {
 });
 
 describe("getUnloggedRecentPrickles", () => {
-  it("leaves out prickles the member logged or dismissed", async () => {
+  it("leaves out prickles the member logged, dismissed or checked out of", async () => {
     const recent = (h: number) => new Date(Date.now() - h * 3600_000).toISOString();
     const calls = makeQueryFake({
-      prickle_attendance: [attended("p-open", recent(5)), attended("p-logged", recent(4)), attended("p-dismissed", recent(3))],
+      prickle_attendance: [attended("p-open", recent(5)), attended("p-logged", recent(4)), attended("p-dismissed", recent(3)), attended("p-checked-out", recent(2)), attended("p-checked-in", recent(1))],
       writing_progress_entries: [{ prickle_id: "p-logged" }],
       writing_prompt_dismissals: [{ prickle_id: "p-dismissed" }],
+      prickle_checkins: [
+        { prickle_id: "p-checked-out", feelings_before: [], need: null, session_rating: 4, feelings_after: ["calm"] },
+        // Only the check-in half answered: still owed a check-out.
+        { prickle_id: "p-checked-in", feelings_before: ["calm"], need: "gentle", session_rating: null, feelings_after: [] },
+      ],
     });
 
     const result = await getUnloggedRecentPrickles();
 
-    expect(result.map((p) => p.id)).toEqual(["p-open"]);
+    expect(result.map((p) => p.id).sort()).toEqual(["p-checked-in", "p-open"]);
     expect(calls).toContainEqual({ table: "writing_prompt_dismissals", method: "eq", args: ["member_id", "member-1"] });
   });
 });

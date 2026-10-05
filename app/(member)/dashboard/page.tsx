@@ -7,11 +7,11 @@ import { getEffectiveIdentity } from "@/lib/sudo"
 import { getUserTimezonePreference } from "@/lib/timezone"
 import { getStarredGoals, getUnloggedRecentPrickles } from "../projects/actions"
 import UnloggedPricklesCard from "@/components/writing/UnloggedPricklesCard"
-import { localDateOf } from "@/lib/prickle-writing"
 import GoalDisplay from "@/components/writing/GoalDisplay"
 import UpcomingPrickleRow from "@/components/UpcomingPrickleRow"
 import { getRankedUpcomingPrickles } from "@/lib/upcoming-prickles"
 import { ORG_TIMEZONE } from "@/lib/config";
+import { getMyCheckins } from "@/app/(member)/prickles/checkin-actions";
 
 export const metadata: Metadata = {
   title: "Dashboard",
@@ -37,7 +37,7 @@ export default async function DashboardPage() {
 
   const now = new Date()
 
-  const [ranked, starredGoals, { data: projectRows }, unlogged] = await Promise.all([
+  const [ranked, starredGoals, { data: projectRows }, unlogged, checkins] = await Promise.all([
     getRankedUpcomingPrickles(supabase, memberId, timeZone, now, UPCOMING_WINDOW_DAYS),
     getStarredGoals(),
     supabase
@@ -47,14 +47,13 @@ export default async function DashboardPage() {
       .is("archived_at", null)
       .order("created_at", { ascending: false }),
     getUnloggedRecentPrickles(),
+    getMyCheckins(),
   ])
   const projects = projectRows ?? []
-  // Only prompt members who track writing -- there's nothing to log progress against otherwise.
+  // Only prompt members who track writing -- there's no progress to ask about otherwise.
   const unloggedPrickles =
     projects.length > 0
-      ? unlogged
-          .slice(0, MAX_UNLOGGED_DISPLAY)
-          .map((p) => ({ ...p, entryDate: localDateOf(p.startTime, timeZone) }))
+      ? unlogged.slice(0, MAX_UNLOGGED_DISPLAY)
       : []
   const upcoming = ranked.map((r) => r.prickle)
   const displayedUpcoming = ranked.slice(0, MAX_UPCOMING_DISPLAY)
@@ -91,7 +90,7 @@ export default async function DashboardPage() {
         </div>
       )}
 
-      {unloggedPrickles.length > 0 && <UnloggedPricklesCard prickles={unloggedPrickles} projects={projects} />}
+      {unloggedPrickles.length > 0 && <UnloggedPricklesCard prickles={unloggedPrickles} />}
 
       {upcoming.length === 0 ? (
         <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 p-6 text-center">
@@ -112,7 +111,13 @@ export default async function DashboardPage() {
           </h2>
           <div>
             {displayedUpcoming.map(({ prickle, reasons }) => (
-              <UpcomingPrickleRow key={prickle.id} prickle={prickle} reasons={reasons} timeZone={timeZone} />
+              <UpcomingPrickleRow
+                key={prickle.id}
+                prickle={prickle}
+                reasons={reasons}
+                timeZone={timeZone}
+                checkin={checkins[prickle.id] ?? null}
+              />
             ))}
           </div>
         </div>

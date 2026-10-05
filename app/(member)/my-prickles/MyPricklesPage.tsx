@@ -174,7 +174,13 @@ export default async function MyPricklesPage({
                   ) : (
                     <div>
                       {displayedUpcoming.map(({ prickle, reasons }) => (
-                        <UpcomingPrickleRow key={prickle.id} prickle={prickle} reasons={reasons} timeZone={timeZone} />
+                        <UpcomingPrickleRow
+                          key={prickle.id}
+                          prickle={prickle}
+                          reasons={reasons}
+                          timeZone={timeZone}
+                          checkin={checkins[prickle.id] ?? null}
+                        />
                       ))}
                       {ranked.length > displayedUpcoming.length && (
                         <p className="text-xs text-slate-400 mt-3">

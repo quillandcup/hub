@@ -28,6 +28,7 @@ import { computePrickleStreaks, seriesKeyFor } from "@/lib/streaks";
 import { getUserTimezonePreference } from "@/lib/timezone";
 import { DAY_NAMES, formatScheduleLabel, getMonthStart, getNextMonthStart } from "@/lib/prickle-schedules";
 import { ORG_TIMEZONE } from "@/lib/config";
+import { checkinFromRow, checkoutAnswered } from "@/lib/prickle-checkins";
 import {
   formatPrickleLabel,
   localDateOf,
@@ -982,7 +983,8 @@ const UNLOGGED_LOOKBACK_DAYS = 14;
 
 /**
  * Writing prickles the acting member attended in the last two weeks with no progress entry
- * linked yet -- the dashboard's "What did you write?" prompt. Newest first.
+ * linked, no finished check-out and no dismissal -- the dashboard's "How did it go?" prompt.
+ * Newest first.
  */
 export async function getUnloggedRecentPrickles(): Promise<PrickleOption[]> {
   const ctx = await requireIdentity();
@@ -1013,10 +1015,24 @@ export async function getUnloggedRecentPrickles(): Promise<PrickleOption[]> {
     viewerTimeZone(),
   ]);
 
-  // Linked to an entry, or dismissed from this prompt: either way, nothing to ask about.
-  const linkedIds = new Set(
-    [...(linked ?? []), ...(dismissed ?? [])].map((e) => (e as { prickle_id: string }).prickle_id)
-  );
+  // Linked to an entry, dismissed from this prompt, or checked out of: nothing left to ask about.
+  const attendedIds = ((attendance ?? []) as unknown as { prickle_id: string }[]).map((a) => a.prickle_id);
+  const { data: checkins } =
+    attendedIds.length === 0
+      ? { data: [] }
+      : await supabase
+          .from("prickle_checkins")
+          .select("prickle_id, feelings_before, need, session_rating, feelings_after")
+          .eq("member_id", effectiveIdentity.memberId)
+          .in("prickle_id", attendedIds)
+          .is("deleted_at", null);
+  const checkedOutIds = ((checkins ?? []) as (Parameters<typeof checkinFromRow>[0] & { prickle_id: string })[])
+    .filter((c) => checkoutAnswered(checkinFromRow(c)))
+    .map((c) => c.prickle_id);
+  const linkedIds = new Set([
+    ...[...(linked ?? []), ...(dismissed ?? [])].map((e) => (e as { prickle_id: string }).prickle_id),
+    ...checkedOutIds,
+  ]);
   const byId = new Map<string, PrickleOption>();
   for (const row of (attendance ?? []) as unknown as { prickles: RawEmbeddedPrickle | RawEmbeddedPrickle[] }[]) {
     const p = one(row.prickles);
