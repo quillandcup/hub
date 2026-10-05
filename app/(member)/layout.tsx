@@ -51,8 +51,9 @@ export default async function MemberLayout({
   // The tour is the member's own: hidden during sudo, so an admin browsing as them doesn't see or
   // change it (app/actions/onboarding.ts refuses then too).
   const showOnboarding = enabledFeatures.includes('onboarding') && !effectiveIdentity.isSudo
-  // In-app notifications are the member's own too (app/actions/in-app-notifications.ts).
-  const showInApp = enabledFeatures.includes('in_app_notifications') && !effectiveIdentity.isSudo
+  // In-app notifications show in sudo like the rest of the member's experience
+  // (app/actions/in-app-notifications.ts).
+  const showInApp = enabledFeatures.includes('in_app_notifications')
   const [onboardingState, inAppNotifications] = await Promise.all([
     showOnboarding ? getOnboardingState(user.id, effectiveIdentity.memberId) : null,
     showInApp

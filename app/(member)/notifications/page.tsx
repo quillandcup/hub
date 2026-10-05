@@ -19,7 +19,7 @@ type Param = string | string[] | undefined;
  * Every in-app notification the member has had (lib/channels/in-app.ts), as a server-mode data
  * table like All Members: ?filter= (all/unread), ?kind=, ?sort=&dir=, ?page=&pageSize=, with
  * "Mark all as read". The bell shows only the latest few and links here. Behind the
- * in_app_notifications flag; hidden in sudo, like the bell.
+ * in_app_notifications flag; shown as the sudo'd member in sudo, like the bell.
  */
 export default async function NotificationsPage({
   searchParams,
@@ -31,17 +31,6 @@ export default async function NotificationsPage({
   const identity = await getEffectiveIdentity(user);
   if (!identity) redirect("/admin");
   if (!(await getUserFeaturePreviews(user.id)).includes("in_app_notifications")) notFound();
-
-  if (identity.isSudo) {
-    return (
-      <div className="container mx-auto px-6 py-6 max-w-4xl">
-        <h1 className="text-2xl font-bold mb-4">Notifications</h1>
-        <p className="text-sm text-slate-500 dark:text-slate-400">
-          A member&apos;s notifications are their own, so they&apos;re hidden while browsing as them.
-        </p>
-      </div>
-    );
-  }
 
   const params = await searchParams;
   const filter = parseInboxFilter(params.filter);

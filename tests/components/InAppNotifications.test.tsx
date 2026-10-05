@@ -9,6 +9,8 @@ let fake: FakeSupabase;
 vi.mock("@/lib/supabase/server", () => ({ createClient: async () => fake }));
 vi.mock("@/lib/auth", () => ({ getCurrentUser: vi.fn() }));
 vi.mock("@/lib/sudo", () => ({ getEffectiveIdentity: vi.fn() }));
+let serviceFake: FakeSupabase;
+vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => serviceFake }));
 
 const { getCurrentUser } = await import("@/lib/auth");
 const { getEffectiveIdentity } = await import("@/lib/sudo");
@@ -76,12 +78,19 @@ describe("in-app notification actions", () => {
     for (const q of fake.queries) expect(q.calls).toContainEqual({ method: "eq", args: ["member_id", "member-1"] });
   });
 
-  it("shows nothing and changes nothing in sudo", async () => {
+  it("works as the sudo'd member: reads with the admin's session, marks read with the service role", async () => {
     vi.mocked(getEffectiveIdentity).mockResolvedValue({ ...IDENTITY, isSudo: true } as never);
-    expect(await actions.getMyBellState()).toEqual({ latest: [], unreadCount: 0 });
-    expect(await actions.markInAppNotificationsReadAction(["n1"])).toHaveProperty("error");
-    expect(await actions.markAllInAppNotificationsReadAction()).toHaveProperty("error");
-    expect(fake.queries).toHaveLength(0);
+    serviceFake = createFakeSupabase({ in_app_notifications: { data: [] } });
+    await actions.getMyBellState();
+    for (const q of fake.queries) expect(q.calls).toContainEqual({ method: "eq", args: ["member_id", "member-1"] });
+
+    expect(await actions.markInAppNotificationsReadAction(["n1"])).toEqual({ success: true });
+    expect(await actions.markAllInAppNotificationsReadAction()).toEqual({ success: true });
+    expect(serviceFake.queries).toHaveLength(2);
+    for (const q of serviceFake.queries) {
+      expect(q.calls).toContainEqual({ method: "eq", args: ["member_id", "member-1"] });
+    }
+    expect(updates()).toHaveLength(0);
   });
 
   it("marks only the member's own read", async () => {

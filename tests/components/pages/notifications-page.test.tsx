@@ -61,11 +61,12 @@ describe("/notifications", () => {
     await expectRedirect(NotificationsPage, { searchParams: Promise.resolve({}) }, "/login");
   });
 
-  it("hides a member's notifications in sudo", async () => {
+  it("shows the sudo'd member's notifications like any other member page", async () => {
     signInAs(MEMBER_USER, { ...MEMBER_IDENTITY, isSudo: true });
     await renderPage();
-    expect(screen.getByText(/hidden while browsing as them/)).toBeInTheDocument();
-    expect(fake.queries).toHaveLength(0);
+    expect(screen.getByRole("table")).toBeInTheDocument();
+    expect(screen.queryByText(/hidden while browsing as them/)).not.toBeInTheDocument();
+    expect(rowQuery(fake).calls).toContainEqual({ method: "eq", args: ["member_id", MEMBER_IDENTITY.memberId] });
   });
 
   it("lists the member's notifications newest first, unread marked, with type and filter counts", async () => {
