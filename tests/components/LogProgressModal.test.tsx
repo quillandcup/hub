@@ -65,6 +65,18 @@ describe("LogProgressModal prickle picker", () => {
     expect(logProgress).toHaveBeenCalledWith(expect.objectContaining({ prickleId: "prickle-attended", amount: 750 }));
   });
 
+  it("logs a fractional amount (a quarter of a chapter)", async () => {
+    render(
+      <LogProgressModal isOpen onClose={() => {}} onSaved={() => {}} projects={PROJECTS} defaultEntryDate="2026-10-01" />
+    );
+    await waitFor(() => expect(prickleSelect().value).toBe("prickle-attended"));
+
+    const user = userEvent.setup();
+    await user.type(screen.getByPlaceholderText("e.g. 500"), "0.25");
+    await user.click(screen.getByRole("button", { name: "Log progress" }));
+    await waitFor(() => expect(logProgress).toHaveBeenCalledWith(expect.objectContaining({ amount: 0.25 })));
+  });
+
   it("doesn't link a prickle when the member attended none that day", async () => {
     vi.mocked(getPricklesOnDate).mockResolvedValue([OTHER]);
     render(

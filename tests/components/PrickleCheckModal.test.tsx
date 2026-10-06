@@ -110,6 +110,16 @@ describe("PrickleCheckModal check-out", () => {
     );
   });
 
+  it("logs a fractional amount (a quarter of a chapter)", async () => {
+    const user = userEvent.setup();
+    const { onClose } = renderModal("checkout");
+    await user.type(await screen.findByLabelText(NOVEL_QUESTION), "0.25");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    expect(logProgress).toHaveBeenCalledWith(expect.objectContaining({ projectId: "proj-1", amount: 0.25 }));
+  });
+
   it("doesn't ask again about a project already logged for this prickle", async () => {
     vi.mocked(getCheckModalData).mockResolvedValue(
       data({

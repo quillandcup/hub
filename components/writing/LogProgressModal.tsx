@@ -288,6 +288,7 @@ export default function LogProgressModal({
             <input
               type="number"
               inputMode="decimal"
+              step="any"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
               placeholder={mode === "delta" ? "e.g. 500" : "e.g. 42000"}

@@ -685,6 +685,7 @@ function GoalForm({
             <input
               type="number"
               inputMode="decimal"
+              step="any"
               value={targetAmount}
               onChange={(e) => setTargetAmount(e.target.value)}
               placeholder="e.g. 50000"
@@ -742,6 +743,7 @@ function GoalForm({
           <input
             type="number"
             inputMode="decimal"
+            step="any"
             value={habitThreshold}
             onChange={(e) => setHabitThreshold(e.target.value)}
             placeholder="e.g. 500"

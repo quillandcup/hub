@@ -183,6 +183,7 @@ export default function PrickleCheckModal({ prickleId, half, onClose, onSaved, p
                           type="number"
                           inputMode="decimal"
                           min={0}
+                          step="any"
                           value={amounts[p.id] ?? ""}
                           onChange={(e) => setAmounts((a) => ({ ...a, [p.id]: e.target.value }))}
                           disabled={readOnly}
