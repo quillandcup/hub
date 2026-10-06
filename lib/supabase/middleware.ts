@@ -3,6 +3,7 @@ import { NextResponse, after, type NextRequest } from 'next/server'
 import { withTimeout, AUTH_CHECK_TIMEOUT_MS } from '@/lib/with-timeout'
 import { getAppRoleFromAccessToken, getSessionIdFromAccessToken } from '@/lib/supabase/session-claims'
 import { ADMIN_NO_ACCESS_PATH, isAdminPath } from '@/lib/admin-paths'
+import { SUDO_COOKIE_NAME, actingAsHeaderValue } from '@/lib/sudo-cookie'
 import { NEXT_PATH_COOKIE, NEXT_PATH_COOKIE_MAX_AGE_SECONDS, safeNextPath } from '@/lib/safe-next'
 
 export async function updateSession(request: NextRequest) {
@@ -90,9 +91,21 @@ export async function updateSession(request: NextRequest) {
     request.headers.get('next-router-prefetch') === '1' ||
     request.headers.get('purpose') === 'prefetch' ||
     request.headers.get('sec-purpose')?.includes('prefetch')
-  if (user && !isPrefetch) {
+  // Vercel's injected analytics/speed-insights scripts aren't visits either.
+  // Known gap: Next strips its flight/prefetch headers before the proxy runs
+  // (only `next-url` survives, on prefetches and real client-side navigations
+  // alike), so the checks above never match Link prefetches and each page load
+  // logs a burst of sidebar-link "visits". See docs/TODO.md.
+  const isPlatformInternal = pathname.startsWith('/_vercel/')
+  if (user && !isPrefetch && !isPlatformInternal) {
     const userId = user.id
     const eventSessionId = sessionId
+    // Sudo: record which member this admin was viewing as, so visits made as
+    // a member aren't mistaken for the member's own. Header value is
+    // "<admin id>:<member id>" and only comes back for a validly signed
+    // cookie that belongs to this user.
+    const actingAsMemberId =
+      actingAsHeaderValue(request.cookies.get(SUDO_COOKIE_NAME)?.value, userId)?.split(':')[1] ?? null
     after(async () => {
       try {
         await supabase.from('access_events').insert({
@@ -100,6 +113,7 @@ export async function updateSession(request: NextRequest) {
           path: pathname,
           is_page: !pathname.startsWith('/api/'),
           session_id: eventSessionId,
+          acting_as_member_id: actingAsMemberId,
         })
       } catch {
         // Best-effort logging — never break the request over this.

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import Link from "next/link";
 import { SortableTh } from "@/components/SortableTh";
 import { useDataTable } from "@/lib/hooks/useDataTable";
 import type { SortValue } from "@/lib/hooks/useTableSort";
@@ -664,6 +665,12 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
             <div>
               <h2 className="text-lg font-bold">Activity</h2>
               <p className="text-sm text-slate-600 dark:text-slate-400">{historyUser.email}</p>
+              <Link
+                href={`/admin/activity?view=all&actor=${historyUser.id}`}
+                className="text-xs text-plum-600 dark:text-plum-400 hover:underline"
+              >
+                Everything this user did →
+              </Link>
             </div>
             <div className="flex items-center gap-3">
               {historyUser.id !== currentUserId && (
