@@ -109,7 +109,16 @@ describe("in-app notification actions", () => {
     expect(update.calls.some((c) => c.method === "in")).toBe(false);
   });
 
+  it("marks only the member's own unread", async () => {
+    expect(await actions.markInAppNotificationsUnreadAction(["n1", "n2"])).toEqual({ success: true });
+    const [update] = updates();
+    expect(update.calls).toContainEqual({ method: "update", args: [{ read_at: null }] });
+    expect(update.calls).toContainEqual({ method: "eq", args: ["member_id", "member-1"] });
+    expect(update.calls).toContainEqual({ method: "in", args: ["id", ["n1", "n2"]] });
+  });
+
   it("rejects a bad id list", async () => {
+    expect(await actions.markInAppNotificationsUnreadAction([])).toHaveProperty("error");
     expect(await actions.markInAppNotificationsReadAction([])).toHaveProperty("error");
     expect(await actions.markInAppNotificationsReadAction([""])).toHaveProperty("error");
     expect(fake.queries).toHaveLength(0);

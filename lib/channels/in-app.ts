@@ -196,6 +196,16 @@ export async function markInAppNotificationsRead(supabase: any, memberId: string
     .is("read_at", null);
 }
 
+/** Puts these of the member's notifications back to unread (scoped to the member, whichever client). */
+export async function markInAppNotificationsUnread(supabase: any, memberId: string, ids: string[]) {
+  return supabase
+    .from("in_app_notifications")
+    .update({ read_at: null })
+    .eq("member_id", memberId)
+    .in("id", ids)
+    .not("read_at", "is", null);
+}
+
 /** Marks every one of the member's notifications read. */
 export async function markAllInAppNotificationsRead(supabase: any, memberId: string) {
   return supabase

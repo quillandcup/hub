@@ -6,6 +6,7 @@ import {
   getMyBellState,
   markAllInAppNotificationsReadAction,
   markInAppNotificationsReadAction,
+  markInAppNotificationsUnreadAction,
   type BellState,
 } from "@/app/actions/in-app-notifications";
 import type { InAppNotification } from "@/lib/channels/in-app";
@@ -31,6 +32,8 @@ interface InAppState extends BellState {
   error: string | null;
   /** Marks these read: optimistic, then refreshed from the server so the count is exact. */
   markRead: (ids: string[]) => Promise<boolean>;
+  /** Puts these back to unread, same shape as markRead. */
+  markUnread: (ids: string[]) => Promise<boolean>;
   markAllRead: () => Promise<boolean>;
 }
 
@@ -97,6 +100,18 @@ export function InAppNotificationsProvider({ initial, children }: { initial: Bel
     [apply]
   );
 
+  const markUnread = useCallback(
+    (ids: string[]) =>
+      apply(
+        (b) => ({
+          latest: b.latest.map((n) => (ids.includes(n.id) ? { ...n, read: false } : n)),
+          unreadCount: b.unreadCount + b.latest.filter((n) => ids.includes(n.id) && n.read).length,
+        }),
+        () => markInAppNotificationsUnreadAction(ids)
+      ),
+    [apply]
+  );
+
   const markAllRead = useCallback(
     () =>
       apply(
@@ -107,7 +122,7 @@ export function InAppNotificationsProvider({ initial, children }: { initial: Bel
   );
 
   return (
-    <InAppContext.Provider value={{ ...bell, error, markRead, markAllRead }}>{children}</InAppContext.Provider>
+    <InAppContext.Provider value={{ ...bell, error, markRead, markUnread, markAllRead }}>{children}</InAppContext.Provider>
   );
 }
 

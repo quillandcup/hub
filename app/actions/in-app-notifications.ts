@@ -10,6 +10,7 @@ import {
   loadInAppNotifications,
   markAllInAppNotificationsRead,
   markInAppNotificationsRead,
+  markInAppNotificationsUnread,
   type InAppNotification,
 } from "@/lib/channels/in-app";
 
@@ -58,17 +59,33 @@ export async function getMyBellState(): Promise<BellState> {
   return { latest, unreadCount };
 }
 
-/** Marks some read (opening one, dismissing its banner). */
+function validIds(ids: unknown): ids is string[] {
+  return Array.isArray(ids) && ids.length > 0 && ids.length <= 100 && ids.every((id) => typeof id === "string" && id);
+}
+
+/** Marks some read (opening one, dismissing its banner, a bulk action in the inbox). */
 export async function markInAppNotificationsReadAction(ids: string[]): Promise<Result> {
   const own = await ownMember();
   if ("error" in own) return own;
   const { memberId, isSudo } = own;
-  if (!Array.isArray(ids) || ids.length === 0 || ids.length > 100 || !ids.every((id) => typeof id === "string" && id)) {
-    return { error: "Invalid notifications" };
-  }
+  if (!validIds(ids)) return { error: "Invalid notifications" };
   const { error } = await markInAppNotificationsRead(await writer(isSudo), memberId, ids);
   if (error) {
     console.error("[in-app] Marking notifications read failed", { member: memberId, ids, error });
+    return { error: "Couldn't update your notifications — please try again." };
+  }
+  return { success: true };
+}
+
+/** Puts some back to unread (the inbox's "Mark as unread", single or bulk). */
+export async function markInAppNotificationsUnreadAction(ids: string[]): Promise<Result> {
+  const own = await ownMember();
+  if ("error" in own) return own;
+  const { memberId, isSudo } = own;
+  if (!validIds(ids)) return { error: "Invalid notifications" };
+  const { error } = await markInAppNotificationsUnread(await writer(isSudo), memberId, ids);
+  if (error) {
+    console.error("[in-app] Marking notifications unread failed", { member: memberId, ids, error });
     return { error: "Couldn't update your notifications — please try again." };
   }
   return { success: true };

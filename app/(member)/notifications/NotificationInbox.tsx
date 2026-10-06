@@ -1,11 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useInAppNotifications } from "@/components/InAppNotifications";
 import { SortableTh } from "@/components/SortableTh";
 import { DataTablePager } from "@/components/DataTablePager";
+import { BulkActionBar, BulkActionButton } from "@/components/BulkActionBar";
+import { useRowSelection } from "@/lib/hooks/useRowSelection";
 import { useServerDataTable } from "@/lib/hooks/useDataTable";
 import { formatRelativeTime } from "@/lib/formatters";
 import { NOTIFICATION_KINDS } from "@/lib/notifications/registry";
@@ -22,7 +24,8 @@ import type { InAppNotification, InboxPage } from "@/lib/channels/in-app";
 /**
  * The inbox table in server mode: `inbox` is the one page the server filtered, sorted and ranged;
  * the filter tabs, type picker, header clicks and pager update the URL, which the page reads back.
- * Marking read goes through the layout's InAppNotificationsProvider, so the bell's count follows.
+ * Rows can be selected for bulk Mark as read / Mark as unread, and each row has its own toggle.
+ * Marking goes through the layout's InAppNotificationsProvider, so the bell's count follows.
  */
 export default function NotificationInbox({
   inbox,
@@ -33,9 +36,13 @@ export default function NotificationInbox({
   filter: InboxFilter;
   kind: string | null;
 }) {
-  const { error, markRead, markAllRead } = useInAppNotifications();
+  const { error, markRead, markUnread, markAllRead } = useInAppNotifications();
   const [items, setItems] = useState(inbox.items);
   const [unread, setUnread] = useState(inbox.counts.unread);
+  const rowIds = useMemo(() => items.map((n) => n.id), [items]);
+  const selection = useRowSelection(rowIds);
+  // The checkboxes only show in "Edit multiple" mode.
+  const [editing, setEditing] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -59,14 +66,33 @@ export default function NotificationInbox({
     router.push(qs ? `${pathname}?${qs}` : pathname);
   }
 
-  async function open(n: InAppNotification) {
-    if (n.read) return;
-    setItems((list) => list.map((m) => (m.id === n.id ? { ...m, read: true } : m)));
-    setUnread((c) => Math.max(0, c - 1));
-    if (!(await markRead([n.id]))) {
-      setItems((list) => list.map((m) => (m.id === n.id ? { ...m, read: false } : m)));
-      setUnread((c) => c + 1);
+  // Sets these notifications' read state: optimistic, put back if the save fails.
+  async function setRead(ids: string[], read: boolean) {
+    const changing = items.filter((n) => ids.includes(n.id) && n.read !== read);
+    if (changing.length === 0) return true;
+    const changedIds = changing.map((n) => n.id);
+    const delta = read ? -changing.length : changing.length;
+    setItems((list) => list.map((m) => (changedIds.includes(m.id) ? { ...m, read } : m)));
+    setUnread((c) => Math.max(0, c + delta));
+    const saved = await (read ? markRead(changedIds) : markUnread(changedIds));
+    if (!saved) {
+      setItems((list) => list.map((m) => (changedIds.includes(m.id) ? { ...m, read: !read } : m)));
+      setUnread((c) => Math.max(0, c - delta));
     }
+    return saved;
+  }
+
+  function toggleEditing() {
+    selection.clear();
+    setEditing((e) => !e);
+  }
+
+  function open(n: InAppNotification) {
+    if (!n.read) setRead([n.id], true);
+  }
+
+  async function bulk(read: boolean) {
+    if (await setRead([...selection.selectedIds], read)) selection.clear();
   }
 
   async function readAll() {
@@ -117,9 +143,17 @@ export default function NotificationInbox({
         </label>
         <button
           type="button"
+          onClick={toggleEditing}
+          aria-pressed={editing}
+          className="ml-auto text-sm text-plum-600 hover:underline dark:text-plum-400"
+        >
+          {editing ? "Done" : "Edit multiple"}
+        </button>
+        <button
+          type="button"
           onClick={readAll}
           disabled={unread === 0}
-          className="ml-auto text-sm text-plum-600 hover:underline disabled:cursor-default disabled:text-slate-400 disabled:no-underline dark:text-plum-400"
+          className="text-sm text-plum-600 hover:underline disabled:cursor-default disabled:text-slate-400 disabled:no-underline dark:text-plum-400"
         >
           Mark all as read
         </button>
@@ -131,70 +165,110 @@ export default function NotificationInbox({
         </p>
       )}
 
-      <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
-        <table className="w-full text-sm">
-          <thead className="bg-slate-50 dark:bg-slate-800">
-            <tr>
-              <th className="w-8 px-4 py-3">
-                <span className="sr-only">Unread</span>
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                Notification
-              </th>
-              <SortableTh label="Type" {...table.sortProps("kind")} />
-              <SortableTh label="Received" {...table.sortProps("created_at")} />
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-            {table.rows.length === 0 ? (
+      <div className="overflow-hidden rounded-lg border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+        <BulkActionBar count={editing ? selection.selectedIds.size : 0} onClear={selection.clear}>
+          <BulkActionButton onClick={() => bulk(true)}>Mark as read</BulkActionButton>
+          <BulkActionButton onClick={() => bulk(false)}>Mark as unread</BulkActionButton>
+        </BulkActionBar>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-slate-50 dark:bg-slate-800">
               <tr>
-                <td colSpan={4} className="px-6 py-8 text-center text-slate-500 dark:text-slate-400">
-                  {filter === "unread" ? "Nothing unread." : "No notifications yet."}
-                </td>
+                {editing && (
+                  <th className="w-10 px-4 py-3">
+                    <input
+                      type="checkbox"
+                      checked={selection.allSelected}
+                      ref={(el) => {
+                        if (el) el.indeterminate = selection.someSelected;
+                      }}
+                      onChange={selection.toggleAll}
+                      disabled={items.length === 0}
+                      className="cursor-pointer accent-plum-600"
+                      aria-label="Select all on this page"
+                    />
+                  </th>
+                )}
+                <th className="w-8 px-2 py-3">
+                  <span className="sr-only">Unread</span>
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                  Notification
+                </th>
+                <SortableTh label="Type" {...table.sortProps("kind")} />
+                <SortableTh label="Received" {...table.sortProps("created_at")} />
               </tr>
-            ) : (
-              table.rows.map((n) => (
-                <tr key={n.id} className={n.read ? "" : "bg-plum-50/60 dark:bg-plum-950/60"}>
-                  <td className="px-4 py-3">
-                    {!n.read && <span aria-label="Unread" className="block h-2 w-2 rounded-full bg-plum-600" />}
-                  </td>
-                  <td className="px-6 py-3">
-                    {n.url ? (
-                      <Link
-                        href={n.url}
-                        onClick={() => open(n)}
-                        className={`hover:underline ${n.read ? "text-slate-600 dark:text-slate-400" : "font-medium text-slate-900 dark:text-slate-100"}`}
-                      >
-                        {n.text}
-                      </Link>
-                    ) : (
-                      <span className={n.read ? "text-slate-600 dark:text-slate-400" : "font-medium text-slate-900 dark:text-slate-100"}>
-                        {n.text}
-                      </span>
-                    )}
-                    {!n.read && !n.url && (
-                      <button
-                        type="button"
-                        onClick={() => open(n)}
-                        className="ml-2 text-xs text-plum-600 hover:underline dark:text-plum-400"
-                      >
-                        Mark read
-                      </button>
-                    )}
-                  </td>
-                  <td className="whitespace-nowrap px-6 py-3 text-slate-600 dark:text-slate-400">
-                    {notificationKindLabel(n.kind)}
-                  </td>
-                  <td className="whitespace-nowrap px-6 py-3 text-slate-500 dark:text-slate-400">
-                    <time dateTime={n.createdAt} title={new Date(n.createdAt).toLocaleString()} suppressHydrationWarning>
-                      {formatRelativeTime(n.createdAt)}
-                    </time>
+            </thead>
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+              {table.rows.length === 0 ? (
+                <tr>
+                  <td colSpan={editing ? 5 : 4} className="px-6 py-8 text-center text-slate-500 dark:text-slate-400">
+                    {filter === "unread" ? "Nothing unread." : "No notifications yet."}
                   </td>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+              ) : (
+                table.rows.map((n) => (
+                  <tr key={n.id} className={`${n.read ? "" : "bg-plum-50/60 dark:bg-plum-950/60"}`}>
+                    {editing && (
+                      <td className="px-4 py-3">
+                        <input
+                          type="checkbox"
+                          checked={selection.isSelected(n.id)}
+                          onChange={() => selection.toggle(n.id)}
+                          className="cursor-pointer accent-plum-600"
+                          aria-label={`Select: ${n.text}`}
+                        />
+                      </td>
+                    )}
+                    <td className="px-2 py-3">
+                      {!n.read && <span aria-label="Unread" className="block h-2 w-2 rounded-full bg-plum-600" />}
+                    </td>
+                    <td className="px-6 py-3">
+                      {n.url ? (
+                        <Link
+                          href={n.url}
+                          onClick={() => open(n)}
+                          className={`hover:underline ${n.read ? "text-slate-600 dark:text-slate-400" : "font-medium text-slate-900 dark:text-slate-100"}`}
+                        >
+                          {n.text}
+                        </Link>
+                      ) : (
+                        <span
+                          className={
+                            n.read
+                              ? "text-slate-600 dark:text-slate-400"
+                              : "font-medium text-slate-900 dark:text-slate-100"
+                          }
+                        >
+                          {n.text}
+                        </span>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setRead([n.id], !n.read)}
+                        className="ml-2 text-xs text-plum-600 hover:underline dark:text-plum-400"
+                      >
+                        {n.read ? "Mark unread" : "Mark read"}
+                      </button>
+                    </td>
+                    <td className="whitespace-nowrap px-6 py-3 text-slate-600 dark:text-slate-400">
+                      {notificationKindLabel(n.kind)}
+                    </td>
+                    <td className="whitespace-nowrap px-6 py-3 text-slate-500 dark:text-slate-400">
+                      <time
+                        dateTime={n.createdAt}
+                        title={new Date(n.createdAt).toLocaleString()}
+                        suppressHydrationWarning
+                      >
+                        {formatRelativeTime(n.createdAt)}
+                      </time>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
         <DataTablePager table={table} itemLabel="notifications" />
       </div>
     </div>
