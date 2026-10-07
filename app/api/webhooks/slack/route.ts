@@ -7,6 +7,8 @@ import { publishSlackHome } from "@/lib/slack-sign-in";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { isKeptSlackMessage, slackMessageUserId, slackTsToIso } from "@/lib/slack-messages";
 import { applySlackEmojiEvent, applySlackMembershipEvent } from "@/lib/slack-capture";
+import { isBeyondSlackHistory } from "@/lib/slack-deletions";
+import { clock } from "@/lib/clock";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 // Webhook should respond quickly
@@ -176,6 +178,8 @@ async function processSlackEvent(event: any) {
           user_id: event.user,
           reaction: event.reaction,
           occurred_at: new Date(parseFloat(event.event_ts) * 1000).toISOString(),
+          // A reaction taken back and added again is live again.
+          removed_at: null,
           raw_payload: event,
         },
         {
@@ -195,15 +199,17 @@ async function processSlackEvent(event: any) {
       // Trigger Silver processing asynchronously
       triggerSlackProcessing(event.item.ts);
     } else if (eventType === "reaction_removed") {
-      // DELETE reaction from Bronze layer
+      // Soft delete: the row stays, marked with when it was taken back. Silver
+      // processing and the admin stats skip rows with removed_at set.
       const { error } = await supabase
         .schema("bronze")
         .from("slack_reactions")
-        .delete()
+        .update({ removed_at: new Date(parseFloat(event.event_ts) * 1000).toISOString() })
         .eq("channel_id", event.item.channel)
         .eq("message_ts", event.item.ts)
         .eq("user_id", event.user)
-        .eq("reaction", event.reaction);
+        .eq("reaction", event.reaction)
+        .is("removed_at", null);
 
       if (error) {
         console.error("Error removing Slack reaction:", error);
@@ -259,6 +265,15 @@ async function applyMessageEdit(supabase: SupabaseClient, event: any) {
 async function applyMessageDelete(supabase: SupabaseClient, event: any) {
   const deletedTs = event.deleted_ts ?? event.previous_message?.ts;
   if (!deletedTs) return;
+
+  // Slack's free plan hides messages after about 90 days and deletes them
+  // after a year. Nobody can delete a message they can no longer see, so a
+  // delete event for one that old is Slack's own clean-up, and the Hub's copy
+  // is the archive: keep it.
+  if (isBeyondSlackHistory(deletedTs, clock.now())) {
+    console.log("Ignoring Slack delete event for a message beyond Slack's history limit:", deletedTs);
+    return;
+  }
 
   const { error } = await supabase
     .schema("bronze")

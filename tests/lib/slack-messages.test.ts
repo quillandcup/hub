@@ -68,9 +68,9 @@ describe('threadsNeedingReplies', () => {
     expect(threadsNeedingReplies([t], stored([[t, { count: 2, latestTs: `${now - day}.000200` }]]), recentSince)).toEqual([t])
   })
 
-  it('treats more stored replies than Slack reports (deleted replies) as up to date', () => {
+  it('fetches a thread with more live stored replies than Slack reports, so the deleted reply can be marked', () => {
     const t = thread(now - 30 * day, 1, now - 29 * day)
-    expect(threadsNeedingReplies([t], stored([[t, { count: 2, latestTs: `${now - 29 * day}.000200` }]]), recentSince)).toEqual([])
+    expect(threadsNeedingReplies([t], stored([[t, { count: 2, latestTs: `${now - 29 * day}.000200` }]]), recentSince)).toEqual([t])
   })
 
   it('ignores messages without replies', () => {

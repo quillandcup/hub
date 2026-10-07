@@ -52,16 +52,19 @@ export interface StoredThreadReplies {
  *    still gain or lose reactions, which don't change reply_count or
  *    latest_reply. Fetched after every behind thread, newest activity first,
  *    since missing one only delays a reaction until the next run.
- * Edits and deletes of older replies arrive through the webhook.
+ * Edits of older replies arrive through the webhook.
  */
-/** Slack reports more or newer replies than we have stored for this thread. */
+/** Slack's replies for this thread differ from the live ones we have stored: more, newer, or fewer (one was deleted). */
 export function isThreadBehind(p: SlackThreadParent, stored: Map<string, StoredThreadReplies>): boolean {
   if (!(p.reply_count > 0)) return false;
   const have = stored.get(threadKey(p.channel_id, p.message_ts));
   const latest = p.raw_payload?.latest_reply;
   return (
     !have ||
-    have.count < p.reply_count ||
+    // Fewer: replies we don't have yet. More: a reply was deleted in Slack and
+    // we still hold it as live; fetching the thread lets the import mark it
+    // (lib/slack-deletions.ts). `count` is of replies not already marked deleted.
+    have.count !== p.reply_count ||
     (!!latest && (!have.latestTs || parseFloat(have.latestTs) < parseFloat(latest)))
   );
 }

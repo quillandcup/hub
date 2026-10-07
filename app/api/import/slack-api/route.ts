@@ -3,7 +3,13 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/supabase/api-auth';
 import { extractSlackImageUrl } from '@/lib/member-avatar';
-import { deleteRemovedSlackReactions } from '@/lib/slack-reactions';
+import { markRemovedSlackReactions } from '@/lib/slack-reactions';
+import {
+  deletionInferenceWindow,
+  markMessagesDeletedInSlack,
+  slackThreadKey,
+  type SeenInSlack,
+} from '@/lib/slack-deletions';
 import { fetchAllBronzeRows } from '@/lib/supabase/bronze-pagination';
 import {
   isKeptSlackMessage,
@@ -90,10 +96,13 @@ export async function POST(request: NextRequest) {
     console.log('Fetching messages...');
     const allMessages: any[] = [];
     const allReactions: any[] = [];
+    // Every ts Slack returned, to tell deleted messages from ones it simply
+    // wasn't asked about (see lib/slack-deletions.ts).
+    const seen: SeenInSlack = { topLevelByChannel: new Map(), repliesByThread: new Map() };
 
     for (const channel of channels) {
       console.log(`  Processing #${channel.name}...`);
-      const { messages, reactions } = await fetchChannelHistory(
+      const { messages, reactions, seenTs, threadsWithoutReplies } = await fetchChannelHistory(
         slack,
         channel.channel_id,
         channel.name,
@@ -103,6 +112,9 @@ export async function POST(request: NextRequest) {
       );
       allMessages.push(...messages);
       allReactions.push(...reactions);
+      seen.topLevelByChannel.set(channel.channel_id, seenTs);
+      // Slack says these have no replies, so any stored reply to them is gone.
+      for (const ts of threadsWithoutReplies) seen.repliesByThread.set(slackThreadKey(channel.channel_id, ts), new Set());
 
       // Rate limit: ~50 channels/min
       await clock.sleep(1200);
@@ -122,6 +134,7 @@ export async function POST(request: NextRequest) {
     }
     allMessages.push(...threadReplies.messages);
     allReactions.push(...threadReplies.reactions);
+    for (const [key, replyTs] of threadReplies.seenByThread) seen.repliesByThread.set(key, replyTs);
 
     // A thread_broadcast reply shows up in both history and its thread, and one
     // upsert statement can't touch the same row twice.
@@ -162,10 +175,10 @@ export async function POST(request: NextRequest) {
     await upsertInBatches(supabase, "slack_messages", allMessages.map(m => ({ ...m, imported_at: importTimestamp })), "channel_id,message_ts");
     await upsertInBatches(supabase, "slack_reactions", allReactions.map(r => ({ ...r, imported_at: importTimestamp })), "channel_id,message_ts,reaction,user_id");
 
-    // Upserts can't express "this reaction was taken back", so drop stored
-    // reactions on the fetched messages that Slack no longer reports.
-    const reactionsRemoved = await deleteRemovedSlackReactions(supabase, allMessages, allReactions);
-    if (reactionsRemoved > 0) console.log(`  Removed ${reactionsRemoved} reactions no longer in Slack`);
+    // Upserts can't express "this reaction was taken back", so mark stored
+    // reactions on the fetched messages that Slack no longer reports (removed_at).
+    const reactionsRemoved = await markRemovedSlackReactions(supabase, allMessages, allReactions, importTimestamp);
+    if (reactionsRemoved > 0) console.log(`  Marked ${reactionsRemoved} reactions removed in Slack`);
 
     // 5.5. Who is in each conversation, and the custom emoji. The caller is a
     // verified admin (or the cron); these tables are written by the service role.
@@ -181,6 +194,20 @@ export async function POST(request: NextRequest) {
         return null;
       }
     };
+    // Messages deleted in Slack: soft-deleted here, and only where this run
+    // can be sure (never because a message aged out of Slack's history).
+    const deletions = await capture('deleted messages', () =>
+      markMessagesDeletedInSlack(supabase, seen, deletionInferenceWindow(oldest, latest, clock.now()), importTimestamp)
+    );
+    if (deletions) {
+      if (deletions.deleted > 0) console.log(`  Marked ${deletions.deleted} messages deleted in Slack`);
+      for (const c of deletions.suspiciousChannels) {
+        const message = `deleted messages: ${c.missing} of ${c.judged} messages in ${c.channel_id} are missing from Slack; not marking them deleted`;
+        console.error(`Slack import: ${message}`);
+        captureErrors.push(message);
+      }
+    }
+
     const membership = await capture('channel members', () => syncChannelMembers(service, slack, channels, importTimestamp));
     if (membership) console.log(`  Members: ${membership.members} across ${membership.channelsSynced} channels (${membership.left} left, ${membership.channelsFailed} channels failed)`);
     const emoji = await capture('custom emoji', () => syncCustomEmoji(service, slack, importTimestamp));
@@ -233,6 +260,7 @@ export async function POST(request: NextRequest) {
       success: true,
       capture: {
         groupDms: groupDms.skipped ? { skipped: groupDms.skipped } : { conversations: groupDms.channels.length },
+        deletions,
         membership,
         emoji,
         files,
@@ -382,6 +410,10 @@ async function fetchChannelHistory(
 ) {
   const messages: any[] = [];
   const reactions: any[] = [];
+  // Everything Slack returned, kept or not. A tombstone ("This message was
+  // deleted", left where a deleted message still has replies) counts as gone.
+  const seenTs = new Set<string>();
+  const threadsWithoutReplies: string[] = [];
   let cursor: string | undefined;
 
   do {
@@ -394,20 +426,24 @@ async function fetchChannelHistory(
     });
 
     for (const msg of result.messages ?? []) {
+      if (msg.subtype !== 'tombstone') seenTs.add(msg.ts);
+      const isReply = msg.thread_ts && msg.thread_ts !== msg.ts;
+      if (!isReply && !(msg.reply_count > 0)) threadsWithoutReplies.push(msg.ts);
       addMessage(msg, channelId, channelName, channelType, messages, reactions);
     }
 
     cursor = result.response_metadata?.next_cursor;
   } while (cursor);
 
-  return { messages, reactions };
+  return { messages, reactions, seenTs, threadsWithoutReplies };
 }
 
 const THREAD_CONCURRENCY = 5;
 
 /**
- * Replies already stored for these threads, keyed by threadKey. Compared with
- * what Slack reports to decide which threads need fetching.
+ * Live (not deleted) replies already stored for these threads, keyed by
+ * threadKey. Compared with what Slack reports to decide which threads need
+ * fetching.
  */
 async function loadStoredThreadReplies(supabase: SupabaseClient, parents: any[]) {
   const stored = new Map<string, StoredThreadReplies>();
@@ -430,6 +466,7 @@ async function loadStoredThreadReplies(supabase: SupabaseClient, parents: any[])
           .select('thread_ts, message_ts')
           .eq('channel_id', channelId)
           .in('thread_ts', chunk)
+          .is('deleted_at', null)
           .order('message_ts')
           .range(offset, offset + PAGE - 1);
         if (error) throw error;
@@ -457,6 +494,8 @@ async function loadStoredThreadReplies(supabase: SupabaseClient, parents: any[])
 async function fetchThreadReplies(slack: WebClient, parents: any[], startedAt: number) {
   const messages: any[] = [];
   const reactions: any[] = [];
+  // Per thread fetched completely: every reply ts Slack returned.
+  const seenByThread = new Map<string, Set<string>>();
   const queue = [...parents];
 
   const worker = async () => {
@@ -468,6 +507,7 @@ async function fetchThreadReplies(slack: WebClient, parents: any[], startedAt: n
       // Buffer per thread so a thread is stored whole or not at all.
       const threadMessages: any[] = [];
       const threadReactions: any[] = [];
+      const replyTs = new Set<string>();
       let cursor: string | undefined;
       do {
         const result: any = await slack.conversations.replies({
@@ -478,17 +518,19 @@ async function fetchThreadReplies(slack: WebClient, parents: any[], startedAt: n
         });
         for (const msg of result.messages ?? []) {
           if (msg.ts === parent.message_ts) continue; // the parent is already in history
+          if (msg.subtype !== 'tombstone') replyTs.add(msg.ts);
           addMessage(msg, parent.channel_id, parent.channel_name, parent.channel_type, threadMessages, threadReactions);
         }
         cursor = result.response_metadata?.next_cursor;
       } while (cursor);
       messages.push(...threadMessages);
       reactions.push(...threadReactions);
+      seenByThread.set(slackThreadKey(parent.channel_id, parent.message_ts), replyTs);
     }
   };
 
   await Promise.all(Array.from({ length: THREAD_CONCURRENCY }, worker));
-  return { messages, reactions, deferred: queue.length };
+  return { messages, reactions, seenByThread, deferred: queue.length };
 }
 
 function addMessage(

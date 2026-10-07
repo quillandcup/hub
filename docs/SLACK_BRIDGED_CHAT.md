@@ -143,6 +143,8 @@ Every webhook-handled event type has a pull:
 
 Soft-deleting what's "missing" only happens for scopes whose fetch fully succeeded.
 
+**Ageing out of Slack is never a deletion.** The Hub keeps Slack messages for good; Slack's API stops returning them after about 90 days. So a message Slack no longer returns is only marked `deleted_at` when it is newer than 80 days and older than 15 minutes, its channel's history (or, for a reply, its thread) was fetched completely in that run, and no more than a handful of the channel's messages went missing at once (otherwise the import marks nothing there and reports an error, since that looks like Slack changing what it returns). The webhook likewise ignores a delete event for a message older than 90 days, which could only be Slack's own clean-up. A message that turns up again in a later fetch is un-deleted. Rules and tests: `lib/slack-deletions.ts`.
+
 ### Slack free plan
 
 We're on Slack's free plan, which changes what "archive" means:
@@ -223,7 +225,9 @@ Per channel: switch `bridge_mode` from `bridged` to `app_only`. The bot posts a 
 
 Status, 2026-10-06. Done in groundwork: webhook edits/deletes/bot posts/join filtering; resumable import (only threads behind Slack, oldest first, heartbeat only when none are left behind); atomic Slack activity rebuild, one week per database call (rewriting 90 days in one statement ran past production's 8s statement timeout); `audit_log` and the admin Activity Log page (the break-glass / restriction-change filter is still to add); chunked attendance rebuilds; and the capture work (group DMs via `mpim`, `bronze.slack_channel_members`, `bronze.slack_custom_emoji`, `bronze.slack_files` + the private `slack-files` bucket, with direct-message text kept out of `member_activities`). Capture details: `lib/slack-capture.ts`. Files over 20 MB and files hosted outside Slack are recorded but not copied. The notification framework (listed under "Later") also exists now: `lib/notifications/`.
 
-Still open in groundwork: soft delete for removed reactions and import-detected message deletes; removing the 75 join/leave rows; Bronze content lock-down + `slack_messages_meta`; message text in `member_activities.description` for *restricted channels* (direct messages are done); alerting when the bot loses a private channel.
+Also done (2026-10-07): removed reactions are soft-deleted (`removed_at`) by the webhook and the import; the import marks messages deleted in Slack, with the safeguards under "Nightly reconciliation" above; the join/leave notice rows are gone.
+
+Still open in groundwork: counting deleted messages and removed reactions toward engagement at reduced weight (they are excluded today; `engagement_value` is an integer, so "half" needs a decision); Bronze content lock-down + `slack_messages_meta`; message text in `member_activities.description` for *restricted channels* (direct messages are done); alerting when the bot loses a private channel.
 
 1. **Groundwork**
    - `audit_log` v1 (from `docs/ACTIVITY_AND_AUDIT_LOG.md`) plus an admin view with a break-glass / restriction-change filter.

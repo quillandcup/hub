@@ -124,7 +124,7 @@ describe('POST /api/import/slack-api thread replies', () => {
     ])
   })
 
-  it('deletes a reaction that was removed from a reply', async () => {
+  it('marks a reaction that was removed from a reply, keeping the row', async () => {
     await supabase.schema('bronze').from('slack_reactions').insert({
       channel_id: channelId,
       message_ts: replyTs,
@@ -139,10 +139,14 @@ describe('POST /api/import/slack-api thread replies', () => {
     const { data: reactions } = await supabase
       .schema('bronze')
       .from('slack_reactions')
-      .select('reaction')
+      .select('reaction, removed_at')
       .eq('channel_id', channelId)
       .eq('message_ts', replyTs)
-    expect(reactions).toEqual([{ reaction: 'tada' }])
+      .order('reaction')
+    expect(reactions?.map((r) => [r.reaction, r.removed_at === null ? 'live' : 'removed'])).toEqual([
+      ['eyes', 'removed'],
+      ['tada', 'live'],
+    ])
     expect(body.imported.reactionsRemoved).toBe(1)
   })
 

@@ -144,6 +144,30 @@ describe('Slack webhook: message subtypes', () => {
     expect(new Date(row.deleted_at!).toISOString()).toBe(new Date(parseFloat(first) * 1000).toISOString())
   })
 
+  it("ignores a delete event for a message beyond Slack's history limit: the Hub's copy is the archive", async () => {
+    // Nobody can delete a message Slack no longer shows them, so this can
+    // only be Slack clearing out old data.
+    const day = 24 * 60 * 60
+    const oldTs = `${nowSec - 120 * day}.000100`
+    const { error } = await supabase.schema('bronze').from('slack_messages').insert({
+      channel_id: channelId,
+      message_ts: oldTs,
+      user_id: 'UAUTHOR',
+      text: 'from the archive',
+      message_type: 'message',
+      occurred_at: new Date((nowSec - 120 * day) * 1000).toISOString(),
+      raw_payload: {},
+    })
+    expect(error).toBeNull()
+
+    const deleteTs = `${nowSec - 30}.000500`
+    await send({ type: 'message', subtype: 'message_deleted', hidden: true, ts: deleteTs, event_ts: deleteTs, deleted_ts: oldTs })
+
+    const [row] = await rows()
+    expect(row).toMatchObject({ message_ts: oldTs, text: 'from the archive', deleted_at: null })
+    expect(triggerReprocessing).not.toHaveBeenCalled()
+  })
+
   it('stores a bot/app post under its bot_id, like the import does', async () => {
     const botTs = `${nowSec - 120}.000300`
     await send({ type: 'message', ts: botTs, bot_id: 'BDEPLOYBOT', text: '' })
