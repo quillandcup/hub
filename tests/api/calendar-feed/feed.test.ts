@@ -377,6 +377,32 @@ describe('calendar feed', () => {
       }
     })
 
+    it('records the first fetch once, so installing the link is observable', async () => {
+      const fetchedAt = async () =>
+        (await admin.from('calendar_feed_tokens').select('first_fetched_at').eq('member_id', memberAId).single()).data
+          ?.first_fetched_at
+      await admin.from('calendar_feed_tokens').update({ first_fetched_at: null }).eq('member_id', memberAId)
+      const since = new Date().toISOString()
+
+      expect((await fetchFeed(`${TOKEN_A}.ics`)).status).toBe(200)
+      const first = await fetchedAt()
+      expect(first).toBeTruthy()
+
+      expect((await fetchFeed(`${TOKEN_A}.ics`)).status).toBe(200)
+      expect(await fetchedAt()).toBe(first)
+
+      const { data: audited } = await admin
+        .from('audit_log')
+        .select('actor_kind, changes')
+        .eq('entity_type', 'calendar_feed')
+        .eq('member_id', memberAId)
+        .gte('occurred_at', since)
+        .not('changes->first_fetched_at->>new', 'is', null)
+      expect(audited).toHaveLength(1)
+      expect(audited?.[0].actor_kind).toBe('system')
+      expect(JSON.stringify(audited?.[0].changes)).not.toContain(TOKEN_A)
+    })
+
     it('404s for an unknown or malformed token', async () => {
       expect((await fetchFeed(`${randomToken()}.ics`)).status).toBe(404)
       expect((await fetchFeed('not-a-token.ics')).status).toBe(404)

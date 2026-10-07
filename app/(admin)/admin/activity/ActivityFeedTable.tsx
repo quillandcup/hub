@@ -10,6 +10,7 @@ import {
   describeRow,
   feedSearch,
   formatValue,
+  summarizePages,
   type ActivityFeedRow,
   type FeedFilters,
 } from "@/lib/activity-feed";
@@ -48,11 +49,23 @@ function PageTrail({ row }: { row: ActivityFeedRow }) {
   const pages = Array.isArray(row.data?.pages) ? (row.data.pages as string[]) : [];
   if (pages.length === 0) return null;
   return (
-    <ol className="mt-2 text-xs text-slate-600 dark:text-slate-400 list-decimal list-inside space-y-0.5 font-mono">
-      {pages.map((p, i) => (
-        <li key={i}>{p}</li>
-      ))}
-    </ol>
+    <div className="mt-2 text-xs text-slate-600 dark:text-slate-400">
+      <ul className="space-y-0.5">
+        {summarizePages(pages).map(({ label, count }) => (
+          <li key={label}>
+            {label} <span className="text-slate-400">×{count}</span>
+          </li>
+        ))}
+      </ul>
+      <details className="mt-2">
+        <summary className="cursor-pointer text-slate-500">In order</summary>
+        <ol className="mt-1 list-decimal list-inside space-y-0.5 font-mono">
+          {pages.map((p, i) => (
+            <li key={i}>{p}</li>
+          ))}
+        </ol>
+      </details>
+    </div>
   );
 }
 
@@ -146,7 +159,9 @@ export default function ActivityFeedTable({
                     )}
                   </td>
                   <td className="py-2">
-                    {row.member_id && row.member_name ? (
+                    {row.actor_kind === "member" && !sudo ? (
+                      <span className="text-slate-400">self</span>
+                    ) : row.member_id && row.member_name ? (
                       <Link
                         href={`/admin/members/${row.member_id}`}
                         className="text-plum-600 dark:text-plum-400 hover:underline"

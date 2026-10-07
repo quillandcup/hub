@@ -109,7 +109,7 @@ describe("/admin/activity", () => {
 
     expect(rpc).toHaveBeenCalledWith("count_activity_feed", expect.objectContaining({ p_audit_only: false }));
     expect(screen.getByRole("link", { name: "Page visits" })).toBeInTheDocument();
-    expect(screen.getByText("visited 2 pages")).toBeInTheDocument();
+    expect(screen.getByText("visited 2 pages (Dashboard ×1, My Prickles ×1)")).toBeInTheDocument();
     expect(screen.getByText("/my-prickles")).toBeInTheDocument();
   });
 

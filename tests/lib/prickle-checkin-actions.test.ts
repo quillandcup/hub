@@ -57,6 +57,7 @@ describe("saveCheckin", () => {
         need: "company",
         session_rating: null,
         feelings_after: [],
+        saved_via: "web",
         deleted_at: null,
       },
       { onConflict: "member_id,prickle_id" }
@@ -69,7 +70,7 @@ describe("saveCheckin", () => {
   it("soft-deletes the live row when every answer is cleared", async () => {
     const sb = makeSupabase();
     expect(await saveCheckin("prickle-1", EMPTY)).toEqual({ success: true });
-    expect(sb.update).toHaveBeenCalledWith({ deleted_at: expect.any(String) });
+    expect(sb.update).toHaveBeenCalledWith({ deleted_at: expect.any(String), saved_via: "web" });
     expect(sb.updateIs).toHaveBeenCalledWith("deleted_at", null);
     expect(sb.deleteFn).not.toHaveBeenCalled();
     expect(sb.upsert).not.toHaveBeenCalled();

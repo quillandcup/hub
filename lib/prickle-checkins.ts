@@ -170,11 +170,17 @@ export function checkinFromRow(row: {
  * Shared by the prickle page (session client, RLS owner-only) and the Slack DMs (service role,
  * caller has matched the Slack user to `memberId`). Returns the Supabase error, if any.
  */
-export async function writeCheckin(supabase: SupabaseClient, memberId: string, prickleId: string, checkin: CheckinInput) {
+export async function writeCheckin(
+  supabase: SupabaseClient,
+  memberId: string,
+  prickleId: string,
+  checkin: CheckinInput,
+  via: "web" | "slack" = "web"
+) {
   if (isEmptyCheckin(checkin)) {
     const { error } = await supabase
       .from("prickle_checkins")
-      .update({ deleted_at: new Date().toISOString() })
+      .update({ deleted_at: new Date().toISOString(), saved_via: via })
       .eq("member_id", memberId)
       .eq("prickle_id", prickleId)
       .is("deleted_at", null);
@@ -188,6 +194,7 @@ export async function writeCheckin(supabase: SupabaseClient, memberId: string, p
       need: checkin.need,
       session_rating: checkin.sessionRating,
       feelings_after: checkin.feelingsAfter,
+      saved_via: via,
       deleted_at: null,
     },
     { onConflict: "member_id,prickle_id" }

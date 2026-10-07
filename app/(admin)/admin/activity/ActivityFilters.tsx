@@ -29,8 +29,9 @@ interface PickerMember {
 
 /**
  * Filter bar for the activity log. Everything lives in the URL (the server page
- * reads it back), and any filter change starts again on page 1. The Actor and
- * Member pickers are the shared EntitySearch fed with staff and members.
+ * reads it back), and any filter change starts again on page 1. Member is the main
+ * filter (members are mostly their own actors); the staff picker only narrows to one
+ * admin's actions. Both are the shared EntitySearch.
  */
 export default function ActivityFilters({
   filters,
@@ -95,7 +96,19 @@ export default function ActivityFilters({
 
       <div className="grid gap-3 sm:grid-cols-2 max-w-2xl">
         <label className="block text-sm text-slate-600 dark:text-slate-400">
-          <span className="block mb-1">Actor (who did it)</span>
+          <span className="block mb-1">Member</span>
+          <MemberSearch
+            members={members}
+            selectedMemberId={filters.memberId}
+            selectedMemberName={memberName}
+            // A member's own actions only appear outside the Audit view, so picking one shows Everything.
+            onSelect={(member) => go({ memberId: member?.id ?? null, ...(member ? { view: "all" as const } : {}) })}
+            placeholder="Search members..."
+          />
+          <span className="block mt-1 text-xs text-slate-500">What they did, and what staff did for them or as them</span>
+        </label>
+        <label className="block text-sm text-slate-600 dark:text-slate-400">
+          <span className="block mb-1">Staff member</span>
           <StaffSearch
             staff={staff}
             selectedUserId={filters.actorUserId}
@@ -103,16 +116,7 @@ export default function ActivityFilters({
             onSelect={(user) => go({ actorUserId: user?.id ?? null })}
             placeholder="Search staff..."
           />
-        </label>
-        <label className="block text-sm text-slate-600 dark:text-slate-400">
-          <span className="block mb-1">Member (who it was about)</span>
-          <MemberSearch
-            members={members}
-            selectedMemberId={filters.memberId}
-            selectedMemberName={memberName}
-            onSelect={(member) => go({ memberId: member?.id ?? null })}
-            placeholder="Search members..."
-          />
+          <span className="block mt-1 text-xs text-slate-500">Only what this admin or assistant did</span>
         </label>
       </div>
     </div>

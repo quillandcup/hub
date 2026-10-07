@@ -530,7 +530,7 @@ export async function saveCheckinAnswer(supabase: any, memberId: string, answer:
   if (invalid) return invalid;
   if (isEmptyCheckin(next) && !existing) return null;
 
-  const error = await writeCheckin(supabase, memberId, prickleId, next);
+  const error = await writeCheckin(supabase, memberId, prickleId, next, "slack");
   if (error) return `couldn't save check-in: ${error.message}`;
   await resolveAnsweredCheckinNotifications(supabase, memberId, prickleId, next);
   return null;

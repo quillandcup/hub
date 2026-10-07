@@ -183,21 +183,116 @@ export function actorName(row: ActivityFeedRow): string {
   return row.actor_label ?? (row.actor_kind === "staff" ? "A staff member" : "A member");
 }
 
+/** What member-authored entity types are called in a sentence; others fall back to the humanized type. */
+const ENTITY_LABELS: Record<string, string> = {
+  writing_project: "writing project",
+  writing_goal: "writing goal",
+  writing_starting_balance: "starting balance",
+  writing_progress_entry: "writing progress entry",
+  member_book: "book",
+  member_award: "award",
+  member_badge: "badge",
+  prickle_commitment: "prickle commitment",
+  calendar_feed: "calendar link",
+  calendar_feed_item: "calendar item",
+  wheel_of_wonder_match: "Wheel of Wonder match",
+  member_ask_me_about: "“Ask me about” topics",
+};
+
+const NAME_FIELDS = ["title", "name", "alias"] as const;
+
+/** The record's own name (a project's title, an alias...), when its delta carries one. */
+function recordName(row: ActivityFeedRow): string | null {
+  // The trigger stores the record's name on the row (description), which UPDATE deltas can't carry.
+  if (row.description) return formatValue(row.description);
+  const fields = Object.fromEntries(changedFields(row.data));
+  for (const key of NAME_FIELDS) {
+    const change = fields[key];
+    const value = change && (row.event_type === "delete" ? change.old : change.new);
+    if (typeof value === "string" && value) return formatValue(value);
+  }
+  return null;
+}
+
+/** Phrases for events that read better than "changed calendar link — first fetched at". */
+function specialAuditPhrase(row: ActivityFeedRow): string | null {
+  const fields = Object.fromEntries(changedFields(row.data));
+  if (row.entity_type === "calendar_feed") {
+    if (row.event_type === "insert") return "created their calendar link";
+    if (fields.first_fetched_at && fields.first_fetched_at.new) return "added their calendar link to a calendar app";
+    if (fields.token) return "generated a new calendar link";
+  }
+  if (row.entity_type === "wheel_of_wonder_match" && row.event_type === "insert") return "spun the Wheel of Wonder";
+
+  const name = recordName(row);
+  const quoted = name ? ` “${name}”` : "";
+  if (row.entity_type === "writing_project" && fields.phase && row.event_type === "update") {
+    return `moved writing project${quoted} from ${humanize(String(fields.phase.old))} to ${humanize(String(fields.phase.new))}`;
+  }
+  if (row.entity_type === "member_book") {
+    // A book with a project_id came from "Publish" on a project; without one it was added directly.
+    if (row.event_type === "insert") {
+      return fields.project_id?.new ? `published${quoted} from a writing project` : `added${quoted} to their bookshelf`;
+    }
+    if (row.event_type === "delete") return `removed${quoted} from their bookshelf`;
+  }
+  return null;
+}
+
+const UUID_SEGMENT = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const titleCase = (s: string) => s.replace(/[-_]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+
+/** "/prickles/<uuid>" -> "Prickles · one", "/my-prickles/all" -> "My Prickles · All": paths read as places. */
+export function pageLabel(path: string): string {
+  const segments = path.split("?")[0].split("/").filter(Boolean);
+  if (segments.length === 0) return "Home";
+  const [first, second] = segments;
+  const section = titleCase(first);
+  if (!second) return section;
+  return UUID_SEGMENT.test(second) ? `${section} · one` : `${section} · ${titleCase(second)}`;
+}
+
+export interface PageCount {
+  label: string;
+  count: number;
+}
+
+/** A visit's page trail as counts per place, most-visited first: 246 raw paths become a dozen lines. */
+export function summarizePages(pages: string[]): PageCount[] {
+  const counts = new Map<string, number>();
+  for (const path of pages) {
+    const label = pageLabel(path);
+    counts.set(label, (counts.get(label) ?? 0) + 1);
+  }
+  return [...counts.entries()].map(([label, count]) => ({ label, count })).sort((a, b) => b.count - a.count);
+}
+
 /** One-line summary of what happened, e.g. "changed member — status". */
 export function describeRow(row: ActivityFeedRow): string {
   if (row.kind === "audit") {
+    const special = specialAuditPhrase(row);
+    if (special) return special;
     const verb = ACTION_VERBS[row.event_type] ?? row.event_type;
-    const entity = humanize(row.entity_type ?? "record");
+    const entity = ENTITY_LABELS[row.entity_type ?? ""] ?? humanize(row.entity_type ?? "record");
+    const name = recordName(row);
     const fields = changedFields(row.data).map(([k]) => humanize(k));
     const suffix =
       row.event_type === "update" && fields.length > 0
         ? ` — ${fields.slice(0, 4).join(", ")}${fields.length > 4 ? `, +${fields.length - 4} more` : ""}`
         : "";
-    return `${verb} ${entity}${suffix}`;
+    return `${verb} ${entity}${name ? ` “${name}”` : ""}${suffix}`;
   }
   if (row.kind === "session") {
-    const count = Array.isArray(row.data?.pages) ? (row.data.pages as unknown[]).length : 0;
-    return count > 0 ? `visited ${count} page${count === 1 ? "" : "s"}` : "was active (no page views)";
+    const pages = Array.isArray(row.data?.pages) ? (row.data.pages as string[]) : [];
+    if (pages.length === 0) return "was active (no page views)";
+    const top = summarizePages(pages)
+      .slice(0, 3)
+      .map((p) => `${p.label} ×${p.count}`)
+      .join(", ");
+    return `visited ${pages.length} page${pages.length === 1 ? "" : "s"}${pages.length > 1 ? ` (${top})` : ""}`;
   }
-  return row.title ?? humanize(row.event_type);
+  const base = row.title ?? humanize(row.event_type);
+  // Check-ins and check-outs say where they happened: "(via Slack)" vs "(via web)".
+  const via = row.data?.via;
+  return typeof via === "string" ? `${base} (via ${via === "slack" ? "Slack" : via})` : base;
 }

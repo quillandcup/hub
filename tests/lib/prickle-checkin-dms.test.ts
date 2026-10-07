@@ -363,7 +363,7 @@ describe("saveCheckinAnswer", () => {
     expect(await saveCheckinAnswer(fake, "m1", { prickleId: "p1", field: "session_rating", values: ["4"] })).toBeNull();
     const [upsert] = writes(fake);
     expect(upsert.args).toEqual([
-      { member_id: "m1", prickle_id: "p1", feelings_before: ["tired"], need: "company", session_rating: 4, feelings_after: [], deleted_at: null },
+      { member_id: "m1", prickle_id: "p1", feelings_before: ["tired"], need: "company", session_rating: 4, feelings_after: [], saved_via: "slack", deleted_at: null },
       { onConflict: "member_id,prickle_id" },
     ]);
   });
@@ -375,7 +375,7 @@ describe("saveCheckinAnswer", () => {
     expect(await saveCheckinAnswer(fake, "m1", { prickleId: "p1", field: "feelings_before", values: [] })).toBeNull();
     const [update] = writes(fake);
     expect(update.method).toBe("update");
-    expect(update.args[0]).toEqual({ deleted_at: expect.any(String) });
+    expect(update.args[0]).toEqual({ deleted_at: expect.any(String), saved_via: "slack" });
   });
 
   it("writes nothing for a cleared answer with no check-in yet", async () => {

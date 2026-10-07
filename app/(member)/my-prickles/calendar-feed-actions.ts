@@ -87,7 +87,7 @@ export async function regenerateMyCalendarFeedToken(): Promise<{ urls: CalendarF
   const { error } = await supabase
     .from("calendar_feed_tokens")
     .upsert(
-      { member_id: memberId, token: newToken(), updated_at: new Date().toISOString() },
+      { member_id: memberId, token: newToken(), first_fetched_at: null, updated_at: new Date().toISOString() },
       { onConflict: "member_id" }
     );
   if (error) {
