@@ -5,7 +5,7 @@ import { markRemovedSlackReactions } from '@/lib/slack-reactions'
 /**
  * The Slack API import upserts reactions, so on its own it can't notice a
  * reaction someone took back (normally the reaction_removed webhook marks it).
- * markRemovedSlackReactions soft-deletes (removed_at) stored reactions on the
+ * markRemovedSlackReactions soft-deletes (deleted_at) stored reactions on the
  * fetched messages that Slack no longer reports, and leaves everything else
  * alone, including reactions on messages the import didn't fetch (such as ones
  * that have aged out of Slack's history).
@@ -30,10 +30,10 @@ describe('markRemovedSlackReactions', () => {
     const { data, error } = await supabase
       .schema('bronze')
       .from('slack_reactions')
-      .select('message_ts, reaction, user_id, removed_at')
+      .select('message_ts, reaction, user_id, deleted_at')
       .eq('channel_id', channelId)
     if (error) throw error
-    return Object.fromEntries((data ?? []).map((r) => [`${r.message_ts}|${r.reaction}|${r.user_id}`, r.removed_at]))
+    return Object.fromEntries((data ?? []).map((r) => [`${r.message_ts}|${r.reaction}|${r.user_id}`, r.deleted_at]))
   }
 
   const cleanup = () => supabase.schema('bronze').from('slack_reactions').delete().eq('channel_id', channelId)

@@ -204,7 +204,7 @@ erDiagram
         text reaction
         text user_id
         timestamptz occurred_at
-        timestamptz removed_at
+        timestamptz deleted_at
         jsonb raw_payload
         timestamptz imported_at
     }

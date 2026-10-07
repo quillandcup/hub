@@ -101,8 +101,8 @@ describe('reprocess_slack_activities_atomic', () => {
       raw_payload: {},
     }
     const { error: reactionError } = await supabase.schema('bronze').from('slack_reactions').insert([
-      { ...reaction, reaction: 'tada', removed_at: null },
-      { ...reaction, reaction: 'eyes', removed_at: '2098-06-01T11:00:00Z' }, // removed: skipped
+      { ...reaction, reaction: 'tada', deleted_at: null },
+      { ...reaction, reaction: 'eyes', deleted_at: '2098-06-01T11:00:00Z' }, // removed: skipped
     ])
     expect(reactionError).toBeNull()
 

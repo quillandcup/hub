@@ -117,7 +117,7 @@ const membersOf = async (channel: string) => {
 }
 const emojiRows = async () => {
   const { data } = await bronze('slack_custom_emoji')
-    .select('name, image_url, alias_for, removed_at')
+    .select('name, image_url, alias_for, deleted_at')
     .like('name', `test_capture_%_${suffix}`)
     .order('name')
   return data ?? []
@@ -240,8 +240,8 @@ describe('Slack import: group DMs, membership, emoji and files', () => {
       const body = await runImport()
       const rows = await emojiRows()
       expect(rows).toEqual([
-        { name: emojiA, image_url: 'https://emoji.example.test/hedgie.png', alias_for: null, removed_at: null },
-        { name: emojiAlias, image_url: null, alias_for: emojiA, removed_at: null },
+        { name: emojiA, image_url: 'https://emoji.example.test/hedgie.png', alias_for: null, deleted_at: null },
+        { name: emojiAlias, image_url: null, alias_for: emojiA, deleted_at: null },
       ])
       expect(body.capture.emoji.emoji).toBe(2)
 
@@ -255,24 +255,24 @@ describe('Slack import: group DMs, membership, emoji and files', () => {
       slack.emoji = { [emojiA]: 'https://emoji.example.test/hedgie.png' }
       await runImport()
       const removed = (await emojiRows()).find((e) => e.name === emojiAlias)
-      expect(removed?.removed_at).not.toBeNull()
+      expect(removed?.deleted_at).not.toBeNull()
 
       slack.emoji = { [emojiA]: 'https://emoji.example.test/hedgie.png', [emojiAlias]: `alias:${emojiA}` }
       await runImport()
-      expect((await emojiRows()).find((e) => e.name === emojiAlias)?.removed_at).toBeNull()
+      expect((await emojiRows()).find((e) => e.name === emojiAlias)?.deleted_at).toBeNull()
     })
 
     it('applies emoji_changed add, rename and remove events', async () => {
       await applySlackEmojiEvent(supabase, { subtype: 'add', name: emojiA, value: 'https://emoji.example.test/hedgie.png' })
-      expect((await emojiRows()).map((e) => [e.name, e.removed_at])).toEqual([[emojiA, null]])
+      expect((await emojiRows()).map((e) => [e.name, e.deleted_at])).toEqual([[emojiA, null]])
 
       await applySlackEmojiEvent(supabase, { subtype: 'rename', old_name: emojiA, new_name: emojiAlias, value: 'https://emoji.example.test/hedgie.png' })
       const afterRename = await emojiRows()
-      expect(afterRename.find((e) => e.name === emojiA)?.removed_at).not.toBeNull()
-      expect(afterRename.find((e) => e.name === emojiAlias)).toMatchObject({ image_url: 'https://emoji.example.test/hedgie.png', removed_at: null })
+      expect(afterRename.find((e) => e.name === emojiA)?.deleted_at).not.toBeNull()
+      expect(afterRename.find((e) => e.name === emojiAlias)).toMatchObject({ image_url: 'https://emoji.example.test/hedgie.png', deleted_at: null })
 
       await applySlackEmojiEvent(supabase, { subtype: 'remove', names: [emojiAlias] })
-      expect((await emojiRows()).every((e) => e.removed_at !== null)).toBe(true)
+      expect((await emojiRows()).every((e) => e.deleted_at !== null)).toBe(true)
     })
   })
 

@@ -15,7 +15,7 @@ export type SlackReactionRow = {
   channel_id: string
   channel_name: string | null
   occurred_at: string
-  removed_at: string | null
+  deleted_at: string | null
   user_id: string
   reaction: string
 }

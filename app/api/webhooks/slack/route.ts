@@ -179,7 +179,7 @@ async function processSlackEvent(event: any) {
           reaction: event.reaction,
           occurred_at: new Date(parseFloat(event.event_ts) * 1000).toISOString(),
           // A reaction taken back and added again is live again.
-          removed_at: null,
+          deleted_at: null,
           raw_payload: event,
         },
         {
@@ -200,16 +200,16 @@ async function processSlackEvent(event: any) {
       triggerSlackProcessing(event.item.ts);
     } else if (eventType === "reaction_removed") {
       // Soft delete: the row stays, marked with when it was taken back. Silver
-      // processing and the admin stats skip rows with removed_at set.
+      // processing and the admin stats skip rows with deleted_at set.
       const { error } = await supabase
         .schema("bronze")
         .from("slack_reactions")
-        .update({ removed_at: new Date(parseFloat(event.event_ts) * 1000).toISOString() })
+        .update({ deleted_at: new Date(parseFloat(event.event_ts) * 1000).toISOString() })
         .eq("channel_id", event.item.channel)
         .eq("message_ts", event.item.ts)
         .eq("user_id", event.user)
         .eq("reaction", event.reaction)
-        .is("removed_at", null);
+        .is("deleted_at", null);
 
       if (error) {
         console.error("Error removing Slack reaction:", error);

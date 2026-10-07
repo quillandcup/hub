@@ -183,7 +183,7 @@ export interface EmojiSyncResult {
 /** Slack's emoji.list value: an image URL, or "alias:<name>". */
 export function toCustomEmojiRow(name: string, value: string) {
   const alias = value.startsWith("alias:") ? value.slice("alias:".length) : null;
-  return { name, image_url: alias ? null : value, alias_for: alias, removed_at: null };
+  return { name, image_url: alias ? null : value, alias_for: alias, deleted_at: null };
 }
 
 /**
@@ -216,14 +216,14 @@ export async function syncCustomEmoji(
   }
 
   const stored: { name: string }[] = await fetchAllBronzeRows(supabase, "slack_custom_emoji", "name", (q) =>
-    q.is("removed_at", null).order("name")
+    q.is("deleted_at", null).order("name")
   );
   const gone = stored.map((r) => r.name).filter((name) => !(name in emoji));
   for (let i = 0; i < gone.length; i += 100) {
     const { error } = await supabase
       .schema("bronze")
       .from("slack_custom_emoji")
-      .update({ removed_at: importTimestamp, imported_at: importTimestamp })
+      .update({ deleted_at: importTimestamp, imported_at: importTimestamp })
       .in("name", gone.slice(i, i + 100));
     if (error) throw error;
   }
@@ -281,7 +281,7 @@ export async function applySlackEmojiEvent(
   };
   const remove = async (names: string[]) => {
     if (names.length === 0) return;
-    const { error } = await table().update({ removed_at: now, imported_at: now }).in("name", names).is("removed_at", null);
+    const { error } = await table().update({ deleted_at: now, imported_at: now }).in("name", names).is("deleted_at", null);
     if (error) throw error;
   };
 

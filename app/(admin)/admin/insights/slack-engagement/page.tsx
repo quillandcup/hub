@@ -79,10 +79,10 @@ async function fetchAllReactions(
     const { data: batch } = await supabase
       .schema("bronze")
       .from("slack_reactions")
-      .select("channel_id, channel_name, occurred_at, removed_at, user_id, reaction")
+      .select("channel_id, channel_name, occurred_at, deleted_at, user_id, reaction")
       .gte("occurred_at", since)
       .lte("occurred_at", until)
-      .is("removed_at", null)
+      .is("deleted_at", null)
       .order("occurred_at")
       .range(offset, offset + BATCH - 1)
     if (batch && batch.length > 0) {

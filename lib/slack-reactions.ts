@@ -17,7 +17,7 @@ const DELETE_CONCURRENCY = 50;
 const reactionKey = (r: ReactionKey) => `${r.channel_id}|${r.message_ts}|${r.reaction}|${r.user_id}`;
 
 /**
- * Mark Bronze reactions that were taken back in Slack (removed_at: a soft
+ * Mark Bronze reactions that were taken back in Slack (deleted_at: a soft
  * delete, so the history of who reacted is kept).
  *
  * The Slack API import only upserts, so a reaction removed while the
@@ -33,7 +33,7 @@ const reactionKey = (r: ReactionKey) => `${r.channel_id}|${r.message_ts}|${r.rea
  * it isn't fetched, so its reactions are never judged.
  *
  * A reaction that comes back is un-removed by the import's upsert (and the
- * webhook's), which write removed_at: null.
+ * webhook's), which write deleted_at: null.
  */
 export async function markRemovedSlackReactions(
   supabase: SupabaseClient,
@@ -63,7 +63,7 @@ export async function markRemovedSlackReactions(
           .select("channel_id, message_ts, reaction, user_id")
           .eq("channel_id", channelId)
           .in("message_ts", tsChunk)
-          .is("removed_at", null)
+          .is("deleted_at", null)
           .order("message_ts")
           .order("reaction")
           .order("user_id")
@@ -85,12 +85,12 @@ export async function markRemovedSlackReactions(
         supabase
           .schema("bronze")
           .from("slack_reactions")
-          .update({ removed_at: removedAt })
+          .update({ deleted_at: removedAt })
           .eq("channel_id", r.channel_id)
           .eq("message_ts", r.message_ts)
           .eq("reaction", r.reaction)
           .eq("user_id", r.user_id)
-          .is("removed_at", null)
+          .is("deleted_at", null)
       )
     );
     const failed = results.find((res) => res.error);

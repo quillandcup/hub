@@ -126,7 +126,7 @@ describe('Slack reprocessing in weekly windows', () => {
     const before = await activityKeys()
     expect(before.length).toBeGreaterThan(0)
     await supabase.schema('bronze').from('slack_messages').update({ deleted_at: new Date().toISOString() }).like('message_ts', 'WEEKLY_%')
-    await supabase.schema('bronze').from('slack_reactions').update({ removed_at: new Date().toISOString() }).like('message_ts', 'WEEKLY_%')
+    await supabase.schema('bronze').from('slack_reactions').update({ deleted_at: new Date().toISOString() }).like('message_ts', 'WEEKLY_%')
 
     const body = await reprocess()
 

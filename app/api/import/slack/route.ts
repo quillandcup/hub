@@ -57,7 +57,12 @@ export async function POST(request: NextRequest) {
     const { error: reactionsError } = await supabase
       .schema('bronze').from("slack_reactions")
       .upsert(
-        reactions.map(r => ({ ...r, imported_at: importTimestamp })),
+        // CSVs exported before the column was renamed carry `removed_at`.
+        reactions.map(({ removed_at, ...r }) => ({
+          ...r,
+          ...(removed_at !== undefined && r.deleted_at === undefined ? { deleted_at: removed_at } : {}),
+          imported_at: importTimestamp,
+        })),
         { onConflict: "channel_id,message_ts,reaction,user_id" }
       );
 

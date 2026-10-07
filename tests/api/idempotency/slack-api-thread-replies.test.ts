@@ -139,11 +139,11 @@ describe('POST /api/import/slack-api thread replies', () => {
     const { data: reactions } = await supabase
       .schema('bronze')
       .from('slack_reactions')
-      .select('reaction, removed_at')
+      .select('reaction, deleted_at')
       .eq('channel_id', channelId)
       .eq('message_ts', replyTs)
       .order('reaction')
-    expect(reactions?.map((r) => [r.reaction, r.removed_at === null ? 'live' : 'removed'])).toEqual([
+    expect(reactions?.map((r) => [r.reaction, r.deleted_at === null ? 'live' : 'removed'])).toEqual([
       ['eyes', 'removed'],
       ['tada', 'live'],
     ])

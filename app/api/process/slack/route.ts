@@ -66,7 +66,7 @@ export async function POST(request: NextRequest) {
       supabase.schema("bronze").from("slack_messages").select("message_ts")
         .gte("occurred_at", fromDate).lte("occurred_at", toDate).is("deleted_at", null).limit(1),
       supabase.schema("bronze").from("slack_reactions").select("message_ts")
-        .gte("occurred_at", fromDate).lte("occurred_at", toDate).is("removed_at", null).limit(1),
+        .gte("occurred_at", fromDate).lte("occurred_at", toDate).is("deleted_at", null).limit(1),
     ]);
     if (messageCheckError) throw messageCheckError;
     if (reactionCheckError) throw reactionCheckError;

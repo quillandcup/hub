@@ -5,7 +5,7 @@ import { getTestSupabaseAdminClient } from '../../helpers/supabase'
 import { POST } from '@/app/api/webhooks/slack/route'
 
 /**
- * A reaction taken back in Slack is soft-deleted (removed_at), not deleted:
+ * A reaction taken back in Slack is soft-deleted (deleted_at), not deleted:
  * the row stays as a record that it happened, and readers skip removed rows.
  * Adding the same reaction again makes it live again.
  */
@@ -63,10 +63,10 @@ describe('Slack webhook: reactions are soft-deleted', () => {
     const { data, error } = await supabase
       .schema('bronze')
       .from('slack_reactions')
-      .select('reaction, user_id, removed_at')
+      .select('reaction, user_id, deleted_at')
       .eq('channel_id', channelId)
     if (error) throw error
-    return (data ?? []).map((r) => ({ ...r, removed_at: r.removed_at && new Date(r.removed_at).toISOString() }))
+    return (data ?? []).map((r) => ({ ...r, deleted_at: r.deleted_at && new Date(r.deleted_at).toISOString() }))
   }
 
   beforeEach(async () => {
@@ -82,7 +82,7 @@ describe('Slack webhook: reactions are soft-deleted', () => {
     await send(reactionEvent('reaction_added', `${nowSec - 120}.000200`))
     await send(reactionEvent('reaction_removed', removedTs))
 
-    expect(await rows()).toEqual([{ reaction: 'tada', user_id: 'UREACTOR', removed_at: iso(removedTs) }])
+    expect(await rows()).toEqual([{ reaction: 'tada', user_id: 'UREACTOR', deleted_at: iso(removedTs) }])
   })
 
   it('keeps the first removal time if the event is delivered twice', async () => {
@@ -91,7 +91,7 @@ describe('Slack webhook: reactions are soft-deleted', () => {
     await send(reactionEvent('reaction_removed', removedTs))
     await send(reactionEvent('reaction_removed', `${nowSec - 30}.000200`))
 
-    expect((await rows())[0].removed_at).toBe(iso(removedTs))
+    expect((await rows())[0].deleted_at).toBe(iso(removedTs))
   })
 
   it('makes the reaction live again when it is added back', async () => {
@@ -99,6 +99,6 @@ describe('Slack webhook: reactions are soft-deleted', () => {
     await send(reactionEvent('reaction_removed', `${nowSec - 60}.000200`))
     await send(reactionEvent('reaction_added', `${nowSec - 30}.000200`))
 
-    expect(await rows()).toEqual([{ reaction: 'tada', user_id: 'UREACTOR', removed_at: null }])
+    expect(await rows()).toEqual([{ reaction: 'tada', user_id: 'UREACTOR', deleted_at: null }])
   })
 })

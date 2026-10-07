@@ -235,7 +235,7 @@ Before committing changes to API routes, verify:
 ## Data Architecture
 
 **Bronze Layer** (raw imports from external systems):
-- `calendar_events`, `zoom_attendees`, `zoom_meetings`, `kajabi_members`, `subscription_history`, `slack_messages`, `slack_reactions`, `slack_channels` (channels and, with `is_mpim`, group DMs the bot is in), `slack_users`, `slack_channel_members` (who is in each conversation; `left_at` soft delete), `slack_custom_emoji` (`removed_at` soft delete), `slack_files` (files on messages and the path of our copy in the private `slack-files` bucket; service role only)
+- `calendar_events`, `zoom_attendees`, `zoom_meetings`, `kajabi_members`, `subscription_history`, `slack_messages`, `slack_reactions`, `slack_channels` (channels and, with `is_mpim`, group DMs the bot is in), `slack_users`, `slack_channel_members` (who is in each conversation; `left_at` soft delete), `slack_custom_emoji` (`deleted_at` soft delete), `slack_files` (files on messages and the path of our copy in the private `slack-files` bucket; service role only)
 - **Pattern**: UPSERT on natural keys for idempotency
 
 **Local Layer** (operational data owned by this app):
@@ -333,7 +333,7 @@ await supabase.from("kajabi_members").insert({
 // Processing uses latest snapshot, making it idempotent at processing level
 ```
 
-**Soft delete in Bronze and Local, not hard delete**: When a source stops reporting something (a Slack message or reaction removed, a member leaving a channel), mark it (`deleted_at`, `removed_at`, `left_at`) rather than deleting the row. Silver can still DELETE + INSERT: it re-derives the soft-deleted state from Bronze/Local on every run, so nothing is lost. Hard delete only when the row has no history worth keeping, or when a Silver rebuild re-creates it. Before marking something deleted because it's missing from a fetch, confirm that fetch fully succeeded for that scope, or a failed API call reads as a mass deletion.
+**Soft delete in Bronze and Local, not hard delete**: When a source stops reporting something (a Slack message or reaction removed, a member leaving a channel), mark it rather than deleting the row. The soft-delete column is always named `deleted_at` (not `removed_at` or another synonym), so every table is read the same way: `deleted_at IS NULL` means live. A timestamp that is a fact about the thing rather than a tombstone keeps its own name (`archived_at`, `dismissed_at`, a membership's `left_at`). Silver can still DELETE + INSERT: it re-derives the soft-deleted state from Bronze/Local on every run, so nothing is lost. Hard delete only when the row has no history worth keeping, or when a Silver rebuild re-creates it. Before marking something deleted because it's missing from a fetch, confirm that fetch fully succeeded for that scope, or a failed API call reads as a mass deletion.
 
 **Nothing through webhooks alone**: Every webhook-handled event type (created, changed, deleted, membership, etc.) must also be caught by a pull-based import that runs in the nightly reconciliation cron and from the manual admin import. Webhooks and on-demand incremental fetches (e.g. fetch a missing thread when a webhook references a message we don't have) are latency optimizations layered on top, never the only path. New integrations follow this; extending on-demand incremental fetch to every source is tracked in `docs/TODO.md`.
 

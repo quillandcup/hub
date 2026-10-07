@@ -75,7 +75,7 @@ No author-name snapshot: an unmatched Slack author's display name comes from `br
 `message_id` (PK/FK), `body` (markdown), `blocks` (jsonb: Slack `rich_text` / Block Kit as received), `attachments` (jsonb), `search_vector` (generated tsvector). Split from `chat_messages` because RLS is row-level: admins and members share the `authenticated` role, so column privileges can't separate them. See Access control.
 
 ### `chat_reactions`
-`message_id`, `member_id` (nullable for unmatched Slack users; `slack_user_id` kept for those), `emoji` (shortcode, incl. skin tone e.g. `thumbsup::skin-tone-2`), `created_at`, `removed_at`, `synced_to_slack` bool. Unique on `(message_id, emoji, member_id)`; re-adding clears `removed_at`.
+`message_id`, `member_id` (nullable for unmatched Slack users; `slack_user_id` kept for those), `emoji` (shortcode, incl. skin tone e.g. `thumbsup::skin-tone-2`), `created_at`, `deleted_at`, `synced_to_slack` bool. Unique on `(message_id, emoji, member_id)`; re-adding clears `deleted_at`.
 
 ### `chat_thread_follows` (later)
 App-only "followed threads" for the feed. Slack doesn't expose users' thread subscriptions.
@@ -88,8 +88,8 @@ App-only "followed threads" for the feed. Slack doesn't expose users' thread sub
 
 ### Bronze additions
 - `bronze.slack_channel_members` (`channel_id`, `user_id`, `first_seen_at`, `left_at`, `raw_payload`), filled by `conversations.members` pulls and `member_joined_channel` / `member_left_channel` events.
-- `bronze.slack_custom_emoji` (`name`, `image_url`, `alias_for`, `removed_at`, `raw_payload`), filled by `emoji.list` and `emoji_changed`.
-- `bronze.slack_messages.deleted_at` becomes real (today it's always null), and `slack_reactions.removed_at` becomes real (today removed reactions are hard-deleted).
+- `bronze.slack_custom_emoji` (`name`, `image_url`, `alias_for`, `deleted_at`, `raw_payload`), filled by `emoji.list` and `emoji_changed`.
+- `bronze.slack_messages.deleted_at` becomes real (today it's always null), and `slack_reactions.deleted_at` becomes real (today removed reactions are hard-deleted).
 
 ### Silver: `member_interactions`
 `member_a`, `member_b`, `kind` (`dm` \| `thread_reply` \| `reaction` \| `mention` \| `channel_comember`), `channel_id` (nullable), `occurred_at`, `visibility` (`public` \| `private`). Built from `chat_messages` + `chat_reactions` + `chat_channel_members` with DELETE + INSERT by date range. Never holds content. Feeds `/api/members/network` next to prickle co-attendance.
@@ -135,10 +135,10 @@ Every webhook-handled event type has a pull:
 |---|---|
 | Messages, edits | `conversations.history` + `conversations.replies`, upsert |
 | Deletes | Messages in the window that Slack no longer returns → `deleted_at` |
-| Reactions | Reactions on fetched messages; missing → `removed_at` |
+| Reactions | Reactions on fetched messages; missing → `deleted_at` |
 | Membership | `conversations.members` per bridged channel; missing → `left_at` |
 | Channels and group DMs | `conversations.list` with `public_channel,private_channel,mpim` (today it omits `mpim`, so group DMs are webhook-only) |
-| Custom emoji | `emoji.list`; missing → `removed_at` |
+| Custom emoji | `emoji.list`; missing → `deleted_at` |
 | Users | `users.list` |
 
 Soft-deleting what's "missing" only happens for scopes whose fetch fully succeeded.
@@ -225,9 +225,9 @@ Per channel: switch `bridge_mode` from `bridged` to `app_only`. The bot posts a 
 
 Status, 2026-10-06. Done in groundwork: webhook edits/deletes/bot posts/join filtering; resumable import (only threads behind Slack, oldest first, heartbeat only when none are left behind); atomic Slack activity rebuild, one week per database call (rewriting 90 days in one statement ran past production's 8s statement timeout); `audit_log` and the admin Activity Log page (the break-glass / restriction-change filter is still to add); chunked attendance rebuilds; and the capture work (group DMs via `mpim`, `bronze.slack_channel_members`, `bronze.slack_custom_emoji`, `bronze.slack_files` + the private `slack-files` bucket, with direct-message text kept out of `member_activities`). Capture details: `lib/slack-capture.ts`. Files over 20 MB and files hosted outside Slack are recorded but not copied. The notification framework (listed under "Later") also exists now: `lib/notifications/`.
 
-Also done (2026-10-07): removed reactions are soft-deleted (`removed_at`) by the webhook and the import; the import marks messages deleted in Slack, with the safeguards under "Nightly reconciliation" above; the join/leave notice rows are gone.
+Also done (2026-10-07): removed reactions are soft-deleted (`deleted_at`) by the webhook and the import; the import marks messages deleted in Slack, with the safeguards under "Nightly reconciliation" above. Soft-delete columns are all named `deleted_at` (`slack_reactions` and `slack_custom_emoji` used `removed_at`).
 
-Still open in groundwork: counting deleted messages and removed reactions toward engagement at reduced weight (they are excluded today; `engagement_value` is an integer, so "half" needs a decision); Bronze content lock-down + `slack_messages_meta`; message text in `member_activities.description` for *restricted channels* (direct messages are done); alerting when the bot loses a private channel.
+Still open in groundwork: channel membership history. `bronze.slack_channel_members` holds only who is in each conversation now and when they last left; a leave followed by a rejoin overwrites it. Slack has no membership-history API: the only record of past joins and leaves, with their times, is the "joined the channel" / "left the channel" notices in channel history, which the import skips and an early webhook stored as messages (about 75 rows, still counted as message activity). They should be turned into membership events before those rows are removed, not deleted outright. Also open: counting deleted messages and removed reactions toward engagement at reduced weight (they are excluded today; `engagement_value` is an integer, so "half" needs a decision); Bronze content lock-down + `slack_messages_meta`; message text in `member_activities.description` for *restricted channels* (direct messages are done); alerting when the bot loses a private channel.
 
 1. **Groundwork**
    - `audit_log` v1 (from `docs/ACTIVITY_AND_AUDIT_LOG.md`) plus an admin view with a break-glass / restriction-change filter.

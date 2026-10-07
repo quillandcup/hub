@@ -176,7 +176,7 @@ export async function POST(request: NextRequest) {
     await upsertInBatches(supabase, "slack_reactions", allReactions.map(r => ({ ...r, imported_at: importTimestamp })), "channel_id,message_ts,reaction,user_id");
 
     // Upserts can't express "this reaction was taken back", so mark stored
-    // reactions on the fetched messages that Slack no longer reports (removed_at).
+    // reactions on the fetched messages that Slack no longer reports (deleted_at).
     const reactionsRemoved = await markRemovedSlackReactions(supabase, allMessages, allReactions, importTimestamp);
     if (reactionsRemoved > 0) console.log(`  Marked ${reactionsRemoved} reactions removed in Slack`);
 
@@ -579,7 +579,7 @@ function addMessage(
           user_email: '', // Will be filled later
           user_name: '', // Will be filled later
           occurred_at: new Date(parseFloat(msg.ts) * 1000).toISOString(),
-          removed_at: null,
+          deleted_at: null,
           raw_payload: reaction
         });
       }

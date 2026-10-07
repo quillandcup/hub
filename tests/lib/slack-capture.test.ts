@@ -30,9 +30,9 @@ describe('toCustomEmojiRow', () => {
       name: 'hedgie',
       image_url: 'https://emoji.example.test/hedgie.png',
       alias_for: null,
-      removed_at: null,
+      deleted_at: null,
     })
-    expect(toCustomEmojiRow('hog', 'alias:hedgie')).toEqual({ name: 'hog', image_url: null, alias_for: 'hedgie', removed_at: null })
+    expect(toCustomEmojiRow('hog', 'alias:hedgie')).toEqual({ name: 'hog', image_url: null, alias_for: 'hedgie', deleted_at: null })
   })
 })
 
