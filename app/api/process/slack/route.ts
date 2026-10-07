@@ -1,9 +1,13 @@
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { NextRequest, NextResponse } from "next/server";
 import { matchSlackUsersToMembers } from "@/lib/slack-matching";
+import { splitIntoWindows } from "@/lib/processing/date-windows";
 
 // Extend timeout for processing large batches
 export const maxDuration = 300; // 5 minutes
+
+// Days of Slack activity per reprocess_slack_activities_atomic call.
+const REBUILD_WINDOW_DAYS = 7;
 
 /**
  * Process Bronze layer (slack_messages, slack_reactions) into Silver layer (member_activities)
@@ -11,10 +15,11 @@ export const maxDuration = 300; // 5 minutes
  * This endpoint:
  * 1. Loads reference data upfront (members, aliases, Slack users)
  * 2. Matches Slack users to members in memory
- * 3. Calls reprocess_slack_activities_atomic, which transforms Bronze messages
- *    and reactions in the date range into member_activities, DELETEing the
- *    range's existing Slack activities and INSERTing fresh ones in a single
- *    transaction (reprocessable, and a failure leaves the old rows in place)
+ * 3. Calls reprocess_slack_activities_atomic once per week of the range. Each
+ *    call transforms that week's Bronze messages and reactions into
+ *    member_activities, DELETEing the week's existing Slack activities and
+ *    INSERTing fresh ones in a single transaction (reprocessable, and a
+ *    failure leaves that week's old rows in place)
  */
 export async function POST(request: NextRequest) {
   const auth = await requireAdmin(request);
@@ -55,24 +60,56 @@ export async function POST(request: NextRequest) {
 
     console.log(`Matched ${userToMemberMap.size} Slack users to members`);
 
-    // STEP 3: Transform + DELETE + INSERT in one transaction. Does nothing when
-    // Bronze has no Slack data in the range, so an empty range never wipes
-    // existing activities.
-    const { data: result, error } = await supabase.rpc("reprocess_slack_activities_atomic", {
-      from_date: fromDate,
-      to_date: toDate,
-      user_member_map: Object.fromEntries(userToMemberMap),
-    });
+    // STEP 3: Does nothing when Bronze has no Slack data in the range, so an
+    // empty range never wipes existing activities.
+    const [{ data: anyMessage, error: messageCheckError }, { data: anyReaction, error: reactionCheckError }] = await Promise.all([
+      supabase.schema("bronze").from("slack_messages").select("message_ts")
+        .gte("occurred_at", fromDate).lte("occurred_at", toDate).is("deleted_at", null).limit(1),
+      supabase.schema("bronze").from("slack_reactions").select("message_ts")
+        .gte("occurred_at", fromDate).lte("occurred_at", toDate).is("removed_at", null).limit(1),
+    ]);
+    if (messageCheckError) throw messageCheckError;
+    if (reactionCheckError) throw reactionCheckError;
 
-    if (error) {
-      console.error("Error reprocessing Slack activities:", error);
-      throw error;
+    let messages = 0;
+    let reactions = 0;
+
+    if ((anyMessage?.length ?? 0) > 0 || (anyReaction?.length ?? 0) > 0) {
+      // STEP 4: Transform + DELETE + INSERT, one week per call. Each call is one
+      // transaction, so a failed week keeps its old rows; the weeks before it
+      // are already rebuilt and the next run redoes them all. One call for the
+      // whole 90-day import (~23k rows) ran past Postgres's 8s statement timeout.
+      const userMemberMap = Object.fromEntries(userToMemberMap);
+      const windows = splitIntoWindows(new Date(fromDate), new Date(toDate), REBUILD_WINDOW_DAYS);
+
+      for (const window of windows) {
+        const { data: result, error } = await supabase.rpc("reprocess_slack_activities_atomic", {
+          from_date: window.from.toISOString(),
+          to_date: window.to.toISOString(),
+          user_member_map: userMemberMap,
+          // The empty-range check above covers the whole range, so a week
+          // whose messages were all deleted in Slack still loses its activities.
+          skip_empty_check: true,
+        });
+
+        if (error) {
+          console.error(
+            `Error reprocessing Slack activities (${window.from.toISOString()} to ${window.to.toISOString()}):`,
+            error
+          );
+          throw error;
+        }
+
+        messages += result?.messages ?? 0;
+        reactions += result?.reactions ?? 0;
+      }
+
+      console.log(
+        `Processing complete: inserted ${messages} message activities, ${reactions} reaction activities in ${windows.length} weekly rebuilds`
+      );
+    } else {
+      console.log("No Slack data in Bronze for this range; leaving existing activities alone");
     }
-
-    const messages: number = result?.messages ?? 0;
-    const reactions: number = result?.reactions ?? 0;
-
-    console.log(`Processing complete: inserted ${messages} message activities, ${reactions} reaction activities`);
 
     return NextResponse.json({
       success: true,

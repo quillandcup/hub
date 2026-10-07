@@ -190,6 +190,30 @@ describe('reprocess_slack_activities_atomic', () => {
     expect(await activities()).toHaveLength(1)
   })
 
+  it('clears an emptied window when the caller has already checked its whole range', async () => {
+    // /api/process/slack checks once that its range has Slack data, then
+    // rebuilds a week at a time with skip_empty_check.
+    await supabase.schema('bronze').from('slack_messages').insert([message('ATOMIC_1')])
+    expect((await rebuild()).error).toBeNull()
+    expect(await activities()).toHaveLength(1)
+    await supabase.schema('bronze').from('slack_messages').update({ deleted_at: '2098-06-01T12:00:00Z' }).eq('message_ts', 'ATOMIC_1')
+
+    // By default an empty window is left alone...
+    expect((await rebuild()).data).toEqual({ messages: 0, reactions: 0 })
+    expect(await activities()).toHaveLength(1)
+
+    // ...and with skip_empty_check its orphaned activity is removed.
+    const { data, error } = await supabase.rpc('reprocess_slack_activities_atomic', {
+      from_date: from,
+      to_date: to,
+      user_member_map: map,
+      skip_empty_check: true,
+    })
+    expect(error).toBeNull()
+    expect(data).toEqual({ messages: 0, reactions: 0 })
+    expect(await activities()).toHaveLength(0)
+  })
+
   it('rolls the DELETE back when the INSERT fails', async () => {
     const { error: seedError } = await supabase.from('member_activities').insert({
       member_id: memberId,
