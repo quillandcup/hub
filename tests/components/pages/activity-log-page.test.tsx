@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
-import type { ActivityFeedRow } from "@/lib/activity-feed";
+import { PRIVACY_ENTITY_TYPES, type ActivityFeedRow } from "@/lib/activity-feed";
 
 vi.mock("next/navigation", () => import("@/tests/helpers/server-page").then((m) => m.nextNavigationModule));
 
@@ -120,6 +120,29 @@ describe("/admin/activity", () => {
     expect(screen.getByPlaceholderText("Search members...")).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Page visits" })).not.toBeInTheDocument();
     expect(screen.getByText(/Nothing in this window/)).toBeInTheDocument();
+  });
+
+  it("Privacy view asks only for privacy entity types and reads restriction changes as sentences", async () => {
+    feed([
+      {
+        ...base,
+        event_id: "audit:9",
+        event_type: "insert",
+        entity_type: "restricted_slack_channel",
+        entity_id: "C123",
+        description: "inner-circle",
+        data: { channel_id: { old: null, new: "C123" } },
+      },
+    ]);
+    await renderPage({ view: "privacy" });
+
+    expect(rpc).toHaveBeenCalledWith(
+      "count_activity_feed",
+      expect.objectContaining({ p_audit_only: false, p_entity_types: [...PRIVACY_ENTITY_TYPES] })
+    );
+    expect(screen.getByText("restricted staff access to messages in #inner-circle")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Privacy" })).toHaveAttribute("href", "/admin/activity?view=privacy");
+    expect(screen.queryByRole("link", { name: "Page visits" })).not.toBeInTheDocument();
   });
 
   it("uses the standard table pager with the total and requested page", async () => {

@@ -1,5 +1,6 @@
 -- pgTAP tests for 20261004010000_slack_capture_members_emoji_files.sql: the new bronze Slack
--- tables are readable by admins only and writable by no API user, the slack-files bucket is
+-- tables are readable by admins only (slack_files by nobody but the service role, since
+-- 20261009000000_slack_content_privacy.sql) and writable by no API user, the slack-files bucket is
 -- private with no member access, and reprocess_slack_activities_atomic never copies
 -- direct-message text (group DMs, DMs with the bot) into member_activities.
 -- Rolled back; run with `npm run test:pgtap`.
@@ -7,7 +8,7 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;
 
-SELECT plan(19);
+SELECT plan(18);
 
 -- Grants: API roles can at most read; only the service role writes.
 SELECT ok(NOT has_table_privilege('anon', 'bronze.slack_channel_members', 'SELECT'), 'anon cannot read slack_channel_members');
@@ -15,6 +16,7 @@ SELECT ok(NOT has_table_privilege('authenticated', 'bronze.slack_channel_members
 SELECT ok(NOT has_table_privilege('anon', 'bronze.slack_custom_emoji', 'SELECT'), 'anon cannot read slack_custom_emoji');
 SELECT ok(NOT has_table_privilege('authenticated', 'bronze.slack_custom_emoji', 'UPDATE'), 'authenticated cannot write slack_custom_emoji');
 SELECT ok(NOT has_table_privilege('anon', 'bronze.slack_files', 'SELECT'), 'anon cannot read slack_files');
+SELECT ok(NOT has_table_privilege('authenticated', 'bronze.slack_files', 'SELECT'), 'authenticated cannot read slack_files');
 SELECT ok(NOT has_table_privilege('authenticated', 'bronze.slack_files', 'UPDATE'), 'authenticated cannot write slack_files');
 SELECT is((SELECT public FROM storage.buckets WHERE id = 'slack-files'), false, 'the slack-files bucket is private');
 SELECT is(
@@ -47,21 +49,17 @@ SELECT set_config('request.jwt.claims',
   '{"sub": "00000000-0000-4000-a000-00000000c1a1", "email": "capture-fern@example.test", "role": "authenticated"}', true);
 INSERT INTO result SELECT 'member_members', count(*) FROM bronze.slack_channel_members WHERE channel_id = 'PGTAP_C1';
 INSERT INTO result SELECT 'member_emoji', count(*) FROM bronze.slack_custom_emoji WHERE name = 'pgtap_hedgie';
-INSERT INTO result SELECT 'member_files', count(*) FROM bronze.slack_files WHERE file_id = 'PGTAP_F1';
 
 SELECT set_config('request.jwt.claims',
   '{"sub": "00000000-0000-4000-a000-00000000c1a4", "email": "capture-bramble@example.test", "role": "authenticated"}', true);
 INSERT INTO result SELECT 'admin_members', count(*) FROM bronze.slack_channel_members WHERE channel_id = 'PGTAP_C1';
 INSERT INTO result SELECT 'admin_emoji', count(*) FROM bronze.slack_custom_emoji WHERE name = 'pgtap_hedgie';
-INSERT INTO result SELECT 'admin_files', count(*) FROM bronze.slack_files WHERE file_id = 'PGTAP_F1';
 RESET ROLE;
 
 SELECT is((SELECT value FROM result WHERE label = 'member_members'), 0, 'a member cannot read channel membership');
 SELECT is((SELECT value FROM result WHERE label = 'member_emoji'), 0, 'a member cannot read bronze custom emoji');
-SELECT is((SELECT value FROM result WHERE label = 'member_files'), 0, 'a member cannot read file records');
 SELECT is((SELECT value FROM result WHERE label = 'admin_members'), 1, 'an admin can read channel membership');
 SELECT is((SELECT value FROM result WHERE label = 'admin_emoji'), 1, 'an admin can read custom emoji');
-SELECT is((SELECT value FROM result WHERE label = 'admin_files'), 1, 'an admin can read file records');
 
 -- Activities: a channel message keeps its text; group DM and bot DM messages don't.
 -- 2099 keeps the rebuild window clear of real rows.

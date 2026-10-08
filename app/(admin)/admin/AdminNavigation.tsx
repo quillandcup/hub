@@ -76,6 +76,7 @@ const navigation: NavSection[] = [
     items: [
       { name: "Import Data", href: "/admin/data/import", icon: "📥" },
       { name: "Prickle Types", href: "/admin/data/prickle-types", icon: "🏷️" },
+      { name: "Slack Channels", href: "/admin/data/slack-channels", icon: "🔒" },
       { name: "Activity Log", href: "/admin/activity", icon: "📜" },
       { name: "Users", href: "/admin/users", icon: "🔑" },
       { name: "Segments", href: "/admin/segments", icon: "🧩" },

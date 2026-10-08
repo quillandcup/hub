@@ -109,8 +109,8 @@ App-only "followed threads" for the feed. Slack doesn't expose users' thread sub
 - **Changing `restricted`** is audited and appears in the same audit-log filter as break-glass, since flipping it off is a way around break-glass.
 - **Search never uses grants.** Search runs as the caller under normal RLS.
 - **Sudo**: chat reads use `getEffectiveIdentity` like other member pages. RLS evaluates the real admin, so the page itself must hide DMs and restricted content the member could see but the admin can't, and must disable posting.
-- **Bronze**: `slack_messages` (text, blocks, files, raw_payload) and raw payloads elsewhere become service-role only. Admins get `bronze.slack_messages_meta` (no content columns). `slack_users`, `slack_channels`, `slack_reactions`, `slack_channel_members` stay admin-readable.
-- **Existing leak to fix:** `app/api/process/slack/route.ts` copies the first 200 characters of each message into `member_activities.description`. For restricted channels (and all DMs) that must be null; the member detail page's Slack activity panel must handle it.
+- **Bronze**: `slack_messages` (text, blocks, files, raw_payload) and raw payloads elsewhere become service-role only. Admins get `bronze.slack_messages_meta` (no content columns). `slack_users`, `slack_channels`, `slack_reactions`, `slack_channel_members` stay admin-readable. Built in `20261009000000_slack_content_privacy.sql`; `slack_files` is service-role only too.
+- **Existing leak to fix:** `app/api/process/slack/route.ts` copies the first 200 characters of each message into `member_activities.description`. For restricted channels (and all DMs) that must be null; the member detail page's Slack activity panel must handle it. Fixed: direct messages in `20261004010000`, restricted channels in `20261009000000` (`restricted_slack_channels`, until `chat_channels.restricted` exists).
 - Each channel in the Hub shows whether staff can read its content.
 
 ## Slack → Hub
@@ -230,7 +230,9 @@ Also done (2026-10-07): removed reactions are soft-deleted (`deleted_at`) by the
 
 Also done (2026-10-08): channel membership history (`bronze.slack_channel_member_events` and the periods view, see "Bronze additions"). The join/leave notices an early webhook stored as messages were converted into events and removed from `slack_messages`, with the activity rows they had produced.
 
-Still open in groundwork: counting deleted messages and removed reactions toward engagement at reduced weight (they are excluded today; `engagement_value` is an integer, so "half" needs a decision); Bronze content lock-down + `slack_messages_meta`; message text in `member_activities.description` for *restricted channels* (direct messages are done); alerting when the bot loses a private channel.
+Also done (2026-10-09), privacy: Bronze content lock-down (`slack_messages` and `slack_files` are service role only, admins read `bronze.slack_messages_meta`, `raw_payload` hidden on the other Slack tables); `restricted_slack_channels` (Local) with an admin page at `/admin/data/slack-channels`, which keeps message text out of `member_activities.description` and clears what was already copied; and the Activity Log's Privacy view (`?view=privacy`) over restriction changes. Phase 2 moves the flag to `chat_channels.restricted`, seeded from this table; break-glass grants and reads join the Privacy view when they exist (`PRIVACY_ENTITY_TYPES` in `lib/activity-feed.ts`).
+
+Still open in groundwork: counting deleted messages and removed reactions toward engagement at reduced weight (they are excluded today; `engagement_value` is an integer, so "half" needs a decision); alerting when the bot loses a private channel. Neither blocks phase 2.
 
 1. **Groundwork**
    - `audit_log` v1 (from `docs/ACTIVITY_AND_AUDIT_LOG.md`) plus an admin view with a break-glass / restriction-change filter.

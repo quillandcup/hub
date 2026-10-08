@@ -70,6 +70,13 @@ describe("parseFeedFilters", () => {
     });
     expect(parseFeedFilters({ days: "9999", sudo: "yes" })).toMatchObject({ days: 7, sudoOnly: false });
   });
+
+  it("accepts the privacy view and keeps it in the URL", () => {
+    const filters = parseFeedFilters({ view: "privacy" });
+    expect(filters.view).toBe("privacy");
+    expect(feedSearch(filters)).toBe("?view=privacy");
+    expect(parseFeedFilters({ view: "bogus" }).view).toBe("audit");
+  });
 });
 
 describe("feedSearch", () => {
@@ -125,6 +132,13 @@ describe("describeRow for member actions", () => {
     expect(describeRow(row({ entity_type: "wheel_of_wonder_match", event_type: "insert", data: {} }))).toBe(
       "spun the Wheel of Wonder"
     );
+  });
+
+  it("reads channel restriction changes as sentences", () => {
+    const restriction = (event_type: string) =>
+      describeRow(row({ entity_type: "restricted_slack_channel", event_type, description: "inner-circle", data: {} }));
+    expect(restriction("insert")).toBe("restricted staff access to messages in #inner-circle");
+    expect(restriction("delete")).toBe("lifted the restriction on messages in #inner-circle");
   });
 });
 

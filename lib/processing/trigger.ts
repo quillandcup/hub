@@ -52,7 +52,7 @@ export const SILVER_DEPENDENCIES: Record<string, TableDependencies> = {
 
   slack: {
     bronze: ['slack_messages', 'slack_reactions'],
-    local: ['ignored_slack_users'],
+    local: ['ignored_slack_users', 'restricted_slack_channels'],
     silver: ['members'],  // Runs after members when it's reprocessed too (matching reads members)
     processingScope: 'date-range',
     dateField: 'occurred_at'

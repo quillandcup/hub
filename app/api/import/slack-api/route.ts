@@ -55,7 +55,9 @@ export async function POST(request: NextRequest) {
   const auth = await requireAdmin(request);
   if (!auth.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (auth.forbidden) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  const { supabase } = auth;
+  // The caller is a verified admin (or the cron). Message content in Bronze is
+  // service role only, so everything here reads and writes with the service role.
+  const supabase = createServiceRoleClient();
 
   try {
     const SLACK_BOT_TOKEN = process.env.SLACK_BOT_TOKEN;
@@ -187,10 +189,8 @@ export async function POST(request: NextRequest) {
     const reactionsRemoved = await markRemovedSlackReactions(supabase, allMessages, allReactions, importTimestamp);
     if (reactionsRemoved > 0) console.log(`  Marked ${reactionsRemoved} reactions removed in Slack`);
 
-    // 5.5. Who is in each conversation, and the custom emoji. The caller is a
-    // verified admin (or the cron); these tables are written by the service role.
+    // 5.5. Who is in each conversation, and the custom emoji.
     // A failure here is reported but doesn't lose the messages already saved.
-    const service = createServiceRoleClient();
     const captureErrors: string[] = [];
     const capture = async <T>(label: string, run: () => Promise<T>): Promise<T | null> => {
       try {
@@ -218,11 +218,11 @@ export async function POST(request: NextRequest) {
     // Announced joins and leaves first, so the member list below only has to
     // account for changes nobody announced.
     const membership = await capture('channel members', async () => {
-      await recordSlackMemberEvents(service, memberNotices);
-      return syncChannelMembers(service, slack, channels, importTimestamp);
+      await recordSlackMemberEvents(supabase, memberNotices);
+      return syncChannelMembers(supabase, slack, channels, importTimestamp);
     });
     if (membership) console.log(`  Members: ${membership.members} across ${membership.channelsSynced} channels (${membership.left} left, ${membership.channelsFailed} channels failed); history: ${memberNotices.length} join/leave notices, ${membership.eventsInferred} inferred`);
-    const emoji = await capture('custom emoji', () => syncCustomEmoji(service, slack, importTimestamp));
+    const emoji = await capture('custom emoji', () => syncCustomEmoji(supabase, slack, importTimestamp));
     if (emoji && !emoji.skipped) console.log(`  Custom emoji: ${emoji.emoji} (${emoji.removed} removed)`);
 
     // Detect date range from imported messages
@@ -264,7 +264,7 @@ export async function POST(request: NextRequest) {
     // 6. Copy message files into Storage with the time that's left. Last, so it
     // never takes time from messages or Silver processing.
     const files = await capture('files', () =>
-      copySlackFiles(service, SLACK_BOT_TOKEN, allMessages, importTimestamp, startedAt + FILE_COPY_DEADLINE_MS)
+      copySlackFiles(supabase, SLACK_BOT_TOKEN, allMessages, importTimestamp, startedAt + FILE_COPY_DEADLINE_MS)
     );
     if (files) console.log(`  Files: ${files.copied} copied, ${files.skipped} skipped, ${files.failed} failed, ${files.pending} still pending`);
 

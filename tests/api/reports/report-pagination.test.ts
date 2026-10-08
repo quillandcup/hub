@@ -208,7 +208,7 @@ describe('Report Route Pagination', () => {
         path.join(process.cwd(), 'app/api/reports/unmatched-slack-users/route.ts'), 'utf-8'
       )
       expect(content).toContain('while (hasMore)')
-      expect(content).toContain('from("slack_messages")')
+      expect(content).toContain('from("slack_messages_meta")')
       // Must not use the old single-shot destructuring for slack_messages
       expect(content).not.toMatch(/\{\s*data:\s*slackMessages\s*[,}]/)
     })

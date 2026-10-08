@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import { requireAdminPage } from "@/lib/admin-auth";
-import { fetchActivityFeed, parseFeedFilters } from "@/lib/activity-feed";
+import { fetchActivityFeed, parseFeedFilters, type FeedView } from "@/lib/activity-feed";
 import { parsePageParam, parsePageSizeParam } from "@/lib/pagination";
 import type { StaffUser } from "@/components/StaffSearch";
 import ActivityFilters from "./ActivityFilters";
@@ -14,6 +14,12 @@ export const metadata: Metadata = {
 export const maxDuration = 60;
 
 const BATCH_SIZE = 1000;
+
+const VIEW_SUMMARIES: Record<FeedView, string> = {
+  audit: "Changes made in Hedgie Hub by staff and the system, and anything an admin did while viewing as a member.",
+  all: "Everything: changes, member activity (prickles, Slack, outreach, logins) and page visits.",
+  privacy: "Changes to who can read message content: Slack channels restricted from staff, and restrictions lifted.",
+};
 
 type SupabaseServer = Awaited<ReturnType<typeof createClient>>;
 
@@ -33,7 +39,7 @@ async function loadMembers(supabase: SupabaseServer) {
 }
 
 /**
- * The central activity log: ?view=audit|all, ?kinds=, ?actor=<user id>,
+ * The central activity log: ?view=audit|all|privacy, ?kinds=, ?actor=<user id>,
  * ?member=<member id>, ?sudo=1, ?days=, and the standard ?page=&pageSize= of
  * every server-mode table. Reads get_activity_feed()/count_activity_feed().
  */
@@ -80,9 +86,7 @@ export default async function ActivityLogPage({
     <div className="max-w-6xl mx-auto p-6">
       <h1 className="text-2xl font-bold mb-1">Activity Log</h1>
       <p className="text-sm text-slate-600 dark:text-slate-400 mb-6">
-        {filters.view === "audit"
-          ? "Changes made in Hedgie Hub by staff and the system, and anything an admin did while viewing as a member."
-          : "Everything: changes, member activity (prickles, Slack, outreach, logins) and page visits."}
+        {VIEW_SUMMARIES[filters.view]}
       </p>
 
       <ActivityFilters

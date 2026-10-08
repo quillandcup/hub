@@ -38,9 +38,21 @@ export interface ActivityFeedRow {
   data: Record<string, unknown> | null;
 }
 
+/**
+ * Audit entity types behind the Privacy view: who changed which channels staff can
+ * read. Break-glass grants and content reads join this list when they exist
+ * (docs/SLACK_BRIDGED_CHAT.md, "Access control").
+ */
+export const PRIVACY_ENTITY_TYPES: readonly string[] = ["restricted_slack_channel"];
+
+export type FeedView = "audit" | "all" | "privacy";
+
 export interface FeedFilters {
-  /** "audit" = only audit-worthy rows (staff/system writes, sudo); "all" = everything. */
-  view: "audit" | "all";
+  /**
+   * "audit" = only audit-worthy rows (staff/system writes, sudo); "all" = everything;
+   * "privacy" = only changes to who can read message content.
+   */
+  view: FeedView;
   kinds: FeedKind[] | null;
   actorUserId: string | null;
   memberId: string | null;
@@ -64,6 +76,10 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 type Param = string | string[] | undefined;
 const first = (v: Param) => (Array.isArray(v) ? v[0] : v);
 
+function parseView(view: string | undefined): FeedView {
+  return view === "all" || view === "privacy" ? view : "audit";
+}
+
 export function parseFeedFilters(params: Record<string, Param>): FeedFilters {
   const kindList = (first(params.kinds) ?? "")
     .split(",")
@@ -73,7 +89,7 @@ export function parseFeedFilters(params: Record<string, Param>): FeedFilters {
   const member = first(params.member);
 
   return {
-    view: first(params.view) === "all" ? "all" : "audit",
+    view: parseView(first(params.view)),
     kinds: kindList.length > 0 ? kindList : null,
     actorUserId: actor && UUID_RE.test(actor) ? actor : null,
     memberId: member && UUID_RE.test(member) ? member : null,
@@ -88,7 +104,7 @@ export function parseFeedFilters(params: Record<string, Param>): FeedFilters {
  */
 export function feedSearch(filters: Partial<FeedFilters>): string {
   const q = new URLSearchParams();
-  if (filters.view === "all") q.set("view", "all");
+  if (filters.view === "all" || filters.view === "privacy") q.set("view", filters.view);
   if (filters.kinds?.length) q.set("kinds", filters.kinds.join(","));
   if (filters.actorUserId) q.set("actor", filters.actorUserId);
   if (filters.memberId) q.set("member", filters.memberId);
@@ -103,6 +119,7 @@ function rpcArgs(filters: FeedFilters, now: Date) {
   return {
     p_audit_only: filters.view === "audit",
     p_kinds: filters.kinds,
+    p_entity_types: filters.view === "privacy" ? [...PRIVACY_ENTITY_TYPES] : null,
     p_actor_user_id: filters.actorUserId,
     p_member_id: filters.memberId,
     p_sudo_only: filters.sudoOnly,
@@ -197,6 +214,7 @@ const ENTITY_LABELS: Record<string, string> = {
   calendar_feed_item: "calendar item",
   wheel_of_wonder_match: "Wheel of Wonder match",
   member_ask_me_about: "“Ask me about” topics",
+  restricted_slack_channel: "restricted Slack channel",
 };
 
 const NAME_FIELDS = ["title", "name", "alias"] as const;
@@ -223,6 +241,11 @@ function specialAuditPhrase(row: ActivityFeedRow): string | null {
     if (fields.token) return "generated a new calendar link";
   }
   if (row.entity_type === "wheel_of_wonder_match" && row.event_type === "insert") return "spun the Wheel of Wonder";
+  if (row.entity_type === "restricted_slack_channel") {
+    const channel = row.description ? `#${formatValue(row.description)}` : "a Slack channel";
+    if (row.event_type === "insert") return `restricted staff access to messages in ${channel}`;
+    if (row.event_type === "delete") return `lifted the restriction on messages in ${channel}`;
+  }
 
   const name = recordName(row);
   const quoted = name ? ` “${name}”` : "";

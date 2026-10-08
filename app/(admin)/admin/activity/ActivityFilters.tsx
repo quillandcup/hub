@@ -60,6 +60,13 @@ export default function ActivityFilters({
         <Link href={href({ view: "all" })} className={pill(filters.view === "all")}>
           Everything
         </Link>
+        <Link
+          href={href({ view: "privacy", kinds: null })}
+          className={pill(filters.view === "privacy")}
+          title="Changes to which Slack channels staff can read"
+        >
+          Privacy
+        </Link>
         <span className="mx-2 h-5 w-px bg-slate-300 dark:bg-slate-700" aria-hidden />
         {FEED_DAY_OPTIONS.map((d) => (
           <Link key={d} href={href({ days: d })} className={pill(filters.days === d)}>

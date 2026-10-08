@@ -55,6 +55,10 @@ describe('slack reprocessing scope', () => {
   it('a Slack user change reprocesses members', () => {
     expect(getAffectedSilverTables('slack_users', 'bronze')).toEqual(['members'])
   })
+
+  it('lifting or adding a channel restriction reprocesses slack', () => {
+    expect(getAffectedSilverTables('restricted_slack_channels', 'local')).toEqual(['slack'])
+  })
 })
 
 describe('getProcessingOrder', () => {

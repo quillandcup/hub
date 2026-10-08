@@ -48,7 +48,7 @@ async function fetchAllMessages(
   while (hasMore) {
     const { data: batch } = await supabase
       .schema("bronze")
-      .from("slack_messages")
+      .from("slack_messages_meta")
       .select("channel_id, channel_name, occurred_at, deleted_at, user_id, thread_ts")
       .gte("occurred_at", since)
       .lte("occurred_at", until)
@@ -104,7 +104,7 @@ async function fetchAllTimeMessageActivity(supabase: SupabaseClient): Promise<Ch
   while (hasMore) {
     const { data: batch } = await supabase
       .schema("bronze")
-      .from("slack_messages")
+      .from("slack_messages_meta")
       .select("channel_id, occurred_at")
       .is("deleted_at", null)
       .order("occurred_at")

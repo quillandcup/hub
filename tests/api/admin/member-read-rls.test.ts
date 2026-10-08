@@ -15,10 +15,14 @@ type Client = ReturnType<typeof getTestSupabaseClient>
 
 const BRONZE_TABLES = [
   'calendar_events', 'kajabi_contacts', 'kajabi_customers', 'kajabi_members', 'kajabi_offers',
-  'kajabi_purchases', 'slack_channels', 'slack_messages', 'slack_reactions', 'slack_users',
+  'kajabi_purchases',
   'stripe_customers', 'stripe_products', 'stripe_subscriptions', 'subscription_history',
   'zoom_attendees', 'zoom_meetings',
 ]
+
+// Slack metadata tables: admin-only like the rest, minus raw_payload, which no API role can read
+// (20261009000000_slack_content_privacy.sql). A column grant makes select('*') an error.
+const SLACK_METADATA_TABLES = ['slack_channels', 'slack_reactions', 'slack_users']
 
 describe('member-readable data (RLS)', () => {
   const service = getTestSupabaseAdminClient()
@@ -274,6 +278,30 @@ describe('member-readable data (RLS)', () => {
   describe('bronze (admin-only reads)', () => {
     it.each(BRONZE_TABLES)('a signed-in member reads nothing from bronze.%s', async (table) => {
       const { data, error } = await memberClient.schema('bronze').from(table).select('*').limit(1)
+      expect(error).toBeNull()
+      expect(data).toEqual([])
+    })
+
+    it.each(SLACK_METADATA_TABLES)('a signed-in member reads nothing from bronze.%s', async (table) => {
+      const { data, error } = await memberClient.schema('bronze').from(table).select('imported_at').limit(1)
+      expect(error).toBeNull()
+      expect(data).toEqual([])
+    })
+
+    it.each(SLACK_METADATA_TABLES)('not even an admin reads raw_payload from bronze.%s', async (table) => {
+      const { error } = await adminClient.schema('bronze').from(table).select('raw_payload').limit(1)
+      expect(error?.code).toBe('42501')
+    })
+
+    it('message content is closed to members and admins alike', async () => {
+      for (const client of [memberClient, adminClient]) {
+        const { error } = await client.schema('bronze').from('slack_messages').select('text').limit(1)
+        expect(error?.code).toBe('42501')
+      }
+    })
+
+    it('a member reads nothing from the message metadata view', async () => {
+      const { data, error } = await memberClient.schema('bronze').from('slack_messages_meta').select('message_ts').limit(1)
       expect(error).toBeNull()
       expect(data).toEqual([])
     })

@@ -102,7 +102,7 @@ export default async function DataHygienePage() {
     // Checked across both tables since a sync can land only reactions or only
     // messages depending on what happened in Slack during that window.
     supabase
-      .schema('bronze').from("slack_messages")
+      .schema('bronze').from("slack_messages_meta")
       .select("imported_at")
       .order("imported_at", { ascending: false })
       .limit(1)

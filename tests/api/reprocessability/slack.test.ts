@@ -60,6 +60,7 @@ describe('Slack Reprocessability', () => {
 
   afterAll(async () => {
     // Clean up test data
+    await supabase.from('restricted_slack_channels').delete().eq('channel_id', 'C_TEST')
     await supabase.schema('bronze').from('slack_users').delete().eq('user_id', testSlackUserId)
     await supabase.schema('bronze').from('slack_messages').delete().like('message_ts', 'TEST_%')
     await supabase.schema('bronze').from('slack_reactions').delete().like('message_ts', 'TEST_%')
@@ -286,5 +287,43 @@ describe('Slack Reprocessability', () => {
       .single()
 
     expect(after).toBeNull()
+  })
+
+  it('should leave message text out for a restricted channel and put it back when the restriction is lifted', async () => {
+    const process = async () => {
+      const response = await fetch(`${getTestApiBaseUrl()}/api/process/slack`, {
+        method: 'POST',
+        headers: { ...getTestAuthHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fromDate: '2099-04-01', toDate: '2099-04-02' }),
+      })
+      if (!response.ok) throw new Error(`API call failed: ${response.status} - ${await response.text()}`)
+    }
+    const activity = async () => {
+      const { data } = await supabase
+        .from('member_activities')
+        .select('title, description')
+        .eq('related_id', 'C_TEST:TEST_001')
+        .single()
+      return data
+    }
+
+    await process()
+    expect(await activity()).toEqual({ title: 'Posted in #test-channel', description: 'Hello world' })
+
+    // ARRANGE: restrict the channel (Local). Its trigger clears the text at once...
+    const { error } = await supabase
+      .from('restricted_slack_channels')
+      .insert({ channel_id: 'C_TEST', name: 'test-channel' })
+    expect(error).toBeNull()
+    expect((await activity())?.description).toBeNull()
+
+    // ...and a rebuild keeps it out, while the activity still counts.
+    await process()
+    expect(await activity()).toEqual({ title: 'Posted in #test-channel', description: null })
+
+    // Lifting the restriction puts the text back on the next rebuild.
+    await supabase.from('restricted_slack_channels').delete().eq('channel_id', 'C_TEST')
+    await process()
+    expect((await activity())?.description).toBe('Hello world')
   })
 })
