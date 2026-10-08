@@ -7,12 +7,25 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;
 
-SELECT plan(26);
+SELECT plan(27);
 
 -- Grants: content tables are closed to API roles.
 SELECT ok(NOT has_table_privilege('authenticated', 'bronze.slack_messages', 'SELECT'), 'authenticated cannot read slack_messages');
 SELECT ok(NOT has_table_privilege('authenticated', 'bronze.slack_messages', 'INSERT'), 'authenticated cannot write slack_messages');
-SELECT ok(NOT has_any_column_privilege('authenticated', 'bronze.slack_messages', 'SELECT'), 'not even one column of slack_messages');
+SELECT ok(
+  NOT has_column_privilege('authenticated', 'bronze.slack_messages', 'text', 'SELECT')
+  AND NOT has_column_privilege('authenticated', 'bronze.slack_messages', 'files', 'SELECT')
+  AND NOT has_column_privilege('authenticated', 'bronze.slack_messages', 'raw_payload', 'SELECT'),
+  'authenticated cannot read text, files or raw_payload of slack_messages'
+);
+SELECT is(
+  (SELECT string_agg(column_name, ', ') FROM information_schema.columns
+    WHERE table_schema = 'bronze' AND table_name = 'slack_messages'
+      AND column_name NOT IN ('text', 'files', 'raw_payload')
+      AND NOT has_column_privilege('authenticated', 'bronze.slack_messages', column_name, 'SELECT')),
+  NULL,
+  'every other column of slack_messages is granted to authenticated'
+);
 SELECT ok(NOT has_table_privilege('anon', 'bronze.slack_messages_meta', 'SELECT'), 'anon cannot read slack_messages_meta');
 SELECT ok(NOT has_any_column_privilege('authenticated', 'bronze.slack_files', 'SELECT'), 'authenticated cannot read slack_files');
 SELECT is(

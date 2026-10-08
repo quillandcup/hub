@@ -146,6 +146,8 @@ async function parseCSV(file: File): Promise<any[]> {
 
     headers.forEach((header, index) => {
       const value = values[index]?.trim() || "";
+      // Generated from files by the database; a CSV exported from the metadata view carries it.
+      if (header === 'has_files') return;
       // Parse JSON fields
       if (header === 'raw_payload') {
         // raw_payload is NOT NULL in database, default to empty object
