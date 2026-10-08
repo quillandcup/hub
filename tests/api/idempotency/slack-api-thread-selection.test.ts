@@ -93,6 +93,7 @@ describe('POST /api/import/slack-api thread selection', () => {
     await supabase.schema('bronze').from('slack_reactions').delete().eq('channel_id', channelId)
     await supabase.schema('bronze').from('slack_messages').delete().eq('channel_id', channelId)
     await supabase.schema('bronze').from('slack_channel_members').delete().eq('channel_id', channelId)
+    await supabase.schema('bronze').from('slack_channel_member_events').delete().eq('channel_id', channelId)
     await supabase.schema('bronze').from('slack_channels').delete().eq('channel_id', channelId)
     await supabase.schema('bronze').from('slack_users').delete().eq('user_id', userId)
   }

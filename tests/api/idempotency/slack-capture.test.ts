@@ -96,6 +96,7 @@ async function cleanup() {
   await bronze('slack_files').delete().in('file_id', fileIds)
   await bronze('slack_custom_emoji').delete().like('name', `test_capture_%_${suffix}`)
   await bronze('slack_channel_members').delete().in('channel_id', [channelId, groupDmId])
+  await bronze('slack_channel_member_events').delete().in('channel_id', [channelId, groupDmId])
   await bronze('slack_reactions').delete().in('channel_id', [channelId, groupDmId])
   await bronze('slack_messages').delete().in('channel_id', [channelId, groupDmId])
   await bronze('slack_channels').delete().in('channel_id', [channelId, groupDmId])

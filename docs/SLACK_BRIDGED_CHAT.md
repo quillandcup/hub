@@ -87,7 +87,8 @@ App-only "followed threads" for the feed. Slack doesn't expose users' thread sub
 `id`, `admin_id`, `channel_id`, `reason`, `created_at`, `expires_at`, `revoked_at`. Every grant and every content read under it writes an `audit_log` row.
 
 ### Bronze additions
-- `bronze.slack_channel_members` (`channel_id`, `user_id`, `first_seen_at`, `left_at`, `raw_payload`), filled by `conversations.members` pulls and `member_joined_channel` / `member_left_channel` events.
+- `bronze.slack_channel_members` (`channel_id`, `user_id`, `first_seen_at`, `left_at`, `raw_payload`), filled by `conversations.members` pulls and `member_joined_channel` / `member_left_channel` events. Current state only.
+- `bronze.slack_channel_member_events` (`channel_id`, `user_id`, `event` joined/left, `occurred_at`, `source`, `inviter_user_id`, `slack_ts`), the append-only membership history. Slack has no membership-history API, so it is fed three ways: the "joined the channel" / "left the channel" notices in channel history (exact time and inviter; only served for about 90 days), the webhook's live events, and the member list for changes nobody announced (`source = member_list`, time = when we noticed). The `bronze.slack_channel_membership_periods` view collapses the same change reported by more than one source and pairs joins with leaves: one row per stretch a person spent in a conversation.
 - `bronze.slack_custom_emoji` (`name`, `image_url`, `alias_for`, `deleted_at`, `raw_payload`), filled by `emoji.list` and `emoji_changed`.
 - `bronze.slack_messages.deleted_at` becomes real (today it's always null), and `slack_reactions.deleted_at` becomes real (today removed reactions are hard-deleted).
 
@@ -227,7 +228,9 @@ Status, 2026-10-06. Done in groundwork: webhook edits/deletes/bot posts/join fil
 
 Also done (2026-10-07): removed reactions are soft-deleted (`deleted_at`) by the webhook and the import; the import marks messages deleted in Slack, with the safeguards under "Nightly reconciliation" above. Soft-delete columns are all named `deleted_at` (`slack_reactions` and `slack_custom_emoji` used `removed_at`).
 
-Still open in groundwork: channel membership history. `bronze.slack_channel_members` holds only who is in each conversation now and when they last left; a leave followed by a rejoin overwrites it. Slack has no membership-history API: the only record of past joins and leaves, with their times, is the "joined the channel" / "left the channel" notices in channel history, which the import skips and an early webhook stored as messages (about 75 rows, still counted as message activity). They should be turned into membership events before those rows are removed, not deleted outright. Also open: counting deleted messages and removed reactions toward engagement at reduced weight (they are excluded today; `engagement_value` is an integer, so "half" needs a decision); Bronze content lock-down + `slack_messages_meta`; message text in `member_activities.description` for *restricted channels* (direct messages are done); alerting when the bot loses a private channel.
+Also done (2026-10-08): channel membership history (`bronze.slack_channel_member_events` and the periods view, see "Bronze additions"). The join/leave notices an early webhook stored as messages were converted into events and removed from `slack_messages`, with the activity rows they had produced.
+
+Still open in groundwork: counting deleted messages and removed reactions toward engagement at reduced weight (they are excluded today; `engagement_value` is an integer, so "half" needs a decision); Bronze content lock-down + `slack_messages_meta`; message text in `member_activities.description` for *restricted channels* (direct messages are done); alerting when the bot loses a private channel.
 
 1. **Groundwork**
    - `audit_log` v1 (from `docs/ACTIVITY_AND_AUDIT_LOG.md`) plus an admin view with a break-glass / restriction-change filter.

@@ -81,6 +81,132 @@ export interface MembershipSyncResult {
   channelsFailed: number;
   members: number;
   left: number;
+  /** Joins and leaves recorded from the member list because nothing announced them. */
+  eventsInferred: number;
+}
+
+// ---------------------------------------------------------------------------
+// Membership history (bronze.slack_channel_member_events)
+// ---------------------------------------------------------------------------
+
+export interface SlackMemberEvent {
+  channel_id: string;
+  user_id: string;
+  event: "joined" | "left";
+  occurred_at: string;
+  source: "history_notice" | "webhook" | "member_list";
+  inviter_user_id?: string | null;
+  slack_ts?: string | null;
+  raw_payload?: unknown;
+}
+
+const JOIN_NOTICES = new Set(["channel_join", "group_join"]);
+const LEAVE_NOTICES = new Set(["channel_leave", "group_leave"]);
+
+/**
+ * A "joined the channel" / "left the channel" notice from channel history (or
+ * the same thing arriving as a message event) as a membership event, or null
+ * for any other message. These are the only record Slack keeps of when
+ * someone joined or left, and who invited them.
+ */
+export function slackMemberNoticeEvent(
+  msg: { subtype?: string; ts?: string; user?: string; inviter?: string },
+  channelId: string
+): SlackMemberEvent | null {
+  if (!msg.subtype || !msg.ts || !msg.user) return null;
+  const event = JOIN_NOTICES.has(msg.subtype) ? "joined" : LEAVE_NOTICES.has(msg.subtype) ? "left" : null;
+  if (!event) return null;
+  return {
+    channel_id: channelId,
+    user_id: msg.user,
+    event,
+    occurred_at: new Date(parseFloat(msg.ts) * 1000).toISOString(),
+    source: "history_notice",
+    inviter_user_id: msg.inviter ?? null,
+    slack_ts: msg.ts,
+    raw_payload: msg,
+  };
+}
+
+/** Append membership events. Each source is idempotent: a repeat is ignored. */
+export async function recordSlackMemberEvents(supabase: SupabaseClient, events: SlackMemberEvent[]): Promise<void> {
+  // One statement can't carry the same key twice.
+  const unique = new Map<string, SlackMemberEvent>();
+  for (const e of events) unique.set(`${e.channel_id}|${e.user_id}|${e.event}|${e.occurred_at}|${e.source}`, e);
+  const rows = [...unique.values()].map((e) => ({
+    channel_id: e.channel_id,
+    user_id: e.user_id,
+    event: e.event,
+    occurred_at: e.occurred_at,
+    source: e.source,
+    inviter_user_id: e.inviter_user_id ?? null,
+    slack_ts: e.slack_ts ?? null,
+    raw_payload: e.raw_payload ?? {},
+  }));
+  for (let i = 0; i < rows.length; i += WRITE_BATCH) {
+    const { error } = await supabase
+      .schema("bronze")
+      .from("slack_channel_member_events")
+      .upsert(rows.slice(i, i + WRITE_BATCH), {
+        onConflict: "channel_id,user_id,event,occurred_at,source",
+        ignoreDuplicates: true,
+      });
+    if (error) throw error;
+  }
+}
+
+/** The latest recorded event per channel and user: whether the log has them in or out. */
+async function loadLastMemberEvents(supabase: SupabaseClient): Promise<Map<string, Map<string, "joined" | "left">>> {
+  const rows: { channel_id: string; user_id: string; event: "joined" | "left" }[] = await fetchAllBronzeRows(
+    supabase,
+    "slack_channel_member_events",
+    "channel_id, user_id, event",
+    (q) => q.order("occurred_at").order("id")
+  );
+  const last = new Map<string, Map<string, "joined" | "left">>();
+  for (const row of rows) {
+    if (!last.has(row.channel_id)) last.set(row.channel_id, new Map());
+    last.get(row.channel_id)!.set(row.user_id, row.event);
+  }
+  return last;
+}
+
+/**
+ * What a complete member list implies that the event log doesn't already say.
+ *
+ *  - In the list, and the log doesn't have them in: a join nobody announced.
+ *    With no events at all they were simply already there, so it is dated from
+ *    when we first saw them; otherwise from now.
+ *  - The log has them in, and they aren't in the list: a leave nobody announced.
+ *
+ * These are marked `member_list`: the time is when we noticed, so the real
+ * change happened no later than that.
+ */
+export function inferMemberEvents(
+  channelId: string,
+  present: Set<string>,
+  lastEvent: Map<string, "joined" | "left">,
+  firstSeen: Map<string, string>,
+  now: string
+): SlackMemberEvent[] {
+  const events: SlackMemberEvent[] = [];
+  for (const userId of present) {
+    const last = lastEvent.get(userId);
+    if (last === "joined") continue;
+    events.push({
+      channel_id: channelId,
+      user_id: userId,
+      event: "joined",
+      occurred_at: last === undefined ? firstSeen.get(userId) ?? now : now,
+      source: "member_list",
+    });
+  }
+  for (const [userId, last] of lastEvent) {
+    if (last === "joined" && !present.has(userId)) {
+      events.push({ channel_id: channelId, user_id: userId, event: "left", occurred_at: now, source: "member_list" });
+    }
+  }
+  return events;
 }
 
 const MEMBERS_CONCURRENCY = 4;
@@ -99,7 +225,7 @@ export async function syncChannelMembers(
   channels: { channel_id: string; name: string; is_archived: boolean }[],
   importTimestamp: string
 ): Promise<MembershipSyncResult> {
-  const result: MembershipSyncResult = { channelsSynced: 0, channelsFailed: 0, members: 0, left: 0 };
+  const result: MembershipSyncResult = { channelsSynced: 0, channelsFailed: 0, members: 0, left: 0, eventsInferred: 0 };
   // conversations.members fails on archived channels the bot can no longer read.
   const queue = channels.filter((c) => !c.is_archived);
   const fetched = new Map<string, string[]>();
@@ -124,17 +250,40 @@ export async function syncChannelMembers(
   await Promise.all(Array.from({ length: MEMBERS_CONCURRENCY }, worker));
   if (fetched.size === 0) return result;
 
-  const stored: { channel_id: string; user_id: string; left_at: string | null }[] = await fetchAllBronzeRows(
-    supabase,
-    "slack_channel_members",
-    "channel_id, user_id, left_at",
-    (q) => q.order("channel_id").order("user_id")
-  );
+  const stored: { channel_id: string; user_id: string; left_at: string | null; first_seen_at: string }[] =
+    await fetchAllBronzeRows(supabase, "slack_channel_members", "channel_id, user_id, left_at, first_seen_at", (q) =>
+      q.order("channel_id").order("user_id")
+    );
   const storedByChannel = new Map<string, Map<string, string | null>>();
+  const firstSeenByChannel = new Map<string, Map<string, string>>();
   for (const row of stored) {
-    if (!storedByChannel.has(row.channel_id)) storedByChannel.set(row.channel_id, new Map());
+    if (!storedByChannel.has(row.channel_id)) {
+      storedByChannel.set(row.channel_id, new Map());
+      firstSeenByChannel.set(row.channel_id, new Map());
+    }
     storedByChannel.get(row.channel_id)!.set(row.user_id, row.left_at);
+    firstSeenByChannel.get(row.channel_id)!.set(row.user_id, row.first_seen_at);
   }
+
+  // History: where the event log doesn't already explain who is in a channel
+  // now, record what the member list implies. Notices from this run's channel
+  // history must be recorded before this is called, so an announced join or
+  // leave keeps its exact time and isn't doubled by an inferred one.
+  const lastEventByChannel = await loadLastMemberEvents(supabase);
+  const inferred: SlackMemberEvent[] = [];
+  for (const [channelId, members] of fetched) {
+    inferred.push(
+      ...inferMemberEvents(
+        channelId,
+        new Set(members),
+        lastEventByChannel.get(channelId) ?? new Map(),
+        firstSeenByChannel.get(channelId) ?? new Map(),
+        importTimestamp
+      )
+    );
+  }
+  await recordSlackMemberEvents(supabase, inferred);
+  result.eventsInferred = inferred.length;
 
   // Only rows that change are written: a new member, or one who came back.
   const toUpsert: { channel_id: string; user_id: string; left_at: null; imported_at: string }[] = [];
@@ -235,13 +384,31 @@ export async function syncCustomEmoji(
 // Webhook events (the same changes, as they happen)
 // ---------------------------------------------------------------------------
 
-/** member_joined_channel / member_left_channel. */
+/**
+ * member_joined_channel / member_left_channel: appended to the membership
+ * history, and applied to the current-members table.
+ */
 export async function applySlackMembershipEvent(
   supabase: SupabaseClient,
-  event: { type: string; channel?: string; user?: string }
+  event: { type: string; channel?: string; user?: string; inviter?: string; event_ts?: string }
 ): Promise<void> {
   if (!event.channel || !event.user) return;
+  if (event.type !== "member_joined_channel" && event.type !== "member_left_channel") return;
   const now = new Date(clock.now()).toISOString();
+
+  const eventTime = event.event_ts ? parseFloat(event.event_ts) * 1000 : NaN;
+  await recordSlackMemberEvents(supabase, [
+    {
+      channel_id: event.channel,
+      user_id: event.user,
+      event: event.type === "member_joined_channel" ? "joined" : "left",
+      // Redeliveries carry the same event_ts, so they dedupe.
+      occurred_at: Number.isFinite(eventTime) ? new Date(eventTime).toISOString() : now,
+      source: "webhook",
+      inviter_user_id: event.inviter ?? null,
+      raw_payload: event,
+    },
+  ]);
 
   if (event.type === "member_joined_channel") {
     const { error } = await supabase

@@ -59,6 +59,7 @@ const messagesTable = () => supabase.schema('bronze').from('slack_messages')
 
 async function cleanup() {
   await supabase.schema('bronze').from('slack_channel_members').delete().eq('channel_id', channelId)
+  await supabase.schema('bronze').from('slack_channel_member_events').delete().eq('channel_id', channelId)
   await supabase.schema('bronze').from('slack_reactions').delete().eq('channel_id', channelId)
   await messagesTable().delete().eq('channel_id', channelId)
   await supabase.schema('bronze').from('slack_channels').delete().eq('channel_id', channelId)

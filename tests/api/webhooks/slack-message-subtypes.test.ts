@@ -78,6 +78,8 @@ describe('Slack webhook: message subtypes', () => {
 
   afterAll(async () => {
     await supabase.schema('bronze').from('slack_messages').delete().eq('channel_id', channelId)
+    // Join and leave notices are recorded as membership history.
+    await supabase.schema('bronze').from('slack_channel_member_events').delete().eq('channel_id', channelId)
   })
 
   it('applies an edit to the original message instead of storing a new row', async () => {
@@ -188,5 +190,32 @@ describe('Slack webhook: message subtypes', () => {
     await send({ type: 'message', subtype, ts: `${nowSec - 20}.000001`, user: 'UAUTHOR', text: 'has joined the channel' })
     expect(await rows()).toEqual([])
     expect(triggerReprocessing).not.toHaveBeenCalled()
+  })
+
+  it('records a join or leave notice as membership history instead of a message', async () => {
+    const events = () =>
+      supabase
+        .schema('bronze')
+        .from('slack_channel_member_events')
+        .select('user_id, event, source, inviter_user_id, slack_ts')
+        .eq('channel_id', channelId)
+        .order('occurred_at')
+    const joinTs = `${nowSec - 40}.000001`
+    const leaveTs = `${nowSec - 20}.000001`
+    // The skip tests above send notices too, which are recorded as history.
+    await supabase.schema('bronze').from('slack_channel_member_events').delete().eq('channel_id', channelId)
+    try {
+      await send({ type: 'message', subtype: 'channel_join', ts: joinTs, user: 'UAUTHOR', inviter: 'UINVITER', text: 'has joined the channel' })
+      await send({ type: 'message', subtype: 'channel_join', ts: joinTs, user: 'UAUTHOR', inviter: 'UINVITER', text: 'has joined the channel' }) // redelivered
+      await send({ type: 'message', subtype: 'channel_leave', ts: leaveTs, user: 'UAUTHOR', text: 'has left the channel' })
+
+      expect((await events()).data).toEqual([
+        { user_id: 'UAUTHOR', event: 'joined', source: 'history_notice', inviter_user_id: 'UINVITER', slack_ts: joinTs },
+        { user_id: 'UAUTHOR', event: 'left', source: 'history_notice', inviter_user_id: null, slack_ts: leaveTs },
+      ])
+      expect(await rows()).toEqual([])
+    } finally {
+      await supabase.schema('bronze').from('slack_channel_member_events').delete().eq('channel_id', channelId)
+    }
   })
 })

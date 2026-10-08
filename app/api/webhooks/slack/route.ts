@@ -6,7 +6,12 @@ import { verifySlackSignature } from "@/lib/slack-signature";
 import { publishSlackHome } from "@/lib/slack-sign-in";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { isKeptSlackMessage, slackMessageUserId, slackTsToIso } from "@/lib/slack-messages";
-import { applySlackEmojiEvent, applySlackMembershipEvent } from "@/lib/slack-capture";
+import {
+  applySlackEmojiEvent,
+  applySlackMembershipEvent,
+  recordSlackMemberEvents,
+  slackMemberNoticeEvent,
+} from "@/lib/slack-capture";
 import { isBeyondSlackHistory } from "@/lib/slack-deletions";
 import { clock } from "@/lib/clock";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -131,7 +136,11 @@ async function processSlackEvent(event: any) {
     } else if (eventType === "message" && event.subtype === "message_deleted") {
       await applyMessageDelete(supabase, event);
     } else if (eventType === "message" && !isKeptSlackMessage(event)) {
-      // Joins, leaves, topic changes etc.: the import skips these too.
+      // Topic changes etc. aren't messages: the import skips these too. A
+      // "joined the channel" / "left the channel" notice isn't a message
+      // either, but it is membership history, so it's recorded as that.
+      const notice = slackMemberNoticeEvent(event, event.channel);
+      if (notice) await recordSlackMemberEvents(supabase, [notice]);
       return;
     } else if (eventType === "message") {
       // UPSERT message to Bronze layer

@@ -25,8 +25,11 @@ import { createServiceRoleClient } from '@/lib/supabase/service';
 import {
   copySlackFiles,
   fetchGroupDms,
+  recordSlackMemberEvents,
   slackChannelType,
+  slackMemberNoticeEvent,
   syncChannelMembers,
+  type SlackMemberEvent,
   syncCustomEmoji,
   toSlackChannelRow,
 } from '@/lib/slack-capture';
@@ -99,10 +102,13 @@ export async function POST(request: NextRequest) {
     // Every ts Slack returned, to tell deleted messages from ones it simply
     // wasn't asked about (see lib/slack-deletions.ts).
     const seen: SeenInSlack = { topLevelByChannel: new Map(), repliesByThread: new Map() };
+    // "Joined the channel" / "left the channel" notices: not messages, but the
+    // only record of when people joined and left (membership history).
+    const memberNotices: SlackMemberEvent[] = [];
 
     for (const channel of channels) {
       console.log(`  Processing #${channel.name}...`);
-      const { messages, reactions, seenTs, threadsWithoutReplies } = await fetchChannelHistory(
+      const { messages, reactions, seenTs, threadsWithoutReplies, notices } = await fetchChannelHistory(
         slack,
         channel.channel_id,
         channel.name,
@@ -112,6 +118,7 @@ export async function POST(request: NextRequest) {
       );
       allMessages.push(...messages);
       allReactions.push(...reactions);
+      memberNotices.push(...notices);
       seen.topLevelByChannel.set(channel.channel_id, seenTs);
       // Slack says these have no replies, so any stored reply to them is gone.
       for (const ts of threadsWithoutReplies) seen.repliesByThread.set(slackThreadKey(channel.channel_id, ts), new Set());
@@ -163,7 +170,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 5. UPSERT to Bronze tables (idempotent)
-    const importTimestamp = new Date().toISOString();
+    const importTimestamp = new Date(clock.now()).toISOString();
 
     // Batched: a 90-day import (with thread replies) is thousands of messages
     // and 10k+ reactions, and one statement that size hits Postgres's
@@ -208,8 +215,13 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const membership = await capture('channel members', () => syncChannelMembers(service, slack, channels, importTimestamp));
-    if (membership) console.log(`  Members: ${membership.members} across ${membership.channelsSynced} channels (${membership.left} left, ${membership.channelsFailed} channels failed)`);
+    // Announced joins and leaves first, so the member list below only has to
+    // account for changes nobody announced.
+    const membership = await capture('channel members', async () => {
+      await recordSlackMemberEvents(service, memberNotices);
+      return syncChannelMembers(service, slack, channels, importTimestamp);
+    });
+    if (membership) console.log(`  Members: ${membership.members} across ${membership.channelsSynced} channels (${membership.left} left, ${membership.channelsFailed} channels failed); history: ${memberNotices.length} join/leave notices, ${membership.eventsInferred} inferred`);
     const emoji = await capture('custom emoji', () => syncCustomEmoji(service, slack, importTimestamp));
     if (emoji && !emoji.skipped) console.log(`  Custom emoji: ${emoji.emoji} (${emoji.removed} removed)`);
 
@@ -414,6 +426,7 @@ async function fetchChannelHistory(
   // deleted", left where a deleted message still has replies) counts as gone.
   const seenTs = new Set<string>();
   const threadsWithoutReplies: string[] = [];
+  const notices: SlackMemberEvent[] = [];
   let cursor: string | undefined;
 
   do {
@@ -429,13 +442,15 @@ async function fetchChannelHistory(
       if (msg.subtype !== 'tombstone') seenTs.add(msg.ts);
       const isReply = msg.thread_ts && msg.thread_ts !== msg.ts;
       if (!isReply && !(msg.reply_count > 0)) threadsWithoutReplies.push(msg.ts);
+      const notice = slackMemberNoticeEvent(msg, channelId);
+      if (notice) notices.push(notice);
       addMessage(msg, channelId, channelName, channelType, messages, reactions);
     }
 
     cursor = result.response_metadata?.next_cursor;
   } while (cursor);
 
-  return { messages, reactions, seenTs, threadsWithoutReplies };
+  return { messages, reactions, seenTs, threadsWithoutReplies, notices };
 }
 
 const THREAD_CONCURRENCY = 5;
