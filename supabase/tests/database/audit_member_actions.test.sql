@@ -6,7 +6,7 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;
 
-SELECT plan(17);
+SELECT plan(21);
 
 INSERT INTO auth.users (id, instance_id, aud, role, email) VALUES
   ('00000000-0000-4000-a000-00000000f2a1', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'ama-alice@example.test'),
@@ -41,10 +41,10 @@ SELECT is(
 
 SELECT is(
   (SELECT changes -> 'token' FROM public.audit_log
-    WHERE entity_type = 'calendar_feed' AND action = 'update' AND actor_kind = 'member'
+    WHERE entity_type = 'calendar_feed' AND action = 'insert' AND actor_kind = 'member'
       AND member_id = '00000000-0000-4000-a000-00000000f201'),
-  '{"old": "[redacted]", "new": "[redacted]"}'::jsonb,
-  'a redacted column is logged as changed without either value'
+  '{"old": null, "new": "[redacted]"}'::jsonb,
+  'a redacted column is logged as changed without its value (the token replaced in the same transaction folds into the insert)'
 );
 SELECT is(
   (SELECT count(*)::int FROM public.audit_log WHERE entity_type = 'calendar_feed' AND member_id = '00000000-0000-4000-a000-00000000f201' AND (changes::text LIKE '%aaaaaaaa%' OR changes::text LIKE '%bbbbbbbb%')),
@@ -195,6 +195,59 @@ SELECT is(
     WHERE prickle_id = '00000000-0000-4000-a000-00000000f2d1' AND activity_type = 'prickle_checkin_cleared'),
   'Cleared check-in for Ama Morning Writing',
   'the cleared row names the prickle type'
+);
+
+-- ---------------------------------------------------------------------------
+-- Net effect per transaction: a pipeline that flips a field and restores it in one transaction (the
+-- members reprocess sets the Kajabi-derived status, then re-applies overrides) leaves no row.
+-- (This whole file is one transaction, so the writes below share a txid.)
+-- ---------------------------------------------------------------------------
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claims',
+  '{"sub": "00000000-0000-4000-a000-00000000f2a4", "email": "ama-dana@example.test", "role": "authenticated"}', true);
+UPDATE public.members SET status = 'cancelled' WHERE id = '00000000-0000-4000-a000-00000000f202';
+UPDATE public.members SET status = 'active', name = 'Ama Bobby' WHERE id = '00000000-0000-4000-a000-00000000f202';
+RESET ROLE;
+
+SELECT is(
+  (SELECT count(*)::int FROM public.audit_log
+    WHERE entity_type = 'member' AND entity_id = '00000000-0000-4000-a000-00000000f202' AND action = 'update'),
+  1,
+  'two writes in one transaction fold into one row'
+);
+SELECT is(
+  (SELECT changes FROM public.audit_log
+    WHERE entity_type = 'member' AND entity_id = '00000000-0000-4000-a000-00000000f202' AND action = 'update'),
+  '{"name": {"old": "Ama Bob", "new": "Ama Bobby"}}'::jsonb,
+  'a flip that is restored drops out, keeping first old and last new for what really changed'
+);
+
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claims',
+  '{"sub": "00000000-0000-4000-a000-00000000f2a4", "email": "ama-dana@example.test", "role": "authenticated"}', true);
+UPDATE public.members SET name = 'Ama Bob' WHERE id = '00000000-0000-4000-a000-00000000f202';
+RESET ROLE;
+SELECT is(
+  (SELECT count(*)::int FROM public.audit_log
+    WHERE entity_type = 'member' AND entity_id = '00000000-0000-4000-a000-00000000f202' AND action = 'update'),
+  0,
+  'when everything nets out to nothing the row is removed'
+);
+
+-- A redacted column reads "[redacted]" on both sides, so changing it and changing it back can't be shown
+-- to have netted out: the row stays rather than hiding a real change.
+DELETE FROM public.audit_log WHERE entity_type = 'calendar_feed' AND member_id = '00000000-0000-4000-a000-00000000f201';
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claims',
+  '{"sub": "00000000-0000-4000-a000-00000000f2a1", "email": "ama-alice@example.test", "role": "authenticated"}', true);
+UPDATE public.calendar_feed_tokens SET token = 'cccccccccccccccccccccccccccccccc' WHERE member_id = '00000000-0000-4000-a000-00000000f201';
+UPDATE public.calendar_feed_tokens SET token = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' WHERE member_id = '00000000-0000-4000-a000-00000000f201';
+RESET ROLE;
+SELECT is(
+  (SELECT changes -> 'token' FROM public.audit_log
+    WHERE entity_type = 'calendar_feed' AND action = 'update' AND member_id = '00000000-0000-4000-a000-00000000f201'),
+  '{"old": "[redacted]", "new": "[redacted]"}'::jsonb,
+  'a redacted column changed and changed back keeps its row'
 );
 
 SELECT * FROM finish(true);
