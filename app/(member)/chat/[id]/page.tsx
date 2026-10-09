@@ -1,0 +1,116 @@
+import type { Metadata } from "next";
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
+import { requireChat } from "@/lib/chat/access";
+import { isUuid, parseBefore } from "@/lib/chat/format";
+import {
+  buildMessageViews,
+  loadChannelForMember,
+  loadChatChannels,
+  loadMessage,
+  loadMessages,
+} from "@/lib/chat/load";
+import MessageItem from "@/components/chat/MessageItem";
+
+export const metadata: Metadata = {
+  title: "Chat",
+};
+
+type Param = string | string[] | undefined;
+
+/**
+ * One conversation, read-only: the newest messages (?before= for older ones) or one thread
+ * (?thread=<message id>). What the member can read is decided by RLS on the chat_* tables;
+ * this page scopes it to their own conversations and, in sudo, hides group messages and
+ * restricted conversations the way the member's private notes are hidden.
+ */
+export default async function ChatChannelPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ before?: Param; thread?: Param }>;
+}) {
+  const { identity } = await requireChat();
+  const { id } = await params;
+  const { before, thread } = await searchParams;
+  if (!isUuid(id)) notFound();
+
+  const supabase = await createClient();
+  const channel = await loadChannelForMember(supabase, id, identity.memberId, identity.isSudo);
+  if (!channel) notFound();
+
+  const sudoHidden = identity.isSudo && channel.restricted;
+  const threadId = Array.isArray(thread) ? thread[0] : thread;
+  if (threadId !== undefined && !isUuid(threadId)) notFound();
+
+  let root = null;
+  let page = null;
+  if (!sudoHidden) {
+    if (threadId) {
+      root = await loadMessage(supabase, channel.id, threadId);
+      if (!root) notFound();
+      page = await loadMessages(supabase, channel.id, { threadRootId: threadId });
+    } else {
+      page = await loadMessages(supabase, channel.id, { before: parseBefore(before) });
+    }
+  }
+
+  const rows = page ? (root ? [root, ...page.messages] : page.messages) : [];
+  const [{ views, userNames }, channels] = await Promise.all([
+    buildMessageViews(supabase, channel, rows, identity.memberId),
+    loadChatChannels(supabase, identity.memberId, identity.isSudo),
+  ]);
+  const ctx = {
+    userNames,
+    channelIds: Object.fromEntries(channels.filter((c) => c.slackChannelId).map((c) => [c.slackChannelId as string, c.id])),
+  };
+  const rootView = root ? views[0] : null;
+  const messageViews = root ? views.slice(1) : views;
+
+  return (
+    <div>
+      <header className="mb-4 pb-3 border-b border-slate-200 dark:border-slate-800">
+        <h1 className="text-2xl font-bold">{channel.label}</h1>
+        {channel.archived && (
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">This channel is archived in Slack.</p>
+        )}
+      </header>
+
+      {sudoHidden ? (
+        <p className="text-sm text-slate-600 dark:text-slate-400">
+          This conversation is restricted, so its messages are hidden while you view as a member.
+        </p>
+      ) : rootView ? (
+        <section aria-label="Thread">
+          <Link href={`/chat/${channel.id}`} className="text-sm text-plum-600 dark:text-plum-400 hover:underline">
+            ← Back to {channel.label}
+          </Link>
+          <MessageItem message={rootView} ctx={ctx} channelId={channel.id} inThread />
+          <div className="ml-4 pl-4 border-l-2 border-slate-200 dark:border-slate-700">
+            {messageViews.length === 0 && <p className="py-3 text-sm text-slate-500">No replies yet.</p>}
+            {messageViews.map((m) => (
+              <MessageItem key={m.id} message={m} ctx={ctx} channelId={channel.id} inThread />
+            ))}
+          </div>
+        </section>
+      ) : (
+        <section aria-label="Messages">
+          {page?.olderBefore && (
+            <Link
+              href={`/chat/${channel.id}?before=${encodeURIComponent(page.olderBefore)}`}
+              className="inline-block mb-2 text-sm text-plum-600 dark:text-plum-400 hover:underline"
+            >
+              Load older messages
+            </Link>
+          )}
+          {messageViews.length === 0 && <p className="py-3 text-sm text-slate-500">No messages here yet.</p>}
+          {messageViews.map((m) => (
+            <MessageItem key={m.id} message={m} ctx={ctx} channelId={channel.id} />
+          ))}
+        </section>
+      )}
+    </div>
+  );
+}

@@ -30,7 +30,10 @@ function NavLinks({ isAdmin, enabledFeatures, pathname, collapsed, onNavigate }:
   const isDirectoryActive = pathname === '/members' || pathname.startsWith('/members/');
   const isEventsActive = pathname === '/events' || pathname.startsWith('/events/');
 
+  const isChatActive = pathname === '/chat' || pathname.startsWith('/chat/');
+
   const showEvents = enabledFeatures.includes('events');
+  const showChat = enabledFeatures.includes('chat');
 
   const linkClass = (active: boolean) =>
     `flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
@@ -119,6 +122,18 @@ function NavLinks({ isAdmin, enabledFeatures, pathname, collapsed, onNavigate }:
               <span className="text-lg">👭</span>
               {!collapsed && <span>Members</span>}
             </Link>
+
+            {showChat && (
+              <Link
+                href="/chat"
+                onClick={onNavigate}
+                className={linkClass(isChatActive)}
+                title={collapsed ? "Chat" : undefined}
+              >
+                <span className="text-lg">💬</span>
+                {!collapsed && <span>Chat</span>}
+              </Link>
+            )}
 
             <Link
               href="/wheel-of-wonder"

@@ -19,6 +19,18 @@ async function openMobileDrawer() {
 }
 
 describe("MemberNavigation", () => {
+  it("shows Chat only when the chat feature is on, and marks it active on its pages", () => {
+    const { rerender } = render(<MemberNavigation isAdmin={false} enabledFeatures={[]} />);
+    const sidebar = () => screen.getByRole("complementary", { name: "Sidebar navigation" });
+    expect(within(sidebar()).queryByRole("link", { name: /Chat/ })).not.toBeInTheDocument();
+
+    pathname = "/chat/00000000-0000-4000-a000-000000000001";
+    rerender(<MemberNavigation isAdmin={false} enabledFeatures={["chat"]} />);
+    const link = within(sidebar()).getByRole("link", { name: /Chat/ });
+    expect(link).toHaveAttribute("href", "/chat");
+    expect(link.className).toContain("text-plum-600");
+  });
+
   it("shows the Admin Portal link in the mobile drawer for admins", async () => {
     render(<MemberNavigation isAdmin={true} enabledFeatures={[]} />);
     const drawer = await openMobileDrawer();
