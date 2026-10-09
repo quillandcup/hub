@@ -47,17 +47,26 @@ describe('getAffectedSilverTables', () => {
 })
 
 describe('slack reprocessing scope', () => {
-  it('a Slack message or reaction only reprocesses slack, not members', () => {
-    expect(getProcessingOrder(getAffectedSilverTables('slack_messages', 'bronze'))).toEqual(['slack'])
-    expect(getProcessingOrder(getAffectedSilverTables('slack_reactions', 'bronze'))).toEqual(['slack'])
+  it('a Slack message or reaction reprocesses slack and the chat mirror, not members', () => {
+    expect(getProcessingOrder(getAffectedSilverTables('slack_messages', 'bronze')).sort()).toEqual(['chat', 'slack'])
+    expect(getProcessingOrder(getAffectedSilverTables('slack_reactions', 'bronze')).sort()).toEqual(['chat', 'slack'])
+  })
+
+  it('channel and membership changes only rebuild the chat mirror', () => {
+    expect(getAffectedSilverTables('slack_channels', 'bronze')).toEqual(['chat'])
+    expect(getAffectedSilverTables('slack_channel_members', 'bronze')).toEqual(['chat'])
+  })
+
+  it('the chat mirror runs after members', () => {
+    expect(getProcessingOrder(['chat', 'members'])).toEqual(['members', 'chat'])
   })
 
   it('a Slack user change reprocesses members', () => {
     expect(getAffectedSilverTables('slack_users', 'bronze')).toEqual(['members'])
   })
 
-  it('lifting or adding a channel restriction reprocesses slack', () => {
-    expect(getAffectedSilverTables('restricted_slack_channels', 'local')).toEqual(['slack'])
+  it('lifting or adding a channel restriction reprocesses slack and the chat mirror', () => {
+    expect(getAffectedSilverTables('restricted_slack_channels', 'local').sort()).toEqual(['chat', 'slack'])
   })
 })
 

@@ -56,6 +56,14 @@ export const SILVER_DEPENDENCIES: Record<string, TableDependencies> = {
     silver: ['members'],  // Runs after members when it's reprocessed too (matching reads members)
     processingScope: 'date-range',
     dateField: 'occurred_at'
+  },
+
+  chat: {
+    bronze: ['slack_messages', 'slack_reactions', 'slack_channels', 'slack_channel_members'],
+    local: ['restricted_slack_channels'],
+    silver: ['members'],  // Author matching reads members, like slack
+    processingScope: 'date-range',
+    dateField: 'occurred_at'
   }
 };
 
@@ -157,6 +165,7 @@ async function processTable(
     calendar: () => import('@/app/api/process/calendar/route'),
     attendance: () => import('@/app/api/process/attendance/route'),
     slack: () => import('@/app/api/process/slack/route'),
+    chat: () => import('@/app/api/process/chat/route'),
   };
 
   const handlerLoader = handlers[table];
@@ -315,10 +324,11 @@ export async function triggerAttendanceReprocessing(dateRange: { from: Date; to:
 export async function triggerReprocessing(
   changedTable: string,
   layer: 'bronze' | 'local',
-  options?: { dateRange?: { from: Date; to: Date } }
+  options?: { dateRange?: { from: Date; to: Date }; exclude?: string[] }
 ) {
-  // Find affected Silver tables
-  const affected = getAffectedSilverTables(changedTable, layer);
+  // Find affected Silver tables. `exclude` drops some (the Slack webhook skips chat: it projects the
+  // one message itself instead of re-projecting a two-day window per event).
+  const affected = getAffectedSilverTables(changedTable, layer).filter((t) => !options?.exclude?.includes(t));
 
   if (affected.length === 0) {
     console.log(`No Silver tables affected by ${layer}.${changedTable}`);

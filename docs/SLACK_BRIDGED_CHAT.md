@@ -1,6 +1,6 @@
 # Slack-Bridged Chat: Design
 
-Status: **design agreed, not built.** Written 2026-09-29 from a design walkthrough. Member-facing summary of the privacy model: `app/(member)/privacy/page.tsx` (behind the `message_privacy` flag until everything it says is true).
+Status: **design agreed; groundwork and the chat_* mirror data are built, the chat UI is not.** Written 2026-09-29 from a design walkthrough. Member-facing summary of the privacy model: `app/(member)/privacy/page.tsx` (behind the `message_privacy` flag until everything it says is true).
 
 ## Goals
 
@@ -233,6 +233,8 @@ Also done (2026-10-08): channel membership history (`bronze.slack_channel_member
 Also done (2026-10-09), privacy: Bronze content lock-down (`slack_messages` and `slack_files` are service role only, admins read `bronze.slack_messages_meta`, `raw_payload` hidden on the other Slack tables); `restricted_slack_channels` (Local) with an admin page at `/admin/data/slack-channels`, which keeps message text out of `member_activities.description` and clears what was already copied; and the Activity Log's Privacy view (`?view=privacy`) over restriction changes. Phase 2 moves the flag to `chat_channels.restricted`, seeded from this table; break-glass grants and reads join the Privacy view when they exist (`PRIVACY_ENTITY_TYPES` in `lib/activity-feed.ts`).
 
 Still open in groundwork: counting deleted messages and removed reactions toward engagement at reduced weight (they are excluded today; `engagement_value` is an integer, so "half" needs a decision); alerting when the bot loses a private channel. Neither blocks phase 2.
+
+Also done (2026-10-10), phase 2 part 1: the `chat_*` mirror schema and projection (`20261010000000_chat_mirror.sql`): `chat_channels`, `chat_channel_members`, `chat_messages`, `chat_message_contents`, `chat_reactions` with the access rules from "Access control" as RLS (helpers `chat_is_channel_member`, `chat_can_see_channel`, `chat_can_read_content`; admins get metadata everywhere and content only outside restricted conversations; a deleted message's content is unreadable through the API). Two paths keep it current, because chat is high volume. The **webhook** projects just the one message it touched (`project_slack_chat_message`, via `lib/chat-projection.ts`): a few indexed lookups whatever the day's traffic, with authors read from `chat_slack_authors`, the Slack-user-to-member map saved by the last full run (an unmatched or brand-new user stays null until then). The **import** (nightly, manual) runs `/api/process/chat`, which saves that map, projects channels and membership (`project_slack_chat_channels`) and then messages one week per call (`project_slack_chat_messages`). The `chat` entry in `SILVER_DEPENDENCIES` is for the import path; the webhook passes `exclude: ["chat"]` to `triggerReprocessing`, because a windowed projection per event would re-read the whole two-day window each time. Channel and membership events reach chat at the next import for now. `chat_channels.restricted` is still written through `restricted_slack_channels` (trigger keeps it in sync); moving the write path is open. Still to do in phase 2: the UI behind a `chat` feature preview, then search.
 
 1. **Groundwork**
    - `audit_log` v1 (from `docs/ACTIVITY_AND_AUDIT_LOG.md`) plus an admin view with a break-glass / restriction-change filter.

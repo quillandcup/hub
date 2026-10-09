@@ -5,6 +5,7 @@ import { CONNECTION_CONFIRMATION_MESSAGE_THRESHOLD } from "@/lib/wheel-of-wonder
 import { verifySlackSignature } from "@/lib/slack-signature";
 import { publishSlackHome } from "@/lib/slack-sign-in";
 import { createServiceRoleClient } from "@/lib/supabase/service";
+import { projectChatMessage } from "@/lib/chat-projection";
 import { isKeptSlackMessage, slackMessageUserId, slackTsToIso } from "@/lib/slack-messages";
 import {
   applySlackEmojiEvent,
@@ -177,7 +178,7 @@ async function processSlackEvent(event: any) {
       }
 
       // Trigger Silver processing asynchronously
-      triggerSlackProcessing(event.ts);
+      triggerSlackProcessing(event.channel, event.ts);
     } else if (eventType === "reaction_added") {
       // UPSERT reaction to Bronze layer
       const { error } = await supabase.schema("bronze").from("slack_reactions").upsert(
@@ -206,7 +207,7 @@ async function processSlackEvent(event: any) {
       console.log("Slack reaction upserted:", event.reaction);
 
       // Trigger Silver processing asynchronously
-      triggerSlackProcessing(event.item.ts);
+      triggerSlackProcessing(event.item.channel, event.item.ts);
     } else if (eventType === "reaction_removed") {
       // Soft delete: the row stays, marked with when it was taken back. Silver
       // processing and the admin stats skip rows with deleted_at set.
@@ -228,7 +229,7 @@ async function processSlackEvent(event: any) {
       console.log("Slack reaction removed:", event.reaction);
 
       // Trigger Silver processing asynchronously
-      triggerSlackProcessing(event.item.ts);
+      triggerSlackProcessing(event.item.channel, event.item.ts);
     }
   } catch (error: any) {
     console.error("Error processing Slack event:", error);
@@ -264,7 +265,7 @@ async function applyMessageEdit(supabase: SupabaseClient, event: any) {
     console.error("Error applying Slack message edit:", error);
     return;
   }
-  triggerSlackProcessing(message.ts);
+  triggerSlackProcessing(event.channel, message.ts);
 }
 
 /**
@@ -296,7 +297,7 @@ async function applyMessageDelete(supabase: SupabaseClient, event: any) {
     console.error("Error applying Slack message delete:", error);
     return;
   }
-  triggerSlackProcessing(deletedTs);
+  triggerSlackProcessing(event.channel, deletedTs);
 }
 
 /**
@@ -378,7 +379,7 @@ async function trackWheelExchange(supabase: any, event: any) {
 /**
  * Trigger Silver layer processing for Slack data
  */
-function triggerSlackProcessing(messageTs: string) {
+function triggerSlackProcessing(channelId: string, messageTs: string) {
   const timestamp = new Date(parseFloat(messageTs) * 1000);
   const from = new Date(timestamp);
   from.setDate(from.getDate() - 1);
@@ -392,7 +393,10 @@ function triggerSlackProcessing(messageTs: string) {
   // (see docs/TODO.md Bug Fixes for the Slack webhook data-loss incident).
   after(async () => {
     try {
-      await triggerReprocessing("slack_messages", "bronze", { dateRange: { from, to } });
+      // Chat gets just this message (a constant-cost call, and what people are waiting to see), not the
+      // windowed projection, which re-reads every message in the window and would grow with the day's traffic.
+      await projectChatMessage(createServiceRoleClient(), channelId, messageTs);
+      await triggerReprocessing("slack_messages", "bronze", { dateRange: { from, to }, exclude: ["chat"] });
       console.log("Slack processing triggered successfully");
     } catch (error) {
       console.error("Error triggering Slack processing:", error);

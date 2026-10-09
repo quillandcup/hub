@@ -7,13 +7,19 @@ import { createHmac } from 'crypto'
 
 // The route wraps Silver processing in next/server's after(). Tests call the
 // handler directly (no Next.js request scope), where after() throws -- so run
-// the callback the way Vercel would after the response.
+// the callback the way Vercel would after the response, and keep its promise so
+// a test can await the work instead of polling for it.
+const afterWork = vi.hoisted(() => [] as Promise<unknown>[])
+// after() callbacks can schedule more after() work, so drain until none is left.
+async function drainAfterWork() {
+  while (afterWork.length > 0) await Promise.all(afterWork.splice(0))
+}
 vi.mock('next/server', async (importOriginal) => {
   const actual = await importOriginal<typeof import('next/server')>()
   return {
     ...actual,
     after: (callback: () => void | Promise<void>) => {
-      void callback()
+      afterWork.push(Promise.resolve(callback()))
     },
   }
 })
@@ -189,6 +195,7 @@ describe('Slack Webhook', () => {
       })
 
       await POST(request as unknown as NextRequest)
+      await drainAfterWork()
 
       expect(triggerReprocessing).toHaveBeenCalledWith(
         'slack_messages',
@@ -200,6 +207,50 @@ describe('Slack Webhook', () => {
           }),
         })
       )
+    })
+
+    it('projects the one message into the chat mirror, and keeps the windowed chat projection off the per-event path', async () => {
+      const fixture = loadWebhookFixture('slack', 'message-posted.json')
+      const { data: channel, error: channelError } = await supabase
+        .from('chat_channels')
+        .insert({ kind: 'channel', visibility: 'public', slack_channel_id: 'C123456', name: 'webhook-test' })
+        .select('id')
+        .single()
+      expect(channelError).toBeNull()
+
+      try {
+        const body = JSON.stringify(fixture.body)
+        const timestamp = Math.floor(Date.now() / 1000).toString()
+        const signature = 'v0=' + createHmac('sha256', 'test-slack-secret').update(`v0:${timestamp}:${body}`).digest('hex')
+        const request = new Request('http://localhost:3000/api/webhooks/slack', {
+          method: 'POST',
+          headers: new Headers({
+            'content-type': 'application/json',
+            'x-slack-signature': signature,
+            'x-slack-request-timestamp': timestamp,
+          }),
+          body,
+        })
+
+        await POST(request as unknown as NextRequest)
+        await drainAfterWork()
+
+        const { data: rows } = await supabase
+          .from('chat_messages')
+          .select('slack_ts, chat_message_contents(body)')
+          .eq('channel_id', channel!.id)
+        expect(rows).toHaveLength(1)
+        expect(rows![0].slack_ts).toBe(fixture.body.event.ts)
+        expect(rows![0].chat_message_contents).toMatchObject({ body: fixture.body.event.text })
+
+        expect(triggerReprocessing).toHaveBeenCalledWith(
+          'slack_messages',
+          'bronze',
+          expect.objectContaining({ exclude: ['chat'] })
+        )
+      } finally {
+        await supabase.from('chat_channels').delete().eq('id', channel!.id)
+      }
     })
 
     it('should be idempotent (duplicate messages upserted, not duplicated)', async () => {
