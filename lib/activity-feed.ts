@@ -58,6 +58,8 @@ export interface FeedFilters {
   memberId: string | null;
   /** Only things done by an admin while viewing as a member. */
   sudoOnly: boolean;
+  /** Drop rows the system did (cron, imports, triggers with no user). */
+  hideSystem: boolean;
   /** Look-back window in days. */
   days: number;
 }
@@ -94,6 +96,7 @@ export function parseFeedFilters(params: Record<string, Param>): FeedFilters {
     actorUserId: actor && UUID_RE.test(actor) ? actor : null,
     memberId: member && UUID_RE.test(member) ? member : null,
     sudoOnly: first(params.sudo) === "1",
+    hideSystem: first(params.nosystem) === "1",
     days: (FEED_DAY_OPTIONS as readonly number[]).includes(days) ? days : DEFAULT_DAYS,
   };
 }
@@ -109,6 +112,7 @@ export function feedSearch(filters: Partial<FeedFilters>): string {
   if (filters.actorUserId) q.set("actor", filters.actorUserId);
   if (filters.memberId) q.set("member", filters.memberId);
   if (filters.sudoOnly) q.set("sudo", "1");
+  if (filters.hideSystem) q.set("nosystem", "1");
   if (filters.days && filters.days !== DEFAULT_DAYS) q.set("days", String(filters.days));
   const s = q.toString();
   return s ? `?${s}` : "";
@@ -123,6 +127,7 @@ function rpcArgs(filters: FeedFilters, now: Date) {
     p_actor_user_id: filters.actorUserId,
     p_member_id: filters.memberId,
     p_sudo_only: filters.sudoOnly,
+    p_hide_system: filters.hideSystem,
     p_from: from.toISOString(),
     p_to: new Date(now.getTime() + 60_000).toISOString(),
   };

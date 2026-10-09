@@ -47,6 +47,7 @@ describe("parseFeedFilters", () => {
       actorUserId: null,
       memberId: null,
       sudoOnly: false,
+      hideSystem: false,
       days: 7,
     });
   });
@@ -71,6 +72,12 @@ describe("parseFeedFilters", () => {
     expect(parseFeedFilters({ days: "9999", sudo: "yes" })).toMatchObject({ days: 7, sudoOnly: false });
   });
 
+  it("reads the hide-system toggle", () => {
+    expect(parseFeedFilters({ nosystem: "1" }).hideSystem).toBe(true);
+    expect(parseFeedFilters({ nosystem: "yes" }).hideSystem).toBe(false);
+    expect(feedSearch(parseFeedFilters({ nosystem: "1" }))).toBe("?nosystem=1");
+  });
+
   it("accepts the privacy view and keeps it in the URL", () => {
     const filters = parseFeedFilters({ view: "privacy" });
     expect(filters.view).toBe("privacy");
@@ -82,7 +89,7 @@ describe("parseFeedFilters", () => {
 describe("feedSearch", () => {
   it("omits defaults and round-trips through parseFeedFilters", () => {
     expect(feedSearch(parseFeedFilters({}))).toBe("");
-    const filters = parseFeedFilters({ view: "all", kinds: "activity", actor: ACTOR, days: "90", sudo: "1" });
+    const filters = parseFeedFilters({ view: "all", kinds: "activity", actor: ACTOR, days: "90", sudo: "1", nosystem: "1" });
     expect(parseFeedFilters(Object.fromEntries(new URLSearchParams(feedSearch(filters))))).toEqual(filters);
   });
 });

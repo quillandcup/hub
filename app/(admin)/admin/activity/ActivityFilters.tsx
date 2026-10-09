@@ -82,6 +82,14 @@ export default function ActivityFilters({
         >
           Viewed as member
         </Link>
+        <Link
+          href={href({ hideSystem: !filters.hideSystem })}
+          aria-pressed={filters.hideSystem}
+          className={pill(filters.hideSystem)}
+          title="Hide changes made by the system (imports, scheduled jobs, triggers)"
+        >
+          Hide system
+        </Link>
       </div>
 
       {filters.view === "all" && (

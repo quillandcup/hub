@@ -80,6 +80,13 @@ describe("/admin/activity", () => {
     expect(screen.getByText("active")).toBeInTheDocument();
   });
 
+  it("passes the hide-system toggle to the feed", async () => {
+    feed([base]);
+    await renderPage({ nosystem: "1" });
+    expect(rpc).toHaveBeenCalledWith("count_activity_feed", expect.objectContaining({ p_hide_system: true }));
+    expect(screen.getByRole("link", { name: "Hide system" })).toHaveAttribute("aria-pressed", "true");
+  });
+
   it("shows both people when an admin acted in sudo", async () => {
     feed([{ ...base, acting_as_member_id: MEMBER_ID, acting_as_member_name: "Fern Quillsby" }]);
     await renderPage({ sudo: "1" });
