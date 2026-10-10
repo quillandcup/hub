@@ -101,10 +101,15 @@ export const webPushChannel: ChannelAdapter = {
     });
 
     const stamp = new Date(now).toISOString();
-    await Promise.all([
+    const updates = await Promise.all([
       sent.length > 0 && supabase.from("push_subscriptions").update({ last_sent_at: stamp }).in("id", sent),
       gone.length > 0 && supabase.from("push_subscriptions").update({ deleted_at: stamp }).in("id", gone),
     ]);
+    for (const result of updates) {
+      if (result && result.error) {
+        console.error("[web-push] Updating subscriptions failed", { member: memberId, error: result.error });
+      }
+    }
 
     for (const reason of failures) {
       console.error("[web-push] Delivery failed", { member: memberId, kind: context.kind, reason: describe(reason) });

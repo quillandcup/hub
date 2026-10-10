@@ -7,13 +7,18 @@ self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", (event) => event.waitUntil(self.clients.claim()));
 
 self.addEventListener("push", (event) => {
-  if (!event.data) return;
-  let payload;
-  try {
-    payload = event.data.json();
-  } catch {
-    return;
+  // Every push must show something: Chrome posts its own generic "updated in the background"
+  // notification when a worker doesn't, and may revoke the permission for repeat offenders.
+  let payload = {};
+  if (event.data) {
+    try {
+      payload = event.data.json();
+    } catch {
+      payload = { body: event.data.text() };
+    }
   }
+  if (!payload || typeof payload !== "object") payload = { body: String(payload) };
+  payload.title = payload.title || "Notification";
   event.waitUntil(
     self.registration.showNotification(payload.title, {
       body: payload.body,
