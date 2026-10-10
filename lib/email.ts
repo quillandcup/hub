@@ -31,22 +31,21 @@ const DEFAULT_RETRY_MS = 1000;
  * invites -- are separate: Supabase renders and sends those itself; see supabase/emails/.)
  *
  * Resend's default limit is 2 requests/second and a batch of notifications can exceed it, so a 429
- * is retried (after the Retry-After it names) a couple of times. Any other failure throws; the
- * notifier logs it and moves on to the member's other channels.
+ * is retried (after the Retry-After it names) a couple of times. Any other failure, including a missing
+ * RESEND_API_KEY or test mode without EMAIL_DEV_ADDRESS, throws (never a silent return, or callers
+ * would report an email as sent); the notifier logs it and moves on to the member's other channels.
  */
 export async function sendEmail(params: SendEmailParams): Promise<void> {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) {
-    console.error("sendEmail: RESEND_API_KEY not configured, skipping send");
-    return;
+    throw new Error("RESEND_API_KEY is not configured");
   }
 
   let { to, subject } = params;
   if (isEmailTestMode()) {
     const devAddress = process.env.EMAIL_DEV_ADDRESS;
     if (!devAddress) {
-      console.error("sendEmail: EMAIL_TEST_MODE is on but EMAIL_DEV_ADDRESS is unset -- skipping send rather than risk a real one");
-      return;
+      throw new Error("Email test mode is on but EMAIL_DEV_ADDRESS is unset, so nothing was sent rather than risk a real send");
     }
     subject = `🧪 [test mode — would have gone to ${to}] ${subject}`;
     to = devAddress;

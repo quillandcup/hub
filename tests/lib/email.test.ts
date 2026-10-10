@@ -57,25 +57,21 @@ describe("sendEmail", () => {
     expect(sent[0].to).toEqual(["dev@example.com"]);
   });
 
-  it("sends nothing in test mode without a dev address, rather than risk a real send", async () => {
+  it("throws in test mode without a dev address, rather than risk a real send or report one", async () => {
     vi.stubEnv("EMAIL_TEST_MODE", "true");
     vi.stubEnv("EMAIL_DEV_ADDRESS", "");
-    const error = vi.spyOn(console, "error").mockImplementation(() => {});
     const sent = captureSends();
-    await sendEmail(message);
 
+    await expect(sendEmail(message)).rejects.toThrow("EMAIL_DEV_ADDRESS");
     expect(sent).toEqual([]);
-    error.mockRestore();
   });
 
-  it("skips the send without an API key", async () => {
+  it("throws without an API key, so callers don't report an unsent email as sent", async () => {
     vi.stubEnv("RESEND_API_KEY", "");
-    const error = vi.spyOn(console, "error").mockImplementation(() => {});
     const sent = captureSends();
-    await sendEmail(message);
 
+    await expect(sendEmail(message)).rejects.toThrow("RESEND_API_KEY");
     expect(sent).toEqual([]);
-    error.mockRestore();
   });
 
   it("waits out a rate limit and tries again", async () => {
