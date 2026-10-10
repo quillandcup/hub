@@ -6,11 +6,14 @@ import { requireChat } from "@/lib/chat/access";
 import { isUuid, parseBefore } from "@/lib/chat/format";
 import {
   buildMessageViews,
+  chatTextContext,
   loadChannelForMember,
+  loadChannelMembers,
   loadChatChannels,
   loadMessage,
   loadMessages,
 } from "@/lib/chat/load";
+import AvatarStack from "@/components/AvatarStack";
 import MessageItem from "@/components/chat/MessageItem";
 
 export const metadata: Metadata = {
@@ -57,25 +60,34 @@ export default async function ChatChannelPage({
     }
   }
 
+  const people = sudoHidden ? [] : await loadChannelMembers(supabase, channel.id);
   const rows = page ? (root ? [root, ...page.messages] : page.messages) : [];
-  const [{ views, userNames, customEmoji }, channels] = await Promise.all([
+  const [{ views, ...rendered }, channels] = await Promise.all([
     buildMessageViews(supabase, channel, rows, identity.memberId),
     loadChatChannels(supabase, identity.memberId, identity.isSudo),
   ]);
-  const ctx = {
-    userNames,
-    customEmoji,
-    channelIds: Object.fromEntries(channels.filter((c) => c.slackChannelId).map((c) => [c.slackChannelId as string, c.id])),
-  };
+  const ctx = chatTextContext(rendered, channels);
   const rootView = root ? views[0] : null;
   const messageViews = root ? views.slice(1) : views;
 
   return (
     <div>
-      <header className="mb-4 pb-3 border-b border-slate-200 dark:border-slate-800">
-        <h1 className="text-2xl font-bold">{channel.label}</h1>
-        {channel.archived && (
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">This channel is archived in Slack.</p>
+      <header className="mb-4 pb-3 border-b border-slate-200 dark:border-slate-800 flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold">{channel.label}</h1>
+          {channel.archived && (
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">This channel is archived in Slack.</p>
+          )}
+        </div>
+        {people.length > 0 && (
+          <Link
+            href={`/chat/${channel.id}/members`}
+            aria-label={`${people.length} ${people.length === 1 ? "member" : "members"}`}
+            className="shrink-0 inline-flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-700 px-2 py-1 text-sm hover:bg-slate-100 dark:hover:bg-slate-800"
+          >
+            <AvatarStack people={people} size={24} max={3} />
+            <span>{people.length}</span>
+          </Link>
         )}
       </header>
 

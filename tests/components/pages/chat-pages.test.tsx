@@ -37,12 +37,15 @@ vi.mock("@/lib/chat/names", () => ({
   slackAuthorIdsByTs: vi.fn(async () => ({ "300.000": "B_APP" })),
   customEmojiFor: vi.fn(async () => ({})),
   slackUserPhotos: vi.fn(async () => ({})),
+  slackUserMemberIds: vi.fn(async () => ({})),
+  slackChannelNames: vi.fn(async () => ({})),
 }));
 
 const { getUserFeaturePreviews } = await import("@/lib/features.server");
 const { default: ChatLayout } = await import("@/app/(member)/chat/layout");
 const { default: ChatIndexPage } = await import("@/app/(member)/chat/page");
 const { default: ChatChannelPage } = await import("@/app/(member)/chat/[id]/page");
+const { default: ChatMembersPage } = await import("@/app/(member)/chat/[id]/members/page");
 
 const id = (n: number) => `00000000-0000-4000-a000-${String(n).padStart(12, "0")}`;
 const GENERAL = id(1);
@@ -264,6 +267,33 @@ describe("channel page", () => {
   it("in sudo, a group message is a 404", async () => {
     signInAs(MEMBER_USER, { ...MEMBER_IDENTITY, isSudo: true });
     await expect(renderChannel(GROUP)).rejects.toThrow("404");
+  });
+});
+
+describe("authors and members", () => {
+  it("links an author's name and avatar to their profile, but not an unmatched Slack author", async () => {
+    messages = [msg(1), msg(4, { author_member_id: null, slack_ts: "300.000" })];
+    await renderChannel(GENERAL);
+    const first = within(document.getElementById(`m-${id(101)}`)!);
+    expect(first.getByRole("link", { name: "Gale Prickleton" })).toHaveAttribute("href", "/members/member-gale");
+    expect(first.getAllByRole("link").every((a) => a.getAttribute("href") === "/members/member-gale")).toBe(true);
+    expect(within(document.getElementById(`m-${id(104)}`)!).queryByRole("link")).not.toBeInTheDocument();
+  });
+
+  it("shows a members link with the count in the channel header", async () => {
+    await renderChannel(GENERAL);
+    expect(screen.getByRole("link", { name: "2 members" })).toHaveAttribute("href", `/chat/${GENERAL}/members`);
+  });
+
+  it("lists the members, each linking to their profile", async () => {
+    render(await ChatMembersPage({ params: Promise.resolve({ id: GENERAL }) }));
+    expect(screen.getByRole("heading", { name: /#general members/ })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Fern/ })).toHaveAttribute("href", "/members/member-fern");
+    expect(screen.getByRole("link", { name: /Gale Prickleton/ })).toHaveAttribute("href", "/members/member-gale");
+  });
+
+  it("404s the members page for a private conversation the member isn't in", async () => {
+    await expect(ChatMembersPage({ params: Promise.resolve({ id: SECRET }) })).rejects.toThrow("404");
   });
 });
 

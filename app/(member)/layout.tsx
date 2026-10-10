@@ -10,6 +10,7 @@ import SudoBanner from '@/components/SudoBanner'
 import { InstallAppPrompt } from '@/components/InstallAppPrompt'
 import { TimezoneInitializer } from '@/components/TimezoneInitializer'
 import FeedbackWidget from '@/components/FeedbackWidget'
+import PageViewTracker from '@/components/PageViewTracker'
 import OnboardingGuide from '@/components/onboarding/OnboardingGuide'
 import { getOnboardingState } from '@/lib/onboarding.server'
 import { Suspense } from 'react'
@@ -74,7 +75,6 @@ export default async function MemberLayout({
         memberId={effectiveIdentity.memberId}
         isAdmin={isAdmin}
         isSudo={effectiveIdentity.isSudo}
-        enabledFeatures={enabledFeatures}
         canStartOnboarding={showOnboarding}
       />
     </header>
@@ -112,6 +112,7 @@ export default async function MemberLayout({
         <TimezoneInitializer storedTimezone={storedTimezone} isSudo={effectiveIdentity.isSudo} />
       </div>
       <FeedbackWidget />
+      <PageViewTracker />
       {onboardingState && (
         // useSearchParams needs a Suspense boundary.
         <Suspense fallback={null}>

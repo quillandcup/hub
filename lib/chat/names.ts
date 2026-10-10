@@ -17,7 +17,11 @@ function chunks<T>(items: T[]): T[][] {
   return out;
 }
 
-/** Slack user id -> display name. A member's Hub name when we know who they are, else their Slack name. */
+/**
+ * Slack user id -> the name to show for a mention: the member's chosen Hub display name, else the
+ * name they go by in Slack, else their Hub name, else their Slack real name. (A mention reads as it
+ * does in Slack; the Hub's legal-style name only fills in when nothing else is set.)
+ */
 export async function slackUserNames(userIds: string[]): Promise<Record<string, string>> {
   const ids = [...new Set(userIds)];
   const names: Record<string, string> = {};
@@ -31,21 +35,53 @@ export async function slackUserNames(userIds: string[]): Promise<Record<string, 
     ]);
 
     const memberIds = [...new Set((authors ?? []).map((a) => a.member_id))];
-    const memberNames = new Map<string, string>();
+    const memberNames = new Map<string, { name: string; displayName: string | null }>();
     if (memberIds.length > 0) {
       const { data: members } = await service.from("member_directory").select("id, name, display_name").in("id", memberIds);
-      for (const m of members ?? []) memberNames.set(m.id, m.display_name || m.name);
+      for (const m of members ?? []) memberNames.set(m.id, { name: m.name, displayName: m.display_name });
     }
-    for (const a of authors ?? []) {
-      const name = memberNames.get(a.member_id);
-      if (name) names[a.slack_user_id] = name;
-    }
+    const memberBySlackUser = new Map((authors ?? []).map((a) => [a.slack_user_id as string, memberNames.get(a.member_id)]));
     for (const u of slackUsers ?? []) {
-      if (!names[u.user_id]) names[u.user_id] = u.display_name || u.real_name || u.name || "";
+      const member = memberBySlackUser.get(u.user_id);
+      names[u.user_id] = member?.displayName || u.display_name || member?.name || u.real_name || u.name || "";
+    }
+    for (const [slackUserId, member] of memberBySlackUser) {
+      if (!names[slackUserId] && member) names[slackUserId] = member.displayName || member.name;
     }
   }
   for (const id of ids) if (!names[id]) delete names[id];
   return names;
+}
+
+/** Slack user id -> Hub member id, for the people we have matched, so a mention can link to a profile. */
+export async function slackUserMemberIds(userIds: string[]): Promise<Record<string, string>> {
+  const ids = [...new Set(userIds)];
+  const out: Record<string, string> = {};
+  if (ids.length === 0) return out;
+  const service = createServiceRoleClient();
+  for (const batch of chunks(ids)) {
+    const { data } = await service.from("chat_slack_authors").select("slack_user_id, member_id").in("slack_user_id", batch);
+    for (const a of data ?? []) out[a.slack_user_id] = a.member_id;
+  }
+  return out;
+}
+
+/** Slack channel id -> name for public channels, for <#C123> links whose text carries no name. */
+export async function slackChannelNames(channelIds: string[]): Promise<Record<string, string>> {
+  const ids = [...new Set(channelIds)];
+  const out: Record<string, string> = {};
+  if (ids.length === 0) return out;
+  const service = createServiceRoleClient();
+  for (const batch of chunks(ids)) {
+    const { data } = await service
+      .schema("bronze")
+      .from("slack_channels")
+      .select("channel_id, name")
+      .in("channel_id", batch)
+      .eq("is_private", false);
+    for (const c of data ?? []) if (c.name) out[c.channel_id] = c.name;
+  }
+  return out;
 }
 
 /**

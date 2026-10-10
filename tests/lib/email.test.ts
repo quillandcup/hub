@@ -8,8 +8,6 @@ import { sendEmail } from "@/lib/email";
 const RESEND = "https://api.resend.com/emails";
 const message = { to: "alice@example.com", subject: "Hello", html: "<p>Hi</p>", text: "Hi" };
 
-const fake = useFakeClock();
-
 function captureSends(respond: () => Response = () => HttpResponse.json({ id: "e1" })) {
   const bodies: any[] = [];
   server.use(
@@ -30,6 +28,8 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllEnvs());
 
 describe("sendEmail", () => {
+  const fake = useFakeClock();
+
   it("sends the message from the configured address", async () => {
     const sent = captureSends();
     await sendEmail(message);

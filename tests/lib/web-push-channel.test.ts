@@ -129,6 +129,15 @@ describe("web_push send", () => {
     expect(callsOf("push_subscriptions")).toContainEqual({ method: "in", args: ["id", ["s1"]] });
   });
 
+  it("throws when every subscription turned out to be gone, so nobody reads that as delivered", async () => {
+    serviceFake = createFakeSupabase(SUBS);
+    sendNotification.mockRejectedValue(new WebPushError("gone", 410, {}, "", "https://push.example.test/1"));
+    await expect(webPushChannel.send("m1", { text: "Hello" }, { kind: "prickle_checkin", memberId: "m1" })).rejects.toThrow(
+      "expired"
+    );
+    expect(callsOf("push_subscriptions")).toContainEqual({ method: "in", args: ["id", ["s1", "s2"]] });
+  });
+
   it("throws when no device could be reached for a reason that might pass", async () => {
     serviceFake = createFakeSupabase(SUBS);
     sendNotification.mockRejectedValue(new WebPushError("unavailable", 503, {}, "try later", "https://push.example.test/1"));

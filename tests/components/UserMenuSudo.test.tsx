@@ -7,7 +7,6 @@ vi.mock("@/components/SudoModal", () => ({
   default: ({ isOpen }: { isOpen: boolean }) => (isOpen ? <div data-testid="sudo-modal" /> : null),
 }));
 vi.mock("@/components/SignOutButton", () => ({ default: () => <button>Sign out</button> }));
-vi.mock("@/components/FeaturePreviewsModal", () => ({ default: () => null }));
 
 import UserMenu from "@/components/UserMenu";
 

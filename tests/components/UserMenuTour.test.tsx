@@ -5,7 +5,6 @@ import userEvent from "@testing-library/user-event";
 
 vi.mock("@/components/SudoModal", () => ({ default: () => null }));
 vi.mock("@/components/SignOutButton", () => ({ default: () => <button>Sign out</button> }));
-vi.mock("@/components/FeaturePreviewsModal", () => ({ default: () => null }));
 vi.mock("@/app/actions/onboarding", () => ({ startOnboarding: vi.fn().mockResolvedValue({ success: true }) }));
 
 import UserMenu from "@/components/UserMenu";

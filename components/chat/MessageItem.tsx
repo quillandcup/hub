@@ -1,5 +1,6 @@
 import Link from "next/link";
 import MemberAvatar from "@/app/(member)/members/[id]/MemberAvatar";
+import AvatarStack from "@/components/AvatarStack";
 import ChatText, { Emoji, type ChatTextContext } from "@/components/chat/ChatText";
 import { formatChatTime } from "@/lib/chat/format";
 import type { ChatMessageView } from "@/lib/chat/load";
@@ -18,12 +19,26 @@ export default function MessageItem({
 }) {
   return (
     <article className="py-3 border-b border-slate-100 dark:border-slate-800 last:border-0 flex gap-3" id={`m-${message.id}`}>
-      <div className="shrink-0 pt-0.5" aria-hidden="true">
-        <MemberAvatar name={message.authorName} photoUrl={message.authorPhotoUrl} size={36} />
+      <div className="shrink-0 pt-0.5">
+        {message.authorMemberId ? (
+          <Link href={`/members/${message.authorMemberId}`} aria-hidden="true" tabIndex={-1}>
+            <MemberAvatar name={message.authorName} photoUrl={message.authorPhotoUrl} size={36} />
+          </Link>
+        ) : (
+          <span aria-hidden="true">
+            <MemberAvatar name={message.authorName} photoUrl={message.authorPhotoUrl} size={36} />
+          </span>
+        )}
       </div>
       <div className="min-w-0 flex-1">
         <header className="flex items-baseline gap-2 text-sm">
-          <span className="font-semibold">{message.authorName}</span>
+          {message.authorMemberId ? (
+            <Link href={`/members/${message.authorMemberId}`} className="font-semibold hover:underline">
+              {message.authorName}
+            </Link>
+          ) : (
+            <span className="font-semibold">{message.authorName}</span>
+          )}
           <time dateTime={message.createdAt} className="text-xs text-slate-500 dark:text-slate-400">
             {formatChatTime(message.createdAt)}
           </time>
@@ -68,15 +83,7 @@ export default function MessageItem({
             href={`/chat/${channelId}?thread=${message.id}`}
             className="mt-1.5 inline-flex items-center gap-2 text-xs text-plum-600 dark:text-plum-400 hover:underline"
           >
-            {message.replyAuthors.length > 0 && (
-              <span className="flex -space-x-1.5" aria-hidden="true">
-                {message.replyAuthors.map((a, i) => (
-                  <span key={i} className="rounded-full ring-2 ring-white dark:ring-slate-900" title={a.name}>
-                    <MemberAvatar name={a.name} photoUrl={a.photoUrl} size={20} />
-                  </span>
-                ))}
-              </span>
-            )}
+            <AvatarStack people={message.replyAuthors} size={20} />
             <span>
               {message.replyCount} {message.replyCount === 1 ? "reply" : "replies"}
               {message.lastReplyAt ? ` · last ${formatChatTime(message.lastReplyAt)}` : ""}

@@ -101,15 +101,30 @@ export const webPushChannel: ChannelAdapter = {
     });
 
     const stamp = new Date(now).toISOString();
-    await Promise.all([
+    const updates = await Promise.all([
       sent.length > 0 && supabase.from("push_subscriptions").update({ last_sent_at: stamp }).in("id", sent),
       gone.length > 0 && supabase.from("push_subscriptions").update({ deleted_at: stamp }).in("id", gone),
     ]);
+    for (const result of updates) {
+      if (result && result.error) {
+        console.error("[web-push] Updating subscriptions failed", { member: memberId, error: result.error });
+      }
+    }
 
-    // Every device failed for a reason that might pass: let the notifier log it. A member with one
+    for (const reason of failures) {
+      console.error("[web-push] Delivery failed", { member: memberId, kind: context.kind, reason: describe(reason) });
+    }
+    if (gone.length > 0) {
+      console.warn("[web-push] Subscriptions expired and removed", { member: memberId, count: gone.length });
+    }
+
+    // Nothing went out: let the notifier log it (and the test button say why). A member with one
     // dead phone and one working laptop was still notified.
-    if (sent.length === 0 && failures.length > 0) {
-      throw new Error(`Web Push failed on ${failures.length} device(s): ${describe(failures[0])}`);
+    if (sent.length === 0) {
+      if (failures.length > 0) {
+        throw new Error(`Web Push failed on ${failures.length} device(s): ${describe(failures[0])}`);
+      }
+      throw new Error(`Every device's subscription had expired (${gone.length} removed); turn Browser notifications back on`);
     }
   },
 };

@@ -1,7 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { emojiNamesIn, mentionedUserIds } from "@/lib/chat/render";
-import { customEmojiFor, slackAuthorIdsByTs, slackUserNames, slackUserPhotos } from "@/lib/chat/names";
+import { emojiNamesIn, mentionedChannelIds, mentionedUserIds } from "@/lib/chat/render";
+import { customEmojiFor, slackAuthorIdsByTs, slackChannelNames, slackUserMemberIds, slackUserNames, slackUserPhotos } from "@/lib/chat/names";
 import type { CustomEmoji } from "@/lib/chat/emoji";
+import type { ChatTextContext } from "@/components/chat/ChatText";
 import { safeUrl } from "@/lib/url";
 
 /**
@@ -114,6 +115,39 @@ export async function memberProfiles(
   return profiles;
 }
 
+export interface ChannelPerson {
+  memberId: string;
+  name: string;
+  photoUrl: string | null;
+}
+
+/** Who is in a conversation now (matched members only, A to Z), under RLS. Paged past the 1000-row cap. */
+export async function loadChannelMembers(supabase: SupabaseClient, channelId: string): Promise<ChannelPerson[]> {
+  const memberIds: string[] = [];
+  const BATCH_SIZE = 1000;
+  let offset = 0;
+  let hasMore = true;
+  while (hasMore) {
+    const { data: batch } = await supabase
+      .from("chat_channel_members")
+      .select("member_id")
+      .eq("channel_id", channelId)
+      .is("left_at", null)
+      .order("member_id")
+      .range(offset, offset + BATCH_SIZE - 1);
+    memberIds.push(...(batch ?? []).map((r) => r.member_id as string));
+    offset += batch?.length ?? 0;
+    hasMore = (batch?.length ?? 0) === BATCH_SIZE;
+  }
+  const profiles = await memberProfiles(supabase, memberIds);
+  return memberIds
+    .flatMap((memberId) => {
+      const p = profiles.get(memberId);
+      return p ? [{ memberId, name: p.name, photoUrl: p.photoUrl }] : [];
+    })
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
 /**
  * One conversation for the member, or null when they have no business in it: not found under
  * RLS, a private conversation they are not in (admins included: staff reading others' private
@@ -152,7 +186,7 @@ export async function loadChannelForMember(
   };
 }
 
-interface MessageRow {
+export interface MessageRow {
   id: string;
   author_member_id: string | null;
   slack_ts: string | null;
@@ -227,6 +261,8 @@ export interface Person {
 
 export interface ChatMessageView {
   id: string;
+  /** The author's Hub member, for linking to their profile; null for Slack people we haven't matched. */
+  authorMemberId: string | null;
   authorName: string;
   authorPhotoUrl: string | null;
   /** Up to REPLY_AVATARS distinct people who replied in the thread, earliest first. */
@@ -247,8 +283,27 @@ export interface ChatMessages {
   views: ChatMessageView[];
   /** Slack user id -> name, for <@U123> mentions in the bodies. */
   userNames: Record<string, string>;
+  /** Slack user id -> Hub member id for matched people, so mentions can link to a profile. */
+  userMembers: Record<string, string>;
+  /** Slack channel id -> name for <#C123> links in the bodies (public channels). */
+  channelNames: Record<string, string>;
   /** Custom emoji used in the bodies and reactions, by shortcode. */
   customEmoji: Record<string, CustomEmoji>;
+}
+
+/** What ChatText needs to render a page's messages: names, profile links and channel links. */
+export function chatTextContext(rendered: Omit<ChatMessages, "views">, channels: ChannelSummary[]): ChatTextContext {
+  return {
+    userNames: rendered.userNames,
+    userMembers: rendered.userMembers,
+    customEmoji: rendered.customEmoji,
+    // Names of channels the member is in (private ones included) win over the public-name lookup.
+    channelNames: {
+      ...rendered.channelNames,
+      ...Object.fromEntries(channels.filter((c) => c.slackChannelId && c.kind === "channel").map((c) => [c.slackChannelId as string, c.label.replace(/^#/, "")])),
+    },
+    channelIds: Object.fromEntries(channels.filter((c) => c.slackChannelId).map((c) => [c.slackChannelId as string, c.id])),
+  };
 }
 
 const bodyOf = (row: MessageRow): string | null => {
@@ -307,7 +362,7 @@ export async function buildMessageViews(
   rows: MessageRow[],
   viewerMemberId: string
 ): Promise<ChatMessages> {
-  if (rows.length === 0) return { views: [], userNames: {}, customEmoji: {} };
+  if (rows.length === 0) return { views: [], userNames: {}, userMembers: {}, channelNames: {}, customEmoji: {} };
 
   const matched = rows.filter((r) => r.author_member_id).map((r) => r.author_member_id as string);
   const unmatched = rows.filter((r) => !r.author_member_id && r.slack_ts).map((r) => r.slack_ts as string);
@@ -341,8 +396,10 @@ export async function buildMessageViews(
     ...rows.flatMap((r) => emojiNamesIn(bodyOf(r) ?? "")),
     ...(reactionRows ?? []).map((r) => String(r.emoji).replace(/::skin-tone-\d$/, "").toLowerCase()),
   ];
-  const [userNames, slackPhotos, customEmoji] = await Promise.all([
+  const [userNames, userMembers, channelNames, slackPhotos, customEmoji] = await Promise.all([
     slackUserNames([...slackIds, ...mentioned]),
+    slackUserMemberIds(mentioned),
+    slackChannelNames(rows.flatMap((r) => mentionedChannelIds(bodyOf(r) ?? ""))),
     slackUserPhotos(slackIds),
     customEmojiFor(emojiNames),
   ]);
@@ -379,6 +436,7 @@ export async function buildMessageViews(
     }
     return {
       id: row.id,
+      authorMemberId: row.author_member_id,
       authorName: author.name,
       authorPhotoUrl: author.photoUrl,
       replyAuthors,
@@ -392,5 +450,5 @@ export async function buildMessageViews(
       reactions: [...(reactionsByMessage.get(row.id)?.values() ?? [])].sort((a, b) => b.count - a.count),
     };
   });
-  return { views, userNames, customEmoji };
+  return { views, userNames, userMembers, channelNames, customEmoji };
 }
