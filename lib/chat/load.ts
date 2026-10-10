@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { mentionedUserIds } from "@/lib/chat/render";
-import { slackAuthorIdsByTs, slackUserNames } from "@/lib/chat/names";
+import { emojiNamesIn, mentionedUserIds } from "@/lib/chat/render";
+import { customEmojiFor, slackAuthorIdsByTs, slackUserNames } from "@/lib/chat/names";
+import type { CustomEmoji } from "@/lib/chat/emoji";
 
 /**
  * What the chat pages read. Everything goes through the caller's own Supabase client, so RLS
@@ -231,6 +232,8 @@ export interface ChatMessages {
   views: ChatMessageView[];
   /** Slack user id -> name, for <@U123> mentions in the bodies. */
   userNames: Record<string, string>;
+  /** Custom emoji used in the bodies and reactions, by shortcode. */
+  customEmoji: Record<string, CustomEmoji>;
 }
 
 const bodyOf = (row: MessageRow): string | null => {
@@ -245,7 +248,7 @@ export async function buildMessageViews(
   rows: MessageRow[],
   viewerMemberId: string
 ): Promise<ChatMessages> {
-  if (rows.length === 0) return { views: [], userNames: {} };
+  if (rows.length === 0) return { views: [], userNames: {}, customEmoji: {} };
 
   const matched = rows.filter((r) => r.author_member_id).map((r) => r.author_member_id as string);
   const unmatched = rows.filter((r) => !r.author_member_id && r.slack_ts).map((r) => r.slack_ts as string);
@@ -264,7 +267,14 @@ export async function buildMessageViews(
 
   // One batch for every Slack name needed: unmatched authors plus people mentioned in the text.
   const mentioned = rows.flatMap((r) => mentionedUserIds(bodyOf(r) ?? ""));
-  const userNames = await slackUserNames([...Object.values(slackAuthorByTs), ...mentioned]);
+  const emojiNames = [
+    ...rows.flatMap((r) => emojiNamesIn(bodyOf(r) ?? "")),
+    ...(reactionRows ?? []).map((r) => String(r.emoji).replace(/::skin-tone-\d$/, "").toLowerCase()),
+  ];
+  const [userNames, customEmoji] = await Promise.all([
+    slackUserNames([...Object.values(slackAuthorByTs), ...mentioned]),
+    customEmojiFor(emojiNames),
+  ]);
 
   const reactionsByMessage = new Map<string, Map<string, ReactionSummary>>();
   for (const r of reactionRows ?? []) {
@@ -296,5 +306,5 @@ export async function buildMessageViews(
       reactions: [...(reactionsByMessage.get(row.id)?.values() ?? [])].sort((a, b) => b.count - a.count),
     };
   });
-  return { views, userNames };
+  return { views, userNames, customEmoji };
 }

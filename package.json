@@ -40,6 +40,7 @@
     "@vercel/analytics": "^2.0.1",
     "@vercel/speed-insights": "^2.0.0",
     "dotenv": "^17.4.2",
+    "emojibase-data": "^17.0.0",
     "fflate": "^0.8.3",
     "googleapis": "^171.4.0",
     "html-to-image": "^1.11.13",

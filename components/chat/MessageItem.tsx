@@ -1,8 +1,7 @@
 import Link from "next/link";
-import ChatText, { type ChatTextContext } from "@/components/chat/ChatText";
+import ChatText, { Emoji, type ChatTextContext } from "@/components/chat/ChatText";
 import { formatChatTime } from "@/lib/chat/format";
 import type { ChatMessageView } from "@/lib/chat/load";
-import { slackEmojiToUnicode } from "@/lib/slack-emoji";
 
 /** One message: author, time, text (or why there is none), reactions and a link into its thread. */
 export default function MessageItem({
@@ -53,7 +52,7 @@ export default function MessageItem({
               }`}
               title={`:${r.emoji}:`}
             >
-              {slackEmojiToUnicode(r.emoji.replace(/::skin-tone-\d$/, ""))} {r.count}
+              <Emoji name={r.emoji} custom={ctx.customEmoji} /> {r.count}
             </li>
           ))}
         </ul>

@@ -1,4 +1,5 @@
 import { createServiceRoleClient } from "@/lib/supabase/service";
+import { unicodeEmoji, type CustomEmoji } from "@/lib/chat/emoji";
 
 /**
  * Names for Slack authors and mentions that the signed-in member can't read themselves:
@@ -59,6 +60,58 @@ export async function slackAuthorIdsByTs(slackChannelId: string, messageTs: stri
       .eq("channel_id", slackChannelId)
       .in("message_ts", batch);
     for (const row of data ?? []) out[row.message_ts] = row.user_id;
+  }
+  return out;
+}
+
+const ALIAS_DEPTH = 5;
+
+/**
+ * Custom emoji by name, for the names a page shows. bronze.slack_custom_emoji is admin-read only
+ * under RLS, but the emoji are public workspace decoration, so this returns just name -> image
+ * (aliases followed, to a custom image or a standard emoji). Names that are not custom are left out.
+ */
+export async function customEmojiFor(names: string[]): Promise<Record<string, CustomEmoji>> {
+  let wanted = [...new Set(names)];
+  const rows = new Map<string, { image_url: string | null; alias_for: string | null }>();
+  if (wanted.length === 0) return {};
+  const service = createServiceRoleClient();
+
+  // Aliases point at other names, which may be custom too: fetch until nothing new turns up.
+  for (let depth = 0; depth < ALIAS_DEPTH && wanted.length > 0; depth++) {
+    const next = new Set<string>();
+    for (const batch of chunks(wanted)) {
+      const { data } = await service
+        .schema("bronze")
+        .from("slack_custom_emoji")
+        .select("name, image_url, alias_for")
+        .in("name", batch)
+        .is("deleted_at", null);
+      for (const r of data ?? []) {
+        rows.set(r.name, r);
+        if (r.alias_for && !rows.has(r.alias_for)) next.add(r.alias_for);
+      }
+    }
+    wanted = [...next];
+  }
+
+  const out: Record<string, CustomEmoji> = {};
+  for (const name of new Set(names)) {
+    let current = name;
+    for (let i = 0; i <= ALIAS_DEPTH; i++) {
+      const row = rows.get(current);
+      if (!row) {
+        const text = i > 0 ? unicodeEmoji(current) : null;
+        if (text) out[name] = { text };
+        break;
+      }
+      if (row.image_url) {
+        out[name] = { url: row.image_url };
+        break;
+      }
+      if (!row.alias_for) break;
+      current = row.alias_for;
+    }
   }
   return out;
 }
