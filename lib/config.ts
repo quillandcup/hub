@@ -56,6 +56,9 @@ export const ORG_TIMEZONE = appConfig.orgTimezone;
 /** Where members are told to email for help. */
 export const SUPPORT_EMAIL = appConfig.supportEmail;
 
+/** The `From` of notification emails: `Name <address>`. */
+export const EMAIL_FROM = `${appConfig.email.fromName} <${appConfig.email.fromAddress}>`;
+
 /**
  * Canonical (production) base URL, no trailing slash, the same in every environment: links in
  * Slack messages and iCal event UIDs, which must stay stable or calendar subscribers see

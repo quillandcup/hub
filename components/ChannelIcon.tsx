@@ -39,6 +39,20 @@ const ICONS: Record<ChannelId, (props: { className?: string }) => React.ReactEle
       />
     </svg>
   ),
+  email: ({ className }) => (
+    // An envelope, in slate so it reads next to the colored Slack and bell logos.
+    <svg
+      viewBox="0 0 24 24"
+      className={`text-slate-600 dark:text-slate-300 ${className ?? ""}`}
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path
+        fill="currentColor"
+        d="M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zm0 2v.5l8 5 8-5V6H4zm16 3-7.5 4.7a1 1 0 0 1-1 0L4 9v9h16V9z"
+      />
+    </svg>
+  ),
 };
 
 export function ChannelIcon({ channel, className }: { channel: ChannelId; className?: string }) {

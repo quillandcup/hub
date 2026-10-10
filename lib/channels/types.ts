@@ -27,6 +27,8 @@ export interface OutboundMessage {
 
 /** What a channel knows about the send besides the message itself. */
 export interface SendContext {
+  /** The member being sent to. */
+  memberId: string;
   /** The notification kind (lib/notifications/registry.ts). */
   kind: string;
 }

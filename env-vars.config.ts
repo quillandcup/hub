@@ -431,13 +431,35 @@ export const ENV_VARS: readonly EnvVarSpec[] = [
     destinations: [{ kind: "github" }],
   },
 
-  // --- Supabase config push: read by `supabase config push` locally and in CI, never by the app ---
+  // --- Email (Resend) ---------------------------------------------------------------------------
   {
     name: "RESEND_API_KEY",
-    group: "Supabase config push (local + CI)",
+    group: "Email (Resend)",
     description:
-      "SMTP auth for Supabase Auth emails. Read by `supabase config push` (`npm run config:push` locally, and CI's push-migrations job on every push to main) via config.toml's env(RESEND_API_KEY). CI refuses to push config without it, since the push would otherwise overwrite production's SMTP password. The app itself never reads it, so it isn't synced to Vercel.",
+      "Resend API key (sending access). The app sends member notification emails with it (lib/email.ts). The same key is Supabase Auth's SMTP password: the config push (`npm run config:push` locally, and CI's push-migrations job on every push to main) reads it via config.toml's env(RESEND_API_KEY), and CI refuses to push config without it, since the push would otherwise overwrite production's SMTP password.",
     type: "secret",
-    destinations: [{ kind: "github" }],
+    destinations: [...vercelAllEnvs, { kind: "github" }],
+  },
+  {
+    name: "EMAIL_UNSUBSCRIBE_SECRET",
+    group: "Email (Resend)",
+    description:
+      "Signing secret for the unsubscribe links in notification emails (lib/email-unsubscribe.ts). Changing it breaks the unsubscribe links in emails already sent, so treat it as permanent. Emails aren't sent without it.",
+    type: "secret",
+    destinations: vercelAllEnvs,
+  },
+  {
+    name: "EMAIL_DEV_ADDRESS",
+    group: "Email (Resend)",
+    description: "Address that redirected test-mode notification emails go to. Without it, test mode sends nothing.",
+    type: "config",
+    destinations: vercelAllEnvs,
+  },
+  {
+    name: "EMAIL_TEST_MODE",
+    group: "Email (Resend)",
+    description: "Overrides default notification-email redirect behavior outside production.",
+    type: "config",
+    destinations: vercelAllEnvs,
   },
 ];

@@ -28,9 +28,12 @@ const fonts = {
 
 export function EmailLayout({
   preview,
+  footerLinks,
   children,
 }: {
   preview: string;
+  /** Small links above the support line (notification emails: "Notification settings"). */
+  footerLinks?: { label: string; url: string }[];
   children: React.ReactNode;
 }) {
   return (
@@ -83,6 +86,14 @@ export function EmailLayout({
           >
             Hedgie Hub · The members' home of Quill &amp; Cup, a community for writers
             <br />
+            {(footerLinks ?? []).map((link) => (
+              <React.Fragment key={link.url}>
+                <a href={link.url} style={{ color: colors.accent }}>
+                  {link.label}
+                </a>
+                <br />
+              </React.Fragment>
+            ))}
             Questions? Email{" "}
             <a href={`mailto:${SUPPORT_EMAIL}`} style={{ color: colors.accent }}>
               {SUPPORT_EMAIL}

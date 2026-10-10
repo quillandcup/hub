@@ -15,6 +15,8 @@ export const CHANNELS = [
   // Behind the in_app_notifications feature flag: members without it can't be reached on it and
   // don't see it in settings (lib/channels/in-app.ts).
   { id: "in_app", label: "In the Hub", description: "In the Hub's notification inbox, and as a banner while it's time-sensitive" },
+  // The address on the member record. Off by default for every kind: members opt in in settings (see the default-flip note in lib/notifications/registry.ts).
+  { id: "email", label: "Email", description: "An email to the address on your Hub account" },
 ] as const;
 
 export type ChannelId = (typeof CHANNELS)[number]["id"];

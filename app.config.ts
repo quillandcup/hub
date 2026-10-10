@@ -27,6 +27,13 @@ export const appConfig = {
   /** Support address shown to members (settings, /no-access, the auth email footer). */
   supportEmail: "support@quillandcup.com",
 
+  /**
+   * Sender of member notification emails (lib/email.ts). The domain must be verified in Resend.
+   * Supabase Auth emails use the same address, declared separately in supabase/config.toml
+   * (`[remotes.prod.auth.email.smtp]`), which can't read this file.
+   */
+  email: { fromName: "Hedgie Hub", fromAddress: "no-reply@hub.quillandcup.com" },
+
   /** Sentry org/project slugs for the production build's source map upload. */
   sentry: { org: "quillandcup", project: "hub" },
 } as const;

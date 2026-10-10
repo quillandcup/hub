@@ -11,6 +11,14 @@ import { CHANNELS, isChannelId, type ChannelId } from "@/lib/channels/catalog";
  * notification_preferences stores only a member's overrides of these defaults, keyed by these ids.
  */
 
+/**
+ * Changing a kind's defaultChannels later (e.g. turning email on for everyone) is safe: a stored
+ * notification_preferences row means the member chose, even when the choice matched the default at
+ * the time (setNotificationChannel always stores it), and a missing row means they never chose.
+ * So only members with no row for that kind and channel see the new default; nobody's explicit
+ * opt-in or opt-out is touched.
+ */
+
 /** Every channel can carry notifications today; narrow this if one ever can't. */
 export const NOTIFICATION_CHANNELS = CHANNELS;
 export type NotificationChannelId = ChannelId;
@@ -21,6 +29,7 @@ export interface NotificationKindDef {
   /** Settings-page grouping heading. */
   category: string;
   label: string;
+  /** What it is and when it comes, as a sentence that also works after "You're getting emails about <label>." (the unsubscribe page) as well as under the label in settings. */
   description: string;
   /** Channels it goes to for a member who hasn't changed this kind's settings. */
   defaultChannels: readonly NotificationChannelId[];
@@ -31,14 +40,14 @@ export const NOTIFICATION_KINDS = [
     id: "prickle_checkin",
     category: "Prickles",
     label: "Prickle check-ins",
-    description: "About 20 minutes before a writing prickle on your calendar: how you're feeling coming in.",
+    description: "Sent about 20 minutes before each writing prickle on your calendar: how you're feeling coming in.",
     defaultChannels: ["slack", "in_app"],
   },
   {
     id: "prickle_checkout",
     category: "Prickles",
     label: "Prickle check-outs",
-    description: "After a writing prickle you attended: how it went, and a quick progress log for your goals.",
+    description: "Sent after each writing prickle you attended: how it went, and a quick progress log for your goals.",
     defaultChannels: ["slack", "in_app"],
   },
 ] as const satisfies readonly NotificationKindDef[];

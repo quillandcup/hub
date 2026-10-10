@@ -40,7 +40,7 @@ describe("getNotificationSettings", () => {
     });
 
     expect(await getNotificationSettings()).toEqual({
-      channels: ["slack"],
+      channels: ["slack", "email"],
       channelsByKind: { prickle_checkin: ["slack", "in_app"], prickle_checkout: ["in_app"] },
       readOnly: false,
     });
@@ -53,7 +53,7 @@ describe("getNotificationSettings", () => {
       feature_flags: { data: { enabled_globally: true } },
       members: { data: [{ id: "member-1", user_id: "user-1" }] },
     });
-    expect((await getNotificationSettings())?.channels).toEqual(["slack", "in_app"]);
+    expect((await getNotificationSettings())?.channels).toEqual(["slack", "in_app", "email"]);
   });
 
   it("is read-only in sudo", async () => {
@@ -128,6 +128,19 @@ describe("NotificationsPanel", () => {
     );
     expect(screen.getByRole("button", { name: "Prickle check-ins via In the Hub" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByRole("button", { name: "Prickle check-ins via Slack" })).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("lets a member opt in to email for a kind and saves it", async () => {
+    render(<NotificationsPanel initial={{ ...initial, channels: ["slack", "email"] }} />);
+    const email = screen.getByRole("button", { name: "Prickle check-ins via Email" });
+    expect(email).toHaveAttribute("aria-pressed", "false");
+
+    await userEvent.click(email);
+
+    await waitFor(() => expect(upserts()).toHaveLength(1));
+    expect(email).toHaveAttribute("aria-pressed", "true");
+    const upsert = upserts()[0].calls.find((c) => c.method === "upsert")!;
+    expect(upsert.args[0]).toMatchObject({ kind: "prickle_checkin", channel: "email", enabled: true });
   });
 
   it("disables every switch when read-only", () => {

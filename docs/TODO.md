@@ -459,10 +459,10 @@ Per-user login/access history (`access_events` table + `get_access_sessions()`, 
 
 ## Notifications
 
-### Channels, Notifications & Messaging _(v1 live: Slack, in-app (flagged) + per-kind notification settings; more channels next)_
+### Channels, Notifications & Messaging _(v1 live: Slack, in-app (flagged), email + per-kind notification settings; more channels next)_
 One system for everything the Hub sends members, instead of each feature hand-rolling a Slack DM. Three layers (this replaces the CRM section's "Messaging Abstraction Layer" item):
 
-- **Channels** (`lib/channels/`): the delivery systems (Slack and in-app today; email, SMS, WhatsApp, web push next). Each adapter resolves a member to an address and sends an `OutboundMessage` (`text`, `url`, per-channel rich bodies like `slackBlocks`, `footerLinks`, and `timeSensitiveUntil`: how long it's worth interrupting for, which each channel interprets, e.g. in-app banner vs bell only). Shared by both layers below; nothing above it talks to a provider directly.
+- **Channels** (`lib/channels/`): the delivery systems (Slack, in-app and email today; SMS, WhatsApp, web push next). Each adapter resolves a member to an address and sends an `OutboundMessage` (`text`, `url`, per-channel rich bodies like `slackBlocks`, `footerLinks`, and `timeSensitiveUntil`: how long it's worth interrupting for, which each channel interprets, e.g. in-app banner vs bell only). Shared by both layers below; nothing above it talks to a provider directly.
 - **Notifications** (`lib/notifications/`): the app reaching out, governed by the member's per-kind channel choices. Mostly one-way, but some ask for an answer (check-in/check-out selects); the reply comes back over the same channel's inbound webhook.
 - **Messaging** (planned): two-way conversations, e.g. in-app chat bridged to Slack (`docs/SLACK_BRIDGED_CHAT.md`), and later SMS/WhatsApp threads. Uses the same channel adapters, plus the inbound half they don't have yet. Members won't move off Slack for chat without notifications for new messages, mentions and DMs, so chat events become notification kinds too.
 
