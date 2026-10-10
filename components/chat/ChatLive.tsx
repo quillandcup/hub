@@ -133,7 +133,7 @@ export default function ChatLive({
       if (data.session) await supabase.realtime.setAuth(data.session.access_token);
       if (cancelled) return;
       subscription = supabase
-        .channel(`chat:${channelId}`)
+        .channel(`chat:${channelId}:${view}:${threadRootId ?? ""}`)
         .on("postgres_changes", { event: "*", schema: "public", table: "chat_messages", filter: `channel_id=eq.${channelId}` }, (p) => onMessage(p as unknown as Change))
         .on("postgres_changes", { event: "*", schema: "public", table: "chat_reactions" }, (p) => onReaction(p as unknown as Change))
         .subscribe((status, err) => {

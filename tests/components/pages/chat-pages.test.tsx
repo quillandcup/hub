@@ -5,7 +5,7 @@
  * paging, and what is hidden in sudo.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import {
   MEMBER_IDENTITY,
@@ -104,6 +104,7 @@ const fakeTables = (): FakeTables => ({
     data: [
       { id: "member-gale", name: "Gale Prickleton", display_name: null, photo_url: "https://photos.example.test/gale.jpg" },
       { id: "member-fern", name: "Fern Quillsby", display_name: "Fern", photo_url: null },
+      { id: id(900), name: "Hazel Burrows", display_name: null, photo_url: null },
     ],
   },
   chat_messages: (q) => {
@@ -241,13 +242,44 @@ describe("channel page", () => {
     expect(fake.queries.find((q) => q.table === "chat_messages")!.calls.some((c) => c.method === "lt")).toBe(false);
   });
 
-  it("shows a thread: the root, then its replies, with a way back", async () => {
+  it("opens a thread in a right panel beside the messages, which stay put", async () => {
     messages = [msg(1, { reply_count: 1 }), msg(2, { thread_root_id: id(101), chat_message_contents: { body: "the reply" } })];
     await renderChannel(GENERAL, { thread: id(101) });
 
-    expect(screen.getByRole("link", { name: "← Back to #general" })).toHaveAttribute("href", `/chat/${GENERAL}`);
-    expect(screen.getByText("the reply")).toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: /repl/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Messages" })).toBeInTheDocument();
+    const panel = within(screen.getByRole("complementary", { name: "Thread" }));
+    expect(panel.getByRole("link", { name: "Close thread" })).toHaveAttribute("href", `/chat/${GENERAL}`);
+    expect(panel.getByText("the reply")).toBeInTheDocument();
+    expect(panel.queryByRole("link", { name: /repl/ })).not.toBeInTheDocument();
+  });
+
+  it("keeps ?before= when a panel is closed, so the reader stays on the older page", async () => {
+    messages = [msg(1, { reply_count: 1 })];
+    await renderChannel(GENERAL, { thread: id(101), before: "2026-10-05T00:00:00Z" });
+    expect(screen.getByRole("link", { name: "Close thread" })).toHaveAttribute(
+      "href",
+      `/chat/${GENERAL}?before=${encodeURIComponent("2026-10-05T00:00:00Z")}`,
+    );
+  });
+
+  it("opens a member's profile in the right panel, with a link to the full profile", async () => {
+    messages = [msg(1)];
+    await renderChannel(GENERAL, { profile: id(900) });
+
+    const panel = within(screen.getByRole("complementary", { name: "Profile" }));
+    expect(panel.getByText("Hazel Burrows")).toBeInTheDocument();
+    expect(panel.getByRole("link", { name: "View full profile" })).toHaveAttribute("href", `/members/${id(900)}`);
+    expect(panel.getByRole("link", { name: "Close profile" })).toHaveAttribute("href", `/chat/${GENERAL}`);
+  });
+
+  it("opens no panel for a bad profile id, and a thread wins over a profile", async () => {
+    messages = [msg(1, { reply_count: 1 })];
+    await renderChannel(GENERAL, { profile: "not-a-uuid" });
+    expect(screen.queryByRole("complementary", { name: "Profile" })).not.toBeInTheDocument();
+    cleanup();
+    await renderChannel(GENERAL, { thread: id(101), profile: id(900) });
+    expect(screen.getByRole("complementary", { name: "Thread" })).toBeInTheDocument();
+    expect(screen.queryByRole("complementary", { name: "Profile" })).not.toBeInTheDocument();
   });
 
   it("is a 404 for a private conversation the member isn't in, a bad id, an unknown thread, or an unknown channel", async () => {
@@ -273,12 +305,13 @@ describe("channel page", () => {
 });
 
 describe("authors and members", () => {
-  it("links an author's name and avatar to their profile, but not an unmatched Slack author", async () => {
+  it("links an author's name and avatar to their profile panel, but not an unmatched Slack author", async () => {
     messages = [msg(1), msg(4, { author_member_id: null, slack_ts: "300.000" })];
     await renderChannel(GENERAL);
     const first = within(document.getElementById(`m-${id(101)}`)!);
-    expect(first.getByRole("link", { name: "Gale Prickleton" })).toHaveAttribute("href", "/members/member-gale");
-    expect(first.getAllByRole("link").every((a) => a.getAttribute("href") === "/members/member-gale")).toBe(true);
+    const profile = `/chat/${GENERAL}?profile=member-gale`;
+    expect(first.getByRole("link", { name: "Gale Prickleton" })).toHaveAttribute("href", profile);
+    expect(first.getAllByRole("link").filter((a) => !/thread=/.test(a.getAttribute("href")!)).every((a) => a.getAttribute("href") === profile)).toBe(true);
     expect(within(document.getElementById(`m-${id(104)}`)!).queryByRole("link")).not.toBeInTheDocument();
   });
 

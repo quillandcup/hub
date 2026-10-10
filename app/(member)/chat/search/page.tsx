@@ -85,7 +85,7 @@ export default async function ChatSearchPage({
   };
 
   return (
-    <div>
+    <div className="p-6 max-w-3xl">
       <h1 className="text-2xl font-bold mb-3">Search chat</h1>
       <form action="/chat/search" role="search" className="mb-5 space-y-3">
         <div className="flex gap-2">

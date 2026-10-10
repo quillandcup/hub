@@ -39,9 +39,12 @@ export default function ChatSidebar({ channels }: { channels: ChannelSummary[] }
   const pathname = usePathname();
   const live = channels.filter((c) => !c.archived);
   return (
-    // Pinned and capped to the viewport with its own scroll: a long channel list must not set the
-    // page's height, or short conversations scroll to a screenful of nothing below the messages.
-    <nav aria-label="Conversations" className="md:sticky md:top-6 md:self-start md:max-h-[calc(100vh-7rem)] md:overflow-y-auto">
+    // Its own full-height column that scrolls by itself, so a long channel list never sets the
+    // height of the conversation beside it.
+    <nav
+      aria-label="Conversations"
+      className="shrink-0 overflow-y-auto border-b border-slate-200 p-4 max-md:max-h-48 md:h-full md:w-60 md:border-b-0 md:border-r dark:border-slate-800"
+    >
       <form action="/chat/search" role="search" className="mb-4 px-1">
         <input
           type="search"

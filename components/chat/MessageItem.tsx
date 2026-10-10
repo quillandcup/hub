@@ -17,11 +17,12 @@ export default function MessageItem({
   channelId: string;
   inThread?: boolean;
 }) {
+  const profileHref = `/chat/${channelId}?profile=${message.authorMemberId}`;
   return (
     <article className="py-3 border-b border-slate-100 dark:border-slate-800 last:border-0 flex gap-3" id={`m-${message.id}`}>
       <div className="shrink-0 pt-0.5">
         {message.authorMemberId ? (
-          <Link href={`/members/${message.authorMemberId}`} aria-hidden="true" tabIndex={-1}>
+          <Link href={profileHref} scroll={false} aria-hidden="true" tabIndex={-1}>
             <MemberAvatar name={message.authorName} photoUrl={message.authorPhotoUrl} size={36} />
           </Link>
         ) : (
@@ -33,7 +34,7 @@ export default function MessageItem({
       <div className="min-w-0 flex-1">
         <header className="flex items-baseline gap-2 text-sm">
           {message.authorMemberId ? (
-            <Link href={`/members/${message.authorMemberId}`} className="font-semibold hover:underline">
+            <Link href={profileHref} scroll={false} className="font-semibold hover:underline">
               {message.authorName}
             </Link>
           ) : (
@@ -81,6 +82,7 @@ export default function MessageItem({
         {!inThread && message.replyCount > 0 && (
           <Link
             href={`/chat/${channelId}?thread=${message.id}`}
+            scroll={false}
             className="mt-1.5 inline-flex items-center gap-2 text-xs text-plum-600 dark:text-plum-400 hover:underline"
           >
             <AvatarStack people={message.replyAuthors} size={20} />

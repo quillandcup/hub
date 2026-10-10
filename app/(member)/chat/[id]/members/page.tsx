@@ -23,7 +23,7 @@ export default async function ChatMembersPage({ params }: { params: Promise<{ id
   const people = await loadChannelMembers(supabase, channel.id);
 
   return (
-    <div>
+    <div className="p-6 max-w-3xl">
       <header className="mb-4 pb-3 border-b border-slate-200 dark:border-slate-800">
         <Link href={`/chat/${channel.id}`} className="text-sm text-plum-700 dark:text-plum-300 hover:underline">
           ← Back to {channel.label}
