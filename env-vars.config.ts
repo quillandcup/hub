@@ -208,6 +208,21 @@ export const ENV_VARS: readonly EnvVarSpec[] = [
     destinations: vercelAllEnvs,
   },
   {
+    name: "SLACK_CLIENT_ID",
+    group: "Slack",
+    description:
+      "The Slack app's client ID (Basic Information). With SLACK_CLIENT_SECRET, turns on \"Connect your Slack account\" (Hub chat posts and reacts as the member); until both are set the button doesn't appear.",
+    type: "config",
+    destinations: vercelAllEnvs,
+  },
+  {
+    name: "SLACK_CLIENT_SECRET",
+    group: "Slack",
+    description: "The Slack app's client secret (Basic Information), paired with SLACK_CLIENT_ID.",
+    type: "secret",
+    destinations: vercelAllEnvs,
+  },
+  {
     name: "SLACK_FEEDBACK_CHANNEL_ID",
     group: "Slack",
     description: "Channel ID feedback-widget submissions post to.",
