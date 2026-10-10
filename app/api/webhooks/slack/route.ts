@@ -173,8 +173,11 @@ async function processSlackEvent(event: any) {
       // (never counting the bot's own message — Slack message events carry
       // a bot_id when the sender is a bot/app). See
       // app/(member)/wheel-of-wonder/actions.ts.
-      if (!event.bot_id) {
-        await trackWheelExchange(supabase, event);
+      // A message written in the Hub is posted by the bot, so it has a bot_id; its real author is
+      // the member on the chat_messages row our post's metadata points at, and it counts.
+      const hubAuthorMemberId = event.bot_id ? await hubMessageAuthor(supabase, event) : null;
+      if (!event.bot_id || hubAuthorMemberId) {
+        await trackWheelExchange(supabase, event, hubAuthorMemberId);
       }
 
       // Trigger Silver processing asynchronously
@@ -325,7 +328,23 @@ async function publishHomeTab(event: any, origin: string) {
  * CONNECTION_CONFIRMATION_MESSAGE_THRESHOLD -- a single unanswered reply
  * shouldn't count as a real connection.
  */
-async function trackWheelExchange(supabase: any, event: any) {
+/**
+ * The member who wrote a message that was posted from the Hub (posted by the bot, with our
+ * hub_message metadata naming the chat_messages row), or null for any other bot post.
+ */
+async function hubMessageAuthor(supabase: any, event: any): Promise<string | null> {
+  const messageId = event.metadata?.event_type === "hub_message" ? event.metadata.event_payload?.app_message_id : null;
+  if (typeof messageId !== "string" || !/^[0-9a-f-]{36}$/i.test(messageId)) return null;
+  const { data } = await supabase
+    .from("chat_messages")
+    .select("author_member_id")
+    .eq("id", messageId)
+    .eq("origin", "app")
+    .maybeSingle();
+  return data?.author_member_id ?? null;
+}
+
+async function trackWheelExchange(supabase: any, event: any, hubAuthorMemberId: string | null = null) {
   try {
     const { data: match, error: matchError } = await supabase
       .from("wheel_of_wonder_matches")
@@ -342,8 +361,12 @@ async function trackWheelExchange(supabase: any, event: any) {
     }
     if (!match) return;
 
-    const isSpinner = event.user && event.user === match.spinner_slack_user_id;
-    const isMatched = event.user && event.user === match.matched_slack_user_id;
+    const isSpinner = hubAuthorMemberId
+      ? hubAuthorMemberId === match.spinner_member_id
+      : event.user && event.user === match.spinner_slack_user_id;
+    const isMatched = hubAuthorMemberId
+      ? hubAuthorMemberId === match.matched_member_id
+      : event.user && event.user === match.matched_slack_user_id;
     if (!isSpinner && !isMatched) return; // shouldn't happen -- only 3 people are ever in this room
 
     const spinnerMessageCount = match.spinner_message_count + (isSpinner ? 1 : 0);

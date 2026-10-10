@@ -355,6 +355,7 @@ describe('Slack Webhook', () => {
 
     async function cleanupWheelFixtures() {
       await supabase.from('wheel_of_wonder_matches').delete().eq('slack_channel_id', channelId)
+      await supabase.from('chat_channels').delete().eq('slack_channel_id', channelId)
       await supabase.from('members').delete().eq('email', spinnerEmail)
       await supabase.from('members').delete().eq('email', matchedEmail)
     }
@@ -501,6 +502,34 @@ describe('Slack Webhook', () => {
         .maybeSingle()
 
       expect(match).toBeNull()
+    })
+
+    it('counts a message written in the Hub (posted by the bot) for the member who wrote it', async () => {
+      await insertProposedMatch()
+      const { data: hubChannel } = await supabase
+        .from('chat_channels')
+        .insert({ kind: 'group_dm', visibility: 'private', restricted: true, slack_channel_id: channelId })
+        .select('id')
+        .single()
+      const post = async (authorId: string) => {
+        const { data: row } = await supabase
+          .from('chat_messages')
+          .insert({ channel_id: hubChannel!.id, author_member_id: authorId, origin: 'app', created_at: new Date().toISOString() })
+          .select('id')
+          .single()
+        const metadata = { event_type: 'hub_message', event_payload: { app_message_id: row!.id } }
+        const response = await POST(
+          signedRequest(buildMessageEvent(spinnerSlackUserId, { user: undefined, bot_id: 'BWHEELBOT1', metadata })) as unknown as NextRequest
+        )
+        expect(response.status).toBe(200)
+      }
+
+      await post(spinnerMemberId)
+      await post(matchedMemberId)
+
+      const match = await getMatch()
+      expect(match.spinner_message_count).toBe(1)
+      expect(match.matched_message_count).toBe(1)
     })
 
     it('does not track a message from the bot itself', async () => {
