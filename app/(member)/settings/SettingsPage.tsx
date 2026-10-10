@@ -14,6 +14,9 @@ import { getUserFeaturePreviews } from "@/lib/features.server";
 import { getHostedVibes } from "@/app/(member)/prickle-picker/actions";
 import HostVibePanel from "@/components/HostVibePanel";
 import { Tabs } from "@/components/Tabs";
+import SlackConnectPanel from "./SlackConnectPanel";
+import { createServiceRoleClient } from "@/lib/supabase/service";
+import { getSlackConnectionStatus, isSlackConnectConfigured } from "@/lib/slack-connect";
 
 /** Settings tabs, at /settings (Account) and /settings/<id> (lib/tab-routes.ts). */
 export const SETTINGS_TAB_IDS = ["account", "profile", "identity", "preferences", "notifications", "hosting", "previews"] as const;
@@ -55,6 +58,14 @@ export default async function SettingsPage({ tab }: { tab: SettingsTabId }) {
   ) {
     redirect("/settings");
   }
+
+  // Connecting Slack: a chat_posting preview, only once the Slack app's client ID and secret are set,
+  // and only for your own account (not while viewing as another member).
+  const showSlackConnect =
+    isSlackConnectConfigured() && effectiveIdentity !== null && !effectiveIdentity.isSudo && enabledFeatures.includes("chat_posting");
+  const slackConnected = showSlackConnect
+    ? (await getSlackConnectionStatus(createServiceRoleClient(), effectiveIdentity!.memberId)).connected
+    : false;
 
   // The effective identity's email, so sudo shows the member's email rather than the admin's.
   const displayEmail = effectiveIdentity?.memberEmail ?? user.email;
@@ -99,6 +110,12 @@ export default async function SettingsPage({ tab }: { tab: SettingsTabId }) {
                         </div>
                       </div>
                     </div>
+
+                    {showSlackConnect && (
+                      <div className="border-t border-slate-200 dark:border-slate-700 pt-6">
+                        <SlackConnectPanel connected={slackConnected} />
+                      </div>
+                    )}
 
                     <div className="border-t border-slate-200 dark:border-slate-700 pt-6">
                       <SessionsPanel />

@@ -48,6 +48,14 @@ oauth_config:
       - files:write
       # /hub slash command (Slack sign-in)
       - commands
+    # What a member lets the Hub do as them once they connect their Slack account (Settings,
+    # lib/slack-connect.ts): post and react natively instead of through the bot.
+    user:
+      - chat:write
+      - reactions:write
+  # Where Slack sends a member back after they approve (app/api/oauth/slack/callback).
+  redirect_urls:
+    - https://hub.quillandcup.com/api/oauth/slack/callback
   pkce_enabled: false
 settings:
   interactivity:
