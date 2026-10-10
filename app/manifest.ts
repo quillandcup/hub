@@ -14,6 +14,9 @@ export default function manifest(): MetadataRoute.Manifest {
     display: "standalone",
     background_color: "#ffffff",
     theme_color: "#ffffff",
-    icons: [{ src: "/billiebot.png", sizes: "1000x1000", type: "image/png", purpose: "any" }],
+    icons: [
+      { src: "/billiebot-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
+      { src: "/billiebot-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
+    ],
   };
 }

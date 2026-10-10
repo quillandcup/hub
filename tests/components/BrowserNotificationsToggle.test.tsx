@@ -6,7 +6,16 @@ import "@testing-library/jest-dom/vitest";
 
 const savePushSubscription = vi.hoisted(() => vi.fn());
 const removePushSubscription = vi.hoisted(() => vi.fn());
-vi.mock("@/app/(member)/settings/notificationActions", () => ({ savePushSubscription, removePushSubscription }));
+const listPushDevices = vi.hoisted(() => vi.fn());
+const removePushDevice = vi.hoisted(() => vi.fn());
+const sendTestPushNotification = vi.hoisted(() => vi.fn());
+vi.mock("@/app/(member)/settings/notificationActions", () => ({
+  savePushSubscription,
+  removePushSubscription,
+  listPushDevices,
+  removePushDevice,
+  sendTestPushNotification,
+}));
 
 const { BrowserNotificationsToggle, urlBase64ToUint8Array } = await import(
   "@/app/(member)/settings/BrowserNotificationsToggle"
@@ -44,6 +53,9 @@ function fakeBrowser({ permission, existing }: { permission: NotificationPermiss
 beforeEach(() => {
   savePushSubscription.mockReset().mockResolvedValue({ success: true });
   removePushSubscription.mockReset().mockResolvedValue({ success: true });
+  listPushDevices.mockReset().mockResolvedValue([]);
+  removePushDevice.mockReset().mockResolvedValue({ success: true });
+  sendTestPushNotification.mockReset().mockResolvedValue({ success: true });
   subscription.unsubscribe.mockClear();
 });
 afterEach(() => {
@@ -106,6 +118,38 @@ describe("BrowserNotificationsToggle", () => {
   it("says so when the browser can't do push", async () => {
     render(<BrowserNotificationsToggle publicKey="AAAA" readOnly={false} />);
     expect(await screen.findByText(/can't show notifications/)).toBeInTheDocument();
+  });
+
+  it("lists devices, sends a test, and removes another device but not this one", async () => {
+    fakeBrowser({ permission: "granted", existing: true });
+    const row = (id: string, label: string, isThisDevice: boolean) => ({
+      id,
+      label,
+      addedAt: "2026-10-01T00:00:00Z",
+      lastSentAt: null,
+      isThisDevice,
+    });
+    listPushDevices.mockResolvedValue([row("d1", "Chrome on Mac", true), row("d2", "Safari on iPhone", false)]);
+    render(<BrowserNotificationsToggle publicKey="AAAA" readOnly={false} />);
+
+    expect(await screen.findByText("Safari on iPhone")).toBeInTheDocument();
+    expect(listPushDevices).toHaveBeenCalledWith(subscription.endpoint);
+    expect(screen.queryByRole("button", { name: "Remove Chrome on Mac" })).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Send a test notification" }));
+    expect(await screen.findByRole("status")).toHaveTextContent("Sent");
+
+    await userEvent.click(screen.getByRole("button", { name: "Remove Safari on iPhone" }));
+    await waitFor(() => expect(removePushDevice).toHaveBeenCalledWith("d2"));
+  });
+
+  it("shows the install steps on an iPhone tab, where push isn't available", async () => {
+    vi.spyOn(navigator, "userAgent", "get").mockReturnValue(
+      "Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 Safari/604.1"
+    );
+    window.matchMedia = vi.fn().mockReturnValue({ matches: false }) as never;
+    render(<BrowserNotificationsToggle publicKey="AAAA" readOnly={false} />);
+    expect(await screen.findByText(/Add to Home Screen/)).toBeInTheDocument();
   });
 
   it("disables the button when read-only", async () => {

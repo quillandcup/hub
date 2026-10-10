@@ -19,7 +19,15 @@ vi.mock("@/lib/sudo", () => ({ getEffectiveIdentity: vi.fn() }));
 
 const { getCurrentUser } = await import("@/lib/auth");
 const { getEffectiveIdentity } = await import("@/lib/sudo");
-const { getNotificationSettings, removePushSubscription, savePushSubscription, setNotificationChannel } = await import("@/app/(member)/settings/notificationActions");
+const {
+  getNotificationSettings,
+  listPushDevices,
+  removePushDevice,
+  removePushSubscription,
+  savePushSubscription,
+  sendTestPushNotification,
+  setNotificationChannel,
+} = await import("@/app/(member)/settings/notificationActions");
 const { NotificationsPanel } = await import("@/app/(member)/settings/NotificationsPanel");
 
 const IDENTITY = { memberId: "member-1", memberName: "Member One", memberEmail: "m1@example.com", isSudo: false };
@@ -153,6 +161,52 @@ describe("setNotificationChannel", () => {
     expect(await setNotificationChannel("spam", "slack", true)).toEqual({ error: "Invalid notification setting" });
     expect(await setNotificationChannel("prickle_checkin", "fax", true)).toEqual({ error: "Invalid notification setting" });
     expect(upserts()).toHaveLength(0);
+  });
+});
+
+describe("push devices", () => {
+  const ROWS = [
+    { id: "d1", member_id: "member-1", endpoint: "https://push.example.test/1", user_agent: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) CriOS/126.0 Mobile Safari/604.1", created_at: "2026-10-01T00:00:00Z", last_sent_at: null },
+    { id: "d2", member_id: "member-1", endpoint: "https://push.example.test/2", user_agent: null, created_at: "2026-09-01T00:00:00Z", last_sent_at: "2026-10-02T00:00:00Z" },
+  ];
+  const flagged = (extra = {}) =>
+    createFakeSupabase({
+      feature_flags: { data: { enabled_globally: true } },
+      members: { data: [{ id: "member-1", user_id: "user-1" }] },
+      ...extra,
+    });
+
+  it("lists the member's devices with a label, marking the asking browser by its endpoint", async () => {
+    serviceFake = createFakeSupabase({ push_subscriptions: { data: ROWS } });
+    const devices = await listPushDevices("https://push.example.test/2");
+    expect(devices).toEqual([
+      { id: "d1", label: "Chrome on iPhone", addedAt: "2026-10-01T00:00:00Z", lastSentAt: null, isThisDevice: false },
+      { id: "d2", label: "Unknown device", addedAt: "2026-09-01T00:00:00Z", lastSentAt: "2026-10-02T00:00:00Z", isThisDevice: true },
+    ]);
+    const calls = serviceFake.queries.find((q) => q.table === "push_subscriptions")!.calls;
+    expect(calls).toContainEqual({ method: "eq", args: ["member_id", "member-1"] });
+  });
+
+  it("removes only the member's own device by id, and refuses in sudo", async () => {
+    serviceFake = flagged();
+    expect(await removePushDevice("d1")).toEqual({ success: true });
+    const calls = serviceFake.queries.filter((q) => q.table === "push_subscriptions").flatMap((q) => q.calls);
+    expect(calls).toContainEqual({ method: "eq", args: ["member_id", "member-1"] });
+    expect(calls).toContainEqual({ method: "eq", args: ["id", "d1"] });
+
+    vi.mocked(getEffectiveIdentity).mockResolvedValue({ ...IDENTITY, isSudo: true } as never);
+    expect(await removePushDevice("d1")).toEqual({ error: expect.stringContaining("sudo") });
+  });
+
+  it("refuses a test when no device is subscribed, and in sudo", async () => {
+    vi.stubEnv("NEXT_PUBLIC_VAPID_PUBLIC_KEY", "public-key");
+    vi.stubEnv("VAPID_PRIVATE_KEY", "private-key");
+    serviceFake = flagged({ push_subscriptions: { data: [] } });
+    expect(await sendTestPushNotification()).toEqual({ error: expect.stringContaining("No device") });
+
+    vi.mocked(getEffectiveIdentity).mockResolvedValue({ ...IDENTITY, isSudo: true } as never);
+    expect(await sendTestPushNotification()).toEqual({ error: expect.stringContaining("sudo") });
+    vi.unstubAllEnvs();
   });
 });
 

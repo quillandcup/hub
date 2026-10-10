@@ -126,7 +126,7 @@ export function ttlSeconds(message: OutboundMessage, now: number): number {
 
 export function pushPayload(message: OutboundMessage, { kind }: SendContext, now: number): PushPayload {
   return {
-    title: isNotificationKind(kind) ? notificationKind(kind).label : "Notification",
+    title: message.title ?? (isNotificationKind(kind) ? notificationKind(kind).label : "Notification"),
     body: message.text,
     url: hubPath(message.url) ?? "/",
     tag: message.ref ? `${kind}:${message.ref}` : undefined,
@@ -137,4 +137,30 @@ export function pushPayload(message: OutboundMessage, { kind }: SendContext, now
 function describe(reason: unknown): string {
   if (reason instanceof WebPushError) return `${reason.statusCode} ${reason.body}`;
   return reason instanceof Error ? reason.message : String(reason);
+}
+
+export interface PushDevice {
+  id: string;
+  endpoint: string;
+  userAgent: string | null;
+  createdAt: string;
+  lastSentAt: string | null;
+}
+
+/** A member's live devices, newest first. Service role: the table holds push credentials. */
+export async function loadPushDevices(supabase: any, memberId: string): Promise<PushDevice[]> {
+  const { data, error } = await supabase
+    .from("push_subscriptions")
+    .select("id, endpoint, user_agent, created_at, last_sent_at")
+    .eq("member_id", memberId)
+    .is("deleted_at", null)
+    .order("created_at", { ascending: false });
+  if (error) throw new Error(`push_subscriptions lookup failed: ${error.message}`);
+  return (data ?? []).map((row: any) => ({
+    id: row.id,
+    endpoint: row.endpoint,
+    userAgent: row.user_agent,
+    createdAt: row.created_at,
+    lastSentAt: row.last_sent_at,
+  }));
 }

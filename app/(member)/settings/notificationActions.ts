@@ -6,7 +6,9 @@ import { getEffectiveIdentity } from "@/lib/sudo";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { membersWithFeature } from "@/lib/features.server";
 import { IN_APP_FEATURE } from "@/lib/channels/in-app";
-import { WEB_PUSH_FEATURE, vapidKeys } from "@/lib/channels/web-push";
+import { WEB_PUSH_FEATURE, loadPushDevices, vapidKeys, webPushChannel } from "@/lib/channels/web-push";
+import { NOTIFICATION_SETTINGS_PATH } from "@/lib/notifications/notify";
+import { describeDevice } from "@/lib/device-label";
 import {
   NOTIFICATION_CHANNELS,
   effectiveSettings,
@@ -164,6 +166,83 @@ export async function removePushSubscription(endpoint: string): Promise<{ succes
   if (error) {
     console.error("[notifications] Removing push subscription failed", { member: identity.memberId, error });
     return { error: "Couldn't turn off notifications for this device — please try again." };
+  }
+  return { success: true };
+}
+
+export interface PushDeviceRow {
+  id: string;
+  label: string;
+  addedAt: string;
+  lastSentAt: string | null;
+  /** The browser asking: its endpoint matches this subscription. */
+  isThisDevice: boolean;
+}
+
+/** The effective member's devices that get Browser notifications, marking the one asking (by its endpoint). */
+export async function listPushDevices(currentEndpoint: string | null): Promise<PushDeviceRow[]> {
+  const user = await getCurrentUser();
+  if (!user) return [];
+  const identity = await getEffectiveIdentity(user);
+  if (!identity) return [];
+  try {
+    const devices = await loadPushDevices(createServiceRoleClient(), identity.memberId);
+    return devices.map((d) => ({
+      id: d.id,
+      label: describeDevice(d.userAgent),
+      addedAt: d.createdAt,
+      lastSentAt: d.lastSentAt,
+      isThisDevice: currentEndpoint !== null && d.endpoint === currentEndpoint,
+    }));
+  } catch (error) {
+    console.error("[notifications] Loading push devices failed", { member: identity.memberId, error });
+    return [];
+  }
+}
+
+/** Stop sending to one of the member's devices from another (a lost phone). The device's own browser subscription lapses on its next 404/410. */
+export async function removePushDevice(id: string): Promise<{ success: true } | { error: string }> {
+  const user = await getCurrentUser();
+  if (!user) return { error: "Not authenticated" };
+  const identity = await getEffectiveIdentity(user);
+  if (!identity) return { error: "No member record" };
+  if (identity.isSudo) return { error: "Notification settings can't be changed in sudo mode." };
+  if (typeof id !== "string" || !id) return { error: "Invalid device" };
+
+  const { error } = await createServiceRoleClient()
+    .from("push_subscriptions")
+    .update({ deleted_at: new Date().toISOString() })
+    .eq("member_id", identity.memberId)
+    .eq("id", id)
+    .is("deleted_at", null);
+  if (error) {
+    console.error("[notifications] Removing push device failed", { member: identity.memberId, id, error });
+    return { error: "Couldn't remove that device — please try again." };
+  }
+  return { success: true };
+}
+
+/** Send the member a Browser notification right now, to every device they've turned it on for. Skips preferences: they asked. */
+export async function sendTestPushNotification(): Promise<{ success: true } | { error: string }> {
+  const user = await getCurrentUser();
+  if (!user) return { error: "Not authenticated" };
+  const identity = await getEffectiveIdentity(user);
+  if (!identity) return { error: "No member record" };
+  if (identity.isSudo) return { error: "Test notifications can't be sent in sudo mode." };
+
+  const service = createServiceRoleClient();
+  const reachable = await webPushChannel.resolveAddresses(service, [identity.memberId]);
+  if (!reachable.has(identity.memberId)) return { error: "No device has Browser notifications turned on." };
+
+  try {
+    await webPushChannel.send(
+      identity.memberId,
+      { title: "Test notification", text: "Browser notifications are working on this device.", url: NOTIFICATION_SETTINGS_PATH },
+      { kind: "test" }
+    );
+  } catch (error) {
+    console.error("[notifications] Test push failed", { member: identity.memberId, error });
+    return { error: "Couldn't send the test. Try turning notifications off and on again for this device." };
   }
   return { success: true };
 }

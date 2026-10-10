@@ -1,7 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { removePushSubscription, savePushSubscription } from "./notificationActions";
+import { InstallSteps, isIosBrowserTab } from "@/components/InstallAppPrompt";
+import {
+  listPushDevices,
+  removePushDevice,
+  removePushSubscription,
+  savePushSubscription,
+  sendTestPushNotification,
+  type PushDeviceRow,
+} from "./notificationActions";
 
 type DeviceState = "checking" | "unsupported" | "blocked" | "off" | "on";
 
@@ -30,6 +38,16 @@ export function BrowserNotificationsToggle({ publicKey, readOnly }: { publicKey:
   const [state, setState] = useState<DeviceState>("checking");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [devices, setDevices] = useState<PushDeviceRow[]>([]);
+  const [iosTab, setIosTab] = useState(false);
+
+  /** Reload the member's devices, marking this browser's by its subscription endpoint. */
+  const refreshDevices = async () => {
+    const registration = supportsPush() ? await navigator.serviceWorker.getRegistration(SERVICE_WORKER_PATH) : undefined;
+    const subscription = await registration?.pushManager.getSubscription();
+    setDevices(await listPushDevices(subscription?.endpoint ?? null));
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -41,12 +59,36 @@ export function BrowserNotificationsToggle({ publicKey, readOnly }: { publicKey:
         const registration = await navigator.serviceWorker.getRegistration(SERVICE_WORKER_PATH);
         if (await registration?.pushManager.getSubscription()) next = "on";
       }
-      if (!cancelled) setState(next);
+      if (cancelled) return;
+      setIosTab(isIosBrowserTab());
+      setState(next);
+      await refreshDevices();
     })().catch(() => !cancelled && setState("off"));
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const sendTest = async () => {
+    setBusy(true);
+    setError(null);
+    setNotice(null);
+    const result = await sendTestPushNotification();
+    if ("error" in result) setError(result.error);
+    else setNotice("Sent. It should show up on your devices in a moment.");
+    setBusy(false);
+  };
+
+  const removeDevice = async (id: string) => {
+    setBusy(true);
+    setError(null);
+    setNotice(null);
+    const result = await removePushDevice(id);
+    if ("error" in result) setError(result.error);
+    else await refreshDevices();
+    setBusy(false);
+  };
 
   const enable = async () => {
     setBusy(true);
@@ -75,6 +117,7 @@ export function BrowserNotificationsToggle({ publicKey, readOnly }: { publicKey:
         return;
       }
       setState("on");
+      await refreshDevices();
     } catch (e) {
       console.error("[notifications] Turning on browser notifications failed", e);
       setError("Couldn't turn on notifications for this device. Check your browser's settings and try again.");
@@ -98,6 +141,7 @@ export function BrowserNotificationsToggle({ publicKey, readOnly }: { publicKey:
         await subscription.unsubscribe();
       }
       setState("off");
+      await refreshDevices();
     } catch (e) {
       console.error("[notifications] Turning off browser notifications failed", e);
       setError("Couldn't turn off notifications for this device. Please try again.");
@@ -111,12 +155,17 @@ export function BrowserNotificationsToggle({ publicKey, readOnly }: { publicKey:
   return (
     <div className="rounded-lg border border-slate-200 p-4 text-sm dark:border-slate-700">
       <div className="font-medium text-slate-900 dark:text-slate-100">Browser notifications on this device</div>
-      {state === "unsupported" && (
-        <p className="mt-1 text-slate-500 dark:text-slate-400">
-          This browser can&apos;t show notifications from the Hub. On an iPhone or iPad, add the Hub to your Home
-          Screen first, then open it from there.
-        </p>
-      )}
+      {state === "unsupported" &&
+        (iosTab ? (
+          <div className="mt-1 text-slate-500 dark:text-slate-400">
+            <InstallSteps />
+          </div>
+        ) : (
+          <p className="mt-1 text-slate-500 dark:text-slate-400">
+            This browser can&apos;t show notifications from the Hub. Try a recent version of Chrome, Edge, Firefox or
+            Safari.
+          </p>
+        ))}
       {state === "blocked" && (
         <p className="mt-1 text-slate-500 dark:text-slate-400">
           Notifications are blocked for this site. Allow them in your browser&apos;s site settings, then come back
@@ -140,6 +189,51 @@ export function BrowserNotificationsToggle({ publicKey, readOnly }: { publicKey:
             {state === "on" ? "Turn off for this device" : "Turn on for this device"}
           </button>
         </div>
+      )}
+      {devices.length > 0 && (
+        <div className="mt-3 border-t border-slate-100 pt-3 dark:border-slate-800">
+          <div className="flex items-center justify-between gap-3">
+            <div className="font-medium text-slate-700 dark:text-slate-300">Your devices</div>
+            <button
+              type="button"
+              disabled={readOnly || busy}
+              onClick={sendTest}
+              className="rounded-md border border-slate-300 px-2.5 py-1 font-medium text-slate-700 transition hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-plum-500 disabled:opacity-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
+            >
+              Send a test notification
+            </button>
+          </div>
+          <ul className="mt-2 divide-y divide-slate-100 dark:divide-slate-800">
+            {devices.map((device) => (
+              <li key={device.id} className="flex items-center gap-3 py-2">
+                <div className="min-w-0 flex-1">
+                  <span className="text-slate-900 dark:text-slate-100">{device.label}</span>
+                  {device.isThisDevice && <span className="ml-2 text-xs text-slate-500">this device</span>}
+                  <div className="text-xs text-slate-500 dark:text-slate-400">
+                    Added {new Date(device.addedAt).toLocaleDateString()}
+                    {device.lastSentAt && ` · last notified ${new Date(device.lastSentAt).toLocaleDateString()}`}
+                  </div>
+                </div>
+                {!device.isThisDevice && (
+                  <button
+                    type="button"
+                    disabled={readOnly || busy}
+                    aria-label={`Remove ${device.label}`}
+                    onClick={() => removeDevice(device.id)}
+                    className="rounded-md px-2 py-1 text-red-600 hover:bg-red-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-plum-500 disabled:opacity-50 dark:text-red-400 dark:hover:bg-red-950"
+                  >
+                    Remove
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {notice && (
+        <p role="status" className="mt-2 text-green-700 dark:text-green-400">
+          {notice}
+        </p>
       )}
       {error && (
         <p role="alert" className="mt-2 text-red-600 dark:text-red-400">
