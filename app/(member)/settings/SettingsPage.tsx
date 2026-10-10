@@ -152,6 +152,15 @@ export default async function SettingsPage({ tab }: { tab: SettingsTabId }) {
                     },
                   ]
                 : []),
+              ...(isAdmin
+                ? [
+                    {
+                      id: "previews" as const,
+                      label: SETTINGS_TAB_LABELS.previews,
+                      content: <PreviewsPanel enabledFeatures={enabledFeatures} />,
+                    },
+                  ]
+                : []),
             ]}
           />
         </div>
