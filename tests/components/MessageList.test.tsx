@@ -6,7 +6,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ChatTextContext } from "@/components/chat/ChatText";
 import type { ChatMessageView } from "@/lib/chat/load";
 
-vi.mock("@/app/(member)/chat/actions", () => ({ loadOlderChat: vi.fn() }));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
+vi.mock("@/app/(member)/chat/actions", () => ({ loadOlderChat: vi.fn(), toggleChatReaction: vi.fn() }));
 import { loadOlderChat } from "@/app/(member)/chat/actions";
 import MessageList from "@/components/chat/MessageList";
 

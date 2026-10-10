@@ -1,7 +1,8 @@
 import Link from "next/link";
 import MemberAvatar from "@/app/(member)/members/[id]/MemberAvatar";
 import AvatarStack from "@/components/AvatarStack";
-import ChatText, { Emoji, type ChatTextContext } from "@/components/chat/ChatText";
+import ChatText, { type ChatTextContext } from "@/components/chat/ChatText";
+import ReactionBar from "@/components/chat/ReactionBar";
 import RetryButton from "@/components/chat/RetryButton";
 import { formatChatTime } from "@/lib/chat/format";
 import type { ChatMessageView } from "@/lib/chat/load";
@@ -12,11 +13,14 @@ export default function MessageItem({
   ctx,
   channelId,
   inThread = false,
+  canReact = false,
 }: {
   message: ChatMessageView;
   ctx: ChatTextContext;
   channelId: string;
   inThread?: boolean;
+  /** Show the add-reaction controls and make the chips toggles. */
+  canReact?: boolean;
 }) {
   const profileHref = `/chat/${channelId}?profile=${message.authorMemberId}`;
   return (
@@ -71,23 +75,7 @@ export default function MessageItem({
           <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">📎 Includes files, which the Hub doesn&apos;t show yet.</p>
         )}
 
-        {message.reactions.length > 0 && (
-          <ul className="mt-1.5 flex flex-wrap gap-1" aria-label="Reactions">
-            {message.reactions.map((r) => (
-              <li
-                key={r.emoji}
-                className={`px-2 py-0.5 rounded-full text-xs border ${
-                  r.mine
-                    ? "border-plum-300 bg-plum-50 dark:border-plum-700 dark:bg-plum-900/20"
-                    : "border-slate-200 dark:border-slate-700"
-                }`}
-                title={`:${r.emoji}:`}
-              >
-                <Emoji name={r.emoji} custom={ctx.customEmoji} /> {r.count}
-              </li>
-            ))}
-          </ul>
-        )}
+        <ReactionBar messageId={message.id} reactions={message.reactions} custom={ctx.customEmoji} canReact={canReact && message.contentState === "ok"} />
 
         {!inThread && message.replyCount > 0 && (
           <Link

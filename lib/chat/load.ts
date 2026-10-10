@@ -469,7 +469,14 @@ export async function buildMessageViews(
   });
 
   const reactionsByMessage = new Map<string, Map<string, ReactionSummary>>();
+  // A member who reacted in Slack and again in the Hub with the same emoji counts once.
+  const counted = new Set<string>();
   for (const r of reactionRows ?? []) {
+    if (r.member_id) {
+      const key = `${r.message_id}|${r.emoji}|${r.member_id}`;
+      if (counted.has(key)) continue;
+      counted.add(key);
+    }
     const byEmoji = reactionsByMessage.get(r.message_id) ?? new Map<string, ReactionSummary>();
     const entry = byEmoji.get(r.emoji) ?? { emoji: r.emoji as string, count: 0, mine: false };
     entry.count++;
