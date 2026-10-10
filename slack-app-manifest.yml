@@ -39,8 +39,12 @@ oauth_config:
       - reactions:read
       - emoji:read
       - files:read
-      # Feedback widget notifications
+      # Feedback widget notifications, and Hub chat posts (chat:write.customize lets the bot post under
+      # the member's name and photo; metadata.message:read returns our post's metadata on its event, so
+      # the Hub can tell it is its own: lib/chat/slack-post.ts)
       - chat:write
+      - chat:write.customize
+      - metadata.message:read
       - files:write
       # /hub slash command (Slack sign-in)
       - commands

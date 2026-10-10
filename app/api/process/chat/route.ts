@@ -3,6 +3,7 @@ import { createServiceRoleClient } from "@/lib/supabase/service";
 import { NextRequest, NextResponse } from "next/server";
 import { matchSlackUsersToMembers } from "@/lib/slack-matching";
 import { splitIntoWindows } from "@/lib/processing/date-windows";
+import { retryUnsentChatMessages } from "@/lib/chat/slack-post";
 
 // Extend timeout for processing large batches
 export const maxDuration = 300; // 5 minutes
@@ -102,6 +103,13 @@ export async function POST(request: NextRequest) {
       `Chat projection complete: ${messages} messages, ${reactions} reactions in ${windows.length} weekly windows`
     );
 
+    // The outbox: Hub-written messages Slack never took. After the projection, so one whose
+    // Slack event did arrive is already linked and isn't posted a second time.
+    const outbox = await retryUnsentChatMessages(supabase).catch((error) => {
+      console.error("Error retrying unsent chat messages:", error);
+      return { sent: 0, failed: 0 };
+    });
+
     return NextResponse.json({
       success: true,
       processed: {
@@ -109,6 +117,8 @@ export async function POST(request: NextRequest) {
         members: channelResult?.members ?? 0,
         messages,
         reactions,
+        outboxSent: outbox.sent,
+        outboxFailed: outbox.failed,
       },
     });
   } catch (error: any) {

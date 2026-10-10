@@ -4,6 +4,8 @@ import { getCurrentUser } from "@/lib/auth";
 import { getEffectiveIdentity, type EffectiveIdentity } from "@/lib/sudo";
 import { effectiveMemberHasFeature, getUserFeaturePreviews } from "@/lib/features.server";
 import { createClient } from "@/lib/supabase/server";
+import { createServiceRoleClient } from "@/lib/supabase/service";
+import { sendChatMessageToSlack } from "@/lib/chat/slack-post";
 import { isUuid } from "@/lib/chat/format";
 import {
   buildMessageViews,
@@ -79,4 +81,72 @@ export async function loadOlderChat(channelId: string, before: string): Promise<
     loadChatChannels(supabase, identity.memberId, identity.isSudo),
   ]);
   return { views, ctx: chatTextContext(rendered, channels), olderBefore: page.olderBefore };
+}
+
+export type SendChatResult = { ok: true; id: string } | { ok: false; error: string };
+
+/** What chat_post_message's 'chat_post: <reason>' errors mean to the person who wrote the message. */
+const POST_ERRORS: Record<string, string> = {
+  no_member: "You need a member profile to post.",
+  not_in_channel: "You can only post in conversations you are in.",
+  not_bridged: "This conversation isn't connected to Slack, so it can't take posts yet.",
+  archived: "This conversation is archived.",
+  empty: "Write something first.",
+  too_long: "That message is too long (4,000 characters at most).",
+  bad_thread: "That thread can't be replied to.",
+};
+
+/** Posting is its own preview on top of chat, and never happens in sudo (read-only). */
+async function postingCaller() {
+  const caller = await chatCaller();
+  if (!caller || caller.identity.isSudo) return null;
+  if (!(await effectiveMemberHasFeature("chat_posting", caller.identity, await getUserFeaturePreviews(caller.userId)))) return null;
+  return caller;
+}
+
+/**
+ * The signed-in member posts `body` to a conversation (or as a reply in a thread). The message is
+ * written first, as the member (chat_post_message checks they are in the conversation and that it
+ * is bridged and open), then sent to Slack as the bot under their name and photo. If Slack is
+ * down the message stays in the Hub marked failed, and the member can retry it; the nightly chat
+ * run retries too.
+ */
+export async function sendChatMessage(channelId: string, body: string, threadRootId?: string): Promise<SendChatResult> {
+  if (!isUuid(channelId) || (threadRootId !== undefined && !isUuid(threadRootId))) return { ok: false, error: "Something went wrong." };
+  if (!(await postingCaller())) return { ok: false, error: "Posting isn't available to you yet." };
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("chat_post_message", {
+    p_channel_id: channelId,
+    p_body: body,
+    p_thread_root_id: threadRootId ?? null,
+  });
+  if (error || !data) {
+    const reason = /chat_post: (\w+)/.exec(error?.message ?? "")?.[1];
+    if (!reason) console.error("chat_post_message failed:", error?.message);
+    return { ok: false, error: (reason && POST_ERRORS[reason]) || "Something went wrong. Try again." };
+  }
+
+  await sendChatMessageToSlack(createServiceRoleClient(), data as string);
+  return { ok: true, id: data as string };
+}
+
+/** The author sends one of their own failed messages to Slack again. */
+export async function retryChatMessage(messageId: string): Promise<SendChatResult> {
+  if (!isUuid(messageId)) return { ok: false, error: "Something went wrong." };
+  const caller = await postingCaller();
+  if (!caller) return { ok: false, error: "Posting isn't available to you yet." };
+
+  // Under the caller's RLS, so only a message they can see; the author check is on top.
+  const supabase = await createClient();
+  const { data: row } = await supabase
+    .from("chat_messages")
+    .select("author_member_id, origin, slack_sync_status")
+    .eq("id", messageId)
+    .maybeSingle();
+  if (!row || row.origin !== "app" || row.author_member_id !== caller.identity.memberId || row.slack_sync_status === "sent") {
+    return { ok: false, error: "That message can't be retried." };
+  }
+  const result = await sendChatMessageToSlack(createServiceRoleClient(), messageId);
+  return result === "failed" ? { ok: false, error: "Slack didn't take it. Try again in a moment." } : { ok: true, id: messageId };
 }

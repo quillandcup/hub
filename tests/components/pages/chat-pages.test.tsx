@@ -31,7 +31,12 @@ vi.mock("@/lib/badges", async (original) => ({
   getAttendedPrickleCount: vi.fn(async () => 12),
   getMemberBadges: vi.fn(async () => earnedBadges),
 }));
-vi.mock("@/app/(member)/chat/actions", () => ({ markChatRead: vi.fn(), loadOlderChat: vi.fn() }));
+vi.mock("@/app/(member)/chat/actions", () => ({
+  markChatRead: vi.fn(),
+  loadOlderChat: vi.fn(),
+  sendChatMessage: vi.fn(),
+  retryChatMessage: vi.fn(),
+}));
 vi.mock("@/lib/chat/live", () => import("@/tests/helpers/chat-live").then((m) => m.chatLiveModule));
 
 const EMPTY_CTX = { userNames: {}, userMembers: {}, channelIds: {}, channelNames: {}, customEmoji: {} };
@@ -49,6 +54,8 @@ const EXAMPLE_VIEW = {
   replyCount: 0,
   lastReplyAt: null,
   reactions: [],
+  syncStatus: null,
+  mine: false,
 };
 
 let earnedBadges: unknown[] = [];
@@ -394,6 +401,57 @@ describe("channel page", () => {
       "href",
       `/chat/${GENERAL}?before=${encodeURIComponent("2026-10-05T00:00:00Z")}`,
     );
+  });
+
+  describe("posting (behind the chat_posting preview)", () => {
+    const composer = () => screen.queryByRole("textbox", { name: "Message #hosts" });
+
+    it("offers a message box in a conversation the member is in, only with the chat_posting flag", async () => {
+      messages = [msg(1)];
+      await renderChannel(HOSTS);
+      expect(composer()).not.toBeInTheDocument();
+      cleanup();
+
+      vi.mocked(getUserFeaturePreviews).mockResolvedValue(["chat", "chat_posting"]);
+      await renderChannel(HOSTS);
+      expect(composer()).toBeInTheDocument();
+    });
+
+    it("offers none in a public channel the member hasn't joined, or in sudo", async () => {
+      vi.mocked(getUserFeaturePreviews).mockResolvedValue(["chat", "chat_posting"]);
+      messages = [msg(1)];
+      await renderChannel(GENERAL);
+      expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+      cleanup();
+
+      signInAs(MEMBER_USER, { ...MEMBER_IDENTITY, isSudo: true });
+      await renderChannel(HOSTS);
+      expect(composer()).not.toBeInTheDocument();
+    });
+
+    it("offers a reply box in a thread whose root is in Slack, and none while the root is still sending", async () => {
+      vi.mocked(getUserFeaturePreviews).mockResolvedValue(["chat", "chat_posting"]);
+      messages = [msg(1, { reply_count: 1 })];
+      await renderChannel(HOSTS, { thread: id(101) });
+      expect(within(screen.getByRole("complementary", { name: "Thread" })).getByRole("textbox", { name: "Reply…" })).toBeInTheDocument();
+      cleanup();
+
+      messages = [msg(1, { slack_ts: null, slack_sync_status: "pending", reply_count: 0 })];
+      await renderChannel(HOSTS, { thread: id(101) });
+      const panel = within(screen.getByRole("complementary", { name: "Thread" }));
+      expect(panel.queryByRole("textbox")).not.toBeInTheDocument();
+      expect(panel.getAllByText("Sending to Slack…").length).toBeGreaterThan(0);
+    });
+
+    it("says a failed message didn't reach Slack, with a retry for its author only", async () => {
+      messages = [
+        msg(1, { slack_ts: null, slack_sync_status: "failed", author_member_id: MEMBER_IDENTITY.memberId }),
+        msg(2, { slack_ts: null, slack_sync_status: "failed" }),
+      ];
+      await renderChannel(HOSTS);
+      expect(screen.getAllByText(/Slack didn't get this message/)).toHaveLength(2);
+      expect(screen.getAllByRole("button", { name: "Retry" })).toHaveLength(1);
+    });
   });
 
   it("opens a member's profile in the right panel: how long they've been a Hedgie, bio, topics and links", async () => {
