@@ -5,7 +5,7 @@ export function PrickleCheckinEmail(props: NotificationEmailProps) {
   return (
     <NotificationEmail
       {...props}
-      intro="A quick check-in helps you notice how you're arriving, and it's only visible to you and the admins. It takes under a minute."
+      intro="A quick check-in helps you notice how you're arriving. It takes under a minute."
       buttonLabel="Check in"
     />
   );
