@@ -8,7 +8,7 @@ import { loadCalendarFeedPrickleIds } from "@/lib/calendar-feed";
 import { APP_URL } from "@/lib/config";
 import { createNotifier } from "@/lib/notifications/notify";
 import { resolveInAppNotifications } from "@/lib/channels/in-app";
-import type { OutboundMessage } from "@/lib/channels";
+import type { ChannelId, OutboundMessage } from "@/lib/channels";
 import { loadPresenceByMember, presenceDue, type PresenceInterval } from "@/lib/zoom-presence";
 import {
   checkinAnswered,
@@ -818,17 +818,19 @@ export function checkoutMessage(
  * skipping everything that decides whether one is due: their calendar, attendance/presence, the
  * dedup log (nothing is logged, so it can't block the real one) and the already-answered checks.
  * It still shows their saved answers, and the check-out asks about every active goal (none, with
- * no goals). Always over Slack, whatever their notification settings: they just asked for it.
- * Returns an error message, or null when sent.
+ * no goals). Over Slack and email, whatever their notification settings: they just asked for it.
+ * Returns an error message, or the channels it went out on.
  */
 export async function sendTestCheckinDM(
   supabase: any,
   memberId: string,
   prickle: DMPrickle,
   kind: CheckinDMKind
-): Promise<string | null> {
-  const notifier = await createNotifier(supabase, kind, [memberId], { channels: ["slack"] });
-  if (!notifier.canReach(memberId)) return "No Slack account is matched to your member record.";
+): Promise<{ error: string } | { delivered: ChannelId[] }> {
+  const notifier = await createNotifier(supabase, kind, [memberId], { channels: ["slack", "email"] });
+  if (!notifier.canReach(memberId)) {
+    return { error: "Neither a Slack account nor an email address is matched to your member record." };
+  }
 
   const saved = (await loadCheckins(supabase, [memberId], [prickle.id])).get(`${memberId}:${prickle.id}`) ?? null;
   let message: OutboundMessage;
@@ -839,5 +841,5 @@ export async function sendTestCheckinDM(
     message = checkoutMessage(prickle, saved, await quickLogPrompts(supabase, goals), { test: true });
   }
   const delivered = await notifier.send(memberId, message);
-  return delivered.length > 0 ? null : "Slack didn't accept the message; check the server logs.";
+  return delivered.length > 0 ? { delivered } : { error: "Nothing went out; check the server logs." };
 }

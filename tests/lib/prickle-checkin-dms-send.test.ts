@@ -6,6 +6,8 @@ import { createFakeSupabase, type FakeSupabase, type FakeTables } from "@/tests/
 // matters here is how many DMs go out, not what the queries look like.
 const sendSlackDM = vi.fn(async (_params: { slackUserId: string; text: string; blocks?: any[] }) => {});
 vi.mock("@/lib/slack", () => ({ sendSlackDM: (p: any) => sendSlackDM(p) }));
+const sendEmail = vi.fn(async (_params: { to: string; subject: string; html: string }) => {});
+vi.mock("@/lib/email", () => ({ sendEmail: (p: any) => sendEmail(p) }));
 
 // Slack user id = "U-" + member id for every member in members.
 vi.mock("@/lib/slack-matching", () => ({
@@ -74,6 +76,7 @@ function cronRequest() {
 
 beforeEach(() => {
   sendSlackDM.mockClear();
+  sendEmail.mockClear();
   calendarPrickleIds.mockReset();
   calendarPrickleIds.mockResolvedValue(new Set());
   process.env.CRON_INTERNAL_SECRET = "test-secret";
@@ -336,7 +339,7 @@ describe("sendTestCheckinDM", () => {
   it("sends the check-in marked as a test, even when already answered, without logging it", async () => {
     setup({ prickle_checkins: { data: [answered] } });
 
-    expect(await sendTestCheckinDM(fake, "m1", PRICKLE_REF, "prickle_checkin")).toBeNull();
+    expect(await sendTestCheckinDM(fake, "m1", PRICKLE_REF, "prickle_checkin")).toEqual({ delivered: ["slack"] });
 
     const dm = sendSlackDM.mock.calls[0][0];
     expect(dm.slackUserId).toBe("U-m1");
@@ -350,7 +353,7 @@ describe("sendTestCheckinDM", () => {
   it("sends the check-out with a quick-log for only that member's goals", async () => {
     setup();
 
-    expect(await sendTestCheckinDM(fake, "m1", PRICKLE_REF, "prickle_checkout")).toBeNull();
+    expect(await sendTestCheckinDM(fake, "m1", PRICKLE_REF, "prickle_checkout")).toEqual({ delivered: ["slack"] });
 
     const dm = sendSlackDM.mock.calls[0][0];
     expect(dm.text).toBe("[Test] Checking out of Progress Prickle: how did it go?");
@@ -370,20 +373,34 @@ describe("sendTestCheckinDM", () => {
 
   it("reports a member with no matched Slack account", async () => {
     setup();
-    expect(await sendTestCheckinDM(fake, "m-unknown", PRICKLE_REF, "prickle_checkin")).toMatch(/No Slack account/);
+    expect(await sendTestCheckinDM(fake, "m-unknown", PRICKLE_REF, "prickle_checkin")).toEqual({
+      error: expect.stringMatching(/Neither a Slack account nor an email address/),
+    });
     expect(sendSlackDM).not.toHaveBeenCalled();
   });
 
   it("sends even when the admin turned that kind off: they just asked for it", async () => {
     setup({ notification_preferences: { data: [{ member_id: "m1", kind: "prickle_checkin", channel: "slack", enabled: false }] } });
-    expect(await sendTestCheckinDM(fake, "m1", PRICKLE_REF, "prickle_checkin")).toBeNull();
+    expect(await sendTestCheckinDM(fake, "m1", PRICKLE_REF, "prickle_checkin")).toEqual({ delivered: ["slack"] });
     expect(sendSlackDM).toHaveBeenCalledTimes(1);
   });
 
-  it("reports a Slack send that failed", async () => {
+  it("also emails the test when the member has an address, even though they never opted in", async () => {
+    setup({ members: { data: [{ id: "m1", email: "alice@example.com" }, { id: "m2" }] } });
+
+    expect(await sendTestCheckinDM(fake, "m1", PRICKLE_REF, "prickle_checkout")).toEqual({
+      delivered: ["slack", "email"],
+    });
+    const email = sendEmail.mock.calls[0][0];
+    expect(email.to).toBe("alice@example.com");
+    expect(email.subject).toBe("[Test] Checking out of Progress Prickle: how did it go?");
+    expect(email.html).toContain("Unsubscribe from");
+  });
+
+  it("reports a send that failed on every channel", async () => {
     setup();
     sendSlackDM.mockRejectedValueOnce(new Error("channel_not_found"));
     vi.spyOn(console, "error").mockImplementation(() => {});
-    expect(await sendTestCheckinDM(fake, "m1", PRICKLE_REF, "prickle_checkin")).toMatch(/Slack didn't accept/);
+    expect(await sendTestCheckinDM(fake, "m1", PRICKLE_REF, "prickle_checkin")).toEqual({ error: expect.stringMatching(/Nothing went out/) });
   });
 });

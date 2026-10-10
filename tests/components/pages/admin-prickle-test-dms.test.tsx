@@ -19,7 +19,7 @@ vi.mock("@/lib/sudo", () => import("@/tests/helpers/server-page").then((m) => m.
 vi.mock("@/lib/supabase/server", () => import("@/tests/helpers/server-page").then((m) => m.supabaseServerModule));
 vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => "service-client" }));
 
-const sendTestCheckinDM = vi.fn<(...args: unknown[]) => Promise<string | null>>(async () => null);
+const sendTestCheckinDM = vi.fn<(...args: unknown[]) => Promise<{ error: string } | { delivered: string[] }>>(async () => ({ delivered: ["slack", "email"] }));
 vi.mock("@/lib/prickle-checkin-dms", () => ({ sendTestCheckinDM: (...args: unknown[]) => sendTestCheckinDM(...args) }));
 
 import { sendTestPrickleDM } from "@/app/(admin)/admin/prickles/[id]/actions";
@@ -45,7 +45,7 @@ beforeEach(() => {
 describe("sendTestPrickleDM", () => {
   it("sends the admin's own member the DM for this prickle", async () => {
     signInAs(ADMIN_USER, ADMIN_IDENTITY);
-    await expect(sendTestPrickleDM("p1", "prickle_checkout")).resolves.toEqual({ success: true });
+    await expect(sendTestPrickleDM("p1", "prickle_checkout")).resolves.toEqual({ success: true, delivered: ["slack", "email"] });
     expect(sendTestCheckinDM).toHaveBeenCalledWith(
       "service-client",
       "member-bramble",
@@ -56,7 +56,7 @@ describe("sendTestPrickleDM", () => {
 
   it("passes on a send error", async () => {
     signInAs(ADMIN_USER, ADMIN_IDENTITY);
-    sendTestCheckinDM.mockResolvedValueOnce("No Slack account is matched to your member record.");
+    sendTestCheckinDM.mockResolvedValueOnce({ error: "No Slack account is matched to your member record." });
     await expect(sendTestPrickleDM("p1", "prickle_checkin")).resolves.toEqual({
       error: "No Slack account is matched to your member record.",
     });
@@ -65,7 +65,7 @@ describe("sendTestPrickleDM", () => {
   it("refuses in sudo, so a test never lands in a member's DMs", async () => {
     signInAs(ADMIN_USER, { ...MEMBER_IDENTITY, isSudo: true });
     await expect(sendTestPrickleDM("p1", "prickle_checkin")).resolves.toEqual({
-      error: "Exit sudo first: test DMs go to your own Slack.",
+      error: "Exit sudo first: test sends go to your own Slack and email.",
     });
     expect(sendTestCheckinDM).not.toHaveBeenCalled();
   });
