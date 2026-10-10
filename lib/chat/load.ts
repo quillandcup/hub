@@ -4,6 +4,7 @@ import { customEmojiFor, slackAuthorIdsByTs, slackChannelNames, slackUserMemberI
 import type { CustomEmoji } from "@/lib/chat/emoji";
 import type { ChatTextContext } from "@/components/chat/ChatText";
 import { safeUrl } from "@/lib/url";
+import { getAttendedPrickleCount, getMemberBadges, type EarnedBadge } from "@/lib/badges";
 
 /**
  * What the chat pages read. Everything goes through the caller's own Supabase client, so RLS
@@ -101,6 +102,14 @@ async function groupDmLabels(supabase: SupabaseClient, channelIds: string[], mem
   return labels;
 }
 
+/** Unread top-level messages per conversation the signed-in member is in (capped at 100 each; none = absent). */
+export async function loadUnreadCounts(supabase: SupabaseClient): Promise<Record<string, number>> {
+  const { data } = await supabase.rpc("chat_unread_counts");
+  const counts: Record<string, number> = {};
+  for (const row of (data ?? []) as { channel_id: string; unread: number }[]) counts[row.channel_id] = row.unread;
+  return counts;
+}
+
 /** Display names and photos from member_directory, which every signed-in member can read. */
 export async function memberProfiles(
   supabase: SupabaseClient,
@@ -113,6 +122,50 @@ export async function memberProfiles(
     for (const m of data ?? []) profiles.set(m.id, { name: m.display_name || m.name, photoUrl: safeUrl(m.photo_url) });
   }
   return profiles;
+}
+
+/** What the profile panel in chat shows about a member: the public parts of their profile. */
+export interface MemberCard {
+  id: string;
+  name: string;
+  photoUrl: string | null;
+  bio: string | null;
+  /** Month the member first joined, as a date (YYYY-MM-DD), when they have been a paying member. */
+  firstJoinedAt: string | null;
+  totalActiveMonths: number;
+  askMeAbout: string[];
+  instagramUrl: string | null;
+  facebookUrl: string | null;
+  twitterUrl: string | null;
+  /** The badges the full profile shows, computed the same way. */
+  badges: EarnedBadge[];
+}
+
+/** One member's card from member_directory and their "Ask me about…" topics (both readable by any member). */
+export async function loadMemberCard(supabase: SupabaseClient, memberId: string): Promise<MemberCard | null> {
+  const [{ data: m }, { data: topics }] = await Promise.all([
+    supabase
+      .from("member_directory")
+      .select("id, name, display_name, photo_url, bio, first_joined_at, total_active_months, instagram_url, facebook_url, twitter_url")
+      .eq("id", memberId)
+      .maybeSingle(),
+    supabase.from("member_ask_me_about").select("topics").eq("member_id", memberId).maybeSingle(),
+  ]);
+  if (!m) return null;
+  const badges = await getMemberBadges(supabase, memberId, await getAttendedPrickleCount(supabase, memberId), m.first_joined_at ?? null);
+  return {
+    id: m.id,
+    name: m.display_name || m.name,
+    photoUrl: safeUrl(m.photo_url),
+    bio: m.bio || null,
+    firstJoinedAt: m.first_joined_at ?? null,
+    totalActiveMonths: m.total_active_months ?? 0,
+    askMeAbout: topics?.topics ?? [],
+    instagramUrl: safeUrl(m.instagram_url),
+    facebookUrl: safeUrl(m.facebook_url),
+    twitterUrl: safeUrl(m.twitter_url),
+    badges,
+  };
 }
 
 export interface ChannelPerson {

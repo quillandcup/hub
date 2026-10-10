@@ -86,6 +86,9 @@ export default async function ChatSearchPage({
 
   return (
     <div className="p-6 max-w-3xl">
+      <Link href="/chat" className="mb-2 inline-block text-sm text-plum-600 hover:underline md:hidden dark:text-plum-400">
+        ← Channels
+      </Link>
       <h1 className="text-2xl font-bold mb-3">Search messages</h1>
       <form action="/chat/search" role="search" className="mb-5 space-y-3">
         <div className="flex gap-2">

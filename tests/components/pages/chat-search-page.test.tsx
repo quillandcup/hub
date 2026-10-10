@@ -22,6 +22,8 @@ vi.mock("next/navigation", () => import("@/tests/helpers/server-page").then((m) 
 vi.mock("@/lib/auth", () => import("@/tests/helpers/server-page").then((m) => m.authModule));
 vi.mock("@/lib/sudo", () => import("@/tests/helpers/server-page").then((m) => m.sudoModule));
 vi.mock("@/lib/supabase/server", () => import("@/tests/helpers/server-page").then((m) => m.supabaseServerModule));
+vi.mock("@/lib/supabase/client", () => import("@/tests/helpers/chat-live").then((m) => m.supabaseClientModule));
+vi.mock("@/lib/chat/live", () => import("@/tests/helpers/chat-live").then((m) => m.chatLiveModule));
 vi.mock("@/lib/features.server", () => ({
   getUserFeaturePreviews: vi.fn(),
   effectiveMemberHasFeature: async (key: string, _identity: unknown, own: string[]) => own.includes(key),

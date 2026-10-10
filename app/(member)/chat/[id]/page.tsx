@@ -12,13 +12,14 @@ import {
   loadChatChannels,
   loadMessage,
   loadMessages,
-  memberProfiles,
+  loadMemberCard,
 } from "@/lib/chat/load";
 import AvatarStack from "@/components/AvatarStack";
 import MessageItem from "@/components/chat/MessageItem";
+import MessageList from "@/components/chat/MessageList";
 import ChatLive from "@/components/chat/ChatLive";
 import SidePanel from "@/components/chat/SidePanel";
-import MemberAvatar from "@/app/(member)/members/[id]/MemberAvatar";
+import ProfileCard from "@/components/chat/ProfileCard";
 
 export const metadata: Metadata = {
   title: "Chat",
@@ -69,19 +70,38 @@ export default async function ChatChannelPage({
   }
 
   const people = sudoHidden ? [] : await loadChannelMembers(supabase, channel.id);
+
+  // Where the member had read up to when they opened this (the marker only moves when they leave,
+  // so the line below stays put for the whole visit). Not in sudo (their marker isn't the viewed
+  // member's) and not on an older page.
+  let readMarker: string | null = null;
+  if (!sudoHidden && !identity.isSudo && !before) {
+    const { data } = await supabase
+      .from("chat_channel_members")
+      .select("last_read_at, joined_at")
+      .eq("channel_id", channel.id)
+      .eq("member_id", identity.memberId)
+      .is("left_at", null)
+      .maybeSingle();
+    readMarker = data ? (data.last_read_at ?? data.joined_at) : null;
+  }
   const mainRows = page?.messages ?? [];
   const threadRows = root ? [root, ...(threadPage?.messages ?? [])] : [];
-  const [{ views, ...rendered }, channels, profileCard] = await Promise.all([
+  const [{ views, ...rendered }, channels, memberCard] = await Promise.all([
     buildMessageViews(supabase, channel, [...mainRows, ...threadRows], identity.memberId),
     loadChatChannels(supabase, identity.memberId, identity.isSudo),
-    profileId && !threadId && !sudoHidden ? memberProfiles(supabase, [profileId]) : Promise.resolve(null),
+    profileId && !threadId && !sudoHidden ? loadMemberCard(supabase, profileId) : Promise.resolve(null),
   ]);
   const ctx = chatTextContext(rendered, channels);
   const messageViews = views.slice(0, mainRows.length);
   const threadViews = views.slice(mainRows.length);
+  const firstUnreadId = readMarker
+    ? messageViews.find(
+        (m) => m.contentState !== "deleted" && m.authorMemberId !== identity.memberId && Date.parse(m.createdAt) > Date.parse(readMarker!)
+      )?.id
+    : undefined;
   const rootView = root ? threadViews[0] : null;
   const replyViews = root ? threadViews.slice(1) : [];
-  const profilePerson = profileId && profileCard ? profileCard.get(profileId) : undefined;
   const panelOpen = !sudoHidden && (rootView !== null || (profileId !== null && !threadId));
   const closeHref = `/chat/${channel.id}${before && !Array.isArray(before) ? `?before=${encodeURIComponent(before)}` : ""}`;
 
@@ -90,6 +110,9 @@ export default async function ChatChannelPage({
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="shrink-0 flex items-start justify-between gap-4 border-b border-slate-200 px-6 pb-3 pt-5 dark:border-slate-800">
           <div>
+            <Link href="/chat" className="mb-1 inline-block text-sm text-plum-600 hover:underline md:hidden dark:text-plum-400">
+              ← Channels
+            </Link>
             <h1 className="text-2xl font-bold">{channel.label}</h1>
             {channel.archived && (
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">This channel is archived in Slack.</p>
@@ -117,22 +140,19 @@ export default async function ChatChannelPage({
               <ChatLive
                 channelId={channel.id}
                 view={before ? "older" : "latest"}
+                markRead={!identity.isSudo}
+                latestAt={messageViews.length > 0 ? messageViews[messageViews.length - 1].createdAt : null}
                 messageIds={messageViews.map((m) => m.id)}
                 latestId={messageViews.length > 0 ? messageViews[messageViews.length - 1].id : null}
               />
-              {page?.olderBefore && (
-                <Link
-                  href={`/chat/${channel.id}?before=${encodeURIComponent(page.olderBefore)}`}
-                  scroll={false}
-                  className="inline-block mb-2 text-sm text-plum-600 dark:text-plum-400 hover:underline"
-                >
-                  Load older messages
-                </Link>
-              )}
-              {messageViews.length === 0 && <p className="py-3 text-sm text-slate-500">No messages here yet.</p>}
-              {messageViews.map((m) => (
-                <MessageItem key={m.id} message={m} ctx={ctx} channelId={channel.id} />
-              ))}
+              <MessageList
+                key={`${channel.id}:${before ?? ""}`}
+                channelId={channel.id}
+                views={messageViews}
+                ctx={ctx}
+                olderBefore={page?.olderBefore ?? null}
+                firstUnreadId={firstUnreadId}
+              />
             </section>
           )}
         </div>
@@ -158,20 +178,7 @@ export default async function ChatChannelPage({
       )}
       {panelOpen && !rootView && profileId && (
         <SidePanel title="Profile" closeHref={closeHref}>
-          {profilePerson ? (
-            <div className="flex flex-col items-center gap-3 py-8 text-center">
-              <MemberAvatar name={profilePerson.name} photoUrl={profilePerson.photoUrl} size={96} />
-              <p className="text-lg font-semibold">{profilePerson.name}</p>
-              <Link
-                href={`/members/${profileId}`}
-                className="text-sm text-plum-600 dark:text-plum-400 hover:underline"
-              >
-                View full profile
-              </Link>
-            </div>
-          ) : (
-            <p className="py-6 text-sm text-slate-500">This member isn&apos;t available.</p>
-          )}
+          {memberCard ? <ProfileCard member={memberCard} /> : <p className="py-6 text-sm text-slate-500">This member isn&apos;t available.</p>}
         </SidePanel>
       )}
     </div>

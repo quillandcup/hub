@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const refresh = vi.fn();
+vi.mock("@/app/(member)/chat/actions", () => ({ markChatRead: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh }) }));
 
 type Payload = { eventType: string; new: Record<string, unknown>; old: Record<string, unknown> };
@@ -45,9 +46,10 @@ vi.mock("@/lib/supabase/client", () => ({
 }));
 
 import ChatLive, { type ChatLiveView } from "@/components/chat/ChatLive";
+import { markChatRead } from "@/app/(member)/chat/actions";
 
 /** Like the member layout: the page scrolls inside <main>, not the window. */
-async function mount(view: ChatLiveView = "latest", extra: { threadRootId?: string } = {}) {
+async function mount(view: ChatLiveView = "latest", extra: { threadRootId?: string; markRead?: boolean; latestAt?: string | null } = {}) {
   const result = render(
     <main style={{ overflowY: "auto" }}>
       <ChatLive channelId="c1" view={view} messageIds={["m1", "m2"]} latestId="m2" {...extra} />
@@ -63,7 +65,7 @@ const update: Payload = { eventType: "UPDATE", new: { id: "m1", thread_root_id: 
 function scrolledTo(position: "bottom" | "top") {
   const top = position === "bottom" ? 4200 : 0;
   for (const [prop, value] of [["scrollHeight", 5000], ["clientHeight", 800], ["scrollTop", top]] as const) {
-    Object.defineProperty(HTMLElement.prototype, prop, { value, configurable: true });
+    Object.defineProperty(HTMLElement.prototype, prop, { value, configurable: true, writable: true });
   }
 }
 
@@ -73,6 +75,7 @@ describe("ChatLive", () => {
     for (const k of Object.keys(handlers)) delete handlers[k];
     refresh.mockClear();
     calls.length = 0;
+    vi.mocked(markChatRead).mockClear();
     newestId = "m2";
     HTMLElement.prototype.scrollTo = vi.fn() as never;
     scrolledTo("bottom");
@@ -120,6 +123,68 @@ describe("ChatLive", () => {
     await mount("older");
     await mount("thread", { threadRootId: "m1" });
     expect(HTMLElement.prototype.scrollTo).not.toHaveBeenCalled();
+  });
+
+  it("opens on the line between read and new when there is one, else on the newest message", async () => {
+    render(
+      <main style={{ overflowY: "auto" }}>
+        <div id="unread-divider" />
+        <ChatLive channelId="c1" view="latest" messageIds={["m1"]} latestId="m1" />
+      </main>,
+    );
+    await act(async () => {});
+    expect(HTMLElement.prototype.scrollTo).not.toHaveBeenCalled();
+    cleanup();
+
+    await mount("latest");
+    expect(HTMLElement.prototype.scrollTo).toHaveBeenCalledTimes(1);
+  });
+
+  describe("read state", () => {
+    const settle = () => act(() => vi.advanceTimersByTime(1));
+
+    it("does not mark the conversation read when it opens, so the line stays put", async () => {
+      await mount("latest", { markRead: true, latestAt: "2026-10-03T12:00:00Z" });
+      await settle();
+      handlers.chat_messages(update);
+      act(() => vi.advanceTimersByTime(1000));
+      expect(markChatRead).not.toHaveBeenCalled();
+    });
+
+    it("marks it read, through the newest message on the page, when the reader leaves", async () => {
+      const { unmount } = await mount("latest", { markRead: true, latestAt: "2026-10-03T12:00:00Z" });
+      await settle();
+      unmount();
+      expect(markChatRead).toHaveBeenCalledWith("c1", "2026-10-03T12:00:00Z");
+    });
+
+    it("marks it read when the tab is hidden", async () => {
+      await mount("latest", { markRead: true, latestAt: "2026-10-03T12:00:00Z" });
+      await settle();
+      vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden");
+      document.dispatchEvent(new Event("visibilitychange"));
+      expect(markChatRead).toHaveBeenCalledWith("c1", "2026-10-03T12:00:00Z");
+    });
+
+    it("ignores the development double-mount, which unmounts at once", async () => {
+      const { unmount } = await mount("latest", { markRead: true, latestAt: "2026-10-03T12:00:00Z" });
+      unmount();
+      expect(markChatRead).not.toHaveBeenCalled();
+    });
+
+    it("does nothing in sudo, in a thread, on an older page or with nothing to read", async () => {
+      for (const [view, extra] of [
+        ["latest", { markRead: false, latestAt: "2026-10-03T12:00:00Z" }],
+        ["thread", { markRead: true, latestAt: "2026-10-03T12:00:00Z", threadRootId: "m1" }],
+        ["older", { markRead: true, latestAt: "2026-10-03T12:00:00Z" }],
+        ["latest", { markRead: true, latestAt: null }],
+      ] as const) {
+        const { unmount } = await mount(view, extra);
+        await settle();
+        unmount();
+      }
+      expect(markChatRead).not.toHaveBeenCalled();
+    });
   });
 
   it("follows a new message when the reader is at the bottom", async () => {

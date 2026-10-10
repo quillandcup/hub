@@ -6,6 +6,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { cleanup, render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
 import {
   MEMBER_IDENTITY,
@@ -24,8 +25,37 @@ vi.mock("next/navigation", () => import("@/tests/helpers/server-page").then((m) 
 vi.mock("@/lib/auth", () => import("@/tests/helpers/server-page").then((m) => m.authModule));
 vi.mock("@/lib/sudo", () => import("@/tests/helpers/server-page").then((m) => m.sudoModule));
 vi.mock("@/lib/supabase/server", () => import("@/tests/helpers/server-page").then((m) => m.supabaseServerModule));
+vi.mock("@/lib/supabase/client", () => import("@/tests/helpers/chat-live").then((m) => m.supabaseClientModule));
+vi.mock("@/lib/badges", async (original) => ({
+  ...(await original<typeof import("@/lib/badges")>()),
+  getAttendedPrickleCount: vi.fn(async () => 12),
+  getMemberBadges: vi.fn(async () => earnedBadges),
+}));
+vi.mock("@/app/(member)/chat/actions", () => ({ markChatRead: vi.fn(), loadOlderChat: vi.fn() }));
+vi.mock("@/lib/chat/live", () => import("@/tests/helpers/chat-live").then((m) => m.chatLiveModule));
 
+const EMPTY_CTX = { userNames: {}, userMembers: {}, channelIds: {}, channelNames: {}, customEmoji: {} };
+const EXAMPLE_VIEW = {
+  id: "x",
+  authorMemberId: "member-gale",
+  authorName: "Gale Prickleton",
+  authorPhotoUrl: null,
+  replyAuthors: [],
+  createdAt: "2026-10-01T00:00:00.000Z",
+  editedAt: null,
+  body: "text",
+  contentState: "ok" as const,
+  hasFiles: false,
+  replyCount: 0,
+  lastReplyAt: null,
+  reactions: [],
+};
+
+let earnedBadges: unknown[] = [];
 let sudoMemberHasFlag = true;
+/** The member's read marker for a conversation (null = never read: counts from joining). */
+let readMarker: string | null = null;
+let unread: { channel_id: string; unread: number }[] = [];
 vi.mock("@/lib/features.server", () => ({
   getUserFeaturePreviews: vi.fn(),
   effectiveMemberHasFeature: async (key: string, identity: { isSudo: boolean }, own: string[]) =>
@@ -44,6 +74,8 @@ vi.mock("@/lib/chat/names", () => ({
 }));
 
 const { getUserFeaturePreviews } = await import("@/lib/features.server");
+const { loadOlderChat } = await import("@/app/(member)/chat/actions");
+const { getMemberBadges } = await import("@/lib/badges");
 const { default: ChatLayout } = await import("@/app/(member)/chat/layout");
 const { default: ChatIndexPage } = await import("@/app/(member)/chat/page");
 const { default: ChatChannelPage } = await import("@/app/(member)/chat/[id]/page");
@@ -90,23 +122,40 @@ let fake: FakeSupabase;
 const eqArg = (q: FakeQuery, col: string) => q.calls.find((c) => c.method === "eq" && c.args[0] === col)?.args[1];
 
 const fakeTables = (): FakeTables => ({
+  "rpc:chat_unread_counts": () => ({ data: unread }),
   chat_channels: (q) => {
     const wanted = eqArg(q, "id");
     return { data: wanted ? CHANNELS.filter((c) => c.id === wanted) : CHANNELS };
   },
   chat_channel_members: (q) => {
     const channelId = eqArg(q, "channel_id") as string | undefined;
-    if (channelId && eqArg(q, "member_id")) return { data: JOINED.includes(channelId) ? [{ channel_id: channelId }] : [] };
+    if (channelId && eqArg(q, "member_id")) {
+      return { data: JOINED.includes(channelId) ? [{ channel_id: channelId, last_read_at: readMarker, joined_at: "2026-01-01T00:00:00Z" }] : [] };
+    }
     if (eqArg(q, "member_id")) return { data: JOINED.map((c) => ({ channel_id: c })) };
     return { data: [{ channel_id: GROUP, member_id: "member-fern" }, { channel_id: GROUP, member_id: "member-gale" }] };
   },
-  member_directory: {
-    data: [
+  member_directory: (q) => {
+    const rows = [
       { id: "member-gale", name: "Gale Prickleton", display_name: null, photo_url: "https://photos.example.test/gale.jpg" },
       { id: "member-fern", name: "Fern Quillsby", display_name: "Fern", photo_url: null },
-      { id: id(900), name: "Hazel Burrows", display_name: null, photo_url: null },
-    ],
+      {
+        id: id(900),
+        name: "Hazel Burrows",
+        display_name: null,
+        photo_url: null,
+        bio: "Writes cozy mysteries.\nEarly mornings.",
+        first_joined_at: "2025-03-15",
+        total_active_months: 19,
+        instagram_url: "https://instagram.example.test/hazel",
+        facebook_url: null,
+        twitter_url: "javascript:alert(1)",
+      },
+    ];
+    const wanted = eqArg(q, "id");
+    return { data: wanted ? rows.filter((r) => r.id === wanted) : rows };
   },
+  member_ask_me_about: { data: { topics: ["cozy mysteries", "morning routines"] } },
   chat_messages: (q) => {
     if (q.calls.some((c) => c.method === "in" && c.args[0] === "thread_root_id")) return { data: replies };
     const wanted = eqArg(q, "id");
@@ -123,6 +172,9 @@ async function renderChannel(cid: string, search: Record<string, string> = {}) {
 beforeEach(() => {
   resetServerPageMocks();
   sudoMemberHasFlag = true;
+  readMarker = null;
+  unread = [];
+  earnedBadges = [];
   messages = [];
   reactions = [];
   replies = [];
@@ -155,6 +207,21 @@ describe("chat shell", () => {
     expect(screen.getByText("content")).toBeInTheDocument();
   });
 
+  it("shows unread counts beside the conversations that have some, and none in sudo", async () => {
+    unread = [{ channel_id: GENERAL, unread: 3 }];
+    render(await ChatLayout({ children: null }));
+    const nav = screen.getByRole("navigation", { name: "Conversations" });
+    expect(within(nav).getByRole("link", { name: "#general, 3 unread" })).toBeInTheDocument();
+    expect(within(nav).getByRole("link", { name: /#hosts/ })).not.toHaveAccessibleName(/unread/);
+    cleanup();
+
+    signInAs(MEMBER_USER, { ...MEMBER_IDENTITY, isSudo: true });
+    fake.queries.length = 0;
+    render(await ChatLayout({ children: null }));
+    expect(screen.queryByRole("link", { name: /unread/ })).not.toBeInTheDocument();
+    expect(fake.queries.some((q) => q.table === "rpc:chat_unread_counts")).toBe(false);
+  });
+
   it("hides group messages while viewing as a member", async () => {
     signInAs(MEMBER_USER, { ...MEMBER_IDENTITY, isSudo: true });
     render(await ChatLayout({ children: null }));
@@ -167,6 +234,63 @@ describe("chat shell", () => {
     signInAs(MEMBER_USER, { ...MEMBER_IDENTITY, isSudo: true });
     sudoMemberHasFlag = false;
     await expect(ChatLayout({ children: null })).rejects.toThrow("404");
+  });
+});
+
+describe("the line between read and new", () => {
+  // Newest first, as the database returns them: messages 1 to 3 on Oct 1 to 3, 12:00.
+  const three = () => [msg(3), msg(2), msg(1)];
+  const line = () => screen.queryByRole("separator", { name: "New messages" });
+
+  it("sits above the first message newer than the member's read marker", async () => {
+    messages = three();
+    readMarker = "2026-10-02T12:00:00Z";
+    await renderChannel(HOSTS);
+    expect(line()).toBeInTheDocument();
+    expect(line()!.nextElementSibling).toHaveAttribute("id", `m-${id(103)}`);
+    expect(line()!.previousElementSibling).toHaveAttribute("id", `m-${id(102)}`);
+  });
+
+  it("is not drawn for a public channel the member is not in (no read marker to compare with)", async () => {
+    messages = three();
+    await renderChannel(GENERAL);
+    expect(line()).not.toBeInTheDocument();
+  });
+
+  it("goes above the oldest message when nothing has been read, and is absent when everything has", async () => {
+    messages = three();
+    readMarker = null;
+    await renderChannel(HOSTS);
+    expect(line()!.nextElementSibling).toHaveAttribute("id", `m-${id(101)}`);
+    cleanup();
+
+    readMarker = "2026-10-03T12:00:00Z";
+    await renderChannel(HOSTS);
+    expect(line()).not.toBeInTheDocument();
+  });
+
+  it("skips the member's own messages and deleted ones when placing it", async () => {
+    messages = [msg(3), msg(2, { author_member_id: "member-fern" }), msg(1)];
+    readMarker = "2026-10-01T12:00:00Z";
+    await renderChannel(HOSTS);
+    expect(line()!.nextElementSibling).toHaveAttribute("id", `m-${id(103)}`);
+    cleanup();
+
+    messages = [msg(3, { deleted_at: "2026-10-04T00:00:00Z" }), msg(2, { author_member_id: "member-fern" }), msg(1)];
+    await renderChannel(HOSTS);
+    expect(line()).not.toBeInTheDocument();
+  });
+
+  it("is not drawn in sudo (the marker is the signed-in member's, not the viewed one's) or on an older page", async () => {
+    messages = three();
+    readMarker = "2026-10-01T12:00:00Z";
+    await renderChannel(HOSTS, { before: "2026-10-05T00:00:00Z" });
+    expect(line()).not.toBeInTheDocument();
+    cleanup();
+
+    signInAs(MEMBER_USER, { ...MEMBER_IDENTITY, isSudo: true });
+    await renderChannel(HOSTS);
+    expect(line()).not.toBeInTheDocument();
   });
 });
 
@@ -220,17 +344,27 @@ describe("channel page", () => {
     }
   });
 
-  it("offers older messages when the page is full, keyed on the oldest one shown", async () => {
+  it("offers older messages when the page is full, from a cursor on the oldest one shown", async () => {
     // Newest first, 41 rows: one more than a page.
     messages = Array.from({ length: 41 }, (_, i) => msg(41 - i, { created_at: new Date(Date.UTC(2026, 9, 1, 0, 41 - i)).toISOString() }));
     await renderChannel(GENERAL);
 
-    const older = screen.getByRole("link", { name: "Load older messages" });
-    expect(older.getAttribute("href")).toContain(`/chat/${GENERAL}?before=`);
+    expect(screen.getByRole("button", { name: "Load older messages" })).toBeInTheDocument();
     expect(screen.getAllByRole("article")).toHaveLength(40);
-    // The oldest of the 40 shown is the cursor; the 41st is on the next page.
-    expect(decodeURIComponent(older.getAttribute("href")!)).toContain("2026-10-01T00:02:00.000Z");
     expect(screen.queryByText("message 1")).not.toBeInTheDocument();
+
+    // The oldest of the 40 shown is the cursor; the 41st is on the next page.
+    vi.mocked(loadOlderChat).mockResolvedValue({
+      views: [{ ...EXAMPLE_VIEW, id: "older-1", body: "from the next page", createdAt: "2026-10-01T00:01:00.000Z" }],
+      ctx: EMPTY_CTX,
+      olderBefore: null,
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Load older messages" }));
+    expect(loadOlderChat).toHaveBeenCalledWith(GENERAL, "2026-10-01T00:02:00.000Z");
+    const articles = screen.getAllByRole("article");
+    expect(articles).toHaveLength(41);
+    expect(articles[0]).toHaveTextContent("from the next page");
+    expect(screen.queryByRole("button", { name: /older messages/ })).not.toBeInTheDocument();
   });
 
   it("passes ?before= through as a cursor and ignores junk", async () => {
@@ -262,14 +396,46 @@ describe("channel page", () => {
     );
   });
 
-  it("opens a member's profile in the right panel, with a link to the full profile", async () => {
+  it("opens a member's profile in the right panel: how long they've been a Hedgie, bio, topics and links", async () => {
     messages = [msg(1)];
     await renderChannel(GENERAL, { profile: id(900) });
 
     const panel = within(screen.getByRole("complementary", { name: "Profile" }));
     expect(panel.getByText("Hazel Burrows")).toBeInTheDocument();
+    expect(panel.getByText("Hedgie since March 2025")).toBeInTheDocument();
+    expect(panel.getByText(/Writes cozy mysteries\./)).toBeInTheDocument();
+    expect(panel.getByRole("link", { name: "cozy mysteries" })).toHaveAttribute("href", "/members?q=cozy%20mysteries");
+    expect(panel.getByRole("link", { name: "Instagram" })).toHaveAttribute("href", "https://instagram.example.test/hazel");
+    // Unsafe or missing links are not shown.
+    expect(panel.queryByRole("link", { name: /Facebook|Twitter/ })).not.toBeInTheDocument();
     expect(panel.getByRole("link", { name: "View full profile" })).toHaveAttribute("href", `/members/${id(900)}`);
     expect(panel.getByRole("link", { name: "Close profile" })).toHaveAttribute("href", `/chat/${GENERAL}`);
+  });
+
+  it("shows the badges the member has earned, computed as on the full profile, with a retreat badge linking to its event", async () => {
+    earnedBadges = [
+      { badgeType: { id: "b1", key: "retreat", name: "Retreat", description: null, icon: "⛺", category: "retreat", event_slug: "spring-retreat" }, levelName: "Spring Retreat", level: null, occurrences: 1, firstAwardedAt: null, lastAwardedAt: null, note: null },
+      { badgeType: { id: "b2", key: "founder", name: "Founding Hedgie", description: null, icon: "🌱", category: "milestone" }, levelName: "Founding Hedgie", level: null, occurrences: 1, firstAwardedAt: null, lastAwardedAt: null, note: null },
+    ];
+    messages = [msg(1)];
+    await renderChannel(GENERAL, { profile: id(900) });
+
+    const panel = within(screen.getByRole("region", { name: "Badges" }));
+    expect(panel.getByRole("link", { name: /Spring Retreat/ })).toHaveAttribute("href", "/events/spring-retreat");
+    expect(panel.getByText("Founding Hedgie")).toBeInTheDocument();
+    expect(getMemberBadges).toHaveBeenCalledWith(expect.anything(), id(900), 12, "2025-03-15");
+  });
+
+  it("has no badges section for a member with none", async () => {
+    messages = [msg(1)];
+    await renderChannel(GENERAL, { profile: id(900) });
+    expect(screen.queryByRole("region", { name: "Badges" })).not.toBeInTheDocument();
+  });
+
+  it("says so when the profile's member isn't in the directory", async () => {
+    messages = [msg(1)];
+    await renderChannel(GENERAL, { profile: id(901) });
+    expect(within(screen.getByRole("complementary", { name: "Profile" })).getByText("This member isn't available.")).toBeInTheDocument();
   });
 
   it("opens no panel for a bad profile id, and a thread wins over a profile", async () => {

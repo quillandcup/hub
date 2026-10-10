@@ -3,6 +3,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { authenticateRealtime } from "@/lib/chat/live";
+import { scrollParent } from "@/lib/chat/scroll";
+import { markChatRead } from "@/app/(member)/chat/actions";
 
 /** Bursts of changes (a message plus its reactions) become one refresh. */
 const REFRESH_DELAY_MS = 300;
@@ -10,14 +13,6 @@ const REFRESH_DELAY_MS = 300;
 const NEAR_BOTTOM_PX = 150;
 
 type Change = { eventType: string; new: Record<string, unknown>; old: Record<string, unknown> };
-
-/** The element that scrolls the page: the layout's own scroller if there is one, else the document. */
-function scrollParent(el: HTMLElement | null): HTMLElement {
-  for (let p = el?.parentElement; p; p = p.parentElement) {
-    if (/(auto|scroll)/.test(getComputedStyle(p).overflowY)) return p;
-  }
-  return (document.scrollingElement ?? document.documentElement) as HTMLElement;
-}
 
 function scrollToBottom(anchor: HTMLElement | null) {
   const el = scrollParent(anchor);
@@ -50,12 +45,18 @@ export default function ChatLive({
   messageIds,
   latestId,
   threadRootId,
+  markRead = false,
+  latestAt = null,
 }: {
   channelId: string;
   view: ChatLiveView;
   messageIds: string[];
   latestId: string | null;
   threadRootId?: string;
+  /** Mark the conversation read, through `latestAt`, when the reader leaves it (not in sudo, not in thread panels). */
+  markRead?: boolean;
+  /** When the newest message on the page was sent: how far the reader has seen. */
+  latestAt?: string | null;
 }) {
   const router = useRouter();
   const anchor = useRef<HTMLSpanElement>(null);
@@ -124,13 +125,8 @@ export default function ChatLive({
       refresh();
     };
     let subscription: ReturnType<typeof supabase.channel> | null = null;
-    // Realtime joins with the anon key unless it is handed the member's token first, and as
-    // anon it rejects the filter and delivers nothing (the page just never updates). So load
-    // the session and set its token before subscribing; later refreshes are passed on by the client.
     void (async () => {
-      const { data } = await supabase.auth.getSession();
-      if (cancelled) return;
-      if (data.session) await supabase.realtime.setAuth(data.session.access_token);
+      await authenticateRealtime(supabase);
       if (cancelled) return;
       subscription = supabase
         .channel(`chat:${channelId}:${view}:${threadRootId ?? ""}`)
@@ -160,10 +156,46 @@ export default function ChatLive({
     };
   }, [channelId, view, threadRootId, refresh]);
 
-  // Opening a conversation lands on its newest message, as in any chat, so the first new
-  // message after that is followed instead of waiting behind the pill.
+  // The conversation counts as read when the reader leaves it (switches away, hides the tab or
+  // closes it), through the newest message that was on the page, so messages that arrived behind a
+  // "New messages" pill stay unread. Not when it opens: the marker would move, and the line between
+  // read and new would vanish on the next refresh.
+  const leaveAt = useRef(latestAt);
   useEffect(() => {
-    if (view === "latest") scrollToBottom(anchor.current);
+    leaveAt.current = latestAt;
+  });
+  useEffect(() => {
+    if (!markRead || view !== "latest") return;
+    const mark = () => {
+      if (leaveAt.current) void markChatRead(channelId, leaveAt.current);
+    };
+    const onHide = () => {
+      if (document.visibilityState === "hidden") mark();
+    };
+    // React's development double-mount unmounts at once; that is not the reader leaving.
+    let settled = false;
+    const settle = setTimeout(() => {
+      settled = true;
+    }, 0);
+    document.addEventListener("visibilitychange", onHide);
+    window.addEventListener("pagehide", mark);
+    return () => {
+      clearTimeout(settle);
+      document.removeEventListener("visibilitychange", onHide);
+      window.removeEventListener("pagehide", mark);
+      if (settled) mark();
+    };
+  }, [markRead, view, channelId]);
+
+  // Opening a conversation lands where the reader left off: on the line between what they had read
+  // and what is new, if there is one, else on the newest message (so the first new message after
+  // that is followed instead of waiting behind the pill).
+  useEffect(() => {
+    if (view !== "latest") return;
+    const scroller = scrollParent(anchor.current);
+    const line = scroller.querySelector("#unread-divider");
+    if (line) scroller.scrollTop += line.getBoundingClientRect().top - scroller.getBoundingClientRect().top - 24;
+    else scrollToBottom(anchor.current);
   }, [channelId, view]);
 
   // Once the refreshed page has a newer last message, follow it if that is what we were doing.
