@@ -6,8 +6,12 @@ import { unicodeEmoji, type CustomEmoji } from "@/lib/chat/emoji";
 export interface ChatTextContext {
   /** Slack user id -> display name, for <@U123> mentions. */
   userNames: Record<string, string>;
+  /** Slack user id -> Hub member id, so a mention of a matched person links to their profile. */
+  userMembers: Record<string, string>;
   /** Slack channel id -> Hub chat channel id, for <#C123> links to channels we mirror. */
   channelIds: Record<string, string>;
+  /** Slack channel id -> channel name; the text's own label is often just "channel". */
+  channelNames: Record<string, string>;
   /** Custom emoji used on the page, by shortcode (see customEmojiFor). */
   customEmoji: Record<string, CustomEmoji>;
 }
@@ -23,6 +27,12 @@ export function Emoji({ name, custom }: { name: string; custom: Record<string, C
   const text = c?.text ?? unicodeEmoji(key);
   return <span title={`:${key}:`}>{text ?? `:${name}:`}</span>;
 }
+
+/** Links stand out from the text: a lighter plum on dark backgrounds, medium weight, underlined. */
+const LINK_CLASS =
+  "font-medium text-plum-700 dark:text-plum-300 underline decoration-plum-400/60 underline-offset-2 hover:decoration-current";
+/** Mentions and channel links get Slack's tinted chip. */
+const CHIP_CLASS = "rounded bg-plum-50 dark:bg-plum-900/30 px-1 text-plum-700 dark:text-plum-300";
 
 function renderInline(nodes: Inline[], ctx: ChatTextContext): ReactNode[] {
   return nodes.map((n, i) => {
@@ -48,26 +58,35 @@ function renderInline(nodes: Inline[], ctx: ChatTextContext): ReactNode[] {
             href={n.href}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-plum-600 dark:text-plum-400 hover:underline"
+            className={LINK_CLASS}
           >
             {n.label}
           </a>
         );
-      case "user":
-        return (
-          <span key={i} className="rounded bg-plum-50 dark:bg-plum-900/20 px-1 text-plum-700 dark:text-plum-300">
-            @{ctx.userNames[n.id] ?? "someone"}
-          </span>
-        );
-      case "channel": {
-        const hubId = ctx.channelIds[n.id];
-        const label = `#${n.label ?? "channel"}`;
-        return hubId ? (
-          <Link key={i} href={`/chat/${hubId}`} className="text-plum-600 dark:text-plum-400 hover:underline">
+      case "user": {
+        const label = `@${ctx.userNames[n.id] ?? "someone"}`;
+        const memberId = ctx.userMembers[n.id];
+        return memberId ? (
+          <Link key={i} href={`/members/${memberId}`} className={`${CHIP_CLASS} ${LINK_CLASS} no-underline hover:underline`}>
             {label}
           </Link>
         ) : (
-          <span key={i}>{label}</span>
+          <span key={i} className={CHIP_CLASS}>
+            {label}
+          </span>
+        );
+      }
+      case "channel": {
+        const hubId = ctx.channelIds[n.id];
+        const label = `#${ctx.channelNames[n.id] ?? n.label ?? "channel"}`;
+        return hubId ? (
+          <Link key={i} href={`/chat/${hubId}`} className={`${CHIP_CLASS} ${LINK_CLASS} no-underline hover:underline`}>
+            {label}
+          </Link>
+        ) : (
+          <span key={i} className={CHIP_CLASS}>
+            {label}
+          </span>
         );
       }
       case "special":

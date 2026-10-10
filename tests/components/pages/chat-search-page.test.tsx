@@ -31,6 +31,8 @@ vi.mock("@/lib/chat/names", () => ({
   slackAuthorIdsByTs: vi.fn(async () => ({})),
   customEmojiFor: vi.fn(async () => ({})),
   slackUserPhotos: vi.fn(async () => ({})),
+  slackUserMemberIds: vi.fn(async () => ({})),
+  slackChannelNames: vi.fn(async () => ({})),
 }));
 
 const { getUserFeaturePreviews } = await import("@/lib/features.server");

@@ -115,6 +115,11 @@ export function mentionedUserIds(text: string): string[] {
   return [...text.matchAll(/<@([A-Z0-9]+)(?:\|[^>]*)?>/g)].map((m) => m[1]);
 }
 
+/** Slack channel ids linked in a body (<#C123> or <#C123|name>), to look up their names. */
+export function mentionedChannelIds(text: string): string[] {
+  return [...text.matchAll(/<#([A-Z0-9]+)(?:\|[^>]*)?>/g)].map((m) => m[1]);
+}
+
 /** Emoji shortcodes used in a body, for looking up the workspace's custom ones in one batch. */
 export function emojiNamesIn(text: string): string[] {
   return [...text.matchAll(/:([a-z0-9_+-]+)(?:::skin-tone-\d)?:/gi)].map((m) => m[1].toLowerCase());

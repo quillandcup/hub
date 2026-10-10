@@ -6,6 +6,7 @@ import { requireChat } from "@/lib/chat/access";
 import { isUuid, parseBefore } from "@/lib/chat/format";
 import {
   buildMessageViews,
+  chatTextContext,
   loadChannelForMember,
   loadChatChannels,
   loadMessage,
@@ -58,15 +59,11 @@ export default async function ChatChannelPage({
   }
 
   const rows = page ? (root ? [root, ...page.messages] : page.messages) : [];
-  const [{ views, userNames, customEmoji }, channels] = await Promise.all([
+  const [{ views, ...rendered }, channels] = await Promise.all([
     buildMessageViews(supabase, channel, rows, identity.memberId),
     loadChatChannels(supabase, identity.memberId, identity.isSudo),
   ]);
-  const ctx = {
-    userNames,
-    customEmoji,
-    channelIds: Object.fromEntries(channels.filter((c) => c.slackChannelId).map((c) => [c.slackChannelId as string, c.id])),
-  };
+  const ctx = chatTextContext(rendered, channels);
   const rootView = root ? views[0] : null;
   const messageViews = root ? views.slice(1) : views;
 

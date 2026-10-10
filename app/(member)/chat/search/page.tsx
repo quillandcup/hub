@@ -3,7 +3,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { requireChat } from "@/lib/chat/access";
 import { firstParam, isUuid, parseDay } from "@/lib/chat/format";
-import { loadChatChannels } from "@/lib/chat/load";
+import { chatTextContext, loadChatChannels } from "@/lib/chat/load";
 import { MAX_QUERY_LENGTH, searchChat } from "@/lib/chat/search";
 import { parseSearch } from "@/lib/chat/search-syntax";
 import MessageItem from "@/components/chat/MessageItem";
@@ -69,11 +69,7 @@ export default async function ChatSearchPage({
           page: pageNumber,
         })
       : null;
-  const ctx = {
-    userNames: page?.render.userNames ?? {},
-    customEmoji: page?.render.customEmoji ?? {},
-    channelIds: Object.fromEntries(all.filter((c) => c.slackChannelId).map((c) => [c.slackChannelId as string, c.id])),
-  };
+  const ctx = chatTextContext(page?.render ?? { userNames: {}, userMembers: {}, channelNames: {}, customEmoji: {} }, all);
 
   const linkTo = (n: number) => {
     const p = new URLSearchParams();

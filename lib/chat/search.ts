@@ -34,10 +34,10 @@ export interface SearchPage {
   results: SearchResult[];
   hasMore: boolean;
   /** Slack user id -> name and custom emoji for rendering the message texts. */
-  render: Pick<ChatMessages, "userNames" | "customEmoji">;
+  render: Omit<ChatMessages, "views">;
 }
 
-const EMPTY: SearchPage = { results: [], hasMore: false, render: { userNames: {}, customEmoji: {} } };
+const EMPTY: SearchPage = { results: [], hasMore: false, render: { userNames: {}, userMembers: {}, channelNames: {}, customEmoji: {} } };
 
 /** Members whose name contains what was typed (LIKE wildcards escaped), for the "From" filter. */
 async function authorIds(supabase: SupabaseClient, typed: string): Promise<string[]> {
@@ -95,7 +95,7 @@ export async function searchChat(supabase: SupabaseClient, viewerMemberId: strin
 
   // Views are built per channel (Slack author lookups are keyed by the Slack channel).
   const viewById = new Map<string, ChatMessageView>();
-  const render: SearchPage["render"] = { userNames: {}, customEmoji: {} };
+  const render: SearchPage["render"] = { userNames: {}, userMembers: {}, channelNames: {}, customEmoji: {} };
   const byChannel = new Map<string, Row[]>();
   for (const r of byId.values()) byChannel.set(r.channel_id, [...(byChannel.get(r.channel_id) ?? []), r]);
   await Promise.all(
@@ -105,6 +105,8 @@ export async function searchChat(supabase: SupabaseClient, viewerMemberId: strin
       const built = await buildMessageViews(supabase, channel, channelRows as MessageRow[], viewerMemberId);
       channelRows.forEach((r, i) => viewById.set(r.id, built.views[i]));
       Object.assign(render.userNames, built.userNames);
+      Object.assign(render.userMembers, built.userMembers);
+      Object.assign(render.channelNames, built.channelNames);
       Object.assign(render.customEmoji, built.customEmoji);
     })
   );
