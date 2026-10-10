@@ -7,6 +7,7 @@ import type { FeatureKey } from '@/lib/features'
 import MemberNavigation from '@/components/MemberNavigation'
 import UserMenu from '@/components/UserMenu'
 import SudoBanner from '@/components/SudoBanner'
+import { InstallAppPrompt } from '@/components/InstallAppPrompt'
 import { TimezoneInitializer } from '@/components/TimezoneInitializer'
 import FeedbackWidget from '@/components/FeedbackWidget'
 import OnboardingGuide from '@/components/onboarding/OnboardingGuide'
@@ -54,6 +55,7 @@ export default async function MemberLayout({
   // In-app notifications show in sudo like the rest of the member's experience, behind the
   // member's own flag (app/actions/in-app-notifications.ts).
   const showInApp = await effectiveMemberHasFeature('in_app_notifications', effectiveIdentity, enabledFeatures)
+  const showInstallPrompt = await effectiveMemberHasFeature('browser_notifications', effectiveIdentity, enabledFeatures)
   const [onboardingState, inAppNotifications] = await Promise.all([
     showOnboarding ? getOnboardingState(user.id, effectiveIdentity.memberId) : null,
     showInApp
@@ -94,6 +96,7 @@ export default async function MemberLayout({
             memberEmail={effectiveIdentity.memberEmail}
           />
         )}
+        {showInstallPrompt && <InstallAppPrompt />}
         {inAppNotifications ? (
           <InAppNotificationsProvider initial={inAppNotifications}>
             {header(<InAppNotificationBell />)}

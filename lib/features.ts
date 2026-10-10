@@ -1,4 +1,4 @@
-export type FeatureKey = 'member_overrides' | 'hedgieversaries' | 'work_queue' | 'program_cohorts' | 'events' | 'message_privacy' | 'slack_admin_sign_in' | 'onboarding' | 'in_app_notifications' | 'chat';
+export type FeatureKey = 'member_overrides' | 'hedgieversaries' | 'work_queue' | 'program_cohorts' | 'events' | 'message_privacy' | 'slack_admin_sign_in' | 'onboarding' | 'in_app_notifications' | 'browser_notifications' | 'chat';
 
 export interface FeaturePreview {
   key: FeatureKey;
@@ -51,6 +51,11 @@ export const FEATURE_PREVIEWS: FeaturePreview[] = [
     key: 'in_app_notifications',
     name: 'In-App Notifications',
     description: 'Notifications in the Hub, next to Slack: a bell in the header with the latest, an inbox page with all of them, and a banner while one is time-sensitive (a check-in until the prickle starts, a check-out for a few hours after it ends). Adds an "In the Hub" switch to Settings → Notifications (on by default)',
+  },
+  {
+    key: 'browser_notifications',
+    name: 'Browser Notifications',
+    description: 'Desktop and phone notifications from your browser, even when the Hub is closed (Web Push). Adds a "Browser" switch and a per-device "Turn on for this device" button to Settings → Notifications; a device only receives them once it has turned them on',
   },
   {
     key: 'chat',

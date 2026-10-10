@@ -3,7 +3,8 @@
  * Pure and framework-free so it can be tested on its own. Handles what people actually type:
  * *bold*, _italic_, ~strike~, `code`, ```code blocks```, > quotes, <https://link|label>,
  * <@U123> mentions, <#C123|name> channel links, <!here> style specials, :emoji: and the
- * &amp; &lt; &gt; escapes. Anything else stays plain text; rich_text blocks come later.
+ * &amp; &lt; &gt; escapes, "• " bullet lines and blank-line paragraph gaps. Anything else stays
+ * plain text; rich_text blocks come later.
  */
 
 export type Inline =
@@ -17,7 +18,8 @@ export type Inline =
   | { t: "emoji"; name: string };
 
 export type Block =
-  | { t: "line"; c: Inline[] }
+  | { t: "line"; c: Inline[]; gap: boolean }
+  | { t: "bullet"; c: Inline[] }
   | { t: "quote"; c: Inline[] }
   | { t: "code"; v: string };
 
@@ -77,14 +79,21 @@ export function parseInline(text: string): Inline[] {
   return out;
 }
 
-/** A message body as blocks: code fences, quoted lines and ordinary lines (blank lines dropped). */
+/** A message body as blocks: code fences, quoted lines, bullets and ordinary lines. A blank line before a line is kept as its `gap`. */
 export function parseSlackText(text: string): Block[] {
   const blocks: Block[] = [];
+  let blank = false;
   const addLines = (raw: string) => {
-    for (const line of raw.split("\n")) {
-      if (!line.trim()) continue;
+    for (const [n, line] of raw.split("\n").entries()) {
+      if (!line.trim()) {
+        // The empty piece before the first newline is just the rest of a fence line, not a blank line.
+        blank = blocks.length > 0 && n > 0;
+        continue;
+      }
       if (/^&gt;\s?/.test(line)) blocks.push({ t: "quote", c: parseInline(line.replace(/^&gt;\s?/, "")) });
-      else blocks.push({ t: "line", c: parseInline(line) });
+      else if (/^\s*[•◦▪]\s+/.test(line)) blocks.push({ t: "bullet", c: parseInline(line.replace(/^\s*[•◦▪]\s+/, "")) });
+      else blocks.push({ t: "line", c: parseInline(line), gap: blank });
+      blank = false;
     }
   };
 
@@ -94,6 +103,7 @@ export function parseSlackText(text: string): Block[] {
     addLines(text.slice(last, fence.index));
     const code = decodeEntities(fence[1].replace(/^\n/, "").replace(/\n$/, ""));
     if (code) blocks.push({ t: "code", v: code });
+    blank = false;
     last = fence.index + fence[0].length;
   }
   addLines(text.slice(last));
@@ -103,4 +113,9 @@ export function parseSlackText(text: string): Block[] {
 /** Slack user ids mentioned in a body, for resolving names in one batch. */
 export function mentionedUserIds(text: string): string[] {
   return [...text.matchAll(/<@([A-Z0-9]+)(?:\|[^>]*)?>/g)].map((m) => m[1]);
+}
+
+/** Emoji shortcodes used in a body, for looking up the workspace's custom ones in one batch. */
+export function emojiNamesIn(text: string): string[] {
+  return [...text.matchAll(/:([a-z0-9_+-]+)(?:::skin-tone-\d)?:/gi)].map((m) => m[1].toLowerCase());
 }

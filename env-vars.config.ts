@@ -258,6 +258,24 @@ export const ENV_VARS: readonly EnvVarSpec[] = [
     destinations: vercelAllEnvs,
   },
 
+  // --- Web Push --------------------------------------------------------------------------------
+  {
+    name: "NEXT_PUBLIC_VAPID_PUBLIC_KEY",
+    group: "Web Push",
+    description:
+      "VAPID public key (URL-safe base64) the browser subscribes with for Browser notifications. Public by design. Generate the pair once with `npx web-push generate-vapid-keys`; changing it invalidates every existing subscription.",
+    type: "config",
+    destinations: vercelAllEnvs,
+  },
+  {
+    name: "VAPID_PRIVATE_KEY",
+    group: "Web Push",
+    description:
+      "VAPID private key matching NEXT_PUBLIC_VAPID_PUBLIC_KEY; signs the pushes the server sends. Without either key the Browser channel can't reach anyone.",
+    type: "secret",
+    destinations: vercelAllEnvs,
+  },
+
   // --- Stripe ----------------------------------------------------------------------------------
   {
     name: "STRIPE_API_KEY",

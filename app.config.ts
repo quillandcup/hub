@@ -10,6 +10,9 @@
 // it after changing one of those.
 
 export const appConfig = {
+  /** The app's name as shown when installed to a home screen (the web app manifest). */
+  appName: "Quill & Cup Hub",
+
   /**
    * Canonical production URL, no trailing slash. Used for links in Slack messages, iCal event
    * UIDs (changing the host makes every calendar subscriber see duplicate events), the

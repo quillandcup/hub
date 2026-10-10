@@ -3,6 +3,7 @@ import type { ChannelAdapter } from "./types";
 import { slackChannel } from "./slack";
 import { inAppChannel } from "./in-app";
 import { emailChannel } from "./email";
+import { webPushChannel } from "./web-push";
 
 export { CHANNELS, isChannelId, type ChannelId } from "./catalog";
 export type { ChannelAdapter, OutboundMessage, SendContext } from "./types";
@@ -11,5 +12,6 @@ export type { ChannelAdapter, OutboundMessage, SendContext } from "./types";
 export const CHANNEL_ADAPTERS: Record<ChannelId, ChannelAdapter> = {
   slack: slackChannel,
   in_app: inAppChannel,
+  web_push: webPushChannel,
   email: emailChannel,
 };

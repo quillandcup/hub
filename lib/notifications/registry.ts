@@ -41,14 +41,14 @@ export const NOTIFICATION_KINDS = [
     category: "Prickles",
     label: "Prickle check-ins",
     description: "Sent about 20 minutes before each writing prickle on your calendar: how you're feeling coming in.",
-    defaultChannels: ["slack", "in_app"],
+    defaultChannels: ["slack", "in_app", "web_push"],
   },
   {
     id: "prickle_checkout",
     category: "Prickles",
     label: "Prickle check-outs",
     description: "Sent after each writing prickle you attended: how it went, and a quick progress log for your goals.",
-    defaultChannels: ["slack", "in_app"],
+    defaultChannels: ["slack", "in_app", "web_push"],
   },
 ] as const satisfies readonly NotificationKindDef[];
 

@@ -19,7 +19,7 @@ vi.mock("@/lib/sudo", () => ({ getEffectiveIdentity: vi.fn() }));
 
 const { getCurrentUser } = await import("@/lib/auth");
 const { getEffectiveIdentity } = await import("@/lib/sudo");
-const { getNotificationSettings, setNotificationChannel } = await import("@/app/(member)/settings/notificationActions");
+const { getNotificationSettings, removePushSubscription, savePushSubscription, setNotificationChannel } = await import("@/app/(member)/settings/notificationActions");
 const { NotificationsPanel } = await import("@/app/(member)/settings/NotificationsPanel");
 
 const IDENTITY = { memberId: "member-1", memberName: "Member One", memberEmail: "m1@example.com", isSudo: false };
@@ -41,7 +41,8 @@ describe("getNotificationSettings", () => {
 
     expect(await getNotificationSettings()).toEqual({
       channels: ["slack", "email"],
-      channelsByKind: { prickle_checkin: ["slack", "in_app"], prickle_checkout: ["in_app"] },
+      webPushPublicKey: null,
+      channelsByKind: { prickle_checkin: ["slack", "in_app", "web_push"], prickle_checkout: ["in_app", "web_push"] },
       readOnly: false,
     });
     const query = fake.queries.find((q) => q.table === "notification_preferences")!;
@@ -56,9 +57,80 @@ describe("getNotificationSettings", () => {
     expect((await getNotificationSettings())?.channels).toEqual(["slack", "in_app", "email"]);
   });
 
+  it("offers Browser, and the key devices subscribe with, only with the flag and VAPID keys", async () => {
+    serviceFake = createFakeSupabase({
+      feature_flags: { data: { enabled_globally: true } },
+      members: { data: [{ id: "member-1", user_id: "user-1" }] },
+    });
+    vi.stubEnv("NEXT_PUBLIC_VAPID_PUBLIC_KEY", "public-key");
+    vi.stubEnv("VAPID_PRIVATE_KEY", "private-key");
+    const settings = await getNotificationSettings();
+    expect(settings?.channels).toEqual(["slack", "in_app", "web_push", "email"]);
+    expect(settings?.webPushPublicKey).toBe("public-key");
+
+    vi.stubEnv("VAPID_PRIVATE_KEY", "");
+    const unconfigured = await getNotificationSettings();
+    expect(unconfigured?.channels).toEqual(["slack", "in_app", "email"]);
+    expect(unconfigured?.webPushPublicKey).toBeNull();
+    vi.unstubAllEnvs();
+  });
+
   it("is read-only in sudo", async () => {
     vi.mocked(getEffectiveIdentity).mockResolvedValue({ ...IDENTITY, isSudo: true } as never);
     expect((await getNotificationSettings())?.readOnly).toBe(true);
+  });
+});
+
+describe("push subscriptions", () => {
+  const SUBSCRIPTION = { endpoint: "https://push.example.test/abc", keys: { p256dh: "p256", auth: "auth" } };
+  const flagged = () =>
+    createFakeSupabase({
+      feature_flags: { data: { enabled_globally: true } },
+      members: { data: [{ id: "member-1", user_id: "user-1" }] },
+    });
+  const written = (method: string) =>
+    serviceFake.queries.filter((q) => q.table === "push_subscriptions").flatMap((q) => q.calls).filter((c) => c.method === method);
+
+  it("saves a device for the member, reviving it if it had been removed", async () => {
+    serviceFake = flagged();
+    expect(await savePushSubscription(SUBSCRIPTION, "Test Browser")).toEqual({ success: true });
+    expect(written("upsert")[0].args).toEqual([
+      {
+        member_id: "member-1",
+        endpoint: SUBSCRIPTION.endpoint,
+        p256dh: "p256",
+        auth: "auth",
+        user_agent: "Test Browser",
+        deleted_at: null,
+      },
+      { onConflict: "endpoint" },
+    ]);
+  });
+
+  it("refuses without the flag, in sudo, and for a malformed or non-HTTPS subscription", async () => {
+    serviceFake = createFakeSupabase();
+    expect(await savePushSubscription(SUBSCRIPTION, null)).toEqual({ error: expect.stringContaining("aren't available") });
+
+    serviceFake = flagged();
+    expect(await savePushSubscription({ ...SUBSCRIPTION, endpoint: "http://push.example.test/abc" }, null)).toEqual({
+      error: "Invalid push subscription",
+    });
+    expect(await savePushSubscription({ endpoint: SUBSCRIPTION.endpoint } as never, null)).toEqual({
+      error: "Invalid push subscription",
+    });
+
+    vi.mocked(getEffectiveIdentity).mockResolvedValue({ ...IDENTITY, isSudo: true } as never);
+    expect(await savePushSubscription(SUBSCRIPTION, null)).toEqual({ error: expect.stringContaining("sudo") });
+    expect(written("upsert")).toEqual([]);
+  });
+
+  it("removes only the member's own live subscription for that endpoint", async () => {
+    serviceFake = flagged();
+    expect(await removePushSubscription(SUBSCRIPTION.endpoint)).toEqual({ success: true });
+    const calls = serviceFake.queries.filter((q) => q.table === "push_subscriptions").flatMap((q) => q.calls);
+    expect(calls).toContainEqual({ method: "eq", args: ["member_id", "member-1"] });
+    expect(calls).toContainEqual({ method: "eq", args: ["endpoint", SUBSCRIPTION.endpoint] });
+    expect(calls.find((c) => c.method === "update")!.args[0]).toEqual({ deleted_at: expect.any(String) });
   });
 });
 
@@ -87,6 +159,7 @@ describe("setNotificationChannel", () => {
 describe("NotificationsPanel", () => {
   const initial = {
     channels: ["slack" as const],
+    webPushPublicKey: null,
     channelsByKind: { prickle_checkin: ["slack" as const], prickle_checkout: [] },
     readOnly: false,
   };

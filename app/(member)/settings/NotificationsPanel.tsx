@@ -8,6 +8,7 @@ import {
   type NotificationKindId,
 } from "@/lib/notifications/registry";
 import { ChannelIcon } from "@/components/ChannelIcon";
+import { BrowserNotificationsToggle } from "./BrowserNotificationsToggle";
 import { setNotificationChannel, type NotificationSettings } from "./notificationActions";
 
 /**
@@ -57,6 +58,10 @@ export function NotificationsPanel({ initial }: { initial: NotificationSettings 
           </p>
         )}
       </div>
+
+      {initial.webPushPublicKey && (
+        <BrowserNotificationsToggle publicKey={initial.webPushPublicKey} readOnly={initial.readOnly} />
+      )}
 
       {categories.map((category) => (
         <section key={category}>
