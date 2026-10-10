@@ -115,6 +115,39 @@ export async function memberProfiles(
   return profiles;
 }
 
+export interface ChannelPerson {
+  memberId: string;
+  name: string;
+  photoUrl: string | null;
+}
+
+/** Who is in a conversation now (matched members only, A to Z), under RLS. Paged past the 1000-row cap. */
+export async function loadChannelMembers(supabase: SupabaseClient, channelId: string): Promise<ChannelPerson[]> {
+  const memberIds: string[] = [];
+  const BATCH_SIZE = 1000;
+  let offset = 0;
+  let hasMore = true;
+  while (hasMore) {
+    const { data: batch } = await supabase
+      .from("chat_channel_members")
+      .select("member_id")
+      .eq("channel_id", channelId)
+      .is("left_at", null)
+      .order("member_id")
+      .range(offset, offset + BATCH_SIZE - 1);
+    memberIds.push(...(batch ?? []).map((r) => r.member_id as string));
+    offset += batch?.length ?? 0;
+    hasMore = (batch?.length ?? 0) === BATCH_SIZE;
+  }
+  const profiles = await memberProfiles(supabase, memberIds);
+  return memberIds
+    .flatMap((memberId) => {
+      const p = profiles.get(memberId);
+      return p ? [{ memberId, name: p.name, photoUrl: p.photoUrl }] : [];
+    })
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
 /**
  * One conversation for the member, or null when they have no business in it: not found under
  * RLS, a private conversation they are not in (admins included: staff reading others' private
@@ -228,6 +261,8 @@ export interface Person {
 
 export interface ChatMessageView {
   id: string;
+  /** The author's Hub member, for linking to their profile; null for Slack people we haven't matched. */
+  authorMemberId: string | null;
   authorName: string;
   authorPhotoUrl: string | null;
   /** Up to REPLY_AVATARS distinct people who replied in the thread, earliest first. */
@@ -401,6 +436,7 @@ export async function buildMessageViews(
     }
     return {
       id: row.id,
+      authorMemberId: row.author_member_id,
       authorName: author.name,
       authorPhotoUrl: author.photoUrl,
       replyAuthors,

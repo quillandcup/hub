@@ -18,12 +18,26 @@ export default function MessageItem({
 }) {
   return (
     <article className="py-3 border-b border-slate-100 dark:border-slate-800 last:border-0 flex gap-3" id={`m-${message.id}`}>
-      <div className="shrink-0 pt-0.5" aria-hidden="true">
-        <MemberAvatar name={message.authorName} photoUrl={message.authorPhotoUrl} size={36} />
+      <div className="shrink-0 pt-0.5">
+        {message.authorMemberId ? (
+          <Link href={`/members/${message.authorMemberId}`} aria-hidden="true" tabIndex={-1}>
+            <MemberAvatar name={message.authorName} photoUrl={message.authorPhotoUrl} size={36} />
+          </Link>
+        ) : (
+          <span aria-hidden="true">
+            <MemberAvatar name={message.authorName} photoUrl={message.authorPhotoUrl} size={36} />
+          </span>
+        )}
       </div>
       <div className="min-w-0 flex-1">
         <header className="flex items-baseline gap-2 text-sm">
-          <span className="font-semibold">{message.authorName}</span>
+          {message.authorMemberId ? (
+            <Link href={`/members/${message.authorMemberId}`} className="font-semibold hover:underline">
+              {message.authorName}
+            </Link>
+          ) : (
+            <span className="font-semibold">{message.authorName}</span>
+          )}
           <time dateTime={message.createdAt} className="text-xs text-slate-500 dark:text-slate-400">
             {formatChatTime(message.createdAt)}
           </time>
