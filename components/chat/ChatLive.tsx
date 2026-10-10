@@ -106,6 +106,23 @@ export default function ChatLive({
 
     let subscribedBefore = false;
     let cancelled = false;
+    // After a reconnect, ask what the newest message really is instead of assuming there is one:
+    // the pill must only ever announce something that exists. Edits and reactions missed while
+    // offline are picked up by the refresh either way.
+    const catchUp = async () => {
+      if (view !== "older") {
+        let query = supabase.from("chat_messages").select("id").eq("channel_id", channelId).order("created_at", { ascending: false }).limit(1);
+        query = view === "thread" ? query.eq("thread_root_id", threadRootId ?? "") : query.is("thread_root_id", null);
+        const { data } = await query;
+        const newest = data?.[0]?.id;
+        if (cancelled) return;
+        if (newest && newest !== latest.current) {
+          if (nearBottom()) followNewest.current = true;
+          else setAnnouncedAt({ latestId: latest.current });
+        }
+      }
+      refresh();
+    };
     let subscription: ReturnType<typeof supabase.channel> | null = null;
     // Realtime joins with the anon key unless it is handed the member's token first, and as
     // anon it rejects the filter and delivers nothing (the page just never updates). So load
@@ -125,11 +142,7 @@ export default function ChatLive({
             return;
           }
           // A re-subscribe means we may have missed changes while disconnected.
-          if (subscribedBefore) {
-            if (nearBottom()) followNewest.current = true;
-            else setAnnouncedAt({ latestId: latest.current });
-            refresh();
-          }
+          if (subscribedBefore) void catchUp();
           subscribedBefore = true;
         });
     })();

@@ -9,6 +9,16 @@ type Payload = { eventType: string; new: Record<string, unknown>; old: Record<st
 const handlers: Record<string, (p: Payload) => void> = {};
 let onStatus: (status: string) => void = () => {};
 const removeChannel = vi.fn();
+/** What the "newest message" lookup after a reconnect returns. */
+let newestId = "m2";
+const query: Record<string, unknown> = {
+  select: () => query,
+  eq: () => query,
+  is: () => query,
+  order: () => query,
+  limit: () => query,
+  then: (resolve: (r: { data: { id: string }[] }) => void) => resolve({ data: [{ id: newestId }] }),
+};
 const calls: string[] = [];
 const setAuth = vi.fn(async () => {
   calls.push("setAuth");
@@ -27,6 +37,7 @@ const channel = {
 vi.mock("@/lib/supabase/client", () => ({
   createClient: () => ({
     channel: () => channel,
+    from: () => query,
     removeChannel,
     auth: { getSession: async () => ({ data: { session: { access_token: "member-token" } } }) },
     realtime: { setAuth },
@@ -62,6 +73,7 @@ describe("ChatLive", () => {
     for (const k of Object.keys(handlers)) delete handlers[k];
     refresh.mockClear();
     calls.length = 0;
+    newestId = "m2";
     HTMLElement.prototype.scrollTo = vi.fn() as never;
     scrolledTo("bottom");
   });
@@ -154,13 +166,32 @@ describe("ChatLive", () => {
 
   it("refreshes on re-subscribe but not the first subscribe, and unsubscribes on unmount", async () => {
     const { unmount } = await mount();
-    act(() => onStatus("SUBSCRIBED"));
+    await act(async () => onStatus("SUBSCRIBED"));
     act(() => vi.advanceTimersByTime(1000));
     expect(refresh).not.toHaveBeenCalled();
-    act(() => onStatus("SUBSCRIBED"));
+    await act(async () => onStatus("SUBSCRIBED"));
     act(() => vi.advanceTimersByTime(1000));
     expect(refresh).toHaveBeenCalledTimes(1);
     unmount();
     expect(removeChannel).toHaveBeenCalled();
+  });
+
+  it("does not raise the pill after a reconnect when nothing new arrived", async () => {
+    scrolledTo("top");
+    await mount();
+    await act(async () => onStatus("SUBSCRIBED"));
+    await act(async () => onStatus("SUBSCRIBED"));
+    act(() => vi.advanceTimersByTime(1000));
+    expect(screen.queryByText(/New messages/)).toBeNull();
+    expect(refresh).toHaveBeenCalledTimes(1);
+  });
+
+  it("raises the pill after a reconnect only when a newer message exists and the reader is scrolled up", async () => {
+    scrolledTo("top");
+    newestId = "m3";
+    await mount();
+    await act(async () => onStatus("SUBSCRIBED"));
+    await act(async () => onStatus("SUBSCRIBED"));
+    expect(screen.getByRole("button", { name: /New messages/ })).toBeTruthy();
   });
 });
