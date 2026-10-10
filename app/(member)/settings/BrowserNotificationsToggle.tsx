@@ -76,7 +76,11 @@ export function BrowserNotificationsToggle({ publicKey, readOnly }: { publicKey:
     setNotice(null);
     const result = await sendTestPushNotification();
     if ("error" in result) setError(result.error);
-    else setNotice("Sent. It should show up on your devices in a moment.");
+    else {
+      setNotice(
+        "Sent. It should show up on your devices in a moment. Nothing? Check your system notification settings (Focus mode, the browser's alert style) and restart your browser."
+      );
+    }
     setBusy(false);
   };
 
