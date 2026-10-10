@@ -1,4 +1,5 @@
 import { createServiceRoleClient } from "@/lib/supabase/service";
+import { safeUrl } from "@/lib/url";
 import { unicodeEmoji, type CustomEmoji } from "@/lib/chat/emoji";
 
 /**
@@ -45,6 +46,43 @@ export async function slackUserNames(userIds: string[]): Promise<Record<string, 
   }
   for (const id of ids) if (!names[id]) delete names[id];
   return names;
+}
+
+/**
+ * Slack user id -> profile photo URL, for the people we can show one for: a matched member's Hub
+ * photo, else the real (uploaded) photo from their Slack profile. Others are left out, and the
+ * chat shows initials.
+ */
+export async function slackUserPhotos(userIds: string[]): Promise<Record<string, string>> {
+  const ids = [...new Set(userIds)];
+  const photos: Record<string, string> = {};
+  if (ids.length === 0) return photos;
+  const service = createServiceRoleClient();
+
+  for (const batch of chunks(ids)) {
+    const [{ data: authors }, { data: slackUsers }] = await Promise.all([
+      service.from("chat_slack_authors").select("slack_user_id, member_id").in("slack_user_id", batch),
+      service.schema("bronze").from("slack_users").select("user_id, image_url").in("user_id", batch),
+    ]);
+    const memberIds = [...new Set((authors ?? []).map((a) => a.member_id))];
+    const memberPhotos = new Map<string, string>();
+    if (memberIds.length > 0) {
+      const { data: members } = await service.from("member_directory").select("id, photo_url").in("id", memberIds);
+      for (const m of members ?? []) {
+        const url = safeUrl(m.photo_url);
+        if (url) memberPhotos.set(m.id, url);
+      }
+    }
+    for (const a of authors ?? []) {
+      const url = memberPhotos.get(a.member_id);
+      if (url) photos[a.slack_user_id] = url;
+    }
+    for (const u of slackUsers ?? []) {
+      const url = safeUrl(u.image_url);
+      if (url && !photos[u.user_id]) photos[u.user_id] = url;
+    }
+  }
+  return photos;
 }
 
 /** For messages with no matched member: message ts -> the Slack user id that wrote it. */
