@@ -1,13 +1,27 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { parseSlackText, type Block, type Inline } from "@/lib/chat/render";
-import { slackEmojiToUnicode } from "@/lib/slack-emoji";
+import { unicodeEmoji, type CustomEmoji } from "@/lib/chat/emoji";
 
 export interface ChatTextContext {
   /** Slack user id -> display name, for <@U123> mentions. */
   userNames: Record<string, string>;
   /** Slack channel id -> Hub chat channel id, for <#C123> links to channels we mirror. */
   channelIds: Record<string, string>;
+  /** Custom emoji used on the page, by shortcode (see customEmojiFor). */
+  customEmoji: Record<string, CustomEmoji>;
+}
+
+/** A Slack emoji: the workspace's custom image, else the Unicode emoji, else the :shortcode: as typed. */
+export function Emoji({ name, custom }: { name: string; custom: Record<string, CustomEmoji> }) {
+  const key = name.toLowerCase().replace(/::skin-tone-\d$/, "");
+  const c = custom[key];
+  if (c && "url" in c) {
+    // eslint-disable-next-line @next/next/no-img-element -- small remote Slack emoji images; no sizing to optimise
+    return <img src={c.url} alt={`:${key}:`} title={`:${key}:`} className="inline-block h-[1.25em] w-[1.25em] align-text-bottom" />;
+  }
+  const text = c?.text ?? unicodeEmoji(key);
+  return <span title={`:${key}:`}>{text ?? `:${name}:`}</span>;
 }
 
 function renderInline(nodes: Inline[], ctx: ChatTextContext): ReactNode[] {
@@ -63,7 +77,7 @@ function renderInline(nodes: Inline[], ctx: ChatTextContext): ReactNode[] {
           </span>
         );
       case "emoji":
-        return <span key={i}>{slackEmojiToUnicode(n.name)}</span>;
+        return <Emoji key={i} name={n.name} custom={ctx.customEmoji} />;
     }
   });
 }
@@ -83,11 +97,43 @@ function renderBlock(block: Block, i: number, ctx: ChatTextContext): ReactNode {
         </blockquote>
       );
     case "line":
-      return <p key={i}>{renderInline(block.c, ctx)}</p>;
+      return (
+        <p key={i} className={block.gap ? "mt-3" : undefined}>
+          {renderInline(block.c, ctx)}
+        </p>
+      );
+    case "bullet":
+      return null; // rendered in runs by renderBlocks
   }
+}
+
+/** Blocks in order, with each run of bullets as one list. */
+function renderBlocks(blocks: Block[], ctx: ChatTextContext): ReactNode[] {
+  const out: ReactNode[] = [];
+  for (let i = 0; i < blocks.length; i++) {
+    const block = blocks[i];
+    if (block.t !== "bullet") {
+      out.push(renderBlock(block, i, ctx));
+      continue;
+    }
+    const items: { c: Inline[]; key: number }[] = [];
+    for (; i < blocks.length && blocks[i].t === "bullet"; i++) items.push({ c: (blocks[i] as { c: Inline[] }).c, key: i });
+    i--;
+    out.push(
+      <ul key={items[0].key} className="mt-1 ml-1 space-y-0.5">
+        {items.map((it) => (
+          <li key={it.key} className="flex gap-2">
+            <span aria-hidden="true">•</span>
+            <span>{renderInline(it.c, ctx)}</span>
+          </li>
+        ))}
+      </ul>
+    );
+  }
+  return out;
 }
 
 /** A message body as rendered Slack text. */
 export default function ChatText({ body, ctx }: { body: string; ctx: ChatTextContext }) {
-  return <div className="break-words">{parseSlackText(body).map((b, i) => renderBlock(b, i, ctx))}</div>;
+  return <div className="break-words">{renderBlocks(parseSlackText(body), ctx)}</div>;
 }

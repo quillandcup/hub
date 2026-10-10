@@ -1,4 +1,6 @@
 import { createServiceRoleClient } from "@/lib/supabase/service";
+import { safeUrl } from "@/lib/url";
+import { unicodeEmoji, type CustomEmoji } from "@/lib/chat/emoji";
 
 /**
  * Names for Slack authors and mentions that the signed-in member can't read themselves:
@@ -46,6 +48,43 @@ export async function slackUserNames(userIds: string[]): Promise<Record<string, 
   return names;
 }
 
+/**
+ * Slack user id -> profile photo URL, for the people we can show one for: a matched member's Hub
+ * photo, else the real (uploaded) photo from their Slack profile. Others are left out, and the
+ * chat shows initials.
+ */
+export async function slackUserPhotos(userIds: string[]): Promise<Record<string, string>> {
+  const ids = [...new Set(userIds)];
+  const photos: Record<string, string> = {};
+  if (ids.length === 0) return photos;
+  const service = createServiceRoleClient();
+
+  for (const batch of chunks(ids)) {
+    const [{ data: authors }, { data: slackUsers }] = await Promise.all([
+      service.from("chat_slack_authors").select("slack_user_id, member_id").in("slack_user_id", batch),
+      service.schema("bronze").from("slack_users").select("user_id, image_url").in("user_id", batch),
+    ]);
+    const memberIds = [...new Set((authors ?? []).map((a) => a.member_id))];
+    const memberPhotos = new Map<string, string>();
+    if (memberIds.length > 0) {
+      const { data: members } = await service.from("member_directory").select("id, photo_url").in("id", memberIds);
+      for (const m of members ?? []) {
+        const url = safeUrl(m.photo_url);
+        if (url) memberPhotos.set(m.id, url);
+      }
+    }
+    for (const a of authors ?? []) {
+      const url = memberPhotos.get(a.member_id);
+      if (url) photos[a.slack_user_id] = url;
+    }
+    for (const u of slackUsers ?? []) {
+      const url = safeUrl(u.image_url);
+      if (url && !photos[u.user_id]) photos[u.user_id] = url;
+    }
+  }
+  return photos;
+}
+
 /** For messages with no matched member: message ts -> the Slack user id that wrote it. */
 export async function slackAuthorIdsByTs(slackChannelId: string, messageTs: string[]): Promise<Record<string, string>> {
   const out: Record<string, string> = {};
@@ -59,6 +98,58 @@ export async function slackAuthorIdsByTs(slackChannelId: string, messageTs: stri
       .eq("channel_id", slackChannelId)
       .in("message_ts", batch);
     for (const row of data ?? []) out[row.message_ts] = row.user_id;
+  }
+  return out;
+}
+
+const ALIAS_DEPTH = 5;
+
+/**
+ * Custom emoji by name, for the names a page shows. bronze.slack_custom_emoji is admin-read only
+ * under RLS, but the emoji are public workspace decoration, so this returns just name -> image
+ * (aliases followed, to a custom image or a standard emoji). Names that are not custom are left out.
+ */
+export async function customEmojiFor(names: string[]): Promise<Record<string, CustomEmoji>> {
+  let wanted = [...new Set(names)];
+  const rows = new Map<string, { image_url: string | null; alias_for: string | null }>();
+  if (wanted.length === 0) return {};
+  const service = createServiceRoleClient();
+
+  // Aliases point at other names, which may be custom too: fetch until nothing new turns up.
+  for (let depth = 0; depth < ALIAS_DEPTH && wanted.length > 0; depth++) {
+    const next = new Set<string>();
+    for (const batch of chunks(wanted)) {
+      const { data } = await service
+        .schema("bronze")
+        .from("slack_custom_emoji")
+        .select("name, image_url, alias_for")
+        .in("name", batch)
+        .is("deleted_at", null);
+      for (const r of data ?? []) {
+        rows.set(r.name, r);
+        if (r.alias_for && !rows.has(r.alias_for)) next.add(r.alias_for);
+      }
+    }
+    wanted = [...next];
+  }
+
+  const out: Record<string, CustomEmoji> = {};
+  for (const name of new Set(names)) {
+    let current = name;
+    for (let i = 0; i <= ALIAS_DEPTH; i++) {
+      const row = rows.get(current);
+      if (!row) {
+        const text = i > 0 ? unicodeEmoji(current) : null;
+        if (text) out[name] = { text };
+        break;
+      }
+      if (row.image_url) {
+        out[name] = { url: row.image_url };
+        break;
+      }
+      if (!row.alias_for) break;
+      current = row.alias_for;
+    }
   }
   return out;
 }

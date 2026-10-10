@@ -35,6 +35,8 @@ vi.mock("@/lib/features.server", () => ({
 vi.mock("@/lib/chat/names", () => ({
   slackUserNames: vi.fn(async () => ({ U_GALE: "Gale Prickleton" })),
   slackAuthorIdsByTs: vi.fn(async () => ({ "300.000": "B_APP" })),
+  customEmojiFor: vi.fn(async () => ({})),
+  slackUserPhotos: vi.fn(async () => ({})),
 }));
 
 const { getUserFeaturePreviews } = await import("@/lib/features.server");
@@ -77,6 +79,7 @@ const msg = (n: number, extra: Record<string, unknown> = {}) => ({
 
 let messages: unknown[] = [];
 let reactions: unknown[] = [];
+let replies: unknown[] = [];
 let fake: FakeSupabase;
 
 const eqArg = (q: FakeQuery, col: string) => q.calls.find((c) => c.method === "eq" && c.args[0] === col)?.args[1];
@@ -94,11 +97,12 @@ const fakeTables = (): FakeTables => ({
   },
   member_directory: {
     data: [
-      { id: "member-gale", name: "Gale Prickleton", display_name: null },
-      { id: "member-fern", name: "Fern Quillsby", display_name: "Fern" },
+      { id: "member-gale", name: "Gale Prickleton", display_name: null, photo_url: "https://photos.example.test/gale.jpg" },
+      { id: "member-fern", name: "Fern Quillsby", display_name: "Fern", photo_url: null },
     ],
   },
   chat_messages: (q) => {
+    if (q.calls.some((c) => c.method === "in" && c.args[0] === "thread_root_id")) return { data: replies };
     const wanted = eqArg(q, "id");
     return { data: wanted ? (messages as { id: string }[]).filter((m) => m.id === wanted) : messages };
   },
@@ -115,6 +119,7 @@ beforeEach(() => {
   sudoMemberHasFlag = true;
   messages = [];
   reactions = [];
+  replies = [];
   vi.mocked(getUserFeaturePreviews).mockResolvedValue(["chat"]);
   signInAs(MEMBER_USER, MEMBER_IDENTITY);
   fake = useFakeSupabase(fakeTables());
@@ -172,6 +177,11 @@ describe("channel page", () => {
       { message_id: id(101), emoji: "tada", member_id: "member-gale" },
       { message_id: id(101), emoji: "eyes", member_id: "member-gale" },
     ];
+    replies = [
+      { thread_root_id: id(101), author_member_id: "member-fern", slack_ts: "1.1" },
+      { thread_root_id: id(101), author_member_id: "member-fern", slack_ts: "1.2" },
+      { thread_root_id: id(101), author_member_id: "member-gale", slack_ts: "1.3" },
+    ];
     await renderChannel(GENERAL);
 
     expect(screen.getByRole("heading", { name: "#general" })).toBeInTheDocument();
@@ -182,6 +192,10 @@ describe("channel page", () => {
     const chips = within(first).getAllByRole("listitem").map((li) => li.textContent);
     expect(chips).toEqual(["🎉 2", "👀 1"]);
     expect(within(first).getByRole("link", { name: /2 replies/ })).toHaveAttribute("href", `/chat/${GENERAL}?thread=${id(101)}`);
+    // The author's photo, and one avatar per distinct replier (Fern has no photo: initials).
+    expect(first.querySelectorAll('img[src="https://photos.example.test/gale.jpg"]').length).toBeGreaterThanOrEqual(1);
+    const stack = within(first).getByRole("link", { name: /2 replies/ }).querySelectorAll("[title]");
+    expect([...stack].map((el) => el.getAttribute("title"))).toEqual(["Fern", "Gale Prickleton"]);
 
     expect(within(document.getElementById(`m-${id(102)}`)!).getByText("This message was deleted.")).toBeInTheDocument();
     expect(within(document.getElementById(`m-${id(103)}`)!).getByText("You can't read this message.")).toBeInTheDocument();

@@ -1,6 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { mentionedUserIds } from "@/lib/chat/render";
-import { slackAuthorIdsByTs, slackUserNames } from "@/lib/chat/names";
+import { emojiNamesIn, mentionedUserIds } from "@/lib/chat/render";
+import { customEmojiFor, slackAuthorIdsByTs, slackUserNames, slackUserPhotos } from "@/lib/chat/names";
+import type { CustomEmoji } from "@/lib/chat/emoji";
+import { safeUrl } from "@/lib/url";
 
 /**
  * What the chat pages read. Everything goes through the caller's own Supabase client, so RLS
@@ -11,6 +13,9 @@ import { slackAuthorIdsByTs, slackUserNames } from "@/lib/chat/names";
 
 export const MESSAGE_PAGE_SIZE = 40;
 const THREAD_LIMIT = 500;
+const REPLY_AVATARS = 5;
+/** Distinct repliers read per thread before Slack-only ones are merged by user, so a duplicate does not eat a slot. */
+const REPLY_CANDIDATES = 25;
 
 export interface ChannelSummary {
   id: string;
@@ -84,26 +89,29 @@ async function groupDmLabels(supabase: SupabaseClient, channelIds: string[], mem
     .in("channel_id", channelIds)
     .is("left_at", null);
   const others = (rows ?? []).filter((r) => r.member_id !== memberId);
-  const names = await memberNames(supabase, others.map((r) => r.member_id as string));
+  const names = await memberProfiles(supabase, others.map((r) => r.member_id as string));
   for (const channelId of channelIds) {
     const list = others
       .filter((r) => r.channel_id === channelId)
-      .map((r) => names.get(r.member_id as string))
+      .map((r) => names.get(r.member_id as string)?.name)
       .filter((n): n is string => Boolean(n));
     if (list.length > 0) labels.set(channelId, list.join(", "));
   }
   return labels;
 }
 
-/** Display names from member_directory, which every signed-in member can read. */
-export async function memberNames(supabase: SupabaseClient, memberIds: string[]): Promise<Map<string, string>> {
-  const names = new Map<string, string>();
+/** Display names and photos from member_directory, which every signed-in member can read. */
+export async function memberProfiles(
+  supabase: SupabaseClient,
+  memberIds: string[]
+): Promise<Map<string, { name: string; photoUrl: string | null }>> {
+  const profiles = new Map<string, { name: string; photoUrl: string | null }>();
   const ids = [...new Set(memberIds)];
   for (let i = 0; i < ids.length; i += 200) {
-    const { data } = await supabase.from("member_directory").select("id, name, display_name").in("id", ids.slice(i, i + 200));
-    for (const m of data ?? []) names.set(m.id, m.display_name || m.name);
+    const { data } = await supabase.from("member_directory").select("id, name, display_name, photo_url").in("id", ids.slice(i, i + 200));
+    for (const m of data ?? []) profiles.set(m.id, { name: m.display_name || m.name, photoUrl: safeUrl(m.photo_url) });
   }
-  return names;
+  return profiles;
 }
 
 /**
@@ -212,9 +220,17 @@ export interface ReactionSummary {
 
 export type ContentState = "ok" | "deleted" | "hidden";
 
+export interface Person {
+  name: string;
+  photoUrl: string | null;
+}
+
 export interface ChatMessageView {
   id: string;
   authorName: string;
+  authorPhotoUrl: string | null;
+  /** Up to REPLY_AVATARS distinct people who replied in the thread, earliest first. */
+  replyAuthors: Person[];
   createdAt: string;
   editedAt: string | null;
   /** Text to render, or null when the content isn't shown (see contentState). */
@@ -231,12 +247,58 @@ export interface ChatMessages {
   views: ChatMessageView[];
   /** Slack user id -> name, for <@U123> mentions in the bodies. */
   userNames: Record<string, string>;
+  /** Custom emoji used in the bodies and reactions, by shortcode. */
+  customEmoji: Record<string, CustomEmoji>;
 }
 
 const bodyOf = (row: MessageRow): string | null => {
   const c = Array.isArray(row.chat_message_contents) ? row.chat_message_contents[0] : row.chat_message_contents;
   return c?.body ?? null;
 };
+
+interface ReplyAuthor {
+  memberId: string | null;
+  slackTs: string | null;
+}
+
+/**
+ * For each thread root, the first few people who replied (earliest first), for the avatar
+ * stack. Members are distinct; Slack-only people are by message, and merged by user later. Reads the whole reply set page by page, since a busy channel can pass the
+ * 1000-row cap, and skips deleted replies.
+ */
+async function loadReplyAuthors(supabase: SupabaseClient, rootIds: string[]): Promise<Map<string, ReplyAuthor[]>> {
+  const out = new Map<string, ReplyAuthor[]>();
+  if (rootIds.length === 0) return out;
+  const seen = new Map<string, Set<string>>();
+  const BATCH_SIZE = 1000;
+  let offset = 0;
+  let hasMore = true;
+  while (hasMore) {
+    const { data: batch } = await supabase
+      .from("chat_messages")
+      .select("thread_root_id, author_member_id, slack_ts")
+      .in("thread_root_id", rootIds)
+      .is("deleted_at", null)
+      .order("created_at", { ascending: true })
+      .order("id", { ascending: true })
+      .range(offset, offset + BATCH_SIZE - 1);
+    for (const r of batch ?? []) {
+      const list = out.get(r.thread_root_id) ?? [];
+      const ids = seen.get(r.thread_root_id) ?? new Set<string>();
+      // A Slack-only replier is keyed by message ts here; their user id is looked up afterwards.
+      const key = r.author_member_id ?? `ts:${r.slack_ts}`;
+      if (list.length < REPLY_CANDIDATES && !ids.has(key)) {
+        ids.add(key);
+        list.push({ memberId: r.author_member_id, slackTs: r.slack_ts });
+        out.set(r.thread_root_id, list);
+        seen.set(r.thread_root_id, ids);
+      }
+    }
+    offset += batch?.length ?? 0;
+    hasMore = (batch?.length ?? 0) === BATCH_SIZE;
+  }
+  return out;
+}
 
 /** Messages with their authors' names, reactions and body state, ready to render. */
 export async function buildMessageViews(
@@ -245,13 +307,14 @@ export async function buildMessageViews(
   rows: MessageRow[],
   viewerMemberId: string
 ): Promise<ChatMessages> {
-  if (rows.length === 0) return { views: [], userNames: {} };
+  if (rows.length === 0) return { views: [], userNames: {}, customEmoji: {} };
 
   const matched = rows.filter((r) => r.author_member_id).map((r) => r.author_member_id as string);
   const unmatched = rows.filter((r) => !r.author_member_id && r.slack_ts).map((r) => r.slack_ts as string);
+  const threadRoots = rows.filter((r) => r.reply_count > 0).map((r) => r.id);
 
-  const [names, slackAuthorByTs, { data: reactionRows }] = await Promise.all([
-    memberNames(supabase, matched),
+  const [profiles, slackAuthorByTs, { data: reactionRows }, replies] = await Promise.all([
+    memberProfiles(supabase, matched),
     channel.slackChannelId && unmatched.length > 0
       ? slackAuthorIdsByTs(channel.slackChannelId, unmatched)
       : Promise.resolve({} as Record<string, string>),
@@ -260,11 +323,34 @@ export async function buildMessageViews(
       .select("message_id, emoji, member_id")
       .in("message_id", rows.map((r) => r.id))
       .is("deleted_at", null),
+    loadReplyAuthors(supabase, threadRoots),
   ]);
 
-  // One batch for every Slack name needed: unmatched authors plus people mentioned in the text.
+  // Repliers with no matched member: who wrote them, by Slack ts.
+  const unmatchedReplyTs = [...replies.values()].flat().filter((a) => !a.memberId && a.slackTs).map((a) => a.slackTs as string);
+  const replySlackAuthors =
+    channel.slackChannelId && unmatchedReplyTs.length > 0
+      ? await slackAuthorIdsByTs(channel.slackChannelId, unmatchedReplyTs)
+      : ({} as Record<string, string>);
+  const replyProfiles = await memberProfiles(supabase, [...replies.values()].flat().flatMap((a) => (a.memberId ? [a.memberId] : [])));
+
+  // One batch for every Slack name and photo needed: unmatched authors and repliers plus people mentioned in the text.
   const mentioned = rows.flatMap((r) => mentionedUserIds(bodyOf(r) ?? ""));
-  const userNames = await slackUserNames([...Object.values(slackAuthorByTs), ...mentioned]);
+  const slackIds = [...Object.values(slackAuthorByTs), ...Object.values(replySlackAuthors)];
+  const emojiNames = [
+    ...rows.flatMap((r) => emojiNamesIn(bodyOf(r) ?? "")),
+    ...(reactionRows ?? []).map((r) => String(r.emoji).replace(/::skin-tone-\d$/, "").toLowerCase()),
+  ];
+  const [userNames, slackPhotos, customEmoji] = await Promise.all([
+    slackUserNames([...slackIds, ...mentioned]),
+    slackUserPhotos(slackIds),
+    customEmojiFor(emojiNames),
+  ]);
+
+  const slackPerson = (slackUserId: string | undefined): Person => ({
+    name: (slackUserId ? userNames[slackUserId] : undefined) ?? (slackUserId?.startsWith("B") ? "Slack app" : "Someone on Slack"),
+    photoUrl: (slackUserId ? slackPhotos[slackUserId] : undefined) ?? null,
+  });
 
   const reactionsByMessage = new Map<string, Map<string, ReactionSummary>>();
   for (const r of reactionRows ?? []) {
@@ -279,13 +365,23 @@ export async function buildMessageViews(
   const views = rows.map((row): ChatMessageView => {
     const body = bodyOf(row);
     const contentState: ContentState = row.deleted_at ? "deleted" : body === null ? "hidden" : "ok";
-    const slackUserId = row.slack_ts ? slackAuthorByTs[row.slack_ts] : undefined;
+    const author =
+      (row.author_member_id ? profiles.get(row.author_member_id) : undefined) ??
+      slackPerson(row.slack_ts ? slackAuthorByTs[row.slack_ts] : undefined);
+    const replyAuthors: Person[] = [];
+    const replySeen = new Set<string>();
+    for (const a of replies.get(row.id) ?? []) {
+      const slackUserId = a.slackTs ? replySlackAuthors[a.slackTs] : undefined;
+      const key = a.memberId ? `m:${a.memberId}` : `s:${slackUserId ?? a.slackTs}`;
+      if (replySeen.has(key) || replyAuthors.length >= REPLY_AVATARS) continue;
+      replySeen.add(key);
+      replyAuthors.push((a.memberId ? replyProfiles.get(a.memberId) : undefined) ?? slackPerson(slackUserId));
+    }
     return {
       id: row.id,
-      authorName:
-        (row.author_member_id ? names.get(row.author_member_id) : undefined) ??
-        (slackUserId ? userNames[slackUserId] : undefined) ??
-        (slackUserId?.startsWith("B") ? "Slack app" : "Someone on Slack"),
+      authorName: author.name,
+      authorPhotoUrl: author.photoUrl,
+      replyAuthors,
       createdAt: row.created_at,
       editedAt: row.edited_at,
       body: contentState === "ok" ? body : null,
@@ -296,5 +392,5 @@ export async function buildMessageViews(
       reactions: [...(reactionsByMessage.get(row.id)?.values() ?? [])].sort((a, b) => b.count - a.count),
     };
   });
-  return { views, userNames };
+  return { views, userNames, customEmoji };
 }

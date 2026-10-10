@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { mentionedUserIds, parseInline, parseSlackText } from "@/lib/chat/render";
+import { emojiNamesIn, mentionedUserIds, parseInline, parseSlackText } from "@/lib/chat/render";
 
 const text = (v: string) => ({ t: "text", v });
 
@@ -59,29 +59,44 @@ describe("parseInline", () => {
 });
 
 describe("parseSlackText", () => {
-  it("splits lines, drops blank ones and reads quotes", () => {
-    expect(parseSlackText("one\n\n&gt; quoted *hard*\ntwo")).toEqual([
-      { t: "line", c: [text("one")] },
+  it("splits lines, marks a blank line before one as its gap and reads quotes", () => {
+    expect(parseSlackText("one\n\n&gt; quoted *hard*\ntwo\n\nthree")).toEqual([
+      { t: "line", c: [text("one")], gap: false },
       { t: "quote", c: [text("quoted "), { t: "bold", c: [text("hard")] }] },
-      { t: "line", c: [text("two")] },
+      { t: "line", c: [text("two")], gap: false },
+      { t: "line", c: [text("three")], gap: true },
+    ]);
+  });
+
+  it("reads bullet lines", () => {
+    expect(parseSlackText("list:\n• one\n• *two*")).toEqual([
+      { t: "line", c: [text("list:")], gap: false },
+      { t: "bullet", c: [text("one")] },
+      { t: "bullet", c: [{ t: "bold", c: [text("two")] }] },
     ]);
   });
 
   it("reads code fences and keeps their contents literal", () => {
     expect(parseSlackText("before\n```\nlet a = *1* &amp; 2\n```\nafter")).toEqual([
-      { t: "line", c: [text("before")] },
+      { t: "line", c: [text("before")], gap: false },
       { t: "code", v: "let a = *1* & 2" },
-      { t: "line", c: [text("after")] },
+      { t: "line", c: [text("after")], gap: false },
     ]);
   });
 
   it("treats an unclosed fence as text", () => {
-    expect(parseSlackText("oops ``` never closed")).toEqual([{ t: "line", c: [text("oops ``` never closed")] }]);
+    expect(parseSlackText("oops ``` never closed")).toEqual([{ t: "line", c: [text("oops ``` never closed")], gap: false }]);
   });
 });
 
 describe("mentionedUserIds", () => {
   it("lists mentioned Slack users, with or without a label", () => {
     expect(mentionedUserIds("<@U1> and <@U2|fern> in <#C1>")).toEqual(["U1", "U2"]);
+  });
+});
+
+describe("emojiNamesIn", () => {
+  it("lists the shortcodes in a body, lowercased and without skin tones", () => {
+    expect(emojiNamesIn(":Hedgehog: :books: :thumbsup::skin-tone-2: :hedgehog-2:")).toEqual(["hedgehog", "books", "thumbsup", "hedgehog-2"]);
   });
 });
