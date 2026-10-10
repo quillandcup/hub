@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ChannelSummary } from "@/lib/chat/load";
@@ -37,7 +38,12 @@ function Section({ title, channels, pathname }: { title: string; channels: Chann
 /** The conversations the member can open: channels, group messages, then archived ones. */
 export default function ChatSidebar({ channels }: { channels: ChannelSummary[] }) {
   const pathname = usePathname();
-  const live = channels.filter((c) => !c.archived);
+  const [filter, setFilter] = useState("");
+  // Finding a conversation by name is separate from searching what was said in them (the form
+  // below, which goes to /chat/search): this only narrows the list, as you type, and sends nowhere.
+  const wanted = filter.trim().replace(/^#/, "").toLowerCase();
+  const shown = wanted ? channels.filter((c) => c.label.replace(/^#/, "").toLowerCase().includes(wanted)) : channels;
+  const live = shown.filter((c) => !c.archived);
   return (
     // Its own full-height column that scrolls by itself, so a long channel list never sets the
     // height of the conversation beside it.
@@ -49,15 +55,26 @@ export default function ChatSidebar({ channels }: { channels: ChannelSummary[] }
         <input
           type="search"
           name="q"
-          aria-label="Search chat"
-          placeholder="Search chat"
+          aria-label="Search messages"
+          placeholder="Search messages"
           className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-1.5 text-sm"
         />
       </form>
+      <div className="mb-3 px-1">
+        <input
+          type="search"
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+          aria-label="Find a channel"
+          placeholder="Find a channel"
+          className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-1.5 text-sm"
+        />
+      </div>
       <Section title="Channels" channels={live.filter((c) => c.kind === "channel")} pathname={pathname} />
       <Section title="Group messages" channels={live.filter((c) => c.kind !== "channel")} pathname={pathname} />
-      <Section title="Archived" channels={channels.filter((c) => c.archived)} pathname={pathname} />
+      <Section title="Archived" channels={shown.filter((c) => c.archived)} pathname={pathname} />
       {channels.length === 0 && <p className="px-3 text-sm text-slate-500">No conversations yet.</p>}
+      {channels.length > 0 && shown.length === 0 && <p className="px-3 text-sm text-slate-500">No channels match.</p>}
     </nav>
   );
 }

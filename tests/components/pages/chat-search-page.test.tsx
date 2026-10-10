@@ -181,8 +181,11 @@ describe("chat search page", () => {
     expect(rpcArgs()?.p_channel_ids).toEqual([GENERAL, QUIET]);
   });
 
-  it("has a search box in the chat sidebar", async () => {
+  it("has a message search box in the chat sidebar, apart from the channel finder", async () => {
     render(await ChatLayout({ children: null }));
-    expect(screen.getByRole("searchbox", { name: "Search chat" })).toBeInTheDocument();
+    const messages = screen.getByRole("searchbox", { name: "Search messages" });
+    expect(messages.closest("form")).toHaveAttribute("action", "/chat/search");
+    const finder = screen.getByRole("searchbox", { name: "Find a channel" });
+    expect(finder.closest("form")).toBeNull();
   });
 });
