@@ -1,6 +1,6 @@
 /**
- * The delivery systems the Hub can reach members on (Slack today; later email, SMS, WhatsApp, web
- * push, in-app). Client-safe: settings pages list channels from here. Server code sends through
+ * The delivery systems the Hub can reach members on (Slack, in-app and browser push today; later email, SMS,
+ * WhatsApp). Client-safe: settings pages list channels from here. Server code sends through
  * the adapters in lib/channels/index.ts.
  *
  * Channels are shared infrastructure under both member-facing layers:
@@ -15,6 +15,9 @@ export const CHANNELS = [
   // Behind the in_app_notifications feature flag: members without it can't be reached on it and
   // don't see it in settings (lib/channels/in-app.ts).
   { id: "in_app", label: "In the Hub", description: "In the Hub's notification inbox, and as a banner while it's time-sensitive" },
+  // Behind the browser_notifications feature flag, and only for members who enabled it on a device
+  // (lib/channels/web-push.ts).
+  { id: "web_push", label: "Browser", description: "A desktop or phone notification from your browser, even when the Hub isn't open" },
 ] as const;
 
 export type ChannelId = (typeof CHANNELS)[number]["id"];

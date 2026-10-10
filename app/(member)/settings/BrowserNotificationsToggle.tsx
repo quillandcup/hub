@@ -1,0 +1,151 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { removePushSubscription, savePushSubscription } from "./notificationActions";
+
+type DeviceState = "checking" | "unsupported" | "blocked" | "off" | "on";
+
+const SERVICE_WORKER_PATH = "/sw.js";
+
+/** The VAPID public key as the bytes `pushManager.subscribe` wants. */
+export function urlBase64ToUint8Array(base64: string): Uint8Array<ArrayBuffer> {
+  const padded = base64 + "=".repeat((4 - (base64.length % 4)) % 4);
+  const raw = atob(padded.replace(/-/g, "+").replace(/_/g, "/"));
+  const bytes = new Uint8Array(new ArrayBuffer(raw.length));
+  for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
+  return bytes;
+}
+
+function supportsPush(): boolean {
+  return "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+}
+
+/**
+ * Turns Browser notifications on or off for the device you're on. A subscription belongs to one
+ * browser profile, so every device is turned on separately; the "Browser" switches in the grid
+ * below then decide which kinds go there. Needs notification permission, a service worker
+ * (public/sw.js) and the server remembering the subscription (savePushSubscription).
+ */
+export function BrowserNotificationsToggle({ publicKey, readOnly }: { publicKey: string; readOnly: boolean }) {
+  const [state, setState] = useState<DeviceState>("checking");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      let next: DeviceState = "off";
+      if (!supportsPush()) next = "unsupported";
+      else if (Notification.permission === "denied") next = "blocked";
+      else if (Notification.permission === "granted") {
+        const registration = await navigator.serviceWorker.getRegistration(SERVICE_WORKER_PATH);
+        if (await registration?.pushManager.getSubscription()) next = "on";
+      }
+      if (!cancelled) setState(next);
+    })().catch(() => !cancelled && setState("off"));
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const enable = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const permission = await Notification.requestPermission();
+      if (permission !== "granted") {
+        setState(permission === "denied" ? "blocked" : "off");
+        return;
+      }
+      await navigator.serviceWorker.register(SERVICE_WORKER_PATH);
+      const registration = await navigator.serviceWorker.ready;
+      const subscription =
+        (await registration.pushManager.getSubscription()) ??
+        (await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(publicKey),
+        }));
+      const result = await savePushSubscription(
+        subscription.toJSON() as { endpoint: string; keys: { p256dh: string; auth: string } },
+        navigator.userAgent
+      );
+      if ("error" in result) {
+        await subscription.unsubscribe();
+        setError(result.error);
+        return;
+      }
+      setState("on");
+    } catch (e) {
+      console.error("[notifications] Turning on browser notifications failed", e);
+      setError("Couldn't turn on notifications for this device. Check your browser's settings and try again.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const disable = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const registration = await navigator.serviceWorker.getRegistration(SERVICE_WORKER_PATH);
+      const subscription = await registration?.pushManager.getSubscription();
+      if (subscription) {
+        const result = await removePushSubscription(subscription.endpoint);
+        if ("error" in result) {
+          setError(result.error);
+          return;
+        }
+        await subscription.unsubscribe();
+      }
+      setState("off");
+    } catch (e) {
+      console.error("[notifications] Turning off browser notifications failed", e);
+      setError("Couldn't turn off notifications for this device. Please try again.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (state === "checking") return null;
+
+  return (
+    <div className="rounded-lg border border-slate-200 p-4 text-sm dark:border-slate-700">
+      <div className="font-medium text-slate-900 dark:text-slate-100">Browser notifications on this device</div>
+      {state === "unsupported" && (
+        <p className="mt-1 text-slate-500 dark:text-slate-400">
+          This browser can&apos;t show notifications from the Hub. On an iPhone or iPad, add the Hub to your Home
+          Screen first, then open it from there.
+        </p>
+      )}
+      {state === "blocked" && (
+        <p className="mt-1 text-slate-500 dark:text-slate-400">
+          Notifications are blocked for this site. Allow them in your browser&apos;s site settings, then come back
+          and turn them on.
+        </p>
+      )}
+      {(state === "off" || state === "on") && (
+        <div className="mt-1 flex flex-wrap items-center gap-3">
+          <p className="min-w-0 flex-1 text-slate-500 dark:text-slate-400">
+            {state === "on"
+              ? "On. This device gets the kinds you've turned Browser on for below, even when the Hub isn't open."
+              : "Off. Turn on to get the kinds you choose below as notifications on this device, even when the Hub isn't open. Each device you use is turned on separately."}
+          </p>
+          <button
+            type="button"
+            disabled={readOnly || busy}
+            aria-busy={busy}
+            onClick={state === "on" ? disable : enable}
+            className="rounded-md border border-slate-300 px-3 py-1.5 font-medium text-slate-700 transition hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-plum-500 disabled:opacity-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
+          >
+            {state === "on" ? "Turn off for this device" : "Turn on for this device"}
+          </button>
+        </div>
+      )}
+      {error && (
+        <p role="alert" className="mt-2 text-red-600 dark:text-red-400">
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}

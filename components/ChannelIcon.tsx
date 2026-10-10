@@ -39,6 +39,20 @@ const ICONS: Record<ChannelId, (props: { className?: string }) => React.ReactEle
       />
     </svg>
   ),
+  web_push: ({ className }) => (
+    // A browser window with a notification dot.
+    <svg
+      viewBox="0 0 24 24"
+      className={`text-sky-600 dark:text-sky-400 ${className ?? ""}`}
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path
+        fill="currentColor"
+        d="M4 4h10.5a6 6 0 0 0-.4 2H5.5v2H14a6 6 0 0 0 5.5 2.4V18a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4zm1.5 6.5V18H17.5v-6.1A6 6 0 0 1 14.6 10.5H5.5zM19 7a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5z"
+      />
+    </svg>
+  ),
 };
 
 export function ChannelIcon({ channel, className }: { channel: ChannelId; className?: string }) {
