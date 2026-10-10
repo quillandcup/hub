@@ -24,3 +24,14 @@ export function parseBefore(value: string | string[] | undefined): string | null
   const t = Date.parse(v);
   return Number.isNaN(t) ? null : new Date(t).toISOString();
 }
+
+/** The first value of a query param. */
+export const firstParam = (value: string | string[] | undefined): string | undefined => (Array.isArray(value) ? value[0] : value);
+
+/** Midnight UTC of a YYYY-MM-DD query param (plus `addDays`), or null when it isn't a real date. */
+export function parseDay(value: string | string[] | undefined, addDays = 0): string | null {
+  const v = firstParam(value);
+  if (!v || !/^\d{4}-\d{2}-\d{2}$/.test(v)) return null;
+  const t = Date.parse(`${v}T00:00:00Z`);
+  return Number.isNaN(t) ? null : new Date(t + addDays * 86_400_000).toISOString();
+}
