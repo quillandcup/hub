@@ -4,6 +4,7 @@ import type { FeatureKey } from "@/lib/features";
 import AdminNavigation from "./admin/AdminNavigation";
 import UserMenu from "@/components/UserMenu";
 import FeedbackWidget from "@/components/FeedbackWidget";
+import PageViewTracker from "@/components/PageViewTracker";
 
 export default async function AdminLayout({
   children,
@@ -34,6 +35,7 @@ export default async function AdminLayout({
         </main>
       </div>
       <FeedbackWidget />
+      <PageViewTracker />
     </div>
   );
 }
