@@ -242,7 +242,8 @@ export async function sendTestPushNotification(): Promise<{ success: true } | { 
     );
   } catch (error) {
     console.error("[notifications] Test push failed", { member: identity.memberId, error });
-    return { error: "Couldn't send the test. Try turning notifications off and on again for this device." };
+    const reason = error instanceof Error ? error.message : String(error);
+    return { error: `Couldn't send the test: ${reason}. Try turning notifications off and on again for this device.` };
   }
   return { success: true };
 }

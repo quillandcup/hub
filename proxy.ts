@@ -16,7 +16,8 @@ export const config = {
      * - monitoring (Sentry tunnel route, bypasses ad-blockers)
      * - sw.js (the Web Push service worker; the browser fetches it without a session, and a
      *   redirect to /login would make registration fail)
+     * - manifest.webmanifest (browsers fetch it without cookies, so a redirect to /login breaks it)
      */
-    '/((?!_next/static|_next/image|favicon.ico|monitoring|sw\\.js$|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|monitoring|sw\\.js$|manifest\\.webmanifest$|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 }
