@@ -414,6 +414,22 @@ export const ENV_VARS: readonly EnvVarSpec[] = [
     type: "secret",
     destinations: [{ kind: "github" }],
   },
+  {
+    name: "DOCKERHUB_USERNAME",
+    group: "GitHub Actions CI",
+    description:
+      "Docker Hub username (not the email) CI logs in as before `supabase start`, so image pulls are authenticated: anonymous pulls from shared runner IPs hit Docker Hub's rate limit (\"toomanyrequests\") and fail the db tests, which blocks migrations and deploys. A GitHub variable, not a secret.",
+    type: "config",
+    destinations: [{ kind: "github" }],
+  },
+  {
+    name: "DOCKERHUB_TOKEN",
+    group: "GitHub Actions CI",
+    description:
+      "Docker Hub access token (Account settings -> Personal access tokens, read-only scope is enough) for DOCKERHUB_USERNAME. Use a token, not the account password.",
+    type: "secret",
+    destinations: [{ kind: "github" }],
+  },
 
   // --- Supabase config push: read by `supabase config push` locally and in CI, never by the app ---
   {

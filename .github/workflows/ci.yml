@@ -130,6 +130,19 @@ jobs:
       # into later steps. The "Wait for local Supabase" step (after the
       # build) blocks until this is actually ready before anything that
       # needs it (app server, tests) proceeds.
+      # Authenticated Docker Hub pulls get a much higher rate limit than anonymous ones, which
+      # the shared runner IPs keep exhausting ("toomanyrequests" failed the db job three times
+      # on 2026-10-09 and blocked the migration push and deploy). continue-on-error because
+      # runs without our secrets (Dependabot, forks) must still try anonymously.
+      # DOCKERHUB_USERNAME is a GitHub variable, DOCKERHUB_TOKEN a secret; both come from
+      # env-vars.config.ts via `npm run env:sync:github`.
+      - name: Log in to Docker Hub
+        continue-on-error: true
+        uses: docker/login-action@v3
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
       - name: Start local Supabase
         env:
           SUPABASE_INTERNAL_IMAGE_REGISTRY: docker.io
