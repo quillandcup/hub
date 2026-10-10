@@ -208,6 +208,8 @@ Postgres full-text search over `chat_message_contents.search_vector` (GIN index)
 
 Supabase Realtime subscription on `chat_messages` (RLS-filtered) for the open channel, content fetched from `chat_message_contents` on receipt; a lighter subscription for unread badges. Read state is `chat_channel_members.last_read_at`. First use of Realtime in this app.
 
+**Built (2026-10-10), open conversation:** `components/chat/ChatLive.tsx` listens to `chat_messages` (filtered to the channel) and `chat_reactions` (ignored client-side unless on a message shown) and re-renders the server page with `router.refresh()`, debounced; events are only a signal, so content still comes through the access-checked loaders. `chat_message_contents` is not published: it has no channel column to filter on, and a message's content is written in the same transaction as the message. A new message follows the reader when they are at the bottom, and waits behind a "New messages" pill when they have scrolled up, so history never jumps. Two gotchas: the page scrolls inside the layout's `<main>`, not the window, and the browser client joins Realtime as `anon` unless the session's access token is set first (then the channel filter is rejected and nothing arrives, silently), so `ChatLive` calls `realtime.setAuth` before subscribing. Still to do: unread badges.
+
 ## Migration path
 
 Per channel: switch `bridge_mode` from `bridged` to `app_only`. The bot posts a final "this channel moved to the Hub →" message and the Slack channel is archived. From then on the Hub owns its membership. The `/privacy` page and notification framework need to be live before asking anyone to move.

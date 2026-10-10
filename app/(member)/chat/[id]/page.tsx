@@ -15,6 +15,7 @@ import {
 } from "@/lib/chat/load";
 import AvatarStack from "@/components/AvatarStack";
 import MessageItem from "@/components/chat/MessageItem";
+import ChatLive from "@/components/chat/ChatLive";
 
 export const metadata: Metadata = {
   title: "Chat",
@@ -72,6 +73,15 @@ export default async function ChatChannelPage({
 
   return (
     <div>
+      {!sudoHidden && (
+        <ChatLive
+          channelId={channel.id}
+          view={threadId ? "thread" : before ? "older" : "latest"}
+          threadRootId={threadId}
+          messageIds={views.map((m) => m.id)}
+          latestId={views.length > 0 ? views[views.length - 1].id : null}
+        />
+      )}
       <header className="mb-4 pb-3 border-b border-slate-200 dark:border-slate-800 flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold">{channel.label}</h1>

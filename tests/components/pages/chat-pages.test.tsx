@@ -31,6 +31,8 @@ vi.mock("@/lib/features.server", () => ({
   effectiveMemberHasFeature: async (key: string, identity: { isSudo: boolean }, own: string[]) =>
     identity.isSudo ? sudoMemberHasFlag : own.includes(key),
 }));
+// The live-update subscription needs a browser Supabase client; see tests/components/ChatLive.test.tsx.
+vi.mock("@/components/chat/ChatLive", () => ({ default: () => null }));
 // Service-role name lookups (bronze.slack_users etc.) are stubbed.
 vi.mock("@/lib/chat/names", () => ({
   slackUserNames: vi.fn(async () => ({ U_GALE: "Gale Prickleton" })),
