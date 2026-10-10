@@ -40,6 +40,15 @@ export default function ChatSidebar({ channels }: { channels: ChannelSummary[] }
   const live = channels.filter((c) => !c.archived);
   return (
     <nav aria-label="Conversations">
+      <form action="/chat/search" role="search" className="mb-4 px-1">
+        <input
+          type="search"
+          name="q"
+          aria-label="Search chat"
+          placeholder="Search chat"
+          className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-1.5 text-sm"
+        />
+      </form>
       <Section title="Channels" channels={live.filter((c) => c.kind === "channel")} pathname={pathname} />
       <Section title="Group messages" channels={live.filter((c) => c.kind !== "channel")} pathname={pathname} />
       <Section title="Archived" channels={channels.filter((c) => c.archived)} pathname={pathname} />

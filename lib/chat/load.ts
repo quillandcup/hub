@@ -152,7 +152,7 @@ export async function loadChannelForMember(
   };
 }
 
-interface MessageRow {
+export interface MessageRow {
   id: string;
   author_member_id: string | null;
   slack_ts: string | null;
