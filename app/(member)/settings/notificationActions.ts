@@ -238,7 +238,7 @@ export async function sendTestPushNotification(): Promise<{ success: true } | { 
     await webPushChannel.send(
       identity.memberId,
       { title: "Test notification", text: "Browser notifications are working on this device.", url: NOTIFICATION_SETTINGS_PATH },
-      { kind: "test" }
+      { kind: "test", memberId: identity.memberId }
     );
   } catch (error) {
     console.error("[notifications] Test push failed", { member: identity.memberId, error });
