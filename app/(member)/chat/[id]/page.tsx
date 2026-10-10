@@ -107,12 +107,14 @@ export default async function ChatChannelPage({
   const panelOpen = !sudoHidden && (rootView !== null || (profileId !== null && !threadId));
   // Posting is its own preview on top of chat; never in sudo, in a conversation the member is not in
   // or an archived one (chat_post_message checks the same again, and that the conversation is bridged).
-  const canPost =
+  const postingOn =
     !sudoHidden &&
     !identity.isSudo &&
-    channel.joined &&
     !channel.archived &&
     (await effectiveMemberHasFeature("chat_posting", identity, await getUserFeaturePreviews(user.id)));
+  const canPost = postingOn && channel.joined;
+  // Reacting also works in a public channel the member has not joined.
+  const canReact = postingOn;
   const closeHref =`/chat/${channel.id}${before && !Array.isArray(before) ? `?before=${encodeURIComponent(before)}` : ""}`;
 
   return (
@@ -162,6 +164,7 @@ export default async function ChatChannelPage({
                 ctx={ctx}
                 olderBefore={page?.olderBefore ?? null}
                 firstUnreadId={firstUnreadId}
+                canReact={canReact}
               />
             </section>
           )}
@@ -178,11 +181,11 @@ export default async function ChatChannelPage({
             messageIds={threadViews.map((m) => m.id)}
             latestId={threadViews[threadViews.length - 1].id}
           />
-          <MessageItem message={rootView} ctx={ctx} channelId={channel.id} inThread />
+          <MessageItem message={rootView} ctx={ctx} channelId={channel.id} inThread canReact={canReact} />
           <div className="ml-4 pl-4 border-l-2 border-slate-200 dark:border-slate-700">
             {replyViews.length === 0 && <p className="py-3 text-sm text-slate-500">No replies yet.</p>}
             {replyViews.map((m) => (
-              <MessageItem key={m.id} message={m} ctx={ctx} channelId={channel.id} inThread />
+              <MessageItem key={m.id} message={m} ctx={ctx} channelId={channel.id} inThread canReact={canReact} />
             ))}
           </div>
           {canPost && rootView.syncStatus === null && (

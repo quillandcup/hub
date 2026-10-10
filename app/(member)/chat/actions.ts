@@ -131,6 +131,34 @@ export async function sendChatMessage(channelId: string, body: string, threadRoo
   return { ok: true, id: data as string };
 }
 
+export type ToggleReactionResult = { ok: true; active: boolean } | { ok: false; error: string };
+
+const REACT_ERRORS: Record<string, string> = {
+  no_member: "You need a member profile to react.",
+  no_message: "That message isn't available.",
+  archived: "This conversation is archived.",
+  bad_emoji: "That emoji can't be used.",
+};
+
+/**
+ * The signed-in member adds their reaction to a message, or takes it back if they already have
+ * it. Hub reactions stay in the Hub for now (the bot can't react under a member's name); Slack's
+ * own reactions are untouched. Same gate as posting.
+ */
+export async function toggleChatReaction(messageId: string, emoji: string): Promise<ToggleReactionResult> {
+  if (!isUuid(messageId)) return { ok: false, error: "Something went wrong." };
+  if (!(await postingCaller())) return { ok: false, error: "Reacting isn't available to you yet." };
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("chat_toggle_reaction", { p_message_id: messageId, p_emoji: emoji });
+  if (error || typeof data !== "boolean") {
+    const reason = /chat_react: (\w+)/.exec(error?.message ?? "")?.[1];
+    if (!reason) console.error("chat_toggle_reaction failed:", error?.message);
+    return { ok: false, error: (reason && REACT_ERRORS[reason]) || "Something went wrong. Try again." };
+  }
+  return { ok: true, active: data };
+}
+
 /** The author sends one of their own failed messages to Slack again. */
 export async function retryChatMessage(messageId: string): Promise<SendChatResult> {
   if (!isUuid(messageId)) return { ok: false, error: "Something went wrong." };

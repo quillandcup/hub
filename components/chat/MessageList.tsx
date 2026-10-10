@@ -34,6 +34,7 @@ export default function MessageList({
   ctx,
   olderBefore,
   firstUnreadId,
+  canReact = false,
 }: {
   channelId: string;
   /** The server's current window, oldest first. */
@@ -43,6 +44,8 @@ export default function MessageList({
   olderBefore: string | null;
   /** The first message the reader had not seen when they opened the conversation, if any. */
   firstUnreadId?: string;
+  /** The viewer can react (the chat_posting preview, not in sudo). */
+  canReact?: boolean;
 }) {
   const [byId, setById] = useState(() => new Map(views.map((v) => [v.id, v])));
   const [context, setContext] = useState(ctx);
@@ -132,7 +135,7 @@ export default function MessageList({
       {messages.map((m) => (
         <Fragment key={m.id}>
           {m.id === firstUnreadId && <UnreadDivider />}
-          <MessageItem message={m} ctx={context} channelId={channelId} />
+          <MessageItem message={m} ctx={context} channelId={channelId} canReact={canReact} />
         </Fragment>
       ))}
     </>
