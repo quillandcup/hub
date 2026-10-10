@@ -15,6 +15,8 @@ import {
   loadMemberCard,
 } from "@/lib/chat/load";
 import AvatarStack from "@/components/AvatarStack";
+import { effectiveMemberHasFeature, getUserFeaturePreviews } from "@/lib/features.server";
+import Composer from "@/components/chat/Composer";
 import MessageItem from "@/components/chat/MessageItem";
 import MessageList from "@/components/chat/MessageList";
 import ChatLive from "@/components/chat/ChatLive";
@@ -41,7 +43,7 @@ export default async function ChatChannelPage({
   params: Promise<{ id: string }>;
   searchParams: Promise<{ before?: Param; thread?: Param; profile?: Param }>;
 }) {
-  const { identity } = await requireChat();
+  const { user, identity } = await requireChat();
   const { id } = await params;
   const { before, thread, profile } = await searchParams;
   if (!isUuid(id)) notFound();
@@ -103,7 +105,15 @@ export default async function ChatChannelPage({
   const rootView = root ? threadViews[0] : null;
   const replyViews = root ? threadViews.slice(1) : [];
   const panelOpen = !sudoHidden && (rootView !== null || (profileId !== null && !threadId));
-  const closeHref = `/chat/${channel.id}${before && !Array.isArray(before) ? `?before=${encodeURIComponent(before)}` : ""}`;
+  // Posting is its own preview on top of chat; never in sudo, in a conversation the member is not in
+  // or an archived one (chat_post_message checks the same again, and that the conversation is bridged).
+  const canPost =
+    !sudoHidden &&
+    !identity.isSudo &&
+    channel.joined &&
+    !channel.archived &&
+    (await effectiveMemberHasFeature("chat_posting", identity, await getUserFeaturePreviews(user.id)));
+  const closeHref =`/chat/${channel.id}${before && !Array.isArray(before) ? `?before=${encodeURIComponent(before)}` : ""}`;
 
   return (
     <div className="relative flex h-full min-h-0">
@@ -156,6 +166,7 @@ export default async function ChatChannelPage({
             </section>
           )}
         </div>
+        {canPost && <Composer channelId={channel.id} placeholder={`Message ${channel.label}`} />}
       </div>
 
       {panelOpen && rootView && (
@@ -174,6 +185,9 @@ export default async function ChatChannelPage({
               <MessageItem key={m.id} message={m} ctx={ctx} channelId={channel.id} inThread />
             ))}
           </div>
+          {canPost && rootView.syncStatus === null && (
+            <Composer channelId={channel.id} threadRootId={rootView.id} placeholder="Reply…" />
+          )}
         </SidePanel>
       )}
       {panelOpen && !rootView && profileId && (

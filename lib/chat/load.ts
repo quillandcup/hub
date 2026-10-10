@@ -249,11 +249,13 @@ export interface MessageRow {
   reply_count: number;
   last_reply_at: string | null;
   has_files: boolean;
+  /** The outbox state of a message written in the Hub; null for Slack-origin rows. */
+  slack_sync_status?: "pending" | "sent" | "failed" | null;
   chat_message_contents: { body: string } | { body: string }[] | null;
 }
 
 const MESSAGE_COLUMNS =
-  "id, author_member_id, slack_ts, created_at, edited_at, deleted_at, reply_count, last_reply_at, has_files, chat_message_contents(body)";
+  "id, author_member_id, slack_ts, created_at, edited_at, deleted_at, reply_count, last_reply_at, has_files, slack_sync_status, chat_message_contents(body)";
 
 export interface MessagePage {
   /** Oldest first. */
@@ -330,6 +332,10 @@ export interface ChatMessageView {
   replyCount: number;
   lastReplyAt: string | null;
   reactions: ReactionSummary[];
+  /** A message written in the Hub that Slack hasn't taken yet: "pending" (sending) or "failed". Null once it is in Slack. */
+  syncStatus: "pending" | "failed" | null;
+  /** Written by the viewer (the member whose chat this is), who may retry it when it failed. */
+  mine: boolean;
 }
 
 export interface ChatMessages {
@@ -501,6 +507,8 @@ export async function buildMessageViews(
       replyCount: row.reply_count,
       lastReplyAt: row.last_reply_at,
       reactions: [...(reactionsByMessage.get(row.id)?.values() ?? [])].sort((a, b) => b.count - a.count),
+      syncStatus: row.slack_sync_status === "pending" || row.slack_sync_status === "failed" ? row.slack_sync_status : null,
+      mine: row.author_member_id === viewerMemberId,
     };
   });
   return { views, userNames, userMembers, channelNames, customEmoji };

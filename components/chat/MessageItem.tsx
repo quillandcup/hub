@@ -2,6 +2,7 @@ import Link from "next/link";
 import MemberAvatar from "@/app/(member)/members/[id]/MemberAvatar";
 import AvatarStack from "@/components/AvatarStack";
 import ChatText, { Emoji, type ChatTextContext } from "@/components/chat/ChatText";
+import RetryButton from "@/components/chat/RetryButton";
 import { formatChatTime } from "@/lib/chat/format";
 import type { ChatMessageView } from "@/lib/chat/load";
 
@@ -56,6 +57,15 @@ export default function MessageItem({
         )}
         {message.contentState === "hidden" && (
           <p className="mt-0.5 text-sm italic text-slate-500 dark:text-slate-400">You can&apos;t read this message.</p>
+        )}
+        {message.syncStatus === "pending" && (
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Sending to Slack…</p>
+        )}
+        {message.syncStatus === "failed" && (
+          <p className="mt-1 text-xs text-red-600 dark:text-red-400">
+            Slack didn&apos;t get this message.{" "}
+            {message.mine && <RetryButton messageId={message.id} />}
+          </p>
         )}
         {message.hasFiles && message.contentState === "ok" && (
           <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">📎 Includes files, which the Hub doesn&apos;t show yet.</p>
