@@ -478,7 +478,7 @@ One system for everything the Hub sends members, instead of each feature hand-ro
 
 **Next channels** (each = `CHANNELS` entry + adapter + whatever it needs to resolve an address; every notification kind gets it at once):
 - In-app: mark one unread again, and roll it out past the flag
-- Browser/OS: roll Web Push out past the flag; a "send me a test" button and a list of the member's devices (name them, remove one remotely). Covers installed-PWA push on mobile (iOS requires home-screen install, 16.4+)
+- Browser/OS: roll Web Push out past the flag; let members name their devices. Settings → Notifications already has a device list (remove one remotely) and a test button; the admin member page shows enrolled devices. iOS needs a home-screen install (16.4+), prompted by `InstallAppPrompt`
 - Mobile push: native app later; Web Push covers it until then
 - Email: Resend API sender module + `react-email` templates, `List-Unsubscribe`, including digests
 - SMS / WhatsApp: important for non-US hedgies; needs a provider (e.g. Twilio), a verified phone number per member, and explicit opt-in (carrier/WhatsApp template rules)

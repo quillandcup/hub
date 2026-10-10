@@ -16,6 +16,9 @@ import {
 import { getMemberBadges } from "@/lib/badges";
 import { MEMBER_TAB_LABELS, type MemberTabId } from "./tabs";
 import { tabTitle } from "@/lib/tab-routes";
+import { loadPushDevices } from "@/lib/channels/web-push";
+import { describeDevice } from "@/lib/device-label";
+import { createServiceRoleClient } from "@/lib/supabase/service";
 
 const getMemberRow = cache(async (id: string) => {
   const supabase = await createClient();
@@ -52,6 +55,12 @@ export default async function MemberDetailPage({ id, tab }: { id: string; tab: M
   if (!memberRow) {
     notFound();
   }
+
+  // Devices this member gets Browser notifications on (the table holds push credentials, so service
+  // role, after the admin check the callers ran). Only the labels leave this function.
+  const pushDeviceLabels = await loadPushDevices(createServiceRoleClient(), id)
+    .then((devices) => devices.map((d) => describeDevice(d.userAgent)))
+    .catch(() => []);
 
   // Fetch all attendance records for this member with prickle details
   const { data: attendance } = await supabase
@@ -312,6 +321,12 @@ export default async function MemberDetailPage({ id, tab }: { id: string; tab: M
       </header>
 
       <main className="container mx-auto px-6 py-8 space-y-6">
+        {pushDeviceLabels.length > 0 && (
+          <p className="text-sm text-slate-600 dark:text-slate-400">
+            Browser notifications on {pushDeviceLabels.length} {pushDeviceLabels.length === 1 ? "device" : "devices"}:{" "}
+            {pushDeviceLabels.join(", ")}
+          </p>
+        )}
         <MemberDetails
           key={tab}
           initialTab={tab}
