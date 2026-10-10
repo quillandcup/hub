@@ -1,5 +1,6 @@
 import Link from "next/link";
 import MemberAvatar from "@/app/(member)/members/[id]/MemberAvatar";
+import AvatarStack from "@/components/AvatarStack";
 import ChatText, { Emoji, type ChatTextContext } from "@/components/chat/ChatText";
 import { formatChatTime } from "@/lib/chat/format";
 import type { ChatMessageView } from "@/lib/chat/load";
@@ -82,15 +83,7 @@ export default function MessageItem({
             href={`/chat/${channelId}?thread=${message.id}`}
             className="mt-1.5 inline-flex items-center gap-2 text-xs text-plum-600 dark:text-plum-400 hover:underline"
           >
-            {message.replyAuthors.length > 0 && (
-              <span className="flex -space-x-1.5" aria-hidden="true">
-                {message.replyAuthors.map((a, i) => (
-                  <span key={i} className="rounded-full ring-2 ring-white dark:ring-slate-900" title={a.name}>
-                    <MemberAvatar name={a.name} photoUrl={a.photoUrl} size={20} />
-                  </span>
-                ))}
-              </span>
-            )}
+            <AvatarStack people={message.replyAuthors} size={20} />
             <span>
               {message.replyCount} {message.replyCount === 1 ? "reply" : "replies"}
               {message.lastReplyAt ? ` · last ${formatChatTime(message.lastReplyAt)}` : ""}

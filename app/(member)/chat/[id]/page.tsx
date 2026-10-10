@@ -13,7 +13,7 @@ import {
   loadMessage,
   loadMessages,
 } from "@/lib/chat/load";
-import MemberAvatar from "@/app/(member)/members/[id]/MemberAvatar";
+import AvatarStack from "@/components/AvatarStack";
 import MessageItem from "@/components/chat/MessageItem";
 
 export const metadata: Metadata = {
@@ -85,13 +85,7 @@ export default async function ChatChannelPage({
             aria-label={`${people.length} ${people.length === 1 ? "member" : "members"}`}
             className="shrink-0 inline-flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-700 px-2 py-1 text-sm hover:bg-slate-100 dark:hover:bg-slate-800"
           >
-            <span className="flex -space-x-2" aria-hidden="true">
-              {people.slice(0, 3).map((p) => (
-                <span key={p.memberId} className="rounded-full ring-2 ring-white dark:ring-slate-900">
-                  <MemberAvatar name={p.name} photoUrl={p.photoUrl} size={24} />
-                </span>
-              ))}
-            </span>
+            <AvatarStack people={people} size={24} max={3} />
             <span>{people.length}</span>
           </Link>
         )}
