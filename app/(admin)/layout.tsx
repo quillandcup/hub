@@ -27,7 +27,6 @@ export default async function AdminLayout({
           <UserMenu
             userEmail={user.email || "User"}
             isAdmin={true}
-            enabledFeatures={enabledFeatures}
           />
         </header>
         <main className="flex-1 overflow-auto">

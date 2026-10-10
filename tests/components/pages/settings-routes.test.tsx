@@ -9,6 +9,7 @@ import {
   renderServerRoute,
   resetServerPageMocks,
   signInAs,
+  useFakeSupabase,
 } from "@/tests/helpers/server-page";
 
 // Settings tabs live at /settings (Account) and /settings/<id> (lib/tab-routes.ts); legacy
@@ -21,6 +22,8 @@ vi.mock("@/lib/supabase/server", () => import("@/tests/helpers/server-page").the
 
 const getHostedVibes = vi.fn(async (): Promise<unknown[]> => []);
 vi.mock("@/app/(member)/prickle-picker/actions", () => ({ getHostedVibes: () => getHostedVibes() }));
+vi.mock("@/lib/features.server", () => ({ getUserFeaturePreviews: vi.fn(async () => []) }));
+vi.mock("@/app/(member)/settings/PreviewsPanel", () => ({ PreviewsPanel: () => <div>previews panel</div> }));
 vi.mock("@/components/HostVibePanel", () => ({ default: () => <div>host vibe panel</div> }));
 vi.mock("@/app/(member)/settings/SessionsPanel", () => ({ SessionsPanel: () => <div>sessions</div> }));
 vi.mock("@/app/(member)/settings/ProfilePanel", () => ({ ProfilePanel: () => <div>profile panel</div> }));
@@ -37,6 +40,7 @@ vi.mock("@/app/(member)/settings/notificationActions", () => ({
 const { default: SettingsIndex } = await import("@/app/(member)/settings/page");
 const { default: NotificationsRoute } = await import("@/app/(member)/settings/notifications/page");
 const { default: HostingRoute } = await import("@/app/(member)/settings/hosting/page");
+const { default: PreviewsRoute } = await import("@/app/(member)/settings/previews/page");
 const { default: SettingsPage } = await import("@/app/(member)/settings/SettingsPage");
 
 const indexProps = (searchParams: Record<string, string> = {}) => ({
@@ -80,6 +84,17 @@ describe("settings routes", () => {
 
   it("sends a non-host on /settings/hosting to /settings", async () => {
     await expectRedirect(SettingsPage, { tab: "hosting" }, "/settings");
+  });
+
+  it("shows Previews to admins at /settings/previews", async () => {
+    useFakeSupabase({ user_profiles: { data: { role: "admin", timezone_preference: null } } });
+    await renderServerRoute(PreviewsRoute, undefined as never);
+    expect(selectedTab()).toBe("Previews");
+    expect(screen.getByText("previews panel")).toBeInTheDocument();
+  });
+
+  it("sends a non-admin on /settings/previews to /settings", async () => {
+    await expectRedirect(SettingsPage, { tab: "previews" }, "/settings");
   });
 
   it("sends someone with no member record on /settings/notifications to /settings", async () => {

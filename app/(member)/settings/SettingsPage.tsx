@@ -7,14 +7,16 @@ import { TimezoneSwitcher } from "./TimezoneSwitcher";
 import { SessionsPanel } from "./SessionsPanel";
 import { IdentityPanel } from "./IdentityPanel";
 import { ProfilePanel } from "./ProfilePanel";
+import { PreviewsPanel } from "./PreviewsPanel";
 import { NotificationsPanel } from "./NotificationsPanel";
 import { getNotificationSettings } from "./notificationActions";
+import { getUserFeaturePreviews } from "@/lib/features.server";
 import { getHostedVibes } from "@/app/(member)/prickle-picker/actions";
 import HostVibePanel from "@/components/HostVibePanel";
 import { Tabs } from "@/components/Tabs";
 
 /** Settings tabs, at /settings (Account) and /settings/<id> (lib/tab-routes.ts). */
-export const SETTINGS_TAB_IDS = ["account", "profile", "identity", "preferences", "notifications", "hosting"] as const;
+export const SETTINGS_TAB_IDS = ["account", "profile", "identity", "preferences", "notifications", "hosting", "previews"] as const;
 export type SettingsTabId = (typeof SETTINGS_TAB_IDS)[number];
 export const SETTINGS_TITLE = "Settings";
 export const SETTINGS_TAB_LABELS: Record<SettingsTabId, string> = {
@@ -24,6 +26,7 @@ export const SETTINGS_TAB_LABELS: Record<SettingsTabId, string> = {
   preferences: "Preferences",
   notifications: "Notifications",
   hosting: "Hosting",
+  previews: "Previews",
 };
 
 /**
@@ -35,15 +38,21 @@ export default async function SettingsPage({ tab }: { tab: SettingsTabId }) {
   if (!user) return null;
 
   const supabase = await createClient();
-  const [{ data: profile }, effectiveIdentity, hostedVibes, notificationSettings] = await Promise.all([
-    supabase.from("user_profiles").select("timezone_preference").eq("id", user.id).single(),
+  const [{ data: profile }, effectiveIdentity, hostedVibes, notificationSettings, enabledFeatures] = await Promise.all([
+    supabase.from("user_profiles").select("timezone_preference, role").eq("id", user.id).single(),
     getEffectiveIdentity(user),
     getHostedVibes(),
     getNotificationSettings(),
+    getUserFeaturePreviews(user.id),
   ]);
+  const isAdmin = profile?.role === "admin";
 
-  // Hosting is for hosts and Notifications for members; an old link to either otherwise opens Account.
-  if ((tab === "hosting" && hostedVibes.length === 0) || (tab === "notifications" && !notificationSettings)) {
+  // Hosting is for hosts, Notifications for members and Previews for admins; an old link otherwise opens Account.
+  if (
+    (tab === "hosting" && hostedVibes.length === 0) ||
+    (tab === "notifications" && !notificationSettings) ||
+    (tab === "previews" && !isAdmin)
+  ) {
     redirect("/settings");
   }
 

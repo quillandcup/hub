@@ -5,15 +5,12 @@ import Link from 'next/link'
 import { startOnboarding } from '@/app/actions/onboarding'
 import SignOutButton from './SignOutButton'
 import SudoModal from './SudoModal'
-import FeaturePreviewsModal from './FeaturePreviewsModal'
-import type { FeatureKey } from '@/lib/features'
 
 interface UserMenuProps {
   userEmail: string
   memberId?: string | null
   isAdmin?: boolean
   isSudo?: boolean
-  enabledFeatures?: FeatureKey[]
   /** Show "Take the tour" (the `onboarding` flag is on and this isn't sudo). */
   canStartOnboarding?: boolean
 }
@@ -23,7 +20,6 @@ export default function UserMenu({
   memberId,
   isAdmin = false,
   isSudo = false,
-  enabledFeatures = [],
   canStartOnboarding = false,
 }: UserMenuProps) {
   const [isOpen, setIsOpen] = useState(false)
@@ -36,7 +32,6 @@ export default function UserMenu({
     setPrevIsSudo(isSudo)
     setIsSudoModalOpen(false)
   }
-  const [isFeaturePreviewsOpen, setIsFeaturePreviewsOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -85,7 +80,7 @@ export default function UserMenu({
                 className="block px-4 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
                 onClick={() => setIsOpen(false)}
               >
-                View My Profile
+                Profile
               </Link>
             )}
 
@@ -114,16 +109,6 @@ export default function UserMenu({
               </button>
             )}
 
-            {isAdmin && (
-              <button
-                type="button"
-                onClick={() => { setIsOpen(false); setIsFeaturePreviewsOpen(true) }}
-                className="w-full text-left px-4 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
-              >
-                Feature Previews
-              </button>
-            )}
-
             {isAdmin && !isSudo && (
               <button
                 type="button"
@@ -143,14 +128,6 @@ export default function UserMenu({
         <SudoModal
           isOpen={isSudoModalOpen}
           onClose={() => setIsSudoModalOpen(false)}
-        />
-      )}
-
-      {isAdmin && (
-        <FeaturePreviewsModal
-          isOpen={isFeaturePreviewsOpen}
-          onClose={() => setIsFeaturePreviewsOpen(false)}
-          enabledFeatures={enabledFeatures}
         />
       )}
     </>

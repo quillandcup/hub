@@ -75,7 +75,6 @@ export default async function MemberLayout({
         memberId={effectiveIdentity.memberId}
         isAdmin={isAdmin}
         isSudo={effectiveIdentity.isSudo}
-        enabledFeatures={enabledFeatures}
         canStartOnboarding={showOnboarding}
       />
     </header>
