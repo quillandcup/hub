@@ -252,3 +252,6 @@ REVOKE EXECUTE ON FUNCTION get_activity_feed(boolean, text[], uuid, uuid, boolea
 GRANT EXECUTE ON FUNCTION get_activity_feed(boolean, text[], uuid, uuid, boolean, timestamptz, timestamptz, integer, integer, integer, text[], boolean)
   TO authenticated;
 REVOKE EXECUTE ON FUNCTION count_activity_feed(boolean, text[], uuid, uuid, boolean, timestamptz, timestamptz, integer, text[], boolean)
+  FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION count_activity_feed(boolean, text[], uuid, uuid, boolean, timestamptz, timestamptz, integer, text[], boolean)
+  TO authenticated;
