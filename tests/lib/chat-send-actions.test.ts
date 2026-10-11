@@ -8,6 +8,8 @@ const m = vi.hoisted(() => ({
   sendToSlack: vi.fn(),
   syncReaction: vi.fn(),
   afterCallbacks: [] as (() => Promise<void> | void)[],
+  slackReactionRows: [] as { id: string }[],
+  connected: vi.fn(),
 }));
 
 vi.mock("next/server", () => ({ after: (cb: () => Promise<void> | void) => void m.afterCallbacks.push(cb) }));
@@ -17,7 +19,18 @@ vi.mock("@/lib/features.server", () => ({
   getUserFeaturePreviews: vi.fn(async () => []),
   effectiveMemberHasFeature: (key: string) => m.hasFeature(key),
 }));
-vi.mock("@/lib/supabase/server", () => ({ createClient: async () => ({ rpc: m.rpc }) }));
+vi.mock("@/lib/supabase/server", () => ({
+  createClient: async () => ({
+    rpc: m.rpc,
+    from: () => {
+      const chain: Record<string, unknown> = {};
+      for (const k of ["select", "eq", "not", "is"]) chain[k] = () => chain;
+      chain.limit = async () => ({ data: m.slackReactionRows });
+      return chain;
+    },
+  }),
+}));
+vi.mock("@/lib/slack-connect", () => ({ getSlackConnectionStatus: (...a: unknown[]) => m.connected(...a) }));
 vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => ({ service: true }) }));
 vi.mock("@/lib/chat/slack-post", () => ({ sendChatMessageToSlack: m.sendToSlack }));
 vi.mock("@/lib/chat/slack-react", () => ({ syncReactionToSlack: m.syncReaction }));
@@ -39,6 +52,9 @@ beforeEach(() => {
   m.rpc.mockReset();
   m.sendToSlack.mockReset();
   m.syncReaction.mockReset();
+  m.slackReactionRows = [];
+  m.connected.mockReset();
+  m.connected.mockResolvedValue({ connected: true });
 });
 
 describe("sendChatMessage", () => {
@@ -94,5 +110,25 @@ describe("toggleChatReaction", () => {
     m.rpc.mockResolvedValue({ data: null, error: { message: "chat_react: no_message" } });
     await expect(toggleChatReaction(MESSAGE, "tada")).resolves.toEqual({ ok: false, error: "That message isn't available." });
     expect(m.afterCallbacks).toHaveLength(0);
+  });
+
+  it("won't hide a reaction made in Slack from a member who hasn't connected Slack, and says what to do", async () => {
+    m.slackReactionRows = [{ id: "r1" }];
+    m.connected.mockResolvedValue({ connected: false });
+
+    await expect(toggleChatReaction(MESSAGE, "tada")).resolves.toEqual({
+      ok: false,
+      error: "You reacted in Slack. Connect Slack in Settings to take it back from here.",
+    });
+    expect(m.rpc).not.toHaveBeenCalled();
+  });
+
+  it("takes back a reaction made in Slack for a member who has connected Slack, and removes it in Slack", async () => {
+    m.slackReactionRows = [{ id: "r1" }];
+    m.rpc.mockResolvedValue({ data: false, error: null });
+
+    await expect(toggleChatReaction(MESSAGE, "tada")).resolves.toEqual({ ok: true, active: false });
+    await flushAfter();
+    expect(m.syncReaction).toHaveBeenCalledWith({ service: true }, expect.objectContaining({ emoji: "tada", active: false }));
   });
 });
