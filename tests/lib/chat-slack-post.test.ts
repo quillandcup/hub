@@ -31,6 +31,7 @@ interface Fixture {
   root: { slack_ts: string | null } | null;
   author: Record<string, unknown> | null;
   unsent: { id: string }[];
+  expired: { id: string }[];
 }
 
 const MESSAGE = {
@@ -58,9 +59,11 @@ const supabase = {
       if (table === "chat_messages") retryFilters.push({ method, args });
       return chain;
     };
-    for (const m of ["select", "eq", "in", "is", "lt", "gt", "order"]) chain[m] = record(m);
+    for (const m of ["select", "eq", "in", "is", "lt", "lte", "gt", "order"]) chain[m] = record(m);
     chain.update = (values: unknown) => {
       updates.push({ table, values });
+      // update(...).select("id") answers with the rows it changed (the expiry of old pending messages).
+      chain.select = () => Promise.resolve({ data: fixture.expired });
       return chain;
     };
     chain.limit = () => Promise.resolve({ data: fixture.unsent });
@@ -91,6 +94,7 @@ beforeEach(() => {
     root: { slack_ts: "1699999999.000100" },
     author: { name: "Fern Quillsby", display_name: "Fern", photo_url: "https://photos.example.test/fern.jpg" },
     unsent: [],
+    expired: [],
   };
 });
 
@@ -225,12 +229,24 @@ describe("retryUnsentChatMessages", () => {
     fixture.unsent = [{ id: "m1" }, { id: "m2" }];
     postMessage.mockResolvedValueOnce({ ok: true, ts: "1.1" }).mockRejectedValueOnce(new Error("boom"));
 
-    await expect(retryUnsentChatMessages(supabase as never)).resolves.toEqual({ sent: 1, failed: 1 });
+    await expect(retryUnsentChatMessages(supabase as never)).resolves.toEqual({ sent: 1, failed: 1, expired: 0 });
 
     const filter = (method: string) => retryFilters.filter((f) => f.method === method);
     expect(filter("lt")[0].args).toEqual(["created_at", "2026-10-10T11:58:00.000Z"]);
     expect(filter("gt")[0].args).toEqual(["created_at", "2026-10-09T12:00:00.000Z"]);
     expect(filter("order")[0].args).toEqual(["created_at", { ascending: true }]);
     expect(filter("in")[0].args).toEqual(["slack_sync_status", ["pending", "failed"]]);
+  });
+
+  it("marks a message still pending after the window as failed, so its author can retry it, and doesn't send it", async () => {
+    fixture.expired = [{ id: "old-1" }, { id: "old-2" }];
+
+    await expect(retryUnsentChatMessages(supabase as never)).resolves.toEqual({ sent: 0, failed: 0, expired: 2 });
+
+    expect(updates).toContainEqual({ table: "chat_messages", values: { slack_sync_status: "failed" } });
+    const filter = (method: string) => retryFilters.filter((f) => f.method === method);
+    expect(filter("eq")).toContainEqual({ method: "eq", args: ["slack_sync_status", "pending"] });
+    expect(filter("lte")[0].args).toEqual(["created_at", "2026-10-09T12:00:00.000Z"]);
+    expect(postMessage).not.toHaveBeenCalled();
   });
 });

@@ -107,7 +107,7 @@ export async function POST(request: NextRequest) {
     // Slack event did arrive is already linked and isn't posted a second time.
     const outbox = await retryUnsentChatMessages(supabase).catch((error) => {
       console.error("Error retrying unsent chat messages:", error);
-      return { sent: 0, failed: 0 };
+      return { sent: 0, failed: 0, expired: 0 };
     });
 
     return NextResponse.json({
@@ -119,6 +119,7 @@ export async function POST(request: NextRequest) {
         reactions,
         outboxSent: outbox.sent,
         outboxFailed: outbox.failed,
+        outboxExpired: outbox.expired,
       },
     });
   } catch (error: any) {
