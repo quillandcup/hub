@@ -811,6 +811,21 @@ Query: `SELECT * FROM bronze.kajabi_purchases WHERE effective_start_at - created
 
 ---
 
+## Secrets at Rest
+
+Where a secret lives depends on what the app does with it:
+- **A credential we must hand to someone else** (a member's Slack token, a future provider key per member) goes in **Supabase Vault** behind service-role-only functions, with only a pointer in our table. `member_slack_connections` is the pattern (`20261021000000`).
+- **A credential we only need to recognise** (single-use sign-in tokens, anything looked up by value) is stored as a **hash**, never the value. `slack_sign_in_tokens` already does (SHA-256).
+- **App-wide credentials** (bot token, API keys, signing secrets) are env vars declared in `env-vars.config.ts`.
+
+Audit (2026-10-10): nothing else needs moving to Vault, but two things are worth a look:
+- **`calendar_feed_tokens.token`** is a plaintext bearer credential: anyone with the URL reads that member's hosted and committed prickles. It is read-only, scoped to one member, revocable ("Generate new link"), and the table is RLS-protected (owner and admins can read it), so this is low risk. It is a table value rather than a hash only because members can see their link again in Settings. Options if it matters: store an HMAC for the lookup and derive the displayed URL from a per-member secret, or hash it and make members regenerate to see it. Admins can currently read every member's feed token through RLS; at minimum drop that.
+- **`push_subscriptions` `p256dh` / `auth`** are a browser's push encryption keys. Sending a push also needs our VAPID private key (an env var), so a leaked row alone can't be used to send. The table is service role only. Fine as is; revisit if it ever becomes readable by members or admins.
+
+When Slack token rotation is adopted (see `docs/SLACK_BRIDGED_CHAT.md`, "Slack app configuration"), the bot token moves out of the `SLACK_BOT_TOKEN` env var into Vault too, since it then changes every 12 hours.
+
+---
+
 ## Bug Fixes
 
 ### Members Reprocessing Deadlocks / Statement Timeouts on Concurrent Webhooks
