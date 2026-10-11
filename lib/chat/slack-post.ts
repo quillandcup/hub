@@ -1,12 +1,14 @@
 import { WebClient } from "@slack/web-api";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { clock } from "@/lib/clock";
-import { isSlackTestMode } from "@/lib/slack";
+import { isProduction } from "@/lib/config";
+import { getSlackUserToken, isDeadTokenError } from "@/lib/slack-connect";
 
 /**
  * The outbox's second step (docs/SLACK_BRIDGED_CHAT.md, "Hub -> Slack"): a message a member wrote
  * in the Hub is already in chat_messages as 'pending' (chat_post_message); this posts it to Slack
- * as the bot, under the member's name and photo, and stores the ts Slack returns. Service role.
+ * as the member (if they connected Slack) or as the bot under their name and photo, and stores the
+ * ts Slack returns. Service role.
  */
 
 /** Hub text is plain; Slack's mrkdwn treats these three characters as syntax. */
@@ -17,6 +19,17 @@ export function escapeForSlack(text: string): string {
 /** Marks our own posts, so Slack's event for one is recognised as ours (chat_adopt_posted_message). */
 export function hubMessageMetadata(messageId: string) {
   return { event_type: "hub_message", event_payload: { app_message_id: messageId } };
+}
+
+/**
+ * Whether the Hub may write to the real Slack workspace (post, react): only the production deploy.
+ * Not SLACK_TEST_MODE: that switch redirects member DMs and production runs with it on, so chat
+ * would never post, and turning it off would send real DMs. Chat is already limited to the members
+ * who have the chat_posting preview. Local and preview deploys never write to Slack, so a dev or
+ * preview session can't post into a real channel; the message stays pending.
+ */
+export function chatSlackWritesEnabled(): boolean {
+  return isProduction;
 }
 
 export type SendResult = "sent" | "skipped" | "failed";
@@ -36,9 +49,11 @@ const one = <T>(v: T | T[] | null): T | null => (Array.isArray(v) ? (v[0] ?? nul
 
 /**
  * Posts one pending (or failed) app message to Slack. Skips anything already sent, not ours, or
- * deleted, and does nothing outside production unless Slack posting is explicitly on there
- * (SLACK_TEST_MODE, like every other Slack send): the message stays pending rather than reaching a real
- * channel from a dev or preview deploy.
+ * deleted, and does nothing off production (see chatSlackWritesEnabled).
+ *
+ * As the member when they have connected Slack (their own token: no "APP" tag, editable in Slack),
+ * else as the bot under their name and photo. A connected member's token that Slack says is dead
+ * revokes the connection and the message goes out through the bot instead, so it isn't lost.
  */
 export async function sendChatMessageToSlack(supabase: SupabaseClient, messageId: string): Promise<SendResult> {
   const { data } = await supabase
@@ -51,8 +66,8 @@ export async function sendChatMessageToSlack(supabase: SupabaseClient, messageId
   const row = data as OutboxRow | null;
   if (!row || row.origin !== "app" || row.slack_sync_status === "sent" || row.deleted_at) return "skipped";
 
-  if (isSlackTestMode()) {
-    console.warn("sendChatMessageToSlack: SLACK_TEST_MODE is on, leaving message %s pending", messageId);
+  if (!chatSlackWritesEnabled()) {
+    console.warn("sendChatMessageToSlack: not production, leaving message %s pending", messageId);
     return "skipped";
   }
 
@@ -62,10 +77,8 @@ export async function sendChatMessageToSlack(supabase: SupabaseClient, messageId
     return "failed";
   };
 
-  const token = process.env.SLACK_BOT_TOKEN;
   const body = one(row.chat_message_contents)?.body;
   const slackChannelId = one(row.chat_channels)?.slack_channel_id;
-  if (!token) return fail("SLACK_BOT_TOKEN not configured");
   if (!body || !slackChannelId || !row.author_member_id) return fail("message is missing its body, channel or author");
 
   let threadTs: string | undefined;
@@ -75,35 +88,58 @@ export async function sendChatMessageToSlack(supabase: SupabaseClient, messageId
     threadTs = root.slack_ts;
   }
 
-  const { data: author } = await supabase
-    .from("member_directory")
-    .select("name, display_name, photo_url")
-    .eq("id", row.author_member_id)
-    .maybeSingle();
-  const photo = author?.photo_url && /^https:\/\//.test(author.photo_url) ? author.photo_url : undefined;
-
-  try {
-    const slack = new WebClient(token);
-    const result = await slack.chat.postMessage({
+  const post = (token: string, identity?: { username?: string; icon_url?: string }) =>
+    new WebClient(token).chat.postMessage({
       channel: slackChannelId,
       text: escapeForSlack(body),
       thread_ts: threadTs,
-      username: author?.display_name || author?.name || undefined,
-      icon_url: photo,
+      ...identity,
       unfurl_links: false,
       unfurl_media: false,
       metadata: hubMessageMetadata(messageId),
     });
-    if (!result.ok || !result.ts) return fail("Slack did not return a ts");
-    const { error } = await supabase.rpc("chat_mark_message_sent", { p_message_id: messageId, p_slack_ts: result.ts });
-    if (error) {
-      // Posted but not recorded: leave it pending (not failed) so Slack's own event can still link it.
-      console.error("chat_mark_message_sent failed for %s:", messageId, error.message);
+
+  let result: Awaited<ReturnType<typeof post>> | null = null;
+  let postedVia: "user_token" | "bot" = "bot";
+
+  // As the member, when they have connected Slack.
+  const connection = await getSlackUserToken(supabase, row.author_member_id);
+  if (connection) {
+    try {
+      result = await post(connection.token);
+      postedVia = "user_token";
+    } catch (error) {
+      if (!isDeadTokenError(error)) return fail("chat.postMessage as the member threw", error);
+      console.error("Slack token for member %s is dead, revoking and posting through the bot", row.author_member_id);
+      await supabase.rpc("slack_connection_revoke", { p_member: row.author_member_id });
     }
-    return "sent";
-  } catch (error) {
-    return fail("chat.postMessage threw", error);
   }
+
+  // As the bot, under the member's name and photo.
+  if (!result) {
+    const token = process.env.SLACK_BOT_TOKEN;
+    if (!token) return fail("SLACK_BOT_TOKEN not configured");
+    const { data: author } = await supabase
+      .from("member_directory")
+      .select("name, display_name, photo_url")
+      .eq("id", row.author_member_id)
+      .maybeSingle();
+    const photo = author?.photo_url && /^https:\/\//.test(author.photo_url) ? author.photo_url : undefined;
+    try {
+      result = await post(token, { username: author?.display_name || author?.name || undefined, icon_url: photo });
+    } catch (error) {
+      return fail("chat.postMessage threw", error);
+    }
+  }
+
+  if (!result.ok || !result.ts) return fail("Slack did not return a ts");
+  if (postedVia !== "bot") await supabase.from("chat_messages").update({ posted_via: postedVia }).eq("id", messageId);
+  const { error } = await supabase.rpc("chat_mark_message_sent", { p_message_id: messageId, p_slack_ts: result.ts });
+  if (error) {
+    // Posted but not recorded: leave it pending (not failed) so Slack's own event can still link it.
+    console.error("chat_mark_message_sent failed for %s:", messageId, error.message);
+  }
+  return "sent";
 }
 
 /** A post is retried only once it is this old, so a retry never races the request that is still sending it. */
