@@ -152,8 +152,22 @@ const RETRY_BATCH = 50;
  * The outbox's retry (nightly chat run): app messages still pending or failed, oldest first so
  * they reach Slack in the order they were written. Returns how many were sent.
  */
-export async function retryUnsentChatMessages(supabase: SupabaseClient): Promise<{ sent: number; failed: number }> {
+export async function retryUnsentChatMessages(supabase: SupabaseClient): Promise<{ sent: number; failed: number; expired: number }> {
   const now = clock.now();
+
+  // A message still pending after the window will never be retried here, and "Sending…" forever
+  // is a lie: mark it failed, so its author sees "Slack didn't get this" with a Retry button
+  // (their call whether a day-old message is still worth sending). Its id is unchanged, so a
+  // retry posts the same row; one whose Slack echo did arrive is already 'sent' and not touched.
+  const { data: expiredRows } = await supabase
+    .from("chat_messages")
+    .update({ slack_sync_status: "failed" })
+    .eq("origin", "app")
+    .eq("slack_sync_status", "pending")
+    .lte("created_at", new Date(now - RETRY_UNTIL_MS).toISOString())
+    .select("id");
+  const expired = expiredRows?.length ?? 0;
+
   const { data } = await supabase
     .from("chat_messages")
     .select("id")
@@ -172,5 +186,5 @@ export async function retryUnsentChatMessages(supabase: SupabaseClient): Promise
     if (result === "sent") sent++;
     else if (result === "failed") failed++;
   }
-  return { sent, failed };
+  return { sent, failed, expired };
 }
