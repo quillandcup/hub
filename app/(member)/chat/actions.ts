@@ -6,6 +6,7 @@ import { effectiveMemberHasFeature, getUserFeaturePreviews } from "@/lib/feature
 import { createClient } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { sendChatMessageToSlack } from "@/lib/chat/slack-post";
+import { syncReactionToSlack } from "@/lib/chat/slack-react";
 import { isUuid } from "@/lib/chat/format";
 import {
   buildMessageViews,
@@ -142,12 +143,13 @@ const REACT_ERRORS: Record<string, string> = {
 
 /**
  * The signed-in member adds their reaction to a message, or takes it back if they already have
- * it. Hub reactions stay in the Hub for now (the bot can't react under a member's name); Slack's
- * own reactions are untouched. Same gate as posting.
+ * it. A member who connected Slack has the reaction sent to Slack as them; otherwise it stays in
+ * the Hub (the bot can't react under a member's name). Same gate as posting.
  */
 export async function toggleChatReaction(messageId: string, emoji: string): Promise<ToggleReactionResult> {
   if (!isUuid(messageId)) return { ok: false, error: "Something went wrong." };
-  if (!(await postingCaller())) return { ok: false, error: "Reacting isn't available to you yet." };
+  const caller = await postingCaller();
+  if (!caller) return { ok: false, error: "Reacting isn't available to you yet." };
 
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("chat_toggle_reaction", { p_message_id: messageId, p_emoji: emoji });
@@ -156,6 +158,10 @@ export async function toggleChatReaction(messageId: string, emoji: string): Prom
     if (!reason) console.error("chat_toggle_reaction failed:", error?.message);
     return { ok: false, error: (reason && REACT_ERRORS[reason]) || "Something went wrong. Try again." };
   }
+  // A member who connected Slack has it in Slack too, as them. Never fails the reaction itself.
+  await syncReactionToSlack(createServiceRoleClient(), { messageId, memberId: caller.identity.memberId, emoji, active: data }).catch((error) =>
+    console.error("syncReactionToSlack threw:", error)
+  );
   return { ok: true, active: data };
 }
 

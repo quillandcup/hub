@@ -1,14 +1,30 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { useFakeClock } from "@/tests/helpers/fake-clock";
 
-const postMessage = vi.fn();
+const { postMessage, tokensUsed, config, getSlackUserToken } = vi.hoisted(() => ({
+  postMessage: vi.fn(),
+  tokensUsed: [] as (string | undefined)[],
+  config: { isProduction: true },
+  getSlackUserToken: vi.fn(),
+}));
 vi.mock("@slack/web-api", () => ({
-  WebClient: vi.fn(function () {
-    return { chat: { postMessage } };
+  WebClient: vi.fn(function (token?: string) {
+    tokensUsed.push(token);
+    return { chat: { postMessage: (args: unknown) => postMessage(args, token) } };
   }),
 }));
+vi.mock("@/lib/config", async (original) => ({
+  ...(await original<typeof import("@/lib/config")>()),
+  get isProduction() {
+    return config.isProduction;
+  },
+}));
+vi.mock("@/lib/slack-connect", async (original) => ({
+  ...(await original<typeof import("@/lib/slack-connect")>()),
+  getSlackUserToken: (...args: unknown[]) => getSlackUserToken(...args),
+}));
 
-import { escapeForSlack, hubMessageMetadata, retryUnsentChatMessages, sendChatMessageToSlack } from "@/lib/chat/slack-post";
+import { chatSlackWritesEnabled, escapeForSlack, hubMessageMetadata, retryUnsentChatMessages, sendChatMessageToSlack } from "@/lib/chat/slack-post";
 
 interface Fixture {
   message: Record<string, unknown> | null;
@@ -31,6 +47,7 @@ const MESSAGE = {
 let fixture: Fixture;
 const rpc = vi.fn(async (_name: string, _args: Record<string, unknown>) => ({ error: null }));
 const retryFilters: { method: string; args: unknown[] }[] = [];
+const updates: { table: string; values: unknown }[] = [];
 
 /** Just enough of the Supabase client for the outbox: reads by table, and the two rpc calls. */
 const supabase = {
@@ -42,6 +59,10 @@ const supabase = {
       return chain;
     };
     for (const m of ["select", "eq", "in", "is", "lt", "gt", "order"]) chain[m] = record(m);
+    chain.update = (values: unknown) => {
+      updates.push({ table, values });
+      return chain;
+    };
     chain.limit = () => Promise.resolve({ data: fixture.unsent });
     chain.maybeSingle = () => {
       const eq = retryFilters.filter((f) => f.method === "eq" && f.args[0] === "id").at(-1)?.args[1];
@@ -53,12 +74,18 @@ const supabase = {
 };
 
 beforeEach(() => {
-  vi.stubEnv("SLACK_TEST_MODE", "false");
+  // Production runs with SLACK_TEST_MODE on, and chat posting must not care.
+  vi.stubEnv("SLACK_TEST_MODE", "true");
   vi.stubEnv("SLACK_BOT_TOKEN", "xoxb-test");
+  config.isProduction = true;
+  getSlackUserToken.mockReset();
+  getSlackUserToken.mockResolvedValue(null);
   postMessage.mockReset();
   postMessage.mockResolvedValue({ ok: true, ts: "1700000000.000100" });
   rpc.mockClear();
   retryFilters.length = 0;
+  updates.length = 0;
+  tokensUsed.length = 0;
   fixture = {
     message: { ...MESSAGE },
     root: { slack_ts: "1699999999.000100" },
@@ -94,7 +121,8 @@ describe("sendChatMessageToSlack", () => {
         thread_ts: undefined,
         unfurl_links: false,
         metadata: hubMessageMetadata("m1"),
-      })
+      }),
+      "xoxb-test"
     );
     expect(rpc).toHaveBeenCalledWith("chat_mark_message_sent", { p_message_id: "m1", p_slack_ts: "1700000000.000100" });
   });
@@ -102,13 +130,13 @@ describe("sendChatMessageToSlack", () => {
   it("replies in the root's thread", async () => {
     fixture.message = { ...MESSAGE, thread_root_id: "root-1" };
     await sendChatMessageToSlack(supabase as never, "m1");
-    expect(postMessage).toHaveBeenCalledWith(expect.objectContaining({ thread_ts: "1699999999.000100" }));
+    expect(postMessage).toHaveBeenCalledWith(expect.objectContaining({ thread_ts: "1699999999.000100" }), "xoxb-test");
   });
 
   it("drops a photo that isn't https", async () => {
     fixture.author = { name: "Fern Quillsby", display_name: null, photo_url: "javascript:alert(1)" };
     await sendChatMessageToSlack(supabase as never, "m1");
-    expect(postMessage).toHaveBeenCalledWith(expect.objectContaining({ username: "Fern Quillsby", icon_url: undefined }));
+    expect(postMessage).toHaveBeenCalledWith(expect.objectContaining({ username: "Fern Quillsby", icon_url: undefined }), "xoxb-test");
   });
 
   it("marks the message failed when Slack throws or says no", async () => {
@@ -136,11 +164,52 @@ describe("sendChatMessageToSlack", () => {
     expect(postMessage).not.toHaveBeenCalled();
   });
 
-  it("never reaches a real channel in test mode: the message stays pending", async () => {
-    vi.stubEnv("SLACK_TEST_MODE", "true");
+  it("never reaches a real channel off production: the message stays pending", async () => {
+    config.isProduction = false;
     await expect(sendChatMessageToSlack(supabase as never, "m1")).resolves.toBe("skipped");
     expect(postMessage).not.toHaveBeenCalled();
     expect(rpc).not.toHaveBeenCalled();
+    expect(chatSlackWritesEnabled()).toBe(false);
+  });
+
+  describe("for a member who connected Slack", () => {
+    beforeEach(() => getSlackUserToken.mockResolvedValue({ token: "xoxp-fern", slackUserId: "U_FERN" }));
+
+    it("posts as them with their own token: no bot name or photo, and records how it was posted", async () => {
+      await expect(sendChatMessageToSlack(supabase as never, "m1")).resolves.toBe("sent");
+
+      expect(postMessage).toHaveBeenCalledTimes(1);
+      const [args, token] = postMessage.mock.calls[0];
+      expect(token).toBe("xoxp-fern");
+      expect(args).not.toHaveProperty("username");
+      expect(args).not.toHaveProperty("icon_url");
+      expect(args).toMatchObject({ channel: "C_HOSTS", metadata: hubMessageMetadata("m1") });
+      expect(updates).toContainEqual({ table: "chat_messages", values: { posted_via: "user_token" } });
+      expect(rpc).toHaveBeenCalledWith("chat_mark_message_sent", { p_message_id: "m1", p_slack_ts: "1700000000.000100" });
+    });
+
+    it("falls back to the bot, and revokes the connection, when Slack says their token is dead", async () => {
+      postMessage.mockRejectedValueOnce({ data: { error: "token_revoked" } });
+      vi.spyOn(console, "error").mockImplementation(() => {});
+
+      await expect(sendChatMessageToSlack(supabase as never, "m1")).resolves.toBe("sent");
+
+      expect(rpc).toHaveBeenCalledWith("slack_connection_revoke", { p_member: "member-fern" });
+      expect(postMessage).toHaveBeenCalledTimes(2);
+      expect(postMessage.mock.calls[1][1]).toBe("xoxb-test");
+      expect(postMessage.mock.calls[1][0]).toMatchObject({ username: "Fern" });
+      expect(updates.some((u) => JSON.stringify(u.values).includes("user_token"))).toBe(false);
+    });
+
+    it("fails, rather than also posting through the bot, on any other Slack error", async () => {
+      postMessage.mockRejectedValueOnce({ data: { error: "channel_not_found" } });
+      vi.spyOn(console, "error").mockImplementation(() => {});
+
+      await expect(sendChatMessageToSlack(supabase as never, "m1")).resolves.toBe("failed");
+      expect(postMessage).toHaveBeenCalledTimes(1);
+      expect(rpc).toHaveBeenCalledWith("chat_mark_message_failed", { p_message_id: "m1" });
+      expect(rpc).not.toHaveBeenCalledWith("slack_connection_revoke", expect.anything());
+    });
   });
 
   it("fails without a bot token instead of throwing", async () => {
