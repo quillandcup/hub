@@ -81,9 +81,25 @@ export async function sendChatMessageToSlack(supabase: SupabaseClient, messageId
   const slackChannelId = one(row.chat_channels)?.slack_channel_id;
   if (!body || !slackChannelId || !row.author_member_id) return fail("message is missing its body, channel or author");
 
+  // Everything the post needs, read at once: the thread root's ts, the member's Slack connection
+  // and (for the bot path) their name and photo. Waiting on these one after another was a good
+  // part of the time between pressing Send and the message reaching Slack.
+  const authorMemberId = row.author_member_id;
+  const [root, connection, author] = await Promise.all([
+    row.thread_root_id
+      ? supabase.from("chat_messages").select("slack_ts").eq("id", row.thread_root_id).maybeSingle().then((r) => r.data)
+      : Promise.resolve(null),
+    getSlackUserToken(supabase, authorMemberId),
+    supabase
+      .from("member_directory")
+      .select("name, display_name, photo_url")
+      .eq("id", authorMemberId)
+      .maybeSingle()
+      .then((r) => r.data),
+  ]);
+
   let threadTs: string | undefined;
   if (row.thread_root_id) {
-    const { data: root } = await supabase.from("chat_messages").select("slack_ts").eq("id", row.thread_root_id).maybeSingle();
     if (!root?.slack_ts) return fail("thread root has no Slack ts");
     threadTs = root.slack_ts;
   }
@@ -103,7 +119,6 @@ export async function sendChatMessageToSlack(supabase: SupabaseClient, messageId
   let postedVia: "user_token" | "bot" = "bot";
 
   // As the member, when they have connected Slack.
-  const connection = await getSlackUserToken(supabase, row.author_member_id);
   if (connection) {
     try {
       result = await post(connection.token);
@@ -119,11 +134,6 @@ export async function sendChatMessageToSlack(supabase: SupabaseClient, messageId
   if (!result) {
     const token = process.env.SLACK_BOT_TOKEN;
     if (!token) return fail("SLACK_BOT_TOKEN not configured");
-    const { data: author } = await supabase
-      .from("member_directory")
-      .select("name, display_name, photo_url")
-      .eq("id", row.author_member_id)
-      .maybeSingle();
     const photo = author?.photo_url && /^https:\/\//.test(author.photo_url) ? author.photo_url : undefined;
     try {
       result = await post(token, { username: author?.display_name || author?.name || undefined, icon_url: photo });
@@ -133,8 +143,10 @@ export async function sendChatMessageToSlack(supabase: SupabaseClient, messageId
   }
 
   if (!result.ok || !result.ts) return fail("Slack did not return a ts");
-  if (postedVia !== "bot") await supabase.from("chat_messages").update({ posted_via: postedVia }).eq("id", messageId);
-  const { error } = await supabase.rpc("chat_mark_message_sent", { p_message_id: messageId, p_slack_ts: result.ts });
+  const [{ error }] = await Promise.all([
+    supabase.rpc("chat_mark_message_sent", { p_message_id: messageId, p_slack_ts: result.ts }),
+    postedVia !== "bot" ? supabase.from("chat_messages").update({ posted_via: postedVia }).eq("id", messageId) : null,
+  ]);
   if (error) {
     // Posted but not recorded: leave it pending (not failed) so Slack's own event can still link it.
     console.error("chat_mark_message_sent failed for %s:", messageId, error.message);

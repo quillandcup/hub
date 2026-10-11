@@ -1,5 +1,6 @@
 "use server";
 
+import { after } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { getEffectiveIdentity, type EffectiveIdentity } from "@/lib/sudo";
 import { effectiveMemberHasFeature, getUserFeaturePreviews } from "@/lib/features.server";
@@ -108,9 +109,9 @@ async function postingCaller() {
 /**
  * The signed-in member posts `body` to a conversation (or as a reply in a thread). The message is
  * written first, as the member (chat_post_message checks they are in the conversation and that it
- * is bridged and open), then sent to Slack as the bot under their name and photo. If Slack is
- * down the message stays in the Hub marked failed, and the member can retry it; the nightly chat
- * run retries too.
+ * is bridged and open), then sent to Slack after the response (as them if they connected Slack,
+ * else as the bot under their name and photo). If Slack is down the message stays in the Hub
+ * marked failed, and the member can retry it; the nightly chat run retries too.
  */
 export async function sendChatMessage(channelId: string, body: string, threadRootId?: string): Promise<SendChatResult> {
   if (!isUuid(channelId) || (threadRootId !== undefined && !isUuid(threadRootId))) return { ok: false, error: "Something went wrong." };
@@ -128,8 +129,18 @@ export async function sendChatMessage(channelId: string, body: string, threadRoo
     return { ok: false, error: (reason && POST_ERRORS[reason]) || "Something went wrong. Try again." };
   }
 
-  await sendChatMessageToSlack(createServiceRoleClient(), data as string);
-  return { ok: true, id: data as string };
+  // Slack takes a second or more; the member shouldn't wait for it. The message is already saved
+  // (pending), so return now and send after the response: the page shows it at once, and flips it to
+  // sent through Realtime when Slack has it. A failure marks it failed (Retry) and the nightly run retries.
+  const messageId = data as string;
+  after(async () => {
+    try {
+      await sendChatMessageToSlack(createServiceRoleClient(), messageId);
+    } catch (error) {
+      console.error("sendChatMessageToSlack threw for %s:", messageId, error);
+    }
+  });
+  return { ok: true, id: messageId };
 }
 
 export type ToggleReactionResult = { ok: true; active: boolean } | { ok: false; error: string };
@@ -158,10 +169,16 @@ export async function toggleChatReaction(messageId: string, emoji: string): Prom
     if (!reason) console.error("chat_toggle_reaction failed:", error?.message);
     return { ok: false, error: (reason && REACT_ERRORS[reason]) || "Something went wrong. Try again." };
   }
-  // A member who connected Slack has it in Slack too, as them. Never fails the reaction itself.
-  await syncReactionToSlack(createServiceRoleClient(), { messageId, memberId: caller.identity.memberId, emoji, active: data }).catch((error) =>
-    console.error("syncReactionToSlack threw:", error)
-  );
+  // A member who connected Slack has it in Slack too, as them: after the response, so the chip
+  // updates at once, and never able to fail the reaction itself.
+  const memberId = caller.identity.memberId;
+  after(async () => {
+    try {
+      await syncReactionToSlack(createServiceRoleClient(), { messageId, memberId, emoji, active: data });
+    } catch (error) {
+      console.error("syncReactionToSlack threw:", error);
+    }
+  });
   return { ok: true, active: data };
 }
 
