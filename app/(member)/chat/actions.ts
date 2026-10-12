@@ -8,6 +8,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { sendChatMessageToSlack } from "@/lib/chat/slack-post";
 import { syncReactionToSlack } from "@/lib/chat/slack-react";
+import { getSlackConnectionStatus } from "@/lib/slack-connect";
 import { isUuid } from "@/lib/chat/format";
 import {
   buildMessageViews,
@@ -163,6 +164,22 @@ export async function toggleChatReaction(messageId: string, emoji: string): Prom
   if (!caller) return { ok: false, error: "Reacting isn't available to you yet." };
 
   const supabase = await createClient();
+
+  // A reaction the member made in Slack can only be taken back in Slack, as them: without a connection
+  // the Hub would hide it until the next sync brought it back, so say what to do instead.
+  const { data: inSlack } = await supabase
+    .from("chat_reactions")
+    .select("id")
+    .eq("message_id", messageId)
+    .eq("emoji", emoji)
+    .eq("member_id", caller.identity.memberId)
+    .not("slack_user_id", "is", null)
+    .is("deleted_at", null)
+    .limit(1);
+  if (inSlack?.length && !(await getSlackConnectionStatus(createServiceRoleClient(), caller.identity.memberId)).connected) {
+    return { ok: false, error: "You reacted in Slack. Connect Slack in Settings to take it back from here." };
+  }
+
   const { data, error } = await supabase.rpc("chat_toggle_reaction", { p_message_id: messageId, p_emoji: emoji });
   if (error || typeof data !== "boolean") {
     const reason = /chat_react: (\w+)/.exec(error?.message ?? "")?.[1];
