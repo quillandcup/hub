@@ -90,6 +90,14 @@ export default function ActivityFilters({
         >
           Hide system
         </Link>
+        <Link
+          href={href({ hideSlack: !filters.hideSlack })}
+          aria-pressed={filters.hideSlack}
+          className={pill(filters.hideSlack)}
+          title="Hide member activity that came from Slack"
+        >
+          Hide Slack
+        </Link>
       </div>
 
       {filters.view === "all" && (

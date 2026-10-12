@@ -60,6 +60,8 @@ export interface FeedFilters {
   sudoOnly: boolean;
   /** Drop rows the system did (cron, imports, triggers with no user). */
   hideSystem: boolean;
+  /** Drop member activity that came from Slack (by far the most numerous). */
+  hideSlack: boolean;
   /** Look-back window in days. */
   days: number;
 }
@@ -97,6 +99,7 @@ export function parseFeedFilters(params: Record<string, Param>): FeedFilters {
     memberId: member && UUID_RE.test(member) ? member : null,
     sudoOnly: first(params.sudo) === "1",
     hideSystem: first(params.nosystem) === "1",
+    hideSlack: first(params.noslack) === "1",
     days: (FEED_DAY_OPTIONS as readonly number[]).includes(days) ? days : DEFAULT_DAYS,
   };
 }
@@ -113,6 +116,7 @@ export function feedSearch(filters: Partial<FeedFilters>): string {
   if (filters.memberId) q.set("member", filters.memberId);
   if (filters.sudoOnly) q.set("sudo", "1");
   if (filters.hideSystem) q.set("nosystem", "1");
+  if (filters.hideSlack) q.set("noslack", "1");
   if (filters.days && filters.days !== DEFAULT_DAYS) q.set("days", String(filters.days));
   const s = q.toString();
   return s ? `?${s}` : "";
@@ -128,6 +132,7 @@ function rpcArgs(filters: FeedFilters, now: Date) {
     p_member_id: filters.memberId,
     p_sudo_only: filters.sudoOnly,
     p_hide_system: filters.hideSystem,
+    p_hide_slack: filters.hideSlack,
     p_from: from.toISOString(),
     p_to: new Date(now.getTime() + 60_000).toISOString(),
   };

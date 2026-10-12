@@ -48,6 +48,7 @@ describe("parseFeedFilters", () => {
       memberId: null,
       sudoOnly: false,
       hideSystem: false,
+      hideSlack: false,
       days: 7,
     });
   });
@@ -76,6 +77,12 @@ describe("parseFeedFilters", () => {
     expect(parseFeedFilters({ nosystem: "1" }).hideSystem).toBe(true);
     expect(parseFeedFilters({ nosystem: "yes" }).hideSystem).toBe(false);
     expect(feedSearch(parseFeedFilters({ nosystem: "1" }))).toBe("?nosystem=1");
+  });
+
+  it("reads the hide-Slack toggle", () => {
+    expect(parseFeedFilters({ noslack: "1" }).hideSlack).toBe(true);
+    expect(parseFeedFilters({ noslack: "yes" }).hideSlack).toBe(false);
+    expect(feedSearch(parseFeedFilters({ noslack: "1" }))).toBe("?noslack=1");
   });
 
   it("accepts the privacy view and keeps it in the URL", () => {

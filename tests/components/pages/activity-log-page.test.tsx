@@ -87,6 +87,13 @@ describe("/admin/activity", () => {
     expect(screen.getByRole("link", { name: "Hide system" })).toHaveAttribute("aria-pressed", "true");
   });
 
+  it("passes the hide-Slack toggle to the feed", async () => {
+    feed([base]);
+    await renderPage({ noslack: "1" });
+    expect(rpc).toHaveBeenCalledWith("count_activity_feed", expect.objectContaining({ p_hide_slack: true }));
+    expect(screen.getByRole("link", { name: "Hide Slack" })).toHaveAttribute("aria-pressed", "true");
+  });
+
   it("shows both people when an admin acted in sudo", async () => {
     feed([{ ...base, acting_as_member_id: MEMBER_ID, acting_as_member_name: "Fern Quillsby" }]);
     await renderPage({ sudo: "1" });
