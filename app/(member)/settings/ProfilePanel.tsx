@@ -21,11 +21,6 @@ const INPUT_CLASS =
 const SAVE_CLASS =
   "px-4 py-2 bg-plum-600 text-white text-sm rounded-md hover:bg-plum-700 disabled:opacity-50 disabled:cursor-not-allowed";
 
-/** How a stored handle shows in the input: always with a leading @, or empty. */
-function formatHandle(handle: string | null): string {
-  return handle ? `@${handle.replace(/^@+/, "")}` : "";
-}
-
 /** Under each bio/link field: how to hide it, plus a one-click "Remove" while it has a value. */
 function ClearHint({ value, noun, onClear }: { value: string; noun: string; onClear: () => void }) {
   return (
@@ -70,7 +65,7 @@ export function ProfilePanel() {
       setData(null);
     } else {
       setData(result);
-      setInstagramInput(formatHandle(result.instagramHandle));
+      setInstagramInput(result.instagramUrl ?? "");
       setBioInput(result.details.bio ?? "");
       setFacebookInput(result.details.facebookUrl ?? "");
       setXInput(result.details.twitterUrl ?? "");
@@ -100,7 +95,7 @@ export function ProfilePanel() {
     if ("error" in askMeAbout) return setError(`Ask me about: ${askMeAbout.error}`);
 
     // Instagram lives in Kajabi, so only call out to it when the handle actually changed.
-    const instagramChanged = data.kajabiLinked && instagramInput.trim() !== formatHandle(data.instagramHandle);
+    const instagramChanged = data.kajabiLinked && instagramInput.trim() !== (data.instagramUrl ?? "");
     // Topics are Hub-only and show immediately, so they don't count toward "will update in a minute".
     const topicsChanged = askMeAbout.topics.join("\n") !== data.askMeAbout.join("\n");
 
@@ -216,8 +211,8 @@ export function ProfilePanel() {
                 type="text"
                 value={instagramInput}
                 onChange={(e) => setInstagramInput(e.target.value)}
-                placeholder="@yourname"
-                maxLength={200}
+                placeholder="instagram.com/yourname"
+                maxLength={300}
                 autoComplete="off"
                 className={INPUT_CLASS}
               />

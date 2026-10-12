@@ -504,7 +504,7 @@ describe("getProfileSettings", () => {
     expect(result).toEqual({
       memberId: "member-1",
       kajabiLinked: true,
-      instagramHandle: "new_handle",
+      instagramUrl: "https://instagram.com/new_handle",
       details: { bio: "Writes cozy mysteries.", facebookUrl: null, twitterUrl: null },
       askMeAbout: ["worldbuilding"],
       syncPending: true,
@@ -513,7 +513,7 @@ describe("getProfileSettings", () => {
 
   it("is not pending once Silver matches Bronze + overrides", async () => {
     setup();
-    expect(await getProfileSettings()).toMatchObject({ instagramHandle: "old_handle", syncPending: false });
+    expect(await getProfileSettings()).toMatchObject({ instagramUrl: "https://instagram.com/old_handle", syncPending: false });
   });
 
   it("shows the override as the current value (never-set fields follow Kajabi) and is pending until reprocessed", async () => {
@@ -540,7 +540,7 @@ describe("getProfileSettings", () => {
 
   it("prefers the custom field over socials.instagram", async () => {
     setup({ service: { customerAttributes: { ...KAJABI_ATTRS, socials: { instagram: "profile_handle" } } } });
-    expect(await getProfileSettings()).toMatchObject({ instagramHandle: "old_handle", syncPending: false });
+    expect(await getProfileSettings()).toMatchObject({ instagramUrl: "https://instagram.com/old_handle", syncPending: false });
   });
 
   it("shows the directory Instagram handle when the custom field is empty, since that is what the profile links to", async () => {
@@ -551,7 +551,7 @@ describe("getProfileSettings", () => {
         customerAttributes: { ...KAJABI_ATTRS, socials: { instagram: "https://instagram.com/profile_handle" } },
       },
     });
-    expect(await getProfileSettings()).toMatchObject({ instagramHandle: "profile_handle" });
+    expect(await getProfileSettings()).toMatchObject({ instagramUrl: "https://instagram.com/profile_handle" });
   });
 
   it("shows no handle when the member cleared it, even though the directory has one", async () => {
@@ -563,14 +563,14 @@ describe("getProfileSettings", () => {
         customerAttributes: { ...KAJABI_ATTRS, socials: { instagram: "profile_handle" } },
       },
     });
-    expect(await getProfileSettings()).toMatchObject({ instagramHandle: null, syncPending: false });
+    expect(await getProfileSettings()).toMatchObject({ instagramUrl: null, syncPending: false });
   });
 
   it("reports an unlinked member without touching Bronze", async () => {
     setup({ member: { ...MEMBER, kajabi_id: null, bio: null, instagram_url: null } });
     expect(await getProfileSettings()).toMatchObject({
       kajabiLinked: false,
-      instagramHandle: null,
+      instagramUrl: null,
       syncPending: false,
     });
     expect(service.schema).not.toHaveBeenCalled();

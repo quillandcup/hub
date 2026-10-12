@@ -16,7 +16,7 @@ vi.mock('@/app/(member)/settings/profileActions', () => ({
 const baseSettings: profileActions.ProfileSettings = {
   memberId: 'member-1',
   kajabiLinked: true,
-  instagramHandle: 'old_handle',
+  instagramUrl: 'https://instagram.com/old_handle',
   details: { bio: 'Writes cozy mysteries.', facebookUrl: 'https://facebook.com/someone', twitterUrl: null },
   askMeAbout: ['cozy mysteries'],
   syncPending: false,
@@ -31,7 +31,7 @@ describe('ProfilePanel', () => {
     vi.mocked(profileActions.getProfileSettings).mockResolvedValue(baseSettings)
     render(<ProfilePanel />)
 
-    expect(await screen.findByLabelText('Instagram')).toHaveValue('@old_handle')
+    expect(await screen.findByLabelText('Instagram')).toHaveValue('https://instagram.com/old_handle')
     expect(screen.getByLabelText('Bio')).toHaveValue('Writes cozy mysteries.')
     expect(screen.getByLabelText('Facebook')).toHaveValue('https://facebook.com/someone')
     expect(screen.getByLabelText('X / Twitter')).toHaveValue('')
@@ -103,7 +103,7 @@ describe('ProfilePanel', () => {
   it('saves a new Instagram handle with the same Save button as the other fields', async () => {
     vi.mocked(profileActions.getProfileSettings)
       .mockResolvedValueOnce(baseSettings)
-      .mockResolvedValueOnce({ ...baseSettings, instagramHandle: 'new_handle', syncPending: true })
+      .mockResolvedValueOnce({ ...baseSettings, instagramUrl: 'https://instagram.com/new_handle', syncPending: true })
     vi.mocked(profileActions.updateInstagramHandle).mockResolvedValue({ success: true, syncPending: true })
     vi.mocked(profileActions.updateProfileDetails).mockResolvedValue({ success: true, syncPending: false })
 
@@ -170,7 +170,7 @@ describe('ProfilePanel', () => {
     vi.mocked(profileActions.getProfileSettings).mockResolvedValue({
       ...baseSettings,
       kajabiLinked: false,
-      instagramHandle: null,
+      instagramUrl: null,
     })
     render(<ProfilePanel />)
 

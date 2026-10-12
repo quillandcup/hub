@@ -53,11 +53,11 @@ export interface ProfileSettings {
   /** False when the member has no Kajabi contact (e.g. staff-only records) — Instagram isn't editable. */
   kajabiLinked: boolean;
   /**
-   * The Instagram handle the profile links to, from the latest Bronze snapshot:
-   * the "Instagram Handle" contact custom field, else the member-directory
-   * Instagram (socials.instagram), the same fallback member processing uses.
+   * The Instagram link the profile shows, like Facebook / X: the "Instagram Handle" contact
+   * custom field, else the member-directory Instagram (socials.instagram), the same fallback
+   * member processing uses, and nothing if the member cleared it.
    */
-  instagramHandle: string | null;
+  instagramUrl: string | null;
   /** Bio / Facebook / X as the profile will show them (member override, else Kajabi). */
   details: ProfileDetails;
   /** "Ask me about ..." topics (member_ask_me_about; Hub-only, no Kajabi sync). */
@@ -216,15 +216,10 @@ export async function getProfileSettings(): Promise<ProfileSettings | { error: s
     effective.facebook_url !== (member.facebook_url ?? null) ||
     effective.twitter_url !== (member.twitter_url ?? null);
 
-  // Show the handle the profile actually links to: the one the member set, else the directory one,
-  // and nothing if the member cleared it.
-  const shownInstagram = parseInstagramInput(effective.instagram_url ?? "");
-  const shownInstagramHandle = "handle" in shownInstagram ? shownInstagram.handle : null;
-
   return {
     memberId,
     kajabiLinked: member.kajabi_id != null,
-    instagramHandle: shownInstagramHandle,
+    instagramUrl: effective.instagram_url,
     details: toDetails(effective),
     askMeAbout: askRow?.topics ?? [],
     syncPending,
