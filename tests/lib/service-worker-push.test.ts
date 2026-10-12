@@ -4,7 +4,7 @@ import vm from "node:vm";
 import { describe, expect, it, vi } from "vitest";
 
 /** Runs public/sw.js against a fake service worker scope and returns what it registered. */
-function loadWorker() {
+function loadWorker(clients: Record<string, unknown> = {}) {
   const listeners: Record<string, (event: any) => void> = {};
   const showNotification = vi.fn().mockResolvedValue(undefined);
   const self = {
@@ -13,7 +13,7 @@ function loadWorker() {
     },
     registration: { showNotification },
     skipWaiting: vi.fn(),
-    clients: { claim: vi.fn() },
+    clients: { claim: vi.fn(), ...clients },
     location: { origin: "https://hub.example.test" },
   };
   const source = fs.readFileSync(path.join(process.cwd(), "public/sw.js"), "utf8");
@@ -76,5 +76,50 @@ describe("public/sw.js push handler", () => {
 
     expect(show.mock.calls[0][0]).toBe("Notification");
     expect(show.mock.calls[0][1]).toMatchObject({ body: "just a string" });
+  });
+});
+
+/** Fires the click handler with the given open windows and returns what it did. */
+async function click(windows: any[], url = "/prickles/1/checkin") {
+  const openWindow = vi.fn().mockResolvedValue(undefined);
+  const { listeners } = loadWorker({ matchAll: vi.fn().mockResolvedValue(windows), openWindow });
+  const close = vi.fn();
+  const waits: Promise<unknown>[] = [];
+  listeners.notificationclick({ notification: { close, data: { url } }, waitUntil: (p: Promise<unknown>) => waits.push(p) });
+  await Promise.all(waits);
+  return { openWindow, close };
+}
+
+describe("public/sw.js notification click handler", () => {
+  const origin = "https://hub.example.test";
+
+  it("opens a window at the url when no Hub tab is open", async () => {
+    const { openWindow, close } = await click([]);
+
+    expect(close).toHaveBeenCalled();
+    expect(openWindow).toHaveBeenCalledWith(`${origin}/prickles/1/checkin`);
+  });
+
+  it("navigates and focuses an open Hub tab", async () => {
+    const focus = vi.fn().mockResolvedValue(undefined);
+    const navigate = vi.fn().mockResolvedValue({ focus });
+    const { openWindow } = await click([{ url: `${origin}/dashboard`, navigate }]);
+
+    expect(navigate).toHaveBeenCalledWith(`${origin}/prickles/1/checkin`);
+    expect(focus).toHaveBeenCalled();
+    expect(openWindow).not.toHaveBeenCalled();
+  });
+
+  it("opens a new window when the open tab can't be navigated", async () => {
+    const navigate = vi.fn().mockRejectedValue(new TypeError("uncontrolled client"));
+    const { openWindow } = await click([{ url: `${origin}/dashboard`, navigate }]);
+
+    expect(openWindow).toHaveBeenCalledWith(`${origin}/prickles/1/checkin`);
+  });
+
+  it("ignores a url on another origin", async () => {
+    const { openWindow } = await click([], "https://evil.example.test/x");
+
+    expect(openWindow).not.toHaveBeenCalled();
   });
 });

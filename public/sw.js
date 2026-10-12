@@ -37,15 +37,25 @@ self.addEventListener("notificationclick", (event) => {
   const target = new URL(event.notification.data?.url || "/", self.location.origin);
   if (target.origin !== self.location.origin) return;
 
-  event.waitUntil(
-    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(async (windows) => {
-      const open = windows.find((w) => new URL(w.url).origin === self.location.origin);
-      if (open) {
-        await open.focus();
-        if ("navigate" in open) await open.navigate(target.href);
-      } else {
-        await self.clients.openWindow(target.href);
-      }
-    })
-  );
+  event.waitUntil(openTarget(target));
 });
+
+// Reuse an open Hub tab when we can drive it, otherwise open a new one. WindowClient.navigate()
+// rejects for a tab this worker doesn't control (opened before it activated) and focus() can reject
+// too, which used to leave the click doing nothing at all.
+async function openTarget(target) {
+  const windows = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+  const open = windows.find((w) => new URL(w.url).origin === self.location.origin);
+  if (open && "navigate" in open) {
+    try {
+      const navigated = await open.navigate(target.href);
+      if (navigated) {
+        await navigated.focus();
+        return;
+      }
+    } catch {
+      // Fall through to a new window.
+    }
+  }
+  await self.clients.openWindow(target.href);
+}
