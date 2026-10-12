@@ -36,6 +36,7 @@ const DB_EXCEPTIONS_UNDER_LIB = [
   'tests/lib/bronze-pagination.test.ts',
   'tests/lib/resubscription-data.test.ts',
   'tests/lib/admin-members-paging.test.ts',
+  'tests/lib/universal-search.test.ts',
 ]
 
 export default defineConfig({
