@@ -117,3 +117,17 @@ export function suggestOperators(typed: string, isAdmin: boolean): OperatorInfo[
   const t = typed.toLowerCase();
   return allowedOperators(isAdmin).filter((o) => o.name.startsWith(t));
 }
+
+/** The query with any `in:`/`kind:`/`type:` scope replaced by `in:<kind>` (none when `kind` is undefined). */
+export function withKind(raw: string, kind?: AnySearchKind): string {
+  const rest = tokenize(raw).filter((t) => !/^(in|kind|type):(?!#)/i.test(t)).join(" ");
+  return kind ? `${rest} in:${kind}`.trim() : rest;
+}
+
+/** The positive plain words to match, without quotes; "-excluded" words are skipped. */
+export function matchWords(q: UniversalQuery): string[] {
+  return (q.text.match(/-?"[^"]*"?|\S+/g) ?? [])
+    .filter((t) => !t.startsWith("-"))
+    .map((t) => t.replace(/^"|"$|\*$/g, "").trim())
+    .filter(Boolean);
+}

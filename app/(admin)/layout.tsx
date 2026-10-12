@@ -3,6 +3,7 @@ import { getUserFeaturePreviews } from "@/lib/features.server";
 import type { FeatureKey } from "@/lib/features";
 import AdminNavigation from "./admin/AdminNavigation";
 import UserMenu from "@/components/UserMenu";
+import SearchPalette from "@/components/search/SearchPalette";
 import FeedbackWidget from "@/components/FeedbackWidget";
 import PageViewTracker from "@/components/PageViewTracker";
 
@@ -24,6 +25,7 @@ export default async function AdminLayout({
       <AdminNavigation enabledFeatures={enabledFeatures} />
       <div className="flex flex-col flex-1 min-w-0">
         <header className="h-16 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex items-center justify-end px-6 flex-shrink-0 relative z-30">
+          {enabledFeatures.includes("universal_search") && <SearchPalette resultsPath="/admin/search" isAdmin={true} />}
           <UserMenu
             userEmail={user.email || "User"}
             isAdmin={true}

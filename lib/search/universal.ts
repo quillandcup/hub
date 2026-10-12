@@ -10,43 +10,13 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { formatPrickleTitle } from "@/lib/formatters";
 import { searchChat, SEARCH_PAGE_SIZE } from "@/lib/chat/search";
 import type { ChannelSummary } from "@/lib/chat/load";
-import { hasCriteria, SEARCH_KINDS, type AnySearchKind, type SearchKind, type UniversalQuery } from "@/lib/search/syntax";
-
-export const KIND_LABELS: Record<SearchKind, string> = {
-  members: "Members",
-  prickles: "Prickles",
-  projects: "Projects",
-  books: "Books",
-  awards: "Awards",
-  events: "Events",
-  chat: "Chat",
-};
-
-export interface SearchHit {
-  kind: SearchKind;
-  id: string;
-  title: string;
-  /** One gray line under the title. */
-  subtitle?: string;
-  href: string;
-  /** ISO date shown at the right of the row, when the kind has one. */
-  date?: string;
-  imageUrl?: string | null;
-  /** Small label next to the title (a status, an event type). */
-  badge?: string;
-}
-
-export interface KindResults {
-  kind: SearchKind;
-  hits: SearchHit[];
-  /** More rows exist past this page. */
-  hasMore: boolean;
-}
+import { KIND_LABELS, type KindResults, type SearchHit } from "@/lib/search/kinds";
+import { hasCriteria, matchWords, SEARCH_KINDS, type AnySearchKind, type SearchKind, type UniversalQuery } from "@/lib/search/syntax";
 
 export interface SearchContext {
   supabase: SupabaseClient;
-  /** The effective member (the sudo'd one when sudo is on). */
-  viewerMemberId: string;
+  /** The effective member (the sudo'd one when sudo is on); null for an admin with no member record. */
+  viewerMemberId: string | null;
   /** An admin acting as themselves: gets email:/status: and admin links. False in sudo. */
   isActingAsAdmin: boolean;
   /** Conversations chat search may look in (what the member's chat lists). */
@@ -54,14 +24,6 @@ export interface SearchContext {
   /** Rows per kind; one extra is fetched to know if there are more. */
   limit?: number;
   offset?: number;
-}
-
-/** The positive plain words to match, without quotes; "-excluded" words are skipped. */
-export function matchWords(q: UniversalQuery): string[] {
-  return (q.text.match(/-?"[^"]*"?|\S+/g) ?? [])
-    .filter((t) => !t.startsWith("-"))
-    .map((t) => t.replace(/^"|"$|\*$/g, "").trim())
-    .filter(Boolean);
 }
 
 /** One word as a quoted PostgREST ilike pattern, with its wildcards and separators neutralized. */
@@ -78,7 +40,7 @@ function matchEach<T extends { or: (f: string) => any }>(query: T, words: string
 /** Directory ids of members whose name contains `typed`; "me" is the viewer. null = no such filter. */
 async function memberIdsNamed(ctx: SearchContext, typed: string | undefined): Promise<string[] | null> {
   if (!typed) return null;
-  if (typed.toLowerCase() === "me") return [ctx.viewerMemberId];
+  if (typed.toLowerCase() === "me") return ctx.viewerMemberId ? [ctx.viewerMemberId] : [];
   const { data } = await ctx.supabase
     .from("member_directory")
     .select("id")
@@ -137,30 +99,29 @@ async function searchPrickles(ctx: SearchContext, q: UniversalQuery): Promise<Ki
   if (hosts && hosts.length === 0) return { kind: "prickles", hits: [], hasMore: false };
 
   // A prickle has no title of its own: it is named for its type and host ("Monday Progress Prickle
-  // with Jenn P"), so words match the type's name or the host's name.
-  let typeIds: string[] | null = null;
-  let hostIds: string[] | null = hosts;
-  if (words.length > 0) {
-    const [types, named] = await Promise.all([
-      ctx.supabase.from("prickle_types").select("id").or(words.map((w) => `name.ilike.${pattern(w)}`).join(",")).limit(50),
-      hosts ? Promise.resolve(null) : ctx.supabase.from("member_directory").select("id").or(words.map((w) => `name.ilike.${pattern(w)}`).join(",")).limit(100),
-    ]);
-    typeIds = (types.data ?? []).map((t) => t.id as string);
-    if (!hosts) hostIds = (named?.data ?? []).map((m) => m.id as string);
-    if (typeIds.length === 0 && (hostIds ?? []).length === 0) return { kind: "prickles", hits: [], hasMore: false };
-  }
+  // with Jenn P"), so each word must match the type's name or the host's name.
+  const perWord = await Promise.all(
+    words.map(async (w) => {
+      const [types, named] = await Promise.all([
+        ctx.supabase.from("prickle_types").select("id").ilike("name", pattern(w).replace(/^"|"$/g, "")).limit(50),
+        ctx.supabase.from("member_directory").select("id").ilike("name", pattern(w).replace(/^"|"$/g, "")).limit(100),
+      ]);
+      return { typeIds: (types.data ?? []).map((t) => t.id as string), hostIds: (named.data ?? []).map((m) => m.id as string) };
+    })
+  );
+  if (perWord.some((w) => w.typeIds.length === 0 && w.hostIds.length === 0)) return { kind: "prickles", hits: [], hasMore: false };
 
   let query = ctx.supabase
     .from("prickles")
     .select("id, start_time, host:prickle_host(id, name), prickle_types:type_id(name)");
-  if (words.length > 0) {
+  if (hosts) query = query.in("host", hosts);
+  for (const w of perWord) {
+    // One .or() per word: PostgREST ANDs separate filters.
     const ors = [
-      typeIds && typeIds.length ? `type_id.in.(${typeIds.join(",")})` : null,
-      hostIds && hostIds.length ? `host.in.(${hostIds.join(",")})` : null,
+      w.typeIds.length ? `type_id.in.(${w.typeIds.join(",")})` : null,
+      w.hostIds.length ? `host.in.(${w.hostIds.join(",")})` : null,
     ].filter(Boolean);
     query = query.or(ors.join(","));
-  } else if (hostIds) {
-    query = query.in("host", hostIds);
   }
   if (q.after) query = query.gte("start_time", q.after);
   if (q.before) query = query.lt("start_time", q.before);
@@ -262,6 +223,7 @@ async function searchProjects(ctx: SearchContext, q: UniversalQuery): Promise<Ki
 
 async function searchChatKind(ctx: SearchContext, q: UniversalQuery): Promise<KindResults> {
   const { limit } = page(ctx);
+  if (!ctx.viewerMemberId) return { kind: "chat", hits: [], hasMore: false };
   const channels = q.inChannel
     ? ctx.chatChannels.filter((c) => c.label.replace(/^#/, "").toLowerCase().includes(q.inChannel!.toLowerCase()))
     : ctx.chatChannels;
@@ -323,4 +285,5 @@ export async function universalSearch(
   return results.filter((r) => r.hits.length > 0 || scoped);
 }
 
-export type { AnySearchKind };
+export { KIND_LABELS };
+export type { AnySearchKind, KindResults, SearchHit };

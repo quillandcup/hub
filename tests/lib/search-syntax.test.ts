@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseUniversal, hasCriteria, suggestOperators, resolveKind } from "@/lib/search/syntax";
+import { parseUniversal, hasCriteria, suggestOperators, resolveKind, withKind } from "@/lib/search/syntax";
 
 describe("parseUniversal", () => {
   it("passes plain words and chat operators through to the chat parser", () => {
@@ -52,5 +52,13 @@ describe("operator suggestions", () => {
 
   it("resolveKind accepts canonical names case-insensitively", () => {
     expect(resolveKind("Prickles")).toBe("prickles");
+  });
+});
+
+describe("withKind", () => {
+  it("replaces an existing scope and keeps channel and phrases", () => {
+    expect(withKind('pizza in:members "a b"', "books")).toBe('pizza "a b" in:books');
+    expect(withKind("pizza in:#general", "chat")).toBe("pizza in:#general in:chat");
+    expect(withKind("pizza kind:books")).toBe("pizza");
   });
 });
