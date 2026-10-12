@@ -17,7 +17,7 @@ vi.mock("@/app/(member)/chat/actions", () => ({
 import { sendChatMessage } from "@/app/(member)/chat/actions";
 import Composer from "@/components/chat/Composer";
 import MessageList from "@/components/chat/MessageList";
-import { emitOptimistic, isPendingId, optimisticView, subscribeOptimistic, type OptimisticEvent } from "@/lib/chat/optimistic";
+import { emitListEvent, isPendingId, optimisticView, subscribeListEvents, type ListEvent } from "@/lib/chat/list-events";
 
 const VIEWER = { memberId: "member-fern", name: "Fern Quillsby", photoUrl: null };
 const CTX: ChatTextContext = { userNames: {}, userMembers: {}, channelIds: {}, channelNames: {}, customEmoji: {} };
@@ -28,14 +28,14 @@ const serverView = (n: number, extra: Partial<ChatMessageView> = {}): ChatMessag
   ...extra,
 });
 
-let events: OptimisticEvent[];
+let events: ListEvent[];
 let unsubscribe: () => void;
 beforeEach(() => {
   cleanup();
   refresh.mockReset();
   vi.mocked(sendChatMessage).mockReset();
   events = [];
-  unsubscribe = subscribeOptimistic((e) => events.push(e));
+  unsubscribe = subscribeListEvents((e) => events.push(e));
 });
 afterEach(() => unsubscribe());
 
@@ -123,11 +123,11 @@ describe("MessageList: shows what is being sent", () => {
     const { rerender } = render(list([serverView(1)]));
     const temp = optimisticView({ id: "pending-1", body: "Hello there", viewer: VIEWER });
 
-    act(() => emitOptimistic({ kind: "add", channelId: "c1", view: temp }));
+    act(() => emitListEvent({ kind: "add", channelId: "c1", view: temp }));
     expect(texts()).toEqual(["message 1", "Hello there"]);
     expect(screen.getByText("Sending to Slack…")).toBeInTheDocument();
 
-    act(() => emitOptimistic({ kind: "swap", channelId: "c1", tempId: "pending-1", view: { ...temp, id: "real-id" } }));
+    act(() => emitListEvent({ kind: "swap", channelId: "c1", tempId: "pending-1", view: { ...temp, id: "real-id" } }));
     expect(texts()).toEqual(["message 1", "Hello there"]);
 
     // The page refresh brings the server's copy of the same message: it replaces the placeholder's.
@@ -139,10 +139,10 @@ describe("MessageList: shows what is being sent", () => {
   it("keeps the server's version if it arrived before the action returned", () => {
     const temp = optimisticView({ id: "pending-1", body: "Hello there", viewer: VIEWER });
     const { rerender } = render(list([serverView(1)]));
-    act(() => emitOptimistic({ kind: "add", channelId: "c1", view: temp }));
+    act(() => emitListEvent({ kind: "add", channelId: "c1", view: temp }));
     rerender(list([serverView(1), { ...temp, id: "real-id", syncStatus: null }]));
 
-    act(() => emitOptimistic({ kind: "swap", channelId: "c1", tempId: "pending-1", view: { ...temp, id: "real-id" } }));
+    act(() => emitListEvent({ kind: "swap", channelId: "c1", tempId: "pending-1", view: { ...temp, id: "real-id" } }));
     expect(texts()).toEqual(["message 1", "Hello there"]);
     expect(screen.queryByText("Sending to Slack…")).not.toBeInTheDocument();
   });
@@ -150,26 +150,54 @@ describe("MessageList: shows what is being sent", () => {
   it("takes a message away when its send failed", () => {
     render(list([serverView(1)]));
     const temp = optimisticView({ id: "pending-1", body: "Hello there", viewer: VIEWER });
-    act(() => emitOptimistic({ kind: "add", channelId: "c1", view: temp }));
-    act(() => emitOptimistic({ kind: "drop", channelId: "c1", tempId: "pending-1" }));
+    act(() => emitListEvent({ kind: "add", channelId: "c1", view: temp }));
+    act(() => emitListEvent({ kind: "drop", channelId: "c1", tempId: "pending-1" }));
     expect(texts()).toEqual(["message 1"]);
   });
 
   it("ignores another conversation's messages, and everything on an older page", () => {
     const temp = optimisticView({ id: "pending-1", body: "Hello there", viewer: VIEWER });
     render(list([serverView(1)]));
-    act(() => emitOptimistic({ kind: "add", channelId: "c2", view: temp }));
+    act(() => emitListEvent({ kind: "add", channelId: "c2", view: temp }));
     expect(texts()).toEqual(["message 1"]);
 
     cleanup();
     render(list([serverView(1)], { showSent: false }));
-    act(() => emitOptimistic({ kind: "add", channelId: "c1", view: temp }));
+    act(() => emitListEvent({ kind: "add", channelId: "c1", view: temp }));
     expect(texts()).toEqual(["message 1"]);
   });
 
   it("can't react to a message that isn't saved yet", () => {
     render(list([], { canReact: true }));
-    act(() => emitOptimistic({ kind: "add", channelId: "c1", view: optimisticView({ id: "pending-1", body: "Hello there", viewer: VIEWER }) }));
+    act(() => emitListEvent({ kind: "add", channelId: "c1", view: optimisticView({ id: "pending-1", body: "Hello there", viewer: VIEWER }) }));
     expect(screen.queryByRole("button", { name: "Add reaction" })).not.toBeInTheDocument();
+  });
+
+  it("merges the newest messages the server fetched: its version of each wins and new ones are added", () => {
+    render(list([serverView(1), serverView(2)]));
+    act(() =>
+      emitListEvent({
+        kind: "merge",
+        channelId: "c1",
+        views: [serverView(2, { body: "message 2 (edited)" }), serverView(3)],
+        ctx: CTX,
+      }),
+    );
+    expect(screen.getAllByRole("article").map((a) => a.textContent)).toEqual([
+      expect.stringContaining("message 1"),
+      expect.stringContaining("message 2 (edited)"),
+      expect.stringContaining("message 3"),
+    ]);
+  });
+
+  it("ignores a merge for another conversation or while showing an older page", () => {
+    render(list([serverView(1)]));
+    act(() => emitListEvent({ kind: "merge", channelId: "c2", views: [serverView(3)], ctx: CTX }));
+    expect(texts()).toEqual(["message 1"]);
+
+    cleanup();
+    render(list([serverView(1)], { showSent: false }));
+    act(() => emitListEvent({ kind: "merge", channelId: "c1", views: [serverView(3)], ctx: CTX }));
+    expect(texts()).toEqual(["message 1"]);
   });
 });

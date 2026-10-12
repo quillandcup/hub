@@ -5,7 +5,7 @@ import ChatText, { type ChatTextContext } from "@/components/chat/ChatText";
 import ReactionBar from "@/components/chat/ReactionBar";
 import RetryButton from "@/components/chat/RetryButton";
 import { formatChatTime } from "@/lib/chat/format";
-import { isPendingId } from "@/lib/chat/optimistic";
+import { isPendingId } from "@/lib/chat/list-events";
 import type { ChatMessageView } from "@/lib/chat/load";
 
 /** One message: author, time, text (or why there is none), reactions and a link into its thread. */
@@ -69,14 +69,14 @@ export default function MessageItem({
         {message.syncStatus === "failed" && (
           <p className="mt-1 text-xs text-red-600 dark:text-red-400">
             Slack didn&apos;t get this message.{" "}
-            {message.mine && <RetryButton messageId={message.id} />}
+            {message.mine && <RetryButton channelId={channelId} messageId={message.id} />}
           </p>
         )}
         {message.hasFiles && message.contentState === "ok" && (
           <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">📎 Includes files, which the Hub doesn&apos;t show yet.</p>
         )}
 
-        <ReactionBar messageId={message.id} reactions={message.reactions} custom={ctx.customEmoji} canReact={canReact && message.contentState === "ok" && !isPendingId(message.id)} />
+        <ReactionBar channelId={channelId} messageId={message.id} reactions={message.reactions} custom={ctx.customEmoji} canReact={canReact && message.contentState === "ok" && !isPendingId(message.id)} />
 
         {!inThread && message.replyCount > 0 && (
           <Link

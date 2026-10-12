@@ -86,6 +86,42 @@ export async function loadOlderChat(channelId: string, before: string): Promise<
   return { views, ctx: chatTextContext(rendered, channels), olderBefore: page.olderBefore };
 }
 
+/**
+ * The newest page of top-level messages, for keeping an open conversation current without
+ * re-rendering the page and layout: only the messages (the sidebar, members, read marker and the
+ * rest are untouched). Same access rules as the page and `loadOlderChat`; the text context carries
+ * just the names found in these messages (the list merges it into what it already has), so the
+ * channel list isn't read again. Null when it can't be loaded, and the caller refreshes the page.
+ */
+export async function loadLatestChat(channelId: string): Promise<OlderChat | null> {
+  if (!isUuid(channelId)) return null;
+  const started = performance.now();
+  const caller = await chatCaller();
+  if (!caller) return null;
+  const { identity } = caller;
+  const afterAuth = performance.now();
+
+  const supabase = await createClient();
+  const channel = await loadChannelForMember(supabase, channelId, identity.memberId, identity.isSudo);
+  if (!channel || (identity.isSudo && channel.restricted)) return null;
+  const afterChannel = performance.now();
+
+  const page = await loadMessages(supabase, channel.id, {});
+  const afterMessages = performance.now();
+  const { views, ...rendered } = await buildMessageViews(supabase, channel, page.messages, identity.memberId);
+  const done = performance.now();
+  // Where the time goes, for tuning: this runs on every live change in an open conversation.
+  console.info(
+    "[chat] loadLatestChat %dms (auth %d, channel %d, messages %d, views %d)",
+    Math.round(done - started),
+    Math.round(afterAuth - started),
+    Math.round(afterChannel - afterAuth),
+    Math.round(afterMessages - afterChannel),
+    Math.round(done - afterMessages)
+  );
+  return { views, ctx: chatTextContext(rendered, []), olderBefore: page.olderBefore };
+}
+
 export type SendChatResult = { ok: true; id: string } | { ok: false; error: string };
 
 /** What chat_post_message's 'chat_post: <reason>' errors mean to the person who wrote the message. */

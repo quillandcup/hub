@@ -3,9 +3,10 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { retryChatMessage } from "@/app/(member)/chat/actions";
+import { pokeChat } from "@/lib/chat/list-events";
 
 /** Sends a message Slack didn't take again; shown on the author's own failed messages. */
-export default function RetryButton({ messageId }: { messageId: string }) {
+export default function RetryButton({ channelId, messageId }: { channelId: string; messageId: string }) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -18,7 +19,9 @@ export default function RetryButton({ messageId }: { messageId: string }) {
         onClick={() =>
           startTransition(async () => {
             const result = await retryChatMessage(messageId);
-            if (result.ok) router.refresh();
+            if (result.ok) {
+              if (!pokeChat(channelId)) router.refresh();
+            }
             else setError(result.error);
           })
         }

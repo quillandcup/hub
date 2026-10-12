@@ -3,7 +3,8 @@ import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const refresh = vi.fn();
-vi.mock("@/app/(member)/chat/actions", () => ({ markChatRead: vi.fn() }));
+const loadLatestChat = vi.fn(async (): Promise<unknown> => null);
+vi.mock("@/app/(member)/chat/actions", () => ({ markChatRead: vi.fn(), loadLatestChat: (...a: unknown[]) => loadLatestChat(...(a as [])) }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh }) }));
 
 type Payload = { eventType: string; new: Record<string, unknown>; old: Record<string, unknown> };
@@ -46,6 +47,8 @@ vi.mock("@/lib/supabase/client", () => ({
 }));
 
 import ChatLive, { type ChatLiveView } from "@/components/chat/ChatLive";
+import { pokeChat, subscribeListEvents, type ListEvent } from "@/lib/chat/list-events";
+import type { ChatMessageView } from "@/lib/chat/load";
 import { markChatRead } from "@/app/(member)/chat/actions";
 
 /** Like the member layout: the page scrolls inside <main>, not the window. */
@@ -105,14 +108,14 @@ describe("ChatLive", () => {
       handlers.chat_messages(update);
       handlers.chat_reactions({ eventType: "INSERT", new: { message_id: "m1" }, old: {} });
     });
-    act(() => vi.advanceTimersByTime(1000));
+    await act(async () => vi.advanceTimersByTime(1000));
     expect(refresh).toHaveBeenCalledTimes(1);
   });
 
   it("ignores reactions on messages that are not on the page", async () => {
     await mount();
     act(() => handlers.chat_reactions({ eventType: "INSERT", new: { message_id: "elsewhere" }, old: {} }));
-    act(() => vi.advanceTimersByTime(1000));
+    await act(async () => vi.advanceTimersByTime(1000));
     expect(refresh).not.toHaveBeenCalled();
   });
 
@@ -147,7 +150,7 @@ describe("ChatLive", () => {
       await mount("latest", { markRead: true, latestAt: "2026-10-03T12:00:00Z" });
       await settle();
       handlers.chat_messages(update);
-      act(() => vi.advanceTimersByTime(1000));
+      await act(async () => vi.advanceTimersByTime(1000));
       expect(markChatRead).not.toHaveBeenCalled();
     });
 
@@ -190,7 +193,7 @@ describe("ChatLive", () => {
   it("follows a new message when the reader is at the bottom", async () => {
     const { rerender } = await mount();
     act(() => handlers.chat_messages(insert()));
-    act(() => vi.advanceTimersByTime(1000));
+    await act(async () => vi.advanceTimersByTime(1000));
     expect(refresh).toHaveBeenCalledTimes(1);
     expect(screen.queryByText(/New messages/)).toBeNull();
     rerender(
@@ -205,9 +208,9 @@ describe("ChatLive", () => {
     scrolledTo("top");
     await mount();
     act(() => handlers.chat_messages(insert()));
-    act(() => vi.advanceTimersByTime(1000));
+    await act(async () => vi.advanceTimersByTime(1000));
     expect(refresh).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("button", { name: /New messages/ }));
+    await act(async () => void fireEvent.click(screen.getByRole("button", { name: /New messages/ })));
     expect(refresh).toHaveBeenCalledTimes(1);
     expect(screen.queryByText(/New messages/)).toBeNull();
   });
@@ -217,7 +220,7 @@ describe("ChatLive", () => {
     await mount();
     act(() => handlers.chat_messages(update));
     act(() => handlers.chat_messages(insert("m1")));
-    act(() => vi.advanceTimersByTime(1000));
+    await act(async () => vi.advanceTimersByTime(1000));
     expect(refresh).toHaveBeenCalledTimes(1);
     expect(screen.queryByText(/New messages/)).toBeNull();
   });
@@ -232,10 +235,10 @@ describe("ChatLive", () => {
   it("refreshes on re-subscribe but not the first subscribe, and unsubscribes on unmount", async () => {
     const { unmount } = await mount();
     await act(async () => onStatus("SUBSCRIBED"));
-    act(() => vi.advanceTimersByTime(1000));
+    await act(async () => vi.advanceTimersByTime(1000));
     expect(refresh).not.toHaveBeenCalled();
     await act(async () => onStatus("SUBSCRIBED"));
-    act(() => vi.advanceTimersByTime(1000));
+    await act(async () => vi.advanceTimersByTime(1000));
     expect(refresh).toHaveBeenCalledTimes(1);
     unmount();
     expect(removeChannel).toHaveBeenCalled();
@@ -246,7 +249,7 @@ describe("ChatLive", () => {
     await mount();
     await act(async () => onStatus("SUBSCRIBED"));
     await act(async () => onStatus("SUBSCRIBED"));
-    act(() => vi.advanceTimersByTime(1000));
+    await act(async () => vi.advanceTimersByTime(1000));
     expect(screen.queryByText(/New messages/)).toBeNull();
     expect(refresh).toHaveBeenCalledTimes(1);
   });
@@ -258,5 +261,99 @@ describe("ChatLive", () => {
     await act(async () => onStatus("SUBSCRIBED"));
     await act(async () => onStatus("SUBSCRIBED"));
     expect(screen.getByRole("button", { name: /New messages/ })).toBeTruthy();
+  });
+
+  describe("keeping the newest messages current without a page refresh", () => {
+    const fetched = (...ids: string[]) => ({
+      views: ids.map((id, i) => ({ id, createdAt: `2026-10-0${i + 1}T00:00:00.000001Z` }) as ChatMessageView),
+      ctx: { userNames: {}, userMembers: {}, channelIds: {}, channelNames: {}, customEmoji: {} },
+      olderBefore: null,
+    });
+    let events: ListEvent[];
+    let unsubscribe: () => void;
+    beforeEach(() => {
+      loadLatestChat.mockReset();
+      loadLatestChat.mockResolvedValue(fetched("m1", "m2", "m3"));
+      events = [];
+      unsubscribe = subscribeListEvents((e) => events.push(e));
+    });
+    afterEach(() => unsubscribe());
+
+    it("fetches just the newest messages and hands them to the list, instead of refreshing the page", async () => {
+      await mount();
+      act(() => handlers.chat_messages(insert()));
+      await act(async () => vi.advanceTimersByTime(1000));
+
+      expect(loadLatestChat).toHaveBeenCalledWith("c1");
+      expect(events).toEqual([expect.objectContaining({ kind: "merge", channelId: "c1", views: expect.any(Array) })]);
+      expect(refresh).not.toHaveBeenCalled();
+      // The reader was at the bottom, so it follows the new message.
+      expect(HTMLElement.prototype.scrollTo).toHaveBeenCalledTimes(2);
+      expect(screen.queryByText(/New messages/)).toBeNull();
+    });
+
+    it("still holds a new message behind the pill when scrolled up, and fetches when it is clicked", async () => {
+      scrolledTo("top");
+      await mount();
+      act(() => handlers.chat_messages(insert()));
+      await act(async () => vi.advanceTimersByTime(1000));
+      expect(loadLatestChat).not.toHaveBeenCalled();
+
+      await act(async () => void fireEvent.click(screen.getByRole("button", { name: /New messages/ })));
+      expect(loadLatestChat).toHaveBeenCalledTimes(1);
+      expect(events).toHaveLength(1);
+      expect(refresh).not.toHaveBeenCalled();
+      expect(screen.queryByText(/New messages/)).toBeNull();
+    });
+
+    it("pays attention to reactions on messages it fetched, which the page doesn't know yet", async () => {
+      await mount();
+      act(() => handlers.chat_messages(insert()));
+      await act(async () => vi.advanceTimersByTime(1000));
+      loadLatestChat.mockClear();
+
+      act(() => handlers.chat_reactions({ eventType: "INSERT", new: { message_id: "m3" }, old: {} }));
+      await act(async () => vi.advanceTimersByTime(1000));
+      expect(loadLatestChat).toHaveBeenCalledTimes(1);
+    });
+
+    it("falls back to refreshing the page when the small fetch can't be done", async () => {
+      loadLatestChat.mockResolvedValueOnce(null);
+      await mount();
+      act(() => handlers.chat_messages(update));
+      await act(async () => vi.advanceTimersByTime(1000));
+      expect(refresh).toHaveBeenCalledTimes(1);
+      expect(events).toHaveLength(0);
+
+      loadLatestChat.mockRejectedValueOnce(new Error("offline"));
+      act(() => handlers.chat_messages(update));
+      await act(async () => vi.advanceTimersByTime(1000));
+      expect(refresh).toHaveBeenCalledTimes(2);
+    });
+
+    it("still refreshes the page for a thread and for an older page", async () => {
+      await mount("thread", { threadRootId: "m1" });
+      act(() => handlers.chat_messages(update));
+      await act(async () => vi.advanceTimersByTime(1000));
+      cleanup();
+      await mount("older");
+      act(() => handlers.chat_messages(update));
+      await act(async () => vi.advanceTimersByTime(1000));
+
+      expect(refresh).toHaveBeenCalledTimes(2);
+      expect(loadLatestChat).not.toHaveBeenCalled();
+    });
+
+    it("answers a poke at once, without the debounce, for as long as it is open", async () => {
+      const { unmount } = await mount();
+      expect(pokeChat("c1")).toBe(true);
+      await act(async () => {});
+      expect(loadLatestChat).toHaveBeenCalledTimes(1);
+      expect(events).toHaveLength(1);
+
+      expect(pokeChat("another-channel")).toBe(false);
+      unmount();
+      expect(pokeChat("c1")).toBe(false);
+    });
   });
 });

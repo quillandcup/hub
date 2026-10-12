@@ -23,19 +23,19 @@ beforeEach(() => {
 
 describe("ReactionBar", () => {
   it("shows the chips and nothing to press when the viewer can't react", () => {
-    render(<ReactionBar messageId="m1" reactions={REACTIONS} custom={{}} canReact={false} />);
+    render(<ReactionBar channelId="c1" messageId="m1" reactions={REACTIONS} custom={{}} canReact={false} />);
     expect(screen.getByRole("list", { name: "Reactions" })).toHaveTextContent("2");
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
 
   it("renders nothing for a message with no reactions the viewer can't add to", () => {
-    const { container } = render(<ReactionBar messageId="m1" reactions={[]} custom={{}} canReact={false} />);
+    const { container } = render(<ReactionBar channelId="c1" messageId="m1" reactions={[]} custom={{}} canReact={false} />);
     expect(container).toBeEmptyDOMElement();
   });
 
   it("toggles a chip: pressing your own takes it back, pressing another adds yours", async () => {
     vi.mocked(toggleChatReaction).mockResolvedValue({ ok: true, active: false });
-    render(<ReactionBar messageId="m1" reactions={REACTIONS} custom={{}} canReact />);
+    render(<ReactionBar channelId="c1" messageId="m1" reactions={REACTIONS} custom={{}} canReact />);
 
     expect(screen.getByRole("button", { name: /Remove your :tada: reaction/ })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByRole("button", { name: /Add :eyes: reaction/ })).toHaveAttribute("aria-pressed", "false");
@@ -47,7 +47,7 @@ describe("ReactionBar", () => {
 
   it("adds a reaction from the picker, which closes after a choice", async () => {
     vi.mocked(toggleChatReaction).mockResolvedValue({ ok: true, active: true });
-    render(<ReactionBar messageId="m1" reactions={[]} custom={{}} canReact />);
+    render(<ReactionBar channelId="c1" messageId="m1" reactions={[]} custom={{}} canReact />);
 
     expect(screen.queryByRole("list", { name: "Pick a reaction" })).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Add reaction" }));
@@ -59,7 +59,7 @@ describe("ReactionBar", () => {
 
   it("shows why a reaction was refused and doesn't refresh", async () => {
     vi.mocked(toggleChatReaction).mockResolvedValue({ ok: false, error: "This conversation is archived." });
-    render(<ReactionBar messageId="m1" reactions={REACTIONS} custom={{}} canReact />);
+    render(<ReactionBar channelId="c1" messageId="m1" reactions={REACTIONS} custom={{}} canReact />);
     await userEvent.click(screen.getByRole("button", { name: /Add :eyes: reaction/ }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("This conversation is archived.");

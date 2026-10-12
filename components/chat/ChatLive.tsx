@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { authenticateRealtime } from "@/lib/chat/live";
 import { scrollParent } from "@/lib/chat/scroll";
-import { markChatRead } from "@/app/(member)/chat/actions";
+import { loadLatestChat, markChatRead } from "@/app/(member)/chat/actions";
+import { emitListEvent, onPoke } from "@/lib/chat/list-events";
 
 /** Bursts of changes (a message plus its reactions) become one refresh. */
 const REFRESH_DELAY_MS = 300;
@@ -29,10 +30,14 @@ export type ChatLiveView = "latest" | "thread" | "older";
 
 /**
  * Keeps the open conversation current: listens for changes to its messages and to reactions on
- * the messages shown over Supabase Realtime, then re-renders the server page. Realtime applies
- * the member's RLS, so only rows they can read arrive, and the events are only a signal: the
- * page re-reads through its normal access-checked loaders. (Message content is written in the
- * same transaction as its message, so it needs no subscription of its own.)
+ * the messages shown over Supabase Realtime, then re-reads. Realtime applies the member's RLS, so
+ * only rows they can read arrive, and the events are only a signal: what is shown is re-read
+ * through the normal access-checked loaders. (Message content is written in the same transaction
+ * as its message, so it needs no subscription of its own.)
+ *
+ * The newest-messages view re-reads just the messages (`loadLatestChat`, handed to the list as a
+ * merge) instead of re-rendering the whole page and layout, which took several seconds; threads and
+ * older pages still refresh the page, as does any failure of the small fetch.
  *
  * A new message never moves someone who is reading history: when they are scrolled up it waits
  * behind a "New messages" pill; when they are at the bottom the page refreshes and follows it.
@@ -63,22 +68,54 @@ export default function ChatLive({
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const followNewest = useRef(false);
   const shownIds = useRef(new Set(messageIds));
-  const latest = useRef(latestId);
-  // The newest message on the page when the pill was raised (null = no pill). It hides itself
-  // once a refresh brings in something newer, with no effect needed to reset it.
+  // Messages brought in by small fetches since the page last rendered (the page's own ids don't have them).
+  const fetchedIds = useRef(new Set<string>());
+  // The newest message shown: the page's, until a small fetch finds a newer one.
+  const [newest, setNewest] = useState({ fromPage: latestId, id: latestId });
+  if (newest.fromPage !== latestId) setNewest({ fromPage: latestId, id: latestId });
+  const currentLatestId = newest.id;
+  const latest = useRef(currentLatestId);
+  // The newest message when the pill was raised (null = no pill). It hides itself once a refresh
+  // brings in something newer, with no effect needed to reset it.
   const [announcedAt, setAnnouncedAt] = useState<{ latestId: string | null } | null>(null);
-  const hasNew = announcedAt !== null && announcedAt.latestId === latestId;
+  const hasNew = announcedAt !== null && announcedAt.latestId === currentLatestId;
 
   // Read through refs inside the subscription so a refresh doesn't tear it down and rebuild it.
   useEffect(() => {
-    shownIds.current = new Set(messageIds);
-    latest.current = latestId;
+    shownIds.current = new Set([...messageIds, ...fetchedIds.current]);
+    latest.current = currentLatestId;
   });
+
+  // How far the reader has seen (for marking the conversation read when they leave).
+  const leaveAt = useRef(latestAt);
+  useEffect(() => {
+    leaveAt.current = latestAt;
+  }, [latestAt]);
+
+  // Bring the conversation up to date: the newest messages only (merged into the list in place),
+  // or the whole page for threads, older pages and when that small fetch can't be done.
+  const reload = useCallback(async () => {
+    if (view !== "latest") return router.refresh();
+    const result = await loadLatestChat(channelId).catch(() => null);
+    if (!result) return router.refresh();
+    emitListEvent({ kind: "merge", channelId, views: result.views, ctx: result.ctx });
+    const last = result.views[result.views.length - 1];
+    for (const v of result.views) fetchedIds.current.add(v.id);
+    if (last) {
+      setNewest((prev) => ({ ...prev, id: last.id }));
+      // Only what the reader is looking at counts as seen; a message behind the pill stays unread.
+      const el = scrollParent(anchor.current);
+      if (el.scrollHeight - el.clientHeight - el.scrollTop <= NEAR_BOTTOM_PX) leaveAt.current = last.createdAt;
+    }
+  }, [view, channelId, router]);
 
   const refresh = useCallback(() => {
     if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(() => router.refresh(), REFRESH_DELAY_MS);
-  }, [router]);
+    timer.current = setTimeout(() => void reload(), REFRESH_DELAY_MS);
+  }, [reload]);
+
+  // Someone changed something here (a reaction toggled, a message sent): catch up now, without the debounce.
+  useEffect(() => onPoke(channelId, () => void reload()), [channelId, reload]);
 
   useEffect(() => {
     const supabase = createClient();
@@ -160,10 +197,6 @@ export default function ChatLive({
   // closes it), through the newest message that was on the page, so messages that arrived behind a
   // "New messages" pill stay unread. Not when it opens: the marker would move, and the line between
   // read and new would vanish on the next refresh.
-  const leaveAt = useRef(latestAt);
-  useEffect(() => {
-    leaveAt.current = latestAt;
-  });
   useEffect(() => {
     if (!markRead || view !== "latest") return;
     const mark = () => {
@@ -198,12 +231,12 @@ export default function ChatLive({
     else scrollToBottom(anchor.current);
   }, [channelId, view]);
 
-  // Once the refreshed page has a newer last message, follow it if that is what we were doing.
+  // Once there is a newer last message, follow it if that is what we were doing.
   useEffect(() => {
     if (!followNewest.current) return;
     followNewest.current = false;
     scrollToBottom(anchor.current);
-  }, [latestId]);
+  }, [currentLatestId]);
 
   return (
     <>
@@ -214,7 +247,7 @@ export default function ChatLive({
           onClick={() => {
             followNewest.current = true;
             setAnnouncedAt(null);
-            router.refresh();
+            void reload();
           }}
           className="fixed bottom-6 left-1/2 -translate-x-1/2 z-30 rounded-full bg-plum-600 px-4 py-2 text-sm font-medium text-white shadow-lg hover:bg-plum-700"
         >
