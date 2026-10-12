@@ -43,7 +43,7 @@ function revisitViewOf(step: OnboardingStepView, stopIndex: number): OnboardingS
 /**
  * The "Getting started" tour: a checklist card in the corner of every member page, and on the
  * page of the current step, a spotlight on the control to use there. See lib/onboarding.ts.
- * Rendered by the member layout behind the `onboarding` flag, never during sudo.
+ * Rendered by the member layout for every member, never during sudo.
  */
 export default function OnboardingGuide({ initialState }: { initialState: OnboardingState }) {
   const pathname = usePathname();

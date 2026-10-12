@@ -11,7 +11,7 @@ interface UserMenuProps {
   memberId?: string | null
   isAdmin?: boolean
   isSudo?: boolean
-  /** Show "Take the tour" (the `onboarding` flag is on and this isn't sudo). */
+  /** Show "Take the tour" (not during sudo). */
   canStartOnboarding?: boolean
 }
 

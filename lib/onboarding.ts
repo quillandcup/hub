@@ -1,7 +1,7 @@
 /**
  * The "Getting started" tour: an ordered list of steps that walks a new member page to page,
  * spotlighting the control to use on each one. Shown by components/onboarding/OnboardingGuide,
- * behind the `onboarding` feature flag; state is loaded by lib/onboarding.server.ts.
+ * for every member; state is loaded by lib/onboarding.server.ts.
  *
  * A step is done when the member's data shows it (`signals`), or when they marked it by hand
  * (confirmed or skipped it; stored in member_onboarding.marked_steps). Much of what an account

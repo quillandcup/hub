@@ -11,7 +11,7 @@ import UserMenu from "@/components/UserMenu";
 import { startOnboarding } from "@/app/actions/onboarding";
 
 describe("UserMenu Take the tour", () => {
-  it("starts the onboarding tour when the flag allows it", async () => {
+  it("starts the onboarding tour when allowed", async () => {
     const user = userEvent.setup();
     render(<UserMenu userEmail="Member One" canStartOnboarding />);
 
@@ -20,7 +20,7 @@ describe("UserMenu Take the tour", () => {
     expect(startOnboarding).toHaveBeenCalled();
   });
 
-  it("hides the entry otherwise (flag off, or sudo)", async () => {
+  it("hides the entry otherwise (sudo)", async () => {
     const user = userEvent.setup();
     render(<UserMenu userEmail="Member One" />);
 
