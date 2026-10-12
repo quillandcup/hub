@@ -7,6 +7,7 @@ import type { ChatTextContext } from "@/components/chat/ChatText";
 import type { ChatMessageView } from "@/lib/chat/load";
 import { scrollParent } from "@/lib/chat/scroll";
 import { loadOlderChat } from "@/app/(member)/chat/actions";
+import { subscribeOptimistic } from "@/lib/chat/optimistic";
 
 const sortKey = (m: ChatMessageView) => Date.parse(m.createdAt);
 
@@ -35,6 +36,7 @@ export default function MessageList({
   olderBefore,
   firstUnreadId,
   canReact = false,
+  showSent = true,
 }: {
   channelId: string;
   /** The server's current window, oldest first. */
@@ -46,6 +48,8 @@ export default function MessageList({
   firstUnreadId?: string;
   /** The viewer can react (the chat_posting preview, not in sudo). */
   canReact?: boolean;
+  /** Show messages the viewer is sending right away (the newest page, not an older one). */
+  showSent?: boolean;
 }) {
   const [byId, setById] = useState(() => new Map(views.map((v) => [v.id, v])));
   const [context, setContext] = useState(ctx);
@@ -68,6 +72,37 @@ export default function MessageList({
   const messages = [...byId.values()].sort((a, b) => sortKey(a) - sortKey(b) || a.id.localeCompare(b.id));
 
   const top = useRef<HTMLDivElement>(null);
+
+  // A message the viewer just sent appears at once (lib/chat/optimistic.ts) and the list jumps to
+  // it; the saved message replaces it, and the server's own copy (same id) overwrites that.
+  const [sentCount, setSentCount] = useState(0);
+  useEffect(() => {
+    if (!showSent) return;
+    return subscribeOptimistic((event) => {
+      if (event.channelId !== channelId) return;
+      if (event.kind === "drop") {
+        setById((prev) => {
+          const next = new Map(prev);
+          next.delete(event.tempId);
+          return next;
+        });
+        return;
+      }
+      setById((prev) => {
+        const next = new Map(prev);
+        if (event.kind === "swap") next.delete(event.tempId);
+        // The server's version, if it has already arrived, is newer than this one.
+        if (event.kind === "add" || !next.has(event.view.id)) next.set(event.view.id, event.view);
+        return next;
+      });
+      if (event.kind === "add") setSentCount((n) => n + 1);
+    });
+  }, [channelId, showSent]);
+  useLayoutEffect(() => {
+    if (sentCount === 0) return;
+    const scroller = scrollParent(top.current);
+    scroller.scrollTop = scroller.scrollHeight;
+  }, [sentCount]);
   // Where the scroller was before older messages were added above, to put the reader back.
   const restore = useRef<{ height: number; top: number } | null>(null);
   useLayoutEffect(() => {
