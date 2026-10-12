@@ -1020,7 +1020,7 @@ describe('Member profile overrides during reprocessing', () => {
   async function fetchMember() {
     const { data } = await supabase
       .from('members')
-      .select('id, bio, facebook_url, twitter_url')
+      .select('id, bio, instagram_url, facebook_url, twitter_url')
       .eq('email', email)
       .single()
     return data
@@ -1132,6 +1132,22 @@ describe('Member profile overrides during reprocessing', () => {
     await reprocess()
 
     expect(await fetchMember()).toMatchObject({ bio: 'Only in the Hub', facebook_url: null, twitter_url: null })
+  })
+
+  it("hides an Instagram that only exists in Kajabi's member directory once the member cleared it, and follows Kajabi again when reset", async () => {
+    await setKajabiProfile({ socials: { instagram: 'directory_handle' } })
+    await supabase.from('member_profile_overrides').update({ instagram_url: null }).eq('member_id', memberId)
+    await reprocess()
+    expect(await fetchMember()).toMatchObject({ instagram_url: 'https://instagram.com/directory_handle' })
+
+    await supabase.from('member_profile_overrides').update({ instagram_url: '' }).eq('member_id', memberId)
+    await reprocess()
+    await reprocess()
+    expect(await fetchMember()).toMatchObject({ instagram_url: null })
+
+    await supabase.from('member_profile_overrides').update({ instagram_url: null }).eq('member_id', memberId)
+    await reprocess()
+    expect(await fetchMember()).toMatchObject({ instagram_url: 'https://instagram.com/directory_handle' })
   })
 
   it("publishes the processed override to other members through member_directory (they can't read the override table)", async () => {

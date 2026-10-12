@@ -11,13 +11,12 @@ import { triggerReprocessing } from "@/lib/processing/trigger";
 import { createKajabiClient } from "@/lib/kajabi/client";
 import { refreshKajabiContactInBronze } from "@/lib/kajabi/contact-refresh";
 import {
-  INSTAGRAM_BASE_URL,
   INSTAGRAM_CUSTOM_FIELD_HANDLE,
   parseInstagramInput,
   resolveInstagramUrl,
   toSocialUrl,
 } from "@/lib/kajabi/profile-fields";
-import { applyProfileOverride, nextOverrideValue, type ProfileFields } from "@/lib/member-profile-overrides";
+import { CLEARED, applyProfileOverride, nextOverrideValue, type ProfileFields } from "@/lib/member-profile-overrides";
 import { FACEBOOK_BASE_URL, X_BASE_URL, parseBioInput, parseFacebookInput, parseXInput } from "@/lib/social-links";
 import { normalizeTopics } from "@/lib/ask-me-about";
 import { SUPPORT_EMAIL } from "@/lib/config";
@@ -53,14 +52,12 @@ export interface ProfileSettings {
   memberId: string;
   /** False when the member has no Kajabi contact (e.g. staff-only records) — Instagram isn't editable. */
   kajabiLinked: boolean;
-  /** Kajabi "Instagram Handle" contact custom field, from the latest Bronze snapshot. */
-  instagramHandle: string | null;
   /**
-   * What the profile shows if the handle is left blank: the Kajabi
-   * member-directory Instagram (socials.instagram), which is the fallback in
-   * member processing. Null when there isn't one.
+   * The Instagram handle the profile links to, from the latest Bronze snapshot:
+   * the "Instagram Handle" contact custom field, else the member-directory
+   * Instagram (socials.instagram), the same fallback member processing uses.
    */
-  instagramFallbackUrl: string | null;
+  instagramHandle: string | null;
   /** Bio / Facebook / X as the profile will show them (member override, else Kajabi). */
   details: ProfileDetails;
   /** "Ask me about ..." topics (member_ask_me_about; Hub-only, no Kajabi sync). */
@@ -102,7 +99,7 @@ interface KajabiProfileSnapshot {
   kajabiDetails: ProfileFields;
 }
 
-const EMPTY_DETAILS: ProfileFields = { bio: null, facebook_url: null, twitter_url: null };
+const EMPTY_DETAILS: ProfileFields = { bio: null, instagram_url: null, facebook_url: null, twitter_url: null };
 
 /**
  * Read this member's Kajabi profile state from Bronze. Mirrors how
@@ -150,6 +147,10 @@ async function loadKajabiProfileSnapshot(
     socialsInstagram: nonBlank(attrs?.socials?.instagram),
     kajabiDetails: {
       bio: attrs?.public_bio || null,
+      instagram_url: resolveInstagramUrl(
+        contactResult.data?.data?.attributes?.[INSTAGRAM_CUSTOM_FIELD_HANDLE],
+        attrs?.socials?.instagram
+      ),
       facebook_url: toSocialUrl(FACEBOOK_BASE_URL, attrs?.socials?.facebook),
       twitter_url: toSocialUrl(X_BASE_URL, attrs?.socials?.twitter),
     },
@@ -168,7 +169,7 @@ async function loadMember(ctx: Ctx) {
 async function loadOverride(ctx: Ctx) {
   return ctx.supabase
     .from("member_profile_overrides")
-    .select("bio, facebook_url, twitter_url")
+    .select("bio, instagram_url, facebook_url, twitter_url")
     .eq("member_id", ctx.effectiveIdentity.memberId)
     .maybeSingle();
 }
@@ -209,18 +210,21 @@ export async function getProfileSettings(): Promise<ProfileSettings | { error: s
   }
 
   const effective = applyProfileOverride(snapshot.kajabiDetails, override);
-  const expectedInstagram = resolveInstagramUrl(snapshot.instagramHandle, snapshot.socialsInstagram);
   const syncPending =
-    (member.kajabi_id != null && expectedInstagram !== (member.instagram_url ?? null)) ||
+    effective.instagram_url !== (member.instagram_url ?? null) ||
     effective.bio !== (member.bio ?? null) ||
     effective.facebook_url !== (member.facebook_url ?? null) ||
     effective.twitter_url !== (member.twitter_url ?? null);
 
+  // Show the handle the profile actually links to: the one the member set, else the directory one,
+  // and nothing if the member cleared it.
+  const shownInstagram = parseInstagramInput(effective.instagram_url ?? "");
+  const shownInstagramHandle = "handle" in shownInstagram ? shownInstagram.handle : null;
+
   return {
     memberId,
     kajabiLinked: member.kajabi_id != null,
-    instagramHandle: snapshot.instagramHandle,
-    instagramFallbackUrl: toSocialUrl(INSTAGRAM_BASE_URL, snapshot.socialsInstagram),
+    instagramHandle: shownInstagramHandle,
     details: toDetails(effective),
     askMeAbout: askRow?.topics ?? [],
     syncPending,
@@ -290,6 +294,7 @@ export async function updateProfileDetails(input: ProfileDetailsInput): Promise<
 
   const current = {
     bio: existing?.bio ?? null,
+    instagram_url: existing?.instagram_url ?? null,
     facebook_url: existing?.facebook_url ?? null,
     twitter_url: existing?.twitter_url ?? null,
   };
@@ -398,41 +403,70 @@ export async function updateInstagramHandle(input: string): Promise<UpdateProfil
     return { error: "Couldn't load your profile" };
   }
 
-  // Unchanged: don't round-trip to Kajabi or kick off a reprocess.
-  if ((snapshot.instagramHandle?.replace(/^@+/, "") ?? null) === parsed.handle) {
-    return { success: true, syncPending: false };
+  const { data: existing, error: overrideError } = await loadOverride(ctx);
+  if (overrideError) {
+    console.error("[profile] Failed to load profile overrides for member", effectiveIdentity.memberId, overrideError);
+    return { error: "Couldn't load your profile" };
   }
 
+  // A handle follows Kajabi (override NULL). Clearing hides the profile link even when Kajabi's
+  // member directory still has an Instagram that would otherwise show (override '').
+  const storedOverride = existing?.instagram_url ?? null;
+  const nextOverride =
+    parsed.handle === null && resolveInstagramUrl(null, snapshot.socialsInstagram) ? CLEARED : null;
+  const kajabiChanged = (snapshot.instagramHandle?.replace(/^@+/, "") ?? null) !== parsed.handle;
+  const overrideChanged = nextOverride !== storedOverride;
+
+  // Unchanged: don't round-trip to Kajabi or kick off a reprocess.
+  if (!kajabiChanged && !overrideChanged) return { success: true, syncPending: false };
+
   const kajabi = createKajabiClient();
-  try {
-    await kajabi.updateContact(member.kajabi_id, { [INSTAGRAM_CUSTOM_FIELD_HANDLE]: parsed.handle });
-  } catch (err) {
-    console.error("[profile] Kajabi updateContact failed for member", effectiveIdentity.memberId, err);
-    const detail = err instanceof Error ? err.message : "unknown error";
-    return { error: `Couldn't save your Instagram (${detail}). Nothing was changed — please try again.` };
+  if (kajabiChanged) {
+    try {
+      await kajabi.updateContact(member.kajabi_id, { [INSTAGRAM_CUSTOM_FIELD_HANDLE]: parsed.handle });
+    } catch (err) {
+      console.error("[profile] Kajabi updateContact failed for member", effectiveIdentity.memberId, err);
+      const detail = err instanceof Error ? err.message : "unknown error";
+      return { error: `Couldn't save your Instagram (${detail}). Nothing was changed — please try again.` };
+    }
+  }
+
+  if (overrideChanged) {
+    const { error: saveError } = await ctx.supabase
+      .from("member_profile_overrides")
+      .upsert(
+        { member_id: effectiveIdentity.memberId, instagram_url: nextOverride, updated_by: ctx.user.id },
+        { onConflict: "member_id" }
+      );
+    if (saveError) {
+      console.error("[profile] Saving Instagram override failed for member", effectiveIdentity.memberId, saveError);
+      return { error: "Couldn't save your Instagram — please try again." };
+    }
   }
 
   console.log(
-    `[profile] Instagram handle updated in Kajabi for member ${effectiveIdentity.memberId}` +
+    `[profile] Instagram updated for member ${effectiveIdentity.memberId}` +
       (effectiveIdentity.isSudo ? " (by an admin in sudo mode)" : "")
   );
 
   // Kajabi now has the change. Pull just this contact back into Bronze so the
   // member doesn't wait for the next full sync; if that fails, the change is
   // still safe in Kajabi and the next scheduled Kajabi sync will pick it up.
-  try {
-    await refreshKajabiContactInBronze(service, kajabi, member.kajabi_id);
-  } catch (err) {
-    console.error("[profile] Targeted Kajabi Bronze refresh failed for member", effectiveIdentity.memberId, err);
-    return {
-      success: true,
-      syncPending: true,
-      // The members reconcile cron (vercel.json) runs a full Kajabi sync nightly.
-      warning: "Saved. It may take until tomorrow to show on your profile.",
-    };
+  if (kajabiChanged) {
+    try {
+      await refreshKajabiContactInBronze(service, kajabi, member.kajabi_id);
+    } catch (err) {
+      console.error("[profile] Targeted Kajabi Bronze refresh failed for member", effectiveIdentity.memberId, err);
+      return {
+        success: true,
+        syncPending: true,
+        // The members reconcile cron (vercel.json) runs a full Kajabi sync nightly.
+        warning: "Saved. It may take until tomorrow to show on your profile.",
+      };
+    }
   }
 
-  scheduleMemberReprocess("kajabi_contacts", "Instagram");
+  scheduleMemberReprocess(kajabiChanged ? "kajabi_contacts" : "member_profile_overrides", "Instagram");
   revalidatePath("/settings", "layout");
   revalidatePath(`/members/${effectiveIdentity.memberId}`);
   return { success: true, syncPending: true };

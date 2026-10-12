@@ -221,13 +221,7 @@ export function ProfilePanel() {
                 autoComplete="off"
                 className={INPUT_CLASS}
               />
-              {data.instagramFallbackUrl ? (
-                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                  If you leave it blank, your profile links to {data.instagramFallbackUrl} instead.
-                </p>
-              ) : (
-                <ClearHint value={instagramInput} noun="Instagram" onClear={() => setInstagramInput("")} />
-              )}
+              <ClearHint value={instagramInput} noun="Instagram" onClear={() => setInstagramInput("")} />
             </>
           ) : (
             <p className="text-xs text-slate-500 dark:text-slate-400">

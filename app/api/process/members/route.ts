@@ -115,7 +115,7 @@ export async function POST(request: NextRequest) {
       fetchAllPublicRows(supabase, "members", "id, email, kajabi_id, name"),
       fetchAllPublicRows(supabase, "member_hiatus_history", "member_id, start_date, end_date"),
       fetchAllPublicRows(supabase, "member_join_date_overrides", "member_id, first_joined_at"),
-      fetchAllPublicRows(supabase, "member_profile_overrides", "member_id, bio, facebook_url, twitter_url"),
+      fetchAllPublicRows(supabase, "member_profile_overrides", "member_id, bio, instagram_url, facebook_url, twitter_url"),
     ]);
 
     if (staffError) throw staffError;

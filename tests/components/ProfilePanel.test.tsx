@@ -17,7 +17,6 @@ const baseSettings: profileActions.ProfileSettings = {
   memberId: 'member-1',
   kajabiLinked: true,
   instagramHandle: 'old_handle',
-  instagramFallbackUrl: null,
   details: { bio: 'Writes cozy mysteries.', facebookUrl: 'https://facebook.com/someone', twitterUrl: null },
   askMeAbout: ['cozy mysteries'],
   syncPending: false,
