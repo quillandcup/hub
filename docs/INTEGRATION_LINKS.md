@@ -140,12 +140,29 @@ Note: Kajabi webhooks only support "Payment Succeeded" and "Cart Purchase" event
 | Environment Variables | https://vercel.com/quillandcup/hub/settings/environment-variables |
 | Deploy Hooks | https://vercel.com/quillandcup/hub/settings/git#deploy-hooks |
 | Domains | https://vercel.com/quillandcup/hub/settings/domains |
+| Tracing (sampling rules) | https://vercel.com/quillandcup/hub/settings/tracing |
 
 Production URL: `https://hub.quillandcup.com`
 
 Note: production deploys no longer happen automatically on push to `main` (see
 `vercel.json`'s `git.deploymentEnabled`) -- they're triggered by a Deploy Hook called
 as the last step of `.github/workflows/ci.yml`, after tests pass and migrations push.
+
+### Always-on tracing
+
+Sampling rules are managed as code: `vercel-project-config.yml` is the source of truth, applied
+by CI after a production deploy (see `docs/VERCEL_CONFIG.md`). Edit the file, not the dashboard
+page above. Production only, with 0% on `/api/health` (Checkly's uptime monitor).
+
+---|-------------|-------------|------|-----|
+| 1 | Production | `/api/health` | 0% | Checkly's uptime monitor (`__checks__/hub-uptime.check.ts`) hits it constantly; a 0% rule collects nothing |
+| 2 | Production | (blank) | 100% | Everything else in production; lower it if span units get costly |
+
+No Preview or Development rule, so those are never traced (no rule = not sampled). Add any new
+health-check style endpoint as another 0% rule *above* rule 2. The CLI (`vercel traces config`)
+rejects 0%, so the 0% rule has to be added in the dashboard; add it first, since new rules go to
+the bottom. Not wired up: `@vercel/otel` (framework and custom spans), because Sentry's own
+OpenTelemetry setup conflicts with it; see Vercel's tracing docs on using both.
 
 ---
 

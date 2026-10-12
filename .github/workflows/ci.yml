@@ -456,3 +456,49 @@ jobs:
           SLACK_CONFIG_REFRESH_TOKEN: ${{ secrets.SLACK_CONFIG_REFRESH_TOKEN }}
           # A fine-grained token with Secrets write: the job's GITHUB_TOKEN can't set secrets.
           GH_TOKEN: ${{ secrets.GH_TOKEN_SLACK_MANIFEST }}
+
+  # vercel-project-config.yml is the source of truth for the Vercel project settings that
+  # vercel.json can't express (today: always-on tracing sampling rules). The push REPLACES
+  # those rules, so change the file, not the dashboard. See docs/VERCEL_CONFIG.md.
+  #
+  # Only runs when the push to main changed the file or the script; a manual run
+  # (workflow_dispatch) or a push whose previous commit can't be fetched always applies it.
+  push-vercel-config:
+    name: Push Vercel project config
+    needs: deploy
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Check whether the config changed
+        id: config
+        run: |
+          if [ "$GITHUB_EVENT_NAME" != "push" ] || ! git fetch --quiet --depth=1 origin "$BEFORE"; then
+            echo "No previous commit to compare against: pushing the config."
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          elif git diff --quiet "$BEFORE" HEAD -- vercel-project-config.yml scripts/vercel-config.ts; then
+            echo "vercel-project-config.yml and scripts/vercel-config.ts are unchanged: skipping the push."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          BEFORE: ${{ github.event.before }}
+
+      - uses: actions/setup-node@v5
+        if: steps.config.outputs.changed == 'true'
+        with:
+          node-version-file: ".nvmrc"
+          cache: npm
+
+      - run: npm ci
+        if: steps.config.outputs.changed == 'true'
+
+      - name: Push Vercel project config
+        if: steps.config.outputs.changed == 'true'
+        run: npx tsx scripts/vercel-config.ts push
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}

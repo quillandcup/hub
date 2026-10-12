@@ -27,6 +27,8 @@
     "config:push": "dotenv -e .env.prod -- supabase config push",
     "slack:manifest:diff": "dotenv -e .env.prod -e .env.shared -- tsx scripts/slack-manifest.ts diff",
     "slack:manifest:push": "dotenv -e .env.prod -e .env.shared -- tsx scripts/slack-manifest.ts push",
+    "vercel:config:diff": "dotenv -e .env.prod -e .env.shared -- tsx scripts/vercel-config.ts diff",
+    "vercel:config:push": "dotenv -e .env.prod -e .env.shared -- tsx scripts/vercel-config.ts push",
     "quarantine:remove": "xattr -r -d com.apple.quarantine node_modules",
     "prepare": "husky"
   },
