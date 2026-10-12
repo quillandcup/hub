@@ -5,6 +5,7 @@ import ChatText, { type ChatTextContext } from "@/components/chat/ChatText";
 import ReactionBar from "@/components/chat/ReactionBar";
 import RetryButton from "@/components/chat/RetryButton";
 import { formatChatTime } from "@/lib/chat/format";
+import { isPendingId } from "@/lib/chat/optimistic";
 import type { ChatMessageView } from "@/lib/chat/load";
 
 /** One message: author, time, text (or why there is none), reactions and a link into its thread. */
@@ -75,7 +76,7 @@ export default function MessageItem({
           <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">📎 Includes files, which the Hub doesn&apos;t show yet.</p>
         )}
 
-        <ReactionBar messageId={message.id} reactions={message.reactions} custom={ctx.customEmoji} canReact={canReact && message.contentState === "ok"} />
+        <ReactionBar messageId={message.id} reactions={message.reactions} custom={ctx.customEmoji} canReact={canReact && message.contentState === "ok" && !isPendingId(message.id)} />
 
         {!inThread && message.replyCount > 0 && (
           <Link

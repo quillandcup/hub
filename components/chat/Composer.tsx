@@ -1,43 +1,62 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { sendChatMessage } from "@/app/(member)/chat/actions";
+import { PENDING_ID_PREFIX, emitOptimistic, optimisticView } from "@/lib/chat/optimistic";
 
 /**
  * The box a member writes in, under a conversation or inside a thread. Enter sends, Shift+Enter
- * starts a new line. The page refreshes after a send (Realtime would too, but not for the
- * sender's own message in every case), so the message shows up in place, "Sending…" until Slack has it.
+ * starts a new line.
+ *
+ * The box clears and (in a conversation) the message appears in the list the moment Send is pressed,
+ * "Sending to Slack…" until Slack has it, instead of waiting for the server action and then for the
+ * whole page to re-render, which took seconds. The action's real message replaces the placeholder;
+ * a refused or failed send takes it away and puts the text back. The page refreshes afterwards (in
+ * the background, and Realtime does too) so what is shown is what the server has.
  */
 export default function Composer({
   channelId,
   threadRootId,
   placeholder,
+  viewer,
+  showSent = true,
 }: {
   channelId: string;
   threadRootId?: string;
   placeholder: string;
+  /** Who is writing, for the message shown while it is sent. Without it nothing is shown early. */
+  viewer?: { memberId: string; name: string; photoUrl: string | null };
+  /** Show the sent message in the conversation's list at once (not for threads, whose list is the server's). */
+  showSent?: boolean;
 }) {
   const router = useRouter();
   const [text, setText] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [pending, startTransition] = useTransition();
+  const [sending, setSending] = useState(false);
   const boxRef = useRef<HTMLTextAreaElement>(null);
+  const early = Boolean(viewer) && showSent && !threadRootId;
 
-  const send = () => {
+  const send = async () => {
     const body = text.trim();
-    if (!body || pending) return;
+    if (!body || sending) return;
     setError(null);
-    startTransition(async () => {
-      const result = await sendChatMessage(channelId, body, threadRootId);
-      if (!result.ok) {
-        setError(result.error);
-        return;
-      }
-      setText("");
-      router.refresh();
-      boxRef.current?.focus();
-    });
+    setSending(true);
+    setText("");
+    const tempId = `${PENDING_ID_PREFIX}${crypto.randomUUID()}`;
+    if (early) emitOptimistic({ kind: "add", channelId, view: optimisticView({ id: tempId, body, viewer: viewer! }) });
+
+    const result = await sendChatMessage(channelId, body, threadRootId).catch(() => ({ ok: false as const, error: "Something went wrong. Try again." }));
+    setSending(false);
+    if (!result.ok) {
+      if (early) emitOptimistic({ kind: "drop", channelId, tempId });
+      setText((current) => (current ? `${body}\n${current}` : body));
+      setError(result.error);
+      return;
+    }
+    if (early) emitOptimistic({ kind: "swap", channelId, tempId, view: optimisticView({ id: result.id, body, viewer: viewer! }) });
+    router.refresh();
+    boxRef.current?.focus();
   };
 
   return (
@@ -45,7 +64,7 @@ export default function Composer({
       className="shrink-0 border-t border-slate-200 px-6 py-3 dark:border-slate-800"
       onSubmit={(e) => {
         e.preventDefault();
-        send();
+        void send();
       }}
     >
       <label className="sr-only" htmlFor={`composer-${threadRootId ?? channelId}`}>
@@ -64,17 +83,17 @@ export default function Composer({
             // Not while an input method is composing (Enter picks a candidate then).
             if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
               e.preventDefault();
-              send();
+              void send();
             }
           }}
           className="min-w-0 flex-1 resize-none rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
         />
         <button
           type="submit"
-          disabled={pending || text.trim() === ""}
+          disabled={sending || text.trim() === ""}
           className="shrink-0 rounded-lg bg-plum-600 px-4 py-2 text-sm font-medium text-white hover:bg-plum-700 disabled:opacity-50"
         >
-          {pending ? "Sending…" : "Send"}
+          {sending ? "Sending…" : "Send"}
         </button>
       </div>
       {error && (

@@ -115,7 +115,10 @@ export default async function ChatChannelPage({
   const canPost = postingOn && channel.joined;
   // Reacting also works in a public channel the member has not joined.
   const canReact = postingOn;
-  const closeHref =`/chat/${channel.id}${before && !Array.isArray(before) ? `?before=${encodeURIComponent(before)}` : ""}`;
+  // Who the composer shows as the author of a message while it is sent.
+  const me = people.find((p) => p.memberId === identity.memberId);
+  const viewer = { memberId: identity.memberId, name: me?.name ?? identity.memberName, photoUrl: me?.photoUrl ?? null };
+  const closeHref = `/chat/${channel.id}${before && !Array.isArray(before) ? `?before=${encodeURIComponent(before)}` : ""}`;
 
   return (
     <div className="relative flex h-full min-h-0">
@@ -165,11 +168,14 @@ export default async function ChatChannelPage({
                 olderBefore={page?.olderBefore ?? null}
                 firstUnreadId={firstUnreadId}
                 canReact={canReact}
+                showSent={!before}
               />
             </section>
           )}
         </div>
-        {canPost && <Composer channelId={channel.id} placeholder={`Message ${channel.label}`} />}
+        {canPost && (
+          <Composer channelId={channel.id} placeholder={`Message ${channel.label}`} viewer={viewer} showSent={!before} />
+        )}
       </div>
 
       {panelOpen && rootView && (
