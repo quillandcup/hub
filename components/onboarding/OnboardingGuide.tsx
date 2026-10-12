@@ -75,7 +75,12 @@ export default function OnboardingGuide({ initialState }: { initialState: Onboar
     if (next) setState(next);
   }, []);
 
+  // Nothing below fetches while the tour is closed. A restart from the menu brings a new
+  // initialState from the layout.
+  const active = state.active;
+
   useEffect(() => {
+    if (!active) return;
     let cancelled = false;
     void getMyOnboardingState().then((next) => {
       if (next && !cancelled) setState(next);
@@ -83,15 +88,16 @@ export default function OnboardingGuide({ initialState }: { initialState: Onboar
     return () => {
       cancelled = true;
     };
-  }, [pathname, search]);
+  }, [active, pathname, search]);
 
   useEffect(() => {
+    if (!active) return;
     const onVisible = () => {
       if (document.visibilityState === "visible") void refresh();
     };
     document.addEventListener("visibilitychange", onVisible);
     return () => document.removeEventListener("visibilitychange", onVisible);
-  }, [refresh]);
+  }, [active, refresh]);
 
   const current: OnboardingStepView | null = state.steps.find((s) => s.id === state.currentStepId) ?? null;
   const pageKey = `${pathname}?${search}`;
@@ -115,10 +121,10 @@ export default function OnboardingGuide({ initialState }: { initialState: Onboar
 
   // Keep checking while on the step's page, spotlight or not (it hides once the control is used).
   useEffect(() => {
-    if (!onStepPage) return;
+    if (!active || !onStepPage) return;
     const id = window.setInterval(() => void refresh(), SPOTLIGHT_POLL_MS);
     return () => window.clearInterval(id);
-  }, [onStepPage, refresh]);
+  }, [active, onStepPage, refresh]);
 
   // Hiding a revisit ends it; hiding the current step's spotlight holds for this page.
   const isRevisiting = !!revisitView;

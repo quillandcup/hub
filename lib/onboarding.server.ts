@@ -1,8 +1,25 @@
 import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
-import { buildOnboardingState, type OnboardingRecord, type OnboardingState } from "@/lib/onboarding";
+import {
+  buildOnboardingState,
+  type OnboardingRecord,
+  type OnboardingSignals,
+  type OnboardingState,
+} from "@/lib/onboarding";
 import { PICKER_HISTORY_MONTHS } from "@/lib/prickle-picker";
 import { getMonthStart } from "@/lib/prickle-schedules";
+
+/** Placeholder signals for a tour that isn't showing: nothing reads the steps then. */
+const NO_SIGNALS: OnboardingSignals = {
+  hasHubProfile: false,
+  latestProjectId: null,
+  hasGoal: false,
+  hasPricklePlan: false,
+  isHost: false,
+  hasHostingSchedule: false,
+  hostedRecently: false,
+  hasHostVibe: false,
+};
 
 /**
  * The member's "Getting started" tour state, from their own data plus member_onboarding.
@@ -17,9 +34,22 @@ export const getOnboardingState = cache(async (userId: string, memberId: string)
   hostHistoryStart.setMonth(hostHistoryStart.getMonth() - PICKER_HISTORY_MONTHS);
   const currentMonth = getMonthStart(now).toISOString().slice(0, 10);
 
+  // Whether the tour shows depends only on the record and account age, so check that first: most
+  // members (dismissed, finished, or an older account that never started) skip the other ten reads.
+  const [record, profile] = await Promise.all([
+    supabase
+      .from("member_onboarding")
+      .select("marked_steps, dismissed_at, completed_at")
+      .eq("member_id", memberId)
+      .maybeSingle(),
+    supabase.from("user_profiles").select("created_at").eq("id", userId).maybeSingle(),
+  ]);
+  const recordData = (record.data as OnboardingRecord | null) ?? null;
+  const createdAt = profile.data?.created_at ? new Date(profile.data.created_at) : null;
+  const idle = buildOnboardingState(NO_SIGNALS, recordData, createdAt, now);
+  if (!idle.active) return idle;
+
   const [
-    record,
-    profile,
     override,
     askMeAbout,
     latestProject,
@@ -31,12 +61,6 @@ export const getOnboardingState = cache(async (userId: string, memberId: string)
     latestSchedule,
     hostVibes,
   ] = await Promise.all([
-    supabase
-      .from("member_onboarding")
-      .select("marked_steps, dismissed_at, completed_at")
-      .eq("member_id", memberId)
-      .maybeSingle(),
-    supabase.from("user_profiles").select("created_at").eq("id", userId).maybeSingle(),
     // Written only when the member saves their bio or socials in the Hub. members.bio isn't read:
     // it's usually Kajabi's copy, which they haven't necessarily looked at here.
     supabase.from("member_profile_overrides").select("member_id").eq("member_id", memberId).maybeSingle(),
@@ -75,7 +99,6 @@ export const getOnboardingState = cache(async (userId: string, memberId: string)
   const latestScheduleMonth = (latestSchedule.data?.month as string | undefined) ?? null;
 
   const topics = (askMeAbout.data?.topics as string[] | null) ?? [];
-  const createdAt = profile.data?.created_at ? new Date(profile.data.created_at) : null;
 
   return buildOnboardingState(
     {
@@ -89,7 +112,7 @@ export const getOnboardingState = cache(async (userId: string, memberId: string)
       hostedRecently: (hostedRecently.count ?? 0) > 0,
       hasHostVibe: (hostVibes.count ?? 0) > 0,
     },
-    (record.data as OnboardingRecord | null) ?? null,
+    recordData,
     createdAt,
     now
   );
