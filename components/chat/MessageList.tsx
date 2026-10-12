@@ -8,18 +8,9 @@ import type { ChatMessageView } from "@/lib/chat/load";
 import { scrollParent } from "@/lib/chat/scroll";
 import { loadOlderChat } from "@/app/(member)/chat/actions";
 import { subscribeListEvents } from "@/lib/chat/list-events";
+import { mergeChatContext } from "@/lib/chat/merge";
 
 const sortKey = (m: ChatMessageView) => Date.parse(m.createdAt);
-
-function mergeCtx(a: ChatTextContext, b: ChatTextContext): ChatTextContext {
-  return {
-    userNames: { ...a.userNames, ...b.userNames },
-    userMembers: { ...a.userMembers, ...b.userMembers },
-    channelIds: { ...a.channelIds, ...b.channelIds },
-    channelNames: { ...a.channelNames, ...b.channelNames },
-    customEmoji: { ...a.customEmoji, ...b.customEmoji },
-  };
-}
 
 /**
  * The conversation's messages, oldest first. The server renders the newest page; this keeps
@@ -67,7 +58,7 @@ export default function MessageList({
       for (const v of views) next.set(v.id, v);
       return next;
     });
-    setContext((prev) => mergeCtx(prev, ctx));
+    setContext((prev) => mergeChatContext(prev, ctx));
   }
   const cursor = loadedCursor === undefined ? olderBefore : loadedCursor;
   const messages = [...byId.values()].sort((a, b) => sortKey(a) - sortKey(b) || a.id.localeCompare(b.id));
@@ -80,7 +71,8 @@ export default function MessageList({
   useEffect(() => {
     if (!showSent) return;
     return subscribeListEvents((event) => {
-      if (event.channelId !== channelId) return;
+      // A reply or a thread's own refresh belongs to the thread panel, not to this list.
+      if (event.channelId !== channelId || event.kind === "merge-thread" || ("threadRootId" in event && event.threadRootId)) return;
       if (event.kind === "drop") {
         setById((prev) => {
           const next = new Map(prev);
@@ -96,7 +88,7 @@ export default function MessageList({
           for (const v of event.views) next.set(v.id, v);
           return next;
         });
-        setContext((prev) => mergeCtx(prev, event.ctx));
+        setContext((prev) => mergeChatContext(prev, event.ctx));
         return;
       }
       setById((prev) => {
@@ -141,7 +133,7 @@ export default function MessageList({
       for (const v of result.views) if (!next.has(v.id)) next.set(v.id, v);
       return next;
     });
-    setContext((prev) => mergeCtx(result.ctx, prev));
+    setContext((prev) => mergeChatContext(result.ctx, prev));
     setLoadedCursor(result.olderBefore);
   };
 

@@ -4,7 +4,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const refresh = vi.fn();
 const loadLatestChat = vi.fn(async (): Promise<unknown> => null);
-vi.mock("@/app/(member)/chat/actions", () => ({ markChatRead: vi.fn(), loadLatestChat: (...a: unknown[]) => loadLatestChat(...(a as [])) }));
+const loadThreadChat = vi.fn(async (): Promise<unknown> => null);
+vi.mock("@/app/(member)/chat/actions", () => ({
+  markChatRead: vi.fn(),
+  loadLatestChat: (...a: unknown[]) => loadLatestChat(...(a as [])),
+  loadThreadChat: (...a: unknown[]) => loadThreadChat(...(a as [])),
+}));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh }) }));
 
 type Payload = { eventType: string; new: Record<string, unknown>; old: Record<string, unknown> };
@@ -331,17 +336,56 @@ describe("ChatLive", () => {
       expect(refresh).toHaveBeenCalledTimes(2);
     });
 
-    it("still refreshes the page for a thread and for an older page", async () => {
-      await mount("thread", { threadRootId: "m1" });
-      act(() => handlers.chat_messages(update));
-      await act(async () => vi.advanceTimersByTime(1000));
-      cleanup();
+    it("still refreshes the page for an older page", async () => {
       await mount("older");
       act(() => handlers.chat_messages(update));
       await act(async () => vi.advanceTimersByTime(1000));
 
-      expect(refresh).toHaveBeenCalledTimes(2);
+      expect(refresh).toHaveBeenCalledTimes(1);
       expect(loadLatestChat).not.toHaveBeenCalled();
+      expect(loadThreadChat).not.toHaveBeenCalled();
+    });
+
+    describe("in a thread", () => {
+      const thread = (...ids: string[]) => ({ ...fetched(...ids), olderBefore: undefined });
+      beforeEach(() => {
+        loadThreadChat.mockReset();
+        loadThreadChat.mockResolvedValue(thread("m1", "r1"));
+      });
+
+      it("fetches just the thread and hands it to the thread list, instead of refreshing the page", async () => {
+        await mount("thread", { threadRootId: "m1" });
+        act(() => handlers.chat_messages(insert("m1")));
+        await act(async () => vi.advanceTimersByTime(1000));
+
+        expect(loadThreadChat).toHaveBeenCalledWith("c1", "m1");
+        expect(loadLatestChat).not.toHaveBeenCalled();
+        expect(events).toEqual([expect.objectContaining({ kind: "merge-thread", channelId: "c1", threadRootId: "m1" })]);
+        expect(refresh).not.toHaveBeenCalled();
+      });
+
+      it("falls back to refreshing the page when the thread can't be fetched", async () => {
+        loadThreadChat.mockResolvedValueOnce(null);
+        await mount("thread", { threadRootId: "m1" });
+        act(() => handlers.chat_messages(update));
+        await act(async () => vi.advanceTimersByTime(1000));
+        expect(refresh).toHaveBeenCalledTimes(1);
+        expect(events).toHaveLength(0);
+      });
+
+      it("holds a new reply behind the pill when scrolled up, and fetches the thread when it is clicked", async () => {
+        scrolledTo("top");
+        await mount("thread", { threadRootId: "m1" });
+        act(() => handlers.chat_messages(insert("m1")));
+        await act(async () => vi.advanceTimersByTime(1000));
+        expect(loadThreadChat).not.toHaveBeenCalled();
+
+        await act(async () => void fireEvent.click(screen.getByRole("button", { name: /New messages/ })));
+        expect(loadThreadChat).toHaveBeenCalledTimes(1);
+        expect(events).toHaveLength(1);
+        expect(refresh).not.toHaveBeenCalled();
+        expect(screen.queryByText(/New messages/)).toBeNull();
+      });
     });
 
     it("answers a poke at once, without the debounce, for as long as it is open", async () => {

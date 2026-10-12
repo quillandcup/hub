@@ -89,9 +89,18 @@ describe("Composer: the message shows up before the server has finished", () => 
     expect(screen.getByRole("textbox")).toHaveValue("oops");
   });
 
-  it("shows nothing early in a thread, on an older page or without knowing who is writing, but still sends", async () => {
+  it("announces a reply with its thread, so the thread's list shows it and the conversation's doesn't", async () => {
+    vi.mocked(sendChatMessage).mockResolvedValue({ ok: true, id: "reply-1" });
+    render(<Composer channelId="c1" threadRootId="root" placeholder="Reply…" viewer={VIEWER} />);
+    await userEvent.type(screen.getByRole("textbox"), "thanks{Enter}");
+
+    await waitFor(() => expect(events.map((e) => e.kind)).toEqual(["add", "swap"]));
+    expect(events.every((e) => "threadRootId" in e && e.threadRootId === "root")).toBe(true);
+  });
+
+  it("shows nothing early on an older page or without knowing who is writing, but still sends", async () => {
     vi.mocked(sendChatMessage).mockResolvedValue({ ok: true, id: "r1" });
-    for (const props of [{ threadRootId: "root", viewer: VIEWER }, { showSent: false, viewer: VIEWER }, {}]) {
+    for (const props of [{ showSent: false, viewer: VIEWER }, {}]) {
       cleanup();
       render(<Composer channelId="c1" placeholder="Message #hosts" {...props} />);
       await userEvent.type(screen.getByRole("textbox"), "hi{Enter}");

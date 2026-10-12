@@ -17,7 +17,7 @@ import {
 import AvatarStack from "@/components/AvatarStack";
 import { effectiveMemberHasFeature, getUserFeaturePreviews } from "@/lib/features.server";
 import Composer from "@/components/chat/Composer";
-import MessageItem from "@/components/chat/MessageItem";
+import ThreadList from "@/components/chat/ThreadList";
 import MessageList from "@/components/chat/MessageList";
 import ChatLive from "@/components/chat/ChatLive";
 import SidePanel from "@/components/chat/SidePanel";
@@ -187,15 +187,17 @@ export default async function ChatChannelPage({
             messageIds={threadViews.map((m) => m.id)}
             latestId={threadViews[threadViews.length - 1].id}
           />
-          <MessageItem message={rootView} ctx={ctx} channelId={channel.id} inThread canReact={canReact} />
-          <div className="ml-4 pl-4 border-l-2 border-slate-200 dark:border-slate-700">
-            {replyViews.length === 0 && <p className="py-3 text-sm text-slate-500">No replies yet.</p>}
-            {replyViews.map((m) => (
-              <MessageItem key={m.id} message={m} ctx={ctx} channelId={channel.id} inThread canReact={canReact} />
-            ))}
-          </div>
+          <ThreadList
+            key={rootView.id}
+            channelId={channel.id}
+            threadRootId={rootView.id}
+            root={rootView}
+            replies={replyViews}
+            ctx={ctx}
+            canReact={canReact}
+          />
           {canPost && rootView.syncStatus === null && (
-            <Composer channelId={channel.id} threadRootId={rootView.id} placeholder="Reply…" />
+            <Composer channelId={channel.id} threadRootId={rootView.id} placeholder="Reply…" viewer={viewer} showSent />
           )}
         </SidePanel>
       )}

@@ -15,6 +15,7 @@ import {
   chatTextContext,
   loadChannelForMember,
   loadChatChannels,
+  loadMessage,
   loadMessages,
   type ChatMessageView,
 } from "@/lib/chat/load";
@@ -120,6 +121,36 @@ export async function loadLatestChat(channelId: string): Promise<OlderChat | nul
     Math.round(done - afterMessages)
   );
   return { views, ctx: chatTextContext(rendered, []), olderBefore: page.olderBefore };
+}
+
+export interface ThreadChat {
+  /** The thread's root message first, then its replies, oldest first. */
+  views: ChatMessageView[];
+  ctx: ChatTextContext;
+}
+
+/**
+ * An open thread as it is now, for keeping the thread panel current without re-rendering the page
+ * (see `loadLatestChat`). Same access rules as the page. Null when the thread can't be loaded (no
+ * access, or the root is gone), and the caller refreshes the page.
+ */
+export async function loadThreadChat(channelId: string, threadRootId: string): Promise<ThreadChat | null> {
+  if (!isUuid(channelId) || !isUuid(threadRootId)) return null;
+  const caller = await chatCaller();
+  if (!caller) return null;
+  const { identity } = caller;
+
+  const supabase = await createClient();
+  const channel = await loadChannelForMember(supabase, channelId, identity.memberId, identity.isSudo);
+  if (!channel || (identity.isSudo && channel.restricted)) return null;
+
+  const [root, replies] = await Promise.all([
+    loadMessage(supabase, channel.id, threadRootId),
+    loadMessages(supabase, channel.id, { threadRootId }),
+  ]);
+  if (!root) return null;
+  const { views, ...rendered } = await buildMessageViews(supabase, channel, [root, ...replies.messages], identity.memberId);
+  return { views, ctx: chatTextContext(rendered, []) };
 }
 
 export type SendChatResult = { ok: true; id: string } | { ok: false; error: string };
