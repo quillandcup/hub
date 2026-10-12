@@ -230,7 +230,7 @@ Oct 19 and Nov 19, 2026 (`actions/runner-images#14748`).
 ### Re-introduce Test Parallelism
 **Status:** Deliberately disabled (2026-09-22), needs a real fix
 
-`vitest.config.ts` sets `fileParallelism: false` because test files running concurrently
+`vitest.config.mts` sets `fileParallelism: false` because test files running concurrently
 against the shared local Supabase instance were racing each other (colliding fixture
 names, cross-file data pollution) and causing spurious failures unrelated to real bugs.
 Disabling parallelism fixed that but costs real time -- the full suite is already at

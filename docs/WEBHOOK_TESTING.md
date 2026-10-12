@@ -103,7 +103,7 @@ npm install --save-dev msw@latest
 ### Configuration Files
 
 - `tests/setup-msw.ts` - MSW server initialization
-- `vitest.config.ts` - Includes MSW setup
+- `vitest.config.mts` - Includes MSW setup
 - `tests/helpers/webhook-helpers.ts` - Fixture loading utilities
 
 ### Fixture Files
