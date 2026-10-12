@@ -64,7 +64,7 @@ describe("Composer", () => {
 describe("RetryButton", () => {
   it("retries and refreshes when Slack takes the message", async () => {
     vi.mocked(retryChatMessage).mockResolvedValue({ ok: true, id: "m1" });
-    render(<RetryButton messageId="m1" />);
+    render(<RetryButton channelId="c1" messageId="m1" />);
     await userEvent.click(screen.getByRole("button", { name: "Retry" }));
     await waitFor(() => expect(refresh).toHaveBeenCalled());
     expect(retryChatMessage).toHaveBeenCalledWith("m1");
@@ -72,7 +72,7 @@ describe("RetryButton", () => {
 
   it("shows the reason when it fails again", async () => {
     vi.mocked(retryChatMessage).mockResolvedValue({ ok: false, error: "Slack didn't take it. Try again in a moment." });
-    render(<RetryButton messageId="m1" />);
+    render(<RetryButton channelId="c1" messageId="m1" />);
     await userEvent.click(screen.getByRole("button", { name: "Retry" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Slack didn't take it");
     expect(refresh).not.toHaveBeenCalled();

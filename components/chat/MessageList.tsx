@@ -7,7 +7,7 @@ import type { ChatTextContext } from "@/components/chat/ChatText";
 import type { ChatMessageView } from "@/lib/chat/load";
 import { scrollParent } from "@/lib/chat/scroll";
 import { loadOlderChat } from "@/app/(member)/chat/actions";
-import { subscribeOptimistic } from "@/lib/chat/optimistic";
+import { subscribeListEvents } from "@/lib/chat/list-events";
 
 const sortKey = (m: ChatMessageView) => Date.parse(m.createdAt);
 
@@ -48,7 +48,8 @@ export default function MessageList({
   firstUnreadId?: string;
   /** The viewer can react (the chat_posting preview, not in sudo). */
   canReact?: boolean;
-  /** Show messages the viewer is sending right away (the newest page, not an older one). */
+  /** Take part in the live conversation: show messages the viewer is sending right away and the
+   *  newest messages as they are fetched (the newest page, not an older one). */
   showSent?: boolean;
 }) {
   const [byId, setById] = useState(() => new Map(views.map((v) => [v.id, v])));
@@ -78,7 +79,7 @@ export default function MessageList({
   const [sentCount, setSentCount] = useState(0);
   useEffect(() => {
     if (!showSent) return;
-    return subscribeOptimistic((event) => {
+    return subscribeListEvents((event) => {
       if (event.channelId !== channelId) return;
       if (event.kind === "drop") {
         setById((prev) => {
@@ -86,6 +87,16 @@ export default function MessageList({
           next.delete(event.tempId);
           return next;
         });
+        return;
+      }
+      if (event.kind === "merge") {
+        // The server's newest messages: its version of each wins, and the names it found are added.
+        setById((prev) => {
+          const next = new Map(prev);
+          for (const v of event.views) next.set(v.id, v);
+          return next;
+        });
+        setContext((prev) => mergeCtx(prev, event.ctx));
         return;
       }
       setById((prev) => {

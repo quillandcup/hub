@@ -6,6 +6,7 @@ import { Emoji } from "@/components/chat/ChatText";
 import type { CustomEmoji } from "@/lib/chat/emoji";
 import type { ReactionSummary } from "@/lib/chat/load";
 import { toggleChatReaction } from "@/app/(member)/chat/actions";
+import { pokeChat } from "@/lib/chat/list-events";
 
 /** The reactions people reach for first, as Slack shortcodes. */
 export const QUICK_REACTIONS = ["thumbsup", "heart", "joy", "tada", "pray", "eyes", "white_check_mark", "raised_hands"];
@@ -16,11 +17,14 @@ export const QUICK_REACTIONS = ["thumbsup", "heart", "joy", "tada", "pray", "eye
  * in the Hub stay in the Hub for now; Slack's own show here as they always did.
  */
 export default function ReactionBar({
+  channelId,
   messageId,
   reactions,
   custom,
   canReact,
 }: {
+  /** The conversation the message is in: it is asked to bring itself up to date after a change. */
+  channelId: string;
   messageId: string;
   reactions: ReactionSummary[];
   custom: Record<string, CustomEmoji>;
@@ -36,7 +40,9 @@ export default function ReactionBar({
     setPicking(false);
     startTransition(async () => {
       const result = await toggleChatReaction(messageId, emoji);
-      if (result.ok) router.refresh();
+      if (result.ok) {
+        if (!pokeChat(channelId)) router.refresh();
+      }
       else setError(result.error);
     });
   };
