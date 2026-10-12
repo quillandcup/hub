@@ -46,7 +46,7 @@ export async function getMyOnboardingState(): Promise<OnboardingState | null> {
   if (!user) return null;
   const identity = await getEffectiveIdentity(user);
   if (!identity || identity.isSudo) return null;
-  return getOnboardingState(user.id, identity.memberId);
+  return getOnboardingState(identity.memberId);
 }
 
 /** Start (or restart) the tour from the first step not yet done in the member's data. */

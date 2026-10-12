@@ -32,15 +32,12 @@ import {
   markOnboardingStep,
 } from "@/app/actions/onboarding";
 
-const NOW = new Date();
 const NOT_HOST = { isHost: false, hasHostingSchedule: false, hostedRecently: false, hasHostVibe: false };
 const IDENTITY_DONE = ["identity.basics", "identity.names", "identity.emails"];
 const fresh = (): OnboardingState =>
   buildOnboardingState(
     { hasHubProfile: false, latestProjectId: null, hasGoal: false, hasPricklePlan: false, ...NOT_HOST },
-    null,
-    NOW,
-    NOW
+    null
   );
 
 beforeAll(() => {
@@ -89,9 +86,7 @@ describe("OnboardingGuide", () => {
     const withMarked = (marked: string[]) =>
       buildOnboardingState(
         { hasHubProfile: false, latestProjectId: null, hasGoal: false, hasPricklePlan: false, ...NOT_HOST },
-        { marked_steps: marked, dismissed_at: null, completed_at: null },
-        NOW,
-        NOW
+        { marked_steps: marked, dismissed_at: null, completed_at: null }
       );
     vi.mocked(getMyOnboardingState).mockResolvedValue(fresh());
     vi.mocked(markOnboardingStep).mockResolvedValue({ success: true });
@@ -198,9 +193,7 @@ describe("OnboardingGuide", () => {
     const identityDone = () =>
       buildOnboardingState(
         { hasHubProfile: false, latestProjectId: null, hasGoal: false, hasPricklePlan: false, ...NOT_HOST },
-        { marked_steps: IDENTITY_DONE, dismissed_at: null, completed_at: null },
-        NOW,
-        NOW
+        { marked_steps: IDENTITY_DONE, dismissed_at: null, completed_at: null }
       );
     const addTargets = () => {
       for (const id of ["identity-basics", "identity-names", "identity-emails"]) {
@@ -271,9 +264,7 @@ describe("OnboardingGuide", () => {
   it("says all set once every step is done, and Finish completes it", async () => {
     const done = buildOnboardingState(
       { hasHubProfile: true, latestProjectId: "p1", hasGoal: true, hasPricklePlan: true, ...NOT_HOST },
-      { marked_steps: IDENTITY_DONE, dismissed_at: null, completed_at: null },
-      NOW,
-      NOW
+      { marked_steps: IDENTITY_DONE, dismissed_at: null, completed_at: null }
     );
     vi.mocked(getMyOnboardingState).mockResolvedValue(done);
     vi.mocked(completeOnboarding).mockResolvedValue({ success: true });

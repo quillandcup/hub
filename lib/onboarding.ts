@@ -19,9 +19,6 @@
 export const ONBOARDING_STEP_IDS = ["identity", "profile", "writing", "prickles", "hosting", "host-vibe"] as const;
 export type OnboardingStepId = (typeof ONBOARDING_STEP_IDS)[number];
 
-/** Accounts younger than this get the tour on their own; older ones start it from the user menu. */
-export const ONBOARDING_AUTO_START_DAYS = 30;
-
 /** What the member's own data says, gathered once per page load. */
 export interface OnboardingSignals {
   /** Saved a bio or socials in the Hub, or added "Ask me about" topics: not just Kajabi's copy. */
@@ -235,25 +232,17 @@ function stepViews(signals: OnboardingSignals, marked: Set<string>): StepWithout
   return steps;
 }
 
-export function buildOnboardingState(
-  signals: OnboardingSignals,
-  record: OnboardingRecord | null,
-  accountCreatedAt: Date | null,
-  now: Date
-): OnboardingState {
+export function buildOnboardingState(signals: OnboardingSignals, record: OnboardingRecord | null): OnboardingState {
   const steps = stepViews(signals, new Set(record?.marked_steps ?? [])).map(withRevisitStops);
   const current = steps.find((s) => !s.done) ?? null;
   const completed = current === null;
 
-  const isNewAccount =
-    accountCreatedAt !== null &&
-    now.getTime() - accountCreatedAt.getTime() < ONBOARDING_AUTO_START_DAYS * 24 * 60 * 60 * 1000;
-  // A row means the member has touched the tour (started it from the menu, or marked a step);
-  // without one, only a new account gets it. A finished tour stays closed even if a step later
-  // reads as undone (say they delete their only goal); they can restart it from the menu. When
-  // every step is done but completed_at isn't set yet, the guide stays up to say "all set".
-  const started = record !== null || isNewAccount;
-  const active = started && !record?.dismissed_at && !record?.completed_at;
+  // Everyone gets the tour until they dismiss or finish it: no row means they've never touched it,
+  // however long ago their account was made (Kajabi members have years of history, but are new to
+  // the Hub). A finished tour stays closed even if a step later reads as undone (say they delete
+  // their only goal); they can restart it from the menu. When every step is done but completed_at
+  // isn't set yet, the guide stays up to say "all set".
+  const active = !record?.dismissed_at && !record?.completed_at;
 
   return { steps, currentStepId: current?.id ?? null, active, completed };
 }

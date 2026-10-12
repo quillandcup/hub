@@ -58,7 +58,7 @@ export default async function MemberLayout({
   const showInApp = await effectiveMemberHasFeature('in_app_notifications', effectiveIdentity, enabledFeatures)
   const showInstallPrompt = await effectiveMemberHasFeature('browser_notifications', effectiveIdentity, enabledFeatures)
   const [onboardingState, inAppNotifications] = await Promise.all([
-    showOnboarding ? getOnboardingState(user.id, effectiveIdentity.memberId) : null,
+    showOnboarding ? getOnboardingState(effectiveIdentity.memberId) : null,
     showInApp
       ? Promise.all([
           loadInAppNotifications(supabase, effectiveIdentity.memberId, new Date(), { limit: BELL_LIMIT }),

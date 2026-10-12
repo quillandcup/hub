@@ -24,9 +24,8 @@ const NO_SIGNALS: OnboardingSignals = {
 /**
  * The member's "Getting started" tour state, from their own data plus member_onboarding.
  * One round of parallel reads; memoized per render so the layout and any page share it.
- * `userId` is the signed-in auth user, whose account age decides whether the tour starts by itself.
  */
-export const getOnboardingState = cache(async (userId: string, memberId: string): Promise<OnboardingState> => {
+export const getOnboardingState = cache(async (memberId: string): Promise<OnboardingState> => {
   const supabase = await createClient();
 
   const now = new Date();
@@ -34,19 +33,15 @@ export const getOnboardingState = cache(async (userId: string, memberId: string)
   hostHistoryStart.setMonth(hostHistoryStart.getMonth() - PICKER_HISTORY_MONTHS);
   const currentMonth = getMonthStart(now).toISOString().slice(0, 10);
 
-  // Whether the tour shows depends only on the record and account age, so check that first: most
-  // members (dismissed, finished, or an older account that never started) skip the other ten reads.
-  const [record, profile] = await Promise.all([
-    supabase
-      .from("member_onboarding")
-      .select("marked_steps, dismissed_at, completed_at")
-      .eq("member_id", memberId)
-      .maybeSingle(),
-    supabase.from("user_profiles").select("created_at").eq("id", userId).maybeSingle(),
-  ]);
-  const recordData = (record.data as OnboardingRecord | null) ?? null;
-  const createdAt = profile.data?.created_at ? new Date(profile.data.created_at) : null;
-  const idle = buildOnboardingState(NO_SIGNALS, recordData, createdAt, now);
+  // Whether the tour shows depends only on the record, so check that first: a member who dismissed
+  // or finished it skips the other ten reads.
+  const { data: record } = await supabase
+    .from("member_onboarding")
+    .select("marked_steps, dismissed_at, completed_at")
+    .eq("member_id", memberId)
+    .maybeSingle();
+  const recordData = (record as OnboardingRecord | null) ?? null;
+  const idle = buildOnboardingState(NO_SIGNALS, recordData);
   if (!idle.active) return idle;
 
   const [
@@ -112,8 +107,6 @@ export const getOnboardingState = cache(async (userId: string, memberId: string)
       hostedRecently: (hostedRecently.count ?? 0) > 0,
       hasHostVibe: (hostVibes.count ?? 0) > 0,
     },
-    recordData,
-    createdAt,
-    now
+    recordData
   );
 });
