@@ -176,7 +176,7 @@ export default function SearchPalette({ resultsPath, isAdmin }: { resultsPath: s
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="ml-10 md:ml-0 mr-auto flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-1.5 text-sm text-slate-500 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-600 sm:w-80"
+        className="ml-10 md:ml-0 mr-auto flex h-10 items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 text-sm text-slate-500 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-600 sm:w-80"
         aria-label="Search"
         aria-keyshortcuts="Meta+K Control+K"
       >

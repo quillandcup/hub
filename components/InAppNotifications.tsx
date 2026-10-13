@@ -245,7 +245,7 @@ export function InAppNotificationBell() {
         onClick={() => setIsOpen((o) => !o)}
         aria-expanded={isOpen}
         aria-label={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : "Notifications"}
-        className="relative rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+        className="relative flex h-10 w-10 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
       >
         <svg viewBox="0 0 24 24" className="h-5 w-5" aria-hidden="true" focusable="false">
           <path

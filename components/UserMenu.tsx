@@ -51,7 +51,7 @@ export default function UserMenu({
       <div className="relative" ref={menuRef}>
         <button
           onClick={() => setIsOpen(!isOpen)}
-          className="flex items-center gap-2 px-2 md:px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+          className="flex h-10 items-center gap-2 px-2 md:px-3 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
         >
           <div className="w-8 h-8 rounded-full bg-gradient-to-r from-plum-500 to-plum-700 flex items-center justify-center text-white font-semibold text-sm">
             {userEmail.charAt(0).toUpperCase()}
