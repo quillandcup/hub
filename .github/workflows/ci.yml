@@ -90,33 +90,25 @@ jobs:
       - name: Run unit test suite (with coverage)
         run: npm run test:unit:coverage
 
-      # Posts a coverage table and the changed files' coverage on the PR, from the
-      # json-summary/json reports. Runs even when the tests failed so the comment still
-      # shows. Pinned to a commit (v2.13.0): the one third-party action in this job.
-      - name: Report coverage on the PR
+      # Coverage report (per-area table in the job summary and one sticky PR comment) and, on
+      # pull requests, the gate: at least 80% of the PR's new executable lines must be covered by
+      # the unit suite (scripts/coverage-report.ts; app/api/** is not counted). To bypass for a
+      # PR, add the skip-patch-coverage label and re-run this job: the label is read live below.
+      - name: Coverage report and patch coverage gate
         if: ${{ !cancelled() }}
-        uses: davelosert/vitest-coverage-report-action@c4bbc33a89b7ace0e63d35f1f7d4bcee31155a73
-        with:
-          name: unit tests
-          vite-config-path: .github/coverage-report.config.ts
-          json-summary-path: coverage/unit/coverage-summary.json
-          json-final-path: coverage/unit/coverage-final.json
-          file-coverage-mode: changes
-
-      # New lines in a PR must be at least 80% covered by the unit suite (see
-      # scripts/check-patch-coverage.ts; app/api/** is excluded). To bypass for a PR, add the
-      # skip-patch-coverage label and re-run this job: the label is read live below.
-      - name: Check patch coverage
-        if: github.event_name == 'pull_request'
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           BASE_REF: ${{ github.base_ref }}
         run: |
+          if [ "$GITHUB_EVENT_NAME" != "pull_request" ]; then
+            npx tsx scripts/coverage-report.ts --name unit --dir coverage/unit
+            exit 0
+          fi
           if gh pr view "$PR_NUMBER" --json labels --jq '.labels[].name' | grep -qx 'skip-patch-coverage'; then
             export PATCH_COVERAGE_SKIP=1
           fi
-          npx tsx scripts/check-patch-coverage.ts "origin/$BASE_REF"
+          npx tsx scripts/coverage-report.ts --name unit --dir coverage/unit --patch-base "origin/$BASE_REF"
 
       - name: Upload coverage report
         if: ${{ !cancelled() }}
@@ -299,15 +291,12 @@ jobs:
       - name: Run db test suite (with coverage)
         run: npm run test:db:coverage
 
-      - name: Report db coverage on the PR
+      - name: Report db coverage
         if: ${{ !cancelled() }}
-        uses: davelosert/vitest-coverage-report-action@c4bbc33a89b7ace0e63d35f1f7d4bcee31155a73
-        with:
-          name: db tests
-          vite-config-path: .github/coverage-report.config.ts
-          json-summary-path: coverage/db/coverage-summary.json
-          json-final-path: coverage/db/coverage-final.json
-          file-coverage-mode: none
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: npx tsx scripts/coverage-report.ts --name db --dir coverage/db
 
       - name: Upload db coverage report
         if: ${{ !cancelled() }}

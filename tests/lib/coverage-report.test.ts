@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
+  areaCoverage,
   isGated,
   parseAddedLines,
   patchCoverage,
+  renderReport,
   type FileCoverage,
-} from "../../scripts/check-patch-coverage";
+} from "../../scripts/coverage-report";
 
 const DIFF = [
   "diff --git a/lib/a.ts b/lib/a.ts",
@@ -71,5 +73,31 @@ describe("patchCoverage", () => {
   it("skips files outside the gate", () => {
     const added = new Map([["app/api/x/route.ts", new Set([1, 2, 3])]]);
     expect(patchCoverage(added, {}, root)).toMatchObject({ total: 0, covered: 0 });
+  });
+});
+
+describe("areaCoverage / renderReport", () => {
+  const cov = {
+    "/repo/lib/a.ts": coverage({ 1: 1, 2: 0 }),
+    "/repo/app/(admin)/admin/p.tsx": coverage({ 1: 0 }),
+  };
+
+  it("groups by top-level dir, or by route group under app/", () => {
+    const areas = areaCoverage(cov, "/repo");
+    expect(areas.get("lib")).toEqual({ covered: 1, total: 2 });
+    expect(areas.get("app/(admin)")).toEqual({ covered: 0, total: 1 });
+  });
+
+  it("renders the patch result, uncovered lines and the area table", () => {
+    const text = renderReport("unit", areaCoverage(cov, "/repo"), {
+      result: { covered: 1, total: 4, uncovered: new Map([["lib/a.ts", [2, 3, 4]]]) },
+      passed: false,
+      skipped: false,
+    });
+    expect(text).toContain("Coverage: unit tests");
+    expect(text).toContain("❌ 25.0%");
+    expect(text).toContain("| `lib/a.ts` | 2, 3, 4 |");
+    expect(text).toContain("| `lib` | 50.0% | 1 / 2 |");
+    expect(text).toContain("| **all** | **33.3%** | 1 / 3 |");
   });
 });
