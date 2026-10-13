@@ -224,7 +224,9 @@ async function searchProjects(ctx: SearchContext, q: UniversalQuery): Promise<Ki
 async function searchChatKind(ctx: SearchContext, q: UniversalQuery): Promise<KindResults> {
   const { limit } = page(ctx);
   if (!ctx.viewerMemberId) return { kind: "chat", hits: [], hasMore: false };
+  const started = performance.now();
   const allChannels = typeof ctx.chatChannels === "function" ? await ctx.chatChannels() : ctx.chatChannels;
+  const channelsMs = Math.round(performance.now() - started);
   const channels = q.inChannel
     ? allChannels.filter((c) => c.label.replace(/^#/, "").toLowerCase().includes(q.inChannel!.toLowerCase()))
     : allChannels;
@@ -241,6 +243,7 @@ async function searchChatKind(ctx: SearchContext, q: UniversalQuery): Promise<Ki
     inThread: q.isThread,
     page: Math.floor((ctx.offset ?? 0) / SEARCH_PAGE_SIZE),
   });
+  console.log("chat search", JSON.stringify({ channelsMs, searchMs: Math.round(performance.now() - started) - channelsMs, channels: channels.length }));
   return {
     kind: "chat",
     hasMore: result.hasMore || result.results.length > limit,

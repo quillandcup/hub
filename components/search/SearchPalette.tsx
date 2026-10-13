@@ -290,6 +290,16 @@ export default function SearchPalette({ resultsPath, isAdmin }: { resultsPath: s
                   })}
                 </section>
               ))}
+
+              {shown?.chatSkipped && !shown.unknownKind && (
+                <Link
+                  href={`${resultsPath}?q=${encodeURIComponent(withKind(input.trim(), "chat"))}`}
+                  onClick={() => { saveRecent(input); close(); }}
+                  className="block px-4 py-3 text-sm text-plum-700 dark:text-plum-300 hover:underline"
+                >
+                  Search chat messages for “{input.trim()}”
+                </Link>
+              )}
             </div>
 
             <div className="flex items-center justify-between border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 px-4 py-2 text-sm">

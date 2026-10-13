@@ -120,4 +120,10 @@ describe("SearchPalette", () => {
     await user.type(screen.getByRole("textbox", { name: "Search" }), "in:zzz");
     expect(await screen.findByText(/Can’t search/)).toBeInTheDocument();
   });
+
+  it("offers a chat search when the palette left chat out", async () => {
+    searchPalette.mockResolvedValue({ ...results, chatSkipped: true });
+    await openAndType("cody");
+    expect(await screen.findByRole("link", { name: /Search chat messages for/ })).toHaveAttribute("href", "/search?q=cody%20in%3Achat");
+  });
 });
