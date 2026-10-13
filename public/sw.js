@@ -45,17 +45,21 @@ self.addEventListener("notificationclick", (event) => {
 // throws for a tab that is already closed but still listed), and either used to leave the click doing
 // nothing at all. So try each Hub tab in turn, best first: already on the target, then the focused
 // one, then a visible one, then the rest. Focus first, while the click's user activation is fresh
-// (Chrome on macOS doesn't always raise the window after an async navigate); a tab already on the
-// target is just focused rather than navigated to where it is.
+// (Chrome on macOS doesn't always raise the window after an async navigate).
+//
+// WindowClient.url is only the tab's last full page load: the Hub navigates in place (pushState), so a
+// tab that reads as already on the target may have moved on. That ranks it first but never lets us skip
+// navigating it.
 async function openTarget(target) {
   const windows = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
   const rank = (w) => (w.url === target.href ? 0 : w.focused ? 1 : w.visibilityState === "visible" ? 2 : 3);
-  const hubTabs = windows.filter((w) => new URL(w.url).origin === self.location.origin).sort((a, b) => rank(a) - rank(b));
+  const hubTabs = windows
+    .filter((w) => new URL(w.url).origin === self.location.origin && new URL(w.url).pathname !== "/sw.js")
+    .sort((a, b) => rank(a) - rank(b));
   console.log("[sw] notification click", { target: target.href, hubTabs: hubTabs.map((w) => w.url) });
   for (const tab of hubTabs) {
     try {
       if ("focus" in tab) await tab.focus();
-      if (tab.url === target.href) return;
       const navigated = "navigate" in tab ? await tab.navigate(target.href) : null;
       if (navigated) {
         await navigated.focus().catch(() => {});

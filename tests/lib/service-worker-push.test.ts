@@ -110,14 +110,22 @@ describe("public/sw.js notification click handler", () => {
     expect(openWindow).not.toHaveBeenCalled();
   });
 
-  it("only focuses an open Hub tab that is already on the url", async () => {
+  it("still navigates a tab whose url reads as the target, since the Hub navigates in place", async () => {
     const focus = vi.fn().mockResolvedValue(undefined);
-    const navigate = vi.fn();
-    const { openWindow } = await click([{ url: `${origin}/prickles/1/checkin`, navigate, focus }])
+    const navigate = vi.fn().mockResolvedValue({ focus });
+    const { openWindow } = await click([{ url: `${origin}/prickles/1/checkin`, navigate, focus }]);
 
     expect(focus).toHaveBeenCalled();
-    expect(navigate).not.toHaveBeenCalled();
+    expect(navigate).toHaveBeenCalledWith(`${origin}/prickles/1/checkin`);
     expect(openWindow).not.toHaveBeenCalled();
+  });
+
+  it("never navigates the service worker's own source tab", async () => {
+    const navigate = vi.fn();
+    const { openWindow } = await click([{ url: `${origin}/sw.js`, navigate }]);
+
+    expect(navigate).not.toHaveBeenCalled();
+    expect(openWindow).toHaveBeenCalledWith(`${origin}/prickles/1/checkin`);
   });
 
   it("opens a new window when the open tab can't be navigated", async () => {
@@ -139,7 +147,7 @@ describe("public/sw.js notification click handler", () => {
 
   it("prefers a tab already on the url", async () => {
     const other = { url: `${origin}/dashboard`, focus: vi.fn(), navigate: vi.fn() };
-    const exact = { url: `${origin}/prickles/1/checkin`, focus: vi.fn().mockResolvedValue(undefined), navigate: vi.fn() };
+    const exact = { url: `${origin}/prickles/1/checkin`, focus: vi.fn().mockResolvedValue(undefined), navigate: vi.fn().mockResolvedValue({ focus: vi.fn() }) };
     await click([other, exact]);
 
     expect(exact.focus).toHaveBeenCalled();
