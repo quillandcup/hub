@@ -8,7 +8,7 @@ import { scrollParent } from "@/lib/chat/scroll";
 import { loadLatestChat, loadThreadChat, markChatRead } from "@/app/(member)/chat/actions";
 import { emitListEvent, onPoke } from "@/lib/chat/list-events";
 
-/** Bursts of changes (a message plus its reactions) become one refresh. */
+/** Changes right behind the first one in a burst (a message plus its reactions) fold into one more fetch. */
 const REFRESH_DELAY_MS = 300;
 /** Within this many pixels of the bottom counts as "following the conversation". */
 const NEAR_BOTTOM_PX = 150;
@@ -117,9 +117,25 @@ export default function ChatLive({
     }
   }, [view, channelId, threadRootId, router]);
 
+  // The first change of a burst is fetched at once (waiting to see whether more follow just delayed
+  // every single change); changes right behind it are folded into one more fetch when the burst settles.
+  const settled = useRef(false);
   const refresh = useCallback(() => {
-    if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(() => void reload(), REFRESH_DELAY_MS);
+    if (timer.current) {
+      settled.current = true;
+      return;
+    }
+    void reload();
+    const cooldown = () => {
+      if (settled.current) {
+        settled.current = false;
+        void reload();
+        timer.current = setTimeout(cooldown, REFRESH_DELAY_MS);
+      } else {
+        timer.current = null;
+      }
+    };
+    timer.current = setTimeout(cooldown, REFRESH_DELAY_MS);
   }, [reload]);
 
   // Someone changed something here (a reaction toggled, a message sent): catch up now, without the debounce.
@@ -196,6 +212,8 @@ export default function ChatLive({
     return () => {
       document.removeEventListener("visibilitychange", onVisible);
       if (timer.current) clearTimeout(timer.current);
+      timer.current = null;
+      settled.current = false;
       cancelled = true;
       if (subscription) void supabase.removeChannel(subscription);
     };

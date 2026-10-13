@@ -54,6 +54,13 @@ export async function POST(request: NextRequest) {
       timestamp,
     });
 
+    // How long Slack took to get the event to us (event_time has one-second resolution), for tracking
+    // down where a live update's time goes.
+    const receivedAt = Date.now();
+    if (payload.type === "event_callback" && typeof payload.event_time === "number") {
+      console.info("[chat] slack %s event reached us %dms after Slack sent it", payload.event?.type, receivedAt - payload.event_time * 1000);
+    }
+
     // Verify signature if signing secret is configured
     const signingSecret = process.env.SLACK_SIGNING_SECRET;
     const sigResult = verifySlackSignature(body, signature, timestamp, signingSecret);
@@ -418,7 +425,9 @@ function triggerSlackProcessing(channelId: string, messageTs: string) {
     try {
       // Chat gets just this message (a constant-cost call, and what people are waiting to see), not the
       // windowed projection, which re-reads every message in the window and would grow with the day's traffic.
+      const projectStarted = Date.now();
       await projectChatMessage(createServiceRoleClient(), channelId, messageTs);
+      console.info("[chat] projected one Slack message into chat in %dms", Date.now() - projectStarted);
       await triggerReprocessing("slack_messages", "bronze", { dateRange: { from, to }, exclude: ["chat"] });
       console.log("Slack processing triggered successfully");
     } catch (error) {

@@ -212,18 +212,20 @@ export async function loadChannelForMember(
   memberId: string,
   isSudo: boolean
 ): Promise<ChannelSummary | null> {
-  const { data: row } = await supabase.from("chat_channels").select(CHANNEL_COLUMNS).eq("id", channelId).maybeSingle();
+  // The channel and the member's place in it don't depend on each other, so read them together.
+  const [{ data: row }, { data: membership }] = await Promise.all([
+    supabase.from("chat_channels").select(CHANNEL_COLUMNS).eq("id", channelId).maybeSingle(),
+    supabase
+      .from("chat_channel_members")
+      .select("channel_id")
+      .eq("channel_id", channelId)
+      .eq("member_id", memberId)
+      .is("left_at", null)
+      .maybeSingle(),
+  ]);
   if (!row) return null;
   const channel = row as ChannelRow;
   if (isSudo && channel.kind !== "channel") return null;
-
-  const { data: membership } = await supabase
-    .from("chat_channel_members")
-    .select("channel_id")
-    .eq("channel_id", channelId)
-    .eq("member_id", memberId)
-    .is("left_at", null)
-    .maybeSingle();
   if (channel.visibility === "private" && !membership) return null;
 
   const labels = channel.kind === "channel" ? new Map<string, string>() : await groupDmLabels(supabase, [channel.id], memberId);

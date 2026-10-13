@@ -29,9 +29,10 @@ import type { ChatTextContext } from "@/components/chat/ChatText";
 async function chatCaller(): Promise<{ userId: string; identity: EffectiveIdentity } | null> {
   const user = await getCurrentUser();
   if (!user) return null;
-  const identity = await getEffectiveIdentity(user);
+  // Neither needs the other's answer, so ask together.
+  const [identity, ownFeatures] = await Promise.all([getEffectiveIdentity(user), getUserFeaturePreviews(user.id)]);
   if (!identity) return null;
-  if (!(await effectiveMemberHasFeature("chat", identity, await getUserFeaturePreviews(user.id)))) return null;
+  if (!(await effectiveMemberHasFeature("chat", identity, ownFeatures))) return null;
   return { userId: user.id, identity };
 }
 
