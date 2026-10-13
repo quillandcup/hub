@@ -4,6 +4,7 @@ import { getSearcher } from "@/lib/search/context";
 import { KIND_COLUMNS, formatHitDate } from "@/lib/search/format";
 import { KIND_LABELS, type KindResults } from "@/lib/search/kinds";
 import { SEARCH_KINDS, allowedOperators, matchWords, parseUniversal, withKind } from "@/lib/search/syntax";
+import { recordSearchTimings } from "@/lib/search/metrics";
 import { universalSearch } from "@/lib/search/universal";
 import { MAX_QUERY_LENGTH } from "@/lib/chat/search";
 import Highlight from "@/components/search/Highlight";
@@ -27,8 +28,10 @@ export default async function SearchResultsPage({
   searchParams: Promise<{ q?: Param; page?: Param }>;
   basePath: string;
 }) {
+  const started = performance.now();
   const searcher = await getSearcher();
   if (!searcher) notFound();
+  const setupMs = Math.round(performance.now() - started);
 
   const sp = await searchParams;
   const raw = (first(sp.q) ?? "").trim().slice(0, MAX_QUERY_LENGTH);
@@ -37,13 +40,18 @@ export default async function SearchResultsPage({
   const scoped = query.kind && (SEARCH_KINDS as readonly string[]).includes(query.kind) ? query.kind : undefined;
   const words = matchWords(query);
 
+  const timings: Record<string, number> = {};
   const results: KindResults[] = query.unknownKind
     ? []
     : await universalSearch(
         { ...searcher.ctx, limit: scoped ? KIND_ROWS : OVERVIEW_ROWS, offset: scoped ? pageNumber * KIND_ROWS : 0 },
         query,
-        { skip: searcher.skip }
+        { skip: searcher.skip, timings }
       );
+  // An empty or unknown-kind search ran nothing, so it says nothing about speed.
+  if (Object.keys(timings).length > 0) {
+    recordSearchTimings("results_page", { setupMs, totalMs: Math.round(performance.now() - started), kindsMs: timings });
+  }
 
   const href = (q: string, page = 0) => `${basePath}?q=${encodeURIComponent(q)}${page > 0 ? `&page=${page}` : ""}`;
   const visibleKinds = SEARCH_KINDS.filter((k) => !searcher.skip.includes(k));

@@ -1,0 +1,20 @@
+import * as Sentry from "@sentry/nextjs";
+
+/** Where a search ran from; the `surface` attribute on `search.duration`. */
+export type SearchSurface = "palette" | "results_page";
+
+/**
+ * Records where a search's time went as `search.duration` (never the query text): `setup` (auth and
+ * context), each kind's own time, and the server `total`. The palette's client-side `roundtrip`
+ * is recorded by the component.
+ */
+export function recordSearchTimings(
+  surface: SearchSurface,
+  { setupMs, totalMs, kindsMs }: { setupMs: number; totalMs: number; kindsMs: Record<string, number> }
+) {
+  const record = (value: number, attributes: Record<string, string>) =>
+    Sentry.metrics.distribution("search.duration", value, { unit: "millisecond", attributes: { surface, ...attributes } });
+  record(setupMs, { stage: "setup" });
+  record(totalMs, { stage: "total" });
+  for (const [kind, ms] of Object.entries(kindsMs)) record(ms, { stage: "kind", kind });
+}
