@@ -140,7 +140,7 @@ export function patchCoverage(added: Map<string, Set<number>>, files: SuiteLines
 }
 
 const pct = (a: Area) => (a.total === 0 ? 100 : (100 * a.covered) / a.total);
-const cell = (a: Area | undefined) => (a ? `${pct(a).toFixed(1)}%` : "n/a");
+const cell = (a: Area | undefined) => (a ? `${pct(a).toFixed(1)}% (${a.covered}/${a.total})` : "n/a");
 
 export type Patch = { result: PatchResult; passed: boolean; skipped: boolean };
 

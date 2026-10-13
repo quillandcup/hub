@@ -130,7 +130,7 @@ describe("areaCoverage / renderReport", () => {
     expect(text).toContain("❌ 25.0%");
     expect(text).toContain("| `lib/a.ts` | 2, 3, 4 |");
     expect(text).toContain("| Area | unit | db | combined |");
-    expect(text).toContain("| `lib` | 50.0% | 100.0% | 100.0% |");
-    expect(text).toContain("| `app/(admin)` | 0.0% | n/a | 0.0% |");
+    expect(text).toContain("| `lib` | 50.0% (1/2) | 100.0% (2/2) | 100.0% (2/2) |");
+    expect(text).toContain("| `app/(admin)` | 0.0% (0/1) | n/a | 0.0% (0/1) |");
   });
 });
