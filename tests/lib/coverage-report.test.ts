@@ -112,13 +112,14 @@ describe("suiteHits / mergeSuites / areaMetrics", () => {
 });
 
 describe("aggregateScore / flags", () => {
-  it("is the mean of the measures that have something to cover", () => {
-    expect(aggregateScore(metrics([1, 2], [1, 2], [1, 2], [1, 4]))).toBeCloseTo(43.75);
-    expect(aggregateScore({ ...metrics([1, 2]), statements: m(0, 0), functions: m(0, 0), branches: m(0, 0) })).toBe(50);
+  it("is the mean of statements, functions and branches; lines are not scored", () => {
+    expect(aggregateScore(metrics([2, 2], [1, 2], [1, 2], [1, 4]))).toBeCloseTo((50 + 50 + 25) / 3);
+    expect(aggregateScore({ ...metrics([2, 2]), statements: m(1, 2), functions: m(0, 0), branches: m(0, 0) })).toBe(50);
   });
 
-  it("is null, not 100, when there is nothing to cover", () => {
+  it("is null, not 100, when there is nothing to score", () => {
     expect(aggregateScore(metrics([0, 0]))).toBeNull();
+    expect(aggregateScore({ ...metrics([0, 0]), lines: m(3, 3) })).toBeNull();
     expect(flags(metrics([0, 0]))).toEqual([]);
   });
 
@@ -164,7 +165,7 @@ describe("patchCoverage", () => {
     ]);
     const { metrics: got } = patchCoverage(added, new Map());
     expect(got.lines).toEqual(m(0, 2));
-    expect(aggregateScore(got)).toBe(0);
+    expect(aggregateScore(got)).toBe(0); // an unimported new file fails, it can't pass as "nothing to score"
   });
 });
 

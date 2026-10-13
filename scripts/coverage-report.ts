@@ -11,8 +11,9 @@
 // each file the same way, so the maps match (>99.9% of locations, checked on the unit and db
 // runs).
 //
-// A coverage "score" is the mean of the percentages of the measures that have something to
-// cover. Writes it per area (per suite and combined) to the job summary and to one sticky PR
+// A coverage "score" is the mean of the percentages of statements, functions and branches
+// (whichever have something to cover). Lines are shown but not scored: they are derived from
+// statements (corr 0.999 per file), so counting both would double-weight one signal. Writes it per area (per suite and combined) to the job summary and to one sticky PR
 // comment (updated in place; needs GH_TOKEN, GITHUB_REPOSITORY and PR_NUMBER, and a failure to
 // comment only warns, e.g. read-only fork tokens). With --patch-base it also scores the new
 // code: the lines `git diff <base>...HEAD` added, and the statements, functions and branches
@@ -49,6 +50,8 @@ export type Area = { covered: number; total: number };
 export type Metrics = { lines: Area; statements: Area; functions: Area; branches: Area };
 export const MEASURES = ["lines", "statements", "functions", "branches"] as const;
 type Measure = (typeof MEASURES)[number];
+/** The measures a score averages: lines are left out, they duplicate statements. */
+export const SCORED = ["statements", "functions", "branches"] as const;
 
 /** Per file, each measure's items (keyed by source location) -> whether they ran. */
 export type FileHits = Record<Measure, Map<string, boolean>>;
@@ -146,9 +149,9 @@ export function sumMetrics(metrics: Iterable<Metrics>): Metrics {
 
 const pct = (a: Area) => (a.total === 0 ? 100 : (100 * a.covered) / a.total);
 
-/** Mean percentage of the measures that have something to cover; null if none do. */
+/** Mean percentage of the scored measures that have something to cover; null if none do. */
 export function aggregateScore(m: Metrics): number | null {
-  const present = MEASURES.filter((k) => m[k].total > 0);
+  const present = SCORED.filter((k) => m[k].total > 0);
   return present.length === 0 ? null : present.reduce((sum, k) => sum + pct(m[k]), 0) / present.length;
 }
 
@@ -157,7 +160,7 @@ export function aggregateScore(m: Metrics): number | null {
  * while the others pull the mean up (e.g. functions 0/12 inside a 60% area).
  */
 export function flags(m: Metrics): string[] {
-  const present = MEASURES.filter((k) => m[k].total > 0);
+  const present = SCORED.filter((k) => m[k].total > 0);
   if (present.length === 0) return [];
   if (present.every((k) => m[k].covered === 0)) return ["🚫 untested"];
   const zero = present.filter((k) => m[k].covered === 0);
@@ -191,7 +194,8 @@ const startLine = (key: string) => Number(/(\d+):\d+/.exec(key)?.[1]);
 /**
  * The new code's coverage: added lines, plus the statements, functions and branches that start
  * on one. A new file no suite imported has no entry: every added line counts as uncovered, and
- * the other measures (unknown without a map) are left out of its score.
+ * its statements are unknown without a map, so each added line also counts as an uncovered
+ * statement (otherwise the score would have nothing to average and the file would pass).
  */
 export function patchCoverage(added: Map<string, Set<number>>, files: SuiteHits): PatchResult {
   const metrics = emptyMetrics();
@@ -203,6 +207,7 @@ export function patchCoverage(added: Map<string, Set<number>>, files: SuiteHits)
     const missed: number[] = [];
     if (!hits) {
       metrics.lines.total += sorted.length;
+      metrics.statements.total += sorted.length;
       missed.push(...sorted);
     } else {
       for (const line of sorted) {
@@ -289,7 +294,7 @@ export function renderReport(
   }
   out.push(
     "",
-    "Score is the mean of the measures that have something to cover (n/a if none). An item counts as covered if either suite ran it. 🚫 untested: nothing in the area ran. ⚠️: a whole measure is uncovered, which the score averages away.",
+    "Score is the mean of statements, functions and branches (lines duplicate statements, so they are shown but not scored; n/a if none has anything to cover). An item counts as covered if either suite ran it. 🚫 untested: nothing in the area ran. ⚠️: a whole measure is uncovered, which the score averages away.",
     "</details>",
   );
   return out.join("\n");
