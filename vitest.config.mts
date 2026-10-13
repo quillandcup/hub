@@ -50,7 +50,18 @@ export default defineConfig({
     // can merge the two lcov files. 
     coverage: {
       provider: 'v8',
-      include: ['app/**/*.{ts,tsx}', 'lib/**/*.{ts,tsx}', 'components/**/*.{ts,tsx}'],
+      // Every source area, so code no test imports shows up as 0% instead of being absent
+      // (config files and Checkly checks are left out: they are configuration, not logic).
+      include: [
+        'app/**/*.{ts,tsx}',
+        'lib/**/*.{ts,tsx}',
+        'components/**/*.{ts,tsx}',
+        'emails/**/*.{ts,tsx}',
+        'scripts/**/*.ts',
+        'proxy.ts',
+        'instrumentation.ts',
+        'instrumentation-client.ts',
+      ],
       exclude: ['**/*.d.ts', '**/*.test.*', 'lib/**/types.ts'],
       reporter: ['text-summary', 'json-summary', 'json', 'lcov', 'html'],
       reportOnFailure: true,

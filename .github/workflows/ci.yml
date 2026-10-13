@@ -317,11 +317,11 @@ jobs:
           name: coverage-db
           path: coverage/db
 
-      # Merges both suites' coverage (a line is covered if either ran it), writes the per-area
-      # table to the job summary and one sticky PR comment, and fails if less than 80% of the
-      # PR's new executable lines are covered (scripts/coverage-report.ts; app/api/** is not
-      # counted). To bypass for a PR, add the skip-patch-coverage label and re-run this job:
-      # the label is read live below.
+      # Merges both suites' coverage (an item is covered if either ran it), writes the per-area
+      # tables to the job summary and one sticky PR comment, and fails if the PR's new code scores
+      # under 80%: the mean of its lines, statements, functions and branches covered
+      # (scripts/coverage-report.ts; app/api/** is not counted). To bypass for a PR, add the
+      # skip-patch-coverage label and re-run this job: the label is read live below.
       - name: Merge coverage, report, and gate new lines
         env:
           GH_TOKEN: ${{ github.token }}
