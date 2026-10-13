@@ -1,6 +1,7 @@
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { safeUrl } from "@/lib/url";
 import { unicodeEmoji, type CustomEmoji } from "@/lib/chat/emoji";
+import { mentionedChannelIds, mentionedUserIds, mentionsToPlainText } from "@/lib/chat/render";
 
 /**
  * Names for Slack authors and mentions that the signed-in member can't read themselves:
@@ -188,4 +189,14 @@ export async function customEmojiFor(names: string[]): Promise<Record<string, Cu
     }
   }
   return out;
+}
+
+/** Rows whose `description` was stored as raw Slack text, with <@U123> / <#C123> turned into names. */
+export async function withMentionNames<T extends { description?: string | null }>(rows: T[]): Promise<T[]> {
+  const texts = rows.map((r) => r.description ?? "");
+  const users = texts.flatMap(mentionedUserIds);
+  const channels = texts.flatMap(mentionedChannelIds);
+  if (users.length === 0 && channels.length === 0) return rows;
+  const [userNames, channelNames] = await Promise.all([slackUserNames(users), slackChannelNames(channels)]);
+  return rows.map((r) => (r.description ? { ...r, description: mentionsToPlainText(r.description, { userNames, channelNames }) } : r));
 }

@@ -1,4 +1,5 @@
 import { cache } from "react";
+import { withMentionNames } from "@/lib/chat/names";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
 import { redirect, notFound } from "next/navigation";
@@ -333,7 +334,7 @@ export default async function MemberDetailPage({ id, tab }: { id: string; tab: M
           member={member}
           attendanceRecords={attendance || []}
           hiatusHistory={hiatusHistory || []}
-          slackActivities={slackActivities || []}
+          slackActivities={await withMentionNames(slackActivities || [])}
           userTimezonePreference={userTimezone}
           membershipHistory={membershipHistory}
           programOverrides={programOverrides}
