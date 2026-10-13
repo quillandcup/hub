@@ -59,6 +59,27 @@ function finish<T>(rows: T[] | null, limit: number): { rows: T[]; hasMore: boole
   return { rows: all.slice(0, limit), hasMore: all.length > limit };
 }
 
+/** Channels the member can open in chat, by name (never a group message, whose label is people). */
+async function searchChannels(ctx: SearchContext, q: UniversalQuery): Promise<KindResults> {
+  const { limit, offset } = page(ctx);
+  // Channels have no author or date to filter by, so those filters can't match one.
+  if (q.from || q.after || q.before) return { kind: "channels", hits: [], hasMore: false };
+  const all = typeof ctx.chatChannels === "function" ? await ctx.chatChannels() : ctx.chatChannels;
+  const words = matchWords(q).map((w) => w.toLowerCase());
+  const rank = (c: ChannelSummary) => (c.archived ? 2 : c.joined ? 0 : 1);
+  const rows = all
+    .filter((c) => c.kind === "channel" && words.every((w) => c.label.toLowerCase().includes(w)))
+    .sort((a, b) => rank(a) - rank(b));
+  return {
+    kind: "channels",
+    hasMore: rows.length > offset + limit,
+    hits: rows.slice(offset, offset + limit).map((c) => ({
+      kind: "channels", id: c.id, title: c.label, subtitle: c.visibility === "private" ? "Private channel" : "Public channel",
+      badge: c.archived ? "archived" : c.joined ? "joined" : undefined, href: `/chat/${c.id}`,
+    })),
+  };
+}
+
 async function searchMembers(ctx: SearchContext, q: UniversalQuery): Promise<KindResults> {
   const { limit, offset } = page(ctx);
   const words = matchWords(q);
@@ -256,7 +277,7 @@ async function searchChatKind(ctx: SearchContext, q: UniversalQuery): Promise<Ki
 }
 
 const SEARCHERS: Record<SearchKind, (ctx: SearchContext, q: UniversalQuery) => Promise<KindResults>> = {
-  members: searchMembers, prickles: searchPrickles, projects: searchProjects, books: searchBooks,
+  channels: searchChannels, members: searchMembers, prickles: searchPrickles, projects: searchProjects, books: searchBooks,
   awards: searchAwards, events: searchEvents, chat: searchChatKind,
 };
 

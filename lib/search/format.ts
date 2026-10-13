@@ -3,6 +3,7 @@ import type { SearchKind } from "@/lib/search/syntax";
 
 /** What each kind's title, subtitle, badge and date columns are called on the results page. */
 export const KIND_COLUMNS: Record<SearchKind, { title: string; subtitle?: string; badge?: string; date?: string }> = {
+  channels: { title: "Channel", subtitle: "Type", badge: "Status" },
   members: { title: "Member", subtitle: "About", badge: "Status" },
   prickles: { title: "Prickle", date: "When" },
   projects: { title: "Project", subtitle: "Member" },
@@ -14,7 +15,7 @@ export const KIND_COLUMNS: Record<SearchKind, { title: string; subtitle?: string
 
 /** A short badge for each kind's icon chip. */
 export const KIND_GLYPHS: Record<SearchKind, string> = {
-  members: "Me", prickles: "Pr", projects: "Pj", books: "Bk", awards: "Aw", events: "Ev", chat: "Ch",
+  channels: "#", members: "Me", prickles: "Pr", projects: "Pj", books: "Bk", awards: "Aw", events: "Ev", chat: "Ch",
 };
 
 /** A date-only value (YYYY-MM-DD) is the same day everywhere; a timestamp is shown in the org's timezone. */

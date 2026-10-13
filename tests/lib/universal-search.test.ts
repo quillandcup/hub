@@ -24,7 +24,7 @@ describe("universalSearch (local database)", () => {
     ...over,
   });
   const run = (input: string, over: Partial<SearchContext> = {}) =>
-    universalSearch(ctx(over), parseUniversal(input), { skip: ["chat"] });
+    universalSearch(ctx(over), parseUniversal(input), { skip: ["chat", "channels"] });
   /** Rows from a seeding insert, or the database's own error. */
   const seeded = <T,>(res: { data: T[] | null; error: { message: string } | null }): T[] => {
     if (res.error || !res.data) throw new Error(res.error?.message ?? "insert returned nothing");
@@ -160,10 +160,30 @@ describe("universalSearch (local database)", () => {
     expect(await run("has:link")).toEqual([]);
   });
 
+  it("finds channels by name, joined first, without group messages", async () => {
+    const channel = (id: string, label: string, over: Record<string, unknown> = {}) => ({
+      id, kind: "channel", label, visibility: "public", restricted: false, archived: false, joined: false, slackChannelId: null, ...over,
+    });
+    const chatChannels = [
+      channel("c1", "#general"),
+      channel("c2", "#general-chat", { joined: true }),
+      channel("c3", "#old-general", { archived: true }),
+      channel("c4", "#writing-sprints", { visibility: "private", joined: true }),
+      channel("c5", "Fern, Gale", { kind: "group_dm", joined: true }),
+    ] as unknown as SearchContext["chatChannels"];
+    const hits = hitsOf(await universalSearch(ctx({ chatChannels }), parseUniversal("in:channels GENERAL"), {}), "channels");
+    expect(hits.map((h) => h.title)).toEqual(["#general-chat", "#general", "#old-general"]);
+    expect(hits.map((h) => h.badge)).toEqual(["joined", undefined, "archived"]);
+    expect(hits[0]).toMatchObject({ href: "/chat/c2", subtitle: "Public channel" });
+    expect(hitsOf(await universalSearch(ctx({ chatChannels }), parseUniversal("in:channels sprints"), {}), "channels")[0].subtitle).toBe("Private channel");
+    expect(hitsOf(await universalSearch(ctx({ chatChannels }), parseUniversal("fern"), { skip: ["chat"] }), "channels")).toEqual([]);
+    expect(hitsOf(await universalSearch(ctx({ chatChannels }), parseUniversal("in:channels general from:fern"), {}), "channels")).toEqual([]);
+  });
+
   it("only looks up chat channels when chat is searched", async () => {
     const chatChannels = vi.fn().mockResolvedValue([]);
     await universalSearch(ctx({ chatChannels }), parseUniversal(`in:members ${token}`), {});
-    await universalSearch(ctx({ chatChannels }), parseUniversal(token), { skip: ["chat"] });
+    await universalSearch(ctx({ chatChannels }), parseUniversal(token), { skip: ["chat", "channels"] });
     expect(chatChannels).not.toHaveBeenCalled();
     await universalSearch(ctx({ chatChannels, viewerMemberId: hostId }), parseUniversal(`in:chat ${token}`), {});
     expect(chatChannels).toHaveBeenCalledTimes(1);

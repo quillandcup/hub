@@ -14,6 +14,7 @@ describe("parseUniversal", () => {
     expect(parseUniversal("in:prickles").inChannel).toBeUndefined();
     expect(parseUniversal("type:person cody").kind).toBe("members");
     expect(parseUniversal("kind:badge x").kind).toBe("badges");
+    expect(parseUniversal("in:channel gen").kind).toBe("channels");
   });
 
   it("channel: picks a chat channel, and in:#name still does too", () => {

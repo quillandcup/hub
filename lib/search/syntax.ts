@@ -8,7 +8,7 @@
  */
 import { parseSearch, type ParsedSearch } from "@/lib/chat/search-syntax";
 
-export const SEARCH_KINDS = ["members", "prickles", "projects", "books", "awards", "events", "chat"] as const;
+export const SEARCH_KINDS = ["channels", "members", "prickles", "projects", "books", "awards", "events", "chat"] as const;
 export type SearchKind = (typeof SEARCH_KINDS)[number];
 
 /** Kinds only admins can search, by the same names. */
@@ -17,6 +17,7 @@ export type AdminSearchKind = (typeof ADMIN_SEARCH_KINDS)[number];
 export type AnySearchKind = SearchKind | AdminSearchKind;
 
 const KIND_ALIASES: Record<string, AnySearchKind> = {
+  channel: "channels",
   member: "members", people: "members", person: "members",
   prickle: "prickles",
   project: "projects",

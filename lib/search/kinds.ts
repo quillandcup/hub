@@ -3,6 +3,7 @@ import type { SearchKind } from "@/lib/search/syntax";
 /** Types and labels shared by the search code and its client components (no server imports). */
 
 export const KIND_LABELS: Record<SearchKind, string> = {
+  channels: "Channels",
   members: "Members",
   prickles: "Prickles",
   projects: "Projects",
