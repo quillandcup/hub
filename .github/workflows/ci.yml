@@ -57,13 +57,8 @@ jobs:
     name: Test (unit)
     runs-on: ubuntu-24.04
     timeout-minutes: 10
-    permissions:
-      contents: read
-      pull-requests: write # the coverage report action comments on the PR
     steps:
       - uses: actions/checkout@v5
-        with:
-          fetch-depth: 0 # the patch coverage check diffs against the PR's base branch
 
       - uses: actions/setup-node@v5
         with:
@@ -90,26 +85,6 @@ jobs:
       - name: Run unit test suite (with coverage)
         run: npm run test:unit:coverage
 
-      # Coverage report (per-area table in the job summary and one sticky PR comment) and, on
-      # pull requests, the gate: at least 80% of the PR's new executable lines must be covered by
-      # the unit suite (scripts/coverage-report.ts; app/api/** is not counted). To bypass for a
-      # PR, add the skip-patch-coverage label and re-run this job: the label is read live below.
-      - name: Coverage report and patch coverage gate
-        if: ${{ !cancelled() }}
-        env:
-          GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          BASE_REF: ${{ github.base_ref }}
-        run: |
-          if [ "$GITHUB_EVENT_NAME" != "pull_request" ]; then
-            npx tsx scripts/coverage-report.ts --name unit --dir coverage/unit
-            exit 0
-          fi
-          if gh pr view "$PR_NUMBER" --json labels --jq '.labels[].name' | grep -qx 'skip-patch-coverage'; then
-            export PATCH_COVERAGE_SKIP=1
-          fi
-          npx tsx scripts/coverage-report.ts --name unit --dir coverage/unit --patch-base "origin/$BASE_REF"
-
       - name: Upload coverage report
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v7
@@ -122,9 +97,6 @@ jobs:
     name: Test (db) & build
     runs-on: ubuntu-24.04
     timeout-minutes: 20
-    permissions:
-      contents: read
-      pull-requests: write # the coverage report action comments on the PR
     steps:
       - uses: actions/checkout@v5
 
@@ -285,18 +257,11 @@ jobs:
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ env.LOCAL_SUPABASE_ANON_KEY }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ env.LOCAL_SUPABASE_SERVICE_ROLE_KEY }}
 
-      # Coverage is report-only here (no thresholds): API-route tests call the app server
-      # over HTTP (the separate `npm run start` process above), which v8 can't see, so this
-      # only counts code the test process itself imports. Kept as a baseline.
+      # No thresholds here. API-route tests call the app server over HTTP (the separate
+      # `npm run start` process above), which v8 can't see, so this only counts code the test
+      # process itself imports. The coverage job below merges it with the unit run.
       - name: Run db test suite (with coverage)
         run: npm run test:db:coverage
-
-      - name: Report db coverage
-        if: ${{ !cancelled() }}
-        env:
-          GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-        run: npx tsx scripts/coverage-report.ts --name db --dir coverage/db
 
       - name: Upload db coverage report
         if: ${{ !cancelled() }}
@@ -318,6 +283,55 @@ jobs:
       - name: Stop local Supabase
         if: always()
         run: supabase stop
+
+  coverage:
+    name: Coverage report
+    needs: [test-unit, test-db]
+    # Skipped (not failed) when a test job fails, since there is nothing to merge. Pull requests
+    # only: on main this must not hold up push-migrations and the deploy.
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: write # to update the sticky coverage comment
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0 # the new-lines check diffs against the PR's base branch
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: ".nvmrc"
+          cache: npm
+
+      - run: npm ci
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: coverage-unit
+          path: coverage/unit
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: coverage-db
+          path: coverage/db
+
+      # Merges both suites' coverage (a line is covered if either ran it), writes the per-area
+      # table to the job summary and one sticky PR comment, and fails if less than 80% of the
+      # PR's new executable lines are covered (scripts/coverage-report.ts; app/api/** is not
+      # counted). To bypass for a PR, add the skip-patch-coverage label and re-run this job:
+      # the label is read live below.
+      - name: Merge coverage, report, and gate new lines
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          if gh pr view "$PR_NUMBER" --json labels --jq '.labels[].name' | grep -qx 'skip-patch-coverage'; then
+            export PATCH_COVERAGE_SKIP=1
+          fi
+          npx tsx scripts/coverage-report.ts --suite unit=coverage/unit --suite db=coverage/db --patch-base "origin/$BASE_REF"
 
   push-migrations:
     name: Push migrations to production
