@@ -164,7 +164,14 @@ export function BrowserNotificationsToggle({ publicKey, readOnly }: { publicKey:
 
   return (
     <div className="rounded-lg border border-slate-200 px-3 py-2.5 text-sm dark:border-slate-700">
-      <div className="font-medium text-slate-900 dark:text-slate-100">Browser notifications</div>
+      <div className="flex items-center justify-between gap-3">
+        <div className="font-medium text-slate-900 dark:text-slate-100">Browser notifications</div>
+        {(canToggle || otherDevices.length > 0) && devices.length > 0 && (
+          <button type="button" disabled={readOnly || busy} onClick={sendTest} className={buttonClass}>
+            Send a test notification
+          </button>
+        )}
+      </div>
       <p className="text-slate-500 dark:text-slate-400">You get these even when the Hub isn&apos;t open.</p>
       {state === "unsupported" &&
         (iosTab ? (
@@ -230,11 +237,6 @@ export function BrowserNotificationsToggle({ publicKey, readOnly }: { publicKey:
               </li>
             ))}
           </ul>
-          {devices.length > 0 && (
-            <button type="button" disabled={readOnly || busy} onClick={sendTest} className={`mt-1 ${buttonClass}`}>
-              Send a test notification
-            </button>
-          )}
         </div>
       )}
       {notice && (
