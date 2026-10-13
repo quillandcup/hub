@@ -263,7 +263,7 @@ const SEARCHERS: Record<SearchKind, (ctx: SearchContext, q: UniversalQuery) => P
 export async function universalSearch(
   ctx: SearchContext,
   q: UniversalQuery,
-  opts: { skip?: SearchKind[] } = {}
+  opts: { skip?: SearchKind[]; /** Filled with each kind's milliseconds, for logging. */ timings?: Record<string, number> } = {}
 ): Promise<KindResults[]> {
   if (q.unknownKind || !hasCriteria(q)) return [];
   const scoped = q.kind && (SEARCH_KINDS as readonly string[]).includes(q.kind) ? [q.kind as SearchKind] : null;
@@ -275,11 +275,14 @@ export async function universalSearch(
   const kinds = (scoped ?? (chatOnly ? (["chat"] as SearchKind[]) : [...SEARCH_KINDS])).filter((k) => !opts.skip?.includes(k));
   const results = await Promise.all(
     kinds.map(async (kind) => {
+      const started = performance.now();
       try {
         return await SEARCHERS[kind](ctx, q);
       } catch (e) {
         console.error(`universal search failed for ${kind}`, e);
         return { kind, hits: [], hasMore: false } satisfies KindResults;
+      } finally {
+        if (opts.timings) opts.timings[kind] = Math.round(performance.now() - started);
       }
     })
   );
