@@ -75,7 +75,7 @@ async function searchChannels(ctx: SearchContext, q: UniversalQuery): Promise<Ki
     hasMore: rows.length > offset + limit,
     hits: rows.slice(offset, offset + limit).map((c) => ({
       kind: "channels", id: c.id, title: c.label, subtitle: c.visibility === "private" ? "Private channel" : "Public channel",
-      badge: c.archived ? "archived" : c.joined ? "joined" : undefined, href: `/chat/${c.id}`,
+      badge: c.archived ? "archived" : c.joined ? "joined" : undefined, muted: c.archived, href: `/chat/${c.id}`,
     })),
   };
 }

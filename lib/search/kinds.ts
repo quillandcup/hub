@@ -25,6 +25,8 @@ export interface SearchHit {
   imageUrl?: string | null;
   /** Small label next to the title (a status, an event type). */
   badge?: string;
+  /** Shown dimmed (an archived channel): still a result, but not a current one. */
+  muted?: boolean;
 }
 
 export interface KindResults {

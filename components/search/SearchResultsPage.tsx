@@ -121,7 +121,7 @@ export default async function SearchResultsPage({
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                     {group.hits.map((hit) => (
-                      <tr key={`${hit.kind}:${hit.id}`} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                      <tr key={`${hit.kind}:${hit.id}`} className={`hover:bg-slate-50 dark:hover:bg-slate-800/40 ${hit.muted ? "opacity-60" : ""}`}>
                         <td className="max-w-md px-3 py-2">
                           <Link href={hit.href} className="font-medium hover:underline">
                             <Highlight text={hit.title} words={words} />

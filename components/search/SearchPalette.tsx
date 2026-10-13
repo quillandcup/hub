@@ -339,7 +339,7 @@ function HitRow({ hit, words, active, onOpen }: { hit: SearchHit; words: string[
       ref={ref}
       href={hit.href}
       onClick={onOpen}
-      className={`flex items-center gap-3 px-4 py-3 sm:py-2 text-sm ${active ? "bg-slate-100 dark:bg-slate-800" : "hover:bg-slate-50 dark:hover:bg-slate-800/60"}`}
+      className={`flex items-center gap-3 px-4 py-3 sm:py-2 text-sm ${hit.muted ? "opacity-60" : ""} ${active ? "bg-slate-100 dark:bg-slate-800" : "hover:bg-slate-50 dark:hover:bg-slate-800/60"}`}
       aria-current={active || undefined}
     >
       <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md bg-slate-100 dark:bg-slate-800 text-xs font-semibold text-slate-600 dark:text-slate-300">

@@ -174,6 +174,7 @@ describe("universalSearch (local database)", () => {
     const hits = hitsOf(await universalSearch(ctx({ chatChannels }), parseUniversal("in:channels GENERAL"), {}), "channels");
     expect(hits.map((h) => h.title)).toEqual(["#general-chat", "#general", "#old-general"]);
     expect(hits.map((h) => h.badge)).toEqual(["joined", undefined, "archived"]);
+    expect(hits.map((h) => h.muted)).toEqual([false, false, true]);
     expect(hits[0]).toMatchObject({ href: "/chat/c2", subtitle: "Public channel" });
     expect(hitsOf(await universalSearch(ctx({ chatChannels }), parseUniversal("in:channels sprints"), {}), "channels")[0].subtitle).toBe("Private channel");
     expect(hitsOf(await universalSearch(ctx({ chatChannels }), parseUniversal("fern"), { skip: ["chat"] }), "channels")).toEqual([]);

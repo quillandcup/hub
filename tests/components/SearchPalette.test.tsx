@@ -127,4 +127,12 @@ describe("SearchPalette", () => {
     await openAndType("cody");
     expect(await screen.findByRole("link", { name: /Search chat messages for/ })).toHaveAttribute("href", "/search?q=cody%20in%3Achat");
   });
+
+  it("dims a muted result, like an archived channel", async () => {
+    searchPalette.mockResolvedValue({
+      results: [{ kind: "channels", hasMore: false, hits: [{ kind: "channels", id: "c1", title: "#old", badge: "archived", muted: true, href: "/chat/c1" }] }],
+    });
+    await openAndType("old");
+    expect(await screen.findByRole("link", { name: /#old/ })).toHaveClass("opacity-60");
+  });
 });
