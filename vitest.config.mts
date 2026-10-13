@@ -68,9 +68,13 @@ export default defineConfig({
       // Enforced only by the unit run (test:unit:coverage sets COVERAGE_ENFORCE): the db
       // project's API-route tests drive a separate Next server process that v8 can't see,
       // so its lib/ numbers would trip a threshold meant for the unit suite. Floors sit just
-      // under the 2026-10-13 baseline (lib/ 70% lines); raise them as tests are added.
+      // under the 2026-10-13 unit baseline (lib/ 70% lines, components/ 70%); raise them as tests
+      // are added.
       thresholds: process.env.COVERAGE_ENFORCE
-        ? { 'lib/**': { lines: 68, statements: 68, functions: 68, branches: 60 } }
+        ? {
+            'lib/**': { lines: 68, statements: 68, functions: 68, branches: 60 },
+            'components/**': { lines: 67, statements: 67, functions: 64, branches: 63 },
+          }
         : undefined,
     },
     projects: [
