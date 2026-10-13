@@ -41,16 +41,17 @@ export default async function SearchResultsPage({
   const words = matchWords(query);
 
   const timings: Record<string, number> = {};
+  const stages: Record<string, number> = {};
   const results: KindResults[] = query.unknownKind
     ? []
     : await universalSearch(
-        { ...searcher.ctx, limit: scoped ? KIND_ROWS : OVERVIEW_ROWS, offset: scoped ? pageNumber * KIND_ROWS : 0 },
+        { ...searcher.ctx, limit: scoped ? KIND_ROWS : OVERVIEW_ROWS, offset: scoped ? pageNumber * KIND_ROWS : 0, stages },
         query,
         { skip: searcher.skip, timings }
       );
   // An empty or unknown-kind search ran nothing, so it says nothing about speed.
   if (Object.keys(timings).length > 0) {
-    recordSearchTimings("results_page", { setupMs, totalMs: Math.round(performance.now() - started), kindsMs: timings });
+    recordSearchTimings("results_page", { setupMs, totalMs: Math.round(performance.now() - started), kindsMs: timings, stagesMs: stages });
   }
 
   const href = (q: string, page = 0) => `${basePath}?q=${encodeURIComponent(q)}${page > 0 ? `&page=${page}` : ""}`;

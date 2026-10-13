@@ -27,6 +27,8 @@ export interface SearchContext {
   /** Rows per kind; one extra is fetched to know if there are more. */
   limit?: number;
   offset?: number;
+  /** A searcher's sub-stage milliseconds (e.g. chat_channels), filled in for the caller's metrics. */
+  stages?: Record<string, number>;
 }
 
 /** One word as a quoted PostgREST ilike pattern, with its wildcards and separators neutralized. */
@@ -265,7 +267,11 @@ async function searchChatKind(ctx: SearchContext, q: UniversalQuery): Promise<Ki
     inThread: q.isThread,
     page: Math.floor((ctx.offset ?? 0) / SEARCH_PAGE_SIZE),
   });
-  console.log("chat search", JSON.stringify({ channelsMs, searchMs: Math.round(performance.now() - started) - channelsMs, channels: channels.length }));
+  // Chat is the slow kind, so split its time into the channel lookup and the query itself.
+  if (ctx.stages) {
+    ctx.stages.chat_channels = channelsMs;
+    ctx.stages.chat_query = Math.round(performance.now() - started) - channelsMs;
+  }
   return {
     kind: "chat",
     hasMore: result.hasMore || result.results.length > limit,

@@ -31,7 +31,8 @@ export async function searchPalette(input: string): Promise<PaletteSearch> {
   const canSearchChat = !searcher.skip.includes("chat");
   const skip = chatWanted ? searcher.skip : [...searcher.skip, "chat" as const];
   const timings: Record<string, number> = {};
-  const results = await universalSearch({ ...searcher.ctx, limit: 4 }, query, { skip, timings });
-  recordSearchTimings("palette", { setupMs, totalMs: Math.round(performance.now() - started), kindsMs: timings });
+  const stages: Record<string, number> = {};
+  const results = await universalSearch({ ...searcher.ctx, limit: 4, stages }, query, { skip, timings });
+  recordSearchTimings("palette", { setupMs, totalMs: Math.round(performance.now() - started), kindsMs: timings, stagesMs: stages });
   return { results, chatSkipped: canSearchChat && !chatWanted };
 }
