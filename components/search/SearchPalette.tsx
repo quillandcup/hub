@@ -41,6 +41,14 @@ function saveRecent(query: string) {
   }
 }
 
+function removeRecent(query: string) {
+  try {
+    localStorage.setItem(RECENTS_KEY, JSON.stringify(readRecents().filter((r) => r !== query)));
+  } catch {
+    // Nothing stored, nothing to remove.
+  }
+}
+
 const SearchIcon = ({ className }: { className?: string }) => (
   <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" className={className} aria-hidden="true">
     <circle cx="9" cy="9" r="6" />
@@ -91,7 +99,10 @@ export default function SearchPalette({ resultsPath, isAdmin }: { resultsPath: s
   }, [open]);
 
   // Read each time the palette opens (localStorage, so never on the server: it starts closed).
-  const recents = useMemo(() => (open ? readRecents() : []), [open]);
+  // `recentsVersion` re-reads the list after one is removed.
+  const [recentsVersion, setRecentsVersion] = useState(0);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const recents = useMemo(() => (open ? readRecents() : []), [open, recentsVersion]);
 
   // Debounced search; a newer keystroke makes an older response stale.
   useEffect(() => {
@@ -261,9 +272,19 @@ export default function SearchPalette({ resultsPath, isAdmin }: { resultsPath: s
                     <>
                       <div className="mb-1 text-xs font-medium uppercase tracking-wide text-slate-500">Recent searches</div>
                       {recents.map((r) => (
-                        <button key={r} type="button" onClick={() => setInput(r)} className="block w-full rounded px-2 py-1.5 text-left hover:bg-slate-100 dark:hover:bg-slate-800">
-                          {r}
-                        </button>
+                        <div key={r} className="group flex items-center rounded hover:bg-slate-100 dark:hover:bg-slate-800">
+                          <button type="button" onClick={() => setInput(r)} className="min-w-0 flex-1 truncate px-2 py-1.5 text-left">
+                            {r}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => { removeRecent(r); setRecentsVersion((v) => v + 1); inputRef.current?.focus(); }}
+                            className="flex-shrink-0 px-3 py-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+                            aria-label={`Remove “${r}” from recent searches`}
+                          >
+                            ×
+                          </button>
+                        </div>
                       ))}
                     </>
                   ) : (

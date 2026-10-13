@@ -146,4 +146,17 @@ describe("SearchPalette", () => {
     await screen.findByRole("heading", { name: "Members" });
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });
+
+  it("removes a recent search with its ×, leaving the others", async () => {
+    localStorage.setItem("hub:recent-searches", JSON.stringify(["cody", "fern"]));
+    const user = userEvent.setup();
+    render(<SearchPalette resultsPath="/search" isAdmin={false} />);
+    await user.click(screen.getByRole("button", { name: "Search" }));
+
+    await user.click(screen.getByRole("button", { name: "Remove “cody” from recent searches" }));
+    expect(screen.queryByRole("button", { name: "cody" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "fern" })).toBeInTheDocument();
+    expect(JSON.parse(localStorage.getItem("hub:recent-searches")!)).toEqual(["fern"]);
+    expect(screen.getByRole("textbox", { name: "Search" })).toHaveValue("");
+  });
 });
