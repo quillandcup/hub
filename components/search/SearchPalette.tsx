@@ -176,7 +176,7 @@ export default function SearchPalette({ resultsPath, isAdmin }: { resultsPath: s
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="ml-10 md:ml-0 mr-auto flex h-10 items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 text-sm text-slate-500 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-600 sm:w-80"
+        className="ml-10 md:ml-0 mr-auto flex h-10 items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 text-sm text-slate-500 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-600 sm:w-80 lg:w-[28rem] xl:w-[36rem]"
         aria-label="Search"
         aria-keyshortcuts="Meta+K Control+K"
       >
@@ -191,7 +191,7 @@ export default function SearchPalette({ resultsPath, isAdmin }: { resultsPath: s
             role="dialog"
             aria-modal="true"
             aria-label="Search"
-            className="flex h-dvh w-full max-w-2xl flex-col overflow-hidden bg-white sm:h-auto sm:max-h-[75vh] sm:rounded-xl dark:bg-slate-900 shadow-2xl"
+            className="flex h-dvh w-full max-w-3xl flex-col overflow-hidden bg-white sm:h-auto sm:max-h-[75vh] sm:rounded-xl dark:bg-slate-900 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center gap-3 border-b border-slate-200 dark:border-slate-800 px-4 py-3">
