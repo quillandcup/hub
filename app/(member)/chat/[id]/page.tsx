@@ -157,7 +157,6 @@ export default async function ChatChannelPage({
                 view={before ? "older" : "latest"}
                 markRead={!identity.isSudo}
                 latestAt={messageViews.length > 0 ? messageViews[messageViews.length - 1].createdAt : null}
-                messageIds={messageViews.map((m) => m.id)}
                 latestId={messageViews.length > 0 ? messageViews[messageViews.length - 1].id : null}
               />
               <MessageList
@@ -184,7 +183,6 @@ export default async function ChatChannelPage({
             channelId={channel.id}
             view="thread"
             threadRootId={threadId}
-            messageIds={threadViews.map((m) => m.id)}
             latestId={threadViews[threadViews.length - 1].id}
           />
           <ThreadList
