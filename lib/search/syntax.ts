@@ -40,14 +40,16 @@ export interface OperatorInfo {
 }
 type AnyKind = AnySearchKind;
 
+const DATED_KINDS: AnyKind[] = ["prickles", "books", "awards", "events", "chat"];
+
 export const OPERATORS: OperatorInfo[] = [
   { name: "in", hint: "Only one kind of result", example: "in:members" },
-  { name: "from", hint: "Who wrote or hosts it (from:me works)", example: "from:fern", kinds: ["chat", "prickles", "books", "projects"] },
+  { name: "from", hint: "Who wrote, hosts, won or attended it (from:me works)", example: "from:fern", kinds: ["chat", "prickles", "books", "projects", "awards", "events"] },
   { name: "channel", hint: "A chat channel", example: "channel:general", kinds: ["chat"] },
-  { name: "before", hint: "Before a date (YYYY, YYYY-MM or YYYY-MM-DD)", example: "before:2026-10-01" },
-  { name: "after", hint: "After a date", example: "after:2026-10-01" },
-  { name: "on", hint: "On a day, month or year", example: "on:2026-10-09" },
-  { name: "during", hint: "During a month or year", example: "during:2026-10" },
+  { name: "before", hint: "Before a date (YYYY, YYYY-MM or YYYY-MM-DD)", example: "before:2026-10-01", kinds: DATED_KINDS },
+  { name: "after", hint: "After a date", example: "after:2026-10-01", kinds: DATED_KINDS },
+  { name: "on", hint: "On a day, month or year", example: "on:2026-10-09", kinds: DATED_KINDS },
+  { name: "during", hint: "During a month or year", example: "during:2026-10", kinds: DATED_KINDS },
   { name: "has", hint: "Has a file, link or reaction", example: "has:link", kinds: ["chat"] },
   { name: "is", hint: "Only threads", example: "is:thread", kinds: ["chat"] },
   { name: "email", hint: "Member email", example: "email:@example.org", kinds: ["members"], adminOnly: true },
@@ -107,6 +109,20 @@ export function hasCriteria(q: UniversalQuery): boolean {
   return Boolean(
     q.tsquery || q.inChannel || q.from || q.after || q.before || q.hasFiles || q.hasLink || q.hasReaction || q.isThread || q.email || q.status
   );
+}
+
+/**
+ * Whether `kind` can honor every filter the query sets. A filter a kind has no column for (`from:`
+ * on members, `after:` on channels) must drop the kind: left to run, it would list everything as
+ * if the filter matched. Words and `in:` never disqualify a kind.
+ */
+export function kindHonors(kind: SearchKind, q: UniversalQuery): boolean {
+  const has = (op: string) => OPERATORS.find((o) => o.name === op)?.kinds?.includes(kind) ?? true;
+  if (q.from && !has("from")) return false;
+  if ((q.after || q.before) && !has("after")) return false;
+  if ((q.email || q.status) && kind !== "members") return false;
+  if ((q.hasFiles || q.hasLink || q.hasReaction || q.isThread || q.inChannel) && kind !== "chat") return false;
+  return true;
 }
 
 /** Operators the viewer may use, for the suggestion list and for ignoring the rest. */

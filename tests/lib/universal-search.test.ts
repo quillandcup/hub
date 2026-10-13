@@ -68,6 +68,8 @@ describe("universalSearch (local database)", () => {
         .select("id")
     );
     made.events.push(...events.map((e) => e.id));
+    // Rows go away with the event and member (ON DELETE CASCADE).
+    seeded(await supabase.from("event_attendees").insert({ event_id: events[0].id, member_id: otherId }).select("id"));
 
     const [type] = seeded(
       await supabase.from("prickle_types").insert({ name: `${token} Sprint`, normalized_name: `${token} sprint`, description: "test" }).select("id")
@@ -152,6 +154,12 @@ describe("universalSearch (local database)", () => {
     const event = hitsOf(await run(`in:events lakeside ${token}`), "events")[0];
     expect(event).toMatchObject({ title: `${token} Retreat`, href: `/events/${token}-retreat` });
     expect(hitsOf(await run(`in:events ${token}`, { isActingAsAdmin: true }), "events")[0].href).toMatch(/^\/admin\/events\//);
+  });
+
+  it("filters events by who attended (from:)", async () => {
+    expect(hitsOf(await run(`in:events ${token} from:bystander`), "events")).toHaveLength(1);
+    expect(hitsOf(await run(`in:events ${token} from:hostess`), "events")).toHaveLength(0);
+    expect(hitsOf(await run(`in:events from:nobodyhasthisname${token}`), "events")).toHaveLength(0);
   });
 
   it("searches every kind when none is named, and only chat for chat-only filters", async () => {

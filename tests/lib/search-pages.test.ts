@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import type { FeatureKey } from "@/lib/features";
 import { matchPages } from "@/lib/search/pages";
-import { parseUniversal } from "@/lib/search/syntax";
+import { SEARCH_KINDS, kindHonors, parseUniversal } from "@/lib/search/syntax";
 import { universalSearch } from "@/lib/search/universal";
 
 const member = { isActingAsAdmin: false, features: [] as FeatureKey[] };
@@ -83,5 +83,20 @@ describe("settings sections in search", () => {
   it("shows the Previews tab only to admins", () => {
     expect(rows(["previews"])).toEqual([]);
     expect(rows(["previews"], { isActingAsAdmin: true, features: [] })).toContain("Previews / Settings / /settings/previews");
+  });
+});
+
+describe("kindHonors", () => {
+  const honors = (input: string) => SEARCH_KINDS.filter((k) => kindHonors(k, parseUniversal(input)));
+
+  it("drops kinds that have nothing to apply a filter to", () => {
+    expect(honors("from:me")).toEqual(["prickles", "projects", "books", "awards", "events", "chat"]);
+    expect(honors("after:2026")).toEqual(["prickles", "books", "awards", "events", "chat"]);
+    expect(honors("email:@example.org")).toEqual(["members"]);
+    expect(honors("has:link")).toEqual(["chat"]);
+  });
+
+  it("keeps every kind for plain words", () => {
+    expect(honors("cody")).toEqual([...SEARCH_KINDS]);
   });
 });

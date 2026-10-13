@@ -14,7 +14,7 @@ import type { ChannelSummary } from "@/lib/chat/load";
 import { KIND_LABELS, type KindResults, type SearchHit } from "@/lib/search/kinds";
 import type { FeatureKey } from "@/lib/features";
 import { matchPages } from "@/lib/search/pages";
-import { hasCriteria, matchWords, SEARCH_KINDS, type AnySearchKind, type SearchKind, type UniversalQuery } from "@/lib/search/syntax";
+import { hasCriteria, kindHonors, matchWords, SEARCH_KINDS, type AnySearchKind, type SearchKind, type UniversalQuery } from "@/lib/search/syntax";
 
 export interface SearchContext {
   supabase: SupabaseClient;
@@ -66,10 +66,9 @@ function finish<T>(rows: T[] | null, limit: number): { rows: T[]; hasMore: boole
   return { rows: all.slice(0, limit), hasMore: all.length > limit };
 }
 
-/** App pages (navigation and settings tabs) by title, section or keyword; static, so no filters apply. */
+/** App pages (navigation and settings tabs) by title, section or keyword. */
 async function searchPages(ctx: SearchContext, q: UniversalQuery): Promise<KindResults> {
   const { limit, offset } = page(ctx);
-  if (q.from || q.after || q.before || q.email || q.status) return { kind: "pages", hits: [], hasMore: false };
   const rows = matchPages(matchWords(q), { isActingAsAdmin: ctx.isActingAsAdmin, features: ctx.features ?? [] });
   return {
     kind: "pages",
@@ -81,8 +80,6 @@ async function searchPages(ctx: SearchContext, q: UniversalQuery): Promise<KindR
 /** Channels the member can open in chat, by name (never a group message, whose label is people). */
 async function searchChannels(ctx: SearchContext, q: UniversalQuery): Promise<KindResults> {
   const { limit, offset } = page(ctx);
-  // Channels have no author or date to filter by, so those filters can't match one.
-  if (q.from || q.after || q.before) return { kind: "channels", hits: [], hasMore: false };
   const all = typeof ctx.chatChannels === "function" ? await ctx.chatChannels() : ctx.chatChannels;
   const words = matchWords(q).map((w) => w.toLowerCase());
   const rank = (c: ChannelSummary) => (c.archived ? 2 : c.joined ? 0 : 1);
@@ -226,8 +223,19 @@ async function searchAwards(ctx: SearchContext, q: UniversalQuery): Promise<Kind
 
 async function searchEvents(ctx: SearchContext, q: UniversalQuery): Promise<KindResults> {
   const { limit, offset } = page(ctx);
+  // `from:` on an event means who attended it.
+  const attendees = await memberIdsNamed(ctx, q.from);
+  let attendedIds: string[] | null = null;
+  if (attendees) {
+    const { data } = attendees.length
+      ? await ctx.supabase.from("event_attendees").select("event_id").in("member_id", attendees).limit(1000)
+      : { data: [] };
+    attendedIds = [...new Set((data ?? []).map((r) => r.event_id as string))];
+    if (attendedIds.length === 0) return { kind: "events", hits: [], hasMore: false };
+  }
   let query = ctx.supabase.from("events").select("id, slug, title, event_type, location, starts_at, focus");
   query = matchEach(query, matchWords(q), ["title", "location", "focus", "description"]);
+  if (attendedIds) query = query.in("id", attendedIds);
   if (q.after) query = query.gte("starts_at", q.after.slice(0, 10));
   if (q.before) query = query.lt("starts_at", q.before.slice(0, 10));
   const { data } = await query.order("starts_at", { ascending: false }).range(offset, offset + limit);
@@ -323,6 +331,8 @@ export async function universalSearch(
   const kinds = (scoped ?? (chatOnly ? (["chat"] as SearchKind[]) : [...SEARCH_KINDS])).filter((k) => !opts.skip?.includes(k));
   const results = await Promise.all(
     kinds.map(async (kind) => {
+      // A kind with no column for a filter in the query would list everything, so it sits out.
+      if (!kindHonors(kind, q)) return { kind, hits: [], hasMore: false } satisfies KindResults;
       const started = performance.now();
       try {
         return await SEARCHERS[kind](ctx, q);
