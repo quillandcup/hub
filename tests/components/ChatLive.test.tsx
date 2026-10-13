@@ -106,15 +106,31 @@ describe("ChatLive", () => {
     expect(calls).toEqual(["setAuth", "subscribe"]);
   });
 
-  it("turns a burst of changes into one refresh", async () => {
+  it("fetches the first change at once, and folds a burst right behind it into one more fetch", async () => {
     await mount();
+    act(() => handlers.chat_messages(update));
+    await act(async () => {});
+    // No waiting to see whether more follow.
+    expect(refresh).toHaveBeenCalledTimes(1);
+
     act(() => {
       handlers.chat_messages(update);
       handlers.chat_messages(update);
       handlers.chat_reactions({ eventType: "INSERT", new: { message_id: "m1" }, old: {} });
     });
     await act(async () => vi.advanceTimersByTime(1000));
+    expect(refresh).toHaveBeenCalledTimes(2);
+  });
+
+  it("goes back to fetching at once after things have been quiet", async () => {
+    await mount();
+    act(() => handlers.chat_messages(update));
+    await act(async () => vi.advanceTimersByTime(1000));
     expect(refresh).toHaveBeenCalledTimes(1);
+
+    act(() => handlers.chat_messages(update));
+    await act(async () => {});
+    expect(refresh).toHaveBeenCalledTimes(2);
   });
 
   it("ignores reactions on messages that are not on the page", async () => {
@@ -226,7 +242,8 @@ describe("ChatLive", () => {
     act(() => handlers.chat_messages(update));
     act(() => handlers.chat_messages(insert("m1")));
     await act(async () => vi.advanceTimersByTime(1000));
-    expect(refresh).toHaveBeenCalledTimes(1);
+    // The first at once, the one right behind it folded into a second.
+    expect(refresh).toHaveBeenCalledTimes(2);
     expect(screen.queryByText(/New messages/)).toBeNull();
   });
 
