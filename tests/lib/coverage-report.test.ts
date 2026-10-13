@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   aggregateScore,
+  annotations,
   areaKey,
   areaMetrics,
   flags,
   isGated,
+  lineRanges,
   mergeSuites,
   parseAddedLines,
   patchCoverage,
@@ -188,7 +190,7 @@ describe("renderReport", () => {
   it("shows the new-code score with a percent sign, the counts and the uncovered lines", () => {
     expect(text).toContain("New code: ❌ 25.0%");
     expect(text).toContain("| 1/4 (25.0%) | 1/4 (25.0%) | 1/4 (25.0%) | 1/4 (25.0%) |");
-    expect(text).toContain("| `lib/a.ts` | 2, 3, 4 |");
+    expect(text).toContain("| `lib/a.ts` | 2-4 |");
   });
 
   it("lists areas nothing tests, with a flag, instead of leaving them out", () => {
@@ -199,5 +201,30 @@ describe("renderReport", () => {
     expect(text).toContain("| Area | score | lines | statements | functions | branches |");
     expect(text).toContain("| `lib` | 100.0% | 2/2 (100.0%) | 2/2 (100.0%) | n/a | n/a |");
     expect(text).toContain("**combined**");
+  });
+});
+
+describe("lineRanges / annotations / links", () => {
+  it("joins lines that are at most two apart into ranges", () => {
+    expect(lineRanges([1, 2, 4, 9, 10, 20])).toEqual([[1, 4], [9, 10], [20, 20]]);
+  });
+
+  it("annotates the biggest uncovered ranges first, as errors when the gate fails", () => {
+    const result = { metrics: metrics([0, 4]), uncovered: new Map([["lib/a.ts", [5, 30, 31, 32, 33]]]) };
+    const [first, second] = annotations(result, true);
+    expect(first).toBe("::error file=lib/a.ts,line=30,endLine=33,title=New code not covered by tests::These lines are not run by the unit or db tests.");
+    expect(second).toContain("line=5,endLine=5");
+    expect(annotations(result, false)[0]).toMatch(/^::warning /);
+    expect(annotations(result, true, 1)).toHaveLength(1);
+  });
+
+  it("links uncovered ranges to the file at the PR commit and the run's artifacts", () => {
+    const text = renderReport([{ name: "unit", metrics: new Map() }], new Map(), {
+      result: { metrics: metrics([0, 3]), uncovered: new Map([["lib/a.ts", [4, 5, 9]]]) },
+      passed: false,
+      skipped: false,
+    }, { repo: "org/repo", sha: "abc123", runUrl: "https://github.com/org/repo/actions/runs/7" });
+    expect(text).toContain("[4-5](https://github.com/org/repo/blob/abc123/lib/a.ts#L4-L5), [9](https://github.com/org/repo/blob/abc123/lib/a.ts#L9)");
+    expect(text).toContain("(https://github.com/org/repo/actions/runs/7#artifacts)");
   });
 });

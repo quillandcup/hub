@@ -327,6 +327,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           BASE_REF: ${{ github.base_ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }} # the commit the comment's file links point at
         run: |
           if gh pr view "$PR_NUMBER" --json labels --jq '.labels[].name' | grep -qx 'skip-patch-coverage'; then
             export PATCH_COVERAGE_SKIP=1

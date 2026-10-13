@@ -20,6 +20,9 @@
 // that start on them, covered by either suite. It exits 1 when that score is below
 // MIN_PATCH_SCORE.
 //
+// On a PR it also links each uncovered range to the file at the PR's commit (HEAD_SHA) and
+// annotates the diff with the biggest uncovered ranges (GitHub shows 10 annotations per step).
+//
 // The per-directory floors stay in vitest.config.mts (coverage.thresholds) and fail the unit
 // job early. app/api/** is excluded from the new-code gate: its routes are exercised by db
 // tests that call a separate Next server process, which v8 can't instrument. Set
@@ -232,6 +235,45 @@ export function patchCoverage(added: Map<string, Set<number>>, files: SuiteHits)
 
 export type Patch = { result: PatchResult; passed: boolean; skipped: boolean };
 
+/** Where the PR's files and the run's artifacts live, to link to; absent outside GitHub Actions. */
+export type Links = { repo: string; sha?: string; runUrl?: string };
+
+/** Sorted line numbers as [start, end] ranges, joining lines up to `gap` apart. */
+export function lineRanges(lines: number[], gap = 2): [number, number][] {
+  const ranges: [number, number][] = [];
+  for (const line of lines) {
+    const last = ranges[ranges.length - 1];
+    if (last && line - last[1] <= gap) last[1] = line;
+    else ranges.push([line, line]);
+  }
+  return ranges;
+}
+
+const rangeLabel = ([a, b]: [number, number]) => (a === b ? `${a}` : `${a}-${b}`);
+
+function rangeLink(file: string, range: [number, number], links?: Links): string {
+  if (!links?.sha) return rangeLabel(range);
+  const [a, b] = range;
+  const anchor = a === b ? `L${a}` : `L${a}-L${b}`;
+  return `[${rangeLabel(range)}](https://github.com/${links.repo}/blob/${links.sha}/${file}#${anchor})`;
+}
+
+/** GitHub Actions workflow commands that annotate the PR diff; GitHub shows 10 per step. */
+export function annotations(result: PatchResult, failing: boolean, limit = 10): string[] {
+  const level = failing ? "error" : "warning";
+  const all = [...result.uncovered].flatMap(([file, lines]) =>
+    lineRanges(lines).map((r) => ({ file, range: r })),
+  );
+  // Biggest gaps first, so the cap drops the least useful ones.
+  all.sort((a, b) => b.range[1] - b.range[0] - (a.range[1] - a.range[0]));
+  return all
+    .slice(0, limit)
+    .map(
+      ({ file, range: [a, b] }) =>
+        `::${level} file=${file},line=${a},endLine=${b},title=New code not covered by tests::These lines are not run by the unit or db tests.`,
+    );
+}
+
 const cell = (a: Area | undefined) => (a && a.total > 0 ? `${a.covered}/${a.total} (${pct(a).toFixed(1)}%)` : "n/a");
 const scoreCell = (m: Metrics | undefined) => {
   const score = m ? aggregateScore(m) : null;
@@ -242,6 +284,7 @@ export function renderReport(
   suites: { name: string; metrics: Map<string, Metrics> }[],
   combined: Map<string, Metrics>,
   patch: Patch | null,
+  links?: Links,
 ): string {
   const out = ["### Coverage (unit + db tests)", ""];
   if (patch) {
@@ -256,7 +299,9 @@ export function renderReport(
     );
     if (result.uncovered.size) {
       out.push("", "| File | Uncovered new lines |", "|---|---|");
-      for (const [file, lines] of result.uncovered) out.push(`| \`${file}\` | ${lines.join(", ")} |`);
+      for (const [file, lines] of result.uncovered) {
+        out.push(`| \`${file}\` | ${lineRanges(lines).map((r) => rangeLink(file, r, links)).join(", ")} |`);
+      }
     }
     out.push("");
   }
@@ -297,6 +342,12 @@ export function renderReport(
     "Score is the mean of statements, functions and branches (lines duplicate statements, so they are shown but not scored; n/a if none has anything to cover). An item counts as covered if either suite ran it. 🚫 untested: nothing in the area ran. ⚠️: a whole measure is uncovered, which the score averages away.",
     "</details>",
   );
+  if (links?.runUrl) {
+    out.push(
+      "",
+      `[Full HTML reports](${links.runUrl}#artifacts) (artifacts \`coverage-unit\`, \`coverage-db\`: download, unzip, open \`index.html\` to browse every file line by line)`,
+    );
+  }
   return out.join("\n");
 }
 
@@ -353,12 +404,24 @@ function main(): void {
     patch = { result, skipped, passed: skipped || score === null || score >= MIN_PATCH_SCORE };
   }
 
+  const { GITHUB_REPOSITORY, GITHUB_SERVER_URL, GITHUB_RUN_ID, HEAD_SHA } = process.env;
+  const links: Links | undefined = GITHUB_REPOSITORY
+    ? {
+        repo: GITHUB_REPOSITORY,
+        sha: HEAD_SHA || undefined,
+        runUrl: GITHUB_RUN_ID ? `${GITHUB_SERVER_URL ?? "https://github.com"}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}` : undefined,
+      }
+    : undefined;
   const text = renderReport(
     loaded.map((s) => ({ name: s.name, metrics: areaMetrics(s.hits) })),
     areaMetrics(merged),
     patch,
+    links,
   );
   console.log(text);
+  if (patch && process.env.GITHUB_ACTIONS) {
+    for (const line of annotations(patch.result, !patch.passed)) console.log(line);
+  }
   if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, text + "\n");
   postStickyComment(text);
   if (patch && !patch.passed) process.exit(1);
