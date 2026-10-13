@@ -45,6 +45,23 @@ export default defineConfig({
     globals: true,
     environment: 'node',
     setupFiles: ['./tests/setup.ts', './tests/setup-msw.ts', './tests/setup-jsdom.ts'],
+    // Only applies with --coverage (npm run test:unit:coverage / test:db:coverage).
+    // Each project writes to its own directory (see the scripts in package.json) so CI
+    // can merge the two lcov files. 
+    coverage: {
+      provider: 'v8',
+      include: ['app/**/*.{ts,tsx}', 'lib/**/*.{ts,tsx}', 'components/**/*.{ts,tsx}'],
+      exclude: ['**/*.d.ts', '**/*.test.*', 'lib/**/types.ts'],
+      reporter: ['text-summary', 'json-summary', 'json', 'lcov', 'html'],
+      reportOnFailure: true,
+      // Enforced only by the unit run (test:unit:coverage sets COVERAGE_ENFORCE): the db
+      // project's API-route tests drive a separate Next server process that v8 can't see,
+      // so its lib/ numbers would trip a threshold meant for the unit suite. Floors sit just
+      // under the 2026-10-13 baseline (lib/ 70% lines); raise them as tests are added.
+      thresholds: process.env.COVERAGE_ENFORCE
+        ? { 'lib/**': { lines: 68, statements: 68, functions: 68, branches: 60 } }
+        : undefined,
+    },
     projects: [
       {
         extends: true,
