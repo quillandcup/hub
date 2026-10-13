@@ -42,18 +42,24 @@ self.addEventListener("notificationclick", (event) => {
 
 // Reuse an open Hub tab when we can drive it, otherwise open a new one. WindowClient.navigate()
 // rejects for a tab this worker doesn't control (opened before it activated) and focus() can reject
-// too, which used to leave the click doing nothing at all.
+// too, which used to leave the click doing nothing at all. Focus goes first, while the click's user
+// activation is fresh (Chrome on macOS doesn't always raise the window after an async navigate), and a
+// tab already on the target is just focused rather than navigated to where it is.
 async function openTarget(target) {
   const windows = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
   const open = windows.find((w) => new URL(w.url).origin === self.location.origin);
-  if (open && "navigate" in open) {
+  console.log("[sw] notification click", { target: target.href, openTabs: windows.length, reusing: open ? open.url : null });
+  if (open) {
     try {
-      const navigated = await open.navigate(target.href);
+      if ("focus" in open) await open.focus();
+      if (open.url === target.href) return;
+      const navigated = "navigate" in open ? await open.navigate(target.href) : null;
       if (navigated) {
         await navigated.focus();
         return;
       }
-    } catch {
+    } catch (error) {
+      console.warn("[sw] couldn't reuse the open tab", error);
       // Fall through to a new window.
     }
   }

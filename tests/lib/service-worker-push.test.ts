@@ -110,6 +110,16 @@ describe("public/sw.js notification click handler", () => {
     expect(openWindow).not.toHaveBeenCalled();
   });
 
+  it("only focuses an open Hub tab that is already on the url", async () => {
+    const focus = vi.fn().mockResolvedValue(undefined);
+    const navigate = vi.fn();
+    const { openWindow } = await click([{ url: `${origin}/prickles/1/checkin`, navigate, focus }])
+
+    expect(focus).toHaveBeenCalled();
+    expect(navigate).not.toHaveBeenCalled();
+    expect(openWindow).not.toHaveBeenCalled();
+  });
+
   it("opens a new window when the open tab can't be navigated", async () => {
     const navigate = vi.fn().mockRejectedValue(new TypeError("uncontrolled client"));
     const { openWindow } = await click([{ url: `${origin}/dashboard`, navigate }]);
