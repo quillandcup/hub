@@ -19,8 +19,11 @@ export interface SearchContext {
   viewerMemberId: string | null;
   /** An admin acting as themselves: gets email:/status: and admin links. False in sudo. */
   isActingAsAdmin: boolean;
-  /** Conversations chat search may look in (what the member's chat lists). */
-  chatChannels: ChannelSummary[];
+  /**
+   * Conversations chat search may look in (what the member's chat lists). A function so the lookup
+   * only runs, alongside the other kinds' queries, when chat is actually searched.
+   */
+  chatChannels: ChannelSummary[] | (() => Promise<ChannelSummary[]>);
   /** Rows per kind; one extra is fetched to know if there are more. */
   limit?: number;
   offset?: number;
@@ -95,12 +98,9 @@ async function searchMembers(ctx: SearchContext, q: UniversalQuery): Promise<Kin
 async function searchPrickles(ctx: SearchContext, q: UniversalQuery): Promise<KindResults> {
   const { limit, offset } = page(ctx);
   const words = matchWords(q);
-  const hosts = await memberIdsNamed(ctx, q.from);
-  if (hosts && hosts.length === 0) return { kind: "prickles", hits: [], hasMore: false };
-
   // A prickle has no title of its own: it is named for its type and host ("Monday Progress Prickle
   // with Jenn P"), so each word must match the type's name or the host's name.
-  const perWord = await Promise.all(
+  const [hosts, perWord] = await Promise.all([memberIdsNamed(ctx, q.from), Promise.all(
     words.map(async (w) => {
       const [types, named] = await Promise.all([
         ctx.supabase.from("prickle_types").select("id").ilike("name", pattern(w).replace(/^"|"$/g, "")).limit(50),
@@ -108,7 +108,8 @@ async function searchPrickles(ctx: SearchContext, q: UniversalQuery): Promise<Ki
       ]);
       return { typeIds: (types.data ?? []).map((t) => t.id as string), hostIds: (named.data ?? []).map((m) => m.id as string) };
     })
-  );
+  )]);
+  if (hosts && hosts.length === 0) return { kind: "prickles", hits: [], hasMore: false };
   if (perWord.some((w) => w.typeIds.length === 0 && w.hostIds.length === 0)) return { kind: "prickles", hits: [], hasMore: false };
 
   let query = ctx.supabase
@@ -205,8 +206,7 @@ async function searchEvents(ctx: SearchContext, q: UniversalQuery): Promise<Kind
 async function searchProjects(ctx: SearchContext, q: UniversalQuery): Promise<KindResults> {
   const { limit, offset } = page(ctx);
   const words = matchWords(q).map((w) => w.toLowerCase());
-  const owners = await memberIdsNamed(ctx, q.from);
-  const { data } = await ctx.supabase.rpc("get_member_directory");
+  const [owners, { data }] = await Promise.all([memberIdsNamed(ctx, q.from), ctx.supabase.rpc("get_member_directory")]);
   const rows = ((data ?? []) as { id: string; name: string; display_name: string | null; photo_url: string | null; projects: string[] }[])
     .filter((m) => !owners || owners.includes(m.id))
     .flatMap((m) => (m.projects ?? []).map((title) => ({ m, title })))
@@ -224,9 +224,10 @@ async function searchProjects(ctx: SearchContext, q: UniversalQuery): Promise<Ki
 async function searchChatKind(ctx: SearchContext, q: UniversalQuery): Promise<KindResults> {
   const { limit } = page(ctx);
   if (!ctx.viewerMemberId) return { kind: "chat", hits: [], hasMore: false };
+  const allChannels = typeof ctx.chatChannels === "function" ? await ctx.chatChannels() : ctx.chatChannels;
   const channels = q.inChannel
-    ? ctx.chatChannels.filter((c) => c.label.replace(/^#/, "").toLowerCase().includes(q.inChannel!.toLowerCase()))
-    : ctx.chatChannels;
+    ? allChannels.filter((c) => c.label.replace(/^#/, "").toLowerCase().includes(q.inChannel!.toLowerCase()))
+    : allChannels;
   const result = await searchChat(ctx.supabase, ctx.viewerMemberId, {
     tsquery: q.tsquery,
     channels,

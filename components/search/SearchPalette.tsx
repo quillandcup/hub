@@ -12,7 +12,8 @@ import Highlight from "@/components/search/Highlight";
 
 const RECENTS_KEY = "hub:recent-searches";
 const MAX_RECENTS = 5;
-const DEBOUNCE_MS = 200;
+const DEBOUNCE_MS = 150;
+const MIN_QUERY_CHARS = 2;
 
 /** Operators offered as chips under the input; clicking one types it for you. */
 const CHIPS = ["in:", "from:me", "has:link", "after:", "channel:"];
@@ -95,7 +96,8 @@ export default function SearchPalette({ resultsPath, isAdmin }: { resultsPath: s
     const q = input.trim();
     const id = ++requestId.current;
     // An empty box shows no results (see `shown`); bumping the id above drops any answer in flight.
-    if (!q) return;
+    // One character matches nearly everything, so wait for a second before querying.
+    if (q.length < MIN_QUERY_CHARS) return;
     const timer = setTimeout(async () => {
       setLoading(true);
       try {
@@ -116,7 +118,7 @@ export default function SearchPalette({ resultsPath, isAdmin }: { resultsPath: s
   const query = useMemo(() => parseUniversal(input), [input]);
   const words = useMemo(() => matchWords(query), [query]);
   const typed = input.trim() !== "";
-  const shown = typed ? data : null;
+  const shown = input.trim().length >= MIN_QUERY_CHARS ? data : null;
   const busy = loading && typed;
   const hits = useMemo(() => (shown?.results ?? []).flatMap((r) => r.hits), [shown]);
   const resultsHref = `${resultsPath}?q=${encodeURIComponent(input.trim())}`;
@@ -186,7 +188,7 @@ export default function SearchPalette({ resultsPath, isAdmin }: { resultsPath: s
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center gap-3 border-b border-slate-200 dark:border-slate-800 px-4 py-3">
-              <SearchIcon className="h-5 w-5 flex-shrink-0 text-slate-400" />
+              <SearchIcon className={`h-5 w-5 flex-shrink-0 text-slate-400 ${busy ? "animate-pulse" : ""}`} />
               <input
                 ref={inputRef}
                 value={input}

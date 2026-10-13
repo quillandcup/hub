@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import { getTestSupabaseAdminClient } from "../helpers/supabase";
 import { parseUniversal } from "@/lib/search/syntax";
 import { universalSearch, type SearchContext } from "@/lib/search/universal";
@@ -141,6 +141,15 @@ describe("universalSearch (local database)", () => {
     const kinds = (await run(token)).map((r) => r.kind).sort();
     expect(kinds).toEqual(["awards", "books", "events", "members", "prickles"]);
     expect(await run("has:link")).toEqual([]);
+  });
+
+  it("only looks up chat channels when chat is searched", async () => {
+    const chatChannels = vi.fn().mockResolvedValue([]);
+    await universalSearch(ctx({ chatChannels }), parseUniversal(`in:members ${token}`), {});
+    await universalSearch(ctx({ chatChannels }), parseUniversal(token), { skip: ["chat"] });
+    expect(chatChannels).not.toHaveBeenCalled();
+    await universalSearch(ctx({ chatChannels, viewerMemberId: hostId }), parseUniversal(`in:chat ${token}`), {});
+    expect(chatChannels).toHaveBeenCalledTimes(1);
   });
 
   it("reports an empty list for an unknown kind or no criteria", async () => {

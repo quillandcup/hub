@@ -2,7 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
 import { getEffectiveIdentity } from "@/lib/sudo";
 import { effectiveMemberHasFeature, getUserFeaturePreviews } from "@/lib/features.server";
-import { loadChatChannels } from "@/lib/chat/load";
+import { loadChatChannels, type ChannelSummary } from "@/lib/chat/load";
 import type { SearchContext } from "@/lib/search/universal";
 import type { SearchKind } from "@/lib/search/syntax";
 
@@ -23,28 +23,30 @@ export interface Searcher {
 export async function getSearcher(): Promise<Searcher | null> {
   const user = await getCurrentUser();
   if (!user) return null;
-  const features = await getUserFeaturePreviews(user.id);
-  if (!features.includes("universal_search")) return null;
-
+  // Every lookup that doesn't depend on another runs together: this is on the path of each keystroke.
   const supabase = await createClient();
-  const [{ data: profile }, identity] = await Promise.all([
+  const [features, { data: profile }, identity] = await Promise.all([
+    getUserFeaturePreviews(user.id),
     supabase.from("user_profiles").select("role").eq("id", user.id).single(),
     getEffectiveIdentity(user),
   ]);
+  if (!features.includes("universal_search")) return null;
   const isAdmin = profile?.role === "admin";
   const isSudo = identity?.isSudo ?? false;
 
   // Chat follows the viewed member's own chat flag, like the chat pages (lib/chat/access.ts).
   const chatOn = identity ? await effectiveMemberHasFeature("chat", identity, features) : false;
-  const channels = chatOn && identity ? await loadChatChannels(supabase, identity.memberId, isSudo) : [];
-  const chatChannels = channels.filter((c) => !(isSudo && c.restricted));
+  // Loaded only if chat is searched (see SearchContext.chatChannels), once per search.
+  let channels: Promise<ChannelSummary[]> | undefined;
+  const chatChannels = () =>
+    (channels ??= loadChatChannels(supabase, identity!.memberId, isSudo).then((all) => all.filter((c) => !(isSudo && c.restricted))));
 
   return {
     ctx: {
       supabase,
       viewerMemberId: identity?.memberId ?? null,
       isActingAsAdmin: isAdmin && !isSudo,
-      chatChannels,
+      chatChannels: chatOn && identity ? chatChannels : [],
     },
     skip: chatOn ? [] : ["chat"],
     isAdmin,
