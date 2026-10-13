@@ -94,11 +94,11 @@ export default function ThreadList({
   const replyViews = [...byId.values()].sort((a, b) => sortKey(a) - sortKey(b) || a.id.localeCompare(b.id));
   return (
     <>
-      <MessageItem message={rootView} ctx={context} channelId={channelId} inThread canReact={canReact} />
+      <MessageItem message={rootView} ctx={context} channelId={channelId} inThread canReact={canReact} canEdit={canReact} />
       <div className="ml-4 pl-4 border-l-2 border-slate-200 dark:border-slate-700">
         {replyViews.length === 0 && <p className="py-3 text-sm text-slate-500">No replies yet.</p>}
         {replyViews.map((m) => (
-          <MessageItem key={m.id} message={m} ctx={context} channelId={channelId} inThread canReact={canReact} />
+          <MessageItem key={m.id} message={m} ctx={context} channelId={channelId} inThread canReact={canReact} canEdit={canReact} />
         ))}
         <div ref={end} />
       </div>
