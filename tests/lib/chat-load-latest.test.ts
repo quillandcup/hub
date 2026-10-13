@@ -5,6 +5,7 @@ const m = vi.hoisted(() => ({
   getEffectiveIdentity: vi.fn(),
   hasFeature: vi.fn(),
   loadChannelForMember: vi.fn(),
+  loadMessage: vi.fn(),
   loadMessages: vi.fn(),
   loadChatChannels: vi.fn(),
   buildMessageViews: vi.fn(),
@@ -25,15 +26,17 @@ vi.mock("@/lib/chat/slack-react", () => ({ syncReactionToSlack: vi.fn() }));
 vi.mock("@/lib/slack-connect", () => ({ getSlackConnectionStatus: vi.fn() }));
 vi.mock("@/lib/chat/load", () => ({
   loadChannelForMember: m.loadChannelForMember,
+  loadMessage: m.loadMessage,
   loadMessages: m.loadMessages,
   loadChatChannels: m.loadChatChannels,
   buildMessageViews: m.buildMessageViews,
   chatTextContext: m.chatTextContext,
 }));
 
-import { loadLatestChat } from "@/app/(member)/chat/actions";
+import { loadLatestChat, loadThreadChat } from "@/app/(member)/chat/actions";
 
 const CHANNEL = "00000000-0000-4000-a000-0000000000c1";
+const ROOT = "00000000-0000-4000-a000-0000000000d1";
 
 beforeEach(() => {
   for (const fn of Object.values(m)) fn.mockReset();
@@ -77,5 +80,38 @@ describe("loadLatestChat", () => {
     m.loadChannelForMember.mockResolvedValue({ id: CHANNEL, restricted: true });
     await expect(loadLatestChat(CHANNEL)).resolves.toBeNull();
     expect(m.loadMessages).not.toHaveBeenCalled();
+  });
+});
+
+describe("loadThreadChat", () => {
+  beforeEach(() => {
+    m.loadMessage.mockResolvedValue({ id: ROOT });
+    m.loadMessages.mockResolvedValue({ messages: [{ id: "r1" }, { id: "r2" }], olderBefore: null });
+    m.buildMessageViews.mockResolvedValue({ views: [{ id: ROOT }, { id: "r1" }, { id: "r2" }], userNames: {}, userMembers: {}, channelNames: {}, customEmoji: {} });
+  });
+
+  it("returns the root first and then its replies, built together, without reading the channel list", async () => {
+    await expect(loadThreadChat(CHANNEL, ROOT)).resolves.toEqual({ views: [{ id: ROOT }, { id: "r1" }, { id: "r2" }], ctx: { ctx: true } });
+    expect(m.loadMessage).toHaveBeenCalledWith({ supabase: true }, CHANNEL, ROOT);
+    expect(m.loadMessages).toHaveBeenCalledWith({ supabase: true }, CHANNEL, { threadRootId: ROOT });
+    expect(m.buildMessageViews).toHaveBeenCalledWith({ supabase: true }, expect.anything(), [{ id: ROOT }, { id: "r1" }, { id: "r2" }], "member-fern");
+    expect(m.loadChatChannels).not.toHaveBeenCalled();
+  });
+
+  it("returns nothing for bad ids, no access, a restricted conversation in sudo or a root that is gone", async () => {
+    await expect(loadThreadChat("nope", ROOT)).resolves.toBeNull();
+    await expect(loadThreadChat(CHANNEL, "nope")).resolves.toBeNull();
+
+    m.loadChannelForMember.mockResolvedValueOnce(null);
+    await expect(loadThreadChat(CHANNEL, ROOT)).resolves.toBeNull();
+
+    m.getEffectiveIdentity.mockResolvedValueOnce({ memberId: "member-fern", isSudo: true });
+    m.loadChannelForMember.mockResolvedValueOnce({ id: CHANNEL, restricted: true });
+    await expect(loadThreadChat(CHANNEL, ROOT)).resolves.toBeNull();
+    expect(m.loadMessage).not.toHaveBeenCalled();
+
+    m.loadMessage.mockResolvedValueOnce(null);
+    await expect(loadThreadChat(CHANNEL, ROOT)).resolves.toBeNull();
+    expect(m.buildMessageViews).not.toHaveBeenCalled();
   });
 });

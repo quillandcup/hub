@@ -9,7 +9,7 @@ import { PENDING_ID_PREFIX, emitListEvent, optimisticView, pokeChat } from "@/li
  * The box a member writes in, under a conversation or inside a thread. Enter sends, Shift+Enter
  * starts a new line.
  *
- * The box clears and (in a conversation) the message appears in the list the moment Send is pressed,
+ * The box clears and the message appears in the list the moment Send is pressed,
  * "Sending to Slack…" until Slack has it, instead of waiting for the server action and then for the
  * whole page to re-render, which took seconds. The action's real message replaces the placeholder;
  * a refused or failed send takes it away and puts the text back. Afterwards the conversation is
@@ -27,7 +27,7 @@ export default function Composer({
   placeholder: string;
   /** Who is writing, for the message shown while it is sent. Without it nothing is shown early. */
   viewer?: { memberId: string; name: string; photoUrl: string | null };
-  /** Show the sent message in the conversation's list at once (not for threads, whose list is the server's). */
+  /** Show the sent message in the list at once (the conversation's, or the thread's for a reply). Off on older pages. */
   showSent?: boolean;
 }) {
   const router = useRouter();
@@ -35,7 +35,7 @@ export default function Composer({
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const boxRef = useRef<HTMLTextAreaElement>(null);
-  const early = Boolean(viewer) && showSent && !threadRootId;
+  const early = Boolean(viewer) && showSent;
 
   const send = async () => {
     const body = text.trim();
@@ -44,17 +44,17 @@ export default function Composer({
     setSending(true);
     setText("");
     const tempId = `${PENDING_ID_PREFIX}${crypto.randomUUID()}`;
-    if (early) emitListEvent({ kind: "add", channelId, view: optimisticView({ id: tempId, body, viewer: viewer! }) });
+    if (early) emitListEvent({ kind: "add", channelId, threadRootId, view: optimisticView({ id: tempId, body, viewer: viewer! }) });
 
     const result = await sendChatMessage(channelId, body, threadRootId).catch(() => ({ ok: false as const, error: "Something went wrong. Try again." }));
     setSending(false);
     if (!result.ok) {
-      if (early) emitListEvent({ kind: "drop", channelId, tempId });
+      if (early) emitListEvent({ kind: "drop", channelId, threadRootId, tempId });
       setText((current) => (current ? `${body}\n${current}` : body));
       setError(result.error);
       return;
     }
-    if (early) emitListEvent({ kind: "swap", channelId, tempId, view: optimisticView({ id: result.id, body, viewer: viewer! }) });
+    if (early) emitListEvent({ kind: "swap", channelId, threadRootId, tempId, view: optimisticView({ id: result.id, body, viewer: viewer! }) });
     // Bring the conversation up to date: just its newest messages when it is open here, else the page.
     if (!pokeChat(channelId)) router.refresh();
     boxRef.current?.focus();

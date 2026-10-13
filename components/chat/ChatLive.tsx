@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { authenticateRealtime } from "@/lib/chat/live";
 import { scrollParent } from "@/lib/chat/scroll";
-import { loadLatestChat, markChatRead } from "@/app/(member)/chat/actions";
+import { loadLatestChat, loadThreadChat, markChatRead } from "@/app/(member)/chat/actions";
 import { emitListEvent, onPoke } from "@/lib/chat/list-events";
 
 /** Bursts of changes (a message plus its reactions) become one refresh. */
@@ -35,9 +35,10 @@ export type ChatLiveView = "latest" | "thread" | "older";
  * through the normal access-checked loaders. (Message content is written in the same transaction
  * as its message, so it needs no subscription of its own.)
  *
- * The newest-messages view re-reads just the messages (`loadLatestChat`, handed to the list as a
- * merge) instead of re-rendering the whole page and layout, which took several seconds; threads and
- * older pages still refresh the page, as does any failure of the small fetch.
+ * The newest-messages view and an open thread re-read just their messages (`loadLatestChat`,
+ * `loadThreadChat`, handed to the list as a merge) instead of re-rendering the whole page and
+ * layout, which took several seconds; older pages still refresh the page, as does any failure of
+ * the small fetch.
  *
  * A new message never moves someone who is reading history: when they are scrolled up it waits
  * behind a "New messages" pill; when they are at the bottom the page refreshes and follows it.
@@ -92,13 +93,20 @@ export default function ChatLive({
     leaveAt.current = latestAt;
   }, [latestAt]);
 
-  // Bring the conversation up to date: the newest messages only (merged into the list in place),
-  // or the whole page for threads, older pages and when that small fetch can't be done.
+  // Bring the conversation up to date: just the newest messages (or the open thread), merged into
+  // the list in place; or the whole page for older pages and when that small fetch can't be done.
   const reload = useCallback(async () => {
-    if (view !== "latest") return router.refresh();
-    const result = await loadLatestChat(channelId).catch(() => null);
+    if (view === "older") return router.refresh();
+    const result =
+      view === "thread"
+        ? await loadThreadChat(channelId, threadRootId ?? "").catch(() => null)
+        : await loadLatestChat(channelId).catch(() => null);
     if (!result) return router.refresh();
-    emitListEvent({ kind: "merge", channelId, views: result.views, ctx: result.ctx });
+    if (view === "thread") {
+      emitListEvent({ kind: "merge-thread", channelId, threadRootId: threadRootId ?? "", views: result.views, ctx: result.ctx });
+    } else {
+      emitListEvent({ kind: "merge", channelId, views: result.views, ctx: result.ctx });
+    }
     const last = result.views[result.views.length - 1];
     for (const v of result.views) fetchedIds.current.add(v.id);
     if (last) {
@@ -107,7 +115,7 @@ export default function ChatLive({
       const el = scrollParent(anchor.current);
       if (el.scrollHeight - el.clientHeight - el.scrollTop <= NEAR_BOTTOM_PX) leaveAt.current = last.createdAt;
     }
-  }, [view, channelId, router]);
+  }, [view, channelId, threadRootId, router]);
 
   const refresh = useCallback(() => {
     if (timer.current) clearTimeout(timer.current);

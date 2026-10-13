@@ -6,9 +6,10 @@ import type { ChatTextContext } from "@/components/chat/ChatText";
  * without re-rendering the whole page and layout (which took several seconds). Client-side only:
  * nothing here is stored.
  *
- * - **List events**, sent to the conversation's message list (`MessageList`): the composer shows a
- *   message the member just sent before the server has finished with it, and `ChatLive` hands over
- *   the newest messages it fetched (one small server action instead of a page refresh).
+ * - **List events**, sent to the conversation's message list (`MessageList`) and to an open
+ *   thread's (`ThreadList`): the composer shows a message the member just sent before the server has
+ *   finished with it, and `ChatLive` hands over the messages it fetched (one small server action
+ *   instead of a page refresh).
  * - **Poke**: "something changed here, bring it up to date" (the composer after a send, a reaction
  *   after a toggle). The conversation's `ChatLive` answers with that same small fetch; if nothing
  *   is listening (a page with no live conversation), the caller falls back to a page refresh.
@@ -19,14 +20,16 @@ export const PENDING_ID_PREFIX = "pending-";
 export const isPendingId = (id: string) => id.startsWith(PENDING_ID_PREFIX);
 
 export type ListEvent =
-  /** Show a message the member just sent. */
-  | { kind: "add"; channelId: string; view: ChatMessageView }
+  /** Show a message the member just sent (a reply when `threadRootId` is set, else in the conversation). */
+  | { kind: "add"; channelId: string; threadRootId?: string; view: ChatMessageView }
   /** The action returned: swap the placeholder for the saved message (same text, its real id). */
-  | { kind: "swap"; channelId: string; tempId: string; view: ChatMessageView }
+  | { kind: "swap"; channelId: string; threadRootId?: string; tempId: string; view: ChatMessageView }
   /** The send failed: take the placeholder away. */
-  | { kind: "drop"; channelId: string; tempId: string }
+  | { kind: "drop"; channelId: string; threadRootId?: string; tempId: string }
   /** The newest messages as the server has them now (newer data wins, by id). */
-  | { kind: "merge"; channelId: string; views: ChatMessageView[]; ctx: ChatTextContext };
+  | { kind: "merge"; channelId: string; views: ChatMessageView[]; ctx: ChatTextContext }
+  /** An open thread as the server has it now: the root first, then its replies (newer data wins, by id). */
+  | { kind: "merge-thread"; channelId: string; threadRootId: string; views: ChatMessageView[]; ctx: ChatTextContext };
 
 type Listener = (event: ListEvent) => void;
 const listeners = new Set<Listener>();
