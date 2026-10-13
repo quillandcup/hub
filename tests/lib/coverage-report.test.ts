@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  aggregateScore,
   areaCoverage,
+  areaMetrics,
   isGated,
   mergeSuites,
   parseAddedLines,
@@ -26,14 +28,17 @@ const DIFF = [
   "@@ -1,3 +0,0 @@",
 ].join("\n");
 
-function coverage(lines: Record<number, number>): FileCoverage {
+function coverage(
+  lines: Record<number, number>,
+  extra: { f?: Record<string, number>; b?: Record<string, number[]> } = {},
+): FileCoverage {
   const statementMap: FileCoverage["statementMap"] = {};
   const s: FileCoverage["s"] = {};
   for (const [line, hits] of Object.entries(lines)) {
     statementMap[line] = { start: { line: Number(line) } };
     s[line] = hits;
   }
-  return { statementMap, s };
+  return { statementMap, s, f: extra.f ?? {}, b: extra.b ?? {} };
 }
 
 function suite(files: Record<string, Record<number, boolean>>): SuiteLines {
@@ -108,6 +113,28 @@ describe("areaCoverage / renderReport", () => {
   const unit = suite({ "lib/a.ts": { 1: true, 2: false }, "app/(admin)/admin/p.tsx": { 1: false } });
   const db = suite({ "lib/a.ts": { 1: true, 2: true } });
 
+  const unitMetrics = areaMetrics(
+    {
+      "/repo/lib/a.ts": coverage({ 1: 1, 2: 0 }, { f: { 0: 1, 1: 0 }, b: { 0: [1, 0], 1: [0, 0] } }),
+    },
+    "/repo",
+  );
+
+  it("counts statements, functions and branches per area, and their mean as the score", () => {
+    const lib = unitMetrics.get("lib")!;
+    expect(lib.lines).toEqual({ covered: 1, total: 2 });
+    expect(lib.statements).toEqual({ covered: 1, total: 2 });
+    expect(lib.functions).toEqual({ covered: 1, total: 2 });
+    expect(lib.branches).toEqual({ covered: 1, total: 4 });
+    expect(aggregateScore(lib)).toBeCloseTo((50 + 50 + 50 + 25) / 4);
+  });
+
+  it("leaves metrics with nothing to cover out of the score", () => {
+    const empty = { covered: 0, total: 0 };
+    expect(aggregateScore({ lines: { covered: 1, total: 2 }, statements: empty, functions: empty, branches: empty })).toBe(50);
+    expect(aggregateScore({ lines: empty, statements: empty, functions: empty, branches: empty })).toBe(100);
+  });
+
   it("groups by top-level dir, or by route group under app/", () => {
     const areas = areaCoverage(unit);
     expect(areas.get("lib")).toEqual({ covered: 1, total: 2 });
@@ -117,8 +144,8 @@ describe("areaCoverage / renderReport", () => {
   it("renders the patch result, uncovered lines and per-suite plus combined columns", () => {
     const text = renderReport(
       [
-        { name: "unit", areas: areaCoverage(unit) },
-        { name: "db", areas: areaCoverage(db) },
+        { name: "unit", areas: areaCoverage(unit), metrics: unitMetrics },
+        { name: "db", areas: areaCoverage(db), metrics: new Map() },
       ],
       areaCoverage(mergeSuites([unit, db])),
       {
@@ -132,5 +159,7 @@ describe("areaCoverage / renderReport", () => {
     expect(text).toContain("| Area | unit | db | combined |");
     expect(text).toContain("| `lib` | 50.0% (1/2) | 100.0% (2/2) | 100.0% (2/2) |");
     expect(text).toContain("| `app/(admin)` | 0.0% (0/1) | n/a | 0.0% (0/1) |");
+    expect(text).toContain("| Area | score | lines | statements | functions | branches |");
+    expect(text).toContain("| `lib` | 43.8 | 50.0% (1/2) | 50.0% (1/2) | 50.0% (1/2) | 25.0% (1/4) |");
   });
 });

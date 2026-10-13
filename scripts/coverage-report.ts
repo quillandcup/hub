@@ -34,6 +34,8 @@ const COMMENT_MARKER = "<!-- coverage-report -->";
 export type FileCoverage = {
   statementMap: Record<string, { start: { line: number } }>;
   s: Record<string, number>;
+  f: Record<string, number>;
+  b: Record<string, number[]>;
 };
 
 /** Executable line -> whether it ran. */
@@ -72,18 +74,62 @@ export function mergeSuites(suites: SuiteLines[]): SuiteLines {
   return merged;
 }
 
-/** Lines covered per area: first path segment, or the route group under app/. */
+/** First path segment, or the route group under app/. */
+export function areaKey(file: string): string {
+  const parts = file.split("/");
+  return parts[0] === "app" && parts.length > 2 ? `app/${parts[1]}` : parts[0];
+}
+
+/** Lines covered per area. */
 export function areaCoverage(files: SuiteLines): Map<string, Area> {
   const areas = new Map<string, Area>();
   for (const [file, lines] of files) {
-    const parts = file.split("/");
-    const key = parts[0] === "app" && parts.length > 2 ? `app/${parts[1]}` : parts[0];
+    const key = areaKey(file);
     const area = areas.get(key) ?? { covered: 0, total: 0 };
     area.total += lines.size;
     area.covered += [...lines.values()].filter(Boolean).length;
     areas.set(key, area);
   }
   return areas;
+}
+
+export type Metrics = { lines: Area; statements: Area; functions: Area; branches: Area };
+const METRICS = ["lines", "statements", "functions", "branches"] as const;
+
+/**
+ * All four metrics per area for one suite. Unlike lines these are not merged across suites
+ * (each run's statement, function and branch maps can differ), so they are reported per suite.
+ */
+export function areaMetrics(coverage: Record<string, FileCoverage>, root: string): Map<string, Metrics> {
+  const empty = (): Metrics => ({
+    lines: { covered: 0, total: 0 },
+    statements: { covered: 0, total: 0 },
+    functions: { covered: 0, total: 0 },
+    branches: { covered: 0, total: 0 },
+  });
+  const areas = new Map<string, Metrics>();
+  const add = (into: Area, counts: number[]) => {
+    into.total += counts.length;
+    into.covered += counts.filter((n) => n > 0).length;
+  };
+  for (const [abs, fc] of Object.entries(coverage)) {
+    const file = path.relative(root, abs);
+    const key = areaKey(file);
+    const m = areas.get(key) ?? empty();
+    const lines = suiteLines({ [abs]: fc }, root).get(file)!;
+    add(m.lines, [...lines.values()].map((hit) => (hit ? 1 : 0)));
+    add(m.statements, Object.values(fc.s));
+    add(m.functions, Object.values(fc.f));
+    add(m.branches, Object.values(fc.b).flat());
+    areas.set(key, m);
+  }
+  return areas;
+}
+
+/** Mean of the percentages of the metrics that have something to cover (100 if none do). */
+export function aggregateScore(m: Metrics): number {
+  const present = METRICS.filter((k) => m[k].total > 0);
+  return present.length === 0 ? 100 : present.reduce((sum, k) => sum + pct(m[k]), 0) / present.length;
 }
 
 /** Added line numbers per file from `git diff -U0` output. */
@@ -140,12 +186,12 @@ export function patchCoverage(added: Map<string, Set<number>>, files: SuiteLines
 }
 
 const pct = (a: Area) => (a.total === 0 ? 100 : (100 * a.covered) / a.total);
-const cell = (a: Area | undefined) => (a ? `${pct(a).toFixed(1)}% (${a.covered}/${a.total})` : "n/a");
+const cell = (a: Area | undefined) => (a && a.total > 0 ? `${pct(a).toFixed(1)}% (${a.covered}/${a.total})` : "n/a");
 
 export type Patch = { result: PatchResult; passed: boolean; skipped: boolean };
 
 export function renderReport(
-  suites: { name: string; areas: Map<string, Area> }[],
+  suites: { name: string; areas: Map<string, Area>; metrics: Map<string, Metrics> }[],
   combined: Map<string, Area>,
   patch: Patch | null,
 ): string {
@@ -177,6 +223,30 @@ export function renderReport(
   out.push(
     `| **all** | ${suites.map((s) => `**${cell(total(s.areas))}**`).join(" | ")} | **${cell(total(combined))}** |`,
   );
+  out.push("", "<details open><summary>All metrics per suite (not merged: each run's maps differ)</summary>");
+  for (const suite of suites) {
+    out.push(
+      "",
+      `**${suite.name}**: score is the mean of the metrics that have something to cover.`,
+      "",
+      "| Area | score | lines | statements | functions | branches |",
+      "|---|--:|--:|--:|--:|--:|",
+    );
+    const sum = (k: (typeof METRICS)[number]): Area =>
+      [...suite.metrics.values()].reduce(
+        (a, m) => ({ covered: a.covered + m[k].covered, total: a.total + m[k].total }),
+        { covered: 0, total: 0 },
+      );
+    const row = (label: string, m: Metrics) =>
+      `| ${label} | ${aggregateScore(m).toFixed(1)} | ${METRICS.map((k) => cell(m[k])).join(" | ")} |`;
+    for (const [key, m] of [...suite.metrics].sort(([a], [b]) => a.localeCompare(b))) {
+      out.push(row(`\`${key}\``, m));
+    }
+    out.push(
+      row("**all**", { lines: sum("lines"), statements: sum("statements"), functions: sum("functions"), branches: sum("branches") }),
+    );
+  }
+  out.push("", "</details>");
   return out.join("\n");
 }
 
@@ -213,10 +283,10 @@ function main(): void {
   }
 
   const root = process.cwd();
-  const loaded = suites.map(({ name, dir }) => ({
-    name,
-    files: suiteLines(JSON.parse(readFileSync(path.join(dir, "coverage-final.json"), "utf8")), root),
-  }));
+  const loaded = suites.map(({ name, dir }) => {
+    const raw = JSON.parse(readFileSync(path.join(dir, "coverage-final.json"), "utf8")) as Record<string, FileCoverage>;
+    return { name, files: suiteLines(raw, root), metrics: areaMetrics(raw, root) };
+  });
   const merged = mergeSuites(loaded.map((s) => s.files));
 
   let patch: Patch | null = null;
@@ -232,7 +302,7 @@ function main(): void {
   }
 
   const text = renderReport(
-    loaded.map((s) => ({ name: s.name, areas: areaCoverage(s.files) })),
+    loaded.map((s) => ({ name: s.name, areas: areaCoverage(s.files), metrics: s.metrics })),
     areaCoverage(merged),
     patch,
   );
