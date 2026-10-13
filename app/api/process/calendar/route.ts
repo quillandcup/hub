@@ -1,6 +1,6 @@
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { NextRequest, NextResponse } from "next/server";
-import { parsePrickleFromSummary, normalizePrickleType } from "@/lib/prickle-types";
+import { parsePrickleFromSummary, normalizePrickleType, prickleTitleFromSummary, plainTextDescription } from "@/lib/prickle-types";
 import { matchAttendeeToMember } from "@/lib/member-matching";
 
 // Extend timeout for processing large batches of events
@@ -241,11 +241,9 @@ export async function POST(request: NextRequest) {
       }
 
       // Add to upsert list — calendar_event_id is the conflict key, so existing prickle UUIDs survive reprocessing
-      // Only store title if it's different from the type (for "fun names" like "Midnight Crew")
+      // Keep the host's own name for the prickle (NULL when it's just "{Type}" / "{Type} Prickle"),
+      // without the "w/Host" tail; the calendar description comes along as plain text.
       const matchedType = prickleTypes?.find(t => t.id === typeId);
-      const isSameAsType = matchedType &&
-        (event.summary === matchedType.name ||
-         event.summary === `${matchedType.name} Prickle`);
 
       // Use default host if no host was extracted from "w/Name" pattern
       const finalHostId = hostId || matchedType?.default_host_id || null;
@@ -253,7 +251,8 @@ export async function POST(request: NextRequest) {
       pricklesToInsert.push({
         calendar_event_id: event.id,
         type_id: typeId,
-        title: isSameAsType ? null : event.summary, // NULL if just "{Type}" or "{Type} Prickle"
+        title: matchedType ? prickleTitleFromSummary(event.summary, matchedType.name) : event.summary,
+        description: plainTextDescription(event.description),
         host: finalHostId,
         start_time: event.start_time,
         end_time: event.end_time,

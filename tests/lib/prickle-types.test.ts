@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { normalizePrickleType, parsePrickleFromSummary } from '@/lib/prickle-types'
+import { normalizePrickleType, parsePrickleFromSummary, prickleTitleFromSummary, plainTextDescription } from '@/lib/prickle-types'
 
 // ---------------------------------------------------------------------------
 // normalizePrickleType
@@ -92,5 +92,34 @@ describe('parsePrickleFromSummary', () => {
       type: 'Midnight Crew',
       host: 'member13-display',
     })
+  })
+})
+
+describe('prickleTitleFromSummary', () => {
+  it('keeps a host-chosen name and drops the w/Host tail', () => {
+    expect(prickleTitleFromSummary('Educational Webinar: Query Letters w/Sam', 'Educational Prickle')).toBe('Educational Webinar: Query Letters')
+    expect(prickleTitleFromSummary("'Midnight Crew' w/Alex", 'Open Table')).toBe('Midnight Crew')
+  })
+
+  it('is null when the summary is just the type', () => {
+    expect(prickleTitleFromSummary('Heads Down w/Cody', 'Heads Down')).toBeNull()
+    expect(prickleTitleFromSummary('Heads Down Prickle', 'Heads Down')).toBeNull()
+    expect(prickleTitleFromSummary('Prickle w/Lili', 'Progress Prickle')).toBeNull()
+  })
+})
+
+describe('plainTextDescription', () => {
+  it('turns calendar HTML into plain text with line breaks', () => {
+    expect(plainTextDescription('<p>Bring a project.</p><p>We chat first &amp; write after.<br>Cameras optional</p>'))
+      .toBe('Bring a project.\nWe chat first & write after.\nCameras optional')
+  })
+
+  it('does not leave markup behind', () => {
+    expect(plainTextDescription('<a href="x">Join</a><script>alert(1)</script>')).toBe('Joinalert(1)')
+  })
+
+  it('is null for empty input', () => {
+    expect(plainTextDescription(null)).toBeNull()
+    expect(plainTextDescription('<p> </p>')).toBeNull()
   })
 })

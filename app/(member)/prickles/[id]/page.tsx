@@ -27,6 +27,8 @@ const getPrickle = cache(async (id: string) => {
     .from("prickles")
     .select(`
       id,
+      title,
+      description,
       host:prickle_host(id, name),
       start_time,
       end_time,

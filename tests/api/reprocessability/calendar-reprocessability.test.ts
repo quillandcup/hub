@@ -100,6 +100,38 @@ describe('Calendar Reprocessability', () => {
       .eq('raw_summary', 'Weird Custom Prickle Type')
   })
 
+  it('keeps the host-chosen title and calendar description on the prickle, and refreshes them on reprocess', async () => {
+    const { data: heads } = await supabase.from('prickle_types').select('id').eq('normalized_name', 'heads-down').single()
+    const calendarEventId = 'test-event-title-desc'
+    const process = () => fetch(`${getTestApiBaseUrl()}/api/process/calendar`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...getTestAuthHeaders() },
+      body: JSON.stringify({ fromDate: testDateRange.from, toDate: testDateRange.to }),
+    })
+    const read = async () => {
+      const { data: event } = await supabase.schema('bronze').from('calendar_events').select('id').eq('google_event_id', calendarEventId).single()
+      const { data } = await supabase.from('prickles').select('title, description, type_id').eq('calendar_event_id', event!.id).single()
+      return data
+    }
+
+    await supabase.schema('bronze').from('calendar_events').insert({
+      google_event_id: calendarEventId,
+      summary: 'Heads Down Midnight Crew',
+      description: '<p>Quiet sprint &amp; chat after.</p>',
+      start_time: '2099-06-20T09:00:00Z',
+      end_time: '2099-06-20T10:00:00Z',
+      raw_data: {},
+    })
+    await process()
+    expect(await read()).toMatchObject({ title: 'Heads Down Midnight Crew', description: 'Quiet sprint & chat after.', type_id: heads!.id })
+
+    await supabase.schema('bronze').from('calendar_events')
+      .update({ summary: 'Heads Down', description: null })
+      .eq('google_event_id', calendarEventId)
+    await process()
+    expect(await read()).toMatchObject({ title: null, description: null })
+  })
+
   it('should create prickles from calendar events on first process', async () => {
     // ARRANGE: Insert Bronze calendar events
     const bronzeEvents = [

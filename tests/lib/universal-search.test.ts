@@ -80,6 +80,17 @@ describe("universalSearch (local database)", () => {
         .select("id")
     );
     made.prickles.push(...prickles.map((p) => p.id));
+    const [webinarType] = seeded(
+      await supabase.from("prickle_types").insert({ name: `${token} Webinar`, normalized_name: `${token} webinar`, description: "test" }).select("id")
+    );
+    made.types.push(webinarType.id);
+    const titled = seeded(
+      await supabase
+        .from("prickles")
+        .insert({ type_id: webinarType.id, title: `Tiny Things Practice Workshop ${token}`, start_time: "2099-01-06T10:00:00Z", end_time: "2099-01-06T11:00:00Z", source: "calendar" })
+        .select("id")
+    );
+    made.prickles.push(...titled.map((p) => p.id));
   });
 
   afterAll(async () => {
@@ -114,6 +125,12 @@ describe("universalSearch (local database)", () => {
       expect(hits[0].title).toContain(`${token} Sprint`);
       expect(hits[0].href).toBe(`/prickles/${hits[0].id}`);
     }
+  });
+
+  it("finds a prickle by its own title and shows that title", async () => {
+    const hits = hitsOf(await run(`in:prickles tiny workshop ${token}`), "prickles");
+    expect(hits).toHaveLength(1);
+    expect(hits[0].title).toBe(`Tiny Things Practice Workshop ${token}`);
   });
 
   it("filters prickles by host (from:) and by date", async () => {

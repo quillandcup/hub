@@ -37,6 +37,11 @@ const MONDAY = new Date(2026, 7, 24, 12, 0, 0).toISOString() // Aug 24, 2026
 const TUESDAY = new Date(2026, 7, 25, 12, 0, 0).toISOString() // Aug 25, 2026
 
 describe('formatPrickleTitle', () => {
+  it('uses its own title when it has one', () => {
+    expect(formatPrickleTitle({ title: 'Query Letters Webinar', start_time: MONDAY, host: { name: 'Jenn Peterson' }, prickle_types: { name: 'Educational Prickle' } }))
+      .toBe('Query Letters Webinar')
+  })
+
   it('includes weekday, type name, and short host name', () => {
     const title = formatPrickleTitle({
       start_time: MONDAY,

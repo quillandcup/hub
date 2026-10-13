@@ -4,7 +4,7 @@
  * can see (never pass the service-role client). Members come from `member_directory`, which has
  * no email or status; only an admin acting as themselves (not in sudo) searches `members` itself.
  * Chat reuses searchChat (full text, via search_chat_messages). Word matching is `ilike` on the
- * few fields each kind shows: these tables are small, and prickle titles are computed, not stored.
+ * few fields each kind shows: these tables are small. A prickle's title is its own only when the host named it; otherwise it is computed.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { formatPrickleTitle } from "@/lib/formatters";
@@ -98,8 +98,9 @@ async function searchMembers(ctx: SearchContext, q: UniversalQuery): Promise<Kin
 async function searchPrickles(ctx: SearchContext, q: UniversalQuery): Promise<KindResults> {
   const { limit, offset } = page(ctx);
   const words = matchWords(q);
-  // A prickle has no title of its own: it is named for its type and host ("Monday Progress Prickle
-  // with Jenn P"), so each word must match the type's name or the host's name.
+  // A prickle is named for its type and host ("Monday Progress Prickle with Jenn P") unless the host
+  // gave it a title of its own ("Tiny Things Practice Workshop"), so each word must match the type's
+  // name, the host's name or the title.
   const [hosts, perWord] = await Promise.all([memberIdsNamed(ctx, q.from), Promise.all(
     words.map(async (w) => {
       const [types, named] = await Promise.all([
@@ -110,15 +111,15 @@ async function searchPrickles(ctx: SearchContext, q: UniversalQuery): Promise<Ki
     })
   )]);
   if (hosts && hosts.length === 0) return { kind: "prickles", hits: [], hasMore: false };
-  if (perWord.some((w) => w.typeIds.length === 0 && w.hostIds.length === 0)) return { kind: "prickles", hits: [], hasMore: false };
 
   let query = ctx.supabase
     .from("prickles")
-    .select("id, start_time, host:prickle_host(id, name), prickle_types:type_id(name)");
+    .select("id, title, start_time, host:prickle_host(id, name), prickle_types:type_id(name)");
   if (hosts) query = query.in("host", hosts);
-  for (const w of perWord) {
+  for (const [i, w] of perWord.entries()) {
     // One .or() per word: PostgREST ANDs separate filters.
     const ors = [
+      `title.ilike.${pattern(words[i])}`,
       w.typeIds.length ? `type_id.in.(${w.typeIds.join(",")})` : null,
       w.hostIds.length ? `host.in.(${w.hostIds.join(",")})` : null,
     ].filter(Boolean);

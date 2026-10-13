@@ -1,6 +1,6 @@
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { NextRequest, NextResponse } from "next/server";
-import { normalizePrickleType } from "@/lib/prickle-types";
+import { normalizePrickleType, plainTextDescription } from "@/lib/prickle-types";
 import { matchAttendeeToMember } from "@/lib/member-matching";
 
 /**
@@ -105,7 +105,7 @@ export async function POST(request: NextRequest) {
     // Fetch calendar event details for each event
     const { data: calendarEvents } = await supabase
       .schema('bronze').from("calendar_events")
-      .select("id, start_time, end_time")
+      .select("id, start_time, end_time, description")
       .in("id", calendarEventIds);
 
     if (!calendarEvents || calendarEvents.length === 0) {
@@ -119,6 +119,7 @@ export async function POST(request: NextRequest) {
     const pricklesToInsert = calendarEvents.map((event: any) => ({
       type_id: resolvedTypeId,
       host: hostId,
+      description: plainTextDescription(event.description),
       start_time: event.start_time,
       end_time: event.end_time,
       source: "calendar",

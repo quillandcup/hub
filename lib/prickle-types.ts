@@ -96,3 +96,41 @@ export async function matchPrickleType(
 
   return data?.id || null;
 }
+
+/**
+ * The prickle's own name from its calendar summary, or null when it's just the type.
+ * Hosts name special prickles ("Educational Webinar: Query Letters w/Sam", "Midnight Crew"),
+ * and that name is worth keeping. The "w/Host" tail is dropped (the host is its own field),
+ * as are wrapping quotes; a bare "{Type}" or "{Type} Prickle" is the standard name, so null.
+ */
+export function prickleTitleFromSummary(summary: string, typeName: string): string | null {
+  const cleaned = summary.replace(/^['"](.+?)['"]$/, "$1").trim();
+  const withoutHost = cleaned.replace(/\s*\bw\/\s*.+$/i, "").replace(/^['"]|['"]$/g, "").trim();
+  if (!withoutHost) return null;
+  const lower = withoutHost.toLowerCase();
+  const typeLower = typeName.toLowerCase();
+  if (lower === "prickle" || lower === typeLower || lower === `${typeLower} prickle`) return null;
+  return withoutHost;
+}
+
+const HTML_ENTITIES: Record<string, string> = {
+  "&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": '"', "&#39;": "'", "&nbsp;": " ",
+};
+
+/**
+ * A calendar event's description as plain text for display. Google Calendar stores
+ * rich text as HTML (<br>, <p>, <a>); we keep the line breaks and drop the markup,
+ * so it's safe to render as text. Returns null when nothing is left.
+ */
+export function plainTextDescription(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  const text = raw
+    .replace(/<\s*br\s*\/?>/gi, "\n")
+    .replace(/<\/\s*(p|div|li|h[1-6])\s*>/gi, "\n")
+    .replace(/<[^>]*>/g, "")
+    .replace(/&(?:amp|lt|gt|quot|nbsp|#39);/g, (e) => HTML_ENTITIES[e])
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+  return text || null;
+}

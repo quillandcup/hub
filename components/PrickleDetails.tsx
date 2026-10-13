@@ -124,7 +124,10 @@ export default function PrickleDetails({
 
       {/* Prickle Info */}
       <div className="bg-white dark:bg-slate-900 rounded-lg shadow p-6">
-        <h2 className="text-xl font-bold mb-4">Prickle Details</h2>
+        <h2 className="text-xl font-bold mb-4">{prickle.title || "Prickle Details"}</h2>
+        {prickle.description && (
+          <p className="text-sm text-slate-700 dark:text-slate-300 mb-4 whitespace-pre-line">{prickle.description}</p>
+        )}
         <div className="grid grid-cols-2 gap-4 text-sm">
           <div>
             <span className="text-slate-600 dark:text-slate-400">Type:</span>
@@ -191,7 +194,7 @@ export default function PrickleDetails({
         </div>
         {prickleType?.description && (
           <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
-            <span className="text-slate-600 dark:text-slate-400 text-sm">Description:</span>
+            <span className="text-slate-600 dark:text-slate-400 text-sm">About this type of prickle:</span>
             <p className="text-sm text-slate-700 dark:text-slate-300 mt-1">{prickleType.description}</p>
           </div>
         )}
