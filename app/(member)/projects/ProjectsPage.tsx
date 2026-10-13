@@ -12,14 +12,8 @@ import { Tabs } from "@/components/Tabs";
 import { RememberTabUrl } from "@/components/ReturnToTab";
 
 /** My Writing tabs, at /projects (Projects) and /projects/<id> (lib/tab-routes.ts). */
-export const MY_WRITING_TAB_IDS = ["projects", "books", "awards"] as const;
-export type MyWritingTabId = (typeof MY_WRITING_TAB_IDS)[number];
-export const MY_WRITING_TITLE = "My Writing";
-export const MY_WRITING_TAB_LABELS: Record<MyWritingTabId, string> = {
-  projects: "Projects",
-  books: "Books",
-  awards: "Awards",
-};
+import { MY_WRITING_TAB_IDS, MY_WRITING_TITLE, MY_WRITING_TAB_LABELS, type MyWritingTabId } from "./tabs";
+export { MY_WRITING_TAB_IDS, MY_WRITING_TITLE, MY_WRITING_TAB_LABELS, type MyWritingTabId };
 
 /** My Writing, rendered by /projects and each /projects/<tab> route with that tab open. */
 export default async function ProjectsPage({ tab }: { tab: MyWritingTabId }) {

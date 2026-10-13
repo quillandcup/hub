@@ -181,7 +181,7 @@ export default function SearchPalette({ resultsPath, isAdmin }: { resultsPath: s
         aria-keyshortcuts="Meta+K Control+K"
       >
         <SearchIcon className="h-4 w-4 flex-shrink-0" />
-        <span className="hidden sm:inline flex-1 truncate text-left">Search channels, members, chat…</span>
+        <span className="hidden sm:inline flex-1 truncate text-left">Search pages, members, chat…</span>
         <kbd className="hidden sm:inline rounded border border-slate-300 dark:border-slate-600 px-1.5 text-xs">⌘K</kbd>
       </button>
 
@@ -201,7 +201,7 @@ export default function SearchPalette({ resultsPath, isAdmin }: { resultsPath: s
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={onInputKey}
-                placeholder="Search channels, members, prickles, projects, books, awards, events and chat"
+                placeholder="Search pages, channels, members, prickles, projects, books, awards, events and chat"
                 className="min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-slate-400"
                 aria-label="Search"
                 autoComplete="off"

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { FeatureKey } from "@/lib/features";
 import Wordmark from "@/components/Wordmark";
+import { navGroups, type SitePage } from "@/lib/site-pages";
 
 interface MemberNavigationProps {
   isAdmin: boolean;
@@ -20,20 +21,9 @@ interface NavLinksProps {
 }
 
 function NavLinks({ isAdmin, enabledFeatures, pathname, collapsed, onNavigate }: NavLinksProps) {
-  const isDashboardActive = pathname === '/dashboard';
-  const isProjectsActive = pathname === '/projects' || pathname.startsWith('/projects/');
-  // Calendar, Prickle Picker and Hosting are My Prickles tabs; prickle detail pages link back here.
-  const isMyPricklesActive = pathname === '/my-prickles' || pathname.startsWith('/prickles/');
-  const isStreaksActive = pathname === '/streaks';
-  const isWheelActive = pathname === '/wheel-of-wonder';
-  const isBookshelfActive = pathname === '/bookshelf';
-  const isDirectoryActive = pathname === '/members' || pathname.startsWith('/members/');
-  const isEventsActive = pathname === '/events' || pathname.startsWith('/events/');
-
-  const isChatActive = pathname === '/chat' || pathname.startsWith('/chat/');
-
-  const showEvents = enabledFeatures.includes('events');
-  const showChat = enabledFeatures.includes('chat');
+  // The links come from lib/site-pages.ts, which universal search reads too.
+  const isActive = (page: SitePage) =>
+    pathname === page.href || [page.href, ...(page.nav?.activeFor ?? [])].some((prefix) => pathname.startsWith(prefix.endsWith("/") ? prefix : `${prefix}/`));
 
   const linkClass = (active: boolean) =>
     `flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
@@ -45,129 +35,29 @@ function NavLinks({ isAdmin, enabledFeatures, pathname, collapsed, onNavigate }:
   return (
     <>
       <nav className="p-4 overflow-y-auto flex-1">
-        {/* Home */}
-        <div className="mb-6">
-          {!collapsed && (
-            <h2 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2 px-3">
-              Home
-            </h2>
-          )}
-          <div className="space-y-1">
-            <Link
-              href="/dashboard"
-              onClick={onNavigate}
-              className={linkClass(isDashboardActive)}
-              title={collapsed ? "Dashboard" : undefined}
-            >
-              <span className="text-lg">🏠</span>
-              {!collapsed && <span>Dashboard</span>}
-            </Link>
-          </div>
-        </div>
-
-        {/* My Burrow — the member's own writing and their relationship to Prickles */}
-        <div className="mb-6">
-          {!collapsed && (
-            <h2 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2 px-3">
-              My Burrow
-            </h2>
-          )}
-          <div className="space-y-1">
-            <Link
-              href="/projects"
-              onClick={onNavigate}
-              className={linkClass(isProjectsActive)}
-              title={collapsed ? "My Writing" : undefined}
-            >
-              <span className="text-lg">📝</span>
-              {!collapsed && <span>My Writing</span>}
-            </Link>
-
-            <Link
-              href="/my-prickles"
-              onClick={onNavigate}
-              className={linkClass(isMyPricklesActive)}
-              title={collapsed ? "My Prickles" : undefined}
-            >
-              <span className="text-lg">🦔</span>
-              {!collapsed && <span>My Prickles</span>}
-            </Link>
-
-            <Link
-              href="/streaks"
-              onClick={onNavigate}
-              className={linkClass(isStreaksActive)}
-              title={collapsed ? "Streaks" : undefined}
-            >
-              <span className="text-lg">🔥</span>
-              {!collapsed && <span>Streaks</span>}
-            </Link>
-          </div>
-        </div>
-
-        {/* Community — shared, broader-than-you surfaces */}
-        <div className="mb-6">
-          {!collapsed && (
-            <h2 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2 px-3">
-              Community
-            </h2>
-          )}
-          <div className="space-y-1">
-            <Link
-              href="/members"
-              onClick={onNavigate}
-              className={linkClass(isDirectoryActive)}
-              title={collapsed ? "Members" : undefined}
-            >
-              <span className="text-lg">👭</span>
-              {!collapsed && <span>Members</span>}
-            </Link>
-
-            {showChat && (
-              <Link
-                href="/chat"
-                onClick={onNavigate}
-                className={linkClass(isChatActive)}
-                title={collapsed ? "Chat" : undefined}
-              >
-                <span className="text-lg">💬</span>
-                {!collapsed && <span>Chat</span>}
-              </Link>
+        {navGroups("member", enabledFeatures).map((group) => (
+          <div key={group.name} className="mb-6">
+            {!collapsed && (
+              <h2 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2 px-3">
+                {group.name}
+              </h2>
             )}
-
-            <Link
-              href="/wheel-of-wonder"
-              onClick={onNavigate}
-              className={linkClass(isWheelActive)}
-              title={collapsed ? "Wheel of Wonder" : undefined}
-            >
-              <span className="text-lg">🎡</span>
-              {!collapsed && <span>Wheel of Wonder</span>}
-            </Link>
-
-            <Link
-              href="/bookshelf"
-              onClick={onNavigate}
-              className={linkClass(isBookshelfActive)}
-              title={collapsed ? "Bookshelf" : undefined}
-            >
-              <span className="text-lg">🐚</span>
-              {!collapsed && <span>Bookshelf</span>}
-            </Link>
-
-            {showEvents && (
-              <Link
-                href="/events"
-                onClick={onNavigate}
-                className={linkClass(isEventsActive)}
-                title={collapsed ? "Events" : undefined}
-              >
-                <span className="text-lg">📸</span>
-                {!collapsed && <span>Events</span>}
-              </Link>
-            )}
+            <div className="space-y-1">
+              {group.items.map((page) => (
+                <Link
+                  key={page.href}
+                  href={page.href}
+                  onClick={onNavigate}
+                  className={linkClass(isActive(page))}
+                  title={collapsed ? page.title : undefined}
+                >
+                  <span className="text-lg">{page.nav?.icon}</span>
+                  {!collapsed && <span>{page.title}</span>}
+                </Link>
+              ))}
+            </div>
           </div>
-        </div>
+        ))}
       </nav>
 
       {/* Admin Portal — fixed at bottom, admin-only */}

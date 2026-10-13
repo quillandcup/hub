@@ -11,6 +11,8 @@ import { formatPrickleTitle } from "@/lib/formatters";
 import { searchChat, SEARCH_PAGE_SIZE } from "@/lib/chat/search";
 import type { ChannelSummary } from "@/lib/chat/load";
 import { KIND_LABELS, type KindResults, type SearchHit } from "@/lib/search/kinds";
+import type { FeatureKey } from "@/lib/features";
+import { matchPages } from "@/lib/search/pages";
 import { hasCriteria, matchWords, SEARCH_KINDS, type AnySearchKind, type SearchKind, type UniversalQuery } from "@/lib/search/syntax";
 
 export interface SearchContext {
@@ -24,6 +26,8 @@ export interface SearchContext {
    * only runs, alongside the other kinds' queries, when chat is actually searched.
    */
   chatChannels: ChannelSummary[] | (() => Promise<ChannelSummary[]>);
+  /** Features on for the viewer (and chat, when they have it): hides pages whose feature is off. */
+  features?: FeatureKey[];
   /** Rows per kind; one extra is fetched to know if there are more. */
   limit?: number;
   offset?: number;
@@ -59,6 +63,18 @@ const page = (ctx: SearchContext) => ({ limit: ctx.limit ?? 5, offset: ctx.offse
 function finish<T>(rows: T[] | null, limit: number): { rows: T[]; hasMore: boolean } {
   const all = rows ?? [];
   return { rows: all.slice(0, limit), hasMore: all.length > limit };
+}
+
+/** App pages (navigation and settings tabs) by title, section or keyword; static, so no filters apply. */
+async function searchPages(ctx: SearchContext, q: UniversalQuery): Promise<KindResults> {
+  const { limit, offset } = page(ctx);
+  if (q.from || q.after || q.before || q.email || q.status) return { kind: "pages", hits: [], hasMore: false };
+  const rows = matchPages(matchWords(q), { isActingAsAdmin: ctx.isActingAsAdmin, features: ctx.features ?? [] });
+  return {
+    kind: "pages",
+    hasMore: rows.length > offset + limit,
+    hits: rows.slice(offset, offset + limit).map((p) => ({ kind: "pages", id: p.href, title: p.title, subtitle: p.section, href: p.href })),
+  };
 }
 
 /** Channels the member can open in chat, by name (never a group message, whose label is people). */
@@ -283,7 +299,7 @@ async function searchChatKind(ctx: SearchContext, q: UniversalQuery): Promise<Ki
 }
 
 const SEARCHERS: Record<SearchKind, (ctx: SearchContext, q: UniversalQuery) => Promise<KindResults>> = {
-  channels: searchChannels, members: searchMembers, prickles: searchPrickles, projects: searchProjects, books: searchBooks,
+  pages: searchPages, channels: searchChannels, members: searchMembers, prickles: searchPrickles, projects: searchProjects, books: searchBooks,
   awards: searchAwards, events: searchEvents, chat: searchChatKind,
 };
 

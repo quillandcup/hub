@@ -33,17 +33,8 @@ const SCHEDULE_LOOKBACK_DAYS = 90;
 const MEMBERS_BATCH_SIZE = 1000;
 
 /** My Prickles tabs, at /my-prickles (Upcoming) and /my-prickles/<id> (lib/tab-routes.ts). */
-export const MY_PRICKLES_TAB_IDS = ["upcoming", "all", "find", "commitments", "hosting", "history"] as const;
-export type MyPricklesTabId = (typeof MY_PRICKLES_TAB_IDS)[number];
-export const MY_PRICKLES_TITLE = "My Prickles";
-export const MY_PRICKLES_TAB_LABELS: Record<MyPricklesTabId, string> = {
-  upcoming: "Upcoming",
-  all: "All Prickles",
-  find: "Find a Prickle",
-  commitments: "Commitments",
-  hosting: "Hosting",
-  history: "Attendance History",
-};
+import { MY_PRICKLES_TAB_IDS, MY_PRICKLES_TITLE, MY_PRICKLES_TAB_LABELS, type MyPricklesTabId } from "./tabs";
+export { MY_PRICKLES_TAB_IDS, MY_PRICKLES_TITLE, MY_PRICKLES_TAB_LABELS, type MyPricklesTabId };
 
 /**
  * My Prickles, rendered by /my-prickles and each /my-prickles/<tab> route with that tab open.

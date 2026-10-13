@@ -47,6 +47,7 @@ export async function getSearcher(): Promise<Searcher | null> {
       viewerMemberId: identity?.memberId ?? null,
       isActingAsAdmin: isAdmin && !isSudo,
       chatChannels: chatOn && identity ? chatChannels : [],
+      features: chatOn ? [...features, "chat"] : features,
     },
     skip: chatOn ? [] : ["chat", "channels"],
     isAdmin,

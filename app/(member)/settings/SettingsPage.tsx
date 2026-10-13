@@ -19,18 +19,8 @@ import { createServiceRoleClient } from "@/lib/supabase/service";
 import { getSlackConnectionStatus, isSlackConnectConfigured } from "@/lib/slack-connect";
 
 /** Settings tabs, at /settings (Account) and /settings/<id> (lib/tab-routes.ts). */
-export const SETTINGS_TAB_IDS = ["account", "profile", "identity", "preferences", "notifications", "hosting", "previews"] as const;
-export type SettingsTabId = (typeof SETTINGS_TAB_IDS)[number];
-export const SETTINGS_TITLE = "Settings";
-export const SETTINGS_TAB_LABELS: Record<SettingsTabId, string> = {
-  account: "Account",
-  profile: "Profile",
-  identity: "Identity",
-  preferences: "Preferences",
-  notifications: "Notifications",
-  hosting: "Hosting",
-  previews: "Previews",
-};
+import { SETTINGS_TAB_IDS, SETTINGS_TITLE, SETTINGS_TAB_LABELS, type SettingsTabId } from "./tabs";
+export { SETTINGS_TAB_IDS, SETTINGS_TITLE, SETTINGS_TAB_LABELS, type SettingsTabId };
 
 /**
  * The settings page, rendered by /settings and each /settings/<tab> route with that tab open.

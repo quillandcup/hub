@@ -65,7 +65,7 @@ export default async function SearchResultsPage({
         <input
           name="q"
           defaultValue={raw}
-          placeholder="Search channels, members, prickles, projects, books, awards, events and chat"
+          placeholder="Search pages, channels, members, prickles, projects, books, awards, events and chat"
           className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
           aria-label="Search"
           maxLength={MAX_QUERY_LENGTH}
