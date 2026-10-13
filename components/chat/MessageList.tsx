@@ -174,7 +174,7 @@ export default function MessageList({
       {messages.map((m) => (
         <Fragment key={m.id}>
           {m.id === firstUnreadId && <UnreadDivider />}
-          <MessageItem message={m} ctx={context} channelId={channelId} canReact={canReact} />
+          <MessageItem message={m} ctx={context} channelId={channelId} canReact={canReact} canEdit={canReact} />
         </Fragment>
       ))}
     </>

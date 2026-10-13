@@ -245,6 +245,8 @@ export interface MessageRow {
   id: string;
   author_member_id: string | null;
   slack_ts: string | null;
+  /** 'app' for a message written in the Hub, 'slack' for one projected from Slack. */
+  origin?: "app" | "slack";
   created_at: string;
   edited_at: string | null;
   deleted_at: string | null;
@@ -257,7 +259,7 @@ export interface MessageRow {
 }
 
 const MESSAGE_COLUMNS =
-  "id, author_member_id, slack_ts, created_at, edited_at, deleted_at, reply_count, last_reply_at, has_files, slack_sync_status, chat_message_contents(body)";
+  "id, author_member_id, slack_ts, origin, created_at, edited_at, deleted_at, reply_count, last_reply_at, has_files, slack_sync_status, chat_message_contents(body)";
 
 export interface MessagePage {
   /** Oldest first. */
@@ -353,6 +355,8 @@ export interface ChatMessageView {
   syncStatus: "pending" | "failed" | null;
   /** Written by the viewer (the member whose chat this is), who may retry it when it failed. */
   mine: boolean;
+  /** Written in the Hub (not projected from Slack): the only kind its author can edit or delete from here. */
+  fromHub: boolean;
 }
 
 export interface ChatMessages {
@@ -533,6 +537,7 @@ export async function buildMessageViews(
       reactions: [...(reactionsByMessage.get(row.id)?.values() ?? [])].sort((a, b) => b.count - a.count),
       syncStatus: row.slack_sync_status === "pending" || row.slack_sync_status === "failed" ? row.slack_sync_status : null,
       mine: row.author_member_id === viewerMemberId,
+      fromHub: row.origin === "app",
     };
   });
   return { views, userNames, userMembers, channelNames, customEmoji };

@@ -7,6 +7,8 @@ const m = vi.hoisted(() => ({
   rpc: vi.fn(),
   sendToSlack: vi.fn(),
   syncReaction: vi.fn(),
+  slackUpdate: vi.fn(),
+  slackDelete: vi.fn(),
   afterCallbacks: [] as (() => Promise<void> | void)[],
   slackReactionRows: [] as { id: string }[],
   connected: vi.fn(),
@@ -34,9 +36,10 @@ vi.mock("@/lib/slack-connect", () => ({ getSlackConnectionStatus: (...a: unknown
 vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => ({ service: true }) }));
 vi.mock("@/lib/chat/slack-post", () => ({ sendChatMessageToSlack: m.sendToSlack }));
 vi.mock("@/lib/chat/slack-react", () => ({ syncReactionToSlack: m.syncReaction }));
+vi.mock("@/lib/chat/slack-edit", () => ({ updateChatMessageInSlack: m.slackUpdate, deleteChatMessageInSlack: m.slackDelete }));
 vi.mock("@/lib/chat/load", () => ({}));
 
-import { sendChatMessage, toggleChatReaction } from "@/app/(member)/chat/actions";
+import { deleteChatMessage, editChatMessage, sendChatMessage, toggleChatReaction } from "@/app/(member)/chat/actions";
 
 const CHANNEL = "00000000-0000-4000-a000-0000000000c1";
 const MESSAGE = "00000000-0000-4000-a000-0000000000d1";
@@ -52,6 +55,10 @@ beforeEach(() => {
   m.rpc.mockReset();
   m.sendToSlack.mockReset();
   m.syncReaction.mockReset();
+  m.slackUpdate.mockReset();
+  m.slackUpdate.mockResolvedValue({ ok: true });
+  m.slackDelete.mockReset();
+  m.slackDelete.mockResolvedValue({ ok: true });
   m.slackReactionRows = [];
   m.connected.mockReset();
   m.connected.mockResolvedValue({ connected: true });
@@ -130,5 +137,69 @@ describe("toggleChatReaction", () => {
     await expect(toggleChatReaction(MESSAGE, "tada")).resolves.toEqual({ ok: true, active: false });
     await flushAfter();
     expect(m.syncReaction).toHaveBeenCalledWith({ service: true }, expect.objectContaining({ emoji: "tada", active: false }));
+  });
+});
+
+describe("editChatMessage", () => {
+  it("changes the message in Slack first and then in the Hub, with the trimmed text", async () => {
+    m.rpc.mockResolvedValue({ data: null, error: null });
+
+    await expect(editChatMessage(MESSAGE, "  fixed it \n")).resolves.toEqual({ ok: true });
+
+    expect(m.slackUpdate).toHaveBeenCalledWith({ service: true }, { messageId: MESSAGE, memberId: "member-fern", body: "fixed it" });
+    expect(m.rpc).toHaveBeenCalledWith("chat_edit_message", { p_message_id: MESSAGE, p_body: "fixed it" });
+    expect(m.slackUpdate.mock.invocationCallOrder[0]).toBeLessThan(m.rpc.mock.invocationCallOrder[0]);
+  });
+
+  it("leaves the Hub alone when Slack refuses, and says why", async () => {
+    m.slackUpdate.mockResolvedValue({ ok: false, error: "Reconnect Slack in Settings to edit this message: it was posted as you." });
+    await expect(editChatMessage(MESSAGE, "new")).resolves.toEqual({ ok: false, error: expect.stringContaining("Reconnect Slack") });
+    expect(m.rpc).not.toHaveBeenCalled();
+  });
+
+  it("refuses an empty or over-long edit before bothering Slack", async () => {
+    await expect(editChatMessage(MESSAGE, " \n ")).resolves.toEqual({ ok: false, error: "Write something first." });
+    await expect(editChatMessage(MESSAGE, "x".repeat(4001))).resolves.toMatchObject({ ok: false, error: expect.stringContaining("too long") });
+    expect(m.slackUpdate).not.toHaveBeenCalled();
+  });
+
+  it("explains what the database refused", async () => {
+    m.rpc.mockResolvedValue({ data: null, error: { message: "chat_edit: archived" } });
+    await expect(editChatMessage(MESSAGE, "new")).resolves.toEqual({ ok: false, error: "This conversation is archived." });
+  });
+
+  it("is closed without the chat_posting preview, in sudo, and for a bad id", async () => {
+    await expect(editChatMessage("nope", "new")).resolves.toMatchObject({ ok: false });
+    m.hasFeature.mockImplementation(async (key: string) => key !== "chat_posting");
+    await expect(editChatMessage(MESSAGE, "new")).resolves.toMatchObject({ ok: false });
+    m.hasFeature.mockResolvedValue(true);
+    m.getEffectiveIdentity.mockResolvedValue({ memberId: "member-fern", isSudo: true });
+    await expect(editChatMessage(MESSAGE, "new")).resolves.toMatchObject({ ok: false });
+    expect(m.slackUpdate).not.toHaveBeenCalled();
+  });
+});
+
+describe("deleteChatMessage", () => {
+  it("deletes in Slack first and then in the Hub", async () => {
+    m.rpc.mockResolvedValue({ data: null, error: null });
+
+    await expect(deleteChatMessage(MESSAGE)).resolves.toEqual({ ok: true });
+
+    expect(m.slackDelete).toHaveBeenCalledWith({ service: true }, { messageId: MESSAGE, memberId: "member-fern" });
+    expect(m.rpc).toHaveBeenCalledWith("chat_delete_message", { p_message_id: MESSAGE });
+    expect(m.slackDelete.mock.invocationCallOrder[0]).toBeLessThan(m.rpc.mock.invocationCallOrder[0]);
+  });
+
+  it("leaves the message in the Hub when Slack won't delete it", async () => {
+    m.slackDelete.mockResolvedValue({ ok: false, error: "Slack won't let this message be deleted." });
+    await expect(deleteChatMessage(MESSAGE)).resolves.toEqual({ ok: false, error: "Slack won't let this message be deleted." });
+    expect(m.rpc).not.toHaveBeenCalled();
+  });
+
+  it("is closed without the chat_posting preview and for a bad id", async () => {
+    await expect(deleteChatMessage("nope")).resolves.toMatchObject({ ok: false });
+    m.hasFeature.mockImplementation(async (key: string) => key !== "chat_posting");
+    await expect(deleteChatMessage(MESSAGE)).resolves.toMatchObject({ ok: false });
+    expect(m.slackDelete).not.toHaveBeenCalled();
   });
 });

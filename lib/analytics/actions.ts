@@ -30,6 +30,8 @@ export const OUTCOME_ACTIONS = [
   // Chat
   "chat_message_sent",
   "chat_reaction_toggled",
+  "chat_message_edited",
+  "chat_message_deleted",
   // Community
   "wheel_spun",
   "big_sister_availability_set",
