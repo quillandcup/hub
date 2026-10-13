@@ -4,10 +4,12 @@ import {
   areaCoverage,
   areaMetrics,
   isGated,
+  mergeHits,
   mergeSuites,
   parseAddedLines,
   patchCoverage,
   renderReport,
+  suiteHits,
   suiteLines,
   type FileCoverage,
   type SuiteLines,
@@ -38,7 +40,13 @@ function coverage(
     statementMap[line] = { start: { line: Number(line) } };
     s[line] = hits;
   }
-  return { statementMap, s, f: extra.f ?? {}, b: extra.b ?? {} };
+  const fnMap: NonNullable<FileCoverage["fnMap"]> = {};
+  for (const id of Object.keys(extra.f ?? {})) fnMap[id] = { loc: { start: { line: Number(id) + 100, column: 0 } } };
+  const branchMap: NonNullable<FileCoverage["branchMap"]> = {};
+  for (const id of Object.keys(extra.b ?? {})) {
+    branchMap[id] = { type: "if", loc: { start: { line: Number(id) + 200, column: 0 } } };
+  }
+  return { statementMap, s, fnMap, f: extra.f ?? {}, branchMap, b: extra.b ?? {} };
 }
 
 function suite(files: Record<string, Record<number, boolean>>): SuiteLines {
@@ -113,11 +121,16 @@ describe("areaCoverage / renderReport", () => {
   const unit = suite({ "lib/a.ts": { 1: true, 2: false }, "app/(admin)/admin/p.tsx": { 1: false } });
   const db = suite({ "lib/a.ts": { 1: true, 2: true } });
 
-  const unitMetrics = areaMetrics(
-    {
-      "/repo/lib/a.ts": coverage({ 1: 1, 2: 0 }, { f: { 0: 1, 1: 0 }, b: { 0: [1, 0], 1: [0, 0] } }),
-    },
-    "/repo",
+  const unitRaw = {
+    "/repo/lib/a.ts": coverage({ 1: 1, 2: 0 }, { f: { 0: 1, 1: 0 }, b: { 0: [1, 0], 1: [0, 0] } }),
+  };
+  const dbRaw = {
+    "/repo/lib/a.ts": coverage({ 1: 0, 2: 1 }, { f: { 0: 0, 1: 1 }, b: { 0: [0, 1], 1: [0, 0] } }),
+  };
+  const unitMetrics = areaMetrics(suiteLines(unitRaw, "/repo"), suiteHits(unitRaw, "/repo"));
+  const combinedMetrics = areaMetrics(
+    mergeSuites([suiteLines(unitRaw, "/repo"), suiteLines(dbRaw, "/repo")]),
+    mergeHits([suiteHits(unitRaw, "/repo"), suiteHits(dbRaw, "/repo")]),
   );
 
   it("counts statements, functions and branches per area, and their mean as the score", () => {
@@ -127,6 +140,14 @@ describe("areaCoverage / renderReport", () => {
     expect(lib.functions).toEqual({ covered: 1, total: 2 });
     expect(lib.branches).toEqual({ covered: 1, total: 4 });
     expect(aggregateScore(lib)).toBeCloseTo((50 + 50 + 50 + 25) / 4);
+  });
+
+  it("merges every metric by location: covered if either suite ran it, totals not doubled", () => {
+    const lib = combinedMetrics.get("lib")!;
+    expect(lib.lines).toEqual({ covered: 2, total: 2 });
+    expect(lib.statements).toEqual({ covered: 2, total: 2 });
+    expect(lib.functions).toEqual({ covered: 2, total: 2 });
+    expect(lib.branches).toEqual({ covered: 2, total: 4 });
   });
 
   it("leaves metrics with nothing to cover out of the score", () => {
@@ -148,6 +169,7 @@ describe("areaCoverage / renderReport", () => {
         { name: "db", areas: areaCoverage(db), metrics: new Map() },
       ],
       areaCoverage(mergeSuites([unit, db])),
+      combinedMetrics,
       {
         result: { covered: 1, total: 4, uncovered: new Map([["lib/a.ts", [2, 3, 4]]]) },
         passed: false,
@@ -156,9 +178,10 @@ describe("areaCoverage / renderReport", () => {
     );
     expect(text).toContain("❌ 25.0%");
     expect(text).toContain("| `lib/a.ts` | 2, 3, 4 |");
-    expect(text).toContain("| Area | unit | db | combined |");
+    expect(text).toContain("| Area | unit | db | combined | combined score |");
     expect(text).toContain("| `lib` | 50.0% (1/2) | 100.0% (2/2) | 100.0% (2/2) |");
-    expect(text).toContain("| `app/(admin)` | 0.0% (0/1) | n/a | 0.0% (0/1) |");
+    expect(text).toContain("| `app/(admin)` | 0.0% (0/1) | n/a | 0.0% (0/1) | n/a |");
+    expect(text).toContain("| `lib` | 50.0% (1/2) | 100.0% (2/2) | 100.0% (2/2) | 87.5 |");
     expect(text).toContain("| Area | score | lines | statements | functions | branches |");
     expect(text).toContain("| `lib` | 43.8 | 50.0% (1/2) | 50.0% (1/2) | 50.0% (1/2) | 25.0% (1/4) |");
   });

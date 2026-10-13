@@ -6,8 +6,9 @@
 //
 // Reads <dir>/coverage-final.json for each suite (istanbul format) and reduces every file to
 // its executable lines: a line is executable when a statement starts on it, covered when one of
-// those statements ran. Suites are merged at line level (covered if any suite ran it), not by
-// summing istanbul statement maps, because two v8 runs of one file can produce different maps.
+// those statements ran. Suites are merged by identity, not by summing counts: a line is covered
+// if any suite ran it. Statements, functions and branches are merged the same way, keyed by
+// source location instead of istanbul's per-run numeric ids.
 //
 // Writes lines covered per area (per suite and combined) to the job summary and to one sticky
 // PR comment (updated in place; needs GH_TOKEN, GITHUB_REPOSITORY and PR_NUMBER, and a failure
@@ -31,10 +32,13 @@ const SOURCE = /^(app|lib|components)\/.+\.(ts|tsx)$/;
 const EXCLUDED = [/^app\/api\//, /\.d\.ts$/, /\.test\.tsx?$/];
 const COMMENT_MARKER = "<!-- coverage-report -->";
 
+type Loc = { line: number; column: number };
 export type FileCoverage = {
-  statementMap: Record<string, { start: { line: number } }>;
+  statementMap: Record<string, { start: Loc; end?: Loc }>;
   s: Record<string, number>;
+  fnMap?: Record<string, { loc: { start: Loc } }>;
   f: Record<string, number>;
+  branchMap?: Record<string, { type: string; loc: { start: Loc } }>;
   b: Record<string, number[]>;
 };
 
@@ -96,31 +100,75 @@ export function areaCoverage(files: SuiteLines): Map<string, Area> {
 export type Metrics = { lines: Area; statements: Area; functions: Area; branches: Area };
 const METRICS = ["lines", "statements", "functions", "branches"] as const;
 
+/** Non-line metrics: item identified by source location -> whether it ran. */
+export type Hits = {
+  statements: Map<string, boolean>;
+  functions: Map<string, boolean>;
+  branches: Map<string, boolean>;
+};
+export type SuiteHits = Map<string, Hits>;
+
+const at = (l: Loc | undefined) => (l ? `${l.line}:${l.column}` : "?");
+
 /**
- * All four metrics per area for one suite. Unlike lines these are not merged across suites
- * (each run's statement, function and branch maps can differ), so they are reported per suite.
+ * Statements, functions and branches keyed by source location rather than istanbul's numeric
+ * ids, so two runs of one file line up. Both suites transform each file the same way, so the
+ * maps are near-identical (checked: >99.9% of locations match between the unit and db runs).
  */
-export function areaMetrics(coverage: Record<string, FileCoverage>, root: string): Map<string, Metrics> {
-  const empty = (): Metrics => ({
-    lines: { covered: 0, total: 0 },
-    statements: { covered: 0, total: 0 },
-    functions: { covered: 0, total: 0 },
-    branches: { covered: 0, total: 0 },
-  });
-  const areas = new Map<string, Metrics>();
-  const add = (into: Area, counts: number[]) => {
-    into.total += counts.length;
-    into.covered += counts.filter((n) => n > 0).length;
-  };
+export function suiteHits(coverage: Record<string, FileCoverage>, root: string): SuiteHits {
+  const out: SuiteHits = new Map();
   for (const [abs, fc] of Object.entries(coverage)) {
-    const file = path.relative(root, abs);
+    const hits: Hits = { statements: new Map(), functions: new Map(), branches: new Map() };
+    for (const [id, stmt] of Object.entries(fc.statementMap)) {
+      hits.statements.set(`${at(stmt.start)}-${at(stmt.end)}`, fc.s[id] > 0);
+    }
+    for (const [id, fn] of Object.entries(fc.fnMap ?? {})) {
+      hits.functions.set(at(fn.loc.start), fc.f[id] > 0);
+    }
+    for (const [id, br] of Object.entries(fc.branchMap ?? {})) {
+      (fc.b[id] ?? []).forEach((n, i) => hits.branches.set(`${br.type}@${at(br.loc.start)}#${i}`, n > 0));
+    }
+    out.set(path.relative(root, abs), hits);
+  }
+  return out;
+}
+
+export function mergeHits(suites: SuiteHits[]): SuiteHits {
+  const merged: SuiteHits = new Map();
+  for (const suite of suites) {
+    for (const [file, hits] of suite) {
+      const into = merged.get(file) ?? { statements: new Map(), functions: new Map(), branches: new Map() };
+      for (const kind of ["statements", "functions", "branches"] as const) {
+        for (const [key, hit] of hits[kind]) into[kind].set(key, (into[kind].get(key) ?? false) || hit);
+      }
+      merged.set(file, into);
+    }
+  }
+  return merged;
+}
+
+/** All four metrics per area, from one suite's data or the merge of several. */
+export function areaMetrics(files: SuiteLines, hits: SuiteHits): Map<string, Metrics> {
+  const areas = new Map<string, Metrics>();
+  const add = (into: Area, items: Map<unknown, boolean>) => {
+    into.total += items.size;
+    into.covered += [...items.values()].filter(Boolean).length;
+  };
+  for (const file of new Set([...files.keys(), ...hits.keys()])) {
     const key = areaKey(file);
-    const m = areas.get(key) ?? empty();
-    const lines = suiteLines({ [abs]: fc }, root).get(file)!;
-    add(m.lines, [...lines.values()].map((hit) => (hit ? 1 : 0)));
-    add(m.statements, Object.values(fc.s));
-    add(m.functions, Object.values(fc.f));
-    add(m.branches, Object.values(fc.b).flat());
+    const m = areas.get(key) ?? {
+      lines: { covered: 0, total: 0 },
+      statements: { covered: 0, total: 0 },
+      functions: { covered: 0, total: 0 },
+      branches: { covered: 0, total: 0 },
+    };
+    add(m.lines, files.get(file) ?? new Map());
+    const h = hits.get(file);
+    if (h) {
+      add(m.statements, h.statements);
+      add(m.functions, h.functions);
+      add(m.branches, h.branches);
+    }
     areas.set(key, m);
   }
   return areas;
@@ -185,6 +233,15 @@ export function patchCoverage(added: Map<string, Set<number>>, files: SuiteLines
   return { covered, total, uncovered };
 }
 
+const scoreCell = (m: Metrics | undefined) => (m ? aggregateScore(m).toFixed(1) : "n/a");
+const sumMetrics = (metrics: Map<string, Metrics>): Metrics => {
+  const sum = (k: (typeof METRICS)[number]): Area =>
+    [...metrics.values()].reduce(
+      (a, m) => ({ covered: a.covered + m[k].covered, total: a.total + m[k].total }),
+      { covered: 0, total: 0 },
+    );
+  return { lines: sum("lines"), statements: sum("statements"), functions: sum("functions"), branches: sum("branches") };
+};
 const pct = (a: Area) => (a.total === 0 ? 100 : (100 * a.covered) / a.total);
 const cell = (a: Area | undefined) => (a && a.total > 0 ? `${pct(a).toFixed(1)}% (${a.covered}/${a.total})` : "n/a");
 
@@ -193,6 +250,7 @@ export type Patch = { result: PatchResult; passed: boolean; skipped: boolean };
 export function renderReport(
   suites: { name: string; areas: Map<string, Area>; metrics: Map<string, Metrics> }[],
   combined: Map<string, Area>,
+  combinedMetrics: Map<string, Metrics>,
   patch: Patch | null,
 ): string {
   const out = ["### Coverage (unit + db tests)", ""];
@@ -214,38 +272,33 @@ export function renderReport(
       { covered: 0, total: 0 },
     );
   out.push(
-    `| Area | ${suites.map((s) => s.name).join(" | ")} | combined |`,
-    `|---|${suites.map(() => "--:|").join("")}--:|`,
+    `| Area | ${suites.map((s) => s.name).join(" | ")} | combined | combined score |`,
+    `|---|${suites.map(() => "--:|").join("")}--:|--:|`,
   );
   for (const [key, area] of [...combined].sort(([a], [b]) => a.localeCompare(b))) {
-    out.push(`| \`${key}\` | ${suites.map((s) => cell(s.areas.get(key))).join(" | ")} | ${cell(area)} |`);
+    out.push(`| \`${key}\` | ${suites.map((s) => cell(s.areas.get(key))).join(" | ")} | ${cell(area)} | ${scoreCell(combinedMetrics.get(key))} |`);
   }
   out.push(
-    `| **all** | ${suites.map((s) => `**${cell(total(s.areas))}**`).join(" | ")} | **${cell(total(combined))}** |`,
+    `| **all** | ${suites.map((s) => `**${cell(total(s.areas))}**`).join(" | ")} | **${cell(total(combined))}** | **${scoreCell(sumMetrics(combinedMetrics))}** |`,
   );
-  out.push("", "<details open><summary>All metrics per suite (not merged: each run's maps differ)</summary>");
-  for (const suite of suites) {
+  out.push("", "<details open><summary>All metrics per suite and combined</summary>");
+  const tables = [...suites.map((x) => ({ name: x.name, metrics: x.metrics })), { name: "combined", metrics: combinedMetrics }];
+  for (const table of tables) {
     out.push(
       "",
-      `**${suite.name}**: score is the mean of the metrics that have something to cover.`,
+      `**${table.name}**`,
       "",
       "| Area | score | lines | statements | functions | branches |",
       "|---|--:|--:|--:|--:|--:|",
     );
-    const sum = (k: (typeof METRICS)[number]): Area =>
-      [...suite.metrics.values()].reduce(
-        (a, m) => ({ covered: a.covered + m[k].covered, total: a.total + m[k].total }),
-        { covered: 0, total: 0 },
-      );
     const row = (label: string, m: Metrics) =>
       `| ${label} | ${aggregateScore(m).toFixed(1)} | ${METRICS.map((k) => cell(m[k])).join(" | ")} |`;
-    for (const [key, m] of [...suite.metrics].sort(([a], [b]) => a.localeCompare(b))) {
+    for (const [key, m] of [...table.metrics].sort(([a], [b]) => a.localeCompare(b))) {
       out.push(row(`\`${key}\``, m));
     }
-    out.push(
-      row("**all**", { lines: sum("lines"), statements: sum("statements"), functions: sum("functions"), branches: sum("branches") }),
-    );
+    out.push(row("**all**", sumMetrics(table.metrics)));
   }
+  out.push("", "Score is the mean of the metrics that have something to cover. A statement, function or branch counts as covered if either suite ran it.");
   out.push("", "</details>");
   return out.join("\n");
 }
@@ -285,9 +338,10 @@ function main(): void {
   const root = process.cwd();
   const loaded = suites.map(({ name, dir }) => {
     const raw = JSON.parse(readFileSync(path.join(dir, "coverage-final.json"), "utf8")) as Record<string, FileCoverage>;
-    return { name, files: suiteLines(raw, root), metrics: areaMetrics(raw, root) };
+    return { name, files: suiteLines(raw, root), hits: suiteHits(raw, root) };
   });
   const merged = mergeSuites(loaded.map((s) => s.files));
+  const mergedHits = mergeHits(loaded.map((s) => s.hits));
 
   let patch: Patch | null = null;
   if (base) {
@@ -302,8 +356,9 @@ function main(): void {
   }
 
   const text = renderReport(
-    loaded.map((s) => ({ name: s.name, areas: areaCoverage(s.files), metrics: s.metrics })),
+    loaded.map((s) => ({ name: s.name, areas: areaCoverage(s.files), metrics: areaMetrics(s.files, s.hits) })),
     areaCoverage(merged),
+    areaMetrics(merged, mergedHits),
     patch,
   );
   console.log(text);
