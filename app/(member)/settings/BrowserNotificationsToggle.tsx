@@ -165,7 +165,7 @@ export function BrowserNotificationsToggle({ publicKey, readOnly }: { publicKey:
   return (
     <div className="rounded-lg border border-slate-200 px-3 py-2.5 text-sm dark:border-slate-700">
       <div className="flex items-center justify-between gap-3">
-        <div className="font-medium text-slate-900 dark:text-slate-100">Browser notifications</div>
+        <div id="browser-notifications" className="font-medium text-slate-900 dark:text-slate-100">Browser notifications</div>
         {(canToggle || otherDevices.length > 0) && devices.length > 0 && (
           <button type="button" disabled={readOnly || busy} onClick={sendTest} className={buttonClass}>
             Send a test notification

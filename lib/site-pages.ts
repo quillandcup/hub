@@ -1,6 +1,8 @@
 import type { FeatureKey } from "@/lib/features";
 import { SETTINGS_TAB_IDS, SETTINGS_TAB_LABELS, SETTINGS_TITLE } from "@/app/(member)/settings/tabs";
 import { MY_PRICKLES_TAB_IDS, MY_PRICKLES_TAB_LABELS, MY_PRICKLES_TITLE } from "@/app/(member)/my-prickles/tabs";
+import { SETTINGS_SECTIONS } from "@/app/(member)/settings/sections";
+import { NOTIFICATION_KINDS } from "@/lib/notifications/registry";
 import { MY_WRITING_TAB_IDS, MY_WRITING_TAB_LABELS, MY_WRITING_TITLE } from "@/app/(member)/projects/tabs";
 
 /**
@@ -25,6 +27,8 @@ export interface SitePage {
   };
   /** Extra words that find it in search ("logout" finds Account). */
   keywords?: string[];
+  /** A page of the member app that only admins get (Settings → Previews). */
+  staffOnly?: boolean;
   /** Only shown (sidebar and search) when this feature is on for the viewer. */
   feature?: FeatureKey;
 }
@@ -39,23 +43,37 @@ export const ADMIN_NAV_GROUPS: { name: string; /** Rarely-used maintenance tooli
   { name: "System", collapsible: true },
 ];
 
-/** The tabs of a tabbed page after the first (the first lives at the base path, which has its own entry or none). */
+/** Every tab of a tabbed page; the first lives at the base path, shared with the page's sidebar entry (if any). */
 function tabPages<Id extends string>(
   base: string,
   section: string,
   ids: readonly Id[],
   labels: Record<Id, string>,
-  opts: { includeFirst?: boolean; keywords?: Partial<Record<Id, string[]>> } = {}
+  opts: { keywords?: Partial<Record<Id, string[]>> } = {}
 ): SitePage[] {
-  return ids
-    .filter((_, i) => i > 0 || opts.includeFirst)
-    .map((id, i) => ({
-      title: labels[id],
-      href: i === 0 && opts.includeFirst ? base : `${base}/${id}`,
+  return ids.map((id, i) => ({
+    title: labels[id],
+    href: i === 0 ? base : `${base}/${id}`,
+    audience: "member" as const,
+    section,
+    keywords: opts.keywords?.[id],
+  }));
+}
+
+/** A part of a settings tab (a heading or field), linking to its anchor: the sections list plus a row per notification kind. */
+function settingsSections(): SitePage[] {
+  const tabHref = (tab: (typeof SETTINGS_TAB_IDS)[number]) => (tab === SETTINGS_TAB_IDS[0] ? "/settings" : `/settings/${tab}`);
+  const section = (tab: (typeof SETTINGS_TAB_IDS)[number]) => `${SETTINGS_TITLE} · ${SETTINGS_TAB_LABELS[tab]}`;
+  return [
+    ...SETTINGS_SECTIONS.map((s) => ({ title: s.title, href: `${tabHref(s.tab)}#${s.id}`, audience: "member" as const, section: section(s.tab), keywords: s.keywords })),
+    ...NOTIFICATION_KINDS.map((k) => ({
+      title: k.label,
+      href: `${tabHref("notifications")}#notification-${k.id}`,
       audience: "member" as const,
-      section,
-      keywords: opts.keywords?.[id],
-    }));
+      section: section("notifications"),
+      keywords: [k.category, "notification", "reminder"],
+    })),
+  ];
 }
 
 const member = (page: Omit<SitePage, "audience">): SitePage => ({ ...page, audience: "member" });
@@ -64,8 +82,8 @@ const admin = (page: Omit<SitePage, "audience">): SitePage => ({ ...page, audien
 export const SITE_PAGES: SitePage[] = [
   // Member sidebar
   member({ title: "Dashboard", href: "/dashboard", section: "Home", nav: { icon: "🏠" }, keywords: ["home"] }),
-  member({ title: "My Writing", href: "/projects", section: "My Burrow", nav: { icon: "📝", activeFor: ["/projects/"] }, keywords: ["projects", "wip"] }),
-  member({ title: "My Prickles", href: "/my-prickles", section: "My Burrow", nav: { icon: "🦔", activeFor: ["/prickles/"] }, keywords: ["upcoming", "sessions"] }),
+  member({ title: "My Writing", href: "/projects", section: "My Burrow", nav: { icon: "📝", activeFor: ["/projects/"] }, keywords: ["wip"] }),
+  member({ title: "My Prickles", href: "/my-prickles", section: "My Burrow", nav: { icon: "🦔", activeFor: ["/prickles/"] }, keywords: ["sessions"] }),
   member({ title: "Streaks", href: "/streaks", section: "My Burrow", nav: { icon: "🔥" } }),
   member({ title: "Members", href: "/members", section: "Community", nav: { icon: "👭" }, keywords: ["directory", "people"] }),
   member({ title: "Chat", href: "/chat", section: "Community", nav: { icon: "💬" }, keywords: ["messages", "slack", "dm"], feature: "chat" }),
@@ -86,17 +104,17 @@ export const SITE_PAGES: SitePage[] = [
     keywords: { all: ["calendar", "schedule"], find: ["picker", "join", "sign up"], commitments: ["recurring", "weekly", "slot"], hosting: ["host"], history: ["attended", "past"] },
   }),
   ...tabPages("/settings", SETTINGS_TITLE, SETTINGS_TAB_IDS, SETTINGS_TAB_LABELS, {
-    includeFirst: true,
     keywords: {
-      account: ["email", "sessions", "sign out", "logout", "slack connect"],
-      profile: ["bio", "photo", "ask me about"],
-      identity: ["name", "pronouns", "display name", "birthday"],
-      preferences: ["theme", "dark mode", "timezone"],
-      notifications: ["email", "push", "slack", "reminders", "opt out", "unsubscribe"],
-      hosting: ["host", "vibe"],
-      previews: ["beta", "labs", "experiments"],
+      account: ["email", "sessions", "devices", "sign out", "logout", "slack connect", "slack"],
+      profile: ["public profile", "bio", "about me", "ask me about", "topics", "interests", "social", "links", "instagram", "facebook", "twitter", "x"],
+      identity: ["real name", "name", "pen name", "pen names", "alias", "aliases", "zoom name", "slack name", "birthday", "email", "email alias", "other email addresses"],
+      preferences: ["theme", "dark mode", "light mode", "appearance", "timezone", "time zone"],
+      notifications: ["email", "push", "browser notifications", "slack", "devices", "reminders", "opt out", "unsubscribe"],
+      hosting: ["host", "prickle vibe", "vibe"],
+      previews: ["beta", "labs", "experiments", "feature flags"],
     },
-  }),
+  }).map((page) => (page.href === "/settings/previews" ? { ...page, staffOnly: true } : page)),
+  ...settingsSections(),
 
   // Admin sidebar
   admin({ title: "Dashboard", href: "/admin", section: "Overview", nav: { icon: "📊" } }),

@@ -89,7 +89,7 @@ export function SessionsPanel() {
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-medium text-slate-900 dark:text-slate-100">
+        <h2 id="active-sessions" className="text-lg font-medium text-slate-900 dark:text-slate-100">
           Active Sessions
         </h2>
         <button

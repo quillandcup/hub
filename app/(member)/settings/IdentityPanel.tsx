@@ -247,7 +247,7 @@ export function IdentityPanel() {
       <div data-tour="identity-basics" className="space-y-8">
         {/* Real Name */}
         <div>
-          <h3 className="text-sm font-medium text-slate-900 dark:text-slate-100 mb-1">Real Name</h3>
+          <h3 id="identity-real-name" className="text-sm font-medium text-slate-900 dark:text-slate-100 mb-1">Real Name</h3>
           <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">
             Your canonical name — used across the app unless a pen name below matches instead.
           </p>
@@ -286,7 +286,7 @@ export function IdentityPanel() {
 
         {/* Birthday */}
         <div>
-          <h3 className="text-sm font-medium text-slate-900 dark:text-slate-100 mb-1">Birthday</h3>
+          <h3 id="identity-birthday" className="text-sm font-medium text-slate-900 dark:text-slate-100 mb-1">Birthday</h3>
           <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">
             Month and day only — no year needed. Used to celebrate your hedgie birthday with you.
           </p>
@@ -340,7 +340,7 @@ export function IdentityPanel() {
 
       {/* Pen Names / Zoom & Slack aliases */}
       <div data-tour="identity-names">
-        <h3 className="text-sm font-medium text-slate-900 dark:text-slate-100 mb-1">Pen Names &amp; Zoom/Slack Names</h3>
+        <h3 id="identity-pen-names" className="text-sm font-medium text-slate-900 dark:text-slate-100 mb-1">Pen Names &amp; Zoom/Slack Names</h3>
         <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">
           Other names people know you by — a pen name, or a different name you use in Zoom or Slack. Add
           one here if your attendance isn&apos;t showing up because you joined under a name other than your
@@ -382,7 +382,7 @@ export function IdentityPanel() {
 
       {/* Email aliases */}
       <div data-tour="identity-emails">
-        <h3 className="text-sm font-medium text-slate-900 dark:text-slate-100 mb-1">Email Aliases</h3>
+        <h3 id="identity-email-aliases" className="text-sm font-medium text-slate-900 dark:text-slate-100 mb-1">Email Aliases</h3>
         <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">
           Other email addresses that should also count as you (e.g. an old Kajabi or Slack email). Your
           primary email is <span className="font-medium">{data.primaryEmail}</span>.

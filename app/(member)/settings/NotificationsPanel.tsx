@@ -72,6 +72,7 @@ export function NotificationsPanel({ initial }: { initial: NotificationSettings 
             {NOTIFICATION_KINDS.filter((k) => k.category === category).map((kind) => (
               <li
                 key={kind.id}
+                id={`notification-${kind.id}`}
                 className="flex items-center gap-4 border-b border-slate-100 py-3 dark:border-slate-800"
               >
                 <div className="min-w-0 flex-1">

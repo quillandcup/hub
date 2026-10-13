@@ -74,7 +74,7 @@ async function searchPages(ctx: SearchContext, q: UniversalQuery): Promise<KindR
   return {
     kind: "pages",
     hasMore: rows.length > offset + limit,
-    hits: rows.slice(offset, offset + limit).map((p) => ({ kind: "pages", id: p.href, title: p.title, subtitle: p.section, href: p.href })),
+    hits: rows.slice(offset, offset + limit).map((p) => ({ kind: "pages", id: `${p.href}|${p.title}`, title: p.title, subtitle: p.section, href: p.href })),
   };
 }
 

@@ -86,7 +86,7 @@ export default async function SettingsPage({ tab }: { tab: SettingsTabId }) {
                 content: (
                   <div className="space-y-6">
                     <div>
-                      <h2 className="text-lg font-medium text-slate-900 dark:text-slate-100 mb-4">
+                      <h2 id="account-information" className="text-lg font-medium text-slate-900 dark:text-slate-100 mb-4">
                         Account Information
                       </h2>
                       <div className="space-y-4">

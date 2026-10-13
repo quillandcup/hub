@@ -42,3 +42,46 @@ describe("universalSearch pages kind", () => {
     expect(group.hits).toEqual([]);
   });
 });
+
+describe("tab pages", () => {
+  const found = (word: string) => matchPages([word], member).map((p) => `${p.title} / ${p.section} / ${p.href}`);
+
+  it("lists a tabbed page's first tab under the page, like the other tabs", () => {
+    expect(found("upcoming")).toEqual(["Upcoming / My Prickles / /my-prickles"]);
+    expect(found("projects")).toEqual(["Projects / My Writing / /projects"]);
+    expect(found("account")[0]).toBe("Account / Settings / /settings");
+  });
+});
+
+describe("settings tab keywords", () => {
+  const settingsFor = (query: string[]) => matchPages(query, member).filter((p) => p.section === "Settings").map((p) => p.title);
+
+  it("finds the tab whose form has the field", () => {
+    expect(settingsFor(["instagram"])).toEqual(["Profile"]);
+    expect(settingsFor(["twitter"])).toEqual(["Profile"]);
+    expect(settingsFor(["pen", "name"])).toEqual(["Identity"]);
+    expect(settingsFor(["email"])).toEqual(expect.arrayContaining(["Account", "Identity", "Notifications"]));
+  });
+});
+
+describe("settings sections in search", () => {
+  const rows = (query: string[], opts = member) => matchPages(query, opts).map((p) => `${p.title} / ${p.section} / ${p.href}`);
+
+  it("finds a section under its tab, linked to its anchor", () => {
+    expect(rows(["pen", "name"])).toContain("Pen names and Zoom/Slack names / Settings · Identity / /settings/identity#identity-pen-names");
+    expect(rows(["instagram"])).toContain("Instagram / Settings · Profile / /settings/profile#profile-instagram");
+  });
+
+  it("still finds the tab itself by its keywords", () => {
+    expect(rows(["instagram"])).toContain("Profile / Settings / /settings/profile");
+  });
+
+  it("finds notification kinds one by one", () => {
+    expect(rows(["check-ins"]).some((r) => r.includes("/settings/notifications#notification-prickle_checkin"))).toBe(true);
+  });
+
+  it("shows the Previews tab only to admins", () => {
+    expect(rows(["previews"])).toEqual([]);
+    expect(rows(["previews"], { isActingAsAdmin: true, features: [] })).toContain("Previews / Settings / /settings/previews");
+  });
+});
