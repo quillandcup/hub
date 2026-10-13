@@ -60,7 +60,7 @@ import { markChatRead } from "@/app/(member)/chat/actions";
 async function mount(view: ChatLiveView = "latest", extra: { threadRootId?: string; markRead?: boolean; latestAt?: string | null } = {}) {
   const result = render(
     <main style={{ overflowY: "auto" }}>
-      <ChatLive channelId="c1" view={view} messageIds={["m1", "m2"]} latestId="m2" {...extra} />
+      <ChatLive channelId="c1" view={view} latestId="m2" {...extra} />
     </main>,
   );
   await act(async () => {}); // let the session load and the channel subscribe
@@ -133,11 +133,17 @@ describe("ChatLive", () => {
     expect(refresh).toHaveBeenCalledTimes(2);
   });
 
-  it("ignores reactions on messages that are not on the page", async () => {
+  it("asks Realtime for only this conversation's reactions, and treats every one it gets as a change", async () => {
     await mount();
-    act(() => handlers.chat_reactions({ eventType: "INSERT", new: { message_id: "elsewhere" }, old: {} }));
-    await act(async () => vi.advanceTimersByTime(1000));
-    expect(refresh).not.toHaveBeenCalled();
+    expect(channel.on).toHaveBeenCalledWith(
+      "postgres_changes",
+      expect.objectContaining({ table: "chat_reactions", filter: "channel_id=eq.c1" }),
+      expect.any(Function),
+    );
+    // Whatever message it is on (not only ones the page knows about), the page catches up.
+    act(() => handlers.chat_reactions({ eventType: "INSERT", new: { message_id: "an-old-message" }, old: {} }));
+    await act(async () => {});
+    expect(refresh).toHaveBeenCalledTimes(1);
   });
 
   it("lands on the newest message when a conversation opens, but not on older pages or threads", async () => {
@@ -153,7 +159,7 @@ describe("ChatLive", () => {
     render(
       <main style={{ overflowY: "auto" }}>
         <div id="unread-divider" />
-        <ChatLive channelId="c1" view="latest" messageIds={["m1"]} latestId="m1" />
+        <ChatLive channelId="c1" view="latest" latestId="m1" />
       </main>,
     );
     await act(async () => {});
@@ -219,7 +225,7 @@ describe("ChatLive", () => {
     expect(screen.queryByText(/New messages/)).toBeNull();
     rerender(
       <main style={{ overflowY: "auto" }}>
-        <ChatLive channelId="c1" view="latest" messageIds={["m1", "m2", "m3"]} latestId="m3" />
+        <ChatLive channelId="c1" view="latest" latestId="m3" />
       </main>,
     );
     expect(HTMLElement.prototype.scrollTo).toHaveBeenCalled();
@@ -306,7 +312,7 @@ describe("ChatLive", () => {
       act(() => handlers.chat_messages(insert()));
       await act(async () => vi.advanceTimersByTime(1000));
 
-      expect(loadLatestChat).toHaveBeenCalledWith("c1");
+      expect(loadLatestChat).toHaveBeenCalledWith("c1", []);
       expect(events).toEqual([expect.objectContaining({ kind: "merge", channelId: "c1", views: expect.any(Array) })]);
       expect(refresh).not.toHaveBeenCalled();
       // The reader was at the bottom, so it follows the new message.
@@ -328,14 +334,31 @@ describe("ChatLive", () => {
       expect(screen.queryByText(/New messages/)).toBeNull();
     });
 
-    it("pays attention to reactions on messages it fetched, which the page doesn't know yet", async () => {
+    it("asks for the messages whose reactions changed too, once each, wherever they are in the list", async () => {
       await mount();
-      act(() => handlers.chat_messages(insert()));
-      await act(async () => vi.advanceTimersByTime(1000));
-      loadLatestChat.mockClear();
+      act(() => handlers.chat_reactions({ eventType: "INSERT", new: { message_id: "old-1" }, old: {} }));
+      await act(async () => {});
+      expect(loadLatestChat).toHaveBeenLastCalledWith("c1", ["old-1"]);
 
-      act(() => handlers.chat_reactions({ eventType: "INSERT", new: { message_id: "m3" }, old: {} }));
+      // A burst: the ones behind the first are asked for together in the next fetch, and not again after.
+      act(() => {
+        handlers.chat_reactions({ eventType: "UPDATE", new: { message_id: "old-2" }, old: {} });
+        handlers.chat_reactions({ eventType: "UPDATE", new: { message_id: "old-2" }, old: {} });
+        handlers.chat_reactions({ eventType: "DELETE", new: {}, old: { message_id: "old-3" } });
+      });
       await act(async () => vi.advanceTimersByTime(1000));
+      expect(loadLatestChat).toHaveBeenLastCalledWith("c1", ["old-2", "old-3"]);
+
+      act(() => handlers.chat_messages(update));
+      await act(async () => vi.advanceTimersByTime(1000));
+      expect(loadLatestChat).toHaveBeenLastCalledWith("c1", []);
+    });
+
+    it("catches up when the window regains focus", async () => {
+      vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
+      await mount();
+      loadLatestChat.mockClear();
+      await act(async () => void window.dispatchEvent(new Event("focus")));
       expect(loadLatestChat).toHaveBeenCalledTimes(1);
     });
 

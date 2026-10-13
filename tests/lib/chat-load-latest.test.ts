@@ -7,6 +7,7 @@ const m = vi.hoisted(() => ({
   loadChannelForMember: vi.fn(),
   loadMessage: vi.fn(),
   loadMessages: vi.fn(),
+  loadMessagesByIds: vi.fn(),
   loadChatChannels: vi.fn(),
   buildMessageViews: vi.fn(),
   chatTextContext: vi.fn(),
@@ -28,6 +29,7 @@ vi.mock("@/lib/chat/load", () => ({
   loadChannelForMember: m.loadChannelForMember,
   loadMessage: m.loadMessage,
   loadMessages: m.loadMessages,
+  loadMessagesByIds: m.loadMessagesByIds,
   loadChatChannels: m.loadChatChannels,
   buildMessageViews: m.buildMessageViews,
   chatTextContext: m.chatTextContext,
@@ -45,6 +47,7 @@ beforeEach(() => {
   m.hasFeature.mockResolvedValue(true);
   m.loadChannelForMember.mockResolvedValue({ id: CHANNEL, restricted: false });
   m.loadMessages.mockResolvedValue({ messages: [{ id: "m1" }], olderBefore: "2026-10-01T00:00:00Z" });
+  m.loadMessagesByIds.mockResolvedValue([]);
   m.buildMessageViews.mockResolvedValue({ views: [{ id: "m1" }], userNames: { U1: "Gale" }, userMembers: {}, channelNames: {}, customEmoji: {} });
   m.chatTextContext.mockReturnValue({ ctx: true });
 });
@@ -59,6 +62,22 @@ describe("loadLatestChat", () => {
     expect(m.loadMessages).toHaveBeenCalledWith({ supabase: true }, CHANNEL, {});
     expect(m.loadChatChannels).not.toHaveBeenCalled();
     expect(m.chatTextContext).toHaveBeenCalledWith(expect.objectContaining({ userNames: { U1: "Gale" } }), []);
+  });
+
+  it("also returns the messages asked for (their reactions changed), once each, however old", async () => {
+    const OLD = "00000000-0000-4000-a000-0000000000e1";
+    m.loadMessagesByIds.mockResolvedValue([{ id: OLD }, { id: "m1" }]);
+
+    await loadLatestChat(CHANNEL, [OLD, OLD, "not-a-uuid", "m1"]);
+
+    // Only real ids, each once; and the one already in the newest page isn't built twice.
+    expect(m.loadMessagesByIds).toHaveBeenCalledWith({ supabase: true }, CHANNEL, [OLD]);
+    expect(m.buildMessageViews).toHaveBeenCalledWith({ supabase: true }, expect.anything(), [{ id: "m1" }, { id: OLD }], "member-fern");
+  });
+
+  it("asks for no extra messages when none are named", async () => {
+    await loadLatestChat(CHANNEL);
+    expect(m.loadMessagesByIds).toHaveBeenCalledWith({ supabase: true }, CHANNEL, []);
   });
 
   it("returns nothing for a bad id, a signed-out visitor, chat turned off or a conversation the member can't open", async () => {

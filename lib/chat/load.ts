@@ -292,6 +292,21 @@ export async function loadMessages(
   return { messages: page, olderBefore: hasOlder && page.length > 0 ? page[0].created_at : null };
 }
 
+/**
+ * Specific top-level messages of a conversation by id, under RLS: to bring messages that changed
+ * (a reaction) up to date wherever they are in the list. Replies are left out (the thread has its own).
+ */
+export async function loadMessagesByIds(supabase: SupabaseClient, channelId: string, ids: string[]): Promise<MessageRow[]> {
+  if (ids.length === 0) return [];
+  const { data } = await supabase
+    .from("chat_messages")
+    .select(MESSAGE_COLUMNS)
+    .eq("channel_id", channelId)
+    .is("thread_root_id", null)
+    .in("id", ids);
+  return (data ?? []) as MessageRow[];
+}
+
 /** One message by id (a thread's root), under RLS. */
 export async function loadMessage(supabase: SupabaseClient, channelId: string, messageId: string): Promise<MessageRow | null> {
   const { data } = await supabase

@@ -17,6 +17,7 @@ import {
   loadChatChannels,
   loadMessage,
   loadMessages,
+  loadMessagesByIds,
   type ChatMessageView,
 } from "@/lib/chat/load";
 import type { ChatTextContext } from "@/components/chat/ChatText";
@@ -91,11 +92,12 @@ export async function loadOlderChat(channelId: string, before: string): Promise<
 /**
  * The newest page of top-level messages, for keeping an open conversation current without
  * re-rendering the page and layout: only the messages (the sidebar, members, read marker and the
- * rest are untouched). Same access rules as the page and `loadOlderChat`; the text context carries
+ * rest are untouched), plus the messages in `alsoMessageIds` (ones whose reactions changed, wherever they
+ * are in the list). Same access rules as the page and `loadOlderChat`; the text context carries
  * just the names found in these messages (the list merges it into what it already has), so the
  * channel list isn't read again. Null when it can't be loaded, and the caller refreshes the page.
  */
-export async function loadLatestChat(channelId: string): Promise<OlderChat | null> {
+export async function loadLatestChat(channelId: string, alsoMessageIds: string[] = []): Promise<OlderChat | null> {
   if (!isUuid(channelId)) return null;
   const started = performance.now();
   const caller = await chatCaller();
@@ -108,9 +110,16 @@ export async function loadLatestChat(channelId: string): Promise<OlderChat | nul
   if (!channel || (identity.isSudo && channel.restricted)) return null;
   const afterChannel = performance.now();
 
-  const page = await loadMessages(supabase, channel.id, {});
+  const wanted = [...new Set(alsoMessageIds.filter(isUuid))].slice(0, 50);
+  const [page, extra] = await Promise.all([
+    loadMessages(supabase, channel.id, {}),
+    loadMessagesByIds(supabase, channel.id, wanted),
+  ]);
   const afterMessages = performance.now();
-  const { views, ...rendered } = await buildMessageViews(supabase, channel, page.messages, identity.memberId);
+  // The newest page, plus any other messages asked for (ones whose reactions changed), once each.
+  const inPage = new Set(page.messages.map((m) => m.id));
+  const messages = [...page.messages, ...extra.filter((m) => !inPage.has(m.id))];
+  const { views, ...rendered } = await buildMessageViews(supabase, channel, messages, identity.memberId);
   const done = performance.now();
   // Where the time goes, for tuning: this runs on every live change in an open conversation.
   console.info(

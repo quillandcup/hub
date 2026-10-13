@@ -426,8 +426,12 @@ function triggerSlackProcessing(channelId: string, messageTs: string) {
       // Chat gets just this message (a constant-cost call, and what people are waiting to see), not the
       // windowed projection, which re-reads every message in the window and would grow with the day's traffic.
       const projectStarted = Date.now();
-      await projectChatMessage(createServiceRoleClient(), channelId, messageTs);
-      console.info("[chat] projected one Slack message into chat in %dms", Date.now() - projectStarted);
+      const projected = await projectChatMessage(createServiceRoleClient(), channelId, messageTs);
+      console.info(
+        "[chat] projected one Slack message into chat in %dms%s",
+        Date.now() - projectStarted,
+        projected ? "" : " (the chat has no such message, so nothing was attached to it)"
+      );
       await triggerReprocessing("slack_messages", "bronze", { dateRange: { from, to }, exclude: ["chat"] });
       console.log("Slack processing triggered successfully");
     } catch (error) {

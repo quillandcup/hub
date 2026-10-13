@@ -12,6 +12,8 @@ import { emitListEvent, onPoke } from "@/lib/chat/list-events";
 const REFRESH_DELAY_MS = 300;
 /** Within this many pixels of the bottom counts as "following the conversation". */
 const NEAR_BOTTOM_PX = 150;
+/** Most messages with a changed reaction one fetch asks about. */
+const MAX_CHANGED_IDS = 50;
 
 type Change = { eventType: string; new: Record<string, unknown>; old: Record<string, unknown> };
 
@@ -48,7 +50,6 @@ export type ChatLiveView = "latest" | "thread" | "older";
 export default function ChatLive({
   channelId,
   view,
-  messageIds,
   latestId,
   threadRootId,
   markRead = false,
@@ -56,7 +57,6 @@ export default function ChatLive({
 }: {
   channelId: string;
   view: ChatLiveView;
-  messageIds: string[];
   latestId: string | null;
   threadRootId?: string;
   /** Mark the conversation read, through `latestAt`, when the reader leaves it (not in sudo, not in thread panels). */
@@ -68,9 +68,9 @@ export default function ChatLive({
   const anchor = useRef<HTMLSpanElement>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const followNewest = useRef(false);
-  const shownIds = useRef(new Set(messageIds));
-  // Messages brought in by small fetches since the page last rendered (the page's own ids don't have them).
-  const fetchedIds = useRef(new Set<string>());
+  // Messages that got a reaction since the last fetch: the newest-messages fetch brings them up to
+  // date too, wherever they are in the list (a day-old message isn't among the newest).
+  const changedIds = useRef(new Set<string>());
   // The newest message shown: the page's, until a small fetch finds a newer one.
   const [newest, setNewest] = useState({ fromPage: latestId, id: latestId });
   if (newest.fromPage !== latestId) setNewest({ fromPage: latestId, id: latestId });
@@ -83,7 +83,6 @@ export default function ChatLive({
 
   // Read through refs inside the subscription so a refresh doesn't tear it down and rebuild it.
   useEffect(() => {
-    shownIds.current = new Set([...messageIds, ...fetchedIds.current]);
     latest.current = currentLatestId;
   });
 
@@ -97,18 +96,24 @@ export default function ChatLive({
   // the list in place; or the whole page for older pages and when that small fetch can't be done.
   const reload = useCallback(async () => {
     if (view === "older") return router.refresh();
+    const changed = [...changedIds.current].slice(0, MAX_CHANGED_IDS);
+    changedIds.current.clear();
     const result =
       view === "thread"
         ? await loadThreadChat(channelId, threadRootId ?? "").catch(() => null)
-        : await loadLatestChat(channelId).catch(() => null);
+        : await loadLatestChat(channelId, changed).catch(() => null);
     if (!result) return router.refresh();
     if (view === "thread") {
       emitListEvent({ kind: "merge-thread", channelId, threadRootId: threadRootId ?? "", views: result.views, ctx: result.ctx });
     } else {
       emitListEvent({ kind: "merge", channelId, views: result.views, ctx: result.ctx });
     }
-    const last = result.views[result.views.length - 1];
-    for (const v of result.views) fetchedIds.current.add(v.id);
+    // The newest message is the newest by time, not the last one in the list: a fetch can carry older
+    // messages that changed.
+    const last = result.views.reduce<(typeof result.views)[number] | undefined>(
+      (newest, v) => (!newest || Date.parse(v.createdAt) >= Date.parse(newest.createdAt) ? v : newest),
+      undefined,
+    );
     if (last) {
       setNewest((prev) => ({ ...prev, id: last.id }));
       // Only what the reader is looking at counts as seen; a message behind the pill stays unread.
@@ -161,9 +166,11 @@ export default function ChatLive({
         setAnnouncedAt({ latestId: latest.current });
       }
     };
+    // Realtime only sends this conversation's reactions (filtered on channel_id), so every one counts.
     const onReaction = (change: Change) => {
       const messageId = (change.new.message_id ?? change.old.message_id) as string | undefined;
-      if (messageId && shownIds.current.has(messageId)) refresh();
+      if (messageId) changedIds.current.add(messageId);
+      refresh();
     };
 
     let subscribedBefore = false;
@@ -192,7 +199,7 @@ export default function ChatLive({
       subscription = supabase
         .channel(`chat:${channelId}:${view}:${threadRootId ?? ""}`)
         .on("postgres_changes", { event: "*", schema: "public", table: "chat_messages", filter: `channel_id=eq.${channelId}` }, (p) => onMessage(p as unknown as Change))
-        .on("postgres_changes", { event: "*", schema: "public", table: "chat_reactions" }, (p) => onReaction(p as unknown as Change))
+        .on("postgres_changes", { event: "*", schema: "public", table: "chat_reactions", filter: `channel_id=eq.${channelId}` }, (p) => onReaction(p as unknown as Change))
         .subscribe((status, err) => {
           if (status !== "SUBSCRIBED") {
             if (status !== "CLOSED") console.warn("[chat] live updates:", status, err?.message ?? "");
@@ -208,9 +215,12 @@ export default function ChatLive({
       if (document.visibilityState === "visible") refresh();
     };
     document.addEventListener("visibilitychange", onVisible);
+    // Coming back to this window (from Slack, say) catches up too, even when the tab never counted as hidden.
+    window.addEventListener("focus", onVisible);
 
     return () => {
       document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", onVisible);
       if (timer.current) clearTimeout(timer.current);
       timer.current = null;
       settled.current = false;
