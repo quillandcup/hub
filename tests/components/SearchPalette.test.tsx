@@ -9,6 +9,7 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
 
 const searchPalette = vi.fn();
 vi.mock("@/app/actions/search", () => ({ searchPalette: (q: string) => searchPalette(q) }));
+vi.mock("@sentry/nextjs", () => ({ metrics: { distribution: vi.fn() } }));
 
 import SearchPalette from "@/components/search/SearchPalette";
 

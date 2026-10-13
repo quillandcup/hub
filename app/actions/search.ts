@@ -1,5 +1,6 @@
 "use server";
 
+import * as Sentry from "@sentry/nextjs";
 import { getSearcher } from "@/lib/search/context";
 import { parseUniversal } from "@/lib/search/syntax";
 import { universalSearch, type KindResults } from "@/lib/search/universal";
@@ -31,7 +32,11 @@ export async function searchPalette(input: string): Promise<PaletteSearch> {
   const skip = chatWanted ? searcher.skip : [...searcher.skip, "chat" as const];
   const timings: Record<string, number> = {};
   const results = await universalSearch({ ...searcher.ctx, limit: 4 }, query, { skip, timings });
-  // Where the time goes on the deployed site (never the query text): setup, then each kind.
-  console.log("palette search", JSON.stringify({ setupMs, totalMs: Math.round(performance.now() - started), kindsMs: timings }));
+  // Where the time goes on the deployed site, as metrics over time (never the query text): setup, each kind, total.
+  const record = (value: number, attributes: Record<string, string>) =>
+    Sentry.metrics.distribution("search.duration", value, { unit: "millisecond", attributes: { surface: "palette", ...attributes } });
+  record(setupMs, { stage: "setup" });
+  record(Math.round(performance.now() - started), { stage: "total" });
+  for (const [kind, ms] of Object.entries(timings)) record(ms, { stage: "kind", kind });
   return { results, chatSkipped: canSearchChat && !chatWanted };
 }

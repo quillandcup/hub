@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import * as Sentry from "@sentry/nextjs";
 import { searchPalette, type PaletteSearch } from "@/app/actions/search";
 import { KIND_GLYPHS, formatHitDate } from "@/lib/search/format";
 import { KIND_LABELS, type SearchHit } from "@/lib/search/kinds";
@@ -101,7 +102,13 @@ export default function SearchPalette({ resultsPath, isAdmin }: { resultsPath: s
     const timer = setTimeout(async () => {
       setLoading(true);
       try {
+        const sent = performance.now();
         const next = await searchPalette(q);
+        // What the member waits for: the server action's round trip, network included.
+        Sentry.metrics.distribution("search.duration", Math.round(performance.now() - sent), {
+          unit: "millisecond",
+          attributes: { surface: "palette", stage: "roundtrip" },
+        });
         if (id === requestId.current) {
           setData(next);
           setActive(-1);
