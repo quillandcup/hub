@@ -9,6 +9,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { formatPrickleTitle } from "@/lib/formatters";
 import { searchChat, SEARCH_PAGE_SIZE } from "@/lib/chat/search";
+import { mentionsToPlainText } from "@/lib/chat/render";
 import type { ChannelSummary } from "@/lib/chat/load";
 import { KIND_LABELS, type KindResults, type SearchHit } from "@/lib/search/kinds";
 import type { FeatureKey } from "@/lib/features";
@@ -292,7 +293,7 @@ async function searchChatKind(ctx: SearchContext, q: UniversalQuery): Promise<Ki
     kind: "chat",
     hasMore: result.hasMore || result.results.length > limit,
     hits: result.results.slice(0, limit).map((r) => ({
-      kind: "chat", id: r.message.id, title: r.message.body ?? "", subtitle: `${r.message.authorName} in ${r.channel.label}`,
+      kind: "chat", id: r.message.id, title: mentionsToPlainText(r.message.body ?? "", result.render), subtitle: `${r.message.authorName} in ${r.channel.label}`,
       date: r.message.createdAt, href: `/chat/${r.threadId}`,
     })),
   };

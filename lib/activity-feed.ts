@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { pageBounds } from "@/lib/pagination";
+import { withMentionNames } from "@/lib/chat/names";
 
 /**
  * The central activity log: audit_log rows, member_activities rows and page
@@ -165,7 +166,7 @@ export async function fetchActivityFeed(
     p_limit: bounds.pageSize,
   });
   if (error) throw error;
-  return { rows: (data ?? []) as ActivityFeedRow[], total, page: bounds.page, pageSize: bounds.pageSize };
+  return { rows: await withMentionNames((data ?? []) as ActivityFeedRow[]), total, page: bounds.page, pageSize: bounds.pageSize };
 }
 
 // ---------------------------------------------------------------------------

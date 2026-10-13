@@ -13,7 +13,12 @@ import {
   type ActivityFeedRow,
 } from "@/lib/activity-feed";
 
-const ACTOR = "00000000-0000-4000-a000-0000000000a1";
+vi.mock("@/lib/chat/names", () => ({
+  withMentionNames: async (rows: { description?: string | null }[]) =>
+    rows.map((r) => ({ ...r, description: r.description?.replace("<@U1>", "@Fern") ?? r.description })),
+}));
+
+const ACTOR ="00000000-0000-4000-a000-0000000000a1";
 
 function row(overrides: Partial<ActivityFeedRow>): ActivityFeedRow {
   return {
@@ -247,6 +252,12 @@ describe("fetchActivityFeed", () => {
       "get_activity_feed",
       expect.objectContaining({ p_offset: 100, p_limit: 50, p_from: "2026-09-29T12:00:00.000Z" })
     );
+  });
+
+  it("returns the rows with Slack mentions in descriptions resolved to names", async () => {
+    const { supabase } = client(1, [row({ description: "<@U1> hello" })]);
+    const result = await fetchActivityFeed(supabase, query(), now);
+    expect(result.rows[0].description).toBe("@Fern hello");
   });
 
   it("clamps a page past the end to the last page", async () => {

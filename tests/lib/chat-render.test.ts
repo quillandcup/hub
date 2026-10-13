@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { emojiNamesIn, mentionedUserIds, parseInline, parseSlackText } from "@/lib/chat/render";
+import { emojiNamesIn, mentionedUserIds, mentionsToPlainText, parseInline, parseSlackText } from "@/lib/chat/render";
 
 const text = (v: string) => ({ t: "text", v });
 
@@ -92,6 +92,16 @@ describe("parseSlackText", () => {
 describe("mentionedUserIds", () => {
   it("lists mentioned Slack users, with or without a label", () => {
     expect(mentionedUserIds("<@U1> and <@U2|fern> in <#C1>")).toEqual(["U1", "U2"]);
+  });
+});
+
+describe("mentionsToPlainText", () => {
+  const names = { userNames: { U1: "Fern" }, channelNames: { C1: "general" } };
+  it("replaces user mentions and channel links with names", () => {
+    expect(mentionsToPlainText("<@U1> see <#C1|channel>", names)).toBe("@Fern see #general");
+  });
+  it("falls back to the label, then a generic word, for unknown ids", () => {
+    expect(mentionsToPlainText("<@U9|moss> <@U8> <#C9|ideas> <#C8>", names)).toBe("@moss @someone #ideas #channel");
   });
 });
 

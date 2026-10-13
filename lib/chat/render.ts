@@ -124,3 +124,10 @@ export function mentionedChannelIds(text: string): string[] {
 export function emojiNamesIn(text: string): string[] {
   return [...text.matchAll(/:([a-z0-9_+-]+)(?:::skin-tone-\d)?:/gi)].map((m) => m[1].toLowerCase());
 }
+
+/** A body as one-line plain text for places that can't render chips (search hit titles): mentions and channel links become names. */
+export function mentionsToPlainText(text: string, names: { userNames: Record<string, string>; channelNames: Record<string, string> }): string {
+  return text
+    .replace(/<@([A-Z0-9]+)(?:\|([^>]*))?>/g, (_, id: string, label?: string) => `@${names.userNames[id] ?? label ?? "someone"}`)
+    .replace(/<#([A-Z0-9]+)(?:\|([^>]*))?>/g, (_, id: string, label?: string) => `#${names.channelNames[id] ?? label ?? "channel"}`);
+}
