@@ -62,7 +62,12 @@ async function openTarget(target) {
       if ("focus" in tab) await tab.focus();
       const navigated = "navigate" in tab ? await tab.navigate(target.href) : null;
       if (navigated) {
-        await navigated.focus().catch(() => {});
+        // The tab is already where it should be; a focus failure now mustn't send us on to another tab.
+        try {
+          await navigated.focus();
+        } catch {
+          // Ignore.
+        }
         return;
       }
     } catch (error) {
