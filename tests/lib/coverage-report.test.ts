@@ -37,7 +37,7 @@ function coverage(
   const statementMap: FileCoverage["statementMap"] = {};
   const s: FileCoverage["s"] = {};
   for (const [line, hits] of Object.entries(lines)) {
-    statementMap[line] = { start: { line: Number(line) } };
+    statementMap[line] = { start: { line: Number(line), column: 0 } };
     s[line] = hits;
   }
   const fnMap: NonNullable<FileCoverage["fnMap"]> = {};
