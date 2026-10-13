@@ -122,14 +122,20 @@ describe('Calendar Reprocessability', () => {
       end_time: '2099-06-20T10:00:00Z',
       raw_data: {},
     })
-    await process()
-    expect(await read()).toMatchObject({ title: 'Heads Down Midnight Crew', description: 'Quiet sprint & chat after.', type_id: heads!.id })
+    try {
+      await process()
+      expect(await read()).toMatchObject({ title: 'Heads Down Midnight Crew', description: 'Quiet sprint & chat after.', type_id: heads!.id })
 
-    await supabase.schema('bronze').from('calendar_events')
-      .update({ summary: 'Heads Down', description: null })
-      .eq('google_event_id', calendarEventId)
-    await process()
-    expect(await read()).toMatchObject({ title: null, description: null })
+      await supabase.schema('bronze').from('calendar_events')
+        .update({ summary: 'Heads Down', description: null })
+        .eq('google_event_id', calendarEventId)
+      await process()
+      expect(await read()).toMatchObject({ title: null, description: null })
+    } finally {
+      // The tests below count every calendar prickle in the month, so leave none behind
+      await supabase.schema('bronze').from('calendar_events').delete().eq('google_event_id', calendarEventId)
+      await process()
+    }
   })
 
   it('should create prickles from calendar events on first process', async () => {
