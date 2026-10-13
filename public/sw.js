@@ -40,27 +40,29 @@ self.addEventListener("notificationclick", (event) => {
   event.waitUntil(openTarget(target));
 });
 
-// Reuse an open Hub tab when we can drive it, otherwise open a new one. WindowClient.navigate()
-// rejects for a tab this worker doesn't control (opened before it activated) and focus() can reject
-// too, which used to leave the click doing nothing at all. Focus goes first, while the click's user
-// activation is fresh (Chrome on macOS doesn't always raise the window after an async navigate), and a
-// tab already on the target is just focused rather than navigated to where it is.
+// Reuse an open Hub tab when we can drive it, otherwise open a new one. A window this worker can't
+// drive fails in different ways (WindowClient.navigate() rejects for a tab it doesn't control, focus()
+// throws for a tab that is already closed but still listed), and either used to leave the click doing
+// nothing at all. So try each Hub tab in turn, best first: already on the target, then the focused
+// one, then a visible one, then the rest. Focus first, while the click's user activation is fresh
+// (Chrome on macOS doesn't always raise the window after an async navigate); a tab already on the
+// target is just focused rather than navigated to where it is.
 async function openTarget(target) {
   const windows = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
-  const open = windows.find((w) => new URL(w.url).origin === self.location.origin);
-  console.log("[sw] notification click", { target: target.href, openTabs: windows.length, reusing: open ? open.url : null });
-  if (open) {
+  const rank = (w) => (w.url === target.href ? 0 : w.focused ? 1 : w.visibilityState === "visible" ? 2 : 3);
+  const hubTabs = windows.filter((w) => new URL(w.url).origin === self.location.origin).sort((a, b) => rank(a) - rank(b));
+  console.log("[sw] notification click", { target: target.href, hubTabs: hubTabs.map((w) => w.url) });
+  for (const tab of hubTabs) {
     try {
-      if ("focus" in open) await open.focus();
-      if (open.url === target.href) return;
-      const navigated = "navigate" in open ? await open.navigate(target.href) : null;
+      if ("focus" in tab) await tab.focus();
+      if (tab.url === target.href) return;
+      const navigated = "navigate" in tab ? await tab.navigate(target.href) : null;
       if (navigated) {
-        await navigated.focus();
+        await navigated.focus().catch(() => {});
         return;
       }
     } catch (error) {
-      console.warn("[sw] couldn't reuse the open tab", error);
-      // Fall through to a new window.
+      console.warn("[sw] couldn't reuse an open tab", tab.url, error);
     }
   }
   await self.clients.openWindow(target.href);

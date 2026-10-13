@@ -127,6 +127,25 @@ describe("public/sw.js notification click handler", () => {
     expect(openWindow).toHaveBeenCalledWith(`${origin}/prickles/1/checkin`);
   });
 
+  it("tries the next Hub tab when the first can't be focused", async () => {
+    const stale = { url: `${origin}/dashboard`, focus: vi.fn().mockRejectedValue(new Error("Not allowed to focus a window")), navigate: vi.fn() };
+    const focus = vi.fn().mockResolvedValue(undefined);
+    const navigate = vi.fn().mockResolvedValue({ focus });
+    const { openWindow } = await click([stale, { url: `${origin}/members`, navigate }]);
+
+    expect(navigate).toHaveBeenCalledWith(`${origin}/prickles/1/checkin`);
+    expect(openWindow).not.toHaveBeenCalled();
+  });
+
+  it("prefers a tab already on the url", async () => {
+    const other = { url: `${origin}/dashboard`, focus: vi.fn(), navigate: vi.fn() };
+    const exact = { url: `${origin}/prickles/1/checkin`, focus: vi.fn().mockResolvedValue(undefined), navigate: vi.fn() };
+    await click([other, exact]);
+
+    expect(exact.focus).toHaveBeenCalled();
+    expect(other.focus).not.toHaveBeenCalled();
+  });
+
   it("ignores a url on another origin", async () => {
     const { openWindow } = await click([], "https://evil.example.test/x");
 
