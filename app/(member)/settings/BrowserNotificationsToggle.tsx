@@ -156,9 +156,16 @@ export function BrowserNotificationsToggle({ publicKey, readOnly }: { publicKey:
 
   if (state === "checking") return null;
 
+  const thisDevice = devices.find((d) => d.isThisDevice);
+  const otherDevices = devices.filter((d) => !d.isThisDevice);
+  const canToggle = state === "off" || state === "on";
+  const buttonClass =
+    "rounded-md border border-slate-300 px-2.5 py-1 font-medium text-slate-700 transition hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-plum-500 disabled:opacity-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800";
+
   return (
-    <div className="rounded-lg border border-slate-200 p-4 text-sm dark:border-slate-700">
-      <div className="font-medium text-slate-900 dark:text-slate-100">Browser notifications on this device</div>
+    <div className="rounded-lg border border-slate-200 px-3 py-2.5 text-sm dark:border-slate-700">
+      <div className="font-medium text-slate-900 dark:text-slate-100">Browser notifications</div>
+      <p className="text-slate-500 dark:text-slate-400">You get these even when the Hub isn&apos;t open.</p>
       {state === "unsupported" &&
         (iosTab ? (
           <div className="mt-1 text-slate-500 dark:text-slate-400">
@@ -176,62 +183,58 @@ export function BrowserNotificationsToggle({ publicKey, readOnly }: { publicKey:
           and turn them on.
         </p>
       )}
-      {(state === "off" || state === "on") && (
-        <div className="mt-1 flex flex-wrap items-center gap-3">
-          <p className="min-w-0 flex-1 text-slate-500 dark:text-slate-400">
-            {state === "on"
-              ? "On. This device gets the kinds you've turned Browser on for below, even when the Hub isn't open."
-              : "Off. Turn on to get the kinds you choose below as notifications on this device, even when the Hub isn't open. Each device you use is turned on separately."}
-          </p>
-          <button
-            type="button"
-            disabled={readOnly || busy}
-            aria-busy={busy}
-            onClick={state === "on" ? disable : enable}
-            className="rounded-md border border-slate-300 px-3 py-1.5 font-medium text-slate-700 transition hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-plum-500 disabled:opacity-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
-          >
-            {state === "on" ? "Turn off for this device" : "Turn on for this device"}
-          </button>
-        </div>
-      )}
-      {devices.length > 0 && (
-        <div className="mt-3 border-t border-slate-100 pt-3 dark:border-slate-800">
-          <div className="flex items-center justify-between gap-3">
-            <div className="font-medium text-slate-700 dark:text-slate-300">Your devices</div>
-            <button
-              type="button"
-              disabled={readOnly || busy}
-              onClick={sendTest}
-              className="rounded-md border border-slate-300 px-2.5 py-1 font-medium text-slate-700 transition hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-plum-500 disabled:opacity-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
-            >
-              Send a test notification
-            </button>
-          </div>
-          <ul className="mt-2 divide-y divide-slate-100 dark:divide-slate-800">
-            {devices.map((device) => (
-              <li key={device.id} className="flex items-center gap-3 py-2">
+      {(canToggle || otherDevices.length > 0) && (
+        <div className="mt-2 border-t border-slate-100 pt-2 dark:border-slate-800">
+          <div className="font-medium text-slate-700 dark:text-slate-300">Your devices</div>
+          <ul className="divide-y divide-slate-100 dark:divide-slate-800">
+            {canToggle && (
+              <li className="flex items-center gap-3 py-1.5">
+                <div className="min-w-0 flex-1">
+                  <span className="text-slate-900 dark:text-slate-100">{thisDevice?.label ?? "This browser"}</span>
+                  <span className="ml-2 text-xs text-slate-500">this device</span>
+                  <div className="text-xs text-slate-500 dark:text-slate-400">
+                    {thisDevice
+                      ? `Added ${new Date(thisDevice.addedAt).toLocaleDateString()}${thisDevice.lastSentAt ? ` · last notified ${new Date(thisDevice.lastSentAt).toLocaleDateString()}` : ""}`
+                      : "Off"}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  disabled={readOnly || busy}
+                  aria-busy={busy}
+                  onClick={state === "on" ? disable : enable}
+                  className={buttonClass}
+                >
+                  {state === "on" ? "Turn off for this device" : "Turn on for this device"}
+                </button>
+              </li>
+            )}
+            {otherDevices.map((device) => (
+              <li key={device.id} className="flex items-center gap-3 py-1.5">
                 <div className="min-w-0 flex-1">
                   <span className="text-slate-900 dark:text-slate-100">{device.label}</span>
-                  {device.isThisDevice && <span className="ml-2 text-xs text-slate-500">this device</span>}
                   <div className="text-xs text-slate-500 dark:text-slate-400">
                     Added {new Date(device.addedAt).toLocaleDateString()}
                     {device.lastSentAt && ` · last notified ${new Date(device.lastSentAt).toLocaleDateString()}`}
                   </div>
                 </div>
-                {!device.isThisDevice && (
-                  <button
-                    type="button"
-                    disabled={readOnly || busy}
-                    aria-label={`Remove ${device.label}`}
-                    onClick={() => removeDevice(device.id)}
-                    className="rounded-md px-2 py-1 text-red-600 hover:bg-red-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-plum-500 disabled:opacity-50 dark:text-red-400 dark:hover:bg-red-950"
-                  >
-                    Remove
-                  </button>
-                )}
+                <button
+                  type="button"
+                  disabled={readOnly || busy}
+                  aria-label={`Remove ${device.label}`}
+                  onClick={() => removeDevice(device.id)}
+                  className="rounded-md px-2 py-1 text-red-600 hover:bg-red-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-plum-500 disabled:opacity-50 dark:text-red-400 dark:hover:bg-red-950"
+                >
+                  Remove
+                </button>
               </li>
             ))}
           </ul>
+          {devices.length > 0 && (
+            <button type="button" disabled={readOnly || busy} onClick={sendTest} className={`mt-1 ${buttonClass}`}>
+              Send a test notification
+            </button>
+          )}
         </div>
       )}
       {notice && (
