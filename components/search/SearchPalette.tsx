@@ -10,6 +10,7 @@ import { KIND_GLYPHS, formatHitDate } from "@/lib/search/format";
 import { KIND_LABELS, type SearchHit } from "@/lib/search/kinds";
 import { SEARCH_KINDS, matchWords, parseUniversal, withKind } from "@/lib/search/syntax";
 import Highlight from "@/components/search/Highlight";
+import SearchSpinner from "@/components/search/SearchSpinner";
 
 const RECENTS_KEY = "hub:recent-searches";
 const MAX_RECENTS = 5;
@@ -59,7 +60,8 @@ export default function SearchPalette({ resultsPath, isAdmin }: { resultsPath: s
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState("");
   const [data, setData] = useState<PaletteSearch | null>(null);
-  const [loading, setLoading] = useState(false);
+  // The query `data` answers; while it differs from what is typed, a search is pending.
+  const [answeredFor, setAnsweredFor] = useState("");
   const [active, setActive] = useState(-1);
 
   const close = useCallback(() => setOpen(false), []);
@@ -100,7 +102,6 @@ export default function SearchPalette({ resultsPath, isAdmin }: { resultsPath: s
     // One character matches nearly everything, so wait for a second before querying.
     if (q.length < MIN_QUERY_CHARS) return;
     const timer = setTimeout(async () => {
-      setLoading(true);
       try {
         const sent = performance.now();
         const next = await searchPalette(q);
@@ -111,12 +112,14 @@ export default function SearchPalette({ resultsPath, isAdmin }: { resultsPath: s
         });
         if (id === requestId.current) {
           setData(next);
+          setAnsweredFor(q);
           setActive(-1);
         }
       } catch {
-        if (id === requestId.current) setData({ results: [] });
-      } finally {
-        if (id === requestId.current) setLoading(false);
+        if (id === requestId.current) {
+          setData({ results: [] });
+          setAnsweredFor(q);
+        }
       }
     }, DEBOUNCE_MS);
     return () => clearTimeout(timer);
@@ -124,9 +127,10 @@ export default function SearchPalette({ resultsPath, isAdmin }: { resultsPath: s
 
   const query = useMemo(() => parseUniversal(input), [input]);
   const words = useMemo(() => matchWords(query), [query]);
-  const typed = input.trim() !== "";
   const shown = input.trim().length >= MIN_QUERY_CHARS ? data : null;
-  const busy = loading && typed;
+  // True from the keystroke (not just once the request is sent) until its answer arrives, so the
+  // debounce gap and the server round trip both read as "searching".
+  const busy = input.trim().length >= MIN_QUERY_CHARS && answeredFor !== input.trim();
   const hits = useMemo(() => (shown?.results ?? []).flatMap((r) => r.hits), [shown]);
   const resultsHref = `${resultsPath}?q=${encodeURIComponent(input.trim())}`;
 
@@ -235,7 +239,10 @@ export default function SearchPalette({ resultsPath, isAdmin }: { resultsPath: s
               ))}
             </div>
 
+            {busy && <div className="h-0.5 w-full animate-pulse bg-plum-500" aria-hidden="true" />}
+
             <div className="flex-1 overflow-y-auto" aria-live="polite">
+              {busy && <SearchSpinner className="px-4 py-3" />}
               {kindSuggestions.length > 0 && (
                 <div className="border-b border-slate-200 dark:border-slate-800 px-4 py-2 text-sm">
                   <span className="text-slate-500">Only search </span>
@@ -278,7 +285,7 @@ export default function SearchPalette({ resultsPath, isAdmin }: { resultsPath: s
               )}
 
               {shown?.results.map((group) => (
-                <section key={group.kind} className="border-b border-slate-100 dark:border-slate-800 py-2 last:border-b-0">
+                <section key={group.kind} className={`border-b border-slate-100 dark:border-slate-800 py-2 last:border-b-0 ${busy ? "opacity-50" : ""}`}>
                   <div className="flex items-center justify-between px-4 pb-1">
                     <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">{KIND_LABELS[group.kind]}</h3>
                     {group.hasMore && (

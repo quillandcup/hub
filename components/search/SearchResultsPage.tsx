@@ -1,4 +1,5 @@
 import Link from "next/link";
+import PendingLink from "@/components/search/PendingLink";
 import { notFound } from "next/navigation";
 import { getSearcher } from "@/lib/search/context";
 import { KIND_COLUMNS, formatHitDate } from "@/lib/search/format";
@@ -8,6 +9,7 @@ import { recordSearchTimings } from "@/lib/search/metrics";
 import { universalSearch } from "@/lib/search/universal";
 import { MAX_QUERY_LENGTH } from "@/lib/chat/search";
 import Highlight from "@/components/search/Highlight";
+import ResultsSearchBox from "@/components/search/ResultsSearchBox";
 
 export const SEARCH_PAGE_TITLE = "Search";
 const OVERVIEW_ROWS = 5;
@@ -61,33 +63,30 @@ export default async function SearchResultsPage({
     <div className="container mx-auto max-w-5xl px-6 py-6">
       <h1 className="mb-4 text-2xl font-bold">Search results</h1>
 
-      <form action={basePath} method="get" className="mb-4">
-        <input
-          name="q"
-          defaultValue={raw}
-          placeholder="Search pages, channels, members, prickles, projects, books, awards, events and chat"
-          className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
-          aria-label="Search"
-          maxLength={MAX_QUERY_LENGTH}
-        />
-      </form>
+      <ResultsSearchBox
+        key={raw}
+        basePath={basePath}
+        initial={raw}
+        placeholder="Search pages, channels, members, prickles, projects, books, awards, events and chat"
+        maxLength={MAX_QUERY_LENGTH}
+      />
 
       {raw && (
         <nav className="mb-6 flex flex-wrap gap-2" aria-label="Kinds">
-          <Link
+          <PendingLink
             href={href(withKind(raw))}
             className={`rounded-lg px-3 py-1.5 text-sm ${!scoped ? "bg-slate-200 dark:bg-slate-700 font-medium" : "bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700"}`}
           >
             All
-          </Link>
+          </PendingLink>
           {visibleKinds.map((k) => (
-            <Link
+            <PendingLink
               key={k}
               href={href(withKind(raw, k))}
               className={`rounded-lg px-3 py-1.5 text-sm ${scoped === k ? "bg-slate-200 dark:bg-slate-700 font-medium" : "bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700"}`}
             >
               {KIND_LABELS[k]}
-            </Link>
+            </PendingLink>
           ))}
         </nav>
       )}
@@ -113,9 +112,9 @@ export default async function SearchResultsPage({
               <div className="mb-2 flex items-baseline justify-between">
                 <h2 className="text-lg font-semibold">{KIND_LABELS[group.kind]}</h2>
                 {!scoped && group.hasMore && (
-                  <Link href={href(withKind(raw, group.kind))} className="text-sm text-plum-700 dark:text-plum-300 hover:underline">
+                  <PendingLink href={href(withKind(raw, group.kind))} className="text-sm text-plum-700 dark:text-plum-300 hover:underline">
                     View all
-                  </Link>
+                  </PendingLink>
                 )}
               </div>
               <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-800">
@@ -154,8 +153,8 @@ export default async function SearchResultsPage({
               </div>
               {scoped && (pageNumber > 0 || group.hasMore) && (
                 <div className="mt-3 flex justify-between text-sm">
-                  {pageNumber > 0 ? <Link href={href(raw, pageNumber - 1)} className="hover:underline">← Previous</Link> : <span />}
-                  {group.hasMore && <Link href={href(raw, pageNumber + 1)} className="hover:underline">Next →</Link>}
+                  {pageNumber > 0 ? <PendingLink href={href(raw, pageNumber - 1)} className="hover:underline">← Previous</PendingLink> : <span />}
+                  {group.hasMore && <PendingLink href={href(raw, pageNumber + 1)} className="hover:underline">Next →</PendingLink>}
                 </div>
               )}
             </section>

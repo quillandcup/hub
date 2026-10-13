@@ -135,4 +135,15 @@ describe("SearchPalette", () => {
     await openAndType("old");
     expect(await screen.findByRole("link", { name: /#old/ })).toHaveClass("opacity-60");
   });
+
+  it("shows a visible Searching status from the keystroke until the answer arrives", async () => {
+    let answer: (value: typeof results) => void = () => {};
+    searchPalette.mockReset().mockReturnValue(new Promise((resolve) => (answer = resolve)));
+    await openAndType("cody");
+    expect(screen.getByRole("status")).toHaveTextContent("Searching…");
+
+    answer(results);
+    await screen.findByRole("heading", { name: "Members" });
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
 });
