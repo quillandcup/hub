@@ -153,7 +153,10 @@ export default function MemberOverridesClient() {
             (gifts, 180 program, etc.) Hiatus is tracked separately, per-member.
           </p>
         </div>
-        <RecordHistoryButton entityType="member_status_override" label="status overrides" />
+        <RecordHistoryButton
+          entityType={["member_status_override", "member_join_date_override", "member_profile_override"]}
+          label="member overrides"
+        />
       </div>
 
       {error && (
