@@ -246,6 +246,13 @@ const ENTITY_LABELS: Record<string, string> = {
   wheel_of_wonder_match: "Wheel of Wonder match",
   member_ask_me_about: "“Ask me about” topics",
   restricted_slack_channel: "restricted Slack channel",
+  segment_member: "segment membership",
+  feature_flag_segment: "feature flag segment",
+  user_feature_preview: "feature preview",
+  event_attendee: "event attendee",
+  program_enrollment: "program enrollment",
+  member_status_override: "status override",
+  prickle_host_vibe: "host vibe",
 };
 
 const NAME_FIELDS = ["title", "name", "alias"] as const;

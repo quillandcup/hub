@@ -120,6 +120,11 @@ describe("describeRow", () => {
     expect(describeRow(row({ data: many }))).toBe("changed prickle type — a, b, c, d, +2 more");
   });
 
+  it("names records that are labelled by what they point at", () => {
+    const r = row({ event_type: "insert", entity_type: "segment_member", description: "Cohort A", data: { member_id: { old: null, new: "m1" } } });
+    expect(describeRow(r)).toBe("added segment membership “Cohort A”");
+  });
+
   it("summarizes sessions and activities", () => {
     expect(describeRow(row({ kind: "session", data: { pages: ["/a", "/b"] } }))).toBe("visited 2 pages (A ×1, B ×1)");
     expect(describeRow(row({ kind: "session", data: { pages: ["/a"] } }))).toBe("visited 1 page");
