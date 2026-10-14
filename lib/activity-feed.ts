@@ -74,18 +74,25 @@ export interface FeedQuery extends FeedFilters {
 }
 
 export const FEED_DAY_OPTIONS = [1, 7, 30, 90] as const;
-const DEFAULT_DAYS = 7;
+
+/** What a feed shows when its URL has no ?view= / ?days=: the central log is audit-first, a member's page shows everything. */
+export interface FeedDefaults {
+  view: FeedView;
+  days: number;
+}
+export const CENTRAL_DEFAULTS: FeedDefaults = { view: "audit", days: 7 };
+export const MEMBER_DEFAULTS: FeedDefaults = { view: "all", days: 90 };
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 type Param = string | string[] | undefined;
 const first = (v: Param) => (Array.isArray(v) ? v[0] : v);
 
-function parseView(view: string | undefined): FeedView {
-  return view === "all" || view === "privacy" ? view : "audit";
+function parseView(view: string | undefined, fallback: FeedView): FeedView {
+  return view === "audit" || view === "all" || view === "privacy" ? view : fallback;
 }
 
-export function parseFeedFilters(params: Record<string, Param>): FeedFilters {
+export function parseFeedFilters(params: Record<string, Param>, defaults: FeedDefaults = CENTRAL_DEFAULTS): FeedFilters {
   const kindList = (first(params.kinds) ?? "")
     .split(",")
     .filter((k): k is FeedKind => (FEED_KINDS as readonly string[]).includes(k));
@@ -94,14 +101,14 @@ export function parseFeedFilters(params: Record<string, Param>): FeedFilters {
   const member = first(params.member);
 
   return {
-    view: parseView(first(params.view)),
+    view: parseView(first(params.view), defaults.view),
     kinds: kindList.length > 0 ? kindList : null,
     actorUserId: actor && UUID_RE.test(actor) ? actor : null,
     memberId: member && UUID_RE.test(member) ? member : null,
     sudoOnly: first(params.sudo) === "1",
     hideSystem: first(params.nosystem) === "1",
     hideSlack: first(params.noslack) === "1",
-    days: (FEED_DAY_OPTIONS as readonly number[]).includes(days) ? days : DEFAULT_DAYS,
+    days: (FEED_DAY_OPTIONS as readonly number[]).includes(days) ? days : defaults.days,
   };
 }
 
@@ -109,16 +116,16 @@ export function parseFeedFilters(params: Record<string, Param>): FeedFilters {
  * Query string for a filter set, omitting defaults. Page is deliberately not
  * included: changing a filter starts again on page 1.
  */
-export function feedSearch(filters: Partial<FeedFilters>): string {
+export function feedSearch(filters: Partial<FeedFilters>, defaults: FeedDefaults = CENTRAL_DEFAULTS): string {
   const q = new URLSearchParams();
-  if (filters.view === "all" || filters.view === "privacy") q.set("view", filters.view);
+  if (filters.view && filters.view !== defaults.view) q.set("view", filters.view);
   if (filters.kinds?.length) q.set("kinds", filters.kinds.join(","));
   if (filters.actorUserId) q.set("actor", filters.actorUserId);
   if (filters.memberId) q.set("member", filters.memberId);
   if (filters.sudoOnly) q.set("sudo", "1");
   if (filters.hideSystem) q.set("nosystem", "1");
   if (filters.hideSlack) q.set("noslack", "1");
-  if (filters.days && filters.days !== DEFAULT_DAYS) q.set("days", String(filters.days));
+  if (filters.days && filters.days !== defaults.days) q.set("days", String(filters.days));
   const s = q.toString();
   return s ? `?${s}` : "";
 }

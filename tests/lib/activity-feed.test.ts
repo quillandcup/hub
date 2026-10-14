@@ -5,6 +5,7 @@ import {
   actorName,
   changedFields,
   describeRow,
+  MEMBER_DEFAULTS,
   feedSearch,
   fetchActivityFeed,
   pageLabel,
@@ -103,6 +104,27 @@ describe("feedSearch", () => {
     expect(feedSearch(parseFeedFilters({}))).toBe("");
     const filters = parseFeedFilters({ view: "all", kinds: "activity", actor: ACTOR, days: "90", sudo: "1", nosystem: "1" });
     expect(parseFeedFilters(Object.fromEntries(new URLSearchParams(feedSearch(filters))))).toEqual(filters);
+  });
+});
+
+describe("member defaults", () => {
+  it("default to Everything over 90 days and keep the URL clean", () => {
+    const filters = parseFeedFilters({}, MEMBER_DEFAULTS);
+    expect(filters.view).toBe("all");
+    expect(filters.days).toBe(90);
+    expect(feedSearch(filters, MEMBER_DEFAULTS)).toBe("");
+  });
+
+  it("writes only what differs from them, and reads the audit view back", () => {
+    const filters = parseFeedFilters({ view: "audit", days: "7", nosystem: "1", noslack: "1" }, MEMBER_DEFAULTS);
+    expect(filters).toMatchObject({ view: "audit", days: 7, hideSystem: true, hideSlack: true });
+    expect(feedSearch(filters, MEMBER_DEFAULTS)).toBe("?view=audit&nosystem=1&noslack=1&days=7");
+    expect(parseFeedFilters(Object.fromEntries(new URLSearchParams(feedSearch(filters, MEMBER_DEFAULTS))), MEMBER_DEFAULTS)).toEqual(filters);
+  });
+
+  it("leaves the central log's defaults alone", () => {
+    expect(parseFeedFilters({}).view).toBe("audit");
+    expect(feedSearch(parseFeedFilters({ view: "all" }))).toBe("?view=all");
   });
 });
 

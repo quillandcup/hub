@@ -21,11 +21,9 @@ import { tabTitle } from "@/lib/tab-routes";
 import { loadPushDevices } from "@/lib/channels/web-push";
 import { describeDevice } from "@/lib/device-label";
 import { createServiceRoleClient } from "@/lib/supabase/service";
-import { fetchActivityFeed } from "@/lib/activity-feed";
+import { fetchActivityFeed, parseFeedFilters, MEMBER_DEFAULTS } from "@/lib/activity-feed";
 import { parsePageParam, parsePageSizeParam } from "@/lib/pagination";
 
-/** How far back a member's activity log looks. */
-const MEMBER_FEED_DAYS = 90;
 
 const getMemberRow = cache(async (id: string) => {
   const supabase = await createClient();
@@ -220,17 +218,12 @@ export default async function MemberDetailPage({
     .order("occurred_at", { ascending: false })
     .limit(50);
 
-  // Everything about this member for the Activity Log tab: their own activity, what staff did for
-  // or as them, and changes to their record (the same feed as /admin/activity, narrowed to them).
+  // The Activity Log tab: the same feed as /admin/activity narrowed to this member (their own
+  // activity, what staff did for or as them, changes to their record), Everything by default.
+  // Its filters are the URL's ?view=&days=&nosystem=&noslack=&kinds=&sudo=.
+  const activityFilters = { ...parseFeedFilters(searchParams, MEMBER_DEFAULTS), memberId: id };
   const activityFeed = await fetchActivityFeed(supabase, {
-    view: "all",
-    kinds: null,
-    actorUserId: null,
-    memberId: id,
-    sudoOnly: false,
-    hideSystem: false,
-    hideSlack: false,
-    days: MEMBER_FEED_DAYS,
+    ...activityFilters,
     page: parsePageParam(searchParams.page),
     pageSize: parsePageSizeParam(searchParams.pageSize),
   });
@@ -368,6 +361,7 @@ export default async function MemberDetailPage({
           attendanceRecords={attendance || []}
           hiatusHistory={hiatusHistory || []}
           activityFeed={activityFeed}
+          activityFilters={activityFilters}
           slackActivities={await withMentionNames(slackActivities || [])}
           userTimezonePreference={userTimezone}
           membershipHistory={membershipHistory}
