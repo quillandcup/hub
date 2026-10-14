@@ -26,6 +26,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { getTestSupabaseAdminClient, getTestAuthHeaders, getTestApiBaseUrl } from '../../helpers/supabase';
 import { matchAttendeeToMember } from '@/lib/member-matching';
+import { apiFetch } from '../../helpers/api-fetch'
 
 describe('Orphaned Meetings Idempotency', () => {
   const supabase = getTestSupabaseAdminClient();
@@ -183,7 +184,7 @@ describe('Orphaned Meetings Idempotency', () => {
     const fromDate = new Date(baseDate.getTime() - 60 * 60 * 1000).toISOString(); // 1 hour before
     const toDate = new Date(baseDate.getTime() + 120 * 60 * 1000).toISOString(); // 2 hours after
 
-    const response1 = await fetch(`${getTestApiBaseUrl()}/api/process/attendance`, {
+    const response1 = await apiFetch(`${getTestApiBaseUrl()}/api/process/attendance`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -220,7 +221,7 @@ describe('Orphaned Meetings Idempotency', () => {
     expect(prickleEnd.getTime()).toBe(matchedEnd.getTime());
 
     // ACT: Process again (test idempotency)
-    const response2 = await fetch(`${getTestApiBaseUrl()}/api/process/attendance`, {
+    const response2 = await apiFetch(`${getTestApiBaseUrl()}/api/process/attendance`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -315,7 +316,7 @@ describe('Orphaned Meetings Idempotency', () => {
     const fromDate = new Date(baseDate.getTime() - 60 * 60 * 1000).toISOString();
     const toDate = new Date(baseDate.getTime() + 120 * 60 * 1000).toISOString();
 
-    const response = await fetch(`${getTestApiBaseUrl()}/api/process/attendance`, {
+    const response = await apiFetch(`${getTestApiBaseUrl()}/api/process/attendance`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...getTestAuthHeaders() },
       body: JSON.stringify({ fromDate, toDate }),

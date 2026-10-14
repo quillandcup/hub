@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { getTestSupabaseAdminClient, getTestAuthHeaders, getTestApiBaseUrl } from '../../helpers/supabase'
+import { apiFetch } from '../../helpers/api-fetch'
 
 /**
  * Integration tests for the admin feature-flags API.
@@ -38,12 +39,12 @@ describe('Admin Feature Flags API', () => {
   // ── Auth guard ─────────────────────────────────────────────────────────────
 
   it('GET returns 401 without auth', async () => {
-    const res = await fetch(`${base}/api/admin/feature-flags`)
+    const res = await apiFetch(`${base}/api/admin/feature-flags`)
     expect(res.status).toBe(401)
   })
 
   it('PATCH returns 401 without auth', async () => {
-    const res = await fetch(`${base}/api/admin/feature-flags/${testKey}`, {
+    const res = await apiFetch(`${base}/api/admin/feature-flags/${testKey}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ enabledGlobally: true }),
@@ -52,7 +53,7 @@ describe('Admin Feature Flags API', () => {
   })
 
   it('POST segments returns 401 without auth', async () => {
-    const res = await fetch(`${base}/api/admin/feature-flags/${testKey}/segments`, {
+    const res = await apiFetch(`${base}/api/admin/feature-flags/${testKey}/segments`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ segmentId }),
@@ -63,7 +64,7 @@ describe('Admin Feature Flags API', () => {
   // ── GET ────────────────────────────────────────────────────────────────────
 
   it('GET includes every key in FEATURE_PREVIEWS, even without a registry row', async () => {
-    const res = await fetch(`${base}/api/admin/feature-flags`, { headers: getTestAuthHeaders() })
+    const res = await apiFetch(`${base}/api/admin/feature-flags`, { headers: getTestAuthHeaders() })
     expect(res.ok).toBe(true)
     const body = await res.json()
     const found = body.flags.find((f: any) => f.key === 'events')
@@ -73,7 +74,7 @@ describe('Admin Feature Flags API', () => {
   })
 
   it('GET no longer lists the retired streaks / prickle_picker / wheel_of_wonder flags', async () => {
-    const res = await fetch(`${base}/api/admin/feature-flags`, { headers: getTestAuthHeaders() })
+    const res = await apiFetch(`${base}/api/admin/feature-flags`, { headers: getTestAuthHeaders() })
     expect(res.ok).toBe(true)
     const body = await res.json()
     const keys = body.flags.map((f: any) => f.key)
@@ -85,7 +86,7 @@ describe('Admin Feature Flags API', () => {
   // ── PATCH enabled_globally ───────────────────────────────────────────────
 
   it('PATCH turns a flag on globally, upserting a registry row for a brand-new key', async () => {
-    const res = await fetch(`${base}/api/admin/feature-flags/${testKey}`, {
+    const res = await apiFetch(`${base}/api/admin/feature-flags/${testKey}`, {
       method: 'PATCH',
       headers: { ...getTestAuthHeaders(), 'Content-Type': 'application/json' },
       body: JSON.stringify({ enabledGlobally: true }),
@@ -101,7 +102,7 @@ describe('Admin Feature Flags API', () => {
   })
 
   it('PATCH turns a flag back off', async () => {
-    const res = await fetch(`${base}/api/admin/feature-flags/${testKey}`, {
+    const res = await apiFetch(`${base}/api/admin/feature-flags/${testKey}`, {
       method: 'PATCH',
       headers: { ...getTestAuthHeaders(), 'Content-Type': 'application/json' },
       body: JSON.stringify({ enabledGlobally: false }),
@@ -117,7 +118,7 @@ describe('Admin Feature Flags API', () => {
   })
 
   it('PATCH rejects a non-boolean enabledGlobally', async () => {
-    const res = await fetch(`${base}/api/admin/feature-flags/${testKey}`, {
+    const res = await apiFetch(`${base}/api/admin/feature-flags/${testKey}`, {
       method: 'PATCH',
       headers: { ...getTestAuthHeaders(), 'Content-Type': 'application/json' },
       body: JSON.stringify({ enabledGlobally: 'yes' }),
@@ -128,27 +129,27 @@ describe('Admin Feature Flags API', () => {
   // ── Segment targeting ────────────────────────────────────────────────────
 
   it('POST /segments attaches a segment to the flag', async () => {
-    const res = await fetch(`${base}/api/admin/feature-flags/${testKey}/segments`, {
+    const res = await apiFetch(`${base}/api/admin/feature-flags/${testKey}/segments`, {
       method: 'POST',
       headers: { ...getTestAuthHeaders(), 'Content-Type': 'application/json' },
       body: JSON.stringify({ segmentId }),
     })
     expect(res.ok).toBe(true)
 
-    const listRes = await fetch(`${base}/api/admin/feature-flags`, { headers: getTestAuthHeaders() })
+    const listRes = await apiFetch(`${base}/api/admin/feature-flags`, { headers: getTestAuthHeaders() })
     const body = await listRes.json()
     const found = body.flags.find((f: any) => f.key === testKey)
     expect(found.segments.map((s: any) => s.id)).toEqual([segmentId])
   })
 
   it('DELETE /segments/[segmentId] detaches the segment', async () => {
-    const res = await fetch(`${base}/api/admin/feature-flags/${testKey}/segments/${segmentId}`, {
+    const res = await apiFetch(`${base}/api/admin/feature-flags/${testKey}/segments/${segmentId}`, {
       method: 'DELETE',
       headers: getTestAuthHeaders(),
     })
     expect(res.ok).toBe(true)
 
-    const listRes = await fetch(`${base}/api/admin/feature-flags`, { headers: getTestAuthHeaders() })
+    const listRes = await apiFetch(`${base}/api/admin/feature-flags`, { headers: getTestAuthHeaders() })
     const body = await listRes.json()
     const found = body.flags.find((f: any) => f.key === testKey)
     expect(found.segments).toEqual([])

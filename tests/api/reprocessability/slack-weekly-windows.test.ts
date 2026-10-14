@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { getTestSupabaseAdminClient, getTestAuthHeaders, getTestApiBaseUrl } from '../../helpers/supabase'
+import { apiFetch } from '../../helpers/api-fetch'
 
 /**
  * /api/process/slack rebuilds Slack activities one week per database call
@@ -34,7 +35,7 @@ describe('Slack reprocessing in weekly windows', () => {
   }
 
   async function reprocess() {
-    const response = await fetch(`${getTestApiBaseUrl()}/api/process/slack`, {
+    const response = await apiFetch(`${getTestApiBaseUrl()}/api/process/slack`, {
       method: 'POST',
       headers: { ...getTestAuthHeaders(), 'Content-Type': 'application/json' },
       body: JSON.stringify(range),

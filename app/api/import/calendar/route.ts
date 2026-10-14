@@ -28,7 +28,9 @@ export async function POST(request: NextRequest) {
   );
 
   try {
-    const body = await request.json();
+    const parsed = await request.json().catch(() => undefined);
+    if (parsed === undefined) return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+    const body = parsed;
     // Accept either explicit fromDate/toDate strings (from the admin form)
     // or relative daysBack/daysForward (from triggerCalendarSync / webhooks).
     const { daysBack = 30, daysForward = 90, fromDate: fromDateStr, toDate: toDateStr } = body;

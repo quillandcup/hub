@@ -196,6 +196,10 @@ The hook is tested by `supabase/tests/database/custom_access_token_hook.test.sql
 - Where local defaults differ from production's values (auth email rate limit, storage analytics/vector), `[remotes.prod]` pins production's values so a push doesn't change them. If `config:diff` shows anything besides the change you intend, pin or fix it in `config.toml` before pushing.
 - Local: the auth container reads hooks only at startup, so after changing `[auth.hook.*]` restart the stack (`supabase stop && supabase start`; no reset needed).
 
+### GitHub repo settings as code
+
+`github-repo-config.yml` is the source of truth for the repo's rulesets (today: `main` requires the `Test (unit)`, `Test (db) & build` and `Coverage report` checks and can't be deleted or force-pushed; repo admins can bypass). `npm run github:config:diff` previews against the live repo (read-only) and `npm run github:config:push` applies it; both go through `gh` and need repo admin, since Actions' `GITHUB_TOKEN` can't manage rulesets, so this is run by hand. A push replaces a declared ruleset's settings, so change the file, not the Settings page. When a CI job is renamed or added, update the required check names there. The coverage floors are `AREA_FLOORS` in `scripts/coverage-report.ts`. Rulesets on a private repo need a paid GitHub plan; the org is on the free plan.
+
 ### Slack app manifest as code
 
 `slack-app-manifest.yml` is the source of truth for the Slack app (Billie Bot). On a push to main that changes it or `scripts/slack-manifest.ts` (or a manual `workflow_dispatch` run), after the production deploy (the manifest points at app routes, so they must be live first), the `push-slack-manifest` job runs `scripts/slack-manifest.ts push`, which **replaces** the live app's configuration. Anything set in the Slack dashboard but missing from the manifest is removed, so change the manifest, not the dashboard. Before merging a manifest change, run `npm run slack:manifest:diff` (read-only) and check it shows only what you intend. `SLACK_CONFIG_REFRESH_TOKEN` is rewritten by CI on every run and is deliberately not in `env-vars.config.ts`. Setup, token rotation and recovery: `docs/SLACK_MANIFEST.md`.
@@ -208,6 +212,8 @@ Required test coverage:
 - `/api/process/calendar` - Test with >1000 events
 - `/api/process/attendance` - Test with >1000 records
 - `/api/sync/calendar` - Test pagination
+
+**API route tests**: `tests/api/**` call route handlers in-process with `apiFetch` from `tests/helpers/api-fetch.ts`, a drop-in for `fetch(`${getTestApiBaseUrl()}/api/...`)` that finds the `app/api/**/route.ts` for the path, builds a `NextRequest` and calls the handler, so Vitest's coverage counts the route (a request to the separate `next start` server is invisible to v8). It serves `cookies()`/`headers()` from the request, so cookie-auth routes work; it skips `proxy.ts`, which leaves `/api/*` public (routes authenticate themselves), and the proxy has its own tests. Don't `fetch` the app server from a new test; the only HTTP tests are the few in `tests/api/smoke/`, for Next's own routing and body parsing. Routes answer a malformed JSON body with 400: read it with `await request.json().catch(() => undefined)` and return the 400 on `undefined`, not a bare `await request.json()`.
 
 **Component tests**: React Testing Library is available for interactive components (`@testing-library/react`, `@testing-library/user-event`, `@testing-library/jest-dom`). Put `.tsx` test files under `tests/components/`, with `// @vitest-environment jsdom` as the first line. Prefer rendering the component and asserting on the DOM (`render` + `userEvent`/`fireEvent` + `screen`) over the older pattern in some `tests/components/*.test.ts` files of `fs.readFileSync`-ing the source and asserting `expect(src).toContain(...)` — that pattern doesn't verify behavior. See `tests/components/SortableTh.test.tsx` and `tests/components/MembersTable.test.tsx` for the current example.
 

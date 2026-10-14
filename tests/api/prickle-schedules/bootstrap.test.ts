@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { getTestSupabaseAdminClient, getTestAuthHeaders, getTestApiBaseUrl } from '../../helpers/supabase'
 import { getMonthStart, getMonthEnd, getNextMonthStart } from '@/lib/prickle-schedules'
+import { apiFetch } from '../../helpers/api-fetch'
 
 /**
  * Integration tests for POST /api/prickle-schedules/bootstrap
@@ -84,7 +85,7 @@ describe('Prickle Schedules Bootstrap API', () => {
   })
 
   it('bootstraps a weekly schedule from calendar prickles and copies it to next month', async () => {
-    const response = await fetch(`${getTestApiBaseUrl()}/api/prickle-schedules/bootstrap`, {
+    const response = await apiFetch(`${getTestApiBaseUrl()}/api/prickle-schedules/bootstrap`, {
       method: 'POST',
       headers: { ...getTestAuthHeaders(), 'Content-Type': 'application/json' },
       body: JSON.stringify({ month: currentMonth }),
@@ -118,7 +119,7 @@ describe('Prickle Schedules Bootstrap API', () => {
   })
 
   it('is idempotent: re-running skips the already-created schedule', async () => {
-    const response = await fetch(`${getTestApiBaseUrl()}/api/prickle-schedules/bootstrap`, {
+    const response = await apiFetch(`${getTestApiBaseUrl()}/api/prickle-schedules/bootstrap`, {
       method: 'POST',
       headers: { ...getTestAuthHeaders(), 'Content-Type': 'application/json' },
       body: JSON.stringify({ month: currentMonth }),
@@ -130,7 +131,7 @@ describe('Prickle Schedules Bootstrap API', () => {
   })
 
   it('rejects a month that is not a first-of-month date', async () => {
-    const response = await fetch(`${getTestApiBaseUrl()}/api/prickle-schedules/bootstrap`, {
+    const response = await apiFetch(`${getTestApiBaseUrl()}/api/prickle-schedules/bootstrap`, {
       method: 'POST',
       headers: { ...getTestAuthHeaders(), 'Content-Type': 'application/json' },
       body: JSON.stringify({ month: '2026-10-15' }),
@@ -143,7 +144,7 @@ describe('Prickle Schedules Bootstrap API', () => {
       .from('prickle_schedules')
       .select('id', { count: 'exact', head: true })
       .eq('host_id', memberId)
-    const response = await fetch(`${getTestApiBaseUrl()}/api/prickle-schedules/bootstrap`, {
+    const response = await apiFetch(`${getTestApiBaseUrl()}/api/prickle-schedules/bootstrap`, {
       method: 'POST',
       headers: { ...getTestAuthHeaders(), 'Content-Type': 'application/json' },
       body: JSON.stringify({ month: nextMonth, dryRun: true }),
@@ -169,7 +170,7 @@ describe('Prickle Schedules Bootstrap API', () => {
       source: 'calendar',
     })
 
-    const response = await fetch(`${getTestApiBaseUrl()}/api/prickle-schedules/bootstrap`, {
+    const response = await apiFetch(`${getTestApiBaseUrl()}/api/prickle-schedules/bootstrap`, {
       method: 'POST',
       headers: { ...getTestAuthHeaders(), 'Content-Type': 'application/json' },
       body: JSON.stringify({ month: currentMonth }),
