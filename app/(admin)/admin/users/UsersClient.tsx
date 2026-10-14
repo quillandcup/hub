@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { summarizePages } from "@/lib/activity-feed";
 import RecordHistoryButton from "@/components/RecordHistoryButton";
 import Link from "next/link";
 import { SortableTh } from "@/components/SortableTh";
@@ -736,11 +737,23 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
                     </div>
                   )}
                   {session.pages && session.pages.length > 0 ? (
-                    <ol className="mt-1 text-xs text-slate-500 dark:text-slate-400 list-decimal list-inside space-y-0.5">
-                      {session.pages.map((path, j) => (
-                        <li key={j} className="font-mono">{path}</li>
-                      ))}
-                    </ol>
+                    <div className="mt-1 text-xs text-slate-600 dark:text-slate-400">
+                      <ul className="space-y-0.5">
+                        {summarizePages(session.pages).map(({ label, count }) => (
+                          <li key={label}>
+                            {label} <span className="text-slate-400">×{count}</span>
+                          </li>
+                        ))}
+                      </ul>
+                      <details className="mt-1">
+                        <summary className="cursor-pointer text-slate-500">In order</summary>
+                        <ol className="mt-1 list-decimal list-inside space-y-0.5 font-mono">
+                          {session.pages.map((path, j) => (
+                            <li key={j}>{path}</li>
+                          ))}
+                        </ol>
+                      </details>
+                    </div>
                   ) : (
                     <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">No pages recorded</p>
                   )}
