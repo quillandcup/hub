@@ -49,7 +49,12 @@ export default async function EditBadgePage({ params }: { params: Promise<{ id: 
           </Link>
           <h1 className="text-2xl font-bold">Edit Badge</h1>
           <div className="absolute top-4 right-6">
-            <RecordHistoryButton entityType="badge_type" entityId={id} label={badgeType.name} />
+            <RecordHistoryButton
+              entityType={["badge_type", "badge_level", "member_badge"]}
+              entityId={id}
+              parentColumn="badge_type_id"
+              label={badgeType.name}
+            />
           </div>
         </div>
       </header>

@@ -17,10 +17,16 @@ import { formatDateTime } from "@/lib/formatters";
 export default function RecordHistoryButton({
   entityType,
   entityId,
+  parentColumn,
+  includeMemberRows,
   label = "this record",
 }: {
   entityType: string | string[];
   entityId?: string;
+  /** Also show this record's children: rows of `entityType` whose delta names it in this column (`event_id`). */
+  parentColumn?: string;
+  /** Also show every audit row about this member, of any type (a member's page). */
+  includeMemberRows?: boolean;
   /** What the dialog calls it, e.g. "Moss Bramble" or "segments". */
   label?: string;
 }) {
@@ -32,7 +38,10 @@ export default function RecordHistoryButton({
     setOpen(true);
     setRows(null);
     setError(null);
-    const result = await loadRecordHistory(Array.isArray(entityType) ? entityType : [entityType], entityId ?? null);
+    const result = await loadRecordHistory(Array.isArray(entityType) ? entityType : [entityType], entityId ?? null, {
+      parentColumn,
+      memberRows: includeMemberRows,
+    });
     if ("error" in result) setError(result.error);
     else setRows(result.rows);
   }

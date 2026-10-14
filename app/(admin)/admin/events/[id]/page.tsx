@@ -42,7 +42,12 @@ export default async function EventDetailPage({
           </Link>
           <h1 className="text-2xl font-bold mt-1">{event.title}</h1>
           <div className="absolute top-4 right-6">
-            <RecordHistoryButton entityType="event" entityId={event.id} label={event.title} />
+            <RecordHistoryButton
+              entityType={["event", "event_attendee", "event_photo"]}
+              entityId={event.id}
+              parentColumn="event_id"
+              label={event.title}
+            />
           </div>
         </div>
       </header>

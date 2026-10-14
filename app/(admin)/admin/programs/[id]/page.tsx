@@ -40,7 +40,12 @@ export default async function ProgramDetailPage({ params }: { params: Promise<{ 
           </Link>
           <h1 className="text-2xl font-bold mt-1">{program.name}</h1>
           <div className="absolute top-4 right-6">
-            <RecordHistoryButton entityType="program" entityId={id} label={program.name} />
+            <RecordHistoryButton
+              entityType={["program", "program_cohort"]}
+              entityId={id}
+              parentColumn="program_id"
+              label={program.name}
+            />
           </div>
         </div>
       </header>
