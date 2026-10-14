@@ -365,7 +365,7 @@ export function renderReport(
     `| **all** | ${suites.map((s) => `**${cell(sumMetrics(s.metrics.values()).lines)}**`).join(" | ")} | **${cell(total.lines)}** | **${scoreCell(total)}** | ${flags(total).join("; ")} |`,
   );
 
-  out.push("", "<details open><summary>All measures: each suite, then combined</summary>");
+  out.push("", "<details><summary>All measures: each suite, then combined</summary>");
   for (const table of [...suites, { name: "combined", metrics: combined }]) {
     out.push(
       "",
