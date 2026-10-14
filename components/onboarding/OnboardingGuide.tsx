@@ -225,7 +225,7 @@ export default function OnboardingGuide({ initialState }: { initialState: Onboar
                         {step.title}
                         <span className="sr-only">{step.done ? " (done)" : ""}</span>
                       </p>
-                      {step.done && (
+                      {step.done && !step.externalHref && (
                         <Link
                           href={step.href}
                           onClick={() => {
@@ -241,7 +241,28 @@ export default function OnboardingGuide({ initialState }: { initialState: Onboar
                       {isCurrent && (
                         <>
                           <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{step.summary}</p>
-                          {!isOnStepPage(step, pathname, search) || hiddenOn === pageKey ? (
+                          {step.externalHref ? (
+                            <div className="flex flex-wrap items-center gap-3 mt-2">
+                              <a
+                                href={step.externalHref}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-block px-3 py-1.5 bg-plum-600 hover:bg-plum-700 text-white rounded-md text-xs font-medium"
+                              >
+                                Open Slack ↗
+                              </a>
+                              {step.confirmLabel && (
+                                <button
+                                  type="button"
+                                  disabled={isPending}
+                                  onClick={() => run(() => markOnboardingStep(step.markKey))}
+                                  className="text-xs text-plum-600 dark:text-plum-400 hover:underline disabled:opacity-60"
+                                >
+                                  {step.confirmLabel}
+                                </button>
+                              )}
+                            </div>
+                          ) : !isOnStepPage(step, pathname, search) || hiddenOn === pageKey ? (
                             <Link
                               href={step.href}
                               onClick={() => {

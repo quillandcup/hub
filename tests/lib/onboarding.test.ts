@@ -8,7 +8,8 @@ import {
 
 const NOW = new Date("2026-10-03T12:00:00Z");
 
-const NOT_HOST = { isHost: false, hasHostingSchedule: false, hostedRecently: false, hasHostVibe: false };
+const NOT_NEWCOMER = { isNewcomer: false, introUrl: null, hasIntroduced: false, hasAttendedPrickle: false, hasUpcomingPrickle: false };
+const NOT_HOST = { isHost: false, hasHostingSchedule: false, hostedRecently: false, hasHostVibe: false, isNewcomer: false, introUrl: null, hasIntroduced: false, hasAttendedPrickle: false, hasUpcomingPrickle: false };
 const IDENTITY_DONE = ["identity.basics", "identity.names", "identity.emails"];
 const NOTHING: OnboardingSignals = { hasHubProfile: false, latestProjectId: null, hasGoal: false, hasPricklePlan: false, ...NOT_HOST };
 const record = (r: Partial<OnboardingRecord> = {}): OnboardingRecord => ({
@@ -153,6 +154,7 @@ describe("hosting steps", () => {
       hasHostingSchedule: false,
       hostedRecently: false,
       hasHostVibe: false,
+      ...NOT_NEWCOMER,
     };
     const state = buildOnboardingState(allButHosting, record({ marked_steps: IDENTITY_DONE }));
     expect(state).toMatchObject({ completed: false, currentStepId: "hosting" });
@@ -176,5 +178,53 @@ describe("isOnStepPage", () => {
   it("matches a step without a query on its path alone", () => {
     expect(isOnStepPage({ href: "/projects/p1" }, "/projects/p1", "tab=x")).toBe(true);
     expect(isOnStepPage({ href: "/projects" }, "/projects/p1", "")).toBe(false);
+  });
+});
+
+describe("newcomer steps", () => {
+  const INTRO_URL = "https://slack.example/app_redirect?channel=C1";
+  const newcomer = { ...NOTHING, isNewcomer: true, introUrl: INTRO_URL };
+  const view = (signals: OnboardingSignals, id: string, rec: OnboardingRecord | null = null) =>
+    buildOnboardingState(signals, rec).steps.find((s) => s.id === id);
+
+  it("adds an external intro step after the profile step, only for newcomers", () => {
+    expect(buildOnboardingState(newcomer, null).steps.map((s) => s.id)).toEqual([
+      "identity",
+      "profile",
+      "intro",
+      "writing",
+      "prickles",
+    ]);
+    expect(view(newcomer, "intro")).toMatchObject({ externalHref: INTRO_URL, done: false });
+    expect(view({ ...NOTHING, introUrl: INTRO_URL }, "intro")).toBeUndefined();
+  });
+
+  it("leaves the intro step out when the workspace has no intro channel", () => {
+    expect(view({ ...newcomer, introUrl: null }, "intro")).toBeUndefined();
+  });
+
+  it("counts the intro step done once they've posted, or confirmed it by hand", () => {
+    expect(view({ ...newcomer, hasIntroduced: true }, "intro")?.done).toBe(true);
+    expect(view(newcomer, "intro", record({ marked_steps: ["intro"] }))?.done).toBe(true);
+  });
+
+  it("asks a newcomer who hasn't attended for a prickle on the calendar, not just a plan", () => {
+    expect(view(newcomer, "prickles")).toMatchObject({ title: "Schedule your first prickle", done: false });
+    expect(view({ ...newcomer, hasPricklePlan: true }, "prickles")?.done).toBe(false);
+    expect(view({ ...newcomer, hasUpcomingPrickle: true }, "prickles")?.done).toBe(true);
+  });
+
+  it("counts attending as done for a newcomer, and puts a missed first prickle back", () => {
+    expect(view({ ...newcomer, hasAttendedPrickle: true }, "prickles")).toMatchObject({
+      title: "Join a prickle",
+      done: true,
+    });
+    const scheduled = { ...newcomer, hasPricklePlan: true, hasUpcomingPrickle: true };
+    expect(view(scheduled, "prickles")?.done).toBe(true);
+    expect(view({ ...scheduled, hasUpcomingPrickle: false }, "prickles")?.done).toBe(false);
+  });
+
+  it("keeps the old rule for members past their first 90 days", () => {
+    expect(view({ ...NOTHING, hasPricklePlan: true }, "prickles")).toMatchObject({ title: "Join a prickle", done: true });
   });
 });

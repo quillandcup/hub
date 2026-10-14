@@ -32,7 +32,7 @@ import {
   markOnboardingStep,
 } from "@/app/actions/onboarding";
 
-const NOT_HOST = { isHost: false, hasHostingSchedule: false, hostedRecently: false, hasHostVibe: false };
+const NOT_HOST = { isHost: false, hasHostingSchedule: false, hostedRecently: false, hasHostVibe: false, isNewcomer: false, introUrl: null, hasIntroduced: false, hasAttendedPrickle: false, hasUpcomingPrickle: false };
 const IDENTITY_DONE = ["identity.basics", "identity.names", "identity.emails"];
 const fresh = (): OnboardingState =>
   buildOnboardingState(

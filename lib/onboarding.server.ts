@@ -6,6 +6,11 @@ import {
   type OnboardingSignals,
   type OnboardingState,
 } from "@/lib/onboarding";
+import { createServiceRoleClient } from "@/lib/supabase/service";
+import { SLACK_WORKSPACE_URL } from "@/lib/config";
+import { isNewcomer } from "@/lib/newcomer";
+import { loadAttendedMemberIds, loadIntroChannelId, loadIntroducedMemberIds } from "@/lib/newcomer-signals";
+import { loadCalendarFeedPrickleIds } from "@/lib/calendar-feed";
 import { PICKER_HISTORY_MONTHS } from "@/lib/prickle-picker";
 import { getMonthStart } from "@/lib/prickle-schedules";
 
@@ -19,7 +24,38 @@ const NO_SIGNALS: OnboardingSignals = {
   hasHostingSchedule: false,
   hostedRecently: false,
   hasHostVibe: false,
+  isNewcomer: false,
+  introUrl: null,
+  hasIntroduced: false,
+  hasAttendedPrickle: false,
+  hasUpcomingPrickle: false,
 };
+
+/** The newcomer steps' signals (lib/newcomer.ts); all false/null for someone past their first 90 days. */
+async function loadNewcomerSignals(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  memberId: string,
+  now: Date
+): Promise<Pick<OnboardingSignals, "isNewcomer" | "introUrl" | "hasIntroduced" | "hasAttendedPrickle" | "hasUpcomingPrickle">> {
+  const none = { isNewcomer: false, introUrl: null, hasIntroduced: false, hasAttendedPrickle: false, hasUpcomingPrickle: false };
+  const { data: member } = await supabase.from("members").select("first_joined_at").eq("id", memberId).maybeSingle();
+  if (!isNewcomer(member?.first_joined_at as string | null | undefined, now)) return none;
+
+  const [introduced, attended, channelId, upcoming] = await Promise.all([
+    loadIntroducedMemberIds(supabase, [memberId]),
+    loadAttendedMemberIds(supabase, [memberId]),
+    // bronze is admin-read-only; the intro channel's id is public to the workspace, so read just that.
+    loadIntroChannelId(createServiceRoleClient()),
+    loadCalendarFeedPrickleIds(supabase, memberId, now, now),
+  ]);
+  return {
+    isNewcomer: true,
+    introUrl: channelId ? `${SLACK_WORKSPACE_URL}/app_redirect?channel=${channelId}` : null,
+    hasIntroduced: introduced.has(memberId),
+    hasAttendedPrickle: attended.has(memberId),
+    hasUpcomingPrickle: upcoming.size > 0,
+  };
+}
 
 /**
  * The member's "Getting started" tour state, from their own data plus member_onboarding.
@@ -34,7 +70,7 @@ export const getOnboardingState = cache(async (memberId: string): Promise<Onboar
   const currentMonth = getMonthStart(now).toISOString().slice(0, 10);
 
   // Whether the tour shows depends only on the record, so check that first: a member who dismissed
-  // or finished it skips the other ten reads.
+  // or finished it skips the other eleven reads.
   const { data: record } = await supabase
     .from("member_onboarding")
     .select("marked_steps, dismissed_at, completed_at")
@@ -55,6 +91,7 @@ export const getOnboardingState = cache(async (memberId: string): Promise<Onboar
     hostedRecently,
     latestSchedule,
     hostVibes,
+    newcomer,
   ] = await Promise.all([
     // Written only when the member saves their bio or socials in the Hub. members.bio isn't read:
     // it's usually Kajabi's copy, which they haven't necessarily looked at here.
@@ -90,6 +127,7 @@ export const getOnboardingState = cache(async (memberId: string): Promise<Onboar
       .limit(1)
       .maybeSingle(),
     supabase.from("prickle_host_vibes").select("type_id", { count: "exact", head: true }).eq("host_id", memberId),
+    loadNewcomerSignals(supabase, memberId, now),
   ]);
   const latestScheduleMonth = (latestSchedule.data?.month as string | undefined) ?? null;
 
@@ -106,6 +144,7 @@ export const getOnboardingState = cache(async (memberId: string): Promise<Onboar
       hasHostingSchedule: latestScheduleMonth !== null && latestScheduleMonth >= currentMonth,
       hostedRecently: (hostedRecently.count ?? 0) > 0,
       hasHostVibe: (hostVibes.count ?? 0) > 0,
+      ...newcomer,
     },
     recordData
   );
