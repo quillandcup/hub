@@ -6,6 +6,26 @@ Rotating a credential (or all of them, after an exposure)? See `docs/SECRET_ROTA
 the step-by-step per-service runbook — this file has the dashboard links, that one has the
 "how to actually rotate it without breaking something" steps.
 
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+
+- [Secrets at a glance](#secrets-at-a-glance)
+- [Alert routing](#alert-routing)
+- [Zoom](#zoom)
+- [Slack](#slack)
+- [Google Calendar / Google Cloud](#google-calendar--google-cloud)
+- [Kajabi](#kajabi)
+- [Vercel](#vercel)
+  - [Always-on tracing](#always-on-tracing)
+- [Supabase](#supabase)
+- [Sentry](#sentry)
+- [Checkly](#checkly)
+  - [Adding a scheduled job (heartbeat monitor)](#adding-a-scheduled-job-heartbeat-monitor)
+- [GitHub Actions](#github-actions)
+- [Google Analytics](#google-analytics)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
 ## Secrets at a glance
 
 Every secret, where to create or rotate it, and how the new value reaches where it's used.
