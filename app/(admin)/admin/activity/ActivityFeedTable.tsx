@@ -21,7 +21,7 @@ const ACTOR_BADGE: Record<ActivityFeedRow["actor_kind"], string> = {
   system: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300",
 };
 
-function ChangeTable({ row }: { row: ActivityFeedRow }) {
+export function ChangeTable({ row }: { row: ActivityFeedRow }) {
   const fields = changedFields(row.data);
   if (fields.length === 0) return null;
   return (

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import RecordHistoryButton from "@/components/RecordHistoryButton";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
@@ -37,7 +38,10 @@ export default async function ProgramDetailPage({ params }: { params: Promise<{ 
           <Link href="/admin/programs" className="text-sm text-plum-600 dark:text-plum-400 hover:underline">
             ← All Programs
           </Link>
-          <h1 className="text-2xl font-bold mt-1">{program.name}</h1>
+          <div className="flex items-center gap-2 mt-1">
+            <h1 className="text-2xl font-bold">{program.name}</h1>
+            <RecordHistoryButton entityType="program" entityId={id} label={program.name} />
+          </div>
         </div>
       </header>
 

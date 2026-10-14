@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import RecordHistoryButton from "@/components/RecordHistoryButton";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
@@ -39,7 +40,10 @@ export default async function EventDetailPage({
           <Link href="/admin/events" className="text-sm text-plum-600 dark:text-plum-400 hover:underline">
             ← All Events
           </Link>
-          <h1 className="text-2xl font-bold mt-1">{event.title}</h1>
+          <div className="flex items-center gap-2 mt-1">
+            <h1 className="text-2xl font-bold">{event.title}</h1>
+            <RecordHistoryButton entityType="event" entityId={event.id} label={event.title} />
+          </div>
         </div>
       </header>
 

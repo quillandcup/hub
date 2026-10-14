@@ -169,6 +169,26 @@ export async function fetchActivityFeed(
   return { rows: await withMentionNames((data ?? []) as ActivityFeedRow[]), total, page: bounds.page, pageSize: bounds.pageSize };
 }
 
+/**
+ * Every audited change to one record, newest first (get_record_history(): admin-only, capped at
+ * `limit`). `entityType` is the audit vocabulary ("member", "event", "badge_type"...), `entityId`
+ * the record's key as text.
+ */
+export async function fetchRecordHistory(
+  supabase: SupabaseClient,
+  entityType: string,
+  entityId: string,
+  limit = 200
+): Promise<ActivityFeedRow[]> {
+  const { data, error } = await supabase.rpc("get_record_history", {
+    p_entity_type: entityType,
+    p_entity_id: entityId,
+    p_limit: limit,
+  });
+  if (error) throw error;
+  return withMentionNames((data ?? []) as ActivityFeedRow[]);
+}
+
 // ---------------------------------------------------------------------------
 // Presentation
 // ---------------------------------------------------------------------------

@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import RecordHistoryButton from "@/components/RecordHistoryButton";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import type { Metadata } from "next";
@@ -46,7 +47,10 @@ export default async function EditBadgePage({ params }: { params: Promise<{ id: 
           >
             ← Back to Badges
           </Link>
-          <h1 className="text-2xl font-bold">Edit Badge</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-bold">Edit Badge</h1>
+            <RecordHistoryButton entityType="badge_type" entityId={id} label={badgeType.name} />
+          </div>
         </div>
       </header>
 

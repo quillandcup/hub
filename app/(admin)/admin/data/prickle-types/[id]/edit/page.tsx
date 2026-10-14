@@ -1,4 +1,5 @@
 import { cache } from "react";
+import RecordHistoryButton from "@/components/RecordHistoryButton";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
@@ -58,7 +59,10 @@ export default async function EditPrickleTypePage({
           >
             ← Back to Prickle Types
           </Link>
-          <h1 className="text-2xl font-bold">Edit Prickle Type</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-bold">Edit Prickle Type</h1>
+            <RecordHistoryButton entityType="prickle_type" entityId={prickleType.id} label={prickleType.name} />
+          </div>
           <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
             Update the name and description of this prickle type
           </p>

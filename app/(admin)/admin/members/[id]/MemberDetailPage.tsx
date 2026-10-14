@@ -1,4 +1,5 @@
 import { cache } from "react";
+import RecordHistoryButton from "@/components/RecordHistoryButton";
 import { withMentionNames } from "@/lib/chat/names";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
@@ -269,6 +270,7 @@ export default async function MemberDetailPage({
           <div className="mt-2">
             <div className="flex items-center gap-3 flex-wrap">
               <h1 className="text-2xl font-bold">{member.name}</h1>
+              <RecordHistoryButton entityType="member" entityId={member.id} label={member.name} />
               {aliases && aliases.length > 0 && (
                 <div className="flex items-center gap-2">
                   <div className="flex flex-wrap gap-1.5">
