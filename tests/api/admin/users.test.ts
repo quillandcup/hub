@@ -274,6 +274,7 @@ describe('Admin Users API', () => {
       // Staff role is derived via staff.member_id, not a separate link.
       expect(found.staffName).toBe('Test Member')
       expect(found.staffRole).toBe('staff')
+      expect(found.staffId).toEqual(expect.any(String))
     })
 
     it('PATCH with memberId: null unlinks the member only', async () => {

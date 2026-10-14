@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import RecordHistoryButton from "@/components/RecordHistoryButton";
 import { useRouter } from "next/navigation";
 import { buildMembershipTimeline, type TimelineSegment } from "@/lib/membership-timeline";
 
@@ -414,6 +415,7 @@ export default function MemberTimelinePanel({
                         <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-300">
                           on hiatus
                         </span>
+                        <RecordHistoryButton entityType="member_hiatus" entityId={hiatus.id} label="this hiatus" />
                       </div>
                       <div className="flex items-center gap-3 shrink-0">
                         <span className="text-xs text-slate-500 dark:text-slate-400">

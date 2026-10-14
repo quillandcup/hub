@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import RecordHistoryButton from "@/components/RecordHistoryButton";
 import Link from "next/link";
 import { TabBar } from "@/components/Tabs";
 import {
@@ -648,7 +649,10 @@ export default function HostsClient({ prickleTypes }: { prickleTypes: PrickleTyp
                     <HostEligibilityBadge eligibility={s.host_eligibility} />
                   </td>
                   <td className="px-4 py-3">
-                    <div className="text-sm dark:text-slate-200">{scheduleLabel(s)}</div>
+                    <div className="flex items-center gap-1 text-sm dark:text-slate-200">
+                      {scheduleLabel(s)}
+                      <RecordHistoryButton entityType="prickle_schedule" entityId={s.id} label={scheduleLabel(s)} />
+                    </div>
                     {s.carried_forward_from && (
                       <div className="text-xs text-gray-400 dark:text-slate-500">carried forward from last month</div>
                     )}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import RecordHistoryButton from "@/components/RecordHistoryButton";
 import Link from "next/link";
 import MemberOverrideForm, { type MemberOverrideFields } from "@/components/MemberOverrideForm";
 import MemberSearch from "@/components/MemberSearch";
@@ -293,6 +294,7 @@ export default function MemberOverridesClient() {
                     >
                       {override.member.name}
                     </Link>
+                    <RecordHistoryButton entityType="member_status_override" entityId={override.id} label={`${override.member.name}'s override`} />
                   </td>
                   <td className="px-4 py-3">
                     <span

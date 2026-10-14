@@ -28,6 +28,7 @@ interface AppUser {
   role: Role;
   features: string[];
   createdAt: string;
+  staffId: string | null;
   staffName: string | null;
   staffRole: StaffRole | null;
   memberId: string | null;
@@ -513,6 +514,9 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
                                 {user.staffName} · {STAFF_ROLE_LABELS[user.staffRole!]}
                               </span>
                             ) : null}
+                            {user.staffId && (
+                              <RecordHistoryButton entityType="staff" entityId={user.staffId} label={`${user.staffName}'s staff record`} />
+                            )}
                             {user.memberId ? (
                               <a
                                 href={`/admin/members/${user.memberId}`}
