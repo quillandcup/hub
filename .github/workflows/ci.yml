@@ -148,7 +148,7 @@ jobs:
       # env-vars.config.ts via `npm run env:sync:github`.
       - name: Log in to Docker Hub
         continue-on-error: true
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           username: ${{ vars.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
