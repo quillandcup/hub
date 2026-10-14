@@ -5,11 +5,20 @@ import { NextRequest } from 'next/server'
 
 // Routes read cookies()/headers() from next/headers, which only work inside Next's request
 // scope. Serve them from the request apiFetch is currently running instead.
-const currentRequest = new AsyncLocalStorage<NextRequest>()
+const currentRequest = new AsyncLocalStorage<{ request: NextRequest; afterTasks: Array<() => unknown> }>()
 
 vi.mock('next/headers', () => ({
-  cookies: async () => currentRequest.getStore()!.cookies,
-  headers: async () => currentRequest.getStore()!.headers,
+  cookies: async () => currentRequest.getStore()!.request.cookies,
+  headers: async () => currentRequest.getStore()!.request.headers,
+}))
+
+// after() also needs a request scope. Queue its callbacks and run them, awaited, once the
+// handler has returned, so a test never leaves background work running past its own end.
+vi.mock('next/server', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('next/server')>()),
+  after: (task: (() => unknown) | PromiseLike<unknown>) => {
+    currentRequest.getStore()!.afterTasks.push(typeof task === 'function' ? task : () => task)
+  },
 }))
 
 type RouteModule = Record<string, unknown>
@@ -78,5 +87,16 @@ export async function apiFetch(input: string | URL, init: RequestInit = {}): Pro
   if (!handler) return new Response(null, { status: 405 })
 
   const request = new NextRequest(url, init as ConstructorParameters<typeof NextRequest>[1])
-  return currentRequest.run(request, async () => handler(request, { params: Promise.resolve(match.params) }))
+  const afterTasks: Array<() => unknown> = []
+  return currentRequest.run({ request, afterTasks }, async () => {
+    const response = await handler(request, { params: Promise.resolve(match.params) })
+    for (const task of afterTasks) {
+      try {
+        await task()
+      } catch (err) {
+        console.error('after() task failed', err)
+      }
+    }
+    return response
+  })
 }
