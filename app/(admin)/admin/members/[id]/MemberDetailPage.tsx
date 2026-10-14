@@ -349,7 +349,7 @@ export default async function MemberDetailPage({
             </div>
           </div>
           <div className="absolute top-4 right-6">
-            <RecordHistoryButton entityType="member" entityId={member.id} label={member.name} />
+            <RecordHistoryButton entityType="member" entityId={member.id} includeMemberRows label={member.name} />
           </div>
         </div>
       </header>

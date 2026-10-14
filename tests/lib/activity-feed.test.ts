@@ -125,6 +125,12 @@ describe("describeRow", () => {
     expect(describeRow(r)).toBe("added segment membership “Cohort A”");
   });
 
+  it("says who was added to or removed from an event", () => {
+    const base = { entity_type: "event_attendee", description: "Autumn Retreat", member_name: "Moss Bramble" };
+    expect(describeRow(row({ ...base, event_type: "insert" }))).toBe("added Moss Bramble as an attendee of “Autumn Retreat”");
+    expect(describeRow(row({ ...base, event_type: "delete" }))).toBe("removed Moss Bramble as an attendee of “Autumn Retreat”");
+  });
+
   it("summarizes sessions and activities", () => {
     expect(describeRow(row({ kind: "session", data: { pages: ["/a", "/b"] } }))).toBe("visited 2 pages (A ×1, B ×1)");
     expect(describeRow(row({ kind: "session", data: { pages: ["/a"] } }))).toBe("visited 1 page");

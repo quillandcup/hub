@@ -169,21 +169,33 @@ export async function fetchActivityFeed(
   return { rows: await withMentionNames((data ?? []) as ActivityFeedRow[]), total, page: bounds.page, pageSize: bounds.pageSize };
 }
 
+/** What else counts as part of one record's history, beyond rows about the record itself. */
+export interface HistoryScope {
+  /** Also rows of the same entity types whose delta names the record in this column (`event_id` on an event's attendees). */
+  parentColumn?: string;
+  /** Also every audit row about the member (`audit_log.member_id`), of any entity type. */
+  memberRows?: boolean;
+}
+
 /**
  * Audited changes, newest first (get_record_history(): admin-only, capped at `limit`): to one
- * record when `entityId` is given, else to every record of `entityTypes`. Types are the audit
- * vocabulary ("member", "event", "badge_type"...), the id the record's key as text.
+ * record when `entityId` is given (plus its children / a member's rows per `scope`), else to every
+ * record of `entityTypes`. Types are the audit vocabulary ("member", "event", "badge_type"...), the
+ * id the record's key as text.
  */
 export async function fetchRecordHistory(
   supabase: SupabaseClient,
   entityTypes: string[],
   entityId: string | null = null,
+  scope: HistoryScope = {},
   limit = 200
 ): Promise<ActivityFeedRow[]> {
   const { data, error } = await supabase.rpc("get_record_history", {
     p_entity_types: entityTypes,
     p_entity_id: entityId,
     p_limit: limit,
+    p_parent_column: scope.parentColumn ?? null,
+    p_member_rows: scope.memberRows ?? false,
   });
   if (error) throw error;
   return withMentionNames((data ?? []) as ActivityFeedRow[]);
@@ -273,6 +285,11 @@ function recordName(row: ActivityFeedRow): string | null {
 /** Phrases for events that read better than "changed calendar link — first fetched at". */
 function specialAuditPhrase(row: ActivityFeedRow): string | null {
   const fields = Object.fromEntries(changedFields(row.data));
+  if (row.entity_type === "event_attendee" && row.event_type !== "update") {
+    const who = row.member_name ?? "a member";
+    const event = row.description ? ` “${formatValue(row.description)}”` : "";
+    return row.event_type === "insert" ? `added ${who} as an attendee of${event || " an event"}` : `removed ${who} as an attendee of${event || " an event"}`;
+  }
   if (row.entity_type === "calendar_feed") {
     if (row.event_type === "insert") return "created their calendar link";
     if (fields.first_fetched_at && fields.first_fetched_at.new) return "added their calendar link to a calendar app";
