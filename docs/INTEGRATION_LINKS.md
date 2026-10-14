@@ -232,6 +232,20 @@ Checks are defined as code in `__checks__/` and `checkly.config.ts`, deployed vi
 `.github/workflows/checkly.yml` -- edit the code, not the dashboard, for anything
 that should persist (dashboard edits get overwritten on the next `checkly deploy`).
 
+### Adding a scheduled job (heartbeat monitor)
+
+1. Add the job to `CRON_HEARTBEATS` in `lib/cron-heartbeats.ts` (route, scheduler, period, grace,
+   env var name) and wrap the route's response in `withCronHeartbeat("<job>", ...)`. The monitor
+   (`__checks__/cron-heartbeats.check.ts`) and the env var declaration (`env-vars.config.ts`)
+   are generated from that list, so there's nothing to add there.
+2. Merge. `.github/workflows/checkly.yml` runs `checkly deploy`, which creates the monitor.
+3. In the Checks page above, open the new monitor and copy its ping URL. Checkly assigns it on the
+   first deploy.
+4. Put it in `.env.prod` as `<ENV_VAR>=<ping URL>`, then run `npm run env:sync` (production only).
+
+Until step 4, the route skips its ping and Checkly alerts that the heartbeat is missing. The key in
+`CRON_HEARTBEATS` is the monitor's logical id, so renaming it replaces the monitor and its URL.
+
 Account is on the Trial plan, expected to convert to free Hobby (no card on file) --
 worth checking the Billing page above once the trial period ends.
 
