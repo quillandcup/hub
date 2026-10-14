@@ -217,6 +217,10 @@ Required test coverage:
 
 **Time in tests: fake clock, never real waits**: Tests must not spend real time waiting on pauses, retries or deadlines. Server code that sleeps or keeps a time budget reads time through `lib/clock.ts` (`clock.now()`, `clock.sleep(ms)`), not `Date.now()`/`setTimeout` directly. Tests call `useFakeClock()` from `tests/helpers/fake-clock.ts`: `sleep` moves virtual time forward and resolves at once, and `fake.clock.advance(ms)` jumps ahead to hit a deadline or trigger a callback. See `tests/api/idempotency/slack-api-thread-selection.test.ts`. Don't use `vi.useFakeTimers()` with `runAllTimersAsync()`/`advanceTimersByTime()` in tests that make real HTTP calls (the local Supabase): it also fires the HTTP client's own timeouts on in-flight requests (`UND_ERR_HEADERS_TIMEOUT`), which fails only on slower CI. `vi.useFakeTimers({ toFake: ["Date"] })` + `vi.setSystemTime()` is fine for pinning "now".
 
+### Type-checking
+
+**RULE**: Run `npm run typecheck`, not bare `tsc --noEmit`. `PageProps`/`LayoutProps` are global types that Next generates into `.next/types` (by `next dev`, `next build` or `next typegen`); in a fresh worktree or after clearing `.next`, bare `tsc` reports `Cannot find name 'PageProps'` on every page that uses them. Those errors are not real and not pre-existing: the script runs `next typegen` first, and a clean run means zero errors.
+
 ## Code Review Checklist
 
 Before committing changes to API routes, verify:
