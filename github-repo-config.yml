@@ -1,0 +1,32 @@
+# GitHub repository settings that live in git, applied by scripts/github-config.ts
+# (`npm run github:config:diff` previews, `npm run github:config:push` applies; needs repo admin
+# through `gh auth login`). Edit this file, not the Settings page: a push makes the live
+# ruleset match it.
+#
+# One ruleset on the default branch. Required checks are the job names in
+# .github/workflows/ci.yml; a check skipped by its `if:` (Coverage report on a push to main)
+# counts as passing, so only pull requests wait on it. Repository admins can bypass, so a
+# direct push to main still works for them.
+rulesets:
+  - name: main
+    target: branch
+    enforcement: active
+    conditions:
+      ref_name:
+        include: ["~DEFAULT_BRANCH"]
+        exclude: []
+    bypass_actors:
+      # actor_id 5 is the built-in Repository admin role.
+      - actor_id: 5
+        actor_type: RepositoryRole
+        bypass_mode: always
+    rules:
+      - type: deletion
+      - type: non_fast_forward
+      - type: required_status_checks
+        parameters:
+          strict_required_status_checks_policy: false
+          required_status_checks:
+            - context: Test (unit)
+            - context: Test (db) & build
+            - context: Coverage report

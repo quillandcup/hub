@@ -12,7 +12,9 @@ export async function POST(request: NextRequest) {
   const { supabase } = auth;
 
   try {
-    const { name, description, purpose, soloTaskFriendly } = await request.json();
+    const parsed = await request.json().catch(() => undefined);
+    if (parsed === undefined) return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+    const { name, description, purpose, soloTaskFriendly } = parsed;
 
     if (!name || !name.trim()) {
       return NextResponse.json(

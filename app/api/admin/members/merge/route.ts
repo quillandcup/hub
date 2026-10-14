@@ -15,7 +15,9 @@ export async function POST(request: NextRequest) {
   if (auth.forbidden) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const { supabase } = auth;
 
-  const { primaryId, secondaryId } = await request.json();
+  const parsed = await request.json().catch(() => undefined);
+  if (parsed === undefined) return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+  const { primaryId, secondaryId } = parsed;
 
   if (!primaryId || !secondaryId) {
     return NextResponse.json({ error: "primaryId and secondaryId are required" }, { status: 400 });

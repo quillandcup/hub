@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { getTestSupabaseAdminClient, getTestAuthHeaders, getTestApiBaseUrl } from '../../helpers/supabase'
+import { apiFetch } from '../../helpers/api-fetch'
 
 /**
  * Integration tests for the programs / program-cohorts / program-enrollments
@@ -30,7 +31,7 @@ describe('Program Cohorts API', () => {
   })
 
   it('POST /api/admin/programs creates a program', async () => {
-    const response = await fetch(`${baseUrl}/api/admin/programs`, {
+    const response = await apiFetch(`${baseUrl}/api/admin/programs`, {
       method: 'POST',
       headers: { ...getTestAuthHeaders(), 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -47,7 +48,7 @@ describe('Program Cohorts API', () => {
   })
 
   it('GET /api/admin/programs lists programs with cohort/enrollment counts', async () => {
-    const response = await fetch(`${baseUrl}/api/admin/programs`, { headers: getTestAuthHeaders() })
+    const response = await apiFetch(`${baseUrl}/api/admin/programs`, { headers: getTestAuthHeaders() })
     expect(response.ok).toBe(true)
     const body = await response.json()
     const found = body.programs.find((p: any) => p.id === programId)
@@ -56,7 +57,7 @@ describe('Program Cohorts API', () => {
   })
 
   it('POST /api/admin/program-cohorts creates a cohort', async () => {
-    const response = await fetch(`${baseUrl}/api/admin/program-cohorts`, {
+    const response = await apiFetch(`${baseUrl}/api/admin/program-cohorts`, {
       method: 'POST',
       headers: { ...getTestAuthHeaders(), 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -73,7 +74,7 @@ describe('Program Cohorts API', () => {
   })
 
   it('PATCH /api/admin/program-cohorts/[id] updates a cohort', async () => {
-    const response = await fetch(`${baseUrl}/api/admin/program-cohorts/${cohortId}`, {
+    const response = await apiFetch(`${baseUrl}/api/admin/program-cohorts/${cohortId}`, {
       method: 'PATCH',
       headers: { ...getTestAuthHeaders(), 'Content-Type': 'application/json' },
       body: JSON.stringify({ notes: 'updated notes' }),
@@ -84,7 +85,7 @@ describe('Program Cohorts API', () => {
   })
 
   it('GET /api/admin/programs/[id] includes the cohort and no leakage yet', async () => {
-    const response = await fetch(`${baseUrl}/api/admin/programs/${programId}`, { headers: getTestAuthHeaders() })
+    const response = await apiFetch(`${baseUrl}/api/admin/programs/${programId}`, { headers: getTestAuthHeaders() })
     expect(response.ok).toBe(true)
     const body = await response.json()
     expect(body.cohorts).toHaveLength(1)
@@ -92,7 +93,7 @@ describe('Program Cohorts API', () => {
   })
 
   it('POST /api/admin/program-enrollments enrolls a member', async () => {
-    const response = await fetch(`${baseUrl}/api/admin/program-enrollments`, {
+    const response = await apiFetch(`${baseUrl}/api/admin/program-enrollments`, {
       method: 'POST',
       headers: { ...getTestAuthHeaders(), 'Content-Type': 'application/json' },
       body: JSON.stringify({ member_id: memberId, cohort_id: cohortId }),
@@ -103,7 +104,7 @@ describe('Program Cohorts API', () => {
   })
 
   it('POST /api/admin/program-enrollments rejects a duplicate enrollment', async () => {
-    const response = await fetch(`${baseUrl}/api/admin/program-enrollments`, {
+    const response = await apiFetch(`${baseUrl}/api/admin/program-enrollments`, {
       method: 'POST',
       headers: { ...getTestAuthHeaders(), 'Content-Type': 'application/json' },
       body: JSON.stringify({ member_id: memberId, cohort_id: cohortId }),
@@ -112,14 +113,14 @@ describe('Program Cohorts API', () => {
   })
 
   it('GET /api/admin/programs/[id] reflects the enrollment', async () => {
-    const response = await fetch(`${baseUrl}/api/admin/programs/${programId}`, { headers: getTestAuthHeaders() })
+    const response = await apiFetch(`${baseUrl}/api/admin/programs/${programId}`, { headers: getTestAuthHeaders() })
     const body = await response.json()
     expect(body.cohorts[0].member_program_enrollments).toHaveLength(1)
     expect(body.cohorts[0].member_program_enrollments[0].member.email).toBe(testEmail)
   })
 
   it('DELETE /api/admin/program-cohorts/[id] removes the cohort (and its enrollment)', async () => {
-    const response = await fetch(`${baseUrl}/api/admin/program-cohorts/${cohortId}`, {
+    const response = await apiFetch(`${baseUrl}/api/admin/program-cohorts/${cohortId}`, {
       method: 'DELETE',
       headers: getTestAuthHeaders(),
     })
@@ -130,7 +131,7 @@ describe('Program Cohorts API', () => {
   })
 
   it('DELETE /api/admin/programs/[id] removes the program', async () => {
-    const response = await fetch(`${baseUrl}/api/admin/programs/${programId}`, {
+    const response = await apiFetch(`${baseUrl}/api/admin/programs/${programId}`, {
       method: 'DELETE',
       headers: getTestAuthHeaders(),
     })

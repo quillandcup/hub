@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { getTestSupabaseAdminClient, getTestSupabaseClient, getTestAuthHeaders, getTestApiBaseUrl } from '../../helpers/supabase'
+import { apiFetch } from '../../helpers/api-fetch'
 
 /**
  * Integration tests for POST /api/admin/users/[id]/revoke-sessions.
@@ -34,7 +35,7 @@ describe('Admin Revoke User Sessions API', () => {
   })
 
   it('returns 401 without auth', async () => {
-    const res = await fetch(`${base}/api/admin/users/${testUserId}/revoke-sessions`, { method: 'POST' })
+    const res = await apiFetch(`${base}/api/admin/users/${testUserId}/revoke-sessions`, { method: 'POST' })
     expect(res.status).toBe(401)
   })
 
@@ -52,7 +53,7 @@ describe('Admin Revoke User Sessions API', () => {
     const before = await anonClient.auth.getUser(accessToken)
     expect(before.error).toBeNull()
 
-    const res = await fetch(`${base}/api/admin/users/${testUserId}/revoke-sessions`, {
+    const res = await apiFetch(`${base}/api/admin/users/${testUserId}/revoke-sessions`, {
       method: 'POST',
       headers: getTestAuthHeaders(),
     })

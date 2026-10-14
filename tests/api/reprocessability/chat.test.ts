@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { getTestSupabaseAdminClient, getTestAuthHeaders, getTestApiBaseUrl } from '../../helpers/supabase'
+import { apiFetch } from '../../helpers/api-fetch'
 
 /**
  * /api/process/chat projects Bronze Slack data into the chat mirror.
@@ -26,7 +27,7 @@ describe('Chat mirror reprocessability', () => {
   }
 
   async function process() {
-    const response = await fetch(`${getTestApiBaseUrl()}/api/process/chat`, {
+    const response = await apiFetch(`${getTestApiBaseUrl()}/api/process/chat`, {
       method: 'POST',
       headers: { ...getTestAuthHeaders(), 'Content-Type': 'application/json' },
       body: JSON.stringify({ fromDate: `${day}T00:00:00Z`, toDate: `${day}T23:59:59Z` }),
