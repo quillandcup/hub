@@ -3,8 +3,33 @@
 import { cookies, headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { requireAdminAction } from '@/lib/admin-auth'
+import { getCurrentUser } from '@/lib/auth'
+import { createClient } from '@/lib/supabase/server'
 import { signSudoCookie } from '@/lib/sudo'
+import { SUDO_COOKIE_NAME, parseSudoCookie } from '@/lib/sudo-cookie'
 import { sudoExitPath, sudoLandingPath } from '@/lib/sudo-redirect'
+
+type SudoEvent = 'sudo_started' | 'sudo_ended'
+
+/**
+ * Best-effort record of a sudo session's boundaries in the activity log (a staff
+ * action about the member, so the Audit view shows it), log-and-continue on failure
+ * like the other append-only mirrors. The page visits in between come from access_events.
+ */
+async function logSudoEvent(supabase: Awaited<ReturnType<typeof createClient>>, adminId: string, memberId: string, type: SudoEvent) {
+  const { error } = await supabase.from('member_activities').insert({
+    member_id: memberId,
+    activity_type: type,
+    activity_category: 'admin',
+    title: type === 'sudo_started' ? 'Started viewing as this member' : 'Stopped viewing as this member',
+    actor_kind: 'staff',
+    actor_user_id: adminId,
+    engagement_value: 0, // staff action, not the member's engagement
+    occurred_at: new Date().toISOString(),
+    source: 'sudo',
+  })
+  if (error) console.error(`Error logging ${type} to member_activities:`, error)
+}
 
 /**
  * Start browsing as a member.
@@ -29,6 +54,8 @@ export async function startSudo(memberId: string, landingUrl?: string) {
 
   if (!member) throw new Error('Member not found')
 
+  await logSudoEvent(supabase, user.id, memberId, 'sudo_started')
+
   const headersList = await headers()
   // The page sudo was started from, so exiting returns there. The Referer is
   // an absolute URL; keep only its same-origin path.
@@ -47,6 +74,13 @@ export async function startSudo(memberId: string, landingUrl?: string) {
 export async function exitSudo() {
   const cookieStore = await cookies()
   const returnTo = sudoExitPath(cookieStore.get('sudo_return_to')?.value)
+
+  // Only a valid cookie held by the signed-in admin counts as a session ending.
+  const sudo = parseSudoCookie(cookieStore.get(SUDO_COOKIE_NAME)?.value ?? '')
+  const user = sudo ? await getCurrentUser() : null
+  if (sudo && user && sudo.adminId === user.id) {
+    await logSudoEvent(await createClient(), user.id, sudo.memberId, 'sudo_ended')
+  }
 
   cookieStore.delete('sudo_as')
   cookieStore.delete('sudo_return_to')

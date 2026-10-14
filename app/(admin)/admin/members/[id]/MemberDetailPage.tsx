@@ -20,6 +20,11 @@ import { tabTitle } from "@/lib/tab-routes";
 import { loadPushDevices } from "@/lib/channels/web-push";
 import { describeDevice } from "@/lib/device-label";
 import { createServiceRoleClient } from "@/lib/supabase/service";
+import { fetchActivityFeed } from "@/lib/activity-feed";
+import { parsePageParam, parsePageSizeParam } from "@/lib/pagination";
+
+/** How far back a member's activity log looks. */
+const MEMBER_FEED_DAYS = 90;
 
 const getMemberRow = cache(async (id: string) => {
   const supabase = await createClient();
@@ -41,7 +46,16 @@ export function memberTabMetadata(tab: MemberTabId) {
  * /admin/members/<id>/<tab> route with that tab open. Every tab's data loads here, so switching
  * tabs is instant. Callers have already run requireAdminPage().
  */
-export default async function MemberDetailPage({ id, tab }: { id: string; tab: MemberTabId }) {
+export default async function MemberDetailPage({
+  id,
+  tab,
+  searchParams = {},
+}: {
+  id: string;
+  tab: MemberTabId;
+  /** The Activity Log tab's ?page=&pageSize=. */
+  searchParams?: Record<string, string | string[] | undefined>;
+}) {
   const supabase = await createClient();
 
   const user = await getCurrentUser();
@@ -205,6 +219,21 @@ export default async function MemberDetailPage({ id, tab }: { id: string; tab: M
     .order("occurred_at", { ascending: false })
     .limit(50);
 
+  // Everything about this member for the Activity Log tab: their own activity, what staff did for
+  // or as them, and changes to their record (the same feed as /admin/activity, narrowed to them).
+  const activityFeed = await fetchActivityFeed(supabase, {
+    view: "all",
+    kinds: null,
+    actorUserId: null,
+    memberId: id,
+    sudoOnly: false,
+    hideSystem: false,
+    hideSlack: false,
+    days: MEMBER_FEED_DAYS,
+    page: parsePageParam(searchParams.page),
+    pageSize: parsePageSizeParam(searchParams.pageSize),
+  });
+
   // Get user's timezone preference
   const userTimezone = await getUserTimezonePreference();
 
@@ -334,6 +363,7 @@ export default async function MemberDetailPage({ id, tab }: { id: string; tab: M
           member={member}
           attendanceRecords={attendance || []}
           hiatusHistory={hiatusHistory || []}
+          activityFeed={activityFeed}
           slackActivities={await withMentionNames(slackActivities || [])}
           userTimezonePreference={userTimezone}
           membershipHistory={membershipHistory}

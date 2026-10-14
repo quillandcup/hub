@@ -10,9 +10,22 @@ import { parseDateOnly } from "@/lib/member-tenure";
 import { countDistinctPrickles } from "@/lib/attendance-grouping";
 import MemberTimelinePanel from "./MemberTimelinePanel";
 import MemberSlackActivityPanel, { computeSlackSummary } from "./MemberSlackActivityPanel";
+import ActivityFeedTable from "@/app/(admin)/admin/activity/ActivityFeedTable";
+import type { FeedFilters, FeedPage } from "@/lib/activity-feed";
 import MemberBadgesPanel from "./MemberBadgesPanel";
 import MemberIdentityPanel, { type NameAliasRow, type EmailAliasRow } from "./MemberIdentityPanel";
 import type { EarnedBadge } from "@/lib/badges";
+
+const ACTIVITY_FILTERS: FeedFilters = {
+  view: "all",
+  kinds: null,
+  actorUserId: null,
+  memberId: null,
+  sudoOnly: false,
+  hideSystem: false,
+  hideSlack: false,
+  days: 90,
+};
 
 interface MemberDetailsProps {
   /** The tab the route opened (/admin/members/<id>[/<tab>]). */
@@ -21,6 +34,8 @@ interface MemberDetailsProps {
   attendanceRecords: any[];
   hiatusHistory: any[];
   slackActivities: any[];
+  /** One page of this member's activity log (lib/activity-feed.ts). */
+  activityFeed: FeedPage;
   userTimezonePreference?: string; // User's timezone preference from profile
   membershipHistory: any[];
   programOverrides?: { id: string; starts_at: string; expires_at: string | null; reason: string | null }[];
@@ -50,6 +65,7 @@ export default function MemberDetails({
   attendanceRecords,
   hiatusHistory,
   slackActivities,
+  activityFeed,
   userTimezonePreference = "browser",
   membershipHistory,
   programOverrides = [],
@@ -88,6 +104,7 @@ export default function MemberDetails({
     { id: "overview", label: MEMBER_TAB_LABELS.overview },
     { id: "attendance", label: `${MEMBER_TAB_LABELS.attendance} (${distinctPrickleCount})` },
     { id: "slack", label: `${MEMBER_TAB_LABELS.slack} (${slackActivities.length})` },
+    { id: "activity", label: `${MEMBER_TAB_LABELS.activity} (${activityFeed.total})` },
     { id: "identity", label: MEMBER_TAB_LABELS.identity },
   ];
 
@@ -223,6 +240,20 @@ export default function MemberDetails({
         />
       )}
 
+      {activeTab === "activity" &&
+        (activityFeed.total === 0 ? (
+          <p className="text-sm text-slate-500 dark:text-slate-400">Nothing recorded for this member in the last 90 days.</p>
+        ) : (
+          <div>
+            <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
+              Everything in the last 90 days: their own activity, what staff did for or as them, and changes to their record.{" "}
+              <Link href={`/admin/activity?view=all&member=${member.id}`} className="text-plum-600 dark:text-plum-400 hover:underline">
+                Open in the central log
+              </Link>
+            </p>
+            <ActivityFeedTable {...activityFeed} filters={ACTIVITY_FILTERS} />
+          </div>
+        ))}
       {activeTab === "slack" && <MemberSlackActivityPanel slackActivities={slackActivities} />}
     </div>
   );
