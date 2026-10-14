@@ -63,3 +63,16 @@ describe("withKind", () => {
     expect(withKind("pizza kind:books")).toBe("pizza");
   });
 });
+
+describe("quoted operator values", () => {
+  it("keeps from:\"Ania Ray\" together", () => {
+    const q = parseUniversal('from:"Ania Ray" retreat');
+    expect(q.from).toBe("Ania Ray");
+    expect(q.text).toBe("retreat");
+  });
+
+  it("keeps in:\"a kind or channel\" values and plain phrases working", () => {
+    expect(parseUniversal('in:"members" cody').kind).toBe("members");
+    expect(parseUniversal('"exact phrase" word').text).toBe('"exact phrase" word');
+  });
+});

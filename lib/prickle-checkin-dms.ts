@@ -411,6 +411,40 @@ export function buildCheckinBlocks(prickleId: string, typeName: string, saved: C
   ];
 }
 
+export const SKIP_CHECKOUT_ACTION_ID = "prickle_checkout_skip";
+
+/** The check-out DM's "Skip check-out" button; the prickle rides in the block id and value. */
+function skipCheckoutBlock(prickleId: string): any {
+  return {
+    type: "actions",
+    block_id: `prickle_checkout_skip:${prickleId}`,
+    elements: [{ type: "button", action_id: SKIP_CHECKOUT_ACTION_ID, text: plain("Skip check-out"), value: prickleId }],
+  };
+}
+
+/** The prickle a "Skip check-out" button press is about, or null if the action isn't one. */
+export function parseSkipCheckout(action: any): string | null {
+  return action?.action_id === SKIP_CHECKOUT_ACTION_ID && typeof action.value === "string" && action.value ? action.value : null;
+}
+
+/**
+ * Closes a prickle's check-out for good ("nothing to report"): the dashboard prompt, the search
+ * palette and the check-out DM stop asking (it shares writing_prompt_dismissals with the
+ * dashboard's dismissal), and the in-app notification is marked read so its banner and the bell
+ * count go too. Returns an error message, or null.
+ */
+export async function skipCheckout(supabase: any, memberId: string, prickleId: string): Promise<string | null> {
+  const { error } = await supabase
+    .from("writing_prompt_dismissals")
+    .upsert({ member_id: memberId, prickle_id: prickleId }, { onConflict: "member_id,prickle_id", ignoreDuplicates: true });
+  if (error) {
+    console.error("skipCheckout: insert failed", { memberId, prickleId, error });
+    return "Couldn't skip that check-out";
+  }
+  await resolveInAppNotifications(supabase, memberId, "prickle_checkout", prickleId);
+  return null;
+}
+
 /** The check-out DM, after a prickle: how it went, how they feel now, then the progress quick-log. */
 export function buildCheckoutBlocks(
   prickleId: string,
@@ -423,6 +457,7 @@ export function buildCheckoutBlocks(
     ...ratingBlocks(prickleId, `Checking out of *${typeName}*: how did it go?`, saved),
     checkinQuestion(prickleId, "feelings_after", "How are you feeling now?", saved),
     ...buildQuickLogBlocks(prickleTitle, prickleId, prompts),
+    skipCheckoutBlock(prickleId),
     checkinFooter(prickleId, "checkout"),
   ];
 }
@@ -661,6 +696,19 @@ async function loadSentCheckouts(supabase: any, prickleIds: string[]): Promise<S
   return new Set(rows.map((r) => `${r.member_id}:${r.prickle_id}`));
 }
 
+/** `${memberId}:${prickleId}` for every check-out a member skipped (skipCheckout) for these prickles. */
+async function loadSkippedCheckouts(supabase: any, prickleIds: string[]): Promise<Set<string>> {
+  const rows = await fetchAllPaginated<any>((offset) =>
+    supabase
+      .from("writing_prompt_dismissals")
+      .select("id, member_id, prickle_id")
+      .in("prickle_id", prickleIds)
+      .order("id")
+      .range(offset, offset + BATCH_SIZE - 1)
+  );
+  return new Set(rows.map((r) => `${r.member_id}:${r.prickle_id}`));
+}
+
 /** `${memberId}:${prickleId}:${projectId}` for every project already logged against these prickles. */
 async function loadLoggedProjects(supabase: any, memberIds: string[], prickleIds: string[]): Promise<Set<string>> {
   const rows = await fetchAllPaginated<any>((offset) =>
@@ -697,13 +745,15 @@ export async function sendCheckoutDMs(
   const presenceSince = Number.isFinite(earliestStart)
     ? earliestStart - PRESENCE_LOOKBEHIND_MS
     : now - CHECKOUT_LOOKBACK_MS - PRESENCE_LOOKBEHIND_MS;
-  const [attendeesByPrickle, alreadySent, presenceByMember] = await Promise.all([
+  const [attendeesByPrickle, alreadySent, skipped, presenceByMember] = await Promise.all([
     loadAttendees(supabase, prickleIds),
     loadSentCheckouts(supabase, prickleIds),
+    loadSkippedCheckouts(supabase, prickleIds),
     loadPresenceByMember(supabase, new Date(presenceSince), new Date(now)),
   ]);
   const dueByPrickle = dueCheckoutMembers(prickles, attendeesByPrickle, presenceByMember, now);
-  const plan = planCheckoutDMs(prickles, dueByPrickle, candidates, alreadySent);
+  // A skipped check-out is as good as a sent one: nothing more goes out for the pair.
+  const plan = planCheckoutDMs(prickles, dueByPrickle, candidates, new Set([...alreadySent, ...skipped]));
   if (plan.length === 0) return 0;
 
   const memberIds = [...new Set(plan.map((p) => p.memberId))];

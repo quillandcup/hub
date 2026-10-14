@@ -12,6 +12,8 @@ export interface Searcher {
   skip: SearchKind[];
   /** The real signed-in user is an admin (sudo or not): offers the admin-only operators' chips. */
   isAdmin: boolean;
+  /** An admin is browsing as a member: their own inbox and unread counts are not the member's to show. */
+  isSudo: boolean;
 }
 
 /**
@@ -51,5 +53,6 @@ export async function getSearcher(): Promise<Searcher | null> {
     },
     skip: chatOn ? [] : ["chat", "channels"],
     isAdmin,
+    isSudo,
   };
 }

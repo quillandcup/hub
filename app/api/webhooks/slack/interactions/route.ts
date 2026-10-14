@@ -3,6 +3,8 @@ import { WebClient } from "@slack/web-api";
 import { verifySlackSignature } from "@/lib/slack-signature";
 import {
   parseCheckinAnswer,
+  parseSkipCheckout,
+  skipCheckout,
   parseQuickLogAnswer,
   QUICK_LOG_ACTION_ID,
   replaceAnsweredBlock,
@@ -75,6 +77,16 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ received: true });
   }
 
+  const skippedPrickleId = parseSkipCheckout(action);
+  if (skippedPrickleId) {
+    try {
+      await handleSkipCheckout(payload, skippedPrickleId);
+    } catch (error) {
+      console.error("Error handling prickle check-out skip:", error);
+    }
+    return NextResponse.json({ received: true });
+  }
+
   const checkinAnswer = parseCheckinAnswer(action);
   if (checkinAnswer) {
     try {
@@ -130,6 +142,28 @@ async function handleCheckinAnswer(payload: any, answer: CheckinAnswer) {
   const token = process.env.SLACK_BOT_TOKEN;
   if (channelId && messageTs && blocks && token) {
     await new WebClient(token).chat.update({ channel: channelId, ts: messageTs, text: payload.message?.text ?? "", blocks });
+  }
+}
+
+/** "Skip check-out" in a check-out DM: close the check-out everywhere and collapse the message to a note. */
+async function handleSkipCheckout(payload: any, prickleId: string) {
+  const slackUserId = payload.user?.id as string | undefined;
+  if (!slackUserId) return;
+  const supabase = createServiceRoleClient();
+  const memberId = await resolveMemberIdForSlackUser(supabase, slackUserId);
+  if (!memberId) {
+    console.error("prickle_checkout_skip: no member matched for Slack user", slackUserId);
+    return;
+  }
+  const error = await skipCheckout(supabase, memberId, prickleId);
+  if (error) return;
+
+  const channelId = payload.channel?.id as string | undefined;
+  const messageTs = payload.message?.ts as string | undefined;
+  const token = process.env.SLACK_BOT_TOKEN;
+  if (channelId && messageTs && token) {
+    const text = "Skipped this check-out.";
+    await new WebClient(token).chat.update({ channel: channelId, ts: messageTs, text, blocks: [{ type: "section", text: { type: "mrkdwn", text } }] });
   }
 }
 

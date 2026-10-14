@@ -77,7 +77,7 @@ export function resolveKind(value: string): AnySearchKind | undefined {
 }
 
 /** Splits like chat's tokenizer: spaces, with "quoted phrases" kept whole. */
-const tokenize = (input: string): string[] => input.match(/-?"[^"]*"?|\S+/g) ?? [];
+const tokenize = (input: string): string[] => input.match(/-?(?:[a-z]+:)?"[^"]*"?|\S+/gi) ?? [];
 
 export function parseUniversal(input: string): UniversalQuery {
   const raw = input.trim();

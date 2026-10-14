@@ -2,7 +2,7 @@
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 import UpcomingPrickleRow, { CHECKIN_SOON_MS } from "@/components/UpcomingPrickleRow";
-import type { UpcomingPrickle } from "@/lib/upcoming-prickles";
+import type { HighlightReason, UpcomingPrickle } from "@/lib/upcoming-prickles";
 
 const NOW = Date.parse("2026-10-05T15:00:00Z");
 const prickle = (startsInMs: number) =>
@@ -13,8 +13,12 @@ const prickle = (startsInMs: number) =>
     startTime: new Date(NOW + startsInMs).toISOString(),
   }) as UpcomingPrickle;
 
-const renderRow = (startsInMs: number, checkin = null as React.ComponentProps<typeof UpcomingPrickleRow>["checkin"]) =>
-  render(<UpcomingPrickleRow prickle={prickle(startsInMs)} reasons={[]} timeZone="UTC" checkin={checkin} now={NOW} />);
+const TIED: HighlightReason[] = [{ kind: "calendar", tooltip: ["You added this one"] }];
+const renderRow = (
+  startsInMs: number,
+  checkin = null as React.ComponentProps<typeof UpcomingPrickleRow>["checkin"],
+  reasons: HighlightReason[] = TIED
+) => render(<UpcomingPrickleRow prickle={prickle(startsInMs)} reasons={reasons} timeZone="UTC" checkin={checkin} now={NOW} />);
 
 describe("UpcomingPrickleRow check-in pill", () => {
   it("offers Check in → for a prickle starting soon, linking to the check-in modal", () => {
@@ -25,6 +29,11 @@ describe("UpcomingPrickleRow check-in pill", () => {
 
   it("has no pill for a prickle further out", () => {
     renderRow(CHECKIN_SOON_MS + 60_000);
+    expect(screen.queryByRole("link", { name: /Check in/ })).not.toBeInTheDocument();
+  });
+
+  it("has no pill without a personal tie (hosting, commitment or calendar)", () => {
+    renderRow(30 * 60 * 1000, null, [{ kind: "streak", tooltip: ["3-week streak here"] }]);
     expect(screen.queryByRole("link", { name: /Check in/ })).not.toBeInTheDocument();
   });
 

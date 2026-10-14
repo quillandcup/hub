@@ -758,3 +758,45 @@ export async function getRankedUpcomingPrickles(
     hostExperience,
   })
 }
+
+/** How far ahead of the start a prickle offers its check-in. */
+export const CHECKIN_SOON_MS = 2 * 60 * 60 * 1000
+
+/**
+ * Whether a prickle offers a check-in now: it starts within CHECKIN_SOON_MS and the member has a
+ * personal tie to it (hosting it, in one of their commitments, or added to their calendar), so
+ * the dashboard, My Prickles and the search palette's "Needs attention" all agree.
+ */
+export function checkinOffered(prickle: Pick<UpcomingPrickle, "startTime">, reasons: HighlightReason[], now: Date | number): boolean {
+  const untilStart = new Date(prickle.startTime).getTime() - (typeof now === "number" ? now : now.getTime())
+  return untilStart <= CHECKIN_SOON_MS && reasons.some((r) => r.kind === "hosting" || r.kind === "commitment" || r.kind === "calendar")
+}
+
+/**
+ * Prickles offering a check-in now (checkinOffered), without the full ranking's attendance
+ * history: only what personal ties need (the window's prickles, commitments, calendar items).
+ */
+export async function getCheckinPrickles(supabase: SupabaseClient, memberId: string, timeZone: string, now: Date): Promise<RankedPrickle[]> {
+  const [upcoming, commitments, calendarItems] = await Promise.all([
+    fetchPrickles(supabase, now.toISOString(), new Date(now.getTime() + CHECKIN_SOON_MS).toISOString(), timeZone, true),
+    fetchActiveCommitments(supabase, memberId),
+    fetchCalendarItems(supabase, memberId),
+  ])
+  const commitmentByPrickleId =
+    commitments.length > 0
+      ? computeCommitmentSignals(
+          commitments,
+          upcoming.map((p) => ({ id: p.id, typeId: p.typeId, startTime: p.startTime, endTime: p.startTime })),
+          new Set(),
+          now
+        )
+      : new Map<string, CommitmentSignal>()
+  return rankUpcomingPrickles({
+    upcoming,
+    memberId,
+    now,
+    timeZone,
+    commitmentByPrickleId,
+    calendarAddedByPrickleId: computeCalendarAdded(calendarItems, upcoming),
+  }).filter((r) => checkinOffered(r.prickle, r.reasons, now))
+}
