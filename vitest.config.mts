@@ -65,17 +65,21 @@ export default defineConfig({
       exclude: ['**/*.d.ts', '**/*.test.*', 'lib/**/types.ts'],
       reporter: ['text-summary', 'json-summary', 'json', 'lcov', 'html'],
       reportOnFailure: true,
-      // Enforced only by the unit run (test:unit:coverage sets COVERAGE_ENFORCE): the db
-      // project's API-route tests drive a separate Next server process that v8 can't see,
-      // so its lib/ numbers would trip a threshold meant for the unit suite. Floors sit just
-      // under the 2026-10-13 unit baseline (lib/ 70% lines, components/ 70%); raise them as tests
-      // are added.
-      thresholds: process.env.COVERAGE_ENFORCE
-        ? {
-            'lib/**': { lines: 68, statements: 68, functions: 68, branches: 60 },
-            'components/**': { lines: 67, statements: 67, functions: 64, branches: 63 },
-          }
-        : undefined,
+      // Enforced only by the CI scripts (test:unit:coverage / test:db:coverage set COVERAGE_ENFORCE
+      // to the project they run), each against the code that project's tests are meant to cover:
+      // lib/ and components/ by the unit suite, app/api by the db suite (its tests call the route
+      // handlers in process, tests/helpers/api-fetch.ts). Floors sit just under the 2026-10-13
+      // baselines (unit: lib/ 70% lines, components/ 70%; db: app/api 57% lines); raise them as
+      // tests are added.
+      thresholds:
+        process.env.COVERAGE_ENFORCE === 'unit'
+          ? {
+              'lib/**': { lines: 68, statements: 68, functions: 68, branches: 60 },
+              'components/**': { lines: 67, statements: 67, functions: 64, branches: 63 },
+            }
+          : process.env.COVERAGE_ENFORCE === 'db'
+            ? { 'app/api/**': { lines: 55, statements: 52, functions: 60, branches: 43 } }
+            : undefined,
     },
     projects: [
       {

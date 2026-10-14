@@ -250,9 +250,9 @@ jobs:
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ env.LOCAL_SUPABASE_ANON_KEY }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ env.LOCAL_SUPABASE_SERVICE_ROLE_KEY }}
 
-      # No thresholds here. API-route tests call the route handlers in-process
-      # (tests/helpers/api-fetch.ts), so v8 counts them; only the few HTTP smoke tests use the
-      # app server above. The coverage job below merges this with the unit run.
+      # API-route tests call the route handlers in-process (tests/helpers/api-fetch.ts), so v8
+      # counts them; only the few HTTP smoke tests use the app server above. The app/api floor
+      # (vitest.config.mts) fails this step; the coverage job below merges this with the unit run.
       - name: Run db test suite (with coverage)
         run: npm run test:db:coverage
 
