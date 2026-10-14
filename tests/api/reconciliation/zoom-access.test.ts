@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { getTestSupabaseAdminClient, getTestAuthHeaders, getTestApiBaseUrl } from '../../helpers/supabase'
+import { apiFetch } from '../../helpers/api-fetch'
 
 /**
  * Integration tests for GET /api/analyze/zoom-access
@@ -70,7 +71,7 @@ describe('Zoom Access', () => {
   })
 
   async function fetchZoomAccess() {
-    const response = await fetch(`${base}/api/analyze/zoom-access`, { headers: getTestAuthHeaders() })
+    const response = await apiFetch(`${base}/api/analyze/zoom-access`, { headers: getTestAuthHeaders() })
     const body = await response.json()
     expect(response.ok, `API returned ${response.status}: ${JSON.stringify(body)}`).toBe(true)
     return body as { matched_inactive: any[] }

@@ -8,7 +8,9 @@ export async function POST(request: NextRequest) {
   const { supabase, user } = auth;
 
   try {
-    const body = await request.json();
+    const parsed = await request.json().catch(() => undefined);
+    if (parsed === undefined) return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+    const body = parsed;
     const { program_id, name, starts_at, expires_at, notes } = body;
 
     if (!program_id || !name || !starts_at || !expires_at) {

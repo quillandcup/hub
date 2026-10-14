@@ -24,9 +24,8 @@
 // annotates the diff with the biggest uncovered ranges (GitHub shows 10 annotations per step).
 //
 // The per-directory floors stay in vitest.config.mts (coverage.thresholds) and fail the unit
-// job early. app/api/** is excluded from the new-code gate: its routes are exercised by db
-// tests that call a separate Next server process, which v8 can't instrument. Set
-// PATCH_COVERAGE_SKIP=1 to report without gating (CI does when the PR has the
+// job early. API routes count toward the new-code gate: the db tests call their handlers in
+// process (tests/helpers/api-fetch.ts), so v8 sees them. Set PATCH_COVERAGE_SKIP=1 to report without gating (CI does when the PR has the
 // skip-patch-coverage label).
 
 import { spawnSync } from "node:child_process";
@@ -36,7 +35,7 @@ import { fileURLToPath } from "node:url";
 
 export const MIN_PATCH_SCORE = 80;
 const SOURCE = /^((app|lib|components|emails)\/.+\.(ts|tsx)|(proxy|instrumentation|instrumentation-client)\.ts)$/;
-const EXCLUDED = [/^app\/api\//, /\.d\.ts$/, /\.test\.tsx?$/];
+const EXCLUDED = [/\.d\.ts$/, /\.test\.tsx?$/];
 const COMMENT_MARKER = "<!-- coverage-report -->";
 
 type Loc = { line: number; column: number };
@@ -291,7 +290,7 @@ export function renderReport(
     const { result, passed, skipped } = patch;
     const icon = skipped ? "⏭️" : passed ? "✅" : "❌";
     out.push(
-      `**New code: ${icon} ${scoreCell(result.metrics)}** (${MIN_PATCH_SCORE}% required${skipped ? ", check skipped by label" : ""}; covered by either suite; \`app/api/**\` is not counted)`,
+      `**New code: ${icon} ${scoreCell(result.metrics)}** (${MIN_PATCH_SCORE}% required${skipped ? ", check skipped by label" : ""}; covered by either suite)`,
       "",
       `| lines | statements | functions | branches |`,
       `|--:|--:|--:|--:|`,
@@ -400,7 +399,7 @@ function main(): void {
     const result = patchCoverage(parseAddedLines(diff.stdout), merged);
     const score = aggregateScore(result.metrics);
     const skipped = process.env.PATCH_COVERAGE_SKIP === "1";
-    // No executable new code (docs, config, types, app/api only) has nothing to test.
+    // No executable new code (docs, config, types only) has nothing to test.
     patch = { result, skipped, passed: skipped || score === null || score >= MIN_PATCH_SCORE };
   }
 

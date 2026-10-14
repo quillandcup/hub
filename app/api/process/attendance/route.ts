@@ -182,7 +182,9 @@ export async function POST(request: NextRequest) {
   const { supabase } = auth;
 
   try {
-    const body = await request.json();
+    const parsed = await request.json().catch(() => undefined);
+    if (parsed === undefined) return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+    const body = parsed;
     // maxRowsPerWrite: tests use it to force several chunks on a small range.
     const { fromDate, toDate, maxRowsPerWrite } = body;
 

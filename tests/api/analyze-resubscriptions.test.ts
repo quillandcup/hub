@@ -8,6 +8,7 @@
 
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { getTestSupabaseAdminClient, getTestAuthHeaders, getTestApiBaseUrl } from "../helpers/supabase";
+import { apiFetch } from '../helpers/api-fetch'
 
 const PREFIX = "test-resub-";
 
@@ -155,7 +156,7 @@ describe.skip("GET /api/analyze/resubscriptions", () => {
   // ---- tests ---------------------------------------------------------------
 
   it("returns 200 with valid shape", async () => {
-    const res = await fetch(`${baseUrl}/api/analyze/resubscriptions`, {
+    const res = await apiFetch(`${baseUrl}/api/analyze/resubscriptions`, {
       headers: getTestAuthHeaders(),
     });
     expect(res.status).toBe(200);
@@ -167,7 +168,7 @@ describe.skip("GET /api/analyze/resubscriptions", () => {
   });
 
   it("only counts customers with at least one resubscription", async () => {
-    const res = await fetch(`${baseUrl}/api/analyze/resubscriptions`, {
+    const res = await apiFetch(`${baseUrl}/api/analyze/resubscriptions`, {
       headers: getTestAuthHeaders(),
     });
     const body = await res.json();
@@ -185,7 +186,7 @@ describe.skip("GET /api/analyze/resubscriptions", () => {
   });
 
   it("counts resubscription events correctly for each member", async () => {
-    const res = await fetch(`${baseUrl}/api/analyze/resubscriptions`, {
+    const res = await apiFetch(`${baseUrl}/api/analyze/resubscriptions`, {
       headers: getTestAuthHeaders(),
     });
     const body = await res.json();
@@ -198,7 +199,7 @@ describe.skip("GET /api/analyze/resubscriptions", () => {
   });
 
   it("correctly sets isCurrentlyActive", async () => {
-    const res = await fetch(`${baseUrl}/api/analyze/resubscriptions`, {
+    const res = await apiFetch(`${baseUrl}/api/analyze/resubscriptions`, {
       headers: getTestAuthHeaders(),
     });
     const body = await res.json();
@@ -211,7 +212,7 @@ describe.skip("GET /api/analyze/resubscriptions", () => {
   });
 
   it("returns correct gap days for customer A (92 days: Jun 1 → Sep 1)", async () => {
-    const res = await fetch(`${baseUrl}/api/analyze/resubscriptions`, {
+    const res = await apiFetch(`${baseUrl}/api/analyze/resubscriptions`, {
       headers: getTestAuthHeaders(),
     });
     const body = await res.json();
@@ -221,7 +222,7 @@ describe.skip("GET /api/analyze/resubscriptions", () => {
   });
 
   it("cohortByMonth contains months for resubscription events", async () => {
-    const res = await fetch(`${baseUrl}/api/analyze/resubscriptions`, {
+    const res = await apiFetch(`${baseUrl}/api/analyze/resubscriptions`, {
       headers: getTestAuthHeaders(),
     });
     const body = await res.json();

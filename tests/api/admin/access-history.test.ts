@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { getTestSupabaseAdminClient, getTestAuthHeaders, getTestApiBaseUrl } from '../../helpers/supabase'
+import { apiFetch } from '../../helpers/api-fetch'
 
 /**
  * Integration tests for GET /api/admin/users/[id]/access-history.
@@ -44,12 +45,12 @@ describe('Admin User Access History API', () => {
   })
 
   it('returns 401 without auth', async () => {
-    const res = await fetch(`${base}/api/admin/users/${testUserId}/access-history`)
+    const res = await apiFetch(`${base}/api/admin/users/${testUserId}/access-history`)
     expect(res.status).toBe(401)
   })
 
   it('groups events into sessions by gap and returns them newest-first', async () => {
-    const res = await fetch(`${base}/api/admin/users/${testUserId}/access-history`, {
+    const res = await apiFetch(`${base}/api/admin/users/${testUserId}/access-history`, {
       headers: getTestAuthHeaders(),
     })
 
@@ -63,7 +64,7 @@ describe('Admin User Access History API', () => {
   })
 
   it('excludes API-only events from the page trail but still counts them toward the session', async () => {
-    const res = await fetch(`${base}/api/admin/users/${testUserId}/access-history`, {
+    const res = await apiFetch(`${base}/api/admin/users/${testUserId}/access-history`, {
       headers: getTestAuthHeaders(),
     })
 
@@ -75,7 +76,7 @@ describe('Admin User Access History API', () => {
   })
 
   it('newest session contains only its own page', async () => {
-    const res = await fetch(`${base}/api/admin/users/${testUserId}/access-history`, {
+    const res = await apiFetch(`${base}/api/admin/users/${testUserId}/access-history`, {
       headers: getTestAuthHeaders(),
     })
 
@@ -87,7 +88,7 @@ describe('Admin User Access History API', () => {
   })
 
   it('reports no linked auth session when events were inserted without a session_id', async () => {
-    const res = await fetch(`${base}/api/admin/users/${testUserId}/access-history`, {
+    const res = await apiFetch(`${base}/api/admin/users/${testUserId}/access-history`, {
       headers: getTestAuthHeaders(),
     })
 

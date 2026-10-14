@@ -32,7 +32,9 @@ export async function POST(request: NextRequest) {
   const supabase = createServiceRoleClient();
 
   try {
-    const { fromDate, toDate } = await request.json();
+    const parsed = await request.json().catch(() => undefined);
+    if (parsed === undefined) return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+    const { fromDate, toDate } = parsed;
     if (!fromDate || !toDate) {
       return NextResponse.json({ error: "fromDate and toDate are required" }, { status: 400 });
     }

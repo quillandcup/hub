@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { getTestSupabaseAdminClient, getTestAuthHeaders, getTestApiBaseUrl } from '../../helpers/supabase'
+import { apiFetch } from '../../helpers/api-fetch'
 
 /**
  * Integration tests for event attendees (app/api/admin/events/[id]/attendees) and their
@@ -43,7 +44,7 @@ describe('Event Attendees + Badge Linking', () => {
   })
 
   it('sets up an event and a retreat badge (unlinked)', async () => {
-    const eventRes = await fetch(`${baseUrl}/api/admin/events`, {
+    const eventRes = await apiFetch(`${baseUrl}/api/admin/events`, {
       method: 'POST',
       headers: { ...getTestAuthHeaders(), 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -57,7 +58,7 @@ describe('Event Attendees + Badge Linking', () => {
     expect(eventRes.status).toBe(201)
     eventId = (await eventRes.json()).event.id
 
-    const badgeRes = await fetch(`${baseUrl}/api/badge-types/create`, {
+    const badgeRes = await apiFetch(`${baseUrl}/api/badge-types/create`, {
       method: 'POST',
       headers: { ...getTestAuthHeaders(), 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: `Attendee Test Badge ${ts}`, category: 'retreat' }),
@@ -67,7 +68,7 @@ describe('Event Attendees + Badge Linking', () => {
   })
 
   it('adding an attendee before the badge is linked records attendance but grants no badge', async () => {
-    const res = await fetch(`${baseUrl}/api/admin/events/${eventId}/attendees`, {
+    const res = await apiFetch(`${baseUrl}/api/admin/events/${eventId}/attendees`, {
       method: 'POST',
       headers: { ...getTestAuthHeaders(), 'Content-Type': 'application/json' },
       body: JSON.stringify({ memberId: memberAId }),
@@ -79,7 +80,7 @@ describe('Event Attendees + Badge Linking', () => {
   })
 
   it('linking the badge to the event backfills the badge for existing attendees (sync_event_badge_awards)', async () => {
-    const res = await fetch(`${baseUrl}/api/badge-types/${badgeTypeId}/update`, {
+    const res = await apiFetch(`${baseUrl}/api/badge-types/${badgeTypeId}/update`, {
       method: 'PATCH',
       headers: { ...getTestAuthHeaders(), 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: `Attendee Test Badge ${ts}`, category: 'retreat', eventId }),
@@ -92,7 +93,7 @@ describe('Event Attendees + Badge Linking', () => {
   })
 
   it('adding a new attendee after linking auto-grants the badge', async () => {
-    const res = await fetch(`${baseUrl}/api/admin/events/${eventId}/attendees`, {
+    const res = await apiFetch(`${baseUrl}/api/admin/events/${eventId}/attendees`, {
       method: 'POST',
       headers: { ...getTestAuthHeaders(), 'Content-Type': 'application/json' },
       body: JSON.stringify({ memberId: memberBId }),
@@ -105,7 +106,7 @@ describe('Event Attendees + Badge Linking', () => {
   })
 
   it('adding the same attendee again is a no-op, not a duplicate award', async () => {
-    const res = await fetch(`${baseUrl}/api/admin/events/${eventId}/attendees`, {
+    const res = await apiFetch(`${baseUrl}/api/admin/events/${eventId}/attendees`, {
       method: 'POST',
       headers: { ...getTestAuthHeaders(), 'Content-Type': 'application/json' },
       body: JSON.stringify({ memberId: memberBId }),
@@ -117,7 +118,7 @@ describe('Event Attendees + Badge Linking', () => {
   })
 
   it('POST /api/member-badges/award rejects awarding a badge that is linked to an event', async () => {
-    const res = await fetch(`${baseUrl}/api/member-badges/award`, {
+    const res = await apiFetch(`${baseUrl}/api/member-badges/award`, {
       method: 'POST',
       headers: { ...getTestAuthHeaders(), 'Content-Type': 'application/json' },
       body: JSON.stringify({ memberId: memberAId, badgeTypeId }),
@@ -133,7 +134,7 @@ describe('Event Attendees + Badge Linking', () => {
       .eq('badge_type_id', badgeTypeId)
       .single()
 
-    const res = await fetch(`${baseUrl}/api/member-badges/${award!.id}`, {
+    const res = await apiFetch(`${baseUrl}/api/member-badges/${award!.id}`, {
       method: 'DELETE',
       headers: getTestAuthHeaders(),
     })
@@ -149,7 +150,7 @@ describe('Event Attendees + Badge Linking', () => {
       .single()
     await supabase.from('member_badges').insert({ member_id: memberBId, badge_type_id: manualBadge!.id, occurred_at: '2026-01-01' })
 
-    const res = await fetch(`${baseUrl}/api/admin/events/${eventId}/attendees/${memberBId}`, {
+    const res = await apiFetch(`${baseUrl}/api/admin/events/${eventId}/attendees/${memberBId}`, {
       method: 'DELETE',
       headers: getTestAuthHeaders(),
     })
@@ -168,7 +169,7 @@ describe('Event Attendees + Badge Linking', () => {
   })
 
   it('GET /api/admin/events/[id] reports the linked badge and current attendees', async () => {
-    const res = await fetch(`${baseUrl}/api/admin/events/${eventId}`, { headers: getTestAuthHeaders() })
+    const res = await apiFetch(`${baseUrl}/api/admin/events/${eventId}`, { headers: getTestAuthHeaders() })
     const body = await res.json()
     expect(body.badgeType.id).toBe(badgeTypeId)
     expect(body.attendees.map((a: any) => a.memberId)).toEqual([memberAId])

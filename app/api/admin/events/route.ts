@@ -33,7 +33,9 @@ export async function POST(request: NextRequest) {
   const { supabase, user } = auth;
 
   try {
-    const body = await request.json();
+    const parsed = await request.json().catch(() => undefined);
+    if (parsed === undefined) return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+    const body = parsed;
     const { slug, title, event_type, location, starts_at, ends_at, focus, description, agenda, results, google_photos_album_url } = body;
 
     if (!slug || !title || !event_type || !starts_at || !ends_at) {

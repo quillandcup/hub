@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { getTestSupabaseAdminClient, getTestAuthHeaders, getTestApiBaseUrl } from '../../helpers/supabase'
 import { seedReferenceData } from '../../helpers/seed-data'
+import { apiFetch } from '../../helpers/api-fetch'
 
 /**
  * Test to verify /api/process/attendance is fully reprocessable
@@ -119,7 +120,7 @@ describe('Attendance Reprocessability', () => {
     })
 
     // ACT: Process attendance
-    const response = await fetch(`${getTestApiBaseUrl()}/api/process/attendance`, {
+    const response = await apiFetch(`${getTestApiBaseUrl()}/api/process/attendance`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...getTestAuthHeaders() },
       body: JSON.stringify({
@@ -170,7 +171,7 @@ describe('Attendance Reprocessability', () => {
       .eq('meeting_uuid', testMeetingUuid)
 
     // ACT: Reprocess
-    const response = await fetch(`${getTestApiBaseUrl()}/api/process/attendance`, {
+    const response = await apiFetch(`${getTestApiBaseUrl()}/api/process/attendance`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...getTestAuthHeaders() },
       body: JSON.stringify({
@@ -227,7 +228,7 @@ describe('Attendance Reprocessability', () => {
     })
 
     // Process to create PUP
-    await fetch(`${getTestApiBaseUrl()}/api/process/attendance`, {
+    await apiFetch(`${getTestApiBaseUrl()}/api/process/attendance`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...getTestAuthHeaders() },
       body: JSON.stringify({
@@ -251,7 +252,7 @@ describe('Attendance Reprocessability', () => {
     await supabase.schema('bronze').from('zoom_meetings').delete().eq('meeting_uuid', pupMeetingUuid)
 
     // ACT: Reprocess
-    const response = await fetch(`${getTestApiBaseUrl()}/api/process/attendance`, {
+    const response = await apiFetch(`${getTestApiBaseUrl()}/api/process/attendance`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...getTestAuthHeaders() },
       body: JSON.stringify({
@@ -298,7 +299,7 @@ describe('Attendance Reprocessability', () => {
       duration: 60,
     })
 
-    await fetch(`${getTestApiBaseUrl()}/api/process/attendance`, {
+    await apiFetch(`${getTestApiBaseUrl()}/api/process/attendance`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...getTestAuthHeaders() },
       body: JSON.stringify({ fromDate: testDateRange.from, toDate: testDateRange.to }),
@@ -314,7 +315,7 @@ describe('Attendance Reprocessability', () => {
     const pupId = pupBefore!.id
 
     // Reprocess with the same Zoom data
-    const response = await fetch(`${getTestApiBaseUrl()}/api/process/attendance`, {
+    const response = await apiFetch(`${getTestApiBaseUrl()}/api/process/attendance`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...getTestAuthHeaders() },
       body: JSON.stringify({ fromDate: testDateRange.from, toDate: testDateRange.to }),
@@ -362,7 +363,7 @@ describe('Attendance Reprocessability', () => {
     expect(before).toBeTruthy()
 
     // ACT: Process attendance (should DELETE all in range, then INSERT from Bronze)
-    const response = await fetch(`${getTestApiBaseUrl()}/api/process/attendance`, {
+    const response = await apiFetch(`${getTestApiBaseUrl()}/api/process/attendance`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...getTestAuthHeaders() },
       body: JSON.stringify({
@@ -422,7 +423,7 @@ describe('Attendance Reprocessability', () => {
       duration: 50,
     })
 
-    const response = await fetch(`${getTestApiBaseUrl()}/api/process/attendance`, {
+    const response = await apiFetch(`${getTestApiBaseUrl()}/api/process/attendance`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...getTestAuthHeaders() },
       body: JSON.stringify({ fromDate: testDateRange.from, toDate: testDateRange.to }),
@@ -470,7 +471,7 @@ describe('Attendance Reprocessability', () => {
     })
 
     // Process June data
-    await fetch(`${getTestApiBaseUrl()}/api/process/attendance`, {
+    await apiFetch(`${getTestApiBaseUrl()}/api/process/attendance`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...getTestAuthHeaders() },
       body: JSON.stringify({
@@ -480,7 +481,7 @@ describe('Attendance Reprocessability', () => {
     })
 
     // ACT: Process May only
-    const response = await fetch(`${getTestApiBaseUrl()}/api/process/attendance`, {
+    const response = await apiFetch(`${getTestApiBaseUrl()}/api/process/attendance`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...getTestAuthHeaders() },
       body: JSON.stringify({

@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { getTestSupabaseAdminClient, getTestAuthHeaders, getTestApiBaseUrl } from '../../helpers/supabase'
+import { apiFetch } from '../../helpers/api-fetch'
 
 /**
  * member_hiatus_history must actually stick after reprocessing — this is
@@ -25,7 +26,7 @@ describe('Member Hiatus History applied during reprocessing', () => {
   const overrideIds: string[] = []
 
   async function processMembers() {
-    const response = await fetch(`${getTestApiBaseUrl()}/api/process/members`, {
+    const response = await apiFetch(`${getTestApiBaseUrl()}/api/process/members`, {
       method: 'POST',
       headers: getTestAuthHeaders(),
     })

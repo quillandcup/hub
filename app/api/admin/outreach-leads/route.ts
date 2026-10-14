@@ -10,7 +10,9 @@ export async function PATCH(request: NextRequest) {
   const { supabase, user } = auth;
 
   try {
-    const body = await request.json();
+    const parsed = await request.json().catch(() => undefined);
+    if (parsed === undefined) return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+    const body = parsed;
     const { member_id, status } = body;
 
     if (!member_id || !VALID_STATUSES.includes(status)) {

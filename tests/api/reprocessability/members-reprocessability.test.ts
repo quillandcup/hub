@@ -5,6 +5,7 @@ import {
   getTestAuthHeaders,
   getTestApiBaseUrl,
 } from '../../helpers/supabase'
+import { apiFetch } from '../../helpers/api-fetch'
 
 /**
  * Test to verify /api/process/members is fully reprocessable
@@ -87,7 +88,7 @@ describe('Members Reprocessability', () => {
     expect(verifyData).toHaveLength(2)
 
     // ACT: Process members
-    const response = await fetch(`${getTestApiBaseUrl()}/api/process/members`, {
+    const response = await apiFetch(`${getTestApiBaseUrl()}/api/process/members`, {
       method: 'POST',
       headers: getTestAuthHeaders(),
     })
@@ -132,7 +133,7 @@ describe('Members Reprocessability', () => {
     expect(error).toBeNull()
 
     // ACT: Reprocess members
-    const response = await fetch(`${getTestApiBaseUrl()}/api/process/members`, {
+    const response = await apiFetch(`${getTestApiBaseUrl()}/api/process/members`, {
       method: 'POST',
       headers: getTestAuthHeaders(),
     })
@@ -169,7 +170,7 @@ describe('Members Reprocessability', () => {
     expect(error).toBeNull()
 
     // ACT: Reprocess
-    const response = await fetch(`${getTestApiBaseUrl()}/api/process/members`, {
+    const response = await apiFetch(`${getTestApiBaseUrl()}/api/process/members`, {
       method: 'POST',
       headers: getTestAuthHeaders(),
     })
@@ -209,7 +210,7 @@ describe('Members Reprocessability', () => {
     const originalId = before!.id
 
     // ACT: Process members (UPSERT - preserves UUIDs)
-    const response = await fetch(`${getTestApiBaseUrl()}/api/process/members`, {
+    const response = await apiFetch(`${getTestApiBaseUrl()}/api/process/members`, {
       method: 'POST',
       headers: getTestAuthHeaders(),
     })
@@ -326,7 +327,7 @@ describe('Members Status Classification', () => {
   })
 
   async function reprocess() {
-    const response = await fetch(`${getTestApiBaseUrl()}/api/process/members`, {
+    const response = await apiFetch(`${getTestApiBaseUrl()}/api/process/members`, {
       method: 'POST',
       headers: getTestAuthHeaders(),
     })
@@ -416,7 +417,7 @@ describe('Members Bronze Pagination (>1000 rows)', () => {
   it(
     'processes every contact, including those past the Supabase query row cap',
     async () => {
-      const response = await fetch(`${getTestApiBaseUrl()}/api/process/members`, {
+      const response = await apiFetch(`${getTestApiBaseUrl()}/api/process/members`, {
         method: 'POST',
         headers: getTestAuthHeaders(),
       })
@@ -500,7 +501,7 @@ describe('Members stripe_customer_id matching', () => {
   })
 
   it('sets members.stripe_customer_id from the matching bronze.stripe_customers row', async () => {
-    const response = await fetch(`${getTestApiBaseUrl()}/api/process/members`, {
+    const response = await apiFetch(`${getTestApiBaseUrl()}/api/process/members`, {
       method: 'POST',
       headers: getTestAuthHeaders(),
     })
@@ -545,7 +546,7 @@ describe('Member Tenure computed during reprocessing', () => {
   const hiatusIds: string[] = []
 
   async function reprocess() {
-    const response = await fetch(`${getTestApiBaseUrl()}/api/process/members`, {
+    const response = await apiFetch(`${getTestApiBaseUrl()}/api/process/members`, {
       method: 'POST',
       headers: getTestAuthHeaders(),
     })
@@ -678,7 +679,7 @@ describe('Stripe trial-conversion date correction during reprocessing', () => {
   const trialEndAt = daysAgo(293) // 7-day trial
 
   async function reprocess() {
-    const response = await fetch(`${getTestApiBaseUrl()}/api/process/members`, {
+    const response = await apiFetch(`${getTestApiBaseUrl()}/api/process/members`, {
       method: 'POST',
       headers: getTestAuthHeaders(),
     })
@@ -801,7 +802,7 @@ describe('Legacy join-date overrides during reprocessing', () => {
   const legacyJoinedAt = dateOnly(daysAgo(700)) // predates anything Kajabi knows about
 
   async function reprocess() {
-    const response = await fetch(`${getTestApiBaseUrl()}/api/process/members`, {
+    const response = await apiFetch(`${getTestApiBaseUrl()}/api/process/members`, {
       method: 'POST',
       headers: getTestAuthHeaders(),
     })
@@ -897,7 +898,7 @@ describe('Instagram handle sourcing during reprocessing', () => {
   const emailDirectoryOnly = `ig-directory-only-${ts}@example.com`
 
   async function reprocess() {
-    const response = await fetch(`${getTestApiBaseUrl()}/api/process/members`, {
+    const response = await apiFetch(`${getTestApiBaseUrl()}/api/process/members`, {
       method: 'POST',
       headers: getTestAuthHeaders(),
     })
@@ -1007,7 +1008,7 @@ describe('Member profile overrides during reprocessing', () => {
   let memberId: string
 
   async function reprocess() {
-    const response = await fetch(`${getTestApiBaseUrl()}/api/process/members`, {
+    const response = await apiFetch(`${getTestApiBaseUrl()}/api/process/members`, {
       method: 'POST',
       headers: getTestAuthHeaders(),
     })

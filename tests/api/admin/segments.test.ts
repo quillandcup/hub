@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { getTestSupabaseAdminClient, getTestAuthHeaders, getTestApiBaseUrl } from '../../helpers/supabase'
+import { apiFetch } from '../../helpers/api-fetch'
 
 /**
  * Integration tests for the admin segments API.
@@ -45,12 +46,12 @@ describe('Admin Segments API', () => {
   // ── Auth guard ─────────────────────────────────────────────────────────────
 
   it('GET /api/admin/segments returns 401 without auth', async () => {
-    const res = await fetch(`${base}/api/admin/segments`)
+    const res = await apiFetch(`${base}/api/admin/segments`)
     expect(res.status).toBe(401)
   })
 
   it('POST /api/admin/segments returns 401 without auth', async () => {
-    const res = await fetch(`${base}/api/admin/segments`, {
+    const res = await apiFetch(`${base}/api/admin/segments`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: 'x' }),
@@ -64,7 +65,7 @@ describe('Admin Segments API', () => {
     let segmentId: string
 
     it('POST creates a segment', async () => {
-      const res = await fetch(`${base}/api/admin/segments`, {
+      const res = await apiFetch(`${base}/api/admin/segments`, {
         method: 'POST',
         headers: { ...getTestAuthHeaders(), 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: `Founding Hedgies ${ts}` }),
@@ -78,7 +79,7 @@ describe('Admin Segments API', () => {
     })
 
     it('POST rejects a blank name', async () => {
-      const res = await fetch(`${base}/api/admin/segments`, {
+      const res = await apiFetch(`${base}/api/admin/segments`, {
         method: 'POST',
         headers: { ...getTestAuthHeaders(), 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: '   ' }),
@@ -87,7 +88,7 @@ describe('Admin Segments API', () => {
     })
 
     it('GET lists the new segment with memberCount 0', async () => {
-      const res = await fetch(`${base}/api/admin/segments`, { headers: getTestAuthHeaders() })
+      const res = await apiFetch(`${base}/api/admin/segments`, { headers: getTestAuthHeaders() })
       expect(res.ok).toBe(true)
       const body = await res.json()
       const found = body.segments.find((s: any) => s.id === segmentId)
@@ -96,7 +97,7 @@ describe('Admin Segments API', () => {
     })
 
     it('POST /members adds members by pasted email, reporting per-email results', async () => {
-      const res = await fetch(`${base}/api/admin/segments/${segmentId}/members`, {
+      const res = await apiFetch(`${base}/api/admin/segments/${segmentId}/members`, {
         method: 'POST',
         headers: { ...getTestAuthHeaders(), 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: `${memberAEmail}, ${memberBEmail}\nnot-a-real-member-${ts}@example.com` }),
@@ -112,7 +113,7 @@ describe('Admin Segments API', () => {
     })
 
     it('POST /members reports already_in_segment on re-adding the same email', async () => {
-      const res = await fetch(`${base}/api/admin/segments/${segmentId}/members`, {
+      const res = await apiFetch(`${base}/api/admin/segments/${segmentId}/members`, {
         method: 'POST',
         headers: { ...getTestAuthHeaders(), 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: memberAEmail }),
@@ -124,7 +125,7 @@ describe('Admin Segments API', () => {
     })
 
     it('GET /api/admin/segments/[id] returns the segment and its members', async () => {
-      const res = await fetch(`${base}/api/admin/segments/${segmentId}`, { headers: getTestAuthHeaders() })
+      const res = await apiFetch(`${base}/api/admin/segments/${segmentId}`, { headers: getTestAuthHeaders() })
       expect(res.ok).toBe(true)
       const body = await res.json()
       expect(body.segment.id).toBe(segmentId)
@@ -133,14 +134,14 @@ describe('Admin Segments API', () => {
     })
 
     it('GET /api/admin/segments now reflects memberCount 2', async () => {
-      const res = await fetch(`${base}/api/admin/segments`, { headers: getTestAuthHeaders() })
+      const res = await apiFetch(`${base}/api/admin/segments`, { headers: getTestAuthHeaders() })
       const body = await res.json()
       const found = body.segments.find((s: any) => s.id === segmentId)
       expect(found.memberCount).toBe(2)
     })
 
     it('DELETE /members/[memberId] removes just that member', async () => {
-      const res = await fetch(`${base}/api/admin/segments/${segmentId}/members/${memberBId}`, {
+      const res = await apiFetch(`${base}/api/admin/segments/${segmentId}/members/${memberBId}`, {
         method: 'DELETE',
         headers: getTestAuthHeaders(),
       })
@@ -164,7 +165,7 @@ describe('Admin Segments API', () => {
       if (createError || !authUser.user) throw new Error(`Failed to create auth user: ${createError?.message}`)
 
       try {
-        const res = await fetch(`${base}/api/admin/segments/${segmentId}/invite`, {
+        const res = await apiFetch(`${base}/api/admin/segments/${segmentId}/invite`, {
           method: 'POST',
           headers: getTestAuthHeaders(),
         })
@@ -186,7 +187,7 @@ describe('Admin Segments API', () => {
     })
 
     it('DELETE /api/admin/segments/[id] deletes the segment and cascades its members', async () => {
-      const res = await fetch(`${base}/api/admin/segments/${segmentId}`, {
+      const res = await apiFetch(`${base}/api/admin/segments/${segmentId}`, {
         method: 'DELETE',
         headers: getTestAuthHeaders(),
       })

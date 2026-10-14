@@ -72,12 +72,12 @@ describe("parseAddedLines", () => {
 });
 
 describe("isGated / areaKey", () => {
-  it("gates app/lib/components/emails and the root runtime files, not API routes, tests or scripts", () => {
+  it("gates app/lib/components/emails and the root runtime files, API routes, but not tests or scripts", () => {
     expect(isGated("lib/x.ts")).toBe(true);
     expect(isGated("components/Y.tsx")).toBe(true);
     expect(isGated("emails/notifications/a.tsx")).toBe(true);
     expect(isGated("proxy.ts")).toBe(true);
-    expect(isGated("app/api/process/route.ts")).toBe(false);
+    expect(isGated("app/api/process/route.ts")).toBe(true);
     expect(isGated("lib/x.test.ts")).toBe(false);
     expect(isGated("lib/x.d.ts")).toBe(false);
     expect(isGated("scripts/x.ts")).toBe(false);
@@ -163,7 +163,7 @@ describe("patchCoverage", () => {
   it("treats a new file no suite loaded as fully uncovered, and skips ungated files", () => {
     const added = new Map([
       ["lib/new.ts", new Set([1, 2])],
-      ["app/api/x/route.ts", new Set([1, 2, 3])],
+      ["lib/new.test.ts", new Set([1, 2, 3])],
     ]);
     const { metrics: got } = patchCoverage(added, new Map());
     expect(got.lines).toEqual(m(0, 2));
