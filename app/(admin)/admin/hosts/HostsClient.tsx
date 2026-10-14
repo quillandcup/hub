@@ -370,11 +370,14 @@ export default function HostsClient({ prickleTypes }: { prickleTypes: PrickleTyp
 
   return (
     <div className="p-8">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold mb-2 dark:text-slate-100">Hosts</h1>
-        <p className="text-gray-600 dark:text-slate-400">
-          Review and confirm who&apos;s hosting which prickle, month by month.
-        </p>
+      <div className="mb-6 flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl font-bold mb-2 dark:text-slate-100">Hosts</h1>
+          <p className="text-gray-600 dark:text-slate-400">
+            Review and confirm who&apos;s hosting which prickle, month by month.
+          </p>
+        </div>
+        <RecordHistoryButton entityType={["prickle_schedule", "prickle_schedule_lock"]} label="hosting schedules" />
       </div>
 
       <TabBar
@@ -649,10 +652,7 @@ export default function HostsClient({ prickleTypes }: { prickleTypes: PrickleTyp
                     <HostEligibilityBadge eligibility={s.host_eligibility} />
                   </td>
                   <td className="px-4 py-3">
-                    <div className="flex items-center gap-1 text-sm dark:text-slate-200">
-                      {scheduleLabel(s)}
-                      <RecordHistoryButton entityType="prickle_schedule" entityId={s.id} label={scheduleLabel(s)} />
-                    </div>
+                    <div className="text-sm dark:text-slate-200">{scheduleLabel(s)}</div>
                     {s.carried_forward_from && (
                       <div className="text-xs text-gray-400 dark:text-slate-500">carried forward from last month</div>
                     )}

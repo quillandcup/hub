@@ -145,12 +145,15 @@ export default function MemberOverridesClient() {
 
   return (
     <div className="p-8">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold mb-2 text-slate-900 dark:text-slate-100">Member Status Overrides</h1>
-        <p className="text-slate-600 dark:text-slate-400">
-          Manage special cases where member status differs from default rules
-          (gifts, 180 program, etc.) Hiatus is tracked separately, per-member.
-        </p>
+      <div className="mb-6 flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl font-bold mb-2 text-slate-900 dark:text-slate-100">Member Status Overrides</h1>
+          <p className="text-slate-600 dark:text-slate-400">
+            Manage special cases where member status differs from default rules
+            (gifts, 180 program, etc.) Hiatus is tracked separately, per-member.
+          </p>
+        </div>
+        <RecordHistoryButton entityType="member_status_override" label="status overrides" />
       </div>
 
       {error && (
@@ -294,7 +297,6 @@ export default function MemberOverridesClient() {
                     >
                       {override.member.name}
                     </Link>
-                    <RecordHistoryButton entityType="member_status_override" entityId={override.id} label={`${override.member.name}'s override`} />
                   </td>
                   <td className="px-4 py-3">
                     <span

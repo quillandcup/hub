@@ -52,20 +52,20 @@ export default async function EditPrickleTypePage({
   return (
     <div className="min-h-screen bg-canvas dark:bg-slate-950">
       <header className="border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
-        <div className="container mx-auto px-6 py-4">
+        <div className="container mx-auto px-6 py-4 relative">
           <Link
             href="/data/prickle-types"
             className="text-plum-600 hover:text-plum-700 dark:text-plum-400 text-sm mb-2 inline-block"
           >
             ← Back to Prickle Types
           </Link>
-          <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-bold">Edit Prickle Type</h1>
-            <RecordHistoryButton entityType="prickle_type" entityId={prickleType.id} label={prickleType.name} />
-          </div>
+          <h1 className="text-2xl font-bold">Edit Prickle Type</h1>
           <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
             Update the name and description of this prickle type
           </p>
+          <div className="absolute top-4 right-6">
+            <RecordHistoryButton entityType="prickle_type" entityId={prickleType.id} label={prickleType.name} />
+          </div>
         </div>
       </header>
 

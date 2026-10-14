@@ -5,14 +5,14 @@ import { fetchRecordHistory, type ActivityFeedRow } from "@/lib/activity-feed";
 
 /** The change history behind a record's clock icon (components/RecordHistoryButton.tsx). */
 export async function loadRecordHistory(
-  entityType: string,
-  entityId: string
+  entityTypes: string[],
+  entityId: string | null
 ): Promise<{ rows: ActivityFeedRow[] } | { error: string }> {
   const auth = await requireAdminAction();
   if (!auth.ok) return { error: auth.error };
 
   try {
-    return { rows: await fetchRecordHistory(auth.supabase, entityType, entityId) };
+    return { rows: await fetchRecordHistory(auth.supabase, entityTypes, entityId) };
   } catch (err) {
     console.error("Error loading record history:", err);
     return { error: "Couldn't load the history." };

@@ -4,7 +4,7 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;
 
-SELECT plan(4);
+SELECT plan(6);
 
 INSERT INTO auth.users (id, instance_id, aud, role, email) VALUES
   ('00000000-0000-4000-a000-00000000f2a1', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'history-alice@example.test'),
@@ -27,12 +27,19 @@ SELECT set_config('request.jwt.claims',
 UPDATE public.members SET status = 'active' WHERE id = '00000000-0000-4000-a000-00000000f201';
 UPDATE public.members SET status = 'active' WHERE id = '00000000-0000-4000-a000-00000000f202';
 INSERT INTO result SELECT 'dana', COALESCE(jsonb_agg(to_jsonb(h)), '[]'::jsonb)
-  FROM public.get_record_history('member', '00000000-0000-4000-a000-00000000f201') h;
+  FROM public.get_record_history(ARRAY['member'], '00000000-0000-4000-a000-00000000f201') h;
+
+INSERT INTO result SELECT 'dana_type', to_jsonb(count(*))
+  FROM public.get_record_history(ARRAY['member']) h WHERE h.entity_id IN
+    ('00000000-0000-4000-a000-00000000f201', '00000000-0000-4000-a000-00000000f202');
+INSERT INTO result SELECT 'dana_other_type', to_jsonb(count(*))
+  FROM public.get_record_history(ARRAY['segment']) h WHERE h.entity_id IN
+    ('00000000-0000-4000-a000-00000000f201', '00000000-0000-4000-a000-00000000f202');
 
 SELECT set_config('request.jwt.claims',
   '{"sub": "00000000-0000-4000-a000-00000000f2a1", "email": "history-alice@example.test", "role": "authenticated"}', true);
 INSERT INTO result SELECT 'alice', to_jsonb(count(*))
-  FROM public.get_record_history('member', '00000000-0000-4000-a000-00000000f201');
+  FROM public.get_record_history(ARRAY['member'], '00000000-0000-4000-a000-00000000f201');
 RESET ROLE;
 
 SELECT is(
@@ -51,6 +58,8 @@ SELECT is(
   0,
   'only that record''s rows, not another member''s'
 );
+SELECT is((SELECT value FROM result WHERE label = 'dana_type'), '4'::jsonb, 'without an id, every record of the type (two inserts, two updates)');
+SELECT is((SELECT value FROM result WHERE label = 'dana_other_type'), '0'::jsonb, 'a different entity type matches none of them');
 SELECT is((SELECT value FROM result WHERE label = 'alice'), '0'::jsonb, 'a non-admin gets nothing');
 
 SELECT * FROM finish(true);

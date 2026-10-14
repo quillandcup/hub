@@ -263,14 +263,13 @@ export default async function MemberDetailPage({
   return (
     <div className="min-h-screen bg-canvas dark:bg-slate-950">
       <header className="border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
-        <div className="container mx-auto px-6 py-4">
+        <div className="container mx-auto px-6 py-4 relative">
           <Link href="/admin/members" className="text-plum-600 hover:text-plum-700 dark:text-plum-400 text-sm mb-2 inline-block">
             ← Back to Members
           </Link>
           <div className="mt-2">
             <div className="flex items-center gap-3 flex-wrap">
               <h1 className="text-2xl font-bold">{member.name}</h1>
-              <RecordHistoryButton entityType="member" entityId={member.id} label={member.name} />
               {aliases && aliases.length > 0 && (
                 <div className="flex items-center gap-2">
                   <div className="flex flex-wrap gap-1.5">
@@ -348,6 +347,9 @@ export default async function MemberDetailPage({
                 </div>
               )}
             </div>
+          </div>
+          <div className="absolute top-4 right-6">
+            <RecordHistoryButton entityType="member" entityId={member.id} label={member.name} />
           </div>
         </div>
       </header>

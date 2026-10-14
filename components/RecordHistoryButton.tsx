@@ -7,19 +7,21 @@ import { actorDisplay, changedFields, describeRow, type ActivityFeedRow } from "
 import { formatDateTime } from "@/lib/formatters";
 
 /**
- * A clock icon that opens the change history of one record: who changed what, when, newest first
- * (the audit log filtered to this record; see docs/ACTIVITY_AND_AUDIT_LOG.md). Admin-only: put it
- * on admin pages. `entityType` is the audit vocabulary ("member", "event", "badge_type"...) and
- * `entityId` the record's key.
+ * A clock icon that opens a change history: who changed what, when, newest first (the audit log
+ * filtered; see docs/ACTIVITY_AND_AUDIT_LOG.md). Admin-only: put it on admin pages, in the top-right
+ * of the page header or toolbar so it is always in the same place. With `entityId` it is that one
+ * record's history (a detail page); without, every record of `entityType` (a list page, e.g. all
+ * segments). `entityType` is the audit vocabulary ("member", "event", "badge_type"...), or several
+ * for a page that manages related records (segments and their memberships).
  */
 export default function RecordHistoryButton({
   entityType,
   entityId,
   label = "this record",
 }: {
-  entityType: string;
-  entityId: string;
-  /** What the dialog calls the record, e.g. "Moss Bramble". */
+  entityType: string | string[];
+  entityId?: string;
+  /** What the dialog calls it, e.g. "Moss Bramble" or "segments". */
   label?: string;
 }) {
   const [open, setOpen] = useState(false);
@@ -30,7 +32,7 @@ export default function RecordHistoryButton({
     setOpen(true);
     setRows(null);
     setError(null);
-    const result = await loadRecordHistory(entityType, entityId);
+    const result = await loadRecordHistory(Array.isArray(entityType) ? entityType : [entityType], entityId ?? null);
     if ("error" in result) setError(result.error);
     else setRows(result.rows);
   }
@@ -40,7 +42,7 @@ export default function RecordHistoryButton({
       <button
         type="button"
         onClick={show}
-        title="Change history"
+        title="Show change history"
         aria-label={`Change history of ${label}`}
         className="inline-flex items-center justify-center w-7 h-7 rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:text-slate-500 dark:hover:text-slate-300 dark:hover:bg-slate-800"
       >

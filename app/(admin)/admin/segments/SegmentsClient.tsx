@@ -285,11 +285,17 @@ export default function SegmentsClient() {
 
   return (
     <div className="container mx-auto px-6 py-8">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold">Segments</h1>
-        <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
-          Manually-curated member groups for phased rollouts — bulk invites and targeted feature flags
-        </p>
+      <div className="mb-6 flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">Segments</h1>
+          <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
+            Manually-curated member groups for phased rollouts — bulk invites and targeted feature flags
+          </p>
+        </div>
+        <RecordHistoryButton
+          entityType={["segment", "segment_member", "feature_flag", "feature_flag_segment"]}
+          label="segments and feature flags"
+        />
       </div>
 
       <div className="mb-6 bg-white dark:bg-slate-900 rounded-lg shadow p-6">
@@ -354,12 +360,7 @@ export default function SegmentsClient() {
                 )}
                 {table.rows.map((s) => (
                   <tr key={s.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
-                    <td className="px-6 py-4 text-sm font-medium text-slate-900 dark:text-slate-100">
-                      <span className="inline-flex items-center gap-1">
-                        {s.name}
-                        <RecordHistoryButton entityType="segment" entityId={s.id} label={s.name} />
-                      </span>
-                    </td>
+                    <td className="px-6 py-4 text-sm font-medium text-slate-900 dark:text-slate-100">{s.name}</td>
                     <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">{s.memberCount}</td>
                     <td className="px-6 py-4 text-sm text-slate-500 dark:text-slate-400">
                       {new Date(s.created_at).toLocaleDateString()}
@@ -398,10 +399,7 @@ export default function SegmentsClient() {
               <div key={f.key} className="px-6 py-4 flex flex-col gap-3">
                 <div className="flex items-center justify-between">
                   <div>
-                    <div className="flex items-center gap-1 text-sm font-medium text-slate-900 dark:text-slate-100">
-                      {f.name}
-                      <RecordHistoryButton entityType="feature_flag" entityId={f.key} label={f.name} />
-                    </div>
+                    <div className="text-sm font-medium text-slate-900 dark:text-slate-100">{f.name}</div>
                     <div className="text-xs text-slate-400 dark:text-slate-500 font-mono">{f.key}</div>
                   </div>
                   <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300 cursor-pointer">

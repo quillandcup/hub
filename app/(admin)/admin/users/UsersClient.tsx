@@ -340,12 +340,15 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
             Manage user accounts, roles, and feature access
           </p>
         </div>
-        <button
-          onClick={() => (showInviteForm ? closeInviteForm() : setShowInviteForm(true))}
-          className="px-4 py-2 bg-plum-600 hover:bg-plum-700 text-white rounded-lg text-sm font-medium transition-colors"
-        >
-          + Invite User
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => (showInviteForm ? closeInviteForm() : setShowInviteForm(true))}
+            className="px-4 py-2 bg-plum-600 hover:bg-plum-700 text-white rounded-lg text-sm font-medium transition-colors"
+          >
+            + Invite User
+          </button>
+          <RecordHistoryButton entityType={["user_profile", "user_feature_preview"]} label="users" />
+        </div>
       </div>
 
       {showInviteForm && (
@@ -463,9 +466,8 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
                   return (
                     <tr key={user.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
                       <td className="px-6 py-4">
-                        <div className="flex items-center gap-1 text-sm font-medium text-slate-900 dark:text-slate-100">
+                        <div className="text-sm font-medium text-slate-900 dark:text-slate-100">
                           {user.email}
-                          <RecordHistoryButton entityType="user_profile" entityId={user.id} label={user.email} />
                           {isCurrentUser && (
                             <span className="ml-2 text-xs text-slate-400 dark:text-slate-500">(you)</span>
                           )}

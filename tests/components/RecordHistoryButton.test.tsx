@@ -37,10 +37,17 @@ describe("RecordHistoryButton", () => {
     render(<RecordHistoryButton entityType="badge_type" entityId="b1" label="Early Bird" />);
     expect(loadRecordHistory).not.toHaveBeenCalled();
     await userEvent.click(screen.getByRole("button", { name: "Change history of Early Bird" }));
-    expect(loadRecordHistory).toHaveBeenCalledWith("badge_type", "b1");
+    expect(loadRecordHistory).toHaveBeenCalledWith(["badge_type"], "b1");
     expect(await screen.findByText(/Bramble Admin/)).toBeInTheDocument();
     expect(screen.getByText(/changed badge type “Early Bird”/)).toBeInTheDocument();
     expect(screen.getByText("Early")).toBeInTheDocument();
+  });
+
+  it("without an id asks for every record of the given types", async () => {
+    loadRecordHistory.mockResolvedValue({ rows: [] });
+    render(<RecordHistoryButton entityType={["segment", "segment_member"]} label="segments" />);
+    await userEvent.click(screen.getByRole("button", { name: "Change history of segments" }));
+    expect(loadRecordHistory).toHaveBeenCalledWith(["segment", "segment_member"], null);
   });
 
   it("says so when nothing was recorded, and shows load errors", async () => {

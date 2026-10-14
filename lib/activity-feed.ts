@@ -170,18 +170,18 @@ export async function fetchActivityFeed(
 }
 
 /**
- * Every audited change to one record, newest first (get_record_history(): admin-only, capped at
- * `limit`). `entityType` is the audit vocabulary ("member", "event", "badge_type"...), `entityId`
- * the record's key as text.
+ * Audited changes, newest first (get_record_history(): admin-only, capped at `limit`): to one
+ * record when `entityId` is given, else to every record of `entityTypes`. Types are the audit
+ * vocabulary ("member", "event", "badge_type"...), the id the record's key as text.
  */
 export async function fetchRecordHistory(
   supabase: SupabaseClient,
-  entityType: string,
-  entityId: string,
+  entityTypes: string[],
+  entityId: string | null = null,
   limit = 200
 ): Promise<ActivityFeedRow[]> {
   const { data, error } = await supabase.rpc("get_record_history", {
-    p_entity_type: entityType,
+    p_entity_types: entityTypes,
     p_entity_id: entityId,
     p_limit: limit,
   });

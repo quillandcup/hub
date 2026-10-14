@@ -36,12 +36,12 @@ export default async function EventDetailPage({
   return (
     <div className="min-h-screen bg-canvas dark:bg-slate-950">
       <header className="border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
-        <div className="container mx-auto px-6 py-4">
+        <div className="container mx-auto px-6 py-4 relative">
           <Link href="/admin/events" className="text-sm text-plum-600 dark:text-plum-400 hover:underline">
             ← All Events
           </Link>
-          <div className="flex items-center gap-2 mt-1">
-            <h1 className="text-2xl font-bold">{event.title}</h1>
+          <h1 className="text-2xl font-bold mt-1">{event.title}</h1>
+          <div className="absolute top-4 right-6">
             <RecordHistoryButton entityType="event" entityId={event.id} label={event.title} />
           </div>
         </div>
