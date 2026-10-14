@@ -5,6 +5,7 @@ import { SortableTh } from "@/components/SortableTh";
 import { useDataTable } from "@/lib/hooks/useDataTable";
 import type { SortValue } from "@/lib/hooks/useTableSort";
 import { DataTablePager } from "@/components/DataTablePager";
+import RecordHistoryButton from "@/components/RecordHistoryButton";
 
 interface Segment {
   id: string;
@@ -353,7 +354,12 @@ export default function SegmentsClient() {
                 )}
                 {table.rows.map((s) => (
                   <tr key={s.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
-                    <td className="px-6 py-4 text-sm font-medium text-slate-900 dark:text-slate-100">{s.name}</td>
+                    <td className="px-6 py-4 text-sm font-medium text-slate-900 dark:text-slate-100">
+                      <span className="inline-flex items-center gap-1">
+                        {s.name}
+                        <RecordHistoryButton entityType="segment" entityId={s.id} label={s.name} />
+                      </span>
+                    </td>
                     <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">{s.memberCount}</td>
                     <td className="px-6 py-4 text-sm text-slate-500 dark:text-slate-400">
                       {new Date(s.created_at).toLocaleDateString()}
@@ -392,7 +398,10 @@ export default function SegmentsClient() {
               <div key={f.key} className="px-6 py-4 flex flex-col gap-3">
                 <div className="flex items-center justify-between">
                   <div>
-                    <div className="text-sm font-medium text-slate-900 dark:text-slate-100">{f.name}</div>
+                    <div className="flex items-center gap-1 text-sm font-medium text-slate-900 dark:text-slate-100">
+                      {f.name}
+                      <RecordHistoryButton entityType="feature_flag" entityId={f.key} label={f.name} />
+                    </div>
                     <div className="text-xs text-slate-400 dark:text-slate-500 font-mono">{f.key}</div>
                   </div>
                   <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300 cursor-pointer">

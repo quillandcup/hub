@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import RecordHistoryButton from "@/components/RecordHistoryButton";
 import Link from "next/link";
 import { SortableTh } from "@/components/SortableTh";
 import { useDataTable } from "@/lib/hooks/useDataTable";
@@ -460,8 +461,9 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
                   return (
                     <tr key={user.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
                       <td className="px-6 py-4">
-                        <div className="text-sm font-medium text-slate-900 dark:text-slate-100">
+                        <div className="flex items-center gap-1 text-sm font-medium text-slate-900 dark:text-slate-100">
                           {user.email}
+                          <RecordHistoryButton entityType="user_profile" entityId={user.id} label={user.email} />
                           {isCurrentUser && (
                             <span className="ml-2 text-xs text-slate-400 dark:text-slate-500">(you)</span>
                           )}
