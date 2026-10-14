@@ -3,6 +3,8 @@ import {
   applyCheckinAnswer,
   buildCheckinBlocks,
   buildCheckoutBlocks,
+  parseSkipCheckout,
+  skipCheckout,
   buildQuickLogBlocks,
   CHECKIN_ANSWER_ACTION_ID,
   CHECKOUT_TIME_SENSITIVE_MS,
@@ -264,6 +266,7 @@ describe("buildCheckoutBlocks", () => {
       "prickle_checkin:p1:session_rating",
       "prickle_checkin:p1:feelings_after",
       "quick_log:p1:a:words",
+      "prickle_checkout_skip:p1",
       undefined,
     ]);
     const stars = blocks[1];
@@ -272,7 +275,8 @@ describe("buildCheckoutBlocks", () => {
     expect(stars.elements.map((e: any) => e.value)).toEqual(["1", "2", "3", "4", "5"]);
     expect(stars.elements.filter((e: any) => e.style === "primary").map((e: any) => e.value)).toEqual(["4"]);
     expect(blocks[3].label.text).toContain("during Monday Progress Prickle with Jenn P?");
-    expect(blocks[4].elements[0].text).toContain("/my-prickles/history?checkout=p1|check-out for this prickle>");
+    expect(blocks[4].elements[0]).toMatchObject({ action_id: "prickle_checkout_skip", value: "p1" });
+    expect(blocks[5].elements[0].text).toContain("/my-prickles/history?checkout=p1|check-out for this prickle>");
     expect(blocks[2].accessory.initial_options).toBeUndefined();
   });
 });
@@ -423,5 +427,27 @@ describe("in-app notifications", () => {
       ref: "p1",
       timeSensitiveUntil: new Date(Date.parse(end) + CHECKOUT_TIME_SENSITIVE_MS).toISOString(),
     });
+  });
+});
+
+describe("skipping a check-out", () => {
+  it("reads the prickle off the Skip check-out button, and nothing else", () => {
+    expect(parseSkipCheckout({ action_id: "prickle_checkout_skip", value: "p1" })).toBe("p1");
+    expect(parseSkipCheckout({ action_id: "prickle_checkin_answer", value: "p1" })).toBeNull();
+    expect(parseSkipCheckout({ action_id: "prickle_checkout_skip" })).toBeNull();
+  });
+
+  it("records the dismissal and marks the in-app check-out read", async () => {
+    const calls: [string, unknown][] = [];
+    const chain: any = { eq: () => chain, is: () => Promise.resolve({ error: null }) };
+    const supabase = {
+      from: (table: string) => ({
+        upsert: (row: unknown) => (calls.push([table, row]), Promise.resolve({ error: null })),
+        update: (row: unknown) => (calls.push([table, row]), chain),
+      }),
+    };
+    expect(await skipCheckout(supabase, "m1", "p1")).toBeNull();
+    expect(calls[0]).toEqual(["writing_prompt_dismissals", { member_id: "m1", prickle_id: "p1" }]);
+    expect(calls[1][0]).toBe("in_app_notifications");
   });
 });

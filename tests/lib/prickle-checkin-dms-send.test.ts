@@ -236,6 +236,7 @@ describe("sendCheckoutDMs", () => {
       "prickle_checkin:p1:feelings_after",
       "quick_log:p1:proj1:words",
       "quick_log:p1:proj2:scenes",
+      "prickle_checkout_skip:p1",
       undefined, // footer
     ]);
     expect(blocks!.at(-1).elements.at(-1).text).toContain("/settings/notifications|Notification settings");
@@ -361,6 +362,7 @@ describe("sendTestCheckinDM", () => {
       "prickle_checkin:p1:session_rating",
       "prickle_checkin:p1:feelings_after",
       "quick_log:p1:proj1:words",
+      "prickle_checkout_skip:p1",
     ]);
     expect(loggedAny()).toBe(false);
   });

@@ -44,9 +44,9 @@ function period(value: string): [number, number] | null {
 
 const iso = (t: number) => new Date(t).toISOString();
 
-/** Splits on spaces, keeping "quoted phrases" (and -"phrases") whole. */
+/** Splits on spaces, keeping "quoted phrases" (and -"phrases", and from:"Quoted Name" values) whole. */
 function tokenize(input: string): string[] {
-  return input.match(/-?"[^"]*"?|\S+/g) ?? [];
+  return input.match(/-?(?:[a-z]+:)?"[^"]*"?|\S+/gi) ?? [];
 }
 
 export function parseSearch(input: string): ParsedSearch {
@@ -59,7 +59,7 @@ export function parseSearch(input: string): ParsedSearch {
     const mod = /^(in|from|before|after|on|during|has|is):(.+)$/i.exec(token);
     if (mod) {
       const key = mod[1].toLowerCase();
-      const value = mod[2].replace(/^[#@]/, "");
+      const value = mod[2].replace(/^"|"$/g, "").replace(/^[#@]/, "");
       const p = period(value);
       if (key === "in" && value) { out.inChannel = value; continue; }
       if (key === "from" && value) { out.from = value; continue; }

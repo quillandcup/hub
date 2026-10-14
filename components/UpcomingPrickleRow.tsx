@@ -1,11 +1,10 @@
 import Link from "next/link"
 import { hostShortName } from "@/lib/formatters"
 import ReasonBadges from "@/components/ReasonBadges"
-import type { HighlightReason, UpcomingPrickle } from "@/lib/upcoming-prickles"
+import { CHECKIN_SOON_MS, checkinOffered, type HighlightReason, type UpcomingPrickle } from "@/lib/upcoming-prickles"
 import { checkinAnswered, checkinHref, type CheckinInput } from "@/lib/prickle-checkins"
 
-/** How far ahead of the start a prickle offers its "Check in →" pill. */
-export const CHECKIN_SOON_MS = 2 * 60 * 60 * 1000
+export { CHECKIN_SOON_MS }
 
 function formatUpcomingTime(iso: string, timeZone: string): string {
   return new Date(iso).toLocaleString("en-US", {
@@ -19,7 +18,7 @@ function formatUpcomingTime(iso: string, timeZone: string): string {
 }
 
 /**
- * One upcoming prickle. When it starts within CHECKIN_SOON_MS, a "Check in →" pill opens the
+ * One upcoming prickle. When it starts within CHECKIN_SOON_MS and the member has a personal tie to it (checkinOffered), a "Check in →" pill opens the
  * check-in modal (My Prickles' Attendance History, checkinHref). There's no check-out here: this
  * list only holds prickles that haven't started, and the check-out is offered from the history
  * once they have.
@@ -38,7 +37,7 @@ export default function UpcomingPrickleRow({
   checkin?: CheckinInput | null
   now?: number
 }) {
-  const startsSoon = new Date(prickle.startTime).getTime() - now <= CHECKIN_SOON_MS
+  const startsSoon = checkinOffered(prickle, reasons, now)
   const checkedIn = checkinAnswered(checkin)
   return (
     <div className="py-3 border-b border-slate-100 dark:border-slate-800 last:border-0 -mx-2 px-2 rounded hover:bg-slate-50 dark:hover:bg-slate-800/50">

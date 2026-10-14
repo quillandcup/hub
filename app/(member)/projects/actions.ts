@@ -1,5 +1,6 @@
 "use server";
 
+import { skipCheckout } from "@/lib/prickle-checkin-dms";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
 import { getEffectiveIdentity } from "@/lib/sudo";
@@ -1052,14 +1053,8 @@ export async function dismissUnloggedPrickle(prickleId: string): Promise<{ succe
   const { supabase, effectiveIdentity } = ctx;
   if (typeof prickleId !== "string" || !prickleId) return { error: "Invalid prickle" };
 
-  const { error } = await supabase
-    .from("writing_prompt_dismissals")
-    .upsert(
-      { member_id: effectiveIdentity.memberId, prickle_id: prickleId },
-      { onConflict: "member_id,prickle_id", ignoreDuplicates: true }
-    );
-  if (error) {
-    console.error("dismissUnloggedPrickle: insert failed", { prickleId, error });
+  // Also closes the in-app check-out notification and stops the Slack check-out DM (skipCheckout).
+  if (await skipCheckout(supabase, effectiveIdentity.memberId, prickleId)) {
     return { error: "Couldn't dismiss that prickle — please try again." };
   }
 

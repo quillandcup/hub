@@ -1,14 +1,20 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
 
 const push = vi.fn();
-vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push }), usePathname: () => "/dashboard" }));
 
 const searchPalette = vi.fn();
-vi.mock("@/app/actions/search", () => ({ searchPalette: (q: string) => searchPalette(q) }));
+const searchSuggestions = vi.fn();
+const suggestOperatorValues = vi.fn();
+vi.mock("@/app/actions/search", () => ({
+  searchPalette: (q: string) => searchPalette(q),
+  searchSuggestions: () => searchSuggestions(),
+  suggestOperatorValues: (op: string, typed: string) => suggestOperatorValues(op, typed),
+}));
 vi.mock("@sentry/nextjs", () => ({ metrics: { distribution: vi.fn() } }));
 
 import SearchPalette from "@/components/search/SearchPalette";
@@ -20,10 +26,15 @@ const results = {
   ],
 };
 
-async function openAndType(text: string) {
+async function open(isAdmin = false) {
   const user = userEvent.setup();
-  render(<SearchPalette resultsPath="/search" isAdmin={false} />);
+  render(<SearchPalette resultsPath={isAdmin ? "/admin/search" : "/search"} isAdmin={isAdmin} />);
   await user.click(screen.getByRole("button", { name: "Search" }));
+  return user;
+}
+
+async function openAndType(text: string) {
+  const user = await open();
   await user.type(screen.getByRole("textbox", { name: "Search" }), text);
   return user;
 }
@@ -34,6 +45,8 @@ describe("SearchPalette", () => {
     Element.prototype.scrollIntoView = vi.fn();
     push.mockReset();
     searchPalette.mockReset().mockResolvedValue(results);
+    searchSuggestions.mockReset().mockResolvedValue({ needsAttention: [] });
+    suggestOperatorValues.mockReset().mockResolvedValue([]);
     localStorage.clear();
   });
 
@@ -62,29 +75,72 @@ describe("SearchPalette", () => {
 
   it("completes in: with the matching kinds on Tab", async () => {
     const user = await openAndType("pizza in:pr");
-    expect(screen.getByRole("button", { name: /in:prickles/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Prickles/ })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Members/ })).not.toBeInTheDocument();
     await user.keyboard("{Tab}");
     expect(screen.getByRole("textbox", { name: "Search" })).toHaveValue("pizza in:prickles ");
   });
 
-  it("clicking a chip types the operator", async () => {
-    const user = userEvent.setup();
-    render(<SearchPalette resultsPath="/search" isAdmin={false} />);
-    await user.click(screen.getByRole("button", { name: "Search" }));
-    await user.click(screen.getByRole("button", { name: "has:link" }));
+  it("hides the filters until the funnel is clicked, then offers the common ones first", async () => {
+    const user = await open();
+    expect(screen.queryByRole("button", { name: "From me" })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Show filters" }));
+    await user.click(screen.getByRole("button", { name: "Has a link" }));
     expect(screen.getByRole("textbox", { name: "Search" })).toHaveValue("has:link");
+    // A second click takes it back out.
+    await user.click(screen.getByRole("button", { name: "Has a link" }));
+    expect(screen.getByRole("textbox", { name: "Search" })).toHaveValue("");
+    expect(localStorage.getItem("hub:search-filters-on")).toBe("true");
   });
 
-  it("hides the admin-only chips from members and shows them to admins", async () => {
-    const user = userEvent.setup();
-    const { unmount } = render(<SearchPalette resultsPath="/search" isAdmin={false} />);
-    await user.click(screen.getByRole("button", { name: "Search" }));
-    expect(screen.queryByRole("button", { name: "email:" })).not.toBeInTheDocument();
-    unmount();
+  it("offers kind chips, and the link and thread chips only while chat is in play", async () => {
+    const user = await open();
+    await user.click(screen.getByRole("button", { name: "Show filters" }));
+    expect(screen.getByRole("button", { name: "Has a link" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Members" }));
+    expect(screen.getByRole("textbox", { name: "Search" })).toHaveValue("in:members");
+    expect(screen.queryByRole("button", { name: "Has a link" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "All" }));
+    expect(screen.getByRole("textbox", { name: "Search" })).toHaveValue("");
+  });
 
-    render(<SearchPalette resultsPath="/admin/search" isAdmin />);
-    await user.click(screen.getByRole("button", { name: "Search" }));
-    expect(screen.getByRole("button", { name: "email:" })).toBeInTheDocument();
+  it("adds a date from the native picker in +", async () => {
+    const user = await open();
+    await user.click(screen.getByRole("button", { name: "Show filters" }));
+    await user.click(screen.getByRole("button", { name: "More filters" }));
+    fireEvent.change(screen.getByLabelText("After date"), { target: { value: "2026-10-01" } });
+    expect(screen.getByRole("textbox", { name: "Search" })).toHaveValue("after:2026-10-01");
+  });
+
+  it("puts the rest of the operators behind +, and the admin ones only for admins", async () => {
+    const user = await open();
+    await user.click(screen.getByRole("button", { name: "Show filters" }));
+    await user.click(screen.getByRole("button", { name: "More filters" }));
+    expect(screen.getByRole("button", { name: /From someone/ })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Member email/ })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /Message has/ }));
+    expect(screen.getByRole("textbox", { name: "Search" })).toHaveValue("has:");
+  });
+
+  it("shows the admin operators in + for admins", async () => {
+    const user = await open(true);
+    await user.click(screen.getByRole("button", { name: "Show filters" }));
+    await user.click(screen.getByRole("button", { name: "More filters" }));
+    expect(screen.getByRole("button", { name: /Member email/ })).toBeInTheDocument();
+  });
+
+  it("autocompletes from: with members, and Enter takes the highlighted one", async () => {
+    suggestOperatorValues.mockResolvedValue([
+      { value: "me", label: "Me" },
+      { value: "Ania Ray", label: "Ania", sublabel: "Ania Ray" },
+    ]);
+    const user = await openAndType("from:an");
+    await screen.findByRole("button", { name: /Ania/ });
+    expect(suggestOperatorValues).toHaveBeenLastCalledWith("from", "an");
+
+    await user.keyboard("{ArrowDown}{Enter}");
+    expect(screen.getByRole("textbox", { name: "Search" })).toHaveValue('from:"Ania Ray" ');
   });
 
   it("remembers a search and lists it next time", async () => {
@@ -112,7 +168,7 @@ describe("SearchPalette", () => {
   it("waits to say a kind is unknown until in: can no longer be completed", async () => {
     searchPalette.mockResolvedValue({ results: [], unknownKind: "me" });
     await openAndType("in:me");
-    await screen.findByRole("button", { name: /in:members/ });
+    await screen.findByRole("button", { name: /Members/ });
     expect(screen.queryByText(/Can’t search/)).not.toBeInTheDocument();
 
     searchPalette.mockResolvedValue({ results: [], unknownKind: "zzz" });
@@ -147,16 +203,66 @@ describe("SearchPalette", () => {
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });
 
-  it("removes a recent search with its ×, leaving the others", async () => {
-    localStorage.setItem("hub:recent-searches", JSON.stringify(["cody", "fern"]));
-    const user = userEvent.setup();
-    render(<SearchPalette resultsPath="/search" isAdmin={false} />);
-    await user.click(screen.getByRole("button", { name: "Search" }));
+  it("shows what needs attention, then recent places, when the box is empty", async () => {
+    searchSuggestions.mockResolvedValue({
+      needsAttention: [
+        { id: "n1", kind: "checkin", title: "How was Monday Writing?", subtitle: "Prickle check-outs", href: "/prickles/p1" },
+        { id: "c1", kind: "chat", title: "#general", subtitle: "Unread messages", href: "/chat/c1", count: 3 },
+      ],
+    });
+    localStorage.setItem("hub:recent-places", JSON.stringify([{ href: "/streaks", title: "Streaks" }]));
+    await open();
 
-    await user.click(screen.getByRole("button", { name: "Remove “cody” from recent searches" }));
+    const checkin = await screen.findByRole("link", { name: /How was Monday Writing/ });
+    expect(checkin).toHaveAttribute("href", "/prickles/p1");
+    expect(screen.getByRole("link", { name: /#general/ })).toHaveTextContent("3");
+    const headings = screen.getAllByRole("heading").map((h) => h.textContent);
+    expect(headings).toEqual(["Needs attention", "Recent places"]);
+    expect(screen.getByRole("link", { name: /Streaks/ })).toHaveAttribute("href", "/streaks");
+  });
+
+  it("keeps recent searches behind the clock, and then they replace the suggestions", async () => {
+    searchSuggestions.mockResolvedValue({ needsAttention: [{ id: "c1", kind: "chat", title: "#general", href: "/chat/c1", count: 1 }] });
+    localStorage.setItem("hub:recent-searches", JSON.stringify(["cody", "fern"]));
+    const user = await open();
+    await screen.findByRole("link", { name: /#general/ });
+    expect(screen.queryByText("Recent searches")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Show search history" }));
+    expect(screen.getByText("Recent searches")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "cody" })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /#general/ })).not.toBeInTheDocument();
+    expect(localStorage.getItem("hub:search-history-on")).toBe("true");
+
+    await user.click(screen.getByRole("button", { name: "Hide search history" }));
+    expect(screen.queryByText("Recent searches")).not.toBeInTheDocument();
+  });
+
+  it("removes a recent search with Delete and copies one with Copy search query", async () => {
+    localStorage.setItem("hub:search-history-on", "true");
+    localStorage.setItem("hub:recent-searches", JSON.stringify(["cody", "fern"]));
+    const user = await open();
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+
+    expect(screen.getByRole("button", { name: "Copy search query “cody”" })).toHaveAttribute("title", "Copy search query");
+    await user.click(screen.getByRole("button", { name: "Copy search query “cody”" }));
+    expect(writeText).toHaveBeenCalledWith("cody");
+
+    expect(screen.getByRole("button", { name: "Delete “cody” from recent searches" })).toHaveAttribute("title", "Delete");
+    await user.click(screen.getByRole("button", { name: "Delete “cody” from recent searches" }));
     expect(screen.queryByRole("button", { name: "cody" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "fern" })).toBeInTheDocument();
     expect(JSON.parse(localStorage.getItem("hub:recent-searches")!)).toEqual(["fern"]);
     expect(screen.getByRole("textbox", { name: "Search" })).toHaveValue("");
+  });
+
+  it("runs a recent search when it is chosen", async () => {
+    localStorage.setItem("hub:search-history-on", "true");
+    localStorage.setItem("hub:recent-searches", JSON.stringify(["cody"]));
+    const user = await open();
+    await user.click(screen.getByRole("button", { name: "cody" }));
+    expect(screen.getByRole("textbox", { name: "Search" })).toHaveValue("cody");
+    await waitFor(() => expect(searchPalette).toHaveBeenCalledWith("cody"));
   });
 });

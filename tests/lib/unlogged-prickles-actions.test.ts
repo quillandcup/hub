@@ -30,7 +30,7 @@ function makeQueryFake(tables: Record<string, unknown[]>, upsertError: unknown =
         return Promise.resolve({ error: upsertError });
       },
     };
-    for (const method of ["select", "eq", "gte", "not", "in", "is"]) {
+    for (const method of ["select", "eq", "gte", "not", "in", "is", "update"]) {
       builder[method] = (...args: unknown[]) => {
         calls.push({ table, method, args });
         return builder;
