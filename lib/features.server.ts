@@ -102,6 +102,21 @@ export async function membersWithFeature(supabase: any, key: FeatureKey, memberI
 }
 
 /**
+ * Like membersWithFeature, for a sender that reaches people outside the Hub (a Slack DM needs no
+ * Hub account): when the flag is on globally it covers every member given, signed in or not.
+ * Otherwise it's the same segments and per-user previews, which need an account.
+ */
+export async function membersWithFeatureForOutreach(
+  supabase: any,
+  key: FeatureKey,
+  memberIds: string[]
+): Promise<Set<string>> {
+  const { data: flag } = await supabase.from('feature_flags').select('enabled_globally').eq('feature_key', key).maybeSingle();
+  if (flag?.enabled_globally) return new Set(memberIds);
+  return membersWithFeature(supabase, key, memberIds);
+}
+
+/**
  * Whether the effective member has `key` on: the signed-in user's own flags normally, the sudo'd
  * member's (not the admin's) in sudo, so an admin sees exactly what that member would.
  * `ownFeatures` is the signed-in user's getUserFeaturePreviews result.
