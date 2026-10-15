@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { slackEmojiToUnicode, formatSlackPermalink } from "@/lib/slack-emoji";
+import ReactionEmoji from "@/components/ReactionEmoji";
+import type { ReactionEmojiValue } from "@/lib/slack-reaction-emoji";
 import { SortableTh } from "@/components/SortableTh";
 import { useDataTable } from "@/lib/hooks/useDataTable";
 import type { SortValue } from "@/lib/hooks/useTableSort";
@@ -219,12 +221,12 @@ export default function MemberSlackActivityPanel({ slackActivities }: MemberSlac
                     const reactionShortcode = isReaction
                       ? (activity.data?.reaction || activity.title?.match(/:([^:]+):/)?.[1] || 'thumbsup')
                       : null;
-                    const reactionEmojiUnicode = reactionShortcode ? slackEmojiToUnicode(reactionShortcode) : null;
-                    // If emoji conversion returned shortcode (not found), show as badge instead
-                    const isCustomEmoji = reactionEmojiUnicode?.startsWith(':') && reactionEmojiUnicode?.endsWith(':');
-                    const reactionDisplay = isCustomEmoji
-                      ? reactionShortcode // Show just the name without colons for custom emojis
-                      : reactionEmojiUnicode;
+                    // The server resolves custom images and the full standard set (data.reaction_emoji);
+                    // the small static map only covers rows it couldn't.
+                    const staticEmoji = reactionShortcode ? slackEmojiToUnicode(reactionShortcode) : null;
+                    const reactionEmoji: ReactionEmojiValue | null =
+                      activity.data?.reaction_emoji ??
+                      (staticEmoji && !(staticEmoji.startsWith(':') && staticEmoji.endsWith(':')) ? { text: staticEmoji } : null);
 
                     // Build Slack permalink
                     const slackUrl = activity.data?.channel_id && activity.data?.message_ts
@@ -248,15 +250,11 @@ export default function MemberSlackActivityPanel({ slackActivities }: MemberSlac
                                   {isThreadReply ? 'Reply' : 'Message'}
                                 </span>
                               </>
-                            ) : isCustomEmoji ? (
-                              <>
-                                <span className="px-1.5 py-0.5 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 rounded text-xs font-medium border border-yellow-200 dark:border-yellow-800">
-                                  :{reactionDisplay}:
-                                </span>
-                              </>
                             ) : (
                               <>
-                                <span className="text-base">{reactionDisplay}</span>
+                                <span className="text-base">
+                                  <ReactionEmoji name={reactionShortcode} emoji={reactionEmoji} />
+                                </span>
                                 <span className="text-xs text-slate-600 dark:text-slate-400">
                                   Reaction
                                 </span>
@@ -271,7 +269,7 @@ export default function MemberSlackActivityPanel({ slackActivities }: MemberSlac
                         </td>
                         <td className="px-6 py-3">
                           <p className="text-sm text-slate-700 dark:text-slate-300 truncate max-w-md">
-                            {activity.description || (isReaction ? (isCustomEmoji ? `Reacted with :${reactionDisplay}:` : `Reacted with ${reactionDisplay}`) : '—')}
+                            {activity.description || (isReaction ? <>Reacted with <ReactionEmoji name={reactionShortcode} emoji={reactionEmoji} /></> : '—')}
                           </p>
                         </td>
                         <td className="px-6 py-3 whitespace-nowrap">

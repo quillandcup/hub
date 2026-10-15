@@ -1,6 +1,7 @@
 import { cache } from "react";
 import RecordHistoryButton from "@/components/RecordHistoryButton";
 import { withMentionNames } from "@/lib/chat/names";
+import { withReactionEmoji } from "@/lib/slack-reaction-emoji";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
 import { redirect, notFound } from "next/navigation";
@@ -222,11 +223,12 @@ export default async function MemberDetailPage({
   // activity, what staff did for or as them, changes to their record), Everything by default.
   // Its filters are the URL's ?view=&days=&nosystem=&noslack=&kinds=&sudo=.
   const activityFilters = { ...parseFeedFilters(searchParams, MEMBER_DEFAULTS), memberId: id };
-  const activityFeed = await fetchActivityFeed(supabase, {
+  const feedPage = await fetchActivityFeed(supabase, {
     ...activityFilters,
     page: parsePageParam(searchParams.page),
     pageSize: parsePageSizeParam(searchParams.pageSize),
   });
+  const activityFeed = { ...feedPage, rows: await withReactionEmoji(feedPage.rows) };
 
   // Get user's timezone preference
   const userTimezone = await getUserTimezonePreference();
@@ -362,7 +364,7 @@ export default async function MemberDetailPage({
           hiatusHistory={hiatusHistory || []}
           activityFeed={activityFeed}
           activityFilters={activityFilters}
-          slackActivities={await withMentionNames(slackActivities || [])}
+          slackActivities={await withReactionEmoji(await withMentionNames(slackActivities || []))}
           userTimezonePreference={userTimezone}
           membershipHistory={membershipHistory}
           programOverrides={programOverrides}

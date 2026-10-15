@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import ReactionEmoji from "@/components/ReactionEmoji";
+import type { ReactionEmojiValue } from "@/lib/slack-reaction-emoji";
 import { DataTablePager } from "@/components/DataTablePager";
 import { useServerDataTable } from "@/lib/hooks/useDataTable";
 import { formatDateTime } from "@/lib/formatters";
@@ -8,6 +10,7 @@ import {
   actorDisplay,
   changedFields,
   describeRow,
+  reactionName,
   feedSearch,
   formatValue,
   summarizePages,
@@ -66,6 +69,17 @@ function PageTrail({ row }: { row: ActivityFeedRow }) {
         </ol>
       </details>
     </div>
+  );
+}
+
+/** A reaction reads "Reacted 🎉" (or the custom emoji's image); everything else is describeRow's sentence. */
+function Summary({ row }: { row: ActivityFeedRow }) {
+  const name = reactionName(row);
+  if (!name) return <>{describeRow(row)}</>;
+  return (
+    <>
+      Reacted <ReactionEmoji name={name} emoji={row.data?.reaction_emoji as ReactionEmojiValue | undefined} />
+    </>
   );
 }
 
@@ -148,7 +162,7 @@ export default function ActivityFeedTable({
                   <td className="py-2 pr-4 text-slate-700 dark:text-slate-300">
                     {hasDetail(row) ? (
                       <details>
-                        <summary className="cursor-pointer">{describeRow(row)}</summary>
+                        <summary className="cursor-pointer"><Summary row={row} /></summary>
                         {row.kind === "audit" && <ChangeTable row={row} />}
                         {row.kind === "session" && <PageTrail row={row} />}
                         {row.kind === "activity" && row.description && (
@@ -158,7 +172,7 @@ export default function ActivityFeedTable({
                         )}
                       </details>
                     ) : (
-                      describeRow(row)
+                      <Summary row={row} />
                     )}
                   </td>
                   {!hideAbout && (

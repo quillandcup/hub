@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import { requireAdminPage } from "@/lib/admin-auth";
 import { fetchActivityFeed, parseFeedFilters, type FeedView } from "@/lib/activity-feed";
+import { withReactionEmoji } from "@/lib/slack-reaction-emoji";
 import { parsePageParam, parsePageSizeParam } from "@/lib/pagination";
 import type { StaffUser } from "@/components/StaffSearch";
 import ActivityFilters from "./ActivityFilters";
@@ -58,7 +59,7 @@ export default async function ActivityLogPage({
       ...filters,
       page: parsePageParam(params.page),
       pageSize: parsePageSizeParam(params.pageSize),
-    }),
+    }).then(async (page) => ({ ...page, rows: await withReactionEmoji(page.rows) })),
     loadMembers(supabase),
     supabase.from("user_profiles").select("id, email, role").in("role", ["admin", "assistant"]).order("email"),
   ]);
