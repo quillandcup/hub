@@ -27,6 +27,11 @@ rulesets:
         parameters:
           strict_required_status_checks_policy: false
           required_status_checks:
+            # integration_id 15368 is the GitHub Actions app: only a workflow job can satisfy
+            # these, not another app or token posting a status of the same name.
             - context: Test (unit)
+              integration_id: 15368
             - context: Test (db) & build
+              integration_id: 15368
             - context: Coverage report
+              integration_id: 15368
