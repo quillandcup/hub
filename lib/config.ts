@@ -56,6 +56,15 @@ export const ORG_TIMEZONE = appConfig.orgTimezone;
 /** Where members are told to email for help. */
 export const SUPPORT_EMAIL = appConfig.supportEmail;
 
+/** Slack workspace URL, no trailing slash, for links that open a channel. */
+export const SLACK_WORKSPACE_URL = appConfig.slack.workspaceUrl.replace(/\/+$/, "");
+
+/** Name of the Slack channel new members introduce themselves in. */
+export const SLACK_INTRO_CHANNEL = appConfig.slack.introChannel;
+
+/** First day (YYYY-MM-DD) prickle attendance is recorded from. */
+export const ATTENDANCE_DATA_STARTS_ON = appConfig.attendanceDataStartsOn;
+
 /** The `From` of notification emails: `Name <address>`. */
 export const EMAIL_FROM = `${appConfig.email.fromName} <${appConfig.email.fromAddress}>`;
 

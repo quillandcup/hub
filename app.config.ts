@@ -37,6 +37,19 @@ export const appConfig = {
    */
   email: { fromName: "Hedgie Hub", fromAddress: "no-reply@hub.quillandcup.com" },
 
+  /**
+   * The Slack workspace: its URL (for links that open a channel) and the channel new members
+   * introduce themselves in. The Getting started tour and its reminders look for a member's
+   * top-level message there.
+   */
+  slack: { workspaceUrl: "https://quillandcup.slack.com", introChannel: "start-here" },
+
+  /**
+   * First day we have prickle attendance for (YYYY-MM-DD). A member who joined before it may have
+   * attended plenty that we can't see, so reminders never call a prickle their "first".
+   */
+  attendanceDataStartsOn: "2026-01-01",
+
   /** Sentry org/project slugs for the production build's source map upload. */
   sentry: { org: "quillandcup", project: "hub" },
 } as const;

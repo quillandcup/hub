@@ -32,8 +32,9 @@ import {
   markOnboardingStep,
 } from "@/app/actions/onboarding";
 
-const NOT_HOST = { isHost: false, hasHostingSchedule: false, hostedRecently: false, hasHostVibe: false };
+const NOT_HOST = { isHost: false, hasHostingSchedule: false, hostedRecently: false, hasHostVibe: false, isNewcomer: false, introUrl: null, hasIntroduced: false, hasAttendedPrickle: false, hasUpcomingPrickle: false, hasCalendarSynced: false };
 const IDENTITY_DONE = ["identity.basics", "identity.names", "identity.emails"];
+const EVERYTHING_MARKED = [...IDENTITY_DONE, "calendar"];
 const fresh = (): OnboardingState =>
   buildOnboardingState(
     { hasHubProfile: false, latestProjectId: null, hasGoal: false, hasPricklePlan: false, ...NOT_HOST },
@@ -62,7 +63,7 @@ describe("OnboardingGuide", () => {
     render(<OnboardingGuide initialState={fresh()} />);
 
     expect(screen.getByRole("region", { name: "Getting started" })).toBeInTheDocument();
-    expect(screen.getByText("0 of 4 done ▾")).toBeInTheDocument();
+    expect(screen.getByText("0 of 5 done ▾")).toBeInTheDocument();
     expect(screen.getByText("Check your details")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Show me →" })).toHaveAttribute("href", "/settings/identity");
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
@@ -93,7 +94,7 @@ describe("OnboardingGuide", () => {
     render(<OnboardingGuide initialState={fresh()} />);
 
     const first = await screen.findByRole("dialog", { name: "Your name and birthday" });
-    expect(first).toHaveTextContent("Step 1 of 4 · 1 of 3");
+    expect(first).toHaveTextContent("Step 1 of 5 · 1 of 3");
     expect(first).toHaveTextContent(/celebrate you/);
     expect(screen.getByTestId("onboarding-highlight")).toBeInTheDocument();
 
@@ -101,7 +102,7 @@ describe("OnboardingGuide", () => {
     await userEvent.click(screen.getByRole("button", { name: "Looks right" }));
     expect(markOnboardingStep).toHaveBeenCalledWith("identity.basics");
     const second = await screen.findByRole("dialog", { name: "Pen names and Zoom/Slack names" });
-    expect(second).toHaveTextContent("Step 1 of 4 · 2 of 3");
+    expect(second).toHaveTextContent("Step 1 of 5 · 2 of 3");
 
     vi.mocked(getMyOnboardingState).mockResolvedValue(withMarked(["identity.basics", "identity.names"]));
     await userEvent.click(screen.getByRole("button", { name: "My names look right" }));
@@ -111,7 +112,7 @@ describe("OnboardingGuide", () => {
     vi.mocked(getMyOnboardingState).mockResolvedValue(withMarked(IDENTITY_DONE));
     await userEvent.click(screen.getByRole("button", { name: "My emails look right" }));
     expect(markOnboardingStep).toHaveBeenCalledWith("identity.emails");
-    await waitFor(() => expect(screen.getByText(/1 of 4 done/)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(/1 of 5 done/)).toBeInTheDocument());
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
@@ -150,11 +151,34 @@ describe("OnboardingGuide", () => {
     }
     render(<Page />);
 
-    expect(await screen.findByRole("dialog", { name: "Set a writing goal" })).toBeInTheDocument();
+    expect(await screen.findByRole("dialog", { name: "Add a project" })).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "New project" }));
 
     expect(screen.getByText("New project form")).toBeInTheDocument();
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    // The checklist stays out of the way of the form the control just opened.
+    expect(screen.getByRole("button", { name: /Getting started/ })).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("opens the checklist after Hide, offering Show me, but not after using the control", async () => {
+    nav.pathname = "/projects";
+    const target = document.createElement("button");
+    target.setAttribute("data-tour", "new-project");
+    document.body.appendChild(target);
+    const state = { ...fresh(), currentStepId: "writing" as const };
+    vi.mocked(getMyOnboardingState).mockResolvedValue(state);
+    const { unmount } = render(<OnboardingGuide initialState={state} />);
+
+    await screen.findByRole("dialog", { name: "Add a project" });
+    await userEvent.click(screen.getByRole("button", { name: "Hide" }));
+    expect(screen.getByRole("button", { name: /Getting started/ })).toHaveAttribute("aria-expanded", "true");
+    unmount();
+
+    // On another page it's open by default.
+    nav.pathname = "/dashboard";
+    render(<OnboardingGuide initialState={state} />);
+    expect(screen.getByRole("button", { name: /Getting started/ })).toHaveAttribute("aria-expanded", "true");
+    target.remove();
   });
 
   it("folds the checklist to its header while a spotlight is up, and opens it on request", async () => {
@@ -264,7 +288,7 @@ describe("OnboardingGuide", () => {
   it("says all set once every step is done, and Finish completes it", async () => {
     const done = buildOnboardingState(
       { hasHubProfile: true, latestProjectId: "p1", hasGoal: true, hasPricklePlan: true, ...NOT_HOST },
-      { marked_steps: IDENTITY_DONE, dismissed_at: null, completed_at: null }
+      { marked_steps: EVERYTHING_MARKED, dismissed_at: null, completed_at: null }
     );
     vi.mocked(getMyOnboardingState).mockResolvedValue(done);
     vi.mocked(completeOnboarding).mockResolvedValue({ success: true });
@@ -284,3 +308,38 @@ describe("OnboardingGuide", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't save that");
   });
 });
+
+describe("OnboardingGuide external Slack step", () => {
+  const INTRO_URL = "https://slack.example/app_redirect?channel=C1"
+  const state = (marked: string[] = [...IDENTITY_DONE, 'profile']) =>
+    buildOnboardingState(
+      { hasHubProfile: false, latestProjectId: null, hasGoal: false, hasPricklePlan: false, ...NOT_HOST, isNewcomer: true, introUrl: INTRO_URL },
+      { marked_steps: marked, dismissed_at: null, completed_at: null }
+    )
+
+  it('opens Slack in a new tab and lets the member confirm it by hand', async () => {
+    nav.pathname = '/dashboard'
+    vi.mocked(getMyOnboardingState).mockResolvedValue(state())
+    vi.mocked(markOnboardingStep).mockResolvedValue({ success: true })
+    render(<OnboardingGuide initialState={state()} />)
+
+    const link = await screen.findByRole('link', { name: /Open Slack/ })
+    expect(link).toHaveAttribute('href', INTRO_URL)
+    expect(link).toHaveAttribute('target', '_blank')
+    expect(link).toHaveAttribute('rel', expect.stringContaining('noopener'))
+
+    await userEvent.click(screen.getByRole('button', { name: "I've introduced myself" }))
+    expect(markOnboardingStep).toHaveBeenCalledWith('intro')
+  })
+
+  it('has no spotlight for it, and no Revisit link once it is done', async () => {
+    nav.pathname = '/dashboard'
+    const done = state([...IDENTITY_DONE, 'profile', 'intro'])
+    vi.mocked(getMyOnboardingState).mockResolvedValue(done)
+    render(<OnboardingGuide initialState={done} />)
+
+    expect(await screen.findByText('Say hello in Slack')).toBeInTheDocument()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Revisit Say hello in Slack' })).not.toBeInTheDocument()
+  })
+})

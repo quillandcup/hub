@@ -41,7 +41,7 @@ describe("CalendarSyncCard", () => {
   it("says hosted and committed prickles are included automatically, and how to add others", () => {
     render(<CalendarSyncCard initialUrls={URLS} />);
     expect(screen.getByText(/Prickles you host and prickles you.ve committed to show up automatically/)).toBeInTheDocument();
-    expect(screen.getByText(/in All Prickles or on the event.s page/)).toBeInTheDocument();
+    expect(screen.getByText(/beside it in Upcoming or All Prickles/)).toBeInTheDocument();
   });
 
   it("copies the https feed link", async () => {

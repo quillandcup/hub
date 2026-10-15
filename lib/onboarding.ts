@@ -11,6 +11,14 @@
  * A step can have several stops on its page, spotlit one after another and each confirmed on its
  * own (marked as `<step>.<stop>`, e.g. `identity.basics`); the step is done once every stop is.
  *
+ * Newcomers (joined in the last 90 days, lib/newcomer.ts) get one more step, "intro": introduce
+ * yourself in the Slack intro channel, done once they've posted there. It happens in Slack, so it
+ * has an external link instead of a spotlight. Their "prickles" step is also stricter: it asks for
+ * a prickle on the calendar until they've attended one. Reminders for both: lib/onboarding-nudges.ts.
+ *
+ * Everyone is also walked through syncing their calendar app (the "calendar" step), done once a
+ * calendar app has fetched their feed, or when they confirm it.
+ *
  * A new member with a Big Sister (while the match is on their dashboard) gets a step to say hello to
  * her. There's no data to tell it's done, so they confirm it.
  *
@@ -19,7 +27,7 @@
  * types listed in Settings → Hosting, the vibe they run each type with.
  */
 
-export const ONBOARDING_STEP_IDS = ["identity", "profile", "writing", "prickles", "big-sister", "hosting", "host-vibe"] as const;
+export const ONBOARDING_STEP_IDS = ["identity", "profile", "intro", "writing", "prickles", "calendar", "big-sister", "hosting", "host-vibe"] as const;
 export type OnboardingStepId = (typeof ONBOARDING_STEP_IDS)[number];
 
 /** What the member's own data says, gathered once per page load. */
@@ -39,6 +47,18 @@ export interface OnboardingSignals {
   hostedRecently: boolean;
   /** Saved a vibe for at least one prickle type they host. */
   hasHostVibe: boolean;
+  /** Joined within the newcomer window (lib/newcomer.ts). */
+  isNewcomer: boolean;
+  /** Deep link to the Slack intro channel; null when the workspace has no such channel (no intro step then). */
+  introUrl: string | null;
+  /** Has posted a top-level message in the intro channel. */
+  hasIntroduced: boolean;
+  /** Has attended at least one prickle. */
+  hasAttendedPrickle: boolean;
+  /** Has a prickle on their calendar from now on (hosting, a commitment, or added by hand). */
+  hasUpcomingPrickle: boolean;
+  /** A calendar app has fetched their feed link at least once (calendar_feed_tokens.first_fetched_at). */
+  hasCalendarSynced: boolean;
   /** Their Big Sister's name while the match is current (lib/my-mentorship.ts), else null. */
   bigSisterName?: string | null;
 }
@@ -56,6 +76,8 @@ export interface OnboardingStepView {
   calloutTitle: string;
   /** Text on the spotlight's callout. */
   hint: string;
+  /** A step that happens outside the Hub (Slack): where it opens, in a new tab. It has no spotlight. */
+  externalHref?: string;
   /** Label for the callout's "this is done" button, for steps the member confirms by hand. */
   confirmLabel?: string;
   /** What confirming or skipping marks: the step id, or `<step>.<stop>` for the current stop. */
@@ -158,6 +180,29 @@ function withRevisitStops(step: StepWithoutRevisit): OnboardingStepView {
   return { ...step, revisitStops };
 }
 
+/**
+ * Everyone adds a prickle to their plans. A newcomer who hasn't attended one yet needs a prickle
+ * coming up on their calendar, so a missed first prickle puts the step back until they pick another.
+ */
+function pricklesStep(signals: OnboardingSignals, marked: Set<string>): StepWithoutRevisit {
+  const firstPrickle = signals.isNewcomer && !signals.hasAttendedPrickle;
+  return {
+    id: "prickles",
+    title: firstPrickle ? "Schedule your first prickle" : "Join a prickle",
+    summary: firstPrickle
+      ? "Pick a prickle for your first writing session and add it to your calendar."
+      : "Pick a prickle that fits your week and add it to your calendar.",
+    href: "/my-prickles",
+    target: "add-to-calendar",
+    calloutTitle: firstPrickle ? "Schedule your first prickle" : "Join a prickle",
+    hint: "Tap this calendar icon beside a prickle to add it, just that one or every week. Nothing fits? Find a Prickle suggests ones for your schedule.",
+    markKey: "prickles",
+    done: marked.has("prickles") || (signals.isNewcomer
+      ? signals.hasAttendedPrickle || signals.hasUpcomingPrickle
+      : signals.hasPricklePlan),
+  };
+}
+
 function stepViews(signals: OnboardingSignals, marked: Set<string>): StepWithoutRevisit[] {
   const { latestProjectId } = signals;
   const steps: StepWithoutRevisit[] = [
@@ -181,29 +226,52 @@ function stepViews(signals: OnboardingSignals, marked: Set<string>): StepWithout
       markKey: "profile",
       done: signals.hasHubProfile || marked.has("profile"),
     },
+    ...(signals.isNewcomer && signals.introUrl
+      ? [
+          {
+            id: "intro" as const,
+            title: "Say hello in Slack",
+            summary: "Post a few lines about what you write in #start-here, so other Hedgies can say hi.",
+            href: signals.introUrl,
+            externalHref: signals.introUrl,
+            target: "",
+            calloutTitle: "Say hello in Slack",
+            hint: "A few lines about what you write and what you're working on is plenty.",
+            // Nothing in our data shows a post from someone whose Slack account we couldn't match.
+            confirmLabel: "I've introduced myself",
+            markKey: "intro",
+            done: signals.hasIntroduced || marked.has("intro"),
+          },
+        ]
+      : []),
     {
       id: "writing",
       title: "Set a writing goal",
       summary: "Add a project and give it a goal to work toward.",
       href: latestProjectId ? `/projects/${latestProjectId}` : "/projects",
       target: latestProjectId ? "add-goal" : "new-project",
-      calloutTitle: "Set a writing goal",
+      // The spotlight is on "New project" until they have one, so the callout is about that.
+      calloutTitle: latestProjectId ? "Set a writing goal" : "Add a project",
       hint: latestProjectId
-        ? "Give this project a goal, like a word count or a habit such as writing three days a week. Star it to see it on your dashboard."
+        ? "Pick a Target (a total to reach, like 50,000 words, optionally by a date) or a Habit (a rhythm to keep, like writing three days a week). New goals are pinned to your dashboard."
         : "Start with whatever you're working on now. Next you'll give it a goal.",
       markKey: "writing",
       done: signals.hasGoal || marked.has("writing"),
     },
+    pricklesStep(signals, marked),
     {
-      id: "prickles",
-      title: "Join a prickle",
-      summary: "Find a prickle that fits your week and commit to it.",
-      href: "/my-prickles/find",
-      target: "find-prickle",
-      calloutTitle: "Join a prickle",
-      hint: "Answer a few questions to find prickles that fit your schedule, then commit to one. You can add it to your own calendar from there too.",
-      markKey: "prickles",
-      done: signals.hasPricklePlan || marked.has("prickles"),
+      id: "calendar",
+      title: "Sync your calendar",
+      summary: "Subscribe your calendar app so your prickles show up there too.",
+      href: "/my-prickles/commitments",
+      target: "calendar-sync",
+      calloutTitle: "Sync your calendar",
+      hint: "Subscribe in Google, Apple or Outlook and the prickles you add, commit to or host appear in your own calendar, reminders and all. Pick your calendar app below; there are steps if you get stuck. This ticks itself off once your calendar app picks it up.",
+      // Done once a calendar app has fetched the feed. The button is for a feed we can't see
+      // (they set it up some other way) or one that's slow to be fetched (Google can take hours).
+      confirmLabel: "My calendar is set up",
+      markKey: "calendar",
+      done: signals.hasCalendarSynced || marked.has("calendar"),
     },
   ];
   if (signals.bigSisterName) {
