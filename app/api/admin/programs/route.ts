@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
     const parsed = await request.json().catch(() => undefined);
     if (parsed === undefined) return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
     const body = parsed;
-    const { name, slug, description, kajabi_offer_names } = body;
+    const { name, slug, description, kajabi_offer_names, includes_membership } = body;
 
     if (!name || !slug) {
       return NextResponse.json({ error: "Missing required fields: name, slug" }, { status: 400 });
@@ -56,6 +56,7 @@ export async function POST(request: NextRequest) {
         slug,
         description: description || null,
         kajabi_offer_names: Array.isArray(kajabi_offer_names) ? kajabi_offer_names : [],
+        includes_membership: includes_membership !== false,
       })
       .select("*")
       .single();

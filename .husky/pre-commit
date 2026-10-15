@@ -1,5 +1,14 @@
-# Pre-commit hook to run production build
+# Pre-commit hook: refresh markdown tables of contents, then run the production build
 # This catches TypeScript errors before committing
+
+# Staged .md files that carry doctoc's START/END markers get their table of contents regenerated
+# (npm run docs:toc); files without the markers are left alone. To add one to a doc, put the two
+# marker comments where the TOC should go (see docs/INTEGRATION_LINKS.md).
+STAGED_DOCS=$(git diff --cached --name-only --diff-filter=ACM -- '*.md')
+if [ -n "$STAGED_DOCS" ]; then
+  echo "$STAGED_DOCS" | xargs npm run --silent docs:toc -- > /dev/null
+  echo "$STAGED_DOCS" | xargs git add
+fi
 
 echo "🔍 Running production build before commit..."
 npm run build

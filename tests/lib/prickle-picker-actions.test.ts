@@ -21,11 +21,11 @@ vi.mock("@/lib/timezone", () => ({
   getUserTimezonePreference: vi.fn().mockResolvedValue("America/New_York"),
 }));
 
-import { getWizardRecommendations, saveHostVibe } from "@/app/(member)/prickle-picker/actions";
+import { getHostedVibes, getWizardRecommendations, saveHostVibe } from "@/app/(member)/prickle-picker/actions";
 import { createClient } from "@/lib/supabase/server";
 import { getEffectiveIdentity } from "@/lib/sudo";
 
-function makeSupabaseMock({ hostsType, upsertError }: { hostsType: boolean; upsertError?: string }) {
+function makeSupabaseMock({ hostsType, signupOnly = false, upsertError }: { hostsType: boolean; signupOnly?: boolean; upsertError?: string }) {
   const upsert = vi.fn().mockResolvedValue({ error: upsertError ? { message: upsertError } : null });
 
   return {
@@ -33,16 +33,18 @@ function makeSupabaseMock({ hostsType, upsertError }: { hostsType: boolean; upse
       getClaims: vi.fn().mockResolvedValue({ data: { claims: { sub: "auth-user-1" } }, error: null }),
     },
     from: vi.fn((table: string) => {
-      if (table === "prickles") {
-        return {
-          select: vi.fn().mockReturnThis(),
-          eq: vi.fn().mockReturnThis(),
-          limit: vi.fn().mockReturnThis(),
-          maybeSingle: vi.fn().mockResolvedValue({ data: hostsType ? { id: "p1" } : null }),
-        };
+      if (table === "prickles" || table === "prickle_schedules") {
+        const query: any = {};
+        for (const method of ["select", "eq", "gte", "in", "is", "order"]) query[method] = vi.fn(() => query);
+        query.range = vi.fn().mockResolvedValue({ data: hostsType && table === (signupOnly ? "prickle_schedules" : "prickles")
+          ? [{ type_id: "type-a", prickle_types: { id: "type-a", name: "Writing" } }] : [] });
+        return query;
       }
       if (table === "prickle_host_vibes") {
-        return { upsert };
+        const query: any = { upsert };
+        for (const method of ["select", "eq"]) query[method] = vi.fn(() => query);
+        query.in = vi.fn().mockResolvedValue({ data: [] });
+        return query;
       }
       throw new Error(`Unexpected table in test: ${table}`);
     }),
@@ -123,6 +125,24 @@ describe("saveHostVibe authorization scoping", () => {
     await saveHostVibe("type-a", "focused", "");
     expect(mockSupabase.__upsert).toHaveBeenCalledWith(
       expect.objectContaining({ host_id: "sudo-target-member" }),
+      { onConflict: "type_id,host_id" }
+    );
+  });
+
+  it("lists configurable types for a first-time host's signup", async () => {
+    const mockSupabase = makeSupabaseMock({ hostsType: true, signupOnly: true });
+    vi.mocked(createClient).mockResolvedValue(mockSupabase as any);
+    vi.mocked(getEffectiveIdentity).mockResolvedValue({ memberId: "new-host", memberName: "New Host", memberEmail: "host@example.com", isSudo: false });
+    expect(await getHostedVibes()).toEqual([{ typeId: "type-a", typeName: "Writing", vibe: "balanced", notes: "" }]);
+  });
+
+  it("lets a new host save vibes using their signup before hosting a prickle", async () => {
+    const mockSupabase = makeSupabaseMock({ hostsType: true, signupOnly: true });
+    vi.mocked(createClient).mockResolvedValue(mockSupabase as any);
+    vi.mocked(getEffectiveIdentity).mockResolvedValue({ memberId: "new-host", memberName: "New Host", memberEmail: "host@example.com", isSudo: false });
+    expect(await saveHostVibe("type-a", "focused", "Quiet writing")).toEqual({ success: true });
+    expect(mockSupabase.__upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ host_id: "new-host", type_id: "type-a", vibe: "focused" }),
       { onConflict: "type_id,host_id" }
     );
   });

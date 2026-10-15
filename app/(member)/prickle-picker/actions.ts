@@ -21,6 +21,7 @@ import {
   type VibePreference,
   PICKER_HISTORY_MONTHS as HISTORY_MONTHS,
 } from "@/lib/prickle-picker";
+import { getHostVibeTypes } from "@/lib/host-vibes";
 import { ORG_TIMEZONE } from "@/lib/config";
 import { validateCheckin, type Feeling, type Need } from "@/lib/prickle-checkins";
 
@@ -238,7 +239,7 @@ export interface HostedVibeInfo {
 
 /**
  * Returns the prickle types the acting member has hosted in the trailing
- * window, each with their current vibe tag (or the 'balanced' default if
+ * window or signed up to host this month or later, each with their current vibe tag (or the 'balanced' default if
  * they haven't tagged it yet).
  */
 export async function getHostedVibes(): Promise<HostedVibeInfo[]> {
@@ -250,22 +251,7 @@ export async function getHostedVibes(): Promise<HostedVibeInfo[]> {
   const effectiveIdentity = await getEffectiveIdentity(user);
   if (!effectiveIdentity) return [];
 
-  const historyStart = new Date();
-  historyStart.setMonth(historyStart.getMonth() - HISTORY_MONTHS);
-
-  const { data: hostedPrickles } = await supabase
-    .from("prickles")
-    .select("type_id, prickle_types(id, name)")
-    .eq("host", effectiveIdentity.memberId)
-    .gte("start_time", historyStart.toISOString());
-
-  const typeNameById = new Map<string, string>();
-  for (const p of hostedPrickles ?? []) {
-    if (!p.type_id) continue;
-    const type = Array.isArray(p.prickle_types) ? p.prickle_types[0] : p.prickle_types;
-    if (type) typeNameById.set(p.type_id, type.name);
-  }
-
+  const typeNameById = await getHostVibeTypes(supabase, effectiveIdentity.memberId);
   const typeIds = [...typeNameById.keys()];
   if (typeIds.length === 0) return [];
 
@@ -306,15 +292,8 @@ export async function saveHostVibe(
   const effectiveIdentity = await getEffectiveIdentity(user);
   if (!effectiveIdentity) return { error: "No member record" };
 
-  const { data: hostedPrickle } = await supabase
-    .from("prickles")
-    .select("id")
-    .eq("type_id", typeId)
-    .eq("host", effectiveIdentity.memberId)
-    .limit(1)
-    .maybeSingle();
-
-  if (!hostedPrickle) {
+  const types = await getHostVibeTypes(supabase, effectiveIdentity.memberId);
+  if (!types.has(typeId)) {
     return { error: "You can only tag prickle types you host" };
   }
 

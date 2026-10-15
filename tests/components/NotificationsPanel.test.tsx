@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
 import { createFakeSupabase, type FakeSupabase } from "@/tests/helpers/server-page";
@@ -50,11 +50,21 @@ describe("getNotificationSettings", () => {
     expect(await getNotificationSettings()).toEqual({
       channels: ["slack", "email"],
       webPushPublicKey: null,
-      channelsByKind: { prickle_checkin: ["slack", "in_app", "web_push"], prickle_checkout: ["in_app", "web_push"], intro_nudge: ["slack", "in_app"], prickle_nudge: [] },
+      channelsByKind: { prickle_checkin: ["slack", "in_app", "web_push"], prickle_checkout: ["in_app", "web_push"], intro_nudge: ["slack", "in_app"], prickle_nudge: [], big_sister_match: ["slack", "in_app", "web_push"] },
+      visibleKinds: ["prickle_checkin", "prickle_checkout", "intro_nudge", "prickle_nudge"],
       readOnly: false,
     });
     const query = fake.queries.find((q) => q.table === "notification_preferences")!;
     expect(query.calls).toContainEqual({ method: "eq", args: ["member_id", "member-1"] });
+  });
+
+  it("shows Big Sister introductions only to a member with the big_sisters preview", async () => {
+    fake = createFakeSupabase({ notification_preferences: { data: [] } });
+    serviceFake = createFakeSupabase({
+      feature_flags: { data: { enabled_globally: true } },
+      members: { data: [{ id: "member-1", user_id: "user-1" }] },
+    });
+    expect((await getNotificationSettings())?.visibleKinds).toContain("big_sister_match");
   });
 
   it("offers In the Hub only with the member's in_app_notifications flag", async () => {
@@ -214,9 +224,18 @@ describe("NotificationsPanel", () => {
   const initial = {
     channels: ["slack" as const],
     webPushPublicKey: null,
-    channelsByKind: { prickle_checkin: ["slack" as const], prickle_checkout: [], intro_nudge: [], prickle_nudge: [] },
+    channelsByKind: { prickle_checkin: ["slack" as const], prickle_checkout: [], intro_nudge: [], prickle_nudge: [], big_sister_match: [] },
+    visibleKinds: ["prickle_checkin" as const, "prickle_checkout" as const, "intro_nudge" as const, "prickle_nudge" as const],
     readOnly: false,
   };
+
+  it("leaves out a kind the member can't see", () => {
+    render(<NotificationsPanel initial={initial} />);
+    expect(screen.queryByText("Big Sister introductions")).toBeNull();
+    cleanup();
+    render(<NotificationsPanel initial={{ ...initial, visibleKinds: [...initial.visibleKinds, "big_sister_match" as const] }} />);
+    expect(screen.getByText("Big Sister introductions")).toBeInTheDocument();
+  });
 
   it("shows each kind as a pressed or unpressed channel logo's channels and saves a switch", async () => {
     render(<NotificationsPanel initial={initial} />);
@@ -250,7 +269,7 @@ describe("NotificationsPanel", () => {
 
     render(
       <NotificationsPanel
-        initial={{ ...initial, channels: ["slack", "in_app"], channelsByKind: { prickle_checkin: ["in_app"], prickle_checkout: [], intro_nudge: [], prickle_nudge: [] } }}
+        initial={{ ...initial, channels: ["slack", "in_app"], channelsByKind: { prickle_checkin: ["in_app"], prickle_checkout: [], intro_nudge: [], prickle_nudge: [], big_sister_match: [] } }}
       />
     );
     expect(screen.getByRole("button", { name: "Prickle check-ins via In the Hub" })).toHaveAttribute("aria-pressed", "true");

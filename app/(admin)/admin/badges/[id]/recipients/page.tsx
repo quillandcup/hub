@@ -70,8 +70,16 @@ export default async function BadgeRecipientsPage({ params }: { params: Promise<
             <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
               {recipients.length} {recipients.length === 1 ? "recipient" : "recipients"}
             </h2>
-            {badgeType.is_automatic && !linkedProgram && (
+            {badgeType.is_automatic && !linkedProgram && badgeType.key !== "hedgie_mentor" && (
               <span className="text-xs text-slate-400 dark:text-slate-500">Computed automatically</span>
+            )}
+            {badgeType.key === "hedgie_mentor" && (
+              <span className="text-xs text-slate-400 dark:text-slate-500">
+                Counted from Big Sister matches —{" "}
+                <Link href="/admin/mentorship" className="text-plum-600 dark:text-plum-400 hover:underline">
+                  manage matches
+                </Link>
+              </span>
             )}
             {linkedProgram && (
               <span className="text-xs text-slate-400 dark:text-slate-500">

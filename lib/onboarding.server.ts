@@ -13,6 +13,8 @@ import { loadAttendedMemberIds, loadIntroChannelId, loadIntroducedMemberIds } fr
 import { loadCalendarFeedPrickleIds } from "@/lib/calendar-feed";
 import { PICKER_HISTORY_MONTHS } from "@/lib/prickle-picker";
 import { getMonthStart } from "@/lib/prickle-schedules";
+import { getMyMentorships } from "@/lib/my-mentorship";
+import { membersWithFeature } from "@/lib/features.server";
 
 /** Placeholder signals for a tour that isn't showing: nothing reads the steps then. */
 const NO_SIGNALS: OnboardingSignals = {
@@ -30,6 +32,7 @@ const NO_SIGNALS: OnboardingSignals = {
   hasAttendedPrickle: false,
   hasUpcomingPrickle: false,
   hasCalendarSynced: false,
+  bigSisterName: null,
 };
 
 /** The newcomer steps' signals (lib/newcomer.ts); all false/null for someone past their first 90 days. */
@@ -94,6 +97,7 @@ export const getOnboardingState = cache(async (memberId: string): Promise<Onboar
     hostVibes,
     feedToken,
     newcomer,
+    bigSistersOn,
   ] = await Promise.all([
     // Written only when the member saves their bio or socials in the Hub. members.bio isn't read:
     // it's usually Kajabi's copy, which they haven't necessarily looked at here.
@@ -131,7 +135,12 @@ export const getOnboardingState = cache(async (memberId: string): Promise<Onboar
     supabase.from("prickle_host_vibes").select("type_id", { count: "exact", head: true }).eq("host_id", memberId),
     supabase.from("calendar_feed_tokens").select("first_fetched_at").eq("member_id", memberId).maybeSingle(),
     loadNewcomerSignals(supabase, memberId, now),
+    // The Big Sister step is behind the big_sisters preview (this member's own flag).
+    membersWithFeature(createServiceRoleClient(), "big_sisters", [memberId]).then((on) => on.has(memberId)),
   ]);
+  const mentorships = bigSistersOn
+    ? await getMyMentorships(supabase, memberId, now.toISOString().slice(0, 10))
+    : null;
   const latestScheduleMonth = (latestSchedule.data?.month as string | undefined) ?? null;
 
   const topics = (askMeAbout.data?.topics as string[] | null) ?? [];
@@ -149,6 +158,7 @@ export const getOnboardingState = cache(async (memberId: string): Promise<Onboar
       hasHostVibe: (hostVibes.count ?? 0) > 0,
       hasCalendarSynced: !!feedToken.data?.first_fetched_at,
       ...newcomer,
+      bigSisterName: mentorships?.bigSister?.name ?? null,
     },
     recordData
   );
