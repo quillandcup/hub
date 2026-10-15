@@ -3,7 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
-import { isValidTimeZone } from "@/lib/nudge-jitter";
+import { isValidTimeZone } from "@/lib/time-zone";
 
 export interface SessionRow {
   id: string;
