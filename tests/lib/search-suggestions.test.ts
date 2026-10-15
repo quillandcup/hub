@@ -140,7 +140,7 @@ describe("markSuggestionsRead", () => {
 
   it("dismisses check-ins and check-outs, reads notifications, and ignores chats and junk", async () => {
     const writes: [string, string][] = [];
-    let note: { kind: string; ref: string } | null = null;
+    const note: { kind: string; ref: string } | null = null;
     const q = (table: string, op: string) => {
       const chain: Record<string, unknown> = {};
       for (const m of ["eq", "is"]) chain[m] = () => chain;
