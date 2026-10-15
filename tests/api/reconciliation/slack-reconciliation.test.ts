@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { getTestSupabaseAdminClient, getTestAuthHeaders, getTestApiBaseUrl } from '../../helpers/supabase'
+import { apiFetch } from '../../helpers/api-fetch'
 
 /**
  * Integration tests for GET /api/analyze/slack-reconciliation
@@ -58,7 +59,7 @@ describe('Slack Reconciliation', () => {
   })
 
   async function fetchSlackReconciliation() {
-    const response = await fetch(
+    const response = await apiFetch(
       `${getTestApiBaseUrl()}/api/analyze/slack-reconciliation`,
       { headers: getTestAuthHeaders() }
     )

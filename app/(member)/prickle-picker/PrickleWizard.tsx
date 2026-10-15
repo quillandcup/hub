@@ -5,6 +5,18 @@ import Link from "next/link";
 import MultiMemberSearch from "@/components/MultiMemberSearch";
 import { getWizardRecommendations, type WizardAnswers } from "./actions";
 import type { PickerRecommendation, TimeOfDay, VibePreference, PurposePreference } from "@/lib/prickle-picker";
+import { ORG_TIMEZONE } from "@/lib/config";
+import {
+  FEELING_DISPLAY_GROUPS,
+  MAX_FEELINGS,
+  NEEDS,
+  NEED_VIBE,
+  SESSION_RATINGS,
+  prickleHref,
+  toggleFeeling,
+  type Feeling,
+  type Need,
+} from "@/lib/prickle-checkins";
 
 interface Member {
   id: string;
@@ -44,7 +56,12 @@ const PURPOSE_OPTIONS: { label: string; value: PurposePreference; hint: string }
   { label: "Just socializing", value: "social", hint: "Here to hang out" },
 ];
 
-const TOTAL_STEPS = 4;
+const TOTAL_STEPS = 5;
+
+function ratingLabel(avg: number): string {
+  return SESSION_RATINGS[Math.min(4, Math.max(0, Math.round(avg) - 1))].label;
+}
+
 
 function ChipGroup<T extends string>({
   options,
@@ -112,6 +129,8 @@ function formatOccurrence(iso: string, timezone: string): string {
 
 export default function PrickleWizard({ members }: PrickleWizardProps) {
   const [step, setStep] = useState(0);
+  const [feelings, setFeelings] = useState<Feeling[]>([]);
+  const [need, setNeed] = useState<Need | null>(null);
   const [windowDays, setWindowDays] = useState(7);
   const [timeOfDay, setTimeOfDay] = useState<TimeOfDay>("any");
   const [vibe, setVibe] = useState<VibePreference>("any");
@@ -122,13 +141,16 @@ export default function PrickleWizard({ members }: PrickleWizardProps) {
   const [error, setError] = useState<string | null>(null);
   const [results, setResults] = useState<PickerRecommendation[] | null>(null);
 
-  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "America/New_York";
+  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || ORG_TIMEZONE;
 
   async function handleSubmit() {
     setLoading(true);
     setError(null);
 
-    const answers: WizardAnswers = { windowDays, timeOfDay, vibe, purpose, withMemberIds };
+    // A need that points at a vibe fills in the mood unless the member already chose one.
+    const effectiveVibe = vibe === "any" && need && NEED_VIBE[need] ? NEED_VIBE[need]! : vibe;
+    setVibe(effectiveVibe);
+    const answers: WizardAnswers = { windowDays, timeOfDay, vibe: effectiveVibe, purpose, withMemberIds, feelings, need };
     const result = await getWizardRecommendations(answers);
 
     setLoading(false);
@@ -139,6 +161,10 @@ export default function PrickleWizard({ members }: PrickleWizardProps) {
     setResults(result.recommendations);
   }
 
+  function goNext() {
+    setStep((s) => s + 1);
+  }
+
   function startOver() {
     setStep(0);
     setResults(null);
@@ -146,28 +172,33 @@ export default function PrickleWizard({ members }: PrickleWizardProps) {
   }
 
   if (results) {
-    return (
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100">
-            {results.length > 0 ? "Here's what looks good 🦔" : "No matches this time"}
-          </h2>
-          <button
-            onClick={startOver}
-            className="text-sm text-plum-600 hover:text-plum-700 dark:text-plum-400 font-medium"
-          >
-            Start over
-          </button>
-        </div>
+    const matches = results.filter((r) => r.mismatches.length === 0);
+    const others = results.filter((r) => r.mismatches.length > 0);
 
-        {results.length === 0 && (
-          <div className="bg-white dark:bg-slate-900 rounded-lg shadow p-8 text-center text-slate-500 dark:text-slate-400">
-            Nothing matched all of that in this window. Try widening the time range or easing up on a filter.
-          </div>
-        )}
+    // What we couldn't match, in the member's words, e.g. "a chatty mood and seeing Fern".
+    const missedKinds = new Set(others.flatMap((r) => r.mismatches));
+    const missed: string[] = [];
+    if (missedKinds.has("window")) missed.push("that time window");
+    if (missedKinds.has("timeOfDay")) missed.push("that time of day");
+    if (missedKinds.has("purpose")) {
+      const label = PURPOSE_OPTIONS.find((o) => o.value === purpose)?.label ?? "that";
+      missed.push(`being for ${label.toLowerCase()}`);
+    }
+    if (missedKinds.has("vibe")) missed.push(`a ${vibe} mood`);
+    if (missedKinds.has("people")) {
+      const names = members.filter((m) => withMemberIds.includes(m.id)).map((m) => m.name);
+      missed.push(names.length > 0 ? `seeing ${names.join(" and ")}` : "the people you picked");
+    }
+    const missedText =
+      missed.length > 1 ? `${missed.slice(0, -1).join(", ")} and ${missed[missed.length - 1]}` : missed[0];
+    const othersNote =
+      matches.length === 0
+        ? `Nothing matches ${missedText}, but here ${
+            others.length === 1 ? "is another" : "are some others"
+          } to consider.`
+        : `Others to consider: these don't match ${missedText}.`;
 
-        <div className="space-y-4">
-          {results.map((rec) => (
+    const renderCard = (rec: PickerRecommendation) => (
             <div
               key={rec.seriesKey}
               className="bg-white dark:bg-slate-900 rounded-lg shadow p-5 space-y-3"
@@ -196,6 +227,12 @@ export default function PrickleWizard({ members }: PrickleWizardProps) {
                       ` (based on ${rec.sessionCount} past session${rec.sessionCount === 1 ? "" : "s"})`}
                   </span>
                 )}
+                {rec.personal && (
+                  <span className="px-2.5 py-1 rounded-full bg-plum-50 dark:bg-plum-900/20 text-plum-700 dark:text-plum-300">
+                    You rated it {ratingLabel(rec.personal.avgRating)} on average ({rec.personal.sessions} similar
+                    sessions)
+                  </span>
+                )}
                 {rec.vibeNotes && (
                   <span className="px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
                     “{rec.vibeNotes}”
@@ -207,7 +244,7 @@ export default function PrickleWizard({ members }: PrickleWizardProps) {
                 {rec.occurrences.map((occ) => (
                   <Link
                     key={occ.id}
-                    href={`/prickles/${occ.id}`}
+                    href={prickleHref(occ.id, feelings, need)}
                     className="px-3 py-1.5 rounded-lg text-sm bg-plum-50 dark:bg-plum-900/20 text-plum-700 dark:text-plum-300 hover:bg-plum-100 dark:hover:bg-plum-900/40 transition-colors"
                   >
                     {formatOccurrence(occ.startTime, timezone)}
@@ -215,8 +252,42 @@ export default function PrickleWizard({ members }: PrickleWizardProps) {
                 ))}
               </div>
             </div>
-          ))}
+    );
+
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100">
+            {matches.length > 0
+              ? "Here's what looks good 🦔"
+              : others.length > 0
+                ? "No exact matches"
+                : "No matches this time"}
+          </h2>
+          <button
+            onClick={startOver}
+            className="text-sm text-plum-600 hover:text-plum-700 dark:text-plum-400 font-medium"
+          >
+            Start over
+          </button>
         </div>
+
+        {results.length === 0 && (
+          <div className="bg-white dark:bg-slate-900 rounded-lg shadow p-8 text-center text-slate-500 dark:text-slate-400">
+            There aren't any prickles on the calendar for the next two weeks.
+          </div>
+        )}
+
+        {matches.length > 0 && <div className="space-y-4">{matches.map(renderCard)}</div>}
+
+        {others.length > 0 && (
+          <div className="space-y-4">
+            <p className="text-sm text-slate-600 dark:text-slate-400" role="status">
+              {othersNote}
+            </p>
+            {others.map(renderCard)}
+          </div>
+        )}
       </div>
     );
   }
@@ -281,6 +352,72 @@ export default function PrickleWizard({ members }: PrickleWizardProps) {
         </div>
       )}
 
+      {step === 4 && (
+        <div className="space-y-5">
+          <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100">How are you feeling?</h2>
+          <p className="text-sm text-slate-500 dark:text-slate-400">
+            Optional, so skip it if you like. It helps pick prickles that have worked for you when you felt like this.
+          </p>
+          <div>
+            <p className="text-sm font-medium text-slate-600 dark:text-slate-400 mb-2">
+              Coming in, I&apos;m feeling… <span className="font-normal">(up to {MAX_FEELINGS})</span>
+            </p>
+            <div className="space-y-2">
+              {FEELING_DISPLAY_GROUPS.map((group) => (
+                <div key={group[0].key} className="flex flex-wrap gap-2">
+                  {group.map((f) => {
+                    const selected = feelings.includes(f.key);
+                    const atMax = !selected && feelings.length >= MAX_FEELINGS;
+                    return (
+                      <button
+                        key={f.key}
+                        type="button"
+                        aria-pressed={selected}
+                        disabled={atMax}
+                        onClick={() => setFeelings((cur) => toggleFeeling(cur, f.key))}
+                        className={`px-4 py-2 rounded-full text-sm font-medium transition-colors border ${
+                          selected
+                            ? "bg-plum-600 border-plum-600 text-white"
+                            : atMax
+                              ? "border-slate-200 dark:border-slate-800 text-slate-400 dark:text-slate-600 cursor-not-allowed"
+                              : "bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:border-plum-400"
+                        }`}
+                      >
+                        {f.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+          </div>
+          <div>
+            <p className="text-sm font-medium text-slate-600 dark:text-slate-400 mb-2">What I need most from this session</p>
+            <div className="flex flex-wrap gap-2">
+              {NEEDS.map((n) => {
+                const selected = need === n.key;
+                return (
+                  <button
+                    key={n.key}
+                    type="button"
+                    aria-pressed={selected}
+                    title={n.hint}
+                    onClick={() => setNeed(selected ? null : n.key)}
+                    className={`px-4 py-2 rounded-full text-sm font-medium transition-colors border ${
+                      selected
+                        ? "bg-plum-600 border-plum-600 text-white"
+                        : "bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:border-plum-400"
+                    }`}
+                  >
+                    {n.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
       {error && (
         <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-800 dark:text-red-200 text-sm">
           {error}
@@ -299,7 +436,7 @@ export default function PrickleWizard({ members }: PrickleWizardProps) {
         {step < TOTAL_STEPS - 1 ? (
           <button
             type="button"
-            onClick={() => setStep((s) => s + 1)}
+            onClick={goNext}
             className="px-6 py-2 bg-plum-600 hover:bg-plum-700 text-white rounded-lg font-medium transition-colors"
           >
             Next →
@@ -317,7 +454,7 @@ export default function PrickleWizard({ members }: PrickleWizardProps) {
       </div>
 
       <p className="text-xs text-center text-slate-400 dark:text-slate-500">
-        <Link href="/my-prickles?tab=history" className="hover:underline">
+        <Link href="/my-prickles/history" className="hover:underline">
           Never mind, back to my calendar
         </Link>
       </p>

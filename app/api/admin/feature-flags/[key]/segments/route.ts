@@ -11,7 +11,9 @@ export async function POST(
   const { supabase } = auth;
 
   const { key } = await params;
-  const { segmentId } = await request.json();
+  const parsed = await request.json().catch(() => undefined);
+  if (parsed === undefined) return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+  const { segmentId } = parsed;
 
   if (!segmentId) {
     return NextResponse.json({ error: "segmentId is required" }, { status: 400 });

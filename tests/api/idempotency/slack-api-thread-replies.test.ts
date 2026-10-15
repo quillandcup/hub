@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest'
 import { NextRequest } from 'next/server'
 import { getTestSupabaseAdminClient } from '../../helpers/supabase'
+import { useFakeClock } from '../../helpers/fake-clock'
 
 /**
  * /api/import/slack-api with Slack mocked and the local DB real: thread replies
@@ -38,8 +39,14 @@ vi.mock('@slack/web-api', () => ({
     users = {
       list: async () => ({ members: [{ id: userId, name: 'threads-test', real_name: 'Threads Test', profile: {} }] }),
     }
+    emoji = {
+      list: async () => {
+        throw Object.assign(new Error('missing_scope'), { data: { error: 'missing_scope' } })
+      },
+    }
     conversations = {
-      list: async () => ({ channels: [{ id: channelId, name: 'threads-test', is_private: false, is_archived: false }] }),
+      list: async ({ types }: { types?: string }) => ({ channels: types === 'mpim' ? [] : [{ id: channelId, name: 'threads-test', is_private: false, is_archived: false }] }),
+      members: async () => ({ members: [userId] }),
       join: async () => ({ ok: true }),
       history: async () => ({ messages: [broadcast, parent] }),
       replies: async ({ ts }: { ts: string }) => ({ messages: ts === parentTs ? [parent, reply, broadcast] : [] }),
@@ -48,6 +55,11 @@ vi.mock('@slack/web-api', () => ({
 }))
 
 vi.mock('@/lib/supabase/api-auth', () => ({ requireAdmin: vi.fn() }))
+// The import writes membership, emoji and file records with the service role.
+vi.mock('@/lib/supabase/service', async () => {
+  const { getTestSupabaseAdminClient } = await import('../../helpers/supabase')
+  return { createServiceRoleClient: () => getTestSupabaseAdminClient() }
+})
 vi.mock('@/lib/processing/trigger', () => ({ triggerReprocessing: vi.fn(async () => ({ processed: [] })) }))
 
 import { requireAdmin } from '@/lib/supabase/api-auth'
@@ -56,10 +68,13 @@ import { POST } from '@/app/api/import/slack-api/route'
 
 describe('POST /api/import/slack-api thread replies', () => {
   const supabase = getTestSupabaseAdminClient()
+  useFakeClock() // the per-channel pause costs no real time
 
   const cleanup = async () => {
     await supabase.schema('bronze').from('slack_reactions').delete().eq('channel_id', channelId)
     await supabase.schema('bronze').from('slack_messages').delete().eq('channel_id', channelId)
+    await supabase.schema('bronze').from('slack_channel_members').delete().eq('channel_id', channelId)
+    await supabase.schema('bronze').from('slack_channel_member_events').delete().eq('channel_id', channelId)
     await supabase.schema('bronze').from('slack_channels').delete().eq('channel_id', channelId)
     await supabase.schema('bronze').from('slack_users').delete().eq('user_id', userId)
   }
@@ -110,7 +125,7 @@ describe('POST /api/import/slack-api thread replies', () => {
     ])
   })
 
-  it('deletes a reaction that was removed from a reply', async () => {
+  it('marks a reaction that was removed from a reply, keeping the row', async () => {
     await supabase.schema('bronze').from('slack_reactions').insert({
       channel_id: channelId,
       message_ts: replyTs,
@@ -125,10 +140,14 @@ describe('POST /api/import/slack-api thread replies', () => {
     const { data: reactions } = await supabase
       .schema('bronze')
       .from('slack_reactions')
-      .select('reaction')
+      .select('reaction, deleted_at')
       .eq('channel_id', channelId)
       .eq('message_ts', replyTs)
-    expect(reactions).toEqual([{ reaction: 'tada' }])
+      .order('reaction')
+    expect(reactions?.map((r) => [r.reaction, r.deleted_at === null ? 'live' : 'removed'])).toEqual([
+      ['eyes', 'removed'],
+      ['tada', 'live'],
+    ])
     expect(body.imported.reactionsRemoved).toBe(1)
   })
 
@@ -137,5 +156,15 @@ describe('POST /api/import/slack-api thread replies', () => {
 
     const calls = vi.mocked(triggerReprocessing).mock.calls.map(([table]) => table)
     expect(calls).toEqual(['slack_users', 'slack_messages'])
+  })
+
+  it('skips rebuilding members when no Slack user changed', async () => {
+    await runImport()
+    vi.mocked(triggerReprocessing).mockClear()
+
+    await runImport()
+
+    const calls = vi.mocked(triggerReprocessing).mock.calls.map(([table]) => table)
+    expect(calls).toEqual(['slack_messages'])
   })
 })

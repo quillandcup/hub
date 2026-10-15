@@ -9,10 +9,10 @@ import { getEffectiveIdentity } from "@/lib/sudo";
 import { getUserTimezonePreference } from "@/lib/timezone";
 import { calendarFeedUrls, SCHEDULE_TIMEZONE, type CalendarFeedUrls, type MyCalendarItem } from "@/lib/calendar-feed";
 import { formatSlotLabel, slotInTimeZone, slotKey, slotTimeForInstant } from "@/lib/commitments";
+import { APP_URL, ORG_TIMEZONE } from "@/lib/config";
 
 /** Labels fall back to the org's timezone when the member's preference is "browser" (the server
  * can't see the browser's), same as the My Prickles page. Labels always name the zone. */
-const ORG_TIMEZONE = "America/New_York";
 
 function newToken(): string {
   return randomBytes(16).toString("hex");
@@ -21,7 +21,8 @@ function newToken(): string {
 /** This request's origin (scheme + host), so feed links point at whichever deployment served the page. */
 async function requestOrigin(): Promise<string> {
   const h = await headers();
-  const host = h.get("x-forwarded-host") ?? h.get("host") ?? "hub.quillandcup.com";
+  const host = h.get("x-forwarded-host") ?? h.get("host");
+  if (!host) return APP_URL;
   const proto = h.get("x-forwarded-proto") ?? (host.startsWith("localhost") || host.startsWith("127.") ? "http" : "https");
   return `${proto}://${host}`;
 }
@@ -86,7 +87,7 @@ export async function regenerateMyCalendarFeedToken(): Promise<{ urls: CalendarF
   const { error } = await supabase
     .from("calendar_feed_tokens")
     .upsert(
-      { member_id: memberId, token: newToken(), updated_at: new Date().toISOString() },
+      { member_id: memberId, token: newToken(), first_fetched_at: null, updated_at: new Date().toISOString() },
       { onConflict: "member_id" }
     );
   if (error) {
@@ -193,7 +194,7 @@ export async function getMyCalendarItems(): Promise<MyCalendarItem[]> {
  * second router.refresh() round trip.
  */
 function revalidateCalendarViews() {
-  revalidatePath("/my-prickles");
+  revalidatePath("/my-prickles", "layout");
   refresh();
 }
 

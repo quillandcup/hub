@@ -12,6 +12,7 @@ import {
 import { hostShortName } from "@/lib/formatters";
 import { formatUtc, type ICalEvent } from "@/lib/ical";
 import { chunk, fetchAllRows } from "@/lib/supabase/paginate";
+import { APP_URL } from "@/lib/config";
 
 /**
  * A member's personal calendar feed (/api/calendar/feed/<token>.ics). It includes the prickles
@@ -28,7 +29,9 @@ export const FEED_REMINDER_MINUTES = 15;
 export const FEED_REFRESH_MINUTES = 60;
 /** Length of a committed occurrence that isn't on the prickle calendar yet. */
 const UNSCHEDULED_DURATION_MINUTES = 60;
-const UID_DOMAIN = "hub.quillandcup.com";
+// Event UIDs must stay stable or subscribed calendars duplicate every event, so this follows
+// the canonical app URL (production: hub.quillandcup.com), not whichever host served the request.
+const UID_DOMAIN = new URL(APP_URL).host;
 
 export interface CalendarFeedUrls {
   /** The feed itself -- what "Copy link" copies and what Outlook fetches. */
@@ -194,7 +197,7 @@ export function buildCalendarFeedEvents({
         summary: o.typeName,
         description:
           `Part of your commitment: ${o.commitmentTitle}\n\n` +
-          `This prickle isn't on the schedule yet, so the time may change.\n\n${origin}/my-prickles?tab=commitments`,
+          `This prickle isn't on the schedule yet, so the time may change.\n\n${origin}/my-prickles/commitments`,
         status: "TENTATIVE",
         reminderMinutes: FEED_REMINDER_MINUTES,
       });
@@ -287,7 +290,37 @@ export async function loadCalendarFeedEvents(
   now: Date = new Date()
 ): Promise<ICalEvent[]> {
   const since = new Date(now.getTime() - FEED_LOOKBACK_DAYS * 24 * 60 * 60 * 1000);
+  const sources = await loadCalendarFeedSources(supabase, memberId, since, now);
+  return buildCalendarFeedEvents({ memberId, origin, ...sources });
+}
 
+/**
+ * Ids of the scheduled prickles on one member's calendar feed starting at or after `since`:
+ * hosting, committed occurrences and prickles added by hand -- exactly what the feed shows,
+ * because it's the same loader. Used by the prickle check-in DM ("if it's on their calendar,
+ * check in with them").
+ */
+export async function loadCalendarFeedPrickleIds(
+  supabase: SupabaseClient,
+  memberId: string,
+  since: Date,
+  now: Date = new Date()
+): Promise<Set<string>> {
+  const { hosted, committed, added } = await loadCalendarFeedSources(supabase, memberId, since, now);
+  const ids = new Set<string>();
+  for (const p of hosted) ids.add(p.id);
+  for (const o of committed) if (o.prickle) ids.add(o.prickle.id);
+  for (const p of added) ids.add(p.id);
+  return ids;
+}
+
+/** Everything a member's feed is built from, from `since` on (see buildCalendarFeedEvents). */
+async function loadCalendarFeedSources(
+  supabase: SupabaseClient,
+  memberId: string,
+  since: Date,
+  now: Date
+): Promise<{ hosted: FeedPrickle[]; committed: CommittedOccurrence[]; added: FeedPrickle[]; events: FeedEventRow[] }> {
   // Added items don't depend on hosting or commitments: start them now, collect them at the end.
   const addedPromise = loadAddedItems(supabase, memberId, since);
   // Keep a rejection from going unhandled while the steps below run; it's rethrown at the await.
@@ -381,14 +414,7 @@ export async function loadCalendarFeedEvents(
 
   const { added, events } = await addedPromise;
 
-  return buildCalendarFeedEvents({
-    memberId,
-    origin,
-    hosted: hostedRows.map(toFeedPrickle),
-    committed,
-    added,
-    events,
-  });
+  return { hosted: hostedRows.map(toFeedPrickle), committed, added, events };
 }
 
 interface FeedItemRow {

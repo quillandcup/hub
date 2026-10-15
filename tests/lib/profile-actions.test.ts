@@ -233,6 +233,53 @@ describe("updateInstagramHandle", () => {
     expect(updateContactMock).toHaveBeenCalledWith("kj-1", { custom_1: null });
   });
 
+  it("hides the profile link when the member clears a handle that only exists in the member directory", async () => {
+    setup({
+      service: {
+        contactCustom1: null,
+        customerAttributes: { ...KAJABI_ATTRS, socials: { instagram: "https://instagram.com/profile_handle" } },
+      },
+    });
+    fetchContactMock.mockResolvedValue(FRESH_CONTACT);
+
+    const result = await updateInstagramHandle("");
+    expect(result).toEqual({ success: true, syncPending: true });
+    expect(updateContactMock).not.toHaveBeenCalled(); // nothing to clear in Kajabi's contact field
+    expect(userClient.upsert).toHaveBeenCalledWith(
+      { member_id: "member-1", instagram_url: "", updated_by: "auth-1" },
+      { onConflict: "member_id" }
+    );
+  });
+
+  it("clears both the contact field and shows nothing when the directory also has one", async () => {
+    setup({ service: { customerAttributes: { ...KAJABI_ATTRS, socials: { instagram: "profile_handle" } } } });
+    updateContactMock.mockResolvedValue({});
+    fetchContactMock.mockResolvedValue(FRESH_CONTACT);
+
+    await updateInstagramHandle("");
+    expect(updateContactMock).toHaveBeenCalledWith("kj-1", { custom_1: null });
+    expect(userClient.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ instagram_url: "" }),
+      { onConflict: "member_id" }
+    );
+  });
+
+  it("stops hiding the link once the member sets a handle again", async () => {
+    setup({
+      override: { bio: null, instagram_url: "", facebook_url: null, twitter_url: null } as any,
+      service: { contactCustom1: null },
+    });
+    updateContactMock.mockResolvedValue({});
+    fetchContactMock.mockResolvedValue(FRESH_CONTACT);
+
+    await updateInstagramHandle("@new_handle");
+    expect(updateContactMock).toHaveBeenCalledWith("kj-1", { custom_1: "new_handle" });
+    expect(userClient.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ instagram_url: null }),
+      { onConflict: "member_id" }
+    );
+  });
+
   it("does no local write or reprocess when Kajabi rejects the update", async () => {
     setup();
     updateContactMock.mockRejectedValue(new Error("Kajabi API error (422): invalid"));
@@ -457,8 +504,7 @@ describe("getProfileSettings", () => {
     expect(result).toEqual({
       memberId: "member-1",
       kajabiLinked: true,
-      instagramHandle: "new_handle",
-      instagramFallbackUrl: null,
+      instagramUrl: "https://instagram.com/new_handle",
       details: { bio: "Writes cozy mysteries.", facebookUrl: null, twitterUrl: null },
       askMeAbout: ["worldbuilding"],
       syncPending: true,
@@ -467,7 +513,7 @@ describe("getProfileSettings", () => {
 
   it("is not pending once Silver matches Bronze + overrides", async () => {
     setup();
-    expect(await getProfileSettings()).toMatchObject({ instagramHandle: "old_handle", syncPending: false });
+    expect(await getProfileSettings()).toMatchObject({ instagramUrl: "https://instagram.com/old_handle", syncPending: false });
   });
 
   it("shows the override as the current value (never-set fields follow Kajabi) and is pending until reprocessed", async () => {
@@ -492,21 +538,39 @@ describe("getProfileSettings", () => {
     });
   });
 
-  it("uses the custom field over socials.instagram and reports socials.instagram as the blank fallback", async () => {
+  it("prefers the custom field over socials.instagram", async () => {
     setup({ service: { customerAttributes: { ...KAJABI_ATTRS, socials: { instagram: "profile_handle" } } } });
-    expect(await getProfileSettings()).toMatchObject({
-      instagramHandle: "old_handle",
-      instagramFallbackUrl: "https://instagram.com/profile_handle",
-      syncPending: false,
+    expect(await getProfileSettings()).toMatchObject({ instagramUrl: "https://instagram.com/old_handle", syncPending: false });
+  });
+
+  it("shows the directory Instagram handle when the custom field is empty, since that is what the profile links to", async () => {
+    setup({
+      member: { ...MEMBER, instagram_url: "https://instagram.com/profile_handle" },
+      service: {
+        contactCustom1: null,
+        customerAttributes: { ...KAJABI_ATTRS, socials: { instagram: "https://instagram.com/profile_handle" } },
+      },
     });
+    expect(await getProfileSettings()).toMatchObject({ instagramUrl: "https://instagram.com/profile_handle" });
+  });
+
+  it("shows no handle when the member cleared it, even though the directory has one", async () => {
+    setup({
+      member: { ...MEMBER, instagram_url: null },
+      override: { bio: null, instagram_url: "", facebook_url: null, twitter_url: null } as any,
+      service: {
+        contactCustom1: null,
+        customerAttributes: { ...KAJABI_ATTRS, socials: { instagram: "profile_handle" } },
+      },
+    });
+    expect(await getProfileSettings()).toMatchObject({ instagramUrl: null, syncPending: false });
   });
 
   it("reports an unlinked member without touching Bronze", async () => {
     setup({ member: { ...MEMBER, kajabi_id: null, bio: null, instagram_url: null } });
     expect(await getProfileSettings()).toMatchObject({
       kajabiLinked: false,
-      instagramHandle: null,
-      instagramFallbackUrl: null,
+      instagramUrl: null,
       syncPending: false,
     });
     expect(service.schema).not.toHaveBeenCalled();

@@ -30,6 +30,7 @@ export async function GET(request: NextRequest) {
   const slackUserId = await consumeSlackSignIn(service, { token });
   if (!slackUserId) {
     const refreshed = await refreshHomeForDeadToken(service, token, origin);
+    console.warn("slack-sign-in: dead sign-in link clicked (Home tab refreshed: %s)", refreshed);
     return NextResponse.redirect(new URL(`/auth/slack/continue?error=expired${refreshed ? "&refreshed=1" : ""}`, origin), 303);
   }
 

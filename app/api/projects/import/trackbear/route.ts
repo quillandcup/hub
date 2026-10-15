@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
     );
     console.log("TrackBear import:", effectiveIdentity.memberId, JSON.stringify(result.created));
 
-    revalidatePath("/projects");
+    revalidatePath("/projects", "layout");
     revalidatePath("/dashboard");
     revalidatePath(`/members/${effectiveIdentity.memberId}`);
     return NextResponse.json(result);

@@ -243,7 +243,7 @@ describe("addBook", () => {
       format: "print",
     });
     expect(revalidatePath).toHaveBeenCalledWith("/bookshelf");
-    expect(revalidatePath).toHaveBeenCalledWith("/projects");
+    expect(revalidatePath).toHaveBeenCalledWith("/projects", "layout");
     expect(revalidatePath).toHaveBeenCalledWith("/members/member-1");
     expect(notifyStaffNewBook).toHaveBeenCalledWith({
       title: "My Book",
@@ -318,7 +318,7 @@ describe("updateBook", () => {
       expect.objectContaining({ title: "My Book", purchase_url: "https://example.com/buy" })
     );
     expect(revalidatePath).toHaveBeenCalledWith("/bookshelf");
-    expect(revalidatePath).toHaveBeenCalledWith("/projects");
+    expect(revalidatePath).toHaveBeenCalledWith("/projects", "layout");
     expect(revalidatePath).toHaveBeenCalledWith("/members/member-1");
   });
 
@@ -361,7 +361,7 @@ describe("deleteBook", () => {
     const result = await deleteBook("book-1");
     expect(result).toEqual({ success: true });
     expect(revalidatePath).toHaveBeenCalledWith("/bookshelf");
-    expect(revalidatePath).toHaveBeenCalledWith("/projects");
+    expect(revalidatePath).toHaveBeenCalledWith("/projects", "layout");
     expect(revalidatePath).toHaveBeenCalledWith("/members/member-1");
   });
 

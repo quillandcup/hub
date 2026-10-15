@@ -93,7 +93,7 @@ export default function HostVibePanel({ hostedVibes }: { hostedVibes: HostedVibe
 
   return (
     <div>
-      <h2 className="text-lg font-medium text-slate-900 dark:text-slate-100 mb-1">My Prickle Vibe</h2>
+      <h2 id="prickle-vibe" className="text-lg font-medium text-slate-900 dark:text-slate-100 mb-1">My Prickle Vibe</h2>
       <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
         Help Hedgies know what to expect from the Prickles you host — this powers the Prickle Picker.
       </p>

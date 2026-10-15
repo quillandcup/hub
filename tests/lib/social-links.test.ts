@@ -65,24 +65,26 @@ describe("parseBioInput", () => {
 });
 
 describe("applyProfileOverride", () => {
-  const kajabi = { bio: "Kajabi bio", facebook_url: "https://facebook.com/kajabi", twitter_url: null };
+  const kajabi = { bio: "Kajabi bio", instagram_url: "https://instagram.com/kajabi", facebook_url: "https://facebook.com/kajabi", twitter_url: null };
 
   it("prefers non-empty overrides field by field", () => {
-    expect(applyProfileOverride(kajabi, { bio: "My bio", facebook_url: null, twitter_url: "https://x.com/me" })).toEqual({
+    expect(applyProfileOverride(kajabi, { bio: "My bio", instagram_url: null, facebook_url: null, twitter_url: "https://x.com/me" })).toEqual({
       bio: "My bio",
+      instagram_url: "https://instagram.com/kajabi",
       facebook_url: "https://facebook.com/kajabi",
       twitter_url: "https://x.com/me",
     });
   });
 
   it("follows Kajabi for never-set (NULL) fields or no override row", () => {
-    expect(applyProfileOverride(kajabi, { bio: null, facebook_url: null, twitter_url: null })).toEqual(kajabi);
+    expect(applyProfileOverride(kajabi, { bio: null, instagram_url: null, facebook_url: null, twitter_url: null })).toEqual(kajabi);
     expect(applyProfileOverride(kajabi, null)).toEqual(kajabi);
   });
 
   it("shows nothing for a cleared ('') field, even when Kajabi has a value", () => {
-    expect(applyProfileOverride(kajabi, { bio: "", facebook_url: "", twitter_url: null })).toEqual({
+    expect(applyProfileOverride(kajabi, { bio: "", instagram_url: "", facebook_url: "", twitter_url: null })).toEqual({
       bio: null,
+      instagram_url: null,
       facebook_url: null,
       twitter_url: null,
     });

@@ -18,7 +18,7 @@ state rather than rewriting the aspirational sections wholesale:
   describes is only closed for requests someone has actually written a
   handler for, not closed by MSW's mere presence.
 - **Shared database state / no test isolation**: still real and unresolved —
-  `vitest.config.ts` currently sets `fileParallelism: false` as a stopgap
+  `vitest.config.mts` currently sets `fileParallelism: false` as a stopgap
   (see the "Re-introduce Test Parallelism" TODO in `docs/TODO.md` for the
   real fix this is standing in for: transactional rollback or per-worker DB
   isolation, neither implemented yet).
@@ -120,7 +120,7 @@ await supabase.from('prickle_types').insert(testPrickleTypes)
 
 **3. Programmatic Server Start**
 ```typescript
-// vitest.config.ts
+// vitest.config.mts
 export default defineConfig({
   globalSetup: './tests/setup/global-setup.ts',
 })

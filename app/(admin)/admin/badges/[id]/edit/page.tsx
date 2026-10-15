@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import RecordHistoryButton from "@/components/RecordHistoryButton";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import type { Metadata } from "next";
@@ -39,7 +40,7 @@ export default async function EditBadgePage({ params }: { params: Promise<{ id: 
   return (
     <div className="min-h-screen bg-canvas dark:bg-slate-950">
       <header className="border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
-        <div className="container mx-auto px-6 py-4">
+        <div className="container mx-auto px-6 py-4 relative">
           <Link
             href="/admin/badges"
             className="text-plum-600 hover:text-plum-700 dark:text-plum-400 text-sm mb-2 inline-block"
@@ -47,6 +48,14 @@ export default async function EditBadgePage({ params }: { params: Promise<{ id: 
             ← Back to Badges
           </Link>
           <h1 className="text-2xl font-bold">Edit Badge</h1>
+          <div className="absolute top-4 right-6">
+            <RecordHistoryButton
+              entityType={["badge_type", "badge_level", "member_badge"]}
+              entityId={id}
+              parentColumn="badge_type_id"
+              label={badgeType.name}
+            />
+          </div>
         </div>
       </header>
 

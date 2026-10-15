@@ -48,7 +48,7 @@ async function fetchAllMessages(
   while (hasMore) {
     const { data: batch } = await supabase
       .schema("bronze")
-      .from("slack_messages")
+      .from("slack_messages_meta")
       .select("channel_id, channel_name, occurred_at, deleted_at, user_id, thread_ts")
       .gte("occurred_at", since)
       .lte("occurred_at", until)
@@ -79,10 +79,10 @@ async function fetchAllReactions(
     const { data: batch } = await supabase
       .schema("bronze")
       .from("slack_reactions")
-      .select("channel_id, channel_name, occurred_at, removed_at, user_id, reaction")
+      .select("channel_id, channel_name, occurred_at, deleted_at, user_id, reaction")
       .gte("occurred_at", since)
       .lte("occurred_at", until)
-      .is("removed_at", null)
+      .is("deleted_at", null)
       .order("occurred_at")
       .range(offset, offset + BATCH - 1)
     if (batch && batch.length > 0) {
@@ -104,7 +104,7 @@ async function fetchAllTimeMessageActivity(supabase: SupabaseClient): Promise<Ch
   while (hasMore) {
     const { data: batch } = await supabase
       .schema("bronze")
-      .from("slack_messages")
+      .from("slack_messages_meta")
       .select("channel_id, occurred_at")
       .is("deleted_at", null)
       .order("occurred_at")
@@ -172,16 +172,26 @@ export default async function SlackEngagementPage({
     supabase
       .schema("bronze")
       .from("slack_channels")
-      .select("channel_id, name, is_archived, is_private, member_count, created"),
+      .select("channel_id, name, is_archived, is_private, is_mpim, member_count, created"),
     fetchAllTimeMessageActivity(supabase),
   ])
 
-  const channels = (channelRows ?? []) as unknown as SlackChannelRow[]
+  // Group DMs count toward the totals, but they aren't channels: keep them (and
+  // their names, which list the members) out of the per-channel tables.
+  const allConversations = (channelRows ?? []) as unknown as (SlackChannelRow & { is_mpim: boolean })[]
+  const groupDmIds = new Set(allConversations.filter((c) => c.is_mpim).map((c) => c.channel_id))
+  const channels: SlackChannelRow[] = allConversations.filter((c) => !c.is_mpim)
+  const channelMessages = messages.filter((m) => !groupDmIds.has(m.channel_id))
+  const channelReactions = reactions.filter((r) => !groupDmIds.has(r.channel_id))
 
   const hero = computeHeroStats(messages, reactions)
   const heatmap = computeDayHourHeatmap(messages, reactions)
-  const channelEngagement = computeChannelEngagement(messages, reactions, channels, since, until)
-  const archivalCandidates = computeArchivalCandidates(allTimeActivity, channels, new Date())
+  const channelEngagement = computeChannelEngagement(channelMessages, channelReactions, channels, since, until)
+  const archivalCandidates = computeArchivalCandidates(
+    allTimeActivity.filter((a) => !groupDmIds.has(a.channel_id)),
+    channels,
+    new Date()
+  )
   const topEmoji = computeTopEmoji(reactions)
 
   return (

@@ -85,6 +85,7 @@ export async function GET(request: NextRequest) {
       role: profile?.role ?? "member",
       features: featureMap.get(u.id) ?? [],
       createdAt: u.created_at,
+      staffId: staff?.id ?? null,
       staffName: staff?.name ?? null,
       staffRole: staff?.role ?? null,
       memberId: member?.id ?? null,
@@ -103,7 +104,9 @@ export async function POST(request: NextRequest) {
   if (!auth.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (auth.forbidden) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  const { email } = await request.json();
+  const parsed = await request.json().catch(() => undefined);
+  if (parsed === undefined) return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+  const { email } = parsed;
   if (!email?.trim()) {
     return NextResponse.json({ error: "Email is required" }, { status: 400 });
   }

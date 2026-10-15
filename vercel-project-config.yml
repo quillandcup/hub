@@ -1,0 +1,21 @@
+# Source of truth for the Vercel project settings that live outside vercel.json. Applied by
+# scripts/vercel-config.ts (CI's push-vercel-config job after every production deploy that
+# changes this file or the script; `npm run vercel:config:diff` is the read-only preview).
+# See docs/VERCEL_CONFIG.md.
+
+# Always-on tracing (https://vercel.com/docs/tracing/always-on-tracing).
+# Vercel uses the FIRST matching rule, so list the specific ones first. A request that
+# matches no rule isn't traced, so there is deliberately no Preview rule. The list REPLACES
+# the project's rules (max 10); an empty list turns tracing off.
+#   environment: production | preview | any
+#   path:        optional path prefix; leave out to match every path
+#   rate:        percent of matching requests to trace, 0-100 (0 matches and collects nothing)
+tracing:
+  sampling:
+    # Checkly's uptime monitor (__checks__/hub-uptime.check.ts) hits this constantly.
+    # Add any new health-check style endpoint here, above the catch-all.
+    - environment: production
+      path: /api/health
+      rate: 0
+    - environment: production
+      rate: 100

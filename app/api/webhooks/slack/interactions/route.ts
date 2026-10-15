@@ -1,13 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { WebClient } from "@slack/web-api";
 import { verifySlackSignature } from "@/lib/slack-signature";
-import { resolveMemberIdForSlackUser } from "@/lib/writing-nudges";
+import {
+  parseCheckinAnswer,
+  parseDismiss,
+  dismissCheckinHalf,
+  type CheckinHalfKind,
+  parseQuickLogAnswer,
+  QUICK_LOG_ACTION_ID,
+  replaceAnsweredBlock,
+  saveCheckinAnswer,
+  withSavedAnswer,
+  type CheckinAnswer,
+  type QuickLogAnswer,
+} from "@/lib/prickle-checkin-dms";
+import { resolveMemberIdForSlackUser } from "@/lib/slack-member-ids";
 import { MEASURE_LABELS, type WritingMeasure } from "@/lib/writing-projects";
 import {
-  publishSlackHome,
   sendSlackSignInMessage,
-  SLACK_REFRESH_ACTION_ID,
   SLACK_SEND_LINK_ACTION_ID,
 } from "@/lib/slack-sign-in";
 import { createServiceRoleClient } from "@/lib/supabase/service";
@@ -16,14 +26,16 @@ import { createServiceRoleClient } from "@/lib/supabase/service";
 export const maxDuration = 60;
 
 /**
- * Slack Interactivity webhook -- handles block_actions payloads: the
- * post-prickle quick-log dropdown (item 10) and the Slack sign-in buttons ("Get a fresh
- * link", "Send me a link I can copy"; lib/slack-sign-in.ts). Separate from app/api/webhooks/slack/route.ts
- * (the Events API handler) because interactivity payloads are application/x-www-form-urlencoded
- * with a `payload` JSON field, not the plain JSON body the Events API sends -- can't share a
- * parser, so this is its own endpoint per the roadmap spec's own note. Requires
- * settings.interactivity.request_url = this route in slack-app-manifest.yml (manual step, see
- * Phase 1 plan -- the live Slack app's settings need updating to match).
+ * Slack Interactivity webhook -- handles block_actions payloads: answers to the prickle check-in
+ * and check-out DMs (check-in questions, the star rating buttons and the progress number inputs;
+ * lib/prickle-checkin-dms.ts)
+ * and the Slack sign-in button ("Send me a link I can copy"; lib/slack-sign-in.ts). Separate
+ * from app/api/webhooks/slack/route.ts (the Events API handler) because interactivity payloads
+ * are application/x-www-form-urlencoded with a `payload` JSON field, not the plain JSON body the
+ * Events API sends -- can't share a parser, so this is its own endpoint per the roadmap spec's
+ * own note. Requires
+ * settings.interactivity.request_url = this route in slack-app-manifest.yml (CI pushes the
+ * manifest to the live Slack app after each production deploy; see docs/SLACK_MANIFEST.md).
  */
 export async function POST(request: NextRequest) {
   const rawBody = await request.text();
@@ -51,10 +63,9 @@ export async function POST(request: NextRequest) {
 
   const action = payload.actions?.[0];
 
-  // Slack sign-in buttons (lib/slack-sign-in.ts): "Get a fresh link" republishes the Home tab;
-  // "Send me a link I can copy" DMs a copyable one-time link.
-  const signInActions: Record<string, typeof publishSlackHome> = {
-    [SLACK_REFRESH_ACTION_ID]: publishSlackHome,
+  // Slack sign-in button (lib/slack-sign-in.ts): "Send me a link I can copy" DMs a copyable
+  // one-time link.
+  const signInActions: Record<string, typeof sendSlackSignInMessage> = {
     [SLACK_SEND_LINK_ACTION_ID]: sendSlackSignInMessage,
   };
   const signInAction = action?.action_id ? signInActions[action.action_id] : undefined;
@@ -67,10 +78,36 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ received: true });
   }
 
-  if (action?.action_id !== "writing_quick_log") return NextResponse.json({ received: true });
+  const dismissal = parseDismiss(action);
+  if (dismissal) {
+    try {
+      await handleDismiss(payload, dismissal.half, dismissal.prickleId);
+    } catch (error) {
+      console.error("Error handling prickle check-in dismissal:", error);
+    }
+    return NextResponse.json({ received: true });
+  }
+
+  const checkinAnswer = parseCheckinAnswer(action);
+  if (checkinAnswer) {
+    try {
+      await handleCheckinAnswer(payload, checkinAnswer);
+    } catch (error) {
+      console.error("Error handling prickle check-in answer:", error);
+    }
+    return NextResponse.json({ received: true });
+  }
+
+  if (action?.action_id !== QUICK_LOG_ACTION_ID) return NextResponse.json({ received: true });
+
+  const quickLog = parseQuickLogAnswer(action);
+  if (!quickLog) {
+    console.error("writing_quick_log: malformed action or missing amount", action.block_id, action.value);
+    return NextResponse.json({ received: true });
+  }
 
   try {
-    await handleWritingQuickLog(payload, action);
+    await handleWritingQuickLog(payload, action, quickLog);
   } catch (error) {
     console.error("Error handling writing_quick_log interaction:", error);
   }
@@ -78,23 +115,70 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({ received: true });
 }
 
-async function handleWritingQuickLog(payload: any, action: any) {
-  const [projectId, prickleId, measure, amountStr] = String(action.selected_option?.value ?? "").split(":");
-  const amount = Number(amountStr);
+/**
+ * A check-in question answered in a check-in or check-out DM: save it to the member's check-in,
+ * then write the pick back into the message so a later update (another answer, a quick-log
+ * confirmation) doesn't reset it on screen.
+ */
+async function handleCheckinAnswer(payload: any, answer: CheckinAnswer) {
+  const slackUserId = payload.user?.id as string | undefined;
+  if (!slackUserId) return;
+
+  const supabase = createServiceRoleClient();
+  const memberId = await resolveMemberIdForSlackUser(supabase, slackUserId);
+  if (!memberId) {
+    console.error("prickle_checkin_answer: no member matched for Slack user", slackUserId);
+    return;
+  }
+
+  const error = await saveCheckinAnswer(supabase, memberId, answer);
+  if (error) {
+    console.error("prickle_checkin_answer: not saved", { memberId, prickleId: answer.prickleId, field: answer.field, error });
+    return;
+  }
+
+  const channelId = payload.channel?.id as string | undefined;
+  const messageTs = payload.message?.ts as string | undefined;
+  const blocks = withSavedAnswer(payload.message?.blocks, answer);
+  const token = process.env.SLACK_BOT_TOKEN;
+  if (channelId && messageTs && blocks && token) {
+    await new WebClient(token).chat.update({ channel: channelId, ts: messageTs, text: payload.message?.text ?? "", blocks });
+  }
+}
+
+/** "Skip check-in" / "Skip check-out" in a DM: close it everywhere and collapse the message to a note. */
+async function handleDismiss(payload: any, half: CheckinHalfKind, prickleId: string) {
+  const slackUserId = payload.user?.id as string | undefined;
+  if (!slackUserId) return;
+  const supabase = createServiceRoleClient();
+  const memberId = await resolveMemberIdForSlackUser(supabase, slackUserId);
+  if (!memberId) {
+    console.error("prickle_dismiss: no member matched for Slack user", slackUserId);
+    return;
+  }
+  const error = await dismissCheckinHalf(supabase, half, memberId, prickleId);
+  if (error) return;
+
+  const channelId = payload.channel?.id as string | undefined;
+  const messageTs = payload.message?.ts as string | undefined;
+  const token = process.env.SLACK_BOT_TOKEN;
+  if (channelId && messageTs && token) {
+    const text = `Skipped this ${half === "checkin" ? "check-in" : "check-out"}.`;
+    await new WebClient(token).chat.update({ channel: channelId, ts: messageTs, text, blocks: [{ type: "section", text: { type: "mrkdwn", text } }] });
+  }
+}
+
+async function handleWritingQuickLog(payload: any, action: any, { projectId, prickleId, measure, amount }: QuickLogAnswer) {
   const slackUserId = payload.user?.id as string | undefined;
   const channelId = payload.channel?.id as string | undefined;
   const messageTs = payload.message?.ts as string | undefined;
 
-  if (!projectId || !prickleId || !measure || Number.isNaN(amount) || !slackUserId) {
-    console.error("writing_quick_log: malformed action value or missing user", action.selected_option?.value);
+  if (!slackUserId) {
+    console.error("writing_quick_log: missing Slack user");
     return;
   }
 
-  const supabase = createSupabaseClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { autoRefreshToken: false, persistSession: false } }
-  );
+  const supabase = createServiceRoleClient();
 
   const memberId = await resolveMemberIdForSlackUser(supabase, slackUserId);
   if (!memberId) {
@@ -155,10 +239,12 @@ async function handleWritingQuickLog(payload: any, action: any) {
     if (token) {
       const slack = new WebClient(token);
       const measureLabel = MEASURE_LABELS[measure as WritingMeasure] ?? measure;
+      const confirmation = `✅ Logged ${amount} ${measureLabel.toLowerCase()} — nice work!`;
       await slack.chat.update({
         channel: channelId,
         ts: messageTs,
-        text: `✅ Logged ${amount} ${measureLabel.toLowerCase()} — nice work!`,
+        text: confirmation,
+        blocks: replaceAnsweredBlock(payload.message?.blocks, action.block_id, confirmation),
       });
     }
   }

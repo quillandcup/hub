@@ -268,7 +268,7 @@ async function fetchChannelHistory(
                 user_email: '', // Will be filled later
                 user_name: '', // Will be filled later
                 occurred_at: new Date(parseFloat(msg.ts) * 1000).toISOString(),
-                removed_at: null,
+                deleted_at: null,
                 raw_payload: JSON.stringify(reaction)
               });
             }

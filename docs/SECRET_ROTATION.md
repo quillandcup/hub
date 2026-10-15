@@ -15,14 +15,15 @@ management).
 1. **Rotate on the provider's side first.** Don't invent a new value yourself unless the var
    is self-generated (see below) -- most of these are provider-issued and won't authenticate
    until the provider's side actually changes too.
-2. **Update `.env.prod`** (and `.env.devel` too, if the same external credential is shared
-   across environments -- check whether the var already exists there).
+2. **Update the value file it lives in** -- `.env.shared` for credentials of accounts every
+   environment shares (Zoom, Kajabi, Google, Slack), `.env.prod`/`.env.preview` for
+   per-environment ones (Supabase, Stripe, self-generated secrets). See `docs/ENV_MANAGEMENT.md`.
 3. **Sync:**
    ```bash
    # Scoped sync -- just the vars you rotated, production only (fast, low blast radius)
    npm run env:sync -- --only=NAME1,NAME2 --target=production
 
-   # Full Vercel sync -- every var, every environment (only if .env.devel changed too)
+   # Full Vercel sync -- every var, preview + production (e.g. after editing .env.shared)
    npm run env:sync
 
    # GitHub Actions secrets (CHECKLY_*, SUPABASE_ACCESS_TOKEN, SUPABASE_DB_PASSWORD, VERCEL_*)
@@ -105,6 +106,30 @@ management).
 - Slack-dependent features (feedback widget notifications, new book/award pings, writing
   nudge DMs) are down between the revoke and the reinstall+resync+redeploy -- do this in one
   sitting.
+- **The revoke uninstalls Billie Bot, which removes it from every channel.** Public channels
+  come back on the next Slack import (it auto-joins them), but each **private channel and
+  group DM** needs a member to run `/invite @Billie Bot` there. Before revoking, note which
+  private channels it's in (`bronze.slack_channels` where `is_private`); after reinstalling,
+  re-invite it to each one, then run a manual Slack API import from the admin import page.
+  The next morning, `/admin/hygiene` must show no "Billie Bot lost access" warning. The
+  2026-09-25 rotation skipped this and silently cut 13 private channels out of the import
+  for days. Long-term fix: Slack token rotation (see `docs/SLACK_BRIDGED_CHAT.md`), which
+  never needs an uninstall.
+
+- **Signing secret** (`SLACK_SIGNING_SECRET`): https://api.slack.com/apps/A0AS93BKT09/general
+  -> App Credentials -> Regenerate. Events, interactions and `/hub` are rejected between the
+  regenerate and the resync+redeploy.
+- **App configuration refresh token** (`SLACK_CONFIG_REFRESH_TOKEN`, used only by CI's
+  `push-slack-manifest` job): https://api.slack.com/apps -> "Your App Configuration Tokens"
+  -> Generate Token, then `gh secret set SLACK_CONFIG_REFRESH_TOKEN --repo quillandcup/hub`
+  with the refresh token (`xoxe-...`). This is not the app's "App-Level Tokens" section, and
+  it isn't synced from `.env.prod`: CI replaces it on every run. See `docs/SLACK_MANIFEST.md`.
+
+### GitHub
+- `GH_TOKEN_SLACK_MANIFEST`: https://github.com/settings/personal-access-tokens -> generate a
+  fine-grained token, resource owner `quillandcup`, only this repository, **Secrets: Read and
+  write**. Put it in `.env.prod`, run `npm run env:sync:github`, then delete the old token on
+  that page. It has an expiry date; the Slack manifest job fails once it passes.
 
 ### Sentry
 - https://quillandcup.sentry.io/settings/auth-tokens/ (org slug is `quillandcup` -- matches
@@ -133,33 +158,22 @@ openssl rand -hex 32
 `CRON_INTERNAL_SECRET` additionally needs `npm run env:sync:vault` (pg_cron reads it from
 Supabase Vault, not from Vercel's `process.env`).
 
-## Backfilling vars missing from `.env.*`
+## Backfilling vars missing from the value files
 
-`.env.devel`/`.env.prod` are the source of truth, but as of 2026-09-29 some vars exist only in
-Vercel, so `npm run env:sync` ends with "Missing values" (it skips them and leaves Vercel's
-copy alone -- nothing breaks, but the files aren't authoritative for them). Fill these in:
+`npm run env:sync` lists every var it skipped and the file(s) it expected it in (it leaves
+Vercel's copy alone, and exits non-zero so the gap stays visible). To fill one in:
 
-| Var | `.env.prod` | `.env.devel` | Where the value comes from |
-|---|---|---|---|
-| `ZOOM_WEBHOOK_SECRET_TOKEN` | missing | missing | Zoom app -> Features -> Event Subscriptions -> Secret Token (see Zoom above). Only production receives Zoom webhooks, so `.env.devel` can reuse the same value. |
-| `SENTRY_DSN` | missing | missing | Sentry -> Settings -> Projects -> `hub` -> Client Keys (DSN). Same DSN in both files; Sentry separates environments itself. Vercel only has it in production today. |
-| `NEXT_PUBLIC_SENTRY_DSN` | missing | missing | Same DSN as `SENTRY_DSN` (Vercel has the identical value in all three environments). |
-| `NEXT_PUBLIC_GA_ID` | missing | missing | GA4 -> Admin -> Data streams -> the hub stream's Measurement ID (`G-...`). Vercel has the identical value in all three environments. |
-| `CRON_SECRET` | present | missing | Self-generated: `openssl rand -hex 32`. Use a **different** value from production -- Vercel Cron only runs in production, so dev/preview values only matter for calling `/api/reconcile/*` by hand. |
-| `CRON_INTERNAL_SECRET` | present | missing | Self-generated, different from production, same reasoning. pg_cron (via Supabase Vault) only ever calls production. |
-
-The Config-type values (the two Sentry DSNs and the GA ID) can also be copied out of Vercel
-instead of each provider's dashboard -- pull to a throwaway file, copy the lines, delete it:
-
-```bash
-npx vercel env pull /tmp/vercel-prod.env --environment=production --yes
-# copy NEXT_PUBLIC_SENTRY_DSN / SENTRY_DSN / NEXT_PUBLIC_GA_ID into .env.prod and .env.devel
-rm /tmp/vercel-prod.env
-```
-
-Secret-type values (`ZOOM_WEBHOOK_SECRET_TOKEN`, the cron secrets) come back as `[SENSITIVE]`
-from `vercel env pull`, so they have to come from the provider (or be generated). Then run
-`npm run env:sync` -- it should finish with no "Missing values".
+- **Config-type values** can be copied out of Vercel -- pull to a throwaway file, copy the line,
+  delete it:
+  ```bash
+  npx vercel env pull /tmp/vercel-prod.env --environment=production --yes
+  rm /tmp/vercel-prod.env
+  ```
+- **Secret-type values** come back as `[SENSITIVE]`, so they have to come from the provider
+  (per-service sections above) or be generated (`openssl rand -hex 32` for self-generated ones;
+  use a different value for preview than production).
+- **GitHub Actions credentials** (`npm run env:sync:github`) can't be read back from GitHub
+  either -- create a new token at the provider, put it in `.env.prod`, sync, then revoke the old one.
 
 ## Gotchas learned the hard way (2026-09-25 incident)
 

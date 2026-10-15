@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
       let hasMore = true;
       while (hasMore) {
         const { data: batch } = await supabase
-          .schema('bronze').from("slack_messages")
+          .schema('bronze').from("slack_messages_meta")
           .select("user_id")
           .range(offset, offset + 999);
         if (batch && batch.length > 0) {

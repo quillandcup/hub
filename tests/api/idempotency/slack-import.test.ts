@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { getTestSupabaseAdminClient, getTestAuthHeaders, getTestApiBaseUrl } from '../../helpers/supabase'
+import { apiFetch } from '../../helpers/api-fetch'
 
 /**
  * Test to verify /api/import/slack is idempotent
@@ -129,7 +130,7 @@ describe('Slack Import Idempotency', () => {
         user_email: 'test@example.com',
         user_name: 'Test User',
         occurred_at: '2099-01-01T12:01:00Z',
-        removed_at: null,
+        deleted_at: null,
         raw_payload: { reaction: 'thumbsup' },
       },
     ]
@@ -146,7 +147,7 @@ describe('Slack Import Idempotency', () => {
     formData.append('messages', messagesFile)
     formData.append('reactions', reactionsFile)
 
-    const response = await fetch(`${getTestApiBaseUrl()}/api/import/slack`, {
+    const response = await apiFetch(`${getTestApiBaseUrl()}/api/import/slack`, {
       method: 'POST',
       headers: authHeaders,
       body: formData,
@@ -250,7 +251,7 @@ describe('Slack Import Idempotency', () => {
         user_email: 'test@example.com',
         user_name: 'Test User',
         occurred_at: '2099-01-01T12:01:00Z',
-        removed_at: null,
+        deleted_at: null,
         raw_payload: { reaction: 'thumbsup' },
       },
     ]
@@ -267,7 +268,7 @@ describe('Slack Import Idempotency', () => {
     formData.append('messages', messagesFile)
     formData.append('reactions', reactionsFile)
 
-    const response = await fetch(`${getTestApiBaseUrl()}/api/import/slack`, {
+    const response = await apiFetch(`${getTestApiBaseUrl()}/api/import/slack`, {
       method: 'POST',
       headers: authHeaders,
       body: formData,
@@ -366,7 +367,8 @@ describe('Slack Import Idempotency', () => {
         user_email: 'updated@example.com',
         user_name: 'Updated User',
         occurred_at: '2099-01-01T12:01:00Z',
-        removed_at: '2099-01-01T14:00:00Z', // Added removal timestamp
+        // The column's old name, as in CSVs exported before it became deleted_at.
+        removed_at: '2099-01-01T14:00:00Z',
         raw_payload: { reaction: 'thumbsup', removed: true },
       },
     ]
@@ -383,7 +385,7 @@ describe('Slack Import Idempotency', () => {
     formData.append('messages', messagesFile)
     formData.append('reactions', reactionsFile)
 
-    const response = await fetch(`${getTestApiBaseUrl()}/api/import/slack`, {
+    const response = await apiFetch(`${getTestApiBaseUrl()}/api/import/slack`, {
       method: 'POST',
       headers: authHeaders,
       body: formData,
@@ -430,7 +432,7 @@ describe('Slack Import Idempotency', () => {
     expect(messages?.reply_count).toBe(2)
     expect(messages?.edited_at).toBe('2099-01-01T13:00:00+00:00')
 
-    expect(reactions?.removed_at).toBe('2099-01-01T14:00:00+00:00')
+    expect(reactions?.deleted_at).toBe('2099-01-01T14:00:00+00:00')
   })
 
   it('should handle multiple import cycles without creating duplicates', async () => {
@@ -493,7 +495,7 @@ describe('Slack Import Idempotency', () => {
         user_email: 'test@example.com',
         user_name: 'Test User',
         occurred_at: '2099-01-01T12:01:00Z',
-        removed_at: null,
+        deleted_at: null,
         raw_payload: { reaction: 'thumbsup' },
       },
     ]
@@ -511,7 +513,7 @@ describe('Slack Import Idempotency', () => {
       formData.append('messages', messagesFile)
       formData.append('reactions', reactionsFile)
 
-      const response = await fetch(`${getTestApiBaseUrl()}/api/import/slack`, {
+      const response = await apiFetch(`${getTestApiBaseUrl()}/api/import/slack`, {
         method: 'POST',
         headers: authHeaders,
         body: formData,
@@ -609,7 +611,7 @@ describe('Slack Import Idempotency', () => {
         user_email: 'test@example.com',
         user_name: 'Test User',
         occurred_at: '2099-01-01T12:06:00Z',
-        removed_at: null,
+        deleted_at: null,
         raw_payload: { reaction: 'heart' },
       },
     ]
@@ -626,7 +628,7 @@ describe('Slack Import Idempotency', () => {
     formData.append('messages', messagesFile)
     formData.append('reactions', reactionsFile)
 
-    const response = await fetch(`${getTestApiBaseUrl()}/api/import/slack`, {
+    const response = await apiFetch(`${getTestApiBaseUrl()}/api/import/slack`, {
       method: 'POST',
       headers: authHeaders,
       body: formData,
@@ -729,7 +731,7 @@ describe('Slack Import Idempotency', () => {
         user_email: 'test@example.com',
         user_name: 'Test User',
         occurred_at: '2099-01-01T12:01:00Z',
-        removed_at: null,
+        deleted_at: null,
         raw_payload: { reaction: 'thumbsup' },
       },
       // Same user, different reaction
@@ -741,7 +743,7 @@ describe('Slack Import Idempotency', () => {
         user_email: 'test@example.com',
         user_name: 'Test User',
         occurred_at: '2099-01-01T12:02:00Z',
-        removed_at: null,
+        deleted_at: null,
         raw_payload: { reaction: 'heart' },
       },
       // Different user, same reaction as first
@@ -753,7 +755,7 @@ describe('Slack Import Idempotency', () => {
         user_email: 'test2@example.com',
         user_name: 'Test User 2',
         occurred_at: '2099-01-01T12:03:00Z',
-        removed_at: null,
+        deleted_at: null,
         raw_payload: { reaction: 'thumbsup', user2: true },
       },
     ]
@@ -770,7 +772,7 @@ describe('Slack Import Idempotency', () => {
     formData.append('messages', messagesFile)
     formData.append('reactions', reactionsFile)
 
-    const response = await fetch(`${getTestApiBaseUrl()}/api/import/slack`, {
+    const response = await apiFetch(`${getTestApiBaseUrl()}/api/import/slack`, {
       method: 'POST',
       headers: authHeaders,
       body: formData,

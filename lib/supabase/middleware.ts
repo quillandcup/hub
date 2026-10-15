@@ -3,6 +3,8 @@ import { NextResponse, after, type NextRequest } from 'next/server'
 import { withTimeout, AUTH_CHECK_TIMEOUT_MS } from '@/lib/with-timeout'
 import { getAppRoleFromAccessToken, getSessionIdFromAccessToken } from '@/lib/supabase/session-claims'
 import { ADMIN_NO_ACCESS_PATH, isAdminPath } from '@/lib/admin-paths'
+import { SUDO_COOKIE_NAME, actingAsHeaderValue } from '@/lib/sudo-cookie'
+import { PAGE_VIEW_PATH } from '@/lib/page-views'
 import { NEXT_PATH_COOKIE, NEXT_PATH_COOKIE_MAX_AGE_SECONDS, safeNextPath } from '@/lib/safe-next'
 
 export async function updateSession(request: NextRequest) {
@@ -84,22 +86,35 @@ export async function updateSession(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   // Log access events for signed-in users (login/session history, admin-only
-  // view). Skip Next.js prefetch requests (Link hover, etc.) — those aren't
-  // real visits and would pollute both the page trail and session gaps.
+  // view). Every request counts as activity (is_page false) so sessions stay
+  // alive, but none is a page view here: Next strips its flight/prefetch
+  // headers before the proxy runs, so a Link prefetch and a real navigation
+  // look the same. Page views come from the browser instead
+  // (components/PageViewTracker.tsx -> app/api/track/page-view).
   const isPrefetch =
     request.headers.get('next-router-prefetch') === '1' ||
     request.headers.get('purpose') === 'prefetch' ||
     request.headers.get('sec-purpose')?.includes('prefetch')
-  if (user && !isPrefetch) {
+  // Vercel's injected analytics/speed-insights scripts aren't visits either,
+  // and the tracker's own reports would double-count.
+  const isPlatformInternal = pathname.startsWith('/_vercel/') || pathname === PAGE_VIEW_PATH
+  if (user && !isPrefetch && !isPlatformInternal) {
     const userId = user.id
     const eventSessionId = sessionId
+    // Sudo: record which member this admin was viewing as, so visits made as
+    // a member aren't mistaken for the member's own. Header value is
+    // "<admin id>:<member id>" and only comes back for a validly signed
+    // cookie that belongs to this user.
+    const actingAsMemberId =
+      actingAsHeaderValue(request.cookies.get(SUDO_COOKIE_NAME)?.value, userId)?.split(':')[1] ?? null
     after(async () => {
       try {
         await supabase.from('access_events').insert({
           user_id: userId,
           path: pathname,
-          is_page: !pathname.startsWith('/api/'),
+          is_page: false,
           session_id: eventSessionId,
+          acting_as_member_id: actingAsMemberId,
         })
       } catch {
         // Best-effort logging — never break the request over this.
@@ -108,9 +123,11 @@ export async function updateSession(request: NextRequest) {
   }
 
   // Public routes — no auth required
+  // /unsubscribe is authorized by the signed token in its link (lib/email-unsubscribe.ts).
   // API routes handle their own auth via requireAdmin/createApiAuth
   const isPublic =
     pathname === '/login' ||
+    pathname === '/unsubscribe' ||
     pathname.startsWith('/auth/') ||
     pathname.startsWith('/api/')
 

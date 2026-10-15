@@ -66,7 +66,7 @@ vi.mock("@/app/(member)/my-prickles/CommitmentsManager", () => ({ default: () =>
 import StreaksPage from "@/app/(member)/streaks/page";
 import WheelOfWonderPage from "@/app/(member)/wheel-of-wonder/page";
 import AdminWheelOfWonderPage from "@/app/(admin)/admin/wheel-of-wonder/page";
-import MyPricklesPage from "@/app/(member)/my-prickles/page";
+import MyPricklesPage, { type MyPricklesTabId } from "@/app/(member)/my-prickles/MyPricklesPage";
 import { getRankedUpcomingPrickles } from "@/lib/upcoming-prickles";
 
 const OTHER_MEMBERS = [
@@ -81,7 +81,7 @@ const userProfiles = (q: FakeQuery) => {
   return { data: ROLES[id] ? [{ role: ROLES[id] }] : [] };
 };
 
-const myPricklesProps = (tab?: string) => ({ searchParams: Promise.resolve(tab ? { tab } : {}) });
+const myPricklesProps = (tab: MyPricklesTabId = "upcoming") => ({ tab });
 
 beforeEach(() => {
   resetServerPageMocks();
@@ -175,7 +175,7 @@ describe("retired feature flags: pages render for a member with no feature previ
     expect(redirect).not.toHaveBeenCalled();
   });
 
-  it("My Prickles honors ?tab=find", async () => {
+  it("My Prickles opens Find a Prickle when its route asks for it", async () => {
     await renderServerPage(MyPricklesPage, myPricklesProps("find"));
     expect(screen.getByRole("tab", { name: "Find a Prickle" })).toHaveAttribute("aria-selected", "true");
     expect(within(screen.getByRole("tabpanel")).getByTestId("prickle-wizard")).toBeInTheDocument();
@@ -186,7 +186,7 @@ describe("retired feature flags: pages render for a member with no feature previ
     vi.mocked(getRankedUpcomingPrickles).mockResolvedValueOnce(ranked as never);
     await renderServerPage(MyPricklesPage, myPricklesProps());
     expect(screen.getAllByTestId("upcoming-row")).toHaveLength(8);
-    expect(screen.getByRole("link", { name: /Find a Prickle/ })).toHaveAttribute("href", "/my-prickles?tab=find");
+    expect(screen.getByRole("link", { name: /Find a Prickle/ })).toHaveAttribute("href", "/my-prickles/find");
   });
 
   it("My Prickles' Upcoming shows every personal prickle, past the recommendation cap", async () => {

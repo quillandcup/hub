@@ -7,7 +7,9 @@ import { getUserTimezonePreference } from "@/lib/timezone";
 import { revalidatePath } from "next/cache";
 import {
   getPrickleRecommendations as computeRecommendations,
+  seriesKeyFor,
   type CandidatePrickle,
+  type PersonalCheckin,
   type HistoricalAttendanceRow,
   type HostVibeRow,
   type PickerHost,
@@ -17,11 +19,15 @@ import {
   type TimeOfDay,
   type Vibe,
   type VibePreference,
+  PICKER_HISTORY_MONTHS as HISTORY_MONTHS,
 } from "@/lib/prickle-picker";
+import { getHostVibeTypes } from "@/lib/host-vibes";
+import { ORG_TIMEZONE } from "@/lib/config";
+import { validateCheckin, type Feeling, type Need } from "@/lib/prickle-checkins";
 
 const BATCH_SIZE = 1000;
-const HISTORY_MONTHS = 6;
-const DEFAULT_TIMEZONE = "America/New_York";
+const DEFAULT_TIMEZONE = ORG_TIMEZONE;
+const FALLBACK_WINDOW_DAYS = 14;
 
 export interface WizardAnswers {
   /** How many days out from now to look for candidates. */
@@ -30,6 +36,9 @@ export interface WizardAnswers {
   vibe: VibePreference;
   purpose: PurposePreference;
   withMemberIds: string[];
+  /** "How are you feeling?" step; both optional. */
+  feelings?: Feeling[];
+  need?: Need | null;
 }
 
 type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
@@ -77,6 +86,40 @@ async function fetchAttendanceForPrickleIds(
   return rows;
 }
 
+interface RawRatedCheckin {
+  feelings_before: string[] | null;
+  need: string | null;
+  session_rating: number;
+  prickles: { type_id: string | null; host: string | null } | { type_id: string | null; host: string | null }[];
+}
+
+/**
+ * Every check-in the member rated, keyed to its prickle's series -- the personal history the
+ * picker weighs against how they feel now. All time, not just HISTORY_MONTHS: check-ins are
+ * sparse and a series' character changes slowly.
+ */
+async function fetchMyRatedCheckins(supabase: SupabaseClient, memberId: string): Promise<PersonalCheckin[]> {
+  const rows = await fetchAllPaginated<RawRatedCheckin>((offset) =>
+    supabase
+      .from("prickle_checkins")
+      .select("feelings_before, need, session_rating, prickles!inner(type_id, host)")
+      .eq("member_id", memberId)
+      .is("deleted_at", null)
+      .not("session_rating", "is", null)
+      .order("id")
+      .range(offset, offset + BATCH_SIZE - 1)
+  );
+  return rows.map((r) => {
+    const prickle = Array.isArray(r.prickles) ? r.prickles[0] : r.prickles;
+    return {
+      seriesKey: seriesKeyFor(prickle?.type_id ?? null, prickle?.host ?? null),
+      feelingsBefore: (r.feelings_before ?? []) as Feeling[],
+      need: (r.need ?? null) as Need | null,
+      sessionRating: r.session_rating,
+    };
+  });
+}
+
 /**
  * Loads reference/historical data and scores upcoming prickles against the
  * wizard's answers. Returns an error string on failure instead of throwing,
@@ -93,16 +136,26 @@ export async function getWizardRecommendations(
   const effectiveIdentity = await getEffectiveIdentity(user);
   if (!effectiveIdentity) return { error: "No member record" };
 
+  const feelings = answers.feelings ?? [];
+  const need = answers.need ?? null;
+  // Same rules as a saved check-in's "coming in" answers (known keys, at most 2 feelings).
+  const feelingsError = validateCheckin({ feelingsBefore: feelings, need, sessionRating: null, feelingsAfter: [] });
+  if (feelingsError) return { error: feelingsError };
+
   const timezonePref = await getUserTimezonePreference();
   const timezone = timezonePref === "browser" ? DEFAULT_TIMEZONE : timezonePref;
 
   const now = new Date();
   const windowStart = now.toISOString();
   const windowEnd = new Date(now.getTime() + answers.windowDays * 24 * 60 * 60 * 1000).toISOString();
+  // Look further ahead than asked so there's something to offer when the window is empty.
+  const fallbackWindowEnd = new Date(
+    now.getTime() + Math.max(answers.windowDays, FALLBACK_WINDOW_DAYS) * 24 * 60 * 60 * 1000
+  ).toISOString();
   const historyStart = new Date(now);
   historyStart.setMonth(historyStart.getMonth() - HISTORY_MONTHS);
 
-  const [typesResult, membersResult, candidates, historical, vibesResult] = await Promise.all([
+  const [typesResult, membersResult, candidates, historical, vibesResult, myCheckins] = await Promise.all([
     supabase.from("prickle_types").select("id, name, purpose, solo_task_friendly"),
     fetchAllPaginated<PickerHost>((offset) =>
       supabase.from("member_directory").select("id, name").order("id").range(offset, offset + BATCH_SIZE - 1)
@@ -112,7 +165,7 @@ export async function getWizardRecommendations(
         .from("prickles")
         .select("id, type_id, host_id:host, start_time")
         .gte("start_time", windowStart)
-        .lte("start_time", windowEnd)
+        .lte("start_time", fallbackWindowEnd)
         .order("start_time")
         .range(offset, offset + BATCH_SIZE - 1)
     ),
@@ -131,6 +184,7 @@ export async function getWizardRecommendations(
         .select("type_id, host_id, vibe, notes")
         .range(offset, offset + BATCH_SIZE - 1)
     ),
+    fetchMyRatedCheckins(supabase, effectiveIdentity.memberId),
   ]);
 
   if (typesResult.error) return { error: typesResult.error.message };
@@ -156,12 +210,17 @@ export async function getWizardRecommendations(
     {
       windowStart,
       windowEnd,
+      fallbackWindowEnd,
       timeOfDay: answers.timeOfDay,
       vibe: answers.vibe,
       purpose: answers.purpose,
       withMemberIds: answers.withMemberIds,
       timezone,
-    }
+      feelings,
+      need,
+    },
+    undefined,
+    myCheckins
   );
 
   return { recommendations };
@@ -180,7 +239,7 @@ export interface HostedVibeInfo {
 
 /**
  * Returns the prickle types the acting member has hosted in the trailing
- * window, each with their current vibe tag (or the 'balanced' default if
+ * window or signed up to host this month or later, each with their current vibe tag (or the 'balanced' default if
  * they haven't tagged it yet).
  */
 export async function getHostedVibes(): Promise<HostedVibeInfo[]> {
@@ -192,22 +251,7 @@ export async function getHostedVibes(): Promise<HostedVibeInfo[]> {
   const effectiveIdentity = await getEffectiveIdentity(user);
   if (!effectiveIdentity) return [];
 
-  const historyStart = new Date();
-  historyStart.setMonth(historyStart.getMonth() - HISTORY_MONTHS);
-
-  const { data: hostedPrickles } = await supabase
-    .from("prickles")
-    .select("type_id, prickle_types(id, name)")
-    .eq("host", effectiveIdentity.memberId)
-    .gte("start_time", historyStart.toISOString());
-
-  const typeNameById = new Map<string, string>();
-  for (const p of hostedPrickles ?? []) {
-    if (!p.type_id) continue;
-    const type = Array.isArray(p.prickle_types) ? p.prickle_types[0] : p.prickle_types;
-    if (type) typeNameById.set(p.type_id, type.name);
-  }
-
+  const typeNameById = await getHostVibeTypes(supabase, effectiveIdentity.memberId);
   const typeIds = [...typeNameById.keys()];
   if (typeIds.length === 0) return [];
 
@@ -248,15 +292,8 @@ export async function saveHostVibe(
   const effectiveIdentity = await getEffectiveIdentity(user);
   if (!effectiveIdentity) return { error: "No member record" };
 
-  const { data: hostedPrickle } = await supabase
-    .from("prickles")
-    .select("id")
-    .eq("type_id", typeId)
-    .eq("host", effectiveIdentity.memberId)
-    .limit(1)
-    .maybeSingle();
-
-  if (!hostedPrickle) {
+  const types = await getHostVibeTypes(supabase, effectiveIdentity.memberId);
+  if (!types.has(typeId)) {
     return { error: "You can only tag prickle types you host" };
   }
 
@@ -274,6 +311,6 @@ export async function saveHostVibe(
 
   if (error) return { error: error.message };
 
-  revalidatePath("/settings");
+  revalidatePath("/settings", "layout");
   return { success: true };
 }

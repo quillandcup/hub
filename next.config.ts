@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 import path from "path";
 import { withSentryConfig } from "@sentry/nextjs/config";
+import appConfig from "./app.config";
 
 // Preview deployments have intermittently hung indefinitely (~45 min, then
 // force-errored with no diagnostic output) during Next.js's "checking
@@ -31,15 +32,16 @@ const nextConfig: NextConfig = {
 };
 
 export default withSentryConfig(nextConfig, {
-  org: "quillandcup",
-  project: "hub",
+  // Only used for the source map upload. Slugs from app.config.ts; the auth token is a
+  // GitHub secret passed to CI's production `vercel build` (see env-vars.config.ts).
+  org: appConfig.sentry.org,
+  project: appConfig.sentry.project,
 
-  // Source map upload auth token — set SENTRY_AUTH_TOKEN in the environment
-  // (build-time secret, generated at sentry.io/settings/account/api/auth-tokens)
-  // to enable readable production stack traces. Builds succeed without it;
-  // source maps just won't upload. It's deliberately Production-only in
-  // Vercel, so skip the upload attempt entirely on Preview/dev instead of
-  // just accepting the "No auth token provided" warning noise every build.
+  // Source map upload auth token (build-time secret, generated at
+  // sentry.io/settings/account/api/auth-tokens) for readable production stack
+  // traces. Builds succeed without it; source maps just won't upload. Only the
+  // CI production build has it, so skip the upload attempt entirely elsewhere
+  // instead of accepting the "No auth token provided" warning noise every build.
   authToken: process.env.SENTRY_AUTH_TOKEN,
   sourcemaps: {
     disable: !process.env.SENTRY_AUTH_TOKEN,

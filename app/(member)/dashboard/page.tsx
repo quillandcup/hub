@@ -5,18 +5,22 @@ import { redirect } from "next/navigation"
 import Link from "next/link"
 import { getEffectiveIdentity } from "@/lib/sudo"
 import { getUserTimezonePreference } from "@/lib/timezone"
-import { getStarredGoals } from "../projects/actions"
+import { getStarredGoals, getUnloggedRecentPrickles } from "../projects/actions"
+import UnloggedPricklesCard from "@/components/writing/UnloggedPricklesCard"
 import GoalDisplay from "@/components/writing/GoalDisplay"
 import UpcomingPrickleRow from "@/components/UpcomingPrickleRow"
+import { loadDismissedCheckinIds } from "@/lib/prickle-checkin-dms"
 import { getRankedUpcomingPrickles } from "@/lib/upcoming-prickles"
+import { ORG_TIMEZONE } from "@/lib/config";
+import { getMyCheckins } from "@/app/(member)/prickles/checkin-actions";
 
 export const metadata: Metadata = {
   title: "Dashboard",
 }
 
-const ORG_TIMEZONE = "America/New_York"
 const UPCOMING_WINDOW_DAYS = 7
 const MAX_UPCOMING_DISPLAY = 5
+const MAX_UNLOGGED_DISPLAY = 5
 
 export default async function DashboardPage() {
   const supabase = await createClient()
@@ -34,12 +38,27 @@ export default async function DashboardPage() {
 
   const now = new Date()
 
-  const [ranked, starredGoals] = await Promise.all([
+  const [ranked, starredGoals, { data: projectRows }, unlogged, checkins] = await Promise.all([
     getRankedUpcomingPrickles(supabase, memberId, timeZone, now, UPCOMING_WINDOW_DAYS),
     getStarredGoals(),
+    supabase
+      .from("writing_projects")
+      .select("id, title")
+      .eq("member_id", memberId)
+      .is("archived_at", null)
+      .order("created_at", { ascending: false }),
+    getUnloggedRecentPrickles(),
+    getMyCheckins(),
   ])
+  const projects = projectRows ?? []
+  // Only prompt members who track writing -- there's no progress to ask about otherwise.
+  const unloggedPrickles =
+    projects.length > 0
+      ? unlogged.slice(0, MAX_UNLOGGED_DISPLAY)
+      : []
   const upcoming = ranked.map((r) => r.prickle)
   const displayedUpcoming = ranked.slice(0, MAX_UPCOMING_DISPLAY)
+  const dismissedCheckins = await loadDismissedCheckinIds(supabase, memberId, displayedUpcoming.map((r) => r.prickle.id))
 
   const firstName = effectiveIdentity.memberName?.split(" ")[0]
 
@@ -60,7 +79,7 @@ export default async function DashboardPage() {
               <div key={goal.id}>
                 <Link
                   href={`/projects/${goal.projectId}`}
-                  className="text-sm font-medium text-slate-900 dark:text-slate-100 hover:text-plum-600 dark:hover:text-plum-400"
+                  className="text-lg font-semibold text-slate-900 dark:text-slate-100 hover:text-plum-600 dark:hover:text-plum-400"
                 >
                   {goal.projectTitle}
                 </Link>
@@ -72,6 +91,8 @@ export default async function DashboardPage() {
           </div>
         </div>
       )}
+
+      {unloggedPrickles.length > 0 && <UnloggedPricklesCard prickles={unloggedPrickles} />}
 
       {upcoming.length === 0 ? (
         <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 p-6 text-center">
@@ -92,7 +113,14 @@ export default async function DashboardPage() {
           </h2>
           <div>
             {displayedUpcoming.map(({ prickle, reasons }) => (
-              <UpcomingPrickleRow key={prickle.id} prickle={prickle} reasons={reasons} timeZone={timeZone} />
+              <UpcomingPrickleRow
+                key={prickle.id}
+                prickle={prickle}
+                reasons={reasons}
+                timeZone={timeZone}
+                checkin={checkins[prickle.id] ?? null}
+                checkinDismissed={dismissedCheckins.has(prickle.id)}
+              />
             ))}
           </div>
         </div>

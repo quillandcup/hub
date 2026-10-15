@@ -34,7 +34,7 @@ function makeReaction(overrides: Partial<SlackReactionRow> = {}): SlackReactionR
     channel_id: 'C1',
     channel_name: 'general',
     occurred_at: MON_7AM_ET,
-    removed_at: null,
+    deleted_at: null,
     user_id: 'U1',
     reaction: 'thumbsup',
     ...overrides,

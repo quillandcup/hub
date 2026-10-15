@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import RecordHistoryButton from "@/components/RecordHistoryButton";
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import ProcessOrphanedButton from "./ProcessOrphanedButton";
@@ -102,7 +103,7 @@ export default async function DataHygienePage() {
     // Checked across both tables since a sync can land only reactions or only
     // messages depending on what happened in Slack during that window.
     supabase
-      .schema('bronze').from("slack_messages")
+      .schema('bronze').from("slack_messages_meta")
       .select("imported_at")
       .order("imported_at", { ascending: false })
       .limit(1)
@@ -145,7 +146,7 @@ export default async function DataHygienePage() {
     // Members for duplicate detection (limit 1000; members table stays small)
     supabase.from("members").select("id, name, email, status").order("name"),
     // Slack channels Billie Bot can currently see (workspace channel count stays well under 1000)
-    supabase.schema('bronze').from("slack_channels").select("channel_id, name, is_private, imported_at"),
+    supabase.schema('bronze').from("slack_channels").select("channel_id, name, is_private, is_mpim, imported_at"),
   ]);
 
   // Dedupe by zoom_name -- UNIQUE(zoom_name, zoom_email) doesn't dedupe when
@@ -416,9 +417,22 @@ export default async function DataHygienePage() {
   return (
     <div className="p-6">
       <div className="max-w-7xl mx-auto">
-        <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-100 mb-8">
-          Data Health Dashboard
-        </h1>
+        <div className="mb-8 flex items-start justify-between">
+          <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-100">
+            Data Health Dashboard
+          </h1>
+          <RecordHistoryButton
+            entityType={[
+              "dismissed_duplicate_group",
+              "unmatched_calendar_event",
+              "ignored_zoom_name",
+              "ambiguous_zoom_name",
+              "ignored_slack_user",
+              "member_name_alias",
+            ]}
+            label="data health fixes"
+          />
+        </div>
 
         {/* Needs Attention: things actively wrong right now, worth acting on today */}
         <div className="space-y-4 mb-10">

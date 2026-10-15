@@ -1,4 +1,5 @@
 import { requireAdmin } from "@/lib/supabase/api-auth";
+import { createServiceRoleClient } from "@/lib/supabase/service";
 import { triggerReprocessing } from "@/lib/processing/trigger";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -6,7 +7,9 @@ export async function POST(request: NextRequest) {
   const auth = await requireAdmin(request);
   if (!auth.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (auth.forbidden) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  const { supabase } = auth;
+  // The caller is a verified admin (or the cron). Message content in Bronze is
+  // service role only, so this reads and writes with the service role.
+  const supabase = createServiceRoleClient();
 
   try {
     const formData = await request.formData();
@@ -57,7 +60,12 @@ export async function POST(request: NextRequest) {
     const { error: reactionsError } = await supabase
       .schema('bronze').from("slack_reactions")
       .upsert(
-        reactions.map(r => ({ ...r, imported_at: importTimestamp })),
+        // CSVs exported before the column was renamed carry `removed_at`.
+        reactions.map(({ removed_at, ...r }) => ({
+          ...r,
+          ...(removed_at !== undefined && r.deleted_at === undefined ? { deleted_at: removed_at } : {}),
+          imported_at: importTimestamp,
+        })),
         { onConflict: "channel_id,message_ts,reaction,user_id" }
       );
 
@@ -138,6 +146,8 @@ async function parseCSV(file: File): Promise<any[]> {
 
     headers.forEach((header, index) => {
       const value = values[index]?.trim() || "";
+      // Generated from files by the database; a CSV exported from the metadata view carries it.
+      if (header === 'has_files') return;
       // Parse JSON fields
       if (header === 'raw_payload') {
         // raw_payload is NOT NULL in database, default to empty object

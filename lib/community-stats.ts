@@ -1,4 +1,6 @@
-const TZ = "America/New_York"
+import { ORG_TIMEZONE } from "@/lib/config";
+
+const TZ = ORG_TIMEZONE;
 
 export function etHour(iso: string): number {
   const h = parseInt(

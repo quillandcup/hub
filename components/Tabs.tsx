@@ -1,7 +1,9 @@
 "use client";
 
-import { Suspense, useEffect, useRef, useState, type ReactNode } from "react";
-import { useSearchParams } from "next/navigation";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { usePathname } from "next/navigation";
+import { tabHref, tabTitle, type TabPageTitle } from "@/lib/tab-routes";
+import { documentTitle } from "@/lib/page-title";
 
 export interface TabItem<T extends string> {
   id: T;
@@ -45,35 +47,31 @@ export function TabBar<T extends string>({
   );
 }
 
-/** Record the selected tab in the URL without navigating (replaces the history entry), so
- * browser Back, a reload, or a remembered link lands on it. For controlled `TabBar` users;
- * `Tabs` does this itself with `syncToUrl`. Next's router picks the change up (useSearchParams). */
-export function replaceTabInUrl(param: string, tabId: string, clear: readonly string[] = []) {
-  const url = new URL(window.location.href);
-  url.searchParams.set(param, tabId);
-  for (const other of clear) url.searchParams.delete(other);
-  window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+/** Point the URL at tab `tabId`'s path without navigating (replaces the history entry and drops
+ * any query, which belongs to the tab being left), so Back, a reload or a remembered link lands
+ * on it. For controlled `TabBar` users; `Tabs` does this itself with `basePath`. Next's router
+ * picks the change up (usePathname). */
+export function replaceTabPath(basePath: string, tabId: string, defaultTabId: string) {
+  const href = tabHref(basePath, tabId, defaultTabId);
+  if (window.location.pathname !== href || window.location.search) {
+    window.history.replaceState(null, "", `${href}${window.location.hash}`);
+  }
 }
 
 /**
- * Switch tabs when a link changes the `?tab=` param on the page we're already on, e.g. a link
- * from one tab to `?tab=all` while the page was first loaded as `?tab=all`: the server renders
- * the same `initialTab`, so `key={initialTab}` alone doesn't remount and the old tab would stay.
- * Our own tab clicks also change the param (replaceTabInUrl), to the tab already showing, so
- * following it is a no-op. Its own component so only `syncToUrl` users need the Suspense
- * boundary useSearchParams asks for.
+ * Switch tabs when a link navigates to another tab's path on the page we're already on, e.g. a
+ * "See all prickles" link to /my-prickles/all while the page was first loaded at
+ * /my-prickles/all: the server renders the same `initialTab`, so `key={initialTab}` alone
+ * doesn't remount and the old tab would stay. Our own tab clicks also change the path (to the tab
+ * already showing), so following them is a no-op.
  */
-function FollowTabParam({
-  param,
-  tabIds,
-  onChange,
-}: {
-  param: string;
-  tabIds: readonly string[];
-  onChange: (id: string) => void;
-}) {
+export function useFollowTabPath<T extends string>(
+  basePath: string,
+  tabIds: readonly T[],
+  onChange: (id: T) => void
+) {
   // Null outside the App Router (e.g. component tests): nothing to follow.
-  const value = useSearchParams()?.get(param) ?? null;
+  const pathname = usePathname();
   const onChangeRef = useRef(onChange);
   const tabIdsRef = useRef(tabIds);
   useEffect(() => {
@@ -81,52 +79,64 @@ function FollowTabParam({
     tabIdsRef.current = tabIds;
   });
   useEffect(() => {
-    if (value && tabIdsRef.current.includes(value)) onChangeRef.current(value);
-  }, [value]);
-  return null;
+    if (!pathname) return;
+    const ids = tabIdsRef.current;
+    const id = ids.find((t) => tabHref(basePath, t, ids[0]) === pathname);
+    if (id) onChangeRef.current(id);
+  }, [pathname, basePath]);
+}
+
+/** Set the browser tab title for a client-side tab switch, matching the tab route's metadata
+ * (tabTitle in lib/tab-routes.ts). For controlled `TabBar` users; `Tabs` does this with `pageTitle`. */
+export function setTabDocumentTitle(page: TabPageTitle, tabLabel: string, isFirstTab: boolean) {
+  document.title = documentTitle(tabTitle(page, tabLabel, isFirstTab));
 }
 
 export interface TabPanel<T extends string> extends TabItem<T> {
   content: ReactNode;
+  /** For the browser tab title when `label` isn't plain text. */
+  title?: string;
 }
 
 /** Tab strip plus panels, with the active tab held internally. Only the active panel is
- * mounted. To honor a `?tab=` param, pass it as `initialTab` along with `key={initialTab}`
- * so client-side navigation to a different tab remounts with the new selection.
+ * mounted. Pass the tab the server rendered as `initialTab` along with `key={initialTab}`, so
+ * client-side navigation to a different tab remounts with the new selection.
  *
- * `syncToUrl` writes the selected tab back to the URL (replacing the history entry, no
- * navigation), so returning to the page -- browser Back, a reload, a remembered link -- lands
- * on the same tab. `clear` lists other params that only apply to the initial tab. */
+ * `basePath` makes them path-based tabs (lib/tab-routes.ts): the first tab at `basePath`, the
+ * rest at `basePath/<id>`. Clicking one switches instantly and rewrites the path (replacing the
+ * history entry, no navigation), so Back, a reload or a remembered link lands on the same tab.
+ * With `pageTitle` it also sets the browser tab title the tab's route would (lib/tab-routes.ts). */
 export function Tabs<T extends string>({
   tabs,
   initialTab,
   className,
-  syncToUrl,
+  basePath,
+  pageTitle,
 }: {
   tabs: readonly TabPanel<T>[];
   initialTab?: T;
   className?: string;
-  syncToUrl?: { param: string; clear?: readonly string[] };
+  basePath?: string;
+  /** With `basePath`: what the page's title is made of, so a tab switch updates the browser tab title too. */
+  pageTitle?: TabPageTitle;
 }) {
   const [activeTab, setActiveTab] = useState<T>(initialTab ?? tabs[0].id);
   const active = tabs.find((t) => t.id === activeTab) ?? tabs[0];
+  const tabIds = tabs.map((t) => t.id);
+  useFollowTabPath(basePath ?? "", basePath ? tabIds : [], setActiveTab);
 
   function handleTabChange(id: T) {
     setActiveTab(id);
-    if (syncToUrl && id !== active.id) replaceTabInUrl(syncToUrl.param, id, syncToUrl.clear);
+    if (!basePath || id === active.id) return;
+    replaceTabPath(basePath, id, tabIds[0]);
+    const tab = tabs.find((t) => t.id === id);
+    if (pageTitle && tab) {
+      setTabDocumentTitle(pageTitle, tab.title ?? (typeof tab.label === "string" ? tab.label : id), id === tabIds[0]);
+    }
   }
 
   return (
     <div className={className}>
-      {syncToUrl && (
-        <Suspense fallback={null}>
-          <FollowTabParam
-            param={syncToUrl.param}
-            tabIds={tabs.map((t) => t.id)}
-            onChange={(id) => setActiveTab(id as T)}
-          />
-        </Suspense>
-      )}
       <TabBar tabs={tabs} activeTab={active.id} onTabChange={handleTabChange} className="mb-6" />
       <div role="tabpanel">{active.content}</div>
     </div>

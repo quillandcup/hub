@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import RecordHistoryButton from "@/components/RecordHistoryButton";
 import Link from "next/link";
 import MemberOverrideForm, { type MemberOverrideFields } from "@/components/MemberOverrideForm";
 import MemberSearch from "@/components/MemberSearch";
@@ -144,12 +145,18 @@ export default function MemberOverridesClient() {
 
   return (
     <div className="p-8">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold mb-2 text-slate-900 dark:text-slate-100">Member Status Overrides</h1>
-        <p className="text-slate-600 dark:text-slate-400">
-          Manage special cases where member status differs from default rules
-          (gifts, 180 program, etc.) Hiatus is tracked separately, per-member.
-        </p>
+      <div className="mb-6 flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl font-bold mb-2 text-slate-900 dark:text-slate-100">Member Status Overrides</h1>
+          <p className="text-slate-600 dark:text-slate-400">
+            Manage special cases where member status differs from default rules
+            (gifts, 180 program, etc.) Hiatus is tracked separately, per-member.
+          </p>
+        </div>
+        <RecordHistoryButton
+          entityType={["member_status_override", "member_join_date_override", "member_profile_override"]}
+          label="member overrides"
+        />
       </div>
 
       {error && (

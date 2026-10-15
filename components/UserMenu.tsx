@@ -1,18 +1,18 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useTransition } from 'react'
 import Link from 'next/link'
+import { startOnboarding } from '@/app/actions/onboarding'
 import SignOutButton from './SignOutButton'
 import SudoModal from './SudoModal'
-import FeaturePreviewsModal from './FeaturePreviewsModal'
-import type { FeatureKey } from '@/lib/features'
 
 interface UserMenuProps {
   userEmail: string
   memberId?: string | null
   isAdmin?: boolean
   isSudo?: boolean
-  enabledFeatures?: FeatureKey[]
+  /** Show "Take the tour" (not during sudo). */
+  canStartOnboarding?: boolean
 }
 
 export default function UserMenu({
@@ -20,9 +20,10 @@ export default function UserMenu({
   memberId,
   isAdmin = false,
   isSudo = false,
-  enabledFeatures = [],
+  canStartOnboarding = false,
 }: UserMenuProps) {
   const [isOpen, setIsOpen] = useState(false)
+  const [isStartingTour, startTourTransition] = useTransition()
   const [isSudoModalOpen, setIsSudoModalOpen] = useState(false)
   // This menu lives in the layout, so its state survives sudo's navigation. Close
   // the modal when sudo starts, or it pops back open the moment sudo is exited.
@@ -31,7 +32,6 @@ export default function UserMenu({
     setPrevIsSudo(isSudo)
     setIsSudoModalOpen(false)
   }
-  const [isFeaturePreviewsOpen, setIsFeaturePreviewsOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -51,7 +51,7 @@ export default function UserMenu({
       <div className="relative" ref={menuRef}>
         <button
           onClick={() => setIsOpen(!isOpen)}
-          className="flex items-center gap-2 px-2 md:px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+          className="flex h-10 items-center gap-2 px-2 md:px-3 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
         >
           <div className="w-8 h-8 rounded-full bg-gradient-to-r from-plum-500 to-plum-700 flex items-center justify-center text-white font-semibold text-sm">
             {userEmail.charAt(0).toUpperCase()}
@@ -80,7 +80,7 @@ export default function UserMenu({
                 className="block px-4 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
                 onClick={() => setIsOpen(false)}
               >
-                View My Profile
+                Profile
               </Link>
             )}
 
@@ -92,13 +92,20 @@ export default function UserMenu({
               Settings
             </Link>
 
-            {isAdmin && (
+            {canStartOnboarding && (
               <button
                 type="button"
-                onClick={() => { setIsOpen(false); setIsFeaturePreviewsOpen(true) }}
-                className="w-full text-left px-4 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                disabled={isStartingTour}
+                onClick={() =>
+                  startTourTransition(async () => {
+                    // Revalidates the layout, which re-renders the guide with the restarted tour.
+                    await startOnboarding()
+                    setIsOpen(false)
+                  })
+                }
+                className="w-full text-left px-4 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors disabled:opacity-60"
               >
-                Feature Previews
+                Take the tour
               </button>
             )}
 
@@ -121,14 +128,6 @@ export default function UserMenu({
         <SudoModal
           isOpen={isSudoModalOpen}
           onClose={() => setIsSudoModalOpen(false)}
-        />
-      )}
-
-      {isAdmin && (
-        <FeaturePreviewsModal
-          isOpen={isFeaturePreviewsOpen}
-          onClose={() => setIsFeaturePreviewsOpen(false)}
-          enabledFeatures={enabledFeatures}
         />
       )}
     </>

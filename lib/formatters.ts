@@ -81,10 +81,12 @@ function unwrapRef<T extends { name: string }>(ref: T | T[] | null | undefined):
  * Format a page title for a prickle, e.g. "Monday Progress Prickle with Jenn P"
  */
 export function formatPrickleTitle(prickle: {
+  title?: string | null;
   start_time: string;
   host?: NameRef;
   prickle_types?: NameRef;
 }): string {
+  if (prickle.title) return prickle.title;
   const host = unwrapRef(prickle.host);
   const prickleType = unwrapRef(prickle.prickle_types);
   const weekday = new Date(prickle.start_time).toLocaleDateString("en-US", { weekday: "long" });

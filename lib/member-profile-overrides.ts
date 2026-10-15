@@ -9,12 +9,15 @@
  *   ""                set, then cleared      -> show nothing (no Kajabi fallback)
  *   non-empty string  set in the Hub         -> use it
  *
- * Instagram isn't here — it's edited in Kajabi's "Instagram Handle" custom
- * field (lib/kajabi/profile-fields.ts).
+ * Instagram is also written to Kajabi's "Instagram Handle" custom field
+ * (lib/kajabi/profile-fields.ts); the override here only exists so a member can
+ * hide an Instagram that Kajabi's member directory still has (set to "" when
+ * they clear it, back to null when they set a handle again).
  */
 
 export interface ProfileOverride {
   bio: string | null;
+  instagram_url: string | null;
   facebook_url: string | null;
   twitter_url: string | null;
 }
@@ -36,6 +39,7 @@ export function applyProfileOverride(
 ): ProfileFields {
   return {
     bio: resolveField(override?.bio, kajabi.bio),
+    instagram_url: resolveField(override?.instagram_url, kajabi.instagram_url),
     facebook_url: resolveField(override?.facebook_url, kajabi.facebook_url),
     twitter_url: resolveField(override?.twitter_url, kajabi.twitter_url),
   };

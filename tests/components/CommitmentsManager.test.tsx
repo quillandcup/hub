@@ -88,7 +88,7 @@ describe("CommitmentsManager", () => {
     expect(screen.getByText(/No active commitments yet/)).toBeInTheDocument();
     expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
     for (const link of screen.getAllByRole("link")) {
-      expect(link).toHaveAttribute("href", "/my-prickles?tab=all&commit=");
+      expect(link).toHaveAttribute("href", "/my-prickles/all?commit=");
     }
     expect(screen.getByRole("link", { name: /Make a commitment/ })).toBeInTheDocument();
   });

@@ -2,6 +2,8 @@ import { describe, it, expect } from "vitest";
 import {
   getPrickleRecommendations,
   seriesKeyFor,
+  similarCheckins,
+  type PersonalCheckin,
   type CandidatePrickle,
   type HistoricalAttendanceRow,
   type HostVibeRow,
@@ -79,6 +81,11 @@ function attend(prickleId: string, memberId: string): HistoricalAttendanceRow {
   return { prickle_id: prickleId, member_id: memberId };
 }
 
+/** Only the series that fully match the answers (misses are returned too, flagged). */
+function exact(recs: ReturnType<typeof getPrickleRecommendations>) {
+  return recs.filter((r) => r.mismatches.length === 0);
+}
+
 function baseAnswers(overrides: Partial<PickerAnswers> = {}): PickerAnswers {
   return {
     windowStart: "2026-01-01T00:00:00Z",
@@ -112,8 +119,10 @@ describe("purpose filter", () => {
       [],
       baseAnswers({ purpose: "work" })
     );
-    expect(result).toHaveLength(1);
-    expect(result[0].typeId).toBe(writingType.id);
+    expect(exact(result)).toHaveLength(1);
+    expect(exact(result)[0].typeId).toBe(writingType.id);
+    expect(result).toHaveLength(3);
+    expect(result.slice(1).every((r) => r.mismatches.includes("purpose"))).toBe(true);
   });
 
   it("ranks an on-topic solo-friendly work session above a generic solo-friendly writing session", () => {
@@ -150,7 +159,8 @@ describe("purpose filter", () => {
       [],
       baseAnswers({ purpose: "work" })
     );
-    expect(result).toHaveLength(0);
+    expect(exact(result)).toHaveLength(0);
+    expect(result.length).toBeGreaterThan(0);
   });
 
   it("does not extend solo-task-friendliness leniency to 'social' or 'writing' requests", () => {
@@ -164,7 +174,8 @@ describe("purpose filter", () => {
       [],
       baseAnswers({ purpose: "social" })
     );
-    expect(result).toHaveLength(0);
+    expect(exact(result)).toHaveLength(0);
+    expect(result.length).toBeGreaterThan(0);
   });
 
   it("always includes 'mixed' purpose types for non-work requests, regardless of the requested purpose", () => {
@@ -199,7 +210,8 @@ describe("purpose filter", () => {
       [],
       baseAnswers({ purpose: "work" })
     );
-    expect(result).toHaveLength(0);
+    expect(exact(result)).toHaveLength(0);
+    expect(result.length).toBeGreaterThan(0);
   });
 
   it("'any' purpose preference includes everything", () => {
@@ -226,6 +238,26 @@ describe("vibe resolution", () => {
     expect(result[0].vibe).toBe("chatty");
     expect(result[0].vibeSource).toBe("tagged");
     expect(result[0].vibeNotes).toBe("goofy crew");
+  });
+
+  it("flags a vibe mismatch, but not a match or an unknown vibe", () => {
+    const candidates = [
+      candidate("p1", writingType.id, hostA.id, "2026-01-05T15:00:00Z"),
+      candidate("p2", workType.id, hostA.id, "2026-01-06T15:00:00Z"),
+    ];
+    const vibes: HostVibeRow[] = [{ type_id: writingType.id, host_id: hostA.id, vibe: "balanced", notes: null }];
+    const byType = (vibe: PickerAnswers["vibe"]) =>
+      new Map(
+        getPrickleRecommendations(candidates, types, hosts, [], [], vibes, { ...baseAnswers(), vibe }).map((r) => [
+          r.typeId,
+          r.mismatches,
+        ])
+      );
+
+    expect(byType("chatty").get(writingType.id)).toEqual(["vibe"]);
+    expect(byType("balanced").get(writingType.id)).toEqual([]);
+    expect(byType("any").get(writingType.id)).toEqual([]);
+    expect(byType("chatty").get(workType.id)).toEqual([]);
   });
 
   it("infers a low-confidence vibe from average attendance when untagged", () => {
@@ -344,7 +376,7 @@ describe("time-of-day filtering", () => {
       [],
       baseAnswers({ timeOfDay: "evening", timezone: "America/New_York" })
     );
-    expect(result).toHaveLength(1);
+    expect(exact(result)).toHaveLength(1);
     expect(result[0].occurrences[0].id).toBe("evening");
   });
 
@@ -371,7 +403,8 @@ describe("time-of-day filtering", () => {
       baseAnswers({ timeOfDay: "evening", timezone: "Asia/Tokyo" })
     );
     expect(inNY).toHaveLength(1); // 18:30 ET -> evening
-    expect(inTokyo).toHaveLength(0); // 08:30 JST -> morning, not evening
+    expect(exact(inTokyo)).toHaveLength(0); // 08:30 JST -> morning, not evening
+    expect(inTokyo[0].mismatches).toEqual(["timeOfDay"]);
   });
 
   it("'any' time of day includes candidates at every hour", () => {
@@ -452,5 +485,127 @@ describe("window filtering", () => {
     );
     expect(result).toHaveLength(1);
     expect(result[0].occurrences[0].id).toBe("in");
+  });
+
+  it("offers prickles past the window, flagged, when a fallback cutoff is given", () => {
+    const candidates = [
+      candidate("in", writingType.id, hostA.id, "2026-01-15T15:00:00Z"),
+      candidate("later", writingType.id, hostB.id, "2026-02-05T15:00:00Z"),
+      candidate("too-late", writingType.id, hostB.id, "2026-03-15T15:00:00Z"),
+    ];
+    const result = getPrickleRecommendations(
+      candidates,
+      types,
+      hosts,
+      [],
+      [],
+      [],
+      baseAnswers({ windowEnd: "2026-01-31T23:59:59Z", fallbackWindowEnd: "2026-02-28T23:59:59Z" })
+    );
+    expect(result.map((r) => [r.occurrences[0].id, r.mismatches])).toEqual([
+      ["in", []],
+      ["later", ["window"]],
+    ]);
+  });
+
+  it("returns something even when nothing is in the window", () => {
+    const candidates = [candidate("later", writingType.id, hostA.id, "2026-02-05T15:00:00Z")];
+    const result = getPrickleRecommendations(
+      candidates,
+      types,
+      hosts,
+      [],
+      [],
+      [],
+      baseAnswers({ windowEnd: "2026-01-31T23:59:59Z", fallbackWindowEnd: "2026-02-28T23:59:59Z" })
+    );
+    expect(result).toHaveLength(1);
+    expect(result[0].mismatches).toEqual(["window"]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Personal history (the member's own rated check-ins)
+// ---------------------------------------------------------------------------
+
+describe("similarCheckins", () => {
+  const checkins: PersonalCheckin[] = [
+    { seriesKey: "a", feelingsBefore: ["anxious"], need: null, sessionRating: 4 },
+    { seriesKey: "b", feelingsBefore: ["tired"], need: "company", sessionRating: 5 },
+    { seriesKey: "c", feelingsBefore: ["lonely"], need: null, sessionRating: 3 },
+    { seriesKey: "d", feelingsBefore: ["stuck"], need: null, sessionRating: 2 },
+  ];
+
+  it("matches a feeling in the same group", () => {
+    // Stressed and Anxious are both "wound up".
+    expect(similarCheckins(checkins, ["stressed"], null).map((c) => c.seriesKey)).toEqual(["a"]);
+  });
+
+  it("matches the same need regardless of feelings", () => {
+    expect(similarCheckins(checkins, ["motivated"], "company").map((c) => c.seriesKey)).toEqual(["b"]);
+  });
+
+  it("only matches an ungrouped feeling exactly", () => {
+    expect(similarCheckins(checkins, ["lonely"], null).map((c) => c.seriesKey)).toEqual(["c"]);
+    expect(similarCheckins(checkins, ["stuck"], null).map((c) => c.seriesKey)).toEqual(["d"]);
+  });
+
+  it("counts every check-in when the member didn't say how they feel", () => {
+    expect(similarCheckins(checkins, [], null)).toHaveLength(4);
+  });
+});
+
+describe("personal history ranking", () => {
+  const focusSeries = seriesKeyFor(writingType.id, hostA.id);
+  const sprintSeries = seriesKeyFor(sprintType.id, hostB.id);
+  const upcoming = [
+    candidate("c-focus", writingType.id, hostA.id, "2026-01-10T15:00:00Z"),
+    candidate("c-sprint", sprintType.id, hostB.id, "2026-01-10T16:00:00Z"),
+  ];
+
+  function rated(seriesKey: string, rating: number, feelings: PersonalCheckin["feelingsBefore"] = ["stressed"]) {
+    return { seriesKey, feelingsBefore: feelings, need: null, sessionRating: rating };
+  }
+
+  it("ranks the series the member rated above their own average, when they felt similar", () => {
+    const history = [rated(focusSeries, 5), rated(focusSeries, 5), rated(sprintSeries, 2), rated(sprintSeries, 2)];
+    const result = getPrickleRecommendations(
+      upcoming, types, hosts, [], [], [], baseAnswers({ feelings: ["anxious"] }), 8, history
+    );
+    expect(result.map((r) => r.seriesKey)).toEqual([focusSeries, sprintSeries]);
+    expect(result[0].personal).toEqual({ sessions: 2, avgRating: 5 });
+    expect(result[0].score).toBeGreaterThan(result[1].score);
+  });
+
+  it("ignores history from times the member felt differently", () => {
+    // Only "motivated" sessions loved the sprint; today they're stressed.
+    const history = [
+      rated(sprintSeries, 5, ["motivated"]),
+      rated(sprintSeries, 5, ["motivated"]),
+      rated(focusSeries, 3),
+      rated(focusSeries, 3),
+    ];
+    const result = getPrickleRecommendations(
+      upcoming, types, hosts, [], [], [], baseAnswers({ feelings: ["stressed"] }), 8, history
+    );
+    expect(result.find((r) => r.seriesKey === sprintSeries)!.personal).toBeNull();
+    expect(result.find((r) => r.seriesKey === focusSeries)!.personal).toEqual({ sessions: 2, avgRating: 3 });
+  });
+
+  it("needs at least two similar sessions before history counts", () => {
+    const result = getPrickleRecommendations(
+      upcoming, types, hosts, [], [], [], baseAnswers({ feelings: ["stressed"] }), 8, [rated(focusSeries, 5)]
+    );
+    expect(result.every((r) => r.personal === null)).toBe(true);
+    expect(result[0].score).toBe(result[1].score);
+  });
+
+  it("compares against the member's own average, so a harsh rater's best still ranks first", () => {
+    // Everything this member rates is low; the focus series is merely less low.
+    const history = [rated(focusSeries, 3), rated(focusSeries, 3), rated(sprintSeries, 1), rated(sprintSeries, 1)];
+    const result = getPrickleRecommendations(
+      upcoming, types, hosts, [], [], [], baseAnswers({ feelings: ["stressed"] }), 8, history
+    );
+    expect(result[0].seriesKey).toBe(focusSeries);
   });
 });

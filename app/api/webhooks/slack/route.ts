@@ -5,6 +5,17 @@ import { CONNECTION_CONFIRMATION_MESSAGE_THRESHOLD } from "@/lib/wheel-of-wonder
 import { verifySlackSignature } from "@/lib/slack-signature";
 import { publishSlackHome } from "@/lib/slack-sign-in";
 import { createServiceRoleClient } from "@/lib/supabase/service";
+import { projectChatMessage } from "@/lib/chat-projection";
+import { isKeptSlackMessage, slackMessageUserId, slackTsToIso } from "@/lib/slack-messages";
+import {
+  applySlackEmojiEvent,
+  applySlackMembershipEvent,
+  recordSlackMemberEvents,
+  slackMemberNoticeEvent,
+} from "@/lib/slack-capture";
+import { isBeyondSlackHistory } from "@/lib/slack-deletions";
+import { clock } from "@/lib/clock";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 // Webhook should respond quickly
 export const maxDuration = 60;
@@ -23,6 +34,8 @@ export const maxDuration = 60;
  * - reaction_added (emoji reaction added to message)
  * - reaction_removed (emoji reaction removed from message)
  * - app_home_opened (member opened the app's Home tab -- publish their one-time sign-in button)
+ * - member_joined_channel / member_left_channel (who is in each conversation)
+ * - emoji_changed (custom emoji added, removed or renamed)
  */
 export async function POST(request: NextRequest) {
   try {
@@ -40,6 +53,13 @@ export async function POST(request: NextRequest) {
       signature: signature ? "present" : "missing",
       timestamp,
     });
+
+    // How long Slack took to get the event to us (event_time has one-second resolution), for tracking
+    // down where a live update's time goes.
+    const receivedAt = Date.now();
+    if (payload.type === "event_callback" && typeof payload.event_time === "number") {
+      console.info("[chat] slack %s event reached us %dms after Slack sent it", payload.event?.type, receivedAt - payload.event_time * 1000);
+    }
 
     // Verify signature if signing secret is configured
     const signingSecret = process.env.SLACK_SIGNING_SECRET;
@@ -115,16 +135,33 @@ async function processSlackEvent(event: any) {
   });
 
   try {
-    if (eventType === "message") {
+    if (eventType === "member_joined_channel" || eventType === "member_left_channel") {
+      await applySlackMembershipEvent(supabase, event);
+    } else if (eventType === "emoji_changed") {
+      await applySlackEmojiEvent(supabase, event);
+    } else if (eventType === "message" && event.subtype === "message_changed") {
+      await applyMessageEdit(supabase, event);
+    } else if (eventType === "message" && event.subtype === "message_deleted") {
+      await applyMessageDelete(supabase, event);
+    } else if (eventType === "message" && !isKeptSlackMessage(event)) {
+      // Topic changes etc. aren't messages: the import skips these too. A
+      // "joined the channel" / "left the channel" notice isn't a message
+      // either, but it is membership history, so it's recorded as that.
+      const notice = slackMemberNoticeEvent(event, event.channel);
+      if (notice) await recordSlackMemberEvents(supabase, [notice]);
+      return;
+    } else if (eventType === "message") {
       // UPSERT message to Bronze layer
       const { error } = await supabase.schema("bronze").from("slack_messages").upsert(
         {
           channel_id: event.channel,
           message_ts: event.ts,
-          user_id: event.user,
+          user_id: slackMessageUserId(event),
           text: event.text,
+          message_type: event.subtype || "message",
           thread_ts: event.thread_ts || null,
-          occurred_at: new Date(parseFloat(event.ts) * 1000).toISOString(),
+          occurred_at: slackTsToIso(event.ts),
+          files: event.files ?? null,
           raw_payload: event,
         },
         {
@@ -143,12 +180,15 @@ async function processSlackEvent(event: any) {
       // (never counting the bot's own message — Slack message events carry
       // a bot_id when the sender is a bot/app). See
       // app/(member)/wheel-of-wonder/actions.ts.
-      if (!event.bot_id) {
-        await trackWheelExchange(supabase, event);
+      // A message written in the Hub is posted by the bot, so it has a bot_id; its real author is
+      // the member on the chat_messages row our post's metadata points at, and it counts.
+      const hubAuthorMemberId = event.bot_id ? await hubMessageAuthor(supabase, event) : null;
+      if (!event.bot_id || hubAuthorMemberId) {
+        await trackWheelExchange(supabase, event, hubAuthorMemberId);
       }
 
       // Trigger Silver processing asynchronously
-      triggerSlackProcessing(event.ts);
+      triggerSlackProcessing(event.channel, event.ts);
     } else if (eventType === "reaction_added") {
       // UPSERT reaction to Bronze layer
       const { error } = await supabase.schema("bronze").from("slack_reactions").upsert(
@@ -158,6 +198,8 @@ async function processSlackEvent(event: any) {
           user_id: event.user,
           reaction: event.reaction,
           occurred_at: new Date(parseFloat(event.event_ts) * 1000).toISOString(),
+          // A reaction taken back and added again is live again.
+          deleted_at: null,
           raw_payload: event,
         },
         {
@@ -175,17 +217,19 @@ async function processSlackEvent(event: any) {
       console.log("Slack reaction upserted:", event.reaction);
 
       // Trigger Silver processing asynchronously
-      triggerSlackProcessing(event.item.ts);
+      triggerSlackProcessing(event.item.channel, event.item.ts);
     } else if (eventType === "reaction_removed") {
-      // DELETE reaction from Bronze layer
+      // Soft delete: the row stays, marked with when it was taken back. Silver
+      // processing and the admin stats skip rows with deleted_at set.
       const { error } = await supabase
         .schema("bronze")
         .from("slack_reactions")
-        .delete()
+        .update({ deleted_at: new Date(parseFloat(event.event_ts) * 1000).toISOString() })
         .eq("channel_id", event.item.channel)
         .eq("message_ts", event.item.ts)
         .eq("user_id", event.user)
-        .eq("reaction", event.reaction);
+        .eq("reaction", event.reaction)
+        .is("deleted_at", null);
 
       if (error) {
         console.error("Error removing Slack reaction:", error);
@@ -195,12 +239,75 @@ async function processSlackEvent(event: any) {
       console.log("Slack reaction removed:", event.reaction);
 
       // Trigger Silver processing asynchronously
-      triggerSlackProcessing(event.item.ts);
+      triggerSlackProcessing(event.item.channel, event.item.ts);
     }
   } catch (error: any) {
     console.error("Error processing Slack event:", error);
     // Don't throw - we already returned 200 OK to Slack
   }
+}
+
+/**
+ * A message_changed event describes an edit to an earlier message
+ * (event.message, keyed by its own ts); it isn't a message itself. Updates the
+ * stored message if we have it. Messages we don't have yet are left to the
+ * nightly import, which stores the edited text.
+ */
+async function applyMessageEdit(supabase: SupabaseClient, event: any) {
+  const message = event.message;
+  if (!message?.ts) return;
+
+  const { error } = await supabase
+    .schema("bronze")
+    .from("slack_messages")
+    .update({
+      text: message.text ?? "",
+      edited_at: message.edited?.ts ? slackTsToIso(message.edited.ts) : null,
+      reply_count: message.reply_count ?? 0,
+      reply_users_count: message.reply_users_count ?? 0,
+      files: message.files ?? null,
+      raw_payload: message,
+    })
+    .eq("channel_id", event.channel)
+    .eq("message_ts", message.ts);
+
+  if (error) {
+    console.error("Error applying Slack message edit:", error);
+    return;
+  }
+  triggerSlackProcessing(event.channel, message.ts);
+}
+
+/**
+ * A message_deleted event names the deleted message by event.deleted_ts.
+ * Soft delete: Silver processing skips rows with deleted_at set.
+ */
+async function applyMessageDelete(supabase: SupabaseClient, event: any) {
+  const deletedTs = event.deleted_ts ?? event.previous_message?.ts;
+  if (!deletedTs) return;
+
+  // Slack's free plan hides messages after about 90 days and deletes them
+  // after a year. Nobody can delete a message they can no longer see, so a
+  // delete event for one that old is Slack's own clean-up, and the Hub's copy
+  // is the archive: keep it.
+  if (isBeyondSlackHistory(deletedTs, clock.now())) {
+    console.log("Ignoring Slack delete event for a message beyond Slack's history limit:", deletedTs);
+    return;
+  }
+
+  const { error } = await supabase
+    .schema("bronze")
+    .from("slack_messages")
+    .update({ deleted_at: slackTsToIso(event.event_ts ?? event.ts) })
+    .eq("channel_id", event.channel)
+    .eq("message_ts", deletedTs)
+    .is("deleted_at", null);
+
+  if (error) {
+    console.error("Error applying Slack message delete:", error);
+    return;
+  }
+  triggerSlackProcessing(event.channel, deletedTs);
 }
 
 /**
@@ -228,7 +335,23 @@ async function publishHomeTab(event: any, origin: string) {
  * CONNECTION_CONFIRMATION_MESSAGE_THRESHOLD -- a single unanswered reply
  * shouldn't count as a real connection.
  */
-async function trackWheelExchange(supabase: any, event: any) {
+/**
+ * The member who wrote a message that was posted from the Hub (posted by the bot, with our
+ * hub_message metadata naming the chat_messages row), or null for any other bot post.
+ */
+async function hubMessageAuthor(supabase: any, event: any): Promise<string | null> {
+  const messageId = event.metadata?.event_type === "hub_message" ? event.metadata.event_payload?.app_message_id : null;
+  if (typeof messageId !== "string" || !/^[0-9a-f-]{36}$/i.test(messageId)) return null;
+  const { data } = await supabase
+    .from("chat_messages")
+    .select("author_member_id")
+    .eq("id", messageId)
+    .eq("origin", "app")
+    .maybeSingle();
+  return data?.author_member_id ?? null;
+}
+
+async function trackWheelExchange(supabase: any, event: any, hubAuthorMemberId: string | null = null) {
   try {
     const { data: match, error: matchError } = await supabase
       .from("wheel_of_wonder_matches")
@@ -245,8 +368,12 @@ async function trackWheelExchange(supabase: any, event: any) {
     }
     if (!match) return;
 
-    const isSpinner = event.user && event.user === match.spinner_slack_user_id;
-    const isMatched = event.user && event.user === match.matched_slack_user_id;
+    const isSpinner = hubAuthorMemberId
+      ? hubAuthorMemberId === match.spinner_member_id
+      : event.user && event.user === match.spinner_slack_user_id;
+    const isMatched = hubAuthorMemberId
+      ? hubAuthorMemberId === match.matched_member_id
+      : event.user && event.user === match.matched_slack_user_id;
     if (!isSpinner && !isMatched) return; // shouldn't happen -- only 3 people are ever in this room
 
     const spinnerMessageCount = match.spinner_message_count + (isSpinner ? 1 : 0);
@@ -282,7 +409,7 @@ async function trackWheelExchange(supabase: any, event: any) {
 /**
  * Trigger Silver layer processing for Slack data
  */
-function triggerSlackProcessing(messageTs: string) {
+function triggerSlackProcessing(channelId: string, messageTs: string) {
   const timestamp = new Date(parseFloat(messageTs) * 1000);
   const from = new Date(timestamp);
   from.setDate(from.getDate() - 1);
@@ -296,7 +423,16 @@ function triggerSlackProcessing(messageTs: string) {
   // (see docs/TODO.md Bug Fixes for the Slack webhook data-loss incident).
   after(async () => {
     try {
-      await triggerReprocessing("slack_messages", "bronze", { dateRange: { from, to } });
+      // Chat gets just this message (a constant-cost call, and what people are waiting to see), not the
+      // windowed projection, which re-reads every message in the window and would grow with the day's traffic.
+      const projectStarted = Date.now();
+      const projected = await projectChatMessage(createServiceRoleClient(), channelId, messageTs);
+      console.info(
+        "[chat] projected one Slack message into chat in %dms%s",
+        Date.now() - projectStarted,
+        projected ? "" : " (the chat has no such message, so nothing was attached to it)"
+      );
+      await triggerReprocessing("slack_messages", "bronze", { dateRange: { from, to }, exclude: ["chat"] });
       console.log("Slack processing triggered successfully");
     } catch (error) {
       console.error("Error triggering Slack processing:", error);

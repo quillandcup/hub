@@ -215,6 +215,7 @@ export default function ProjectDetailsModal({ isOpen, onClose, onSaved, project 
                   type="number"
                   inputMode="decimal"
                   min="0"
+                  step="any"
                   value={startingBalances[measure]}
                   onChange={(e) =>
                     setStartingBalancesState((prev) => ({ ...prev, [measure]: e.target.value }))

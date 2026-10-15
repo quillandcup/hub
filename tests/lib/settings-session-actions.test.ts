@@ -96,7 +96,7 @@ describe("revokeSession", () => {
       target_session_id: "session-1",
     });
     expect(result).toEqual({ success: true });
-    expect(revalidatePath).toHaveBeenCalledWith("/settings");
+    expect(revalidatePath).toHaveBeenCalledWith("/settings", "layout");
   });
 
   it("reports a friendly error when the RPC deletes nothing (not found / not owned)", async () => {
@@ -136,7 +136,7 @@ describe("signOutOtherSessions", () => {
     const result = await signOutOtherSessions();
     expect(mockSupabase.auth.signOut).toHaveBeenCalledWith({ scope: "others" });
     expect(result).toEqual({ success: true });
-    expect(revalidatePath).toHaveBeenCalledWith("/settings");
+    expect(revalidatePath).toHaveBeenCalledWith("/settings", "layout");
   });
 
   it("surfaces a signOut error", async () => {

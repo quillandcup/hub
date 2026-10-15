@@ -1,3 +1,4 @@
+import { ORG_TIMEZONE } from "@/lib/config";
 export interface PrickleType {
   id: string;
   name: string;
@@ -170,19 +171,19 @@ export function getScheduleSlot(startTime: string): { sortKey: string; label: st
   const dt = new Date(startTime);
 
   const weekdayLong = new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/New_York",
+    timeZone: ORG_TIMEZONE,
     weekday: "long",
   }).format(dt);
 
   const timeLabel = new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/New_York",
+    timeZone: ORG_TIMEZONE,
     hour: "numeric",
     minute: "2-digit",
     hour12: true,
   }).format(dt);
 
   const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/New_York",
+    timeZone: ORG_TIMEZONE,
     weekday: "short",
     hour: "2-digit",
     minute: "2-digit",

@@ -18,8 +18,9 @@ import {
 import { computeHostingStats, type HostingStats } from "@/lib/hosting-stats";
 import { fetchHostedPrickleRecords } from "@/lib/hosted-prickles";
 import { fetchHostEligibilityByMember, hostEligibilityMessage, type HostEligibility } from "@/lib/host-eligibility";
+import { ORG_TIMEZONE } from "@/lib/config";
 
-const DEFAULT_TIMEZONE = "America/New_York";
+const DEFAULT_TIMEZONE = ORG_TIMEZONE;
 
 export interface MyScheduleRow {
   id: string;
@@ -324,7 +325,7 @@ export async function requestToHost(
 
   if (error) return { error: error.message };
 
-  revalidatePath("/my-prickles");
+  revalidatePath("/my-prickles", "layout");
   return { success: true };
 }
 
@@ -389,7 +390,7 @@ export async function updateMySchedule(
 
   if (error) return { error: error.message };
 
-  revalidatePath("/my-prickles");
+  revalidatePath("/my-prickles", "layout");
   return { success: true };
 }
 
@@ -427,7 +428,7 @@ export async function withdrawMySchedule(id: string): Promise<{ success: true } 
 
   if (error) return { error: error.message };
 
-  revalidatePath("/my-prickles");
+  revalidatePath("/my-prickles", "layout");
   return { success: true };
 }
 

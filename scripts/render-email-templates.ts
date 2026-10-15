@@ -3,7 +3,7 @@
  * No credentials required — run this after editing templates in supabase/emails/.
  *
  * Usage:
- *   npx tsx scripts/render-email-templates.ts
+ *   npm run templates:render
  */
 
 import { writeFileSync } from "fs";

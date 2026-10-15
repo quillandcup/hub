@@ -37,6 +37,7 @@ export default function ProjectsClient({ initialProjects }: ProjectsClientProps)
         <button
           type="button"
           onClick={() => setShowNewProject(true)}
+          data-tour="new-project"
           className="px-4 py-2 bg-plum-600 hover:bg-plum-700 text-white rounded-lg text-sm font-medium"
         >
           New project
@@ -70,6 +71,7 @@ export default function ProjectsClient({ initialProjects }: ProjectsClientProps)
         <button
           type="button"
           onClick={() => setShowNewProject(true)}
+          data-tour="new-project"
           className="px-4 py-2 bg-plum-600 hover:bg-plum-700 text-white rounded-lg text-sm font-medium"
         >
           New project

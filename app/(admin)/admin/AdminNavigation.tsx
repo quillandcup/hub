@@ -4,84 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { FeatureKey } from "@/lib/features";
-
-interface NavItem {
-  name: string;
-  href: string;
-  icon?: string;
-  feature?: FeatureKey;
-}
-
-interface NavSection {
-  name: string;
-  items: NavItem[];
-  /** Rarely-used maintenance/data-hygiene tooling — rendered collapsed by default to keep daily-use pages front and center. */
-  collapsible?: boolean;
-}
-
-const navigation: NavSection[] = [
-  {
-    name: "Overview",
-    items: [
-      { name: "Dashboard", href: "/admin", icon: "📊" },
-      { name: "Calendar View", href: "/admin/calendar", icon: "📅" },
-    ],
-  },
-  {
-    name: "Members",
-    items: [
-      { name: "Work Queue", href: "/admin/work-queue", icon: "✅", feature: "work_queue" },
-      { name: "All Members", href: "/admin/members", icon: "👥" },
-      { name: "At-Risk Members", href: "/admin/at-risk", icon: "⚠️" },
-      { name: "Outreach", href: "/admin/outreach", icon: "🎯" },
-      { name: "Hedgieversaries", href: "/admin/hedgieversaries", icon: "🎂", feature: "hedgieversaries" },
-      { name: "Member Overrides", href: "/admin/member-overrides", icon: "🎁", feature: "member_overrides" },
-      { name: "Programs", href: "/admin/programs", icon: "🎓", feature: "program_cohorts" },
-    ],
-  },
-  {
-    name: "Community",
-    items: [
-      { name: "Network", href: "/admin/members/network", icon: "🕸️" },
-      { name: "Badges", href: "/admin/badges", icon: "🏅" },
-      { name: "Hosts", href: "/admin/hosts", icon: "🎙️" },
-      { name: "Events", href: "/admin/events", icon: "📸", feature: "events" },
-    ],
-  },
-  {
-    // Data-quality actions that need regular attention to keep the pipeline
-    // from degrading — kept expanded (unlike System below) since these are
-    // meant to be worked, not just occasionally referenced. Name Aliases and
-    // most other hygiene fix-up tools stay off the nav, same as the rest of
-    // /admin/hygiene's linked sub-pages — reached by drilling in from here.
-    name: "Data Health",
-    items: [
-      { name: "Health Check", href: "/admin/hygiene", icon: "🏥" },
-      { name: "Reconciliation", href: "/admin/hygiene#reconciliation", icon: "🔄" },
-    ],
-  },
-  {
-    name: "Analytics",
-    items: [
-      { name: "Community Stats", href: "/admin/stats", icon: "✨" },
-      { name: "Prickle Insights", href: "/admin/insights/prickles", icon: "✍️" },
-      { name: "Slack Engagement", href: "/admin/insights/slack-engagement", icon: "💬" },
-      { name: "Resubscriptions", href: "/admin/insights/resubscriptions", icon: "🔄" },
-      { name: "Wheel of Wonder", href: "/admin/wheel-of-wonder", icon: "🎡" },
-    ],
-  },
-  {
-    name: "System",
-    collapsible: true,
-    items: [
-      { name: "Import Data", href: "/admin/data/import", icon: "📥" },
-      { name: "Prickle Types", href: "/admin/data/prickle-types", icon: "🏷️" },
-      { name: "Users", href: "/admin/users", icon: "🔑" },
-      { name: "Segments", href: "/admin/segments", icon: "🧩" },
-      { name: "Feedback", href: "/admin/feedback", icon: "💬" },
-    ],
-  },
-];
+import { navGroups } from "@/lib/site-pages";
 
 interface NavLinksProps {
   enabledFeatures: FeatureKey[];
@@ -108,11 +31,8 @@ function NavLinks({ enabledFeatures, pathname, collapsed, onNavigate }: NavLinks
 
       {/* Navigation */}
       <nav className="p-4 overflow-y-auto flex-1">
-        {navigation.map((section) => {
-          const visibleItems = section.items.filter(
-            (item) => !item.feature || enabledFeatures.includes(item.feature)
-          );
-          if (visibleItems.length === 0) return null;
+        {navGroups("admin", enabledFeatures).map((section) => {
+          const visibleItems = section.items;
 
           const containsActiveItem = visibleItems.some(
             (item) =>
@@ -136,10 +56,10 @@ function NavLinks({ enabledFeatures, pathname, collapsed, onNavigate }: NavLinks
                           ? "bg-plum-50 dark:bg-plum-900/20 text-plum-600 dark:text-plum-400 font-medium"
                           : "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
                       }`}
-                      title={collapsed ? item.name : undefined}
+                      title={collapsed ? item.title : undefined}
                     >
-                      {item.icon && <span className="text-lg">{item.icon}</span>}
-                      {!collapsed && <span>{item.name}</span>}
+                      {item.nav?.icon && <span className="text-lg">{item.nav.icon}</span>}
+                      {!collapsed && <span>{item.title}</span>}
                     </Link>
                   </li>
                 );

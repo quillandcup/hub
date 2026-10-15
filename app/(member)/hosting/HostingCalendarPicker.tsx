@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import CalendarWeekView, { type SlotClick } from "@/components/CalendarWeekView";
 import { getHostingCalendarContext, type HostingCalendarContext } from "./actions";
+import { ORG_TIMEZONE } from "@/lib/config";
 
 interface Props {
   month: string; // "YYYY-MM-01"
@@ -101,7 +102,7 @@ export default function HostingCalendarPicker({ month, onPick, selectedSlot }: P
             prickles={context.prickles}
             proposedSlots={context.proposedSlots}
             weekStartDate={weekStart}
-            userTimezonePreference="America/New_York"
+            userTimezonePreference={ORG_TIMEZONE}
             mode="member"
             onSlotClick={onPick}
             selectedSlot={selectedSlot}

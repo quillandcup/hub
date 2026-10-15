@@ -55,50 +55,39 @@ export const MEASURE_LABELS: Record<WritingMeasure, string> = {
 };
 
 /**
- * Preset amounts for the post-prickle quick-log Slack DM's one-tap dropdown (Phase 1, item 10).
- * 'prickles' is intentionally absent -- that measure is computed live from prickle_attendance
- * (see derivePrickleHabitEntries below), never manually logged, so there's nothing to quick-log
- * for it. The DM always targets one of the other six measures instead (see
- * app/api/webhooks/slack/interactions/route.ts).
+ * The prickle check-out's progress question, by measure: a fill-in-the-blank number (web modal
+ * and Slack DM alike), worded for what's being counted. 'prickles' is intentionally absent -- that
+ * measure is computed live from prickle_attendance (see derivePrickleHabitEntries below), never
+ * manually logged, so there's nothing to ask for it.
  */
-export const MEASURE_QUICK_LOG_PRESETS: Partial<Record<WritingMeasure, { label: string; amount: number }[]>> = {
-  words: [
-    { label: "0–250 words", amount: 0 },
-    { label: "250–500 words", amount: 250 },
-    { label: "500–1000 words", amount: 500 },
-    { label: "1000+ words", amount: 1000 },
-  ],
-  time_minutes: [
-    { label: "0–15 min", amount: 0 },
-    { label: "15–30 min", amount: 15 },
-    { label: "30–60 min", amount: 30 },
-    { label: "60+ min", amount: 60 },
-  ],
-  pages: [
-    { label: "1 page", amount: 1 },
-    { label: "2 pages", amount: 2 },
-    { label: "3 pages", amount: 3 },
-    { label: "4+ pages", amount: 4 },
-  ],
-  chapters: [
-    { label: "1 chapter", amount: 1 },
-    { label: "2 chapters", amount: 2 },
-    { label: "3 chapters", amount: 3 },
-    { label: "4+ chapters", amount: 4 },
-  ],
-  scenes: [
-    { label: "1 scene", amount: 1 },
-    { label: "2 scenes", amount: 2 },
-    { label: "3 scenes", amount: 3 },
-    { label: "4+ scenes", amount: 4 },
-  ],
-  lines: [
-    { label: "1 line", amount: 1 },
-    { label: "2 lines", amount: 2 },
-    { label: "3 lines", amount: 3 },
-    { label: "4+ lines", amount: 4 },
-  ],
+const PROGRESS_VERBS: Partial<Record<WritingMeasure, string>> = {
+  words: "How many words did you write",
+  time_minutes: "How many minutes did you spend",
+  pages: "How many pages did you write",
+  chapters: "How many chapters did you finish",
+  scenes: "How many scenes did you write",
+  lines: "How many lines did you write",
 };
+
+/** Measures the check-out can ask about (everything except 'prickles'). */
+export const PROGRESS_QUESTION_MEASURES = Object.keys(PROGRESS_VERBS) as WritingMeasure[];
+
+/** e.g. "How many words did you write on The Hedgehog's Journey during Monday Progress Prickle with Jenn P?" */
+export function progressQuestion(measure: WritingMeasure, projectTitle: string, prickleTitle: string): string {
+  return `${PROGRESS_VERBS[measure] ?? "How much did you get done"} on ${projectTitle} during ${prickleTitle}?`;
+}
+
+/**
+ * The measure a project's check-out question asks about: its first active goal's, skipping
+ * 'prickles' (counted from attendance, nothing to ask). Without one, the measure the member
+ * has logged most recently on it, else time_minutes -- the fastest to estimate right after a
+ * session and the universal fallback.
+ */
+export function progressMeasureFor(goalMeasures: WritingMeasure[], recentlyLogged: WritingMeasure[]): WritingMeasure {
+  return (
+    goalMeasures.find((m) => PROGRESS_VERBS[m]) ?? recentlyLogged.find((m) => PROGRESS_VERBS[m]) ?? "time_minutes"
+  );
+}
 
 export interface ProgressEntryInput {
   entryDate: string; // YYYY-MM-DD
@@ -226,46 +215,26 @@ function isoDate(date: Date): string {
 }
 
 export interface PrickleAttendanceRow {
-  typeId: string;
-  hostId: string | null;
+  prickleId: string;
   localDate: string; // YYYY-MM-DD, already resolved to the member's local calendar date
 }
 
-/** A prickles-measure goal's frozen anchor snapshot (see writing_goals.anchor_* columns) -- never a live prickle_schedules lookup. */
-export interface PrickleGoalAnchor {
-  typeId: string | null;
-  hostId: string | null;
-  dayOfWeek: number | null; // 0=Sunday..6=Saturday
-}
-
-function localDateDayOfWeek(localDate: string): number {
-  return new Date(`${localDate}T00:00:00Z`).getUTCDay();
-}
-
 /**
- * Filters a member's prickle attendance down to what a prickles-measure habit goal should
- * count, then groups by date -- output feeds directly into computeHabitGoalProgress unchanged.
- * Each anchor field applies independently when set; all three null means "any (writing-purpose)
- * prickle attended counts" -- purpose filtering itself happens upstream, at the query that
- * produces `attendance` (see getMyPrickleAttendance), not here.
+ * A prickles-measure goal's entries: distinct prickles attended per local date -- output feeds
+ * directly into computeHabitGoalProgress unchanged. Every writing prickle counts; purpose
+ * filtering happens upstream, at the query that produces `attendance` (see
+ * getMyPrickleAttendance). A member who left and rejoined has several rows for one prickle
+ * (see CLAUDE.md), and that's still one prickle.
  */
-export function derivePrickleHabitEntries(
-  attendance: PrickleAttendanceRow[],
-  anchor: PrickleGoalAnchor
-): { entryDate: string; amount: number }[] {
-  const matching = attendance.filter((row) => {
-    if (anchor.typeId != null && row.typeId !== anchor.typeId) return false;
-    if (anchor.hostId != null && row.hostId !== anchor.hostId) return false;
-    if (anchor.dayOfWeek != null && localDateDayOfWeek(row.localDate) !== anchor.dayOfWeek) return false;
-    return true;
-  });
-
-  const totalsByDate = new Map<string, number>();
-  for (const row of matching) {
-    totalsByDate.set(row.localDate, (totalsByDate.get(row.localDate) ?? 0) + 1);
+export function derivePrickleHabitEntries(attendance: PrickleAttendanceRow[]): { entryDate: string; amount: number }[] {
+  const pricklesByDate = new Map<string, Set<string>>();
+  for (const row of attendance) {
+    const ids = pricklesByDate.get(row.localDate) ?? new Set<string>();
+    ids.add(row.prickleId);
+    pricklesByDate.set(row.localDate, ids);
   }
 
-  return [...totalsByDate.entries()].map(([entryDate, amount]) => ({ entryDate, amount }));
+  return [...pricklesByDate.entries()].map(([entryDate, ids]) => ({ entryDate, amount: ids.size }));
 }
 
 export type HabitPeriod = "day" | "week" | "month";

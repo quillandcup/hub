@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { computeOverlapLayout } from "@/lib/calendar-overlap";
+import { ORG_TIMEZONE } from "@/lib/config";
 
 export interface Prickle {
   id: string;
@@ -152,7 +153,7 @@ export default function CalendarWeekView({
   // Use user's preference, or detected timezone, or fallback to ET
   const defaultTimezone =
     userTimezonePreference === "browser"
-      ? (detectedTimezone || "America/New_York")
+      ? (detectedTimezone || ORG_TIMEZONE)
       : userTimezonePreference;
 
   const [timezone, setTimezone] = useState(defaultTimezone);

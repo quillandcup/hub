@@ -1,4 +1,6 @@
 import { buildAttendanceMap, getScheduleSlot } from "@/lib/scheduled-prickle-stats";
+import { ORG_TIMEZONE } from "@/lib/config";
+import { FEELING_GROUP, type Feeling, type Need } from "@/lib/prickle-checkins";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -47,11 +49,24 @@ export interface HostVibeRow {
   notes: string | null;
 }
 
+/** One of the member's own rated check-ins, keyed to the prickle series it was for. */
+export interface PersonalCheckin {
+  seriesKey: string;
+  feelingsBefore: Feeling[];
+  need: Need | null;
+  sessionRating: number;
+}
+
 export interface PickerAnswers {
   /** ISO datetime, inclusive lower bound on start_time */
   windowStart: string;
   /** ISO datetime, inclusive upper bound on start_time */
   windowEnd: string;
+  /**
+   * Later cutoff for prickles outside the window: they're still returned, flagged as a
+   * "window" mismatch, so the picker has something to offer when the window is empty.
+   */
+  fallbackWindowEnd?: string;
   timeOfDay: TimeOfDay;
   vibe: VibePreference;
   purpose: PurposePreference;
@@ -59,6 +74,10 @@ export interface PickerAnswers {
   withMemberIds: string[];
   /** IANA timezone used only for time-of-day bucketing */
   timezone: string;
+  /** How the member feels coming in (up to 2); empty = didn't say. */
+  feelings?: Feeling[];
+  /** What they need from the session; null = didn't say. */
+  need?: Need | null;
 }
 
 export interface PickerRecommendation {
@@ -75,11 +94,25 @@ export interface PickerRecommendation {
   avgAttendance: number | null;
   sessionCount: number;
   coAttendanceRate: number | null;
+  /**
+   * The member's own ratings of this series from times they felt similar (see
+   * similarCheckins), or null when there are fewer than MIN_PERSONAL_SESSIONS of them.
+   */
+  personal: { sessions: number; avgRating: number } | null;
+  /**
+   * Preferences this series is known to miss (mood differs from what was asked, the requested
+   * people have never all attended together, nothing falls in the chosen window or time of day,
+   * or it isn't the chosen purpose). Empty = a real match. Unknown vibe/history is not a
+   * mismatch, just unproven.
+   */
+  mismatches: PickerMismatch[];
   score: number;
   occurrences: { id: string; startTime: string }[];
 }
 
-const DEFAULT_TIMEZONE = "America/New_York";
+export type PickerMismatch = "vibe" | "people" | "window" | "timeOfDay" | "purpose";
+
+const DEFAULT_TIMEZONE = ORG_TIMEZONE;
 
 // Heuristic thresholds used only when a series has no explicit host vibe tag.
 // Never a hard filter — always a low-confidence nudge.
@@ -87,6 +120,15 @@ export const INFERRED_VIBE_THRESHOLDS = { focusedMax: 3, chattyMin: 8 };
 
 const WEIGHT_CO_ATTENDANCE = 3;
 const WEIGHT_VIBE = 1.5;
+// Per rating point above (or below) the member's own average rating, so a series they rate a
+// full point higher than usual when feeling like this outweighs a tagged vibe match.
+const WEIGHT_PERSONAL = 2;
+/** Similar rated sessions needed before a series' personal history counts at all. */
+export const MIN_PERSONAL_SESSIONS = 2;
+
+/** How far back the picker looks at attendance and hosting (and so which prickle types a host
+ * sets a vibe for in Settings → Hosting). */
+export const PICKER_HISTORY_MONTHS = 6;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -179,6 +221,29 @@ function scoreConfidence(sessionCount: number): number {
   return Math.min(sessionCount, 10) * 0.02;
 }
 
+/**
+ * The member's check-ins from times they felt like they do now: the same need, or a feeling in
+ * the same group (an ungrouped feeling only matches itself). With no feelings or need given,
+ * every check-in counts.
+ */
+export function similarCheckins(
+  checkins: PersonalCheckin[],
+  feelings: Feeling[],
+  need: Need | null
+): PersonalCheckin[] {
+  if (feelings.length === 0 && need === null) return checkins;
+  const groups = new Set(feelings.map((f) => FEELING_GROUP[f]).filter((g) => g !== null));
+  return checkins.filter(
+    (c) =>
+      (need !== null && c.need === need) ||
+      c.feelingsBefore.some((f) => feelings.includes(f) || (FEELING_GROUP[f] !== null && groups.has(FEELING_GROUP[f])))
+  );
+}
+
+function mean(values: number[]): number {
+  return values.reduce((s, v) => s + v, 0) / values.length;
+}
+
 // ---------------------------------------------------------------------------
 // Main entry point
 // ---------------------------------------------------------------------------
@@ -191,16 +256,15 @@ export function getPrickleRecommendations(
   historicalAttendance: HistoricalAttendanceRow[],
   hostVibes: HostVibeRow[],
   answers: PickerAnswers,
-  limit = 8
+  limit = 8,
+  personalCheckins: PersonalCheckin[] = []
 ): PickerRecommendation[] {
-  const filteredCandidates = candidates.filter(
-    (c) =>
-      withinWindow(c.start_time, answers.windowStart, answers.windowEnd) &&
-      passesTimeOfDayFilter(c.start_time, answers.timeOfDay, answers.timezone)
+  const considered = candidates.filter((c) =>
+    withinWindow(c.start_time, answers.windowStart, answers.fallbackWindowEnd ?? answers.windowEnd)
   );
 
   const candidatesBySeries = new Map<string, CandidatePrickle[]>();
-  for (const c of filteredCandidates) {
+  for (const c of considered) {
     const key = seriesKeyFor(c.type_id, c.host_id);
     if (!candidatesBySeries.has(key)) candidatesBySeries.set(key, []);
     candidatesBySeries.get(key)!.push(c);
@@ -223,13 +287,27 @@ export function getPrickleRecommendations(
   const withMemberIds = new Set(answers.withMemberIds);
   const recommendations: PickerRecommendation[] = [];
 
+  // Personal history is relative to the member's own average rating, so someone who rates
+  // everything "Good" and someone who rates everything "OK" are compared to themselves.
+  const memberAvgRating =
+    personalCheckins.length > 0 ? mean(personalCheckins.map((c) => c.sessionRating)) : null;
+  const similarBySeries = new Map<string, number[]>();
+  for (const c of similarCheckins(personalCheckins, answers.feelings ?? [], answers.need ?? null)) {
+    if (!similarBySeries.has(c.seriesKey)) similarBySeries.set(c.seriesKey, []);
+    similarBySeries.get(c.seriesKey)!.push(c.sessionRating);
+  }
+
   for (const [seriesKey, seriesCandidates] of candidatesBySeries) {
     const first = seriesCandidates[0];
     const typeInfo = first.type_id ? candidateTypes.get(first.type_id) : undefined;
     const purpose = typeInfo?.purpose ?? "writing";
     const soloTaskFriendly = typeInfo?.soloTaskFriendly ?? true;
 
-    if (!passesPurposeFilter(answers.purpose, purpose, soloTaskFriendly)) continue;
+    // Occurrences that fit both the window and the time of day; a series with none of them is
+    // still offered (flagged), showing all its occurrences.
+    const inWindow = seriesCandidates.filter((c) => withinWindow(c.start_time, answers.windowStart, answers.windowEnd));
+    const fitting = inWindow.filter((c) => passesTimeOfDayFilter(c.start_time, answers.timeOfDay, answers.timezone));
+    const shown = fitting.length > 0 ? fitting : inWindow.length > 0 ? inWindow : seriesCandidates;
 
     const hostInfo = first.host_id ? candidateHosts.get(first.host_id) : undefined;
     const historical = historicalBySeries.get(seriesKey) ?? [];
@@ -270,13 +348,27 @@ export function getPrickleRecommendations(
       coAttendanceRate = matches / sessionCount;
     }
 
+    const similarRatings = similarBySeries.get(seriesKey) ?? [];
+    const personal =
+      similarRatings.length >= MIN_PERSONAL_SESSIONS
+        ? { sessions: similarRatings.length, avgRating: mean(similarRatings) }
+        : null;
+
     const score =
       WEIGHT_CO_ATTENDANCE * scoreCoAttendance(answers.withMemberIds, coAttendanceRate, sessionCount) +
       WEIGHT_VIBE * scoreVibeMatch(answers.vibe, vibe, vibeSource) +
       scorePurposeMatch(answers.purpose, purpose) +
-      scoreConfidence(sessionCount);
+      scoreConfidence(sessionCount) +
+      (personal && memberAvgRating !== null ? WEIGHT_PERSONAL * (personal.avgRating - memberAvgRating) : 0);
 
-    const sortedOccurrences = [...seriesCandidates].sort(
+    const mismatches: PickerMismatch[] = [];
+    if (inWindow.length === 0) mismatches.push("window");
+    else if (fitting.length === 0) mismatches.push("timeOfDay");
+    if (!passesPurposeFilter(answers.purpose, purpose, soloTaskFriendly)) mismatches.push("purpose");
+    if (answers.vibe !== "any" && vibe !== "unknown" && vibe !== answers.vibe) mismatches.push("vibe");
+    if (withMemberIds.size > 0 && sessionCount > 0 && coAttendanceRate === 0) mismatches.push("people");
+
+    const sortedOccurrences = [...shown].sort(
       (a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime()
     );
 
@@ -294,24 +386,18 @@ export function getPrickleRecommendations(
       avgAttendance,
       sessionCount,
       coAttendanceRate,
+      personal,
+      mismatches,
       score,
       occurrences: sortedOccurrences.slice(0, 3).map((o) => ({ id: o.id, startTime: o.start_time })),
     });
   }
 
-  // A proven zero -- the requested people have historically never all shown
-  // up together at this series -- shouldn't be outranked into the results by
-  // vibe/purpose scoring alone. Rank those series behind everything else
-  // (unknown/no-history and nonzero co-attendance) rather than blending them
-  // into one score-sorted list, but still show them if there isn't enough
-  // else to fill the list.
-  const isProvenMismatch = (r: PickerRecommendation) =>
-    withMemberIds.size > 0 && r.sessionCount > 0 && r.coAttendanceRate === 0;
-
+  // Real matches first, then the series that miss the fewest preferences (e.g. requested people
+  // who have never all shown up together rank behind everything else), then by score. Misses
+  // are still returned so the member always has something to look at.
   recommendations.sort((a, b) => {
-    const aMismatch = isProvenMismatch(a);
-    const bMismatch = isProvenMismatch(b);
-    if (aMismatch !== bMismatch) return aMismatch ? 1 : -1;
+    if (a.mismatches.length !== b.mismatches.length) return a.mismatches.length - b.mismatches.length;
     if (b.score !== a.score) return b.score - a.score;
     return new Date(a.occurrences[0].startTime).getTime() - new Date(b.occurrences[0].startTime).getTime();
   });

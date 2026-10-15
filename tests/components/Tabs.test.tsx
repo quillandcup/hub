@@ -4,8 +4,8 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Tabs, TabBar } from '@/components/Tabs'
 
-// Outside the App Router useSearchParams returns null; tests that need the param set it here.
-const navigation = vi.hoisted(() => ({ useSearchParams: vi.fn((): URLSearchParams | null => null) }))
+// Outside the App Router usePathname returns null; tests that need a path set it here.
+const navigation = vi.hoisted(() => ({ usePathname: vi.fn((): string | null => null) }))
 vi.mock('next/navigation', () => navigation)
 
 const TABS = [
@@ -28,37 +28,47 @@ describe('Tabs', () => {
     expect(screen.getByText('Awards panel')).toBeInTheDocument()
   })
 
-  it('with syncToUrl, writes the selected tab to the URL and drops the cleared params', async () => {
-    window.history.replaceState(null, '', '/my-prickles?tab=projects&commit=abc&keep=1#top')
-    render(<Tabs tabs={TABS} initialTab="projects" syncToUrl={{ param: 'tab', clear: ['commit'] }} />)
+  it('with basePath, writes the selected tab to the URL path and drops the query', async () => {
+    window.history.replaceState(null, '', '/my-writing/awards?commit=abc#top')
+    render(<Tabs tabs={TABS} initialTab="awards" basePath="/my-writing" />)
     await userEvent.click(screen.getByRole('tab', { name: 'Books' }))
-    expect(`${window.location.pathname}${window.location.search}${window.location.hash}`).toBe(
-      '/my-prickles?tab=books&keep=1#top'
-    )
+    expect(`${window.location.pathname}${window.location.search}${window.location.hash}`).toBe('/my-writing/books#top')
+    // The first tab lives at the bare base path.
+    await userEvent.click(screen.getByRole('tab', { name: 'Projects' }))
+    expect(window.location.pathname).toBe('/my-writing')
   })
 
-  it('with syncToUrl, follows a link that changes ?tab= while the page stays mounted', async () => {
-    const params = { value: new URLSearchParams('tab=projects') }
-    navigation.useSearchParams.mockImplementation(() => params.value)
-    const { rerender } = render(<Tabs tabs={TABS} initialTab="projects" syncToUrl={{ param: 'tab' }} />)
+  it("with basePath, follows a link to another tab's path while the page stays mounted", async () => {
+    const path = { value: '/my-writing' }
+    navigation.usePathname.mockImplementation(() => path.value)
+    const { rerender } = render(<Tabs tabs={TABS} initialTab="projects" basePath="/my-writing" />)
     await userEvent.click(screen.getByRole('tab', { name: 'Awards' }))
-    params.value = new URLSearchParams('tab=awards')
-    rerender(<Tabs tabs={TABS} initialTab="projects" syncToUrl={{ param: 'tab' }} />)
+    path.value = '/my-writing/awards'
+    rerender(<Tabs tabs={TABS} initialTab="projects" basePath="/my-writing" />)
     expect(screen.getByText('Awards panel')).toBeInTheDocument()
 
-    // A link back to ?tab=projects: same initialTab from the server, so only the param moves.
-    params.value = new URLSearchParams('tab=projects&commit=')
-    rerender(<Tabs tabs={TABS} initialTab="projects" syncToUrl={{ param: 'tab' }} />)
+    // A link back to /my-writing: same initialTab from the server, so only the path moves.
+    path.value = '/my-writing'
+    rerender(<Tabs tabs={TABS} initialTab="projects" basePath="/my-writing" />)
     expect(screen.getByRole('tab', { name: 'Projects' })).toHaveAttribute('aria-selected', 'true')
     expect(screen.getByText('Projects panel')).toBeInTheDocument()
-    navigation.useSearchParams.mockReset()
+    navigation.usePathname.mockReset()
   })
 
-  it('leaves the URL alone without syncToUrl', async () => {
-    window.history.replaceState(null, '', '/somewhere?tab=projects')
+  it('with pageTitle, sets the browser tab title the tab route would', async () => {
+    window.history.replaceState(null, '', '/my-writing')
+    render(<Tabs tabs={TABS} initialTab="projects" basePath="/my-writing" pageTitle={{ section: "My Writing" }} />)
+    await userEvent.click(screen.getByRole('tab', { name: 'Books' }))
+    expect(document.title).toBe('Books · My Writing | Hedgie Hub')
+    await userEvent.click(screen.getByRole('tab', { name: 'Projects' }))
+    expect(document.title).toBe('My Writing | Hedgie Hub')
+  })
+
+  it('leaves the URL alone without basePath', async () => {
+    window.history.replaceState(null, '', '/somewhere?x=1')
     render(<Tabs tabs={TABS} />)
     await userEvent.click(screen.getByRole('tab', { name: 'Books' }))
-    expect(`${window.location.pathname}${window.location.search}`).toBe('/somewhere?tab=projects')
+    expect(`${window.location.pathname}${window.location.search}`).toBe('/somewhere?x=1')
   })
 
   it('switches panels on click', async () => {

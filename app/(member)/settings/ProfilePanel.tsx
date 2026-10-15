@@ -14,16 +14,12 @@ import { parseInstagramInput } from "@/lib/kajabi/profile-fields";
 import { MAX_BIO_LENGTH, parseBioInput, parseFacebookInput, parseXInput } from "@/lib/social-links";
 import { MAX_TOPICS, MAX_TOPIC_LENGTH, normalizeTopics } from "@/lib/ask-me-about";
 import TagInput from "@/components/TagInput";
+import { SUPPORT_EMAIL } from "@/lib/config";
 
 const INPUT_CLASS =
   "w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-sm";
 const SAVE_CLASS =
   "px-4 py-2 bg-plum-600 text-white text-sm rounded-md hover:bg-plum-700 disabled:opacity-50 disabled:cursor-not-allowed";
-
-/** How a stored handle shows in the input: always with a leading @, or empty. */
-function formatHandle(handle: string | null): string {
-  return handle ? `@${handle.replace(/^@+/, "")}` : "";
-}
 
 /** Under each bio/link field: how to hide it, plus a one-click "Remove" while it has a value. */
 function ClearHint({ value, noun, onClear }: { value: string; noun: string; onClear: () => void }) {
@@ -69,7 +65,7 @@ export function ProfilePanel() {
       setData(null);
     } else {
       setData(result);
-      setInstagramInput(formatHandle(result.instagramHandle));
+      setInstagramInput(result.instagramUrl ?? "");
       setBioInput(result.details.bio ?? "");
       setFacebookInput(result.details.facebookUrl ?? "");
       setXInput(result.details.twitterUrl ?? "");
@@ -99,7 +95,7 @@ export function ProfilePanel() {
     if ("error" in askMeAbout) return setError(`Ask me about: ${askMeAbout.error}`);
 
     // Instagram lives in Kajabi, so only call out to it when the handle actually changed.
-    const instagramChanged = data.kajabiLinked && instagramInput.trim() !== formatHandle(data.instagramHandle);
+    const instagramChanged = data.kajabiLinked && instagramInput.trim() !== (data.instagramUrl ?? "");
     // Topics are Hub-only and show immediately, so they don't count toward "will update in a minute".
     const topicsChanged = askMeAbout.topics.join("\n") !== data.askMeAbout.join("\n");
 
@@ -167,7 +163,7 @@ export function ProfilePanel() {
       )}
 
       <form onSubmit={handleSave} className="space-y-4 max-w-md">
-        <div>
+        <div data-tour="profile-bio">
           <div className="flex items-baseline justify-between mb-1">
             <label htmlFor="profile-bio" className="text-sm font-medium text-slate-900 dark:text-slate-100">
               Bio
@@ -215,24 +211,18 @@ export function ProfilePanel() {
                 type="text"
                 value={instagramInput}
                 onChange={(e) => setInstagramInput(e.target.value)}
-                placeholder="@yourname"
-                maxLength={200}
+                placeholder="instagram.com/yourname"
+                maxLength={300}
                 autoComplete="off"
                 className={INPUT_CLASS}
               />
-              {data.instagramFallbackUrl ? (
-                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                  If you leave it blank, your profile links to {data.instagramFallbackUrl} instead.
-                </p>
-              ) : (
-                <ClearHint value={instagramInput} noun="Instagram" onClear={() => setInstagramInput("")} />
-              )}
+              <ClearHint value={instagramInput} noun="Instagram" onClear={() => setInstagramInput("")} />
             </>
           ) : (
             <p className="text-xs text-slate-500 dark:text-slate-400">
               Instagram isn&apos;t set up for your account yet. Email{" "}
-              <a href="mailto:support@quillandcup.com" className="underline">
-                support@quillandcup.com
+              <a href={`mailto:${SUPPORT_EMAIL}`} className="underline">
+                {SUPPORT_EMAIL}
               </a>{" "}
               and we&apos;ll sort it out.
             </p>

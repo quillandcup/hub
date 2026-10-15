@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, vi } from 'vitest'
 import { NextRequest } from 'next/server'
 import { createHmac } from 'crypto'
 import { getTestSupabaseAdminClient, getTestSupabaseClient } from '../helpers/supabase'
@@ -52,8 +52,8 @@ import {
   issueSlackSignIn,
   consumeSlackSignIn,
   formatSlackSignInCode,
-  SLACK_REFRESH_ACTION_ID,
   SLACK_SEND_LINK_ACTION_ID,
+  SLACK_ADMIN_SIGN_IN_TTL_MINUTES,
 } from '@/lib/slack-sign-in'
 import { extractSlackSignInCredential } from '@/lib/slack-sign-in-code'
 import { completeSlackSignIn, signInWithSlackCode } from '@/app/auth/slack/actions'
@@ -287,6 +287,69 @@ describe('Slack sign-in', () => {
     })
   })
 
+  describe('admins who opted in (slack_admin_sign_in preview)', () => {
+    const optIn = () => supabase.from('user_feature_previews').upsert({ user_id: adminUserId, feature_key: 'slack_admin_sign_in' })
+    const optOut = () => supabase.from('user_feature_previews').delete().eq('user_id', adminUserId).eq('feature_key', 'slack_admin_sign_in')
+
+    beforeEach(optIn)
+    afterEach(optOut)
+
+    it('resolves and binds them, marked as admin', async () => {
+      slackUsersInfo.mockResolvedValue(slackProfile(adminEmail))
+      expect(await resolveHubUserForSlackUser(supabase, slack.admin)).toEqual({
+        status: 'ok',
+        userId: adminUserId,
+        email: adminEmail,
+        admin: true,
+      })
+      const { data } = await supabase.from('slack_identities').select('user_id').eq('slack_user_id', slack.admin).single()
+      expect(data?.user_id).toBe(adminUserId)
+    })
+
+    it('ignores the global switch: only their own opt-in counts', async () => {
+      await optOut()
+      await supabase.from('feature_flags').upsert({ feature_key: 'slack_admin_sign_in', enabled_globally: true })
+      try {
+        slackUsersInfo.mockResolvedValue(slackProfile(adminEmail))
+        expect(await resolveHubUserForSlackUser(supabase, slack.admin)).toEqual({ status: 'admin' })
+      } finally {
+        await supabase.from('feature_flags').delete().eq('feature_key', 'slack_admin_sign_in')
+      }
+    })
+
+    it(`gives them ${SLACK_ADMIN_SIGN_IN_TTL_MINUTES}-minute links that sign them in`, async () => {
+      slackUsersInfo.mockResolvedValue(slackProfile(adminEmail))
+      const body = new URLSearchParams({ command: '/hub', user_id: slack.admin }).toString()
+      const json = await (
+        await commandsPOST(signedRequest(`${ORIGIN}/api/webhooks/slack/commands`, body, 'application/x-www-form-urlencoded'))
+      ).json()
+      const open = json.blocks.find((b: { type: string }) => b.type === 'actions').elements[0]
+
+      const { data: row } = await supabase
+        .from('slack_sign_in_tokens')
+        .select('expires_at')
+        .eq('slack_user_id', slack.admin)
+        .is('used_at', null)
+        .single()
+      const minutesLeft = (new Date(row!.expires_at).getTime() - Date.now()) / 60_000
+      expect(minutesLeft).toBeGreaterThan(SLACK_ADMIN_SIGN_IN_TTL_MINUTES - 1)
+      expect(minutesLeft).toBeLessThanOrEqual(SLACK_ADMIN_SIGN_IN_TTL_MINUTES)
+
+      await buttonGET(buttonRequest(tokenOf(open.url), true))
+      expect(await signedInUserId()).toBe(adminUserId)
+    })
+
+    it('revokes their outstanding links when they opt out', async () => {
+      slackUsersInfo.mockResolvedValue(slackProfile(adminEmail))
+      await resolveHubUserForSlackUser(supabase, slack.admin)
+      const issued = await issueSlackSignIn(supabase, { slackUserId: slack.admin, origin: ORIGIN, ttlMinutes: SLACK_ADMIN_SIGN_IN_TTL_MINUTES })
+      await optOut()
+
+      const res = await buttonGET(buttonRequest(tokenOf(issued.url), true))
+      expect(res.headers.get('location')).toBe(`${ORIGIN}/auth/slack/continue?error=unavailable`)
+    })
+  })
+
   describe('button tokens and codes', () => {
     it('share one row: using the button spends the code too', async () => {
       const issued = await issueSlackSignIn(supabase, { slackUserId: slack.member, origin: ORIGIN })
@@ -427,7 +490,7 @@ describe('Slack sign-in', () => {
       expect(res.status).toBe(401)
     })
 
-    it('replies ephemerally with a button, a copyable-link button and a code, without a refresh button', async () => {
+    it('replies ephemerally with a button, and a copyable-link button, without a refresh button or an on-screen code', async () => {
       slackUsersInfo.mockResolvedValue(slackProfile(memberEmail))
       const body = new URLSearchParams({ command: '/hub', user_id: slack.member }).toString()
       const json = await (await commandsPOST(signedRequest(url, body, 'application/x-www-form-urlencoded'))).json()
@@ -436,7 +499,7 @@ describe('Slack sign-in', () => {
       const elements = json.blocks.find((b: { type: string }) => b.type === 'actions').elements
       expect(elements.map((e: { action_id: string }) => e.action_id)).toEqual(['hub_sign_in', SLACK_SEND_LINK_ACTION_ID])
       expect(elements[0].url).toMatch(new RegExp(`^${ORIGIN}/auth/slack\\?token=`))
-      expect(JSON.stringify(json.blocks)).toMatch(/`[0-9A-Z]{5}-[0-9A-Z]{5}`/)
+      expect(JSON.stringify(json.blocks)).not.toMatch(/`[0-9A-Z]{5}-[0-9A-Z]{5}`/)
     })
 
     it('refuses to issue anything when the signing secret is not configured', async () => {
@@ -456,17 +519,18 @@ describe('Slack sign-in', () => {
       return eventsPOST(signedRequest(eventsUrl, body, 'application/json'))
     }
 
-    it('publishes a sign-in button, a refresh button and a code when the tab opens', async () => {
+    it('publishes just the sign-in and send-link buttons, with no expiry, when the tab opens', async () => {
       slackUsersInfo.mockResolvedValue(slackProfile(memberEmail))
       await homeOpened(slack.member)
 
       const { user_id, view } = slackViewsPublish.mock.calls[0][0]
       expect(user_id).toBe(slack.member)
-      const [open, send, refresh] = view.blocks.find((b: { type: string }) => b.type === 'actions').elements
+      const buttons = view.blocks.find((b: { type: string }) => b.type === 'actions').elements
+      const [open, send] = buttons
       expect(open.url).toMatch(new RegExp(`^${ORIGIN}/auth/slack\\?token=`))
       expect(send.action_id).toBe(SLACK_SEND_LINK_ACTION_ID)
-      expect(refresh.action_id).toBe(SLACK_REFRESH_ACTION_ID)
-      expect(JSON.stringify(view.blocks)).toContain('<!date^')
+      expect(buttons).toHaveLength(2)
+      expect(JSON.stringify(view.blocks)).not.toContain('<!date^')
     })
 
     it('ignores the Messages tab', async () => {
@@ -487,12 +551,6 @@ describe('Slack sign-in', () => {
       const body = new URLSearchParams({ payload }).toString()
       return interactionsPOST(signedRequest(`${ORIGIN}/api/webhooks/slack/interactions`, body, 'application/x-www-form-urlencoded'))
     }
-
-    it('"Get a fresh link" republishes the tab', async () => {
-      await bindMember()
-      await clickButton(SLACK_REFRESH_ACTION_ID, slack.member)
-      expect(slackViewsPublish).toHaveBeenCalledWith(expect.objectContaining({ user_id: slack.member }))
-    })
 
     it('"Send me a link I can copy" DMs the member a working one-time link, without unfurling it', async () => {
       await bindMember()

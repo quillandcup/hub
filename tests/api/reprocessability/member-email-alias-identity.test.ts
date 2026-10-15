@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { getTestSupabaseAdminClient, getTestAuthHeaders, getTestApiBaseUrl } from '../../helpers/supabase'
+import { apiFetch } from '../../helpers/api-fetch'
 
 /**
  * member_email_aliases point at a member (member_id), not at an email.
@@ -22,7 +23,7 @@ describe('Member email aliases follow the member, not an email', () => {
   const kajabiId = (label: string) => `${prefix}-${label}`
 
   async function processMembers() {
-    const response = await fetch(`${getTestApiBaseUrl()}/api/process/members`, {
+    const response = await apiFetch(`${getTestApiBaseUrl()}/api/process/members`, {
       method: 'POST',
       headers: getTestAuthHeaders(),
     })

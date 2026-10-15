@@ -247,7 +247,6 @@ describe("member profile page: Writing Progress", () => {
     title: "Finish Draft 3",
     description: "Get the manuscript ready for beta readers",
     showOnProfile: true,
-    anchorLabel: null,
     kind: "target",
     targetAmount: 18,
     startDate: "2026-06-01",

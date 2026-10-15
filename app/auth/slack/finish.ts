@@ -24,14 +24,21 @@ export async function finishSlackSignIn(
 }
 
 /**
- * A button token that's expired or already used still tells us whose it was: refresh their Home
- * tab so the button waiting for them in Slack works. Returns whether it did.
+ * A button token that's expired or already used still tells us whose it was: put a fresh button
+ * in their Home tab so the one waiting for them in Slack works. Unlike refreshHomeLater this
+ * finishes before the caller responds, so the new view is already published when the member
+ * switches back to Slack. Returns whether it did.
  */
 export async function refreshHomeForDeadToken(service: SupabaseClient, token: string, origin: string): Promise<boolean> {
   const slackUserId = await findSlackUserForToken(service, token);
   if (!slackUserId) return false;
-  refreshHomeLater(service, slackUserId, origin);
-  return true;
+  try {
+    await publishSlackHome(service, slackUserId, origin);
+    return true;
+  } catch (error) {
+    console.error("Error refreshing Slack Home tab for %s:", slackUserId, error);
+    return false;
+  }
 }
 
 function refreshHomeLater(service: SupabaseClient, slackUserId: string, origin: string) {

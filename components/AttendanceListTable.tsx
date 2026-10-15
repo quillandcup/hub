@@ -6,6 +6,10 @@ import Link from "next/link";
 import { SortableTh } from "@/components/SortableTh";
 import { useDataTable } from "@/lib/hooks/useDataTable";
 import type { SortValue } from "@/lib/hooks/useTableSort";
+import CheckinPills from "@/components/CheckinPills";
+import type { CheckinInput } from "@/lib/prickle-checkins";
+import type { CheckinHalf } from "@/app/(member)/prickles/checkin-actions";
+import { DataTablePager } from "@/components/DataTablePager";
 
 interface Props {
   attendance: any[];
@@ -14,6 +18,12 @@ interface Props {
   memberId: string;
   memberBasePath?: string;
   prickleBasePath?: string;
+  /**
+   * The viewer's own saved check-ins by prickle id. Passing it (even empty) with onOpenCheck adds a
+   * "Check in →" / "Check out →" pill pair to each row; omit them to show someone else's history.
+   */
+  checkins?: Record<string, CheckinInput>;
+  onOpenCheck?: (prickleId: string, half: CheckinHalf) => void;
 }
 
 // dateKey format: "MM/DD/YYYY"
@@ -55,24 +65,33 @@ export default function AttendanceListTable({
   memberId,
   memberBasePath = "/members",
   prickleBasePath = "/prickles",
+  checkins,
+  onOpenCheck,
 }: Props) {
   const router = useRouter();
-  // Grouped by date and scrolled into from the month grid, so it never pages.
-  const { sortColumn, sortDirection, handleSort, rows: sortedRows } = useDataTable<any, SortColumn>({
-    rows: attendance,
-    getSortValue,
-    defaultSort: null,
-    paginate: false,
-  });
-
-  const byDate = new Map<string, any[]>();
-  sortedRows.forEach((record) => {
-    const key = new Date(record.join_time).toLocaleDateString("en-US", {
+  const showPills = checkins !== undefined && onOpenCheck !== undefined;
+  const columnCount = showPills ? 5 : 4;
+  // Pages once there are many rows; the date groups are formed from the current page. Moving to
+  // another date (the calendar's prev/next) jumps to the page holding it (reveal).
+  const dateKeyOf = (record: any) =>
+    new Date(record.join_time).toLocaleDateString("en-US", {
       timeZone: timezone,
       year: "numeric",
       month: "2-digit",
       day: "2-digit",
     });
+  const table = useDataTable<any, SortColumn>({
+    rows: attendance,
+    getSortValue,
+    defaultSort: null,
+    pageSize: 25,
+    reveal: { key: activeListDateKey, getRowKey: dateKeyOf },
+  });
+  const { sortColumn, sortDirection, handleSort, rows: sortedRows } = table;
+
+  const byDate = new Map<string, any[]>();
+  sortedRows.forEach((record) => {
+    const key = dateKeyOf(record);
     if (!byDate.has(key)) byDate.set(key, []);
     byDate.get(key)!.push(record);
   });
@@ -129,6 +148,11 @@ export default function AttendanceListTable({
                 direction={sortDirection}
                 onClick={() => handleSort("host")}
               />
+              {showPills && (
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                  Check in / out
+                </th>
+              )}
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
@@ -139,7 +163,7 @@ export default function AttendanceListTable({
                 <>
                   <tr key={`header-${dateKey}`} id={`list-date-${dateKey.replace(/\//g, "-")}`}>
                     <td
-                      colSpan={4}
+                      colSpan={columnCount}
                       className={`px-6 py-2 text-sm font-semibold border-t-2 ${
                         isActive
                           ? "border-plum-500 bg-plum-50 dark:bg-plum-950 text-plum-900 dark:text-plum-100"
@@ -187,6 +211,11 @@ export default function AttendanceListTable({
                             "None"
                           )}
                         </td>
+                        {showPills && (
+                          <td className="px-6 py-4">
+                            <CheckinPills prickleId={prickle.id} checkin={checkins![prickle.id] ?? null} onOpen={onOpenCheck!} />
+                          </td>
+                        )}
                       </tr>
                     );
                   })}
@@ -196,6 +225,7 @@ export default function AttendanceListTable({
           </tbody>
         </table>
       </div>
+      <DataTablePager table={table} itemLabel="attendances" />
     </div>
   );
 }

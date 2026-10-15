@@ -60,11 +60,25 @@ Some people who attend prickles have no Kajabi footprint at all (not a member, t
 - **Later refinement:** cascade only when the upstream step actually changed rows (each step reports whether it did), so a members rebuild that changes nothing costs nothing downstream.
 - **Cause of the members deadlocks / statement timeouts** (see "Members Reprocessing Deadlocks / Statement Timeouts on Concurrent Webhooks", noted in PR #27 review): before the 2026-09-29 fix, every Slack message/reaction webhook and every Zoom import ran a full members rebuild, and each members rebuild then ran the hard-coded 90-day attendance reprocess. A burst of events (e.g. the bot joining 16 channels during an import) ran many at once and hit statement timeouts (`57014`) on `reprocess_members_atomic`. Webhooks no longer start members runs, but members can still run concurrently (Kajabi import + nightly reconcile + a Slack import's user rebuild), and so can attendance (several Zoom `meeting.ended` events). Propagation must not reintroduce the pile-up: serialize or coalesce concurrent runs of the same step (e.g. a Postgres advisory lock), as that entry suggests.
 
+### Slack Webhook: The Per-Event Activity Rebuild Doesn't Scale _(Needs Scheduling)_
+Every Slack message, edit, delete and reaction webhook calls `triggerReprocessing("slack_messages", "bronze", { dateRange: ±1 day })` (`triggerSlackProcessing` in `app/api/webhooks/slack/route.ts`), and `/api/process/slack` answers each one by loading all members, aliases and Slack users, matching them in TypeScript, and DELETE + INSERTing the whole two-day window of Slack `member_activities` (one `reprocess_slack_activities_atomic` call per week of the range). The cost of one event grows with the day's traffic, so a busy day is roughly quadratic, and concurrent events rebuild the same rows at once (the same pile-up as the members deadlocks above). Fine at today's volume; it won't be once chat makes the workspace busier. The chat mirror avoids this by projecting just the touched message (`project_slack_chat_message`, `lib/chat-projection.ts`) and leaving the windowed run to imports.
+- Do the same for activities: a per-message function that inserts, updates or removes the one activity row (keyed by `related_id = channel_id:message_ts`), using a saved Slack-user-to-member map (`chat_slack_authors` already holds one, rewritten by each full projection), and keep the windowed `reprocess_slack_activities_atomic` for imports and restriction changes (`exclude: ["slack"]` on the webhook's `triggerReprocessing`). It must keep the same rules as the rebuild: no text for DMs, group DMs or restricted channels, `engagement_value` from the same formula, deleted messages and removed reactions excluded.
+- Until then, at minimum coalesce bursts per channel/day (or take an advisory lock) so concurrent events don't each rebuild the window.
+
 ### On-Demand Incremental Fetch for Every Source
 Rule (CLAUDE.md, "Nothing through webhooks alone"): nightly reconciliation is the guaranteed path; webhooks and incremental fetches only reduce latency. Add a targeted incremental fetch per source so gaps heal in minutes instead of by the next nightly run:
 - Slack: a webhook for a thread reply, reaction or edit on a message we don't have fetches that thread (`conversations.replies`) or the channel since the newest known message; opening a bridged chat channel does the same. Coalesce bursts to one fetch per channel.
 - Zoom, Google Calendar, Kajabi: equivalent "fetch since the newest record we have" paths, triggered on demand (webhook gaps, admin button, page views).
 - Record each gap-fill (source, scope, rows recovered) and surface it on `/admin/data-health`. A fill that recovers many rows means the webhook was down. Checkly can't see this: it monitors endpoints and heartbeats, not processed requests or logs.
+
+### Secondary Zoom Rooms _(Needs Scoping)_
+We have a couple of secondary Zoom links/rooms that aren't imported. The Zoom import (`lib/zoom/client.ts`) reads one host's meetings (`ZOOM_USER_EMAIL`), and everything downstream assumes prickles run in that host's room, one meeting at a time. Checked against prod on 2026-10-03: all 417 imported meetings in the last 60 days had the same `host_id`, and only 1 pair of them overlapped in time. The main room's meeting id also changes roughly monthly.
+
+What relies on that, and what to change when a second room is imported:
+- **Attendance** (`app/api/process/attendance`): matches a Zoom meeting to scheduled prickles by time overlap alone (`findOverlappingPricklesInMemory`). Two rooms running at once would both match the same prickle, and a social room's attendees would count as attending a writing prickle. It needs a room → prickle (or prickle type) mapping, e.g. a meeting id or host per type, and that mapping must survive the monthly meeting id change.
+- **Live presence** (`lib/zoom-presence.ts`, `bronze.zoom_participant_events`): the participant webhooks may already arrive for every room on the account. `loadPresenceByMember` only counts events from hosts seen in `bronze.zoom_meetings` (`host_id`), so secondary rooms are ignored today. Once one is imported, that filter lets it in, and presence needs the same room → prickle mapping, since it currently treats being in any covered meeting during a prickle as being at that prickle.
+- **Check-out DMs** (`dueCheckoutMembers` in `lib/prickle-checkin-dms.ts`): inherit both of the above.
+- **PUPs**: unscheduled time in a secondary room would become PUPs, which may or may not be wanted.
 
 ### Testing Page CSV Imports (Lower Priority)
 - [ ] Add Zoom CSV import to `/data/import/testing`
@@ -170,14 +184,34 @@ Slack tests currently replace the `@slack/web-api` `WebClient` class with a hand
 **Documentation:**
 - Setup guide: `docs/DEPLOYMENT_SETUP.md`
 - Quick start: `docs/QUICK_START.md`
-- Verification checklist: `docs/VERIFICATION_CHECKLIST.md`
-- Setup script: `scripts/setup-environments.sh`
+- Env files and syncing: `docs/ENV_MANAGEMENT.md`
 
 **Benefits:**
 - Safe testing without affecting production data
 - Branch-based preview deployments for QA
 - Clear separation of development and production
 - Easier onboarding for new developers
+
+### Sentry Alert Routing _(Needs Scheduling)_
+
+Sentry alert rules don't follow the alert-routing rule in `docs/INTEGRATION_LINKS.md` yet.
+Events are tagged `production` / `preview` (`NEXT_PUBLIC_SENTRY_ENVIRONMENT`) as of PR #46, so
+rules can filter by environment, but Sentry can't email an arbitrary address: an alert action
+notifies org members/teams, an integration (Slack etc.), or a webhook. The free Developer
+plan has one user, so the alerts mailbox can't be its own member.
+
+- [ ] Point every rule at an environment: Alerts -> rule -> Edit Rule -> environment =
+      `production` (duplicate for `preview` if wanted). Any filter on the old
+      `vercel-production` tag needs switching too.
+- [ ] Route the email: User Settings -> Emails -> add + verify the alerts address; User
+      Settings -> Notifications -> Issue Alerts -> Fine tune -> project `hub` -> that address.
+      Rule action: notify Member (you).
+- [ ] Decide on per-environment vs one address. Email routing is per project, not per
+      environment, so preview and production alerts land in the same inbox anyway. Simplest
+      option: **one alerts address for everything** -- make `ALERTS_EMAIL` a single
+      `.env.shared` value (drop it from `.env.preview`/`.env.prod`) and keep per-environment
+      separation for Slack, once the alert channels exist (one per environment; set each
+      rule's action to its channel).
 
 ### Un-pin CI Runners from ubuntu-24.04
 **Status:** Pinned 2026-09-24, needs revisiting after 2026-11-19
@@ -196,7 +230,7 @@ Oct 19 and Nov 19, 2026 (`actions/runner-images#14748`).
 ### Re-introduce Test Parallelism
 **Status:** Deliberately disabled (2026-09-22), needs a real fix
 
-`vitest.config.ts` sets `fileParallelism: false` because test files running concurrently
+`vitest.config.mts` sets `fileParallelism: false` because test files running concurrently
 against the shared local Supabase instance were racing each other (colliding fixture
 names, cross-file data pollution) and causing spurious failures unrelated to real bugs.
 Disabling parallelism fixed that but costs real time -- the full suite is already at
@@ -212,6 +246,33 @@ this suite is gating CI on every PR.
 
 Don't just flip `fileParallelism` back to `true` without one of the above -- that's what
 caused the pollution/flakiness in the first place.
+
+### Test Framework Follow-ups
+**Status:** Ideas from the coverage work (PR #77); none started
+
+Context: API route tests run in-process through `apiFetch` (`tests/helpers/api-fetch.ts`) so
+`app/api` coverage counts, and per-area floors on the combined unit + db numbers live in
+`AREA_FLOORS` (`scripts/coverage-report.ts`). Combined, 2026-10-14: lib ~86% lines, components
+~72%, `app/api` ~59% (46% branches), `app/(member)` ~56%, `app/(admin)` ~19%.
+
+- [ ] **Floors for `app/(member)` and `app/(admin)`.** Neither has one; `app/(admin)` is the
+      biggest gap in the repo. Add the floors once a round of page tests lifts them.
+- [ ] **Ratchet the floors.** `AREA_FLOORS` sits ~2 points under the baseline and only moves
+      by hand. Have the coverage report note when an area is more than ~3 points over its
+      floor, so floors follow the numbers up.
+- [ ] **Cover the weakest `app/api` routes.** The coverage report's per-file data shows which
+      handlers have the most uncovered statements and branches; start with the biggest.
+- [ ] **Move the ~32 direct-import route tests onto `apiFetch`.** They call the handlers
+      themselves and mock `next/headers` per file. One shared helper removes the mocks.
+- [ ] **Audit fire-and-forget mocks for the race fixed in `slack-message-subtypes.test.ts`.**
+      A mocked `after()` that does `void callback()` can land in the next test after its
+      `vi.clearAllMocks()`. Grep the tests for `after:` mocks and `void` callbacks; make them
+      collect their promises and have the test await them.
+- [ ] **Automate `npm run github:config:push`.** It runs by hand because `GITHUB_TOKEN` can't
+      manage rulesets. Worth a CI job with an admin-token secret only if the ruleset changes
+      often; at minimum a scheduled `github:config:diff` to flag drift.
+- [ ] **Clean up `.claude/rules/pr-feedback.md`.** It still says to check Semaphore and
+      SonarQube; CI is GitHub Actions and neither is used.
 
 ### Support Preview Environments
 **Status:** Not started — needs scoping
@@ -230,7 +291,7 @@ previews actually useful means:
        be able to notify a real user or incur a real charge.
 3. [ ] Evaluate [Supabase branching](https://supabase.com/docs/guides/deployment/branching)
        (native per-PR ephemeral DB branches) as the mechanism, instead of the single static
-       `.env.devel` Supabase project previews currently point to. Note: that existing devel
+       `.env.preview` Supabase project previews currently point to. Note: that existing devel
        project has no migration-push path today at all (`supabase/config.toml` only has
        `[remotes.prod]`, and `package.json` only has `db:push` targeting `.env.prod`) --
        worth confirming whether Supabase branching solves this automatically or whether it's
@@ -246,7 +307,7 @@ A persistent (not per-PR-ephemeral) staging environment, sitting between preview
 production:
 
 1. [ ] Add a persistent Supabase branch for devel (see Supabase branching link above --
-       distinct from today's single static `.env.devel` project, if branching replaces it).
+       distinct from today's single static `.env.preview` project, if branching replaces it).
 2. [ ] Same secrets/notification-disabling work as preview environments above -- no real
        Slack/Kajabi/Zoom/billing side effects from devel either.
 3. [ ] Clarify the relationship to Supabase DB branching from the preview-environments work
@@ -314,6 +375,38 @@ Bumped `next` 15.5.26 → 16.3.6, `eslint-config-next` 15.5.14 → 16.3.6, `@nex
 ---
 
 ## Security & Access Control
+
+### Scrub private data from the public repo and its history _(Needs Scheduling)_
+
+The repo is public. A full-history scan (2026-10-02, every blob in every commit) found private
+values in docs, tests and code. Don't copy any of them into this file or a PR -- refer to the
+location instead.
+
+1. **Remove from the current files** (normal PR), replacing each with a pointer to where the
+   value lives (`.env.shared` / `.env.prod`, see `docs/ENV_MANAGEMENT.md`):
+   - Staff email (the Zoom login line) -- `docs/SECRET_ROTATION.md`
+   - Real Google Calendar ID -- `docs/CALENDAR_SETUP.md`, `docs/CALENDAR_SYNC.md`, `docs/INTEGRATION_LINKS.md`
+   - Google service-account emails -- `docs/INTEGRATION_LINKS.md`, `docs/SECRET_ROTATION.md`
+   - Kajabi client ID -- `docs/INTEGRATION_LINKS.md`
+   - Slack workspace/app IDs -- `docs/INTEGRATION_LINKS.md`, `docs/SECRET_ROTATION.md`
+   - Org addresses (team, no-reply) -- `docs/TODO.md`, `docs/MEMBER_MATCHING.md`
+   - **Member emails (PII)** -- `tests/components/AmbiguousNamesResolver.test.tsx`; swap for
+     `@example.com` fixtures like the rest of the tests
+2. **Rewrite history** to drop the values above plus ones only in older commits: the same
+   calendar ID in the deleted `.env.local.example`, member emails in earlier versions of
+   `tests/lib/member-matching.test.ts`, `tests/lib/member-suggestions.test.ts`,
+   `app/api/analyze/subscription-reconciliation/route.ts` and `scripts/add-email-alias.ts`, a
+   personal alerts address (`__checks__/alert-channels.ts`, `app.config.*`), and the
+   engineering-alerts addresses (PR #44's commit message and `env-vars.config.ts`).
+   - Tool: `git filter-repo --replace-text` with a local (never committed) replacements file;
+     regenerate the list by re-running the scan, since new commits may add more.
+   - It's a force-push of `main`: coordinate first -- merge or close open PRs, and have every
+     session/worktree re-clone or hard-reset afterwards (old branches would reintroduce it).
+   - GitHub keeps the old commits reachable through PR refs (`refs/pull/*`) and caches until
+     GitHub Support purges them -- request that after the push. Forks and existing clones keep
+     the old history regardless.
+   - Not found anywhere in history: real API tokens or keys. The Supabase key and Slack-token
+     look-alikes are the public local-dev demo key and placeholders.
 
 ### User Invitations
 - **In-app invite management**
@@ -393,24 +486,46 @@ Per-user login/access history (`access_events` table + `get_access_sessions()`, 
 
 ## Notifications
 
-### Notification Framework _(Needs Scoping — prerequisite for in-app chat adoption)_
-One system for everything the app tells a member, instead of each feature hand-rolling a Slack DM (pre-prickle nudges, writing nudges, Wheel of Wonder, payment failures). In-app chat especially needs this: members won't move off Slack without being told about new messages, mentions and DMs.
+### Channels, Notifications & Messaging _(v1 live: Slack, in-app (flagged), browser push (flagged), email + per-kind notification settings; more channels next)_
+One system for everything the Hub sends members, instead of each feature hand-rolling a Slack DM. Three layers (this replaces the CRM section's "Messaging Abstraction Layer" item):
 
-**Delivery channels:**
-- In-app: notification inbox + unread badges
-- Browser/OS: Web Push (service worker + VAPID keys); also covers installed-PWA push on mobile (iOS requires home-screen install, 16.4+)
+- **Channels** (`lib/channels/`): the delivery systems (Slack, in-app, browser push and email today; SMS, WhatsApp next). Each adapter resolves a member to an address and sends an `OutboundMessage` (`text`, `url`, per-channel rich bodies like `slackBlocks`, `footerLinks`, and `timeSensitiveUntil`: how long it's worth interrupting for, which each channel interprets, e.g. in-app banner vs bell only). Shared by both layers below; nothing above it talks to a provider directly.
+- **Notifications** (`lib/notifications/`): the app reaching out, governed by the member's per-kind channel choices. Mostly one-way, but some ask for an answer (check-in/check-out selects); the reply comes back over the same channel's inbound webhook.
+- **Messaging** (planned): two-way conversations, e.g. in-app chat bridged to Slack (`docs/SLACK_BRIDGED_CHAT.md`), and later SMS/WhatsApp threads. Uses the same channel adapters, plus the inbound half they don't have yet. Members won't move off Slack for chat without notifications for new messages, mentions and DMs, so chat events become notification kinds too.
+
+**Built (v1):**
+- `lib/channels/`: `CHANNELS` catalog (client-safe), `ChannelAdapter`, `CHANNEL_ADAPTERS`. Slack adapter (`slack.ts`) DMs via `sendSlackDM` and renders `footerLinks` into the message's context footer.
+- In-app adapter (`in-app.ts`, "In the Hub"): writes `in_app_notifications` (Local layer, migration `20261004000000`), kept for good. Shown by `components/InAppNotifications.tsx` (polls every minute while the tab is visible): a bell in the member header (unread count across all, the latest 10, "Mark all as read", a link to the inbox) and a banner under the header for unread ones still within `timeSensitiveUntil`. The inbox (`/notifications`) is a server-mode data table: All/Unread tabs with counts, a type filter, sort by type or received, the standard pager. Read when opened, its banner dismissed, "Mark all as read", or when the feature calls `resolveInAppNotifications(kind, ref)` (check-ins once answered, wherever). Behind the `in_app_notifications` feature flag: unflagged members can't be reached on it and don't see its switch. Default on for both check-in kinds: a check-in is time-sensitive until the prickle starts, a check-out for 3 hours after it ends.
+- Web Push adapter (`web-push.ts`, "Browser"): sends with the `web-push` package and VAPID keys (`NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`; generate once with `npx web-push generate-vapid-keys`, then `npm run env:sync`) to every live row of `push_subscriptions` (Local layer, migration `20261014000000`: one per browser a member turned it on for; service role only since it holds push credentials; soft-deleted when the member turns it off or the push service answers 404/410). The service worker `public/sw.js` (excluded from the proxy matcher so it loads without a session) shows the notification and opens the Hub path on click. A time-sensitive message goes with `urgency: high`, `requireInteraction`, and a TTL ending at `timeSensitiveUntil`, so a missed check-in isn't delivered after the prickle. Behind the `browser_notifications` flag, on by default for both kinds, but a member is only reachable once a device is subscribed: Settings → Notifications has a per-device "Turn on for this device" button (`BrowserNotificationsToggle`) above the grid. No VAPID keys = nobody reachable.
+- `lib/notifications/registry.ts`: notification kinds (id, category, label, description, default channels). Client-safe; the settings grid renders from it.
+- `notification_preferences` (Local layer, migration `20261003160000`): one row per (member, kind, channel) the member changed; no row = the kind's default. Kinds/channels are free text, so adding either needs no migration. Member reads/writes own, admins read, read-only in sudo.
+- `createNotifier(supabase, kind, memberIds, { channels? })` (`lib/notifications/notify.ts`): loads preferences and addresses for a batch, then `canReach(memberId)` / `send(memberId, message)`, adding a "Notification settings" link. A failed channel is logged and doesn't stop the others. Check `canReach` before claiming a dedup row so re-enabling a kind still sends. `channels` forces channels and skips preferences, only for sends the member just asked for (admin test DMs).
+- `/settings/notifications`: a switch per kind × channel.
+- Kinds today: `prickle_checkin`, `prickle_checkout`.
+
+**Next channels** (each = `CHANNELS` entry + adapter + whatever it needs to resolve an address; every notification kind gets it at once):
+- In-app: mark one unread again, and roll it out past the flag
+- Browser/OS: roll Web Push out past the flag; let members name their devices. Settings → Notifications already has a device list (remove one remotely) and a test button; the admin member page shows enrolled devices. iOS needs a home-screen install (16.4+), prompted by `InstallAppPrompt`
 - Mobile push: native app later; Web Push covers it until then
-- Email: Resend + `react-email` (both already in the stack), including digests
-- Slack DM: existing `sendSlackDM` becomes one backend among several
+- Email: Resend API sender module + `react-email` templates, `List-Unsubscribe`, including digests
+- SMS / WhatsApp: important for non-US hedgies; needs a provider (e.g. Twilio), a verified phone number per member, and explicit opt-in (carrier/WhatsApp template rules)
 
-**Framework pieces:**
-- A single `notify(memberId, eventType, payload)` entry point writing to a `notifications` table/outbox, with fan-out to channels done asynchronously
-- Per-member preferences per event type × channel (e.g. DMs → push + email, channel messages → in-app only, @mentions → push), plus quiet hours / time zone
+**Still to build:**
+- Inbound on the channel layer: a shared shape for replies (member, channel, conversation ref, text or action) so Messaging and interactive notifications don't each parse provider webhooks. Today only Slack replies exist, handled in `app/api/webhooks/slack/interactions/route.ts`.
+- Move remaining hand-rolled member messages onto `createNotifier`: payment-failure DMs (below), Host Confirmation Flow (CRM section). Wheel of Wonder's group intro and the Slack sign-in DM stay direct: one is a shared room, the other a transactional reply the member just asked for.
+- Staff channel posts as admin notification kinds, so each admin picks their channels: new book (`notifyStaffNewBook`), new award (`notifyStaffNewAward`), new feedback (`app/api/feedback/route.ts`). They post to a shared Slack channel today.
+- A `notifications` outbox with async fan-out, once a channel is slow or needs retries (email, push)
+- Quiet hours / time zone, and per-member frequency caps across kinds
 - Escalation and dedupe: don't email what was already seen in-app; delay-then-send (e.g. email only if a DM is still unread after N minutes)
 - Digests: batch low-priority events into a daily/weekly email
 - Unsubscribe links and delivery tracking (Resend webhooks), logged to `member_activities` where useful
+- A per-message "Stop these" Slack button that writes `notification_preferences` (the settings link covers it for now)
+- Show on the settings page when a channel can't reach the member (e.g. no matched Slack account)
 
-Subsumes the "Messaging Abstraction Layer" under CRM Features → Slack Integration; build that on this rather than separately.
+### Finish renaming "pre-prickle nudges" to prickle check-ins _(Cleanup)_
+Migration `20261003130000` renamed the code, route, cron job and dedup log to check-in/check-out names. Two names stayed because changing them needs steps outside the repo:
+- **Checkly heartbeat**: `CRON_HEARTBEATS["pre-prickle-nudges"]` (`lib/cron-heartbeats.ts`) and `CHECKLY_HEARTBEAT_PRE_PRICKLE_NUDGES`. The key is the monitor's logical id (`cron-pre-prickle-nudges`), so renaming it (e.g. to `prickle-checkins` / `CHECKLY_HEARTBEAT_PRICKLE_CHECKINS`) replaces the monitor. Deploy the checks, copy the new ping URL into `.env.prod` under the new var, run `npm run env:sync`, then remove the old var.
+- **Vault secret** `writing_nudge_cron_secret` (cron → route auth; `env-vars.config.ts` destination for `CRON_INTERNAL_SECRET`). Rename the `vaultName`, run `npm run env:sync:vault`, then a migration that reschedules `send-prickle-checkins` to read the new name. Delete the old secret only after that migration is live.
 
 ---
 
@@ -525,7 +640,7 @@ Show a `/live` page displaying the currently active prickle and its attendees in
 
 **The blocker:** `prickle_attendance` (silver layer) is populated from Zoom reports, which are only available *after* a meeting ends. The page would always show 0 attendees during an active session.
 
-**The Zoom webhook gap:** Webhooks are set up at `/api/webhooks/zoom` and do receive `meeting.participant_joined` events, but currently ignore them — only `meeting.ended` and `meeting.participant_left` trigger a Zoom API import (with a 10-second delay). Even the `participant_left` import only captures who has already left, not who is currently present.
+**The Zoom webhook gap (partly closed):** `/api/webhooks/zoom` now records every `meeting.participant_joined` / `meeting.participant_left` event in `bronze.zoom_participant_events` (migration `20261003150000`), and `lib/zoom-presence.ts` pairs them into per-member presence intervals, matched with the attendance import's rules. The prickle check-out DM already uses it. The live page can build on the same table and helpers instead of the `live_participants` table sketched below (steps 1, 2 and 5 are done; "currently present" = an interval with no leave).
 
 **What's needed to build this properly:**
 
@@ -559,6 +674,15 @@ Show a `/live` page displaying the currently active prickle and its attendees in
 - Back links: carry the origin page (e.g. a `?from=` param or history state) and derive the label from a route registry ("Back to Alex's profile"). Keep today's role-based default as the fallback when there's no origin.
 - Client-side session expiry: whatever detects a 401 or expired session in the browser should send the member to `/login` with the current location stored, instead of relying on the next full page load hitting the proxy.
 - Tests: one shared suite for the validator (open-redirect cases), plus a flow test per slot.
+
+### Remove legacy `?tab=` redirects _(Cleanup, review on or after 2027-01-03)_
+Tabs became URL paths on 2026-10-03 (`/settings/notifications`, `/my-prickles/all`; see `lib/tab-routes.ts` and CLAUDE.md "Tabbed Pages"). Old `?tab=` links still work because each base page calls `redirectLegacyTabParam`. Nothing is stored; it's four one-line calls plus the helper:
+- `app/(member)/settings/page.tsx`, `app/(member)/my-prickles/page.tsx` (also rewrites `?tab=commitments&slot=X` to `/my-prickles/all?commit=X`), `app/(member)/projects/page.tsx`, `app/(admin)/admin/members/[id]/page.tsx`
+- `redirectLegacyTabParam` in `lib/tab-routes.ts`, its tests in `tests/lib/tab-routes.test.ts`, and the legacy cases in the page tests (`settings-routes`, `my-prickles-tabs`, `my-writing-page`)
+
+Old links come from Slack DMs (the check-in/check-out "Notification settings" link, sent from 2026-10-03 until this change deploys; Slack keeps them forever), calendar feed descriptions (refreshed by calendar apps within a day), and bookmarks or links pasted into Slack, emails and docs.
+
+**When:** each redirect logs `[legacy-tab-redirect]` with the page and tab. After 2027-01-03, search the Vercel logs for it. If none (or only a stray few) in the last 30 days, delete the calls, the helper and their tests, and drop the "old `?tab=` links" bullet from CLAUDE.md. A `?tab=` URL then just opens the page's first tab, which is a fine fallback. If they're still being hit, look at which page and tab and check again in another quarter.
 
 ### Custom Date Picker (Needs Scoping)
 Every date field in the app (`<input type="date">` — e.g. Writing Projects' Log Progress date, goal start/end dates) uses the browser's native date picker. Feedback: the native picker's up/down arrows for month navigation aren't intuitive — unclear which direction is "forward" in time. Left/right arrows (with the month view sliding left/right on change, not up/down as it does now) would read more clearly.
@@ -630,7 +754,16 @@ Every admin table (Hedgieversaries, Members, etc.) has a fixed column order set 
 ### CRM & Outreach Automation Roadmap (Needs Scoping — Multi-Phase)
 `/admin/outreach` (hot/warm/cold status, the daily 25-lead queue, `outreach_touches` log) is the first slice of a much bigger planned system: a built-in CRM with a unified inbox, response-driven outreach, lead scoring, and eventually an AI prospecting agent. Stated 2026-09-09 as the direction to build toward — not scoped or started beyond Outreach itself. Phases below are roughly the order they'd need to happen (later phases depend on earlier ones), not a commitment to build all of them.
 
-**Phase 1 — Centralized activity log (CRM backbone). In progress.** `member_activities` already existed (written by Slack import + writing-progress) and is being extended to also mirror prickle attendance, outreach touches, and Hedgie Hub logins — see `docs/ACTIVITY_AND_AUDIT_LOG.md` for the schema (`actor_kind`/`actor_user_id` for who acted, `data` for the event's actual content) and the separate, not-yet-built `audit_log` design (field-level record-change history, distinct from this activity log — see that doc for why they're two tables).
+**Phase 1 — Centralized activity log (CRM backbone). In progress.** `member_activities` already existed (written by Slack import + writing-progress) and is being extended to also mirror prickle attendance, outreach touches, and Hedgie Hub logins — see `docs/ACTIVITY_AND_AUDIT_LOG.md` for the schema (`actor_kind`/`actor_user_id` for who acted, `data` for the event's actual content) and the separate `audit_log` (field-level record-change history, distinct from this activity log — see that doc for why they're two tables). `audit_log`, its triggers and the admin `/admin/activity` page (Audit / Everything filter over both tables plus page-visit sessions) are built. The member page has an Activity Log tab over the same feed. The clock icon (`RecordHistoryButton`, top-right of each page) is on the member, event, program, badge type and prickle type pages and the Segments, Users, Overrides and Hosts lists. Every audited resource now has a history button. Remaining work is listed in the follow-ups below.
+
+Phase 1 follow-ups (activity/audit log):
+- [x] Log sudo start and stop as their own events (done: `logSudoEvent` in `app/actions/sudo.ts`) (who started viewing as whom, when, and for how long): `startSudo`/`exitSudo` in `app/actions/sudo.ts` write a `member_activities` row (`actor_kind = 'staff'`, `acting_as_member_id` set), so the activity log shows the boundaries of a sudo session, not just the visits inside it.
+- [x] `MultiMemberSearch` and `MultiSelectSearch` are thin wrappers over `components/MultiEntitySearch.tsx`, the multi-select counterpart of `EntitySearch`.
+- [x] `admin/data-health/missing-hosts` writes through server actions (`actions.ts`); its reads still use the browser client.
+- [ ] Email sent/opened/clicked events in `member_activities`. Email is now a notification channel (`lib/channels/`, Resend), so it is a source; nothing is logged as activity yet.
+- [ ] `p_changed_by` argument on the audit functions, for the first service-role write made on behalf of a user. None exists yet, so add it with that first write; see `docs/ACTIVITY_AND_AUDIT_LOG.md`.
+- [ ] Privacy view: log break-glass grants and reads of restricted Slack content. Today it covers only a channel being restricted or the restriction lifted (`restricted_slack_channel`); add the new entity types to `PRIVACY_ENTITY_TYPES` in `lib/activity-feed.ts`.
+- [ ] Slack channel names on old activity rows are a snapshot from insert time, so a later channel rename isn't applied to them. Decide whether to backfill on rename or resolve the name at read time.
 
 **Phase 2 — Inbox.** A Beeper Desktop-inspired unified inbox inside Hedgie Hub showing messages across connected accounts, with filter views: All / Unread / Drafts / Unanswered / Archived / Requests / Low Priority. Requires real per-channel integrations to pull messages in — Instagram DMs (Graph API, needs a Business/Creator account linked to a Facebook Page, and Meta's app review for `instagram_manage_messages` has real lead time), email (provider-dependent — Gmail API vs. a shared inbox forwarding setup), Slack (already have API access, just needs message-fetch + a read UI). Likely built incrementally per channel rather than all at once.
 
@@ -706,6 +839,21 @@ Dates are currently always displayed US-style (`MM/DD/YYYY`), but many/most othe
 Find members/purchases where `effective_start_at` is more than ~7 days after the actual transaction date (`created_at_kajabi`). These purchases look like overlapping or out-of-order subscriptions in `detectResubscriptions`, which uses `effective_start_at` as the start of a membership period. A large lag between transaction date and access date can cause legitimate resubscriptions to be missed — e.g. a purchase made in January but access granted in February will appear to overlap with the prior subscription that ends in February, so no gap is detected.
 
 Query: `SELECT * FROM bronze.kajabi_purchases WHERE effective_start_at - created_at_kajabi > interval '7 days'`
+
+---
+
+## Secrets at Rest
+
+Where a secret lives depends on what the app does with it:
+- **A credential we must hand to someone else** (a member's Slack token, a future provider key per member) goes in **Supabase Vault** behind service-role-only functions, with only a pointer in our table. `member_slack_connections` is the pattern (`20261021000000`).
+- **A credential we only need to recognise** (single-use sign-in tokens, anything looked up by value) is stored as a **hash**, never the value. `slack_sign_in_tokens` already does (SHA-256).
+- **App-wide credentials** (bot token, API keys, signing secrets) are env vars declared in `env-vars.config.ts`.
+
+Audit (2026-10-10): nothing else needs moving to Vault, but two things are worth a look:
+- **`calendar_feed_tokens.token`** is a plaintext bearer credential: anyone with the URL reads that member's hosted and committed prickles. It is read-only, scoped to one member, revocable ("Generate new link"), and the table is RLS-protected (owner and admins can read it), so this is low risk. It is a table value rather than a hash only because members can see their link again in Settings. Options if it matters: store an HMAC for the lookup and derive the displayed URL from a per-member secret, or hash it and make members regenerate to see it. Admins can currently read every member's feed token through RLS; at minimum drop that.
+- **`push_subscriptions` `p256dh` / `auth`** are a browser's push encryption keys. Sending a push also needs our VAPID private key (an env var), so a leaked row alone can't be used to send. The table is service role only. Fine as is; revisit if it ever becomes readable by members or admins.
+
+When Slack token rotation is adopted (see `docs/SLACK_BRIDGED_CHAT.md`, "Slack app configuration"), the bot token moves out of the `SLACK_BOT_TOKEN` env var into Vault too, since it then changes every 12 hours.
 
 ---
 
@@ -791,12 +939,7 @@ Production logs show members reprocessing deadlocking and hitting statement time
 - After each prickle ends, message the host to confirm participants and resolve unmatched Zoom attendees
 - For unhosted prickles: TBD — options include assigning to a random active member or the most "senior" hedgie (by join date or total duration excluding hiatus periods)
 
-**Messaging Abstraction Layer (prerequisite for Host Confirmation and future integrations):**
-- Abstract all outbound member messaging behind a common interface so backends are swappable per member
-- Initial backends: Slack, SMS, in-app notifications
-- Future backends: WhatsApp (important for non-US hedgies), email, etc.
-- Per-member preference: each member picks their preferred channel (or falls back to a default priority order)
-- The Host Confirmation Flow and any future interactive flows (confirmations, reminders, outreach) should be built on top of this abstraction, not wired directly to Slack
+**Messaging abstraction layer:** see Channels, Notifications & Messaging (Notifications section above). Build the Host Confirmation Flow and other interactive flows (confirmations, reminders, outreach) as notification kinds sent with `createNotifier`, not wired directly to Slack.
 
 **Phase 1 Progress:**
 - [x] Database migrations (Bronze tables, aliases extension)
@@ -810,7 +953,7 @@ Production logs show members reprocessing deadlocking and hitting statement time
 - [x] Dashboard updates (member profiles show Slack activity, engagement scoring)
 
 ### Payment Failure Notifications
-On payment failure, send a Slack DM to the member to prompt them to update their payment method.
+On payment failure, notify the member (a `payment_failed` notification kind via `createNotifier`, Slack by default) to prompt them to update their payment method.
 
 ### Activity Feed Expansion (Future)
 Beyond Slack, expand `member_activities` tracking:
@@ -827,6 +970,27 @@ Refine `engagement_score` calculation based on activity types and recency
 ## Writing Projects Tracking
 
 Full roadmap: `docs/superpowers/specs/writing-projects-tracking.md`. Core single-author flow (log progress against a project/goal, prickle-linked nudges, streak/chart stats) is scoped there phase-by-phase.
+
+### Prickle Check-ins: Visibility Wording + Host Aggregates (Needs Scoping)
+`prickle_checkins` (feelings before/after, need, rating) is readable by the member and admins, never hosts or other members. The check-in card deliberately says nothing about who can see responses yet. Open questions:
+- Whether the card should say something (e.g. "Hosts can't see your individual responses").
+- Whether hosts get aggregate trends for their prickles. Small prickles make aggregates identifying, so only show a prickle's (or a host series') aggregate once at least 5 distinct members checked in, and serve it through a SECURITY DEFINER function, never row access.
+
+### Prickle Check-ins Phase 3: Admin Check-in Patterns (Needs Scoping)
+Check-ins (`prickle_checkins`) and progress entries linked to prickles (`writing_progress_entries.prickle_id`) are live, and the Prickle Picker already uses a member's own rated check-ins (#54). Next is an admin view of each member's patterns, as a reach-out prompt:
+- Per member: recent feelings before/after, needs, average session rating against their own baseline, and trend over time.
+- Flag members who've checked in "running low" or "wound up" repeatedly over a recent window (e.g. 3+ of their last 5 check-ins), or whose ratings have dropped well below their usual. Feeds the existing outreach touches (`/api/admin/outreach-touches`).
+- Admins already have row read access to `prickle_checkins` (RLS), so this is an admin page plus queries, no schema change. Check-in feeling groups come from `FEELING_GROUP` in `lib/prickle-checkins.ts`.
+- Open: where it lives (member admin page tab vs a dedicated "check-ins" admin page) and the exact flag thresholds.
+
+### Prickle Check-ins: Save Find a Prickle's Answers as a Check-in (Idea)
+The Slack check-in DM now asks the check-in questions ~20 minutes before a prickle, for members with an active writing goal and the prickle on their calendar feed. The "How are you feeling?" answers in Find a Prickle (My Prickles → Find a Prickle, `lib/prickle-picker.ts`) still only pre-fill the check-in on the prickle the member clicks through to; nothing is saved unless they press Save there. Idea: save them as that prickle's check-in when the member picks it (and skip the check-in DM, which `checkinAnswered` already does once both answers exist).
+
+### Prickle Check-ins Phase 3: Member Insights + Normalized Prickle Ratings (Wait for Data)
+Only meaningful once a few weeks of check-ins exist.
+- **Member insights:** a "What works for you" view on the member's own pages, e.g. "When you came in stressed, focused prickles with Host X were your best sessions", and which prickles lift their mood most (feelings after vs before). Reuse `similarCheckins` from `lib/prickle-picker.ts`.
+- **Normalized prickle ratings:** score a prickle series by each member's rating minus that member's own average, so a member who always rates low doesn't drag a series down (and one who rates everything Great doesn't inflate it). Use it wherever series ratings surface (Prickle Picker ranking, host stats).
+- Same privacy rules as check-ins: members see only their own; any host-facing aggregate needs at least 5 distinct members (see the check-in visibility entry above).
 
 ### In-App Pipeline Visualization + Next-Stage Nudges (Needs Scoping)
 Show each member, on their own writing project, a visual of where they sit in the overall Quill & Cup pipeline (idea → draft → self-edit → feedback → publish → launch/sell) — both to make the system visible ("we have a system, and you're on it") and to nudge them toward the next stage as they approach it, which doubles as adoption/revenue for the programs at each stage as they get built.
@@ -860,11 +1024,11 @@ Two genuinely different problems, not yet scoped:
 ### Point-in-Time Goal Versioning (Deferred)
 `writing_goals` rows are edited in place — `computeHabitGoalProgress`/`computeGoalProgress` always evaluate a goal's *current* definition (period, threshold, measure) against its *full* entry history. Editing period or threshold on an existing goal retroactively reshapes how every past period scores, with no record of what the goal used to say.
 
-One specific case of this — changing a `measure='prickles'` goal's anchor (the real scheduled slot it's tracking, e.g. a host's Progress Prickle) — is already fixed without full versioning: `updateGoal` archives the old row (freezing its streak/history exactly as earned) and forks a new one under the new anchor, rather than mutating in place. See `app/(member)/writing/actions.ts` (`buildGoalFields`/`resolveAnchor`/the `anchorChanged` branch) and the "Archiving on anchor change" section of the plan that introduced it.
+There used to be one narrow fix: changing a `measure='prickles'` goal's anchor archived the old row and forked a new one. Anchors were removed in October 2026 (no production goal used one; see Part 3 of `docs/COMMITMENTS.md`), and that fork went with them. When goals link to commitments instead, switching a goal to a different commitment should archive-and-fork the same way, so an earned streak isn't recomputed against the new slots.
 
-**Still open:** the general case — editing threshold/period on any goal, or changing measure on a goal that isn't `prickles` — still silently rewrites history. Real point-in-time versioning (a goal "changed as of" record, with past periods evaluated against whatever was true then) would fix this properly but is a meaningfully bigger feature than the narrow anchor-change fix above.
+**Still open:** editing threshold/period on any goal, or changing its measure, silently rewrites history. Real point-in-time versioning (a goal "changed as of" record, with past periods evaluated against whatever was true then) would fix this properly.
 
-**Why deferred:** the anchor-change case was the one with a concrete, reported failure mode (an editing member silently loses an earned streak); the general case is a known gap but hasn't caused a reported problem yet, and versioning every field is real design work (schema for change history, UI for "goal changed on this date," how charts/exports treat a versioned goal) beyond what's warranted to build speculatively.
+**Why deferred:** it's a known gap but hasn't caused a reported problem yet, and versioning every field is real design work (schema for change history, UI for "goal changed on this date," how charts/exports treat a versioned goal) beyond what's warranted to build speculatively.
 
 ### Browse Past/Archived Projects (Deferred)
 `writing_projects` already has `phase IN ('complete', 'abandoned')` and `archived_at`, but there's no UI to list/browse projects in those states — `getMyProjects()` only returns `archived_at IS NULL` projects, so a completed or abandoned project effectively disappears from `/writing` once marked as such.

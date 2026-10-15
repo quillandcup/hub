@@ -1,4 +1,4 @@
-export type FeatureKey = 'member_overrides' | 'hedgieversaries' | 'work_queue' | 'program_cohorts' | 'events' | 'message_privacy';
+export type FeatureKey = 'member_overrides' | 'hedgieversaries' | 'work_queue' | 'program_cohorts' | 'events' | 'message_privacy' | 'slack_admin_sign_in' |'in_app_notifications' | 'browser_notifications' | 'chat' | 'chat_posting';
 
 export interface FeaturePreview {
   key: FeatureKey;
@@ -37,5 +37,29 @@ export const FEATURE_PREVIEWS: FeaturePreview[] = [
     name: 'Message Privacy Page',
     description: 'Member-facing /privacy page explaining what staff can see in Slack and Hub chat. Describes the planned chat bridge; keep off until that ships',
   },
+  {
+    key: 'slack_admin_sign_in',
+    name: 'Slack Sign-In for Admins',
+    description: 'Lets you sign in to your admin account from Billie Bot (/hub or its Home tab), with links that last 10 minutes. Anyone who can use your Slack can then get into the Hub as you. Only your own opt-in counts: the global switch and segments do not turn this on',
+  },
+  {
+    key: 'in_app_notifications',
+    name: 'In-App Notifications',
+    description: 'Notifications in the Hub, next to Slack: a bell in the header with the latest, an inbox page with all of them, and a banner while one is time-sensitive (a check-in until the prickle starts, a check-out for a few hours after it ends). Adds an "In the Hub" switch to Settings → Notifications (on by default)',
+  },
+  {
+    key: 'browser_notifications',
+    name: 'Browser Notifications',
+    description: 'Desktop and phone notifications from your browser, even when the Hub is closed (Web Push). Adds a "Browser" switch and a per-device "Turn on for this device" button to Settings → Notifications; a device only receives them once it has turned them on',
+  },
+  {
+    key: 'chat',
+    name: 'Chat',
+    description: 'A read-only Hub view of our Slack channels: channel list, messages with threads and reactions. Only the channels you are in, plus public ones. Posting from the Hub comes later',
+  },
+  {
+    key: 'chat_posting',
+    name: 'Chat posting',
+    description: 'Write messages and thread replies in Hub chat; they appear in Slack too, posted by Billie Bot under your name and photo. Needs Chat',
+  },
 ];
-

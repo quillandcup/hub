@@ -10,19 +10,27 @@
 // replaced, and let .env.example drift out of sync with what's actually required. Add or
 // remove a var here and every sync script picks it up automatically.
 //
-// `group` is also the canonical section ordering for .env.example/.env.devel/.env.prod --
-// those files are grouped and commented to match this array's order and each var's
-// `description`, so there's one layout to keep in sync instead of three independent ones.
+// `group` is also the canonical section ordering for .env.example and the value files below --
+// they're grouped and commented to match this array's order and each var's `description`, so
+// there's one layout to keep in sync instead of several independent ones.
 //
-// Values themselves are NOT stored here -- they stay in .env.devel / .env.prod (gitignored
-// dotenv files) as before. This file is just the schema: name, secrecy, and destinations.
-// SOPS-encrypting .env.devel/.env.prod so they can be committed is a planned follow-up,
-// tracked separately -- unrelated to this file, which has nothing sensitive to encrypt.
+// Values themselves are NOT stored here -- they live in gitignored dotenv files:
+//   .env.shared   values that are the same in every environment (one Zoom/Kajabi/Google/Slack
+//                 account, ...); the base for every target
+//   .env.preview  Vercel Preview overrides (e.g. its own Supabase project)
+//   .env.prod     Vercel Production overrides, plus CI/ops credentials (GitHub, Vault)
+// A var set in .env.preview/.env.prod overrides .env.shared for that target. Shared config
+// that's also fine to publish goes in app.config.ts instead (committed, not an env var).
+// This file is just the schema: name, secrecy, and destinations. SOPS-encrypting the value
+// files so they can be committed is a planned follow-up, tracked separately.
 
 import { CRON_HEARTBEATS } from "./lib/cron-heartbeats";
 
-/** A Vercel environment `vercel env add` can target. */
-export type VercelTarget = "development" | "preview" | "production";
+/**
+ * A Vercel environment the sync manages. Vercel's "development" target (read only by
+ * `vercel dev` / `vercel env pull`) isn't used -- local dev runs on .env.local.
+ */
+export type VercelTarget = "preview" | "production";
 
 export type Destination =
   /** Synced via `vercel env add <name> <target> --type <the var's type>`. */
@@ -61,7 +69,6 @@ export interface EnvVarSpec {
 }
 
 const vercelAllEnvs: readonly Destination[] = [
-  { kind: "vercel", target: "development" },
   { kind: "vercel", target: "preview" },
   { kind: "vercel", target: "production" },
 ];
@@ -201,6 +208,21 @@ export const ENV_VARS: readonly EnvVarSpec[] = [
     destinations: vercelAllEnvs,
   },
   {
+    name: "SLACK_CLIENT_ID",
+    group: "Slack",
+    description:
+      "The Slack app's client ID (Basic Information). With SLACK_CLIENT_SECRET, turns on \"Connect your Slack account\" (Hub chat posts and reacts as the member); until both are set the button doesn't appear.",
+    type: "config",
+    destinations: vercelAllEnvs,
+  },
+  {
+    name: "SLACK_CLIENT_SECRET",
+    group: "Slack",
+    description: "The Slack app's client secret (Basic Information), paired with SLACK_CLIENT_ID.",
+    type: "secret",
+    destinations: vercelAllEnvs,
+  },
+  {
     name: "SLACK_FEEDBACK_CHANNEL_ID",
     group: "Slack",
     description: "Channel ID feedback-widget submissions post to.",
@@ -238,15 +260,34 @@ export const ENV_VARS: readonly EnvVarSpec[] = [
   {
     name: "SLACK_APP_ID",
     group: "Slack",
-    description: "Slack app ID (A...) for slack:// links to the app's Home tab (Slack sign-in). Optional.",
+    description:
+      "Slack app ID (A...). In the app, for slack:// links to the app's Home tab (Slack sign-in); optional there. In CI, the app whose manifest the push-slack-manifest job replaces (GitHub variable); required there.",
     type: "config",
-    destinations: vercelAllEnvs,
+    destinations: [...vercelAllEnvs, { kind: "github" }],
   },
   {
     name: "SLACK_TEST_MODE",
     group: "Slack",
     description: "Overrides default DM-redirect behavior outside production.",
     type: "config",
+    destinations: vercelAllEnvs,
+  },
+
+  // --- Web Push --------------------------------------------------------------------------------
+  {
+    name: "NEXT_PUBLIC_VAPID_PUBLIC_KEY",
+    group: "Web Push",
+    description:
+      "VAPID public key (URL-safe base64) the browser subscribes with for Browser notifications. Public by design. Generate the pair once with `npx web-push generate-vapid-keys`; changing it invalidates every existing subscription.",
+    type: "config",
+    destinations: vercelAllEnvs,
+  },
+  {
+    name: "VAPID_PRIVATE_KEY",
+    group: "Web Push",
+    description:
+      "VAPID private key matching NEXT_PUBLIC_VAPID_PUBLIC_KEY; signs the pushes the server sends. Without either key the Browser channel can't reach anyone.",
+    type: "secret",
     destinations: vercelAllEnvs,
   },
 
@@ -290,23 +331,24 @@ export const ENV_VARS: readonly EnvVarSpec[] = [
   {
     name: "NEXT_PUBLIC_GA_ID",
     group: "Analytics & Monitoring",
-    description: "GA4 measurement ID. Public by design.",
-    type: "config",
-    destinations: vercelAllEnvs,
-  },
-  {
-    name: "SENTRY_DSN",
-    group: "Analytics & Monitoring",
     description:
-      "Server-side Sentry DSN. DSNs are designed to be safe to expose (write-only ingest endpoint).",
+      "GA4 measurement ID. Public by design. Production only: app/layout.tsx skips GA when it's unset, so testing on previews isn't tracked.",
     type: "config",
-    destinations: vercelAllEnvs,
+    destinations: [{ kind: "vercel", target: "production" }],
   },
   {
     name: "NEXT_PUBLIC_SENTRY_DSN",
     group: "Analytics & Monitoring",
     description:
-      "Client-side Sentry DSN. Public by design, same reasoning as SENTRY_DSN.",
+      "Sentry DSN for the browser, server and edge configs alike (one var: NEXT_PUBLIC_ vars are readable server-side too). Public by design -- a write-only ingest endpoint. Unset disables Sentry.",
+    type: "config",
+    destinations: vercelAllEnvs,
+  },
+  {
+    name: "NEXT_PUBLIC_SENTRY_ENVIRONMENT",
+    group: "Analytics & Monitoring",
+    description:
+      "Sentry environment tag (production / preview) for browser, server and edge events alike -- what separates production errors from preview ones (the DSN is shared). Explicit because Sentry's own Vercel detection never reaches the browser bundle CI builds for production.",
     type: "config",
     destinations: vercelAllEnvs,
   },
@@ -317,6 +359,14 @@ export const ENV_VARS: readonly EnvVarSpec[] = [
       "Build-time secret for uploading production source maps. A GitHub secret passed to CI's `vercel build` step, not a Vercel var: the production build runs in CI and can't read Vercel Secret values (see `type` above). Preview builds skip source map upload without it.",
     type: "secret",
     destinations: [{ kind: "github" }],
+  },
+  {
+    name: "ALERTS_EMAIL",
+    group: "Analytics & Monitoring",
+    description:
+      "Engineering alerts address for this environment. The GitHub copy (from .env.prod) is what Checkly alerts at `checkly deploy` -- the monitors watch production. The Vercel copies are for app-side alerting per environment.",
+    type: "config",
+    destinations: [...vercelAllEnvs, { kind: "github" }],
   },
 
   ...Object.values(CRON_HEARTBEATS).map(
@@ -385,14 +435,64 @@ export const ENV_VARS: readonly EnvVarSpec[] = [
     type: "secret", // an ID, but ci.yml reads it as secrets.* -- keep in sync
     destinations: [{ kind: "github" }],
   },
-
-  // --- Supabase config push: read by `supabase config push` locally and in CI, never by the app ---
+  // SLACK_CONFIG_REFRESH_TOKEN (GitHub secret, also read by the push-slack-manifest job) is
+  // deliberately NOT declared here. Slack replaces it every time it's used, so CI rewrites
+  // the secret on each run and a copy in .env.prod would be stale after the first one --
+  // syncing it would break the job. Seed it by hand; see docs/SLACK_MANIFEST.md.
   {
-    name: "RESEND_API_KEY",
-    group: "Supabase config push (local + CI)",
+    name: "GH_TOKEN_SLACK_MANIFEST",
+    group: "GitHub Actions CI",
     description:
-      "SMTP auth for Supabase Auth emails. Read by `supabase config push` (`npm run config:push` locally, and CI's push-migrations job on every push to main) via config.toml's env(RESEND_API_KEY). CI refuses to push config without it, since the push would otherwise overwrite production's SMTP password. The app itself never reads it, so it isn't synced to Vercel.",
+      "GitHub fine-grained token with Secrets read/write on this repo only. Lets the push-slack-manifest job save the rotated SLACK_CONFIG_REFRESH_TOKEN back to GitHub secrets (the job's own GITHUB_TOKEN can't write secrets).",
     type: "secret",
     destinations: [{ kind: "github" }],
+  },
+  {
+    name: "DOCKERHUB_USERNAME",
+    group: "GitHub Actions CI",
+    description:
+      "Docker Hub username (not the email) CI logs in as before `supabase start`, so image pulls are authenticated: anonymous pulls from shared runner IPs hit Docker Hub's rate limit (\"toomanyrequests\") and fail the db tests, which blocks migrations and deploys. A GitHub variable, not a secret.",
+    type: "config",
+    destinations: [{ kind: "github" }],
+  },
+  {
+    name: "DOCKERHUB_TOKEN",
+    group: "GitHub Actions CI",
+    description:
+      "Docker Hub access token (Account settings -> Personal access tokens, read-only scope is enough) for DOCKERHUB_USERNAME. Use a token, not the account password.",
+    type: "secret",
+    destinations: [{ kind: "github" }],
+  },
+
+  // --- Email (Resend) ---------------------------------------------------------------------------
+  {
+    name: "RESEND_API_KEY",
+    group: "Email (Resend)",
+    description:
+      "Resend API key (sending access). The app sends member notification emails with it (lib/email.ts). The same key is Supabase Auth's SMTP password: the config push (`npm run config:push` locally, and CI's push-migrations job on every push to main) reads it via config.toml's env(RESEND_API_KEY), and CI refuses to push config without it, since the push would otherwise overwrite production's SMTP password.",
+    type: "secret",
+    destinations: [...vercelAllEnvs, { kind: "github" }],
+  },
+  {
+    name: "EMAIL_UNSUBSCRIBE_SECRET",
+    group: "Email (Resend)",
+    description:
+      "Signing secret for the unsubscribe links in notification emails (lib/email-unsubscribe.ts). Changing it breaks the unsubscribe links in emails already sent, so treat it as permanent. Emails aren't sent without it.",
+    type: "secret",
+    destinations: vercelAllEnvs,
+  },
+  {
+    name: "EMAIL_DEV_ADDRESS",
+    group: "Email (Resend)",
+    description: "Address that redirected test-mode notification emails go to. Without it, test mode sends nothing.",
+    type: "config",
+    destinations: vercelAllEnvs,
+  },
+  {
+    name: "EMAIL_TEST_MODE",
+    group: "Email (Resend)",
+    description: "Overrides default notification-email redirect behavior outside production.",
+    type: "config",
+    destinations: vercelAllEnvs,
   },
 ];

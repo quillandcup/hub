@@ -7,6 +7,7 @@ import { getEffectiveIdentity } from "@/lib/sudo";
 import { triggerReprocessing } from "@/lib/processing/trigger";
 import { createKajabiClient } from "@/lib/kajabi/client";
 import { revalidatePath } from "next/cache";
+import { SUPPORT_EMAIL } from "@/lib/config";
 
 export interface NameAliasRow {
   id: string;
@@ -132,7 +133,7 @@ export async function updateRealName(name: string): Promise<{ success: true } | 
 
   if (current.self_service_name_changed_at != null) {
     return {
-      error: "You've already used your one name change. Email support@quillandcup.com to update it further.",
+      error: `You've already used your one name change. Email ${SUPPORT_EMAIL} to update it further.`,
     };
   }
 
@@ -156,7 +157,7 @@ export async function updateRealName(name: string): Promise<{ success: true } | 
 
   if (error || !data) return { error: error?.message ?? "Couldn't update your name" };
 
-  revalidatePath("/settings");
+  revalidatePath("/settings", "layout");
   revalidatePath(`/members/${effectiveIdentity.memberId}`);
   return { success: true };
 }
@@ -192,7 +193,7 @@ export async function updateBirthday(
 
   if (error || !data) return { error: error?.message ?? "Couldn't update your birthday" };
 
-  revalidatePath("/settings");
+  revalidatePath("/settings", "layout");
   return { success: true };
 }
 
@@ -225,7 +226,7 @@ export async function addNameAlias(alias: string): Promise<{ success: true } | {
   // the response is sent so the member isn't stuck waiting on it.
   after(() => triggerReprocessing("member_name_aliases", "local"));
 
-  revalidatePath("/settings");
+  revalidatePath("/settings", "layout");
   return { success: true };
 }
 
@@ -259,7 +260,7 @@ export async function setNameAliasActive(
     after(() => triggerReprocessing("member_name_aliases", "local"));
   }
 
-  revalidatePath("/settings");
+  revalidatePath("/settings", "layout");
   return { success: true };
 }
 
@@ -295,7 +296,7 @@ export async function addEmailAlias(email: string): Promise<{ success: true } | 
 
   after(() => triggerReprocessing("member_email_aliases", "local"));
 
-  revalidatePath("/settings");
+  revalidatePath("/settings", "layout");
   return { success: true };
 }
 
@@ -321,6 +322,6 @@ export async function setEmailAliasActive(
     after(() => triggerReprocessing("member_email_aliases", "local"));
   }
 
-  revalidatePath("/settings");
+  revalidatePath("/settings", "layout");
   return { success: true };
 }

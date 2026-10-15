@@ -22,12 +22,26 @@
 // the env var name used to source the value -- env-vars.config.ts's `vault` destination maps
 // one to the other explicitly via `vaultName`.
 
-import { existsSync, readFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
-import { parse as parseDotenv } from "dotenv";
+import { loadTargetEnv, sourceFilesFor } from "./env-files";
 import { ENV_VARS } from "../env-vars.config";
+import appConfig from "../app.config";
 
-const ENV_FILE = ".env.prod";
+/** app.config.ts values that SQL (pg_cron jobs) reads from Vault, by Vault name. */
+const SHARED_CONFIG_IN_VAULT: readonly {
+  key: "appUrl";
+  vaultName: string;
+  description: string;
+}[] = [
+  {
+    key: "appUrl",
+    vaultName: "app_url",
+    description: "Canonical app base URL (app.config.ts appUrl), read by pg_cron jobs.",
+  },
+];
+
+// Production's values: .env.shared overridden by .env.prod.
+const ENV_FILE = sourceFilesFor("production");
 
 /** Idempotent: updates the existing secret in place (preserving its id) if one with this
  * name already exists, otherwise creates it -- safe to re-run whenever the underlying value
@@ -66,11 +80,7 @@ end $sync$;
 }
 
 function main(): void {
-  if (!existsSync(ENV_FILE)) {
-    console.error(`❌ ${ENV_FILE} not found!`);
-    process.exit(1);
-  }
-  const env = parseDotenv(readFileSync(ENV_FILE));
+  const env = loadTargetEnv("production");
 
   console.log(
     `🔐 Syncing Vault secrets to Supabase (linked project, source: ${ENV_FILE})...\n`,
@@ -86,6 +96,11 @@ function main(): void {
       }
       syncVaultSecret(spec.name, value, dest.vaultName, spec.description);
     }
+  }
+
+  // Shared (non-env-scoped) config that SQL needs, from app.config.ts.
+  for (const { key, vaultName, description } of SHARED_CONFIG_IN_VAULT) {
+    syncVaultSecret(`app.config.ts ${key}`, String(appConfig[key]), vaultName, description);
   }
 
   console.log("\n✅ Vault secrets synced!\n");

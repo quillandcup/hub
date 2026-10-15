@@ -65,6 +65,11 @@ function makeSupabaseMock({
     if (table === "member_name_aliases") {
       return { select: aliasSelect, upsert, insert };
     }
+    if (table === "member_email_aliases") {
+      // Only the final email-alias list fetch; the email paths are covered
+      // against the real DB in identity-email.test.ts.
+      return { select: vi.fn(() => ({ eq: vi.fn(() => ({ order: vi.fn().mockResolvedValue({ data: [], error: null }) })) })) };
+    }
     throw new Error(`Unexpected table in test: ${table}`);
   });
 

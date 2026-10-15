@@ -1,5 +1,5 @@
 import { WebClient } from "@slack/web-api";
-import { isProduction } from "@/lib/config";
+import { APP_URL, isProduction } from "@/lib/config";
 
 /**
  * Whether outbound Slack DMs sent via this module should be redirected to SLACK_DEV_USER_ID
@@ -20,10 +20,10 @@ export interface SendSlackDMParams {
 }
 
 /**
- * Shared DM sender for new Writing Projects Phase 1 senders (pre-prickle nudge, post-prickle
- * quick-log prompt). Existing senders (wheel-of-wonder/actions.ts, feedback/route.ts) keep their
- * own direct WebClient calls for now -- migrating them onto this helper is a flagged fast-follow,
- * not part of this change, so their sends are unaffected by SLACK_TEST_MODE.
+ * Low-level Slack DM sender. Member notifications don't call this directly: they go through
+ * createNotifier (lib/notifications/notify.ts), whose Slack channel uses it, so they honor the
+ * member's notification settings. wheel-of-wonder/actions.ts and feedback/route.ts keep their own
+ * WebClient calls, so their sends are unaffected by SLACK_TEST_MODE.
  */
 export async function sendSlackDM(params: SendSlackDMParams): Promise<void> {
   const token = process.env.SLACK_BOT_TOKEN;
@@ -46,13 +46,9 @@ export async function sendSlackDM(params: SendSlackDMParams): Promise<void> {
   }
 
   const slack = new WebClient(token);
-  await slack.chat.postMessage({ channel: slackUserId, text, blocks });
+  await slack.chat.postMessage({ channel: slackUserId, text, blocks, unfurl_links: false, unfurl_media: false });
 }
 
-// No NEXT_PUBLIC base-URL env var exists yet (app/api/reconcile/README.md hardcodes the same
-// domain for its curl examples) -- this is a staff-facing Slack link, so pointing it at the real
-// production site regardless of which environment triggered the notification is fine.
-const APP_URL = "https://hub.quillandcup.com";
 
 export interface NotifyStaffNewBookParams {
   title: string;
@@ -82,7 +78,7 @@ export async function notifyStaffNewBook(params: NotifyStaffNewBookParams): Prom
   ].join("\n");
 
   const slack = new WebClient(token);
-  await slack.chat.postMessage({ channel, text });
+  await slack.chat.postMessage({ channel, text, unfurl_links: false, unfurl_media: false });
 }
 
 export interface NotifyStaffNewAwardParams {
@@ -113,5 +109,5 @@ export async function notifyStaffNewAward(params: NotifyStaffNewAwardParams): Pr
   ].join("\n");
 
   const slack = new WebClient(token);
-  await slack.chat.postMessage({ channel, text });
+  await slack.chat.postMessage({ channel, text, unfurl_links: false, unfurl_media: false });
 }

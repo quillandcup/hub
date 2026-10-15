@@ -79,7 +79,7 @@ export async function revokeSession(sessionId: string) {
     return { error: "That session was already signed out" };
   }
 
-  revalidatePath("/settings");
+  revalidatePath("/settings", "layout");
   return { success: true };
 }
 
@@ -104,7 +104,7 @@ export async function signOutOtherSessions() {
     return { error: error.message };
   }
 
-  revalidatePath("/settings");
+  revalidatePath("/settings", "layout");
   return { success: true };
 }
 
@@ -126,6 +126,6 @@ export async function updateTimezonePreference(timezone: string) {
     return { error: error.message };
   }
 
-  revalidatePath("/settings");
+  revalidatePath("/settings", "layout");
   return { success: true };
 }

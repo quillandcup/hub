@@ -132,6 +132,6 @@ async function notifySlack(params: {
       filename: "screenshot.png",
     });
   } else {
-    await slack.chat.postMessage({ channel, text: `${text}\n_(no screenshot captured)_` });
+    await slack.chat.postMessage({ channel, text: `${text}\n_(no screenshot captured)_`, unfurl_links: false, unfurl_media: false });
   }
 }

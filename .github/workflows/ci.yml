@@ -4,9 +4,10 @@ name: CI
 # test-unit (fast, fully-mocked pure-logic/component tests, no infra) and test-db
 # (integration tests against a real local Supabase stack, not mocks -- see CLAUDE.md's
 # note on RLS/SQL functions/bronze-silver-gold -- plus the production build). See
-# vitest.config.ts for how tests are split between the two. On push to main, once
+# vitest.config.mts for how tests are split between the two. On push to main, once
 # (and only once) both jobs pass, also auto-pushes any pending Supabase migrations
-# to production.
+# to production, deploys, and then pushes slack-app-manifest.yml to the Slack app if
+# it changed.
 #
 # Why the migration push exists: nobody was reliably running `supabase db push`
 # after a merge -- new code has 500'd in prod waiting on a table/column that
@@ -59,7 +60,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v7
         with:
           node-version-file: ".nvmrc"
           cache: npm
@@ -76,10 +77,20 @@ jobs:
 
       # This bucket is pure-logic/component tests -- every dependency is mocked
       # (vi.mock / vi.fn / stubbed global.fetch) or the test is pure functions in,
-      # assertions out. No Supabase, no app server, no Docker: see vitest.config.ts's
+      # assertions out. No Supabase, no app server, no Docker: see vitest.config.mts's
       # "unit" project for exactly which files land here and why.
-      - name: Run unit test suite
-        run: npm run test:unit
+      # Runs the unit suite once, with v8 coverage. The coverage floors are on the unit and db
+      # runs combined, so they are checked by the Coverage report job (scripts/coverage-report.ts).
+      - name: Run unit test suite (with coverage)
+        run: npm run test:unit:coverage
+
+      - name: Upload coverage report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-unit
+          path: coverage/unit
+          retention-days: 14
 
   test-db:
     name: Test (db) & build
@@ -88,7 +99,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v7
         with:
           node-version-file: ".nvmrc"
           cache: npm
@@ -129,6 +140,19 @@ jobs:
       # into later steps. The "Wait for local Supabase" step (after the
       # build) blocks until this is actually ready before anything that
       # needs it (app server, tests) proceeds.
+      # Authenticated Docker Hub pulls get a much higher rate limit than anonymous ones, which
+      # the shared runner IPs keep exhausting ("toomanyrequests" failed the db job three times
+      # on 2026-10-09 and blocked the migration push and deploy). continue-on-error because
+      # runs without our secrets (Dependabot, forks) must still try anonymously.
+      # DOCKERHUB_USERNAME is a GitHub variable, DOCKERHUB_TOKEN a secret; both come from
+      # env-vars.config.ts via `npm run env:sync:github`.
+      - name: Log in to Docker Hub
+        continue-on-error: true
+        uses: docker/login-action@v4
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
       - name: Start local Supabase
         env:
           SUPABASE_INTERNAL_IMAGE_REGISTRY: docker.io
@@ -197,17 +221,10 @@ jobs:
           supabase status || true
           exit 1
 
-      # A large share of tests/api/** are integration tests that hit the real
-      # HTTP API via fetch(TEST_API_BASE_URL, default http://localhost:3000)
-      # instead of importing route handlers directly -- see
-      # tests/helpers/supabase.ts's getTestApiBaseUrl() and the "Manual Server
-      # Management" problem called out in docs/TEST_INFRASTRUCTURE_PLAN.md.
-      # Locally this "just works" because a `next dev` for this repo is
-      # usually already running on :3000 from normal day-to-day use; a fresh
-      # CI runner has nothing listening there unless we start it ourselves,
-      # which previously caused a cascade of null/undefined failures in every
-      # test file that fetches from the app (the first fetch fails, and
-      # everything chained off its response comes back null/undefined).
+      # Most tests/api/** call route handlers in-process (tests/helpers/api-fetch.ts) so their
+      # coverage is counted. Only tests/api/smoke/ goes over HTTP, to the built app started here,
+      # to cover Next's own routing, proxy and body parsing. Locally those tests use a server
+      # already running on :3000 (TEST_API_BASE_URL overrides).
       - name: Start app server
         run: |
           npm run start > /tmp/next-server.log 2>&1 &
@@ -232,8 +249,19 @@ jobs:
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ env.LOCAL_SUPABASE_ANON_KEY }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ env.LOCAL_SUPABASE_SERVICE_ROLE_KEY }}
 
-      - name: Run db test suite
-        run: npm run test:db
+      # API-route tests call the route handlers in-process (tests/helpers/api-fetch.ts), so v8
+      # counts them; only the few HTTP smoke tests use the app server above. The coverage job
+      # below merges this with the unit run and checks the floors.
+      - name: Run db test suite (with coverage)
+        run: npm run test:db:coverage
+
+      - name: Upload db coverage report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-db
+          path: coverage/db
+          retention-days: 14
 
       # SQL-level tests (pgTAP) in supabase/tests/database: RLS, SECURITY DEFINER functions,
       # auth hooks -- things only observable as a specific Postgres role. Each file rolls back.
@@ -247,6 +275,57 @@ jobs:
       - name: Stop local Supabase
         if: always()
         run: supabase stop
+
+  coverage:
+    name: Coverage report
+    needs: [test-unit, test-db]
+    # Skipped (not failed) when a test job fails, since there is nothing to merge. Pull requests
+    # only: on main this must not hold up push-migrations and the deploy.
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: write # to update the sticky coverage comment
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0 # the new-lines check diffs against the PR's base branch
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: ".nvmrc"
+          cache: npm
+
+      - run: npm ci
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: coverage-unit
+          path: coverage/unit
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: coverage-db
+          path: coverage/db
+
+      # Merges both suites' coverage (an item is covered if either ran it), writes the per-area
+      # tables to the job summary and one sticky PR comment, and fails if the PR's new code scores
+      # under 80%: the mean of its statements, functions and branches covered, or if lib,
+      # components or app/api fall under their combined floors (AREA_FLOORS in
+      # scripts/coverage-report.ts). To bypass the new-code check for a PR, add the
+      # skip-patch-coverage label and re-run this job: the label is read live below.
+      - name: Merge coverage, report, and gate new lines
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          BASE_REF: ${{ github.base_ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }} # the commit the comment's file links point at
+        run: |
+          if gh pr view "$PR_NUMBER" --json labels --jq '.labels[].name' | grep -qx 'skip-patch-coverage'; then
+            export PATCH_COVERAGE_SKIP=1
+          fi
+          npx tsx scripts/coverage-report.ts --suite unit=coverage/unit --suite db=coverage/db --patch-base "origin/$BASE_REF"
 
   push-migrations:
     name: Push migrations to production
@@ -323,7 +402,7 @@ jobs:
       # internally (not `npm ci`, and there's no way to skip that install
       # step), so this is what actually speeds it up. No explicit `npm ci`
       # step needed in this job.
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v7
         with:
           node-version-file: ".nvmrc"
           cache: npm
@@ -378,3 +457,113 @@ jobs:
         run: vercel deploy --prebuilt --prod
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+
+  # slack-app-manifest.yml is the source of truth for the Slack app (Billie Bot): its
+  # description, scopes, slash commands, event subscriptions and request URLs. The push
+  # REPLACES the live configuration, so anything changed in the Slack dashboard but not in
+  # the manifest is reset here -- change the manifest instead. See docs/SLACK_MANIFEST.md.
+  #
+  # Runs after deploy on purpose: the manifest points at app routes (the /hub command, the
+  # events and interactivity request URLs), so those must be live first.
+  #
+  # No `cancel-in-progress` on main (see `concurrency` above), so runs queue instead of
+  # being killed between rotating the Slack token and saving its replacement.
+  #
+  # Only pushes when the push to main changed the manifest or the script. Every run spends
+  # the stored refresh token, and a run reads its secrets when it's queued: a run queued
+  # while an earlier one was rotating gets the old, already-spent token and fails with
+  # invalid_refresh_token. Skipping the push when nothing changed makes that collision rare.
+  # workflow_dispatch (and a push whose previous commit can't be fetched) always pushes.
+  push-slack-manifest:
+    name: Push Slack app manifest
+    needs: deploy
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Check whether the manifest changed
+        id: manifest
+        run: |
+          if [ "$GITHUB_EVENT_NAME" != "push" ] || ! git fetch --quiet --depth=1 origin "$BEFORE"; then
+            echo "No previous commit to compare against: pushing the manifest."
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          elif git diff --quiet "$BEFORE" HEAD -- slack-app-manifest.yml scripts/slack-manifest.ts; then
+            echo "slack-app-manifest.yml and scripts/slack-manifest.ts are unchanged: skipping the push."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          BEFORE: ${{ github.event.before }}
+
+      - uses: actions/setup-node@v7
+        if: steps.manifest.outputs.changed == 'true'
+        with:
+          node-version-file: ".nvmrc"
+          cache: npm
+
+      - run: npm ci
+        if: steps.manifest.outputs.changed == 'true'
+
+      # Calls scripts/slack-manifest.ts directly rather than `npm run slack:manifest:push`,
+      # which wraps it in dotenv for the local .env files.
+      - name: Push Slack app manifest
+        if: steps.manifest.outputs.changed == 'true'
+        run: |
+          if [ -z "$SLACK_CONFIG_REFRESH_TOKEN" ] || [ -z "$GH_TOKEN" ] || [ -z "$SLACK_APP_ID" ]; then
+            echo "SLACK_CONFIG_REFRESH_TOKEN, GH_TOKEN_SLACK_MANIFEST (secrets) and SLACK_APP_ID (variable) must all be set -- see docs/SLACK_MANIFEST.md."
+            exit 1
+          fi
+          npx tsx scripts/slack-manifest.ts push
+        env:
+          SLACK_APP_ID: ${{ vars.SLACK_APP_ID }}
+          SLACK_CONFIG_REFRESH_TOKEN: ${{ secrets.SLACK_CONFIG_REFRESH_TOKEN }}
+          # A fine-grained token with Secrets write: the job's GITHUB_TOKEN can't set secrets.
+          GH_TOKEN: ${{ secrets.GH_TOKEN_SLACK_MANIFEST }}
+
+  # vercel-project-config.yml is the source of truth for the Vercel project settings that
+  # vercel.json can't express (today: always-on tracing sampling rules). The push REPLACES
+  # those rules, so change the file, not the dashboard. See docs/VERCEL_CONFIG.md.
+  #
+  # Only runs when the push to main changed the file or the script; a manual run
+  # (workflow_dispatch) or a push whose previous commit can't be fetched always applies it.
+  push-vercel-config:
+    name: Push Vercel project config
+    needs: deploy
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Check whether the config changed
+        id: config
+        run: |
+          if [ "$GITHUB_EVENT_NAME" != "push" ] || ! git fetch --quiet --depth=1 origin "$BEFORE"; then
+            echo "No previous commit to compare against: pushing the config."
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          elif git diff --quiet "$BEFORE" HEAD -- vercel-project-config.yml scripts/vercel-config.ts; then
+            echo "vercel-project-config.yml and scripts/vercel-config.ts are unchanged: skipping the push."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          BEFORE: ${{ github.event.before }}
+
+      - uses: actions/setup-node@v7
+        if: steps.config.outputs.changed == 'true'
+        with:
+          node-version-file: ".nvmrc"
+          cache: npm
+
+      - run: npm ci
+        if: steps.config.outputs.changed == 'true'
+
+      - name: Push Vercel project config
+        if: steps.config.outputs.changed == 'true'
+        run: npx tsx scripts/vercel-config.ts push
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}

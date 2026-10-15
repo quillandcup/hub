@@ -10,14 +10,25 @@ export interface NameAliasRow {
   active: boolean;
 }
 
+export interface EmailAliasRow {
+  id: string;
+  alias_email: string;
+  source: string;
+  active: boolean;
+}
+
 interface MemberIdentityPanelProps {
   memberId: string;
   name: string;
   displayName: string | null;
   hasKajabiId: boolean;
   email: string;
-  emailAliases: string[];
+  emailAliases: EmailAliasRow[];
   nameAliases: NameAliasRow[];
+}
+
+function emailSourceLabel(source: string): string {
+  return source === "auto_detected" ? "previous email" : "added";
 }
 
 function sourceLabel(source: string): string {
@@ -52,7 +63,15 @@ export default function MemberIdentityPanel({
   const [addingPenName, setAddingPenName] = useState(false);
   const [settingDefaultId, setSettingDefaultId] = useState<string | null>(null);
   const [removingAliasId, setRemovingAliasId] = useState<string | null>(null);
+  const [emailInput, setEmailInput] = useState(email);
+  const [savingEmail, setSavingEmail] = useState(false);
+  const [emailAliasInput, setEmailAliasInput] = useState("");
+  const [addingEmailAlias, setAddingEmailAlias] = useState(false);
+  const [togglingEmailAliasId, setTogglingEmailAliasId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [conflictingMemberId, setConflictingMemberId] = useState<string | null>(null);
+
+  const emailChanged = emailInput.trim().length > 0 && emailInput.trim().toLowerCase() !== email.toLowerCase();
 
   const nameChanged = nameInput.trim() !== name && nameInput.trim().length > 0;
 
@@ -63,8 +82,53 @@ export default function MemberIdentityPanel({
       body: JSON.stringify(body),
     });
     const data = await response.json();
+    setConflictingMemberId(data.conflictingMemberId ?? null);
     if (!response.ok) throw new Error(data.error || "Request failed");
     return data;
+  }
+
+  async function handleSaveEmail(e: React.FormEvent) {
+    e.preventDefault();
+    if (!emailChanged) return;
+    setSavingEmail(true);
+    setError(null);
+    try {
+      await patchMember({ email: emailInput.trim() });
+      router.refresh();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setSavingEmail(false);
+    }
+  }
+
+  async function handleAddEmailAlias(e: React.FormEvent) {
+    e.preventDefault();
+    if (!emailAliasInput.trim()) return;
+    setAddingEmailAlias(true);
+    setError(null);
+    try {
+      await patchMember({ newEmailAlias: emailAliasInput.trim() });
+      setEmailAliasInput("");
+      router.refresh();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setAddingEmailAlias(false);
+    }
+  }
+
+  async function handleToggleEmailAlias(alias: EmailAliasRow) {
+    setTogglingEmailAliasId(alias.id);
+    setError(null);
+    try {
+      await patchMember({ emailAlias: { id: alias.id, active: !alias.active } });
+      router.refresh();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setTogglingEmailAliasId(null);
+    }
   }
 
   async function handleSaveName(e: React.FormEvent) {
@@ -133,17 +197,95 @@ export default function MemberIdentityPanel({
       {error && (
         <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-800 dark:text-red-200 text-sm">
           {error}
+          {conflictingMemberId && (
+            <>
+              {" "}
+              <a href={`/admin/members/${conflictingMemberId}`} className="underline font-medium">
+                View that member
+              </a>
+            </>
+          )}
         </div>
       )}
 
       <div className="mb-6">
         <h3 className="text-sm font-medium text-slate-900 dark:text-slate-100 mb-1">Email</h3>
-        <p className="text-sm text-slate-600 dark:text-slate-400">{email}</p>
-        {emailAliases.length > 0 && (
-          <p className="text-xs text-slate-400 dark:text-slate-500 italic mt-0.5">
-            Also known as: {emailAliases.join(", ")}
-          </p>
+        <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">
+          {hasKajabiId
+            ? "Changing this updates the contact's email in Kajabi. The old email is kept as an alias."
+            : "This member has no linked Kajabi contact — the email updates locally only. The old email is kept as an alias."}
+        </p>
+        <form onSubmit={handleSaveEmail} className="flex gap-2 max-w-md mb-4">
+          <input
+            type="email"
+            value={emailInput}
+            onChange={(e) => setEmailInput(e.target.value)}
+            aria-label="Primary email"
+            className="flex-1 px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-sm"
+            maxLength={320}
+          />
+          <button
+            type="submit"
+            disabled={savingEmail || !emailChanged}
+            aria-label="Save email"
+            className="px-4 py-2 bg-plum-600 text-white text-sm rounded-md hover:bg-plum-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {savingEmail ? "Saving…" : "Save"}
+          </button>
+        </form>
+
+        <h4 className="text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Other emails</h4>
+        <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">
+          Zoom, Slack, Stripe and Kajabi records under these addresses count as this member.
+        </p>
+        {emailAliases.length > 0 ? (
+          <ul className="space-y-1 mb-3 max-w-md">
+            {emailAliases.map((alias) => (
+              <li
+                key={alias.id}
+                className={`flex items-center justify-between gap-2 text-sm ${alias.active ? "" : "opacity-50"}`}
+              >
+                <span className="text-slate-700 dark:text-slate-300 break-all">
+                  {alias.alias_email}
+                  <span className="ml-2 text-xs text-slate-400 dark:text-slate-500">
+                    {emailSourceLabel(alias.source)}
+                    {!alias.active && " · inactive"}
+                  </span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => handleToggleEmailAlias(alias)}
+                  disabled={togglingEmailAliasId === alias.id}
+                  aria-label={`${alias.active ? "Deactivate" : "Reactivate"} ${alias.alias_email}`}
+                  className="text-xs text-slate-500 hover:text-plum-700 dark:hover:text-plum-300 disabled:opacity-50 shrink-0"
+                >
+                  {alias.active ? "Deactivate" : "Reactivate"}
+                </button>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-sm text-slate-500 dark:text-slate-400 mb-3">No other emails on file.</p>
         )}
+        <form onSubmit={handleAddEmailAlias} className="flex gap-2 max-w-md">
+          <input
+            type="email"
+            value={emailAliasInput}
+            onChange={(e) => setEmailAliasInput(e.target.value)}
+            placeholder="another@example.com"
+            aria-label="Add another email"
+            className="flex-1 px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-sm"
+            maxLength={320}
+          />
+          <button
+            type="submit"
+            disabled={addingEmailAlias || !emailAliasInput.trim()}
+            aria-label="Add email"
+            className="px-4 py-2 bg-plum-600 text-white text-sm rounded-md hover:bg-plum-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {addingEmailAlias ? "Adding…" : "Add"}
+          </button>
+        </form>
       </div>
 
       <div className="mb-6">

@@ -10,6 +10,8 @@ import { GoogleAnalytics } from "@next/third-parties/google";
 import { EnvironmentIndicator } from "@/components/EnvironmentIndicator";
 import { ConsentBanner } from "@/components/ConsentBanner";
 import { countryNeedsConsent } from "@/lib/gdpr-countries";
+import { DEFAULT_TITLE, TITLE_TEMPLATE } from "@/lib/page-title";
+import appConfig from "@/app.config";
 
 // Brand display serif for headings and the wordmark (tailwind `font-display`).
 const displayFont = Playfair_Display({
@@ -20,13 +22,17 @@ const displayFont = Playfair_Display({
 
 export const metadata: Metadata = {
   title: {
-    default: "Hedgie Hub",
-    template: "%s | Hedgie Hub",
+    default: DEFAULT_TITLE,
+    template: TITLE_TEMPLATE,
   },
-  description: "Attendance and engagement analytics for Quill & Cup writing sessions",
+  description:
+    "The Quill & Cup member hub: find prickles and events, track your writing streaks and projects, and connect with fellow writers.",
   icons: {
     icon: '/icon.png',
+    apple: '/billiebot.png',
   },
+  // Lets the Hub open full-screen from the home screen, which iOS requires for web push.
+  appleWebApp: { capable: true, title: appConfig.appName },
 };
 
 export default async function RootLayout({

@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { getTestSupabaseAdminClient, getTestAuthHeaders, getTestApiBaseUrl } from '../../helpers/supabase'
+import { apiFetch } from '../../helpers/api-fetch'
 
 /**
  * Integration tests for the admin users API.
@@ -39,12 +40,12 @@ describe('Admin Users API', () => {
   // ── Auth guard ─────────────────────────────────────────────────────────────
 
   it('GET returns 401 without auth', async () => {
-    const res = await fetch(`${base}/api/admin/users`)
+    const res = await apiFetch(`${base}/api/admin/users`)
     expect(res.status).toBe(401)
   })
 
   it('POST returns 401 without auth', async () => {
-    const res = await fetch(`${base}/api/admin/users`, {
+    const res = await apiFetch(`${base}/api/admin/users`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email: 'x@example.com' }),
@@ -53,7 +54,7 @@ describe('Admin Users API', () => {
   })
 
   it('PATCH returns 401 without auth', async () => {
-    const res = await fetch(`${base}/api/admin/users/${testUserId}`, {
+    const res = await apiFetch(`${base}/api/admin/users/${testUserId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ role: 'admin' }),
@@ -62,7 +63,7 @@ describe('Admin Users API', () => {
   })
 
   it('DELETE returns 401 without auth', async () => {
-    const res = await fetch(`${base}/api/admin/users/${testUserId}`, {
+    const res = await apiFetch(`${base}/api/admin/users/${testUserId}`, {
       method: 'DELETE',
     })
     expect(res.status).toBe(401)
@@ -71,7 +72,7 @@ describe('Admin Users API', () => {
   // ── GET /api/admin/users ───────────────────────────────────────────────────
 
   it('GET returns a list of users', async () => {
-    const res = await fetch(`${base}/api/admin/users`, {
+    const res = await apiFetch(`${base}/api/admin/users`, {
       headers: getTestAuthHeaders(),
     })
 
@@ -81,7 +82,7 @@ describe('Admin Users API', () => {
   })
 
   it('GET includes the test user with email, role, and features fields', async () => {
-    const res = await fetch(`${base}/api/admin/users`, {
+    const res = await apiFetch(`${base}/api/admin/users`, {
       headers: getTestAuthHeaders(),
     })
 
@@ -96,7 +97,7 @@ describe('Admin Users API', () => {
   })
 
   it('GET includes allMembers and linked profile fields on each user', async () => {
-    const res = await fetch(`${base}/api/admin/users`, {
+    const res = await apiFetch(`${base}/api/admin/users`, {
       headers: getTestAuthHeaders(),
     })
 
@@ -117,7 +118,7 @@ describe('Admin Users API', () => {
   // ── PATCH /api/admin/users/[id] ───────────────────────────────────────────
 
   it('PATCH updates role', async () => {
-    const res = await fetch(`${base}/api/admin/users/${testUserId}`, {
+    const res = await apiFetch(`${base}/api/admin/users/${testUserId}`, {
       method: 'PATCH',
       headers: { ...getTestAuthHeaders(), 'Content-Type': 'application/json' },
       body: JSON.stringify({ role: 'admin' }),
@@ -136,7 +137,7 @@ describe('Admin Users API', () => {
   })
 
   it('PATCH updates feature flags (add)', async () => {
-    const res = await fetch(`${base}/api/admin/users/${testUserId}`, {
+    const res = await apiFetch(`${base}/api/admin/users/${testUserId}`, {
       method: 'PATCH',
       headers: { ...getTestAuthHeaders(), 'Content-Type': 'application/json' },
       body: JSON.stringify({ features: ['hedgieversaries', 'events'] }),
@@ -154,7 +155,7 @@ describe('Admin Users API', () => {
   })
 
   it('PATCH replaces feature flags (remove one)', async () => {
-    const res = await fetch(`${base}/api/admin/users/${testUserId}`, {
+    const res = await apiFetch(`${base}/api/admin/users/${testUserId}`, {
       method: 'PATCH',
       headers: { ...getTestAuthHeaders(), 'Content-Type': 'application/json' },
       body: JSON.stringify({ features: ['hedgieversaries'] }),
@@ -172,7 +173,7 @@ describe('Admin Users API', () => {
   })
 
   it('PATCH clears all feature flags when given empty array', async () => {
-    const res = await fetch(`${base}/api/admin/users/${testUserId}`, {
+    const res = await apiFetch(`${base}/api/admin/users/${testUserId}`, {
       method: 'PATCH',
       headers: { ...getTestAuthHeaders(), 'Content-Type': 'application/json' },
       body: JSON.stringify({ features: [] }),
@@ -189,7 +190,7 @@ describe('Admin Users API', () => {
   })
 
   it('PATCH updates role and features together', async () => {
-    const res = await fetch(`${base}/api/admin/users/${testUserId}`, {
+    const res = await apiFetch(`${base}/api/admin/users/${testUserId}`, {
       method: 'PATCH',
       headers: { ...getTestAuthHeaders(), 'Content-Type': 'application/json' },
       body: JSON.stringify({ role: 'member', features: ['member_overrides'] }),
@@ -244,7 +245,7 @@ describe('Admin Users API', () => {
     })
 
     it('PATCH links user to a member record', async () => {
-      const res = await fetch(`${base}/api/admin/users/${testUserId}`, {
+      const res = await apiFetch(`${base}/api/admin/users/${testUserId}`, {
         method: 'PATCH',
         headers: { ...getTestAuthHeaders(), 'Content-Type': 'application/json' },
         body: JSON.stringify({ memberId: memberRecordId }),
@@ -262,7 +263,7 @@ describe('Admin Users API', () => {
     })
 
     it('GET reflects the linked member and its derived staff role', async () => {
-      const res = await fetch(`${base}/api/admin/users`, {
+      const res = await apiFetch(`${base}/api/admin/users`, {
         headers: getTestAuthHeaders(),
       })
 
@@ -274,10 +275,11 @@ describe('Admin Users API', () => {
       // Staff role is derived via staff.member_id, not a separate link.
       expect(found.staffName).toBe('Test Member')
       expect(found.staffRole).toBe('staff')
+      expect(found.staffId).toEqual(expect.any(String))
     })
 
     it('PATCH with memberId: null unlinks the member only', async () => {
-      const res = await fetch(`${base}/api/admin/users/${testUserId}`, {
+      const res = await apiFetch(`${base}/api/admin/users/${testUserId}`, {
         method: 'PATCH',
         headers: { ...getTestAuthHeaders(), 'Content-Type': 'application/json' },
         body: JSON.stringify({ memberId: null }),
@@ -299,7 +301,7 @@ describe('Admin Users API', () => {
   // ── POST /api/admin/users ──────────────────────────────────────────────────
 
   it('POST rejects missing email', async () => {
-    const res = await fetch(`${base}/api/admin/users`, {
+    const res = await apiFetch(`${base}/api/admin/users`, {
       method: 'POST',
       headers: { ...getTestAuthHeaders(), 'Content-Type': 'application/json' },
       body: JSON.stringify({}),
@@ -313,7 +315,7 @@ describe('Admin Users API', () => {
   it('POST invites a new user', async () => {
     const inviteEmail = `admin-invite-${ts}@example.com`
 
-    const res = await fetch(`${base}/api/admin/users`, {
+    const res = await apiFetch(`${base}/api/admin/users`, {
       method: 'POST',
       headers: { ...getTestAuthHeaders(), 'Content-Type': 'application/json' },
       body: JSON.stringify({ email: inviteEmail }),
@@ -344,7 +346,7 @@ describe('Admin Users API', () => {
     if (error || !member) throw new Error(`Failed to create invite-target member: ${error?.message}`)
 
     try {
-      const res = await fetch(`${base}/api/admin/users`, {
+      const res = await apiFetch(`${base}/api/admin/users`, {
         method: 'POST',
         headers: { ...getTestAuthHeaders(), 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: inviteEmail }),
@@ -377,7 +379,7 @@ describe('Admin Users API', () => {
     })
     const deleteTargetId = data.user!.id
 
-    const res = await fetch(`${base}/api/admin/users/${deleteTargetId}`, {
+    const res = await apiFetch(`${base}/api/admin/users/${deleteTargetId}`, {
       method: 'DELETE',
       headers: getTestAuthHeaders(),
     })

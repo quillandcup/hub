@@ -17,7 +17,7 @@ type Client = ReturnType<typeof getTestSupabaseClient>
 const ADMIN_ONLY_INSERT: Array<[schema: 'public' | 'bronze', table: string]> = [
   ...[
     'calendar_events', 'kajabi_contacts', 'kajabi_customers', 'kajabi_members', 'kajabi_offers',
-    'kajabi_purchases', 'slack_channels', 'slack_messages', 'slack_reactions', 'slack_users',
+    'kajabi_purchases',
     'stripe_customers', 'stripe_products', 'stripe_subscriptions', 'subscription_history',
     'zoom_attendees', 'zoom_meetings',
   ].map((t) => ['bronze', t] as ['bronze', string]),
@@ -113,6 +113,25 @@ describe('tightened write policies (RLS)', () => {
       for (const row of (data ?? []) as Array<{ id?: string }>) {
         if (row.id) await from(service, schema, table).delete().eq('id', row.id)
       }
+    })
+
+    // raw_payload on these isn't readable by API roles (20261009000000_slack_content_privacy.sql), so
+    // the probes skip .select(): RETURNING * would be denied for that reason, not for the write.
+    describe.each(['slack_channels', 'slack_reactions', 'slack_users'])('bronze.%s', (table) => {
+      it('a signed-in member cannot insert', async () => {
+        const { error } = await memberClient.schema('bronze').from(table).insert({})
+        expect(error?.code).toBe('42501')
+      })
+
+      it('an admin session gets past RLS (and stops at NOT NULL)', async () => {
+        const { error } = await adminClient.schema('bronze').from(table).insert({})
+        expect(error?.code).toBe('23502')
+      })
+    })
+
+    it('not even an admin session can insert into bronze.slack_messages (service role only)', async () => {
+      const { error } = await adminClient.schema('bronze').from('slack_messages').insert({})
+      expect(error?.code).toBe('42501')
     })
 
     it('a signed-in member cannot update or delete prickle_types rows', async () => {

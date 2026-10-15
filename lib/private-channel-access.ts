@@ -2,6 +2,8 @@ export interface SlackChannelRow {
   channel_id: string;
   name: string;
   is_private: boolean;
+  /** Group DMs are private but aren't channels the bot can be removed from. */
+  is_mpim?: boolean;
   imported_at: string;
 }
 
@@ -33,7 +35,7 @@ export function findStalePrivateChannels(channels: SlackChannelRow[]): StalePriv
   );
 
   return channels
-    .filter((c) => c.is_private && c.imported_at < latestImportedAt)
+    .filter((c) => c.is_private && !c.is_mpim && c.imported_at < latestImportedAt)
     .map((c) => ({ channelId: c.channel_id, channelName: c.name, lastSeenAt: c.imported_at }))
     .sort((a, b) => a.lastSeenAt.localeCompare(b.lastSeenAt));
 }

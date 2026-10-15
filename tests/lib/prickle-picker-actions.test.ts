@@ -17,11 +17,15 @@ vi.mock("next/cache", () => ({
   revalidatePath: vi.fn(),
 }));
 
-import { saveHostVibe } from "@/app/(member)/prickle-picker/actions";
+vi.mock("@/lib/timezone", () => ({
+  getUserTimezonePreference: vi.fn().mockResolvedValue("America/New_York"),
+}));
+
+import { getHostedVibes, getWizardRecommendations, saveHostVibe } from "@/app/(member)/prickle-picker/actions";
 import { createClient } from "@/lib/supabase/server";
 import { getEffectiveIdentity } from "@/lib/sudo";
 
-function makeSupabaseMock({ hostsType, upsertError }: { hostsType: boolean; upsertError?: string }) {
+function makeSupabaseMock({ hostsType, signupOnly = false, upsertError }: { hostsType: boolean; signupOnly?: boolean; upsertError?: string }) {
   const upsert = vi.fn().mockResolvedValue({ error: upsertError ? { message: upsertError } : null });
 
   return {
@@ -29,16 +33,18 @@ function makeSupabaseMock({ hostsType, upsertError }: { hostsType: boolean; upse
       getClaims: vi.fn().mockResolvedValue({ data: { claims: { sub: "auth-user-1" } }, error: null }),
     },
     from: vi.fn((table: string) => {
-      if (table === "prickles") {
-        return {
-          select: vi.fn().mockReturnThis(),
-          eq: vi.fn().mockReturnThis(),
-          limit: vi.fn().mockReturnThis(),
-          maybeSingle: vi.fn().mockResolvedValue({ data: hostsType ? { id: "p1" } : null }),
-        };
+      if (table === "prickles" || table === "prickle_schedules") {
+        const query: any = {};
+        for (const method of ["select", "eq", "gte", "in", "is", "order"]) query[method] = vi.fn(() => query);
+        query.range = vi.fn().mockResolvedValue({ data: hostsType && table === (signupOnly ? "prickle_schedules" : "prickles")
+          ? [{ type_id: "type-a", prickle_types: { id: "type-a", name: "Writing" } }] : [] });
+        return query;
       }
       if (table === "prickle_host_vibes") {
-        return { upsert };
+        const query: any = { upsert };
+        for (const method of ["select", "eq"]) query[method] = vi.fn(() => query);
+        query.in = vi.fn().mockResolvedValue({ data: [] });
+        return query;
       }
       throw new Error(`Unexpected table in test: ${table}`);
     }),
@@ -123,6 +129,24 @@ describe("saveHostVibe authorization scoping", () => {
     );
   });
 
+  it("lists configurable types for a first-time host's signup", async () => {
+    const mockSupabase = makeSupabaseMock({ hostsType: true, signupOnly: true });
+    vi.mocked(createClient).mockResolvedValue(mockSupabase as any);
+    vi.mocked(getEffectiveIdentity).mockResolvedValue({ memberId: "new-host", memberName: "New Host", memberEmail: "host@example.com", isSudo: false });
+    expect(await getHostedVibes()).toEqual([{ typeId: "type-a", typeName: "Writing", vibe: "balanced", notes: "" }]);
+  });
+
+  it("lets a new host save vibes using their signup before hosting a prickle", async () => {
+    const mockSupabase = makeSupabaseMock({ hostsType: true, signupOnly: true });
+    vi.mocked(createClient).mockResolvedValue(mockSupabase as any);
+    vi.mocked(getEffectiveIdentity).mockResolvedValue({ memberId: "new-host", memberName: "New Host", memberEmail: "host@example.com", isSudo: false });
+    expect(await saveHostVibe("type-a", "focused", "Quiet writing")).toEqual({ success: true });
+    expect(mockSupabase.__upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ host_id: "new-host", type_id: "type-a", vibe: "focused" }),
+      { onConflict: "type_id,host_id" }
+    );
+  });
+
   it("surfaces a database error from the upsert", async () => {
     const mockSupabase = makeSupabaseMock({ hostsType: true, upsertError: "constraint violation" });
     vi.mocked(createClient).mockResolvedValue(mockSupabase as any);
@@ -135,5 +159,80 @@ describe("saveHostVibe authorization scoping", () => {
 
     const result = await saveHostVibe("type-a", "chatty", "");
     expect(result).toEqual({ error: "constraint violation" });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// getWizardRecommendations: feelings + personal history
+// ---------------------------------------------------------------------------
+
+/** A chainable query fake: every filter returns itself, awaiting resolves the table's rows. */
+function makeQueryFake(tables: Record<string, unknown[]>) {
+  const calls: { table: string; method: string; args: unknown[] }[] = [];
+  const from = vi.fn((table: string) => {
+    const result = { data: tables[table] ?? [], error: null };
+    const builder: Record<string, unknown> = {
+      then: (resolve: (v: unknown) => unknown, reject?: (e: unknown) => unknown) =>
+        Promise.resolve(result).then(resolve, reject),
+    };
+    for (const method of ["select", "eq", "gte", "lte", "lt", "order", "not", "is", "in", "range"]) {
+      builder[method] = (...args: unknown[]) => {
+        calls.push({ table, method, args });
+        return builder;
+      };
+    }
+    return builder;
+  });
+  return {
+    client: {
+      auth: { getClaims: vi.fn().mockResolvedValue({ data: { claims: { sub: "auth-user-1" } }, error: null }) },
+      from,
+    },
+    calls,
+  };
+}
+
+const MEMBER = { memberId: "member-1", memberName: "Member One", memberEmail: "m1@example.com", isSudo: false };
+const BASE_ANSWERS = { windowDays: 7, timeOfDay: "any" as const, vibe: "any" as const, purpose: "any" as const, withMemberIds: [] };
+
+describe("getWizardRecommendations", () => {
+  it("rejects unknown feelings before querying anything", async () => {
+    const fake = makeQueryFake({});
+    vi.mocked(createClient).mockResolvedValue(fake.client as any);
+    vi.mocked(getEffectiveIdentity).mockResolvedValue(MEMBER);
+
+    const result = await getWizardRecommendations({ ...BASE_ANSWERS, feelings: ["hangry" as any] });
+    expect(result).toEqual({ error: "Invalid feelings" });
+    expect(fake.client.from).not.toHaveBeenCalled();
+  });
+
+  it("ranks with the member's own rated check-ins from similar times", async () => {
+    const soon = (h: number) => new Date(Date.now() + h * 3600_000).toISOString();
+    const fake = makeQueryFake({
+      prickle_types: [{ id: "t1", name: "Heads Down", purpose: "writing", solo_task_friendly: true }],
+      member_directory: [],
+      prickles: [
+        { id: "p-a", type_id: "t1", host_id: "host-a", start_time: soon(2) },
+        { id: "p-b", type_id: "t1", host_id: "host-b", start_time: soon(3) },
+      ],
+      prickle_host_vibes: [],
+      prickle_attendance: [],
+      prickle_checkins: [
+        { feelings_before: ["anxious"], need: null, session_rating: 5, prickles: { type_id: "t1", host: "host-b" } },
+        { feelings_before: ["anxious"], need: null, session_rating: 5, prickles: { type_id: "t1", host: "host-b" } },
+        { feelings_before: ["calm"], need: null, session_rating: 1, prickles: { type_id: "t1", host: "host-a" } },
+      ],
+    });
+    vi.mocked(createClient).mockResolvedValue(fake.client as any);
+    vi.mocked(getEffectiveIdentity).mockResolvedValue(MEMBER);
+
+    const result = await getWizardRecommendations({ ...BASE_ANSWERS, feelings: ["stressed"], need: null });
+    if ("error" in result) throw new Error(result.error);
+
+    expect(result.recommendations[0].hostId).toBe("host-b");
+    expect(result.recommendations[0].personal).toEqual({ sessions: 2, avgRating: 5 });
+    expect(fake.calls).toContainEqual({ table: "prickle_checkins", method: "eq", args: ["member_id", "member-1"] });
+    expect(fake.calls).toContainEqual({ table: "prickle_checkins", method: "not", args: ["session_rating", "is", null] });
+    expect(fake.calls).toContainEqual({ table: "prickle_checkins", method: "is", args: ["deleted_at", null] });
   });
 });

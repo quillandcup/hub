@@ -6,6 +6,10 @@
  * based on Vercel system environment variables.
  */
 
+// Relative, not "@/": also loaded outside Next (scripts/render-email-templates.ts via
+// supabase/emails/layout.tsx).
+import appConfig from "../app.config";
+
 /**
  * Environment type
  */
@@ -36,6 +40,31 @@ export const deployment = {
   commitSha: process.env.VERCEL_GIT_COMMIT_SHA,
   branch: process.env.VERCEL_GIT_COMMIT_REF,
 };
+
+/**
+ * Organization settings shared by every environment, from app.config.ts at the repo root.
+ * Per-environment values and secrets are env vars (env-vars.config.ts) instead.
+ */
+
+/**
+ * The organization's home timezone (IANA name): org-wide calendars, streak/day boundaries,
+ * default schedule timezone, and the fallback when a member has no preference. Stored
+ * commitment slots are in this timezone, so changing it needs a data migration.
+ */
+export const ORG_TIMEZONE = appConfig.orgTimezone;
+
+/** Where members are told to email for help. */
+export const SUPPORT_EMAIL = appConfig.supportEmail;
+
+/** The `From` of notification emails: `Name <address>`. */
+export const EMAIL_FROM = `${appConfig.email.fromName} <${appConfig.email.fromAddress}>`;
+
+/**
+ * Canonical (production) base URL, no trailing slash, the same in every environment: links in
+ * Slack messages and iCal event UIDs, which must stay stable or calendar subscribers see
+ * duplicates. Links that should follow the serving deployment use the request's origin.
+ */
+export const APP_URL = appConfig.appUrl.replace(/\/+$/, "");
 
 /**
  * Supabase configuration

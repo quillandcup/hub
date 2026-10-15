@@ -15,7 +15,10 @@
  */
 
 import { describe, it, expect, afterEach } from "vitest";
-import { buildTemplates, type EmailTemplate } from "../../scripts/_email-templates";
+import { buildTemplates as buildAuthTemplates, type EmailTemplate } from "../../scripts/_email-templates";
+import { renderNotificationEmail } from "@/emails/notifications";
+import { NOTIFICATION_KINDS } from "@/lib/notifications/registry";
+import { APP_URL } from "@/lib/config";
 
 const MAILPIT_API = "http://localhost:54324/api/v1";
 
@@ -27,6 +30,27 @@ const MIN_TOP5_CLIENTS_PERCENT = 95;
 
 // Apple Mail, Gmail, Outlook, Samsung Email, Yahoo — ~85% of email opens (Litmus 2024).
 const TOP_5_FAMILIES = new Set(["apple-mail", "gmail", "outlook", "samsung-email", "yahoo"]);
+
+// Supabase Auth's templates (supabase/emails/), plus one per notification kind (emails/notifications/).
+const AUTH_TEMPLATE_NAMES = ["invite", "confirmation", "recovery", "magic_link", "email_change"];
+const ALL_TEMPLATE_NAMES = [...AUTH_TEMPLATE_NAMES, ...NOTIFICATION_KINDS.map((k) => k.id)];
+
+async function buildTemplates(): Promise<EmailTemplate[]> {
+  const notifications = await Promise.all(
+    NOTIFICATION_KINDS.map(async ({ id }): Promise<EmailTemplate> => {
+      const { subject, html } = await renderNotificationEmail(id, {
+        text: "Ready for Morning Writing in ~20 min? Check in: how are you feeling coming in?",
+        url: `${APP_URL}/prickles/00000000-0000-0000-0000-000000000000/checkin`,
+        footerLinks: [
+          { label: "Notification settings", url: `${APP_URL}/settings/notifications` },
+          { label: "Unsubscribe from “Prickle check-ins” emails", url: `${APP_URL}/unsubscribe?t=sample` },
+        ],
+      });
+      return { name: id, subject, html };
+    })
+  );
+  return [...(await buildAuthTemplates()), ...notifications];
+}
 
 interface MailpitSendResponse {
   ID: string;
@@ -158,10 +182,10 @@ describe("email template HTML compatibility", () => {
       if (!available) return;
 
       templates = await buildTemplates();
-      expect(templates).toHaveLength(5);
+      expect(templates).toHaveLength(AUTH_TEMPLATE_NAMES.length + NOTIFICATION_KINDS.length);
     });
 
-    const templateNames = ["invite", "confirmation", "recovery", "magic_link", "email_change"];
+    const templateNames = ALL_TEMPLATE_NAMES;
 
     for (const name of templateNames) {
       it(`${name}: all clients >= ${MIN_ALL_CLIENTS_PERCENT}%`, async () => {
@@ -199,10 +223,10 @@ describe("email template HTML compatibility", () => {
       const available = await isMailpitAvailable();
       if (!available) return;
       templates = await buildTemplates();
-      expect(templates).toHaveLength(5);
+      expect(templates).toHaveLength(AUTH_TEMPLATE_NAMES.length + NOTIFICATION_KINDS.length);
     });
 
-    const templateNames = ["invite", "confirmation", "recovery", "magic_link", "email_change"];
+    const templateNames = ALL_TEMPLATE_NAMES;
 
     for (const name of templateNames) {
       it(`${name}: top-5 clients >= ${MIN_TOP5_CLIENTS_PERCENT}%`, async () => {

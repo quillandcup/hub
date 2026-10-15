@@ -100,7 +100,9 @@ export async function PATCH(
 
   try {
     const { id } = await params;
-    const body = await request.json();
+    const parsed = await request.json().catch(() => undefined);
+    if (parsed === undefined) return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+    const body = parsed;
     const { name, slug, description, kajabi_offer_names } = body;
 
     const updates: any = {};

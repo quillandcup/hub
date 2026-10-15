@@ -5,22 +5,18 @@
 // Actions has no per-environment split like Vercel's prod/preview/dev -- everything here
 // comes from .env.prod since these are ops/CI credentials, not app runtime vars.
 
-import { existsSync, readFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
-import { parse as parseDotenv } from "dotenv";
+import { loadTargetEnv, sourceFilesFor } from "./env-files";
 import { ENV_VARS } from "../env-vars.config";
 
 const REPO = "quillandcup/hub";
-const ENV_FILE = ".env.prod";
+// Production's values: .env.shared overridden by .env.prod.
+const ENV_FILE = sourceFilesFor("production");
 
 function main(): void {
   console.log(`🚀 Syncing GitHub Actions secrets/variables for ${REPO}...\n`);
 
-  if (!existsSync(ENV_FILE)) {
-    console.error(`❌ ${ENV_FILE} not found!`);
-    process.exit(1);
-  }
-  const env = parseDotenv(readFileSync(ENV_FILE));
+  const env = loadTargetEnv("production");
 
   const missing: string[] = [];
 
@@ -61,7 +57,7 @@ function main(): void {
     `  1. Verify: gh secret list --repo ${REPO} / gh variable list --repo ${REPO}`,
   );
   console.log(
-    `  2. Trigger a workflow run to confirm: gh workflow run checkly.yml --repo ${REPO}\n`,
+    `  2. Confirm with a run: gh workflow run ci.yml --ref main --repo ${REPO} (Supabase, Vercel, Slack) and gh workflow run checkly.yml --ref main --repo ${REPO} (Checkly)\n`,
   );
 }
 

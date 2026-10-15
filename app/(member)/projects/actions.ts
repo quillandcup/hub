@@ -1,5 +1,6 @@
 "use server";
 
+import { dismissCheckout } from "@/lib/prickle-checkin-dms";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
 import { getEffectiveIdentity } from "@/lib/sudo";
@@ -27,6 +28,14 @@ import {
 import { computePrickleStreaks, seriesKeyFor } from "@/lib/streaks";
 import { getUserTimezonePreference } from "@/lib/timezone";
 import { DAY_NAMES, formatScheduleLabel, getMonthStart, getNextMonthStart } from "@/lib/prickle-schedules";
+import { ORG_TIMEZONE } from "@/lib/config";
+import { checkinFromRow, checkoutAnswered } from "@/lib/prickle-checkins";
+import {
+  formatPrickleLabel,
+  localDateOf,
+  sortPrickleOptions,
+  type PrickleOption,
+} from "@/lib/prickle-writing";
 
 const PHASES = PROJECT_PHASES;
 type Phase = ProjectPhase;
@@ -40,7 +49,6 @@ const STARTING_BALANCE_MEASURES = WRITING_MEASURES.filter((m) => m !== "prickles
 >[];
 
 const HABIT_PERIODS: HabitPeriod[] = ["day", "week", "month"];
-const ORG_TIMEZONE = "America/New_York"; // mirrors the same fallback convention used in app/(member)/dashboard/page.tsx
 
 export interface WritingProjectRow {
   id: string;
@@ -69,6 +77,8 @@ export interface EntryRow {
   tags: string[];
   createdAt: string;
   prickleId: string | null;
+  /** e.g. "Tue, Oct 1 · 9:00 AM · Morning Sprint with Jo" when prickleId is set. */
+  prickleLabel: string | null;
 }
 
 interface GoalRowBase {
@@ -79,8 +89,6 @@ interface GoalRowBase {
   title: string | null;
   description: string | null;
   showOnProfile: boolean;
-  /** e.g. "<host>'s Progress Prickle" -- only set for measure='prickles' goals with an anchor. */
-  anchorLabel: string | null;
 }
 
 export interface TargetGoalRow extends GoalRowBase {
@@ -128,7 +136,7 @@ async function requireIdentity(): Promise<IdentityContext> {
 /** All of the acting member's projects, each with a per-measure cumulative total and its goals' live progress. */
 /**
  * This member's attendance at writing-purpose prickles, reduced to local calendar dates --
- * the raw material derivePrickleHabitEntries filters per goal-anchor. purpose='writing' is
+ * the raw material derivePrickleHabitEntries counts. purpose='writing' is
  * enforced here, at the query, not in app code downstream (see Writing-only scope in the plan).
  */
 export async function getMyPrickleAttendance(): Promise<PrickleAttendanceRow[]> {
@@ -136,9 +144,7 @@ export async function getMyPrickleAttendance(): Promise<PrickleAttendanceRow[]> 
   if ("error" in ctx) return [];
   const { supabase, effectiveIdentity } = ctx;
 
-  const tzPref = await getUserTimezonePreference();
-  const timeZone = tzPref === "browser" ? ORG_TIMEZONE : tzPref;
-  return fetchWritingPrickleAttendance(supabase, effectiveIdentity.memberId, timeZone);
+  return fetchWritingPrickleAttendance(supabase, effectiveIdentity.memberId, await viewerTimeZone());
 }
 
 async function fetchWritingPrickleAttendance(
@@ -148,17 +154,16 @@ async function fetchWritingPrickleAttendance(
 ): Promise<PrickleAttendanceRow[]> {
   const { data } = await supabase
     .from("prickle_attendance")
-    .select("prickles!inner(type_id, host, start_time, prickle_types!inner(purpose))")
+    .select("prickles!inner(id, start_time, prickle_types!inner(purpose))")
     .eq("member_id", memberId)
     .eq("prickles.prickle_types.purpose", "writing");
 
   return ((data ?? []) as any[])
     .map((r) => {
       const prickle = Array.isArray(r.prickles) ? r.prickles[0] : r.prickles;
-      if (!prickle?.type_id || !prickle?.start_time) return null;
+      if (!prickle?.id || !prickle?.start_time) return null;
       return {
-        typeId: prickle.type_id as string,
-        hostId: (prickle.host as string | null) ?? null,
+        prickleId: prickle.id as string,
         localDate: new Intl.DateTimeFormat("en-CA", {
           timeZone,
           year: "numeric",
@@ -168,124 +173,6 @@ async function fetchWritingPrickleAttendance(
       };
     })
     .filter((r): r is PrickleAttendanceRow => r !== null);
-}
-
-export interface AnchorOption {
-  scheduleId: string;
-  label: string; // formatScheduleLabel(...) + host name, e.g. "Progress Prickle · every Monday · 5:00 PM ET — hosted by <host>"
-  reasons: { kind: "hosting" | "streak" | "lostStreak"; tooltip: string[] }[];
-}
-
-/**
- * Ranked, badge-annotated options for the prickles-measure anchor picker -- mirrors the exact
- * priority scheme app/(member)/dashboard/page.tsx already uses for its "Upcoming Prickles" list
- * (hosting first, then active streaks longest-first, then lost streaks longest-first, then
- * everything else), reusing computePrickleStreaks/seriesKeyFor so this doesn't duplicate that
- * ranking logic. Search is client-side (see UI) -- this just returns every confirmed
- * writing-purpose schedule for the current/next month, ranked.
- */
-export async function getPrickleAnchorOptions(): Promise<AnchorOption[]> {
-  const ctx = await requireIdentity();
-  if ("error" in ctx) return [];
-  const { supabase, effectiveIdentity } = ctx;
-
-  const now = new Date();
-  const currentMonth = getMonthStart(now).toISOString().slice(0, 10);
-  const nextMonth = getNextMonthStart(now).toISOString().slice(0, 10);
-
-  const tzPref = await getUserTimezonePreference();
-  const timeZone = tzPref === "browser" ? ORG_TIMEZONE : tzPref;
-
-  const [{ data: schedules }, { data: myAttendanceRows }] = await Promise.all([
-    supabase
-      .from("prickle_schedules")
-      .select(
-        "id, host_id, day_of_week, recurrence_anchor_date, week_of_month, event_date, recurrence_type, start_time_local, timezone, prickle_types!inner(name, purpose), members:host_id(name)"
-      )
-      .in("month", [currentMonth, nextMonth])
-      .eq("status", "confirmed")
-      .eq("prickle_types.purpose", "writing")
-      .is("deleted_at", null),
-    supabase
-      .from("prickle_attendance")
-      .select("join_time, prickles!inner(start_time, type_id, prickle_types!inner(name, purpose))")
-      .eq("member_id", effectiveIdentity.memberId)
-      .eq("prickles.prickle_types.purpose", "writing"),
-  ]);
-
-  const prickleStreaks = computePrickleStreaks(
-    ((myAttendanceRows ?? []) as any[])
-      .map((r) => {
-        const prickle = Array.isArray(r.prickles) ? r.prickles[0] : r.prickles;
-        const type = prickle ? (Array.isArray(prickle.prickle_types) ? prickle.prickle_types[0] : prickle.prickle_types) : null;
-        return type?.name && prickle?.start_time
-          ? { prickleTypeName: type.name as string, joinTime: r.join_time as string, prickleStartTime: prickle.start_time as string }
-          : null;
-      })
-      .filter((r): r is { prickleTypeName: string; joinTime: string; prickleStartTime: string } => r !== null),
-    now,
-    timeZone
-  );
-
-  const activeStreakBySeries = new Map<string, number>();
-  const lostStreakBySeries = new Map<string, number>();
-  for (const s of prickleStreaks) {
-    const key = seriesKeyFor(s.prickleTypeName, s.dayOfWeek, s.startHour);
-    if (s.currentStreak > 0) activeStreakBySeries.set(key, s.currentStreak);
-    else if (s.longestStreak >= 2) lostStreakBySeries.set(key, s.longestStreak);
-  }
-
-  type Ranked = { option: AnchorOption; priority: number; sortValue: number };
-
-  const ranked: Ranked[] = ((schedules ?? []) as any[]).map((row) => {
-    const type = Array.isArray(row.prickle_types) ? row.prickle_types[0] : row.prickle_types;
-    const host = Array.isArray(row.members) ? row.members[0] : row.members;
-    const typeName = type?.name ?? "Prickle";
-    const hostName = host?.name ?? "someone";
-    const label = `${formatScheduleLabel(typeName, {
-      recurrenceType: row.recurrence_type,
-      dayOfWeek: row.day_of_week,
-      recurrenceAnchorDate: row.recurrence_anchor_date,
-      weekOfMonth: row.week_of_month,
-      eventDate: row.event_date,
-      startTimeLocal: row.start_time_local,
-      timezone: row.timezone,
-    })} — hosted by ${hostName}`;
-
-    const reasons: AnchorOption["reasons"] = [];
-    let priority = 3;
-    let sortValue = typeName.localeCompare(hostName);
-
-    if (row.host_id === effectiveIdentity.memberId) {
-      reasons.push({ kind: "hosting", tooltip: ["You're hosting this one"] });
-      priority = 0;
-      sortValue = 0;
-    }
-
-    if (row.day_of_week != null) {
-      const startHour = parseInt(String(row.start_time_local).slice(0, 2), 10);
-      const seriesKey = seriesKeyFor(typeName, DAY_NAMES[row.day_of_week], startHour);
-
-      const streakWeeks = activeStreakBySeries.get(seriesKey);
-      if (streakWeeks && priority > 1) {
-        reasons.push({ kind: "streak", tooltip: [`${streakWeeks}-week streak here`] });
-        priority = 1;
-        sortValue = -streakWeeks;
-      }
-
-      const lostStreakWeeks = lostStreakBySeries.get(seriesKey);
-      if (lostStreakWeeks && priority > 2) {
-        reasons.push({ kind: "lostStreak", tooltip: [`Lost a ${lostStreakWeeks}-week streak here`] });
-        priority = 2;
-        sortValue = -lostStreakWeeks;
-      }
-    }
-
-    return { option: { scheduleId: row.id, label, reasons }, priority, sortValue };
-  });
-
-  ranked.sort((a, b) => a.priority - b.priority || a.sortValue - b.sortValue);
-  return ranked.map((r) => r.option);
 }
 
 export async function getMyProjects(): Promise<WritingProjectRow[]> {
@@ -345,7 +232,7 @@ export async function getProject(
         .single(),
       supabase
         .from("writing_progress_entries")
-        .select("id, project_id, entry_date, measure, mode, amount, note, tags, created_at, prickle_id")
+        .select(`id, project_id, entry_date, measure, mode, amount, note, tags, created_at, prickle_id, ${ENTRY_PRICKLE_EMBED}`)
         .eq("project_id", projectId)
         .eq("member_id", effectiveIdentity.memberId)
         .order("entry_date", { ascending: false })
@@ -375,7 +262,8 @@ export async function getProject(
     attendance,
     books
   );
-  const entries: EntryRow[] = (entryRows ?? []).map(toEntryRow);
+  const timeZone = await viewerTimeZone();
+  const entries: EntryRow[] = ((entryRows ?? []) as unknown as RawEntry[]).map((e) => toEntryRow(e, timeZone));
 
   return { project, entries };
 }
@@ -407,6 +295,33 @@ interface RawEntry {
   tags: string[] | null;
   created_at: string;
   prickle_id?: string | null;
+  prickle?: RawEmbeddedPrickle | RawEmbeddedPrickle[] | null;
+}
+
+interface RawEmbeddedPrickle {
+  id: string;
+  start_time: string;
+  host: { name: string | null } | { name: string | null }[] | null;
+  prickle_types: { name: string | null } | { name: string | null }[] | null;
+}
+
+/** Embeds the entry's prickle with what formatPrickleLabel needs. */
+const ENTRY_PRICKLE_EMBED = "prickle:prickles(id, start_time, host:prickle_host(name), prickle_types:type_id(name))";
+
+function one<T>(ref: T | T[] | null | undefined): T | null {
+  return (Array.isArray(ref) ? ref[0] : ref) ?? null;
+}
+
+function labelForPrickle(p: RawEmbeddedPrickle, timeZone: string): string {
+  return formatPrickleLabel(
+    { startTime: p.start_time, typeName: one(p.prickle_types)?.name ?? null, hostName: one(p.host)?.name ?? null },
+    timeZone
+  );
+}
+
+async function viewerTimeZone(): Promise<string> {
+  const tzPref = await getUserTimezonePreference();
+  return tzPref === "browser" ? ORG_TIMEZONE : tzPref;
 }
 
 interface RawGoal {
@@ -423,28 +338,13 @@ interface RawGoal {
   title: string | null;
   description: string | null;
   show_on_profile: boolean;
-  anchor_type_id: string | null;
-  anchor_host_id: string | null;
-  anchor_day_of_week: number | null;
-  anchor_type?: { name: string } | { name: string }[] | null;
-  anchor_host?: { name: string } | { name: string }[] | null;
 }
 
 const GOAL_SELECT_COLUMNS =
-  "id, project_id, goal_type, measure, target_amount, start_date, end_date, habit_period, habit_threshold, is_starred, title, description, show_on_profile, anchor_type_id, anchor_host_id, anchor_day_of_week, anchor_type:anchor_type_id(name), anchor_host:anchor_host_id(name)";
+  "id, project_id, goal_type, measure, target_amount, start_date, end_date, habit_period, habit_threshold, is_starred, title, description, show_on_profile";
 
 function singleRelation<T>(rel: T | T[] | null | undefined): T | null {
   return Array.isArray(rel) ? rel[0] ?? null : rel ?? null;
-}
-
-function buildAnchorLabel(g: RawGoal): string | null {
-  if (g.measure !== "prickles") return null;
-  const typeName = singleRelation(g.anchor_type)?.name;
-  const hostName = singleRelation(g.anchor_host)?.name;
-  if (typeName && hostName) return `${hostName}'s ${typeName}`;
-  if (typeName) return typeName;
-  if (hostName) return `Hosted by ${hostName}`;
-  return null;
 }
 
 function buildGoalRow(
@@ -455,11 +355,7 @@ function buildGoalRow(
 ): GoalRow {
   const measureEntries =
     g.measure === "prickles"
-      ? derivePrickleHabitEntries(attendance, {
-          typeId: g.anchor_type_id,
-          hostId: g.anchor_host_id,
-          dayOfWeek: g.anchor_day_of_week,
-        }).map((e) => ({ entryDate: e.entryDate, amount: e.amount, createdAt: e.entryDate, mode: "delta" as EntryMode }))
+      ? derivePrickleHabitEntries(attendance).map((e) => ({ entryDate: e.entryDate, amount: e.amount, createdAt: e.entryDate, mode: "delta" as EntryMode }))
       : projectEntries
           .filter((e) => e.measure === g.measure)
           .map((e) => ({ entryDate: e.entry_date, amount: e.amount, createdAt: e.created_at, mode: e.mode as EntryMode }));
@@ -472,7 +368,6 @@ function buildGoalRow(
     title: g.title,
     description: g.description,
     showOnProfile: g.show_on_profile,
-    anchorLabel: buildAnchorLabel(g),
   };
 
   if (g.goal_type === "habit") {
@@ -562,7 +457,8 @@ function buildProjectRows(
   });
 }
 
-function toEntryRow(e: RawEntry): EntryRow {
+function toEntryRow(e: RawEntry, timeZone: string): EntryRow {
+  const prickle = one(e.prickle);
   return {
     id: e.id,
     projectId: e.project_id,
@@ -574,6 +470,7 @@ function toEntryRow(e: RawEntry): EntryRow {
     tags: e.tags ?? [],
     createdAt: e.created_at,
     prickleId: e.prickle_id ?? null,
+    prickleLabel: prickle ? labelForPrickle(prickle, timeZone) : null,
   };
 }
 
@@ -597,7 +494,7 @@ export async function createProject(
 
   if (error || !data) return { error: error?.message ?? "Failed to create project" };
 
-  revalidatePath("/projects");
+  revalidatePath("/projects", "layout");
   return { success: true, id: data.id };
 }
 
@@ -620,7 +517,7 @@ export async function updateProjectDetails(
 
   if (error) return { error: error.message };
 
-  revalidatePath("/projects");
+  revalidatePath("/projects", "layout");
   revalidatePath(`/projects/${projectId}`);
   return { success: true };
 }
@@ -644,7 +541,7 @@ export async function updateProjectCover(
 
   if (error) return { error: error.message };
 
-  revalidatePath("/projects");
+  revalidatePath("/projects", "layout");
   revalidatePath(`/projects/${projectId}`);
   return { success: true };
 }
@@ -689,7 +586,7 @@ export async function setStartingBalances(
     if (deleteError) return { error: deleteError.message };
   }
 
-  revalidatePath("/projects");
+  revalidatePath("/projects", "layout");
   revalidatePath(`/projects/${projectId}`);
   return { success: true };
 }
@@ -738,7 +635,7 @@ export async function updateProjectPhase(
 
   if (error) return { error: error.message };
 
-  revalidatePath("/projects");
+  revalidatePath("/projects", "layout");
   revalidatePath(`/projects/${projectId}`);
   return { success: true };
 }
@@ -821,7 +718,7 @@ export async function publishProject(
     purchaseUrl: safeUrl(book.purchaseUrl),
   }).catch((err) => console.error("New book Slack notification failed:", err));
 
-  revalidatePath("/projects");
+  revalidatePath("/projects", "layout");
   revalidatePath(`/projects/${projectId}`);
   revalidatePath("/bookshelf");
   revalidatePath(`/members/${effectiveIdentity.memberId}`);
@@ -897,15 +794,22 @@ export async function logProgress(
   });
   if (activityError) console.error("logProgress: failed to insert member_activities row", activityError);
 
-  revalidatePath("/projects");
+  revalidatePath("/projects", "layout");
   revalidatePath(`/projects/${input.projectId}`);
   revalidatePath("/dashboard");
+  if (input.prickleId) {
+    revalidatePath(`/prickles/${input.prickleId}`);
+    revalidatePath("/my-prickles", "layout");
+  }
   return { success: true, id: data.id };
 }
 
 export type UpdateEntryInput = Partial<
   Pick<LogProgressInput, "entryDate" | "measure" | "mode" | "amount" | "note" | "tags">
->;
+> & {
+  /** null detaches the entry from its prickle. */
+  prickleId?: string | null;
+};
 
 export async function updateEntry(
   entryId: string,
@@ -917,7 +821,7 @@ export async function updateEntry(
 
   const { data: existing } = await supabase
     .from("writing_progress_entries")
-    .select("id, project_id, member_id")
+    .select("id, project_id, member_id, prickle_id")
     .eq("id", entryId)
     .single();
 
@@ -941,6 +845,7 @@ export async function updateEntry(
   if (patch.amount !== undefined) updates.amount = patch.amount;
   if (patch.note !== undefined) updates.note = patch.note.trim() || null;
   if (patch.tags !== undefined) updates.tags = normalizeTags(patch.tags);
+  if (patch.prickleId !== undefined) updates.prickle_id = patch.prickleId;
 
   const { error } = await supabase
     .from("writing_progress_entries")
@@ -950,9 +855,12 @@ export async function updateEntry(
 
   if (error) return { error: error.message };
 
-  revalidatePath("/projects");
+  revalidatePath("/projects", "layout");
   revalidatePath(`/projects/${existing.project_id}`);
   revalidatePath("/dashboard");
+  for (const id of new Set([existing.prickle_id, patch.prickleId])) {
+    if (id) revalidatePath(`/prickles/${id}`);
+  }
   return { success: true };
 }
 
@@ -963,7 +871,7 @@ export async function deleteEntry(entryId: string): Promise<{ success: true } | 
 
   const { data: existing } = await supabase
     .from("writing_progress_entries")
-    .select("id, project_id, member_id")
+    .select("id, project_id, member_id, prickle_id")
     .eq("id", entryId)
     .single();
 
@@ -989,8 +897,167 @@ export async function deleteEntry(entryId: string): Promise<{ success: true } | 
     .eq("source", "writing_progress");
   if (activityDeleteError) console.error("deleteEntry: failed to delete member_activities row", activityDeleteError);
 
-  revalidatePath("/projects");
+  revalidatePath("/projects", "layout");
   revalidatePath(`/projects/${existing.project_id}`);
+  revalidatePath("/dashboard");
+  if (existing.prickle_id) revalidatePath(`/prickles/${existing.prickle_id}`);
+  return { success: true };
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Every prickle on a calendar date (the viewer's timezone), for the "During which prickle?"
+ * picker -- the ones the member attended first. Not only attended ones: attendance is imported
+ * after the meeting ends and some Zoom names never match, so the member can still link a
+ * prickle we have no attendance record for.
+ */
+export async function getPricklesOnDate(date: string): Promise<PrickleOption[]> {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return [];
+  const ctx = await requireIdentity();
+  if ("error" in ctx) return [];
+  const { supabase, effectiveIdentity } = ctx;
+  const timeZone = await viewerTimeZone();
+
+  // A UTC window wide enough for any timezone offset, narrowed to the local date below.
+  const dayStartUtc = new Date(`${date}T00:00:00Z`).getTime();
+  const { data: prickles } = await supabase
+    .from("prickles")
+    .select("id, start_time, host:prickle_host(name), prickle_types:type_id(name)")
+    .gte("start_time", new Date(dayStartUtc - DAY_MS).toISOString())
+    .lt("start_time", new Date(dayStartUtc + 2 * DAY_MS).toISOString())
+    .order("start_time", { ascending: true });
+
+  const onDate = ((prickles ?? []) as unknown as RawEmbeddedPrickle[]).filter(
+    (p) => localDateOf(p.start_time, timeZone) === date
+  );
+  if (onDate.length === 0) return [];
+
+  const { data: attendance } = await supabase
+    .from("prickle_attendance")
+    .select("prickle_id")
+    .eq("member_id", effectiveIdentity.memberId)
+    .in(
+      "prickle_id",
+      onDate.map((p) => p.id)
+    );
+  const attendedIds = new Set(((attendance ?? []) as { prickle_id: string }[]).map((a) => a.prickle_id));
+
+  return sortPrickleOptions(
+    onDate.map((p) => ({
+      id: p.id,
+      label: labelForPrickle(p, timeZone),
+      startTime: p.start_time,
+      attended: attendedIds.has(p.id),
+    }))
+  );
+}
+
+export interface PrickleEntryRow extends EntryRow {
+  projectTitle: string;
+}
+
+/** The acting member's progress entries linked to one prickle, for the prickle page. */
+export async function getMyEntriesForPrickle(prickleId: string): Promise<PrickleEntryRow[]> {
+  const ctx = await requireIdentity();
+  if ("error" in ctx) return [];
+  const { supabase, effectiveIdentity } = ctx;
+
+  const [{ data }, timeZone] = await Promise.all([
+    supabase
+      .from("writing_progress_entries")
+      .select(
+        `id, project_id, entry_date, measure, mode, amount, note, tags, created_at, prickle_id, ${ENTRY_PRICKLE_EMBED}, writing_projects!inner(title)`
+      )
+      .eq("member_id", effectiveIdentity.memberId)
+      .eq("prickle_id", prickleId)
+      .order("created_at", { ascending: true }),
+    viewerTimeZone(),
+  ]);
+
+  return ((data ?? []) as unknown as (RawEntry & { writing_projects: { title: string } | { title: string }[] })[]).map(
+    (e) => ({ ...toEntryRow(e, timeZone), projectTitle: one(e.writing_projects)?.title ?? "" })
+  );
+}
+
+const UNLOGGED_LOOKBACK_DAYS = 14;
+
+/**
+ * Writing prickles the acting member attended in the last two weeks with no progress entry
+ * linked, no finished check-out and no dismissal -- the dashboard's "How did it go?" prompt.
+ * Newest first.
+ */
+export async function getUnloggedRecentPrickles(): Promise<PrickleOption[]> {
+  const ctx = await requireIdentity();
+  if ("error" in ctx) return [];
+  const { supabase, effectiveIdentity } = ctx;
+  const since = new Date(Date.now() - UNLOGGED_LOOKBACK_DAYS * DAY_MS).toISOString();
+
+  const [{ data: attendance }, { data: linked }, { data: dismissed }, timeZone] = await Promise.all([
+    supabase
+      .from("prickle_attendance")
+      .select(
+        "prickle_id, prickles!inner(id, start_time, host:prickle_host(name), prickle_types!inner(name, purpose))"
+      )
+      .eq("member_id", effectiveIdentity.memberId)
+      .eq("prickles.prickle_types.purpose", "writing")
+      .gte("prickles.start_time", since),
+    supabase
+      .from("writing_progress_entries")
+      .select("prickle_id")
+      .eq("member_id", effectiveIdentity.memberId)
+      .not("prickle_id", "is", null)
+      .gte("created_at", since),
+    supabase
+      .from("prickle_checkout_dismissals")
+      .select("prickle_id")
+      .eq("member_id", effectiveIdentity.memberId)
+      .gte("dismissed_at", since),
+    viewerTimeZone(),
+  ]);
+
+  // Linked to an entry, dismissed from this prompt, or checked out of: nothing left to ask about.
+  const attendedIds = ((attendance ?? []) as unknown as { prickle_id: string }[]).map((a) => a.prickle_id);
+  const { data: checkins } =
+    attendedIds.length === 0
+      ? { data: [] }
+      : await supabase
+          .from("prickle_checkins")
+          .select("prickle_id, feelings_before, need, session_rating, feelings_after")
+          .eq("member_id", effectiveIdentity.memberId)
+          .in("prickle_id", attendedIds)
+          .is("deleted_at", null);
+  const checkedOutIds = ((checkins ?? []) as (Parameters<typeof checkinFromRow>[0] & { prickle_id: string })[])
+    .filter((c) => checkoutAnswered(checkinFromRow(c)))
+    .map((c) => c.prickle_id);
+  const linkedIds = new Set([
+    ...[...(linked ?? []), ...(dismissed ?? [])].map((e) => (e as { prickle_id: string }).prickle_id),
+    ...checkedOutIds,
+  ]);
+  const byId = new Map<string, PrickleOption>();
+  for (const row of (attendance ?? []) as unknown as { prickles: RawEmbeddedPrickle | RawEmbeddedPrickle[] }[]) {
+    const p = one(row.prickles);
+    if (!p || linkedIds.has(p.id) || byId.has(p.id)) continue;
+    byId.set(p.id, { id: p.id, label: labelForPrickle(p, timeZone), startTime: p.start_time, attended: true });
+  }
+  return [...byId.values()].sort((a, b) => b.startTime.localeCompare(a.startTime));
+}
+
+/**
+ * Hides a prickle from the dashboard's "What did you write?" prompt for good -- for sessions the
+ * member won't log (forgot to track, not a writing session for them, untracked work).
+ */
+export async function dismissUnloggedPrickle(prickleId: string): Promise<{ success: true } | { error: string }> {
+  const ctx = await requireIdentity();
+  if ("error" in ctx) return ctx;
+  const { supabase, effectiveIdentity } = ctx;
+  if (typeof prickleId !== "string" || !prickleId) return { error: "Invalid prickle" };
+
+  // Also closes the in-app check-out notification and stops the Slack check-out DM (dismissCheckout).
+  if (await dismissCheckout(supabase, effectiveIdentity.memberId, prickleId)) {
+    return { error: "Couldn't dismiss that prickle — please try again." };
+  }
+
   revalidatePath("/dashboard");
   return { success: true };
 }
@@ -1006,8 +1073,6 @@ export interface CreateGoalInput {
   // habit
   habitPeriod?: HabitPeriod;
   habitThreshold?: number | null;
-  // prickles anchor -- id of a confirmed prickle_schedules row, or null/omitted for "any writing prickle"
-  anchorScheduleId?: string | null;
   title?: string | null;
   description?: string | null;
   showOnProfile?: boolean;
@@ -1041,43 +1106,6 @@ function buildGoalDetails(
   return details;
 }
 
-interface ResolvedAnchor {
-  scheduleId: string | null;
-  typeId: string | null;
-  hostId: string | null;
-  dayOfWeek: number | null;
-}
-
-const NULL_ANCHOR: ResolvedAnchor = { scheduleId: null, typeId: null, hostId: null, dayOfWeek: null };
-
-/**
- * Resolves anchorScheduleId server-side into a snapshot -- never trusts client-provided
- * type/host/day directly (same principle app/(member)/hosting/actions.ts already applies to
- * status/confirmed_by). Only a currently-confirmed schedule is a valid anchor target.
- */
-async function resolveAnchor(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  anchorScheduleId: string | null | undefined
-): Promise<ResolvedAnchor | { error: string }> {
-  if (!anchorScheduleId) return NULL_ANCHOR;
-
-  const { data } = await supabase
-    .from("prickle_schedules")
-    .select("id, type_id, host_id, day_of_week")
-    .eq("id", anchorScheduleId)
-    .eq("status", "confirmed")
-    .is("deleted_at", null)
-    .single();
-
-  if (!data) return { error: "That schedule isn't a currently-confirmed prickle" };
-
-  return { scheduleId: data.id, typeId: data.type_id, hostId: data.host_id, dayOfWeek: data.day_of_week };
-}
-
-function anchorsMatch(a: ResolvedAnchor, b: ResolvedAnchor): boolean {
-  return a.typeId === b.typeId && a.hostId === b.hostId && a.dayOfWeek === b.dayOfWeek;
-}
-
 interface GoalFieldValues {
   goal_type: "target" | "habit";
   measure: WritingMeasure;
@@ -1086,27 +1114,15 @@ interface GoalFieldValues {
   end_date: string | null;
   habit_period: HabitPeriod | null;
   habit_threshold: number | null;
-  anchor_schedule_id: string | null;
-  anchor_type_id: string | null;
-  anchor_host_id: string | null;
-  anchor_day_of_week: number | null;
 }
 
-/** Shared validation + field-shaping for both createGoal and updateGoal's archive-and-fork insert. */
+/** Shared validation + field-shaping for both createGoal and updateGoal. */
 function buildGoalFields(
   goalType: "target" | "habit",
   measure: WritingMeasure,
-  fields: Pick<CreateGoalInput, "targetAmount" | "startDate" | "endDate" | "habitPeriod" | "habitThreshold">,
-  anchor: ResolvedAnchor
+  fields: Pick<CreateGoalInput, "targetAmount" | "startDate" | "endDate" | "habitPeriod" | "habitThreshold">
 ): GoalFieldValues | { error: string } {
-  const base = {
-    goal_type: goalType,
-    measure,
-    anchor_schedule_id: measure === "prickles" ? anchor.scheduleId : null,
-    anchor_type_id: measure === "prickles" ? anchor.typeId : null,
-    anchor_host_id: measure === "prickles" ? anchor.hostId : null,
-    anchor_day_of_week: measure === "prickles" ? anchor.dayOfWeek : null,
-  };
+  const base = { goal_type: goalType, measure };
 
   if (goalType === "habit") {
     if (!fields.habitPeriod || !HABIT_PERIODS.includes(fields.habitPeriod)) {
@@ -1146,10 +1162,7 @@ export async function createGoal(
   const ownershipError = await assertOwnsProject(supabase, effectiveIdentity.memberId, input.projectId);
   if (ownershipError) return { error: ownershipError };
 
-  const anchor = await resolveAnchor(supabase, input.anchorScheduleId);
-  if ("error" in anchor) return anchor;
-
-  const fields = buildGoalFields(input.goalType, input.measure, input, anchor);
+  const fields = buildGoalFields(input.goalType, input.measure, input);
   if ("error" in fields) return fields;
   const details = buildGoalDetails(input);
   if ("error" in details) return details;
@@ -1162,7 +1175,7 @@ export async function createGoal(
 
   if (error || !data) return { error: error?.message ?? "Failed to create goal" };
 
-  revalidatePath("/projects");
+  revalidatePath("/projects", "layout");
   revalidatePath(`/projects/${input.projectId}`);
   revalidatePath("/dashboard");
   return { success: true, id: data.id };
@@ -1178,7 +1191,6 @@ export type UpdateGoalInput = Partial<
     | "endDate"
     | "habitPeriod"
     | "habitThreshold"
-    | "anchorScheduleId"
     | "title"
     | "description"
     | "showOnProfile"
@@ -1186,27 +1198,17 @@ export type UpdateGoalInput = Partial<
   >
 >;
 
-/**
- * Changing a prickles-measure goal's anchor (or moving it away from measure='prickles' entirely)
- * is never an in-place update -- see "Archiving on anchor change" in the plan. In-place update
- * would make computeHabitGoalProgress recompute the goal's full history against the new anchor,
- * silently erasing an already-earned streak the instant the anchor changes. Instead: archive the
- * existing row (frozen exactly as earned) and insert a fresh one under the new anchor. Any other
- * edit (threshold/period, or a non-anchor-changing tweak) stays a plain in-place update.
- */
 export async function updateGoal(
   goalId: string,
   patch: UpdateGoalInput
-): Promise<{ success: true; newGoalId?: string } | { error: string }> {
+): Promise<{ success: true } | { error: string }> {
   const ctx = await requireIdentity();
   if ("error" in ctx) return ctx;
   const { supabase, effectiveIdentity } = ctx;
 
   const { data: existing } = await supabase
     .from("writing_goals")
-    .select(
-      "id, project_id, member_id, goal_type, measure, target_amount, start_date, end_date, habit_period, habit_threshold, is_starred, title, description, show_on_profile, anchor_schedule_id, anchor_type_id, anchor_host_id, anchor_day_of_week"
-    )
+    .select("id, project_id, member_id, goal_type, measure, target_amount, start_date, end_date, habit_period, habit_threshold")
     .eq("id", goalId)
     .single();
 
@@ -1218,80 +1220,16 @@ export async function updateGoal(
   const measure = patch.measure ?? (existing.measure as WritingMeasure);
   if (!WRITING_MEASURES.includes(measure)) return { error: "Invalid measure" };
 
-  // anchorScheduleId absent from the patch entirely means "this edit didn't touch the anchor" --
-  // carry the existing snapshot forward as-is, rather than treating an omitted field as "clear
-  // it" (which would silently fork every threshold/period-only edit on an anchored goal).
-  // Explicitly passing null clears it; passing a new id re-resolves it.
-  const anchor: ResolvedAnchor | { error: string } =
-    patch.anchorScheduleId === undefined
-      ? {
-          scheduleId: existing.anchor_schedule_id,
-          typeId: existing.anchor_type_id,
-          hostId: existing.anchor_host_id,
-          dayOfWeek: existing.anchor_day_of_week,
-        }
-      : await resolveAnchor(supabase, patch.anchorScheduleId);
-  if ("error" in anchor) return anchor;
-
-  const fields = buildGoalFields(
-    goalType,
-    measure,
-    {
-      targetAmount: patch.targetAmount !== undefined ? patch.targetAmount : existing.target_amount ?? undefined,
-      startDate: patch.startDate !== undefined ? patch.startDate : existing.start_date,
-      endDate: patch.endDate !== undefined ? patch.endDate : existing.end_date,
-      habitPeriod: patch.habitPeriod ?? (existing.habit_period as HabitPeriod | null) ?? undefined,
-      habitThreshold: patch.habitThreshold !== undefined ? patch.habitThreshold : existing.habit_threshold,
-    },
-    anchor
-  );
+  const fields = buildGoalFields(goalType, measure, {
+    targetAmount: patch.targetAmount !== undefined ? patch.targetAmount : existing.target_amount ?? undefined,
+    startDate: patch.startDate !== undefined ? patch.startDate : existing.start_date,
+    endDate: patch.endDate !== undefined ? patch.endDate : existing.end_date,
+    habitPeriod: patch.habitPeriod ?? (existing.habit_period as HabitPeriod | null) ?? undefined,
+    habitThreshold: patch.habitThreshold !== undefined ? patch.habitThreshold : existing.habit_threshold,
+  });
   if ("error" in fields) return fields;
   const details = buildGoalDetails(patch);
   if ("error" in details) return details;
-
-  const existingAnchor: ResolvedAnchor = {
-    scheduleId: null, // not compared -- provenance only, see resolveAnchor/anchorsMatch
-    typeId: existing.anchor_type_id,
-    hostId: existing.anchor_host_id,
-    dayOfWeek: existing.anchor_day_of_week,
-  };
-  const newAnchor: ResolvedAnchor = {
-    scheduleId: null,
-    typeId: fields.anchor_type_id,
-    hostId: fields.anchor_host_id,
-    dayOfWeek: fields.anchor_day_of_week,
-  };
-  const anchorChanged = existing.measure === "prickles" && !anchorsMatch(existingAnchor, newAnchor);
-
-  if (anchorChanged) {
-    const { error: archiveError } = await supabase
-      .from("writing_goals")
-      .update({ archived_at: new Date().toISOString(), is_starred: false })
-      .eq("id", goalId)
-      .eq("member_id", effectiveIdentity.memberId);
-    if (archiveError) return { error: archiveError.message };
-
-    const { data: inserted, error: insertError } = await supabase
-      .from("writing_goals")
-      .insert({
-        member_id: effectiveIdentity.memberId,
-        project_id: existing.project_id,
-        is_starred: existing.is_starred,
-        title: existing.title,
-        description: existing.description,
-        show_on_profile: existing.show_on_profile,
-        ...fields,
-        ...details,
-      })
-      .select("id")
-      .single();
-    if (insertError || !inserted) return { error: insertError?.message ?? "Failed to create new goal" };
-
-    revalidatePath("/projects");
-    revalidatePath(`/projects/${existing.project_id}`);
-    revalidatePath("/dashboard");
-    return { success: true, newGoalId: inserted.id };
-  }
 
   const { error } = await supabase
     .from("writing_goals")
@@ -1301,7 +1239,7 @@ export async function updateGoal(
 
   if (error) return { error: error.message };
 
-  revalidatePath("/projects");
+  revalidatePath("/projects", "layout");
   revalidatePath(`/projects/${existing.project_id}`);
   revalidatePath("/dashboard");
   return { success: true };
@@ -1330,7 +1268,7 @@ export async function deleteGoal(goalId: string): Promise<{ success: true } | { 
 
   if (error) return { error: error.message };
 
-  revalidatePath("/projects");
+  revalidatePath("/projects", "layout");
   revalidatePath(`/projects/${existing.project_id}`);
   revalidatePath("/dashboard");
   return { success: true };
@@ -1339,9 +1277,7 @@ export async function deleteGoal(goalId: string): Promise<{ success: true } | { 
 /**
  * General "mark as done" -- available on any goal, any measure, met or not. Unlike deleteGoal
  * (hard delete, for genuine mistakes), this preserves the goal and its final computed
- * streak/progress forever, just removed from the active lists. Also used automatically by
- * updateGoal when a prickles-measure goal's anchor changes (see below) -- same mechanism, two
- * call sites.
+ * streak/progress forever, just removed from the active lists.
  */
 export async function archiveGoal(goalId: string): Promise<{ success: true } | { error: string }> {
   const ctx = await requireIdentity();
@@ -1366,13 +1302,13 @@ export async function archiveGoal(goalId: string): Promise<{ success: true } | {
 
   if (error) return { error: error.message };
 
-  revalidatePath("/projects");
+  revalidatePath("/projects", "layout");
   revalidatePath(`/projects/${existing.project_id}`);
   revalidatePath("/dashboard");
   return { success: true };
 }
 
-/** Archived goals for one project (both manually-archived and auto-archived-via-anchor-change), any measure -- read-only display in the "Past goals" section. */
+/** Archived goals for one project, any measure -- read-only display in the "Past goals" section. */
 export async function getArchivedGoals(projectId: string): Promise<GoalRow[]> {
   const ctx = await requireIdentity();
   if ("error" in ctx) return [];
@@ -1413,7 +1349,7 @@ export async function toggleGoalStar(
 
   if (error) return { error: error.message };
 
-  revalidatePath("/projects");
+  revalidatePath("/projects", "layout");
   revalidatePath("/dashboard");
   return { success: true };
 }
@@ -1434,7 +1370,7 @@ export async function toggleGoalVisibility(
 
   if (error) return { error: error.message };
 
-  revalidatePath("/projects");
+  revalidatePath("/projects", "layout");
   revalidatePath(`/members/${effectiveIdentity.memberId}`);
   return { success: true };
 }
@@ -1534,11 +1470,7 @@ export async function getProfileWriting(
 
   const payload = (data ?? null) as {
     projects: { id: string; title: string }[];
-    goals: (Omit<RawGoal, "is_starred" | "show_on_profile" | "anchor_type" | "anchor_host"> & {
-      project_title: string;
-      anchor_type_name: string | null;
-      anchor_host_name: string | null;
-    })[];
+    goals: (Omit<RawGoal, "is_starred" | "show_on_profile"> & { project_title: string })[];
     entries: RawEntry[];
     starting_balances: RawStartingBalance[];
   } | null;
@@ -1580,18 +1512,7 @@ export async function getProfileWriting(
   }
 
   const goals = payload.goals.map((g) => ({
-    ...buildGoalRow(
-      {
-        ...g,
-        is_starred: false,
-        show_on_profile: true,
-        anchor_type: g.anchor_type_name ? { name: g.anchor_type_name } : null,
-        anchor_host: g.anchor_host_name ? { name: g.anchor_host_name } : null,
-      },
-      entriesFor(g.project_id),
-      now,
-      attendance
-    ),
+    ...buildGoalRow({ ...g, is_starred: false, show_on_profile: true }, entriesFor(g.project_id), now, attendance),
     projectTitle: g.project_title,
   }));
 

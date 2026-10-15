@@ -5,6 +5,8 @@ import { SortableTh } from "@/components/SortableTh";
 import { useDataTable } from "@/lib/hooks/useDataTable";
 import type { SortValue } from "@/lib/hooks/useTableSort";
 import { DataTablePager } from "@/components/DataTablePager";
+import RecordHistoryButton from "@/components/RecordHistoryButton";
+import MultiMemberSearch from "@/components/MultiMemberSearch";
 
 interface Segment {
   id: string;
@@ -64,7 +66,7 @@ function getSortValue(segment: Segment, column: SortColumn): SortValue {
   }
 }
 
-export default function SegmentsClient() {
+export default function SegmentsClient({ allMembers }: { allMembers: SegmentMember[] }) {
   const [segments, setSegments] = useState<Segment[]>([]);
   const table = useDataTable<Segment, SortColumn>({
     rows: segments,
@@ -81,7 +83,7 @@ export default function SegmentsClient() {
   const [activeSegment, setActiveSegment] = useState<Segment | null>(null);
   const [members, setMembers] = useState<SegmentMember[]>([]);
   const [detailLoading, setDetailLoading] = useState(false);
-  const [pasteText, setPasteText] = useState("");
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [addResults, setAddResults] = useState<MemberAddResult[] | null>(null);
   const [adding, setAdding] = useState(false);
   const [inviting, setInviting] = useState(false);
@@ -158,7 +160,7 @@ export default function SegmentsClient() {
 
   async function openSegment(segment: Segment) {
     setActiveSegment(segment);
-    setPasteText("");
+    setSelectedIds([]);
     setAddResults(null);
     setInviteResults(null);
     setDetailError(null);
@@ -181,19 +183,20 @@ export default function SegmentsClient() {
   }
 
   async function addMembers() {
-    if (!activeSegment || !pasteText.trim()) return;
+    if (!activeSegment || selectedIds.length === 0) return;
     setAdding(true);
     setAddResults(null);
+    const emails = allMembers.filter((m) => selectedIds.includes(m.id)).map((m) => m.email);
     try {
       const res = await fetch(`/api/admin/segments/${activeSegment.id}/members`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: pasteText }),
+        body: JSON.stringify({ emails }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to add members");
       setAddResults(data.results);
-      setPasteText("");
+      setSelectedIds([]);
       const refreshed = await fetch(`/api/admin/segments/${activeSegment.id}`).then((r) => r.json());
       setMembers(refreshed.members);
       await fetchSegments();
@@ -284,11 +287,17 @@ export default function SegmentsClient() {
 
   return (
     <div className="container mx-auto px-6 py-8">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold">Segments</h1>
-        <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
-          Manually-curated member groups for phased rollouts — bulk invites and targeted feature flags
-        </p>
+      <div className="mb-6 flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">Segments</h1>
+          <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
+            Manually-curated member groups for phased rollouts — bulk invites and targeted feature flags
+          </p>
+        </div>
+        <RecordHistoryButton
+          entityType={["segment", "segment_member", "feature_flag", "feature_flag_segment"]}
+          label="segments and feature flags"
+        />
       </div>
 
       <div className="mb-6 bg-white dark:bg-slate-900 rounded-lg shadow p-6">
@@ -484,19 +493,16 @@ export default function SegmentsClient() {
             {detailError && <p className="mb-4 text-sm text-red-600 dark:text-red-400">{detailError}</p>}
 
             <div className="mb-4">
-              <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">
-                Add members by email (comma, space, or newline separated)
-              </label>
-              <textarea
-                value={pasteText}
-                onChange={(e) => setPasteText(e.target.value)}
-                rows={3}
-                placeholder="alice@example.com, bob@example.com"
-                className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-sm font-mono"
+              <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">Add members</label>
+              <MultiMemberSearch
+                members={allMembers.filter((m) => !members.some((sm) => sm.id === m.id))}
+                selectedMemberIds={selectedIds}
+                onChange={setSelectedIds}
+                placeholder="Search by name or email..."
               />
               <button
                 onClick={addMembers}
-                disabled={adding || !pasteText.trim()}
+                disabled={adding || selectedIds.length === 0}
                 className="mt-2 text-xs px-3 py-1 bg-plum-600 hover:bg-plum-700 disabled:bg-plum-400 text-white rounded font-medium transition-colors"
               >
                 {adding ? "Adding..." : "Add to Segment"}

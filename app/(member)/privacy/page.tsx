@@ -56,8 +56,8 @@ export default async function PrivacyPage() {
             <Row where="Public channels" activity="Yes" content="Yes, same as every member" />
             <Row where="Private channels that include Billie Bot" activity="Yes" content="Yes, unless the channel is marked restricted" />
             <Row where="Restricted private channels" activity="Yes" content="No, except break-glass access (below)" />
-            <Row where="Direct messages and group DMs in the Hub" activity="Yes" content="No, except break-glass access (below)" />
-            <Row where="Slack DMs, and private channels without Billie Bot" activity="No" content="No. These never reach the Hub" />
+            <Row where="Direct messages and group DMs in the Hub, and Slack group DMs that include Billie Bot" activity="Yes" content="No, except break-glass access (below)" />
+            <Row where="Slack DMs, and Slack group DMs or private channels without Billie Bot" activity="No" content="No. These never reach the Hub" />
           </tbody>
         </table>
         <p>

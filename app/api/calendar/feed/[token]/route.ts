@@ -23,7 +23,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const supabase = createServiceRoleClient();
   const { data: row, error } = await supabase
     .from("calendar_feed_tokens")
-    .select("member_id")
+    .select("member_id, first_fetched_at")
     .eq("token", token)
     .maybeSingle();
   if (error) {
@@ -31,6 +31,17 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     return new NextResponse("Calendar feed unavailable", { status: 500 });
   }
   if (!row) return new NextResponse("Not found", { status: 404 });
+
+  // First fetch = a calendar app subscribed. Recorded once (the audit trigger logs it); never on
+  // later polls, which would write a row every refresh.
+  if (!row.first_fetched_at) {
+    const { error: fetchedError } = await supabase
+      .from("calendar_feed_tokens")
+      .update({ first_fetched_at: new Date().toISOString() })
+      .eq("token", token)
+      .is("first_fetched_at", null);
+    if (fetchedError) console.error("calendar feed: failed to record first fetch", fetchedError);
+  }
 
   try {
     const now = new Date();

@@ -2,19 +2,12 @@
 // Syncs app runtime env vars to Vercel, reading which vars go where from
 // env-vars.config.ts at the repo root instead of a hardcoded list -- see that file for why.
 //
-// .env.devel -> Vercel Development + Preview
-// .env.prod  -> Vercel Production
+// .env.shared + .env.preview -> Vercel Preview
+// .env.shared + .env.prod    -> Vercel Production   (see scripts/env-files.ts)
 
-import { existsSync, readFileSync } from "node:fs";
 import { spawnSync, type SpawnSyncOptions } from "node:child_process";
-import { parse as parseDotenv } from "dotenv";
 import { ENV_VARS, type EnvVarSpec, type VercelTarget } from "../env-vars.config";
-
-const SOURCE_FILE: Record<VercelTarget, string> = {
-  development: ".env.devel",
-  preview: ".env.devel",
-  production: ".env.prod",
-};
+import { loadTargetEnv, sourceFilesFor } from "./env-files";
 
 // Runs the project's `vercel` devDependency via npx, so no global install is needed. It must
 // be v59+ for `env add --type` (older CLIs reject the flag), which package.json guarantees.
@@ -22,16 +15,8 @@ function vercel(args: string[], options: SpawnSyncOptions) {
   return spawnSync("npx", ["vercel", ...args], options);
 }
 
-const TARGETS: readonly VercelTarget[] = ["development", "preview", "production"];
-const SHORT: Record<VercelTarget, string> = { development: "dev", preview: "preview", production: "prod" };
-
-function loadEnvFile(path: string): Record<string, string> {
-  if (!existsSync(path)) {
-    console.error(`✗ ${path} not found`);
-    process.exit(1);
-  }
-  return parseDotenv(readFileSync(path));
-}
+const TARGETS: readonly VercelTarget[] = ["preview", "production"];
+const SHORT: Record<VercelTarget, string> = { preview: "preview", production: "prod" };
 
 // The CLI's own output (banners, per-var warnings, "Added" tables) is captured and only
 // shown if a command fails.
@@ -88,8 +73,10 @@ function parseArgs(): {
 
 function main(): void {
   const { only, targets } = parseArgs();
-  const devel = loadEnvFile(".env.devel");
-  const prod = loadEnvFile(".env.prod");
+  const envFor: Record<VercelTarget, Record<string, string>> = {
+    preview: loadTargetEnv("preview"),
+    production: loadTargetEnv("production"),
+  };
 
   const specs = ENV_VARS.filter(
     (spec) =>
@@ -112,7 +99,7 @@ function main(): void {
     );
     process.stdout.write(`  ${spec.name.padEnd(width)}  ${spec.type.padEnd(6)} `);
     for (const target of specTargets) {
-      const value = (target === "production" ? prod : devel)[spec.name];
+      const value = envFor[target][spec.name];
       if (value === undefined || value === "") {
         missing.set(spec.name, [...(missing.get(spec.name) ?? []), target]);
         process.stdout.write(` ${SHORT[target]} –`);
@@ -128,9 +115,9 @@ function main(): void {
     process.stdout.write("\n");
   }
 
-  console.log(`\n✓ ${synced} synced` + (missing.size ? `, ${[...missing.values()].flat().length} skipped (– above: no value in the source file)` : ""));
+  console.log(`\n✓ ${synced} synced` + (missing.size ? `, ${[...missing.values()].flat().length} skipped (– above: no value in the env files)` : ""));
   for (const [name, skipped] of missing) {
-    const files = [...new Set(skipped.map((t) => SOURCE_FILE[t]))].join(", ");
+    const files = [...new Set(skipped.map((t) => sourceFilesFor(t)))].join("; ");
     console.log(`    ${name.padEnd(width)}  missing from ${files}`);
   }
 
@@ -143,9 +130,6 @@ function main(): void {
   if (syncedTargets.has("preview")) {
     const url = latestPreviewUrl();
     next.push(url ? `preview  npx vercel redeploy ${url}` : "preview  push to the PR branch to rebuild its preview");
-  }
-  if (syncedTargets.has("development")) {
-    next.push("dev      nothing to redeploy (read by `vercel dev` / `vercel env pull`)");
   }
   if (syncedNames.has("CRON_INTERNAL_SECRET") && syncedTargets.has("production")) {
     next.push("vault    npm run env:sync:vault   # pg_cron reads CRON_INTERNAL_SECRET from Supabase Vault");

@@ -111,7 +111,7 @@ describe('LoginForm', () => {
     })
 
     function codeInput() {
-      return screen.getByLabelText(/paste the sign-in link or code/)
+      return screen.getByLabelText(/paste the sign-in link or code/i)
     }
 
     it('submits a typed code as soon as it is complete, with no extra click', async () => {

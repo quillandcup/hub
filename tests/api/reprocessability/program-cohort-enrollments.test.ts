@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { getTestSupabaseAdminClient, getTestAuthHeaders, getTestApiBaseUrl } from '../../helpers/supabase'
+import { apiFetch } from '../../helpers/api-fetch'
 
 /**
  * member_program_enrollments + program_cohorts must drive member status the
@@ -32,7 +33,7 @@ describe('Program cohort enrollments applied during reprocessing', () => {
   }
 
   async function processMembers() {
-    const response = await fetch(`${getTestApiBaseUrl()}/api/process/members`, {
+    const response = await apiFetch(`${getTestApiBaseUrl()}/api/process/members`, {
       method: 'POST',
       headers: getTestAuthHeaders(),
     })

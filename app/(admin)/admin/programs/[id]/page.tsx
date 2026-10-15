@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import RecordHistoryButton from "@/components/RecordHistoryButton";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
@@ -33,11 +34,19 @@ export default async function ProgramDetailPage({ params }: { params: Promise<{ 
   return (
     <div className="min-h-screen bg-canvas dark:bg-slate-950">
       <header className="border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
-        <div className="container mx-auto px-6 py-4">
+        <div className="container mx-auto px-6 py-4 relative">
           <Link href="/admin/programs" className="text-sm text-plum-600 dark:text-plum-400 hover:underline">
             ← All Programs
           </Link>
           <h1 className="text-2xl font-bold mt-1">{program.name}</h1>
+          <div className="absolute top-4 right-6">
+            <RecordHistoryButton
+              entityType={["program", "program_cohort", "program_enrollment"]}
+              entityId={id}
+              parentColumn="program_id"
+              label={program.name}
+            />
+          </div>
         </div>
       </header>
 

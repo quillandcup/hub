@@ -12,7 +12,10 @@ import { findUnmatchedZoomAttendees } from "@/lib/prickle-unmatched";
 import AliasSearchForm from "@/app/(admin)/admin/hygiene/unmatched-zoom/AliasSearchForm";
 import { formatPrickleTitle } from "@/lib/formatters";
 import { computeHostStatus } from "@/lib/hosting-stats";
-import { getMyProjects } from "@/app/(member)/projects/actions";
+import { getMyEntriesForPrickle } from "@/app/(member)/projects/actions";
+import { getMyCheckin } from "@/app/(member)/prickles/checkin-actions";
+import { parseCheckinPrefill } from "@/lib/prickle-checkins";
+import PrickleCheckLinks from "@/components/writing/PrickleCheckLinks";
 import { getMyCalendarItems } from "@/app/(member)/my-prickles/calendar-feed-actions";
 import { AddPrickleToCalendar } from "@/app/(member)/my-prickles/AddToCalendar";
 import { prickleCalendarState, SCHEDULE_TIMEZONE } from "@/lib/calendar-feed";
@@ -24,6 +27,8 @@ const getPrickle = cache(async (id: string) => {
     .from("prickles")
     .select(`
       id,
+      title,
+      description,
       host:prickle_host(id, name),
       start_time,
       end_time,
@@ -56,10 +61,14 @@ function hasNotStarted(startTime: string): boolean {
 
 export default async function PrickleDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams?: Promise<{ feel?: string | string[]; need?: string | string[] }>;
 }) {
   const { id } = await params;
+  // "Coming in" answers carried from Find a Prickle, to pre-fill an unsaved check-in.
+  const checkinPrefill = parseCheckinPrefill((await searchParams) ?? {});
   const supabase = await createClient();
 
   const user = await getCurrentUser();
@@ -68,17 +77,18 @@ export default async function PrickleDetailPage({
     redirect("/login");
   }
 
-  const [profileResult, effectiveIdentity, prickle, myProjects, calendarItems] = await Promise.all([
+  const [profileResult, effectiveIdentity, prickle, calendarItems, myPrickleEntries, myCheckin] = await Promise.all([
     supabase.from("user_profiles").select("role").eq("id", user.id).single(),
     getEffectiveIdentity(user),
     getPrickle(id),
-    getMyProjects(),
     getMyCalendarItems(),
+    getMyEntriesForPrickle(id),
+    getMyCheckin(id),
   ]);
   const isAdmin = profileResult.data?.role === "admin";
   const isActingAsAdmin = isAdmin && !effectiveIdentity?.isSudo;
   const memberBasePath = isActingAsAdmin ? "/admin/members" : "/members";
-  const backHref = isActingAsAdmin ? "/admin/calendar" : "/my-prickles?tab=history";
+  const backHref = isActingAsAdmin ? "/admin/calendar" : "/my-prickles/history";
   const backLabel = isActingAsAdmin ? "← Back to Calendar" : "← Back to My Prickles";
   // Members go back to the My Prickles tab they came from (e.g. All Prickles), when known.
   const backLink = (className: string) =>
@@ -189,7 +199,7 @@ export default async function PrickleDetailPage({
     ? { typeId: prickle.type_id, ...slotTimeForInstant(prickle.start_time, SCHEDULE_TIMEZONE), timezone: SCHEDULE_TIMEZONE }
     : null;
   const calendarControl =
-    !isActingAsAdmin && effectiveIdentity && prickle.type_id && hasNotStarted(prickle.start_time) ? (
+    effectiveIdentity && prickle.type_id && hasNotStarted(prickle.start_time) ? (
       <AddPrickleToCalendar
         prickleId={prickle.id}
         typeName={typeName}
@@ -201,6 +211,25 @@ export default async function PrickleDetailPage({
         }).format(new Date(prickle.start_time))}
         state={prickleCalendarState(calendarItems, prickle.id, scheduleSlot ? slotKey(scheduleSlot) : null)}
         autoIncluded={prickleHost?.id === effectiveIdentity.memberId ? "hosting" : null}
+      />
+    ) : null;
+
+  // Check-in, check-out and logged progress are the viewer's own and live in a modal on My Prickles'
+  // Attendance History; here, only a link, and only when it's relevant: before the prickle (to
+  // check in) or after it for someone who was there or already has something saved. Admins with a
+  // member record get it too (the DM links there).
+  const started = !hasNotStarted(prickle.start_time);
+  const attended = ((attendanceRecords ?? []) as unknown as { member_id: string }[]).some(
+    (a) => a.member_id === effectiveIdentity?.memberId
+  );
+  const checkLinks =
+    effectiveIdentity && (!started || attended || myCheckin || myPrickleEntries.length > 0) ? (
+      <PrickleCheckLinks
+        prickleId={prickle.id}
+        hasStarted={started}
+        checkin={myCheckin}
+        entries={myPrickleEntries}
+        prefill={checkinPrefill}
       />
     ) : null;
 
@@ -218,6 +247,7 @@ export default async function PrickleDetailPage({
 
       <main className="container mx-auto px-6 py-8">
         <div className="max-w-4xl mx-auto space-y-6">
+          {checkLinks}
           <PrickleDetails
             prickle={prickle}
             attendanceRecords={attendanceRecords || []}
@@ -226,8 +256,6 @@ export default async function PrickleDetailPage({
             userTimezonePreference={userTimezone}
             memberBasePath={memberBasePath}
             showMemberEmails={isActingAsAdmin}
-            viewerMemberId={effectiveIdentity?.memberId ?? null}
-            viewerProjects={myProjects.map((p) => ({ id: p.id, title: p.title }))}
           />
           {isActingAsAdmin && unmatchedZoomAttendees.length > 0 && (
             <AliasSearchForm

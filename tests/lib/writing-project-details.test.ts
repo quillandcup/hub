@@ -112,7 +112,7 @@ describe("updateProjectDetails", () => {
     const result = await updateProjectDetails("project-1", { title: "  My Novel  ", description: "  A tale.  " });
     expect(result).toEqual({ success: true });
     expect(mock.__projectUpdate).toHaveBeenCalledWith({ title: "My Novel", description: "A tale." });
-    expect(revalidatePath).toHaveBeenCalledWith("/projects");
+    expect(revalidatePath).toHaveBeenCalledWith("/projects", "layout");
     expect(revalidatePath).toHaveBeenCalledWith("/projects/project-1");
   });
 

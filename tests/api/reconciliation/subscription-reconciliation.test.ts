@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { getTestSupabaseAdminClient, getTestAuthHeaders, getTestApiBaseUrl } from '../../helpers/supabase'
+import { apiFetch } from '../../helpers/api-fetch'
 
 /**
  * Integration tests for GET /api/analyze/subscription-reconciliation
@@ -229,7 +230,7 @@ describe('Subscription Reconciliation', () => {
   })
 
   async function fetchReconciliation() {
-    const response = await fetch(
+    const response = await apiFetch(
       `${getTestApiBaseUrl()}/api/analyze/subscription-reconciliation`,
       { headers: getTestAuthHeaders() }
     )
@@ -308,7 +309,7 @@ describe('Subscription Reconciliation', () => {
   })
 
   it('includes override count in summary', async () => {
-    const response = await fetch(
+    const response = await apiFetch(
       `${getTestApiBaseUrl()}/api/analyze/subscription-reconciliation`,
       { headers: getTestAuthHeaders() }
     )

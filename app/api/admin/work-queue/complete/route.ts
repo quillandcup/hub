@@ -14,7 +14,9 @@ export async function POST(request: NextRequest) {
   const { supabase, user } = auth;
 
   try {
-    const body = await request.json();
+    const parsed = await request.json().catch(() => undefined);
+    if (parsed === undefined) return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+    const body = parsed;
     const { queue_type, member_id, occurrence_key, status = "completed", postponedUntil } = body;
 
     if (!queue_type || !member_id || !occurrence_key) {

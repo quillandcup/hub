@@ -9,12 +9,12 @@ import { getUserTimezonePreference } from "@/lib/timezone"
 import { computeSisterStreaks, rankStreaks, type SisterStreak } from "@/lib/streaks"
 import { buildAttendanceMap, getScheduleSlot } from "@/lib/scheduled-prickle-stats"
 import { getMemberDisplayName } from "@/lib/member-display-name"
+import { ORG_TIMEZONE } from "@/lib/config";
 
 export const metadata: Metadata = {
   title: "Network",
 }
 
-const ORG_TIMEZONE = "America/New_York"
 const BATCH_SIZE = 1000
 const PRICKLE_BATCH = 100
 const NETWORK_LIMIT = 12
@@ -485,7 +485,7 @@ export default async function NetworkPage() {
                 <p className="text-sm text-slate-400 mb-3">Check the calendar for upcoming sessions.</p>
               )}
               <Link
-                href="/my-prickles?tab=find"
+                href="/my-prickles/find"
                 className="text-sm font-medium text-plum-600 dark:text-plum-400 hover:underline"
               >
                 Try the Prickle Picker →

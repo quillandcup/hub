@@ -1,10 +1,10 @@
 display_information:
-  name: Billie Bot
-  description: Community engagement tracking and analytics
+  name: Billie Bot (Hedgie Hub)
+  description: Ambassador from Hedgie Hub, the Quill & Cup member hub for prickles, events, writing streaks and community
   background_color: "#4A154B"
 features:
   bot_user:
-    display_name: Billie Bot
+    display_name: Billie Bot (Hedgie Hub)
     always_online: true
   # Home tab carries each member's one-time "Open Hedgie Hub" sign-in button (lib/slack-sign-in.ts)
   app_home:
@@ -30,18 +30,32 @@ oauth_config:
       - im:history
       - im:write
       - mpim:history
+      - mpim:read
       - mpim:write
       # User data
       - users:read
       - users:read.email
-      # Reactions and files
+      # Reactions, custom emoji and files
       - reactions:read
+      - emoji:read
       - files:read
-      # Feedback widget notifications
+      # Feedback widget notifications, and Hub chat posts (chat:write.customize lets the bot post under
+      # the member's name and photo; metadata.message:read returns our post's metadata on its event, so
+      # the Hub can tell it is its own: lib/chat/slack-post.ts)
       - chat:write
+      - chat:write.customize
+      - metadata.message:read
       - files:write
       # /hub slash command (Slack sign-in)
       - commands
+    # What a member lets the Hub do as them once they connect their Slack account (Settings,
+    # lib/slack-connect.ts): post and react natively instead of through the bot.
+    user:
+      - chat:write
+      - reactions:write
+  # Where Slack sends a member back after they approve (app/api/oauth/slack/callback).
+  redirect_urls:
+    - https://hub.quillandcup.com/api/oauth/slack/callback
   pkce_enabled: false
 settings:
   interactivity:
@@ -58,6 +72,10 @@ settings:
       # Reactions
       - reaction_added
       - reaction_removed
+      # Who is in each conversation, and custom emoji
+      - member_joined_channel
+      - member_left_channel
+      - emoji_changed
       # Home tab sign-in button
       - app_home_opened
       # Phase 2 candidates (not yet enabled — uncomment and add live if needed)
@@ -70,4 +88,6 @@ settings:
   org_deploy_enabled: false
   socket_mode_enabled: false
   token_rotation_enabled: false
+  # Opting in to rotating app-level tokens can't be undone; keep it off explicitly.
+  app_level_token_rotation_enabled: false
   is_mcp_enabled: false
