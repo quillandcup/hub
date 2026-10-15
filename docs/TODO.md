@@ -522,6 +522,12 @@ One system for everything the Hub sends members, instead of each feature hand-ro
 - A per-message "Stop these" Slack button that writes `notification_preferences` (the settings link covers it for now)
 - Show on the settings page when a channel can't reach the member (e.g. no matched Slack account)
 
+### Getting started: point the intro step at #start-here, and verify Slack identity _(Idea)_
+The tour's newcomer step is "Say hello in Slack" and its reminder links to the Slack channel (`lib/onboarding.ts`, `lib/onboarding-nudges.ts`). Follow-ups:
+- **Rename it "Say hello in #start-here"** and link to the in-Hub chat channel (the read-only mirror of the Slack channel, `docs/SLACK_BRIDGED_CHAT.md`) instead of the Slack deep link, once members can post from there. The intro-channel name (`slackIntroChannel` in `app.config.ts`) already drives the text; the link needs the chat channel's route.
+- **A "Connect Slack" step in the tour**, using the existing Slack connect OAuth (`lib/slack-connect.ts`, `member_slack_connections`) so we know each member's Slack user id for certain, not by email/name matching (`lib/slack-matching.ts`). Then resolve Slack ids from the verified connection (and `slack_identities`, `lib/slack-sign-in.ts`) before falling back to matching, and use the id from the OAuth/Slack sign-in handshake to confirm it matches what we'd inferred.
+- The intro reminder skips members we haven't matched to a Slack user, since we can't see whether they've posted; a verified connection brings more of them in.
+
 ### Finish renaming "pre-prickle nudges" to prickle check-ins _(Cleanup)_
 Migration `20261003130000` renamed the code, route, cron job and dedup log to check-in/check-out names. Two names stayed because changing them needs steps outside the repo:
 - **Checkly heartbeat**: `CRON_HEARTBEATS["pre-prickle-nudges"]` (`lib/cron-heartbeats.ts`) and `CHECKLY_HEARTBEAT_PRE_PRICKLE_NUDGES`. The key is the monitor's logical id (`cron-pre-prickle-nudges`), so renaming it (e.g. to `prickle-checkins` / `CHECKLY_HEARTBEAT_PRICKLE_CHECKINS`) replaces the monitor. Deploy the checks, copy the new ping URL into `.env.prod` under the new var, run `npm run env:sync`, then remove the old var.
