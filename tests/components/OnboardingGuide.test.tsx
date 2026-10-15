@@ -308,3 +308,38 @@ describe("OnboardingGuide", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't save that");
   });
 });
+
+describe("OnboardingGuide external Slack step", () => {
+  const INTRO_URL = "https://slack.example/app_redirect?channel=C1"
+  const state = (marked: string[] = [...IDENTITY_DONE, 'profile']) =>
+    buildOnboardingState(
+      { hasHubProfile: false, latestProjectId: null, hasGoal: false, hasPricklePlan: false, ...NOT_HOST, isNewcomer: true, introUrl: INTRO_URL },
+      { marked_steps: marked, dismissed_at: null, completed_at: null }
+    )
+
+  it('opens Slack in a new tab and lets the member confirm it by hand', async () => {
+    nav.pathname = '/dashboard'
+    vi.mocked(getMyOnboardingState).mockResolvedValue(state())
+    vi.mocked(markOnboardingStep).mockResolvedValue({ success: true })
+    render(<OnboardingGuide initialState={state()} />)
+
+    const link = await screen.findByRole('link', { name: /Open Slack/ })
+    expect(link).toHaveAttribute('href', INTRO_URL)
+    expect(link).toHaveAttribute('target', '_blank')
+    expect(link).toHaveAttribute('rel', expect.stringContaining('noopener'))
+
+    await userEvent.click(screen.getByRole('button', { name: "I've introduced myself" }))
+    expect(markOnboardingStep).toHaveBeenCalledWith('intro')
+  })
+
+  it('has no spotlight for it, and no Revisit link once it is done', async () => {
+    nav.pathname = '/dashboard'
+    const done = state([...IDENTITY_DONE, 'profile', 'intro'])
+    vi.mocked(getMyOnboardingState).mockResolvedValue(done)
+    render(<OnboardingGuide initialState={done} />)
+
+    expect(await screen.findByText('Say hello in Slack')).toBeInTheDocument()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Revisit Say hello in Slack' })).not.toBeInTheDocument()
+  })
+})

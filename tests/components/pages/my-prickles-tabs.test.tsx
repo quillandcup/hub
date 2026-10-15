@@ -251,4 +251,11 @@ describe("My Prickles Upcoming tab calendar controls", () => {
 
     expect(calendarOf(rows()[0])).toBeNull();
   });
+
+  it("marks only the first row for the Getting started spotlight", async () => {
+    ranked({ prickle: prickle("p1") }, { prickle: prickle("p2") });
+    await renderServerRoute(MyPricklesIndex, routeProps());
+
+    expect(rows().map((r) => r.getAttribute("data-tour-target"))).toEqual(["true", "false"]);
+  });
 });
