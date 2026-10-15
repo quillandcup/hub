@@ -14,7 +14,9 @@ export async function POST(request: NextRequest) {
   const { supabase, user } = auth;
 
   try {
-    const body = await request.json();
+    const parsed = await request.json().catch(() => undefined);
+    if (parsed === undefined) return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+    const body = parsed;
     const { zoomName, reason } = body;
 
     if (!zoomName) {
@@ -64,7 +66,9 @@ export async function DELETE(request: NextRequest) {
   const { supabase } = auth;
 
   try {
-    const body = await request.json();
+    const parsed = await request.json().catch(() => undefined);
+    if (parsed === undefined) return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+    const body = parsed;
     const { zoomName } = body;
 
     if (!zoomName) {

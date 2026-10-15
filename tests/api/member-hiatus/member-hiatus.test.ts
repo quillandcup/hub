@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { getTestSupabaseAdminClient, getTestAuthHeaders, getTestApiBaseUrl } from '../../helpers/supabase'
+import { apiFetch } from '../../helpers/api-fetch'
 
 /**
  * Integration tests for member-hiatus CRUD API
@@ -32,7 +33,7 @@ describe('Member Hiatus API', () => {
   })
 
   it('POST creates a hiatus with valid data', async () => {
-    const response = await fetch(`${getTestApiBaseUrl()}/api/member-hiatus`, {
+    const response = await apiFetch(`${getTestApiBaseUrl()}/api/member-hiatus`, {
       method: 'POST',
       headers: { ...getTestAuthHeaders(), 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -55,7 +56,7 @@ describe('Member Hiatus API', () => {
   })
 
   it('POST rejects missing required fields', async () => {
-    const response = await fetch(`${getTestApiBaseUrl()}/api/member-hiatus`, {
+    const response = await apiFetch(`${getTestApiBaseUrl()}/api/member-hiatus`, {
       method: 'POST',
       headers: { ...getTestAuthHeaders(), 'Content-Type': 'application/json' },
       body: JSON.stringify({ member_id: memberId }),
@@ -73,7 +74,7 @@ describe('Member Hiatus API', () => {
       .select('id')
       .single()
 
-    const response = await fetch(`${getTestApiBaseUrl()}/api/member-hiatus/${created!.id}`, {
+    const response = await apiFetch(`${getTestApiBaseUrl()}/api/member-hiatus/${created!.id}`, {
       method: 'PATCH',
       headers: { ...getTestAuthHeaders(), 'Content-Type': 'application/json' },
       body: JSON.stringify({ end_date: '2026-01-15' }),
@@ -95,7 +96,7 @@ describe('Member Hiatus API', () => {
       .select('id')
       .single()
 
-    const response = await fetch(`${getTestApiBaseUrl()}/api/member-hiatus/${created!.id}`, {
+    const response = await apiFetch(`${getTestApiBaseUrl()}/api/member-hiatus/${created!.id}`, {
       method: 'DELETE',
       headers: getTestAuthHeaders(),
     })

@@ -12,7 +12,9 @@ export async function POST(request: NextRequest) {
   const { supabase, user } = auth;
 
   try {
-    const { memberId, badgeTypeId, occurredAt, note } = await request.json();
+    const parsed = await request.json().catch(() => undefined);
+    if (parsed === undefined) return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+    const { memberId, badgeTypeId, occurredAt, note } = parsed;
 
     if (!memberId || !badgeTypeId) {
       return NextResponse.json({ error: "memberId and badgeTypeId are required" }, { status: 400 });

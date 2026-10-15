@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import RecordHistoryButton from "@/components/RecordHistoryButton";
 import Link from "next/link";
 import { TabBar } from "@/components/Tabs";
 import {
@@ -369,11 +370,14 @@ export default function HostsClient({ prickleTypes }: { prickleTypes: PrickleTyp
 
   return (
     <div className="p-8">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold mb-2 dark:text-slate-100">Hosts</h1>
-        <p className="text-gray-600 dark:text-slate-400">
-          Review and confirm who&apos;s hosting which prickle, month by month.
-        </p>
+      <div className="mb-6 flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl font-bold mb-2 dark:text-slate-100">Hosts</h1>
+          <p className="text-gray-600 dark:text-slate-400">
+            Review and confirm who&apos;s hosting which prickle, month by month.
+          </p>
+        </div>
+        <RecordHistoryButton entityType={["prickle_schedule", "prickle_schedule_lock"]} label="hosting schedules" />
       </div>
 
       <TabBar

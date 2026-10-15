@@ -12,7 +12,9 @@ export async function PATCH(
 
   try {
     const { id } = await params;
-    const body = await request.json();
+    const parsed = await request.json().catch(() => undefined);
+    if (parsed === undefined) return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+    const body = parsed;
     const {
       host_id,
       type_id,

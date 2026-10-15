@@ -21,7 +21,7 @@ const ACTOR_BADGE: Record<ActivityFeedRow["actor_kind"], string> = {
   system: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300",
 };
 
-function ChangeTable({ row }: { row: ActivityFeedRow }) {
+export function ChangeTable({ row }: { row: ActivityFeedRow }) {
   const fields = changedFields(row.data);
   if (fields.length === 0) return null;
   return (
@@ -88,12 +88,15 @@ export default function ActivityFeedTable({
   page,
   pageSize,
   filters,
+  hideAbout = false,
 }: {
   rows: ActivityFeedRow[];
   total: number;
   page: number;
   pageSize: number;
   filters: FeedFilters;
+  /** Drop the About column, where every row is about the same member (their own page). */
+  hideAbout?: boolean;
 }) {
   // Newest first is the only order; there are no sortable columns.
   const table = useServerDataTable<ActivityFeedRow, never>({
@@ -114,7 +117,7 @@ export default function ActivityFeedTable({
               <th className="py-2 pr-4 font-medium whitespace-nowrap">When</th>
               <th className="py-2 pr-4 font-medium">Who</th>
               <th className="py-2 pr-4 font-medium">What</th>
-              <th className="py-2 font-medium">About</th>
+              {!hideAbout && <th className="py-2 font-medium">About</th>}
             </tr>
           </thead>
           <tbody>
@@ -158,20 +161,22 @@ export default function ActivityFeedTable({
                       describeRow(row)
                     )}
                   </td>
-                  <td className="py-2">
-                    {row.actor_kind === "member" && !sudo ? (
-                      <span className="text-slate-400">self</span>
-                    ) : row.member_id && row.member_name ? (
-                      <Link
-                        href={`/admin/members/${row.member_id}`}
-                        className="text-plum-600 dark:text-plum-400 hover:underline"
-                      >
-                        {row.member_name}
-                      </Link>
-                    ) : (
-                      <span className="text-slate-400">—</span>
-                    )}
-                  </td>
+                  {!hideAbout && (
+                    <td className="py-2">
+                      {row.actor_kind === "member" && !sudo ? (
+                        <span className="text-slate-400">self</span>
+                      ) : row.member_id && row.member_name ? (
+                        <Link
+                          href={`/admin/members/${row.member_id}`}
+                          className="text-plum-600 dark:text-plum-400 hover:underline"
+                        >
+                          {row.member_name}
+                        </Link>
+                      ) : (
+                        <span className="text-slate-400">—</span>
+                      )}
+                    </td>
+                  )}
                 </tr>
               );
             })}

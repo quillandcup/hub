@@ -70,7 +70,9 @@ export async function POST(request: NextRequest) {
     }
 
     const startedAt = clock.now();
-    const body: SlackApiImportRequest = await request.json();
+    const parsed = await request.json().catch(() => undefined);
+    if (parsed === undefined) return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+    const body: SlackApiImportRequest = parsed;
     const daysBack = body.daysBack || 7;
 
     console.log(`Fetching ${daysBack} days of Slack data from API`);

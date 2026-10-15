@@ -12,7 +12,9 @@ export async function PATCH(
 
   try {
     const { id } = await params;
-    const body = await request.json();
+    const parsed = await request.json().catch(() => undefined);
+    if (parsed === undefined) return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+    const body = parsed;
     const { override_type, reason, notes, starts_at, expires_at } = body;
 
     if (override_type && !['gift', 'special', 'direct_stripe'].includes(override_type)) {

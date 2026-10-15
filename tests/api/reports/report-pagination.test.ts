@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { getTestSupabaseAdminClient, getTestAuthHeaders, getTestApiBaseUrl } from '../../helpers/supabase'
+import { apiFetch } from '../../helpers/api-fetch'
 
 /**
  * Integration tests verifying that report routes paginate large tables.
@@ -74,7 +75,7 @@ describe('Report Route Pagination', () => {
       expect(insertedCount).toBe(UNIQUE_NAMES * ROWS_PER_NAME)
 
       // Query with all 1002 rows present (name 0334 occupies rows 1000–1002 in ORDER BY name)
-      const responseFull = await fetch(`${getTestApiBaseUrl()}/api/reports/name-matching`, {
+      const responseFull = await apiFetch(`${getTestApiBaseUrl()}/api/reports/name-matching`, {
         headers: getTestAuthHeaders(),
       })
       expect(responseFull.ok).toBe(true)
@@ -85,7 +86,7 @@ describe('Report Route Pagination', () => {
       await supabase.schema('bronze').from('zoom_attendees').delete().eq('name', name0334)
 
       // Query with 999 rows (name 0334 absent)
-      const responsePartial = await fetch(`${getTestApiBaseUrl()}/api/reports/name-matching`, {
+      const responsePartial = await apiFetch(`${getTestApiBaseUrl()}/api/reports/name-matching`, {
         headers: getTestAuthHeaders(),
       })
       expect(responsePartial.ok).toBe(true)
@@ -188,7 +189,7 @@ describe('Report Route Pagination', () => {
         .eq('user_id', testUserId)
       expect(count).toBe(MESSAGE_COUNT)
 
-      const response = await fetch(`${getTestApiBaseUrl()}/api/reports/unmatched-slack-users`, {
+      const response = await apiFetch(`${getTestApiBaseUrl()}/api/reports/unmatched-slack-users`, {
         headers: getTestAuthHeaders(),
       })
       expect(response.ok).toBe(true)

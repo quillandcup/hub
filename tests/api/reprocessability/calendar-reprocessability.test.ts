@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { getTestSupabaseAdminClient, getTestAuthHeaders, getTestApiBaseUrl } from '../../helpers/supabase'
 import { seedReferenceData } from '../../helpers/seed-data'
+import { apiFetch } from '../../helpers/api-fetch'
 
 /**
  * Test to verify /api/process/calendar is fully reprocessable
@@ -103,7 +104,7 @@ describe('Calendar Reprocessability', () => {
   it('keeps the host-chosen title and calendar description on the prickle, and refreshes them on reprocess', async () => {
     const { data: heads } = await supabase.from('prickle_types').select('id').eq('normalized_name', 'heads-down').single()
     const calendarEventId = 'test-event-title-desc'
-    const process = () => fetch(`${getTestApiBaseUrl()}/api/process/calendar`, {
+    const process = () => apiFetch(`${getTestApiBaseUrl()}/api/process/calendar`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...getTestAuthHeaders() },
       body: JSON.stringify({ fromDate: testDateRange.from, toDate: testDateRange.to }),
@@ -162,7 +163,7 @@ describe('Calendar Reprocessability', () => {
     await supabase.schema('bronze').from('calendar_events').insert(bronzeEvents)
 
     // ACT: Process calendar
-    const response = await fetch(`${getTestApiBaseUrl()}/api/process/calendar`, {
+    const response = await apiFetch(`${getTestApiBaseUrl()}/api/process/calendar`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...getTestAuthHeaders() },
       body: JSON.stringify({
@@ -195,7 +196,7 @@ describe('Calendar Reprocessability', () => {
       .eq('google_event_id', 'test-event-1')
 
     // ACT: Reprocess calendar
-    const response = await fetch(`${getTestApiBaseUrl()}/api/process/calendar`, {
+    const response = await apiFetch(`${getTestApiBaseUrl()}/api/process/calendar`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...getTestAuthHeaders() },
       body: JSON.stringify({
@@ -234,7 +235,7 @@ describe('Calendar Reprocessability', () => {
     await supabase.schema('bronze').from('calendar_events').insert(newEvent)
 
     // ACT: Reprocess
-    const response = await fetch(`${getTestApiBaseUrl()}/api/process/calendar`, {
+    const response = await apiFetch(`${getTestApiBaseUrl()}/api/process/calendar`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...getTestAuthHeaders() },
       body: JSON.stringify({
@@ -277,7 +278,7 @@ describe('Calendar Reprocessability', () => {
     expect(before?.length).toBeGreaterThan(0)
     const idsBefore = before!.map(p => p.id)
 
-    const response = await fetch(`${getTestApiBaseUrl()}/api/process/calendar`, {
+    const response = await apiFetch(`${getTestApiBaseUrl()}/api/process/calendar`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...getTestAuthHeaders() },
       body: JSON.stringify({ fromDate: testDateRange.from, toDate: testDateRange.to }),
@@ -313,7 +314,7 @@ describe('Calendar Reprocessability', () => {
       .single()
     expect(before).toBeTruthy()
 
-    const response = await fetch(`${getTestApiBaseUrl()}/api/process/calendar`, {
+    const response = await apiFetch(`${getTestApiBaseUrl()}/api/process/calendar`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...getTestAuthHeaders() },
       body: JSON.stringify({ fromDate: testDateRange.from, toDate: testDateRange.to }),
@@ -341,7 +342,7 @@ describe('Calendar Reprocessability', () => {
     await supabase.from('prickles').insert(outsideRangePrickle)
 
     // ACT: Process June only
-    const response = await fetch(`${getTestApiBaseUrl()}/api/process/calendar`, {
+    const response = await apiFetch(`${getTestApiBaseUrl()}/api/process/calendar`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...getTestAuthHeaders() },
       body: JSON.stringify({
@@ -384,7 +385,7 @@ describe('Calendar Reprocessability', () => {
     await supabase.schema('bronze').from('calendar_events').insert(unmatchedEvent)
 
     // Process - should add to unmatched queue
-    await fetch(`${getTestApiBaseUrl()}/api/process/calendar`, {
+    await apiFetch(`${getTestApiBaseUrl()}/api/process/calendar`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...getTestAuthHeaders() },
       body: JSON.stringify({
@@ -416,7 +417,7 @@ describe('Calendar Reprocessability', () => {
     expect(newType).toBeTruthy()
 
     // ACT: Reprocess calendar
-    const response = await fetch(`${getTestApiBaseUrl()}/api/process/calendar`, {
+    const response = await apiFetch(`${getTestApiBaseUrl()}/api/process/calendar`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...getTestAuthHeaders() },
       body: JSON.stringify({

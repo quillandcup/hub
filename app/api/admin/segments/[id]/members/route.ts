@@ -31,7 +31,9 @@ export async function POST(
   const { supabase } = auth;
 
   const { id: segmentId } = await params;
-  const body = await request.json();
+  const parsed = await request.json().catch(() => undefined);
+  if (parsed === undefined) return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+  const body = parsed;
 
   const emails: string[] = Array.isArray(body.emails)
     ? body.emails.map((e: string) => e.trim().toLowerCase()).filter((e: string) => e.length > 0)

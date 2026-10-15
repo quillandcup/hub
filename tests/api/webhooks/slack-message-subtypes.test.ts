@@ -12,12 +12,15 @@ import { POST } from '@/app/api/webhooks/slack/route'
  *  - bot/app posts (bot_id, no user) failed the same way,
  *  - joins/leaves were stored although the import skips them.
  */
+// after() callbacks run in the background in production. Track them so send() can wait for them:
+// a late one would otherwise land in the next test, after its vi.clearAllMocks().
+const pendingAfter: Promise<unknown>[] = []
 vi.mock('next/server', async (importOriginal) => {
   const actual = await importOriginal<typeof import('next/server')>()
   return {
     ...actual,
     after: (callback: () => void | Promise<void>) => {
-      void callback()
+      pendingAfter.push(Promise.resolve().then(callback))
     },
   }
 })
@@ -48,6 +51,7 @@ async function send(event: Record<string, unknown>) {
     }) as unknown as NextRequest
   )
   expect(response.status).toBe(200)
+  await Promise.allSettled(pendingAfter.splice(0))
   return response.json()
 }
 

@@ -29,7 +29,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const { supabase } = auth;
   const { id } = await params;
 
-  const body = await request.json();
+  const parsed = await request.json().catch(() => undefined);
+  if (parsed === undefined) return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+  const body = parsed;
   const { name, keepOldNameAsPenName, newPenName, displayName, email, newEmailAlias, emailAlias } = body as {
     name?: string;
     keepOldNameAsPenName?: boolean;

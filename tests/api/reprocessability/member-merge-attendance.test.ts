@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { getTestSupabaseAdminClient, getTestAuthHeaders, getTestApiBaseUrl } from '../../helpers/supabase'
 import { seedReferenceData } from '../../helpers/seed-data'
+import { apiFetch } from '../../helpers/api-fetch'
 
 /**
  * After merging two member accounts, attendance reprocessing must use the
@@ -22,7 +23,7 @@ describe('Attendance reprocessing after member merge', () => {
   let primaryMemberId: string
 
   async function processAttendance() {
-    const response = await fetch(`${getTestApiBaseUrl()}/api/process/attendance`, {
+    const response = await apiFetch(`${getTestApiBaseUrl()}/api/process/attendance`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...getTestAuthHeaders() },
       body: JSON.stringify({ fromDate: testDateRange.from, toDate: testDateRange.to }),

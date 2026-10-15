@@ -18,7 +18,9 @@ export async function POST(request: NextRequest) {
   const auth = await requireAdmin(request);
   if (auth.forbidden) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
-  const body = await request.json();
+  const parsed = await request.json().catch(() => undefined);
+  if (parsed === undefined) return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+  const body = parsed;
   const { feature, enabled } = body as { feature: FeatureKey; enabled: boolean };
 
   if (!FEATURE_PREVIEWS.find((f) => f.key === feature)) {

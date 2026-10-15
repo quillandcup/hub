@@ -1,4 +1,5 @@
 import { cache } from "react";
+import RecordHistoryButton from "@/components/RecordHistoryButton";
 import { withMentionNames } from "@/lib/chat/names";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
@@ -20,6 +21,9 @@ import { tabTitle } from "@/lib/tab-routes";
 import { loadPushDevices } from "@/lib/channels/web-push";
 import { describeDevice } from "@/lib/device-label";
 import { createServiceRoleClient } from "@/lib/supabase/service";
+import { fetchActivityFeed, parseFeedFilters, MEMBER_DEFAULTS } from "@/lib/activity-feed";
+import { parsePageParam, parsePageSizeParam } from "@/lib/pagination";
+
 
 const getMemberRow = cache(async (id: string) => {
   const supabase = await createClient();
@@ -41,7 +45,16 @@ export function memberTabMetadata(tab: MemberTabId) {
  * /admin/members/<id>/<tab> route with that tab open. Every tab's data loads here, so switching
  * tabs is instant. Callers have already run requireAdminPage().
  */
-export default async function MemberDetailPage({ id, tab }: { id: string; tab: MemberTabId }) {
+export default async function MemberDetailPage({
+  id,
+  tab,
+  searchParams = {},
+}: {
+  id: string;
+  tab: MemberTabId;
+  /** The Activity Log tab's ?page=&pageSize=. */
+  searchParams?: Record<string, string | string[] | undefined>;
+}) {
   const supabase = await createClient();
 
   const user = await getCurrentUser();
@@ -205,6 +218,16 @@ export default async function MemberDetailPage({ id, tab }: { id: string; tab: M
     .order("occurred_at", { ascending: false })
     .limit(50);
 
+  // The Activity Log tab: the same feed as /admin/activity narrowed to this member (their own
+  // activity, what staff did for or as them, changes to their record), Everything by default.
+  // Its filters are the URL's ?view=&days=&nosystem=&noslack=&kinds=&sudo=.
+  const activityFilters = { ...parseFeedFilters(searchParams, MEMBER_DEFAULTS), memberId: id };
+  const activityFeed = await fetchActivityFeed(supabase, {
+    ...activityFilters,
+    page: parsePageParam(searchParams.page),
+    pageSize: parsePageSizeParam(searchParams.pageSize),
+  });
+
   // Get user's timezone preference
   const userTimezone = await getUserTimezonePreference();
 
@@ -233,7 +256,7 @@ export default async function MemberDetailPage({ id, tab }: { id: string; tab: M
   return (
     <div className="min-h-screen bg-canvas dark:bg-slate-950">
       <header className="border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
-        <div className="container mx-auto px-6 py-4">
+        <div className="container mx-auto px-6 py-4 relative">
           <Link href="/admin/members" className="text-plum-600 hover:text-plum-700 dark:text-plum-400 text-sm mb-2 inline-block">
             ← Back to Members
           </Link>
@@ -318,6 +341,9 @@ export default async function MemberDetailPage({ id, tab }: { id: string; tab: M
               )}
             </div>
           </div>
+          <div className="absolute top-4 right-6">
+            <RecordHistoryButton entityType="member" entityId={member.id} includeMemberRows label={member.name} />
+          </div>
         </div>
       </header>
 
@@ -334,6 +360,8 @@ export default async function MemberDetailPage({ id, tab }: { id: string; tab: M
           member={member}
           attendanceRecords={attendance || []}
           hiatusHistory={hiatusHistory || []}
+          activityFeed={activityFeed}
+          activityFilters={activityFilters}
           slackActivities={await withMentionNames(slackActivities || [])}
           userTimezonePreference={userTimezone}
           membershipHistory={membershipHistory}

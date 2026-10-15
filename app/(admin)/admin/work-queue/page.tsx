@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import RecordHistoryButton from "@/components/RecordHistoryButton";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
@@ -108,7 +109,10 @@ export default async function WorkQueuePage() {
   return (
     <div className="min-h-screen bg-canvas dark:bg-slate-950">
       <header className="border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
-        <div className="container mx-auto px-6 py-4">
+        <div className="container mx-auto px-6 py-4 relative">
+          <div className="absolute top-4 right-6">
+            <RecordHistoryButton entityType="work_queue_completion" label="work queue completions" />
+          </div>
           <h1 className="text-2xl font-bold">Work Queue</h1>
           <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
             Welcome-back, Hedgieversary celebration, and hiatus-nudge tasks, sorted by deadline.

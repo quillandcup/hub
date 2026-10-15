@@ -5,14 +5,14 @@ import { useRouter } from "next/navigation";
 import MemberSearch from "@/components/MemberSearch";
 import StaffSearch, { type StaffUser } from "@/components/StaffSearch";
 import {
+  CENTRAL_DEFAULTS,
+  MEMBER_DEFAULTS,
   FEED_DAY_OPTIONS,
   FEED_KINDS,
   FEED_KIND_LABELS,
   feedSearch,
   type FeedFilters,
 } from "@/lib/activity-feed";
-
-const BASE = "/admin/activity";
 
 const pill = (active: boolean) =>
   `px-3 py-1 rounded-full text-sm border transition-colors ${
@@ -27,28 +27,41 @@ interface PickerMember {
   email: string;
 }
 
+type ActivityFiltersProps =
+  | {
+      /** The central log: every view, with the member and staff pickers. */
+      variant?: "central";
+      filters: FeedFilters;
+      staff: StaffUser[];
+      members: PickerMember[];
+      /** Names for the selected ids when they aren't in the picker lists (e.g. a member as actor). */
+      actorName: string | null;
+      memberName: string | null;
+    }
+  | {
+      /** One member's Activity Log tab: no pickers (the page is the member), no Privacy view. */
+      variant: "member";
+      filters: FeedFilters;
+      /** The tab's own path, e.g. /admin/members/<id>/activity. */
+      basePath: string;
+    };
+
 /**
- * Filter bar for the activity log. Everything lives in the URL (the server page
- * reads it back), and any filter change starts again on page 1. Member is the main
- * filter (members are mostly their own actors); the staff picker only narrows to one
- * admin's actions. Both are the shared EntitySearch.
+ * Filter bar for the activity log, shared by /admin/activity and a member's Activity Log
+ * tab. Everything lives in the URL (the server page reads it back), and any filter change
+ * starts again on page 1. In the central log, Member is the main filter (members are mostly
+ * their own actors) and the staff picker only narrows to one admin's actions; both are the
+ * shared EntitySearch. The member variant keeps everything else.
  */
-export default function ActivityFilters({
-  filters,
-  staff,
-  members,
-  actorName,
-  memberName,
-}: {
-  filters: FeedFilters;
-  staff: StaffUser[];
-  members: PickerMember[];
-  /** Names for the selected ids when they aren't in the picker lists (e.g. a member as actor). */
-  actorName: string | null;
-  memberName: string | null;
-}) {
+export default function ActivityFilters(props: ActivityFiltersProps) {
+  const { filters } = props;
+  const member = props.variant === "member";
   const router = useRouter();
-  const href = (patch: Partial<FeedFilters>) => `${BASE}${feedSearch({ ...filters, ...patch })}`;
+  const defaults = member ? MEMBER_DEFAULTS : CENTRAL_DEFAULTS;
+  const base = props.variant === "member" ? props.basePath : "/admin/activity";
+  const href = (patch: Partial<FeedFilters>) =>
+    // On a member's tab the member is the path, not a param.
+    `${base}${feedSearch({ ...filters, ...patch, ...(member ? { memberId: null } : {}) }, defaults)}`;
   const go = (patch: Partial<FeedFilters>) => router.push(href(patch));
 
   return (
@@ -60,13 +73,15 @@ export default function ActivityFilters({
         <Link href={href({ view: "all" })} className={pill(filters.view === "all")}>
           Everything
         </Link>
-        <Link
-          href={href({ view: "privacy", kinds: null })}
-          className={pill(filters.view === "privacy")}
-          title="Changes to which Slack channels staff can read"
-        >
-          Privacy
-        </Link>
+        {!member && (
+          <Link
+            href={href({ view: "privacy", kinds: null })}
+            className={pill(filters.view === "privacy")}
+            title="Changes to which Slack channels staff can read"
+          >
+            Privacy
+          </Link>
+        )}
         <span className="mx-2 h-5 w-px bg-slate-300 dark:bg-slate-700" aria-hidden />
         {FEED_DAY_OPTIONS.map((d) => (
           <Link key={d} href={href({ days: d })} className={pill(filters.days === d)}>
@@ -117,13 +132,14 @@ export default function ActivityFilters({
         </div>
       )}
 
+      {props.variant !== "member" && (
       <div className="grid gap-3 sm:grid-cols-2 max-w-2xl">
         <label className="block text-sm text-slate-600 dark:text-slate-400">
           <span className="block mb-1">Member</span>
           <MemberSearch
-            members={members}
+            members={props.members}
             selectedMemberId={filters.memberId}
-            selectedMemberName={memberName}
+            selectedMemberName={props.memberName}
             // A member's own actions only appear outside the Audit view, so picking one shows Everything.
             onSelect={(member) => go({ memberId: member?.id ?? null, ...(member ? { view: "all" as const } : {}) })}
             placeholder="Search members..."
@@ -133,15 +149,16 @@ export default function ActivityFilters({
         <label className="block text-sm text-slate-600 dark:text-slate-400">
           <span className="block mb-1">Staff member</span>
           <StaffSearch
-            staff={staff}
+            staff={props.staff}
             selectedUserId={filters.actorUserId}
-            selectedName={actorName}
+            selectedName={props.actorName}
             onSelect={(user) => go({ actorUserId: user?.id ?? null })}
             placeholder="Search staff..."
           />
           <span className="block mt-1 text-xs text-slate-500">Only what this admin or assistant did</span>
         </label>
       </div>
+      )}
     </div>
   );
 }

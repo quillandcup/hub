@@ -5,6 +5,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import MemberSearch from "@/components/MemberSearch";
 import { formatDateTimeRange } from "@/lib/formatters";
+import { setDefaultHost, setRequiresHost } from "./actions";
 
 interface PrickleTypeStats {
   prickle_type: string;
@@ -260,39 +261,22 @@ export default function MissingHostsClient() {
     );
   }
 
+  // Writes go through server actions so they carry the admin's identity (and sudo context) for the audit log.
   async function toggleRequiresHost(typeId: string, currentValue: boolean) {
-    const supabase = createClient();
-
-    const { error } = await supabase
-      .from("prickle_types")
-      .update({ requires_host: !currentValue })
-      .eq("id", typeId);
-
+    const { error } = await setRequiresHost(typeId, !currentValue);
     if (error) {
-      console.error("Error updating prickle type:", error);
-      alert(`Failed to update: ${error.message}`);
+      alert(`Failed to update: ${error}`);
       return;
     }
-
-    // Reload stats
     loadStats();
   }
 
-  async function setDefaultHost(typeId: string, member: Member | null) {
-    const supabase = createClient();
-
-    const { error } = await supabase
-      .from("prickle_types")
-      .update({ default_host_id: member?.id || null })
-      .eq("id", typeId);
-
+  async function changeDefaultHost(typeId: string, member: Member | null) {
+    const { error } = await setDefaultHost(typeId, member?.id ?? null);
     if (error) {
-      console.error("Error setting default host:", error);
-      alert(`Failed to set default host: ${error.message}`);
+      alert(`Failed to set default host: ${error}`);
       return;
     }
-
-    // Reload stats
     loadStats();
   }
 
@@ -382,7 +366,7 @@ export default function MissingHostsClient() {
                         members={members}
                         selectedMemberId={stat.default_host_id}
                         selectedMemberName={stat.default_host_name}
-                        onSelect={(member) => setDefaultHost(stat.prickle_type_id, member)}
+                        onSelect={(member) => changeDefaultHost(stat.prickle_type_id, member)}
                         className="flex-1"
                       />
                       <button
@@ -432,7 +416,7 @@ export default function MissingHostsClient() {
                         members={members}
                         selectedMemberId={stat.default_host_id}
                         selectedMemberName={stat.default_host_name}
-                        onSelect={(member) => setDefaultHost(stat.prickle_type_id, member)}
+                        onSelect={(member) => changeDefaultHost(stat.prickle_type_id, member)}
                         className="flex-1"
                       />
                     </div>

@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { getTestSupabaseAdminClient, getTestAuthHeaders, getTestApiBaseUrl } from '../../helpers/supabase'
+import { apiFetch } from '../../helpers/api-fetch'
 
 /**
  * Staff members must always be active regardless of Kajabi subscription status.
@@ -18,7 +19,7 @@ describe('Staff Member Status', () => {
   const staffAliasEmail = `staff-status-test-alias-old-${ts}@example.com`
 
   async function processMembers() {
-    const response = await fetch(`${getTestApiBaseUrl()}/api/process/members`, {
+    const response = await apiFetch(`${getTestApiBaseUrl()}/api/process/members`, {
       method: 'POST',
       headers: getTestAuthHeaders(),
     })

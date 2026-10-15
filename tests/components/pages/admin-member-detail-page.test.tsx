@@ -26,12 +26,23 @@ let serviceTables: FakeTables = {};
 vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => createFakeSupabase(serviceTables) }));
 
 vi.mock("@/app/(admin)/admin/members/[id]/MemberDetails", () => ({
-  default: ({ slackActivities }: { slackActivities: { id: string; description: string | null }[] }) => (
-    <ul aria-label="slack activity">
-      {slackActivities.map((a) => (
-        <li key={a.id}>{a.description}</li>
-      ))}
-    </ul>
+  default: ({
+    slackActivities,
+    activityFeed,
+  }: {
+    slackActivities: { id: string; description: string | null }[];
+    activityFeed: { total: number; page: number };
+  }) => (
+    <>
+      <ul aria-label="slack activity">
+        {slackActivities.map((a) => (
+          <li key={a.id}>{a.description}</li>
+        ))}
+      </ul>
+      <p>
+        activity {activityFeed.total} on page {activityFeed.page}
+      </p>
+    </>
   ),
 }));
 vi.mock("@/app/(admin)/admin/members/[id]/MergeButton", () => ({ default: () => null }));
@@ -78,5 +89,21 @@ describe("MemberDetailPage", () => {
     expect(screen.getByRole("heading", { name: "Moss Bramble" })).toBeInTheDocument();
     const items = screen.getAllByRole("listitem").map((li) => li.textContent);
     expect(items).toEqual(["@Fern thanks, see #hub-feedback"]);
+  });
+
+  it("loads the member's own activity feed for the Activity Log tab", async () => {
+    const supabase = useFakeSupabase(
+      memberTables({
+        "rpc:count_activity_feed": { data: 1 },
+        "rpc:get_activity_feed": { data: [{ event_id: "e1", kind: "activity", description: null }] },
+      })
+    );
+    await renderServerPage(MemberDetailPage, { id: MEMBER.id, tab: "activity" as const, searchParams: { page: "1" } });
+    expect(screen.getByText("activity 1 on page 1")).toBeInTheDocument();
+    const feedCall = supabase.queries
+      .filter((q) => q.table === "rpc:get_activity_feed")
+      .flatMap((q) => q.calls)
+      .find((c) => c.method === "args");
+    expect(feedCall?.args[0]).toMatchObject({ p_member_id: MEMBER.id, p_audit_only: false });
   });
 });

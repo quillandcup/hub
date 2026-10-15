@@ -5,6 +5,7 @@ import {
   actorName,
   changedFields,
   describeRow,
+  MEMBER_DEFAULTS,
   feedSearch,
   fetchActivityFeed,
   pageLabel,
@@ -106,6 +107,27 @@ describe("feedSearch", () => {
   });
 });
 
+describe("member defaults", () => {
+  it("default to Everything over 90 days and keep the URL clean", () => {
+    const filters = parseFeedFilters({}, MEMBER_DEFAULTS);
+    expect(filters.view).toBe("all");
+    expect(filters.days).toBe(90);
+    expect(feedSearch(filters, MEMBER_DEFAULTS)).toBe("");
+  });
+
+  it("writes only what differs from them, and reads the audit view back", () => {
+    const filters = parseFeedFilters({ view: "audit", days: "7", nosystem: "1", noslack: "1" }, MEMBER_DEFAULTS);
+    expect(filters).toMatchObject({ view: "audit", days: 7, hideSystem: true, hideSlack: true });
+    expect(feedSearch(filters, MEMBER_DEFAULTS)).toBe("?view=audit&nosystem=1&noslack=1&days=7");
+    expect(parseFeedFilters(Object.fromEntries(new URLSearchParams(feedSearch(filters, MEMBER_DEFAULTS))), MEMBER_DEFAULTS)).toEqual(filters);
+  });
+
+  it("leaves the central log's defaults alone", () => {
+    expect(parseFeedFilters({}).view).toBe("audit");
+    expect(feedSearch(parseFeedFilters({ view: "all" }))).toBe("?view=all");
+  });
+});
+
 describe("describeRow", () => {
   it("names the changed fields of an update", () => {
     const r = row({ data: { status: { old: "lead", new: "active" }, name: { old: "A", new: "B" } } });
@@ -118,6 +140,17 @@ describe("describeRow", () => {
     expect(describeRow(row({ event_type: "delete" }))).toBe("removed prickle type");
     const many = Object.fromEntries(["a", "b", "c", "d", "e", "f"].map((k) => [k, { old: 1, new: 2 }]));
     expect(describeRow(row({ data: many }))).toBe("changed prickle type — a, b, c, d, +2 more");
+  });
+
+  it("names records that are labelled by what they point at", () => {
+    const r = row({ event_type: "insert", entity_type: "segment_member", description: "Cohort A", data: { member_id: { old: null, new: "m1" } } });
+    expect(describeRow(r)).toBe("added segment membership “Cohort A”");
+  });
+
+  it("says who was added to or removed from an event", () => {
+    const base = { entity_type: "event_attendee", description: "Autumn Retreat", member_name: "Moss Bramble" };
+    expect(describeRow(row({ ...base, event_type: "insert" }))).toBe("added Moss Bramble as an attendee of “Autumn Retreat”");
+    expect(describeRow(row({ ...base, event_type: "delete" }))).toBe("removed Moss Bramble as an attendee of “Autumn Retreat”");
   });
 
   it("summarizes sessions and activities", () => {
