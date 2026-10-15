@@ -12,6 +12,10 @@ import UpcomingPrickleRow from "@/components/UpcomingPrickleRow"
 import { getRankedUpcomingPrickles } from "@/lib/upcoming-prickles"
 import { ORG_TIMEZONE } from "@/lib/config";
 import { getMyCheckins } from "@/app/(member)/prickles/checkin-actions";
+import { getMyMentorships } from "@/lib/my-mentorship";
+import { getSlackDmLinksForMembers } from "@/lib/member-slack-links";
+import { effectiveMemberHasFeature, getUserFeaturePreviews } from "@/lib/features.server";
+import BigSisterCards from "@/components/member/BigSisterCards";
 
 export const metadata: Metadata = {
   title: "Dashboard",
@@ -37,7 +41,14 @@ export default async function DashboardPage() {
 
   const now = new Date()
 
-  const [ranked, starredGoals, { data: projectRows }, unlogged, checkins] = await Promise.all([
+  // Big Sister cards are behind the big_sisters preview.
+  const bigSistersOn = await effectiveMemberHasFeature(
+    "big_sisters",
+    effectiveIdentity,
+    await getUserFeaturePreviews(user.id)
+  )
+
+  const [ranked, starredGoals, { data: projectRows }, unlogged, checkins, mentorships] = await Promise.all([
     getRankedUpcomingPrickles(supabase, memberId, timeZone, now, UPCOMING_WINDOW_DAYS),
     getStarredGoals(),
     supabase
@@ -48,7 +59,18 @@ export default async function DashboardPage() {
       .order("created_at", { ascending: false }),
     getUnloggedRecentPrickles(),
     getMyCheckins(),
+    bigSistersOn
+      ? getMyMentorships(supabase, memberId, now.toISOString().slice(0, 10))
+      : Promise.resolve({ bigSister: null, mentees: [] }),
   ])
+  // Only this member's own partners, since the Slack lookup uses the service role.
+  const slackLinks = Object.fromEntries(
+    await getSlackDmLinksForMembers(
+      [mentorships.bigSister?.memberId, ...mentorships.mentees.map((m) => m.memberId)].filter(
+        (id): id is string => !!id
+      )
+    )
+  )
   const projects = projectRows ?? []
   // Only prompt members who track writing -- there's no progress to ask about otherwise.
   const unloggedPrickles =
@@ -66,6 +88,8 @@ export default async function DashboardPage() {
       <p className="text-sm text-slate-500 dark:text-slate-400 mb-8">
         Here&apos;s what&apos;s coming up in the next {UPCOMING_WINDOW_DAYS} days.
       </p>
+
+      <BigSisterCards mentorships={mentorships} slackLinks={slackLinks} linkToPage />
 
       {starredGoals.length > 0 && (
         <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 p-6 mb-6">

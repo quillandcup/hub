@@ -1,4 +1,4 @@
-export type FeatureKey = 'member_overrides' | 'hedgieversaries' | 'work_queue' | 'program_cohorts' | 'events' | 'message_privacy' | 'slack_admin_sign_in' |'in_app_notifications' | 'browser_notifications' | 'chat' | 'chat_posting' | 'universal_search';
+export type FeatureKey = 'member_overrides' | 'hedgieversaries' | 'work_queue' | 'program_cohorts' | 'events' | 'message_privacy' | 'slack_admin_sign_in' |'in_app_notifications' | 'browser_notifications' | 'chat' | 'chat_posting' | 'universal_search' | 'big_sisters';
 
 export interface FeaturePreview {
   key: FeatureKey;
@@ -66,5 +66,10 @@ export const FEATURE_PREVIEWS: FeaturePreview[] = [
     key: 'universal_search',
     name: 'Universal search',
     description: 'A search bar in the header (also ⌘K) across members, prickles, projects, books, awards, events and chat, with results grouped by kind and operators like kind:members, from:me and after:2026-10-01 for exact lookups',
+  },
+  {
+    key: 'big_sisters',
+    name: 'Big Sisters',
+    description: 'Every new member gets a big sister for their first 30 days: matching, volunteers and effectiveness for staff, plus a Big Sisters card on the dashboard, a Big Sisters page, an introduction message and a Getting Started step for members. Staff also need the Admin Work Queue to see who is waiting for a match',
   },
 ];

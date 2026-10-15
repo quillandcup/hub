@@ -101,13 +101,14 @@ export async function PATCH(
   try {
     const { id } = await params;
     const body = await request.json();
-    const { name, slug, description, kajabi_offer_names } = body;
+    const { name, slug, description, kajabi_offer_names, includes_membership } = body;
 
     const updates: any = {};
     if (name !== undefined) updates.name = name;
     if (slug !== undefined) updates.slug = slug;
     if (description !== undefined) updates.description = description;
     if (kajabi_offer_names !== undefined) updates.kajabi_offer_names = kajabi_offer_names;
+    if (typeof includes_membership === "boolean") updates.includes_membership = includes_membership;
 
     const { data: program, error } = await supabase
       .from("programs")

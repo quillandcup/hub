@@ -21,7 +21,8 @@ export function NotificationsPanel({ initial }: { initial: NotificationSettings 
   const [saving, setSaving] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const categories = [...new Set(NOTIFICATION_KINDS.map((k) => k.category))];
+  const visibleKinds = NOTIFICATION_KINDS.filter((k) => initial.visibleKinds.includes(k.id));
+  const categories = [...new Set(visibleKinds.map((k) => k.category))];
 
   const toggle = async (kind: NotificationKindId, channel: NotificationChannelId, enabled: boolean) => {
     const before = channelsByKind[kind];
@@ -69,7 +70,7 @@ export function NotificationsPanel({ initial }: { initial: NotificationSettings 
             {category}
           </h3>
           <ul className="text-sm">
-            {NOTIFICATION_KINDS.filter((k) => k.category === category).map((kind) => (
+            {visibleKinds.filter((k) => k.category === category).map((kind) => (
               <li
                 key={kind.id}
                 id={`notification-${kind.id}`}

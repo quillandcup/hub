@@ -52,7 +52,7 @@ describe('WorkQueueSections', () => {
   const queue = [item('Bramble', '2026-10-05', '1-Year'), item('Acorn', '2026-11-01', '3-Year'), item('Clover', '2026-09-30', '2-Year')]
 
   it('defaults to soonest deadline and sorts by Hedgie on click', async () => {
-    render(<WorkQueueSections welcomeBackQueue={[]} hedgieversaryQueue={queue} hiatusNudgeQueue={[]} />)
+    render(<WorkQueueSections welcomeBackQueue={[]} hedgieversaryQueue={queue} hiatusNudgeQueue={[]} bigSisterQueue={[]} />)
     expect(column(1)).toEqual(['Clover', 'Bramble', 'Acorn'])
     await userEvent.click(screen.getByText('Hedgie'))
     expect(column(1)).toEqual(['Acorn', 'Bramble', 'Clover'])
@@ -61,7 +61,7 @@ describe('WorkQueueSections', () => {
   })
 
   it('flips the default Deadline sort on its first click', async () => {
-    render(<WorkQueueSections welcomeBackQueue={[]} hedgieversaryQueue={queue} hiatusNudgeQueue={[]} />)
+    render(<WorkQueueSections welcomeBackQueue={[]} hedgieversaryQueue={queue} hiatusNudgeQueue={[]} bigSisterQueue={[]} />)
     await userEvent.click(screen.getByText('Deadline'))
     expect(column(1)).toEqual(['Acorn', 'Bramble', 'Clover'])
   })

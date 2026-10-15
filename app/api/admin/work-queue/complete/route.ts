@@ -1,7 +1,7 @@
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { NextRequest, NextResponse } from "next/server";
 
-const QUEUE_TYPES = ["welcome_back", "hedgieversary", "hiatus_nudge"] as const;
+const QUEUE_TYPES = ["welcome_back", "hedgieversary", "hiatus_nudge", "big_sister"] as const;
 const STATUSES = ["completed", "opted_out", "postponed"] as const;
 // Opting out or postponing only makes sense for a one-time celebration —
 // 'welcome_back'/'hiatus_nudge' occurrences only ever get marked 'completed'.
