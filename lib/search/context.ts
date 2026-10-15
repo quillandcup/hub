@@ -17,8 +17,7 @@ export interface Searcher {
 }
 
 /**
- * Who is searching and what they may search, or null when universal search is off for them (not
- * signed in, or without the `universal_search` flag on their own account). The search runs on the
+ * Who is searching and what they may search, or null when not signed in. The search runs on the
  * caller's own Supabase client, so RLS is the real gate; this decides scope and links: staff
  * results (email, status, /admin links) only for an admin who is not acting as a member.
  */
@@ -32,7 +31,6 @@ export async function getSearcher(): Promise<Searcher | null> {
     supabase.from("user_profiles").select("role").eq("id", user.id).single(),
     getEffectiveIdentity(user),
   ]);
-  if (!features.includes("universal_search")) return null;
   const isAdmin = profile?.role === "admin";
   const isSudo = identity?.isSudo ?? false;
 

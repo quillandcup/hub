@@ -5,12 +5,14 @@ import { getCurrentUser } from "@/lib/auth";
 import { getEffectiveIdentity } from "@/lib/sudo";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { membersWithFeature } from "@/lib/features.server";
+import type { FeatureKey } from "@/lib/features";
 import { IN_APP_FEATURE } from "@/lib/channels/in-app";
 import { WEB_PUSH_FEATURE, loadPushDevices, vapidKeys, webPushChannel } from "@/lib/channels/web-push";
 import { NOTIFICATION_SETTINGS_PATH } from "@/lib/notifications/notify";
 import { describeDevice } from "@/lib/device-label";
 import {
   NOTIFICATION_CHANNELS,
+  NOTIFICATION_KINDS,
   effectiveSettings,
   isNotificationChannel,
   isNotificationKind,
@@ -27,6 +29,8 @@ export interface NotificationSettings {
   /** The VAPID public key devices subscribe with; null when the member can't turn Browser notifications on. */
   webPushPublicKey: string | null;
   channelsByKind: Record<NotificationKindId, NotificationChannelId[]>;
+  /** Kinds this member can see: those with no feature preview, or whose preview they have on. */
+  visibleKinds: NotificationKindId[];
   /** True in sudo: an admin can see a member's settings but not change them. */
   readOnly: boolean;
 }
@@ -47,16 +51,28 @@ export async function getNotificationSettings(): Promise<NotificationSettings | 
 
   // The member's flag, not the signed-in admin's in sudo. Service role: it reads their previews.
   const service = createServiceRoleClient();
-  const [inApp, browserFlag] = await Promise.all([
+  const kindFeatures = [...new Set(NOTIFICATION_KINDS.flatMap((k) => ("feature" in k ? [k.feature as FeatureKey] : [])))];
+  const [inApp, browserFlag, ...kindFeatureMembers] = await Promise.all([
     membersWithFeature(service, IN_APP_FEATURE, [identity.memberId]),
     membersWithFeature(service, WEB_PUSH_FEATURE, [identity.memberId]),
+    ...kindFeatures.map((key) => membersWithFeature(service, key, [identity.memberId])),
   ]);
+  const featureOn = new Set(kindFeatures.filter((_, i) => kindFeatureMembers[i].has(identity.memberId)));
+  const visibleKinds = NOTIFICATION_KINDS.filter((k) => !("feature" in k) || featureOn.has(k.feature as FeatureKey)).map(
+    (k) => k.id
+  );
   const webPushPublicKey = browserFlag.has(identity.memberId) ? (vapidKeys()?.publicKey ?? null) : null;
   const channels = NOTIFICATION_CHANNELS.map((c) => c.id).filter(
     (id) => (id !== "in_app" || inApp.has(identity.memberId)) && (id !== "web_push" || webPushPublicKey !== null)
   );
 
-  return { channels, webPushPublicKey, channelsByKind: effectiveSettings(data ?? []), readOnly: identity.isSudo };
+  return {
+    channels,
+    webPushPublicKey,
+    channelsByKind: effectiveSettings(data ?? []),
+    visibleKinds,
+    readOnly: identity.isSudo,
+  };
 }
 
 /**

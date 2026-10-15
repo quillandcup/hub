@@ -72,6 +72,7 @@ function settingsSections(): SitePage[] {
       audience: "member" as const,
       section: section("notifications"),
       keywords: [k.category, "notification", "reminder"],
+      ...("feature" in k ? { feature: k.feature } : {}),
     })),
   ];
 }
@@ -85,7 +86,8 @@ export const SITE_PAGES: SitePage[] = [
   member({ title: "My Writing", href: "/projects", section: "My Burrow", nav: { icon: "📝", activeFor: ["/projects/"] }, keywords: ["wip"] }),
   member({ title: "My Prickles", href: "/my-prickles", section: "My Burrow", nav: { icon: "🦔", activeFor: ["/prickles/"] }, keywords: ["sessions"] }),
   member({ title: "Streaks", href: "/streaks", section: "My Burrow", nav: { icon: "🔥" } }),
-  member({ title: "Members", href: "/members", section: "Community", nav: { icon: "👭" }, keywords: ["directory", "people"] }),
+  member({ title: "Members", href: "/members", section: "Community", nav: { icon: "👥" }, keywords: ["directory", "people"] }),
+  member({ title: "Big Sisters", href: "/big-sisters", section: "Community", nav: { icon: "👭" }, keywords: ["mentor", "mentorship", "new member", "buddy"], feature: "big_sisters" }),
   member({ title: "Chat", href: "/chat", section: "Community", nav: { icon: "💬" }, keywords: ["messages", "slack", "dm"], feature: "chat" }),
   member({ title: "Wheel of Wonder", href: "/wheel-of-wonder", section: "Community", nav: { icon: "🎡" }, keywords: ["spin", "prompt"] }),
   member({ title: "Bookshelf", href: "/bookshelf", section: "Community", nav: { icon: "🐚" }, keywords: ["library", "books"] }),
@@ -123,6 +125,9 @@ export const SITE_PAGES: SitePage[] = [
   admin({ title: "All Members", href: "/admin/members", section: "Members", nav: { icon: "👥" }, keywords: ["people"] }),
   admin({ title: "At-Risk Members", href: "/admin/at-risk", section: "Members", nav: { icon: "⚠️" }, keywords: ["churn", "lapsing"] }),
   admin({ title: "Outreach", href: "/admin/outreach", section: "Members", nav: { icon: "🎯" }, keywords: ["queue", "touches"] }),
+  admin({ title: "Big Sisters", href: "/admin/mentorship", section: "Members", nav: { icon: "👭" }, keywords: ["mentor", "mentorship", "trial", "onboarding", "conversion"], feature: "big_sisters" }),
+  admin({ title: "Big Sister Volunteers", href: "/admin/mentorship/volunteers", section: "Members", keywords: ["mentor", "available", "pool", "opt in"], feature: "big_sisters" }),
+  admin({ title: "Big Sister Effectiveness", href: "/admin/mentorship/big-sisters", section: "Members", keywords: ["mentor", "conversion", "trial", "trend", "quarter"], feature: "big_sisters" }),
   admin({ title: "Hedgieversaries", href: "/admin/hedgieversaries", section: "Members", nav: { icon: "🎂" }, keywords: ["anniversary", "birthday"], feature: "hedgieversaries" }),
   admin({ title: "Member Overrides", href: "/admin/member-overrides", section: "Members", nav: { icon: "🎁" }, feature: "member_overrides" }),
   admin({ title: "Programs", href: "/admin/programs", section: "Members", nav: { icon: "🎓" }, keywords: ["cohorts"], feature: "program_cohorts" }),

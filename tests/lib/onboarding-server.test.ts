@@ -85,7 +85,7 @@ describe("getOnboardingState for everyone else", () => {
 
     expect(step(state, "intro")).toBeUndefined();
     expect(step(state, "prickles")).toMatchObject({ title: "Join a prickle", done: false });
-    expect(serviceSupabase.queries).toEqual([]);
+    expect(serviceSupabase.queries.some((q) => q.table === "bronze.slack_channels")).toBe(false);
   });
 
   it("counts the calendar step done once a calendar app has fetched their feed", async () => {

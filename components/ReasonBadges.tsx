@@ -18,24 +18,24 @@ export interface ReasonBadgeData {
   tooltip: string[]
 }
 
-const REASON_ICON: Record<ReasonKind, string> = {
+export const REASON_ICON: Record<ReasonKind, string> = {
   hosting: "🎤",
   commitment: "📌",
   calendar: "📅",
   streak: "🔥",
-  lostStreak: "💔",
+  lostStreak: "🌱",
   sister: "🤝",
   experiencedHost: "⭐",
   popular: "👥",
   regulars: "🦔",
 }
 
-const REASON_LABEL: Record<ReasonKind, string> = {
+export const REASON_LABEL: Record<ReasonKind, string> = {
   hosting: "Hosting",
   commitment: "You committed to this",
   calendar: "In your calendar",
   streak: "Active streak",
-  lostStreak: "Lost streak",
+  lostStreak: "Start a new streak",
   sister: "Likely sister attendance",
   experiencedHost: "Experienced host",
   popular: "Popular session",

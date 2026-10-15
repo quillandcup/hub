@@ -7,6 +7,15 @@ import { useDataTable } from "@/lib/hooks/useDataTable";
 import type { SortValue } from "@/lib/hooks/useTableSort";
 import { DataTablePager } from "@/components/DataTablePager";
 import { ORG_TIMEZONE } from "@/lib/config";
+import type { PrickleRoster, RosterReason } from "@/lib/prickle-roster";
+import { REASON_ICON } from "@/components/ReasonBadges";
+
+/** The same icons the prickle lists use (ReasonBadges), here worded for what another member did. */
+const ROSTER_REASONS: Record<RosterReason, { icon: string; label: string }> = {
+  host: { icon: REASON_ICON.hosting, label: "Hosting" },
+  committed: { icon: REASON_ICON.commitment, label: "Committed" },
+  calendar: { icon: REASON_ICON.calendar, label: "On their calendar" },
+};
 
 const TIMEZONES = [
   { value: "America/New_York", label: "Eastern (ET)" },
@@ -25,6 +34,10 @@ interface PrickleDetailsProps {
   memberBasePath: string;
   showMemberEmails: boolean;
   insightsSlotUrl?: string;
+  /** Whether the prickle has started; one that hasn't has no attendance yet, which reads differently. */
+  hasStarted?: boolean;
+  /** For a prickle that hasn't started: who committed to it or added it to their calendar (lib/prickle-roster.ts). */
+  roster?: PrickleRoster | null;
 }
 
 type SortColumn = "member" | "join" | "leave" | "duration";
@@ -51,6 +64,8 @@ export default function PrickleDetails({
   memberBasePath,
   showMemberEmails,
   insightsSlotUrl,
+  hasStarted = true,
+  roster = null,
 }: PrickleDetailsProps) {
   const table = useDataTable<any, SortColumn>({
     rows: attendanceRecords,
@@ -188,7 +203,13 @@ export default function PrickleDetails({
           <div>
             <span className="text-slate-600 dark:text-slate-400">Attendance:</span>
             <p className="font-semibold text-slate-900 dark:text-slate-100">
-              {uniqueMembers} {uniqueMembers === 1 ? "attendee" : "attendees"}
+              {hasStarted ? (
+                <>
+                  {uniqueMembers} {uniqueMembers === 1 ? "attendee" : "attendees"}
+                </>
+              ) : (
+                "Hasn't started yet"
+              )}
             </p>
           </div>
         </div>
@@ -203,7 +224,7 @@ export default function PrickleDetails({
       {/* Attendance List */}
       <div className="bg-white dark:bg-slate-900 rounded-lg shadow">
         <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800">
-          <h2 className="text-xl font-bold">Attendees ({uniqueMembers})</h2>
+          <h2 className="text-xl font-bold">{hasStarted ? `Attendees (${uniqueMembers})` : "Who's coming"}</h2>
           {attendanceRecords.length > uniqueMembers && (
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
               {attendanceRecords.length} total records (some members left and rejoined)
@@ -276,9 +297,61 @@ export default function PrickleDetails({
             </table>
             <DataTablePager table={table} itemLabel="attendees" />
           </div>
+        ) : !hasStarted && roster && roster.entries.length > 0 ? (
+          <div className="px-6 py-4">
+            <p className="text-sm text-slate-600 dark:text-slate-400 mb-3">
+              The host, and members who&apos;ve committed to this prickle or added it to their calendar. It&apos;s not
+              a sign-up: anyone can still join.
+            </p>
+            <ul className="divide-y divide-slate-100 dark:divide-slate-800">
+              {roster.entries.map((entry) => (
+                <li key={entry.memberId} className="py-2 flex items-center gap-3 text-sm">
+                  <span
+                    role="img"
+                    aria-label={ROSTER_REASONS[entry.reason].label}
+                    title={ROSTER_REASONS[entry.reason].label}
+                    className="w-6 shrink-0 text-center"
+                  >
+                    {ROSTER_REASONS[entry.reason].icon}
+                  </span>
+                  <span className="min-w-0">
+                    <Link
+                      href={`${memberBasePath}/${entry.memberId}`}
+                      className="font-medium text-plum-600 hover:text-plum-700 dark:text-plum-400 hover:underline"
+                    >
+                      {entry.name}
+                    </Link>
+                    {entry.isYou && (
+                      <span className="ml-2 text-xs text-slate-500 dark:text-slate-400">
+                        {entry.hiddenFromOthers ? "You (hidden from others)" : "You"}
+                      </span>
+                    )}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+              {(["host", "committed", "calendar"] as const)
+                .filter((reason) => roster.entries.some((e) => e.reason === reason))
+                .map((reason) => `${ROSTER_REASONS[reason].icon} ${ROSTER_REASONS[reason].label}`)
+                .join(" · ")}
+            </p>
+            {roster.total > roster.entries.length && (
+              <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                and {roster.total - roster.entries.length} more
+              </p>
+            )}
+            <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
+              Don&apos;t want to be listed?{" "}
+              <Link href="/settings/profile" className="underline">
+                Change it in your profile settings
+              </Link>
+              .
+            </p>
+          </div>
         ) : (
           <div className="p-12 text-center text-slate-500 dark:text-slate-400">
-            No attendance records for this Prickle
+            {hasStarted ? "No attendance records for this Prickle" : "Stay tuned to see who attends!"}
           </div>
         )}
       </div>

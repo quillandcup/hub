@@ -265,3 +265,25 @@ describe("prickles and calendar steps", () => {
     expect(synced?.done).toBe(true);
   });
 });
+
+describe("Big Sister step", () => {
+  it("appears only for a member who has a big sister, after the prickle and calendar steps", () => {
+    const without = buildOnboardingState(NOTHING, null);
+    expect(without.steps.map((s) => s.id)).not.toContain("big-sister");
+
+    const withOne = buildOnboardingState({ ...NOTHING, bigSisterName: "Ada Quill" }, null);
+    const ids = withOne.steps.map((s) => s.id);
+    expect(ids.indexOf("big-sister")).toBe(ids.indexOf("calendar") + 1);
+    expect(withOne.steps.find((s) => s.id === "big-sister")).toMatchObject({
+      href: "/big-sisters",
+      target: "big-sister-card",
+      summary: expect.stringContaining("Ada Quill"),
+      done: false,
+    });
+  });
+
+  it("is done once the member confirms it", () => {
+    const state = buildOnboardingState({ ...NOTHING, bigSisterName: "Ada Quill" }, record({ marked_steps: ["big-sister"] }));
+    expect(state.steps.find((s) => s.id === "big-sister")?.done).toBe(true);
+  });
+});

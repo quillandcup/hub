@@ -3,6 +3,8 @@ import {
   buildWelcomeBackQueue,
   buildHedgieversaryQueue,
   buildHiatusNudgeQueue,
+  buildBigSisterQueue,
+  bigSisterMatchKey,
   completionKey,
   type HiatusInput,
   type MemberInput,
@@ -194,5 +196,42 @@ describe("buildHiatusNudgeQueue", () => {
     const result = buildHiatusNudgeQueue(hiatus, membersById, NO_COMPLETIONS, NOW);
     const keys = new Set(result.map((r) => r.occurrenceKey));
     expect(keys.size).toBe(6); // 3 marks x 2 distinct hiatus ids, no collisions
+  });
+});
+
+describe("buildBigSisterQueue", () => {
+  const now = new Date("2026-06-10T12:00:00Z");
+  const alice = { memberId: "m-alice", memberName: "Alice", startedOn: "2026-06-08" };
+  const bea = { memberId: "m-bea", memberName: "Bea", startedOn: "2026-06-09" };
+
+  it("lists new members without a big sister, oldest first", () => {
+    const items = buildBigSisterQueue([bea, alice], new Set(), new Map(), now);
+    expect(items.map((i) => i.memberName)).toEqual(["Alice", "Bea"]);
+    expect(items[0]).toMatchObject({
+      queueType: "big_sister",
+      deadline: "2026-06-08",
+      occurrenceKey: "2026-06-08",
+      label: "Needs a big sister",
+    });
+  });
+
+  it("drops a member once matched", () => {
+    expect(buildBigSisterQueue([alice, bea], new Set([bigSisterMatchKey("m-alice", "2026-06-08")]), new Map(), now).map((i) => i.memberName)).toEqual([
+      "Bea",
+    ]);
+  });
+
+  it("lists a returning member again for a later arrival, even if their earlier one was matched", () => {
+    const earlier = new Set([bigSisterMatchKey("m-alice", "2026-01-05")]);
+    expect(buildBigSisterQueue([alice], earlier, new Map(), now).map((i) => i.memberName)).toEqual(["Alice"]);
+  });
+
+  it("drops a member whose item was marked done", () => {
+    const completed = new Map([[completionKey("big_sister", "m-alice", "2026-06-08"), { status: "completed" as const, postponedUntil: null }]]);
+    expect(buildBigSisterQueue([alice], new Set(), completed, now)).toEqual([]);
+  });
+
+  it("stops listing a member after the lookback window", () => {
+    expect(buildBigSisterQueue([{ ...alice, startedOn: "2026-05-01" }], new Set(), new Map(), now)).toEqual([]);
   });
 });
