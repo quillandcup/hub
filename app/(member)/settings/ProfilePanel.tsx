@@ -58,6 +58,7 @@ export function ProfilePanel() {
   const [topics, setTopics] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [rosterSaving, setRosterSaving] = useState(false);
+  const [rosterStatus, setRosterStatus] = useState<{ error: boolean; text: string } | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -125,19 +126,20 @@ export function ProfilePanel() {
   }
 
   // Saved on its own as soon as it's ticked, apart from the profile form's Save.
+  // Its confirmation or error shows beside the checkbox, not in the form's status line at the top,
+  // which would push the page down under the pointer.
   async function handleRosterChange(show: boolean) {
     if (!data) return;
-    setError(null);
-    setMessage(null);
+    setRosterStatus(null);
     setData({ ...data, showInRoster: show });
     setRosterSaving(true);
     const result = await setRosterVisibility(show);
     setRosterSaving(false);
     if ("error" in result) {
       setData((current) => (current ? { ...current, showInRoster: !show } : current));
-      return setError(result.error);
+      return setRosterStatus({ error: true, text: result.error });
     }
-    setMessage("Saved.");
+    setRosterStatus({ error: false, text: "Saved." });
   }
 
   if (loading && !data) {
@@ -303,6 +305,16 @@ export function ProfilePanel() {
             </span>
           </span>
         </label>
+        {rosterStatus && (
+          <p
+            role="status"
+            className={`mt-1 ml-6 text-xs ${
+              rosterStatus.error ? "text-red-600 dark:text-red-400" : "text-green-600 dark:text-green-400"
+            }`}
+          >
+            {rosterStatus.text}
+          </p>
+        )}
       </div>
     </div>
   );

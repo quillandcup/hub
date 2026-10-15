@@ -233,6 +233,9 @@ describe("ProfilePanel who's coming setting", () => {
     expect(profileActions.setRosterVisibility).toHaveBeenCalledWith(false)
     expect(profileActions.updateProfileDetails).not.toHaveBeenCalled()
     expect(await checkbox()).not.toBeChecked()
+    // The confirmation sits with the checkbox, not in the form's status line at the top.
+    const saved = await screen.findByText('Saved.')
+    expect(saved.closest('div')).toContainElement(await checkbox())
   })
 
   it('puts the box back and says why when saving fails', async () => {
