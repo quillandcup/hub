@@ -4,6 +4,8 @@ import type { NotificationKindId } from "@/lib/notifications/registry";
 import type { NotificationEmailProps } from "./NotificationEmail";
 import { PrickleCheckinEmail } from "./prickle-checkin";
 import { PrickleCheckoutEmail } from "./prickle-checkout";
+import { IntroNudgeEmail } from "./intro-nudge";
+import { PrickleNudgeEmail } from "./prickle-nudge";
 import { BigSisterMatchEmail } from "./big-sister-match";
 
 /**
@@ -18,6 +20,8 @@ import { BigSisterMatchEmail } from "./big-sister-match";
 const TEMPLATES = {
   prickle_checkin: PrickleCheckinEmail,
   prickle_checkout: PrickleCheckoutEmail,
+  intro_nudge: IntroNudgeEmail,
+  prickle_nudge: PrickleNudgeEmail,
   big_sister_match: BigSisterMatchEmail,
 } satisfies Record<NotificationKindId, (props: NotificationEmailProps) => React.ReactElement>;
 
