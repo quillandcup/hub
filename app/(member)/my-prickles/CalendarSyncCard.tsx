@@ -95,8 +95,9 @@ export default function CalendarSyncCard({ initialUrls }: { initialUrls: Calenda
           </h2>
           <p className="text-sm text-slate-600 dark:text-slate-400 mt-0.5">
             One-time setup. Prickles you host and prickles you&apos;ve committed to show up automatically and stay updated
-            on their own. Want others too, like an Educational Prickle or a retreat? Use{" "}
-            <span className="font-medium">Add to my calendar</span> in All Prickles or on the event&apos;s page.
+            on their own. Want others too, like an Educational Prickle or a retreat? Tap the{" "}
+            <span className="font-medium">calendar icon</span> beside it in Upcoming or All Prickles, or use{" "}
+            <span className="font-medium">Add to my calendar</span> on its page.
           </p>
         </div>
         <button

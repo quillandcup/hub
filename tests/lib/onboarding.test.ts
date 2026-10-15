@@ -11,6 +11,7 @@ const NOW = new Date("2026-10-03T12:00:00Z");
 const NOT_NEWCOMER = { isNewcomer: false, introUrl: null, hasIntroduced: false, hasAttendedPrickle: false, hasUpcomingPrickle: false };
 const NOT_HOST = { isHost: false, hasHostingSchedule: false, hostedRecently: false, hasHostVibe: false, isNewcomer: false, introUrl: null, hasIntroduced: false, hasAttendedPrickle: false, hasUpcomingPrickle: false };
 const IDENTITY_DONE = ["identity.basics", "identity.names", "identity.emails"];
+const EVERYTHING_MARKED = [...IDENTITY_DONE, "calendar"];
 const NOTHING: OnboardingSignals = { hasHubProfile: false, latestProjectId: null, hasGoal: false, hasPricklePlan: false, ...NOT_HOST };
 const record = (r: Partial<OnboardingRecord> = {}): OnboardingRecord => ({
   marked_steps: [],
@@ -22,7 +23,7 @@ const record = (r: Partial<OnboardingRecord> = {}): OnboardingRecord => ({
 describe("buildOnboardingState", () => {
   it("lists the steps in order and starts at identity", () => {
     const state = buildOnboardingState(NOTHING, null);
-    expect(state.steps.map((s) => s.id)).toEqual(["identity", "profile", "writing", "prickles"]);
+    expect(state.steps.map((s) => s.id)).toEqual(["identity", "profile", "writing", "prickles", "calendar"]);
     expect(state.currentStepId).toBe("identity");
     expect(state.completed).toBe(false);
   });
@@ -101,7 +102,7 @@ describe("buildOnboardingState", () => {
   it("is completed and still active (to say all set) when every step is done but not yet finished", () => {
     const state = buildOnboardingState(
       { hasHubProfile: true, latestProjectId: "p1", hasGoal: true, hasPricklePlan: true, ...NOT_HOST },
-      record({ marked_steps: IDENTITY_DONE })
+      record({ marked_steps: EVERYTHING_MARKED })
     );
     expect(state).toMatchObject({ completed: true, currentStepId: null, active: true });
   });
@@ -112,7 +113,7 @@ describe("hosting steps", () => {
 
   it("only hosts get them", () => {
     expect(ids(NOTHING)).not.toContain("hosting");
-    expect(ids({ ...NOTHING, isHost: true })).toEqual(["identity", "profile", "writing", "prickles", "hosting"]);
+    expect(ids({ ...NOTHING, isHost: true })).toEqual(["identity", "profile", "writing", "prickles", "calendar", "hosting"]);
   });
 
   it("adds the vibe step once they've hosted recently enough for Settings → Hosting to list their prickles", () => {
@@ -121,6 +122,7 @@ describe("hosting steps", () => {
       "profile",
       "writing",
       "prickles",
+      "calendar",
       "hosting",
       "host-vibe",
     ]);
@@ -156,7 +158,7 @@ describe("hosting steps", () => {
       hasHostVibe: false,
       ...NOT_NEWCOMER,
     };
-    const state = buildOnboardingState(allButHosting, record({ marked_steps: IDENTITY_DONE }));
+    const state = buildOnboardingState(allButHosting, record({ marked_steps: EVERYTHING_MARKED }));
     expect(state).toMatchObject({ completed: false, currentStepId: "hosting" });
   });
 });
@@ -194,6 +196,7 @@ describe("newcomer steps", () => {
       "intro",
       "writing",
       "prickles",
+      "calendar",
     ]);
     expect(view(newcomer, "intro")).toMatchObject({ externalHref: INTRO_URL, done: false });
     expect(view({ ...NOTHING, introUrl: INTRO_URL }, "intro")).toBeUndefined();
@@ -226,5 +229,24 @@ describe("newcomer steps", () => {
 
   it("keeps the old rule for members past their first 90 days", () => {
     expect(view({ ...NOTHING, hasPricklePlan: true }, "prickles")).toMatchObject({ title: "Join a prickle", done: true });
+  });
+});
+
+describe("prickles and calendar steps", () => {
+  const step = (id: string, rec: OnboardingRecord | null = null) =>
+    buildOnboardingState(NOTHING, rec).steps.find((s) => s.id === id)!;
+
+  it("points the prickles step at the calendar icon beside each upcoming prickle", () => {
+    expect(step("prickles")).toMatchObject({ href: "/my-prickles", target: "add-to-calendar" });
+  });
+
+  it("walks everyone through syncing their calendar app, confirmed by hand", () => {
+    expect(step("calendar")).toMatchObject({
+      href: "/my-prickles/commitments",
+      target: "calendar-sync",
+      confirmLabel: "My calendar is set up",
+      done: false,
+    });
+    expect(step("calendar", record({ marked_steps: ["calendar"] })).done).toBe(true);
   });
 });

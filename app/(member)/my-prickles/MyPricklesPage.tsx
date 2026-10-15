@@ -192,7 +192,7 @@ export default async function MyPricklesPage({
                     </p>
                   ) : (
                     <div>
-                      {displayedUpcoming.map(({ prickle, reasons }) => (
+                      {displayedUpcoming.map(({ prickle, reasons }, index) => (
                         <UpcomingPrickleRow
                           key={prickle.id}
                           prickle={prickle}
@@ -201,6 +201,7 @@ export default async function MyPricklesPage({
                           checkin={checkins[prickle.id] ?? null}
                           checkinDismissed={dismissedCheckins.has(prickle.id)}
                           calendar={calendarFor(prickle, reasons)}
+                          tourTarget={index === 0}
                         />
                       ))}
                       {ranked.length > displayedUpcoming.length && (
@@ -246,10 +247,7 @@ export default async function MyPricklesPage({
               label: MY_PRICKLES_TAB_LABELS.find,
               content: (
                 <div className="flex justify-center">
-                  {/* Hugs the wizard so the Getting started tour's spotlight outlines just it. */}
-                  <div data-tour="find-prickle">
-                    <PrickleWizard members={members} />
-                  </div>
+                  <PrickleWizard members={members} />
                 </div>
               ),
             },
@@ -258,7 +256,12 @@ export default async function MyPricklesPage({
               label: MY_PRICKLES_TAB_LABELS.commitments,
               content: (
                 <>
-                  {calendarFeedUrls && <CalendarSyncCard initialUrls={calendarFeedUrls} />}
+                  {/* Hugs the card so the Getting started tour's spotlight outlines just it. */}
+                  {calendarFeedUrls && (
+                    <div data-tour="calendar-sync">
+                      <CalendarSyncCard initialUrls={calendarFeedUrls} />
+                    </div>
+                  )}
                   <CommitmentsManager commitments={commitments} />
                   <AddedToCalendarList items={calendarItems} />
                 </>

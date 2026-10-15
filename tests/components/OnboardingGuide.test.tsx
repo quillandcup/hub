@@ -34,6 +34,7 @@ import {
 
 const NOT_HOST = { isHost: false, hasHostingSchedule: false, hostedRecently: false, hasHostVibe: false, isNewcomer: false, introUrl: null, hasIntroduced: false, hasAttendedPrickle: false, hasUpcomingPrickle: false };
 const IDENTITY_DONE = ["identity.basics", "identity.names", "identity.emails"];
+const EVERYTHING_MARKED = [...IDENTITY_DONE, "calendar"];
 const fresh = (): OnboardingState =>
   buildOnboardingState(
     { hasHubProfile: false, latestProjectId: null, hasGoal: false, hasPricklePlan: false, ...NOT_HOST },
@@ -62,7 +63,7 @@ describe("OnboardingGuide", () => {
     render(<OnboardingGuide initialState={fresh()} />);
 
     expect(screen.getByRole("region", { name: "Getting started" })).toBeInTheDocument();
-    expect(screen.getByText("0 of 4 done ▾")).toBeInTheDocument();
+    expect(screen.getByText("0 of 5 done ▾")).toBeInTheDocument();
     expect(screen.getByText("Check your details")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Show me →" })).toHaveAttribute("href", "/settings/identity");
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
@@ -93,7 +94,7 @@ describe("OnboardingGuide", () => {
     render(<OnboardingGuide initialState={fresh()} />);
 
     const first = await screen.findByRole("dialog", { name: "Your name and birthday" });
-    expect(first).toHaveTextContent("Step 1 of 4 · 1 of 3");
+    expect(first).toHaveTextContent("Step 1 of 5 · 1 of 3");
     expect(first).toHaveTextContent(/celebrate you/);
     expect(screen.getByTestId("onboarding-highlight")).toBeInTheDocument();
 
@@ -101,7 +102,7 @@ describe("OnboardingGuide", () => {
     await userEvent.click(screen.getByRole("button", { name: "Looks right" }));
     expect(markOnboardingStep).toHaveBeenCalledWith("identity.basics");
     const second = await screen.findByRole("dialog", { name: "Pen names and Zoom/Slack names" });
-    expect(second).toHaveTextContent("Step 1 of 4 · 2 of 3");
+    expect(second).toHaveTextContent("Step 1 of 5 · 2 of 3");
 
     vi.mocked(getMyOnboardingState).mockResolvedValue(withMarked(["identity.basics", "identity.names"]));
     await userEvent.click(screen.getByRole("button", { name: "My names look right" }));
@@ -111,7 +112,7 @@ describe("OnboardingGuide", () => {
     vi.mocked(getMyOnboardingState).mockResolvedValue(withMarked(IDENTITY_DONE));
     await userEvent.click(screen.getByRole("button", { name: "My emails look right" }));
     expect(markOnboardingStep).toHaveBeenCalledWith("identity.emails");
-    await waitFor(() => expect(screen.getByText(/1 of 4 done/)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(/1 of 5 done/)).toBeInTheDocument());
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
@@ -264,7 +265,7 @@ describe("OnboardingGuide", () => {
   it("says all set once every step is done, and Finish completes it", async () => {
     const done = buildOnboardingState(
       { hasHubProfile: true, latestProjectId: "p1", hasGoal: true, hasPricklePlan: true, ...NOT_HOST },
-      { marked_steps: IDENTITY_DONE, dismissed_at: null, completed_at: null }
+      { marked_steps: EVERYTHING_MARKED, dismissed_at: null, completed_at: null }
     );
     vi.mocked(getMyOnboardingState).mockResolvedValue(done);
     vi.mocked(completeOnboarding).mockResolvedValue({ success: true });

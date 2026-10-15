@@ -16,12 +16,14 @@
  * has an external link instead of a spotlight. Their "prickles" step is also stricter: it asks for
  * a prickle on the calendar until they've attended one. Reminders for both: lib/onboarding-nudges.ts.
  *
+ * Everyone is also walked through syncing their calendar app (the "calendar" step, confirmed by hand).
+ *
  * Hosts get two more steps (most members never host, so nobody else sees them): their hosting
  * schedule on My Prickles → Hosting, and, once they've hosted recently enough to have prickle
  * types listed in Settings → Hosting, the vibe they run each type with.
  */
 
-export const ONBOARDING_STEP_IDS = ["identity", "profile", "intro", "writing", "prickles", "hosting", "host-vibe"] as const;
+export const ONBOARDING_STEP_IDS = ["identity", "profile", "intro", "writing", "prickles", "calendar", "hosting", "host-vibe"] as const;
 export type OnboardingStepId = (typeof ONBOARDING_STEP_IDS)[number];
 
 /** What the member's own data says, gathered once per page load. */
@@ -181,11 +183,11 @@ function pricklesStep(signals: OnboardingSignals, marked: Set<string>): StepWith
     title: firstPrickle ? "Schedule your first prickle" : "Join a prickle",
     summary: firstPrickle
       ? "Pick a prickle for your first writing session and add it to your calendar."
-      : "Find a prickle that fits your week and commit to it.",
-    href: "/my-prickles/find",
-    target: "find-prickle",
+      : "Pick a prickle that fits your week and add it to your calendar.",
+    href: "/my-prickles",
+    target: "add-to-calendar",
     calloutTitle: firstPrickle ? "Schedule your first prickle" : "Join a prickle",
-    hint: "Answer a few questions to find prickles that fit your schedule, then commit to one. You can add it to your own calendar from there too.",
+    hint: "Tap this calendar icon beside a prickle to add it, just that one or every week. Nothing fits? Find a Prickle suggests ones for your schedule.",
     markKey: "prickles",
     done: marked.has("prickles") || (signals.isNewcomer
       ? signals.hasAttendedPrickle || signals.hasUpcomingPrickle
@@ -248,6 +250,19 @@ function stepViews(signals: OnboardingSignals, marked: Set<string>): StepWithout
       done: signals.hasGoal || marked.has("writing"),
     },
     pricklesStep(signals, marked),
+    {
+      id: "calendar",
+      title: "Sync your calendar",
+      summary: "Subscribe your calendar app so your prickles show up there too.",
+      href: "/my-prickles/commitments",
+      target: "calendar-sync",
+      calloutTitle: "Sync your calendar",
+      hint: "Subscribe in Google, Apple or Outlook and the prickles you add, commit to or host appear in your own calendar, reminders and all. Pick your calendar app below; there are steps if you get stuck.",
+      // Nothing in our data shows a calendar app subscribed, so they confirm it.
+      confirmLabel: "My calendar is set up",
+      markKey: "calendar",
+      done: marked.has("calendar"),
+    },
   ];
   if (!signals.isHost) return steps;
 
