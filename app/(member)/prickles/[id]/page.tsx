@@ -228,7 +228,7 @@ export default async function PrickleDetailPage({
     try {
       roster = await loadPrickleRoster(
         createServiceRoleClient(),
-        { id: prickle.id, type_id: prickle.type_id, start_time: prickle.start_time },
+        { id: prickle.id, type_id: prickle.type_id, start_time: prickle.start_time, host_id: hostId ?? null },
         effectiveIdentity?.memberId ?? null
       );
     } catch (error) {

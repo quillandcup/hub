@@ -7,17 +7,18 @@ import { getMemberDisplayName } from "@/lib/member-display-name";
  * do. Someone is listed when they
  *  - committed to the prickle's weekly slot (an active commitment whose window covers its date), or
  *  - added it to their calendar, either just this one or its weekly slot.
+ * plus the host, who is public already (the page names them) and so never hidden.
  * Commitments and calendar items are private to each member (RLS), so this reads them with the
  * service role and hands back only names. A member can opt out (member_roster_opt_outs); they then
- * show only to themselves, marked as hidden. Hosts aren't listed here: the page names the host.
+ * show only to themselves, marked as hidden.
  */
 
-export type RosterReason = "committed" | "calendar";
+export type RosterReason = "host" | "committed" | "calendar";
 
 export interface RosterEntry {
   memberId: string;
   name: string;
-  /** Committing outranks adding to a calendar. */
+  /** Hosting outranks committing, which outranks adding to a calendar. */
   reason: RosterReason;
   isYou: boolean;
   /** Only ever true for the viewer: they opted out, so others don't see them. */
@@ -37,6 +38,8 @@ export interface RosterPrickle {
   type_id: string | null;
   start_time: string;
   id: string;
+  /** Member id of the host, if it has one. */
+  host_id?: string | null;
 }
 
 const BATCH_SIZE = 1000;
@@ -68,23 +71,26 @@ export async function loadPrickleRoster(
   prickle: RosterPrickle,
   viewerMemberId: string | null
 ): Promise<PrickleRoster> {
-  if (!prickle.type_id) return { entries: [], total: 0 };
+  // Commitments and weekly calendar items are about a slot (type + weekday + time), so a prickle with
+  // no type has none; just this one can still be added, and it can still have a host.
   const typeId = prickle.type_id;
   const slot = slotTimeForInstant(prickle.start_time, SCHEDULE_TIMEZONE);
   const startTimeLocal = normalizeTime(slot.startTimeLocal);
   const localDate = localDateFor(new Date(prickle.start_time), SCHEDULE_TIMEZONE);
 
   const [committedRows, onceRows, weeklyRows] = await Promise.all([
-    fetchAll<CommitmentSlotRow>((from, to) =>
-      service
-        .from("prickle_commitment_slots")
-        .select("start_time_local, prickle_commitments!inner(member_id, status, start_date, end_date)")
-        .eq("type_id", typeId)
-        .eq("day_of_week", slot.dayOfWeek)
-        .eq("timezone", SCHEDULE_TIMEZONE)
-        .order("id")
-        .range(from, to)
-    ),
+    typeId
+      ? fetchAll<CommitmentSlotRow>((from, to) =>
+          service
+            .from("prickle_commitment_slots")
+            .select("start_time_local, prickle_commitments!inner(member_id, status, start_date, end_date)")
+            .eq("type_id", typeId)
+            .eq("day_of_week", slot.dayOfWeek)
+            .eq("timezone", SCHEDULE_TIMEZONE)
+            .order("id")
+            .range(from, to)
+        )
+      : Promise.resolve([] as CommitmentSlotRow[]),
     fetchAll<{ member_id: string }>((from, to) =>
       service
         .from("calendar_feed_items")
@@ -94,17 +100,19 @@ export async function loadPrickleRoster(
         .order("id")
         .range(from, to)
     ),
-    fetchAll<{ member_id: string; start_time_local: string }>((from, to) =>
-      service
-        .from("calendar_feed_items")
-        .select("member_id, start_time_local")
-        .eq("kind", "slot")
-        .eq("type_id", typeId)
-        .eq("day_of_week", slot.dayOfWeek)
-        .eq("timezone", SCHEDULE_TIMEZONE)
-        .order("id")
-        .range(from, to)
-    ),
+    typeId
+      ? fetchAll<{ member_id: string; start_time_local: string }>((from, to) =>
+          service
+            .from("calendar_feed_items")
+            .select("member_id, start_time_local")
+            .eq("kind", "slot")
+            .eq("type_id", typeId)
+            .eq("day_of_week", slot.dayOfWeek)
+            .eq("timezone", SCHEDULE_TIMEZONE)
+            .order("id")
+            .range(from, to)
+        )
+      : Promise.resolve([] as { member_id: string; start_time_local: string }[]),
   ]);
 
   const reasonByMember = new Map<string, RosterReason>();
@@ -119,6 +127,7 @@ export async function loadPrickleRoster(
     if (localDate < commitment.start_date || localDate > commitment.end_date) continue;
     reasonByMember.set(commitment.member_id, "committed");
   }
+  if (prickle.host_id) reasonByMember.set(prickle.host_id, "host");
   if (reasonByMember.size === 0) return { entries: [], total: 0 };
 
   const memberIds = [...reasonByMember.keys()];
@@ -138,23 +147,15 @@ export async function loadPrickleRoster(
   for (const m of members.flat() as { id: string; name: string; display_name: string | null; status: string }[]) {
     if (m.status === "cancelled") continue;
     const isYou = m.id === viewerMemberId;
-    const isHidden = hiddenIds.has(m.id);
+    const reason = reasonByMember.get(m.id)!;
+    // The host is named on the page anyway, so opting out doesn't apply to hosting.
+    const isHidden = hiddenIds.has(m.id) && reason !== "host";
     if (isHidden && !isYou) continue;
-    entries.push({
-      memberId: m.id,
-      name: getMemberDisplayName(m),
-      reason: reasonByMember.get(m.id)!,
-      isYou,
-      hiddenFromOthers: isHidden,
-    });
+    entries.push({ memberId: m.id, name: getMemberDisplayName(m), reason, isYou, hiddenFromOthers: isHidden });
   }
 
-  // You first, then those who committed (a firmer sign-up), then alphabetically.
-  entries.sort(
-    (a, b) =>
-      Number(b.isYou) - Number(a.isYou) ||
-      Number(b.reason === "committed") - Number(a.reason === "committed") ||
-      a.name.localeCompare(b.name)
-  );
+  // The host, then you, then those who committed (a firmer sign-up), then alphabetically.
+  const rank = (e: RosterEntry) => (e.reason === "host" ? 0 : e.isYou ? 1 : e.reason === "committed" ? 2 : 3);
+  entries.sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name));
   return { entries: entries.slice(0, ROSTER_LIMIT), total: entries.length };
 }

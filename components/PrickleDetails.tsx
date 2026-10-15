@@ -7,7 +7,15 @@ import { useDataTable } from "@/lib/hooks/useDataTable";
 import type { SortValue } from "@/lib/hooks/useTableSort";
 import { DataTablePager } from "@/components/DataTablePager";
 import { ORG_TIMEZONE } from "@/lib/config";
-import type { PrickleRoster } from "@/lib/prickle-roster";
+import type { PrickleRoster, RosterReason } from "@/lib/prickle-roster";
+import { REASON_ICON } from "@/components/ReasonBadges";
+
+/** The same icons the prickle lists use (ReasonBadges), here worded for what another member did. */
+const ROSTER_REASONS: Record<RosterReason, { icon: string; label: string }> = {
+  host: { icon: REASON_ICON.hosting, label: "Hosting" },
+  committed: { icon: REASON_ICON.commitment, label: "Committed" },
+  calendar: { icon: REASON_ICON.calendar, label: "On their calendar" },
+};
 
 const TIMEZONES = [
   { value: "America/New_York", label: "Eastern (ET)" },
@@ -292,12 +300,20 @@ export default function PrickleDetails({
         ) : !hasStarted && roster && roster.entries.length > 0 ? (
           <div className="px-6 py-4">
             <p className="text-sm text-slate-600 dark:text-slate-400 mb-3">
-              Members who&apos;ve committed to this prickle or added it to their calendar. It&apos;s not a sign-up:
-              anyone can still join.
+              The host, and members who&apos;ve committed to this prickle or added it to their calendar. It&apos;s not
+              a sign-up: anyone can still join.
             </p>
             <ul className="divide-y divide-slate-100 dark:divide-slate-800">
               {roster.entries.map((entry) => (
-                <li key={entry.memberId} className="py-2 flex items-center justify-between gap-3 text-sm">
+                <li key={entry.memberId} className="py-2 flex items-center gap-3 text-sm">
+                  <span
+                    role="img"
+                    aria-label={ROSTER_REASONS[entry.reason].label}
+                    title={ROSTER_REASONS[entry.reason].label}
+                    className="w-6 shrink-0 text-center"
+                  >
+                    {ROSTER_REASONS[entry.reason].icon}
+                  </span>
                   <span className="min-w-0">
                     <Link
                       href={`${memberBasePath}/${entry.memberId}`}
@@ -311,12 +327,15 @@ export default function PrickleDetails({
                       </span>
                     )}
                   </span>
-                  <span className="shrink-0 text-xs text-slate-500 dark:text-slate-400">
-                    {entry.reason === "committed" ? "Committed" : "On their calendar"}
-                  </span>
                 </li>
               ))}
             </ul>
+            <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+              {(["host", "committed", "calendar"] as const)
+                .filter((reason) => roster.entries.some((e) => e.reason === reason))
+                .map((reason) => `${ROSTER_REASONS[reason].icon} ${ROSTER_REASONS[reason].label}`)
+                .join(" · ")}
+            </p>
             {roster.total > roster.entries.length && (
               <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
                 and {roster.total - roster.entries.length} more

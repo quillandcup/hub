@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import PrickleDetails from "@/components/PrickleDetails";
 
 const prickle = {
@@ -67,18 +67,27 @@ describe("PrickleDetails who's coming", () => {
     ...over,
   });
 
-  it("lists who committed or added it to their calendar, linking to their profiles", () => {
+  it("lists the host, who committed, and who added it to their calendar, linking to their profiles", () => {
     renderDetails({
       hasStarted: false,
       roster: {
-        entries: [entry(), entry({ memberId: "m2", name: "Bramble Hedge", reason: "calendar" })],
-        total: 2,
+        entries: [
+          entry({ memberId: "h1", name: "Zoe Host", reason: "host" }),
+          entry(),
+          entry({ memberId: "m2", name: "Bramble Hedge", reason: "calendar" }),
+        ],
+        total: 3,
       },
     });
     expect(screen.getByRole("heading", { name: "Who's coming" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Fern Quillsby" })).toHaveAttribute("href", "/members/m1");
-    expect(screen.getByText("Committed")).toBeInTheDocument();
-    expect(screen.getByText("On their calendar")).toBeInTheDocument();
+    // An icon per row (the same ones the prickle lists use), not words, with the meaning on hover and for screen readers.
+    const row = (name: string) => screen.getByRole("link", { name }).closest("li")!;
+    expect(within(row("Zoe Host")).getByRole("img", { name: "Hosting" })).toHaveTextContent("🎤");
+    expect(within(row("Fern Quillsby")).getByRole("img", { name: "Committed" })).toHaveTextContent("📌");
+    expect(within(row("Bramble Hedge")).getByRole("img", { name: "On their calendar" })).toHaveTextContent("📅");
+    // One short legend, instead of repeating the words on every row.
+    expect(screen.getByText("🎤 Hosting · 📌 Committed · 📅 On their calendar")).toBeInTheDocument();
     expect(screen.getByText(/It's not a sign-up/)).toBeInTheDocument();
     expect(screen.queryByText("Stay tuned to see who attends!")).not.toBeInTheDocument();
   });

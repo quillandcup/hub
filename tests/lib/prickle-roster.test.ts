@@ -187,9 +187,52 @@ describe("loadPrickleRoster", () => {
     expect(result.total).toBe(ROSTER_LIMIT + 10);
   });
 
-  it("is empty for a prickle with no type, without querying", async () => {
-    const fake = setup({ once: ["m1"], members: [member("m1", "Ana")] });
-    expect(await loadPrickleRoster(fake as never, { ...PRICKLE, type_id: null }, null)).toEqual({ entries: [], total: 0 });
-    expect(fake.queries).toEqual([]);
+  it("has no slot-based sign-ups for a prickle with no type, only 'just this one' and the host", async () => {
+    const fake = setup({
+      commitments: [commitment("m1")],
+      weekly: [{ member_id: "m2", start_time_local: "15:00:00" }],
+      once: ["m3"],
+      members: [member("m1", "Ana"), member("m2", "Bea"), member("m3", "Cy"), member("m4", "Di")],
+    });
+    const result = await loadPrickleRoster(fake as never, { ...PRICKLE, type_id: null, host_id: "m4" }, null);
+    expect(result.entries.map((e) => [e.memberId, e.reason])).toEqual([
+      ["m4", "host"],
+      ["m3", "calendar"],
+    ]);
+    expect(fake.queries.some((q) => q.table === "prickle_commitment_slots")).toBe(false);
+  });
+
+  describe("the host", () => {
+    const s: Setup = {
+      commitments: [commitment("m2")],
+      once: ["m3"],
+      members: [member("m1", "Zoe Host"), member("m2", "Bea"), member("m3", "Cy")],
+    };
+    const withHost = { ...PRICKLE, host_id: "m1" };
+
+    it("is listed first, then those who committed, then calendar adds", async () => {
+      const result = await roster(s, null, withHost);
+      expect(result.entries.map((e) => [e.name, e.reason])).toEqual([
+        ["Zoe Host", "host"],
+        ["Bea", "committed"],
+        ["Cy", "calendar"],
+      ]);
+    });
+
+    it("stays listed as host even after opting out, since the page names them anyway", async () => {
+      const result = await roster({ ...s, optedOut: ["m1"] }, "m2", withHost);
+      const host = result.entries.find((e) => e.memberId === "m1");
+      expect(host).toMatchObject({ reason: "host", hiddenFromOthers: false });
+    });
+
+    it("shows hosting rather than committed or calendar for a host who also signed up", async () => {
+      const result = await roster({ ...s, once: ["m1"], commitments: [commitment("m1")] }, null, withHost);
+      expect(result.entries.filter((e) => e.memberId === "m1").map((e) => e.reason)).toEqual(["host"]);
+    });
+
+    it("isn't listed when they've left", async () => {
+      const result = await roster({ ...s, members: [member("m1", "Zoe Host", { status: "cancelled" })] }, null, withHost);
+      expect(result.entries).toEqual([]);
+    });
   });
 });
