@@ -25,6 +25,8 @@ interface PrickleDetailsProps {
   memberBasePath: string;
   showMemberEmails: boolean;
   insightsSlotUrl?: string;
+  /** Whether the prickle has started; one that hasn't has no attendance yet, which reads differently. */
+  hasStarted?: boolean;
 }
 
 type SortColumn = "member" | "join" | "leave" | "duration";
@@ -51,6 +53,7 @@ export default function PrickleDetails({
   memberBasePath,
   showMemberEmails,
   insightsSlotUrl,
+  hasStarted = true,
 }: PrickleDetailsProps) {
   const table = useDataTable<any, SortColumn>({
     rows: attendanceRecords,
@@ -188,7 +191,13 @@ export default function PrickleDetails({
           <div>
             <span className="text-slate-600 dark:text-slate-400">Attendance:</span>
             <p className="font-semibold text-slate-900 dark:text-slate-100">
-              {uniqueMembers} {uniqueMembers === 1 ? "attendee" : "attendees"}
+              {hasStarted ? (
+                <>
+                  {uniqueMembers} {uniqueMembers === 1 ? "attendee" : "attendees"}
+                </>
+              ) : (
+                "Hasn't started yet"
+              )}
             </p>
           </div>
         </div>
@@ -203,7 +212,7 @@ export default function PrickleDetails({
       {/* Attendance List */}
       <div className="bg-white dark:bg-slate-900 rounded-lg shadow">
         <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800">
-          <h2 className="text-xl font-bold">Attendees ({uniqueMembers})</h2>
+          <h2 className="text-xl font-bold">{hasStarted ? `Attendees (${uniqueMembers})` : "Who's coming"}</h2>
           {attendanceRecords.length > uniqueMembers && (
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
               {attendanceRecords.length} total records (some members left and rejoined)
@@ -278,7 +287,7 @@ export default function PrickleDetails({
           </div>
         ) : (
           <div className="p-12 text-center text-slate-500 dark:text-slate-400">
-            No attendance records for this Prickle
+            {hasStarted ? "No attendance records for this Prickle" : "Stay tuned to see who attends!"}
           </div>
         )}
       </div>

@@ -256,6 +256,7 @@ export default async function PrickleDetailPage({
             userTimezonePreference={userTimezone}
             memberBasePath={memberBasePath}
             showMemberEmails={isActingAsAdmin}
+            hasStarted={started}
           />
           {isActingAsAdmin && unmatchedZoomAttendees.length > 0 && (
             <AliasSearchForm
