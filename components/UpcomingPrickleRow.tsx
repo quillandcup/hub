@@ -41,6 +41,7 @@ export default function UpcomingPrickleRow({
   checkin = null,
   checkinDismissed = false,
   calendar = null,
+  tourTarget = false,
   now = Date.now(),
 }: {
   prickle: UpcomingPrickle
@@ -52,6 +53,8 @@ export default function UpcomingPrickleRow({
   checkinDismissed?: boolean
   /** Shows "Add to my calendar" beside the time, so there's no need to open the prickle first. */
   calendar?: UpcomingCalendar | null
+  /** Marks the calendar control for the Getting started tour's spotlight (the list's first row). */
+  tourTarget?: boolean
   now?: number
 }) {
   const startsSoon = !checkinDismissed && checkinOffered(prickle, reasons, now)
@@ -70,13 +73,16 @@ export default function UpcomingPrickleRow({
             {formatUpcomingTime(prickle.startTime, timeZone)}
           </p>
           {calendar && (
-            <AddPrickleToCalendar
-              prickleId={prickle.id}
-              typeName={prickle.typeName}
-              nextLabel={calendar.nextLabel}
-              state={calendar.state}
-              autoIncluded={calendar.autoIncluded}
-            />
+            <div data-tour={tourTarget ? "add-to-calendar" : undefined}>
+              <AddPrickleToCalendar
+                variant="icon"
+                prickleId={prickle.id}
+                typeName={prickle.typeName}
+                nextLabel={calendar.nextLabel}
+                state={calendar.state}
+                autoIncluded={calendar.autoIncluded}
+              />
+            </div>
           )}
           {startsSoon && (
             <Link
