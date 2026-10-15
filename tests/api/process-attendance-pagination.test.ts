@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { getTestSupabaseAdminClient, getTestAuthHeaders, getTestApiBaseUrl } from '../helpers/supabase'
 import { seedReferenceData } from '../helpers/seed-data'
+import { apiFetch } from '../helpers/api-fetch'
 
 /**
  * Integration tests verifying that attendance processing paginates zoom_attendees
@@ -89,7 +90,7 @@ describe('Attendance Processing Pagination', () => {
       expect(count).toBe(MEETING_COUNT * ATTENDEES_PER_MEETING)
 
       // ACT: Process attendance for the full date range
-      const response = await fetch(`${getTestApiBaseUrl()}/api/process/attendance`, {
+      const response = await apiFetch(`${getTestApiBaseUrl()}/api/process/attendance`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...getTestAuthHeaders() },
         body: JSON.stringify({ fromDate: FROM_DATE, toDate: TO_DATE }),

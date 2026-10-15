@@ -1,5 +1,6 @@
 import { describe, it, expect, afterEach } from 'vitest'
 import { getTestSupabaseAdminClient, getTestAuthHeaders, getTestApiBaseUrl } from '../../helpers/supabase'
+import { apiFetch } from '../../helpers/api-fetch'
 
 describe('Prickle Schedule Locks API', () => {
   const supabase = getTestSupabaseAdminClient()
@@ -10,12 +11,12 @@ describe('Prickle Schedule Locks API', () => {
   })
 
   it('returns 401 without auth', async () => {
-    const response = await fetch(`${getTestApiBaseUrl()}/api/prickle-schedule-locks`)
+    const response = await apiFetch(`${getTestApiBaseUrl()}/api/prickle-schedule-locks`)
     expect(response.status).toBe(401)
   })
 
   it('GET returns lock override rows', async () => {
-    const response = await fetch(`${getTestApiBaseUrl()}/api/prickle-schedule-locks`, {
+    const response = await apiFetch(`${getTestApiBaseUrl()}/api/prickle-schedule-locks`, {
       headers: getTestAuthHeaders(),
     })
     expect(response.ok).toBe(true)
@@ -24,7 +25,7 @@ describe('Prickle Schedule Locks API', () => {
   })
 
   it('POST upserts a lock override', async () => {
-    const response = await fetch(`${getTestApiBaseUrl()}/api/prickle-schedule-locks`, {
+    const response = await apiFetch(`${getTestApiBaseUrl()}/api/prickle-schedule-locks`, {
       method: 'POST',
       headers: { ...getTestAuthHeaders(), 'Content-Type': 'application/json' },
       body: JSON.stringify({ month, locked: true }),
@@ -35,7 +36,7 @@ describe('Prickle Schedule Locks API', () => {
     expect(body.lock.locked).toBe(true)
 
     // Upsert again with locked: false -- should update, not duplicate.
-    const second = await fetch(`${getTestApiBaseUrl()}/api/prickle-schedule-locks`, {
+    const second = await apiFetch(`${getTestApiBaseUrl()}/api/prickle-schedule-locks`, {
       method: 'POST',
       headers: { ...getTestAuthHeaders(), 'Content-Type': 'application/json' },
       body: JSON.stringify({ month, locked: false }),
@@ -48,7 +49,7 @@ describe('Prickle Schedule Locks API', () => {
   })
 
   it('POST rejects a missing month', async () => {
-    const response = await fetch(`${getTestApiBaseUrl()}/api/prickle-schedule-locks`, {
+    const response = await apiFetch(`${getTestApiBaseUrl()}/api/prickle-schedule-locks`, {
       method: 'POST',
       headers: { ...getTestAuthHeaders(), 'Content-Type': 'application/json' },
       body: JSON.stringify({ locked: true }),
@@ -57,7 +58,7 @@ describe('Prickle Schedule Locks API', () => {
   })
 
   it('POST rejects a non-boolean locked value', async () => {
-    const response = await fetch(`${getTestApiBaseUrl()}/api/prickle-schedule-locks`, {
+    const response = await apiFetch(`${getTestApiBaseUrl()}/api/prickle-schedule-locks`, {
       method: 'POST',
       headers: { ...getTestAuthHeaders(), 'Content-Type': 'application/json' },
       body: JSON.stringify({ month, locked: 'yes' }),

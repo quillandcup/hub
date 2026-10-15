@@ -4,6 +4,7 @@ import {
   annotations,
   areaKey,
   areaMetrics,
+  checkFloors,
   flags,
   isGated,
   lineRanges,
@@ -72,12 +73,12 @@ describe("parseAddedLines", () => {
 });
 
 describe("isGated / areaKey", () => {
-  it("gates app/lib/components/emails and the root runtime files, not API routes, tests or scripts", () => {
+  it("gates app/lib/components/emails and the root runtime files, API routes, but not tests or scripts", () => {
     expect(isGated("lib/x.ts")).toBe(true);
     expect(isGated("components/Y.tsx")).toBe(true);
     expect(isGated("emails/notifications/a.tsx")).toBe(true);
     expect(isGated("proxy.ts")).toBe(true);
-    expect(isGated("app/api/process/route.ts")).toBe(false);
+    expect(isGated("app/api/process/route.ts")).toBe(true);
     expect(isGated("lib/x.test.ts")).toBe(false);
     expect(isGated("lib/x.d.ts")).toBe(false);
     expect(isGated("scripts/x.ts")).toBe(false);
@@ -163,7 +164,7 @@ describe("patchCoverage", () => {
   it("treats a new file no suite loaded as fully uncovered, and skips ungated files", () => {
     const added = new Map([
       ["lib/new.ts", new Set([1, 2])],
-      ["app/api/x/route.ts", new Set([1, 2, 3])],
+      ["lib/new.test.ts", new Set([1, 2, 3])],
     ]);
     const { metrics: got } = patchCoverage(added, new Map());
     expect(got.lines).toEqual(m(0, 2));
@@ -226,5 +227,36 @@ describe("lineRanges / annotations / links", () => {
     }, { repo: "org/repo", sha: "abc123", runUrl: "https://github.com/org/repo/actions/runs/7" });
     expect(text).toContain("[4-5](https://github.com/org/repo/blob/abc123/lib/a.ts#L4-L5), [9](https://github.com/org/repo/blob/abc123/lib/a.ts#L9)");
     expect(text).toContain("(https://github.com/org/repo/actions/runs/7#artifacts)");
+  });
+});
+
+describe("checkFloors", () => {
+  const floors = { lib: { lines: 80, statements: 80, functions: 80, branches: 50 } };
+
+  it("passes an area at or above every floor and fails each measure below its own", () => {
+    const combined = new Map([["lib", metrics([85, 100], [80, 100], [79, 100], [50, 100])]]);
+    const byMeasure = Object.fromEntries(checkFloors(combined, floors).map((f) => [f.measure, f.ok]));
+    expect(byMeasure).toEqual({ lines: true, statements: true, functions: false, branches: true });
+  });
+
+  it("counts an area missing from the data, or with nothing to cover, as 0%", () => {
+    expect(checkFloors(new Map(), floors).every((f) => !f.ok && f.actual === 0)).toBe(true);
+    const empty = new Map([["lib", metrics([0, 0])]]);
+    expect(checkFloors(empty, floors).every((f) => !f.ok)).toBe(true);
+  });
+
+  it("uses the combined numbers, so either suite's coverage counts", () => {
+    const unit = suite({ "lib/a.ts": file({ 1: 1, 2: 0 }) });
+    const db = suite({ "lib/a.ts": file({ 1: 0, 2: 1 }) });
+    const combined = areaMetrics(mergeSuites([unit, db]));
+    expect(checkFloors(combined, { lib: { lines: 100, statements: 100, functions: 0, branches: 0 } }).every((f) => f.ok)).toBe(true);
+    expect(checkFloors(areaMetrics(unit), { lib: { lines: 100, statements: 0, functions: 0, branches: 0 } })[0].ok).toBe(false);
+  });
+
+  it("renders a floors table that marks the failing measure", () => {
+    const combined = new Map([["lib", metrics([90, 100], [90, 100], [70, 100], [90, 100])]]);
+    const text = renderReport([], combined, null, undefined, checkFloors(combined, floors));
+    expect(text).toContain("**Area floors: ❌**");
+    expect(text).toContain("| `lib` | 90.0% (min 80%) | 90.0% (min 80%) | ❌ 70.0% (min 80%) | 90.0% (min 50%) |");
   });
 });

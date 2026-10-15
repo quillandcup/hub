@@ -11,7 +11,9 @@ export async function PATCH(
   const { supabase } = auth;
 
   const { key } = await params;
-  const { enabledGlobally } = await request.json();
+  const parsed = await request.json().catch(() => undefined);
+  if (parsed === undefined) return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+  const { enabledGlobally } = parsed;
 
   if (typeof enabledGlobally !== "boolean") {
     return NextResponse.json({ error: "enabledGlobally must be a boolean" }, { status: 400 });

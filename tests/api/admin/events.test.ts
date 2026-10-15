@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { getTestSupabaseAdminClient, getTestAuthHeaders, getTestApiBaseUrl } from '../../helpers/supabase'
+import { apiFetch } from '../../helpers/api-fetch'
 
 /**
  * Integration tests for the events admin CRUD API (app/api/admin/events) and
@@ -26,12 +27,12 @@ describe('Events API', () => {
   })
 
   it('GET returns 401 without auth', async () => {
-    const res = await fetch(`${baseUrl}/api/admin/events`)
+    const res = await apiFetch(`${baseUrl}/api/admin/events`)
     expect(res.status).toBe(401)
   })
 
   it('POST returns 401 without auth', async () => {
-    const res = await fetch(`${baseUrl}/api/admin/events`, {
+    const res = await apiFetch(`${baseUrl}/api/admin/events`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ slug: `x-${ts}`, title: 'x', event_type: 'other', starts_at: '2026-01-01', ends_at: '2026-01-01' }),
@@ -39,8 +40,17 @@ describe('Events API', () => {
     expect(res.status).toBe(401)
   })
 
+  it('POST returns 400 for a malformed JSON body', async () => {
+    const res = await apiFetch(`${baseUrl}/api/admin/events`, {
+      method: 'POST',
+      headers: { ...getTestAuthHeaders(), 'Content-Type': 'application/json' },
+      body: '{ not json',
+    })
+    expect(res.status).toBe(400)
+  })
+
   it('POST /api/admin/events creates an event', async () => {
-    const response = await fetch(`${baseUrl}/api/admin/events`, {
+    const response = await apiFetch(`${baseUrl}/api/admin/events`, {
       method: 'POST',
       headers: { ...getTestAuthHeaders(), 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -60,7 +70,7 @@ describe('Events API', () => {
   })
 
   it('GET /api/admin/events lists events with a photo count', async () => {
-    const response = await fetch(`${baseUrl}/api/admin/events`, { headers: getTestAuthHeaders() })
+    const response = await apiFetch(`${baseUrl}/api/admin/events`, { headers: getTestAuthHeaders() })
     expect(response.ok).toBe(true)
     const body = await response.json()
     const found = body.events.find((e: any) => e.id === eventId)
@@ -69,7 +79,7 @@ describe('Events API', () => {
   })
 
   it('PATCH /api/admin/events/[id] updates the event', async () => {
-    const response = await fetch(`${baseUrl}/api/admin/events/${eventId}`, {
+    const response = await apiFetch(`${baseUrl}/api/admin/events/${eventId}`, {
       method: 'PATCH',
       headers: { ...getTestAuthHeaders(), 'Content-Type': 'application/json' },
       body: JSON.stringify({ results: 'Everyone finished a full draft' }),
@@ -95,13 +105,13 @@ describe('Events API', () => {
   })
 
   it('GET /api/admin/events/[id] returns the photo', async () => {
-    const response = await fetch(`${baseUrl}/api/admin/events/${eventId}`, { headers: getTestAuthHeaders() })
+    const response = await apiFetch(`${baseUrl}/api/admin/events/${eventId}`, { headers: getTestAuthHeaders() })
     const body = await response.json()
     expect(body.photos.map((p: any) => p.id)).toContain(photoId)
   })
 
   it('PATCH photo hide sets hidden_at without deleting the row', async () => {
-    const response = await fetch(`${baseUrl}/api/admin/events/${eventId}/photos/${photoId}`, {
+    const response = await apiFetch(`${baseUrl}/api/admin/events/${eventId}/photos/${photoId}`, {
       method: 'PATCH',
       headers: { ...getTestAuthHeaders(), 'Content-Type': 'application/json' },
       body: JSON.stringify({ hidden: true }),
@@ -124,7 +134,7 @@ describe('Events API', () => {
   })
 
   it('PATCH photo unhide clears hidden_at', async () => {
-    const response = await fetch(`${baseUrl}/api/admin/events/${eventId}/photos/${photoId}`, {
+    const response = await apiFetch(`${baseUrl}/api/admin/events/${eventId}/photos/${photoId}`, {
       method: 'PATCH',
       headers: { ...getTestAuthHeaders(), 'Content-Type': 'application/json' },
       body: JSON.stringify({ hidden: false }),
@@ -135,12 +145,12 @@ describe('Events API', () => {
   })
 
   it('GET /api/events/[eventId]/photos/[photoId] (the viewer proxy) returns 401 without auth', async () => {
-    const response = await fetch(`${baseUrl}/api/events/${eventId}/photos/${photoId}`)
+    const response = await apiFetch(`${baseUrl}/api/events/${eventId}/photos/${photoId}`)
     expect(response.status).toBe(401)
   })
 
   it('DELETE /api/admin/events/[id] removes the event and its photos', async () => {
-    const response = await fetch(`${baseUrl}/api/admin/events/${eventId}`, {
+    const response = await apiFetch(`${baseUrl}/api/admin/events/${eventId}`, {
       method: 'DELETE',
       headers: getTestAuthHeaders(),
     })

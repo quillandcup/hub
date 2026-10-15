@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import RecordHistoryButton from "@/components/RecordHistoryButton";
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import ProcessOrphanedButton from "./ProcessOrphanedButton";
@@ -416,9 +417,22 @@ export default async function DataHygienePage() {
   return (
     <div className="p-6">
       <div className="max-w-7xl mx-auto">
-        <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-100 mb-8">
-          Data Health Dashboard
-        </h1>
+        <div className="mb-8 flex items-start justify-between">
+          <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-100">
+            Data Health Dashboard
+          </h1>
+          <RecordHistoryButton
+            entityType={[
+              "dismissed_duplicate_group",
+              "unmatched_calendar_event",
+              "ignored_zoom_name",
+              "ambiguous_zoom_name",
+              "ignored_slack_user",
+              "member_name_alias",
+            ]}
+            label="data health fixes"
+          />
+        </div>
 
         {/* Needs Attention: things actively wrong right now, worth acting on today */}
         <div className="space-y-4 mb-10">

@@ -12,6 +12,7 @@ import {
   loadCalendarPrickleIdsByMember,
   loadCheckins,
   planCheckinDMs,
+  loadDismissedPairs,
   sendCheckoutDMs,
   tryRecordCheckinDM,
   type GoalCandidate,
@@ -112,10 +113,12 @@ async function sendCheckins(supabase: SupabaseClient, candidates: GoalCandidate[
   const plan = planCheckinDMs(candidates, upcomingPrickles, calendarPrickleIdsByMember);
   if (plan.length === 0) return 0;
   const plannedMemberIds = [...new Set(plan.map((p) => p.memberId))];
-  const [notifier, checkins] = await Promise.all([
+  const [notifier, checkins, dismissed] = await Promise.all([
     createNotifier(supabase, "prickle_checkin", plannedMemberIds),
     // Answers already saved (e.g. from the prickle page) show as the DM's starting picks.
     loadCheckins(supabase, plannedMemberIds, [...new Set(plan.map((p) => p.prickle.id))]),
+    // Check-ins the member dismissed (a Slack button, the palette's x) never go out.
+    loadDismissedPairs(supabase, "checkin", [...new Set(plan.map((p) => p.prickle.id))]),
   ]);
 
   let sent = 0;
@@ -127,7 +130,7 @@ async function sendCheckins(supabase: SupabaseClient, candidates: GoalCandidate[
     // Already fully checked in (e.g. on the prickle page): nothing to ask. Not logged, so a later
     // tick still sends if they clear an answer before the window closes.
     const saved = checkins.get(`${memberId}:${prickle.id}`) ?? null;
-    if (checkinAnswered(saved)) continue;
+    if (checkinAnswered(saved) || dismissed.has(`${memberId}:${prickle.id}`)) continue;
 
     // Across ticks (and overlapping runs), the unique (prickle, member, kind) log row is what
     // keeps this to one DM; planCheckinDMs keeps it to one within a tick.

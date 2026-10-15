@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import * as Sentry from "@sentry/nextjs";
-import { searchPalette, searchSuggestions, suggestOperatorValues, type PaletteSearch, type Suggestion } from "@/app/actions/search";
+import { markSuggestionsRead, searchPalette, searchSuggestions, suggestOperatorValues, type PaletteSearch, type Suggestion } from "@/app/actions/search";
 import { applyCompletion, completionContext, isServerOperator, staticOptions, type CompletionOption } from "@/lib/search/completion";
 import { KIND_GLYPHS, formatHitDate } from "@/lib/search/format";
 import { KIND_LABELS, type SearchHit } from "@/lib/search/kinds";
@@ -21,24 +21,29 @@ const DEBOUNCE_MS = 150;
 const MIN_QUERY_CHARS = 2;
 const PLACES_SHOWN = 5;
 
-/** One-click filters shown first when the filter bar is open; everything else is behind "+". */
-const QUICK_CHIPS: { label: string; token: () => string; chatOnly?: boolean }[] = [
-  { label: "From me", token: () => "from:me" },
+/** One-click filters. `inline` ones are always chips in the bar; the rest are first in "+" and show as a chip while on. */
+const QUICK_CHIPS: { label: string; token: () => string; chatOnly?: boolean; inline?: boolean }[] = [
+  { label: "From me", token: () => "from:me", inline: true },
   { label: "Has a link", token: () => "has:link", chatOnly: true },
   { label: "Threads only", token: () => "is:thread", chatOnly: true },
-  { label: "Last 7 days", token: () => `after:${localDate(7)}` },
 ];
 
 /** Operators in the "+" menu: what they find, and the text they start. */
 const MORE_OPTIONS: { label: string; token: string; adminOnly?: boolean }[] = [
   { label: "From someone", token: "from:" },
-  { label: "In kind", token: "in:" },
   { label: "In channel", token: "channel:" },
   { label: "Message has", token: "has:" },
   { label: "Message is", token: "is:" },
   { label: "Date", token: "during:" },
   { label: "Member email", token: "email:", adminOnly: true },
   { label: "Membership status", token: "status:", adminOnly: true },
+];
+
+/** The "Any time" dropdown: how many days back each choice reaches. */
+const TIME_RANGES = [
+  { days: 1, label: "Past 24 hours" },
+  { days: 7, label: "Past 7 days" },
+  { days: 30, label: "Past 30 days" },
 ];
 
 /** YYYY-MM-DD for `daysAgo` days before today, in the browser's own timezone. */
@@ -281,6 +286,24 @@ export default function SearchPalette({ resultsPath, isAdmin }: { resultsPath: s
     inputRef.current?.focus();
   };
 
+  // "Any time": swaps whatever after: filter is there for the chosen range, or clears it.
+  const afterToken = tokens.find((t) => /^after:\S+$/i.test(t));
+  const timeRange = TIME_RANGES.find((r) => afterToken === `after:${localDate(r.days)}`);
+  const setTimeRange = (days: string) => {
+    const rest = tokens.filter((t) => t && t !== afterToken);
+    setInput((days ? [...rest, `after:${localDate(Number(days))}`] : rest).join(" "));
+    inputRef.current?.focus();
+  };
+
+  // Takes one row off the list at once; the server marks it read (a check-in or check-out is
+  // dismissed, a notification read) so it leaves every other list too. Chat rows have no x: reading
+  // a conversation is a bigger step than clearing it from this list.
+  const dismissSuggestion = (s: Suggestion) => {
+    setNeedsAttention((cur) => cur.filter((x) => x.id !== s.id));
+    markSuggestionsRead([s.id]).catch(() => {});
+    inputRef.current?.focus();
+  };
+
   const accept = (option: CompletionOption) => {
     if (!completion) return;
     setInput((cur) => applyCompletion(cur, completion, option));
@@ -369,6 +392,10 @@ export default function SearchPalette({ resultsPath, isAdmin }: { resultsPath: s
 
   let flatIndex = -1;
   const moreOptions = MORE_OPTIONS.filter((o) => isAdmin || !o.adminOnly);
+  const quickFilters = QUICK_CHIPS.filter((c) => !c.chatOnly || chatInPlay);
+  // Inline ones are always chips; any other that's on is one too, so it can be turned off without opening "+".
+  const barQuick = quickFilters.filter((c) => c.inline || tokens.includes(c.token()));
+  const menuQuick = quickFilters.filter((c) => !c.inline);
   const completionTitle = completion?.operator === "from" ? "People" : completion?.operator === "channel" ? "Channels" : `${completion?.operator}:`;
 
   return (
@@ -444,34 +471,25 @@ export default function SearchPalette({ resultsPath, isAdmin }: { resultsPath: s
 
             {showFilters && (
               <div className="border-b border-slate-200 dark:border-slate-800">
-                <div className="flex gap-2 overflow-x-auto px-4 py-2">
-                  <button
-                    type="button"
-                    onClick={() => setInput((cur) => withKind(cur))}
-                    aria-pressed={!parsed.kind}
-                    className={`flex-shrink-0 whitespace-nowrap rounded-md border px-2.5 py-1.5 sm:px-2 sm:py-1 text-xs ${!parsed.kind ? "border-plum-500 bg-plum-50 text-plum-700 dark:bg-plum-900/30 dark:text-plum-300" : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"}`}
+                <div className="flex flex-wrap gap-1.5 px-4 py-2">
+                  <select
+                    aria-label="Search in"
+                    value={parsed.kind ?? ""}
+                    onChange={(e) => setInput((cur) => withKind(cur, (e.target.value || undefined) as Parameters<typeof withKind>[1]))}
+                    className={`rounded-md border bg-transparent px-2 py-1.5 sm:py-1 text-xs ${parsed.kind ? "border-plum-500 bg-plum-50 text-plum-700 dark:bg-plum-900/30 dark:text-plum-300" : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300"}`}
                   >
-                    All
-                  </button>
-                  {SEARCH_KINDS.map((k) => (
-                    <button
-                      key={k}
-                      type="button"
-                      onClick={() => setInput((cur) => withKind(cur, k))}
-                      aria-pressed={parsed.kind === k}
-                      className={`flex-shrink-0 whitespace-nowrap rounded-md border px-2.5 py-1.5 sm:px-2 sm:py-1 text-xs ${parsed.kind === k ? "border-plum-500 bg-plum-50 text-plum-700 dark:bg-plum-900/30 dark:text-plum-300" : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"}`}
-                    >
-                      {KIND_LABELS[k]}
-                    </button>
-                  ))}
-                  {QUICK_CHIPS.filter((c) => !c.chatOnly || chatInPlay).map((chip) => {
-                    const token = chip.token();
-                    const on = tokens.includes(token);
+                    <option value="">Everything</option>
+                    {SEARCH_KINDS.map((k) => (
+                      <option key={k} value={k}>{KIND_LABELS[k]}</option>
+                    ))}
+                  </select>
+                  {barQuick.map((chip) => {
+                    const on = tokens.includes(chip.token());
                     return (
                       <button
                         key={chip.label}
                         type="button"
-                        onClick={() => toggleToken(token)}
+                        onClick={() => toggleToken(chip.token())}
                         aria-pressed={on}
                         className={`flex-shrink-0 whitespace-nowrap rounded-md border px-2.5 py-1.5 sm:px-2 sm:py-1 text-xs ${on ? "border-plum-500 bg-plum-50 text-plum-700 dark:bg-plum-900/30 dark:text-plum-300" : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"}`}
                       >
@@ -479,6 +497,25 @@ export default function SearchPalette({ resultsPath, isAdmin }: { resultsPath: s
                       </button>
                     );
                   })}
+                  <button
+                    type="button"
+                    onClick={() => addToInput("from:")}
+                    className="flex-shrink-0 whitespace-nowrap rounded-md border border-slate-200 dark:border-slate-700 px-2.5 py-1.5 sm:px-2 sm:py-1 text-xs text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                  >
+                    From…
+                  </button>
+                  <select
+                    aria-label="Time range"
+                    value={timeRange ? String(timeRange.days) : afterToken ? "custom" : ""}
+                    onChange={(e) => setTimeRange(e.target.value)}
+                    className={`rounded-md border bg-transparent px-2 py-1.5 sm:py-1 text-xs ${afterToken ? "border-plum-500 bg-plum-50 text-plum-700 dark:bg-plum-900/30 dark:text-plum-300" : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300"}`}
+                  >
+                    <option value="">Any time</option>
+                    {TIME_RANGES.map((r) => (
+                      <option key={r.days} value={r.days}>{r.label}</option>
+                    ))}
+                    {afterToken && !timeRange && <option value="custom" disabled>{afterToken.replace(/^after:/i, "Since ")}</option>}
+                  </select>
                   <button
                     type="button"
                     onClick={() => setMenuOpen((m) => !m)}
@@ -493,6 +530,23 @@ export default function SearchPalette({ resultsPath, isAdmin }: { resultsPath: s
                 {menuOpen && (
                   <div className="border-t border-slate-100 dark:border-slate-800 px-4 py-2 text-sm">
                     <div className="mb-1 text-xs font-medium uppercase tracking-wide text-slate-500">More options</div>
+                    {menuQuick.map((chip) => {
+                      const token = chip.token();
+                      const on = tokens.includes(token);
+                      return (
+                        <button
+                          key={chip.label}
+                          type="button"
+                          role="menuitemcheckbox"
+                          aria-checked={on}
+                          onClick={() => { toggleToken(token); setMenuOpen(false); }}
+                          className="flex w-full items-center justify-between rounded px-2 py-1.5 text-left hover:bg-slate-100 dark:hover:bg-slate-800"
+                        >
+                          <span>{chip.label}</span>
+                          <span className="text-xs text-plum-600 dark:text-plum-300">{on ? "On" : token}</span>
+                        </button>
+                      );
+                    })}
                     {moreOptions.map((o) => (
                       <button
                         key={o.token}
@@ -595,16 +649,30 @@ export default function SearchPalette({ resultsPath, isAdmin }: { resultsPath: s
                       {needsAttention.map((s) => {
                         flatIndex++;
                         return (
-                          <Row
-                            key={s.id}
-                            active={flatIndex === activeIndex}
-                            href={s.href}
-                            onOpen={close}
-                            icon={<Glyph>{s.kind === "checkin" ? "✓" : s.kind === "chat" ? "#" : "!"}</Glyph>}
-                            title={s.title}
-                            subtitle={s.subtitle}
-                            right={s.count ? <span className="rounded-full bg-plum-600 px-2 py-0.5 text-xs font-medium text-white">{s.count}</span> : undefined}
-                          />
+                          <div key={s.id} className="group flex items-center pr-2">
+                            <div className="min-w-0 flex-1">
+                            <Row
+                              active={flatIndex === activeIndex}
+                              href={s.href}
+                              onOpen={close}
+                              icon={<Glyph>{s.kind === "checkin" ? "✓" : s.kind === "chat" ? "#" : "!"}</Glyph>}
+                              title={s.title}
+                              subtitle={s.subtitle}
+                              right={s.count ? <span className="rounded-full bg-plum-600 px-2 py-0.5 text-xs font-medium text-white">{s.count}</span> : undefined}
+                            />
+                            </div>
+                            {s.kind !== "chat" && (
+                              <button
+                                type="button"
+                                onClick={() => dismissSuggestion(s)}
+                                title="Mark as read"
+                                aria-label={`Mark “${s.title}” as read`}
+                                className={`${iconButton} ${revealOnHover}`}
+                              >
+                                ×
+                              </button>
+                            )}
+                          </div>
                         );
                       })}
                     </section>

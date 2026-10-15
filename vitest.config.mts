@@ -65,17 +65,8 @@ export default defineConfig({
       exclude: ['**/*.d.ts', '**/*.test.*', 'lib/**/types.ts'],
       reporter: ['text-summary', 'json-summary', 'json', 'lcov', 'html'],
       reportOnFailure: true,
-      // Enforced only by the unit run (test:unit:coverage sets COVERAGE_ENFORCE): the db
-      // project's API-route tests drive a separate Next server process that v8 can't see,
-      // so its lib/ numbers would trip a threshold meant for the unit suite. Floors sit just
-      // under the 2026-10-13 unit baseline (lib/ 70% lines, components/ 70%); raise them as tests
-      // are added.
-      thresholds: process.env.COVERAGE_ENFORCE
-        ? {
-            'lib/**': { lines: 68, statements: 68, functions: 68, branches: 60 },
-            'components/**': { lines: 67, statements: 67, functions: 64, branches: 63 },
-          }
-        : undefined,
+      // No thresholds here: the per-area floors are on the unit and db runs combined, so they live
+      // in scripts/coverage-report.ts (AREA_FLOORS), which the CI coverage job runs.
     },
     projects: [
       {

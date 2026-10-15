@@ -104,7 +104,9 @@ export async function POST(request: NextRequest) {
   if (!auth.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (auth.forbidden) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  const { email } = await request.json();
+  const parsed = await request.json().catch(() => undefined);
+  if (parsed === undefined) return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+  const { email } = parsed;
   if (!email?.trim()) {
     return NextResponse.json({ error: "Email is required" }, { status: 400 });
   }

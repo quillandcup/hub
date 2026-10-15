@@ -64,7 +64,12 @@ export default async function EditPrickleTypePage({
             Update the name and description of this prickle type
           </p>
           <div className="absolute top-4 right-6">
-            <RecordHistoryButton entityType="prickle_type" entityId={prickleType.id} label={prickleType.name} />
+            <RecordHistoryButton
+              entityType={["prickle_type", "prickle_schedule", "prickle_host_vibe"]}
+              entityId={prickleType.id}
+              parentColumn="type_id"
+              label={prickleType.name}
+            />
           </div>
         </div>
       </header>

@@ -79,9 +79,8 @@ jobs:
       # (vi.mock / vi.fn / stubbed global.fetch) or the test is pure functions in,
       # assertions out. No Supabase, no app server, no Docker: see vitest.config.mts's
       # "unit" project for exactly which files land here and why.
-      # Runs the unit suite once, with v8 coverage and the lib/ floors from
-      # vitest.config.mts (the job fails if lib/ drops below them). The db suite isn't
-      # measured: see the comment on coverage.thresholds there.
+      # Runs the unit suite once, with v8 coverage. The coverage floors are on the unit and db
+      # runs combined, so they are checked by the Coverage report job (scripts/coverage-report.ts).
       - name: Run unit test suite (with coverage)
         run: npm run test:unit:coverage
 
@@ -222,17 +221,10 @@ jobs:
           supabase status || true
           exit 1
 
-      # A large share of tests/api/** are integration tests that hit the real
-      # HTTP API via fetch(TEST_API_BASE_URL, default http://localhost:3000)
-      # instead of importing route handlers directly -- see
-      # tests/helpers/supabase.ts's getTestApiBaseUrl() and the "Manual Server
-      # Management" problem called out in docs/TEST_INFRASTRUCTURE_PLAN.md.
-      # Locally this "just works" because a `next dev` for this repo is
-      # usually already running on :3000 from normal day-to-day use; a fresh
-      # CI runner has nothing listening there unless we start it ourselves,
-      # which previously caused a cascade of null/undefined failures in every
-      # test file that fetches from the app (the first fetch fails, and
-      # everything chained off its response comes back null/undefined).
+      # Most tests/api/** call route handlers in-process (tests/helpers/api-fetch.ts) so their
+      # coverage is counted. Only tests/api/smoke/ goes over HTTP, to the built app started here,
+      # to cover Next's own routing, proxy and body parsing. Locally those tests use a server
+      # already running on :3000 (TEST_API_BASE_URL overrides).
       - name: Start app server
         run: |
           npm run start > /tmp/next-server.log 2>&1 &
@@ -257,9 +249,9 @@ jobs:
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ env.LOCAL_SUPABASE_ANON_KEY }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ env.LOCAL_SUPABASE_SERVICE_ROLE_KEY }}
 
-      # No thresholds here. API-route tests call the app server over HTTP (the separate
-      # `npm run start` process above), which v8 can't see, so this only counts code the test
-      # process itself imports. The coverage job below merges it with the unit run.
+      # API-route tests call the route handlers in-process (tests/helpers/api-fetch.ts), so v8
+      # counts them; only the few HTTP smoke tests use the app server above. The coverage job
+      # below merges this with the unit run and checks the floors.
       - name: Run db test suite (with coverage)
         run: npm run test:db:coverage
 
@@ -319,8 +311,9 @@ jobs:
 
       # Merges both suites' coverage (an item is covered if either ran it), writes the per-area
       # tables to the job summary and one sticky PR comment, and fails if the PR's new code scores
-      # under 80%: the mean of its statements, functions and branches covered
-      # (scripts/coverage-report.ts; app/api/** is not counted). To bypass for a PR, add the
+      # under 80%: the mean of its statements, functions and branches covered, or if lib,
+      # components or app/api fall under their combined floors (AREA_FLOORS in
+      # scripts/coverage-report.ts). To bypass the new-code check for a PR, add the
       # skip-patch-coverage label and re-run this job: the label is read live below.
       - name: Merge coverage, report, and gate new lines
         env:

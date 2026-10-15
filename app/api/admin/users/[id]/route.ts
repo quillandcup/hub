@@ -19,7 +19,9 @@ export async function PATCH(
   if (auth.forbidden) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const { id } = await params;
-  const body = await request.json();
+  const parsed = await request.json().catch(() => undefined);
+  if (parsed === undefined) return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+  const body = parsed;
   const { role, features, memberId } = body;
 
   const supabase = getServiceClient();

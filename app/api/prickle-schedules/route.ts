@@ -65,7 +65,9 @@ export async function POST(request: NextRequest) {
   const { supabase, user } = auth;
 
   try {
-    const body = await request.json();
+    const parsed = await request.json().catch(() => undefined);
+    if (parsed === undefined) return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+    const body = parsed;
     const { host_id, status, notes } = body;
 
     if (!host_id) return NextResponse.json({ error: "host_id is required" }, { status: 400 });

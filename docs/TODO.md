@@ -247,6 +247,33 @@ this suite is gating CI on every PR.
 Don't just flip `fileParallelism` back to `true` without one of the above -- that's what
 caused the pollution/flakiness in the first place.
 
+### Test Framework Follow-ups
+**Status:** Ideas from the coverage work (PR #77); none started
+
+Context: API route tests run in-process through `apiFetch` (`tests/helpers/api-fetch.ts`) so
+`app/api` coverage counts, and per-area floors on the combined unit + db numbers live in
+`AREA_FLOORS` (`scripts/coverage-report.ts`). Combined, 2026-10-14: lib ~86% lines, components
+~72%, `app/api` ~59% (46% branches), `app/(member)` ~56%, `app/(admin)` ~19%.
+
+- [ ] **Floors for `app/(member)` and `app/(admin)`.** Neither has one; `app/(admin)` is the
+      biggest gap in the repo. Add the floors once a round of page tests lifts them.
+- [ ] **Ratchet the floors.** `AREA_FLOORS` sits ~2 points under the baseline and only moves
+      by hand. Have the coverage report note when an area is more than ~3 points over its
+      floor, so floors follow the numbers up.
+- [ ] **Cover the weakest `app/api` routes.** The coverage report's per-file data shows which
+      handlers have the most uncovered statements and branches; start with the biggest.
+- [ ] **Move the ~32 direct-import route tests onto `apiFetch`.** They call the handlers
+      themselves and mock `next/headers` per file. One shared helper removes the mocks.
+- [ ] **Audit fire-and-forget mocks for the race fixed in `slack-message-subtypes.test.ts`.**
+      A mocked `after()` that does `void callback()` can land in the next test after its
+      `vi.clearAllMocks()`. Grep the tests for `after:` mocks and `void` callbacks; make them
+      collect their promises and have the test await them.
+- [ ] **Automate `npm run github:config:push`.** It runs by hand because `GITHUB_TOKEN` can't
+      manage rulesets. Worth a CI job with an admin-token secret only if the ruleset changes
+      often; at minimum a scheduled `github:config:diff` to flag drift.
+- [ ] **Clean up `.claude/rules/pr-feedback.md`.** It still says to check Semaphore and
+      SonarQube; CI is GitHub Actions and neither is used.
+
 ### Support Preview Environments
 **Status:** Not started — needs scoping
 
@@ -731,12 +758,16 @@ Every admin table (Hedgieversaries, Members, etc.) has a fixed column order set 
 ### CRM & Outreach Automation Roadmap (Needs Scoping — Multi-Phase)
 `/admin/outreach` (hot/warm/cold status, the daily 25-lead queue, `outreach_touches` log) is the first slice of a much bigger planned system: a built-in CRM with a unified inbox, response-driven outreach, lead scoring, and eventually an AI prospecting agent. Stated 2026-09-09 as the direction to build toward — not scoped or started beyond Outreach itself. Phases below are roughly the order they'd need to happen (later phases depend on earlier ones), not a commitment to build all of them.
 
-**Phase 1 — Centralized activity log (CRM backbone). In progress.** `member_activities` already existed (written by Slack import + writing-progress) and is being extended to also mirror prickle attendance, outreach touches, and Hedgie Hub logins — see `docs/ACTIVITY_AND_AUDIT_LOG.md` for the schema (`actor_kind`/`actor_user_id` for who acted, `data` for the event's actual content) and the separate `audit_log` (field-level record-change history, distinct from this activity log — see that doc for why they're two tables). `audit_log`, its triggers and the admin `/admin/activity` page (Audit / Everything filter over both tables plus page-visit sessions) are built. The member page has an Activity Log tab over the same feed. The clock icon (`RecordHistoryButton`, top-right of each page) is on the member, event, program, badge type and prickle type pages and the Segments, Users, Overrides and Hosts lists. Still to do: the icon on the other audited records (aliases, badge levels, cohorts, enrollments, event attendees); a `p_changed_by` function for the first service-role write made on behalf of a user (none exists yet; see `docs/ACTIVITY_AND_AUDIT_LOG.md`); email sent/opened/clicked events once email is a source.
+**Phase 1 — Centralized activity log (CRM backbone). In progress.** `member_activities` already existed (written by Slack import + writing-progress) and is being extended to also mirror prickle attendance, outreach touches, and Hedgie Hub logins — see `docs/ACTIVITY_AND_AUDIT_LOG.md` for the schema (`actor_kind`/`actor_user_id` for who acted, `data` for the event's actual content) and the separate `audit_log` (field-level record-change history, distinct from this activity log — see that doc for why they're two tables). `audit_log`, its triggers and the admin `/admin/activity` page (Audit / Everything filter over both tables plus page-visit sessions) are built. The member page has an Activity Log tab over the same feed. The clock icon (`RecordHistoryButton`, top-right of each page) is on the member, event, program, badge type and prickle type pages and the Segments, Users, Overrides and Hosts lists. Every audited resource now has a history button. Remaining work is listed in the follow-ups below.
 
 Phase 1 follow-ups (activity/audit log):
 - [x] Log sudo start and stop as their own events (done: `logSudoEvent` in `app/actions/sudo.ts`) (who started viewing as whom, when, and for how long): `startSudo`/`exitSudo` in `app/actions/sudo.ts` write a `member_activities` row (`actor_kind = 'staff'`, `acting_as_member_id` set), so the activity log shows the boundaries of a sudo session, not just the visits inside it.
 - [x] `MultiMemberSearch` and `MultiSelectSearch` are thin wrappers over `components/MultiEntitySearch.tsx`, the multi-select counterpart of `EntitySearch`.
 - [x] `admin/data-health/missing-hosts` writes through server actions (`actions.ts`); its reads still use the browser client.
+- [ ] Email sent/opened/clicked events in `member_activities`. Email is now a notification channel (`lib/channels/`, Resend), so it is a source; nothing is logged as activity yet.
+- [ ] `p_changed_by` argument on the audit functions, for the first service-role write made on behalf of a user. None exists yet, so add it with that first write; see `docs/ACTIVITY_AND_AUDIT_LOG.md`.
+- [ ] Privacy view: log break-glass grants and reads of restricted Slack content. Today it covers only a channel being restricted or the restriction lifted (`restricted_slack_channel`); add the new entity types to `PRIVACY_ENTITY_TYPES` in `lib/activity-feed.ts`.
+- [ ] Slack channel names on old activity rows are a snapshot from insert time, so a later channel rename isn't applied to them. Decide whether to backfill on rename or resolve the name at read time.
 
 **Phase 2 — Inbox.** A Beeper Desktop-inspired unified inbox inside Hedgie Hub showing messages across connected accounts, with filter views: All / Unread / Drafts / Unanswered / Archived / Requests / Low Priority. Requires real per-channel integrations to pull messages in — Instagram DMs (Graph API, needs a Business/Creator account linked to a Facebook Page, and Meta's app review for `instagram_manage_messages` has real lead time), email (provider-dependent — Gmail API vs. a shared inbox forwarding setup), Slack (already have API access, just needs message-fetch + a read UI). Likely built incrementally per channel rather than all at once.
 

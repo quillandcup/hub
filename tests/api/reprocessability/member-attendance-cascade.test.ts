@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { getTestSupabaseAdminClient, getTestAuthHeaders, getTestApiBaseUrl } from '../../helpers/supabase'
 import { seedReferenceData } from '../../helpers/seed-data'
+import { apiFetch } from '../../helpers/api-fetch'
 
 /**
  * Verifies the invariant that makes "matched → no attendance record" an impossible
@@ -83,7 +84,7 @@ describe('Member → Attendance cascade', () => {
   it('produces no attendance when the member does not yet exist', async () => {
     // Simulate: Zoom data arrives, member not in DB, attendance processing runs.
     // The Zoom name has no member to match → skipped.
-    const response = await fetch(`${getTestApiBaseUrl()}/api/process/attendance`, {
+    const response = await apiFetch(`${getTestApiBaseUrl()}/api/process/attendance`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...getTestAuthHeaders() },
       body: JSON.stringify({ fromDate: testDateRange.from, toDate: testDateRange.to }),
@@ -119,7 +120,7 @@ describe('Member → Attendance cascade', () => {
     memberId = newMember!.id
 
     // Reprocess attendance — this is what after() in /api/process/members triggers
-    const response = await fetch(`${getTestApiBaseUrl()}/api/process/attendance`, {
+    const response = await apiFetch(`${getTestApiBaseUrl()}/api/process/attendance`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...getTestAuthHeaders() },
       body: JSON.stringify({ fromDate: testDateRange.from, toDate: testDateRange.to }),
@@ -141,7 +142,7 @@ describe('Member → Attendance cascade', () => {
   })
 
   it('is idempotent: reprocessing again does not duplicate attendance', async () => {
-    const response = await fetch(`${getTestApiBaseUrl()}/api/process/attendance`, {
+    const response = await apiFetch(`${getTestApiBaseUrl()}/api/process/attendance`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...getTestAuthHeaders() },
       body: JSON.stringify({ fromDate: testDateRange.from, toDate: testDateRange.to }),
@@ -192,7 +193,7 @@ describe('Member → Attendance cascade', () => {
     })
 
     // Process attendance without alias → no match for aliasName
-    await fetch(`${getTestApiBaseUrl()}/api/process/attendance`, {
+    await apiFetch(`${getTestApiBaseUrl()}/api/process/attendance`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...getTestAuthHeaders() },
       body: JSON.stringify({ fromDate: testDateRange.from, toDate: testDateRange.to }),
@@ -217,7 +218,7 @@ describe('Member → Attendance cascade', () => {
     })
 
     // Reprocess attendance (simulates what alias-save cascade does)
-    await fetch(`${getTestApiBaseUrl()}/api/process/attendance`, {
+    await apiFetch(`${getTestApiBaseUrl()}/api/process/attendance`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...getTestAuthHeaders() },
       body: JSON.stringify({ fromDate: testDateRange.from, toDate: testDateRange.to }),

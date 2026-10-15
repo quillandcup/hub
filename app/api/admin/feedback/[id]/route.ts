@@ -13,7 +13,9 @@ export async function PATCH(
   const { supabase } = auth;
   const { id } = await params;
 
-  const body = await request.json();
+  const parsed = await request.json().catch(() => undefined);
+  if (parsed === undefined) return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+  const body = parsed;
   const update: { status?: string; admin_notes?: string } = {};
   if (body.status !== undefined) {
     if (!STATUSES.includes(body.status)) {

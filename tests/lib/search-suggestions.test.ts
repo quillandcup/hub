@@ -14,7 +14,7 @@ const getUnloggedRecentPrickles = vi.fn();
 vi.mock("@/app/(member)/projects/actions", () => ({ getUnloggedRecentPrickles: () => getUnloggedRecentPrickles() }));
 vi.mock("@/lib/timezone", () => ({ getUserTimezonePreference: async () => "browser" }));
 
-import { searchSuggestions, suggestOperatorValues } from "@/app/actions/search";
+import { markSuggestionsRead, searchSuggestions, suggestOperatorValues } from "@/app/actions/search";
 
 /** A chainable stand-in for a Supabase query: every call returns itself, awaiting it gives `result`. */
 function fakeQuery(result: { data: unknown }) {
@@ -129,5 +129,74 @@ describe("suggestOperatorValues", () => {
   it("is empty when search is off", async () => {
     getSearcher.mockResolvedValue(null);
     expect(await suggestOperatorValues("from", "a")).toEqual([]);
+  });
+});
+
+describe("markSuggestionsRead", () => {
+  const A = "00000000-0000-4000-a000-00000000000a";
+  const B = "00000000-0000-4000-a000-00000000000b";
+  const C = "00000000-0000-4000-a000-00000000000c";
+  const D = "00000000-0000-4000-a000-00000000000d";
+
+  it("dismisses check-ins and check-outs, reads notifications, and ignores chats and junk", async () => {
+    const writes: [string, string][] = [];
+    const note: { kind: string; ref: string } | null = null;
+    const q = (table: string, op: string) => {
+      const chain: Record<string, unknown> = {};
+      for (const m of ["eq", "is"]) chain[m] = () => chain;
+      chain.then = (resolve: (v: unknown) => unknown) => (writes.push([table, op]), Promise.resolve({ error: null }).then(resolve));
+      return chain;
+    };
+    getSearcher.mockResolvedValue(
+      searcher({
+        ctx: {
+          ...searcher().ctx,
+          supabase: {
+            from: (table: string) => ({
+              upsert: () => q(table, "upsert"),
+              update: () => q(table, "update"),
+              select: () => ({ eq: () => ({ eq: () => ({ maybeSingle: async () => ({ data: note }) }) }) }),
+            }),
+          },
+        },
+      })
+    );
+    const n = await markSuggestionsRead([`checkin:${A}`, `checkout:${B}`, `chat:${C}`, `notification:${D}`, "checkin:not-a-uuid", `weird:${A}`]);
+    expect(n).toBe(3); // chat rows are never marked read here
+    expect(writes).toContainEqual(["prickle_checkin_dismissals", "upsert"]);
+    expect(writes).toContainEqual(["prickle_checkout_dismissals", "upsert"]);
+    expect(writes.filter(([t]) => t === "in_app_notifications").length).toBe(3);
+  });
+
+  it("closes the prickle's check-in or check-out when its notification is marked read", async () => {
+    const writes: string[] = [];
+    const q = (table: string) => {
+      const chain: Record<string, unknown> = {};
+      for (const m of ["eq", "is"]) chain[m] = () => chain;
+      chain.then = (resolve: (v: unknown) => unknown) => (writes.push(table), Promise.resolve({ error: null }).then(resolve));
+      return chain;
+    };
+    const note = { kind: "prickle_checkin", ref: A };
+    getSearcher.mockResolvedValue(
+      searcher({
+        ctx: {
+          ...searcher().ctx,
+          supabase: {
+            from: (table: string) => ({
+              upsert: () => q(table),
+              update: () => q(table),
+              select: () => ({ eq: () => ({ eq: () => ({ maybeSingle: async () => ({ data: note }) }) }) }),
+            }),
+          },
+        },
+      })
+    );
+    expect(await markSuggestionsRead([`notification:${D}`])).toBe(1);
+    expect(writes).toContain("prickle_checkin_dismissals");
+  });
+
+  it("does nothing in sudo", async () => {
+    getSearcher.mockResolvedValue(searcher({ isSudo: true }));
+    expect(await markSuggestionsRead([`checkin:${A}`])).toBe(0);
   });
 });

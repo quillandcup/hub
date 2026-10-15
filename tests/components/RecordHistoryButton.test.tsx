@@ -37,7 +37,7 @@ describe("RecordHistoryButton", () => {
     render(<RecordHistoryButton entityType="badge_type" entityId="b1" label="Early Bird" />);
     expect(loadRecordHistory).not.toHaveBeenCalled();
     await userEvent.click(screen.getByRole("button", { name: "Change history of Early Bird" }));
-    expect(loadRecordHistory).toHaveBeenCalledWith(["badge_type"], "b1");
+    expect(loadRecordHistory).toHaveBeenCalledWith(["badge_type"], "b1", { parentColumn: undefined, memberRows: undefined });
     expect(await screen.findByText(/Bramble Admin/)).toBeInTheDocument();
     expect(screen.getByText(/changed badge type “Early Bird”/)).toBeInTheDocument();
     expect(screen.getByText("Early")).toBeInTheDocument();
@@ -47,7 +47,14 @@ describe("RecordHistoryButton", () => {
     loadRecordHistory.mockResolvedValue({ rows: [] });
     render(<RecordHistoryButton entityType={["segment", "segment_member"]} label="segments" />);
     await userEvent.click(screen.getByRole("button", { name: "Change history of segments" }));
-    expect(loadRecordHistory).toHaveBeenCalledWith(["segment", "segment_member"], null);
+    expect(loadRecordHistory).toHaveBeenCalledWith(["segment", "segment_member"], null, { parentColumn: undefined, memberRows: undefined });
+  });
+
+  it("passes the parent column and member rows through so children show on the parent", async () => {
+    loadRecordHistory.mockResolvedValue({ rows: [] });
+    render(<RecordHistoryButton entityType={["event", "event_attendee"]} entityId="e1" parentColumn="event_id" includeMemberRows label="x" />);
+    await userEvent.click(screen.getByRole("button", { name: "Change history of x" }));
+    expect(loadRecordHistory).toHaveBeenCalledWith(["event", "event_attendee"], "e1", { parentColumn: "event_id", memberRows: true });
   });
 
   it("says so when nothing was recorded, and shows load errors", async () => {

@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import ReactionEmoji from "@/components/ReactionEmoji";
+import type { ReactionEmojiValue } from "@/lib/slack-reaction-emoji";
 import { DataTablePager } from "@/components/DataTablePager";
 import { useServerDataTable } from "@/lib/hooks/useDataTable";
 import { formatDateTime } from "@/lib/formatters";
@@ -8,6 +10,7 @@ import {
   actorDisplay,
   changedFields,
   describeRow,
+  reactionName,
   feedSearch,
   formatValue,
   summarizePages,
@@ -69,6 +72,17 @@ function PageTrail({ row }: { row: ActivityFeedRow }) {
   );
 }
 
+/** A reaction reads "Reacted 🎉" (or the custom emoji's image); everything else is describeRow's sentence. */
+function Summary({ row }: { row: ActivityFeedRow }) {
+  const name = reactionName(row);
+  if (!name) return <>{describeRow(row)}</>;
+  return (
+    <>
+      Reacted <ReactionEmoji name={name} emoji={row.data?.reaction_emoji as ReactionEmojiValue | undefined} />
+    </>
+  );
+}
+
 function hasDetail(row: ActivityFeedRow) {
   return (
     (row.kind === "audit" && changedFields(row.data).length > 0) ||
@@ -88,12 +102,15 @@ export default function ActivityFeedTable({
   page,
   pageSize,
   filters,
+  hideAbout = false,
 }: {
   rows: ActivityFeedRow[];
   total: number;
   page: number;
   pageSize: number;
   filters: FeedFilters;
+  /** Drop the About column, where every row is about the same member (their own page). */
+  hideAbout?: boolean;
 }) {
   // Newest first is the only order; there are no sortable columns.
   const table = useServerDataTable<ActivityFeedRow, never>({
@@ -114,7 +131,7 @@ export default function ActivityFeedTable({
               <th className="py-2 pr-4 font-medium whitespace-nowrap">When</th>
               <th className="py-2 pr-4 font-medium">Who</th>
               <th className="py-2 pr-4 font-medium">What</th>
-              <th className="py-2 font-medium">About</th>
+              {!hideAbout && <th className="py-2 font-medium">About</th>}
             </tr>
           </thead>
           <tbody>
@@ -145,7 +162,7 @@ export default function ActivityFeedTable({
                   <td className="py-2 pr-4 text-slate-700 dark:text-slate-300">
                     {hasDetail(row) ? (
                       <details>
-                        <summary className="cursor-pointer">{describeRow(row)}</summary>
+                        <summary className="cursor-pointer"><Summary row={row} /></summary>
                         {row.kind === "audit" && <ChangeTable row={row} />}
                         {row.kind === "session" && <PageTrail row={row} />}
                         {row.kind === "activity" && row.description && (
@@ -155,23 +172,25 @@ export default function ActivityFeedTable({
                         )}
                       </details>
                     ) : (
-                      describeRow(row)
+                      <Summary row={row} />
                     )}
                   </td>
-                  <td className="py-2">
-                    {row.actor_kind === "member" && !sudo ? (
-                      <span className="text-slate-400">self</span>
-                    ) : row.member_id && row.member_name ? (
-                      <Link
-                        href={`/admin/members/${row.member_id}`}
-                        className="text-plum-600 dark:text-plum-400 hover:underline"
-                      >
-                        {row.member_name}
-                      </Link>
-                    ) : (
-                      <span className="text-slate-400">—</span>
-                    )}
-                  </td>
+                  {!hideAbout && (
+                    <td className="py-2">
+                      {row.actor_kind === "member" && !sudo ? (
+                        <span className="text-slate-400">self</span>
+                      ) : row.member_id && row.member_name ? (
+                        <Link
+                          href={`/admin/members/${row.member_id}`}
+                          className="text-plum-600 dark:text-plum-400 hover:underline"
+                        >
+                          {row.member_name}
+                        </Link>
+                      ) : (
+                        <span className="text-slate-400">—</span>
+                      )}
+                    </td>
+                  )}
                 </tr>
               );
             })}

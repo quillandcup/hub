@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import RecordHistoryButton from "@/components/RecordHistoryButton";
 import Link from "next/link";
 import type { Metadata } from "next";
 import AliasesTable from "./AliasesTable";
@@ -64,12 +65,18 @@ export default async function AliasListPage() {
               All configured aliases for matching Zoom names to members
             </p>
           </div>
-          <Link
-            href="/admin/hygiene/unmatched-zoom"
-            className="px-4 py-2 bg-plum-600 hover:bg-plum-700 text-white rounded-lg font-medium transition-colors"
-          >
-            + Add New Aliases
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link
+              href="/admin/hygiene/unmatched-zoom"
+              className="px-4 py-2 bg-plum-600 hover:bg-plum-700 text-white rounded-lg font-medium transition-colors"
+            >
+              + Add New Aliases
+            </Link>
+            <RecordHistoryButton
+              entityType={["member_name_alias", "member_email_alias", "ignored_zoom_name", "ambiguous_zoom_name", "ignored_slack_user"]}
+              label="aliases and ignored names"
+            />
+          </div>
         </div>
       </div>
 

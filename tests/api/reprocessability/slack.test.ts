@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { getTestSupabaseAdminClient, getTestAuthHeaders, getTestApiBaseUrl } from '../../helpers/supabase'
+import { apiFetch } from '../../helpers/api-fetch'
 
 /**
  * Test to verify /api/process/slack is fully reprocessable
@@ -127,7 +128,7 @@ describe('Slack Reprocessability', () => {
     expect(verifyData).toHaveLength(2)
 
     // ACT: Process Slack messages
-    const response = await fetch(`${getTestApiBaseUrl()}/api/process/slack`, {
+    const response = await apiFetch(`${getTestApiBaseUrl()}/api/process/slack`, {
       method: 'POST',
       headers: {
         ...getTestAuthHeaders(),
@@ -178,7 +179,7 @@ describe('Slack Reprocessability', () => {
     expect(deletedMsg?.deleted_at).not.toBeNull()
 
     // ACT: Reprocess Slack messages
-    const response = await fetch(`${getTestApiBaseUrl()}/api/process/slack`, {
+    const response = await apiFetch(`${getTestApiBaseUrl()}/api/process/slack`, {
       method: 'POST',
       headers: {
         ...getTestAuthHeaders(),
@@ -257,7 +258,7 @@ describe('Slack Reprocessability', () => {
     expect(before).toBeTruthy()
 
     // ACT: Process Slack (should DELETE all activities in date range, then INSERT from Bronze)
-    const response = await fetch(`${getTestApiBaseUrl()}/api/process/slack`, {
+    const response = await apiFetch(`${getTestApiBaseUrl()}/api/process/slack`, {
       method: 'POST',
       headers: {
         ...getTestAuthHeaders(),
@@ -291,7 +292,7 @@ describe('Slack Reprocessability', () => {
 
   it('should leave message text out for a restricted channel and put it back when the restriction is lifted', async () => {
     const process = async () => {
-      const response = await fetch(`${getTestApiBaseUrl()}/api/process/slack`, {
+      const response = await apiFetch(`${getTestApiBaseUrl()}/api/process/slack`, {
         method: 'POST',
         headers: { ...getTestAuthHeaders(), 'Content-Type': 'application/json' },
         body: JSON.stringify({ fromDate: '2099-04-01', toDate: '2099-04-02' }),

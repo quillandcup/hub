@@ -347,7 +347,7 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
           >
             + Invite User
           </button>
-          <RecordHistoryButton entityType={["user_profile", "user_feature_preview"]} label="users" />
+          <RecordHistoryButton entityType={["user_profile", "user_feature_preview", "staff"]} label="users and staff" />
         </div>
       </div>
 

@@ -23,11 +23,12 @@
 // On a PR it also links each uncovered range to the file at the PR's commit (HEAD_SHA) and
 // annotates the diff with the biggest uncovered ranges (GitHub shows 10 annotations per step).
 //
-// The per-directory floors stay in vitest.config.mts (coverage.thresholds) and fail the unit
-// job early. app/api/** is excluded from the new-code gate: its routes are exercised by db
-// tests that call a separate Next server process, which v8 can't instrument. Set
-// PATCH_COVERAGE_SKIP=1 to report without gating (CI does when the PR has the
-// skip-patch-coverage label).
+// It also enforces AREA_FLOORS: a minimum per measure for lib, components and app/api on the
+// combined numbers (a function the db suite covers counts for lib, and the other way round).
+// API routes count toward both: the db tests call their handlers in process
+// (tests/helpers/api-fetch.ts), so v8 sees them. Set PATCH_COVERAGE_SKIP=1 to report the
+// new-code score without gating it (CI does when the PR has the skip-patch-coverage label);
+// the floors are not skipped.
 
 import { spawnSync } from "node:child_process";
 import { appendFileSync, readFileSync } from "node:fs";
@@ -35,8 +36,18 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 export const MIN_PATCH_SCORE = 80;
+/**
+ * Minimum combined coverage per area and measure, in percent. Each sits about two points under
+ * the 2026-10-14 baseline (lib 85.6/84.3/88.9/76.5, components 70.1/69.9/68.6/66.4,
+ * app/api 59.2/56.5/66.5/46.7); raise them as tests are added.
+ */
+export const AREA_FLOORS: Record<string, Record<"lines" | "statements" | "functions" | "branches", number>> = {
+  lib: { lines: 83, statements: 82, functions: 86, branches: 74 },
+  components: { lines: 68, statements: 67, functions: 66, branches: 64 },
+  "app/api": { lines: 57, statements: 54, functions: 64, branches: 44 },
+};
 const SOURCE = /^((app|lib|components|emails)\/.+\.(ts|tsx)|(proxy|instrumentation|instrumentation-client)\.ts)$/;
-const EXCLUDED = [/^app\/api\//, /\.d\.ts$/, /\.test\.tsx?$/];
+const EXCLUDED = [/\.d\.ts$/, /\.test\.tsx?$/];
 const COMMENT_MARKER = "<!-- coverage-report -->";
 
 type Loc = { line: number; column: number };
@@ -125,6 +136,20 @@ const emptyMetrics = (): Metrics => ({
 function addTo(into: Area, items: Map<string, boolean>): void {
   into.total += items.size;
   into.covered += [...items.values()].filter(Boolean).length;
+}
+
+export type FloorCheck = { area: string; measure: Measure; actual: number; floor: number; ok: boolean };
+
+/** Every floor against the combined numbers; an area with nothing in the data counts as 0%. */
+export function checkFloors(combined: Map<string, Metrics>, floors = AREA_FLOORS): FloorCheck[] {
+  return Object.entries(floors).flatMap(([area, perMeasure]) =>
+    MEASURES.map((measure) => {
+      const m = combined.get(area);
+      const actual = m && m[measure].total > 0 ? pct(m[measure]) : 0;
+      const floor = perMeasure[measure];
+      return { area, measure, actual, floor, ok: actual >= floor };
+    }),
+  );
 }
 
 /** All four measures per area. Every file in the data counts, covered or not. */
@@ -285,13 +310,14 @@ export function renderReport(
   combined: Map<string, Metrics>,
   patch: Patch | null,
   links?: Links,
+  floors: FloorCheck[] = [],
 ): string {
   const out = ["### Coverage (unit + db tests)", ""];
   if (patch) {
     const { result, passed, skipped } = patch;
     const icon = skipped ? "⏭️" : passed ? "✅" : "❌";
     out.push(
-      `**New code: ${icon} ${scoreCell(result.metrics)}** (${MIN_PATCH_SCORE}% required${skipped ? ", check skipped by label" : ""}; covered by either suite; \`app/api/**\` is not counted)`,
+      `**New code: ${icon} ${scoreCell(result.metrics)}** (${MIN_PATCH_SCORE}% required${skipped ? ", check skipped by label" : ""}; covered by either suite)`,
       "",
       `| lines | statements | functions | branches |`,
       `|--:|--:|--:|--:|`,
@@ -302,6 +328,24 @@ export function renderReport(
       for (const [file, lines] of result.uncovered) {
         out.push(`| \`${file}\` | ${lineRanges(lines).map((r) => rangeLink(file, r, links)).join(", ")} |`);
       }
+    }
+    out.push("");
+  }
+
+  if (floors.length) {
+    const failing = floors.filter((f) => !f.ok);
+    out.push(
+      `**Area floors: ${failing.length ? "❌" : "✅"}** (combined coverage; each must stay at or above its minimum)`,
+      "",
+      `| Area | ${MEASURES.join(" | ")} |`,
+      `|---|${MEASURES.map(() => "--:|").join("")}`,
+    );
+    for (const area of [...new Set(floors.map((f) => f.area))]) {
+      const cells = MEASURES.map((measure) => {
+        const f = floors.find((x) => x.area === area && x.measure === measure)!;
+        return `${f.ok ? "" : "❌ "}${f.actual.toFixed(1)}% (min ${f.floor}%)`;
+      });
+      out.push(`| \`${area}\` | ${cells.join(" | ")} |`);
     }
     out.push("");
   }
@@ -321,7 +365,7 @@ export function renderReport(
     `| **all** | ${suites.map((s) => `**${cell(sumMetrics(s.metrics.values()).lines)}**`).join(" | ")} | **${cell(total.lines)}** | **${scoreCell(total)}** | ${flags(total).join("; ")} |`,
   );
 
-  out.push("", "<details open><summary>All measures: each suite, then combined</summary>");
+  out.push("", "<details><summary>All measures: each suite, then combined</summary>");
   for (const table of [...suites, { name: "combined", metrics: combined }]) {
     out.push(
       "",
@@ -400,7 +444,7 @@ function main(): void {
     const result = patchCoverage(parseAddedLines(diff.stdout), merged);
     const score = aggregateScore(result.metrics);
     const skipped = process.env.PATCH_COVERAGE_SKIP === "1";
-    // No executable new code (docs, config, types, app/api only) has nothing to test.
+    // No executable new code (docs, config, types only) has nothing to test.
     patch = { result, skipped, passed: skipped || score === null || score >= MIN_PATCH_SCORE };
   }
 
@@ -412,11 +456,14 @@ function main(): void {
         runUrl: GITHUB_RUN_ID ? `${GITHUB_SERVER_URL ?? "https://github.com"}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}` : undefined,
       }
     : undefined;
+  const combined = areaMetrics(merged);
+  const floors = checkFloors(combined);
   const text = renderReport(
     loaded.map((s) => ({ name: s.name, metrics: areaMetrics(s.hits) })),
-    areaMetrics(merged),
+    combined,
     patch,
     links,
+    floors,
   );
   console.log(text);
   if (patch && process.env.GITHUB_ACTIONS) {
@@ -424,7 +471,10 @@ function main(): void {
   }
   if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, text + "\n");
   postStickyComment(text);
-  if (patch && !patch.passed) process.exit(1);
+  for (const f of floors.filter((x) => !x.ok)) {
+    console.log(`::error title=Coverage floor::${f.area} ${f.measure} is ${f.actual.toFixed(1)}%, under its ${f.floor}% floor`);
+  }
+  if ((patch && !patch.passed) || floors.some((f) => !f.ok)) process.exit(1);
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url))) main();

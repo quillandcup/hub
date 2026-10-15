@@ -9,6 +9,7 @@ import { getStarredGoals, getUnloggedRecentPrickles } from "../projects/actions"
 import UnloggedPricklesCard from "@/components/writing/UnloggedPricklesCard"
 import GoalDisplay from "@/components/writing/GoalDisplay"
 import UpcomingPrickleRow from "@/components/UpcomingPrickleRow"
+import { loadDismissedCheckinIds } from "@/lib/prickle-checkin-dms"
 import { getRankedUpcomingPrickles } from "@/lib/upcoming-prickles"
 import { ORG_TIMEZONE } from "@/lib/config";
 import { getMyCheckins } from "@/app/(member)/prickles/checkin-actions";
@@ -79,6 +80,7 @@ export default async function DashboardPage() {
       : []
   const upcoming = ranked.map((r) => r.prickle)
   const displayedUpcoming = ranked.slice(0, MAX_UPCOMING_DISPLAY)
+  const dismissedCheckins = await loadDismissedCheckinIds(supabase, memberId, displayedUpcoming.map((r) => r.prickle.id))
 
   const firstName = effectiveIdentity.memberName?.split(" ")[0]
 
@@ -141,6 +143,7 @@ export default async function DashboardPage() {
                 reasons={reasons}
                 timeZone={timeZone}
                 checkin={checkins[prickle.id] ?? null}
+                checkinDismissed={dismissedCheckins.has(prickle.id)}
               />
             ))}
           </div>
