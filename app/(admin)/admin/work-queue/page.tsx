@@ -8,13 +8,17 @@ import {
   buildWelcomeBackQueue,
   buildHedgieversaryQueue,
   buildHiatusNudgeQueue,
+  buildBigSisterQueue,
+  bigSisterMatchKey,
   completionKey,
   type HiatusInput,
   type MemberInput,
   type CompletionLookup,
   type CompletionStatus,
+  WORK_QUEUE_LOOKBACK_DAYS,
 } from "@/lib/admin-work-queue";
 import type { HiatusWindow } from "@/lib/member-tenure";
+import { getArrivals } from "@/lib/arrivals";
 import WorkQueueSections from "./WorkQueueSections";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireAdminPage } from "@/lib/admin-auth";
@@ -67,7 +71,11 @@ export default async function WorkQueuePage() {
 
   // Only current members (active or on_hiatus) — a fully cancelled member
   // isn't due a Hedgieversary celebration or a welcome-back action.
-  const [members, hiatusHistory, completions] = await Promise.all([
+  const now = new Date();
+  const sinceDate = new Date(now.getTime() - WORK_QUEUE_LOOKBACK_DAYS * 86_400_000).toISOString().slice(0, 10);
+  // The Big Sister section is its own preview: skip its queries when it's off.
+  const bigSistersOn = enabledFeatures.includes("big_sisters");
+  const [members, hiatusHistory, completions, newMembers, matches] = await Promise.all([
     fetchAllRows(
       supabase,
       "members",
@@ -80,9 +88,11 @@ export default async function WorkQueuePage() {
       "admin_work_queue_completions",
       "queue_type, member_id, occurrence_key, status, postponed_until"
     ),
+    bigSistersOn ? getArrivals(supabase, sinceDate, now.toISOString().slice(0, 10)) : Promise.resolve([]),
+    bigSistersOn
+      ? fetchAllRows(supabase, "mentorships", "new_member_id, started_on", (q) => q.eq("status", "matched"))
+      : Promise.resolve([]),
   ]);
-
-  const now = new Date();
 
   const memberInputs: MemberInput[] = members;
   const membersById = new Map(members.map((m) => [m.id, { name: m.name }]));
@@ -105,6 +115,12 @@ export default async function WorkQueuePage() {
   const welcomeBackQueue = buildWelcomeBackQueue(hiatusInputs, membersById, completed, now);
   const hedgieversaryQueue = buildHedgieversaryQueue(memberInputs, hiatusWindowsByMember, completed, now);
   const hiatusNudgeQueue = buildHiatusNudgeQueue(hiatusInputs, membersById, completed, now);
+  const bigSisterQueue = buildBigSisterQueue(
+    newMembers.map((a) => ({ memberId: a.memberId, memberName: a.memberName, startedOn: a.arrivedOn })),
+    new Set(matches.map((m) => bigSisterMatchKey(m.new_member_id as string, m.started_on as string))),
+    completed,
+    now
+  );
 
   return (
     <div className="min-h-screen bg-canvas dark:bg-slate-950">
@@ -115,7 +131,7 @@ export default async function WorkQueuePage() {
           </div>
           <h1 className="text-2xl font-bold">Work Queue</h1>
           <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
-            Welcome-back, Hedgieversary celebration, and hiatus-nudge tasks, sorted by deadline.
+            Big sister matches, welcome-backs, Hedgieversary celebrations, and hiatus nudges, sorted by deadline.
             Mark each one done as you handle it.
           </p>
         </div>
@@ -126,6 +142,7 @@ export default async function WorkQueuePage() {
           welcomeBackQueue={welcomeBackQueue}
           hedgieversaryQueue={hedgieversaryQueue}
           hiatusNudgeQueue={hiatusNudgeQueue}
+          bigSisterQueue={bigSisterQueue}
         />
       </main>
     </div>

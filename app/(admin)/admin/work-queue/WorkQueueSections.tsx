@@ -14,6 +14,7 @@ interface WorkQueueSectionsProps {
   welcomeBackQueue: WorkQueueItem[];
   hedgieversaryQueue: WorkQueueItem[];
   hiatusNudgeQueue: WorkQueueItem[];
+  bigSisterQueue: WorkQueueItem[];
 }
 
 const SECTION_META: Record<
@@ -37,6 +38,12 @@ const SECTION_META: Record<
     description: "Send a check-in at the 25%, 50%, and 75% marks of a hiatus.",
     emptyText: "No hiatus nudges due right now.",
     badgeClass: "bg-mist-100 text-mist-800 dark:bg-mist-900/40 dark:text-mist-300",
+  },
+  big_sister: {
+    title: "Needs a Big Sister",
+    description: "New members who haven't been matched with a big sister yet. Mark done if they don't need one.",
+    emptyText: "Every new member has a big sister.",
+    badgeClass: "bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-300",
   },
 };
 
@@ -142,6 +149,14 @@ function QueueRow({ item, busyKey, onMarkDone, onOptOut, onPostpone, onExtend }:
               >
                 Extend
               </button>
+            )}
+            {item.queueType === "big_sister" && (
+              <Link
+                href={`/admin/mentorship?new=${item.memberId}`}
+                className="px-3 py-1.5 text-sm font-medium bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg transition-colors"
+              >
+                Assign
+              </Link>
             )}
             {item.queueType === "hedgieversary" && (
               <>
@@ -357,9 +372,13 @@ export default function WorkQueueSections({
   welcomeBackQueue,
   hedgieversaryQueue,
   hiatusNudgeQueue,
+  bigSisterQueue,
 }: WorkQueueSectionsProps) {
   const allEmpty =
-    welcomeBackQueue.length === 0 && hedgieversaryQueue.length === 0 && hiatusNudgeQueue.length === 0;
+    welcomeBackQueue.length === 0 &&
+    hedgieversaryQueue.length === 0 &&
+    hiatusNudgeQueue.length === 0 &&
+    bigSisterQueue.length === 0;
 
   if (allEmpty) {
     return (
@@ -371,6 +390,7 @@ export default function WorkQueueSections({
 
   return (
     <div className="space-y-8">
+      <QueueSection items={bigSisterQueue} />
       <QueueSection items={welcomeBackQueue} />
       <QueueSection items={hedgieversaryQueue} />
       <QueueSection items={hiatusNudgeQueue} />

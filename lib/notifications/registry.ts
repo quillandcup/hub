@@ -1,4 +1,5 @@
 import { CHANNELS, isChannelId, type ChannelId } from "@/lib/channels/catalog";
+import type { FeatureKey } from "@/lib/features";
 
 /**
  * What the app can notify a member about (kinds), on top of the shared delivery channels
@@ -33,6 +34,8 @@ export interface NotificationKindDef {
   description: string;
   /** Channels it goes to for a member who hasn't changed this kind's settings. */
   defaultChannels: readonly NotificationChannelId[];
+  /** A feature preview this kind belongs to: members without it don't see the kind in settings or search. */
+  feature?: FeatureKey;
 }
 
 export const NOTIFICATION_KINDS = [
@@ -49,6 +52,15 @@ export const NOTIFICATION_KINDS = [
     label: "Prickle check-outs",
     description: "Sent after each writing prickle you attended: how it went, and a quick progress log for your goals.",
     defaultChannels: ["slack", "in_app", "web_push"],
+  },
+  {
+    id: "big_sister_match",
+    category: "Big Sisters",
+    label: "Big Sister introductions",
+    description:
+      "Sent when a new member is matched with a big sister: to the new member, who their big sister is, and to the big sister, who they're looking after.",
+    defaultChannels: ["slack", "in_app", "web_push"],
+    feature: "big_sisters",
   },
 ] as const satisfies readonly NotificationKindDef[];
 

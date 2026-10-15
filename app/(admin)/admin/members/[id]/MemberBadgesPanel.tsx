@@ -92,7 +92,13 @@ export default function MemberBadgesPanel({
             <BadgeChip
               key={badge.badgeType.id}
               badge={badge}
-              href={badge.badgeType.event_id ? `/admin/events/${badge.badgeType.event_id}` : null}
+              href={
+                badge.badgeType.event_id
+                  ? `/admin/events/${badge.badgeType.event_id}`
+                  : badge.badgeType.key === "hedgie_mentor"
+                    ? "/admin/mentorship"
+                    : null
+              }
             />
           ))}
         </div>

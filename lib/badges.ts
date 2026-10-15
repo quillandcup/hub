@@ -50,6 +50,17 @@ export interface AutomaticBadgeMetrics {
   publishedBookCount: number;
   /** Programs this member has completed, keyed by program_id -- see getProgramCompletions. */
   programCompletions: Map<string, ProgramCompletion>;
+  /** The Big Sister program matches this member has mentored, if any (omitted by callers that
+   * don't compute it). */
+  mentorship?: MentorshipCount;
+}
+
+/** How many trial members a big sister has mentored (matches whose trial has started), and the
+ * first and last trial start dates -- from the mentorship_counts() function, see getMentorshipCounts. */
+export interface MentorshipCount {
+  count: number;
+  firstStartedOn: string;
+  lastStartedOn: string;
 }
 
 /** One member's completion history for a single program: how many enrolled cohorts have ended,
@@ -58,6 +69,18 @@ export interface ProgramCompletion {
   occurrences: number;
   firstCompletedAt: string;
   lastCompletedAt: string;
+}
+
+/** Where a badge's chip links: a retreat badge to its event, the Big Sister badge to the program
+ * page (only for a viewer who has the big_sisters preview, since the page is behind it), others
+ * nowhere. */
+export function badgeHref(
+  badgeType: Pick<BadgeType, "key" | "event_slug">,
+  options: { bigSistersEnabled?: boolean } = {}
+): string | null {
+  if (badgeType.event_slug) return `/events/${badgeType.event_slug}`;
+  if (badgeType.key === "hedgie_mentor" && options.bigSistersEnabled) return "/big-sisters";
+  return null;
 }
 
 /** The highest level whose threshold is met by `occurrences`, or null if none is met yet
@@ -155,6 +178,35 @@ function pushProgramCompletion(
   });
 }
 
+/** The automatic Big Sister badge: matches counted from the mentorships table, merged with any
+ * member_badges rows awarded by hand before the program was tracked here. Both describe the same
+ * mentoring, so the larger number wins rather than adding them up -- a hand-awarded badge never
+ * drops a level, and a tracked match is never counted twice. */
+function pushMentorship(
+  earned: EarnedBadge[],
+  badgeType: BadgeType,
+  levels: BadgeLevel[],
+  mentorship: MentorshipCount | undefined,
+  legacyAwards: { occurred_at: string; note: string | null }[]
+) {
+  const occurrences = Math.max(mentorship?.count ?? 0, legacyAwards.length);
+  const dates = [
+    ...(mentorship ? [mentorship.firstStartedOn, mentorship.lastStartedOn] : []),
+    ...legacyAwards.map((a) => a.occurred_at),
+  ].sort();
+  const level = deriveLevel(levels, occurrences);
+  if (!level) return;
+  earned.push({
+    badgeType,
+    levelName: level.name,
+    level: level.level,
+    occurrences,
+    firstAwardedAt: dates[0],
+    lastAwardedAt: dates[dates.length - 1],
+    note: legacyAwards[legacyAwards.length - 1]?.note ?? null,
+  });
+}
+
 /**
  * Merges manually-awarded badges (member_badges rows) with the automatically-computed ones
  * (prickle milestones, Founding Hedgie, Hostess, Published Author) into one earned-badges list,
@@ -189,6 +241,9 @@ export function computeEarnedBadges(
           break;
         case "published_author":
           pushAutomaticLeveled(earned, badgeType, levels, metrics.publishedBookCount);
+          break;
+        case "hedgie_mentor":
+          pushMentorship(earned, badgeType, levels, metrics.mentorship, typeAwards);
           break;
         case "founding_hedgie":
           if (isFoundingHedgie(metrics.firstJoinedAt)) {
@@ -317,6 +372,8 @@ export interface BulkAutomaticMetrics {
   /** Program completions, keyed by program_id then member_id -- bulk counterpart to
    * AutomaticBadgeMetrics.programCompletions, see getProgramCompletionsByProgram. */
   programCompletionsByProgramId: Map<string, Map<string, ProgramCompletion>>;
+  /** Big Sister matches per mentor -- bulk counterpart to AutomaticBadgeMetrics.mentorship. */
+  mentorshipByMember?: Map<string, MentorshipCount>;
 }
 
 function pushLeveledRecipient(
@@ -376,6 +433,36 @@ export function computeBadgeRecipients(
           if (member) pushLeveledRecipient(recipients, member, levels, occurrences);
         }
         break;
+      case "hedgie_mentor": {
+        // `awards` is the hand-awarded rows for this badge type (see pushMentorship's merge rule).
+        const legacyByMember = new Map<string, { occurred_at: string; note: string | null }[]>();
+        for (const award of awards) {
+          const list = legacyByMember.get(award.member_id) ?? [];
+          list.push({ occurred_at: award.occurred_at, note: award.note });
+          legacyByMember.set(award.member_id, list);
+        }
+        const mentorshipByMember = metrics.mentorshipByMember ?? new Map<string, MentorshipCount>();
+        for (const memberId of new Set([...mentorshipByMember.keys(), ...legacyByMember.keys()])) {
+          const member = membersById.get(memberId);
+          if (!member) continue;
+          const earned: EarnedBadge[] = [];
+          pushMentorship(earned, badgeType, levels, mentorshipByMember.get(memberId), legacyByMember.get(memberId) ?? []);
+          const badge = earned[0];
+          if (!badge) continue;
+          recipients.push({
+            memberId,
+            memberName: member.name,
+            memberEmail: member.email,
+            levelName: badge.levelName,
+            level: badge.level,
+            occurrences: badge.occurrences,
+            firstAwardedAt: badge.firstAwardedAt,
+            lastAwardedAt: badge.lastAwardedAt,
+            note: badge.note,
+          });
+        }
+        break;
+      }
       case "founding_hedgie":
         for (const member of members) {
           if (!isFoundingHedgie(member.firstJoinedAt)) continue;
@@ -584,6 +671,26 @@ async function getAttendedPrickleCountsByMember(
   return countsByMember;
 }
 
+/** Big Sister matches per mentor, from mentorship_counts(). Goes through that function because
+ * members can't read `mentorships` (it names the mentees); it returns only ids and counts. */
+export async function getMentorshipCounts(supabase: SupabaseClient): Promise<Map<string, MentorshipCount>> {
+  const { data } = await supabase.rpc("mentorship_counts");
+  const counts = new Map<string, MentorshipCount>();
+  for (const row of (data ?? []) as {
+    member_id: string;
+    mentored_count: number;
+    first_started_on: string;
+    last_started_on: string;
+  }[]) {
+    counts.set(row.member_id, {
+      count: row.mentored_count,
+      firstStartedOn: row.first_started_on,
+      lastStartedOn: row.last_started_on,
+    });
+  }
+  return counts;
+}
+
 interface EnrollmentCohortRow {
   program_cohorts: { program_id: string; expires_at: string } | null;
 }
@@ -689,6 +796,7 @@ export async function getBadgeRecipients(
   // Legacy manual awards for a program-linked badge (pre-dating enrollment tracking), scoped to
   // this one badge type -- computeBadgeRecipients merges these with computed completions.
   let legacyAwards: { member_id: string; occurred_at: string; note: string | null }[] = [];
+  let mentorshipByMember = new Map<string, MentorshipCount>();
   switch (badgeType.key) {
     case "prickle_milestones":
       attendedPrickleCountsByMember = await getAttendedPrickleCountsByMember(supabase);
@@ -699,6 +807,15 @@ export async function getBadgeRecipients(
     case "published_author":
       publishedBookCountsByMember = await getPublishedBookCountsByMember(supabase);
       break;
+    case "hedgie_mentor": {
+      mentorshipByMember = await getMentorshipCounts(supabase);
+      const { data: awards } = await supabase
+        .from("member_badges")
+        .select("member_id, occurred_at, note")
+        .eq("badge_type_id", badgeType.id);
+      legacyAwards = (awards ?? []) as typeof legacyAwards;
+      break;
+    }
     // founding_hedgie needs no query -- it's a pure function of members.firstJoinedAt.
     default:
       if (badgeType.program_id) {
@@ -716,6 +833,7 @@ export async function getBadgeRecipients(
     hostedQuarterCountsByMember,
     publishedBookCountsByMember,
     programCompletionsByProgramId,
+    mentorshipByMember,
   });
 }
 
@@ -730,7 +848,15 @@ export async function getMemberBadges(
   totalPricklesAttended: number,
   firstJoinedAt: string | null
 ): Promise<EarnedBadge[]> {
-  const [{ data: badgeTypes }, { data: levels }, { data: awards }, hostedQuarterCount, publishedBookCount, programCompletions] =
+  const [
+    { data: badgeTypes },
+    { data: levels },
+    { data: awards },
+    hostedQuarterCount,
+    publishedBookCount,
+    programCompletions,
+    mentorshipCounts,
+  ] =
     await Promise.all([
       supabase.from("badge_types").select("*, event:events(slug)").order("category").order("name"),
       supabase.from("badge_levels").select("*").order("level"),
@@ -741,6 +867,7 @@ export async function getMemberBadges(
       getHostedQuarterCount(supabase, memberId),
       getPublishedBookCount(supabase, memberId),
       getProgramCompletions(supabase, memberId),
+      getMentorshipCounts(supabase),
     ]);
 
   const levelsByBadgeType = new Map<string, BadgeLevel[]>();
@@ -757,6 +884,13 @@ export async function getMemberBadges(
     })),
     levelsByBadgeType,
     (awards ?? []) as { badge_type_id: string; occurred_at: string; note: string | null }[],
-    { totalPricklesAttended, firstJoinedAt, hostedQuarterCount, publishedBookCount, programCompletions }
+    {
+      totalPricklesAttended,
+      firstJoinedAt,
+      hostedQuarterCount,
+      publishedBookCount,
+      programCompletions,
+      mentorship: mentorshipCounts.get(memberId),
+    }
   );
 }
