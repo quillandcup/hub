@@ -19,12 +19,15 @@
  * Everyone is also walked through syncing their calendar app (the "calendar" step), done once a
  * calendar app has fetched their feed, or when they confirm it.
  *
+ * A new member with a Big Sister (while the match is on their dashboard) gets a step to say hello to
+ * her. There's no data to tell it's done, so they confirm it.
+ *
  * Hosts get two more steps (most members never host, so nobody else sees them): their hosting
  * schedule on My Prickles → Hosting, and, once they've hosted recently enough to have prickle
  * types listed in Settings → Hosting, the vibe they run each type with.
  */
 
-export const ONBOARDING_STEP_IDS = ["identity", "profile", "intro", "writing", "prickles", "calendar", "hosting", "host-vibe"] as const;
+export const ONBOARDING_STEP_IDS = ["identity", "profile", "intro", "writing", "prickles", "calendar", "big-sister", "hosting", "host-vibe"] as const;
 export type OnboardingStepId = (typeof ONBOARDING_STEP_IDS)[number];
 
 /** What the member's own data says, gathered once per page load. */
@@ -56,6 +59,8 @@ export interface OnboardingSignals {
   hasUpcomingPrickle: boolean;
   /** A calendar app has fetched their feed link at least once (calendar_feed_tokens.first_fetched_at). */
   hasCalendarSynced: boolean;
+  /** Their Big Sister's name while the match is current (lib/my-mentorship.ts), else null. */
+  bigSisterName?: string | null;
 }
 
 export interface OnboardingStepView {
@@ -269,6 +274,20 @@ function stepViews(signals: OnboardingSignals, marked: Set<string>): StepWithout
       done: signals.hasCalendarSynced || marked.has("calendar"),
     },
   ];
+  if (signals.bigSisterName) {
+    steps.push({
+      id: "big-sister",
+      title: "Say hi to your Big Sister",
+      summary: `Say hello to ${signals.bigSisterName}, who's here to show you around.`,
+      href: "/big-sisters",
+      target: "big-sister-card",
+      calloutTitle: "Meet your Big Sister",
+      hint: "A Big Sister is a member who helps new members find their feet. Send a quick hello on Slack, or ask what a good first prickle would be.",
+      confirmLabel: "I said hi",
+      markKey: "big-sister",
+      done: marked.has("big-sister"),
+    });
+  }
   if (!signals.isHost) return steps;
 
   steps.push({

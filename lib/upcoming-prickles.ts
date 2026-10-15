@@ -490,7 +490,7 @@ export function rankUpcomingPrickles(inputs: RankingInputs): RankedPrickle[] {
 
     const lostStreakWeeks = lostStreakBySeries.get(p.seriesKey)
     if (lostStreakWeeks) {
-      reasons.push({ kind: "lostStreak", tooltip: [`Lost a ${lostStreakWeeks}-week streak here`] })
+      reasons.push({ kind: "lostStreak", tooltip: [`You hit ${lostStreakWeeks} weeks in a row here. Beat your best!`] })
       if (priority > PRIORITY.lostStreak) {
         priority = PRIORITY.lostStreak
         sortValue = -lostStreakWeeks

@@ -10,11 +10,12 @@ export interface PageHit {
 }
 
 /** Every word must appear in the title, section or a keyword. Title matches sort first. */
-export function matchPages(words: string[], opts: { isActingAsAdmin: boolean; features: readonly FeatureKey[] }): PageHit[] {
+export function matchPages(words: string[], opts: { isActingAsAdmin: boolean; features: readonly FeatureKey[]; canConfigureHostVibes?: boolean }): PageHit[] {
   const needles = words.map((w) => w.toLowerCase());
   const scored: { hit: PageHit; rank: number }[] = [];
   for (const page of SITE_PAGES) {
     if (((page.audience === "admin" || page.staffOnly) && !opts.isActingAsAdmin) || !pageEnabled(page, opts.features)) continue;
+    if (page.href.split("#")[0] === "/settings/hosting" && !opts.canConfigureHostVibes) continue;
     const section = page.audience === "admin" ? `Admin · ${page.section}` : page.section;
     const title = page.title.toLowerCase();
     // A part of a tab (href has an anchor) is found by its own words, not its tab's, so "settings" or "account" lists the tabs, not every field in them.

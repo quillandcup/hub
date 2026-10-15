@@ -12,6 +12,7 @@ interface Program {
   name: string;
   slug: string;
   description: string | null;
+  includes_membership: boolean;
   cohort_count: number;
   enrollment_count: number;
 }
@@ -43,7 +44,7 @@ export default function ProgramsClient() {
   const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [formData, setFormData] = useState({ name: "", description: "" });
+  const [formData, setFormData] = useState({ name: "", description: "", includes_membership: true });
   const table = useDataTable<Program, SortColumn>({
     rows: programs,
     getSortValue,
@@ -69,6 +70,23 @@ export default function ProgramsClient() {
     }
   };
 
+  // Whether joining the program makes someone a member, so they get a Big Sister.
+  const setIncludesMembership = async (program: Program, includes: boolean) => {
+    setError(null);
+    try {
+      const response = await fetch(`/api/admin/programs/${program.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ includes_membership: includes }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Failed to update program");
+      fetchPrograms();
+    } catch (err: any) {
+      setError(err.message);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -81,12 +99,13 @@ export default function ProgramsClient() {
           name: formData.name,
           slug: slugify(formData.name),
           description: formData.description || null,
+          includes_membership: formData.includes_membership,
         }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Failed to create program");
       setShowForm(false);
-      setFormData({ name: "", description: "" });
+      setFormData({ name: "", description: "", includes_membership: true });
       fetchPrograms();
     } catch (err: any) {
       setError(err.message);
@@ -136,6 +155,21 @@ export default function ProgramsClient() {
               rows={2}
             />
           </div>
+          <label className="flex items-start gap-2 text-sm dark:text-gray-200">
+            <input
+              type="checkbox"
+              checked={formData.includes_membership}
+              onChange={(e) => setFormData({ ...formData, includes_membership: e.target.checked })}
+              className="mt-1"
+            />
+            <span>
+              Includes membership
+              <span className="block text-xs text-gray-500 dark:text-gray-400">
+                Joining makes someone a member, so they get a Big Sister. Leave off for a course that doesn&apos;t include
+                membership.
+              </span>
+            </span>
+          </label>
           <div className="flex gap-2">
             <button type="submit" disabled={saving} className="px-4 py-2 bg-plum-600 text-white rounded hover:bg-plum-700 disabled:opacity-50">
               {saving ? "Saving..." : "Create Program"}
@@ -173,12 +207,15 @@ export default function ProgramsClient() {
                 direction={sortDirection}
                 onClick={() => handleSort("enrollments")}
               />
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                Includes membership
+              </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200 dark:divide-slate-800">
             {programs.length === 0 ? (
               <tr>
-                <td colSpan={3} className="px-4 py-8 text-center text-gray-500">
+                <td colSpan={4} className="px-4 py-8 text-center text-gray-500">
                   No programs found.
                 </td>
               </tr>
@@ -198,6 +235,14 @@ export default function ProgramsClient() {
                   </td>
                   <td className="px-4 py-3 text-sm">{program.cohort_count}</td>
                   <td className="px-4 py-3 text-sm">{program.enrollment_count}</td>
+                  <td className="px-4 py-3 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={program.includes_membership}
+                      onChange={(e) => setIncludesMembership(program, e.target.checked)}
+                      aria-label={`${program.name} includes membership`}
+                    />
+                  </td>
                 </tr>
               ))
             )}

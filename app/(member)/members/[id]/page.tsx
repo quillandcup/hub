@@ -5,6 +5,7 @@ import { getCurrentUser } from "@/lib/auth"
 import { redirect, notFound } from "next/navigation"
 import type { Metadata } from "next"
 import { getEffectiveIdentity } from "@/lib/sudo"
+import { effectiveMemberHasFeature, getUserFeaturePreviews } from "@/lib/features.server"
 import { getUserTimezonePreference } from "@/lib/timezone"
 import MemberAvatar from "./MemberAvatar"
 import WelcomeBackBanner from "./WelcomeBackBanner"
@@ -144,6 +145,12 @@ export default async function MemberProfilePage({
     totalPricklesAttended,
     member.first_joined_at
   )
+  // The Big Sister badge links to /big-sisters, which only members with the preview can open.
+  const bigSistersEnabled = await effectiveMemberHasFeature(
+    "big_sisters",
+    effectiveIdentity,
+    await getUserFeaturePreviews(user.id)
+  )
 
   // No fallback to joined_at (Kajabi contact creation) — a lead who never
   // had a real subscription has no first_joined_at, and isn't a member, so
@@ -252,7 +259,7 @@ export default async function MemberProfilePage({
           <h2 className="text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-4">
             Badges
           </h2>
-          <MemberBadgeChips badges={earnedBadges} />
+          <MemberBadgeChips badges={earnedBadges} bigSistersEnabled={bigSistersEnabled} />
         </div>
       )}
 

@@ -103,13 +103,14 @@ export async function PATCH(
     const parsed = await request.json().catch(() => undefined);
     if (parsed === undefined) return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
     const body = parsed;
-    const { name, slug, description, kajabi_offer_names } = body;
+    const { name, slug, description, kajabi_offer_names, includes_membership } = body;
 
     const updates: any = {};
     if (name !== undefined) updates.name = name;
     if (slug !== undefined) updates.slug = slug;
     if (description !== undefined) updates.description = description;
     if (kajabi_offer_names !== undefined) updates.kajabi_offer_names = kajabi_offer_names;
+    if (typeof includes_membership === "boolean") updates.includes_membership = includes_membership;
 
     const { data: program, error } = await supabase
       .from("programs")

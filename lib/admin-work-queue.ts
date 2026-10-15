@@ -28,7 +28,7 @@ const MS_PER_DAY = 1000 * 60 * 60 * 24;
 export const WORK_QUEUE_LOOKAHEAD_DAYS = 14;
 export const WORK_QUEUE_LOOKBACK_DAYS = 14;
 
-export type WorkQueueType = "welcome_back" | "hedgieversary" | "hiatus_nudge";
+export type WorkQueueType = "welcome_back" | "hedgieversary" | "hiatus_nudge" | "big_sister";
 
 export interface WorkQueueItem {
   queueType: WorkQueueType;
@@ -44,8 +44,8 @@ export interface WorkQueueItem {
 
 // Per-occurrence outcome recorded in admin_work_queue_completions.
 // 'opted_out'/'postponed' only ever apply to 'hedgieversary' occurrences
-// (enforced by the POST route) — 'welcome_back'/'hiatus_nudge' only ever
-// use 'completed'.
+// (enforced by the POST route) — 'welcome_back'/'hiatus_nudge'/'big_sister'
+// only ever use 'completed'.
 export type CompletionStatus = "completed" | "opted_out" | "postponed";
 
 export interface CompletionInfo {
@@ -223,6 +223,55 @@ export function buildHiatusNudgeQueue(
         expectedReturnDate: hiatus.end_date,
       });
     }
+  }
+
+  return items.sort(byDeadline);
+}
+
+// Queue 4: a new member who has no big sister yet (Big Sister program,
+// docs/BIG_SISTERS.md): everyone who just arrived (lib/arrivals.ts), whether a
+// trial, a direct sign-up, a rejoin or a program that includes membership. The
+// occurrence is the date their membership began, so a returning member's later
+// start is a new item. Matching them removes it (their arrival is in
+// `matchedArrivals`, see bigSisterMatchKey); "Mark Done" dismisses it without a
+// match. The deadline is that start date: the match should happen right away,
+// so it is overdue from day one and the queue's lookback bounds how long it
+// lingers.
+export interface NewMemberInput {
+  memberId: string;
+  memberName: string;
+  startedOn: string; // date-only
+}
+
+/** Identifies one arrival (a member can arrive more than once): what `matchedArrivals` holds. */
+export function bigSisterMatchKey(memberId: string, startedOn: string): string {
+  return `${memberId}:${startedOn}`;
+}
+
+export function buildBigSisterQueue(
+  newMembers: NewMemberInput[],
+  matchedArrivals: Set<string>,
+  completed: CompletionLookup,
+  now: Date,
+  lookbackDays: number = WORK_QUEUE_LOOKBACK_DAYS
+): WorkQueueItem[] {
+  const nowMs = now.getTime();
+  const items: WorkQueueItem[] = [];
+
+  for (const member of newMembers) {
+    if (matchedArrivals.has(bigSisterMatchKey(member.memberId, member.startedOn))) continue;
+    const deadlineMs = new Date(`${member.startedOn}T00:00:00Z`).getTime();
+    if (deadlineMs < nowMs - lookbackDays * MS_PER_DAY) continue;
+    if (isSuppressed(completed, completionKey("big_sister", member.memberId, member.startedOn), nowMs)) continue;
+
+    items.push({
+      queueType: "big_sister",
+      memberId: member.memberId,
+      memberName: member.memberName,
+      occurrenceKey: member.startedOn,
+      deadline: member.startedOn,
+      label: "Needs a big sister",
+    });
   }
 
   return items.sort(byDeadline);

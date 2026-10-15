@@ -13,6 +13,7 @@ import { mentionsToPlainText } from "@/lib/chat/render";
 import type { ChannelSummary } from "@/lib/chat/load";
 import { KIND_LABELS, type KindResults, type SearchHit } from "@/lib/search/kinds";
 import type { FeatureKey } from "@/lib/features";
+import { getHostVibeTypes } from "@/lib/host-vibes";
 import { matchPages } from "@/lib/search/pages";
 import { hasCriteria, kindHonors, matchWords, SEARCH_KINDS, type AnySearchKind, type SearchKind, type UniversalQuery } from "@/lib/search/syntax";
 
@@ -69,7 +70,13 @@ function finish<T>(rows: T[] | null, limit: number): { rows: T[]; hasMore: boole
 /** App pages (navigation and settings tabs) by title, section or keyword. */
 async function searchPages(ctx: SearchContext, q: UniversalQuery): Promise<KindResults> {
   const { limit, offset } = page(ctx);
-  const rows = matchPages(matchWords(q), { isActingAsAdmin: ctx.isActingAsAdmin, features: ctx.features ?? [] });
+  const candidates = matchPages(matchWords(q), { isActingAsAdmin: ctx.isActingAsAdmin, features: ctx.features ?? [], canConfigureHostVibes: true });
+  // Only load hosting eligibility when the query would otherwise show these settings.
+  const hostingSettings = (href: string) => href.split("#")[0] === "/settings/hosting";
+  const canConfigureHostVibes = candidates.some((p) => hostingSettings(p.href)) && ctx.viewerMemberId
+    ? (await getHostVibeTypes(ctx.supabase, ctx.viewerMemberId)).size > 0
+    : false;
+  const rows = candidates.filter((p) => !hostingSettings(p.href) || canConfigureHostVibes);
   return {
     kind: "pages",
     hasMore: rows.length > offset + limit,

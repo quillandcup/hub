@@ -114,7 +114,7 @@ function addDays(dateStr: string, days: number): string {
   return isoDate(new Date(new Date(`${dateStr}T00:00:00Z`).getTime() + days * DAY_MS));
 }
 
-function normalizeTime(timeLocal: string): string {
+export function normalizeTime(timeLocal: string): string {
   return timeLocal.slice(0, 5);
 }
 
