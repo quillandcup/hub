@@ -56,6 +56,8 @@ export default function OnboardingGuide({ initialState }: { initialState: Onboar
   const isSmallScreen = useSyncExternalStore(subscribeSmallScreen, isSmallScreenNow, () => false);
   // Spotlight closed with "Hide" for this page; shows again on the next visit.
   const [hiddenOn, setHiddenOn] = useState<string | null>(null);
+  // The page where the member used the spotlit control, so the checklist stays folded there.
+  const [usedOn, setUsedOn] = useState<string | null>(null);
   // A finished step being walked again; `arrived` once its page is open.
   const [revisit, setRevisit] = useState<{ stepId: OnboardingStepId; stopIndex: number; arrived: boolean } | null>(
     null
@@ -113,10 +115,14 @@ export default function OnboardingGuide({ initialState }: { initialState: Onboar
   const onStepPage = !!current && isOnStepPage(current, pathname, search);
   const spotlitStep = revisitView ?? (onStepPage ? current : null);
   const showSpotlight = !!spotlitStep && hiddenOn !== pageKey;
-  // Folded to its header while a spotlight is up (the callout carries the step) and on phones,
-  // where the open list covers half the screen. Opening or closing it holds until the next page.
+  // Folded to its header while a spotlight is up (the callout carries the step), after the member
+  // used the highlighted control (it often opens a form right where the open list would sit), and
+  // on phones, where the open list covers half the screen. After Hide it opens, offering "Show me".
+  // Opening or closing it holds until the next page.
   const expanded =
-    expandedChoice?.page === pageKey ? expandedChoice.expanded : !showSpotlight && !isSmallScreen;
+    expandedChoice?.page === pageKey
+      ? expandedChoice.expanded
+      : !showSpotlight && usedOn !== pageKey && !isSmallScreen;
   const toggleExpanded = () => setExpandedChoice({ page: pageKey, expanded: !expanded });
 
   // Keep checking while on the step's page, spotlight or not (it hides once the control is used).
@@ -132,6 +138,10 @@ export default function OnboardingGuide({ initialState }: { initialState: Onboar
     if (isRevisiting) setRevisit(null);
     else setHiddenOn(pageKey);
   }, [isRevisiting, pageKey]);
+  const handleControlUsed = useCallback(() => {
+    hideSpotlight();
+    if (!isRevisiting) setUsedOn(pageKey);
+  }, [hideSpotlight, isRevisiting, pageKey]);
   const advanceRevisit = () => {
     if (!revisit || !revisitStep) return;
     const next = revisit.stopIndex + 1;
@@ -169,6 +179,7 @@ export default function OnboardingGuide({ initialState }: { initialState: Onboar
           }
           onSkip={() => run(() => markOnboardingStep(spotlitStep.markKey))}
           onHide={hideSpotlight}
+          onUse={handleControlUsed}
         />
       )}
 
@@ -231,6 +242,7 @@ export default function OnboardingGuide({ initialState }: { initialState: Onboar
                           onClick={() => {
                             setRevisit({ stepId: step.id, stopIndex: 0, arrived: false });
                             setHiddenOn(null);
+                            setUsedOn(null);
                           }}
                           aria-label={`Revisit ${step.title}`}
                           className="text-xs text-plum-600 dark:text-plum-400 hover:underline"
@@ -268,6 +280,8 @@ export default function OnboardingGuide({ initialState }: { initialState: Onboar
                               onClick={() => {
                                 setRevisit(null);
                                 setHiddenOn(null);
+                                setUsedOn(null);
+                            setUsedOn(null);
                               }}
                               className="inline-block mt-2 px-3 py-1.5 bg-plum-600 hover:bg-plum-700 text-white rounded-md text-xs font-medium"
                             >

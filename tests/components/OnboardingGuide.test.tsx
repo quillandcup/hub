@@ -156,6 +156,29 @@ describe("OnboardingGuide", () => {
 
     expect(screen.getByText("New project form")).toBeInTheDocument();
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    // The checklist stays out of the way of the form the control just opened.
+    expect(screen.getByRole("button", { name: /Getting started/ })).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("opens the checklist after Hide, offering Show me, but not after using the control", async () => {
+    nav.pathname = "/projects";
+    const target = document.createElement("button");
+    target.setAttribute("data-tour", "new-project");
+    document.body.appendChild(target);
+    const state = { ...fresh(), currentStepId: "writing" as const };
+    vi.mocked(getMyOnboardingState).mockResolvedValue(state);
+    const { unmount } = render(<OnboardingGuide initialState={state} />);
+
+    await screen.findByRole("dialog", { name: "Add a project" });
+    await userEvent.click(screen.getByRole("button", { name: "Hide" }));
+    expect(screen.getByRole("button", { name: /Getting started/ })).toHaveAttribute("aria-expanded", "true");
+    unmount();
+
+    // On another page it's open by default.
+    nav.pathname = "/dashboard";
+    render(<OnboardingGuide initialState={state} />);
+    expect(screen.getByRole("button", { name: /Getting started/ })).toHaveAttribute("aria-expanded", "true");
+    target.remove();
   });
 
   it("folds the checklist to its header while a spotlight is up, and opens it on request", async () => {

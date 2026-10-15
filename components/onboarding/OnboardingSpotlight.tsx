@@ -29,6 +29,8 @@ interface Props {
   onConfirm?: () => void;
   onSkip: () => void;
   onHide: () => void;
+  /** The member used the highlighted control (opened the form, started typing). Defaults to onHide. */
+  onUse?: () => void;
 }
 
 /**
@@ -105,6 +107,7 @@ export default function OnboardingSpotlight({
   onConfirm,
   onSkip,
   onHide,
+  onUse = onHide,
 }: Props) {
   const el = useTarget(step.target);
   const [rect, setRect] = useState<Rect | null>(null);
@@ -163,9 +166,9 @@ export default function OnboardingSpotlight({
   const hidesOnUse = !step.confirmLabel;
   useEffect(() => {
     if (!el || !hidesOnUse) return;
-    el.addEventListener("click", onHide);
-    return () => el.removeEventListener("click", onHide);
-  }, [el, onHide, hidesOnUse]);
+    el.addEventListener("click", onUse);
+    return () => el.removeEventListener("click", onUse);
+  }, [el, onUse, hidesOnUse]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
