@@ -34,6 +34,7 @@ import {
   updateInstagramHandle,
   updateProfileDetails,
   getProfileSettings,
+  setRosterVisibility,
 } from "@/app/(member)/settings/profileActions";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/service";
@@ -59,17 +60,30 @@ function makeUserClient({
   upsertError = null as { message: string } | null,
   topics = null as string[] | null,
   askUpsertError = null as { message: string } | null,
+  rosterOptedOut = false,
+  rosterWriteError = null as { message: string } | null,
 } = {}) {
   const upsert = vi.fn(async () => ({ error: upsertError }));
   const overrideEq = vi.fn(() => ({ maybeSingle: async () => ({ data: override, error: null }) }));
   const askUpsert = vi.fn(async () => ({ error: askUpsertError }));
   const askEq = vi.fn(() => ({ maybeSingle: async () => ({ data: topics ? { topics } : null, error: null }) }));
+  const rosterUpsert = vi.fn(async () => ({ error: rosterWriteError }));
+  const rosterDeleteEq = vi.fn(async () => ({ error: rosterWriteError }));
   const from = vi.fn((table: string) => {
+    if (table === "member_roster_opt_outs") {
+      return {
+        select: () => ({
+          eq: () => ({ maybeSingle: async () => ({ data: rosterOptedOut ? { member_id: "member-1" } : null, error: null }) }),
+        }),
+        upsert: rosterUpsert,
+        delete: () => ({ eq: rosterDeleteEq }),
+      };
+    }
     if (table === "member_profile_overrides") return { select: () => ({ eq: overrideEq }), upsert };
     if (table === "member_ask_me_about") return { select: () => ({ eq: askEq }), upsert: askUpsert };
     throw new Error(`unexpected user-session table ${table}`);
   });
-  return { from, upsert, overrideEq, askUpsert, askEq };
+  return { from, upsert, overrideEq, askUpsert, askEq, rosterUpsert, rosterDeleteEq };
 }
 
 /** Service role: members row, alias lookup and Bronze, each scoped to the member by the action. */
@@ -156,6 +170,8 @@ function setup(
     overrideUpsertError?: { message: string };
     topics?: string[] | null;
     askUpsertError?: { message: string };
+    rosterOptedOut?: boolean;
+    rosterWriteError?: { message: string };
     service?: Omit<Parameters<typeof makeServiceClient>[0], "member">;
   } = {}
 ) {
@@ -164,6 +180,8 @@ function setup(
     upsertError: opts.overrideUpsertError ?? null,
     topics: opts.topics ?? null,
     askUpsertError: opts.askUpsertError ?? null,
+    rosterOptedOut: opts.rosterOptedOut ?? false,
+    rosterWriteError: opts.rosterWriteError ?? null,
   });
   service = makeServiceClient({
     member: opts.member ?? MEMBER,
@@ -508,6 +526,7 @@ describe("getProfileSettings", () => {
       details: { bio: "Writes cozy mysteries.", facebookUrl: null, twitterUrl: null },
       askMeAbout: ["worldbuilding"],
       syncPending: true,
+      showInRoster: true,
     });
   });
 
@@ -524,6 +543,7 @@ describe("getProfileSettings", () => {
     expect(await getProfileSettings()).toMatchObject({
       details: { bio: "Hub bio", facebookUrl: "https://facebook.com/kajabi.fb", twitterUrl: "https://x.com/mine" },
       syncPending: true,
+      showInRoster: true,
     });
   });
 
@@ -535,6 +555,7 @@ describe("getProfileSettings", () => {
     expect(await getProfileSettings()).toMatchObject({
       details: { bio: null, facebookUrl: null, twitterUrl: null },
       syncPending: false,
+      showInRoster: true,
     });
   });
 
@@ -572,7 +593,50 @@ describe("getProfileSettings", () => {
       kajabiLinked: false,
       instagramUrl: null,
       syncPending: false,
+      showInRoster: true,
     });
     expect(service.schema).not.toHaveBeenCalled();
+  });
+});
+
+describe("roster visibility", () => {
+  it("shows you in 'Who's coming' unless you opted out", async () => {
+    setup();
+    expect(await getProfileSettings()).toMatchObject({ showInRoster: true });
+    setup({ rosterOptedOut: true });
+    expect(await getProfileSettings()).toMatchObject({ showInRoster: false });
+  });
+
+  it("opting out records it for the effective member, once", async () => {
+    setup();
+    expect(await setRosterVisibility(false)).toEqual({ success: true });
+    expect(userClient.rosterUpsert).toHaveBeenCalledWith(
+      { member_id: "member-1" },
+      { onConflict: "member_id", ignoreDuplicates: true }
+    );
+    expect(userClient.rosterDeleteEq).not.toHaveBeenCalled();
+  });
+
+  it("opting back in removes the row", async () => {
+    setup({ rosterOptedOut: true });
+    expect(await setRosterVisibility(true)).toEqual({ success: true });
+    expect(userClient.rosterDeleteEq).toHaveBeenCalledWith("member_id", "member-1");
+    expect(userClient.rosterUpsert).not.toHaveBeenCalled();
+  });
+
+  it("applies to the sudo'd member, like the other profile settings", async () => {
+    vi.mocked(getEffectiveIdentity).mockResolvedValue({ ...IDENTITY, memberId: "member-9", isSudo: true });
+    setup();
+    await setRosterVisibility(false);
+    expect(userClient.rosterUpsert).toHaveBeenCalledWith({ member_id: "member-9" }, expect.anything());
+  });
+
+  it("reports a failed save, and refuses anything that isn't a boolean or without a member", async () => {
+    setup({ rosterWriteError: { message: "boom" } });
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(await setRosterVisibility(false)).toEqual({ error: "Couldn't save that — please try again." });
+    expect(await setRosterVisibility("no" as never)).toEqual({ error: "Invalid setting" });
+    vi.mocked(getEffectiveIdentity).mockResolvedValue(null);
+    expect(await setRosterVisibility(true)).toEqual({ error: "No member record" });
   });
 });

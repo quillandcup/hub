@@ -18,7 +18,7 @@ export interface ReasonBadgeData {
   tooltip: string[]
 }
 
-const REASON_ICON: Record<ReasonKind, string> = {
+export const REASON_ICON: Record<ReasonKind, string> = {
   hosting: "🎤",
   commitment: "📌",
   calendar: "📅",
@@ -30,7 +30,7 @@ const REASON_ICON: Record<ReasonKind, string> = {
   regulars: "🦔",
 }
 
-const REASON_LABEL: Record<ReasonKind, string> = {
+export const REASON_LABEL: Record<ReasonKind, string> = {
   hosting: "Hosting",
   commitment: "You committed to this",
   calendar: "In your calendar",
