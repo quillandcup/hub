@@ -248,7 +248,7 @@ function stepViews(signals: OnboardingSignals, marked: Set<string>): StepWithout
       // The spotlight is on "New project" until they have one, so the callout is about that.
       calloutTitle: latestProjectId ? "Set a writing goal" : "Add a project",
       hint: latestProjectId
-        ? "Give this project a goal, like a word count or a habit such as writing three days a week. Star it to see it on your dashboard."
+        ? "Pick a Target (a total to reach, like 50,000 words, optionally by a date) or a Habit (a rhythm to keep, like writing three days a week). New goals are pinned to your dashboard."
         : "Start with whatever you're working on now. Next you'll give it a goal.",
       markKey: "writing",
       done: signals.hasGoal || marked.has("writing"),
