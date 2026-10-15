@@ -37,6 +37,11 @@ describe("UpcomingPrickleRow check-in pill", () => {
     expect(screen.queryByRole("link", { name: /Check in/ })).not.toBeInTheDocument();
   });
 
+  it("has no pill once the member dismissed the offer", () => {
+    render(<UpcomingPrickleRow prickle={prickle(30 * 60 * 1000)} reasons={TIED} timeZone="UTC" checkinDismissed now={NOW} />);
+    expect(screen.queryByRole("link", { name: /Check in/ })).not.toBeInTheDocument();
+  });
+
   it("shows a finished check-in as done", () => {
     renderRow(10 * 60 * 1000, { feelingsBefore: ["calm"], need: "company", sessionRating: null, feelingsAfter: [] });
     expect(screen.getByRole("link", { name: "Checked in ✓" })).toBeInTheDocument();

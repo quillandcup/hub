@@ -126,18 +126,36 @@ export function InAppNotificationsProvider({ initial, children }: { initial: Bel
   );
 }
 
+/** "+N more" in a banner: the others are in the inbox. */
+function MorePill({ count, className }: { count: number; className: string }) {
+  return (
+    <Link
+      href={INBOX_PATH}
+      aria-label={`${count} more notifications`}
+      className={`${className} shrink-0 rounded-full bg-white/20 px-2 py-0.5 text-xs font-medium text-white hover:bg-white/30`}
+    >
+      +{count} more
+    </Link>
+  );
+}
+
 /** Unread, still time-sensitive notifications, as strips under the header, each dismissible. */
 export function InAppNotificationBanner() {
   const { latest, error, markRead } = useInAppNotifications();
-  const banners = latest.filter((n) => n.banner).slice(0, MAX_BANNERS);
+  const unread = latest.filter((n) => n.banner);
+  const banners = unread.slice(0, MAX_BANNERS);
+  // A "+N more" pill links to the inbox for the banners not shown: on sm and up in the last
+  // banner (those past the cap), below sm in the first, the only one shown.
+  const moreOnMobile = unread.length - 1;
+  const moreOnDesktop = unread.length - banners.length;
   if (banners.length === 0 && !error) return null;
 
   return (
     <div aria-label="Time-sensitive notifications" role="region" className="flex-shrink-0">
-      {banners.map((n) => (
+      {banners.map((n, i) => (
         <div
           key={n.id}
-          className="flex items-center gap-3 border-b border-plum-200 bg-plum-50 px-6 py-2 text-sm text-plum-900 dark:border-plum-900 dark:bg-plum-950 dark:text-plum-100"
+          className={`${i === 0 ? "flex" : "hidden sm:flex"} items-center gap-3 border-b border-plum-700 bg-plum-600 px-6 py-2 text-sm text-white`}
         >
           <p className="min-w-0 flex-1">
             {n.text}
@@ -147,18 +165,20 @@ export function InAppNotificationBanner() {
                 <Link
                   href={n.url}
                   onClick={() => markRead([n.id])}
-                  className="font-medium text-plum-700 underline-offset-2 hover:underline dark:text-plum-300"
+                  className="font-medium text-white underline underline-offset-2 hover:text-plum-100"
                 >
-                  Open →
+                  Open&nbsp;→
                 </Link>
               </>
             )}
           </p>
+          {i === 0 && moreOnMobile > 0 && <MorePill count={moreOnMobile} className="sm:hidden" />}
+          {i === banners.length - 1 && moreOnDesktop > 0 && <MorePill count={moreOnDesktop} className="hidden sm:inline" />}
           <button
             type="button"
             onClick={() => markRead([n.id])}
             aria-label={`Dismiss: ${n.text}`}
-            className="shrink-0 rounded p-1 text-plum-500 hover:bg-plum-100 hover:text-plum-700 dark:hover:bg-plum-900 dark:hover:text-plum-200"
+            className="-my-2 -mr-2 flex h-9 w-9 shrink-0 items-center justify-center rounded text-plum-100 hover:bg-plum-700 hover:text-white"
           >
             ×
           </button>
