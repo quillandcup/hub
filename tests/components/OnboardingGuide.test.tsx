@@ -151,7 +151,7 @@ describe("OnboardingGuide", () => {
     }
     render(<Page />);
 
-    expect(await screen.findByRole("dialog", { name: "Set a writing goal" })).toBeInTheDocument();
+    expect(await screen.findByRole("dialog", { name: "Add a project" })).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "New project" }));
 
     expect(screen.getByText("New project form")).toBeInTheDocument();

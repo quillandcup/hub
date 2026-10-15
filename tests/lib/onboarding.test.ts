@@ -91,12 +91,22 @@ describe("buildOnboardingState", () => {
 
   it("points the writing step at New project, then at the latest project's Add a goal", () => {
     const noProject = buildOnboardingState(NOTHING, null).steps.find((s) => s.id === "writing")!;
-    expect(noProject).toMatchObject({ href: "/projects", target: "new-project" });
+    expect(noProject).toMatchObject({
+      href: "/projects",
+      target: "new-project",
+      title: "Set a writing goal",
+      calloutTitle: "Add a project",
+    });
 
     const withProject = buildOnboardingState({ ...NOTHING, latestProjectId: "p1" }, null).steps.find(
       (s) => s.id === "writing"
     )!;
-    expect(withProject).toMatchObject({ href: "/projects/p1", target: "add-goal", done: false });
+    expect(withProject).toMatchObject({
+      href: "/projects/p1",
+      target: "add-goal",
+      calloutTitle: "Set a writing goal",
+      done: false,
+    });
   });
 
   it("is completed and still active (to say all set) when every step is done but not yet finished", () => {

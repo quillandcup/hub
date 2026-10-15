@@ -245,7 +245,8 @@ function stepViews(signals: OnboardingSignals, marked: Set<string>): StepWithout
       summary: "Add a project and give it a goal to work toward.",
       href: latestProjectId ? `/projects/${latestProjectId}` : "/projects",
       target: latestProjectId ? "add-goal" : "new-project",
-      calloutTitle: "Set a writing goal",
+      // The spotlight is on "New project" until they have one, so the callout is about that.
+      calloutTitle: latestProjectId ? "Set a writing goal" : "Add a project",
       hint: latestProjectId
         ? "Give this project a goal, like a word count or a habit such as writing three days a week. Star it to see it on your dashboard."
         : "Start with whatever you're working on now. Next you'll give it a goal.",
