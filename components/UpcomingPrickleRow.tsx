@@ -3,6 +3,17 @@ import { hostShortName } from "@/lib/formatters"
 import ReasonBadges from "@/components/ReasonBadges"
 import { CHECKIN_SOON_MS, checkinOffered, type HighlightReason, type UpcomingPrickle } from "@/lib/upcoming-prickles"
 import { checkinAnswered, checkinHref, type CheckinInput } from "@/lib/prickle-checkins"
+import type { PrickleCalendarState } from "@/lib/calendar-feed"
+import { AddPrickleToCalendar, type AutoIncludedReason } from "@/app/(member)/my-prickles/AddToCalendar"
+
+/** What the row's "Add to my calendar" control needs (see AddPrickleToCalendar). */
+export interface UpcomingCalendar {
+  state: PrickleCalendarState
+  /** When "just this one" is, e.g. "Tue, Oct 6". */
+  nextLabel: string
+  /** Set when the prickle is already in their calendar without adding it (hosting, a commitment). */
+  autoIncluded: AutoIncludedReason | null
+}
 
 export { CHECKIN_SOON_MS }
 
@@ -29,6 +40,7 @@ export default function UpcomingPrickleRow({
   timeZone,
   checkin = null,
   checkinDismissed = false,
+  calendar = null,
   now = Date.now(),
 }: {
   prickle: UpcomingPrickle
@@ -38,6 +50,8 @@ export default function UpcomingPrickleRow({
   checkin?: CheckinInput | null
   /** The member dismissed this prickle's check-in offer (prickle_checkin_dismissals). */
   checkinDismissed?: boolean
+  /** Shows "Add to my calendar" beside the time, so there's no need to open the prickle first. */
+  calendar?: UpcomingCalendar | null
   now?: number
 }) {
   const startsSoon = !checkinDismissed && checkinOffered(prickle, reasons, now)
@@ -51,10 +65,19 @@ export default function UpcomingPrickleRow({
             {prickle.hostName ? `Hosted by ${hostShortName(prickle.hostName)}` : "No host listed"}
           </p>
         </Link>
-        <div className="flex-shrink-0 flex items-center gap-3">
+        <div className="flex-shrink-0 flex flex-wrap items-center justify-end gap-3">
           <p className="text-xs text-slate-500 dark:text-slate-400 text-right">
             {formatUpcomingTime(prickle.startTime, timeZone)}
           </p>
+          {calendar && (
+            <AddPrickleToCalendar
+              prickleId={prickle.id}
+              typeName={prickle.typeName}
+              nextLabel={calendar.nextLabel}
+              state={calendar.state}
+              autoIncluded={calendar.autoIncluded}
+            />
+          )}
           {startsSoon && (
             <Link
               href={checkinHref(prickle.id, "checkin")}

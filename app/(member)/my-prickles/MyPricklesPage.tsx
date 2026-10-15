@@ -5,7 +5,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { getEffectiveIdentity } from "@/lib/sudo";
 import { getUserTimezonePreference } from "@/lib/timezone";
-import { PRIORITY, getRankedUpcomingPrickles } from "@/lib/upcoming-prickles";
+import { PRIORITY, getRankedUpcomingPrickles, type HighlightReason, type UpcomingPrickle } from "@/lib/upcoming-prickles";
 import { getPrickleScheduleOverview } from "@/lib/prickle-schedule";
 import { getMonthStart, getNextMonthStart, isMonthLocked } from "@/lib/prickle-schedules";
 import { getMySchedules, getMyHostingStats, getMyHostEligibility } from "@/app/(member)/hosting/actions";
@@ -19,7 +19,8 @@ import AllPricklesView from "./AllPricklesView";
 import CommitmentsManager from "./CommitmentsManager";
 import { getMyCommitments } from "./commitment-actions";
 import { getMyCalendarFeedUrls, getMyCalendarItems } from "./calendar-feed-actions";
-import { slotKey } from "@/lib/commitments";
+import { slotKey, slotTimeForInstant } from "@/lib/commitments";
+import { prickleCalendarState, SCHEDULE_TIMEZONE } from "@/lib/calendar-feed";
 import CalendarSyncCard from "./CalendarSyncCard";
 import AddedToCalendarList from "./AddedToCalendarList";
 import { Tabs } from "@/components/Tabs";
@@ -117,6 +118,31 @@ export default async function MyPricklesPage({
   const displayedUpcoming = ranked.slice(0, Math.max(personalCount, MAX_UPCOMING_DISPLAY));
   const dismissedCheckins = await loadDismissedCheckinIds(supabase, memberId, displayedUpcoming.map((r) => r.prickle.id));
 
+  // The "Add to my calendar" control on each upcoming row: what's already in their feed, and the
+  // weekly slot an "every week" add would cover. Prickles with no type can't be added.
+  const calendarFor = (prickle: UpcomingPrickle, reasons: HighlightReason[]) =>
+    prickle.typeId
+      ? {
+          state: prickleCalendarState(
+            calendarItems,
+            prickle.id,
+            slotKey({
+              typeId: prickle.typeId,
+              ...slotTimeForInstant(prickle.startTime, SCHEDULE_TIMEZONE),
+              timezone: SCHEDULE_TIMEZONE,
+            })
+          ),
+          nextLabel: new Intl.DateTimeFormat("en-US", { timeZone, weekday: "short", month: "short", day: "numeric" }).format(
+            new Date(prickle.startTime)
+          ),
+          autoIncluded: reasons.some((r) => r.kind === "hosting")
+            ? ("hosting" as const)
+            : reasons.some((r) => r.kind === "commitment")
+              ? ("committed" as const)
+              : null,
+        }
+      : null;
+
   // Active commitments' slots are already in the member's calendar feed.
   const committedSlotKeys = new Set(
     commitments.filter((c) => c.status === "active").flatMap((c) => c.slots.map((slot) => slotKey(slot)))
@@ -174,6 +200,7 @@ export default async function MyPricklesPage({
                           timeZone={timeZone}
                           checkin={checkins[prickle.id] ?? null}
                           checkinDismissed={dismissedCheckins.has(prickle.id)}
+                          calendar={calendarFor(prickle, reasons)}
                         />
                       ))}
                       {ranked.length > displayedUpcoming.length && (
