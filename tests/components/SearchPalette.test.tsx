@@ -83,27 +83,64 @@ describe("SearchPalette", () => {
     expect(screen.getByRole("textbox", { name: "Search" })).toHaveValue("pizza in:prickles ");
   });
 
-  it("hides the filters until the funnel is clicked, then offers the common ones first", async () => {
+  it("hides the filters until the funnel is clicked, then shows the common ones as chips", async () => {
     const user = await open();
     expect(screen.queryByRole("button", { name: "From me" })).not.toBeInTheDocument();
-
     await user.click(screen.getByRole("button", { name: "Show filters" }));
-    await user.click(screen.getByRole("button", { name: "Has a link" }));
-    expect(screen.getByRole("textbox", { name: "Search" })).toHaveValue("has:link");
-    // A second click takes it back out.
-    await user.click(screen.getByRole("button", { name: "Has a link" }));
-    expect(screen.getByRole("textbox", { name: "Search" })).toHaveValue("");
     expect(localStorage.getItem("hub:search-filters-on")).toBe("true");
+
+    await user.click(screen.getByRole("button", { name: "From me" }));
+    expect(screen.getByRole("textbox", { name: "Search" })).toHaveValue("from:me");
+    expect(screen.getByRole("button", { name: "From me" })).toHaveAttribute("aria-pressed", "true");
+    // A second click takes it back out.
+    await user.click(screen.getByRole("button", { name: "From me" }));
+    expect(screen.getByRole("textbox", { name: "Search" })).toHaveValue("");
   });
 
-  it("offers kind chips, and the link and thread chips only while chat is in play", async () => {
+  it("starts a from: filter with the From… chip", async () => {
     const user = await open();
     await user.click(screen.getByRole("button", { name: "Show filters" }));
-    expect(screen.getByRole("button", { name: "Has a link" })).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Members" }));
-    expect(screen.getByRole("textbox", { name: "Search" })).toHaveValue("in:members");
+    await user.click(screen.getByRole("button", { name: "From…" }));
+    expect(screen.getByRole("textbox", { name: "Search" })).toHaveValue("from:");
+  });
+
+  it("sets and clears a date range from the Any time dropdown, replacing a date already there", async () => {
+    const user = await open();
+    await user.click(screen.getByRole("button", { name: "Show filters" }));
+    const range = screen.getByRole("combobox", { name: "Time range" });
+    await user.selectOptions(range, "7");
+    const week = (screen.getByRole("textbox", { name: "Search" }) as HTMLInputElement).value;
+    expect(week).toMatch(/^after:\d{4}-\d{2}-\d{2}$/);
+    expect(range).toHaveValue("7");
+    await user.selectOptions(range, "30");
+    const month = (screen.getByRole("textbox", { name: "Search" }) as HTMLInputElement).value;
+    expect(month).toMatch(/^after:/);
+    expect(month).not.toBe(week);
+    await user.selectOptions(range, "");
+    expect(screen.getByRole("textbox", { name: "Search" })).toHaveValue("");
+  });
+
+  it("keeps the rarer quick filters in +, and shows one as a chip while it is on", async () => {
+    const user = await open();
+    await user.click(screen.getByRole("button", { name: "Show filters" }));
+    expect(screen.queryByRole("button", { name: "Threads only" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Has a link" })).not.toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "All" }));
+    await user.click(screen.getByRole("button", { name: "More filters" }));
+    await user.click(screen.getByRole("menuitemcheckbox", { name: /Threads only/ }));
+    expect(screen.getByRole("textbox", { name: "Search" })).toHaveValue("is:thread");
+    await user.click(screen.getByRole("button", { name: "Threads only" }));
+    expect(screen.getByRole("textbox", { name: "Search" })).toHaveValue("");
+  });
+
+  it("offers a kind dropdown, and the link and thread filters only while chat is in play", async () => {
+    const user = await open();
+    await user.click(screen.getByRole("button", { name: "Show filters" }));
+    await user.click(screen.getByRole("button", { name: "More filters" }));
+    expect(screen.getByRole("menuitemcheckbox", { name: /Has a link/ })).toBeInTheDocument();
+    await user.selectOptions(screen.getByRole("combobox", { name: "Search in" }), "members");
+    expect(screen.getByRole("textbox", { name: "Search" })).toHaveValue("in:members");
+    expect(screen.queryByRole("menuitemcheckbox", { name: /Has a link/ })).not.toBeInTheDocument();
+    await user.selectOptions(screen.getByRole("combobox", { name: "Search in" }), "");
     expect(screen.getByRole("textbox", { name: "Search" })).toHaveValue("");
   });
 
