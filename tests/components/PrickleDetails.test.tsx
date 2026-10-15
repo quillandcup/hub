@@ -56,3 +56,68 @@ describe("PrickleDetails attendees", () => {
     expect(screen.getByRole("link", { name: "Fern Quillsby" })).toHaveAttribute("href", "/members/m1");
   });
 });
+
+describe("PrickleDetails who's coming", () => {
+  const entry = (over: Partial<import("@/lib/prickle-roster").RosterEntry> = {}) => ({
+    memberId: "m1",
+    name: "Fern Quillsby",
+    reason: "committed" as const,
+    isYou: false,
+    hiddenFromOthers: false,
+    ...over,
+  });
+
+  it("lists who committed or added it to their calendar, linking to their profiles", () => {
+    renderDetails({
+      hasStarted: false,
+      roster: {
+        entries: [entry(), entry({ memberId: "m2", name: "Bramble Hedge", reason: "calendar" })],
+        total: 2,
+      },
+    });
+    expect(screen.getByRole("heading", { name: "Who's coming" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Fern Quillsby" })).toHaveAttribute("href", "/members/m1");
+    expect(screen.getByText("Committed")).toBeInTheDocument();
+    expect(screen.getByText("On their calendar")).toBeInTheDocument();
+    expect(screen.getByText(/It's not a sign-up/)).toBeInTheDocument();
+    expect(screen.queryByText("Stay tuned to see who attends!")).not.toBeInTheDocument();
+  });
+
+  it("points at where to opt out", () => {
+    renderDetails({ hasStarted: false, roster: { entries: [entry()], total: 1 } });
+    expect(screen.getByRole("link", { name: /Change it in your profile settings/ })).toHaveAttribute(
+      "href",
+      "/settings/profile"
+    );
+  });
+
+  it("marks you, and says when you're hidden from others", () => {
+    renderDetails({
+      hasStarted: false,
+      roster: { entries: [entry({ isYou: true }), entry({ memberId: "m2", name: "Bo", isYou: true, hiddenFromOthers: true })], total: 2 },
+    });
+    expect(screen.getByText("You")).toBeInTheDocument();
+    expect(screen.getByText("You (hidden from others)")).toBeInTheDocument();
+  });
+
+  it("says how many more there are when the list is cut off", () => {
+    renderDetails({ hasStarted: false, roster: { entries: [entry()], total: 41 } });
+    expect(screen.getByText("and 40 more")).toBeInTheDocument();
+  });
+
+  it("keeps the stay-tuned message when nobody's listed yet", () => {
+    renderDetails({ hasStarted: false, roster: { entries: [], total: 0 } });
+    expect(screen.getByText("Stay tuned to see who attends!")).toBeInTheDocument();
+  });
+
+  it("links to the admin member pages for admins", () => {
+    renderDetails({ hasStarted: false, memberBasePath: "/admin/members", roster: { entries: [entry()], total: 1 } });
+    expect(screen.getByRole("link", { name: "Fern Quillsby" })).toHaveAttribute("href", "/admin/members/m1");
+  });
+
+  it("shows attendance, not the roster, once the prickle has started", () => {
+    renderDetails({ hasStarted: true, roster: { entries: [entry()], total: 1 } });
+    expect(screen.queryByText("Committed")).not.toBeInTheDocument();
+    expect(screen.getByText("No attendance records for this Prickle")).toBeInTheDocument();
+  });
+});

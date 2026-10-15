@@ -7,6 +7,7 @@ import { useDataTable } from "@/lib/hooks/useDataTable";
 import type { SortValue } from "@/lib/hooks/useTableSort";
 import { DataTablePager } from "@/components/DataTablePager";
 import { ORG_TIMEZONE } from "@/lib/config";
+import type { PrickleRoster } from "@/lib/prickle-roster";
 
 const TIMEZONES = [
   { value: "America/New_York", label: "Eastern (ET)" },
@@ -27,6 +28,8 @@ interface PrickleDetailsProps {
   insightsSlotUrl?: string;
   /** Whether the prickle has started; one that hasn't has no attendance yet, which reads differently. */
   hasStarted?: boolean;
+  /** For a prickle that hasn't started: who committed to it or added it to their calendar (lib/prickle-roster.ts). */
+  roster?: PrickleRoster | null;
 }
 
 type SortColumn = "member" | "join" | "leave" | "duration";
@@ -54,6 +57,7 @@ export default function PrickleDetails({
   showMemberEmails,
   insightsSlotUrl,
   hasStarted = true,
+  roster = null,
 }: PrickleDetailsProps) {
   const table = useDataTable<any, SortColumn>({
     rows: attendanceRecords,
@@ -284,6 +288,47 @@ export default function PrickleDetails({
               </tbody>
             </table>
             <DataTablePager table={table} itemLabel="attendees" />
+          </div>
+        ) : !hasStarted && roster && roster.entries.length > 0 ? (
+          <div className="px-6 py-4">
+            <p className="text-sm text-slate-600 dark:text-slate-400 mb-3">
+              Members who&apos;ve committed to this prickle or added it to their calendar. It&apos;s not a sign-up:
+              anyone can still join.
+            </p>
+            <ul className="divide-y divide-slate-100 dark:divide-slate-800">
+              {roster.entries.map((entry) => (
+                <li key={entry.memberId} className="py-2 flex items-center justify-between gap-3 text-sm">
+                  <span className="min-w-0">
+                    <Link
+                      href={`${memberBasePath}/${entry.memberId}`}
+                      className="font-medium text-plum-600 hover:text-plum-700 dark:text-plum-400 hover:underline"
+                    >
+                      {entry.name}
+                    </Link>
+                    {entry.isYou && (
+                      <span className="ml-2 text-xs text-slate-500 dark:text-slate-400">
+                        {entry.hiddenFromOthers ? "You (hidden from others)" : "You"}
+                      </span>
+                    )}
+                  </span>
+                  <span className="shrink-0 text-xs text-slate-500 dark:text-slate-400">
+                    {entry.reason === "committed" ? "Committed" : "On their calendar"}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            {roster.total > roster.entries.length && (
+              <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                and {roster.total - roster.entries.length} more
+              </p>
+            )}
+            <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
+              Don&apos;t want to be listed?{" "}
+              <Link href="/settings/profile" className="underline">
+                Change it in your profile settings
+              </Link>
+              .
+            </p>
           </div>
         ) : (
           <div className="p-12 text-center text-slate-500 dark:text-slate-400">
