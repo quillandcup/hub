@@ -55,6 +55,16 @@ export const MEASURE_LABELS: Record<WritingMeasure, string> = {
 };
 
 /**
+ * An example amount for the goal form's number fields, so the placeholder fits the chosen measure
+ * (50,000 reads fine for words, not for prickles attended). `target` is a total to reach; `habit`
+ * is what to log in one period (a day, week or month).
+ */
+export const GOAL_EXAMPLES: Record<"target" | "habit", Record<WritingMeasure, string>> = {
+  target: { prickles: "20", words: "50000", time_minutes: "3000", pages: "300", chapters: "30", scenes: "60", lines: "2000" },
+  habit: { prickles: "2", words: "500", time_minutes: "60", pages: "2", chapters: "1", scenes: "2", lines: "50" },
+};
+
+/**
  * The prickle check-out's progress question, by measure: a fill-in-the-blank number (web modal
  * and Slack DM alike), worded for what's being counted. 'prickles' is intentionally absent -- that
  * measure is computed live from prickle_attendance (see derivePrickleHabitEntries below), never
