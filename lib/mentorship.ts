@@ -68,7 +68,7 @@ export function mentorshipEndsOn(startedOn: string): string {
 
 /** Whether a mentorship that began on `startedOn` is still running on `today`. */
 export function isMentorshipActive(startedOn: string, today: string): boolean {
-  return dayNumber(today) < dayNumber(startedOn) + MENTORSHIP_DAYS;
+  return dayNumber(today) >= dayNumber(startedOn) && dayNumber(today) < dayNumber(startedOn) + MENTORSHIP_DAYS;
 }
 
 /**
