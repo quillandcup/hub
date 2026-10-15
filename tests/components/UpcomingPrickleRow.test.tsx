@@ -1,8 +1,16 @@
 // @vitest-environment jsdom
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import UpcomingPrickleRow, { CHECKIN_SOON_MS } from "@/components/UpcomingPrickleRow";
 import type { HighlightReason, UpcomingPrickle } from "@/lib/upcoming-prickles";
+
+vi.mock("@/app/(member)/my-prickles/calendar-feed-actions", () => ({
+  addPrickleToMyCalendar: vi.fn(async () => ({ success: true })),
+  addEventToMyCalendar: vi.fn(async () => ({ success: true })),
+  removeMyCalendarItem: vi.fn(async () => ({ success: true })),
+}));
+import { addPrickleToMyCalendar } from "@/app/(member)/my-prickles/calendar-feed-actions";
 
 const NOW = Date.parse("2026-10-05T15:00:00Z");
 const prickle = (startsInMs: number) =>
@@ -50,5 +58,43 @@ describe("UpcomingPrickleRow check-in pill", () => {
   it("still links the prickle itself", () => {
     renderRow(30 * 60 * 1000);
     expect(screen.getByRole("link", { name: /Progress Prickle/ })).toHaveAttribute("href", "/prickles/p1");
+  });
+});
+
+describe("UpcomingPrickleRow add to calendar", () => {
+  const calendar = { state: { onceItemId: null, weeklyItemId: null }, nextLabel: "Tue, Oct 6", autoIncluded: null };
+  const renderWith = (cal: React.ComponentProps<typeof UpcomingPrickleRow>["calendar"]) =>
+    render(<UpcomingPrickleRow prickle={prickle(5 * 60 * 60 * 1000)} reasons={[]} timeZone="UTC" calendar={cal} now={NOW} />);
+
+  it("offers a calendar icon right on the row, without opening the prickle", async () => {
+    renderWith(calendar);
+    await userEvent.click(screen.getByRole("button", { name: "Add Progress Prickle to your calendar" }));
+    await userEvent.click(screen.getByRole("menuitemcheckbox", { name: /Just this one/ }));
+    expect(addPrickleToMyCalendar).toHaveBeenCalledWith("p1", "once");
+  });
+
+  it("shows a prickle already in the calendar as added", () => {
+    renderWith({ ...calendar, state: { onceItemId: "i1", weeklyItemId: null } });
+    expect(screen.getByRole("button", { name: "Progress Prickle is in your calendar" })).toBeInTheDocument();
+  });
+
+  it("says why a prickle is already in the calendar when the member hosts or committed to it", () => {
+    renderWith({ ...calendar, autoIncluded: "committed" });
+    expect(screen.getByRole("img", { name: "In your calendar: you're committed" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /calendar/i })).not.toBeInTheDocument();
+  });
+
+  it("marks the control for the Getting started spotlight only when asked", () => {
+    const { container, rerender } = render(
+      <UpcomingPrickleRow prickle={prickle(5 * 60 * 60 * 1000)} reasons={[]} timeZone="UTC" calendar={calendar} tourTarget now={NOW} />
+    );
+    expect(container.querySelector('[data-tour="add-to-calendar"]')).not.toBeNull();
+    rerender(<UpcomingPrickleRow prickle={prickle(5 * 60 * 60 * 1000)} reasons={[]} timeZone="UTC" calendar={calendar} now={NOW} />);
+    expect(container.querySelector('[data-tour="add-to-calendar"]')).toBeNull();
+  });
+
+  it("has no calendar control without one (the dashboard's rows)", () => {
+    renderWith(null);
+    expect(screen.queryByRole("button", { name: /calendar/i })).not.toBeInTheDocument();
   });
 });
