@@ -131,7 +131,38 @@ describe("InAppNotificationBanner", () => {
     const region = screen.getByRole("region", { name: "Time-sensitive notifications" });
     expect(region).toHaveTextContent(CHECKIN.text);
     expect(region).not.toHaveTextContent(CHECKOUT.text);
-    expect(within(region).getByRole("link", { name: "Open →" })).toHaveAttribute("href", "/prickles/p1");
+    expect(within(region).getByRole("link", { name: /^Open\s→$/ })).toHaveAttribute("href", "/prickles/p1");
+  });
+
+  it("on small screens links the rest to the inbox from a +N more pill in the first banner", () => {
+    const second = { ...CHECKIN, id: "n4", text: "Second banner" };
+    const third = { ...CHECKIN, id: "n5", text: "Third banner" };
+    renderInApp([CHECKIN, second, third]);
+    const region = screen.getByRole("region", { name: "Time-sensitive notifications" });
+    const pill = within(region).getByRole("link", { name: "2 more notifications" });
+    expect(pill).toHaveTextContent("+2 more");
+    expect(pill).toHaveAttribute("href", INBOX_PATH);
+    expect(pill).toHaveClass("sm:hidden");
+    expect(within(region).getAllByRole("button", { name: /^Dismiss:/ })).toHaveLength(3);
+  });
+
+  it("on larger screens shows a +N more pill in the last banner for those past the cap", () => {
+    const extra = [2, 3, 4, 5].map((n) => ({ ...CHECKIN, id: `x${n}`, text: `Banner ${n}` }));
+    renderInApp([CHECKIN, ...extra]);
+    const region = screen.getByRole("region", { name: "Time-sensitive notifications" });
+    expect(within(region).getAllByRole("button", { name: /^Dismiss:/ })).toHaveLength(3);
+    const pills = within(region).getAllByRole("link", { name: /more notifications/ });
+    expect(pills).toHaveLength(2);
+    const desktop = pills.find((p) => p.classList.contains("sm:inline"))!;
+    expect(desktop).toHaveTextContent("+2 more");
+    expect(desktop).toHaveAttribute("href", INBOX_PATH);
+    expect(desktop.closest("div")).toHaveTextContent("Banner 3");
+    expect(pills.find((p) => p.classList.contains("sm:hidden"))).toHaveTextContent("+4 more");
+  });
+
+  it("has no +N more pill with a single banner", () => {
+    renderInApp([CHECKIN]);
+    expect(screen.queryByRole("link", { name: /more notifications/ })).not.toBeInTheDocument();
   });
 
   it("renders nothing when nothing is time-sensitive", () => {
