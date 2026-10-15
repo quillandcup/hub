@@ -60,7 +60,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v7
         with:
           node-version-file: ".nvmrc"
           cache: npm
@@ -99,7 +99,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v7
         with:
           node-version-file: ".nvmrc"
           cache: npm
@@ -292,7 +292,7 @@ jobs:
         with:
           fetch-depth: 0 # the new-lines check diffs against the PR's base branch
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v7
         with:
           node-version-file: ".nvmrc"
           cache: npm
@@ -402,7 +402,7 @@ jobs:
       # internally (not `npm ci`, and there's no way to skip that install
       # step), so this is what actually speeds it up. No explicit `npm ci`
       # step needed in this job.
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v7
         with:
           node-version-file: ".nvmrc"
           cache: npm
@@ -497,7 +497,7 @@ jobs:
         env:
           BEFORE: ${{ github.event.before }}
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v7
         if: steps.manifest.outputs.changed == 'true'
         with:
           node-version-file: ".nvmrc"
@@ -551,7 +551,7 @@ jobs:
         env:
           BEFORE: ${{ github.event.before }}
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v7
         if: steps.config.outputs.changed == 'true'
         with:
           node-version-file: ".nvmrc"
