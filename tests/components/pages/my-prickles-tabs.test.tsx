@@ -46,7 +46,12 @@ vi.mock("@/app/(member)/my-prickles/calendar-feed-actions", () => ({
 vi.mock("@/components/MemberCalendarClient", () => ({
   default: ({ memberId }: { memberId: string }) => <div data-testid="history-calendar">member: {memberId}</div>,
 }));
-vi.mock("@/components/UpcomingPrickleRow", () => ({ default: () => <div /> }));
+vi.mock("@/components/UpcomingPrickleRow", () => ({
+  // Shows what the page hands each row, so the Upcoming tab's calendar wiring can be checked.
+  default: ({ prickle, calendar, tourTarget }: { prickle: { id: string }; calendar: unknown; tourTarget?: boolean }) => (
+    <div data-testid="upcoming-row" data-prickle={prickle.id} data-tour-target={String(!!tourTarget)} data-calendar={JSON.stringify(calendar)} />
+  ),
+}));
 vi.mock("@/app/(member)/prickle-picker/PrickleWizard", () => ({ default: () => <div data-testid="prickle-wizard" /> }));
 vi.mock("@/app/(member)/hosting/HostingStats", () => ({ default: () => <div data-testid="hosting-stats" /> }));
 vi.mock("@/app/(member)/hosting/HostingScheduleManager", () => ({
@@ -67,6 +72,8 @@ import CommitmentsRoute from "@/app/(member)/my-prickles/commitments/page";
 import HostingRoute from "@/app/(member)/my-prickles/hosting/page";
 import HistoryRoute from "@/app/(member)/my-prickles/history/page";
 import { getMyHostEligibility } from "@/app/(member)/hosting/actions";
+import { getRankedUpcomingPrickles } from "@/lib/upcoming-prickles";
+import { getMyCalendarItems } from "@/app/(member)/my-prickles/calendar-feed-actions";
 
 const routeProps = (searchParams: Record<string, string> = {}) => ({
   params: Promise.resolve({}),
@@ -181,5 +188,67 @@ describe("My Prickles legacy ?tab= links", () => {
     await expectRedirect(MyPricklesIndex, routeProps({ tab: "upcoming" }), "/my-prickles");
     await renderServerRoute(MyPricklesIndex, routeProps({ tab: "bogus" }));
     expect(screen.getByRole("tab", { name: "Upcoming" })).toHaveAttribute("aria-selected", "true");
+  });
+});
+
+describe("My Prickles Upcoming tab calendar controls", () => {
+  // Tue 2026-10-20 15:00 in New York (UTC-4): weekday 2, 15:00, the slot "t1|2|15:00|America/New_York".
+  const prickle = (id: string, over: object = {}) => ({
+    id,
+    typeId: "t1",
+    typeName: "Progress Prickle",
+    startTime: "2026-10-20T19:00:00.000Z",
+    hostId: null,
+    hostName: null,
+    dayOfWeek: "Tuesday",
+    startHour: 15,
+    seriesKey: "k",
+    ...over,
+  });
+  const ranked = (...rows: { prickle: ReturnType<typeof prickle>; reasons?: { kind: string }[] }[]) =>
+    vi.mocked(getRankedUpcomingPrickles).mockResolvedValueOnce(
+      rows.map((r) => ({ prickle: r.prickle, reasons: r.reasons ?? [], priority: 0 })) as never
+    );
+  const rows = () => screen.getAllByTestId("upcoming-row");
+  const calendarOf = (row: HTMLElement) => JSON.parse(row.getAttribute("data-calendar")!);
+
+  it("gives each row what it needs to add the prickle to the calendar, labelled in the member's zone", async () => {
+    ranked({ prickle: prickle("p1") });
+    await renderServerRoute(MyPricklesIndex, routeProps());
+
+    expect(calendarOf(rows()[0])).toEqual({
+      state: { onceItemId: null, weeklyItemId: null },
+      nextLabel: "Tue, Oct 20",
+      autoIncluded: null,
+    });
+  });
+
+  it("shows what's already in the calendar: just this prickle, and its weekly slot", async () => {
+    ranked({ prickle: prickle("p1") });
+    vi.mocked(getMyCalendarItems).mockResolvedValueOnce([
+      { id: "i1", kind: "prickle", label: "x", prickleId: "p1" },
+      { id: "i2", kind: "slot", label: "y", slotKey: "t1|2|15:00|America/New_York" },
+    ] as never);
+    await renderServerRoute(MyPricklesIndex, routeProps());
+
+    expect(calendarOf(rows()[0]).state).toEqual({ onceItemId: "i1", weeklyItemId: "i2" });
+  });
+
+  it("says why a prickle is already in the calendar when you host or committed to it", async () => {
+    ranked(
+      { prickle: prickle("p1"), reasons: [{ kind: "hosting" }] },
+      { prickle: prickle("p2"), reasons: [{ kind: "commitment" }] },
+      { prickle: prickle("p3"), reasons: [{ kind: "streak" }] }
+    );
+    await renderServerRoute(MyPricklesIndex, routeProps());
+
+    expect(rows().map((r) => calendarOf(r).autoIncluded)).toEqual(["hosting", "committed", null]);
+  });
+
+  it("offers no control for a prickle with no type, which can't be added", async () => {
+    ranked({ prickle: prickle("p1", { typeId: null }) });
+    await renderServerRoute(MyPricklesIndex, routeProps());
+
+    expect(calendarOf(rows()[0])).toBeNull();
   });
 });
