@@ -23,6 +23,7 @@ import {
   MEASURE_LABELS,
   MANUALLY_SETTABLE_PHASES,
   PHASE_LABELS,
+  GOAL_EXAMPLES,
   type WritingMeasure,
   type HabitPeriod,
 } from "@/lib/writing-projects";
@@ -532,7 +533,7 @@ const HABIT_PERIODS: { value: HabitPeriod; label: string }[] = [
   { value: "month", label: "Month" },
 ];
 
-function GoalForm({
+export function GoalForm({
   projectId,
   goal,
   onSaved,
@@ -548,8 +549,10 @@ function GoalForm({
   const isEditing = !!goal;
   const [title, setTitle] = useState(goal?.title ?? "");
   const [description, setDescription] = useState(goal?.description ?? "");
-  const [showOnProfile, setShowOnProfile] = useState(goal?.showOnProfile ?? false);
-  const [isStarred, setIsStarred] = useState(goal?.isStarred ?? false);
+  // A new goal starts pinned to the dashboard and on the profile (the member can untick either);
+  // editing keeps what was saved.
+  const [showOnProfile, setShowOnProfile] = useState(goal ? goal.showOnProfile : true);
+  const [isStarred, setIsStarred] = useState(goal ? goal.isStarred : true);
   const [goalType, setGoalType] = useState<"target" | "habit">(goal?.kind ?? "target");
   // Prickles is the default for new goals -- it's the input (attending), word/page/etc counts
   // are outputs, so the form leads with the thing that causes the others.
@@ -632,6 +635,11 @@ function GoalForm({
           Habit
         </button>
       </div>
+      <p className="text-sm text-slate-600 dark:text-slate-400">
+        {goalType === "target"
+          ? "A total to reach, like 50,000 words, optionally by a date."
+          : "A rhythm to keep, like writing three days a week."}
+      </p>
 
       <div>
         <label htmlFor="goal-title" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
@@ -665,8 +673,9 @@ function GoalForm({
 
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Measure</label>
+          <label htmlFor="goal-measure" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Measure</label>
           <select
+            id="goal-measure"
             value={measure}
             onChange={(e) => setMeasure(e.target.value as WritingMeasure)}
             className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-sm"
@@ -681,21 +690,23 @@ function GoalForm({
 
         {goalType === "target" ? (
           <div>
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Target amount</label>
+            <label htmlFor="goal-target-amount" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Target amount</label>
             <input
+              id="goal-target-amount"
               type="number"
               inputMode="decimal"
               step="any"
               value={targetAmount}
               onChange={(e) => setTargetAmount(e.target.value)}
-              placeholder="e.g. 50000"
+              placeholder={`e.g. ${GOAL_EXAMPLES.target[measure]}`}
               className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-sm"
             />
           </div>
         ) : (
           <div>
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Period</label>
+            <label htmlFor="goal-habit-period" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Period</label>
             <select
+              id="goal-habit-period"
               value={habitPeriod}
               onChange={(e) => setHabitPeriod(e.target.value as HabitPeriod)}
               className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-sm"
@@ -737,16 +748,17 @@ function GoalForm({
         </div>
       ) : (
         <div>
-          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+          <label htmlFor="goal-habit-threshold" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
             Threshold per period <span className="text-slate-400 font-normal">(optional -- blank means &quot;logged anything counts&quot;)</span>
           </label>
           <input
+            id="goal-habit-threshold"
             type="number"
             inputMode="decimal"
             step="any"
             value={habitThreshold}
             onChange={(e) => setHabitThreshold(e.target.value)}
-            placeholder="e.g. 500"
+            placeholder={`e.g. ${GOAL_EXAMPLES.habit[measure]}`}
             className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-sm"
           />
         </div>
