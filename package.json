@@ -79,7 +79,7 @@
     "@types/web-push": "^3.6.4",
     "@vitejs/plugin-react": "^6.1.1",
     "@vitest/coverage-v8": "^4.1.11",
-    "@vitest/ui": "^4.1.11",
+    "@vitest/ui": "^5.0.4",
     "autoprefixer": "^10.6.1",
     "checkly": "latest",
     "doctoc": "^2.5.0",
