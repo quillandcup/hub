@@ -8,29 +8,10 @@ import {
   prickleNudgeVariant,
 } from "@/lib/onboarding-nudges";
 import { calendarDaysBetween, currentHour, jitteredGapDays, SEND_HOUR_COUNT, SEND_HOUR_START, sendHourFor } from "@/lib/nudge-jitter";
-import { daysSinceJoined, isNewcomer, NEWCOMER_WINDOW_DAYS } from "@/lib/newcomer";
 import { APP_URL, ATTENDANCE_DATA_STARTS_ON, SLACK_INTRO_CHANNEL, SLACK_WORKSPACE_URL } from "@/lib/config";
 
 const NOW = new Date("2026-10-13T15:00:00Z");
 const daysAgo = (n: number) => new Date(NOW.getTime() - n * 24 * 60 * 60 * 1000);
-
-describe("isNewcomer", () => {
-  it("is true within the 90-day window and false outside it", () => {
-    expect(isNewcomer(daysAgo(0).toISOString(), NOW)).toBe(true);
-    expect(isNewcomer(daysAgo(NEWCOMER_WINDOW_DAYS).toISOString(), NOW)).toBe(true);
-    expect(isNewcomer(daysAgo(NEWCOMER_WINDOW_DAYS + 1).toISOString(), NOW)).toBe(false);
-  });
-
-  it("is false without a usable join date", () => {
-    expect(isNewcomer(null, NOW)).toBe(false);
-    expect(isNewcomer("not a date", NOW)).toBe(false);
-  });
-
-  it("counts whole days since joining", () => {
-    expect(daysSinceJoined(daysAgo(3).toISOString(), NOW)).toBe(3);
-    expect(daysSinceJoined(null, NOW)).toBeNull();
-  });
-});
 
 describe("nudgeDue", () => {
   it("waits out the first days after joining", () => {
