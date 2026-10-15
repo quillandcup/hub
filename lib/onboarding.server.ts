@@ -29,6 +29,7 @@ const NO_SIGNALS: OnboardingSignals = {
   hasIntroduced: false,
   hasAttendedPrickle: false,
   hasUpcomingPrickle: false,
+  hasCalendarSynced: false,
 };
 
 /** The newcomer steps' signals (lib/newcomer.ts); all false/null for someone past their first 90 days. */
@@ -70,7 +71,7 @@ export const getOnboardingState = cache(async (memberId: string): Promise<Onboar
   const currentMonth = getMonthStart(now).toISOString().slice(0, 10);
 
   // Whether the tour shows depends only on the record, so check that first: a member who dismissed
-  // or finished it skips the other eleven reads.
+  // or finished it skips the other twelve reads.
   const { data: record } = await supabase
     .from("member_onboarding")
     .select("marked_steps, dismissed_at, completed_at")
@@ -91,6 +92,7 @@ export const getOnboardingState = cache(async (memberId: string): Promise<Onboar
     hostedRecently,
     latestSchedule,
     hostVibes,
+    feedToken,
     newcomer,
   ] = await Promise.all([
     // Written only when the member saves their bio or socials in the Hub. members.bio isn't read:
@@ -127,6 +129,7 @@ export const getOnboardingState = cache(async (memberId: string): Promise<Onboar
       .limit(1)
       .maybeSingle(),
     supabase.from("prickle_host_vibes").select("type_id", { count: "exact", head: true }).eq("host_id", memberId),
+    supabase.from("calendar_feed_tokens").select("first_fetched_at").eq("member_id", memberId).maybeSingle(),
     loadNewcomerSignals(supabase, memberId, now),
   ]);
   const latestScheduleMonth = (latestSchedule.data?.month as string | undefined) ?? null;
@@ -144,6 +147,7 @@ export const getOnboardingState = cache(async (memberId: string): Promise<Onboar
       hasHostingSchedule: latestScheduleMonth !== null && latestScheduleMonth >= currentMonth,
       hostedRecently: (hostedRecently.count ?? 0) > 0,
       hasHostVibe: (hostVibes.count ?? 0) > 0,
+      hasCalendarSynced: !!feedToken.data?.first_fetched_at,
       ...newcomer,
     },
     recordData

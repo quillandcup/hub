@@ -8,8 +8,8 @@ import {
 
 const NOW = new Date("2026-10-03T12:00:00Z");
 
-const NOT_NEWCOMER = { isNewcomer: false, introUrl: null, hasIntroduced: false, hasAttendedPrickle: false, hasUpcomingPrickle: false };
-const NOT_HOST = { isHost: false, hasHostingSchedule: false, hostedRecently: false, hasHostVibe: false, isNewcomer: false, introUrl: null, hasIntroduced: false, hasAttendedPrickle: false, hasUpcomingPrickle: false };
+const NOT_NEWCOMER = { isNewcomer: false, introUrl: null, hasIntroduced: false, hasAttendedPrickle: false, hasUpcomingPrickle: false, hasCalendarSynced: false };
+const NOT_HOST = { isHost: false, hasHostingSchedule: false, hostedRecently: false, hasHostVibe: false, isNewcomer: false, introUrl: null, hasIntroduced: false, hasAttendedPrickle: false, hasUpcomingPrickle: false, hasCalendarSynced: false };
 const IDENTITY_DONE = ["identity.basics", "identity.names", "identity.emails"];
 const EVERYTHING_MARKED = [...IDENTITY_DONE, "calendar"];
 const NOTHING: OnboardingSignals = { hasHubProfile: false, latestProjectId: null, hasGoal: false, hasPricklePlan: false, ...NOT_HOST };
@@ -248,5 +248,10 @@ describe("prickles and calendar steps", () => {
       done: false,
     });
     expect(step("calendar", record({ marked_steps: ["calendar"] })).done).toBe(true);
+  });
+
+  it("counts the calendar step done once a calendar app has fetched their feed", () => {
+    const synced = buildOnboardingState({ ...NOTHING, hasCalendarSynced: true }, null).steps.find((s) => s.id === "calendar");
+    expect(synced?.done).toBe(true);
   });
 });

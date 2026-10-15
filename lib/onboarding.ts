@@ -16,7 +16,8 @@
  * has an external link instead of a spotlight. Their "prickles" step is also stricter: it asks for
  * a prickle on the calendar until they've attended one. Reminders for both: lib/onboarding-nudges.ts.
  *
- * Everyone is also walked through syncing their calendar app (the "calendar" step, confirmed by hand).
+ * Everyone is also walked through syncing their calendar app (the "calendar" step), done once a
+ * calendar app has fetched their feed, or when they confirm it.
  *
  * Hosts get two more steps (most members never host, so nobody else sees them): their hosting
  * schedule on My Prickles → Hosting, and, once they've hosted recently enough to have prickle
@@ -53,6 +54,8 @@ export interface OnboardingSignals {
   hasAttendedPrickle: boolean;
   /** Has a prickle on their calendar from now on (hosting, a commitment, or added by hand). */
   hasUpcomingPrickle: boolean;
+  /** A calendar app has fetched their feed link at least once (calendar_feed_tokens.first_fetched_at). */
+  hasCalendarSynced: boolean;
 }
 
 export interface OnboardingStepView {
@@ -257,11 +260,12 @@ function stepViews(signals: OnboardingSignals, marked: Set<string>): StepWithout
       href: "/my-prickles/commitments",
       target: "calendar-sync",
       calloutTitle: "Sync your calendar",
-      hint: "Subscribe in Google, Apple or Outlook and the prickles you add, commit to or host appear in your own calendar, reminders and all. Pick your calendar app below; there are steps if you get stuck.",
-      // Nothing in our data shows a calendar app subscribed, so they confirm it.
+      hint: "Subscribe in Google, Apple or Outlook and the prickles you add, commit to or host appear in your own calendar, reminders and all. Pick your calendar app below; there are steps if you get stuck. This ticks itself off once your calendar app picks it up.",
+      // Done once a calendar app has fetched the feed. The button is for a feed we can't see
+      // (they set it up some other way) or one that's slow to be fetched (Google can take hours).
       confirmLabel: "My calendar is set up",
       markKey: "calendar",
-      done: marked.has("calendar"),
+      done: signals.hasCalendarSynced || marked.has("calendar"),
     },
   ];
   if (!signals.isHost) return steps;
