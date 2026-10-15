@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { NextRequest } from "next/server";
 import { createFakeSupabase, type FakeQuery, type FakeSupabase, type FakeTables } from "@/tests/helpers/server-page";
 import { APP_URL, ATTENDANCE_DATA_STARTS_ON, SLACK_INTRO_CHANNEL, SLACK_WORKSPACE_URL } from "@/lib/config";
 import { sendHourFor } from "@/lib/nudge-jitter";
@@ -21,10 +22,14 @@ vi.mock("@/lib/calendar-feed", () => ({
   loadCalendarFeedPrickleIds: (supabase: unknown, memberId: string) => calendarPrickleIds(supabase, memberId),
 }));
 
+vi.mock("@/lib/cron-heartbeats", () => ({ withCronHeartbeat: async (_job: string, res: Response) => res }));
+
 let fake: FakeSupabase;
 vi.mock("@supabase/supabase-js", () => ({ createClient: () => fake }));
 
+const { POST } = await import("@/app/api/internal/onboarding-nudges/route");
 const { sendOnboardingNudges } = await import("@/lib/onboarding-nudges");
+const { membersWithFeatureForOutreach } = await import("@/lib/features.server");
 
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -514,5 +519,109 @@ describe("dry run", () => {
     expect(slackTargets()).toEqual(["U-m1"]);
     expect(log.rows.map((r) => r.member_id)).toEqual(["m1"]);
     expect(dryRunLines(spy).map((l) => l.memberId)).toEqual([sameHour]);
+  });
+});
+
+describe("the reminder feature flags", () => {
+  const request = () =>
+    new NextRequest("http://localhost/api/internal/onboarding-nudges", {
+      method: "POST",
+      headers: { authorization: "Bearer test-secret" },
+    });
+  /** feature_flags where exactly these keys are switched on globally. */
+  const flagsOn = (...keys: string[]) => (query: FakeQuery) => ({
+    data: [{ enabled_globally: keys.includes(String(query.calls.find((c) => c.method === "eq" && c.args[0] === "feature_key")?.args[1])) }],
+  });
+
+  async function runRoute(tables: Record<string, any>, memberKind: "intro" | "prickle" = "intro") {
+    const now = memberKind === "intro" ? sendTime("m1", "intro_nudge") : sendTime("m1", "prickle_nudge");
+    const joined = memberKind === "intro" ? joinedDaysBefore(now, 10) : "2022-03-01";
+    setup({ members: { data: [member("m1", joined, "u1")] }, ...tables });
+    const spy = vi.spyOn(console, "log").mockImplementation(() => {});
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(now);
+    try {
+      return { body: await (await POST(request())).json(), spy };
+    } finally {
+      vi.useRealTimers();
+    }
+  }
+
+  it("only logs, sending nothing, while the flag is off", async () => {
+    const { body, spy } = await runRoute({ feature_flags: flagsOn() });
+
+    expect(body).toEqual({ intro: 0, prickle: 0, dryRun: { intro: 1, prickle: 0 } });
+    expect(sendSlackDM).not.toHaveBeenCalled();
+    expect(spy.mock.calls.some((c) => String(c[0]).includes("DRY RUN intro_nudge"))).toBe(true);
+  });
+
+  it("sends intro reminders for real once intro_reminders is on globally", async () => {
+    const { body } = await runRoute({ feature_flags: flagsOn("intro_reminders") });
+
+    expect(body).toEqual({ intro: 1, prickle: 0, dryRun: { intro: 0, prickle: 0 } });
+    expect(sendSlackDM).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps intro reminders dry when only prickle_reminders is on", async () => {
+    const { body } = await runRoute({ feature_flags: flagsOn("prickle_reminders") });
+
+    expect(body).toEqual({ intro: 0, prickle: 0, dryRun: { intro: 1, prickle: 0 } });
+    expect(sendSlackDM).not.toHaveBeenCalled();
+  });
+
+  it("keeps prickle reminders dry when only intro_reminders is on, and sends them once prickle_reminders is", async () => {
+    const tables = { notification_preferences: { data: [optIn("m1", "prickle_nudge")] } };
+
+    const dry = await runRoute({ ...tables, feature_flags: flagsOn("intro_reminders") }, "prickle");
+    expect(dry.body).toEqual({ intro: 0, prickle: 0, dryRun: { intro: 0, prickle: 1 } });
+    expect(sendSlackDM).not.toHaveBeenCalled();
+
+    const live = await runRoute({ ...tables, feature_flags: flagsOn("prickle_reminders") }, "prickle");
+    expect(live.body).toEqual({ intro: 0, prickle: 1, dryRun: { intro: 0, prickle: 0 } });
+    expect(sendSlackDM).toHaveBeenCalledTimes(1);
+  });
+
+  it("covers a member with their own preview of that flag even while it's off globally", async () => {
+    const { body } = await runRoute({
+      feature_flags: flagsOn(),
+      user_feature_previews: { data: [{ user_id: "u1" }] },
+    });
+
+    expect(body.intro).toBe(1);
+    expect(sendSlackDM).toHaveBeenCalledTimes(1);
+  });
+
+  it("covers a member without a Hub account when it's on globally (Slack needs none)", async () => {
+    const now = sendTime("m1", "intro_nudge");
+    setup({
+      members: { data: [member("m1", joinedDaysBefore(now, 10), null)] },
+      feature_flags: flagsOn("intro_reminders"),
+    });
+    vi.spyOn(console, "log").mockImplementation(() => {});
+
+    expect((await sendOnboardingNudges(fake as never, now, {
+      liveFor: (_kind, ids) => membersWithFeatureForOutreach(fake, "intro_reminders", ids),
+    })).intro).toBe(1);
+  });
+});
+
+describe("the route", () => {
+  const request = (headers: Record<string, string> = {}) =>
+    new NextRequest("http://localhost/api/internal/onboarding-nudges", { method: "POST", headers });
+
+  it("rejects a request without the cron secret", async () => {
+    setup({ members: { data: [member("m1", "2026-10-01")] } });
+
+    expect((await POST(request())).status).toBe(401);
+    expect(sendSlackDM).not.toHaveBeenCalled();
+  });
+
+  it("runs with the secret and reports what it sent", async () => {
+    setup({ members: { data: [] } });
+
+    const res = await POST(request({ authorization: "Bearer test-secret" }));
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ intro: 0, prickle: 0, dryRun: { intro: 0, prickle: 0 } });
   });
 });

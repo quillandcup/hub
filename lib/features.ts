@@ -1,4 +1,4 @@
-export type FeatureKey = 'member_overrides' | 'hedgieversaries' | 'work_queue' | 'program_cohorts' | 'events' | 'message_privacy' | 'slack_admin_sign_in' |'in_app_notifications' | 'browser_notifications' | 'chat' | 'chat_posting' | 'big_sisters';
+export type FeatureKey = 'member_overrides' | 'hedgieversaries' | 'work_queue' | 'program_cohorts' | 'events' | 'message_privacy' | 'slack_admin_sign_in' |'in_app_notifications' | 'browser_notifications' | 'chat' | 'chat_posting' | 'big_sisters' | 'intro_reminders' | 'prickle_reminders';
 
 export interface FeaturePreview {
   key: FeatureKey;
@@ -66,5 +66,15 @@ export const FEATURE_PREVIEWS: FeaturePreview[] = [
     key: 'big_sisters',
     name: 'Big Sisters',
     description: 'Every new member gets a big sister for their first 30 days: matching, volunteers and effectiveness for staff, plus a Big Sisters card on the dashboard, a Big Sisters page, an introduction message and a Getting Started step for members. Staff also need the Admin Work Queue to see who is waiting for a match',
+  },
+  {
+    key: 'intro_reminders',
+    name: 'Send intro reminders',
+    description: 'Sends the hourly reminder to say hello in #start-here for real to the members this covers: everyone when switched on globally, otherwise only members in a linked segment or with their own preview. For everyone else the job only logs who it would have reminded and why (see the logs of /api/internal/onboarding-nudges). Members still choose their channels in Settings → Notifications',
+  },
+  {
+    key: 'prickle_reminders',
+    name: 'Send prickle reminders',
+    description: 'Sends the reminder to put a prickle on your calendar (it backs off the longer it goes unanswered) for real to the members this covers: everyone when switched on globally, otherwise only members in a linked segment or with their own preview. For everyone else the job only logs who it would have reminded and why. Members also have to turn the reminders on themselves in Settings → Notifications, as they are off until then',
   },
 ];

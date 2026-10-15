@@ -78,6 +78,17 @@ export const CRON_HEARTBEATS = {
     grace: 15,
     graceUnit: "minutes",
   },
+  "onboarding-nudges": {
+    name: "Cron: member reminders (hourly, pg_cron)",
+    path: "/api/internal/onboarding-nudges",
+    scheduler: "pg_cron",
+    envVar: "CHECKLY_HEARTBEAT_ONBOARDING_NUDGES",
+    // Hourly, so each member's reminder can go out in their own hour.
+    period: 1,
+    periodUnit: "hours",
+    grace: 30,
+    graceUnit: "minutes",
+  },
 } as const satisfies Record<string, CronHeartbeat>;
 
 export type CronHeartbeatJob = keyof typeof CRON_HEARTBEATS;
