@@ -64,6 +64,8 @@ export interface ProfileSettings {
   askMeAbout: string[];
   /** A saved change hasn't reached the profile yet (member processing still running). */
   syncPending: boolean;
+  /** Listed in other members' "Who's coming" on upcoming prickles they committed to or added to their calendar (no member_roster_opt_outs row). */
+  showInRoster: boolean;
 }
 
 type ProfileContext =
@@ -191,11 +193,24 @@ export async function getProfileSettings(): Promise<ProfileSettings | { error: s
   if ("error" in ctx) return ctx;
   const memberId = ctx.effectiveIdentity.memberId;
 
-  const [{ data: member, error }, { data: override, error: overrideError }, { data: askRow, error: askError }] =
-    await Promise.all([loadMember(ctx), loadOverride(ctx), loadAskMeAbout(ctx)]);
+  const [
+    { data: member, error },
+    { data: override, error: overrideError },
+    { data: askRow, error: askError },
+    { data: optOut, error: optOutError },
+  ] = await Promise.all([
+    loadMember(ctx),
+    loadOverride(ctx),
+    loadAskMeAbout(ctx),
+    ctx.supabase.from("member_roster_opt_outs").select("member_id").eq("member_id", memberId).maybeSingle(),
+  ]);
   if (error || !member) return { error: error?.message ?? "Couldn't load your profile" };
-  if (overrideError || askError) {
-    console.error("[profile] Failed to load profile overrides for member", memberId, overrideError ?? askError);
+  if (overrideError || askError || optOutError) {
+    console.error(
+      "[profile] Failed to load profile overrides for member",
+      memberId,
+      overrideError ?? askError ?? optOutError
+    );
     return { error: "Couldn't load your profile" };
   }
 
@@ -223,7 +238,38 @@ export async function getProfileSettings(): Promise<ProfileSettings | { error: s
     details: toDetails(effective),
     askMeAbout: askRow?.topics ?? [],
     syncPending,
+    showInRoster: optOut === null,
   };
+}
+
+/**
+ * Whether other members see you in "Who's coming" on an upcoming prickle you committed to or added
+ * to your calendar. Saved on its own (not with the rest of the profile form); no reprocessing, it
+ * takes effect at once.
+ */
+export async function setRosterVisibility(show: boolean): Promise<{ success: true } | { error: string }> {
+  const ctx = await requireIdentity();
+  if ("error" in ctx) return ctx;
+  if (typeof show !== "boolean") return { error: "Invalid setting" };
+  const { supabase, effectiveIdentity } = ctx;
+
+  const { error } = show
+    ? await supabase.from("member_roster_opt_outs").delete().eq("member_id", effectiveIdentity.memberId)
+    : await supabase
+        .from("member_roster_opt_outs")
+        .upsert({ member_id: effectiveIdentity.memberId }, { onConflict: "member_id", ignoreDuplicates: true });
+  if (error) {
+    console.error("[profile] Saving roster visibility failed for member", effectiveIdentity.memberId, error);
+    return { error: "Couldn't save that — please try again." };
+  }
+
+  console.log(
+    `[profile] Roster visibility set to ${show ? "shown" : "hidden"} for member ${effectiveIdentity.memberId}` +
+      (effectiveIdentity.isSudo ? " (by an admin in sudo mode)" : "")
+  );
+  revalidatePath("/settings", "layout");
+  revalidatePath("/prickles", "layout");
+  return { success: true };
 }
 
 export type UpdateProfileResult = { success: true; syncPending: boolean; warning?: string } | { error: string };

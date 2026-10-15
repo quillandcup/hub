@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import {
   getProfileSettings,
+  setRosterVisibility,
   updateAskMeAbout,
   updateInstagramHandle,
   updateProfileDetails,
@@ -56,6 +57,7 @@ export function ProfilePanel() {
   const [xInput, setXInput] = useState("");
   const [topics, setTopics] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
+  const [rosterSaving, setRosterSaving] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -120,6 +122,22 @@ export function ProfilePanel() {
             : "No changes to save.")
     );
     await load();
+  }
+
+  // Saved on its own as soon as it's ticked, apart from the profile form's Save.
+  async function handleRosterChange(show: boolean) {
+    if (!data) return;
+    setError(null);
+    setMessage(null);
+    setData({ ...data, showInRoster: show });
+    setRosterSaving(true);
+    const result = await setRosterVisibility(show);
+    setRosterSaving(false);
+    if ("error" in result) {
+      setData((current) => (current ? { ...current, showInRoster: !show } : current));
+      return setError(result.error);
+    }
+    setMessage("Saved.");
   }
 
   if (loading && !data) {
@@ -264,6 +282,28 @@ export function ProfilePanel() {
           {saving ? "Saving…" : "Save profile"}
         </button>
       </form>
+
+      <div className="max-w-md">
+        <h2 id="profile-whos-coming" className="text-lg font-medium text-slate-900 dark:text-slate-100 mb-1">
+          Who&apos;s coming
+        </h2>
+        <label className="flex items-start gap-2 text-sm text-slate-700 dark:text-slate-300 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={data.showInRoster}
+            disabled={rosterSaving}
+            onChange={(e) => handleRosterChange(e.target.checked)}
+            className="mt-0.5 rounded"
+          />
+          <span>
+            Show me in &ldquo;Who&apos;s coming&rdquo;
+            <span className="block text-xs text-slate-500 dark:text-slate-400">
+              On an upcoming prickle&apos;s page, other members see your name if you committed to it or added it to your
+              calendar. Untick to stay off those lists; you still see yourself.
+            </span>
+          </span>
+        </label>
+      </div>
     </div>
   );
 }

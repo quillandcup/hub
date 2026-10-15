@@ -11,6 +11,7 @@ vi.mock('@/app/(member)/settings/profileActions', () => ({
   updateInstagramHandle: vi.fn(),
   updateProfileDetails: vi.fn(),
   updateAskMeAbout: vi.fn(),
+  setRosterVisibility: vi.fn(),
 }))
 
 const baseSettings: profileActions.ProfileSettings = {
@@ -20,6 +21,7 @@ const baseSettings: profileActions.ProfileSettings = {
   details: { bio: 'Writes cozy mysteries.', facebookUrl: 'https://facebook.com/someone', twitterUrl: null },
   askMeAbout: ['cozy mysteries'],
   syncPending: false,
+  showInRoster: true,
 }
 
 beforeEach(() => {
@@ -204,5 +206,43 @@ describe('ProfilePanel', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Save profile' }))
     await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('No changes to save.'))
     expect(profileActions.updateAskMeAbout).not.toHaveBeenCalled()
+  })
+})
+
+describe("ProfilePanel who's coming setting", () => {
+  const checkbox = () => screen.findByRole('checkbox', { name: /Show me in .*Who's coming/ })
+
+  it('is on by default and reflects an opt-out', async () => {
+    vi.mocked(profileActions.getProfileSettings).mockResolvedValue(baseSettings)
+    const { unmount } = render(<ProfilePanel />)
+    expect(await checkbox()).toBeChecked()
+    unmount()
+
+    vi.mocked(profileActions.getProfileSettings).mockResolvedValue({ ...baseSettings, showInRoster: false })
+    render(<ProfilePanel />)
+    expect(await checkbox()).not.toBeChecked()
+  })
+
+  it('saves on its own as soon as it is toggled, without the profile form', async () => {
+    vi.mocked(profileActions.getProfileSettings).mockResolvedValue(baseSettings)
+    vi.mocked(profileActions.setRosterVisibility).mockResolvedValue({ success: true })
+    render(<ProfilePanel />)
+
+    await userEvent.click(await checkbox())
+
+    expect(profileActions.setRosterVisibility).toHaveBeenCalledWith(false)
+    expect(profileActions.updateProfileDetails).not.toHaveBeenCalled()
+    expect(await checkbox()).not.toBeChecked()
+  })
+
+  it('puts the box back and says why when saving fails', async () => {
+    vi.mocked(profileActions.getProfileSettings).mockResolvedValue(baseSettings)
+    vi.mocked(profileActions.setRosterVisibility).mockResolvedValue({ error: "Couldn't save that — please try again." })
+    render(<ProfilePanel />)
+
+    await userEvent.click(await checkbox())
+
+    expect(await screen.findByText("Couldn't save that — please try again.")).toBeInTheDocument()
+    expect(await checkbox()).toBeChecked()
   })
 })
