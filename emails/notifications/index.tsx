@@ -4,6 +4,7 @@ import type { NotificationKindId } from "@/lib/notifications/registry";
 import type { NotificationEmailProps } from "./NotificationEmail";
 import { PrickleCheckinEmail } from "./prickle-checkin";
 import { PrickleCheckoutEmail } from "./prickle-checkout";
+import { BigSisterMatchEmail } from "./big-sister-match";
 
 /**
  * One template per notification kind, as React Email components. Member notification emails are
@@ -17,6 +18,7 @@ import { PrickleCheckoutEmail } from "./prickle-checkout";
 const TEMPLATES = {
   prickle_checkin: PrickleCheckinEmail,
   prickle_checkout: PrickleCheckoutEmail,
+  big_sister_match: BigSisterMatchEmail,
 } satisfies Record<NotificationKindId, (props: NotificationEmailProps) => React.ReactElement>;
 
 export interface RenderedNotificationEmail {
