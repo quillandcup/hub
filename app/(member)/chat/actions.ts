@@ -8,6 +8,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { sendChatMessageToSlack } from "@/lib/chat/slack-post";
 import { syncReactionToSlack } from "@/lib/chat/slack-react";
+import { deleteChatMessageInSlack, updateChatMessageInSlack } from "@/lib/chat/slack-edit";
 import { getSlackConnectionStatus } from "@/lib/slack-connect";
 import { isUuid } from "@/lib/chat/format";
 import {
@@ -294,4 +295,59 @@ export async function retryChatMessage(messageId: string): Promise<SendChatResul
   }
   const result = await sendChatMessageToSlack(createServiceRoleClient(), messageId);
   return result === "failed" ? { ok: false, error: "Slack didn't take it. Try again in a moment." } : { ok: true, id: messageId };
+}
+
+export type ChangeChatResult = { ok: true } | { ok: false; error: string };
+
+const CHANGE_ERRORS: Record<string, string> = {
+  no_member: "You need a member profile to do that.",
+  not_yours: "That message can't be changed.",
+  archived: "This conversation is archived.",
+  empty: "Write something first.",
+  too_long: "That message is too long (4,000 characters at most).",
+};
+
+const changeError = (error: { message?: string } | null, verb: "edit" | "delete"): string => {
+  const reason = new RegExp(`chat_${verb}: (\\w+)`).exec(error?.message ?? "")?.[1];
+  if (!reason) console.error("chat_%s_message failed:", verb, error?.message);
+  return (reason && CHANGE_ERRORS[reason]) || "Something went wrong. Try again.";
+};
+
+/**
+ * The author edits one of their own messages written in the Hub. Slack first, as whoever posted it
+ * (their own token or the bot), then the Hub's copy, so the Hub never shows text Slack doesn't have.
+ * Same gate as posting.
+ */
+export async function editChatMessage(messageId: string, body: string): Promise<ChangeChatResult> {
+  if (!isUuid(messageId)) return { ok: false, error: "Something went wrong." };
+  const caller = await postingCaller();
+  if (!caller) return { ok: false, error: "Editing isn't available to you yet." };
+
+  // Refuse what the database would refuse before touching Slack.
+  const text = body.replace(/^[ \t\r\n]+|[ \t\r\n]+$/g, "");
+  if (text === "") return { ok: false, error: CHANGE_ERRORS.empty };
+  if (text.length > 4000) return { ok: false, error: CHANGE_ERRORS.too_long };
+
+  const inSlack = await updateChatMessageInSlack(createServiceRoleClient(), { messageId, memberId: caller.identity.memberId, body: text });
+  if (!inSlack.ok) return inSlack;
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("chat_edit_message", { p_message_id: messageId, p_body: text });
+  if (error) return { ok: false, error: changeError(error, "edit") };
+  return { ok: true };
+}
+
+/** The author deletes one of their own messages written in the Hub: in Slack first, then the Hub (a tombstone, the text kept). */
+export async function deleteChatMessage(messageId: string): Promise<ChangeChatResult> {
+  if (!isUuid(messageId)) return { ok: false, error: "Something went wrong." };
+  const caller = await postingCaller();
+  if (!caller) return { ok: false, error: "Deleting isn't available to you yet." };
+
+  const inSlack = await deleteChatMessageInSlack(createServiceRoleClient(), { messageId, memberId: caller.identity.memberId });
+  if (!inSlack.ok) return inSlack;
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("chat_delete_message", { p_message_id: messageId });
+  if (error) return { ok: false, error: changeError(error, "delete") };
+  return { ok: true };
 }

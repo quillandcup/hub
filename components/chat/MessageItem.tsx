@@ -1,7 +1,8 @@
 import Link from "next/link";
 import MemberAvatar from "@/app/(member)/members/[id]/MemberAvatar";
 import AvatarStack from "@/components/AvatarStack";
-import ChatText, { type ChatTextContext } from "@/components/chat/ChatText";
+import { type ChatTextContext } from "@/components/chat/ChatText";
+import MessageBody from "@/components/chat/MessageBody";
 import ReactionBar from "@/components/chat/ReactionBar";
 import RetryButton from "@/components/chat/RetryButton";
 import { formatChatTime } from "@/lib/chat/format";
@@ -15,6 +16,7 @@ export default function MessageItem({
   channelId,
   inThread = false,
   canReact = false,
+  canEdit = false,
 }: {
   message: ChatMessageView;
   ctx: ChatTextContext;
@@ -22,6 +24,8 @@ export default function MessageItem({
   inThread?: boolean;
   /** Show the add-reaction controls and make the chips toggles. */
   canReact?: boolean;
+  /** Let the author edit and delete their own Hub messages (the same gate as reacting). */
+  canEdit?: boolean;
 }) {
   const profileHref = `/chat/${channelId}?profile=${message.authorMemberId}`;
   return (
@@ -53,9 +57,7 @@ export default function MessageItem({
         </header>
 
         {message.contentState === "ok" && message.body !== null && (
-          <div className="mt-0.5 text-sm text-slate-800 dark:text-slate-200">
-            <ChatText body={message.body} ctx={ctx} />
-          </div>
+          <MessageBody message={{ ...message, body: message.body }} ctx={ctx} channelId={channelId} canEdit={canEdit} />
         )}
         {message.contentState === "deleted" && (
           <p className="mt-0.5 text-sm italic text-slate-500 dark:text-slate-400">This message was deleted.</p>
