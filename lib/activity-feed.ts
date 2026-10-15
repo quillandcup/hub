@@ -212,6 +212,22 @@ export async function fetchRecordHistory(
 // Presentation
 // ---------------------------------------------------------------------------
 
+/** What reactionName reads: a member's Slack tab row (activity_type) or an activity log row (event_type). */
+export interface ReactionRow {
+  activity_type?: string | null;
+  event_type?: string | null;
+  title?: string | null;
+  data?: Record<string, unknown> | null;
+}
+
+/** The emoji name (no colons) of a Slack reaction row, else null. */
+export function reactionName(row: ReactionRow): string | null {
+  if ((row.activity_type ?? row.event_type) !== "slack_reaction") return null;
+  const fromData = row.data?.reaction;
+  if (typeof fromData === "string" && fromData) return fromData;
+  return row.title?.match(/:([^:\s]+(?:::skin-tone-\d)?):/)?.[1] ?? null;
+}
+
 const humanize = (s: string) => s.replace(/_/g, " ");
 
 interface FieldChange {
