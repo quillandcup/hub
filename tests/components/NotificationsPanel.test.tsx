@@ -50,7 +50,7 @@ describe("getNotificationSettings", () => {
     expect(await getNotificationSettings()).toEqual({
       channels: ["slack", "email"],
       webPushPublicKey: null,
-      channelsByKind: { prickle_checkin: ["slack", "in_app", "web_push"], prickle_checkout: ["in_app", "web_push"] },
+      channelsByKind: { prickle_checkin: ["slack", "in_app", "web_push"], prickle_checkout: ["in_app", "web_push"], intro_nudge: ["slack", "in_app"], prickle_nudge: [] },
       readOnly: false,
     });
     const query = fake.queries.find((q) => q.table === "notification_preferences")!;
@@ -214,7 +214,7 @@ describe("NotificationsPanel", () => {
   const initial = {
     channels: ["slack" as const],
     webPushPublicKey: null,
-    channelsByKind: { prickle_checkin: ["slack" as const], prickle_checkout: [] },
+    channelsByKind: { prickle_checkin: ["slack" as const], prickle_checkout: [], intro_nudge: [], prickle_nudge: [] },
     readOnly: false,
   };
 
@@ -250,7 +250,7 @@ describe("NotificationsPanel", () => {
 
     render(
       <NotificationsPanel
-        initial={{ ...initial, channels: ["slack", "in_app"], channelsByKind: { prickle_checkin: ["in_app"], prickle_checkout: [] } }}
+        initial={{ ...initial, channels: ["slack", "in_app"], channelsByKind: { prickle_checkin: ["in_app"], prickle_checkout: [], intro_nudge: [], prickle_nudge: [] } }}
       />
     );
     expect(screen.getByRole("button", { name: "Prickle check-ins via In the Hub" })).toHaveAttribute("aria-pressed", "true");

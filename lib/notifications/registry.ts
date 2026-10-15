@@ -50,6 +50,23 @@ export const NOTIFICATION_KINDS = [
     description: "Sent after each writing prickle you attended: how it went, and a quick progress log for your goals.",
     defaultChannels: ["slack", "in_app", "web_push"],
   },
+  {
+    id: "intro_nudge",
+    category: "Getting started",
+    label: "Introduction reminders",
+    description:
+      "For your first 90 days, a weekly reminder to introduce yourself in #start-here on Slack, until you have.",
+    defaultChannels: ["slack", "in_app"],
+  },
+  {
+    id: "prickle_nudge",
+    category: "Getting started",
+    label: "Prickle reminders",
+    description:
+      "A reminder to put a prickle on your calendar when you don't have one coming up and haven't been to one in a while. It comes less often the longer you go without attending.",
+    // Off until members opt in; flipping it later is safe (see the note on defaultChannels above).
+    defaultChannels: [],
+  },
 ] as const satisfies readonly NotificationKindDef[];
 
 export type NotificationKindId = (typeof NOTIFICATION_KINDS)[number]["id"];
