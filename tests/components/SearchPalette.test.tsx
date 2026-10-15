@@ -10,10 +10,12 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ push }), usePathname: ()
 const searchPalette = vi.fn();
 const searchSuggestions = vi.fn();
 const suggestOperatorValues = vi.fn();
+const markSuggestionsRead = vi.fn();
 vi.mock("@/app/actions/search", () => ({
   searchPalette: (q: string) => searchPalette(q),
   searchSuggestions: () => searchSuggestions(),
   suggestOperatorValues: (op: string, typed: string) => suggestOperatorValues(op, typed),
+  markSuggestionsRead: (ids: string[]) => markSuggestionsRead(ids),
 }));
 vi.mock("@sentry/nextjs", () => ({ metrics: { distribution: vi.fn() } }));
 
@@ -219,6 +221,23 @@ describe("SearchPalette", () => {
     const headings = screen.getAllByRole("heading").map((h) => h.textContent);
     expect(headings).toEqual(["Needs attention", "Recent places"]);
     expect(screen.getByRole("link", { name: /Streaks/ })).toHaveAttribute("href", "/streaks");
+  });
+
+  it("marks a check-out or notification read with its x, and gives chat rows none", async () => {
+    markSuggestionsRead.mockResolvedValue(1);
+    searchSuggestions.mockResolvedValue({
+      needsAttention: [
+        { id: "checkout:p1", kind: "checkin", title: "Sunday Sprint", subtitle: "Check out", href: "/my-prickles/history?checkout=p1" },
+        { id: "chat:c1", kind: "chat", title: "#general", href: "/chat/c1", count: 3 },
+      ],
+    });
+    const user = await open();
+    await screen.findByRole("link", { name: /Sunday Sprint/ });
+    expect(screen.getAllByRole("button", { name: /as read/ })).toHaveLength(1);
+    await user.click(screen.getByRole("button", { name: "Mark “Sunday Sprint” as read" }));
+    expect(markSuggestionsRead).toHaveBeenCalledWith(["checkout:p1"]);
+    expect(screen.queryByRole("link", { name: /Sunday Sprint/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /#general/ })).toBeInTheDocument();
   });
 
   it("keeps recent searches behind the clock, and then they replace the suggestions", async () => {

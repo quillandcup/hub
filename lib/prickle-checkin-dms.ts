@@ -407,42 +407,81 @@ export function buildCheckinBlocks(prickleId: string, typeName: string, saved: C
   return [
     checkinQuestion(prickleId, "feelings_before", `*${typeName}* starts in about 20 minutes. How are you feeling coming in?`, saved),
     checkinQuestion(prickleId, "need", "What do you need most from this session?", saved),
+    dismissBlock("checkin", prickleId),
     checkinFooter(prickleId),
   ];
 }
 
-export const SKIP_CHECKOUT_ACTION_ID = "prickle_checkout_skip";
+export const DISMISS_ACTION_ID = "prickle_dismiss";
 
-/** The check-out DM's "Skip check-out" button; the prickle rides in the block id and value. */
-function skipCheckoutBlock(prickleId: string): any {
+/** The two halves of a prickle's check-in, each with its own dismissals table. */
+export type CheckinHalfKind = "checkin" | "checkout";
+
+const DISMISSALS_TABLE: Record<CheckinHalfKind, string> = {
+  checkin: "prickle_checkin_dismissals",
+  checkout: "prickle_checkout_dismissals",
+};
+
+const HALF_LABEL: Record<CheckinHalfKind, string> = { checkin: "check-in", checkout: "check-out" };
+
+/** A DM's "Skip check-in" / "Skip check-out" button; the half and prickle ride in the block id and value. */
+function dismissBlock(half: CheckinHalfKind, prickleId: string): any {
   return {
     type: "actions",
-    block_id: `prickle_checkout_skip:${prickleId}`,
-    elements: [{ type: "button", action_id: SKIP_CHECKOUT_ACTION_ID, text: plain("Skip check-out"), value: prickleId }],
+    block_id: `prickle_dismiss:${half}:${prickleId}`,
+    elements: [{ type: "button", action_id: DISMISS_ACTION_ID, text: plain(`Skip ${HALF_LABEL[half]}`), value: `${half}:${prickleId}` }],
   };
 }
 
-/** The prickle a "Skip check-out" button press is about, or null if the action isn't one. */
-export function parseSkipCheckout(action: any): string | null {
-  return action?.action_id === SKIP_CHECKOUT_ACTION_ID && typeof action.value === "string" && action.value ? action.value : null;
+/** The half and prickle a dismiss button press is about, or null if the action isn't one. */
+export function parseDismiss(action: any): { half: CheckinHalfKind; prickleId: string } | null {
+  if (action?.action_id !== DISMISS_ACTION_ID || typeof action.value !== "string") return null;
+  const [half, prickleId] = action.value.split(":");
+  return (half === "checkin" || half === "checkout") && prickleId ? { half, prickleId } : null;
 }
 
 /**
- * Closes a prickle's check-out for good ("nothing to report"): the dashboard prompt, the search
- * palette and the check-out DM stop asking (it shares writing_prompt_dismissals with the
- * dashboard's dismissal), and the in-app notification is marked read so its banner and the bell
+ * Closes one half of a prickle's check-in for good, the same for both halves: the dashboard (the
+ * check-in pill, the "What did you write?" prompt), the search palette, upcoming prickles and the
+ * Slack DM all stop asking, and the in-app notification is marked read so its banner and the bell
  * count go too. Returns an error message, or null.
  */
-export async function skipCheckout(supabase: any, memberId: string, prickleId: string): Promise<string | null> {
+export async function dismissCheckinHalf(supabase: any, half: CheckinHalfKind, memberId: string, prickleId: string): Promise<string | null> {
   const { error } = await supabase
-    .from("writing_prompt_dismissals")
+    .from(DISMISSALS_TABLE[half])
     .upsert({ member_id: memberId, prickle_id: prickleId }, { onConflict: "member_id,prickle_id", ignoreDuplicates: true });
   if (error) {
-    console.error("skipCheckout: insert failed", { memberId, prickleId, error });
-    return "Couldn't skip that check-out";
+    console.error(`dismiss ${half}: insert failed`, { memberId, prickleId, error });
+    return `Couldn't dismiss that ${HALF_LABEL[half]}`;
   }
-  await resolveInAppNotifications(supabase, memberId, "prickle_checkout", prickleId);
+  await resolveInAppNotifications(supabase, memberId, `prickle_${half}`, prickleId);
   return null;
+}
+
+export const dismissCheckin = (supabase: any, memberId: string, prickleId: string) => dismissCheckinHalf(supabase, "checkin", memberId, prickleId);
+export const dismissCheckout = (supabase: any, memberId: string, prickleId: string) => dismissCheckinHalf(supabase, "checkout", memberId, prickleId);
+
+/** Which of these prickles the member dismissed this half for. */
+export async function loadDismissedIds(supabase: any, half: CheckinHalfKind, memberId: string, prickleIds: string[]): Promise<Set<string>> {
+  if (prickleIds.length === 0) return new Set();
+  const { data } = await supabase.from(DISMISSALS_TABLE[half]).select("prickle_id").eq("member_id", memberId).in("prickle_id", prickleIds);
+  return new Set(((data ?? []) as { prickle_id: string }[]).map((r) => r.prickle_id));
+}
+
+export const loadDismissedCheckinIds = (supabase: any, memberId: string, prickleIds: string[]) => loadDismissedIds(supabase, "checkin", memberId, prickleIds);
+
+/** `${memberId}:${prickleId}` for every dismissal of this half, for senders working through many members. */
+export async function loadDismissedPairs(supabase: any, half: CheckinHalfKind, prickleIds: string[]): Promise<Set<string>> {
+  if (prickleIds.length === 0) return new Set();
+  const rows = await fetchAllPaginated<any>((offset) =>
+    supabase
+      .from(DISMISSALS_TABLE[half])
+      .select("id, member_id, prickle_id")
+      .in("prickle_id", prickleIds)
+      .order("id")
+      .range(offset, offset + BATCH_SIZE - 1)
+  );
+  return new Set(rows.map((r) => `${r.member_id}:${r.prickle_id}`));
 }
 
 /** The check-out DM, after a prickle: how it went, how they feel now, then the progress quick-log. */
@@ -457,7 +496,7 @@ export function buildCheckoutBlocks(
     ...ratingBlocks(prickleId, `Checking out of *${typeName}*: how did it go?`, saved),
     checkinQuestion(prickleId, "feelings_after", "How are you feeling now?", saved),
     ...buildQuickLogBlocks(prickleTitle, prickleId, prompts),
-    skipCheckoutBlock(prickleId),
+    dismissBlock("checkout", prickleId),
     checkinFooter(prickleId, "checkout"),
   ];
 }
@@ -696,19 +735,6 @@ async function loadSentCheckouts(supabase: any, prickleIds: string[]): Promise<S
   return new Set(rows.map((r) => `${r.member_id}:${r.prickle_id}`));
 }
 
-/** `${memberId}:${prickleId}` for every check-out a member skipped (skipCheckout) for these prickles. */
-async function loadSkippedCheckouts(supabase: any, prickleIds: string[]): Promise<Set<string>> {
-  const rows = await fetchAllPaginated<any>((offset) =>
-    supabase
-      .from("writing_prompt_dismissals")
-      .select("id, member_id, prickle_id")
-      .in("prickle_id", prickleIds)
-      .order("id")
-      .range(offset, offset + BATCH_SIZE - 1)
-  );
-  return new Set(rows.map((r) => `${r.member_id}:${r.prickle_id}`));
-}
-
 /** `${memberId}:${prickleId}:${projectId}` for every project already logged against these prickles. */
 async function loadLoggedProjects(supabase: any, memberIds: string[], prickleIds: string[]): Promise<Set<string>> {
   const rows = await fetchAllPaginated<any>((offset) =>
@@ -748,11 +774,11 @@ export async function sendCheckoutDMs(
   const [attendeesByPrickle, alreadySent, skipped, presenceByMember] = await Promise.all([
     loadAttendees(supabase, prickleIds),
     loadSentCheckouts(supabase, prickleIds),
-    loadSkippedCheckouts(supabase, prickleIds),
+    loadDismissedPairs(supabase, "checkout", prickleIds),
     loadPresenceByMember(supabase, new Date(presenceSince), new Date(now)),
   ]);
   const dueByPrickle = dueCheckoutMembers(prickles, attendeesByPrickle, presenceByMember, now);
-  // A skipped check-out is as good as a sent one: nothing more goes out for the pair.
+  // A dismissed check-out is as good as a sent one: nothing more goes out for the pair.
   const plan = planCheckoutDMs(prickles, dueByPrickle, candidates, new Set([...alreadySent, ...skipped]));
   if (plan.length === 0) return 0;
 

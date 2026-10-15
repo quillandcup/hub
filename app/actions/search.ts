@@ -10,6 +10,7 @@ import { notificationKindLabel } from "@/lib/notifications/inbox";
 import { getCheckinPrickles } from "@/lib/upcoming-prickles";
 import { checkinAnswered, checkinHref } from "@/lib/prickle-checkins";
 import { getMyCheckins } from "@/app/(member)/prickles/checkin-actions";
+import { dismissCheckin, dismissCheckout, loadDismissedCheckinIds } from "@/lib/prickle-checkin-dms";
 import { getUnloggedRecentPrickles } from "@/app/(member)/projects/actions";
 import { getUserTimezonePreference } from "@/lib/timezone";
 import { ORG_TIMEZONE } from "@/lib/config";
@@ -74,7 +75,9 @@ async function openCheckins(supabase: Searcher["ctx"]["supabase"], memberId: str
   ]);
   const timeZone = tzPref === "browser" ? ORG_TIMEZONE : tzPref;
   const upcoming = await getCheckinPrickles(supabase, memberId, timeZone, now).catch(() => []);
+  const dismissed = await loadDismissedCheckinIds(supabase, memberId, upcoming.map((r) => r.prickle.id)).catch(() => new Set<string>());
   const ins: Suggestion[] = upcoming
+    .filter((r) => !dismissed.has(r.prickle.id))
     .filter((r) => !checkinAnswered((checkins as Record<string, never>)[r.prickle.id] ?? null))
     .map((r) => ({ id: `checkin:${r.prickle.id}`, kind: "checkin" as const, title: r.prickle.typeName, subtitle: "Check in", href: checkinHref(r.prickle.id, "checkin") }));
   const outs: Suggestion[] = unlogged.map((p) => ({ id: `checkout:${p.id}`, kind: "checkin" as const, title: p.label, subtitle: "Check out", href: checkinHref(p.id, "checkout") }));
@@ -164,4 +167,47 @@ export async function suggestOperatorValues(operator: "from" | "channel", typed:
     out.push({ value: m.name, label: m.display_name || m.name, sublabel: m.display_name && m.display_name !== m.name ? m.name : undefined, imageUrl: m.photo_url });
   }
   return out.slice(0, VALUE_LIMIT);
+}
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * "Mark as read" for rows of "Needs attention" (by their Suggestion ids), so they leave every list:
+ * a check-in or check-out is dismissed (and its in-app notification read), a notification is read.
+ * Chat rows are not handled on purpose: reading a conversation is more than clearing it from a list. Does nothing in sudo, where the inbox isn't the viewer's.
+ * Returns how many were marked.
+ */
+export async function markSuggestionsRead(ids: string[]): Promise<number> {
+  const searcher = await getSearcher();
+  if (!searcher || searcher.isSudo || !searcher.ctx.viewerMemberId || !Array.isArray(ids)) return 0;
+  const { supabase, viewerMemberId } = searcher.ctx;
+  const results = await Promise.all(
+    ids.slice(0, MAX_SUGGESTIONS).map(async (id) => {
+      const [kind, ref] = String(id).split(":");
+      if (!UUID.test(ref ?? "")) return false;
+      try {
+        if (kind === "checkout") return (await dismissCheckout(supabase, viewerMemberId, ref)) === null;
+        if (kind === "checkin") return (await dismissCheckin(supabase, viewerMemberId, ref)) === null;
+        if (kind === "notification") {
+          // A check-in or check-out notification closes its prickle's offer too (which also reads it), so it doesn't come back as a derived row.
+          const { data: note } = await supabase.from("in_app_notifications").select("kind, ref").eq("id", ref).eq("member_id", viewerMemberId).maybeSingle();
+          if (note && UUID.test(note.ref ?? "")) {
+            if (note.kind === "prickle_checkin") return (await dismissCheckin(supabase, viewerMemberId, note.ref)) === null;
+            if (note.kind === "prickle_checkout") return (await dismissCheckout(supabase, viewerMemberId, note.ref)) === null;
+          }
+          const { error } = await supabase
+            .from("in_app_notifications")
+            .update({ read_at: new Date().toISOString() })
+            .eq("id", ref)
+            .eq("member_id", viewerMemberId)
+            .is("read_at", null);
+          return !error;
+        }
+      } catch (error) {
+        console.error("markSuggestionsRead failed", { id, error });
+      }
+      return false;
+    })
+  );
+  return results.filter(Boolean).length;
 }

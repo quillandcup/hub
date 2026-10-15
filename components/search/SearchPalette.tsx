@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import * as Sentry from "@sentry/nextjs";
-import { searchPalette, searchSuggestions, suggestOperatorValues, type PaletteSearch, type Suggestion } from "@/app/actions/search";
+import { markSuggestionsRead, searchPalette, searchSuggestions, suggestOperatorValues, type PaletteSearch, type Suggestion } from "@/app/actions/search";
 import { applyCompletion, completionContext, isServerOperator, staticOptions, type CompletionOption } from "@/lib/search/completion";
 import { KIND_GLYPHS, formatHitDate } from "@/lib/search/format";
 import { KIND_LABELS, type SearchHit } from "@/lib/search/kinds";
@@ -278,6 +278,15 @@ export default function SearchPalette({ resultsPath, isAdmin }: { resultsPath: s
   const toggleToken = (token: string) => {
     if (tokens.includes(token)) setInput(tokens.filter((t) => t !== token).join(" "));
     else addToInput(token);
+    inputRef.current?.focus();
+  };
+
+  // Takes one row off the list at once; the server marks it read (a check-in or check-out is
+  // dismissed, a notification read) so it leaves every other list too. Chat rows have no x: reading
+  // a conversation is a bigger step than clearing it from this list.
+  const dismissSuggestion = (s: Suggestion) => {
+    setNeedsAttention((cur) => cur.filter((x) => x.id !== s.id));
+    markSuggestionsRead([s.id]).catch(() => {});
     inputRef.current?.focus();
   };
 
@@ -595,16 +604,30 @@ export default function SearchPalette({ resultsPath, isAdmin }: { resultsPath: s
                       {needsAttention.map((s) => {
                         flatIndex++;
                         return (
-                          <Row
-                            key={s.id}
-                            active={flatIndex === activeIndex}
-                            href={s.href}
-                            onOpen={close}
-                            icon={<Glyph>{s.kind === "checkin" ? "✓" : s.kind === "chat" ? "#" : "!"}</Glyph>}
-                            title={s.title}
-                            subtitle={s.subtitle}
-                            right={s.count ? <span className="rounded-full bg-plum-600 px-2 py-0.5 text-xs font-medium text-white">{s.count}</span> : undefined}
-                          />
+                          <div key={s.id} className="group flex items-center pr-2">
+                            <div className="min-w-0 flex-1">
+                            <Row
+                              active={flatIndex === activeIndex}
+                              href={s.href}
+                              onOpen={close}
+                              icon={<Glyph>{s.kind === "checkin" ? "✓" : s.kind === "chat" ? "#" : "!"}</Glyph>}
+                              title={s.title}
+                              subtitle={s.subtitle}
+                              right={s.count ? <span className="rounded-full bg-plum-600 px-2 py-0.5 text-xs font-medium text-white">{s.count}</span> : undefined}
+                            />
+                            </div>
+                            {s.kind !== "chat" && (
+                              <button
+                                type="button"
+                                onClick={() => dismissSuggestion(s)}
+                                title="Mark as read"
+                                aria-label={`Mark “${s.title}” as read`}
+                                className={`${iconButton} ${revealOnHover}`}
+                              >
+                                ×
+                              </button>
+                            )}
+                          </div>
                         );
                       })}
                     </section>

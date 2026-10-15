@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // getUnloggedRecentPrickles / dismissUnloggedPrickle scope every read and write to
 // effectiveIdentity.memberId; RLS enforcement is covered by
-// supabase/tests/database/writing_prompt_dismissals.test.sql.
+// supabase/tests/database/prickle_checkout_dismissals.test.sql.
 
 vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
 vi.mock("@/lib/auth", () => ({ getCurrentUser: vi.fn() }));
@@ -58,7 +58,7 @@ describe("getUnloggedRecentPrickles", () => {
     const calls = makeQueryFake({
       prickle_attendance: [attended("p-open", recent(5)), attended("p-logged", recent(4)), attended("p-dismissed", recent(3)), attended("p-checked-out", recent(2)), attended("p-checked-in", recent(1))],
       writing_progress_entries: [{ prickle_id: "p-logged" }],
-      writing_prompt_dismissals: [{ prickle_id: "p-dismissed" }],
+      prickle_checkout_dismissals: [{ prickle_id: "p-dismissed" }],
       prickle_checkins: [
         { prickle_id: "p-checked-out", feelings_before: [], need: null, session_rating: 4, feelings_after: ["calm"] },
         // Only the check-in half answered: still owed a check-out.
@@ -69,7 +69,7 @@ describe("getUnloggedRecentPrickles", () => {
     const result = await getUnloggedRecentPrickles();
 
     expect(result.map((p) => p.id).sort()).toEqual(["p-checked-in", "p-open"]);
-    expect(calls).toContainEqual({ table: "writing_prompt_dismissals", method: "eq", args: ["member_id", "member-1"] });
+    expect(calls).toContainEqual({ table: "prickle_checkout_dismissals", method: "eq", args: ["member_id", "member-1"] });
   });
 });
 
@@ -78,7 +78,7 @@ describe("dismissUnloggedPrickle", () => {
     const calls = makeQueryFake({});
     expect(await dismissUnloggedPrickle("p1")).toEqual({ success: true });
     expect(calls).toContainEqual({
-      table: "writing_prompt_dismissals",
+      table: "prickle_checkout_dismissals",
       method: "upsert",
       args: [
         { member_id: "member-1", prickle_id: "p1" },

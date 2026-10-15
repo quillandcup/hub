@@ -3,8 +3,9 @@ import {
   applyCheckinAnswer,
   buildCheckinBlocks,
   buildCheckoutBlocks,
-  parseSkipCheckout,
-  skipCheckout,
+  parseDismiss,
+  dismissCheckout,
+  dismissCheckin,
   buildQuickLogBlocks,
   CHECKIN_ANSWER_ACTION_ID,
   CHECKOUT_TIME_SENSITIVE_MS,
@@ -232,7 +233,7 @@ const EMPTY: CheckinInput = { feelingsBefore: [], need: null, sessionRating: nul
 
 describe("buildCheckinBlocks", () => {
   it("asks how they're feeling coming in (up to the cap) and what they need, linking the prickle", () => {
-    const [feelings, need, footer] = buildCheckinBlocks("p1", "Progress Prickle", null);
+    const [feelings, need, , footer] = buildCheckinBlocks("p1", "Progress Prickle", null);
     expect(feelings.text.text).toContain("*Progress Prickle* starts in about 20 minutes");
     expect(feelings.accessory).toMatchObject({
       type: "multi_static_select",
@@ -266,7 +267,7 @@ describe("buildCheckoutBlocks", () => {
       "prickle_checkin:p1:session_rating",
       "prickle_checkin:p1:feelings_after",
       "quick_log:p1:a:words",
-      "prickle_checkout_skip:p1",
+      "prickle_dismiss:checkout:p1",
       undefined,
     ]);
     const stars = blocks[1];
@@ -275,7 +276,7 @@ describe("buildCheckoutBlocks", () => {
     expect(stars.elements.map((e: any) => e.value)).toEqual(["1", "2", "3", "4", "5"]);
     expect(stars.elements.filter((e: any) => e.style === "primary").map((e: any) => e.value)).toEqual(["4"]);
     expect(blocks[3].label.text).toContain("during Monday Progress Prickle with Jenn P?");
-    expect(blocks[4].elements[0]).toMatchObject({ action_id: "prickle_checkout_skip", value: "p1" });
+    expect(blocks[4].elements[0]).toMatchObject({ action_id: "prickle_dismiss", value: "checkout:p1" });
     expect(blocks[5].elements[0].text).toContain("/my-prickles/history?checkout=p1|check-out for this prickle>");
     expect(blocks[2].accessory.initial_options).toBeUndefined();
   });
@@ -430,24 +431,36 @@ describe("in-app notifications", () => {
   });
 });
 
-describe("skipping a check-out", () => {
-  it("reads the prickle off the Skip check-out button, and nothing else", () => {
-    expect(parseSkipCheckout({ action_id: "prickle_checkout_skip", value: "p1" })).toBe("p1");
-    expect(parseSkipCheckout({ action_id: "prickle_checkin_answer", value: "p1" })).toBeNull();
-    expect(parseSkipCheckout({ action_id: "prickle_checkout_skip" })).toBeNull();
+describe("dismissing a check-in or check-out", () => {
+  it("reads the half and prickle off a Skip button, and nothing else", () => {
+    expect(parseDismiss({ action_id: "prickle_dismiss", value: "checkout:p1" })).toEqual({ half: "checkout", prickleId: "p1" });
+    expect(parseDismiss({ action_id: "prickle_dismiss", value: "checkin:p2" })).toEqual({ half: "checkin", prickleId: "p2" });
+    expect(parseDismiss({ action_id: "prickle_dismiss", value: "other:p1" })).toBeNull();
+    expect(parseDismiss({ action_id: "prickle_checkin_answer", value: "checkout:p1" })).toBeNull();
+    expect(parseDismiss({ action_id: "prickle_dismiss" })).toBeNull();
   });
 
-  it("records the dismissal and marks the in-app check-out read", async () => {
+  it("puts a Skip button in both DMs", () => {
+    const out = buildCheckoutBlocks("p1", "Progress Prickle", null, []);
+    const inn = buildCheckinBlocks("p1", "Progress Prickle", null);
+    expect(out.find((b) => b.block_id === "prickle_dismiss:checkout:p1").elements[0].text.text).toBe("Skip check-out");
+    expect(inn.find((b) => b.block_id === "prickle_dismiss:checkin:p1").elements[0].text.text).toBe("Skip check-in");
+  });
+
+  it.each([
+    ["checkout", dismissCheckout, "prickle_checkout_dismissals"],
+    ["checkin", dismissCheckin, "prickle_checkin_dismissals"],
+  ] as const)("records the %s dismissal and marks its in-app notification read", async (_half, dismiss, table) => {
     const calls: [string, unknown][] = [];
     const chain: any = { eq: () => chain, is: () => Promise.resolve({ error: null }) };
     const supabase = {
-      from: (table: string) => ({
-        upsert: (row: unknown) => (calls.push([table, row]), Promise.resolve({ error: null })),
-        update: (row: unknown) => (calls.push([table, row]), chain),
+      from: (t: string) => ({
+        upsert: (row: unknown) => (calls.push([t, row]), Promise.resolve({ error: null })),
+        update: (row: unknown) => (calls.push([t, row]), chain),
       }),
     };
-    expect(await skipCheckout(supabase, "m1", "p1")).toBeNull();
-    expect(calls[0]).toEqual(["writing_prompt_dismissals", { member_id: "m1", prickle_id: "p1" }]);
+    expect(await dismiss(supabase, "m1", "p1")).toBeNull();
+    expect(calls[0]).toEqual([table, { member_id: "m1", prickle_id: "p1" }]);
     expect(calls[1][0]).toBe("in_app_notifications");
   });
 });

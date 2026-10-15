@@ -28,6 +28,7 @@ export default function UpcomingPrickleRow({
   reasons,
   timeZone,
   checkin = null,
+  checkinDismissed = false,
   now = Date.now(),
 }: {
   prickle: UpcomingPrickle
@@ -35,9 +36,11 @@ export default function UpcomingPrickleRow({
   timeZone: string
   /** The viewer's saved check-in for this prickle, if any (a finished one reads "Checked in ✓"). */
   checkin?: CheckinInput | null
+  /** The member dismissed this prickle's check-in offer (prickle_checkin_dismissals). */
+  checkinDismissed?: boolean
   now?: number
 }) {
-  const startsSoon = checkinOffered(prickle, reasons, now)
+  const startsSoon = !checkinDismissed && checkinOffered(prickle, reasons, now)
   const checkedIn = checkinAnswered(checkin)
   return (
     <div className="py-3 border-b border-slate-100 dark:border-slate-800 last:border-0 -mx-2 px-2 rounded hover:bg-slate-50 dark:hover:bg-slate-800/50">

@@ -10,6 +10,7 @@ import { getPrickleScheduleOverview } from "@/lib/prickle-schedule";
 import { getMonthStart, getNextMonthStart, isMonthLocked } from "@/lib/prickle-schedules";
 import { getMySchedules, getMyHostingStats, getMyHostEligibility } from "@/app/(member)/hosting/actions";
 import MemberCalendarClient from "@/components/MemberCalendarClient";
+import { loadDismissedCheckinIds } from "@/lib/prickle-checkin-dms";
 import UpcomingPrickleRow from "@/components/UpcomingPrickleRow";
 import PrickleWizard from "@/app/(member)/prickle-picker/PrickleWizard";
 import HostingStats from "@/app/(member)/hosting/HostingStats";
@@ -114,6 +115,7 @@ export default async function MyPricklesPage({
   // of everything happening org-wide in the window.
   const personalCount = ranked.filter((r) => r.priority < PRIORITY.none).length;
   const displayedUpcoming = ranked.slice(0, Math.max(personalCount, MAX_UPCOMING_DISPLAY));
+  const dismissedCheckins = await loadDismissedCheckinIds(supabase, memberId, displayedUpcoming.map((r) => r.prickle.id));
 
   // Active commitments' slots are already in the member's calendar feed.
   const committedSlotKeys = new Set(
@@ -171,6 +173,7 @@ export default async function MyPricklesPage({
                           reasons={reasons}
                           timeZone={timeZone}
                           checkin={checkins[prickle.id] ?? null}
+                          checkinDismissed={dismissedCheckins.has(prickle.id)}
                         />
                       ))}
                       {ranked.length > displayedUpcoming.length && (
