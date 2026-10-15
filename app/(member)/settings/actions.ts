@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
+import { isValidTimeZone } from "@/lib/time-zone";
 
 export interface SessionRow {
   id: string;
@@ -108,7 +109,12 @@ export async function signOutOtherSessions() {
   return { success: true };
 }
 
+/** Saves the member's time zone, an IANA name ("browser" and other non-zones are refused). */
 export async function updateTimezonePreference(timezone: string) {
+  if (!isValidTimeZone(timezone)) {
+    return { error: "Choose a valid time zone" };
+  }
+
   const supabase = await createClient();
 
   const user = await getCurrentUser();

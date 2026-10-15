@@ -9,6 +9,10 @@ import { updateTimezonePreference } from "./actions";
  * Note: Timezone is stored in the database (user-level preference) for cross-device consistency.
  * Users should see times in their preferred timezone on all devices.
  *
+ * There's no "auto-detect" choice: TimezoneInitializer saves the browser's zone the first time a
+ * member opens the app, and offers to update it when they travel. "browser" is only what's stored
+ * until then, so it shows here as the detected zone.
+ *
  * Compare with ThemeSwitcher which stores in localStorage for device-specific preferences.
  */
 interface TimezoneSwitcherProps {
@@ -17,7 +21,6 @@ interface TimezoneSwitcherProps {
 
 // Common timezones grouped by region
 const TIMEZONES = [
-  { value: "browser", label: "Browser/Local Time (Auto-detect)" },
   { value: "separator-us", label: "─── United States ───", disabled: true },
   { value: "America/New_York", label: "Eastern Time (ET)" },
   { value: "America/Chicago", label: "Central Time (CT)" },
@@ -82,12 +85,13 @@ export function TimezoneSwitcher({ initialTimezone = "browser" }: TimezoneSwitch
     setSaving(false);
   };
 
-  const getCurrentTimezone = () => {
-    if (timezone === "browser") {
-      return browserTimezone || "Detecting...";
-    }
-    return timezone;
-  };
+  // Nothing saved yet ("browser"): show the zone the browser reports.
+  const current = timezone === "browser" ? browserTimezone : timezone;
+  // A zone that isn't in the list (a detected one, or one set elsewhere) still needs an option to show.
+  const options =
+    current && !TIMEZONES.some((tz) => tz.value === current)
+      ? [{ value: current, label: current.replace(/_/g, " ") }, ...TIMEZONES]
+      : TIMEZONES;
 
   return (
     <div>
@@ -99,13 +103,13 @@ export function TimezoneSwitcher({ initialTimezone = "browser" }: TimezoneSwitch
       </label>
       <select
         id="timezone"
-        value={timezone}
+        value={current}
         onChange={(e) => handleChange(e.target.value)}
-        disabled={saving}
+        disabled={saving || !current}
         className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-plum-500 focus:border-transparent disabled:opacity-50"
       >
-        {TIMEZONES.map((tz) =>
-          tz.disabled ? (
+        {options.map((tz) =>
+          "disabled" in tz && tz.disabled ? (
             <option key={tz.value} disabled className="text-slate-400 dark:text-slate-500">
               {tz.label}
             </option>
@@ -117,15 +121,7 @@ export function TimezoneSwitcher({ initialTimezone = "browser" }: TimezoneSwitch
         )}
       </select>
       <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-        {timezone === "browser" ? (
-          <>
-            Using your browser's timezone: <span className="font-medium">{getCurrentTimezone()}</span>
-          </>
-        ) : (
-          <>
-            All times will display in: <span className="font-medium">{getCurrentTimezone()}</span>
-          </>
-        )}
+        All times will display in: <span className="font-medium">{current || "Detecting..."}</span>
         {saving && <span className="ml-2 italic">Saving...</span>}
       </p>
     </div>
