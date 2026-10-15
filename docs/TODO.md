@@ -247,6 +247,33 @@ this suite is gating CI on every PR.
 Don't just flip `fileParallelism` back to `true` without one of the above -- that's what
 caused the pollution/flakiness in the first place.
 
+### Test Framework Follow-ups
+**Status:** Ideas from the coverage work (PR #77); none started
+
+Context: API route tests run in-process through `apiFetch` (`tests/helpers/api-fetch.ts`) so
+`app/api` coverage counts, and per-area floors on the combined unit + db numbers live in
+`AREA_FLOORS` (`scripts/coverage-report.ts`). Combined, 2026-10-14: lib ~86% lines, components
+~72%, `app/api` ~59% (46% branches), `app/(member)` ~56%, `app/(admin)` ~19%.
+
+- [ ] **Floors for `app/(member)` and `app/(admin)`.** Neither has one; `app/(admin)` is the
+      biggest gap in the repo. Add the floors once a round of page tests lifts them.
+- [ ] **Ratchet the floors.** `AREA_FLOORS` sits ~2 points under the baseline and only moves
+      by hand. Have the coverage report note when an area is more than ~3 points over its
+      floor, so floors follow the numbers up.
+- [ ] **Cover the weakest `app/api` routes.** The coverage report's per-file data shows which
+      handlers have the most uncovered statements and branches; start with the biggest.
+- [ ] **Move the ~32 direct-import route tests onto `apiFetch`.** They call the handlers
+      themselves and mock `next/headers` per file. One shared helper removes the mocks.
+- [ ] **Audit fire-and-forget mocks for the race fixed in `slack-message-subtypes.test.ts`.**
+      A mocked `after()` that does `void callback()` can land in the next test after its
+      `vi.clearAllMocks()`. Grep the tests for `after:` mocks and `void` callbacks; make them
+      collect their promises and have the test await them.
+- [ ] **Automate `npm run github:config:push`.** It runs by hand because `GITHUB_TOKEN` can't
+      manage rulesets. Worth a CI job with an admin-token secret only if the ruleset changes
+      often; at minimum a scheduled `github:config:diff` to flag drift.
+- [ ] **Clean up `.claude/rules/pr-feedback.md`.** It still says to check Semaphore and
+      SonarQube; CI is GitHub Actions and neither is used.
+
 ### Support Preview Environments
 **Status:** Not started — needs scoping
 
