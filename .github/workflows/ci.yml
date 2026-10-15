@@ -60,7 +60,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v7
         with:
           node-version-file: ".nvmrc"
           cache: npm
@@ -99,7 +99,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v7
         with:
           node-version-file: ".nvmrc"
           cache: npm
@@ -148,7 +148,7 @@ jobs:
       # env-vars.config.ts via `npm run env:sync:github`.
       - name: Log in to Docker Hub
         continue-on-error: true
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           username: ${{ vars.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
@@ -292,7 +292,7 @@ jobs:
         with:
           fetch-depth: 0 # the new-lines check diffs against the PR's base branch
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v7
         with:
           node-version-file: ".nvmrc"
           cache: npm
@@ -402,7 +402,7 @@ jobs:
       # internally (not `npm ci`, and there's no way to skip that install
       # step), so this is what actually speeds it up. No explicit `npm ci`
       # step needed in this job.
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v7
         with:
           node-version-file: ".nvmrc"
           cache: npm
@@ -415,7 +415,7 @@ jobs:
       # local equivalent of the remote build cache the deploy-hook path got
       # for free from Vercel's own infrastructure.
       - name: Cache Next.js build cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ${{ github.workspace }}/.next/cache
           key: ${{ runner.os }}-nextjs-${{ hashFiles('package-lock.json') }}-${{ hashFiles('**/*.js', '**/*.jsx', '**/*.ts', '**/*.tsx') }}
@@ -497,7 +497,7 @@ jobs:
         env:
           BEFORE: ${{ github.event.before }}
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v7
         if: steps.manifest.outputs.changed == 'true'
         with:
           node-version-file: ".nvmrc"
@@ -551,7 +551,7 @@ jobs:
         env:
           BEFORE: ${{ github.event.before }}
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v7
         if: steps.config.outputs.changed == 'true'
         with:
           node-version-file: ".nvmrc"

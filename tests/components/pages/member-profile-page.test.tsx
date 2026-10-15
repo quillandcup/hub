@@ -25,6 +25,10 @@ vi.mock("next/navigation", () => import("@/tests/helpers/server-page").then((m) 
 vi.mock("@/lib/auth", () => import("@/tests/helpers/server-page").then((m) => m.authModule));
 vi.mock("@/lib/sudo", () => import("@/tests/helpers/server-page").then((m) => m.sudoModule));
 vi.mock("@/lib/supabase/server", () => import("@/tests/helpers/server-page").then((m) => m.supabaseServerModule));
+vi.mock("@/lib/features.server", () => ({
+  getUserFeaturePreviews: vi.fn(async () => []),
+  effectiveMemberHasFeature: vi.fn(async () => false),
+}));
 
 vi.mock("@/app/(member)/projects/actions", () => ({
   getProfileWriting: vi.fn(async () => ({ projects: [], goals: [] })),

@@ -8,6 +8,9 @@ import {
 } from "@/lib/onboarding";
 import { PICKER_HISTORY_MONTHS } from "@/lib/prickle-picker";
 import { getMonthStart } from "@/lib/prickle-schedules";
+import { getMyMentorships } from "@/lib/my-mentorship";
+import { membersWithFeature } from "@/lib/features.server";
+import { createServiceRoleClient } from "@/lib/supabase/service";
 
 /** Placeholder signals for a tour that isn't showing: nothing reads the steps then. */
 const NO_SIGNALS: OnboardingSignals = {
@@ -19,6 +22,7 @@ const NO_SIGNALS: OnboardingSignals = {
   hasHostingSchedule: false,
   hostedRecently: false,
   hasHostVibe: false,
+  bigSisterName: null,
 };
 
 /**
@@ -55,6 +59,7 @@ export const getOnboardingState = cache(async (memberId: string): Promise<Onboar
     hostedRecently,
     latestSchedule,
     hostVibes,
+    bigSistersOn,
   ] = await Promise.all([
     // Written only when the member saves their bio or socials in the Hub. members.bio isn't read:
     // it's usually Kajabi's copy, which they haven't necessarily looked at here.
@@ -90,7 +95,12 @@ export const getOnboardingState = cache(async (memberId: string): Promise<Onboar
       .limit(1)
       .maybeSingle(),
     supabase.from("prickle_host_vibes").select("type_id", { count: "exact", head: true }).eq("host_id", memberId),
+    // The Big Sister step is behind the big_sisters preview (this member's own flag).
+    membersWithFeature(createServiceRoleClient(), "big_sisters", [memberId]).then((on) => on.has(memberId)),
   ]);
+  const mentorships = bigSistersOn
+    ? await getMyMentorships(supabase, memberId, now.toISOString().slice(0, 10))
+    : null;
   const latestScheduleMonth = (latestSchedule.data?.month as string | undefined) ?? null;
 
   const topics = (askMeAbout.data?.topics as string[] | null) ?? [];
@@ -106,6 +116,7 @@ export const getOnboardingState = cache(async (memberId: string): Promise<Onboar
       hasHostingSchedule: latestScheduleMonth !== null && latestScheduleMonth >= currentMonth,
       hostedRecently: (hostedRecently.count ?? 0) > 0,
       hasHostVibe: (hostVibes.count ?? 0) > 0,
+      bigSisterName: mentorships?.bigSister?.name ?? null,
     },
     recordData
   );

@@ -20,6 +20,8 @@ import { getMyCalendarItems } from "@/app/(member)/my-prickles/calendar-feed-act
 import { AddPrickleToCalendar } from "@/app/(member)/my-prickles/AddToCalendar";
 import { prickleCalendarState, SCHEDULE_TIMEZONE } from "@/lib/calendar-feed";
 import { slotKey, slotTimeForInstant } from "@/lib/commitments";
+import { createServiceRoleClient } from "@/lib/supabase/service";
+import { loadPrickleRoster, type PrickleRoster } from "@/lib/prickle-roster";
 
 const getPrickle = cache(async (id: string) => {
   const supabase = await createClient();
@@ -219,6 +221,20 @@ export default async function PrickleDetailPage({
   // check in) or after it for someone who was there or already has something saved. Admins with a
   // member record get it too (the DM links there).
   const started = !hasNotStarted(prickle.start_time);
+  // Who's coming: commitments and calendar items are private rows, so the roster is read with the
+  // service role and carries names only. A failure just leaves the "stay tuned" text.
+  let roster: PrickleRoster | null = null;
+  if (!started) {
+    try {
+      roster = await loadPrickleRoster(
+        createServiceRoleClient(),
+        { id: prickle.id, type_id: prickle.type_id, start_time: prickle.start_time, host_id: hostId ?? null },
+        effectiveIdentity?.memberId ?? null
+      );
+    } catch (error) {
+      console.error("[prickles] Loading who's coming failed", { prickleId: prickle.id, error });
+    }
+  }
   const attended = ((attendanceRecords ?? []) as unknown as { member_id: string }[]).some(
     (a) => a.member_id === effectiveIdentity?.memberId
   );
@@ -256,6 +272,8 @@ export default async function PrickleDetailPage({
             userTimezonePreference={userTimezone}
             memberBasePath={memberBasePath}
             showMemberEmails={isActingAsAdmin}
+            hasStarted={started}
+            roster={roster}
           />
           {isActingAsAdmin && unmatchedZoomAttendees.length > 0 && (
             <AliasSearchForm
