@@ -14,7 +14,7 @@
  * Newcomers (joined in the last 90 days, lib/newcomer.ts) get one more step, "intro": introduce
  * yourself in the Slack intro channel, done once they've posted there. It happens in Slack, so it
  * has an external link instead of a spotlight. Their "prickles" step is also stricter: it asks for
- * a prickle on the calendar until they've attended one. Reminders for both: lib/onboarding-nudges.ts.
+ * a prickle on the calendar until they've attended one. Reminders for both: lib/member-reminders.ts.
  *
  * Everyone is also walked through syncing their calendar app (the "calendar" step), done once a
  * calendar app has fetched their feed, or when they confirm it.

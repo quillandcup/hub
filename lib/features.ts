@@ -70,7 +70,7 @@ export const FEATURE_PREVIEWS: FeaturePreview[] = [
   {
     key: 'intro_reminders',
     name: 'Send intro reminders',
-    description: 'Sends the hourly reminder to say hello in #start-here for real to the members this covers: everyone when switched on globally, otherwise only members in a linked segment or with their own preview. For everyone else the job only logs who it would have reminded and why (see the logs of /api/internal/onboarding-nudges). Members still choose their channels in Settings → Notifications',
+    description: 'Sends the hourly reminder to say hello in #start-here for real to the members this covers: everyone when switched on globally, otherwise only members in a linked segment or with their own preview. For everyone else the job only logs who it would have reminded and why (see the logs of /api/internal/member-reminders). Members still choose their channels in Settings → Notifications',
   },
   {
     key: 'prickle_reminders',

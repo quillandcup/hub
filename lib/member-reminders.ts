@@ -12,7 +12,7 @@ import { calendarDaysBetween, currentHour, jitteredGapDays, sendHourFor } from "
 import { isValidTimeZone } from "@/lib/time-zone";
 
 /**
- * Two kinds of reminder, sent by the hourly /api/internal/onboarding-nudges:
+ * Two kinds of reminder, sent by the hourly /api/internal/member-reminders:
  * It runs hourly. Each reminder goes out in an hour of its own (9am to 6pm in the member's timezone,
  * from their Settings; the org timezone when they haven't set one) after a
  * gap nudged a day or so either way, both worked out from the member and how many they've had, so
@@ -28,7 +28,7 @@ import { isValidTimeZone } from "@/lib/time-zone";
  * The Getting started tour's two newcomer steps (lib/onboarding.ts) read the same signals.
  */
 
-export type OnboardingNudgeKind = Extract<NotificationKindId, "intro_nudge" | "prickle_nudge">;
+export type MemberReminderKind = Extract<NotificationKindId, "intro_nudge" | "prickle_nudge">;
 
 export interface NudgeSchedule {
   /** Days after joining before the first reminder (the welcome emails already say it on day one). */
@@ -50,7 +50,7 @@ export const PRICKLE_SCHEDULE: NudgeSchedule = {
 export const PRICKLE_LAPSED_AFTER_DAYS = 30;
 
 /** `ref` on the in-app notification, so it can be marked read once the member has done it. */
-const NUDGE_REF: Record<OnboardingNudgeKind, string> = { intro_nudge: "intro", prickle_nudge: "prickle" };
+const NUDGE_REF: Record<MemberReminderKind, string> = { intro_nudge: "intro", prickle_nudge: "prickle" };
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const BATCH_SIZE = 1000;
@@ -136,7 +136,7 @@ async function loadActiveMembers(supabase: SupabaseClient): Promise<MemberRow[]>
 }
 
 /** Whether this is the hour the member's next reminder (the `sent + 1`th) goes out in. */
-const isSendHour = (memberId: string, kind: OnboardingNudgeKind, sent: number, now: Date, timeZone: string) =>
+const isSendHour = (memberId: string, kind: MemberReminderKind, sent: number, now: Date, timeZone: string) =>
   currentHour(now, timeZone) === sendHourFor(`${memberId}:${kind}:${sent}`);
 
 /**
@@ -171,7 +171,7 @@ async function loadNudgeLog(supabase: SupabaseClient, memberIds: string[]): Prom
     let hasMore = true;
     while (hasMore) {
       const { data } = await supabase
-        .from("onboarding_nudge_log")
+        .from("member_reminder_log")
         .select("member_id, kind, sent_at")
         .in("member_id", memberIds.slice(i, i + 200))
         .order("id")
@@ -188,9 +188,9 @@ async function loadNudgeLog(supabase: SupabaseClient, memberIds: string[]): Prom
 }
 
 /** Claims today's reminder for the member; false when another run already did (unique member, kind, day). */
-async function tryRecordNudge(supabase: SupabaseClient, memberId: string, kind: OnboardingNudgeKind, now: Date) {
+async function tryRecordNudge(supabase: SupabaseClient, memberId: string, kind: MemberReminderKind, now: Date) {
   const { data, error } = await supabase
-    .from("onboarding_nudge_log")
+    .from("member_reminder_log")
     .insert({ member_id: memberId, kind, sent_at: now.toISOString(), sent_on: now.toISOString().slice(0, 10) })
     .select("id");
   if (error) {
@@ -200,15 +200,15 @@ async function tryRecordNudge(supabase: SupabaseClient, memberId: string, kind: 
   return (data?.length ?? 0) > 0;
 }
 
-export interface OnboardingNudgeResult {
+export interface MemberReminderResult {
   /** Reminders sent for real. */
   intro: number;
   prickle: number;
-  /** Reminders that would have been sent to members this isn't switched on for (see OnboardingNudgeOptions.liveFor). */
+  /** Reminders that would have been sent to members this isn't switched on for (see MemberReminderOptions.liveFor). */
   dryRun: { intro: number; prickle: number };
 }
 
-export interface OnboardingNudgeOptions {
+export interface MemberReminderOptions {
   /**
    * Which of these members get their reminders for real; the rest are dry-run: logged (member id,
    * kind, why, channels, message) but never sent, recorded or marked, so switching them on later
@@ -216,18 +216,18 @@ export interface OnboardingNudgeOptions {
    * `intro_reminders` and `prickle_reminders` feature flags. Default:
    * everyone.
    */
-  liveFor?: (kind: OnboardingNudgeKind, memberIds: string[]) => Promise<Set<string>>;
+  liveFor?: (kind: MemberReminderKind, memberIds: string[]) => Promise<Set<string>>;
 }
 
 /**
  * One pass: sends whichever reminders are due, and marks earlier in-app ones read for members who've
  * since done the thing.
  */
-export async function sendOnboardingNudges(
+export async function sendMemberReminders(
   supabase: SupabaseClient,
   now: Date = new Date(),
-  { liveFor = async (_kind, ids) => new Set(ids) }: OnboardingNudgeOptions = {}
-): Promise<OnboardingNudgeResult> {
+  { liveFor = async (_kind, ids) => new Set(ids) }: MemberReminderOptions = {}
+): Promise<MemberReminderResult> {
   const members = await loadActiveMembers(supabase);
   if (members.length === 0) return { intro: 0, prickle: 0, dryRun: { intro: 0, prickle: 0 } };
   const memberIds = members.map((m) => m.id);
@@ -243,7 +243,7 @@ export async function sendOnboardingNudges(
     loadMemberTimeZones(supabase, members),
   ]);
   const zoneOf = (memberId: string) => zones.get(memberId) ?? ORG_TIMEZONE;
-  const sentFor = (memberId: string, kind: OnboardingNudgeKind) => log.get(`${memberId}:${kind}`) ?? [];
+  const sentFor = (memberId: string, kind: MemberReminderKind) => log.get(`${memberId}:${kind}`) ?? [];
   const lapsedBefore = new Date(now.getTime() - PRICKLE_LAPSED_AFTER_DAYS * DAY_MS);
   const attendedRecently = (memberId: string) => {
     const last = lastAttendance.get(memberId);
@@ -326,14 +326,14 @@ export async function sendOnboardingNudges(
   );
   const dryRun = { intro: intro.dryRun, prickle: prickle.dryRun };
   if (dryRun.intro + dryRun.prickle > 0) {
-    console.log("[onboarding-nudges] dry run: not sent or recorded", dryRun);
+    console.log("[member-reminders] dry run: not sent or recorded", dryRun);
   }
   return { intro: intro.sent, prickle: prickle.sent, dryRun };
 }
 
 async function sendKind(
   supabase: SupabaseClient,
-  kind: OnboardingNudgeKind,
+  kind: MemberReminderKind,
   due: MemberRow[],
   now: Date,
   messageFor: (member: MemberRow) => OutboundMessage,
@@ -352,7 +352,7 @@ async function sendKind(
     const message = messageFor(member);
     if (channels.length > 0) dryRun++;
     console.log(
-      `[onboarding-nudges] DRY RUN ${kind}`,
+      `[member-reminders] DRY RUN ${kind}`,
       JSON.stringify({
         memberId: member.id,
         wouldSend: channels.length > 0,

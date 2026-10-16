@@ -78,11 +78,11 @@ export const CRON_HEARTBEATS = {
     grace: 15,
     graceUnit: "minutes",
   },
-  "onboarding-nudges": {
+  "member-reminders": {
     name: "Cron: member reminders (hourly, pg_cron)",
-    path: "/api/internal/onboarding-nudges",
+    path: "/api/internal/member-reminders",
     scheduler: "pg_cron",
-    envVar: "CHECKLY_HEARTBEAT_ONBOARDING_NUDGES",
+    envVar: "CHECKLY_HEARTBEAT_MEMBER_REMINDERS",
     // Hourly, so each member's reminder can go out in their own hour.
     period: 1,
     periodUnit: "hours",

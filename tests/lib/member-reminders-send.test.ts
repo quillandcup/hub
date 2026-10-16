@@ -27,8 +27,8 @@ vi.mock("@/lib/cron-heartbeats", () => ({ withCronHeartbeat: async (_job: string
 let fake: FakeSupabase;
 vi.mock("@supabase/supabase-js", () => ({ createClient: () => fake }));
 
-const { POST } = await import("@/app/api/internal/onboarding-nudges/route");
-const { sendOnboardingNudges } = await import("@/lib/onboarding-nudges");
+const { POST } = await import("@/app/api/internal/member-reminders/route");
+const { sendMemberReminders } = await import("@/lib/member-reminders");
 const { membersWithFeatureForOutreach } = await import("@/lib/features.server");
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -59,7 +59,7 @@ function forMembers<T extends { member_id: string }>(rows: T[]) {
   };
 }
 
-/** onboarding_nudge_log that behaves like its UNIQUE (member_id, kind, sent_on) constraint. */
+/** member_reminder_log that behaves like its UNIQUE (member_id, kind, sent_on) constraint. */
 function nudgeLog(initial: LogRow[] = []) {
   const rows = [...initial];
   const table = (query: FakeQuery) => {
@@ -93,13 +93,13 @@ const loggedSent = (memberId: string, kind: string, daysBefore: number, now: Dat
   sent_on: dateOnly(new Date(now.getTime() - daysBefore * DAY)),
 });
 
-/** Canned tables by name, plus `log` to preload onboarding_nudge_log. */
+/** Canned tables by name, plus `log` to preload member_reminder_log. */
 type Tables = { [table: string]: FakeTables[string] | ReturnType<typeof nudgeLog> | undefined; log?: ReturnType<typeof nudgeLog> };
 
 function setup({ log = nudgeLog(), ...rest }: Tables = {}) {
   fake = createFakeSupabase({
     "bronze.slack_channels": { data: [{ channel_id: "C-START" }] },
-    onboarding_nudge_log: log.table,
+    member_reminder_log: log.table,
     ...(rest as FakeTables),
   });
   return log;
@@ -122,7 +122,7 @@ describe("intro reminders", () => {
     const now = sendTime("m1", "intro_nudge");
     const log = setup({ members: { data: [member("m1", joinedDaysBefore(now, 10))] } });
 
-    expect(await sendOnboardingNudges(fake as never, now)).toEqual({ intro: 1, prickle: 0, dryRun: { intro: 0, prickle: 0 } });
+    expect(await sendMemberReminders(fake as never, now)).toEqual({ intro: 1, prickle: 0, dryRun: { intro: 0, prickle: 0 } });
 
     expect(slackTargets()).toEqual(["U-m1"]);
     expect(slackTexts()[0]).toContain(`#${SLACK_INTRO_CHANNEL}`);
@@ -138,7 +138,7 @@ describe("intro reminders", () => {
       member_activities: forMembers([{ member_id: "m1" }]),
     });
 
-    expect(await sendOnboardingNudges(fake as never, now)).toEqual({ intro: 0, prickle: 0, dryRun: { intro: 0, prickle: 0 } });
+    expect(await sendMemberReminders(fake as never, now)).toEqual({ intro: 0, prickle: 0, dryRun: { intro: 0, prickle: 0 } });
     expect(sendSlackDM).not.toHaveBeenCalled();
   });
 
@@ -146,7 +146,7 @@ describe("intro reminders", () => {
     const now = sendTime("m1", "intro_nudge");
     setup({ members: { data: [member("m1", joinedDaysBefore(now, 10))] } });
 
-    await sendOnboardingNudges(fake as never, now);
+    await sendMemberReminders(fake as never, now);
 
     const query = fake.queries.find((q) => q.table === "member_activities")!;
     const eqs = query.calls.filter((c) => c.method === "eq").map((c) => c.args);
@@ -163,7 +163,7 @@ describe("intro reminders", () => {
       log: nudgeLog([loggedSent("m1", "intro_nudge", 8, now)]),
     });
 
-    await sendOnboardingNudges(fake as never, now);
+    await sendMemberReminders(fake as never, now);
 
     const resolve = fake.queries.find((q) => q.table === "in_app_notifications")!;
     expect(resolve.calls.map((c) => c.method)).toContain("update");
@@ -180,7 +180,7 @@ describe("intro reminders", () => {
       feature_flags: { data: [{ enabled_globally: true }] },
     });
 
-    expect(await sendOnboardingNudges(fake as never, now)).toEqual({ intro: 0, prickle: 0, dryRun: { intro: 0, prickle: 0 } });
+    expect(await sendMemberReminders(fake as never, now)).toEqual({ intro: 0, prickle: 0, dryRun: { intro: 0, prickle: 0 } });
     expect(sendSlackDM).not.toHaveBeenCalled();
     expect(log.rows).toEqual([]);
     expect(fake.queries.some((q) => q.table === "in_app_notifications" && q.calls.some((c) => c.method === "insert"))).toBe(false);
@@ -193,7 +193,7 @@ describe("intro reminders", () => {
       feature_flags: { data: [{ enabled_globally: true }] },
     });
 
-    expect((await sendOnboardingNudges(fake as never, now)).intro).toBe(1);
+    expect((await sendMemberReminders(fake as never, now)).intro).toBe(1);
     expect(fake.queries.some((q) => q.table === "in_app_notifications" && q.calls.some((c) => c.method === "insert"))).toBe(true);
     expect(log.rows).toHaveLength(1);
   });
@@ -202,7 +202,7 @@ describe("intro reminders", () => {
     const now = sendTime("m1", "intro_nudge");
     setup({ members: { data: [member("m1", joinedDaysBefore(now, 1)), member("m2", joinedDaysBefore(now, 2))] } });
 
-    await sendOnboardingNudges(fake as never, sendTime("m2", "intro_nudge"));
+    await sendMemberReminders(fake as never, sendTime("m2", "intro_nudge"));
 
     expect(slackTargets()).toEqual(["U-m2"]);
   });
@@ -213,8 +213,8 @@ describe("intro reminders", () => {
     const rows = [member("m1", "2026-10-01")];
     setup({ members: { data: rows } });
 
-    expect(await sendOnboardingNudges(fake as never, atNewYorkHour(wrongHour))).toEqual({ intro: 0, prickle: 0, dryRun: { intro: 0, prickle: 0 } });
-    expect(await sendOnboardingNudges(fake as never, atNewYorkHour(hour))).toEqual({ intro: 1, prickle: 0, dryRun: { intro: 0, prickle: 0 } });
+    expect(await sendMemberReminders(fake as never, atNewYorkHour(wrongHour))).toEqual({ intro: 0, prickle: 0, dryRun: { intro: 0, prickle: 0 } });
+    expect(await sendMemberReminders(fake as never, atNewYorkHour(hour))).toEqual({ intro: 1, prickle: 0, dryRun: { intro: 0, prickle: 0 } });
   });
 
   it("spaces reminders out, and doesn't send twice in one day", async () => {
@@ -223,14 +223,14 @@ describe("intro reminders", () => {
     // Each later reminder is sent in an hour of its own.
     const later = (days: number) => new Date(sendTime("m1", "intro_nudge", 1).getTime() + days * DAY);
 
-    await sendOnboardingNudges(fake as never, now);
-    await sendOnboardingNudges(fake as never, now);
+    await sendMemberReminders(fake as never, now);
+    await sendMemberReminders(fake as never, now);
     expect(sendSlackDM).toHaveBeenCalledTimes(1);
 
-    await sendOnboardingNudges(fake as never, later(3));
+    await sendMemberReminders(fake as never, later(3));
     expect(sendSlackDM).toHaveBeenCalledTimes(1);
 
-    await sendOnboardingNudges(fake as never, later(9));
+    await sendMemberReminders(fake as never, later(9));
     expect(sendSlackDM).toHaveBeenCalledTimes(2);
     expect(log.rows).toHaveLength(2);
   });
@@ -242,14 +242,14 @@ describe("intro reminders", () => {
       log: nudgeLog([60, 50, 40, 30].map((d) => loggedSent("m1", "intro_nudge", d, now))),
     });
 
-    expect(await sendOnboardingNudges(fake as never, now)).toEqual({ intro: 0, prickle: 0, dryRun: { intro: 0, prickle: 0 } });
+    expect(await sendMemberReminders(fake as never, now)).toEqual({ intro: 0, prickle: 0, dryRun: { intro: 0, prickle: 0 } });
   });
 
   it("doesn't remind someone past their first 90 days", async () => {
     const now = sendTime("m1", "intro_nudge");
     setup({ members: { data: [member("m1", joinedDaysBefore(now, 120))] } });
 
-    expect((await sendOnboardingNudges(fake as never, now)).intro).toBe(0);
+    expect((await sendMemberReminders(fake as never, now)).intro).toBe(0);
   });
 
   it("skips a member who turned the reminders off, without logging it", async () => {
@@ -259,7 +259,7 @@ describe("intro reminders", () => {
       notification_preferences: { data: [{ member_id: "m1", kind: "intro_nudge", channel: "slack", enabled: false }] },
     });
 
-    expect((await sendOnboardingNudges(fake as never, now)).intro).toBe(0);
+    expect((await sendMemberReminders(fake as never, now)).intro).toBe(0);
     expect(log.rows).toEqual([]);
   });
 
@@ -269,7 +269,7 @@ describe("intro reminders", () => {
     sendSlackDM.mockRejectedValueOnce(new Error("channel_not_found"));
     vi.spyOn(console, "error").mockImplementation(() => {});
 
-    expect((await sendOnboardingNudges(fake as never, now)).intro).toBe(0);
+    expect((await sendMemberReminders(fake as never, now)).intro).toBe(0);
   });
 });
 
@@ -280,7 +280,7 @@ describe("prickle reminders", () => {
   it("is off until a member opts in", async () => {
     const log = setup({ members: { data: [member("m1", "2026-09-01")] } });
 
-    expect((await sendOnboardingNudges(fake as never, NOW)).prickle).toBe(0);
+    expect((await sendMemberReminders(fake as never, NOW)).prickle).toBe(0);
     expect(log.rows).toEqual([]);
   });
 
@@ -290,7 +290,7 @@ describe("prickle reminders", () => {
       notification_preferences: { data: [optIn("m1", kind)] },
     });
 
-    expect((await sendOnboardingNudges(fake as never, NOW)).prickle).toBe(1);
+    expect((await sendMemberReminders(fake as never, NOW)).prickle).toBe(1);
     expect(slackTexts()[0]).toContain("first writing session");
     expect(JSON.stringify(sendSlackDM.mock.calls[0][0].blocks)).toContain(`${APP_URL}/my-prickles`);
   });
@@ -301,7 +301,7 @@ describe("prickle reminders", () => {
       notification_preferences: { data: [optIn("m1", kind)] },
     });
 
-    await sendOnboardingNudges(fake as never, NOW);
+    await sendMemberReminders(fake as never, NOW);
 
     expect(slackTexts()[0]).toContain("next prickle");
     expect(slackTexts()[0]).not.toContain("first");
@@ -314,7 +314,7 @@ describe("prickle reminders", () => {
       prickle_attendance: forMembers([{ member_id: "m1", join_time: new Date(NOW.getTime() - 60 * DAY).toISOString() }]),
     });
 
-    await sendOnboardingNudges(fake as never, NOW);
+    await sendMemberReminders(fake as never, NOW);
 
     expect(slackTexts()[0]).toContain("miss");
   });
@@ -326,7 +326,7 @@ describe("prickle reminders", () => {
       prickle_attendance: forMembers([{ member_id: "m1", join_time: new Date(NOW.getTime() - 10 * DAY).toISOString() }]),
     });
 
-    expect((await sendOnboardingNudges(fake as never, NOW)).prickle).toBe(0);
+    expect((await sendMemberReminders(fake as never, NOW)).prickle).toBe(0);
   });
 
   it("leaves alone a member who already has a prickle coming up, and logs nothing", async () => {
@@ -336,8 +336,8 @@ describe("prickle reminders", () => {
     });
     calendarPrickleIds.mockImplementation(async (_s, memberId) => new Set(memberId === "m1" ? ["p1"] : []));
     // m2 gets it at their own hour, so look at each in turn.
-    expect((await sendOnboardingNudges(fake as never, sendTime("m1", kind))).prickle).toBe(0);
-    expect((await sendOnboardingNudges(fake as never, sendTime("m2", kind))).prickle).toBe(1);
+    expect((await sendMemberReminders(fake as never, sendTime("m1", kind))).prickle).toBe(0);
+    expect((await sendMemberReminders(fake as never, sendTime("m2", kind))).prickle).toBe(1);
 
     expect(slackTargets()).toEqual(["U-m2"]);
     expect(log.rows.map((r) => r.member_id)).toEqual(["m2"]);
@@ -349,7 +349,7 @@ describe("prickle reminders", () => {
       notification_preferences: { data: [optIn("m1", kind)] },
     });
 
-    await sendOnboardingNudges(fake as never, sendTime("m1", kind));
+    await sendMemberReminders(fake as never, sendTime("m1", kind));
 
     expect(calendarPrickleIds.mock.calls.map((c) => c[1])).toEqual(["m1"]);
   });
@@ -365,7 +365,7 @@ describe("prickle reminders", () => {
         notification_preferences: { data: [optIn("m1", kind)] },
         log: nudgeLog(sentTimes(n, lastDaysBefore, now)),
       });
-      return (await sendOnboardingNudges(fake as never, now)).prickle;
+      return (await sendMemberReminders(fake as never, now)).prickle;
     };
 
     expect(await run(1, 5)).toBe(0);
@@ -386,7 +386,7 @@ describe("prickle reminders", () => {
       log: nudgeLog([60, 70, 80, 90, 100].map((d) => loggedSent("m1", kind, d, now))),
     });
 
-    expect((await sendOnboardingNudges(fake as never, now)).prickle).toBe(1);
+    expect((await sendMemberReminders(fake as never, now)).prickle).toBe(1);
   });
 
   it("goes out in the member's own time zone, falling back to the org's", async () => {
@@ -404,9 +404,9 @@ describe("prickle reminders", () => {
       },
     });
 
-    await sendOnboardingNudges(fake as never, atTokyoHour(tokyoHour));
+    await sendMemberReminders(fake as never, atTokyoHour(tokyoHour));
     expect(slackTargets()).toEqual(["U-m1"]);
-    await sendOnboardingNudges(fake as never, atNewYorkHour(orgHour));
+    await sendMemberReminders(fake as never, atNewYorkHour(orgHour));
     expect(slackTargets()).toEqual(["U-m1", "U-m2"]);
   });
 });
@@ -427,7 +427,7 @@ describe("dry run", () => {
     });
     const spy = vi.spyOn(console, "log").mockImplementation(() => {});
 
-    const result = await sendOnboardingNudges(fake as never, now, { liveFor: nobodyLive });
+    const result = await sendMemberReminders(fake as never, now, { liveFor: nobodyLive });
 
     expect(result).toEqual({ intro: 0, prickle: 0, dryRun: { intro: 1, prickle: 0 } });
     expect(sendSlackDM).not.toHaveBeenCalled();
@@ -454,7 +454,7 @@ describe("dry run", () => {
     });
     vi.spyOn(console, "log").mockImplementation(() => {});
 
-    await sendOnboardingNudges(fake as never, now, { liveFor: nobodyLive });
+    await sendMemberReminders(fake as never, now, { liveFor: nobodyLive });
 
     expect(fake.queries.some((q) => q.table === "in_app_notifications")).toBe(false);
   });
@@ -469,7 +469,7 @@ describe("dry run", () => {
     const spy = vi.spyOn(console, "log").mockImplementation(() => {});
 
     // Each member's reminder is due in their own hour; check m1's, who hasn't opted in.
-    const result = await sendOnboardingNudges(fake as never, now, { liveFor: nobodyLive });
+    const result = await sendMemberReminders(fake as never, now, { liveFor: nobodyLive });
     const lines = dryRunLines(spy);
 
     expect(sendSlackDM).not.toHaveBeenCalled();
@@ -493,12 +493,12 @@ describe("dry run", () => {
     });
     const spy = vi.spyOn(console, "log").mockImplementation(() => {});
 
-    expect((await sendOnboardingNudges(fake as never, now, { liveFor: nobodyLive })).dryRun.prickle).toBe(1);
+    expect((await sendMemberReminders(fake as never, now, { liveFor: nobodyLive })).dryRun.prickle).toBe(1);
     expect(dryRunLines(spy)[0]).toMatchObject({ wouldSend: true, channels: ["slack"], why: { variant: "next" } });
 
     calendarPrickleIds.mockResolvedValue(new Set(["p1"]));
     spy.mockClear();
-    expect((await sendOnboardingNudges(fake as never, now, { liveFor: nobodyLive })).dryRun.prickle).toBe(0);
+    expect((await sendMemberReminders(fake as never, now, { liveFor: nobodyLive })).dryRun.prickle).toBe(0);
     expect(dryRunLines(spy)).toEqual([]);
   });
 
@@ -513,7 +513,7 @@ describe("dry run", () => {
     });
     const spy = vi.spyOn(console, "log").mockImplementation(() => {});
 
-    const result = await sendOnboardingNudges(fake as never, now, { liveFor: async () => new Set(["m1"]) });
+    const result = await sendMemberReminders(fake as never, now, { liveFor: async () => new Set(["m1"]) });
 
     expect(result).toEqual({ intro: 1, prickle: 0, dryRun: { intro: 1, prickle: 0 } });
     expect(slackTargets()).toEqual(["U-m1"]);
@@ -524,7 +524,7 @@ describe("dry run", () => {
 
 describe("the reminder feature flags", () => {
   const request = () =>
-    new NextRequest("http://localhost/api/internal/onboarding-nudges", {
+    new NextRequest("http://localhost/api/internal/member-reminders", {
       method: "POST",
       headers: { authorization: "Bearer test-secret" },
     });
@@ -599,7 +599,7 @@ describe("the reminder feature flags", () => {
     });
     vi.spyOn(console, "log").mockImplementation(() => {});
 
-    expect((await sendOnboardingNudges(fake as never, now, {
+    expect((await sendMemberReminders(fake as never, now, {
       liveFor: (_kind, ids) => membersWithFeatureForOutreach(fake, "intro_reminders", ids),
     })).intro).toBe(1);
   });
@@ -607,7 +607,7 @@ describe("the reminder feature flags", () => {
 
 describe("the route", () => {
   const request = (headers: Record<string, string> = {}) =>
-    new NextRequest("http://localhost/api/internal/onboarding-nudges", { method: "POST", headers });
+    new NextRequest("http://localhost/api/internal/member-reminders", { method: "POST", headers });
 
   it("rejects a request without the cron secret", async () => {
     setup({ members: { data: [member("m1", "2026-10-01")] } });
