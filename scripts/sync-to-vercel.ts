@@ -8,6 +8,7 @@
 import { spawnSync, type SpawnSyncOptions } from "node:child_process";
 import { ENV_VARS, type EnvVarSpec, type VercelTarget } from "../env-vars.config";
 import { loadTargetEnv, sourceFilesFor } from "./env-files";
+import { parseSyncArgs, SYNC_USAGE } from "./sync-args";
 
 // Runs the project's `vercel` devDependency via npx, so no global install is needed. It must
 // be v59+ for `env add --type` (older CLIs reject the flag), which package.json guarantees.
@@ -55,20 +56,21 @@ function latestPreviewUrl(): string | null {
   }
 }
 
+// A mistyped scoping flag must not quietly sync everything (it once did: `--only NAME` with a space
+// matched nothing and re-synced all 46 variables), so unknown or malformed arguments stop the run.
 function parseArgs(): {
   only: Set<string> | null;
   targets: Set<VercelTarget> | null;
 } {
-  const onlyArg = process.argv.find((a) => a.startsWith("--only="));
-  const targetArg = process.argv.find((a) => a.startsWith("--target="));
-  return {
-    only: onlyArg ? new Set(onlyArg.slice("--only=".length).split(",")) : null,
-    targets: targetArg
-      ? new Set(
-          targetArg.slice("--target=".length).split(",") as VercelTarget[],
-        )
-      : null,
-  };
+  const names = new Set(
+    ENV_VARS.filter((spec) => spec.destinations.some((d) => d.kind === "vercel")).map((spec) => spec.name),
+  );
+  const parsed = parseSyncArgs(process.argv.slice(2), { names, targets: TARGETS });
+  if (!parsed.ok) {
+    console.error(`${parsed.error}\n\n${SYNC_USAGE}`);
+    process.exit(2);
+  }
+  return { only: parsed.only, targets: parsed.targets as Set<VercelTarget> | null };
 }
 
 function main(): void {

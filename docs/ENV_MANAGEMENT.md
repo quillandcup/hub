@@ -70,6 +70,14 @@ This updates Vercel's environment variables:
 
 Vercel's **Development** environment isn't used (local dev runs on `.env.local`), so it isn't synced.
 
+To sync only some variables or environments:
+
+```bash
+npm run env:sync -- --only=NAME1,NAME2 --target=production
+```
+
+`--only` and `--target` also take a space instead of `=`. Anything the script doesn't understand, including a name that isn't synced to Vercel, stops the run with an error rather than syncing everything. A "not a variable synced to Vercel" error usually means your checkout is behind `main` (heartbeat variables, for instance, are generated from `lib/cron-heartbeats.ts`), so `git pull` first.
+
 ## When to Use Which Environment
 
 ### Local Development (Most of the time)
