@@ -6,7 +6,7 @@ import {
   PRICKLE_SCHEDULE,
   prickleNudgeMessage,
   prickleNudgeVariant,
-} from "@/lib/onboarding-nudges";
+} from "@/lib/member-reminders";
 import { calendarDaysBetween, currentHour, jitteredGapDays, SEND_HOUR_COUNT, SEND_HOUR_START, sendHourFor } from "@/lib/nudge-jitter";
 import { APP_URL, ATTENDANCE_DATA_STARTS_ON, SLACK_INTRO_CHANNEL, SLACK_WORKSPACE_URL } from "@/lib/config";
 

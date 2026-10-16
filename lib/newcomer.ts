@@ -2,7 +2,7 @@
  * Who counts as a newcomer: a member whose first_joined_at is within the last 90 days, which is
  * also how far back Slack history reaches (the retention window), so "has introduced themselves
  * in #start-here" can always be answered for them. Newcomers get two extra steps in the Getting
- * started tour and, until they do the things, reminders (lib/onboarding-nudges.ts).
+ * started tour and, until they do the things, reminders (lib/member-reminders.ts).
  */
 
 export const NEWCOMER_WINDOW_DAYS = 90;
