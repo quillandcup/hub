@@ -19,6 +19,7 @@ vi.mock("@/app/actions/search", () => ({
 }));
 vi.mock("@sentry/nextjs", () => ({ metrics: { distribution: vi.fn() } }));
 
+import * as Sentry from "@sentry/nextjs";
 import SearchPalette from "@/components/search/SearchPalette";
 
 const results = {
@@ -58,6 +59,16 @@ describe("SearchPalette", () => {
     expect(screen.getByRole("heading", { name: "Books" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Show more" })).toHaveAttribute("href", "/search?q=cody%20in%3Amembers");
     expect(screen.getByRole("link", { name: "View all results" })).toHaveAttribute("href", "/search?q=cody");
+  });
+
+  it.each([true, false])("labels round-trip timings with actual chat participation: %s", async (chatSearched) => {
+    vi.mocked(Sentry.metrics.distribution).mockClear();
+    searchPalette.mockResolvedValue({ results: [], chatSearched });
+    await openAndType("hello");
+    await waitFor(() => expect(Sentry.metrics.distribution).toHaveBeenCalledWith("search.duration", expect.any(Number), {
+      unit: "millisecond",
+      attributes: { surface: "palette", stage: "roundtrip", chat: chatSearched ? "included" : "excluded" },
+    }));
   });
 
   it("Enter opens the highlighted row, and otherwise the results page", async () => {

@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { getSearcher } from "@/lib/search/context";
 import { KIND_COLUMNS, formatHitDate } from "@/lib/search/format";
 import { KIND_LABELS, type KindResults } from "@/lib/search/kinds";
-import { SEARCH_KINDS, allowedOperators, matchWords, parseUniversal, withKind } from "@/lib/search/syntax";
+import { SEARCH_KINDS, allowedOperators, matchWords, parseUniversal, wantsChat, withKind } from "@/lib/search/syntax";
 import { recordSearchTimings } from "@/lib/search/metrics";
 import { universalSearch } from "@/lib/search/universal";
 import { MAX_QUERY_LENGTH } from "@/lib/chat/search";
@@ -41,6 +41,8 @@ export default async function SearchResultsPage({
   const query = parseUniversal(raw);
   const scoped = query.kind && (SEARCH_KINDS as readonly string[]).includes(query.kind) ? query.kind : undefined;
   const words = matchWords(query);
+  const chatSkipped = !searcher.skip.includes("chat") && !wantsChat(query);
+  const skip = wantsChat(query) ? searcher.skip : [...searcher.skip, "chat" as const];
 
   const timings: Record<string, number> = {};
   const stages: Record<string, number> = {};
@@ -49,7 +51,7 @@ export default async function SearchResultsPage({
     : await universalSearch(
         { ...searcher.ctx, limit: scoped ? KIND_ROWS : OVERVIEW_ROWS, offset: scoped ? pageNumber * KIND_ROWS : 0, stages },
         query,
-        { skip: searcher.skip, timings }
+        { skip, timings }
       );
   // An empty or unknown-kind search ran nothing, so it says nothing about speed.
   if (Object.keys(timings).length > 0) {
@@ -96,6 +98,12 @@ export default async function SearchResultsPage({
       {query.unknownKind && (
         <p className="text-sm text-slate-600 dark:text-slate-400">
           Can’t search “{query.unknownKind}”. You can search {SEARCH_KINDS.map((k) => KIND_LABELS[k]).join(", ")}, for example in:members.
+        </p>
+      )}
+
+      {raw && !query.unknownKind && chatSkipped && (
+        <p className="mb-4 text-sm text-slate-600 dark:text-slate-400">
+          Chat messages aren’t included. <PendingLink href={href(withKind(raw, "chat"))} className="text-plum-700 dark:text-plum-300 hover:underline">Search chat messages</PendingLink>
         </p>
       )}
 
@@ -167,7 +175,7 @@ export default async function SearchResultsPage({
 function OperatorHelp({ isAdmin }: { isAdmin: boolean }) {
   return (
     <div className="text-sm text-slate-600 dark:text-slate-400">
-      <p className="mb-3">Search everything at once, or narrow it down with operators:</p>
+      <p className="mb-3">Search across kinds, or narrow it down with operators. Chat messages are only searched when you select Chat or use chat filters.</p>
       <ul className="space-y-1">
         {allowedOperators(isAdmin).map((o) => (
           <li key={o.name}>

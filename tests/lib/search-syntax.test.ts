@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseUniversal, hasCriteria, suggestOperators, resolveKind, withKind } from "@/lib/search/syntax";
+import { parseUniversal, wantsChat, hasCriteria, suggestOperators, resolveKind, withKind } from "@/lib/search/syntax";
 
 describe("parseUniversal", () => {
   it("passes plain words and chat operators through to the chat parser", () => {
@@ -74,5 +74,15 @@ describe("quoted operator values", () => {
   it("keeps in:\"a kind or channel\" values and plain phrases working", () => {
     expect(parseUniversal('in:"members" cody').kind).toBe("members");
     expect(parseUniversal('"exact phrase" word').text).toBe('"exact phrase" word');
+  });
+});
+
+
+describe("wantsChat", () => {
+  it.each(["hello", "from:me hello", "after:2026-10-01 hello", "in:members hello", "in:channels general", '\"has:link\"'])("leaves chat out for %s", (raw) => {
+    expect(wantsChat(parseUniversal(raw))).toBe(false);
+  });
+  it.each(["in:chat hello", "in:messages hello", "kind:message hello", "type:chat hello", "channel:general hello", "in:#general hello", "has:file", "has:link", "has:reaction", "is:thread"])("opts in to chat for %s", (raw) => {
+    expect(wantsChat(parseUniversal(raw))).toBe(true);
   });
 });
