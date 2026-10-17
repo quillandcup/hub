@@ -54,6 +54,14 @@ jobs:
 
   checkly-deploy:
     if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    # One deploy at a time. `checkly deploy` replaces the whole project, so two overlapping deploys
+    # from back-to-back merges can finish in the wrong order and leave the older commit's monitors
+    # live, deleting any the newer commit added (a new heartbeat vanished this way). Queued runs wait
+    # their turn rather than cancelling the one in flight; GitHub drops all but the newest queued run,
+    # which is the one that has everything.
+    concurrency:
+      group: checkly-deploy
+      cancel-in-progress: false
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
