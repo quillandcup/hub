@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
 import EntitySearch from "@/components/EntitySearch";
@@ -19,6 +19,25 @@ describe("EntitySearch", () => {
     await userEvent.type(screen.getByPlaceholderText("Search"), "bramble@");
     await userEvent.click(await screen.findByRole("button", { name: /Bramble Admin/ }));
     expect(onSelect).toHaveBeenCalledWith(ITEMS[1]);
+  });
+
+  it("leaves no close timer pending once it unmounts after a blur", () => {
+    // The dropdown closes on a short delay after blur; if that timer outlives the component it fires
+    // on a torn-down DOM, which failed unit-test runs at random with `window is not defined`.
+    vi.useFakeTimers();
+    try {
+      const { unmount } = render(<EntitySearch items={ITEMS} selectedId={null} onSelect={() => {}} placeholder="Search" />);
+      const input = screen.getByPlaceholderText("Search");
+      fireEvent.focus(input);
+      fireEvent.blur(input);
+      expect(vi.getTimerCount()).toBe(1);
+
+      unmount();
+
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("shows the selection, falling back to selectedName, and clears it", async () => {
