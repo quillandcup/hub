@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createFakeSupabase } from "@/tests/helpers/server-page";
 import { APP_URL } from "@/lib/config";
+// lib/channels/types.ts only has types, so nothing loads it at runtime and the coverage gate reads every line added to it as uncovered. Loading it records it as having no executable lines.
+import "@/lib/channels/types";
 
 const sendSlackDM = vi.fn(async (_params: { slackUserId: string; text: string; blocks?: any[] }) => {});
 vi.mock("@/lib/slack", () => ({ sendSlackDM: (p: any) => sendSlackDM(p) }));
