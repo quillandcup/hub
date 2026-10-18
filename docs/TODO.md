@@ -150,6 +150,12 @@ Slack tests currently replace the `@slack/web-api` `WebClient` class with a hand
 - Migrate every Slack-touching test (sign-in, nudges, wheel of wonder, feedback, private channel access) and delete the per-file `vi.mock('@slack/web-api')` fakes.
 - Keep the complementary layers: `@slack/types` typing on block builders, Block Kit limit tests (`tests/lib/slack-sign-in-blocks.test.ts`), real HMAC-signed webhook requests. Optionally, a nightly non-hermetic smoke test that publishes to a test user in a Slack developer sandbox workspace, since only Slack itself fully validates Block Kit.
 
+### Check Migration Numbering Before CI Pushes
+CI's `supabase db push` rejects a local migration numbered older than the remote's latest, and it only fails on main, after merge (the Big Sister migrations did this on 2026-10-15). Add a PR check that fails when a new migration's version is lower than the latest already on main, so it's caught before merge. Related: `docs/CI_MIGRATION_ORDERING.md`, and an unmerged `origin/fix-ci-migration-include-all` branch that may already do part of it.
+
+### Mask the Checkly Heartbeat Ping URLs in CI Logs
+The `CHECKLY_HEARTBEAT_*` values are ping URLs: anyone who has one can mark that job as healthy. CI can print them in deploy logs. Register each with GitHub's log masking (`echo "::add-mask::$VALUE"`) at the top of the steps that use them (`checkly.yml`), so they show as `***`.
+
 ### Multi-Environment Setup
 **Status:** Documentation created, awaiting implementation
 

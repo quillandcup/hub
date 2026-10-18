@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createFakeSupabase, type FakeSupabase } from "@/tests/helpers/server-page";
-import { APP_URL } from "@/lib/config";
+import { APP_URL, SLACK_WORKSPACE_URL } from "@/lib/config";
 
 // The adapter writes with its own service-role client; point it at a fake to inspect the insert.
 let serviceFake: FakeSupabase;
@@ -12,6 +12,7 @@ const { membersWithFeature } = await import("@/lib/features.server");
 const {
   countInAppNotifications,
   hubPath,
+  notificationUrl,
   inAppRow,
   loadInAppNotifications,
   loadInboxPage,
@@ -71,6 +72,16 @@ describe("hubPath", () => {
     expect(hubPath(`${APP_URL}.evil.example/x`)).toBeNull();
     expect(hubPath("//evil.example/x")).toBeNull();
     expect(hubPath(undefined)).toBeNull();
+  });
+});
+
+describe("notificationUrl", () => {
+  it("keeps Hub paths and Slack workspace links, and drops any other site", () => {
+    expect(notificationUrl(`${APP_URL}/prickles/p1`)).toBe("/prickles/p1");
+    expect(notificationUrl(`${SLACK_WORKSPACE_URL}/app_redirect?channel=C1`)).toBe(`${SLACK_WORKSPACE_URL}/app_redirect?channel=C1`);
+    expect(notificationUrl(`${SLACK_WORKSPACE_URL}.evil.example/x`)).toBeNull();
+    expect(notificationUrl("https://example.com/x")).toBeNull();
+    expect(notificationUrl(undefined)).toBeNull();
   });
 });
 

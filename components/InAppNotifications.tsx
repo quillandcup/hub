@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { externalLinkProps } from "@/lib/notification-links";
 import {
   getMyBellState,
   markAllInAppNotificationsReadAction,
@@ -164,6 +165,7 @@ export function InAppNotificationBanner() {
                 {" "}
                 <Link
                   href={n.url}
+                  {...externalLinkProps(n.url)}
                   onClick={() => markRead([n.id])}
                   className="font-medium text-white underline underline-offset-2 hover:text-plum-100"
                 >
@@ -221,7 +223,7 @@ export function NotificationRow({
   );
   const rowClass = `block w-full px-4 py-3 text-left ${n.read ? "" : "bg-plum-50/60 dark:bg-plum-950/60"}`;
   return n.url ? (
-    <Link href={n.url} onClick={() => onOpen(n)} className={`${rowClass} hover:bg-slate-50 dark:hover:bg-slate-800`}>
+    <Link href={n.url} {...externalLinkProps(n.url)} onClick={() => onOpen(n)} className={`${rowClass} hover:bg-slate-50 dark:hover:bg-slate-800`}>
       {body}
     </Link>
   ) : (
