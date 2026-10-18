@@ -3,6 +3,12 @@
 # through `gh auth login`). Edit this file, not the Settings page: a push makes the live
 # ruleset match it.
 #
+# Repository settings: allow_auto_merge lets GitHub merge a PR by itself once its required checks
+# pass, which .github/workflows/auto-merge.yml turns on for every new PR (and
+# dependabot-auto-merge.yml for patch/minor bumps); it does nothing while this is off.
+settings:
+  allow_auto_merge: true
+
 # One ruleset on the default branch. Required checks are the job names in
 # .github/workflows/ci.yml; a check skipped by its `if:` (Coverage report on a push to main)
 # counts as passing, so only pull requests wait on it. Nothing can be pushed to main directly,
