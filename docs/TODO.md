@@ -2,6 +2,16 @@
 
 ## Member Status Refinements
 
+### Rename `members` to `contacts` _(Needs Scheduling)_
+The `members` table holds everyone (leads, active, on hiatus, cancelled), so "member" is
+the wrong word for most of its rows. Its ids are being converted to short prefixed text ids
+(`cnt_...`, "contact", the name HubSpot, Intercom, Mailchimp and Kajabi use for the same
+unified entity), so the prefix already says what the table should be called. Rename the
+table, `member_id` columns, API routes, types and docs to match. Do it as its own change:
+a rename touches the same ~50 foreign keys, views and policies as the id conversion, so
+keep it separate from that one. "Member" can stay as the UI word for `status = 'active'`
+people.
+
 ### Fix Hiatus Tracking - Automatic Detection From Kajabi Tags
 **Resolved (partially):** `on_hiatus` used to be effectively non-functional — nothing in
 the automated pipeline ever set it, and even a manually-set value got silently
