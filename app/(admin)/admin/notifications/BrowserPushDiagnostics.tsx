@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { readPushDiagnostics, type PushDiagnostics } from "@/lib/browser-push-diagnostics";
+import { readPushDiagnostics, sendBrowserAlertComparison, type PushDiagnostics } from "@/lib/browser-push-diagnostics";
 
 const STAGES: Record<string, string> = {
   shown: "Browser accepted notification for display",
@@ -18,12 +18,28 @@ export default function BrowserPushDiagnostics() {
   const [pending, setPending] = useState(false);
   const [diagnostics, setDiagnostics] = useState<PushDiagnostics>();
   const [error, setError] = useState("");
+  const [comparison, setComparison] = useState<{ style: string; id: string }>();
 
   async function refresh() {
     setPending(true);
     setError("");
     setDiagnostics(undefined);
     try {
+      setDiagnostics(await readPushDiagnostics());
+    } catch (error) {
+      setError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setPending(false);
+    }
+  }
+
+  async function compare(style: "standard" | "persistent") {
+    setPending(true);
+    setError("");
+    setComparison(undefined);
+    try {
+      const id = await sendBrowserAlertComparison(style);
+      setComparison({ style, id });
       setDiagnostics(await readPushDiagnostics());
     } catch (error) {
       setError(error instanceof Error ? error.message : String(error));
@@ -43,6 +59,21 @@ export default function BrowserPushDiagnostics() {
       <button type="button" disabled={pending} onClick={refresh} className="rounded-lg border px-3 py-1 text-sm disabled:opacity-50">
         {pending ? "Checking…" : "Refresh browser diagnostics"}
       </button>
+      <div className="space-y-2 border-t border-slate-200 pt-3 dark:border-slate-700">
+        <p className="text-sm text-slate-600 dark:text-slate-400">
+          Compare alert styles on this device. Send a standard alert, click it, and refresh diagnostics. Then do the same
+          with a persistent alert. Match each alert’s ID to its click entry. Close an alert before trying the next style.
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" disabled={pending} onClick={() => compare("standard")} className="rounded-lg border px-3 py-1 text-sm disabled:opacity-50">
+            Send standard alert
+          </button>
+          <button type="button" disabled={pending} onClick={() => compare("persistent")} className="rounded-lg border px-3 py-1 text-sm disabled:opacity-50">
+            Send persistent alert
+          </button>
+        </div>
+        {comparison && <p className="text-sm">Sent {comparison.style} alert [{comparison.id}]</p>}
+      </div>
       {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
       {diagnostics && (
         <div role="status" className="space-y-2 text-sm">
@@ -57,7 +88,7 @@ export default function BrowserPushDiagnostics() {
                   <span className="text-xs text-slate-500">[{entry.notificationId}]</span>
                   {entry.errorMessage && <p className="break-words">{entry.errorMessage}</p>}
                   <p className="break-words text-xs text-slate-500">
-                    {entry.version ?? "Older worker"}{entry.operation ? ` · ${entry.operation}` : ""}{entry.pathname ? ` · ${entry.pathname}` : ""}
+                    {entry.version ?? "Older worker"}{entry.operation ? ` · ${entry.operation}` : ""}{entry.style ? ` · ${entry.style}` : ""}{entry.pathname ? ` · ${entry.pathname}` : ""}
                   </p>
                 </li>
               ))}
