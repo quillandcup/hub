@@ -7,6 +7,7 @@ import { SUDO_COOKIE_NAME, actingAsHeaderValue } from '@/lib/sudo-cookie'
 import { PAGE_VIEW_PATH } from '@/lib/page-views'
 import { NEXT_PATH_COOKIE, NEXT_PATH_COOKIE_MAX_AGE_SECONDS, safeNextPath } from '@/lib/safe-next'
 import { userAgentForStorage } from '@/lib/device-label'
+import { GA_COOKIE_NAME, gaClientIdFromCookie } from '@/lib/analytics-identity'
 
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })
@@ -108,6 +109,8 @@ export async function updateSession(request: NextRequest) {
     // cookie that belongs to this user.
     const actingAsMemberId =
       actingAsHeaderValue(request.cookies.get(SUDO_COOKIE_NAME)?.value, userId)?.split(':')[1] ?? null
+    // GA's anonymous browser ID, linking this browser's signed-out visits to the user.
+    const gaClientId = gaClientIdFromCookie(request.cookies.get(GA_COOKIE_NAME)?.value)
     after(async () => {
       try {
         await supabase.from('access_events').insert({
@@ -117,6 +120,7 @@ export async function updateSession(request: NextRequest) {
           session_id: eventSessionId,
           acting_as_member_id: actingAsMemberId,
           user_agent: userAgentForStorage(userAgent),
+          ga_client_id: gaClientId,
         })
       } catch {
         // Best-effort logging — never break the request over this.

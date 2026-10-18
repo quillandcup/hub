@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
+import { setAnalyticsUserId } from "@/lib/analytics-identity";
 
 interface SignOutButtonProps {
   onSignOut?: () => void;
@@ -13,6 +14,8 @@ export default function SignOutButton({ onSignOut }: SignOutButtonProps = {}) {
 
   const handleSignOut = async () => {
     onSignOut?.();
+    // Before navigating, so the /login page view isn't credited to this user.
+    setAnalyticsUserId(null);
     await supabase.auth.signOut();
     router.push("/login");
     router.refresh();
