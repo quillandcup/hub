@@ -864,7 +864,6 @@ const TEST_BANNER = {
 export function checkinMessage(prickle: DMPrickle, saved: CheckinInput | null, { test = false } = {}): OutboundMessage {
   const blocks = buildCheckinBlocks(prickle.id, prickle.typeName, saved);
   return {
-    title: `${test ? "[Test] " : ""}Check in: ${prickle.typeName}`,
     text: `${test ? "[Test] " : ""}Ready for ${prickle.typeName} in ~20 min? Check in: how are you feeling coming in?`,
     url: `${APP_URL}${checkinHref(prickle.id, "checkin")}`,
     slackBlocks: test ? [TEST_BANNER, ...blocks] : blocks,
@@ -882,7 +881,6 @@ export function checkoutMessage(
 ): OutboundMessage {
   const blocks = buildCheckoutBlocks(prickle.id, prickle.typeName, saved, prompts, prickle.title ?? prickle.typeName);
   return {
-    title: `${test ? "[Test] " : ""}Check out: ${prickle.typeName}`,
     text: `${test ? "[Test] " : ""}Checking out of ${prickle.typeName}: how did it go?`,
     url: `${APP_URL}${checkinHref(prickle.id, "checkout")}`,
     slackBlocks: test ? [TEST_BANNER, ...blocks] : blocks,
