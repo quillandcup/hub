@@ -42,49 +42,127 @@ subscriptions can break. Existing data must be preserved (Slack data has aged ou
 
 ## Prefixes
 
-Agreed: `cnt_` contacts (the `members` table; it holds leads, active, hiatus and cancelled
-people, hence "contact"; renaming the table itself is a separate TODO in `docs/TODO.md`),
-`prkl_` prickles, `prty_` prickle types, `prj_` writing projects, `evt_` events,
-`msg_` chat messages, `chn_` chat channels, `seg_` segments, `prg_` programs,
-`bdg_` badge types.
+Regenerated from a scratch stack migrated from this branch (all 233 migrations, through
+`20261108000000`). **Still to be confirmed by the owner**; the first group was agreed
+earlier, the rest are proposals. Every prefix is unique. Stripe uses `price_`-style
+prefixes, so 3 or 4 letters are fine.
 
-Proposed, still to be confirmed (4-letter prefixes are fine; Stripe uses `price_`):
-`cmt_` prickle commitments, `bok_` member books, `flg_` feature flags, `coh_` program
-cohorts, `sch_` prickle schedules, `cev_` calendar events. Every other table with its own
-uuid id (about 70 in total) needs a prefix too: generate the full list from the inventory
-and put it at the top of the migration for review.
+Agreed: `cnt_` members (contacts), `prkl_` prickles, `prty_` prickle types, `prj_` writing
+projects, `evt_` events, `msg_` chat messages, `chn_` chat channels, `seg_` segments,
+`prg_` programs, `bdg_` badge types.
 
-## Inventory (from the local DB, ~7 migrations behind the branch)
+Proposed, Silver and Local (`public`):
 
-Inbound foreign-key counts: members 50, prickles 8, prickle_types 6, writing_projects 5,
-events 5, chat_messages 3, segments 2, chat_channels 2, programs 2, badge_types 2,
-bronze.calendar_events 2, plus single-FK parents (prickle_commitments, member_books,
-feature_flags, program_cohorts, prickle_schedules).
+| Table | Prefix | Table | Prefix |
+|---|---|---|---|
+| `prickle_commitments` | `cmt_` | `prickle_commitment_slots` | `cms_` |
+| `prickle_schedules` | `psc_` | `prickle_host_vibes` | `hvb_` |
+| `prickle_attendance` | `att_` | `prickle_checkins` | `chk_` |
+| `prickle_checkin_dismissals` | `pcd_` | `prickle_checkout_dismissals` | `pco_` |
+| `prickle_checkin_dm_log` | `pdm_` | `unmatched_calendar_events` | `uce_` |
+| `member_books` | `bok_` | `member_awards` | `awd_` |
+| `member_badges` | `mbd_` | `badge_levels` | `bdl_` |
+| `member_activities` | `act_` | `member_hiatus_history` | `hia_` |
+| `member_name_aliases` | `mna_` | `member_email_aliases` | `mea_` |
+| `member_status_overrides` | `mso_` | `member_reminder_log` | `mrl_` |
+| `member_program_enrollments` | `enr_` | `program_cohorts` | `coh_` |
+| `mentorships` | `mnt_` | `staff` | `stf_` |
+| `events` attendees / photos | `eva_` / `evp_` | `wheel_of_wonder_matches` | `wow_` |
+| `writing_goals` | `wgl_` | `writing_progress_entries` | `wpe_` |
+| `calendar_feed_items` | `cfi_` | `outreach_touches` | `otc_` |
+| `chat_reactions` | `rxn_` | `in_app_notifications` | `ntf_` |
+| `push_subscriptions` | `psh_` | `feedback` | `fbk_` |
+| `ignored_zoom_names` | `izn_` | `ambiguous_zoom_names` | `azn_` |
+| `admin_work_queue_completions` | `wqc_` | | |
 
-The local DB lacks the later migrations (e.g. `push_subscriptions`, anything after
-roughly 20261007). Rebuild the inventory from a scratch DB migrated from this branch.
+Proposed, Bronze (`bronze`): `calendar_events` `cev_`, `zoom_meetings` `zmt_`,
+`zoom_attendees` `zat_`, `zoom_participant_events` `zpe_`, `slack_messages` `slm_`,
+`slack_channels` `slc_`, `slack_users` `slu_`, `slack_reactions` `slr_`,
+`slack_channel_member_events` `sle_`, `kajabi_contacts` `kjc_`, `kajabi_customers` `kju_`,
+`kajabi_members` `kjm_`, `kajabi_offers` `kjo_`, `kajabi_purchases` `kjp_`,
+`stripe_customers` `stc_`, `stripe_products` `stp_`, `stripe_subscriptions` `sts_`,
+`subscription_history` `sub_`.
 
-Things a plain FK rewrite will miss:
+Earlier proposals changed: `feature_flags` and `feature_flag_segments` are **not** in the
+list (their keys are text, `feature_key`, no uuid); `prickle_schedules` moved from `sch_`
+to `psc_` so it can't be confused with `slack_channels`; `cev_` now means the Bronze
+calendar events (the only Bronze table that other tables reference).
 
-1. **Views / materialized views** depending on the columns: `member_directory`,
-   `member_engagement`, `member_metrics`, `prickle_popularity`, and the `bronze` views
-   such as `slack_messages_meta`, `slack_channel_membership_periods`. Drop and recreate
-   around the type change. Also RLS policies and SQL functions with `uuid` parameters;
-   generate the dependency list from `pg_depend`. Read the LATEST `CREATE OR REPLACE`
-   of any function before editing it.
-2. **Ids without an FK:** `audit_log` (`member_id`, `acting_as_member_id`, plus the row id
-   it audits), `access_events`, `member_activities.acting_as_member_id`. Rewrite member
-   ones, keep the auth ones.
-3. **Self-references:** `chat_messages.thread_root_id`,
-   `prickle_schedules.carried_forward_from`.
-4. **Ids stored in data:** jsonb/text columns, `in_app_notifications.url` / `ref`,
-   `chat_posting` metadata, `prickle_checkin_dm_log`, calendar feed items, notification
-   dedup rows, push/outbox tables. Scan every text/jsonb column for the old uuids of
-   migrated tables before and after, and fail the migration if any remain.
-5. **Triggers** that audit by table (`audit_member_actions`) and anything keyed on
-   `id::text`.
-6. **Column named `host` on `prickles`:** confirm whether it references a member or an
-   auth user before converting.
+## Inventory (scratch stack from this branch, 233 migrations)
+
+Counts of rows are not here: the scratch DB is empty. Get them from prod (read-only) before
+choosing single vs batched backfill (Next steps, 3).
+
+**Tables with their own uuid `id` (conversion targets): 66.** 18 in `bronze`, 48 in
+`public`; all listed under Prefixes. Plus these whose uuid key *is* a member or prickle
+reference, so they convert as foreign keys and get no prefix: `member_directory.id`,
+`member_engagement.member_id`, `member_metrics.member_id`, `prickle_popularity.prickle_id`,
+`chat_message_contents.message_id`, and the member-keyed one-per-member tables
+(`big_sister_volunteers`, `calendar_feed_tokens`, `member_ask_me_about`,
+`member_join_date_overrides`, `member_onboarding`, `member_profile_overrides`,
+`member_roster_opt_outs`, `member_slack_connections`, `outreach_leads`). Composite PKs that
+contain uuids: `chat_channel_members`, `member_notes`, `segment_members`,
+`feature_flag_segments`, `notification_preferences`, `user_feature_previews`,
+`writing_project_starting_balances`.
+
+**Not converted:** `access_events.id` and `audit_log.id` (bigint), all text-keyed tables
+(`feature_flags`, `restricted_slack_channels`, `slack_identities`, ...).
+
+**Parents with FKs pointing at them:** `members` (by far the most: `host`, `author_member_id`,
+`mentor_member_id`, `new_member_id`, `spinner_member_id`, `matched_member_id`,
+`confirmed_by_member_id`, `subject_member_id`, `resolved_member_id`, `default_host_id`,
+`host_id`, and ~40 plain `member_id`), `prickles`, `prickle_types`, `writing_projects`,
+`events`, `chat_messages` (incl. self `thread_root_id`), `chat_channels`, `segments`,
+`programs`, `program_cohorts`, `badge_types`, `member_books`, `prickle_commitments`,
+`bronze.calendar_events`, `prickle_schedules` (self `carried_forward_from`).
+
+**uuid columns that stay uuid (auth references):** 28 columns, all FKs to `auth.users` or the
+auth session/vault: `members.user_id`, `user_profiles.id`, `slack_identities.user_id`,
+`user_feature_previews.user_id`, `feedback.user_id`, `access_events.user_id`, every
+`created_by`, `updated_by`, `awarded_by`, `locked_by`, `confirmed_by`, `deleted_by`,
+`ignored_by`, `touched_by`, `completed_by`, `actor_user_id`; no-FK ones to leave alone:
+`audit_log.changed_by`, `access_events.session_id`, `restricted_slack_channels.restricted_by`,
+`member_slack_connections.access_secret_id` / `refresh_secret_id` (Vault secrets).
+
+**Member ids with no FK, must be rewritten by hand:** `audit_log.member_id`,
+`audit_log.acting_as_member_id`, `access_events.acting_as_member_id`,
+`member_activities.acting_as_member_id`. Also `audit_log.entity_id` (text, the audited row's
+id) and `audit_log.changes` (jsonb), for every table audited by the `audit_row_change`
+trigger (about 50 tables).
+
+**Ids stored as text/jsonb found so far:** `in_app_notifications.ref` (set to `prickle.id`,
+`lib/prickle-checkin-dms.ts:886,903`) and `.url`; `member_activities.data` (jsonb);
+`chat_message_contents` (`attachments`, `blocks`); `admin_work_queue_completions.occurrence_key`
+(its contents still to confirm; it sits next to `member_id`); `bronze.slack_messages.raw_payload`
+`app_message_id` metadata (see Decisions). Bronze `raw_payload`/`data` columns from external
+systems should not contain our ids, but the post-migration scan covers them too.
+
+**Dependent objects to drop and recreate:**
+- Views: only two, `bronze.slack_messages_meta` and `bronze.slack_channel_membership_periods`.
+  **Correction to the earlier draft:** `member_directory`, `member_engagement`,
+  `member_metrics` and `prickle_popularity` are plain *tables*, kept in sync by the
+  `sync_member_directory` trigger and the processing routes, not views. They convert like
+  any other table.
+- Functions with a uuid argument or result: 42 (full list from `pg_proc`, e.g.
+  `current_member_id`, `chat_post_message`, `chat_toggle_reaction`, `get_activity_feed`,
+  `count_activity_feed`, `admin_members_page`, `create_prickle_commitment`,
+  `add_event_attendee`, `my_mentorships`, `set_mentorship_note`, the `slack_connection_*`
+  family, `get_record_history`, `get_access_sessions`). Several take auth user ids
+  (`revoke_user_sessions`, `revoke_my_session`): those keep their uuid signature. Read the
+  latest `CREATE OR REPLACE` of each before editing.
+- 279 RLS policies in `public`/`bronze`; any that compare an id column to a uuid-typed
+  expression (`current_member_id()`, `auth.uid()`) need review.
+- 66 `gen_random_uuid()` column defaults (matches the 66 id tables above).
+- Triggers: `audit_row_change` (about 50 tables), `sync_member_directory`,
+  `member_activities_stamp_sudo`, `members_sync_email_aliases`,
+  `guard_member_self_service_update`.
+
+**Column worth a decision:** `prickles.host` is an FK to `members` (nullable, `ON DELETE
+SET NULL`): converts as a member reference.
+
+**Method:** regenerate with the catalog queries from this session (uuid columns joined to
+`pg_constraint`), rather than trusting this prose, when writing the migration; the migration
+itself should derive FK rewrites from `pg_constraint` at run time.
 
 ## Migration approach (forward migration, data preserved)
 
@@ -129,10 +207,13 @@ change and the migration together (CI pushes migrations before the Vercel deploy
 
 ## Next steps
 
-1. Create a scratch Postgres/Supabase from this branch's migrations (do **not** use the
-   shared local DB; see the local-test-stack memory for binary paths and the CI sequence).
-   Regenerate the full table, prefix and FK inventory from it.
-2. Confirm the full prefix list with the owner.
+1. ~~Scratch stack and inventory~~ done (see Inventory). To redo it: copy `supabase/` to a
+   temp dir, change `project_id` and every port in `config.toml`, run `supabase start`
+   there (it applies all migrations), and query it with `docker exec` into its `db`
+   container. The shared local DB is untouched.
+2. Confirm the prefix list with the owner (Prefixes section); resolve the open items:
+   `admin_work_queue_completions.occurrence_key` contents, and the other jsonb/text
+   locations that may embed our ids.
 3. Check row counts and timeouts; choose single transaction vs batched backfill.
 4. Write the migration, run it against a copy of production data if possible, then the
    full db + unit + pgTAP suites.
