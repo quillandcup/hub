@@ -11,7 +11,7 @@ Hedgie Hub supports real-time webhooks from external systems:
 - **Slack** - Events when messages are posted or reactions are added
 
 Each webhook handler:
-1. Verifies the webhook source (signature verification - TODO)
+1. Verifies the webhook source (signature or channel token; see Security below)
 2. UPSERTS to Bronze layer (idempotent)
 3. Triggers downstream Silver processing asynchronously
 4. Returns 200 OK immediately (webhooks expect fast response)
@@ -203,13 +203,18 @@ curl https://abc123.ngrok.io/api/webhooks/calendar
 
 ## Security
 
-### Signature Verification (TODO)
+### Signature Verification
 
-Currently, webhook handlers log signature headers but don't verify them. This is marked as TODO for implementation.
+Every webhook route verifies its caller itself, whether or not a tunnel or proxy sits in front:
 
-**Google Calendar**: Verify `X-Goog-Channel-Token` header matches the token set when creating the watch.
+- **Google Calendar:** `X-Goog-Channel-Token` must equal `GOOGLE_CALENDAR_WEBHOOK_TOKEN` (constant-time compare). The token is set when the watch channel is created, so a channel created without one is rejected once the variable is set: re-create the channel with `"token": "<the value>"`. 
+- **Slack:** HMAC-SHA256 over `v0:{timestamp}:{body}` with `SLACK_SIGNING_SECRET`, within a 5-minute window.
+- **Zoom:** HMAC-SHA256 in `X-Zm-Signature` with `ZOOM_WEBHOOK_SECRET_TOKEN`.
 
-**Zoom**: Verify HMAC-SHA256 signature in `X-Zm-Signature` header:
+**A missing secret rejects the request on deployed builds** (production and preview), instead of switching verification off (`webhookSecretRequired()` in `lib/webhook-auth.ts`). Local `next dev` and tests skip verification when a secret is unset, so webhooks can be tried without configuring each vendor.
+
+Zoom's check, for reference:
+
 ```typescript
 const message = `v0:${timestamp}:${body}`;
 const hashForVerify = createHmac('sha256', secretToken)
@@ -279,7 +284,7 @@ Slack processing triggered successfully
 
 1. **Check environment variables** are set correctly
 2. **Verify secret token** matches external service settings
-3. **Enable signature verification** (currently TODO)
+3. **Check the signature/token env vars** are set (a deployed build rejects webhooks without them)
 
 ### Processing not triggered
 

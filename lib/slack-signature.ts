@@ -1,8 +1,9 @@
 import { createHmac, timingSafeEqual } from "crypto";
+import { webhookSecretRequired } from "@/lib/webhook-auth";
 
 export type SlackSignatureResult =
   | { valid: true }
-  | { valid: false; reason: "missing" | "too_old" | "mismatch" };
+  | { valid: false; reason: "missing" | "too_old" | "mismatch" | "not_configured" };
 
 /**
  * Slack request signature verification (HMAC-SHA256), shared between the Events API webhook
@@ -10,9 +11,10 @@ export type SlackSignatureResult =
  * -- extracted so a second inline copy doesn't drift from the first. See
  * https://api.slack.com/authentication/verifying-requests-from-slack.
  *
- * Returns valid:true if signingSecret isn't configured (matches the existing Events API handler's
- * behavior of skipping verification when SLACK_SIGNING_SECRET is unset, e.g. local dev without
- * the secret configured) -- callers that need it enforced should check the env var themselves.
+ * With no signingSecret, local dev and tests skip verification (valid:true), but a deployed build
+ * (see webhookSecretRequired) rejects with reason "not_configured", so a missing secret can't
+ * silently turn the check off. Callers that must never run unverified, even locally, should check
+ * the env var themselves (lib/slack-sign-in.ts does).
  * `reason` lets callers preserve distinct error messages (e.g. "Request too old" vs "Invalid
  * signature") rather than collapsing every failure into one generic message.
  */
@@ -22,7 +24,7 @@ export function verifySlackSignature(
   timestamp: string | null,
   signingSecret: string | undefined
 ): SlackSignatureResult {
-  if (!signingSecret) return { valid: true };
+  if (!signingSecret) return webhookSecretRequired() ? { valid: false, reason: "not_configured" } : { valid: true };
   if (!signature || !timestamp) return { valid: false, reason: "missing" };
 
   const requestTimestamp = parseInt(timestamp, 10);
