@@ -35,4 +35,11 @@ describe("TimezoneSwitcher", () => {
     expect(screen.getByRole("combobox")).toHaveValue("Europe/Dublin");
     expect(screen.getByRole("option", { name: "Europe/Dublin" })).toBeInTheDocument();
   });
+
+  it("follows the saved zone when the page refreshes with a new one", () => {
+    detectedZone("America/Chicago");
+    const { rerender } = render(<TimezoneSwitcher initialTimezone="America/Chicago" />);
+    rerender(<TimezoneSwitcher initialTimezone="Europe/Paris" />);
+    expect(screen.getByRole("combobox")).toHaveValue("Europe/Paris");
+  });
 });

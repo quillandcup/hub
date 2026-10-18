@@ -64,6 +64,13 @@ export function TimezoneSwitcher({ initialTimezone = "browser" }: TimezoneSwitch
   const [browserTimezone, setBrowserTimezone] = useState<string>("");
   const [saving, setSaving] = useState(false);
 
+  // The saved zone can change under us (the "Change time zone?" prompt saves it, then the page refreshes).
+  const [seenInitial, setSeenInitial] = useState(initialTimezone);
+  if (seenInitial !== initialTimezone) {
+    setSeenInitial(initialTimezone);
+    setTimezone(initialTimezone);
+  }
+
   useEffect(() => {
     // Detect browser timezone
     const detected = Intl.DateTimeFormat().resolvedOptions().timeZone;
