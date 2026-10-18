@@ -1,0 +1,100 @@
+import { CHANNEL_ADAPTERS, CHANNELS, type ChannelId, type OutboundMessage } from "@/lib/channels";
+import { bigSisterMessageForMentor, bigSisterMessageForNewMember } from "@/lib/mentorship-intro";
+import { loadIntroChannelId } from "@/lib/newcomer-signals";
+import { introNudgeMessage, prickleNudgeMessage } from "@/lib/member-reminders";
+import { checkinMessage, checkoutMessage } from "@/lib/prickle-checkin-dms";
+import { NOTIFICATION_SETTINGS_PATH } from "@/lib/notifications/notify";
+import { APP_URL } from "@/lib/config";
+import type { NotificationKindId } from "@/lib/notifications/registry";
+
+/**
+ * Admin "send me a test": every notification kind, on every channel, to the admin's own member
+ * record. It skips preferences and feature flags' opt-ins (the admin asked for it just now) but
+ * not what a channel needs to reach someone (a Slack match, an email address, a subscribed device,
+ * the in-app feature flag), and it says why when it can't. Outside production Slack and email are
+ * redirected to the dev address (SLACK_TEST_MODE / EMAIL_TEST_MODE), as for any send.
+ *
+ * The messages are the real ones, built by the same functions the features use, with sample data
+ * where they'd need a member or prickle, and marked "[Test]".
+ */
+
+/** Why a channel couldn't reach the admin, for when its address lookup comes back empty. */
+export const UNREACHABLE_REASON: Record<ChannelId, string> = {
+  slack: "No Slack account is matched to your member record.",
+  in_app: "The In-app notifications preview isn't on for you (Settings → Previews).",
+  web_push: "No device of yours has Browser notifications turned on (Settings → Notifications), or the Browser notifications preview is off.",
+  email: "Your member record has no email address.",
+};
+
+const TEST_PREFIX = "[Test] ";
+
+/** The prickle a check-in or check-out sample is about: the next one, else the latest, else a stand-in. */
+async function samplePrickle(supabase: any, now: Date) {
+  const select = "id, start_time, end_time, prickle_types:type_id(name)";
+  const upcoming = await supabase.from("prickles").select(select).gte("start_time", now.toISOString()).order("start_time").limit(1);
+  const latest = upcoming.data?.length
+    ? upcoming
+    : await supabase.from("prickles").select(select).order("start_time", { ascending: false }).limit(1);
+  const row = latest.data?.[0];
+  const type = Array.isArray(row?.prickle_types) ? row.prickle_types[0] : row?.prickle_types;
+  if (row && type?.name) return { id: row.id as string, typeName: type.name as string, startTime: row.start_time as string, endTime: row.end_time as string };
+  return { id: "sample", typeName: "Sprint Prickle", startTime: now.toISOString(), endTime: new Date(now.getTime() + 60 * 60 * 1000).toISOString() };
+}
+
+const marked = (message: OutboundMessage): OutboundMessage => ({
+  ...message,
+  text: TEST_PREFIX + message.text,
+  title: message.title ? TEST_PREFIX + message.title : undefined,
+});
+
+/** The sample messages for one kind: usually one, two when it goes to two different people (Big Sisters). */
+export async function sampleMessages(supabase: any, kind: NotificationKindId, now = new Date()): Promise<OutboundMessage[]> {
+  switch (kind) {
+    case "prickle_checkin":
+      return [checkinMessage(await samplePrickle(supabase, now), null, { test: true })];
+    case "prickle_checkout":
+      return [checkoutMessage(await samplePrickle(supabase, now), null, [], { test: true })];
+    case "intro_nudge":
+      return [marked(introNudgeMessage(await loadIntroChannelId(supabase)))];
+    case "prickle_nudge":
+      return [marked(prickleNudgeMessage("first"))];
+    case "big_sister_match":
+      return [
+        marked(bigSisterMessageForNewMember("Marlow", "sample")),
+        marked(bigSisterMessageForMentor("Marlow", "Linden", "sample")),
+      ];
+  }
+}
+
+export type TestSendResult = { ok: true; sent: number } | { ok: false; error: string };
+
+/**
+ * Sends the kind's sample message(s) to `memberId` on `channel`. Uses the channel adapter directly
+ * (not the notifier) so a failure comes back with its reason instead of only being logged.
+ */
+export async function sendTestNotification(
+  supabase: any,
+  memberId: string,
+  kind: NotificationKindId,
+  channel: ChannelId,
+  now = new Date()
+): Promise<TestSendResult> {
+  const adapter = CHANNEL_ADAPTERS[channel];
+  const address = (await adapter.resolveAddresses(supabase, [memberId])).get(memberId);
+  if (!address) return { ok: false, error: UNREACHABLE_REASON[channel] };
+
+  const messages = await sampleMessages(supabase, kind, now);
+  try {
+    for (const message of messages) {
+      await adapter.send(
+        address,
+        { ...message, footerLinks: [{ label: "Notification settings", url: `${APP_URL}${NOTIFICATION_SETTINGS_PATH}` }] },
+        { kind, memberId }
+      );
+    }
+  } catch (error) {
+    const label = CHANNELS.find((c) => c.id === channel)!.label;
+    return { ok: false, error: `${label} failed: ${error instanceof Error ? error.message : String(error)}` };
+  }
+  return { ok: true, sent: messages.length };
+}

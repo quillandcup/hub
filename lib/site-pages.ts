@@ -149,6 +149,7 @@ export const SITE_PAGES: SitePage[] = [
   admin({ title: "Users", href: "/admin/users", section: "System", nav: { icon: "🔑" }, keywords: ["invite", "roles"] }),
   admin({ title: "Segments", href: "/admin/segments", section: "System", nav: { icon: "🧩" } }),
   admin({ title: "Feedback", href: "/admin/feedback", section: "System", nav: { icon: "💬" } }),
+  admin({ title: "Test Notifications", href: "/admin/notifications", section: "System", nav: { icon: "🔔" }, keywords: ["send test", "slack", "email", "push", "in-app", "reminders"] }),
 
   // Admin pages reached by drilling in (mostly from the health check), not from the sidebar
   admin({ title: "Unmatched Calendar Events", href: "/admin/hygiene/unmatched-events", section: "Data Health" }),
