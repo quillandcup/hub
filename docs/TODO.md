@@ -330,6 +330,27 @@ production:
        pipeline: deploy to devel first, run tests, a bake/soak period, then promote to
        production -- rather than today's single `main`-branch-direct-to-prod pipeline.
 
+### Mux configuration as code (`mux:config`) _(Needs Scoping)_
+Mux's settings live in its dashboard, unlike Supabase (`config.toml`), Slack (`slack-app-manifest.yml`), GitHub (`github-repo-config.yml`) and Vercel. Add a committed `mux-config.yml` plus `npm run mux:config:diff` (read-only) and `:push`, modelled on `scripts/slack-manifest.ts`.
+
+**What it can manage** (checked 2026-10-18; confirm endpoints before building):
+- **Webhooks:** the Webhooks API (`/system/v1/webhooks`) creates them. It's scoped to the token's Mux environment, rejects a duplicate address with a 400, and returns the signing secret **only in the create response**.
+- **Playback restrictions** (allowed domains/referrers) and **URL signing keys** exist as API resources.
+- A Mux Terraform provider exists, but its resource list wasn't confirmed.
+- **Spending alerts have no API** (dashboard only: up to 3, email only, paid plans). Keep them on a manual checklist in the docs.
+
+**Needs a separate token with the System permission,** kept on the operator's machine or in CI, never in Vercel (the app token has only Mux Video and Mux Data).
+
+**Per-developer webhooks.** A webhook has one URL, and a developer's tunnel domain (`TUNNEL_DOMAIN` in `.env.local`, see `docs/WEBHOOK_SETUP.md`) belongs to their own ngrok account, so every developer who wants real "video ready" notifications locally needs their own webhook. The script should make that one command:
+- Production and preview environments come from `mux-config.yml` (production: `<APP_URL>/api/webhooks/mux`, from `lib/config.ts`).
+- A developer's webhook isn't committed. `npm run mux:config:push -- --dev` would create (or update) one pointing at `https://$TUNNEL_DOMAIN/api/webhooks/mux` in that developer's own Mux environment (separate from preview and production), and print the signing secret once for them to put in `.env.local` as `MUX_WEBHOOK_SECRET`.
+- Re-running it is a no-op when the webhook already exists. If the tunnel domain changes, it updates the URL and keeps the secret.
+- Without it, local development polls Mux, which is fine for most work.
+
+**Secret handling:** because the signing secret is shown once, "create" has to hand it straight to the operator and never log it. Rotating means delete and re-create, then update the env files and `npm run env:sync`.
+
+**Priority:** after the course launch; the production webhook is created by hand once the route deploys.
+
 ### Move Quill & Cup DNS to Cloudflare _(Needs Scoping)_
 The domain is registered at Squarespace, but its DNS records are currently managed at Kajabi. Move DNS to Cloudflare so web and email traffic can be treated differently:
 

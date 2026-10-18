@@ -181,25 +181,28 @@ Slack sends notifications for:
 
 See: [Slack Events API](https://api.slack.com/apis/connections/events-api)
 
-## Local Testing with ngrok
+## Local Testing with a tunnel
 
-To test webhooks locally during development:
+Vendors send webhooks from their own servers, so `localhost:3000` means nothing to them. `npm run tunnel` opens a public https address that forwards to your dev server, one command for every vendor (Mux, Zoom, Google Calendar, Slack):
 
-1. **Install ngrok**: `brew install ngrok`
-2. **Start ngrok tunnel**: `ngrok http 3000`
-3. **Use ngrok URL** for webhook setup: `https://abc123.ngrok.io/api/webhooks/calendar`
-
-Example:
 ```bash
 # Terminal 1: Start dev server
 npm run dev
 
-# Terminal 2: Start ngrok
-ngrok http 3000
-
-# Terminal 3: Test webhook
-curl https://abc123.ngrok.io/api/webhooks/calendar
+# Terminal 2: Start the tunnel (optionally: npm run tunnel -- 3107 for another port)
+npm run tunnel
 ```
+
+Paste the `https://...` address it prints, plus the route, into the vendor's webhook settings, for example `https://<address>/api/webhooks/calendar`.
+
+- **One-time setup, per developer:**
+  1. `brew install ngrok`
+  2. `ngrok config add-authtoken <your token>` (from your own ngrok dashboard; never commit it)
+  3. Optional, for an address that doesn't change: use the free dev domain ngrok assigned to your account (dashboard → Domains; a random-words name like `three-random-words.ngrok-free.dev` that you can't rename on the free plan) and set `TUNNEL_DOMAIN=<that-domain>` in `.env.local`, as a bare hostname with no `https://`.
+- **Why a stable address matters:** without `TUNNEL_DOMAIN`, ngrok gives a new random address every run, so you'd re-enter it in the vendor each time. With it, each vendor is set up once.
+- **Domains are per developer.** A domain belongs to one ngrok account and only one tunnel can use it at a time, so developers can't share one. A vendor webhook has a single URL too, so each developer sets up their own (for Mux, ideally in their own Mux environment).
+- **Vendors that need no tunnel:** Stripe's CLI (`stripe listen`) connects outward and forwards events to localhost, so it doesn't need a public address.
+- **Mux:** polling covers local development, so a tunnel is optional there. If you point a Mux webhook at `localhost`, Mux can't reach it and shows failed deliveries.
 
 ## Security
 
