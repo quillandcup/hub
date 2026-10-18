@@ -351,6 +351,19 @@ Mux's settings live in its dashboard, unlike Supabase (`config.toml`), Slack (`s
 
 **Priority:** after the course launch; the production webhook is created by hand once the route deploys.
 
+### Google Calendar push channel: create and renew it, or drop the webhook _(Needs Decision)_
+`/api/webhooks/calendar` receives Google Calendar push notifications (a "watch channel"), but **nothing in the app creates or renews the channel**. `docs/WEBHOOK_SETUP.md` describes creating one by hand with `curl`.
+
+**State on 2026-10-18:**
+- Production's runtime logs for the past week showed one request to the route (a `GET` verification ping) and no `POST` notifications from Google, so there's no sign of an active channel. Channels expire, and no job renews them, so one created long ago has very likely lapsed.
+- The route now rejects every request unless `X-Goog-Channel-Token` matches `GOOGLE_CALENDAR_WEBHOOK_TOKEN` (PR #105; the token is now in production). A channel created without a token would be rejected anyway.
+- **Google has no call that lists channels.** One can only be stopped by its `id` and `resourceId` (`POST /calendar/v3/channels/stop`), both from the original watch response. If those were kept, stop any leftover channel; otherwise it just expires.
+- The nightly calendar reconcile (`/api/reconcile/calendar`) already pulls every change, so without push the only cost is latency (a prickle edited in Google Calendar appears by the next morning).
+
+**Options:**
+1. **Drop push.** Remove the route and the setup docs. Smallest, and the "nothing through webhooks alone" rule is already met by the reconcile. *(Leaning this way.)*
+2. **Own the lifecycle.** A small `calendar_watch_channels` table (`channel_id`, `resource_id`, `expires_at`), created and renewed by a cron before expiry, using `GOOGLE_CALENDAR_WEBHOOK_TOKEN` as the channel token; stop the old channel when replacing it. Worth it only if minute-level freshness for calendar changes matters.
+
 ### Move Quill & Cup DNS to Cloudflare _(Needs Scoping)_
 The domain is registered at Squarespace, but its DNS records are currently managed at Kajabi. Move DNS to Cloudflare so web and email traffic can be treated differently:
 
