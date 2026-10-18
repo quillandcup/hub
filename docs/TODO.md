@@ -273,6 +273,19 @@ Context: API route tests run in-process through `apiFetch` (`tests/helpers/api-f
       often; at minimum a scheduled `github:config:diff` to flag drift.
 - [ ] **Clean up `.claude/rules/pr-feedback.md`.** It still says to check Semaphore and
       SonarQube; CI is GitHub Actions and neither is used.
+- [ ] **Clear the remaining uncleared `setTimeout`s.** An uncleared timer that fires after its
+      component unmounts sets state on a torn-down DOM; in a test that's an unhandled
+      `window is not defined` that fails a run in which every test passed, only on slow runs. #97
+      fixed the dropdown-close timer in four search boxes (`lib/hooks/useBlurDelay.ts`). Left, same
+      class, lower risk: the blur close in `UnmatchedEventsTable`
+      (`app/(admin)/admin/data/prickle-types/`, its own `showHostDropdown` state; `useBlurDelay`
+      fits), and the "Saved" / "Copied" flashes in `HostVibePanel` (`setSaved`), `CalendarSyncCard`
+      (`setCopied`) and `wheel-of-wonder/Wheel.tsx` (`setJustRevealed`, `setStarterCopied`). Keep the
+      timer id in a ref and clear it in an unmount effect, and add a test that triggers it, unmounts
+      and expects `vi.getTimerCount()` to be 0 (see the blur tests in
+      `tests/components/EntitySearch.test.tsx`). Then grep `components/` and `app/` for any other
+      `setTimeout(` that sets state without a cleanup; `SearchPalette` (copied), the hygiene
+      buttons, `MatchingGame` and `AliasSearchForm` also use one and weren't checked.
 
 ### Support Preview Environments
 **Status:** Not started — needs scoping
