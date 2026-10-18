@@ -148,6 +148,7 @@ export const SITE_PAGES: SitePage[] = [
   admin({ title: "Slack Channels", href: "/admin/data/slack-channels", section: "System", nav: { icon: "🔒" }, keywords: ["restricted", "privacy"] }),
   admin({ title: "Activity Log", href: "/admin/activity", section: "System", nav: { icon: "📜" }, keywords: ["audit"] }),
   admin({ title: "Users", href: "/admin/users", section: "System", nav: { icon: "🔑" }, keywords: ["invite", "roles"] }),
+  admin({ title: "Prickle Zoom Link", href: "/admin/prickle-join", section: "System", nav: { icon: "🔗" }, keywords: ["zoom", "passcode", "password", "join link", "room"] }),
   admin({ title: "Segments", href: "/admin/segments", section: "Developer", nav: { icon: "🧩" } }),
   admin({ title: "Feedback", href: "/admin/feedback", section: "Developer", nav: { icon: "💬" } }),
   admin({ title: "Test Notifications", href: "/admin/notifications", section: "Developer", nav: { icon: "🔔" }, keywords: ["send test", "slack", "email", "push", "in-app", "reminders"] }),

@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   buildCalendarFeedEvents,
   calendarFeedUrls,
+  cleanEventDescription,
   parseFeedToken,
   prickleCalendarState,
   type MyCalendarItem,
@@ -203,5 +204,64 @@ describe("prickleCalendarState", () => {
       onceItemId: null,
       weeklyItemId: null,
     });
+  });
+});
+
+describe("imported Google Calendar descriptions", () => {
+  it("drops Zoom links and credentials and turns HTML into text", () => {
+    const raw =
+      "Bring a snack<br>Join Zoom Meeting<br>https://us06web.zoom.us/j/1?pwd=x<br>Meeting ID: 880 7170 2629<br>Passcode: old<p>Theme: &amp; fun</p>";
+    expect(cleanEventDescription(raw)).toBe("Bring a snack\nJoin Zoom Meeting\nTheme: & fun");
+    expect(cleanEventDescription("https://zoom.us/j/1")).toBe("");
+    expect(cleanEventDescription(null)).toBe("");
+  });
+
+  it("shows the notes under the Zoom details, before the Hub link", () => {
+    const p = { id: "p1", typeId: "t1", typeName: "Progress Prickle", hostName: null, startTime: "2026-11-03T12:00:00Z", endTime: "2026-11-03T13:00:00Z", calendarEventId: "ce1" };
+    const [event] = buildCalendarFeedEvents({
+      memberId: "m1",
+      origin: ORIGIN,
+      hosted: [p],
+      committed: [],
+      joinSettings: [{ id: "s", url: "https://zoom.us/j/9", passcode: "pw", effectiveFrom: "2026-10-01T00:00:00Z", createdAt: "2026-10-01T00:00:00Z" }],
+      notes: new Map([["ce1", "Bring a snack"]]),
+    });
+    expect(event.description).toBe(
+      `You're hosting this Progress Prickle.\n\nJoin on Zoom: https://zoom.us/j/9\nPasscode: pw\n\nBring a snack\n\n${ORIGIN}/prickles/p1`
+    );
+  });
+});
+
+import { loadEventNotes } from "@/lib/calendar-feed";
+import { createFakeSupabase } from "@/tests/helpers/server-page";
+
+describe("loadEventNotes", () => {
+  const prickle = (id: string, calendarEventId: string | null) => ({
+    id, typeId: "t", typeName: "Prickle", hostName: null, startTime: "2026-11-03T12:00:00Z", endTime: "2026-11-03T13:00:00Z", calendarEventId,
+  });
+
+  it("maps cleaned descriptions by event id and skips empty ones", async () => {
+    const supabase = createFakeSupabase({
+      "bronze.calendar_events": {
+        data: [
+          { id: "ce1", description: "Bring a snack<br>https://zoom.us/j/1" },
+          { id: "ce2", description: "https://zoom.us/j/2" },
+          { id: "ce3", description: null },
+        ],
+      },
+    });
+
+    const notes = await loadEventNotes(supabase as never, [prickle("p1", "ce1"), prickle("p2", "ce2"), prickle("p3", "ce3"), prickle("p4", null)]);
+
+    expect([...notes]).toEqual([["ce1", "Bring a snack"]]);
+  });
+
+  it("looks nothing up when no prickle has a source event, and throws on a failed lookup", async () => {
+    const empty = createFakeSupabase();
+    expect((await loadEventNotes(empty as never, [prickle("p1", null)])).size).toBe(0);
+    expect(empty.queries).toHaveLength(0);
+
+    const failing = createFakeSupabase({ "bronze.calendar_events": { error: { message: "boom" } } });
+    await expect(loadEventNotes(failing as never, [prickle("p1", "ce1")])).rejects.toThrow("boom");
   });
 });

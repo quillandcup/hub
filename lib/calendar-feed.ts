@@ -1,3 +1,4 @@
+import { joinAt, joinDescription, loadPrickleJoinSettings, type PrickleJoinSetting } from "@/lib/prickle-join";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   commitmentsFetchWindow,
@@ -98,6 +99,8 @@ export interface FeedPrickle {
   hostName: string | null;
   startTime: string;
   endTime: string;
+  /** The imported Google Calendar event this prickle came from (bronze.calendar_events.id), if any. */
+  calendarEventId?: string | null;
 }
 
 export interface CommittedOccurrence {
@@ -144,6 +147,8 @@ export function buildCalendarFeedEvents({
   committed,
   added = [],
   events: addedEvents = [],
+  joinSettings = [],
+  notes = new Map(),
 }: {
   memberId: string;
   origin: string;
@@ -152,10 +157,23 @@ export function buildCalendarFeedEvents({
   /** Prickles added by hand, one occurrence or every week of a slot, already resolved to prickles. */
   added?: FeedPrickle[];
   events?: FeedEventRow[];
+  /** Zoom room link history (lib/prickle-join.ts): each prickle gets the one in effect at its start. */
+  joinSettings?: PrickleJoinSetting[];
+  /** Cleaned Google Calendar descriptions by calendar event id (loadEventNotes), shown under the Zoom details. */
+  notes?: Map<string, string>;
 }): ICalEvent[] {
   const events = new Map<string, ICalEvent>();
   const uid = (key: string) => `${key}.${memberId}@${UID_DOMAIN}`;
   const prickleUrl = (id: string) => `${origin}/prickles/${id}`;
+  // Zoom details for a prickle starting at `start`, as the event's description lines and location.
+  const notesOf = (p: FeedPrickle) => {
+    const text = p.calendarEventId ? notes.get(p.calendarEventId) : undefined;
+    return text ? `\n\n${text}` : "";
+  };
+  const zoom = (start: Date) => {
+    const join = joinAt(joinSettings, start);
+    return { text: join ? `\n\n${joinDescription(join)}` : "", location: join?.url };
+  };
 
   for (const p of hosted) {
     const start = new Date(p.startTime);
@@ -165,7 +183,8 @@ export function buildCalendarFeedEvents({
       start,
       end: new Date(p.endTime),
       summary: `Hosting: ${p.typeName}`,
-      description: `You're hosting this ${p.typeName}.\n\n${prickleUrl(p.id)}`,
+      description: `You're hosting this ${p.typeName}.${zoom(start).text}${notesOf(p)}\n\n${prickleUrl(p.id)}`,
+      location: zoom(start).location,
       url: prickleUrl(p.id),
       reminderMinutes: FEED_REMINDER_MINUTES,
     });
@@ -182,7 +201,8 @@ export function buildCalendarFeedEvents({
         start,
         end: new Date(p.endTime),
         summary: p.hostName ? `${p.typeName} with ${hostShortName(p.hostName)}` : p.typeName,
-        description: `Part of your commitment: ${o.commitmentTitle}\n\n${prickleUrl(p.id)}`,
+        description: `Part of your commitment: ${o.commitmentTitle}${zoom(start).text}${notesOf(p)}\n\n${prickleUrl(p.id)}`,
+        location: zoom(start).location,
         url: prickleUrl(p.id),
         reminderMinutes: FEED_REMINDER_MINUTES,
       });
@@ -196,8 +216,9 @@ export function buildCalendarFeedEvents({
         end: new Date(start.getTime() + UNSCHEDULED_DURATION_MINUTES * 60 * 1000),
         summary: o.typeName,
         description:
-          `Part of your commitment: ${o.commitmentTitle}\n\n` +
+          `Part of your commitment: ${o.commitmentTitle}${zoom(start).text}\n\n` +
           `This prickle isn't on the schedule yet, so the time may change.\n\n${origin}/my-prickles/commitments`,
+        location: zoom(start).location,
         status: "TENTATIVE",
         reminderMinutes: FEED_REMINDER_MINUTES,
       });
@@ -213,7 +234,8 @@ export function buildCalendarFeedEvents({
       start,
       end: new Date(p.endTime),
       summary: p.hostName ? `${p.typeName} with ${hostShortName(p.hostName)}` : p.typeName,
-      description: `Added from Hedgie Hub.\n\n${prickleUrl(p.id)}`,
+      description: `Added from Hedgie Hub.${zoom(start).text}${notesOf(p)}\n\n${prickleUrl(p.id)}`,
+      location: zoom(start).location,
       url: prickleUrl(p.id),
       reminderMinutes: FEED_REMINDER_MINUTES,
     });
@@ -251,6 +273,7 @@ interface PrickleRow {
   end_time: string;
   prickle_types: NameRef;
   host?: NameRef;
+  calendar_event_id?: string | null;
 }
 
 function toFeedPrickle(row: PrickleRow): FeedPrickle {
@@ -261,6 +284,7 @@ function toFeedPrickle(row: PrickleRow): FeedPrickle {
     hostName: nameOf(row.host ?? null),
     startTime: row.start_time,
     endTime: row.end_time,
+    calendarEventId: row.calendar_event_id ?? null,
   };
 }
 
@@ -290,8 +314,69 @@ export async function loadCalendarFeedEvents(
   now: Date = new Date()
 ): Promise<ICalEvent[]> {
   const since = new Date(now.getTime() - FEED_LOOKBACK_DAYS * 24 * 60 * 60 * 1000);
-  const sources = await loadCalendarFeedSources(supabase, memberId, since, now);
-  return buildCalendarFeedEvents({ memberId, origin, ...sources });
+  const [sources, joinSettings] = await Promise.all([
+    loadCalendarFeedSources(supabase, memberId, since, now),
+    loadPrickleJoinSettings(supabase),
+  ]);
+  const prickles = [
+    ...sources.hosted,
+    ...sources.added,
+    ...sources.committed.flatMap((o) => (o.prickle ? [o.prickle] : [])),
+  ];
+  const notes = await loadEventNotes(supabase, prickles);
+  return buildCalendarFeedEvents({ memberId, origin, ...sources, joinSettings, notes });
+}
+
+/** Lines of an imported description that carry a (possibly stale) Zoom link or credentials. */
+const ZOOM_LINE = /zoom\.us|zoomgov\.com|^\s*(meeting id|passcode|password)\b/i;
+
+/**
+ * An imported Google Calendar description as plain text for the feed: HTML turned into lines, and
+ * lines with Zoom links or credentials dropped, since the current ones come from the Hub's join
+ * settings and an old one in the text would contradict them. Empty when nothing is left.
+ */
+export function cleanEventDescription(raw: string | null | undefined): string {
+  if (!raw) return "";
+  let text = raw.replace(/<\s*br\s*\/?>|<\/?(p|div|li)>/gi, "\n");
+  // Strip tags until none is left, so nested fragments like "<scr<b>ipt>" can't reassemble into one.
+  for (let previous = ""; previous !== text; ) {
+    previous = text;
+    text = text.replace(/<[^>]*>/g, "");
+  }
+  text = text
+    .replace(/&nbsp;/g, " ")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&amp;/g, "&");
+  return text
+    .split(/\r?\n/)
+    .filter((line) => !ZOOM_LINE.test(line))
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+/** Cleaned Google Calendar descriptions, by calendar event id, for these prickles' source events. */
+export async function loadEventNotes(supabase: SupabaseClient, prickles: FeedPrickle[]): Promise<Map<string, string>> {
+  const ids = [...new Set(prickles.flatMap((p) => (p.calendarEventId ? [p.calendarEventId] : [])))];
+  const notes = new Map<string, string>();
+  const batches = await Promise.all(
+    chunk(ids, ID_BATCH_SIZE).map(async (batch) => {
+      const { data, error } = await supabase
+        .schema("bronze")
+        .from("calendar_events")
+        .select("id, description")
+        .in("id", batch);
+      if (error) throw new Error(error.message);
+      return (data ?? []) as { id: string; description: string | null }[];
+    })
+  );
+  for (const row of batches.flat()) {
+    const text = cleanEventDescription(row.description);
+    if (text) notes.set(row.id, text);
+  }
+  return notes;
 }
 
 /**
@@ -330,7 +415,7 @@ async function loadCalendarFeedSources(
     fetchAllRows<PrickleRow>((from, to) =>
       supabase
         .from("prickles")
-        .select("id, type_id, start_time, end_time, prickle_types(name)")
+        .select("id, type_id, start_time, end_time, calendar_event_id, prickle_types(name)")
         .eq("host", memberId)
         .gte("start_time", since.toISOString())
         .order("start_time")
@@ -429,7 +514,7 @@ interface FeedItemRow {
 
 /** Ids per .in() request -- keeps the URL short (a member adds a handful, but stay safe). */
 const ID_BATCH_SIZE = 100;
-const PRICKLE_DETAIL_SELECT = "id, type_id, start_time, end_time, prickle_types(name), host:members(name)";
+const PRICKLE_DETAIL_SELECT = "id, type_id, start_time, end_time, calendar_event_id, prickle_types(name), host:members(name)";
 
 /**
  * calendar_feed_items resolved to prickles and events. A 'prickle' item is that prickle (its row

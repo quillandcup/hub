@@ -6,6 +6,7 @@ import {
 } from "@/lib/writing-projects";
 import { loadCalendarFeedPrickleIds } from "@/lib/calendar-feed";
 import { APP_URL } from "@/lib/config";
+import { joinSlackBlocks, loadPrickleJoinSettings, joinAt, type PrickleJoin } from "@/lib/prickle-join";
 import { createNotifier } from "@/lib/notifications/notify";
 import { resolveInAppNotifications } from "@/lib/channels/in-app";
 import type { ChannelId, OutboundMessage } from "@/lib/channels";
@@ -877,8 +878,12 @@ const TEST_BANNER = {
 };
 
 /** The check-in DM. Sending it is the caller's call: no dedup or skip checks here. */
-export function checkinMessage(prickle: DMPrickle, saved: CheckinInput | null, { test = false } = {}): OutboundMessage {
-  const blocks = buildCheckinBlocks(prickle.id, prickle.typeName, saved);
+export function checkinMessage(
+  prickle: DMPrickle,
+  saved: CheckinInput | null,
+  { test = false, join = null }: { test?: boolean; join?: PrickleJoin | null } = {}
+): OutboundMessage {
+  const blocks = [...buildCheckinBlocks(prickle.id, prickle.typeName, saved), ...joinSlackBlocks(join)];
   return {
     text: `${test ? "[Test] " : ""}Ready for ${prickle.typeName} in ~20 min? Check in: how are you feeling coming in?`,
     url: `${APP_URL}${checkinHref(prickle.id, "checkin")}`,
@@ -927,7 +932,10 @@ export async function sendTestCheckinDM(
   const saved = (await loadCheckins(supabase, [memberId], [prickle.id])).get(`${memberId}:${prickle.id}`) ?? null;
   let message: OutboundMessage;
   if (kind === "prickle_checkin") {
-    message = checkinMessage(prickle, saved, { test: true });
+    message = checkinMessage(prickle, saved, {
+      test: true,
+      join: joinAt(await loadPrickleJoinSettings(supabase), prickle.startTime),
+    });
   } else {
     const goals = (await getActiveGoalCandidates(supabase)).filter((g) => g.memberId === memberId);
     message = checkoutMessage(prickle, saved, await quickLogPrompts(supabase, goals), { test: true });

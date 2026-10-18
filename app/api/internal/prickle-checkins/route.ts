@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createServiceRoleClient } from "@/lib/supabase/service";
+import { joinAt, loadPrickleJoinSettings } from "@/lib/prickle-join";
 import { createNotifier } from "@/lib/notifications/notify";
 import { withCronHeartbeat } from "@/lib/cron-heartbeats";
 import { formatPrickleTitle } from "@/lib/formatters";
@@ -122,6 +123,7 @@ async function sendCheckins(supabase: SupabaseClient, candidates: GoalCandidate[
     loadDismissedPairs(supabase, "checkin", [...new Set(plan.map((p) => p.prickle.id))]),
   ]);
 
+  const joinSettings = await loadPrickleJoinSettings(supabase);
   let sent = 0;
   for (const { memberId, prickle } of plan) {
     // Opted out on every channel, or unreachable on the ones they kept. Not logged, so turning
@@ -138,7 +140,7 @@ async function sendCheckins(supabase: SupabaseClient, candidates: GoalCandidate[
     const shouldSend = await tryRecordCheckinDM(supabase, prickle.id, memberId, "prickle_checkin");
     if (!shouldSend) continue;
 
-    const delivered = await notifier.send(memberId, checkinMessage(prickle, saved));
+    const delivered = await notifier.send(memberId, checkinMessage(prickle, saved, { join: joinAt(joinSettings, prickle.startTime) }));
     if (delivered.length > 0) sent++;
     else await releaseCheckinDM(supabase, prickle.id, memberId, "prickle_checkin");
   }

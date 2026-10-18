@@ -1,5 +1,6 @@
 "use server";
 
+import { joinAt, loadPrickleJoinSettings, type PrickleJoin } from "@/lib/prickle-join";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
@@ -79,6 +80,8 @@ export interface CheckModalData {
   checkin: CheckinInput | null;
   /** False in sudo: an admin sees the answers but nothing is saved on the member's behalf. */
   canEdit: boolean;
+  /** The Zoom room's link and passcode (lib/prickle-join.ts), when configured. */
+  join: PrickleJoin | null;
   projects: CheckoutProject[];
 }
 
@@ -162,6 +165,7 @@ export async function getCheckModalData(prickleId: string): Promise<CheckModalDa
     hasStarted: new Date(prickle.start_time).getTime() <= Date.now(),
     checkin,
     canEdit: !identity.isSudo,
+    join: joinAt(await loadPrickleJoinSettings(supabase), prickle.start_time),
     projects,
   };
 }
