@@ -1,3 +1,4 @@
+import { joinAt, joinDescription, loadPrickleJoinSettings, type PrickleJoinSetting } from "@/lib/prickle-join";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   commitmentsFetchWindow,
@@ -144,6 +145,7 @@ export function buildCalendarFeedEvents({
   committed,
   added = [],
   events: addedEvents = [],
+  joinSettings = [],
 }: {
   memberId: string;
   origin: string;
@@ -152,10 +154,17 @@ export function buildCalendarFeedEvents({
   /** Prickles added by hand, one occurrence or every week of a slot, already resolved to prickles. */
   added?: FeedPrickle[];
   events?: FeedEventRow[];
+  /** Zoom room link history (lib/prickle-join.ts): each prickle gets the one in effect at its start. */
+  joinSettings?: PrickleJoinSetting[];
 }): ICalEvent[] {
   const events = new Map<string, ICalEvent>();
   const uid = (key: string) => `${key}.${memberId}@${UID_DOMAIN}`;
   const prickleUrl = (id: string) => `${origin}/prickles/${id}`;
+  // Zoom details for a prickle starting at `start`, as the event's description lines and location.
+  const zoom = (start: Date) => {
+    const join = joinAt(joinSettings, start);
+    return { text: join ? `\n\n${joinDescription(join)}` : "", location: join?.url };
+  };
 
   for (const p of hosted) {
     const start = new Date(p.startTime);
@@ -165,7 +174,8 @@ export function buildCalendarFeedEvents({
       start,
       end: new Date(p.endTime),
       summary: `Hosting: ${p.typeName}`,
-      description: `You're hosting this ${p.typeName}.\n\n${prickleUrl(p.id)}`,
+      description: `You're hosting this ${p.typeName}.${zoom(start).text}\n\n${prickleUrl(p.id)}`,
+      location: zoom(start).location,
       url: prickleUrl(p.id),
       reminderMinutes: FEED_REMINDER_MINUTES,
     });
@@ -182,7 +192,8 @@ export function buildCalendarFeedEvents({
         start,
         end: new Date(p.endTime),
         summary: p.hostName ? `${p.typeName} with ${hostShortName(p.hostName)}` : p.typeName,
-        description: `Part of your commitment: ${o.commitmentTitle}\n\n${prickleUrl(p.id)}`,
+        description: `Part of your commitment: ${o.commitmentTitle}${zoom(start).text}\n\n${prickleUrl(p.id)}`,
+        location: zoom(start).location,
         url: prickleUrl(p.id),
         reminderMinutes: FEED_REMINDER_MINUTES,
       });
@@ -196,8 +207,9 @@ export function buildCalendarFeedEvents({
         end: new Date(start.getTime() + UNSCHEDULED_DURATION_MINUTES * 60 * 1000),
         summary: o.typeName,
         description:
-          `Part of your commitment: ${o.commitmentTitle}\n\n` +
+          `Part of your commitment: ${o.commitmentTitle}${zoom(start).text}\n\n` +
           `This prickle isn't on the schedule yet, so the time may change.\n\n${origin}/my-prickles/commitments`,
+        location: zoom(start).location,
         status: "TENTATIVE",
         reminderMinutes: FEED_REMINDER_MINUTES,
       });
@@ -213,7 +225,8 @@ export function buildCalendarFeedEvents({
       start,
       end: new Date(p.endTime),
       summary: p.hostName ? `${p.typeName} with ${hostShortName(p.hostName)}` : p.typeName,
-      description: `Added from Hedgie Hub.\n\n${prickleUrl(p.id)}`,
+      description: `Added from Hedgie Hub.${zoom(start).text}\n\n${prickleUrl(p.id)}`,
+      location: zoom(start).location,
       url: prickleUrl(p.id),
       reminderMinutes: FEED_REMINDER_MINUTES,
     });
@@ -290,8 +303,11 @@ export async function loadCalendarFeedEvents(
   now: Date = new Date()
 ): Promise<ICalEvent[]> {
   const since = new Date(now.getTime() - FEED_LOOKBACK_DAYS * 24 * 60 * 60 * 1000);
-  const sources = await loadCalendarFeedSources(supabase, memberId, since, now);
-  return buildCalendarFeedEvents({ memberId, origin, ...sources });
+  const [sources, joinSettings] = await Promise.all([
+    loadCalendarFeedSources(supabase, memberId, since, now),
+    loadPrickleJoinSettings(supabase),
+  ]);
+  return buildCalendarFeedEvents({ memberId, origin, ...sources, joinSettings });
 }
 
 /**

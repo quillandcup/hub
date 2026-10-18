@@ -40,6 +40,7 @@ export default function PrickleCheckModal({ prickleId, half, onClose, onSaved, p
   const [amounts, setAmounts] = useState<Record<string, string>>({});
   const [isPending, setIsPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [savedCheckin, setSavedCheckin] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -106,14 +107,43 @@ export default function PrickleCheckModal({ prickleId, half, onClose, onSaved, p
     }
     setIsPending(false);
     onSaved(prickleId, draft);
-    onClose();
+    // After a check-in, keep the modal open with the join link so the member can go straight in.
+    if (!isCheckout && data.join) setSavedCheckin(true);
+    else onClose();
   }
 
   return (
     <Modal isOpen onClose={onClose} title={data ? `${title}: ${data.prickleTitle}` : title} maxWidth="lg">
       {data === undefined && <p className="text-sm text-slate-500 dark:text-slate-400">Loading…</p>}
       {data === null && <p className="text-sm text-slate-500 dark:text-slate-400">Couldn&apos;t load this prickle.</p>}
-      {data && (
+      {data && savedCheckin && data.join && (
+        <div className="space-y-4">
+          <p className="text-sm text-slate-600 dark:text-slate-400">Checked in. Ready to join?</p>
+          {data.join.passcode && (
+            <p className="text-sm text-slate-600 dark:text-slate-400">
+              Passcode: <span className="font-mono">{data.join.passcode}</span>
+            </p>
+          )}
+          <div className="flex justify-end gap-3">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
+            >
+              Close
+            </button>
+            <a
+              href={data.join.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-4 py-2 text-sm bg-plum-600 text-white rounded-lg hover:bg-plum-700 transition-colors"
+            >
+              Join the prickle
+            </a>
+          </div>
+        </div>
+      )}
+      {data && !savedCheckin && (
         <form onSubmit={handleSave} className="space-y-5">
           <p className="text-sm text-slate-500 dark:text-slate-400">
             {readOnly

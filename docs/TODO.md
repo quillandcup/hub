@@ -80,6 +80,15 @@ What relies on that, and what to change when a second room is imported:
 - **Check-out DMs** (`dueCheckoutMembers` in `lib/prickle-checkin-dms.ts`): inherit both of the above.
 - **PUPs**: unscheduled time in a secondary room would become PUPs, which may or may not be wanted.
 
+### Auto-post the daily #prickle-times update _(Needs Scoping)_
+Today a person posts "Remaining Prickle Times for TUESDAY, JULY 21" in #prickle-times each morning: the day's remaining prickles (time, type, host as a mention, "HEADS DOWN" for hostless writing sessions) plus the Zoom link, meeting ID and passcode. The monthly passcode change means updating that post template by hand, so post it from the Hub instead, from the same Zoom setting the check-in DMs and calendar feed use (`prickle_join_settings`, edited at `/admin/prickle-join`, `lib/prickle-join.ts`).
+
+- **Job**: a cron route (see `/api/internal/*`, wrapped in `withCronHeartbeat`) that runs each morning in `ORG_TIMEZONE`. Idempotent per day: record the posted day and message `ts`, so a retry or overlapping run never double-posts.
+- **Content**: that day's prickles from `prickles` (start time at or after the post time, non-cancelled), hosts mentioned by Slack user id (`slack_identities`/`slack_users`), the join link and passcode from `joinAt(settings, <the day>)`. The existing post says "All times in EST", so check what time zone it should name.
+- **Post**: a staff-style channel post, so it stays a direct `chat.postMessage` (a shared room, not a member notification; see the exceptions in CLAUDE.md). The channel is config: the channel name in `app.config.ts` like `SLACK_INTRO_CHANNEL`, resolved to an id. Needs `chat:write` (and `chat:write.public` or the bot invited) in `slack-app-manifest.yml`.
+- **Open questions**: keep the existing text ("Wanna prickle at a time not posted? ...") verbatim? Post earlier-than-morning prickles for the next day? Edit the post when a prickle is added or cancelled later in the day? Does the one-off or irregular event (monthly goal review) go in it? Pop-ups hosted in secondary rooms need the "Secondary Zoom Rooms" item above.
+- **Test**: with the fake clock (`useFakeClock`), post once per day, skip a second run, and use the link in effect that day. Include a test with more than 1000 prickles' worth of pagination only if the query isn't date-bounded.
+
 ### Testing Page CSV Imports (Lower Priority)
 - [ ] Add Zoom CSV import to `/data/import/testing`
   - Component for uploading meeting/attendee CSV files

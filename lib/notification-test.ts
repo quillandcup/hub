@@ -4,6 +4,7 @@ import { loadIntroChannelId } from "@/lib/newcomer-signals";
 import { introNudgeMessage, prickleNudgeMessage } from "@/lib/member-reminders";
 import { checkinMessage, checkoutMessage } from "@/lib/prickle-checkin-dms";
 import { NOTIFICATION_SETTINGS_PATH } from "@/lib/notifications/notify";
+import { joinAt, loadPrickleJoinSettings } from "@/lib/prickle-join";
 import { APP_URL } from "@/lib/config";
 import type { NotificationKindId } from "@/lib/notifications/registry";
 
@@ -51,7 +52,12 @@ const marked = (message: OutboundMessage): OutboundMessage => ({
 export async function sampleMessages(supabase: any, kind: NotificationKindId, now = new Date()): Promise<OutboundMessage[]> {
   switch (kind) {
     case "prickle_checkin":
-      return [checkinMessage(await samplePrickle(supabase, now), null, { test: true })];
+      return [
+        checkinMessage(await samplePrickle(supabase, now), null, {
+          test: true,
+          join: joinAt(await loadPrickleJoinSettings(supabase), now),
+        }),
+      ];
     case "prickle_checkout":
       return [checkoutMessage(await samplePrickle(supabase, now), null, [], { test: true })];
     case "intro_nudge":

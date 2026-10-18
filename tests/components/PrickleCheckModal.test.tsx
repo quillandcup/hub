@@ -22,6 +22,7 @@ function data(overrides: Partial<CheckModalData> = {}): CheckModalData {
     hasStarted: true,
     checkin: null,
     canEdit: true,
+    join: null,
     projects: [
       { id: "proj-1", title: "The Hedgehog's Journey", measure: "words", question: NOVEL_QUESTION, logged: [] },
       {
@@ -60,6 +61,19 @@ describe("PrickleCheckModal check-in", () => {
     expect(saveCheckinHalf).toHaveBeenCalledWith("p1", "checkin", { feelingsBefore: ["calm"], need: "momentum" });
     expect(logProgress).not.toHaveBeenCalled();
     expect(onSaved).toHaveBeenCalledWith("p1", expect.objectContaining({ feelingsBefore: ["calm"], need: "momentum" }));
+  });
+
+  it("shows a join link after saving a check-in when the prickle has one", async () => {
+    const user = userEvent.setup();
+    vi.mocked(getCheckModalData).mockResolvedValue(data({ join: { url: "https://zoom.us/j/123", passcode: "thriving" } }));
+    const { onClose } = renderModal("checkin");
+    await user.click(await screen.findByRole("button", { name: "Calm" }));
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    const link = await screen.findByRole("link", { name: "Join the prickle" });
+    expect(link).toHaveAttribute("href", "https://zoom.us/j/123");
+    expect(screen.getByText("thriving")).toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
   });
 
   it("starts from the prefill when nothing is saved yet", async () => {
