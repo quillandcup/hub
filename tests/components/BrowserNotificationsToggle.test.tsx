@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
 
@@ -51,7 +51,8 @@ function fakeBrowser({ permission, existing }: { permission: NotificationPermiss
 }
 
 beforeEach(() => {
-  savePushSubscription.mockReset().mockResolvedValue({ success: true });
+  localStorage.clear();
+  savePushSubscription.mockReset().mockResolvedValue({ success: true, memberId: "m1" });
   removePushSubscription.mockReset().mockResolvedValue({ success: true });
   listPushDevices.mockReset().mockResolvedValue([]);
   removePushDevice.mockReset().mockResolvedValue({ success: true });
@@ -117,6 +118,64 @@ describe("BrowserNotificationsToggle", () => {
     await userEvent.click(screen.getByRole("button", { name: "Turn on for this device" }));
     await waitFor(() => expect(savePushSubscription).toHaveBeenCalled());
     expect(pushManager.subscribe).not.toHaveBeenCalled();
+  });
+
+  it("remembers explicit opt-in and forgets it only when the member turns this device off", async () => {
+    fakeBrowser({ permission: "granted", existing: true });
+    listPushDevices.mockResolvedValue([{ id: "d1", label: "Chrome", addedAt: "2026-10-01", lastSentAt: null, isThisDevice: true }]);
+    localStorage.setItem("hub.browserPush.m1", subscription.endpoint);
+    render(<BrowserNotificationsToggle publicKey="AAAA" readOnly={false} />);
+    await userEvent.click(await screen.findByRole("button", { name: "Turn off for this device" }));
+    expect(localStorage.getItem("hub.browserPush.m1")).toBeNull();
+  });
+
+  it("does not forget consent if the server refuses an explicit opt-out", async () => {
+    fakeBrowser({ permission: "granted", existing: true });
+    listPushDevices.mockResolvedValue([{ id: "d1", label: "Chrome", addedAt: "2026-10-01", lastSentAt: null, isThisDevice: true }]);
+    localStorage.setItem("hub.browserPush.m1", subscription.endpoint);
+    removePushSubscription.mockResolvedValue({ error: "Please try again" });
+    render(<BrowserNotificationsToggle publicKey="AAAA" readOnly={false} />);
+    await userEvent.click(await screen.findByRole("button", { name: "Turn off for this device" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Please try again");
+    expect(localStorage.getItem("hub.browserPush.m1")).toBe(subscription.endpoint);
+  });
+
+  it("disables remembered consent even if the browser subscription vanished while settings was open", async () => {
+    const pushManager = fakeBrowser({ permission: "granted", existing: true });
+    listPushDevices.mockResolvedValue([{ id: "d1", label: "Chrome", addedAt: "2026-10-01", lastSentAt: null, isThisDevice: true }]);
+    localStorage.setItem("hub.browserPush.m1", subscription.endpoint);
+    render(<BrowserNotificationsToggle publicKey="AAAA" readOnly={false} />);
+    await screen.findByRole("button", { name: "Turn off for this device" });
+    pushManager.getSubscription.mockResolvedValue(null);
+    await userEvent.click(screen.getByRole("button", { name: "Turn off for this device" }));
+    expect(removePushSubscription).toHaveBeenCalledWith(subscription.endpoint);
+    expect(localStorage.getItem("hub.browserPush.m1")).toBeNull();
+  });
+
+  it("handles a subscription disappearing immediately after automatic resume", async () => {
+    fakeBrowser({ permission: "granted", existing: false });
+    render(<BrowserNotificationsToggle publicKey="AAAA" readOnly={false} />);
+    await screen.findByRole("button", { name: "Turn on for this device" });
+    fireEvent(window, new Event("browser-push-resumed"));
+    await userEvent.click(await screen.findByRole("button", { name: "Turn off for this device" }));
+    expect(await screen.findByRole("button", { name: "Turn on for this device" })).toBeInTheDocument();
+    expect(removePushSubscription).not.toHaveBeenCalled();
+  });
+
+  it("shows paused devices separately from enabled devices", async () => {
+    fakeBrowser({ permission: "default", existing: false });
+    listPushDevices.mockResolvedValue([{ id: "d2", label: "Laptop", addedAt: "2026-10-01", lastSentAt: null, isThisDevice: false, paused: true }]);
+    render(<BrowserNotificationsToggle publicKey="AAAA" readOnly={false} />);
+    expect(await screen.findByText(/Paused while signed out/)).toBeInTheDocument();
+  });
+
+  it("updates when the account guard resumes a device while settings is open", async () => {
+    fakeBrowser({ permission: "granted", existing: true });
+    render(<BrowserNotificationsToggle publicKey="AAAA" readOnly={false} />);
+    await screen.findByRole("button", { name: "Turn on for this device" });
+    listPushDevices.mockResolvedValue([{ id: "d1", label: "Chrome", addedAt: "2026-10-01", lastSentAt: null, isThisDevice: true }]);
+    fireEvent(window, new Event("browser-push-resumed"));
+    expect(await screen.findByRole("button", { name: "Turn off for this device" })).toBeInTheDocument();
   });
 
   it("explains a blocked permission instead of offering the button", async () => {

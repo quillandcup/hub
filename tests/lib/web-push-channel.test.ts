@@ -44,6 +44,7 @@ describe("web_push resolveAddresses", () => {
     expect(await webPushChannel.resolveAddresses(fake, ["m1", "m2"])).toEqual(new Map([["m1", "m1"]]));
     const calls = fake.queries.find((q) => q.table === "push_subscriptions")!.calls;
     expect(calls).toContainEqual({ method: "is", args: ["deleted_at", null] });
+    expect(calls).toContainEqual({ method: "is", args: ["paused_at", null] });
     expect(calls).toContainEqual({ method: "in", args: ["member_id", ["m1"]] });
   });
 
@@ -104,6 +105,7 @@ describe("web_push send", () => {
     sendNotification.mockResolvedValue({ statusCode: 201 });
     await webPushChannel.send("m1", { text: "Hello" }, { kind: "prickle_checkin", memberId: "m1" });
 
+    expect(callsOf("push_subscriptions")).toContainEqual({ method: "is", args: ["paused_at", null] });
     expect(sendNotification).toHaveBeenCalledTimes(2);
     const [subscription, body, options] = sendNotification.mock.calls[0];
     expect(subscription).toEqual({ endpoint: "https://fcm.googleapis.com/fcm/send/1", keys: { p256dh: "k1", auth: "a1" } });

@@ -6,7 +6,7 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;
 
-SELECT plan(7);
+SELECT plan(9);
 
 INSERT INTO auth.users (id, instance_id, aud, role, email) VALUES
   ('00000000-0000-4000-a000-00000000f3a1', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'push-alice@example.test'),
@@ -52,10 +52,16 @@ SELECT throws_ok(
   '42501', NULL, 'a member cannot add one directly'
 );
 
+SELECT throws_ok($$UPDATE public.push_subscriptions SET paused_at = NULL$$, '42501', NULL,
+  'members cannot resume delivery by writing paused_at directly');
+
 -- As an admin.
 SELECT set_config('request.jwt.claims',
   '{"sub": "00000000-0000-4000-a000-00000000f3a4", "email": "push-dana@example.test", "role": "authenticated"}', true);
 SELECT throws_ok($$SELECT * FROM public.push_subscriptions$$, '42501', NULL, 'an admin cannot read subscriptions');
+
+SELECT throws_ok($$UPDATE public.push_subscriptions SET disabled_at = NULL$$, '42501', NULL,
+  'admins cannot undo another member''s opt-out by writing disabled_at directly');
 
 SET LOCAL ROLE anon;
 SELECT throws_ok($$SELECT * FROM public.push_subscriptions$$, '42501', NULL, 'anonymous callers cannot read subscriptions');

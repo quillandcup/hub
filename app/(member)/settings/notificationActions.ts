@@ -129,7 +129,7 @@ function validSubscription(input: PushSubscriptionInput): boolean {
 export async function savePushSubscription(
   subscription: PushSubscriptionInput,
   userAgent: string | null
-): Promise<{ success: true } | { error: string }> {
+): Promise<{ success: true; memberId: string } | { error: string }> {
   const user = await getCurrentUser();
   if (!user) return { error: "Not authenticated" };
   const identity = await getEffectiveIdentity(user);
@@ -150,6 +150,8 @@ export async function savePushSubscription(
       auth: subscription.keys.auth,
       user_agent: typeof userAgent === "string" ? userAgent.slice(0, 500) : null,
       deleted_at: null,
+      paused_at: null,
+      disabled_at: null,
     },
     { onConflict: "endpoint" }
   );
@@ -157,7 +159,7 @@ export async function savePushSubscription(
     console.error("[notifications] Saving push subscription failed", { member: identity.memberId, error });
     return { error: "Couldn't turn on notifications for this device — please try again." };
   }
-  return { success: true };
+  return { success: true, memberId: identity.memberId };
 }
 
 /** Stop sending Browser notifications to this device (soft delete; only the member's own subscription). */
@@ -171,14 +173,53 @@ export async function removePushSubscription(endpoint: string): Promise<{ succes
 
   const { error } = await createServiceRoleClient()
     .from("push_subscriptions")
-    .update({ deleted_at: new Date().toISOString() })
+    .update({ deleted_at: new Date().toISOString(), disabled_at: new Date().toISOString() })
     .eq("member_id", identity.memberId)
-    .eq("endpoint", endpoint)
-    .is("deleted_at", null);
+    .eq("endpoint", endpoint);
   if (error) {
     console.error("[notifications] Removing push subscription failed", { member: identity.memberId, error });
     return { error: "Couldn't turn off notifications for this device — please try again." };
   }
+  return { success: true };
+}
+
+/** Pause this browser while signed out; keep its consent for the same account's next sign-in. */
+export async function pausePushSubscription(endpoint: string): Promise<{ success: true; memberId: string } | { error: string }> {
+  const user = await getCurrentUser();
+  if (!user) return { error: "Not authenticated" };
+  // Sign-out is about the real account, including while an admin is browsing in sudo.
+  const service = createServiceRoleClient();
+  const { data: member, error: memberError } = await service.from("members").select("id").eq("user_id", user.id).maybeSingle();
+  if (memberError || !member) return { error: "Couldn't find your member record" };
+  if (!isAllowedPushEndpoint(endpoint)) return { error: "Invalid push subscription" };
+  const { error } = await service.from("push_subscriptions")
+    .update({ paused_at: new Date().toISOString() })
+    .eq("member_id", member.id).eq("endpoint", endpoint).is("disabled_at", null);
+  if (error) return { error: "Couldn't pause notifications for this device" };
+  return { success: true, memberId: member.id };
+}
+
+/** Resume only this member's existing consent. Never transfer another account's device or undo an opt-out. */
+export async function resumePushSubscription(
+  previousEndpoint: string,
+  subscription: PushSubscriptionInput
+): Promise<{ success: true } | { error: string }> {
+  const user = await getCurrentUser();
+  if (!user) return { error: "Not authenticated" };
+  const identity = await getEffectiveIdentity(user);
+  if (!identity) return { error: "No member record" };
+  if (identity.isSudo) return { error: "Notifications can't be resumed in sudo mode." };
+  if (!isAllowedPushEndpoint(previousEndpoint) || !validSubscription(subscription)) return { error: "Invalid push subscription" };
+  const service = createServiceRoleClient();
+  if (!(await membersWithFeature(service, WEB_PUSH_FEATURE, [identity.memberId])).has(identity.memberId)) {
+    return { error: "Browser notifications aren't available to you yet." };
+  }
+  const { data, error } = await service.from("push_subscriptions")
+    .update({ endpoint: subscription.endpoint, p256dh: subscription.keys.p256dh, auth: subscription.keys.auth, paused_at: null, deleted_at: null })
+    .eq("member_id", identity.memberId).eq("endpoint", previousEndpoint).is("disabled_at", null)
+    .select("id");
+  if (error) return { error: "Couldn't resume notifications for this device" };
+  if (!data?.length) return { error: "This device needs a new opt-in" };
   return { success: true };
 }
 
@@ -189,6 +230,7 @@ export interface PushDeviceRow {
   lastSentAt: string | null;
   /** The browser asking: its endpoint matches this subscription. */
   isThisDevice: boolean;
+  paused?: boolean;
 }
 
 /** The effective member's devices that get Browser notifications, marking the one asking (by its endpoint). */
@@ -205,6 +247,7 @@ export async function listPushDevices(currentEndpoint: string | null): Promise<P
       addedAt: d.createdAt,
       lastSentAt: d.lastSentAt,
       isThisDevice: currentEndpoint !== null && d.endpoint === currentEndpoint,
+      ...(d.pausedAt ? { paused: true } : {}),
     }));
   } catch (error) {
     console.error("[notifications] Loading push devices failed", { member: identity.memberId, error });
@@ -224,10 +267,9 @@ export async function removePushDevice(id: string): Promise<{ success: true } | 
 
   const { error } = await createServiceRoleClient()
     .from("push_subscriptions")
-    .update({ deleted_at: new Date().toISOString() })
+    .update({ deleted_at: new Date().toISOString(), disabled_at: new Date().toISOString() })
     .eq("member_id", identity.memberId)
-    .eq("id", id)
-    .is("deleted_at", null);
+    .eq("id", id);
   if (error) {
     console.error("[notifications] Removing push device failed", { member: identity.memberId, id, error });
     return { error: "Couldn't remove that device — please try again." };
