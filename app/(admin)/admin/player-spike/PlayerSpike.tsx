@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react"
 import { selectPlaybackRate, selectSource, useCaptionsOptions, useMedia, usePlayer } from "@videojs/react"
 import { VideoPlayer, VideoSkin } from "@videojs/react/video"
 import { MuxVideo } from "@videojs/react/media/mux-video"
+import "@videojs/react/video/skin.css"
 
 // Mux's public demo asset (no signing), so the spike needs no keys.
 const TEST_PLAYBACK_ID = "a4nOgmxGWg6gULfcBbAa00gXyfcwPnAFldF8RdsNyk8M"
@@ -152,24 +153,28 @@ function WatchTracker({ onSegment }: { onSegment: (s: Segment) => void }) {
   return null
 }
 
-export default function PlayerSpike() {
+export type SignedSource = { playbackId: string; tokens: { playback: string; poster: string; storyboard: string } }
+
+export default function PlayerSpike({ signed }: { signed: SignedSource | null }) {
   const [segments, setSegments] = useState<Segment[]>([])
   return (
     <>
-    {/* The skin CSS uses a bare `@layer base`, which this repo's Tailwind v3 PostCSS rejects when imported, so it's served from public/ as a plain stylesheet. */}
-    {/* eslint-disable-next-line @next/next/no-css-tags */}
-    <link rel="stylesheet" href="/videojs-skin.css" />
-    <VideoPlayer title="Mux test video">
+    <VideoPlayer title={signed ? "Mux signed test video" : "Mux test video"}>
       <VideoSkin style={SKIN_THEME}>
         <RememberSpeed />
         <RememberCaptions />
         <WatchTracker onSegment={(seg) => setSegments((prev) => [...prev, seg])} />
         <MuxVideo
-          source={{
-            playbackId: TEST_PLAYBACK_ID,
-            poster: { time: 2 },
-            storyboard: { format: "webp" },
-          }}
+          source={
+            signed
+              ? {
+                  playbackId: signed.playbackId,
+                  playback: { token: signed.tokens.playback },
+                  poster: { time: 2, token: signed.tokens.poster },
+                  storyboard: { format: "webp", token: signed.tokens.storyboard },
+                }
+              : { playbackId: TEST_PLAYBACK_ID, poster: { time: 2 }, storyboard: { format: "webp" } }
+          }
           playsInline
           crossOrigin="anonymous">
           <track kind="captions" src="/player-spike-captions.vtt" srcLang="en" label="English" />
