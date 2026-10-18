@@ -223,11 +223,11 @@ describe("imported Google Calendar descriptions", () => {
       origin: ORIGIN,
       hosted: [p],
       committed: [],
-      joinSettings: [{ id: "s", url: "https://zoom.us/j/9", passcode: "pw", effectiveFrom: "2026-10-01T00:00:00Z", createdAt: "2026-10-01T00:00:00Z" }],
+      joinSettings: [{ id: "s", url: "https://zoom.us/j/9", meetingId: "880 7170 2629", passcode: "pw", effectiveFrom: "2026-10-01T00:00:00Z", createdAt: "2026-10-01T00:00:00Z" }],
       notes: new Map([["ce1", "Bring a snack"]]),
     });
     expect(event.description).toBe(
-      `You're hosting this Progress Prickle.\n\nJoin on Zoom: https://zoom.us/j/9\nPasscode: pw\n\nBring a snack\n\n${ORIGIN}/prickles/p1`
+      `You're hosting this Progress Prickle.\n\nJoin on Zoom: https://zoom.us/j/9\nMeeting ID: 880 7170 2629\nPasscode: pw\n\nBring a snack\n\n${ORIGIN}/prickles/p1`
     );
   });
 });

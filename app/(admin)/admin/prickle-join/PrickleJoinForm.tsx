@@ -9,18 +9,21 @@ const inputClass =
 
 export default function PrickleJoinForm({
   url,
+  meetingId,
   passcode,
   timeZone,
   defaultStartDate,
   minStartDate,
 }: {
   url: string;
+  meetingId: string;
   passcode: string;
   timeZone: string;
   defaultStartDate: string;
   minStartDate: string;
 }) {
   const [urlValue, setUrl] = useState(url);
+  const [meetingIdValue, setMeetingId] = useState(meetingId);
   const [passcodeValue, setPasscode] = useState(passcode);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const [startDate, setStartDate] = useState(defaultStartDate);
@@ -31,7 +34,7 @@ export default function PrickleJoinForm({
     e.preventDefault();
     setPending(true);
     setMessage(null);
-    const result = await savePrickleJoin({ url: urlValue, passcode: passcodeValue, startDate: startNow ? "" : startDate });
+    const result = await savePrickleJoin({ url: urlValue, meetingId: meetingIdValue, passcode: passcodeValue, startDate: startNow ? "" : startDate });
     setPending(false);
     setMessage("error" in result ? { ok: false, text: result.error ?? "Couldn't save" } : { ok: true, text: !startNow && startDate ? `Saved. Applies to prickles starting ${startDate} and later.` : "Saved. Applies to prickles starting now." });
   }
@@ -43,6 +46,12 @@ export default function PrickleJoinForm({
           One-click join link
         </label>
         <input id="join-url" type="url" required value={urlValue} onChange={(e) => setUrl(e.target.value)} className={inputClass} placeholder="https://us06web.zoom.us/j/…?pwd=…" />
+      </div>
+      <div>
+        <label htmlFor="join-meeting-id" className="block text-sm font-medium mb-1">
+          Meeting ID
+        </label>
+        <input id="join-meeting-id" value={meetingIdValue} onChange={(e) => setMeetingId(e.target.value)} className={inputClass} placeholder="827 9700 1119" />
       </div>
       <div>
         <label htmlFor="join-passcode" className="block text-sm font-medium mb-1">

@@ -3,12 +3,13 @@ import { zonedTimeToUtc } from "@/lib/prickle-schedules";
 import { localDateOf } from "@/lib/prickle-writing";
 
 /**
- * How to get into the prickle Zoom room: the one-click link and the passcode. Admins set them at
- * /admin/prickle-join (prickle_join_settings, append-only) when the passcode changes; a prickle uses
+ * How to get into the prickle Zoom room: the one-click link, the meeting ID and the passcode. Admins set them at
+ * /admin/prickle-join (prickle_join_settings, append-only) when the meeting ID or passcode changes; a prickle uses
  * the setting in effect at its start, so a change applies going forward.
  */
 export interface PrickleJoin {
   url: string;
+  meetingId: string | null;
   passcode: string | null;
 }
 
@@ -22,7 +23,7 @@ export interface PrickleJoinSetting extends PrickleJoin {
 export async function loadPrickleJoinSettings(supabase: SupabaseClient): Promise<PrickleJoinSetting[]> {
   const { data, error } = await supabase
     .from("prickle_join_settings")
-    .select("id, join_url, passcode, effective_from, created_at")
+    .select("id, join_url, meeting_id, passcode, effective_from, created_at")
     .order("effective_from", { ascending: false })
     // Two rows for the same instant (a correction): the one saved last wins.
     .order("created_at", { ascending: false });
@@ -33,6 +34,7 @@ export async function loadPrickleJoinSettings(supabase: SupabaseClient): Promise
   return (data ?? []).map((r) => ({
     id: r.id,
     url: r.join_url,
+    meetingId: r.meeting_id,
     passcode: r.passcode,
     effectiveFrom: r.effective_from,
     createdAt: r.created_at,
@@ -43,10 +45,18 @@ export async function loadPrickleJoinSettings(supabase: SupabaseClient): Promise
 export function joinAt(settings: PrickleJoinSetting[], at: Date | string = new Date()): PrickleJoin | null {
   const time = new Date(at).getTime();
   const found = settings.find((s) => new Date(s.effectiveFrom).getTime() <= time);
-  return found ? { url: found.url, passcode: found.passcode } : null;
+  return found ? { url: found.url, meetingId: found.meetingId, passcode: found.passcode } : null;
 }
 
-/** Slack blocks for the join link (a button plus the passcode), or none without a link. */
+/** The meeting ID and passcode as short labelled parts, in the order people read them. */
+export function joinCredentials(join: PrickleJoin): string[] {
+  return [
+    ...(join.meetingId ? [`Meeting ID: ${join.meetingId}`] : []),
+    ...(join.passcode ? [`Passcode: ${join.passcode}`] : []),
+  ];
+}
+
+/** Slack blocks for the join link (a button plus the meeting ID and passcode), or none without a link. */
 export function joinSlackBlocks(join: PrickleJoin | null): any[] {
   if (!join) return [];
   return [
@@ -54,8 +64,8 @@ export function joinSlackBlocks(join: PrickleJoin | null): any[] {
       type: "actions",
       elements: [{ type: "button", text: { type: "plain_text", text: "Join the prickle on Zoom" }, url: join.url }],
     },
-    ...(join.passcode
-      ? [{ type: "context", elements: [{ type: "mrkdwn", text: `Passcode: ${join.passcode}` }] }]
+    ...(joinCredentials(join).length > 0
+      ? [{ type: "context", elements: [{ type: "mrkdwn", text: joinCredentials(join).join(" · ") }] }]
       : []),
   ];
 }
@@ -63,7 +73,7 @@ export function joinSlackBlocks(join: PrickleJoin | null): any[] {
 /** Calendar-event text for the join details, or "" without a link. */
 export function joinDescription(join: PrickleJoin | null): string {
   if (!join) return "";
-  return `Join on Zoom: ${join.url}${join.passcode ? `\nPasscode: ${join.passcode}` : ""}`;
+  return [`Join on Zoom: ${join.url}`, ...joinCredentials(join)].join("\n");
 }
 
 /** The instant a change dated `date` (YYYY-MM-DD) takes effect: that day's start in `timeZone`. */

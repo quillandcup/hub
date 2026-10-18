@@ -6,16 +6,17 @@ import { ORG_TIMEZONE } from "@/lib/config";
 import { effectiveFromForDate, isFutureDate } from "@/lib/prickle-join";
 
 /**
- * Set the Zoom room link and passcode. With no `startDate` it applies from now; with one
+ * Set the Zoom room link, meeting ID and passcode. With no `startDate` it applies from now; with one
  * (YYYY-MM-DD, after today) from the start of that day in the org timezone, so a prickle belongs to
  * the day it starts. Append-only: prickles that already started keep the setting they had (see
  * lib/prickle-join.ts), which keeps past calendar events accurate. The link must be https.
  */
-export async function savePrickleJoin(input: { url: string; passcode: string; startDate?: string }) {
+export async function savePrickleJoin(input: { url: string; meetingId: string; passcode: string; startDate?: string }) {
   const auth = await requireAdminAction();
   if (!auth.ok) return { error: auth.error };
 
   const url = typeof input?.url === "string" ? input.url.trim() : "";
+  const meetingId = typeof input?.meetingId === "string" ? input.meetingId.trim() : "";
   const passcode = typeof input?.passcode === "string" ? input.passcode.trim() : "";
   const startDate = typeof input?.startDate === "string" ? input.startDate.trim() : "";
   try {
@@ -32,6 +33,7 @@ export async function savePrickleJoin(input: { url: string; passcode: string; st
 
   const { error } = await auth.supabase.from("prickle_join_settings").insert({
     join_url: url,
+    meeting_id: meetingId || null,
     passcode: passcode || null,
     effective_from: effectiveFrom.toISOString(),
     created_by: auth.user.id,

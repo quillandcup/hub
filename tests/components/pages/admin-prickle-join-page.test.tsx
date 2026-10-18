@@ -29,6 +29,7 @@ const userProfiles = (q: FakeQuery) => {
 const row = (id: string, effective_from: string, passcode: string) => ({
   id,
   join_url: `https://zoom.example.test/j/${id}`,
+  meeting_id: `id-${id}`,
   passcode,
   effective_from,
   created_at: effective_from,
@@ -59,8 +60,9 @@ describe("/admin/prickle-join", () => {
 
     expect(screen.getByRole("heading", { name: "Prickle Zoom Link" })).toBeInTheDocument();
     expect(screen.getByLabelText("One-click join link")).toHaveValue("https://zoom.example.test/j/2");
+    expect(screen.getByLabelText("Meeting ID")).toHaveValue("id-2");
     expect(screen.getByLabelText("Passcode")).toHaveValue("november");
-    expect(screen.getByText(/passcode future \(scheduled\)/)).toBeInTheDocument();
+    expect(screen.getByText(/meeting ID id-3, passcode future \(scheduled\)/)).toBeInTheDocument();
     expect(screen.getByText(/passcode october/).textContent).toMatch(/Oct 1, 2026.* to Nov 1, 2026/);
     expect(screen.getByText(/passcode future/).textContent).toContain("onward");
     expect(screen.getAllByRole("button", { name: "Remove" })).toHaveLength(1);
