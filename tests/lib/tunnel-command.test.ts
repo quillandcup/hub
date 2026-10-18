@@ -10,18 +10,21 @@ describe("planTunnel", () => {
     expect(planTunnel(true, ["3107"])).toEqual({ ok: true, command: { tool: "ngrok", args: ["http", "3107"] } });
   });
 
-  it("starts a named endpoint from the ngrok config, which holds its own domain and port", () => {
-    expect(planTunnel(true, [], "hedgie-hub")).toEqual({
+  it("uses a domain reserved on the developer's ngrok account so the address stays the same between runs", () => {
+    expect(planTunnel(true, ["3107"], "hedgie-hub.ngrok-free.dev")).toEqual({
       ok: true,
-      command: { tool: "ngrok", args: ["start", "hedgie-hub"] },
+      command: { tool: "ngrok", args: ["http", "3107", "--url=https://hedgie-hub.ngrok-free.dev"] },
     });
   });
 
-  it("refuses a port argument alongside a named endpoint, since the endpoint sets the port", () => {
-    const plan = planTunnel(true, ["3107"], "hedgie-hub");
-    expect(plan.ok).toBe(false);
-    expect(plan.ok ? "" : plan.error).toContain("Unset TUNNEL_ENDPOINT");
-  });
+  it.each([["https://hedgie-hub.ngrok-free.dev"], ["hedgie-hub.ngrok-free.dev/path"], ["hedgie-hub.ngrok-free.dev:443"], ["not a host"], ["localhost"]])(
+    "rejects TUNNEL_DOMAIN %j instead of passing it to ngrok",
+    (domain) => {
+      const plan = planTunnel(true, [], domain);
+      expect(plan.ok).toBe(false);
+      expect(plan.ok ? "" : plan.error).toContain("bare hostname");
+    }
+  );
 
   it("says how to install ngrok when it's missing", () => {
     const plan = planTunnel(false, []);

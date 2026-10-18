@@ -13,7 +13,7 @@ if (argv.includes("--help") || argv.includes("-h")) {
 
 const ngrokInstalled = spawnSync("which", ["ngrok"], { stdio: "ignore" }).status === 0;
 
-const plan = planTunnel(ngrokInstalled, argv, process.env.TUNNEL_ENDPOINT || undefined);
+const plan = planTunnel(ngrokInstalled, argv, process.env.TUNNEL_DOMAIN || undefined);
 if (!plan.ok) {
   console.error(`✗ ${plan.error}`);
   process.exit(1);

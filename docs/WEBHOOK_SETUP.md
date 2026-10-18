@@ -195,18 +195,12 @@ npm run tunnel
 
 Paste the `https://...` address it prints, plus the route, into the vendor's webhook settings, for example `https://<address>/api/webhooks/calendar`.
 
-- **Tool:** ngrok (`brew install ngrok`).
-- **Stable address:** without an endpoint, ngrok gives a new random address every run, so you'd re-enter it in the vendor each time. An ngrok account includes a free reserved domain. Define an endpoint for it in your ngrok config (`ngrok config edit`) and point `TUNNEL_ENDPOINT` at it in `.env.local`; the address stays the same, so each vendor is set up once:
-
-  ```yaml
-  endpoints:
-    - name: your-endpoint-name
-      url: https://<your-reserved-domain>
-      upstream:
-        url: 3000
-  ```
-
-  The endpoint sets the port, so `npm run tunnel -- <port>` is refused while `TUNNEL_ENDPOINT` is set.
+- **One-time setup, per developer:**
+  1. `brew install ngrok`
+  2. `ngrok config add-authtoken <your token>` (from your own ngrok dashboard; never commit it)
+  3. Optional, for an address that doesn't change: reserve a domain on your ngrok account (dashboard → Domains; free accounts get one) and set `TUNNEL_DOMAIN=<your-domain>` in `.env.local`, as a bare hostname with no `https://`.
+- **Why a stable address matters:** without `TUNNEL_DOMAIN`, ngrok gives a new random address every run, so you'd re-enter it in the vendor each time. With it, each vendor is set up once.
+- **Domains are per developer.** A reserved domain belongs to one ngrok account and only one tunnel can use it at a time, so developers can't share one. A vendor webhook has a single URL too, so each developer sets up their own (for Mux, ideally in their own Mux environment).
 - **Vendors that need no tunnel:** Stripe's CLI (`stripe listen`) connects outward and forwards events to localhost, so it doesn't need a public address.
 - **Mux:** polling covers local development, so a tunnel is optional there. If you point a Mux webhook at `localhost`, Mux can't reach it and shows failed deliveries.
 
