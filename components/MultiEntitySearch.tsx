@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useBlurDelay } from "@/lib/hooks/useBlurDelay";
 import type { SearchItem } from "@/components/EntitySearch";
 
 interface MultiEntitySearchProps {
@@ -33,7 +34,7 @@ export default function MultiEntitySearch({
   chipNote,
 }: MultiEntitySearchProps) {
   const [searchTerm, setSearchTerm] = useState("");
-  const [isFocused, setIsFocused] = useState(false);
+  const { isFocused, setIsFocused, onFocus, onBlur } = useBlurDelay();
 
   const chips = selectedIds
     .map((id) => ({ id, name: items.find((i) => i.id === id)?.name ?? (showUnknown ? id : null) }))
@@ -100,8 +101,8 @@ export default function MultiEntitySearch({
           placeholder={placeholder}
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          onFocus={() => setIsFocused(true)}
-          onBlur={() => setTimeout(() => setIsFocused(false), 200)}
+          onFocus={onFocus}
+          onBlur={onBlur}
           className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded text-sm text-slate-900 dark:text-slate-100 bg-white dark:bg-slate-800 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-plum-500"
         />
         {showDropdown && (

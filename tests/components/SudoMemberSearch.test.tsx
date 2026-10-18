@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { useState } from 'react'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import SudoMemberSearch, { type SudoMember, SUDO_SEARCH_LIMIT } from '@/components/SudoMemberSearch'
 
@@ -35,6 +35,27 @@ describe('SudoMemberSearch', () => {
     render(<Harness />)
     expect(screen.getByRole('combobox')).toBeInTheDocument()
     expect(global.fetch).not.toHaveBeenCalled()
+  })
+
+  it('leaves no close timer pending once it unmounts after a blur', () => {
+    // The dropdown closes on a short delay after blur; if that timer outlives the component it fires
+    // on a torn-down DOM, which failed unit-test runs at random with `window is not defined`.
+    vi.useFakeTimers()
+    try {
+      const { unmount } = render(<Harness />)
+      // Something else holds one timer from mount, so compare with that rather than with zero.
+      const baseline = vi.getTimerCount()
+      const input = screen.getByRole('combobox')
+      fireEvent.focus(input)
+      fireEvent.blur(input)
+      expect(vi.getTimerCount()).toBeGreaterThan(baseline)
+
+      unmount()
+
+      expect(vi.getTimerCount()).toBeLessThanOrEqual(baseline)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('queries the members endpoint with the search term and a small limit', async () => {
