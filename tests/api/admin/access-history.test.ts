@@ -112,6 +112,16 @@ describe('Admin User Access History API', () => {
     expect(error?.code).toBe('23514') // check_violation
   })
 
+  it('rejects a GA browser ID longer than 64 characters', async () => {
+    const { error } = await supabase.from('access_events').insert({
+      user_id: testUserId,
+      path: '/dashboard',
+      is_page: true,
+      ga_client_id: '1'.repeat(65),
+    })
+    expect(error?.code).toBe('23514') // check_violation
+  })
+
   it('reports no linked auth session when events were inserted without a session_id', async () => {
     const res = await apiFetch(`${base}/api/admin/users/${testUserId}/access-history`, {
       headers: getTestAuthHeaders(),
