@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "next typegen && tsc --noEmit",
+    "tunnel": "tsx --env-file-if-exists=.env.local scripts/tunnel.ts",
     "test": "vitest",
     "test:ui": "vitest --ui",
     "test:unit": "vitest run --project unit",
