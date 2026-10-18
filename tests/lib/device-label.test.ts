@@ -1,5 +1,20 @@
 import { describe, it, expect } from "vitest";
-import { describeDevice } from "@/lib/device-label";
+import { describeDevice, userAgentForStorage, MAX_USER_AGENT_LENGTH } from "@/lib/device-label";
+
+describe("userAgentForStorage", () => {
+  it("keeps a normal user agent as is", () => {
+    const ua = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/126.0 Safari/537.36";
+    expect(userAgentForStorage(ua)).toBe(ua);
+  });
+
+  it("caps an oversized header", () => {
+    expect(userAgentForStorage("x".repeat(MAX_USER_AGENT_LENGTH + 100))).toHaveLength(MAX_USER_AGENT_LENGTH);
+  });
+
+  it.each([null, undefined, "", "   "])("stores %j as null", (ua) => {
+    expect(userAgentForStorage(ua)).toBeNull();
+  });
+});
 
 describe("describeDevice", () => {
   it.each([

@@ -1,3 +1,12 @@
+/** Longest user agent we store. Real ones run ~150-300 characters; the header is client-controlled. */
+export const MAX_USER_AGENT_LENGTH = 512;
+
+/** A request's user agent ready to store: trimmed, capped at MAX_USER_AGENT_LENGTH, null when absent. */
+export function userAgentForStorage(userAgent: string | null | undefined): string | null {
+  const trimmed = userAgent?.trim();
+  return trimmed ? trimmed.slice(0, MAX_USER_AGENT_LENGTH) : null;
+}
+
 /** A short, human label for a browser's user agent, e.g. "Chrome on iPhone". Client-safe. */
 export function describeDevice(userAgent: string | null): string {
   if (!userAgent) return "Unknown device";

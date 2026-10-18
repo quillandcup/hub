@@ -6,6 +6,7 @@ import { ADMIN_NO_ACCESS_PATH, isAdminPath } from '@/lib/admin-paths'
 import { SUDO_COOKIE_NAME, actingAsHeaderValue } from '@/lib/sudo-cookie'
 import { PAGE_VIEW_PATH } from '@/lib/page-views'
 import { NEXT_PATH_COOKIE, NEXT_PATH_COOKIE_MAX_AGE_SECONDS, safeNextPath } from '@/lib/safe-next'
+import { userAgentForStorage } from '@/lib/device-label'
 
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })
@@ -115,6 +116,7 @@ export async function updateSession(request: NextRequest) {
           is_page: false,
           session_id: eventSessionId,
           acting_as_member_id: actingAsMemberId,
+          user_agent: userAgentForStorage(userAgent),
         })
       } catch {
         // Best-effort logging — never break the request over this.
