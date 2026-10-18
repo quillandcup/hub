@@ -48,6 +48,8 @@ describe("messages", () => {
     expect(message.text).toContain(`#${SLACK_INTRO_CHANNEL}`);
     expect(message.url).toBe(`${SLACK_WORKSPACE_URL}/app_redirect?channel=C123`);
     expect(message.ref).toBe("intro");
+    expect(message.title).toBe(`Say hello in #${SLACK_INTRO_CHANNEL}`);
+    expect(message.linkLabel).toBe(`Open #${SLACK_INTRO_CHANNEL} in Slack`);
     expect(introNudgeMessage(null).url).toBeUndefined();
   });
 
@@ -55,6 +57,9 @@ describe("messages", () => {
     const message = prickleNudgeMessage("next");
     expect(message.url).toBe(`${APP_URL}/my-prickles`);
     expect(message.ref).toBe("prickle");
+    expect(message.title).toBe("Find your next prickle");
+    expect(prickleNudgeMessage("first").title).toBe("Schedule your first prickle");
+    expect(prickleNudgeMessage("lapsed").title).toBe("We miss you at prickles");
   });
 
   it("only says first to someone we can see the whole history of", () => {

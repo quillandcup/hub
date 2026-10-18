@@ -5,7 +5,7 @@ export function IntroNudgeEmail(props: NotificationEmailProps) {
   return (
     <NotificationEmail
       {...props}
-      intro="A few lines about what you write and what you're working on is plenty. It's the easiest way to meet other Hedgies, and they love saying hello."
+      intro={props.text}
       buttonLabel="Introduce yourself"
     />
   );

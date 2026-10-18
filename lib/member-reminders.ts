@@ -90,8 +90,10 @@ export function prickleNudgeVariant(firstJoinedAt: string | null, lastAttendance
 
 export function introNudgeMessage(channelId: string | null): OutboundMessage {
   return {
+    title: `Say hello in #${SLACK_INTRO_CHANNEL}`,
     text: `Say hello in #${SLACK_INTRO_CHANNEL}! A few lines about what you write and what you're working on is plenty, and it's the easiest way to meet other Hedgies.`,
     url: channelId ? `${SLACK_WORKSPACE_URL}/app_redirect?channel=${channelId}` : undefined,
+    linkLabel: `Open #${SLACK_INTRO_CHANNEL} in Slack`,
     ref: NUDGE_REF.intro_nudge,
   };
 }
@@ -103,8 +105,14 @@ const PRICKLE_NUDGE_TEXT: Record<PrickleNudgeVariant, string> = {
   next: "Ready for your next prickle? Find one that fits your week and add it to your calendar.",
 };
 
+const PRICKLE_NUDGE_TITLE: Record<PrickleNudgeVariant, string> = {
+  first: "Schedule your first prickle",
+  lapsed: "We miss you at prickles",
+  next: "Find your next prickle",
+};
+
 export function prickleNudgeMessage(variant: PrickleNudgeVariant): OutboundMessage {
-  return { text: PRICKLE_NUDGE_TEXT[variant], url: `${APP_URL}/my-prickles`, ref: NUDGE_REF.prickle_nudge };
+  return { title: PRICKLE_NUDGE_TITLE[variant], text: PRICKLE_NUDGE_TEXT[variant], url: `${APP_URL}/my-prickles`, ref: NUDGE_REF.prickle_nudge };
 }
 
 interface MemberRow {

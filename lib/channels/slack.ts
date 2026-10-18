@@ -18,7 +18,7 @@ export function slackBlocks(message: OutboundMessage): any[] {
   const body = message.slackBlocks ?? [
     {
       type: "section",
-      text: { type: "mrkdwn", text: message.url ? `${message.text}\n<${message.url}|Open in the Hub>` : message.text },
+      text: { type: "mrkdwn", text: message.url ? `${message.text}\n<${message.url}|${message.linkLabel ?? "Open in the Hub"}>` : message.text },
     },
   ];
   const links = (message.footerLinks ?? []).map((l) => ({ type: "mrkdwn", text: `<${l.url}|${l.label}>` }));

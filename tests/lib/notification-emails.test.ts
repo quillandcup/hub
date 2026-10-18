@@ -39,6 +39,29 @@ describe("notification email templates", () => {
     expect(text).not.toContain("<");
   });
 
+  it("uses the title as the subject and heading and keeps the text as the body", async () => {
+    const { subject, html } = await renderNotificationEmail("intro_nudge", {
+      title: "Say hello in #start-here",
+      text: "A few lines about what you write is plenty.",
+      url,
+    });
+
+    expect(subject).toBe("Say hello in #start-here");
+    expect(html).toContain("Say hello in #start-here");
+    expect(html).toContain("A few lines about what you write is plenty.");
+  });
+
+  it("puts the text before the template's own explanation when there's a title", async () => {
+    const { html } = await renderNotificationEmail("prickle_checkin", {
+      title: "Check in: Pomodoro",
+      text: "Ready for Pomodoro in ~20 min?",
+      url,
+    });
+
+    expect(html).toContain("Check in: Pomodoro");
+    expect(html.indexOf("Ready for Pomodoro in ~20 min?")).toBeLessThan(html.indexOf("A quick check-in helps you notice"));
+  });
+
   it("leaves out the button when the message has no link", async () => {
     const { html } = await renderNotificationEmail("prickle_checkin", { text: "No link" });
 

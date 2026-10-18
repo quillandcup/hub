@@ -11,8 +11,10 @@ import {
 
 /** What the app handed the email channel (OutboundMessage), as a template sees it. */
 export interface NotificationEmailProps {
-  /** The message text; also the subject. */
+  /** The message text; also the subject unless `title` is set. */
   text: string;
+  /** A short subject and heading, when `text` is too long for either (the text then becomes the body). */
+  title?: string;
   /** Where to act on it in the Hub. */
   url?: string;
   footerLinks?: { label: string; url: string }[];
@@ -24,20 +26,21 @@ export interface NotificationEmailProps {
  */
 export function NotificationEmail({
   text,
+  title,
   url,
   footerLinks,
   intro,
   buttonLabel,
 }: NotificationEmailProps & {
-  /** One or two sentences under the heading. */
+  /** One or two sentences under the heading (after the message text, when it has a `title`). */
   intro: string;
   buttonLabel: string;
 }) {
   return (
     <EmailLayout preview={text} footerLinks={footerLinks}>
-      <EmailHeading>{text}</EmailHeading>
+      <EmailHeading>{title ?? text}</EmailHeading>
 
-      <EmailBody>{intro}</EmailBody>
+      <EmailBody>{title && intro !== text ? `${text} ${intro}` : intro}</EmailBody>
 
       {url && (
         <>
