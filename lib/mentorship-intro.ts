@@ -46,7 +46,7 @@ export async function sendMatchIntroductions(
       enabled.has(match.newMemberId) &&
         notifier.canReach(match.newMemberId) &&
         notifier.send(match.newMemberId, {
-          title: "Meet your Big Sister",
+          title: "Meet your new Big Sister in the Hedgie House!",
           text: `Meet your Big Sister, ${mentorName}! They'll show you around for your first month.`,
           url,
           ref,
@@ -54,7 +54,7 @@ export async function sendMatchIntroductions(
       enabled.has(match.mentorMemberId) &&
         notifier.canReach(match.mentorMemberId) &&
         notifier.send(match.mentorMemberId, {
-          title: "You have a new member to welcome",
+          title: `You're a Big Sister, ${mentorName}! You have a new member to welcome 💖`,
           text: `${newMemberName} just joined, and you're their Big Sister. Say hello and invite them to a prickle.`,
           url,
           ref,

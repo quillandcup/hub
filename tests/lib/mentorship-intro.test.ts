@@ -15,8 +15,8 @@ describe("match introductions", () => {
   it("sends the correct recipient-specific message, display name, destination, and notification reference", async () => {
     await sendMatchIntroductions(database(), match, today);
     expect(mocks.send.mock.calls).toEqual([
-      ["new", { title: "Meet your Big Sister", text: "Meet your Big Sister, Marlow! They'll show you around for your first month.", url: `${APP_URL}/big-sisters`, ref: "big-sister:new" }],
-      ["mentor", { title: "You have a new member to welcome", text: "Linden Park just joined, and you're their Big Sister. Say hello and invite them to a prickle.", url: `${APP_URL}/big-sisters`, ref: "big-sister:new" }],
+      ["new", { title: "Meet your new Big Sister in the Hedgie House!", text: "Meet your Big Sister, Marlow! They'll show you around for your first month.", url: `${APP_URL}/big-sisters`, ref: "big-sister:new" }],
+      ["mentor", { title: "You're a Big Sister, Marlow! You have a new member to welcome 💖", text: "Linden Park just joined, and you're their Big Sister. Say hello and invite them to a prickle.", url: `${APP_URL}/big-sisters`, ref: "big-sister:new" }],
     ]);
   });
   it.each(["2026-08-01", "2026-11-01"])("does not notify for an expired or future match (%s)", async startedOn => {
