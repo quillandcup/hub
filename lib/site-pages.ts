@@ -41,6 +41,7 @@ export const ADMIN_NAV_GROUPS: { name: string; /** Rarely-used maintenance tooli
   { name: "Data Health" },
   { name: "Analytics" },
   { name: "System", collapsible: true },
+  { name: "Developer", collapsible: true },
 ];
 
 /** Every tab of a tabbed page; the first lives at the base path, shared with the page's sidebar entry (if any). */
@@ -142,15 +143,15 @@ export const SITE_PAGES: SitePage[] = [
   admin({ title: "Slack Engagement", href: "/admin/insights/slack-engagement", section: "Analytics", nav: { icon: "💬" } }),
   admin({ title: "Resubscriptions", href: "/admin/insights/resubscriptions", section: "Analytics", nav: { icon: "🔄" } }),
   admin({ title: "Wheel of Wonder", href: "/admin/wheel-of-wonder", section: "Analytics", nav: { icon: "🎡" } }),
-  admin({ title: "Import Data", href: "/admin/data/import", section: "System", nav: { icon: "📥" }, keywords: ["sync", "kajabi", "zoom"] }),
+  admin({ title: "Import Data", href: "/admin/data/import", section: "Developer", nav: { icon: "📥" }, keywords: ["sync", "kajabi", "zoom"] }),
   admin({ title: "Prickle Types", href: "/admin/data/prickle-types", section: "System", nav: { icon: "🏷️" } }),
   admin({ title: "Slack Channels", href: "/admin/data/slack-channels", section: "System", nav: { icon: "🔒" }, keywords: ["restricted", "privacy"] }),
   admin({ title: "Activity Log", href: "/admin/activity", section: "System", nav: { icon: "📜" }, keywords: ["audit"] }),
   admin({ title: "Users", href: "/admin/users", section: "System", nav: { icon: "🔑" }, keywords: ["invite", "roles"] }),
-  admin({ title: "Segments", href: "/admin/segments", section: "System", nav: { icon: "🧩" } }),
-  admin({ title: "Feedback", href: "/admin/feedback", section: "System", nav: { icon: "💬" } }),
   admin({ title: "Prickle Zoom Link", href: "/admin/prickle-join", section: "System", nav: { icon: "🔗" }, keywords: ["zoom", "passcode", "password", "join link", "room"] }),
-  admin({ title: "Test Notifications", href: "/admin/notifications", section: "System", nav: { icon: "🔔" }, keywords: ["send test", "slack", "email", "push", "in-app", "reminders"] }),
+  admin({ title: "Segments", href: "/admin/segments", section: "Developer", nav: { icon: "🧩" } }),
+  admin({ title: "Feedback", href: "/admin/feedback", section: "Developer", nav: { icon: "💬" } }),
+  admin({ title: "Test Notifications", href: "/admin/notifications", section: "Developer", nav: { icon: "🔔" }, keywords: ["send test", "slack", "email", "push", "in-app", "reminders"] }),
 
   // Admin pages reached by drilling in (mostly from the health check), not from the sidebar
   admin({ title: "Unmatched Calendar Events", href: "/admin/hygiene/unmatched-events", section: "Data Health" }),
@@ -164,7 +165,6 @@ export const SITE_PAGES: SitePage[] = [
   admin({ title: "Missing Member Data", href: "/admin/hygiene/missing-member-data", section: "Data Health" }),
   admin({ title: "Name Matching Game", href: "/admin/hygiene/name-matching", section: "Data Health" }),
   admin({ title: "Name Aliases", href: "/admin/data/aliases", section: "Data Health" }),
-  admin({ title: "PRD", href: "/admin/prd", section: "System", keywords: ["product requirements"] }),
 ];
 
 /** True when the page's feature (if any) is on. */
