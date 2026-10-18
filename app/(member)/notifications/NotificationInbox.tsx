@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { externalLinkProps } from "@/lib/notification-links";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useInAppNotifications } from "@/components/InAppNotifications";
 import { SortableTh } from "@/components/SortableTh";
@@ -227,6 +228,7 @@ export default function NotificationInbox({
                       {n.url ? (
                         <Link
                           href={n.url}
+                          {...externalLinkProps(n.url)}
                           onClick={() => open(n)}
                           className={`hover:underline ${n.read ? "text-slate-600 dark:text-slate-400" : "font-medium text-slate-900 dark:text-slate-100"}`}
                         >

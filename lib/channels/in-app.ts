@@ -2,6 +2,7 @@ import { APP_URL } from "@/lib/config";
 import { membersWithFeature } from "@/lib/features.server";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import type { SortConfig } from "@/lib/hooks/useTableSort";
+import { isAllowedExternalUrl } from "@/lib/notification-links";
 import { pageBounds } from "@/lib/pagination";
 import type { InboxFilter, InboxFilterCounts, InboxSortColumn } from "@/lib/notifications/inbox";
 import type { ChannelAdapter, OutboundMessage, SendContext } from "./types";
@@ -44,7 +45,7 @@ export function inAppRow(memberId: string, message: OutboundMessage, { kind }: S
     kind,
     ref: message.ref ?? null,
     text: message.text,
-    url: hubPath(message.url),
+    url: notificationUrl(message.url),
     banner_until: message.timeSensitiveUntil ?? null,
   };
 }
@@ -56,6 +57,12 @@ export function hubPath(url: string | undefined): string | null {
   if (url === APP_URL) return "/";
   if (url.startsWith(`${APP_URL}/`) || url.startsWith(`${APP_URL}?`)) return url.slice(APP_URL.length);
   return null;
+}
+
+/** What the bell, inbox and banner link to: a Hub path, or an allowed external link (the Slack workspace). */
+export function notificationUrl(url: string | undefined): string | null {
+  if (!url) return null;
+  return hubPath(url) ?? (isAllowedExternalUrl(url) ? url : null);
 }
 
 export interface InAppNotification {
