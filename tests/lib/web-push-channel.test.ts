@@ -44,6 +44,7 @@ describe("web_push resolveAddresses", () => {
     expect(await webPushChannel.resolveAddresses(fake, ["m1", "m2"])).toEqual(new Map([["m1", "m1"]]));
     const calls = fake.queries.find((q) => q.table === "push_subscriptions")!.calls;
     expect(calls).toContainEqual({ method: "is", args: ["deleted_at", null] });
+    expect(calls).toContainEqual({ method: "is", args: ["paused_at", null] });
     expect(calls).toContainEqual({ method: "in", args: ["member_id", ["m1"]] });
   });
 
@@ -98,8 +99,8 @@ describe("web_push send", () => {
   const SUBS = {
     push_subscriptions: {
       data: [
-        { id: "s1", member_id: "m1", endpoint: "https://push.example.test/1", p256dh: "k1", auth: "a1" },
-        { id: "s2", member_id: "m1", endpoint: "https://push.example.test/2", p256dh: "k2", auth: "a2" },
+        { id: "s1", member_id: "m1", endpoint: "https://fcm.googleapis.com/fcm/send/1", p256dh: "k1", auth: "a1" },
+        { id: "s2", member_id: "m1", endpoint: "https://fcm.googleapis.com/fcm/send/2", p256dh: "k2", auth: "a2" },
       ],
     },
   };
@@ -109,9 +110,10 @@ describe("web_push send", () => {
     sendNotification.mockResolvedValue({ statusCode: 201 });
     await webPushChannel.send("m1", { text: "Hello" }, { kind: "prickle_checkin", memberId: "m1" });
 
+    expect(callsOf("push_subscriptions")).toContainEqual({ method: "is", args: ["paused_at", null] });
     expect(sendNotification).toHaveBeenCalledTimes(2);
     const [subscription, body, options] = sendNotification.mock.calls[0];
-    expect(subscription).toEqual({ endpoint: "https://push.example.test/1", keys: { p256dh: "k1", auth: "a1" } });
+    expect(subscription).toEqual({ endpoint: "https://fcm.googleapis.com/fcm/send/1", keys: { p256dh: "k1", auth: "a1" } });
     expect(JSON.parse(body).body).toBe("Hello");
     expect(options.vapidDetails).toEqual({
       subject: `mailto:${SUPPORT_EMAIL}`,
@@ -125,7 +127,7 @@ describe("web_push send", () => {
   it("soft-deletes a subscription the push service says is gone, and still succeeds for the others", async () => {
     serviceFake = createFakeSupabase(SUBS);
     sendNotification
-      .mockRejectedValueOnce(new WebPushError("gone", 410, {}, "", "https://push.example.test/1"))
+      .mockRejectedValueOnce(new WebPushError("gone", 410, {}, "", "https://fcm.googleapis.com/fcm/send/1"))
       .mockResolvedValueOnce({ statusCode: 201 });
     await expect(webPushChannel.send("m1", { text: "Hello" }, { kind: "prickle_checkin", memberId: "m1" })).resolves.toBeUndefined();
 
@@ -136,7 +138,7 @@ describe("web_push send", () => {
 
   it("throws when every subscription turned out to be gone, so nobody reads that as delivered", async () => {
     serviceFake = createFakeSupabase(SUBS);
-    sendNotification.mockRejectedValue(new WebPushError("gone", 410, {}, "", "https://push.example.test/1"));
+    sendNotification.mockRejectedValue(new WebPushError("gone", 410, {}, "", "https://fcm.googleapis.com/fcm/send/1"));
     await expect(webPushChannel.send("m1", { text: "Hello" }, { kind: "prickle_checkin", memberId: "m1" })).rejects.toThrow(
       "expired"
     );
@@ -145,8 +147,32 @@ describe("web_push send", () => {
 
   it("throws when no device could be reached for a reason that might pass", async () => {
     serviceFake = createFakeSupabase(SUBS);
-    sendNotification.mockRejectedValue(new WebPushError("unavailable", 503, {}, "try later", "https://push.example.test/1"));
+    sendNotification.mockRejectedValue(new WebPushError("unavailable", 503, {}, "try later", "https://fcm.googleapis.com/fcm/send/1"));
     await expect(webPushChannel.send("m1", { text: "Hello" }, { kind: "prickle_checkin", memberId: "m1" })).rejects.toThrow("503");
+  });
+
+  it("blocks untrusted endpoints already stored in the database without blocking a trusted device", async () => {
+    serviceFake = createFakeSupabase({ push_subscriptions: { data: [
+      { id: "bad", endpoint: "https://127.0.0.1/internal", p256dh: "k", auth: "a" },
+      SUBS.push_subscriptions.data[0],
+    ] } });
+    sendNotification.mockResolvedValue({ statusCode: 201 });
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    await webPushChannel.send("m1", { text: "Hello" }, { kind: "prickle_checkin", memberId: "m1" });
+    expect(sendNotification).toHaveBeenCalledTimes(1);
+    expect(sendNotification.mock.calls[0][0].endpoint).toBe(SUBS.push_subscriptions.data[0].endpoint);
+    vi.restoreAllMocks();
+  });
+
+  it("reports no delivery when all stored endpoints are untrusted", async () => {
+    serviceFake = createFakeSupabase({ push_subscriptions: { data: [
+      { id: "bad", endpoint: "https://evil.example/push", p256dh: "k", auth: "a" },
+    ] } });
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    await expect(webPushChannel.send("m1", { text: "Hello" }, { kind: "test", memberId: "m1" }))
+      .rejects.toThrow("Untrusted push subscription endpoint");
+    expect(sendNotification).not.toHaveBeenCalled();
+    vi.restoreAllMocks();
   });
 
   it("goes out through createNotifier alongside the member's other channels", async () => {

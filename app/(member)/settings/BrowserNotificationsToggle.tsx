@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { rememberBrowserPush, forgetBrowserPush, withBrowserPushLock } from "@/lib/browser-push";
+import { useEffect, useRef, useState } from "react";
 import { InstallSteps, isIosBrowserTab } from "@/components/InstallAppPrompt";
 import {
   listPushDevices,
@@ -35,6 +36,7 @@ function supportsPush(): boolean {
  * (public/sw.js) and the server remembering the subscription (savePushSubscription).
  */
 export function BrowserNotificationsToggle({ publicKey, readOnly }: { publicKey: string; readOnly: boolean }) {
+  const lastEndpoint = useRef<string | null>(null);
   const [state, setState] = useState<DeviceState>("checking");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -44,30 +46,48 @@ export function BrowserNotificationsToggle({ publicKey, readOnly }: { publicKey:
 
   /** Reload the member's devices, marking this browser's by its subscription endpoint. */
   const refreshDevices = async () => {
-    const registration = supportsPush() ? await navigator.serviceWorker.getRegistration(SERVICE_WORKER_PATH) : undefined;
-    const subscription = await registration?.pushManager.getSubscription();
-    setDevices(await listPushDevices(subscription?.endpoint ?? null));
+    try {
+      const registration = supportsPush() ? await navigator.serviceWorker.getRegistration(SERVICE_WORKER_PATH) : undefined;
+      const subscription = await registration?.pushManager.getSubscription();
+      if (subscription) lastEndpoint.current = subscription.endpoint;
+      setDevices(await listPushDevices(subscription?.endpoint ?? null));
+    } catch {
+      setError("Couldn't load your notification devices. Please try again.");
+    }
   };
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      let next: DeviceState = "off";
-      if (!supportsPush()) next = "unsupported";
-      else if (Notification.permission === "denied") next = "blocked";
-      else if (Notification.permission === "granted") {
-        const registration = await navigator.serviceWorker.getRegistration(SERVICE_WORKER_PATH);
-        if (await registration?.pushManager.getSubscription()) next = "on";
-      }
+      const supported = supportsPush();
+      const registration = supported ? await navigator.serviceWorker.getRegistration(SERVICE_WORKER_PATH) : undefined;
+      const subscription = await registration?.pushManager.getSubscription();
+      const devices = await listPushDevices(subscription?.endpoint ?? null);
       if (cancelled) return;
+      lastEndpoint.current = subscription?.endpoint ?? null;
+      let next: DeviceState = "off";
+      if (!supported) next = "unsupported";
+      else if (Notification.permission === "denied") next = "blocked";
+      else if (Notification.permission === "granted" && subscription && devices.some((d) => d.isThisDevice && !d.paused)) next = "on";
+      setDevices(devices);
       setIosTab(isIosBrowserTab());
       setState(next);
-      await refreshDevices();
-    })().catch(() => !cancelled && setState("off"));
+    })().catch(() => {
+      if (!cancelled) {
+        setState("off");
+        setError("Couldn't check notifications for this device. Please try again.");
+      }
+    });
+    const onResume = () => {
+      cancelled = true; // The initial lookup may predate the resumed subscription.
+      setState("on");
+      void refreshDevices();
+    };
+    window.addEventListener("browser-push-resumed", onResume);
     return () => {
       cancelled = true;
+      window.removeEventListener("browser-push-resumed", onResume);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const sendTest = async () => {
@@ -103,25 +123,29 @@ export function BrowserNotificationsToggle({ publicKey, readOnly }: { publicKey:
         setState(permission === "denied" ? "blocked" : "off");
         return;
       }
-      await navigator.serviceWorker.register(SERVICE_WORKER_PATH);
-      const registration = await navigator.serviceWorker.ready;
-      const subscription =
-        (await registration.pushManager.getSubscription()) ??
-        (await registration.pushManager.subscribe({
-          userVisibleOnly: true,
-          applicationServerKey: urlBase64ToUint8Array(publicKey),
-        }));
-      const result = await savePushSubscription(
-        subscription.toJSON() as { endpoint: string; keys: { p256dh: string; auth: string } },
-        navigator.userAgent
-      );
-      if ("error" in result) {
-        await subscription.unsubscribe();
-        setError(result.error);
-        return;
-      }
-      setState("on");
-      await refreshDevices();
+      await withBrowserPushLock(async () => {
+        await navigator.serviceWorker.register(SERVICE_WORKER_PATH);
+        const registration = await navigator.serviceWorker.ready;
+        const subscription =
+          (await registration.pushManager.getSubscription()) ??
+          (await registration.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: urlBase64ToUint8Array(publicKey),
+          }));
+        const result = await savePushSubscription(
+          subscription.toJSON() as { endpoint: string; keys: { p256dh: string; auth: string } },
+          navigator.userAgent
+        );
+        if ("error" in result) {
+          await subscription.unsubscribe();
+          setError(result.error);
+          return;
+        }
+        rememberBrowserPush(result.memberId, subscription.endpoint);
+        lastEndpoint.current = subscription.endpoint;
+        setState("on");
+        await refreshDevices();
+      });
     } catch (e) {
       console.error("[notifications] Turning on browser notifications failed", e);
       setError("Couldn't turn on notifications for this device. Check your browser's settings and try again.");
@@ -134,18 +158,23 @@ export function BrowserNotificationsToggle({ publicKey, readOnly }: { publicKey:
     setBusy(true);
     setError(null);
     try {
-      const registration = await navigator.serviceWorker.getRegistration(SERVICE_WORKER_PATH);
-      const subscription = await registration?.pushManager.getSubscription();
-      if (subscription) {
-        const result = await removePushSubscription(subscription.endpoint);
-        if ("error" in result) {
-          setError(result.error);
-          return;
+      await withBrowserPushLock(async () => {
+        const registration = await navigator.serviceWorker.getRegistration(SERVICE_WORKER_PATH);
+        const subscription = await registration?.pushManager.getSubscription();
+        const endpoint = subscription?.endpoint ?? lastEndpoint.current;
+        if (endpoint) {
+          const result = await removePushSubscription(endpoint);
+          if ("error" in result) {
+            setError(result.error);
+            return;
+          }
+          forgetBrowserPush(endpoint);
+          lastEndpoint.current = null;
+          await subscription?.unsubscribe();
         }
-        await subscription.unsubscribe();
-      }
-      setState("off");
-      await refreshDevices();
+        setState("off");
+        await refreshDevices();
+      });
     } catch (e) {
       console.error("[notifications] Turning off browser notifications failed", e);
       setError("Couldn't turn off notifications for this device. Please try again.");
@@ -221,7 +250,7 @@ export function BrowserNotificationsToggle({ publicKey, readOnly }: { publicKey:
                 <div className="min-w-0 flex-1">
                   <span className="text-slate-900 dark:text-slate-100">{device.label}</span>
                   <div className="text-xs text-slate-500 dark:text-slate-400">
-                    Added {new Date(device.addedAt).toLocaleDateString()}
+                    {device.paused ? "Paused while signed out · " : ""}Added {new Date(device.addedAt).toLocaleDateString()}
                     {device.lastSentAt && ` · last notified ${new Date(device.lastSentAt).toLocaleDateString()}`}
                   </div>
                 </div>

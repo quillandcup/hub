@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
+import { pauseBrowserPush } from "@/lib/browser-push";
 import { setAnalyticsUserId } from "@/lib/analytics-identity";
 
 interface SignOutButtonProps {
@@ -14,6 +15,13 @@ export default function SignOutButton({ onSignOut }: SignOutButtonProps = {}) {
 
   const handleSignOut = async () => {
     onSignOut?.();
+    // Pause while the member is still authenticated; local unsubscribe also works if the server fails.
+    // Cleanup errors must never trap someone in a signed-in session.
+    try {
+      await pauseBrowserPush();
+    } catch (error) {
+      console.error("[notifications] Clearing browser push on sign-out failed", error);
+    }
     // Before navigating, so the /login page view isn't credited to this user.
     setAnalyticsUserId(null);
     await supabase.auth.signOut();

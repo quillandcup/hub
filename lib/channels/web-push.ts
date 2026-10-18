@@ -1,4 +1,5 @@
 import webpush, { WebPushError } from "web-push";
+import { isAllowedPushEndpoint } from "@/lib/push-endpoint";
 import { SUPPORT_EMAIL } from "@/lib/config";
 import { membersWithFeature } from "@/lib/features.server";
 import { createServiceRoleClient } from "@/lib/supabase/service";
@@ -55,6 +56,8 @@ export const webPushChannel: ChannelAdapter = {
         .from("push_subscriptions")
         .select("member_id")
         .is("deleted_at", null)
+        .is("paused_at", null)
+        .is("disabled_at", null)
         .in("member_id", ids.slice(i, i + 200));
       if (error) throw new Error(`push_subscriptions lookup failed: ${error.message}`);
       for (const row of data ?? []) reachable.set(row.member_id, row.member_id);
@@ -70,7 +73,9 @@ export const webPushChannel: ChannelAdapter = {
       .from("push_subscriptions")
       .select("id, endpoint, p256dh, auth")
       .eq("member_id", memberId)
-      .is("deleted_at", null);
+      .is("deleted_at", null)
+      .is("paused_at", null)
+      .is("disabled_at", null);
     if (error) throw new Error(`push_subscriptions lookup failed: ${error.message}`);
     if (!subscriptions?.length) throw new Error("No live push subscriptions");
 
@@ -84,9 +89,10 @@ export const webPushChannel: ChannelAdapter = {
     };
 
     const results = await Promise.allSettled(
-      subscriptions.map((s: any) =>
-        webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, payload, options)
-      )
+      subscriptions.map(async (s: any) => {
+        if (!isAllowedPushEndpoint(s.endpoint)) throw new Error("Untrusted push subscription endpoint");
+        return webpush.sendNotification({ endpoint: new URL(s.endpoint).href, keys: { p256dh: s.p256dh, auth: s.auth } }, payload, options);
+      })
     );
 
     const sent: string[] = [];
@@ -160,13 +166,14 @@ export interface PushDevice {
   userAgent: string | null;
   createdAt: string;
   lastSentAt: string | null;
+  pausedAt: string | null;
 }
 
 /** A member's live devices, newest first. Service role: the table holds push credentials. */
 export async function loadPushDevices(supabase: any, memberId: string): Promise<PushDevice[]> {
   const { data, error } = await supabase
     .from("push_subscriptions")
-    .select("id, endpoint, user_agent, created_at, last_sent_at")
+    .select("id, endpoint, user_agent, created_at, last_sent_at, paused_at")
     .eq("member_id", memberId)
     .is("deleted_at", null)
     .order("created_at", { ascending: false });
@@ -177,5 +184,6 @@ export async function loadPushDevices(supabase: any, memberId: string): Promise<
     userAgent: row.user_agent,
     createdAt: row.created_at,
     lastSentAt: row.last_sent_at,
+    pausedAt: row.paused_at ?? null,
   }));
 }
