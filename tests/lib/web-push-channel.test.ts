@@ -183,3 +183,24 @@ describe("web_push send", () => {
     expect(await notifier.send("m1", { text: "Hello" })).toEqual(["web_push"]);
   });
 });
+
+describe("sendDiagnosticPush", () => {
+  const payload = { title: "T", body: "B", url: "/admin/notifications", tag: "t", requireInteraction: true };
+  const subs = { push_subscriptions: { data: [{ endpoint: "https://fcm.googleapis.com/fcm/send/abc", p256dh: "p", auth: "a" }] } };
+
+  it("sends the caller's payload with the caller's urgency and TTL", async () => {
+    const { sendDiagnosticPush } = await import("@/lib/channels/web-push");
+    sendNotification.mockResolvedValue({});
+    const sent = await sendDiagnosticPush(createFakeSupabase(subs), "m1", payload, { urgency: "high", ttlSeconds: 900 });
+    expect(sent).toBe(1);
+    const [, body, options] = sendNotification.mock.calls[0];
+    expect(JSON.parse(body)).toEqual(payload);
+    expect(options).toMatchObject({ urgency: "high", TTL: 900 });
+  });
+
+  it("throws the push service's reason when nothing went out", async () => {
+    const { sendDiagnosticPush } = await import("@/lib/channels/web-push");
+    sendNotification.mockRejectedValue(new Error("push service down"));
+    await expect(sendDiagnosticPush(createFakeSupabase(subs), "m1", payload, { urgency: "normal", ttlSeconds: 60 })).rejects.toThrow("push service down");
+  });
+});

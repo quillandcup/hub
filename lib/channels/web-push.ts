@@ -135,6 +135,50 @@ export const webPushChannel: ChannelAdapter = {
   },
 };
 
+/**
+ * Real server pushes to one member's devices with the payload and delivery options chosen by the
+ * caller, for the admin click diagnostics (app/(admin)/admin/notifications): vary one field at a time
+ * against what a check-in sends. Skips preferences, the feature flag and subscription bookkeeping.
+ */
+export async function sendDiagnosticPush(
+  supabase: any,
+  memberId: string,
+  payload: PushPayload,
+  delivery: { urgency: "normal" | "high"; ttlSeconds: number }
+): Promise<number> {
+  const keys = vapidKeys();
+  if (!keys) throw new Error("Web Push isn't configured (VAPID keys missing)");
+  const { data: subscriptions, error } = await supabase
+    .from("push_subscriptions")
+    .select("endpoint, p256dh, auth")
+    .eq("member_id", memberId)
+    .is("deleted_at", null)
+    .is("paused_at", null)
+    .is("disabled_at", null);
+  if (error) throw new Error(`push_subscriptions lookup failed: ${error.message}`);
+  if (!subscriptions?.length) throw new Error("No live push subscriptions");
+
+  const options = {
+    vapidDetails: { subject: `mailto:${SUPPORT_EMAIL}`, publicKey: keys.publicKey, privateKey: keys.privateKey },
+    TTL: delivery.ttlSeconds,
+    urgency: delivery.urgency,
+    timeout: REQUEST_TIMEOUT_MS,
+  };
+  const body = JSON.stringify(payload);
+  const results = await Promise.allSettled(
+    subscriptions.map(async (s: any) => {
+      if (!isAllowedPushEndpoint(s.endpoint)) throw new Error("Untrusted push subscription endpoint");
+      return webpush.sendNotification({ endpoint: new URL(s.endpoint).href, keys: { p256dh: s.p256dh, auth: s.auth } }, body, options);
+    })
+  );
+  const sent = results.filter((r) => r.status === "fulfilled").length;
+  if (sent === 0) {
+    const failed = results.find((r): r is PromiseRejectedResult => r.status === "rejected");
+    throw new Error(`Web Push failed: ${describe(failed?.reason)}`);
+  }
+  return sent;
+}
+
 function isTimeSensitive(message: OutboundMessage, now: number): boolean {
   return message.timeSensitiveUntil !== undefined && Date.parse(message.timeSensitiveUntil) > now;
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { sendDiagnosticPush } from "./actions";
 import { readPushDiagnostics, sendBrowserAlertComparison, type PushDiagnostics } from "@/lib/browser-push-diagnostics";
 
 const STAGES: Record<string, string> = {
@@ -18,6 +19,7 @@ export default function BrowserPushDiagnostics() {
   const [pending, setPending] = useState(false);
   const [diagnostics, setDiagnostics] = useState<PushDiagnostics>();
   const [error, setError] = useState("");
+  const [serverPush, setServerPush] = useState("");
   const [comparison, setComparison] = useState<{ style: string; id: string }>();
 
   async function refresh() {
@@ -41,6 +43,21 @@ export default function BrowserPushDiagnostics() {
       const id = await sendBrowserAlertComparison(style);
       setComparison({ style, id });
       setDiagnostics(await readPushDiagnostics());
+    } catch (error) {
+      setError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setPending(false);
+    }
+  }
+
+  async function sendServerPush(variant: string) {
+    setPending(true);
+    setError("");
+    setServerPush("");
+    try {
+      const result = await sendDiagnosticPush(variant);
+      if ("error" in result) throw new Error(result.error);
+      setServerPush(`Sent ${variant} server push to ${result.sent} device(s). Click it, then refresh diagnostics.`);
     } catch (error) {
       setError(error instanceof Error ? error.message : String(error));
     } finally {
@@ -77,6 +94,21 @@ export default function BrowserPushDiagnostics() {
           </button>
         </div>
         {comparison && <p className="text-sm">Sent {comparison.style} alert [{comparison.id}]</p>}
+      </div>
+      <div className="space-y-2 border-t border-slate-200 pt-3 dark:border-slate-700">
+        <p className="text-sm text-slate-600 dark:text-slate-400">
+          Real server pushes to your devices, as a check-in sends them (the alerts above are shown by the page, not pushed).
+          Each adds one thing to the one before: a tag, then high urgency with a short expiry. Close any alert first; the
+          worker shows no ID here, so match each click entry by time.
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {([["persistent", "Push persistent"], ["tagged", "Push tagged"], ["tagged_urgent", "Push tagged, urgent"]] as const).map(([variant, label]) => (
+            <button key={variant} type="button" disabled={pending} onClick={() => sendServerPush(variant)} className="rounded-lg border px-3 py-1 text-sm disabled:opacity-50">
+              {label}
+            </button>
+          ))}
+        </div>
+        {serverPush && <p className="text-sm">{serverPush}</p>}
       </div>
       {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
       {diagnostics && (
