@@ -111,6 +111,11 @@ export function hasCriteria(q: UniversalQuery): boolean {
   );
 }
 
+/** Chat messages are slow to search, so both search surfaces require an explicit request. */
+export function wantsChat(q: UniversalQuery): boolean {
+  return q.kind === "chat" || !!(q.hasFiles || q.hasLink || q.hasReaction || q.isThread || q.inChannel);
+}
+
 /**
  * Whether `kind` can honor every filter the query sets. A filter a kind has no column for (`from:`
  * on members, `after:` on channels) must drop the kind: left to run, it would list everything as

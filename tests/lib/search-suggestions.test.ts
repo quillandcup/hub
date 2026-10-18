@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const getSearcher = vi.fn();
 vi.mock("@/lib/search/context", () => ({ getSearcher: () => getSearcher() }));
+const universalSearch = vi.fn();
+vi.mock("@/lib/search/universal", () => ({ universalSearch: (...args: unknown[]) => universalSearch(...args) }));
 const loadUnreadCounts = vi.fn();
 vi.mock("@/lib/chat/load", () => ({ loadUnreadCounts: (...args: unknown[]) => loadUnreadCounts(...args) }));
 vi.mock("@/lib/search/metrics", () => ({ recordSearchTimings: vi.fn() }));
@@ -14,7 +16,7 @@ const getUnloggedRecentPrickles = vi.fn();
 vi.mock("@/app/(member)/projects/actions", () => ({ getUnloggedRecentPrickles: () => getUnloggedRecentPrickles() }));
 vi.mock("@/lib/timezone", () => ({ getUserTimezonePreference: async () => "browser" }));
 
-import { markSuggestionsRead, searchSuggestions, suggestOperatorValues } from "@/app/actions/search";
+import { markSuggestionsRead, searchPalette, searchSuggestions, suggestOperatorValues } from "@/app/actions/search";
 
 /** A chainable stand-in for a Supabase query: every call returns itself, awaiting it gives `result`. */
 function fakeQuery(result: { data: unknown }) {
@@ -198,5 +200,31 @@ describe("markSuggestionsRead", () => {
   it("does nothing in sudo", async () => {
     getSearcher.mockResolvedValue(searcher({ isSudo: true }));
     expect(await markSuggestionsRead([`checkin:${A}`])).toBe(0);
+  });
+});
+
+
+describe("searchPalette chat opt-in", () => {
+  beforeEach(() => {
+    getSearcher.mockReset().mockResolvedValue(searcher());
+    universalSearch.mockReset().mockImplementation(async (_ctx, _query, { skip, timings }) => {
+      if (!skip.includes("chat")) timings.chat = 0;
+      return [];
+    });
+  });
+
+  it("skips chat by default and offers an explicit search", async () => {
+    expect(await searchPalette("hello")).toEqual({ results: [], chatSkipped: true, chatSearched: false });
+    expect(universalSearch.mock.calls[0][2].skip).toEqual(["chat"]);
+  });
+
+  it.each(["in:chat hello", "channel:general hello", "has:file"])("records chat participation even with no hits: %s", async (q) => {
+    expect(await searchPalette(q)).toEqual({ results: [], chatSkipped: false, chatSearched: true });
+    expect(universalSearch.mock.calls[0][2].skip).toEqual([]);
+  });
+
+  it("does not mark restricted chat as searched", async () => {
+    getSearcher.mockResolvedValue(searcher({ skip: ["chat"] }));
+    expect(await searchPalette("in:chat hello")).toEqual({ results: [], chatSkipped: false, chatSearched: false });
   });
 });

@@ -217,7 +217,7 @@ export default function SearchPalette({ resultsPath, isAdmin }: { resultsPath: s
         // What the member waits for: the server action's round trip, network included.
         Sentry.metrics.distribution("search.duration", Math.round(performance.now() - sent), {
           unit: "millisecond",
-          attributes: { surface: "palette", stage: "roundtrip" },
+          attributes: { surface: "palette", stage: "roundtrip", chat: next.chatSearched ? "included" : "excluded" },
         });
         if (id === requestId.current) {
           setData(next);
