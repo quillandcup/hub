@@ -120,9 +120,10 @@ This follows the medallion rules in `CLAUDE.md`: Bronze mirrors Kajabi, upserted
   - This is how re-runs skip videos already uploaded (see "Telling whether a video changed"). Lessons point at it with `course_lessons.video_id`.
   - Local rather than Silver because uploading is an external side effect we must not repeat.
 - **Captions and other per-video assets.** Captions are per video, not a Mux account setting:
-  - `videos.burned_in_captions` (boolean): the existing videos have captions burned into the picture. For those, track files default to off so viewers don't see them twice. New videos from Descript are exported **without** burned-in captions, plus a separate subtitle file.
-  - `video_text_tracks`: one row per caption, subtitle or transcript track on a video.
-    - Fields: `video_id`, `kind` (`captions` | `subtitles`), `language`, `label`, `source` (`descript` | `whisper` | `mux_auto` | `manual`), `is_default`, the file in the private storage bucket (`.vtt`, kept in the Hub), and `mux_track_id` once attached to the Mux asset.
+  - `videos.has_has_burned_in_captions` (boolean): the picture itself contains captions, as the existing videos do. For those, track files default to off so viewers don't see them twice. (Named for what it means, since "includes captions" could be read as "has caption tracks".) New videos from Descript are exported **without** burned-in captions, plus a separate subtitle file.
+  - `video_text_tracks`: one row per caption, subtitle or transcript file on a video.
+    - `kind` separates what the file is for: **`captions`** (with sound cues) and **`subtitles`** (dialogue only) are timed text the player shows, so they're attached to Mux; a **`transcript`** is text for search and the follow-along panel (plain, or timed per line or word) and is never attached to the player. One Descript SRT can serve both: store it as `captions`, and derive the transcript lines from it.
+    - Fields: `video_id`, `kind`, `language`, `label`, `source` (`descript` | `whisper` | `mux_auto` | `manual`), `is_default`, the file in the private storage bucket (`.vtt`, kept in the Hub), and `mux_track_id` once attached to the Mux asset.
     - A track is attached to the Mux asset through its API (Mux reads the file from a short-lived link) so the player gets it with the stream. The stored file stays the source of truth: re-ingesting a video re-attaches it.
     - A track from Descript replaces an automatic one in the same language; the automatic one is removed.
   - **Safety net:** new videos are created with Mux's free auto-generated captions, so a video never ships with no captions at all if Ania's file isn't attached yet (her new Ready Writer lessons won't have burned-in captions).
