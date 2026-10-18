@@ -78,7 +78,15 @@ describe("sendDiagnosticPush action", () => {
     expect(mocks.push).toHaveBeenLastCalledWith(
       { service: true },
       "m-admin",
-      expect.objectContaining({ tag: undefined }),
+      expect.objectContaining({ tag: undefined, requireInteraction: true }),
+      { urgency: "normal", ttlSeconds: 24 * 60 * 60 }
+    );
+
+    await sendDiagnosticPush("standard");
+    expect(mocks.push).toHaveBeenLastCalledWith(
+      { service: true },
+      "m-admin",
+      expect.objectContaining({ tag: undefined, requireInteraction: false }),
       { urgency: "normal", ttlSeconds: 24 * 60 * 60 }
     );
   });
