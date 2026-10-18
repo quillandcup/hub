@@ -4,7 +4,7 @@ import vm from "node:vm";
 import { describe, expect, it, vi } from "vitest";
 
 /** Runs public/sw.js against a fake service worker scope and returns what it registered. */
-function loadWorker(clients: Record<string, unknown> = {}) {
+function loadWorker(clients: Record<string, unknown> = {}, storage = new Map<string, string>(), storageError = false) {
   const listeners: Record<string, (event: any) => void> = {};
   const showNotification = vi.fn().mockResolvedValue(undefined);
   const self = {
@@ -15,9 +15,16 @@ function loadWorker(clients: Record<string, unknown> = {}) {
     skipWaiting: vi.fn(),
     clients: { claim: vi.fn(), ...clients },
     location: { origin: "https://hub.example.test" },
+    caches: { open: async () => {
+      if (storageError) throw new Error("Storage denied");
+      return {
+        match: async (key: string) => storage.has(key) ? new Response(storage.get(key)) : undefined,
+        put: async (key: string, response: Response) => { storage.set(key, await response.text()); },
+      };
+    } },
   };
   const source = fs.readFileSync(path.join(process.cwd(), "public/sw.js"), "utf8");
-  vm.runInNewContext(source, { self, URL });
+  vm.runInNewContext(source, { self, URL, Response });
   return { listeners, showNotification };
 }
 
@@ -40,7 +47,7 @@ describe("public/sw.js push handler", () => {
       tag: "k:1",
       renotify: true,
       requireInteraction: true,
-      data: { url: "/my-prickles" },
+      data: { url: "/my-prickles", notificationId: expect.any(String) },
     });
   });
 
@@ -164,5 +171,80 @@ describe("public/sw.js notification click handler", () => {
     const { openWindow } = await click([], "http://evil.example.test/x");
 
     expect(openWindow).not.toHaveBeenCalled();
+  });
+});
+
+async function fire(listeners: Record<string, (event: any) => void>, type: string, event: any) {
+  const waits: Promise<unknown>[] = [];
+  listeners[type]({ ...event, waitUntil: (p: Promise<unknown>) => waits.push(p) });
+  await Promise.all(waits);
+}
+
+async function diagnostics(listeners: Record<string, (event: any) => void>) {
+  const postMessage = vi.fn();
+  await fire(listeners, "message", { data: { type: "PUSH_DIAGNOSTICS" }, ports: [{ postMessage }] });
+  return postMessage.mock.calls[0][0];
+}
+
+describe("browser push click diagnostics", () => {
+  it("correlates display and click across worker restarts without storing message content or URLs", async () => {
+    const storage = new Map<string, string>();
+    const first = loadWorker({}, storage);
+    await fire(first.listeners, "push", { data: { json: () => ({ title: "Private title", body: "Private body", url: "/private-target" }) } });
+    const data = first.showNotification.mock.calls[0][1].data;
+    const second = loadWorker({ matchAll: async () => [], openWindow: vi.fn().mockResolvedValue(null) }, storage);
+    await fire(second.listeners, "notificationclick", { notification: { data, close: vi.fn() } });
+    const result = await diagnostics(second.listeners);
+    expect(result.version).toBe("click-diagnostics-v1");
+    expect(result.entries.map((e: any) => e.stage)).toEqual(["shown", "click_received", "window_open_requested"]);
+    expect(result.entries.every((e: any) => e.notificationId === data.notificationId)).toBe(true);
+    expect(JSON.stringify(result)).not.toMatch(/Private|private-target/);
+  });
+
+  it("records navigation errors and the click even when opening fails", async () => {
+    const worker = loadWorker({ matchAll: vi.fn().mockRejectedValue(new TypeError("private URL")) });
+    await fire(worker.listeners, "notificationclick", { notification: { data: { url: "/test" }, close: vi.fn() } });
+    const result = await diagnostics(worker.listeners);
+    expect(result.entries.map((e: any) => e.stage)).toEqual(["click_received", "open_failed"]);
+    expect(result.entries[1].error).toBe("TypeError");
+    expect(JSON.stringify(result)).not.toContain("private URL");
+  });
+
+  it("records tab navigation even if bringing the navigated window forward fails", async () => {
+    const focus = vi.fn().mockRejectedValue(new TypeError("focus denied"));
+    const navigate = vi.fn().mockResolvedValue({ focus });
+    const worker = loadWorker({ matchAll: async () => [{ url: "https://hub.example.test/dashboard", navigate }] });
+    await fire(worker.listeners, "notificationclick", { notification: { data: { url: "/test" }, close: vi.fn() } });
+    expect((await diagnostics(worker.listeners)).entries.map((e: any) => e.stage)).toEqual(["click_received", "focus_failed", "tab_navigated"]);
+  });
+
+  it("preserves the earlier fix for a synchronous focus failure after navigation", async () => {
+    const focus = vi.fn(() => { throw new TypeError("closed window"); });
+    const navigate = vi.fn().mockResolvedValue({ focus });
+    const otherNavigate = vi.fn();
+    const openWindow = vi.fn();
+    const worker = loadWorker({ matchAll: async () => [
+      { url: "https://hub.example.test/dashboard", navigate },
+      { url: "https://hub.example.test/members", navigate: otherNavigate },
+    ], openWindow });
+    await fire(worker.listeners, "notificationclick", { notification: { data: { url: "/test" }, close: vi.fn() } });
+    expect(navigate).toHaveBeenCalledOnce();
+    expect(otherNavigate).not.toHaveBeenCalled();
+    expect(openWindow).not.toHaveBeenCalled();
+    expect((await diagnostics(worker.listeners)).entries.map((e: any) => e.stage)).toEqual(["click_received", "focus_failed", "tab_navigated"]);
+  });
+
+  it("retains only the latest 30 events", async () => {
+    const worker = loadWorker();
+    for (let i = 0; i < 35; i++) await fire(worker.listeners, "push", { data: null });
+    expect((await diagnostics(worker.listeners)).entries).toHaveLength(30);
+  });
+
+  it("opens the notification even when diagnostic storage is unavailable", async () => {
+    const openWindow = vi.fn().mockResolvedValue(null);
+    const worker = loadWorker({ matchAll: async () => [], openWindow }, new Map(), true);
+    await fire(worker.listeners, "notificationclick", { notification: { data: { url: "/test" }, close: vi.fn() } });
+    expect(openWindow).toHaveBeenCalledWith("https://hub.example.test/test");
+    expect(await diagnostics(worker.listeners)).toEqual({ error: "This browser cannot store notification diagnostics." });
   });
 });
