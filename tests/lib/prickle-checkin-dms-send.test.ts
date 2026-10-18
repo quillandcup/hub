@@ -395,7 +395,8 @@ describe("sendTestCheckinDM", () => {
     });
     const email = sendEmail.mock.calls[0][0];
     expect(email.to).toBe("alice@example.com");
-    expect(email.subject).toBe("[Test] Checking out of Progress Prickle: how did it go?");
+    expect(email.subject).toBe("[Test] Check out: Progress Prickle");
+    expect(email.html).toContain("Checking out of Progress Prickle: how did it go?");
     expect(email.html).toContain("Unsubscribe from");
   });
 

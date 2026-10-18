@@ -416,6 +416,12 @@ describe("in-app notifications", () => {
     expect(cleared(fake)).toEqual([]);
   });
 
+  it("gives each message a short title (the email subject and push title) naming the prickle", () => {
+    expect(checkinMessage({ ...P1 }, null).title).toBe(`Check in: ${P1.typeName}`);
+    expect(checkinMessage({ ...P1 }, null, { test: true }).title).toBe(`[Test] Check in: ${P1.typeName}`);
+    expect(checkoutMessage({ ...P1, endTime: P1.startTime }, null, []).title).toBe(`Check out: ${P1.typeName}`);
+  });
+
   it("ties the messages to the prickle, time-sensitive on its timing", () => {
     expect(checkinMessage({ ...P1 }, null)).toMatchObject({
       ref: "p1",

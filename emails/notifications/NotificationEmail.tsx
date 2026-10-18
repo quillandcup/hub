@@ -32,7 +32,7 @@ export function NotificationEmail({
   intro,
   buttonLabel,
 }: NotificationEmailProps & {
-  /** One or two sentences under the heading. */
+  /** One or two sentences under the heading (after the message text, when it has a `title`). */
   intro: string;
   buttonLabel: string;
 }) {
@@ -40,7 +40,7 @@ export function NotificationEmail({
     <EmailLayout preview={text} footerLinks={footerLinks}>
       <EmailHeading>{title ?? text}</EmailHeading>
 
-      <EmailBody>{intro}</EmailBody>
+      <EmailBody>{title && intro !== text ? `${text} ${intro}` : intro}</EmailBody>
 
       {url && (
         <>
