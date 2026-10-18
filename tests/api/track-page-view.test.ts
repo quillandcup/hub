@@ -9,6 +9,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getCurrentUser } from '@/lib/auth'
 import { PAGE_VIEW_PATH } from '@/lib/page-views'
 import { SUDO_COOKIE_NAME, signSudoCookie } from '@/lib/sudo-cookie'
+import { MAX_USER_AGENT_LENGTH } from '@/lib/device-label'
 
 const USER = { id: '11111111-1111-1111-1111-111111111111', email: 'a@example.com' }
 const MEMBER_ID = '22222222-2222-2222-2222-222222222222'
@@ -31,10 +32,16 @@ function setup(insertError: { message: string } | null = null) {
   return { insert, supabase }
 }
 
-function makeRequest(body: unknown, cookie?: string) {
+const CHROME_ON_MAC = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/126.0 Safari/537.36'
+
+function makeRequest(body: unknown, cookie?: string, userAgent: string | null = CHROME_ON_MAC) {
   return new NextRequest(`http://localhost${PAGE_VIEW_PATH}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...(cookie ? { cookie } : {}) },
+    headers: {
+      'Content-Type': 'application/json',
+      ...(cookie ? { cookie } : {}),
+      ...(userAgent ? { 'user-agent': userAgent } : {}),
+    },
     body: typeof body === 'string' ? body : JSON.stringify(body),
   })
 }
@@ -65,7 +72,20 @@ describe('POST /api/track/page-view', () => {
       is_page: true,
       session_id: AUTH_SESSION_ID,
       acting_as_member_id: null,
+      user_agent: CHROME_ON_MAC,
     })
+  })
+
+  it('records no user agent when the browser sends none', async () => {
+    const { insert } = setup()
+    await POST(makeRequest({ path: '/dashboard' }, undefined, null))
+    expect(insert).toHaveBeenCalledWith(expect.objectContaining({ user_agent: null }))
+  })
+
+  it('caps an oversized user agent', async () => {
+    const { insert } = setup()
+    await POST(makeRequest({ path: '/dashboard' }, undefined, 'x'.repeat(MAX_USER_AGENT_LENGTH + 100)))
+    expect(insert.mock.calls[0][0].user_agent).toHaveLength(MAX_USER_AGENT_LENGTH)
   })
 
   it.each([

@@ -36,6 +36,8 @@ beforeEach(() => {
                 auth_session_id: null,
                 session_active: false,
                 auth_session_created_at: null,
+                user_agent:
+                  'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 Version/17.4 Mobile Safari/604.1',
               },
             ],
           })
@@ -56,5 +58,13 @@ describe('UsersClient activity modal', () => {
     expect(screen.getByText('×2')).toBeInTheDocument()
     expect(screen.getByText('Dashboard')).toBeInTheDocument()
     expect(screen.getByText('In order')).toBeInTheDocument()
+  })
+
+  it("shows the device each visit came from", async () => {
+    const user = userEvent.setup()
+    render(<UsersClient currentUserId="me" />)
+    await user.click(await screen.findByRole('button', { name: 'Activity' }))
+
+    expect(await screen.findByText('Safari on iPhone')).toBeInTheDocument()
   })
 })

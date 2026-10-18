@@ -11,6 +11,7 @@ import { DataTablePager } from "@/components/DataTablePager";
 import { FEATURE_PREVIEWS } from "@/lib/features";
 import MemberSearch from "@/components/MemberSearch";
 import { ORG_TIMEZONE } from "@/lib/config";
+import { describeDevice } from "@/lib/device-label";
 
 type Role = "admin" | "assistant" | "member";
 type StaffRole = "owner" | "staff" | "contractor";
@@ -44,6 +45,7 @@ interface AccessSession {
   auth_session_id: string | null;
   session_active: boolean;
   auth_session_created_at: string | null;
+  user_agent: string | null;
 }
 
 const ET_TIME_FORMAT = new Intl.DateTimeFormat("en-US", {
@@ -737,9 +739,14 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
                       </span>
                     )}
                   </div>
-                  {session.auth_session_created_at && (
+                  {(session.auth_session_created_at || session.user_agent) && (
                     <div className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-                      Logged in {formatSessionRange(session.auth_session_created_at, session.auth_session_created_at)}
+                      {session.auth_session_created_at &&
+                        `Logged in ${formatSessionRange(session.auth_session_created_at, session.auth_session_created_at)}`}
+                      {session.auth_session_created_at && session.user_agent && " · "}
+                      {session.user_agent && (
+                        <span title={session.user_agent}>{describeDevice(session.user_agent)}</span>
+                      )}
                     </div>
                   )}
                   {session.pages && session.pages.length > 0 ? (
