@@ -117,6 +117,17 @@ describe("public/sw.js notification click handler", () => {
     expect(openWindow).not.toHaveBeenCalled();
   });
 
+  it("focuses the tab once: Chrome denies a second focus() within one click", async () => {
+    const focus = vi.fn().mockResolvedValueOnce(undefined).mockRejectedValue(new Error("Not allowed to focus a window"));
+    const navigate = vi.fn().mockResolvedValue({ focus });
+    const worker = loadWorker({ matchAll: async () => [{ url: `${origin}/dashboard`, focus, navigate }] });
+    await fire(worker.listeners, "notificationclick", { notification: { data: { url: "/prickles/1/checkin" }, close: vi.fn() } });
+
+    expect(focus).toHaveBeenCalledTimes(1);
+    const stages = (await diagnostics(worker.listeners)).entries.map((e: any) => e.stage);
+    expect(stages).toEqual(["click_received", "tab_navigated"]);
+  });
+
   it("still navigates a tab whose url reads as the target, since the Hub navigates in place", async () => {
     const focus = vi.fn().mockResolvedValue(undefined);
     const navigate = vi.fn().mockResolvedValue({ focus });
@@ -219,6 +230,20 @@ describe("browser push click diagnostics", () => {
     expect((await diagnostics(worker.listeners)).entries).toHaveLength(0);
   });
 
+  it("repeats a tagged persistent alert with the same tag and a fresh diagnostic ID", async () => {
+    const worker = loadWorker();
+    const first = vi.fn();
+    const second = vi.fn();
+    await fire(worker.listeners, "message", { data: { type: "PUSH_ALERT_COMPARISON", style: "tagged" }, ports: [{ postMessage: first }] });
+    await fire(worker.listeners, "message", { data: { type: "PUSH_ALERT_COMPARISON", style: "tagged" }, ports: [{ postMessage: second }] });
+    const calls = worker.showNotification.mock.calls;
+    expect(calls).toHaveLength(2);
+    for (const [, options] of calls) expect(options).toMatchObject({ tag: "prickle_checkin:comparison", renotify: true, requireInteraction: true });
+    expect(first.mock.calls[0][0].notificationId).not.toBe(second.mock.calls[0][0].notificationId);
+    const entries = (await diagnostics(worker.listeners)).entries;
+    expect(entries.map((entry: any) => [entry.style, entry.tagged])).toEqual([["tagged", true], ["tagged", true]]);
+  });
+
   it("correlates display and click across worker restarts, keeping destination paths without notification content", async () => {
     const storage = new Map<string, string>();
     const first = loadWorker({}, storage);
@@ -227,11 +252,11 @@ describe("browser push click diagnostics", () => {
     const second = loadWorker({ matchAll: async () => [], openWindow: vi.fn().mockResolvedValue(null) }, storage);
     await fire(second.listeners, "notificationclick", { notification: { data, close: vi.fn() } });
     const result = await diagnostics(second.listeners);
-    expect(result.version).toBe("click-diagnostics-v3");
+    expect(result.version).toBe("click-diagnostics-v4");
     expect(result.entries.map((e: any) => e.stage)).toEqual(["shown", "click_received", "window_open_requested"]);
     expect(result.entries.every((e: any) => e.notificationId === data.notificationId)).toBe(true);
     expect(result.entries.every((e: any) => e.pathname === "/my-prickles/history")).toBe(true);
-    expect(result.entries.every((e: any) => e.version === "click-diagnostics-v3")).toBe(true);
+    expect(result.entries.every((e: any) => e.version === "click-diagnostics-v4")).toBe(true);
     expect(result.entries.map((e: any) => e.operation)).toEqual(["show_notification", "receive_click", "open_window"]);
     expect(JSON.stringify(result)).not.toMatch(/Private|secret-id|private-fragment/);
   });

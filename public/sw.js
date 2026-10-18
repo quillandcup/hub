@@ -6,7 +6,7 @@
 self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", (event) => event.waitUntil(self.clients.claim()));
 
-const DIAGNOSTICS_VERSION = "click-diagnostics-v3";
+const DIAGNOSTICS_VERSION = "click-diagnostics-v4";
 const DIAGNOSTICS_CACHE = "hub-push-diagnostics";
 const DIAGNOSTICS_URL = new URL("/__push_diagnostics__", self.location.origin).href;
 let diagnosticWrites = Promise.resolve();
@@ -29,11 +29,12 @@ function diagnosticMessage(error) {
 }
 
 // Local and bounded. Never delay focus/navigation on a storage operation.
-function recordDiagnostic(stage, notificationId, { error, target, operation, style } = {}) {
+function recordDiagnostic(stage, notificationId, { error, target, operation, style, tagged } = {}) {
   const entry = {
     at: new Date().toISOString(), stage, notificationId, version: DIAGNOSTICS_VERSION, operation,
     ...(target ? { pathname: diagnosticPath(target) } : {}),
     ...(style ? { style } : {}),
+    ...(tagged ? { tagged: true } : {}),
     ...(error ? { error: error.name || "Error", errorMessage: diagnosticMessage(error) } : {}),
   };
   diagnosticWrites = diagnosticWrites.then(async () => {
@@ -48,16 +49,18 @@ function recordDiagnostic(stage, notificationId, { error, target, operation, sty
 self.addEventListener("message", (event) => {
   if (event.data?.type === "PUSH_ALERT_COMPARISON" && event.ports?.[0]) {
     const style = event.data.style;
-    if (style !== "standard" && style !== "persistent") return;
+    if (style !== "standard" && style !== "persistent" && style !== "tagged") return;
     const notificationId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
     const target = "/admin/notifications";
     event.waitUntil(
       self.registration.showNotification(`[Test] ${style} browser alert`, {
         body: "Click to test whether the browser delivers this notification to the Hub.",
-        requireInteraction: style === "persistent",
+        // Check-ins also set a tag and renotify. Repeating this test replaces the first alert.
+        ...(style === "tagged" ? { tag: "prickle_checkin:comparison", renotify: true } : {}),
+        requireInteraction: style !== "standard",
         data: { url: target, notificationId },
       })
-        .then(() => recordDiagnostic("shown", notificationId, { target, operation: "show_notification", style }))
+        .then(() => recordDiagnostic("shown", notificationId, { target, operation: "show_notification", style, tagged: style === "tagged" }))
         .then(() => event.ports[0].postMessage({ notificationId }))
         .catch((error) => event.ports[0].postMessage({ error: diagnosticMessage(error) }))
     );
@@ -101,6 +104,7 @@ self.addEventListener("push", (event) => {
       data: { url: payload.url, notificationId },
     }).then(() => recordDiagnostic("shown", notificationId, {
       target: payload.url || "/", operation: "show_notification", style: payload.requireInteraction ? "persistent" : "standard",
+      tagged: Boolean(payload.tag),
     }))
   );
 });
@@ -151,18 +155,22 @@ async function openTarget(target, notificationId, context) {
     .sort((a, b) => rank(a) - rank(b));
   console.log("[sw] notification click", { target: target.href, hubTabs: hubTabs.map((w) => w.url) });
   for (const tab of hubTabs) {
+    let focused = false;
     try {
       context.operation = "focus_tab";
-      if ("focus" in tab) await tab.focus();
+      if ("focus" in tab) { await tab.focus(); focused = true; }
       context.operation = "navigate_tab";
       const navigated = "navigate" in tab ? await tab.navigate(target.href) : null;
       if (navigated) {
         // The tab is already where it should be; a focus failure now mustn't send us on to another tab.
-        try {
-          context.operation = "focus_tab";
-          await navigated.focus();
-        } catch (error) {
-          await recordDiagnostic("focus_failed", notificationId, { ...context, error });
+        // Chrome allows one focus() per click, so a second call after a successful one is denied.
+        if (!focused) {
+          try {
+            context.operation = "focus_tab";
+            await navigated.focus();
+          } catch (error) {
+            await recordDiagnostic("focus_failed", notificationId, { ...context, error });
+          }
         }
         await recordDiagnostic("tab_navigated", notificationId, { ...context, operation: "navigate_tab" });
         return;

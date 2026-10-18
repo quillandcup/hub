@@ -8,7 +8,8 @@ export type PushDiagnostics = {
     version?: string;
     operation?: string;
     pathname?: string;
-    style?: "standard" | "persistent";
+    style?: "standard" | "persistent" | "tagged";
+    tagged?: boolean;
     error?: string;
     errorMessage?: string;
   }[];
@@ -71,7 +72,7 @@ export async function readPushDiagnostics(): Promise<PushDiagnostics> {
 }
 
 /** Compare Chrome's standard banner with its persistent alert on this device only. */
-export async function sendBrowserAlertComparison(style: "standard" | "persistent"): Promise<string> {
+export async function sendBrowserAlertComparison(style: "standard" | "persistent" | "tagged"): Promise<string> {
   if (Notification.permission !== "granted") throw new Error("Browser notifications are not allowed on this device.");
   const result = await askPushWorker<{ notificationId: string }>(await activePushWorker(), { type: "PUSH_ALERT_COMPARISON", style });
   return result.notificationId;
