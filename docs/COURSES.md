@@ -14,6 +14,19 @@ Plan for moving Quill & Cup's courses from Kajabi into the Hub, starting with **
 - **Video host: Mux.** Our own themed player on top (Video.js v10 if a half-day test passes, Vidstack otherwise) and our own per-member watch tracking. See "Video" below.
 - **Captions are burned into the existing videos** (Descript), so nothing caption-related blocks launch.
 
+## Terms: program, course, Kajabi product
+
+Kajabi's "product" is broad: a course, community, coaching, podcast, newsletter. The Hub already splits that into separate ideas, and the course work keeps them separate:
+
+| Term | What it is | Lives in |
+|---|---|---|
+| **Program** | Something a member buys or enrolls in, as the business tracks it: its Kajabi offers (`kajabi_offer_names`), whether it includes membership, cohorts and enrollments, badges, Big Sisters, the leakage report. Exists today. | `programs`, `program_cohorts`, `member_program_enrollments` |
+| **Course** | The curriculum a program delivers: modules, weeks, lessons, videos, downloads, and member progress. New in this plan. | `courses`, `course_modules`, `course_lessons` |
+
+- **A program may have no course.** BFF is matching and coaching; retreats are `events`; the membership itself is subscription logic, not a program.
+- **A course belongs to at most one program** (`courses.program_id`), and the program is where access and membership rules live (`programs.includes_membership`), so those rules stay in one place.
+- **We don't build a separate `kajabi_products` catalog** (the old idea in `KAJABI_DATA_MODEL.md`). `programs` plus its Kajabi offer names covers it. Communities (Hub chat replaces them), podcasts and newsletters aren't enrollments we track. If a non-course program needs to be told apart later, add `programs.kind` then.
+
 ## Scope
 
 ### Launch (The Ready Writer)
@@ -101,8 +114,8 @@ This follows the medallion rules in `CLAUDE.md`: Bronze mirrors Kajabi, upserted
 
 - `course_access_grants`: comps and staff access. Admin-written and audited.
 - `videos`: one row per Mux asset.
-  - Fields: `mux_asset_id`, `mux_playback_id` (signed policy), `status`, `duration`, `source_kind` (`kajabi` | `upload`) and `source_key` (the Kajabi media ID; unique).
-  - This is how re-runs skip videos already uploaded. Lessons point at it with `course_lessons.video_id`.
+  - Fields: `mux_asset_id`, `mux_playback_id` (signed policy), `status`, `duration`, `quality` (Mux tier), `source_kind` (`kajabi` | `upload`), `source_key` (the Kajabi media ID), `source_fingerprint` and `source_sha256`. A row is unique per `(source_kind, source_key)`; the hash lets two media IDs share one Mux asset.
+  - This is how re-runs skip videos already uploaded (see "Telling whether a video changed"). Lessons point at it with `course_lessons.video_id`.
   - Local rather than Silver because uploading is an external side effect we must not repeat.
 - `course_lesson_files`: PDFs copied into a private Supabase Storage bucket, keyed by Kajabi file ID and content hash. Served through short-lived signed URLs after an access check.
 - `lesson_progress` (`member_id`, `lesson_id`, `completed_at`, `last_position_seconds`). Member-written, admin-readable, **read-only in sudo**.
@@ -122,7 +135,7 @@ One command, `npm run courses:migrate -- --course <slug>`, runs all four steps i
 | **A. Structure** (`/api/import/kajabi-courses`) | Server; nightly cron + admin button | API → Bronze courses, modules, lessons, offers | Upsert on Kajabi ID; soft-delete what a *complete* fetch no longer returns |
 | **B. Content** (`scripts/kajabi-course-content.ts`) | Local, with the admin's Kajabi session | Lesson HTML, file list, video source → Bronze | Skips lessons whose content hash is unchanged |
 | **C. Process** (`/api/process/courses`) | Server | Bronze → Silver courses/modules/lessons/access | Upsert on source key, delete orphans; IDs stay stable |
-| **D. Media** (`scripts/course-media.ts` or a route) | Local or server | Videos → Mux (from URL if allowed, else download and upload); PDFs → Storage | `videos.source_key` / file ID + hash unique; skips existing; re-uploads only if the source changed |
+| **D. Media** (`scripts/course-media.ts` or a route) | Local or server | Videos → Mux (from URL if allowed, else download and upload); PDFs → Storage | Skips a video whose source fingerprint is unchanged; re-uploads when it changed (see "Telling whether a video changed") |
 
 Tests, per `CLAUDE.md`:
 - Bronze idempotency tests in `tests/api/idempotency/`: first import, re-import with no duplicates, a changed lesson, a removed lesson.
@@ -131,11 +144,21 @@ Tests, per `CLAUDE.md`:
 
 **Launch rehearsal:** run the full migration against production at least twice before launch day, the second time after Ania's final edits. The launch-day run should then be a no-op except for her last changes.
 
+### Telling whether a video changed
+
+Re-hashing every file on every run would mean downloading hundreds of GB each time, so it's layered, cheapest first:
+
+1. **Fingerprint, every run, no download:** Kajabi's media ID and duration (from the API), plus the download link's `Content-Length`, `ETag` and `Last-Modified` (a `HEAD` request). Stored on `videos` as `source_key` and `source_fingerprint`. Replacing a lesson's video in Kajabi should produce a new media ID, which this catches (to be confirmed in the day-1 spike).
+2. **SHA-256, only when we download:** computed while streaming the file to Mux and stored as `videos.source_sha256`. If a new media ID has the same hash as an existing row (a lesson duplicated between the 180 and The Ready Writer, say), **reuse that Mux asset** instead of uploading and paying to store it again.
+3. **When it did change:** upload a new Mux asset, repoint the lesson once it's `ready` (members never see a gap), and retire the old asset once nothing references it.
+
 ## Video
 
 - **Mux:**
-  - Signed playback policy.
-  - `basic` video quality, capped at 1080p (720p is cheaper if talking-head quality allows).
+  - Signed playback policy, 1080p cap.
+  - **Quality tier** (`video_quality`) is a per-video setting, set when the asset is created. *Basic* uses a reduced encoding ladder at a lower target quality and has no encoding charge. *Plus* uses per-title AI encoding (raises bitrate where the picture is complex, lowers it where it isn't) and costs about $0.03/min once at upload. Basic is the default in new Mux accounts.
+  - **Slides with small text are what basic tends to soften,** and webinars are mostly slides. So: course lessons use *plus* (The Ready Writer is about 650 minutes, roughly $20 once); the webinar archive starts as *basic* and moves to *plus* only if a side-by-side test of a few replays shows a difference.
+  - **Changing the tier later means re-ingesting:** the docs describe the tier only as a create-time setting, so a quality change is a new asset from the same source, then repointing the lesson (the same swap as a changed video) and deleting the old asset. It isn't a config toggle on existing videos. Storage cost is the same either way.
   - Free auto-captions off for now (captions are burned in).
   - Audio-only static rendition once audio mode is built.
 - **Keys:** `MUX_TOKEN_ID`/`MUX_TOKEN_SECRET` (Video read+write, Data read, High priority), `MUX_SIGNING_KEY_ID`/`MUX_SIGNING_KEY_PRIVATE`, and `MUX_WEBHOOK_SECRET` (declared in `env-vars.config.ts`). The bulk migration should use a separate Low-priority token so it doesn't compete with member traffic.
