@@ -6,7 +6,7 @@
 self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", (event) => event.waitUntil(self.clients.claim()));
 
-const DIAGNOSTICS_VERSION = "click-diagnostics-v2";
+const DIAGNOSTICS_VERSION = "click-diagnostics-v3";
 const DIAGNOSTICS_CACHE = "hub-push-diagnostics";
 const DIAGNOSTICS_URL = new URL("/__push_diagnostics__", self.location.origin).href;
 let diagnosticWrites = Promise.resolve();
@@ -29,10 +29,11 @@ function diagnosticMessage(error) {
 }
 
 // Local and bounded. Never delay focus/navigation on a storage operation.
-function recordDiagnostic(stage, notificationId, { error, target, operation } = {}) {
+function recordDiagnostic(stage, notificationId, { error, target, operation, style } = {}) {
   const entry = {
     at: new Date().toISOString(), stage, notificationId, version: DIAGNOSTICS_VERSION, operation,
     ...(target ? { pathname: diagnosticPath(target) } : {}),
+    ...(style ? { style } : {}),
     ...(error ? { error: error.name || "Error", errorMessage: diagnosticMessage(error) } : {}),
   };
   diagnosticWrites = diagnosticWrites.then(async () => {
@@ -45,6 +46,23 @@ function recordDiagnostic(stage, notificationId, { error, target, operation } = 
 }
 
 self.addEventListener("message", (event) => {
+  if (event.data?.type === "PUSH_ALERT_COMPARISON" && event.ports?.[0]) {
+    const style = event.data.style;
+    if (style !== "standard" && style !== "persistent") return;
+    const notificationId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+    const target = "/admin/notifications";
+    event.waitUntil(
+      self.registration.showNotification(`[Test] ${style} browser alert`, {
+        body: "Click to test whether the browser delivers this notification to the Hub.",
+        requireInteraction: style === "persistent",
+        data: { url: target, notificationId },
+      })
+        .then(() => recordDiagnostic("shown", notificationId, { target, operation: "show_notification", style }))
+        .then(() => event.ports[0].postMessage({ notificationId }))
+        .catch((error) => event.ports[0].postMessage({ error: diagnosticMessage(error) }))
+    );
+    return;
+  }
   if (event.data?.type !== "PUSH_DIAGNOSTICS" || !event.ports?.[0]) return;
   event.waitUntil((async () => {
     try {
@@ -81,7 +99,9 @@ self.addEventListener("push", (event) => {
       renotify: Boolean(payload.tag),
       requireInteraction: Boolean(payload.requireInteraction),
       data: { url: payload.url, notificationId },
-    }).then(() => recordDiagnostic("shown", notificationId, { target: payload.url || "/", operation: "show_notification" }))
+    }).then(() => recordDiagnostic("shown", notificationId, {
+      target: payload.url || "/", operation: "show_notification", style: payload.requireInteraction ? "persistent" : "standard",
+    }))
   );
 });
 

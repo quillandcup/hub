@@ -2,6 +2,9 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createFakeSupabase } from "@/tests/helpers/server-page";
 import { CHANNELS } from "@/lib/channels/catalog";
 import { NOTIFICATION_KINDS } from "@/lib/notifications/registry";
+import fs from "node:fs";
+import vm from "node:vm";
+import { pushPayload } from "@/lib/channels/web-push";
 
 const mocks = vi.hoisted(() => ({
   addresses: new Map<string, string>(),
@@ -80,6 +83,46 @@ describe("sampleMessages", () => {
 });
 
 describe("sendTestNotification", () => {
+  it("wires the actual Browser check-in sample to the worker's click handler and diagnostic entry", async () => {
+    await sendTestNotification(createFakeSupabase({ prickles: { data: [prickle] } }), "m1", "prickle_checkin", "web_push", NOW);
+    const [, message, context] = mocks.send.mock.calls[0];
+    expect(message.text).toMatch(/^\[Test\]/);
+    const payload = JSON.parse(JSON.stringify(pushPayload(message, context, NOW.getTime())));
+    expect(payload.url).toBe("/my-prickles/history?checkin=p1");
+
+    const listeners: Record<string, (event: any) => void> = {};
+    const showNotification = vi.fn().mockResolvedValue(undefined);
+    const openWindow = vi.fn().mockResolvedValue(null);
+    let stored = "[]";
+    const self = {
+      addEventListener: (type: string, listener: (event: any) => void) => { listeners[type] = listener; },
+      location: { origin: new URL(message.url).origin },
+      registration: { showNotification },
+      clients: { matchAll: async () => [], openWindow },
+      caches: { open: async () => ({
+        match: async () => new Response(stored),
+        put: async (_key: string, response: Response) => { stored = await response.text(); },
+      }) },
+    };
+    vm.runInNewContext(fs.readFileSync("public/sw.js", "utf8"), { self, URL, Response });
+    async function fire(type: string, event: any) {
+      const waits: Promise<unknown>[] = [];
+      listeners[type]({ ...event, waitUntil: (p: Promise<unknown>) => waits.push(p) });
+      await Promise.all(waits);
+    }
+    await fire("push", { data: { json: () => payload } });
+    const options = showNotification.mock.calls[0][1];
+    expect(options.data.url).toBe(payload.url);
+    expect(JSON.parse(stored).map((entry: any) => entry.stage)).toEqual(["shown"]);
+
+    // The browser supplies the displayed notification's data when dispatching a native click.
+    await fire("notificationclick", { notification: { data: options.data, close: vi.fn() } });
+    const entries = JSON.parse(stored);
+    expect(entries.map((entry: any) => entry.stage)).toEqual(["shown", "click_received", "window_open_requested"]);
+    expect(entries.every((entry: any) => entry.notificationId === options.data.notificationId)).toBe(true);
+    expect(openWindow).toHaveBeenCalledWith(new URL(payload.url, self.location.origin).href);
+  });
+
   it("sends the sample on the chosen channel only, as that kind, to the member's address", async () => {
     const result = await sendTestNotification(createFakeSupabase(), "m1", "prickle_nudge", "email", NOW);
 

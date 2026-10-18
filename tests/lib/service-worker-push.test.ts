@@ -187,6 +187,38 @@ async function diagnostics(listeners: Record<string, (event: any) => void>) {
 }
 
 describe("browser push click diagnostics", () => {
+  it.each([
+    ["standard", false],
+    ["persistent", true],
+  ] as const)("sends a local %s alert through the same worker click path", async (style, requireInteraction) => {
+    const openWindow = vi.fn().mockResolvedValue(null);
+    const worker = loadWorker({ matchAll: async () => [], openWindow });
+    const postMessage = vi.fn();
+    await fire(worker.listeners, "message", { data: { type: "PUSH_ALERT_COMPARISON", style }, ports: [{ postMessage }] });
+    expect(worker.showNotification).toHaveBeenCalledWith(`[Test] ${style} browser alert`, expect.objectContaining({
+      requireInteraction,
+      data: { url: "/admin/notifications", notificationId: expect.any(String) },
+    }));
+    const id = postMessage.mock.calls[0][0].notificationId;
+    const options = worker.showNotification.mock.calls[0][1];
+    await fire(worker.listeners, "notificationclick", { notification: { data: options.data, close: vi.fn() } });
+    const entries = (await diagnostics(worker.listeners)).entries;
+    expect(entries.map((entry: any) => [entry.stage, entry.notificationId])).toEqual([
+      ["shown", id], ["click_received", id], ["window_open_requested", id],
+    ]);
+    expect(entries[0].style).toBe(style);
+    expect(openWindow).toHaveBeenCalledWith("https://hub.example.test/admin/notifications");
+  });
+
+  it("reports a local comparison alert that the browser refused to display", async () => {
+    const worker = loadWorker();
+    worker.showNotification.mockRejectedValue(new TypeError("Notification permission denied"));
+    const postMessage = vi.fn();
+    await fire(worker.listeners, "message", { data: { type: "PUSH_ALERT_COMPARISON", style: "standard" }, ports: [{ postMessage }] });
+    expect(postMessage).toHaveBeenCalledWith({ error: "Notification permission denied" });
+    expect((await diagnostics(worker.listeners)).entries).toHaveLength(0);
+  });
+
   it("correlates display and click across worker restarts, keeping destination paths without notification content", async () => {
     const storage = new Map<string, string>();
     const first = loadWorker({}, storage);
@@ -195,11 +227,11 @@ describe("browser push click diagnostics", () => {
     const second = loadWorker({ matchAll: async () => [], openWindow: vi.fn().mockResolvedValue(null) }, storage);
     await fire(second.listeners, "notificationclick", { notification: { data, close: vi.fn() } });
     const result = await diagnostics(second.listeners);
-    expect(result.version).toBe("click-diagnostics-v2");
+    expect(result.version).toBe("click-diagnostics-v3");
     expect(result.entries.map((e: any) => e.stage)).toEqual(["shown", "click_received", "window_open_requested"]);
     expect(result.entries.every((e: any) => e.notificationId === data.notificationId)).toBe(true);
     expect(result.entries.every((e: any) => e.pathname === "/my-prickles/history")).toBe(true);
-    expect(result.entries.every((e: any) => e.version === "click-diagnostics-v2")).toBe(true);
+    expect(result.entries.every((e: any) => e.version === "click-diagnostics-v3")).toBe(true);
     expect(result.entries.map((e: any) => e.operation)).toEqual(["show_notification", "receive_click", "open_window"]);
     expect(JSON.stringify(result)).not.toMatch(/Private|secret-id|private-fragment/);
   });

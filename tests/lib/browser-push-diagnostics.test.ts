@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { readPushDiagnostics } from "@/lib/browser-push-diagnostics";
+import { readPushDiagnostics, sendBrowserAlertComparison } from "@/lib/browser-push-diagnostics";
 
 const result = { version: "click-diagnostics-v1", entries: [] };
 function setup(reply: unknown = result) {
@@ -20,6 +20,21 @@ afterEach(() => {
 });
 
 describe("readPushDiagnostics", () => {
+  it("sends a local comparison through the active worker without changing subscription", async () => {
+    vi.stubGlobal("Notification", { permission: "granted" });
+    const { postMessage, port2, registration } = setup({ notificationId: "local-test" });
+    expect(await sendBrowserAlertComparison("standard")).toBe("local-test");
+    expect(registration.update).toHaveBeenCalledOnce();
+    expect(postMessage).toHaveBeenCalledWith({ type: "PUSH_ALERT_COMPARISON", style: "standard" }, [port2]);
+  });
+
+  it("refuses a local comparison when permission is not already granted", async () => {
+    vi.stubGlobal("Notification", { permission: "denied" });
+    const { postMessage } = setup();
+    await expect(sendBrowserAlertComparison("persistent")).rejects.toThrow("not allowed");
+    expect(postMessage).not.toHaveBeenCalled();
+  });
+
   it("checks for an updated worker and requests diagnostics from the active worker", async () => {
     const { registration, postMessage, getRegistration, port1, port2 } = setup();
     expect(await readPushDiagnostics()).toEqual(result);

@@ -8,13 +8,14 @@ export type PushDiagnostics = {
     version?: string;
     operation?: string;
     pathname?: string;
+    style?: "standard" | "persistent";
     error?: string;
     errorMessage?: string;
   }[];
 };
 
 /** Update the existing registration without changing permission, consent, or subscription. */
-export async function readPushDiagnostics(): Promise<PushDiagnostics> {
+async function activePushWorker(): Promise<ServiceWorker> {
   if (!("serviceWorker" in navigator)) throw new Error("This browser does not support browser notifications.");
   const registration = await navigator.serviceWorker.getRegistration("/sw.js");
   if (!registration) throw new Error("Enable Browser notifications for this device in Settings → Notifications first.");
@@ -39,9 +40,13 @@ export async function readPushDiagnostics(): Promise<PushDiagnostics> {
   }
   const worker = registration.active;
   if (!worker) throw new Error("The notification worker is not active. Reload and try again.");
+  return worker;
+}
+
+async function askPushWorker<T>(worker: ServiceWorker, message: { type: string; style?: string }): Promise<T> {
   return new Promise((resolve, reject) => {
     const channel = new MessageChannel();
-    const finish = (result?: PushDiagnostics, error?: Error) => {
+    const finish = (result?: T, error?: Error) => {
       clearTimeout(timer);
       channel.port1.close();
       channel.port2.close();
@@ -54,9 +59,20 @@ export async function readPushDiagnostics(): Promise<PushDiagnostics> {
       else finish(data);
     };
     try {
-      worker.postMessage({ type: "PUSH_DIAGNOSTICS" }, [channel.port2]);
+      worker.postMessage(message, [channel.port2]);
     } catch (error) {
       finish(undefined, error instanceof Error ? error : new Error(String(error)));
     }
   });
+}
+
+export async function readPushDiagnostics(): Promise<PushDiagnostics> {
+  return askPushWorker(await activePushWorker(), { type: "PUSH_DIAGNOSTICS" });
+}
+
+/** Compare Chrome's standard banner with its persistent alert on this device only. */
+export async function sendBrowserAlertComparison(style: "standard" | "persistent"): Promise<string> {
+  if (Notification.permission !== "granted") throw new Error("Browser notifications are not allowed on this device.");
+  const result = await askPushWorker<{ notificationId: string }>(await activePushWorker(), { type: "PUSH_ALERT_COMPARISON", style });
+  return result.notificationId;
 }
