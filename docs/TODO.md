@@ -217,6 +217,12 @@ The `CHECKLY_HEARTBEAT_*` values are ping URLs: anyone who has one can mark that
 - Clear separation of development and production
 - Easier onboarding for new developers
 
+### Audit Server Error Logging and Send Genuine Errors to Sentry
+
+- [ ] Inventory server-side `console.error` calls. Reclassify expected outcomes (such as a member opt-out, absent optional integration, or rejected user input) as normal results or appropriate lower-severity logs; fix misleading error messages.
+- [ ] After that audit, connect genuine server `console.error` events to Sentry centrally, with environment tags and protection against recursion, duplicate reporting, sensitive data, and alert floods. Keep explicit capture for caught errors until the central path is verified, then remove redundant one-off captures.
+- [ ] Test one handled failure and one unhandled exception end to end in a preview deploy, and verify server logs, Sentry events, and alert-rule routing. See the alert-routing item below.
+
 ### Sentry Alert Routing _(Needs Scheduling)_
 
 Sentry alert rules don't follow the alert-routing rule in `docs/INTEGRATION_LINKS.md` yet.

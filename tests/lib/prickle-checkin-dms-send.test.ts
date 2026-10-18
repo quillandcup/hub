@@ -94,6 +94,7 @@ describe("prickle check-in route", () => {
       writing_goals: { data: goals },
       prickles: { data: [PRICKLE] },
       members: { data: [{ id: "m1" }, { id: "m2" }] },
+      feature_flags: { data: { enabled_globally: true } },
       prickle_checkin_dm_log: dmLog(),
       ...extra,
     });
@@ -112,6 +113,15 @@ describe("prickle check-in route", () => {
     expect(await res.json()).toEqual({ checkins: 1, checkouts: 0 });
     expect(sendSlackDM).toHaveBeenCalledTimes(1);
     expect(sendSlackDM.mock.calls[0][0].slackUserId).toBe("U-m1");
+  });
+
+  it("does not claim an unflagged member's check-in, so a later rollout can send it", async () => {
+    setup([goalRow("g1", "m1", "proj1", "words")], { feature_flags: { data: { enabled_globally: false } } });
+    calendarPrickleIds.mockResolvedValue(new Set(["p1"]));
+
+    expect(await (await POST(cronRequest())).json()).toEqual({ checkins: 0, checkouts: 0 });
+    expect(sendSlackDM).not.toHaveBeenCalled();
+    expect(fake.queries.some((q) => q.table === "prickle_checkin_dm_log" && q.calls.some((c) => c.method === "insert"))).toBe(false);
   });
 
   it("skips a member who already answered every check-in question", async () => {
@@ -265,6 +275,7 @@ describe("sendCheckoutDMs", () => {
       },
       writing_goals: { data: goals },
       members: { data: [{ id: "m1" }, { id: "m2" }] },
+      feature_flags: { data: { enabled_globally: true } },
       prickle_checkin_dm_log: dmLog(),
       ...extra,
     });

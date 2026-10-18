@@ -1,9 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { createFakeSupabase } from "@/tests/helpers/server-page";
+import { createFakeSupabase, type FakeTables } from "@/tests/helpers/server-page";
 import { APP_URL } from "@/lib/config";
 
 const sendSlackDM = vi.fn(async (_params: { slackUserId: string; text: string; blocks?: any[] }) => {});
 vi.mock("@/lib/slack", () => ({ sendSlackDM: (p: any) => sendSlackDM(p) }));
+const captureException = vi.hoisted(() => vi.fn());
+vi.mock("@sentry/nextjs", () => ({ captureException }));
 
 // m1 and m2 have Slack accounts; m3 doesn't.
 const resolveSlackUserIds = vi.fn(
@@ -17,10 +19,12 @@ vi.mock("@/lib/slack-member-ids", () => ({
 const { effectiveChannels, effectiveSettings, NOTIFICATION_KINDS } = await import("@/lib/notifications/registry");
 const { createNotifier } = await import("@/lib/notifications/notify");
 const { slackBlocks } = await import("@/lib/channels/slack");
+const slackReady = (tables: FakeTables = {}) => createFakeSupabase({ feature_flags: { data: { enabled_globally: true } }, ...tables });
 
 beforeEach(() => {
   sendSlackDM.mockReset();
   resolveSlackUserIds.mockClear();
+  captureException.mockClear();
 });
 
 describe("effectiveChannels", () => {
@@ -50,8 +54,41 @@ describe("effectiveChannels", () => {
 describe("createNotifier", () => {
   const optedOut = { member_id: "m2", kind: "prickle_checkin", channel: "slack", enabled: false };
 
+  it("keeps Slack off for unflagged members without claiming they are reachable", async () => {
+    const fake = createFakeSupabase();
+    const notifier = await createNotifier(fake, "prickle_checkin", ["m1"]);
+
+    expect(notifier.channelsFor("m1")).toEqual([]);
+    expect(notifier.canReach("m1")).toBe(false);
+    expect(await notifier.send("m1", { text: "Hello" })).toEqual([]);
+    expect(resolveSlackUserIds).not.toHaveBeenCalled();
+  });
+
+  it("limits real Slack notifications to the flagged cohort", async () => {
+    const fake = createFakeSupabase({
+      members: { data: [{ id: "m1", user_id: "u1" }, { id: "m2", user_id: "u2" }] },
+      user_feature_previews: (query) => ({ data: query.calls.some((c) => c.method === "eq" && c.args[1] === "slack_notifications") ? [{ user_id: "u1" }] : [] }),
+    });
+    const notifier = await createNotifier(fake, "prickle_checkin", ["m1", "m2"]);
+
+    expect(notifier.channelsFor("m1")).toEqual(["slack"]);
+    expect(notifier.channelsFor("m2")).toEqual([]);
+    expect(resolveSlackUserIds.mock.calls[0][1]).toEqual(["m1"]);
+  });
+
+  it("keeps an unflagged member's other chosen channels", async () => {
+    const fake = createFakeSupabase({
+      members: { data: [{ id: "m1", user_id: "u1", email: "m1@example.com" }] },
+      notification_preferences: { data: [{ member_id: "m1", kind: "prickle_checkin", channel: "email", enabled: true }] },
+    });
+    const notifier = await createNotifier(fake, "prickle_checkin", ["m1"]);
+
+    expect(notifier.channelsFor("m1")).toEqual(["email"]);
+    expect(resolveSlackUserIds).not.toHaveBeenCalled();
+  });
+
   it("reaches members on their channels, skipping opt-outs and members with no address", async () => {
-    const fake = createFakeSupabase({ notification_preferences: { data: [optedOut] } });
+    const fake = slackReady({ notification_preferences: { data: [optedOut] } });
     const notifier = await createNotifier(fake, "prickle_checkin", ["m1", "m2", "m3", "m1"]);
 
     expect(notifier.channelsFor("m1")).toEqual(["slack"]);
@@ -64,14 +101,14 @@ describe("createNotifier", () => {
   });
 
   it("sends to the member's Slack and reports the delivered channels", async () => {
-    const notifier = await createNotifier(createFakeSupabase(), "prickle_checkin", ["m1"]);
+    const notifier = await createNotifier(slackReady(), "prickle_checkin", ["m1"]);
 
     expect(await notifier.send("m1", { text: "Hello", url: `${APP_URL}/prickles/p1` })).toEqual(["slack"]);
     expect(sendSlackDM).toHaveBeenCalledWith(expect.objectContaining({ slackUserId: "U-m1", text: "Hello" }));
   });
 
   it("sends nothing to a member who opted out", async () => {
-    const fake = createFakeSupabase({ notification_preferences: { data: [optedOut] } });
+    const fake = slackReady({ notification_preferences: { data: [optedOut] } });
     const notifier = await createNotifier(fake, "prickle_checkin", ["m2"]);
 
     expect(await notifier.send("m2", { text: "Hello" })).toEqual([]);
@@ -81,10 +118,11 @@ describe("createNotifier", () => {
   it("logs a failed channel and reports nothing delivered instead of throwing", async () => {
     sendSlackDM.mockRejectedValueOnce(new Error("channel_not_found"));
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
-    const notifier = await createNotifier(createFakeSupabase(), "prickle_checkin", ["m1"]);
+    const notifier = await createNotifier(slackReady(), "prickle_checkin", ["m1"]);
 
     expect(await notifier.send("m1", { text: "Hello" })).toEqual([]);
     expect(error).toHaveBeenCalled();
+    expect(captureException).toHaveBeenCalledWith(expect.any(Error), expect.objectContaining({ tags: { notification_kind: "prickle_checkin", notification_channel: "slack" } }));
     error.mockRestore();
   });
 
@@ -107,7 +145,7 @@ describe("createNotifier", () => {
   });
 
   it("adds a notification settings link to every message", async () => {
-    const notifier = await createNotifier(createFakeSupabase(), "prickle_checkin", ["m1"]);
+    const notifier = await createNotifier(slackReady(), "prickle_checkin", ["m1"]);
     await notifier.send("m1", { text: "Hello" });
 
     const blocks = sendSlackDM.mock.calls[0][0].blocks!;
@@ -120,10 +158,11 @@ describe("createNotifier", () => {
 
     expect(await notifier.send("m2", { text: "Test" })).toEqual(["slack"]);
     expect(fake.queries.some((q) => q.table === "notification_preferences")).toBe(false);
+    expect(fake.queries.some((q) => q.table === "feature_flags")).toBe(false);
   });
 
   it("loads preferences in chunks for large batches", async () => {
-    const fake = createFakeSupabase();
+    const fake = slackReady();
     const ids = Array.from({ length: 450 }, (_, i) => `x${i}`);
     await createNotifier(fake, "prickle_checkin", ids);
 

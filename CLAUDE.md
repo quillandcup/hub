@@ -150,6 +150,8 @@ Layers: **channels** (`lib/channels/`: Slack, in-app, browser push and email tod
 
 **Adding a kind** also needs its sample message in `sampleMessages` (`lib/notification-test.ts`; TypeScript fails until it has one), which powers Admin → Test Notifications (`/admin/notifications`): every kind on every channel, sent to the admin's own accounts.
 
+**Slack notification rollout**: Automatic Slack DMs also require the `slack_notifications` feature flag for the recipient; this applies after per-kind preferences and leaves their other channels alone. Explicit admin test sends bypass the flag. The flag starts off and can be enabled for a user, segment, or globally from the feature flags admin UI. Deploy the code and flag migration with the flag off, set production `SLACK_TEST_MODE=false` (leave preview redirected), then enable a small audited cohort. Review server logs and Sentry events for ambiguous Slack matches and failed DM posts before expanding. Sentry alert delivery depends on the project's alert rules. A member without the flag and without another reachable channel does not consume a notification dedup claim. A member with another successful channel does consume it, so enabling Slack later does not replay that past notification.
+
 Exceptions that stay direct: replies the member just asked for (Slack sign-in link), shared rooms (Wheel of Wonder intro), and staff-channel posts (`notifyStaffNewBook`, `notifyStaffNewAward`, the feedback widget). For a send the member explicitly requested that should still look like the notification (admin test DMs), use `createNotifier(..., { channels: ["slack"] })`, which skips preferences.
 
 ### Tabbed Pages: Tabs Are Paths
