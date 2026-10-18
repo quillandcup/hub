@@ -187,27 +187,31 @@ async function diagnostics(listeners: Record<string, (event: any) => void>) {
 }
 
 describe("browser push click diagnostics", () => {
-  it("correlates display and click across worker restarts without storing message content or URLs", async () => {
+  it("correlates display and click across worker restarts, keeping destination paths without notification content", async () => {
     const storage = new Map<string, string>();
     const first = loadWorker({}, storage);
-    await fire(first.listeners, "push", { data: { json: () => ({ title: "Private title", body: "Private body", url: "/private-target" }) } });
+    await fire(first.listeners, "push", { data: { json: () => ({ title: "Private title", body: "Private body", url: "/my-prickles/history?checkin=secret-id#private-fragment" }) } });
     const data = first.showNotification.mock.calls[0][1].data;
     const second = loadWorker({ matchAll: async () => [], openWindow: vi.fn().mockResolvedValue(null) }, storage);
     await fire(second.listeners, "notificationclick", { notification: { data, close: vi.fn() } });
     const result = await diagnostics(second.listeners);
-    expect(result.version).toBe("click-diagnostics-v1");
+    expect(result.version).toBe("click-diagnostics-v2");
     expect(result.entries.map((e: any) => e.stage)).toEqual(["shown", "click_received", "window_open_requested"]);
     expect(result.entries.every((e: any) => e.notificationId === data.notificationId)).toBe(true);
-    expect(JSON.stringify(result)).not.toMatch(/Private|private-target/);
+    expect(result.entries.every((e: any) => e.pathname === "/my-prickles/history")).toBe(true);
+    expect(result.entries.every((e: any) => e.version === "click-diagnostics-v2")).toBe(true);
+    expect(result.entries.map((e: any) => e.operation)).toEqual(["show_notification", "receive_click", "open_window"]);
+    expect(JSON.stringify(result)).not.toMatch(/Private|secret-id|private-fragment/);
   });
 
   it("records navigation errors and the click even when opening fails", async () => {
-    const worker = loadWorker({ matchAll: vi.fn().mockRejectedValue(new TypeError("private URL")) });
+    const worker = loadWorker({ matchAll: vi.fn().mockRejectedValue(new TypeError("Cannot enumerate windows")) });
     await fire(worker.listeners, "notificationclick", { notification: { data: { url: "/test" }, close: vi.fn() } });
     const result = await diagnostics(worker.listeners);
     expect(result.entries.map((e: any) => e.stage)).toEqual(["click_received", "open_failed"]);
     expect(result.entries[1].error).toBe("TypeError");
-    expect(JSON.stringify(result)).not.toContain("private URL");
+    expect(result.entries[1].errorMessage).toBe("Cannot enumerate windows");
+    expect(result.entries[1].operation).toBe("list_windows");
   });
 
   it("records tab navigation even if bringing the navigated window forward fails", async () => {
@@ -216,6 +220,40 @@ describe("browser push click diagnostics", () => {
     const worker = loadWorker({ matchAll: async () => [{ url: "https://hub.example.test/dashboard", navigate }] });
     await fire(worker.listeners, "notificationclick", { notification: { data: { url: "/test" }, close: vi.fn() } });
     expect((await diagnostics(worker.listeners)).entries.map((e: any) => e.stage)).toEqual(["click_received", "focus_failed", "tab_navigated"]);
+  });
+
+  it.each([
+    ["Cannot open 'https://user:password@hub.example.test/my-prickles/history?token=secret#private'", "Cannot open '/my-prickles/history'"],
+    ["Navigation to /my-prickles/history?token=secret#private failed", "Navigation to /my-prickles/history[redacted] failed"],
+    ["Unable to focus a window", "Unable to focus a window"],
+  ])("retains a useful sanitized error message: %s", async (message, expected) => {
+    const worker = loadWorker({ matchAll: async () => [], openWindow: vi.fn().mockRejectedValue(new TypeError(message)) });
+    await fire(worker.listeners, "notificationclick", { notification: { data: { url: "/target?secret=value#fragment" }, close: vi.fn() } });
+    const result = await diagnostics(worker.listeners);
+    expect(result.entries[1]).toMatchObject({
+      stage: "open_failed", operation: "open_window", pathname: "/target", error: "TypeError", errorMessage: expected,
+    });
+    expect(JSON.stringify(result)).not.toMatch(/password|secret|private|fragment/);
+  });
+
+  it("bounds error message size without storing the stack", async () => {
+    const worker = loadWorker({ matchAll: vi.fn().mockRejectedValue(new Error("x".repeat(1000))) });
+    await fire(worker.listeners, "notificationclick", { notification: { data: { url: "/test" }, close: vi.fn() } });
+    const entry = (await diagnostics(worker.listeners)).entries[1];
+    expect(entry.errorMessage).toBe("x".repeat(500));
+    expect(entry).not.toHaveProperty("stack");
+  });
+
+  it("distinguishes a tab focus failure from a tab navigation failure", async () => {
+    const worker = loadWorker({ matchAll: async () => [
+      { url: "https://hub.example.test/one", focus: vi.fn().mockRejectedValue(new Error("focus denied")) },
+      { url: "https://hub.example.test/two", navigate: vi.fn().mockRejectedValue(new Error("navigation denied")) },
+    ], openWindow: vi.fn().mockResolvedValue(null) });
+    await fire(worker.listeners, "notificationclick", { notification: { data: { url: "/target" }, close: vi.fn() } });
+    expect((await diagnostics(worker.listeners)).entries.filter((e: any) => e.stage === "tab_reuse_failed")).toMatchObject([
+      { operation: "focus_tab", errorMessage: "focus denied" },
+      { operation: "navigate_tab", errorMessage: "navigation denied" },
+    ]);
   });
 
   it("preserves the earlier fix for a synchronous focus failure after navigation", async () => {

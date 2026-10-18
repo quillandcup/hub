@@ -8,17 +8,20 @@ import BrowserPushDiagnostics from "@/app/(admin)/admin/notifications/BrowserPus
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
 
 describe("BrowserPushDiagnostics", () => {
-  it("shows the active worker, correlated stages, and error names", async () => {
-    read.mockResolvedValue({ version: "click-diagnostics-v1", entries: [
+  it("shows the active worker, correlated stages, sanitized messages, paths, and operations", async () => {
+    read.mockResolvedValue({ version: "click-diagnostics-v2", entries: [
       { at: "2026-10-18T12:00:00Z", stage: "click_received", notificationId: "test-123" },
-      { at: "2026-10-18T12:00:01Z", stage: "open_failed", notificationId: "test-123", error: "TypeError" },
+      { at: "2026-10-18T12:00:01Z", stage: "open_failed", notificationId: "test-123", error: "TypeError", errorMessage: "Window could not be opened", pathname: "/my-prickles/history", operation: "open_window", version: "click-diagnostics-v2" },
     ] });
     render(<BrowserPushDiagnostics />);
     await userEvent.click(screen.getByRole("button", { name: "Refresh browser diagnostics" }));
     const status = await screen.findByRole("status");
-    expect(status).toHaveTextContent("Active worker: click-diagnostics-v1");
+    expect(status).toHaveTextContent("Active worker: click-diagnostics-v2");
     expect(status).toHaveTextContent("Click reached the notification worker");
     expect(status).toHaveTextContent("Opening the notification failed (TypeError)");
+    expect(status).toHaveTextContent("Window could not be opened");
+    expect(status).toHaveTextContent("click-diagnostics-v2 · open_window · /my-prickles/history");
+    expect(status).toHaveTextContent("Older worker");
     expect(screen.getAllByText("[test-123]")).toHaveLength(2);
   });
   it("explains when there are no recorded events", async () => {

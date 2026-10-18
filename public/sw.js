@@ -6,15 +6,35 @@
 self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", (event) => event.waitUntil(self.clients.claim()));
 
-const DIAGNOSTICS_VERSION = "click-diagnostics-v1";
+const DIAGNOSTICS_VERSION = "click-diagnostics-v2";
 const DIAGNOSTICS_CACHE = "hub-push-diagnostics";
 const DIAGNOSTICS_URL = new URL("/__push_diagnostics__", self.location.origin).href;
 let diagnosticWrites = Promise.resolve();
 let diagnosticStorageFailed = false;
 
-// Local, bounded, and content-free. Never delay focus/navigation on a storage operation.
-function recordDiagnostic(stage, notificationId, error) {
-  const entry = { at: new Date().toISOString(), stage, notificationId, ...(error ? { error: error.name || "Error" } : {}) };
+function diagnosticPath(value) {
+  try {
+    return new URL(value, self.location.origin).pathname;
+  } catch {
+    return "[invalid URL]";
+  }
+}
+
+// Keep the useful browser explanation, excluding URL credentials, queries, fragments, and stacks.
+function diagnosticMessage(error) {
+  return String(error?.message ?? error)
+    .replace(/\b[a-z][a-z\d+.-]*:\/\/[^\s"'<>]+/gi, (url) => diagnosticPath(url))
+    .replace(/[?#][^\s"'<>]+/g, "[redacted]")
+    .slice(0, 500);
+}
+
+// Local and bounded. Never delay focus/navigation on a storage operation.
+function recordDiagnostic(stage, notificationId, { error, target, operation } = {}) {
+  const entry = {
+    at: new Date().toISOString(), stage, notificationId, version: DIAGNOSTICS_VERSION, operation,
+    ...(target ? { pathname: diagnosticPath(target) } : {}),
+    ...(error ? { error: error.name || "Error", errorMessage: diagnosticMessage(error) } : {}),
+  };
   diagnosticWrites = diagnosticWrites.then(async () => {
     const cache = await self.caches.open(DIAGNOSTICS_CACHE);
     const previous = await cache.match(DIAGNOSTICS_URL);
@@ -61,31 +81,35 @@ self.addEventListener("push", (event) => {
       renotify: Boolean(payload.tag),
       requireInteraction: Boolean(payload.requireInteraction),
       data: { url: payload.url, notificationId },
-    }).then(() => recordDiagnostic("shown", notificationId))
+    }).then(() => recordDiagnostic("shown", notificationId, { target: payload.url || "/", operation: "show_notification" }))
   );
 });
 
 self.addEventListener("notificationclick", (event) => {
   const notificationId = event.notification.data?.notificationId || "older-notification";
-  const received = recordDiagnostic("click_received", notificationId);
+  const context = { target: event.notification.data?.url || "/", operation: "receive_click" };
+  const received = recordDiagnostic("click_received", notificationId, context);
   event.waitUntil(received);
-  event.waitUntil(handleClick(event, notificationId).catch((error) => recordDiagnostic("open_failed", notificationId, error)));
+  event.waitUntil(handleClick(event, notificationId, context).catch((error) => recordDiagnostic("open_failed", notificationId, { ...context, error })));
 });
 
-async function handleClick(event, notificationId) {
+async function handleClick(event, notificationId, context) {
+  context.operation = "close_notification";
   event.notification.close();
   // A Hub path, or an https link the server allowed (notificationUrl in lib/channels/in-app.ts: the
   // Slack workspace only); resolve against our own origin.
-  const target = new URL(event.notification.data?.url || "/", self.location.origin);
+  context.operation = "resolve_target";
+  const target = new URL(context.target, self.location.origin);
   if (target.origin !== self.location.origin) {
     if (target.protocol === "https:") {
+      context.operation = "open_window";
       await self.clients.openWindow(target.href);
-      await recordDiagnostic("external_open_requested", notificationId);
+      await recordDiagnostic("external_open_requested", notificationId, context);
     }
     return;
   }
 
-  await openTarget(target, notificationId);
+  await openTarget(target, notificationId, context);
 }
 
 // Reuse an open Hub tab when we can drive it, otherwise open a new one. A window this worker can't
@@ -98,7 +122,8 @@ async function handleClick(event, notificationId) {
 // WindowClient.url is only the tab's last full page load: the Hub navigates in place (pushState), so a
 // tab that reads as already on the target may have moved on. That ranks it first but never lets us skip
 // navigating it.
-async function openTarget(target, notificationId) {
+async function openTarget(target, notificationId, context) {
+  context.operation = "list_windows";
   const windows = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
   const rank = (w) => (w.url === target.href ? 0 : w.focused ? 1 : w.visibilityState === "visible" ? 2 : 3);
   const hubTabs = windows
@@ -107,24 +132,28 @@ async function openTarget(target, notificationId) {
   console.log("[sw] notification click", { target: target.href, hubTabs: hubTabs.map((w) => w.url) });
   for (const tab of hubTabs) {
     try {
+      context.operation = "focus_tab";
       if ("focus" in tab) await tab.focus();
+      context.operation = "navigate_tab";
       const navigated = "navigate" in tab ? await tab.navigate(target.href) : null;
       if (navigated) {
         // The tab is already where it should be; a focus failure now mustn't send us on to another tab.
         try {
+          context.operation = "focus_tab";
           await navigated.focus();
         } catch (error) {
-          await recordDiagnostic("focus_failed", notificationId, error);
+          await recordDiagnostic("focus_failed", notificationId, { ...context, error });
         }
-        await recordDiagnostic("tab_navigated", notificationId);
+        await recordDiagnostic("tab_navigated", notificationId, { ...context, operation: "navigate_tab" });
         return;
       }
     } catch (error) {
       console.warn("[sw] couldn't reuse an open tab", tab.url, error);
       // Queue the write; keep the next focus attempt on the click's activation path.
-      recordDiagnostic("tab_reuse_failed", notificationId, error);
+      recordDiagnostic("tab_reuse_failed", notificationId, { ...context, error });
     }
   }
+  context.operation = "open_window";
   await self.clients.openWindow(target.href);
-  await recordDiagnostic("window_open_requested", notificationId);
+  await recordDiagnostic("window_open_requested", notificationId, context);
 }

@@ -1,6 +1,16 @@
 export type PushDiagnostics = {
   version: string;
-  entries: { at: string; stage: string; notificationId: string; error?: string }[];
+  entries: {
+    at: string;
+    stage: string;
+    notificationId: string;
+    // Optional for events retained from workers before click-diagnostics-v2.
+    version?: string;
+    operation?: string;
+    pathname?: string;
+    error?: string;
+    errorMessage?: string;
+  }[];
 };
 
 /** Update the existing registration without changing permission, consent, or subscription. */

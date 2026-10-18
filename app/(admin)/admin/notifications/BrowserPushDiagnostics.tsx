@@ -47,7 +47,7 @@ export default function BrowserPushDiagnostics() {
       {diagnostics && (
         <div role="status" className="space-y-2 text-sm">
           <p>Active worker: {diagnostics.version}</p>
-          <p className="text-slate-500">The latest 30 events on this browser only. No notification text or destination URLs are recorded.</p>
+          <p className="text-slate-500">The latest 30 events on this browser only. Includes destination paths and sanitized errors; excludes notification text and URL query parameters.</p>
           {diagnostics.entries.length === 0 ? <p>No notification events recorded yet. Send a new Browser test.</p> : (
             <ol className="space-y-1">
               {[...diagnostics.entries].reverse().map((entry, index) => (
@@ -55,6 +55,10 @@ export default function BrowserPushDiagnostics() {
                   <time dateTime={entry.at}>{new Date(entry.at).toLocaleTimeString()}</time>{" — "}
                   {STAGES[entry.stage] ?? entry.stage}{entry.error ? ` (${entry.error})` : ""}{" "}
                   <span className="text-xs text-slate-500">[{entry.notificationId}]</span>
+                  {entry.errorMessage && <p className="break-words">{entry.errorMessage}</p>}
+                  <p className="break-words text-xs text-slate-500">
+                    {entry.version ?? "Older worker"}{entry.operation ? ` · ${entry.operation}` : ""}{entry.pathname ? ` · ${entry.pathname}` : ""}
+                  </p>
                 </li>
               ))}
             </ol>
