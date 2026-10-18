@@ -65,14 +65,15 @@ describe("PrickleCheckModal check-in", () => {
 
   it("shows a join link after saving a check-in when the prickle has one", async () => {
     const user = userEvent.setup();
-    vi.mocked(getCheckModalData).mockResolvedValue(data({ join: { url: "https://zoom.us/j/123", passcode: "thriving" } }));
+    vi.mocked(getCheckModalData).mockResolvedValue(data({ join: { url: "https://zoom.us/j/123", meetingId: "880 7170 2629", passcode: "thriving" } }));
     const { onClose } = renderModal("checkin");
     await user.click(await screen.findByRole("button", { name: "Calm" }));
     await user.click(screen.getByRole("button", { name: "Save" }));
 
     const link = await screen.findByRole("link", { name: "Join the prickle" });
     expect(link).toHaveAttribute("href", "https://zoom.us/j/123");
-    expect(screen.getByText("thriving")).toBeInTheDocument();
+    expect(screen.getByText("Passcode: thriving")).toBeInTheDocument();
+    expect(screen.getByText("Meeting ID: 880 7170 2629")).toBeInTheDocument();
     expect(onClose).not.toHaveBeenCalled();
   });
 

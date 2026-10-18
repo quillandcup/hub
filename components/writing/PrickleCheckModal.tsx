@@ -9,6 +9,7 @@ import {
   type CheckModalData,
   type CheckinHalf,
 } from "@/app/(member)/prickles/checkin-actions";
+import { joinCredentials } from "@/lib/prickle-join";
 import { logProgress } from "@/app/(member)/projects/actions";
 import { MEASURE_LABELS } from "@/lib/writing-projects";
 import type { CheckinInput } from "@/lib/prickle-checkins";
@@ -119,11 +120,11 @@ export default function PrickleCheckModal({ prickleId, half, onClose, onSaved, p
       {data && savedCheckin && data.join && (
         <div className="space-y-4">
           <p className="text-sm text-slate-600 dark:text-slate-400">Checked in. Ready to join?</p>
-          {data.join.passcode && (
-            <p className="text-sm text-slate-600 dark:text-slate-400">
-              Passcode: <span className="font-mono">{data.join.passcode}</span>
+          {joinCredentials(data.join).map((line) => (
+            <p key={line} className="text-sm text-slate-600 dark:text-slate-400">
+              {line}
             </p>
-          )}
+          ))}
           <div className="flex justify-end gap-3">
             <button
               type="button"

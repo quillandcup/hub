@@ -4,6 +4,7 @@ import { joinAt, joinDescription, type PrickleJoinSetting } from "@/lib/prickle-
 const setting = (id: string, effectiveFrom: string, passcode: string): PrickleJoinSetting => ({
   id,
   url: `https://zoom.us/j/${id}`,
+  meetingId: `id-${id}`,
   passcode,
   effectiveFrom,
   createdAt: effectiveFrom,
@@ -26,8 +27,8 @@ describe("joinAt", () => {
 
 describe("joinDescription", () => {
   it("lists the link and passcode", () => {
-    expect(joinDescription({ url: "https://zoom.us/j/1", passcode: "x" })).toBe("Join on Zoom: https://zoom.us/j/1\nPasscode: x");
-    expect(joinDescription({ url: "https://zoom.us/j/1", passcode: null })).toBe("Join on Zoom: https://zoom.us/j/1");
+    expect(joinDescription({ url: "https://zoom.us/j/1", meetingId: "123 456", passcode: "x" })).toBe("Join on Zoom: https://zoom.us/j/1\nMeeting ID: 123 456\nPasscode: x");
+    expect(joinDescription({ url: "https://zoom.us/j/1", meetingId: null, passcode: null })).toBe("Join on Zoom: https://zoom.us/j/1");
     expect(joinDescription(null)).toBe("");
   });
 });
@@ -74,12 +75,12 @@ describe("loadPrickleJoinSettings", () => {
   it("maps rows, newest first as the query orders them", async () => {
     const supabase = createFakeSupabase({
       prickle_join_settings: {
-        data: [{ id: "a", join_url: "https://zoom.example.test/j/1", passcode: "pw", effective_from: "2026-11-01T05:00:00Z", created_at: "2026-10-20T00:00:00Z" }],
+        data: [{ id: "a", join_url: "https://zoom.example.test/j/1", meeting_id: "123 456", passcode: "pw", effective_from: "2026-11-01T05:00:00Z", created_at: "2026-10-20T00:00:00Z" }],
       },
     });
 
     expect(await loadPrickleJoinSettings(supabase as never)).toEqual([
-      { id: "a", url: "https://zoom.example.test/j/1", passcode: "pw", effectiveFrom: "2026-11-01T05:00:00Z", createdAt: "2026-10-20T00:00:00Z" },
+      { id: "a", url: "https://zoom.example.test/j/1", meetingId: "123 456", passcode: "pw", effectiveFrom: "2026-11-01T05:00:00Z", createdAt: "2026-10-20T00:00:00Z" },
     ]);
     const orders = supabase.queries[0].calls.filter((c) => c.method === "order").map((c) => c.args[0]);
     expect(orders).toEqual(["effective_from", "created_at"]);
@@ -97,9 +98,9 @@ describe("loadPrickleJoinSettings", () => {
 describe("joinSlackBlocks", () => {
   it("is a button plus the passcode, or nothing without a link", () => {
     expect(joinSlackBlocks(null)).toEqual([]);
-    const withCode = joinSlackBlocks({ url: "https://zoom.example.test/j/1", passcode: "pw" });
+    const withCode = joinSlackBlocks({ url: "https://zoom.example.test/j/1", meetingId: "123 456", passcode: "pw" });
     expect(withCode[0].elements[0]).toMatchObject({ url: "https://zoom.example.test/j/1" });
-    expect(withCode[1].elements[0].text).toBe("Passcode: pw");
-    expect(joinSlackBlocks({ url: "https://zoom.example.test/j/1", passcode: null })).toHaveLength(1);
+    expect(withCode[1].elements[0].text).toBe("Meeting ID: 123 456 · Passcode: pw");
+    expect(joinSlackBlocks({ url: "https://zoom.example.test/j/1", meetingId: null, passcode: null })).toHaveLength(1);
   });
 });

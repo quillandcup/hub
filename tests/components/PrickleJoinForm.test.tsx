@@ -17,6 +17,7 @@ const renderForm = () =>
   render(
     <PrickleJoinForm
       url="https://zoom.example.test/j/1"
+      meetingId="880 7170 2629"
       passcode="old"
       timeZone="America/New_York"
       defaultStartDate="2099-02-01"
@@ -41,7 +42,7 @@ describe("PrickleJoinForm", () => {
     await user.click(screen.getByRole("button", { name: "Save" }));
 
     await waitFor(() =>
-      expect(mocks.save).toHaveBeenCalledWith({ url: "https://zoom.example.test/j/1", passcode: "new", startDate: "2099-02-01" })
+      expect(mocks.save).toHaveBeenCalledWith({ url: "https://zoom.example.test/j/1", meetingId: "880 7170 2629", passcode: "new", startDate: "2099-02-01" })
     );
     expect(await screen.findByText("Saved. Applies to prickles starting 2099-02-01 and later.")).toBeInTheDocument();
   });

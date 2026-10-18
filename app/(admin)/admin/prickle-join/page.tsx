@@ -24,12 +24,12 @@ export default async function PrickleJoinPage() {
       <div>
         <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Prickle Zoom Link</h1>
         <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
-          The room link and passcode members see after checking in, in check-in DMs, and in their calendar feed. Each prickle uses the
+          The room link, meeting ID and passcode members see after checking in, in check-in DMs, and in their calendar feed. Each prickle uses the
           link in effect when it starts, so a change never alters earlier prickles. Remember to update the daily #prickle-times post too.
         </p>
       </div>
       <PrickleJoinForm
-        url={current?.url ?? ""} passcode={current?.passcode ?? ""} timeZone={ORG_TIMEZONE}
+        url={current?.url ?? ""} meetingId={current?.meetingId ?? ""} passcode={current?.passcode ?? ""} timeZone={ORG_TIMEZONE}
         defaultStartDate={firstOfNextMonth(new Date(now), ORG_TIMEZONE)}
         minStartDate={tomorrowIn(new Date(now), ORG_TIMEZONE)}
       />
@@ -43,7 +43,7 @@ export default async function PrickleJoinPage() {
               const until = i > 0 ? `to ${when(settings[i - 1].effectiveFrom)}` : "onward";
               return (
                 <li key={s.id}>
-                  {when(s.effectiveFrom)} {until}: passcode {s.passcode ?? "none"}
+                  {when(s.effectiveFrom)} {until}: meeting ID {s.meetingId ?? "none"}, passcode {s.passcode ?? "none"}
                   {scheduled && " (scheduled)"}
                   {scheduled && <RemoveScheduledButton id={s.id} />}
                 </li>
