@@ -196,7 +196,17 @@ npm run tunnel
 Paste the `https://...` address it prints, plus the route, into the vendor's webhook settings, for example `https://<address>/api/webhooks/calendar`.
 
 - **Tool:** ngrok (`brew install ngrok`).
-- **Stable address:** without a reserved domain, ngrok gives a new random address every run, so you'd re-enter it in the vendor each time. An ngrok account includes a free reserved domain; set `TUNNEL_DOMAIN=<your-domain>` in `.env.local` and the address stays the same, so each vendor is set up once.
+- **Stable address:** without an endpoint, ngrok gives a new random address every run, so you'd re-enter it in the vendor each time. An ngrok account includes a free reserved domain. Define an endpoint for it in your ngrok config (`ngrok config edit`) and point `TUNNEL_ENDPOINT` at it in `.env.local`; the address stays the same, so each vendor is set up once:
+
+  ```yaml
+  endpoints:
+    - name: your-endpoint-name
+      url: https://<your-reserved-domain>
+      upstream:
+        url: 3000
+  ```
+
+  The endpoint sets the port, so `npm run tunnel -- <port>` is refused while `TUNNEL_ENDPOINT` is set.
 - **Vendors that need no tunnel:** Stripe's CLI (`stripe listen`) connects outward and forwards events to localhost, so it doesn't need a public address.
 - **Mux:** polling covers local development, so a tunnel is optional there. If you point a Mux webhook at `localhost`, Mux can't reach it and shows failed deliveries.
 

@@ -10,11 +10,17 @@ describe("planTunnel", () => {
     expect(planTunnel(true, ["3107"])).toEqual({ ok: true, command: { tool: "ngrok", args: ["http", "3107"] } });
   });
 
-  it("uses a reserved domain so the address stays the same between runs", () => {
-    expect(planTunnel(true, ["3107"], "hub-dev.ngrok.app")).toEqual({
+  it("starts a named endpoint from the ngrok config, which holds its own domain and port", () => {
+    expect(planTunnel(true, [], "hedgie-hub")).toEqual({
       ok: true,
-      command: { tool: "ngrok", args: ["http", "3107", "--url=https://hub-dev.ngrok.app"] },
+      command: { tool: "ngrok", args: ["start", "hedgie-hub"] },
     });
+  });
+
+  it("refuses a port argument alongside a named endpoint, since the endpoint sets the port", () => {
+    const plan = planTunnel(true, ["3107"], "hedgie-hub");
+    expect(plan.ok).toBe(false);
+    expect(plan.ok ? "" : plan.error).toContain("Unset TUNNEL_ENDPOINT");
   });
 
   it("says how to install ngrok when it's missing", () => {
