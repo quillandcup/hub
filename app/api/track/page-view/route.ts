@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
 import { normalizeTrackedPath } from "@/lib/page-views";
 import { userAgentForStorage } from "@/lib/device-label";
+import { GA_COOKIE_NAME, gaClientIdFromCookie } from "@/lib/analytics-identity";
 import { getSessionIdFromAccessToken } from "@/lib/supabase/session-claims";
 import { SUDO_COOKIE_NAME, actingAsHeaderValue } from "@/lib/sudo-cookie";
 import { withTimeout, AUTH_CHECK_TIMEOUT_MS } from "@/lib/with-timeout";
@@ -39,6 +40,7 @@ export async function POST(request: NextRequest) {
     session_id: accessToken ? getSessionIdFromAccessToken(accessToken) : null,
     acting_as_member_id: actingAsMemberId,
     user_agent: userAgentForStorage(request.headers.get("user-agent")),
+    ga_client_id: gaClientIdFromCookie(request.cookies.get(GA_COOKIE_NAME)?.value),
   });
   if (error) {
     console.error("Failed to record page view:", error.message);

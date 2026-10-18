@@ -73,7 +73,14 @@ describe('POST /api/track/page-view', () => {
       session_id: AUTH_SESSION_ID,
       acting_as_member_id: null,
       user_agent: CHROME_ON_MAC,
+      ga_client_id: null,
     })
+  })
+
+  it("records GA's browser ID from the _ga cookie", async () => {
+    const { insert } = setup()
+    await POST(makeRequest({ path: '/dashboard' }, '_ga=GA1.1.1234567890.1700000000'))
+    expect(insert).toHaveBeenCalledWith(expect.objectContaining({ ga_client_id: '1234567890.1700000000' }))
   })
 
   it('records no user agent when the browser sends none', async () => {

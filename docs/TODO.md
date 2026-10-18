@@ -650,6 +650,26 @@ Staff currently resolve an unknown Slack display name/nickname to a member by ha
 
 **Priority:** Not scoped yet — came from a one-off bootstrap task, not a recurring pain point (yet).
 
+### Marketing site → Hub attribution via GA browser ID _(Needs Scoping)_
+Hub and the marketing site (www.quillandcup.com, on Kajabi) are separate GA4 properties, so GA's own reports can't show "visited the sales page, then joined Hub". GA's browser ID (the `_ga` cookie) belongs to the website domain, not to a property, so two properties on quillandcup.com normally share one ID, and PR #100 already stores it on every `access_events` row (`ga_client_id`, the value GA4's BigQuery export calls `user_pseudo_id`). That makes cross-site attribution a join in our own data, not a GA report.
+
+**Shape:** turn on GA4's free BigQuery export for the marketing site's property and join its `user_pseudo_id` to `access_events.ga_client_id` to attribute each member's marketing-site visits (first touch, pages seen, campaign) to the member they became. Needs the next item first.
+
+**When to switch approach:** once the sales funnel moves into Hub, Hub *is* the marketing site; at that point add Hub as a second web stream in one property (Google's standard multi-site setup) so GA shows the whole journey, and this join goes away.
+
+**Needs:** the marketing site's GA cookie working (below), a BigQuery project, and a decision on retention/privacy for the joined data (it ties anonymous marketing visits to a named member).
+
+### Why the marketing site sets no GA cookie _(Investigate)_
+On 2026-10-17, signed out in Chrome, `www.quillandcup.com` loaded Google's tag scripts (`gtag/js` and `gtm.js`, so a Tag Manager container is involved) but had **no `_ga` cookies**, while `hub.quillandcup.com/login` had the cookie plus four per-property session cookies. So the shared browser ID that cross-site attribution relies on isn't being set there, at least in that browser.
+
+**Check, in Kajabi and the container:**
+- Whether Kajabi's GA setting (Settings → Marketing/Analytics) or the Tag Manager container actually fires the GA4 tag for the "Quill & Cup Website" property, and on which pages.
+- Whether a consent setting (Kajabi's cookie banner, or Consent Mode in the container) is holding analytics storage at "denied" until the visitor accepts.
+- Whether the tag is configured with a cookie domain that isn't quillandcup.com (GA defaults to the whole domain, which is what lets properties share the ID).
+- Repeat the check in a fresh profile after accepting any banner, to separate "never sets it" from "waiting for consent".
+
+**Done when:** a visitor to the marketing site gets a `_ga` cookie scoped to `.quillandcup.com` that Hub then reuses (compare `ga_client_id` on their first Hub visit).
+
 ### Background Agents
 Set up background agents for faster parallel development
 
