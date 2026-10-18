@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { updateTimezonePreference } from "@/app/(member)/settings/actions"
 
@@ -19,8 +19,15 @@ export function TimezoneInitializer({ storedTimezone, isSudo }: { storedTimezone
   const [showBanner, setShowBanner] = useState(false)
   const [detectedTz, setDetectedTz] = useState<string>("")
 
+  // Ask once per page load, about the zone saved when it loaded. A zone picked later in Settings
+  // changes `storedTimezone` (the layout re-renders after the save); that is the member's choice,
+  // not a mismatch to ask about.
+  const asked = useRef(false)
+
   useEffect(() => {
     if (isSudo) return
+    if (asked.current) return
+    asked.current = true
 
     const detected = Intl.DateTimeFormat().resolvedOptions().timeZone
     setDetectedTz(detected)
