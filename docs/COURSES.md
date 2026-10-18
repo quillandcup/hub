@@ -139,7 +139,7 @@ Tests, per `CLAUDE.md`:
   - Free auto-captions off for now (captions are burned in).
   - Audio-only static rendition once audio mode is built.
 - **Keys:** `MUX_TOKEN_ID`/`MUX_TOKEN_SECRET` (Video read+write, Data read, High priority), `MUX_SIGNING_KEY_ID`/`MUX_SIGNING_KEY_PRIVATE`, and `MUX_WEBHOOK_SECRET` (declared in `env-vars.config.ts`). The bulk migration should use a separate Low-priority token so it doesn't compete with member traffic.
-- **"Video ready":** production uses the Mux webhook at `/api/webhooks/mux`, verified with `MUX_WEBHOOK_SECRET`. Preview deployments have changing URLs, so they poll Mux for status instead.
+- **"Video ready":** production uses the Mux webhook at `/api/webhooks/mux`, verified with `MUX_WEBHOOK_SECRET`. The route **rejects every request while that secret is unset** (`webhookSecretRequired()` in `lib/webhook-auth.ts`, PR #105), instead of skipping verification. Preview deployments have changing URLs, so they poll Mux for status instead.
 - **Player:** a half-day test of Video.js v10 (GA 2026-10-01) against a Mux stream. It must have a speed menu, keyboard shortcuts, seek previews (Mux storyboards) and theming; fall back to Vidstack if it doesn't. Watch tracking listens to the underlying video element, so the choice doesn't affect data.
 - **Watch tracking:**
   - The player records each continuous stretch (start, end, speed) and saves on pause, seek, speed change, tab hide and page leave (`navigator.sendBeacon`).
