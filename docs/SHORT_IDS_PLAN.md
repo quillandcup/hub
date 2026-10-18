@@ -90,8 +90,19 @@ calendar events (the only Bronze table that other tables reference).
 
 ## Inventory (scratch stack from this branch, 233 migrations)
 
-Counts of rows are not here: the scratch DB is empty. Get them from prod (read-only) before
-choosing single vs batched backfill (Next steps, 3).
+**Production size (read-only, estimated row counts, 2026-10-18):** about 250k rows in
+total, tiny. Only these tables have 1000+ rows: `access_events` 60k (bigint id, not
+converted), `member_activities` 56k, `bronze.slack_reactions` 39k, `chat_reactions` 22k,
+`ambiguous_zoom_names` 12k, `prickle_attendance` 9.7k, `bronze.zoom_attendees` 7k,
+`bronze.slack_messages` 6.7k, `chat_messages` / `chat_message_contents` 4.9k each,
+`prickles` 4.8k, `bronze.calendar_events` 3.7k, `bronze.kajabi_members` 2.5k,
+`bronze.zoom_meetings` 2k, then four around 1.9k. The largest table by size is
+`member_activities` at 43 MB. Everything else, including `members`, is under 1000 rows.
+Timeouts: `authenticated` 8s, `anon` 3s, `authenticator` 8s (plus `lock_timeout` 8s),
+`service_role` none, `supabase_admin` 0; `postgres` has no override, so a migration run
+that way uses the server default (2 min seen on a management query). Every backfill here is
+a single `UPDATE` of at most tens of thousands of rows, so one transaction is fine; no
+batching needed.
 
 **Tables with their own uuid `id` (conversion targets): 66.** 18 in `bronze`, 48 in
 `public`; all listed under Prefixes. Plus these whose uuid key *is* a member or prickle
@@ -123,6 +134,11 @@ auth session/vault: `members.user_id`, `user_profiles.id`, `slack_identities.use
 `ignored_by`, `touched_by`, `completed_by`, `actor_user_id`; no-FK ones to leave alone:
 `audit_log.changed_by`, `access_events.session_id`, `restricted_slack_channels.restricted_by`,
 `member_slack_connections.access_secret_id` / `refresh_secret_id` (Vault secrets).
+Why no FK on each: `audit_log.changed_by` is deliberate (history must outlive a deleted user,
+see the comment in `20261006000000_create_audit_log.sql`); `session_id` points at a
+short-lived auth session; the Vault ids are in another schema we don't own;
+`restricted_by` looks like an oversight (an audit stamp that could be a nullable FK with
+`ON DELETE SET NULL`), which is out of scope for this change.
 
 **Member ids with no FK, must be rewritten by hand:** `audit_log.member_id`,
 `audit_log.acting_as_member_id`, `access_events.acting_as_member_id`,
@@ -214,7 +230,7 @@ change and the migration together (CI pushes migrations before the Vercel deploy
 2. Confirm the prefix list with the owner (Prefixes section); resolve the open items:
    `admin_work_queue_completions.occurrence_key` contents, and the other jsonb/text
    locations that may embed our ids.
-3. Check row counts and timeouts; choose single transaction vs batched backfill.
+3. ~~Row counts and timeouts~~ done (see Inventory): single transaction.
 4. Write the migration, run it against a copy of production data if possible, then the
    full db + unit + pgTAP suites.
 5. Update app code and tests; run `npm run build` (the pre-commit hook does).
