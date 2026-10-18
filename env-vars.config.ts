@@ -300,6 +300,51 @@ export const ENV_VARS: readonly EnvVarSpec[] = [
     destinations: vercelAllEnvs,
   },
 
+  // --- Video (Mux) -------------------------------------------------------------------------------
+  // Preview and production should use separate Mux environments (Mux Dashboard -> top-left
+  // environment switcher), so a preview upload can't touch production videos: put each
+  // environment's keys in .env.preview and .env.prod.
+  {
+    name: "MUX_TOKEN_ID",
+    group: "Video (Mux)",
+    description:
+      "Mux API access token ID (Settings -> API Access Tokens; Mux Video read+write, plus Mux Data read). Pairs with MUX_TOKEN_SECRET. Creates uploads and assets and reads their status.",
+    type: "config",
+    destinations: vercelAllEnvs,
+  },
+  {
+    name: "MUX_TOKEN_SECRET",
+    group: "Video (Mux)",
+    description:
+      "Mux API access token secret for MUX_TOKEN_ID. Shown once when the token is created.",
+    type: "secret",
+    destinations: vercelAllEnvs,
+  },
+  {
+    name: "MUX_SIGNING_KEY_ID",
+    group: "Video (Mux)",
+    description:
+      "ID of the Mux URL signing key (Settings -> Signing Keys). Members-only playback links are JWTs signed with its private key, with this ID as the `kid`.",
+    type: "config",
+    destinations: vercelAllEnvs,
+  },
+  {
+    name: "MUX_SIGNING_KEY_PRIVATE",
+    group: "Video (Mux)",
+    description:
+      "Private half of MUX_SIGNING_KEY_ID, exactly as Mux shows it (base64-encoded PEM). Shown once when the key is created; whoever holds it can mint playback links for any video.",
+    type: "secret",
+    destinations: vercelAllEnvs,
+  },
+  {
+    name: "MUX_WEBHOOK_SECRET",
+    group: "Video (Mux)",
+    description:
+      "Signing secret of the Mux webhook that points at this environment's /api/webhooks/mux. Verifies that \"video ready\" and other notifications really come from Mux. Mux shows it once, when the webhook is created.",
+    type: "secret",
+    destinations: vercelAllEnvs,
+  },
+
   // --- Admin & Cron ------------------------------------------------------------------------------
   {
     name: "SUDO_SECRET",
