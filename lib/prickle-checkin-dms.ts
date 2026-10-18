@@ -196,6 +196,22 @@ export async function tryRecordCheckinDM(
   return (data?.length ?? 0) > 0;
 }
 
+/** Release an undelivered claim so a later cron tick can retry within the normal send window. */
+export async function releaseCheckinDM(
+  supabase: any,
+  prickleId: string,
+  memberId: string,
+  kind: CheckinDMKind
+): Promise<void> {
+  const { error } = await supabase
+    .from("prickle_checkin_dm_log")
+    .delete()
+    .eq("prickle_id", prickleId)
+    .eq("member_id", memberId)
+    .eq("kind", kind);
+  if (error) throw new Error(`Releasing ${kind} notification claim failed: ${error.message}`);
+}
+
 /** Measures this member has logged on the project, most recent first (a recency hint, so only the latest entries are read). */
 async function recentMeasures(supabase: any, projectId: string, memberId: string): Promise<WritingMeasure[]> {
   const { data } = await supabase
@@ -804,14 +820,14 @@ export async function sendCheckoutDMs(
     );
     if (checkoutAnswered(saved) && unlogged.length === 0) continue;
 
+    // Build before claiming: a failed progress lookup mustn't consume the notification.
+    const message = checkoutMessage(prickle, saved, await quickLogPrompts(supabase, unlogged));
     const shouldSend = await tryRecordCheckinDM(supabase, prickle.id, memberId, "prickle_checkout");
     if (!shouldSend) continue;
 
-    const delivered = await notifier.send(
-      memberId,
-      checkoutMessage(prickle, saved, await quickLogPrompts(supabase, unlogged))
-    );
+    const delivered = await notifier.send(memberId, message);
     if (delivered.length > 0) sent++;
+    else await releaseCheckinDM(supabase, prickle.id, memberId, "prickle_checkout");
   }
   return sent;
 }

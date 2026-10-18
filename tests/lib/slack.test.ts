@@ -72,11 +72,11 @@ describe("sendSlackDM", () => {
     expect(call.text).toContain("hello");
   });
 
-  it("no-ops rather than sending for real when test mode is on but SLACK_DEV_USER_ID is unset", async () => {
+  it("reports a failure without sending when test mode is on but SLACK_DEV_USER_ID is unset", async () => {
     process.env.VERCEL_ENV = "preview";
     const { sendSlackDM } = await importSlackModule();
 
-    await sendSlackDM({ slackUserId: "U_REAL_MEMBER", text: "hello" });
+    await expect(sendSlackDM({ slackUserId: "U_REAL_MEMBER", text: "hello" })).rejects.toThrow("SLACK_DEV_USER_ID is unset");
 
     expect(postMessage).not.toHaveBeenCalled();
   });
@@ -93,12 +93,12 @@ describe("sendSlackDM", () => {
     expect(call.text).toBe("hello");
   });
 
-  it("no-ops when SLACK_BOT_TOKEN is unset", async () => {
+  it("reports a failure when SLACK_BOT_TOKEN is unset", async () => {
     process.env.VERCEL_ENV = "production";
     delete process.env.SLACK_BOT_TOKEN;
     const { sendSlackDM } = await importSlackModule();
 
-    await sendSlackDM({ slackUserId: "U_REAL_MEMBER", text: "hello" });
+    await expect(sendSlackDM({ slackUserId: "U_REAL_MEMBER", text: "hello" })).rejects.toThrow("SLACK_BOT_TOKEN not configured");
 
     expect(postMessage).not.toHaveBeenCalled();
   });

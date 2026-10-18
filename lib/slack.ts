@@ -28,8 +28,7 @@ export interface SendSlackDMParams {
 export async function sendSlackDM(params: SendSlackDMParams): Promise<void> {
   const token = process.env.SLACK_BOT_TOKEN;
   if (!token) {
-    console.error("sendSlackDM: SLACK_BOT_TOKEN not configured, skipping send");
-    return;
+    throw new Error("sendSlackDM: SLACK_BOT_TOKEN not configured");
   }
 
   let { slackUserId, text } = params;
@@ -38,8 +37,7 @@ export async function sendSlackDM(params: SendSlackDMParams): Promise<void> {
   if (isSlackTestMode()) {
     const devUserId = process.env.SLACK_DEV_USER_ID;
     if (!devUserId) {
-      console.error("sendSlackDM: SLACK_TEST_MODE is on but SLACK_DEV_USER_ID is unset -- skipping send rather than risk a real one");
-      return;
+      throw new Error("sendSlackDM: SLACK_TEST_MODE is on but SLACK_DEV_USER_ID is unset");
     }
     text = `🧪 [test mode — would have gone to ${slackUserId}]\n${text}`;
     slackUserId = devUserId;

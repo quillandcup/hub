@@ -45,6 +45,12 @@ const goalRow = (id: string, memberId: string, projectId: string, measure: strin
 function dmLog() {
   const rows = new Map<string, { id: string; prickle_id: string; member_id: string; kind: string }>();
   return (query: { calls: { method: string; args: unknown[] }[] }) => {
+    if (query.calls.some((c) => c.method === "delete")) {
+      for (const [key, row] of rows) {
+        if (query.calls.filter((c) => c.method === "eq").every((c) => row[c.args[0] as keyof typeof row] === c.args[1])) rows.delete(key);
+      }
+      return { data: [] };
+    }
     const insert = query.calls.find((c) => c.method === "insert");
     if (!insert) {
       const kind = query.calls.find((c) => c.method === "eq" && c.args[0] === "kind")?.args[1];
@@ -145,13 +151,40 @@ describe("prickle check-in route", () => {
     expect(sendSlackDM.mock.calls.map((c) => c[0].slackUserId)).toEqual(["U-m2"]);
   });
 
-  it("doesn't count a check-in whose Slack send failed as sent", async () => {
+  it("retries a check-in after every channel failed, then deduplicates a successful send", async () => {
     setup([goalRow("g1", "m1", "proj1", "words")]);
     calendarPrickleIds.mockResolvedValue(new Set(["p1"]));
     sendSlackDM.mockRejectedValueOnce(new Error("channel_not_found"));
     vi.spyOn(console, "error").mockImplementation(() => {});
 
     expect(await (await POST(cronRequest())).json()).toEqual({ checkins: 0, checkouts: 0 });
+    expect(await (await POST(cronRequest())).json()).toEqual({ checkins: 1, checkouts: 0 });
+    expect(await (await POST(cronRequest())).json()).toEqual({ checkins: 0, checkouts: 0 });
+    expect(sendSlackDM).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps the claim when in-app delivery succeeds despite Slack failing", async () => {
+    setup([goalRow("g1", "m1", "proj1", "words")], {
+      members: { data: [{ id: "m1", user_id: "u1" }] },
+      feature_flags: { data: { enabled_globally: true } },
+    });
+    calendarPrickleIds.mockResolvedValue(new Set(["p1"]));
+    sendSlackDM.mockRejectedValueOnce(new Error("channel_not_found"));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(await (await POST(cronRequest())).json()).toEqual({ checkins: 1, checkouts: 0 });
+    expect(await (await POST(cronRequest())).json()).toEqual({ checkins: 0, checkouts: 0 });
+    expect(sendSlackDM).toHaveBeenCalledTimes(1);
+    expect(fake.queries.filter((q) => q.table === "in_app_notifications" && q.calls.some((c) => c.method === "insert"))).toHaveLength(1);
+  });
+
+  it("doesn't claim or send when preferences are unavailable", async () => {
+    setup([goalRow("g1", "m1", "proj1", "words")], {
+      notification_preferences: { error: { message: "unavailable" } },
+    });
+    calendarPrickleIds.mockResolvedValue(new Set(["p1"]));
+    await expect(POST(cronRequest())).rejects.toThrow("preferences failed: unavailable");
+    expect(sendSlackDM).not.toHaveBeenCalled();
+    expect(fake.queries.some((q) => q.table === "prickle_checkin_dm_log" && q.calls.some((c) => c.method === "insert"))).toBe(false);
   });
 
   it("doesn't check in with the same member for the same prickle again on the next tick", async () => {
@@ -217,6 +250,16 @@ describe("sendCheckoutDMs", () => {
       ...extra,
     });
   }
+
+  it("retries a check-out after every channel failed, then deduplicates success", async () => {
+    setup([goalRow("g1", "m1", "proj1", "words")]);
+    sendSlackDM.mockRejectedValueOnce(new Error("channel_not_found"));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(await checkout()).toBe(0);
+    expect(await checkout()).toBe(1);
+    expect(await checkout()).toBe(0);
+    expect(sendSlackDM).toHaveBeenCalledTimes(2);
+  });
 
   it("sends an attendee one DM with a number question per project, in its goal's measure", async () => {
     setup([

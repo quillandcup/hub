@@ -63,6 +63,12 @@ function forMembers<T extends { member_id: string }>(rows: T[]) {
 function nudgeLog(initial: LogRow[] = []) {
   const rows = [...initial];
   const table = (query: FakeQuery) => {
+    if (query.calls.some((c) => c.method === "delete")) {
+      for (let i = rows.length - 1; i >= 0; i--) {
+        if (query.calls.filter((c) => c.method === "eq").every((c) => rows[i][c.args[0] as keyof LogRow] === c.args[1])) rows.splice(i, 1);
+      }
+      return { data: [] };
+    }
     const insert = query.calls.find((c) => c.method === "insert");
     if (!insert) return forMembers(rows)(query);
     const row = insert.args[0] as Omit<LogRow, "id">;
@@ -263,13 +269,18 @@ describe("intro reminders", () => {
     expect(log.rows).toEqual([]);
   });
 
-  it("doesn't count a reminder whose Slack send failed as sent", async () => {
+  it("retries a failed reminder without advancing its backoff, then deduplicates success", async () => {
     const now = sendTime("m1", "intro_nudge");
-    setup({ members: { data: [member("m1", joinedDaysBefore(now, 10))] } });
+    const log = setup({ members: { data: [member("m1", joinedDaysBefore(now, 10))] } });
     sendSlackDM.mockRejectedValueOnce(new Error("channel_not_found"));
     vi.spyOn(console, "error").mockImplementation(() => {});
 
     expect((await sendMemberReminders(fake as never, now)).intro).toBe(0);
+    expect(log.rows).toEqual([]);
+    expect((await sendMemberReminders(fake as never, now)).intro).toBe(1);
+    expect((await sendMemberReminders(fake as never, now)).intro).toBe(0);
+    expect(log.rows).toHaveLength(1);
+    expect(sendSlackDM).toHaveBeenCalledTimes(2);
   });
 });
 

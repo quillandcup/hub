@@ -368,9 +368,20 @@ async function sendKind(
   const reachable = await narrow(due.filter((m) => live.has(m.id) && notifier.canReach(m.id)));
   let sent = 0;
   for (const member of reachable) {
+    const message = messageFor(member);
     if (!(await tryRecordNudge(supabase, member.id, kind, now))) continue;
-    const delivered = await notifier.send(member.id, messageFor(member));
+    const delivered = await notifier.send(member.id, message);
     if (delivered.length > 0) sent++;
+    else {
+      // Keep partial successes deduplicated; only a completely undelivered reminder can retry.
+      const { error } = await supabase
+        .from("member_reminder_log")
+        .delete()
+        .eq("member_id", member.id)
+        .eq("kind", kind)
+        .eq("sent_on", now.toISOString().slice(0, 10));
+      if (error) throw new Error(`Releasing ${kind} notification claim failed: ${error.message}`);
+    }
   }
   return { sent, dryRun };
 }
