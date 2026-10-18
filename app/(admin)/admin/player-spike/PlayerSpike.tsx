@@ -90,10 +90,14 @@ function WatchTracker({ onSegment }: { onSegment: (s: Segment) => void }) {
   // null when captions are off; the label ("English") otherwise, since track ids change per video.
   const captionsLabel = !captions?.state.subtitlesShowing ? null : (captions?.options.find((o) => o.value === captions.value)?.label ?? null)
   const captionsRef = useRef(captionsLabel)
-  captionsRef.current = captionsLabel
   const onSegmentRef = useRef(onSegment)
-  onSegmentRef.current = onSegment
   const onCaptionsChange = useRef<(() => void) | null>(null)
+
+  // Keep the refs current for the event handlers below. Declared before the captions effect so it sees the new label.
+  useEffect(() => {
+    captionsRef.current = captionsLabel
+    onSegmentRef.current = onSegment
+  })
 
   useEffect(() => {
     onCaptionsChange.current?.()
