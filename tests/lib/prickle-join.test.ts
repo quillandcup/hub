@@ -65,3 +65,41 @@ describe("start day defaults", () => {
     expect(firstOfNextMonth(new Date("2026-12-15T12:00:00Z"), "America/New_York")).toBe("2027-01-01");
   });
 });
+
+import { vi } from "vitest";
+import { createFakeSupabase } from "@/tests/helpers/server-page";
+import { joinSlackBlocks, loadPrickleJoinSettings } from "@/lib/prickle-join";
+
+describe("loadPrickleJoinSettings", () => {
+  it("maps rows, newest first as the query orders them", async () => {
+    const supabase = createFakeSupabase({
+      prickle_join_settings: {
+        data: [{ id: "a", join_url: "https://zoom.example.test/j/1", passcode: "pw", effective_from: "2026-11-01T05:00:00Z", created_at: "2026-10-20T00:00:00Z" }],
+      },
+    });
+
+    expect(await loadPrickleJoinSettings(supabase as never)).toEqual([
+      { id: "a", url: "https://zoom.example.test/j/1", passcode: "pw", effectiveFrom: "2026-11-01T05:00:00Z", createdAt: "2026-10-20T00:00:00Z" },
+    ]);
+    const orders = supabase.queries[0].calls.filter((c) => c.method === "order").map((c) => c.args[0]);
+    expect(orders).toEqual(["effective_from", "created_at"]);
+  });
+
+  it("returns nothing, and logs, when the read fails", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    const supabase = createFakeSupabase({ prickle_join_settings: { error: { message: "boom" } } });
+
+    expect(await loadPrickleJoinSettings(supabase as never)).toEqual([]);
+    expect(log).toHaveBeenCalled();
+  });
+});
+
+describe("joinSlackBlocks", () => {
+  it("is a button plus the passcode, or nothing without a link", () => {
+    expect(joinSlackBlocks(null)).toEqual([]);
+    const withCode = joinSlackBlocks({ url: "https://zoom.example.test/j/1", passcode: "pw" });
+    expect(withCode[0].elements[0]).toMatchObject({ url: "https://zoom.example.test/j/1" });
+    expect(withCode[1].elements[0].text).toBe("Passcode: pw");
+    expect(joinSlackBlocks({ url: "https://zoom.example.test/j/1", passcode: null })).toHaveLength(1);
+  });
+});

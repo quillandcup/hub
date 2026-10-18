@@ -231,3 +231,37 @@ describe("imported Google Calendar descriptions", () => {
     );
   });
 });
+
+import { loadEventNotes } from "@/lib/calendar-feed";
+import { createFakeSupabase } from "@/tests/helpers/server-page";
+
+describe("loadEventNotes", () => {
+  const prickle = (id: string, calendarEventId: string | null) => ({
+    id, typeId: "t", typeName: "Prickle", hostName: null, startTime: "2026-11-03T12:00:00Z", endTime: "2026-11-03T13:00:00Z", calendarEventId,
+  });
+
+  it("maps cleaned descriptions by event id and skips empty ones", async () => {
+    const supabase = createFakeSupabase({
+      "bronze.calendar_events": {
+        data: [
+          { id: "ce1", description: "Bring a snack<br>https://zoom.us/j/1" },
+          { id: "ce2", description: "https://zoom.us/j/2" },
+          { id: "ce3", description: null },
+        ],
+      },
+    });
+
+    const notes = await loadEventNotes(supabase as never, [prickle("p1", "ce1"), prickle("p2", "ce2"), prickle("p3", "ce3"), prickle("p4", null)]);
+
+    expect([...notes]).toEqual([["ce1", "Bring a snack"]]);
+  });
+
+  it("looks nothing up when no prickle has a source event, and throws on a failed lookup", async () => {
+    const empty = createFakeSupabase();
+    expect((await loadEventNotes(empty as never, [prickle("p1", null)])).size).toBe(0);
+    expect(empty.queries).toHaveLength(0);
+
+    const failing = createFakeSupabase({ "bronze.calendar_events": { error: { message: "boom" } } });
+    await expect(loadEventNotes(failing as never, [prickle("p1", "ce1")])).rejects.toThrow("boom");
+  });
+});

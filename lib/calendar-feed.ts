@@ -358,7 +358,7 @@ export function cleanEventDescription(raw: string | null | undefined): string {
 }
 
 /** Cleaned Google Calendar descriptions, by calendar event id, for these prickles' source events. */
-async function loadEventNotes(supabase: SupabaseClient, prickles: FeedPrickle[]): Promise<Map<string, string>> {
+export async function loadEventNotes(supabase: SupabaseClient, prickles: FeedPrickle[]): Promise<Map<string, string>> {
   const ids = [...new Set(prickles.flatMap((p) => (p.calendarEventId ? [p.calendarEventId] : [])))];
   const notes = new Map<string, string>();
   const batches = await Promise.all(

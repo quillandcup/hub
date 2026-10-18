@@ -40,10 +40,10 @@ export default async function PrickleJoinPage() {
             {settings.map((s, i) => {
               const scheduled = new Date(s.effectiveFrom).getTime() > now;
               // `settings` is newest first, so the row above is the one that replaces this.
-              const until = i > 0 ? when(settings[i - 1].effectiveFrom) : "now";
+              const until = i > 0 ? `to ${when(settings[i - 1].effectiveFrom)}` : "onward";
               return (
                 <li key={s.id}>
-                  {when(s.effectiveFrom)} to {until}: passcode {s.passcode ?? "none"}
+                  {when(s.effectiveFrom)} {until}: passcode {s.passcode ?? "none"}
                   {scheduled && " (scheduled)"}
                   {scheduled && <RemoveScheduledButton id={s.id} />}
                 </li>
