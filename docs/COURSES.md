@@ -36,7 +36,8 @@ Kajabi's "product" is broad: a course, community, coaching, podcast, newsletter.
 3. **Member pages:** a courses list, a course outline with progress, and a lesson page with video, text, downloads, mark-complete and previous/next.
 4. **Player:** themed, speed menu remembered per member, keyboard shortcuts, resume where you left off, lock-screen/headphone controls, members-only playback links.
 5. **Watch tracking:** one row per continuous stretch watched. This drives resume, completion and admin stats.
-6. **Feature flag `courses`**, off until launch day.
+6. **Captions for new videos:** the player's captions menu, caption tracks attached to Mux, Mux's auto-generated captions as a fallback, and a small admin "Videos" screen to upload an SRT/VTT file for a video (so Ania's Descript files have somewhere to go without the full course builder).
+7. **Feature flag `courses`**, off until launch day.
 
 ### Soon after launch (in priority order)
 
@@ -44,6 +45,7 @@ Kajabi's "product" is broad: a course, community, coaching, podcast, newsletter.
 2. Admin course stats: who's where, drop-off per video, a per-viewing heatmap.
 3. Audio-only "listen like a podcast" mode (Mux's per-video `audio.m4a`).
 4. Mux config as code (webhook URL, allowed playback domains) and a nightly Mux end-to-end check with a free test video.
+5. A "Sync courses" admin button, and a nightly structure-and-access sync, once step B is automated (see "Ongoing sync after launch").
 
 ### Later
 
@@ -72,9 +74,9 @@ Verified 2026-10-17 against the Ready Writer, 180, Self-Editing Academy and memb
 | Video files | **Not in the API.** Each lesson's "Video actions → Download video" link in the admin editor. There is no bulk export. |
 | Quizzes (e.g. Self-Editing Academy's reflections) | Admin quiz editor; out of scope for now. |
 
-So the migration has two kinds of steps: **API steps** that can run anywhere (including a cron), and **session steps** that need a logged-in Kajabi admin browser. The session steps are a local script that Ania or Cody runs; they log in themselves, and the script reuses that browser session. The script never handles a password.
+So the migration has two kinds of steps: **API steps** that can run on the server, and **session steps** that need a logged-in Kajabi admin browser. The session steps are a local script that Ania or Cody runs; they log in themselves, and the script reuses that browser session. The script never handles a password.
 
-**Day-1 spike:** confirm how to read a lesson's text, attachments and video download link from the admin session, either from the editor's own JSON requests (preferred) or from the page. Also confirm whether the download link is a time-limited URL Mux can fetch directly; that avoids downloading hundreds of MB per video locally.
+**Day-1 spike:** also check whether a caption or transcript file uploaded in Kajabi's lesson "Upload transcript" panel can be read from the admin session. If it can, Ania could attach Descript files in Kajabi instead of the Hub's Videos screen; the Hub screen stays the primary path either way. Then confirm how to read a lesson's text, attachments and video download link from the admin session, either from the editor's own JSON requests (preferred) or from the page. Also confirm whether the download link is a time-limited URL Mux can fetch directly; that avoids downloading hundreds of MB per video locally.
 
 ## Data model
 
@@ -117,6 +119,15 @@ This follows the medallion rules in `CLAUDE.md`: Bronze mirrors Kajabi, upserted
   - Fields: `mux_asset_id`, `mux_playback_id` (signed policy), `status`, `duration`, `quality` (Mux tier), `source_kind` (`kajabi` | `upload`), `source_key` (the Kajabi media ID), `source_fingerprint` and `source_sha256`. A row is unique per `(source_kind, source_key)`; the hash lets two media IDs share one Mux asset.
   - This is how re-runs skip videos already uploaded (see "Telling whether a video changed"). Lessons point at it with `course_lessons.video_id`.
   - Local rather than Silver because uploading is an external side effect we must not repeat.
+- **Captions and other per-video assets.** Captions are per video, not a Mux account setting:
+  - `videos.burned_in_captions` (boolean): the existing videos have captions burned into the picture. For those, track files default to off so viewers don't see them twice. New videos from Descript are exported **without** burned-in captions, plus a separate subtitle file.
+  - `video_text_tracks`: one row per caption, subtitle or transcript track on a video.
+    - Fields: `video_id`, `kind` (`captions` | `subtitles`), `language`, `label`, `source` (`descript` | `whisper` | `mux_auto` | `manual`), `is_default`, the file in the private storage bucket (`.vtt`, kept in the Hub), and `mux_track_id` once attached to the Mux asset.
+    - A track is attached to the Mux asset through its API (Mux reads the file from a short-lived link) so the player gets it with the stream. The stored file stays the source of truth: re-ingesting a video re-attaches it.
+    - A track from Descript replaces an automatic one in the same language; the automatic one is removed.
+  - **Safety net:** new videos are created with Mux's free auto-generated captions, so a video never ships with no captions at all if Ania's file isn't attached yet (her new Ready Writer lessons won't have burned-in captions).
+  - Whisper transcripts (video phase 1) go in the same table, with timed lines for search and the follow-along panel.
+  - Other per-video assets use the same pattern: thumbnails and posters, the audio-only file (Mux generates it per video), and downloads (`course_lesson_files`).
 - `course_lesson_files`: PDFs copied into a private Supabase Storage bucket, keyed by Kajabi file ID and content hash. Served through short-lived signed URLs after an access check.
 - `lesson_progress` (`member_id`, `lesson_id`, `completed_at`, `last_position_seconds`). Member-written, admin-readable, **read-only in sudo**.
 - `video_watch_segments` (`member_id`, `video_id`, `session_id`, `start_seconds`, `end_seconds`, `playback_rate`, `started_at`). Append-only, one row per continuous stretch. **Not written in sudo**, so admins previewing as a member don't create viewing history. Admin-readable.
@@ -132,7 +143,7 @@ One command, `npm run courses:migrate -- --course <slug>`, runs all four steps i
 
 | Step | Runs where | What it does | Idempotency |
 |---|---|---|---|
-| **A. Structure** (`/api/import/kajabi-courses`) | Server; nightly cron + admin button | API → Bronze courses, modules, lessons, offers | Upsert on Kajabi ID; soft-delete what a *complete* fetch no longer returns |
+| **A. Structure** (`/api/import/kajabi-courses`) | Server, triggered by the migrate command | API → Bronze courses, modules, lessons, offers | Upsert on Kajabi ID; soft-delete what a *complete* fetch no longer returns |
 | **B. Content** (`scripts/kajabi-course-content.ts`) | Local, with the admin's Kajabi session | Lesson HTML, file list, video source → Bronze | Skips lessons whose content hash is unchanged |
 | **C. Process** (`/api/process/courses`) | Server | Bronze → Silver courses/modules/lessons/access | Upsert on source key, delete orphans; IDs stay stable |
 | **D. Media** (`scripts/course-media.ts` or a route) | Local or server | Videos → Mux (from URL if allowed, else download and upload); PDFs → Storage | Skips a video whose source fingerprint is unchanged; re-uploads when it changed (see "Telling whether a video changed") |
@@ -199,9 +210,9 @@ Progress is counted against *available* lessons, since the course grows as lesso
 
 ## Ongoing sync after launch
 
-Ania publishes in Kajabi until the builder replaces it, so the sync runs for months, not once:
-- **Steps A, C and D** run on the server: nightly in the reconcile cron, plus an admin "Sync courses now" button. A lesson Ania publishes then opens in the Hub by the next morning, or right away if someone presses the button.
-- **Step B** (lesson text, PDFs, new videos) needs a logged-in Kajabi admin session, so it can't run in Vercel's cron without storing a Kajabi login. Until that's decided, it's a one-command local run (`npm run courses:migrate`) whenever Ania finishes a batch. The admin page shows when each course's content was last pulled, and flags lessons whose API data changed since then (a sign step B needs a run).
+Ania publishes in Kajabi until the builder replaces it, so the sync is used for months, not once. **It's manual for now:** run `npm run courses:migrate -- --course <slug>` when she finishes a batch. It runs steps A–D in order, skips anything unchanged, and prints what changed (lessons added, updated, removed; videos uploaded or reused).
+
+There's no cron or admin button yet. A nightly job could only run the API steps (structure and access), not lesson text or new videos, which need the Kajabi session in step B and are what changes most. It becomes worthwhile if step B is ever automated; until then it would just rewrite what's already there.
 
 ## Open decisions
 
