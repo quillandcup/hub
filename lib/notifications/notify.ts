@@ -1,5 +1,7 @@
 import { CHANNEL_ADAPTERS, type ChannelId, type OutboundMessage } from "@/lib/channels";
 import { APP_URL } from "@/lib/config";
+import { membersWithFeatureForOutreach } from "@/lib/features.server";
+import * as Sentry from "@sentry/nextjs";
 import { effectiveChannels, type NotificationKindId, type NotificationPreferenceRow } from "./registry";
 
 /**
@@ -80,6 +82,15 @@ export async function createNotifier(
   } else {
     const preferences = await loadNotificationPreferences(supabase, kind, unique);
     for (const memberId of unique) wanted.set(memberId, effectiveChannels(kind, preferences.get(memberId) ?? []));
+    // Gate only automatic Slack DMs. A member without the rollout flag keeps their other
+    // channels, and cannot consume a dedup claim if Slack was their only reachable channel.
+    const slackCandidates = unique.filter((id) => wanted.get(id)!.includes("slack"));
+    if (slackCandidates.length > 0) {
+      const enabled = await membersWithFeatureForOutreach(supabase, "slack_notifications", slackCandidates);
+      for (const memberId of slackCandidates) {
+        if (!enabled.has(memberId)) wanted.set(memberId, wanted.get(memberId)!.filter((channel) => channel !== "slack"));
+      }
+    }
   }
 
   const usedChannels = [...new Set([...wanted.values()].flat())];
@@ -113,6 +124,9 @@ export async function createNotifier(
           delivered.push(channel);
         } catch (error) {
           console.error(`[notifications] ${kind} via ${channel} to member ${memberId} failed`, error);
+          if (channel === "slack") {
+            Sentry.captureException(error, { tags: { notification_kind: kind, notification_channel: channel }, extra: { memberId } });
+          }
         }
       }
       return delivered;
