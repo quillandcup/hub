@@ -33,7 +33,7 @@ export default function BrowserPushDiagnostics() {
     }
   }
 
-  async function compare(style: "standard" | "persistent") {
+  async function compare(style: "standard" | "persistent" | "tagged") {
     setPending(true);
     setError("");
     setComparison(undefined);
@@ -61,8 +61,9 @@ export default function BrowserPushDiagnostics() {
       </button>
       <div className="space-y-2 border-t border-slate-200 pt-3 dark:border-slate-700">
         <p className="text-sm text-slate-600 dark:text-slate-400">
-          Compare alert styles on this device. Send a standard alert, click it, and refresh diagnostics. Then do the same
-          with a persistent alert. Match each alert’s ID to its click entry. Close an alert before trying the next style.
+          Compare alert styles on this device. Send and click each style, refreshing diagnostics after each click. For the
+          tagged alert, test one send first; then send it twice and click the replacement. Match each alert’s ID to its click
+          entry. Close any remaining alert before the next test.
         </p>
         <div className="flex flex-wrap gap-2">
           <button type="button" disabled={pending} onClick={() => compare("standard")} className="rounded-lg border px-3 py-1 text-sm disabled:opacity-50">
@@ -70,6 +71,9 @@ export default function BrowserPushDiagnostics() {
           </button>
           <button type="button" disabled={pending} onClick={() => compare("persistent")} className="rounded-lg border px-3 py-1 text-sm disabled:opacity-50">
             Send persistent alert
+          </button>
+          <button type="button" disabled={pending} onClick={() => compare("tagged")} className="rounded-lg border px-3 py-1 text-sm disabled:opacity-50">
+            Send tagged persistent alert
           </button>
         </div>
         {comparison && <p className="text-sm">Sent {comparison.style} alert [{comparison.id}]</p>}
@@ -88,7 +92,7 @@ export default function BrowserPushDiagnostics() {
                   <span className="text-xs text-slate-500">[{entry.notificationId}]</span>
                   {entry.errorMessage && <p className="break-words">{entry.errorMessage}</p>}
                   <p className="break-words text-xs text-slate-500">
-                    {entry.version ?? "Older worker"}{entry.operation ? ` · ${entry.operation}` : ""}{entry.style ? ` · ${entry.style}` : ""}{entry.pathname ? ` · ${entry.pathname}` : ""}
+                    {entry.version ?? "Older worker"}{entry.operation ? ` · ${entry.operation}` : ""}{entry.style ? ` · ${entry.style}` : ""}{entry.tagged && entry.style !== "tagged" ? " · tagged" : ""}{entry.pathname ? ` · ${entry.pathname}` : ""}
                   </p>
                 </li>
               ))}

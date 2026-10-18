@@ -31,6 +31,18 @@ describe("BrowserPushDiagnostics", () => {
     expect(screen.queryByText("Sent standard alert [standard-1]")).not.toBeInTheDocument();
   });
 
+  it("lets the admin send a tagged alert twice and shows the latest ID", async () => {
+    send.mockResolvedValueOnce("tagged-1").mockResolvedValueOnce("tagged-2");
+    read.mockResolvedValue({ version: "click-diagnostics-v4", entries: [] });
+    render(<BrowserPushDiagnostics />);
+    const tagged = screen.getByRole("button", { name: "Send tagged persistent alert" });
+    await userEvent.click(tagged);
+    await screen.findByText("Sent tagged alert [tagged-1]");
+    await userEvent.click(tagged);
+    expect(await screen.findByText("Sent tagged alert [tagged-2]")).toBeInTheDocument();
+    expect(send.mock.calls).toEqual([["tagged"], ["tagged"]]);
+  });
+
   it("shows the active worker, correlated stages, sanitized messages, paths, and operations", async () => {
     read.mockResolvedValue({ version: "click-diagnostics-v3", entries: [
       { at: "2026-10-18T12:00:00Z", stage: "click_received", notificationId: "test-123" },
