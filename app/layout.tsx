@@ -11,7 +11,7 @@ import { EnvironmentIndicator } from "@/components/EnvironmentIndicator";
 import { ConsentBanner } from "@/components/ConsentBanner";
 import { AnalyticsIdentity } from "@/components/AnalyticsIdentity";
 import { initialUserIdCommand } from "@/lib/analytics-identity";
-import { getCurrentUser } from "@/lib/auth";
+import { analyticsUserId } from "@/lib/analytics-user";
 import { countryNeedsConsent } from "@/lib/gdpr-countries";
 import { DEFAULT_TITLE, TITLE_TEMPLATE } from "@/lib/page-title";
 import appConfig from "@/app.config";
@@ -52,8 +52,8 @@ export default async function RootLayout({
   const needsConsent = countryNeedsConsent(headersList.get("x-vercel-ip-country"));
 
   // Signed-in visitors are identified to GA by their auth user ID (see
-  // lib/analytics-identity.ts). Shares the page's cached auth check.
-  const analyticsUserId = gaId ? ((await getCurrentUser())?.id ?? null) : null;
+  // lib/analytics-identity.ts).
+  const gaUserId = await analyticsUserId(gaId);
 
   return (
     <html lang="en" className={displayFont.variable} suppressHydrationWarning>
@@ -84,10 +84,10 @@ gtag('consent', 'default', {
   analytics_storage: '${needsConsent ? "denied" : "granted"}',
   ad_storage: '${needsConsent ? "denied" : "granted"}'
 });
-${initialUserIdCommand(analyticsUserId)}`}
+${initialUserIdCommand(gaUserId)}`}
             </Script>
             <GoogleAnalytics gaId={gaId} />
-            <AnalyticsIdentity userId={analyticsUserId} />
+            <AnalyticsIdentity userId={gaUserId} />
             <ConsentBanner needsConsent={needsConsent} />
           </>
         )}
