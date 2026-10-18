@@ -1,3 +1,4 @@
+import { BrowserPushAccountGuard } from "@/components/BrowserPushAccountGuard";
 import { createClient } from '@/lib/supabase/server'
 import { getCurrentUser } from '@/lib/auth'
 import { redirect } from 'next/navigation'
@@ -90,6 +91,7 @@ export default async function MemberLayout({
 
   return (
     <div className="flex h-dvh overflow-hidden bg-canvas dark:bg-slate-950">
+      <BrowserPushAccountGuard memberId={effectiveIdentity.memberId} isSudo={effectiveIdentity.isSudo} />
       <MemberNavigation isAdmin={isAdmin} enabledFeatures={enabledFeatures} />
       <div className="flex flex-col flex-1 min-w-0">
         {effectiveIdentity.isSudo && (

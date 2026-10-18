@@ -9,6 +9,7 @@ import type { FeatureKey } from "@/lib/features";
 import { IN_APP_FEATURE } from "@/lib/channels/in-app";
 import { WEB_PUSH_FEATURE, loadPushDevices, vapidKeys, webPushChannel } from "@/lib/channels/web-push";
 import { NOTIFICATION_SETTINGS_PATH } from "@/lib/notifications/notify";
+import { isAllowedPushEndpoint } from "@/lib/push-endpoint";
 import { describeDevice } from "@/lib/device-label";
 import {
   NOTIFICATION_CHANNELS,
@@ -116,12 +117,7 @@ function validSubscription(input: PushSubscriptionInput): boolean {
   const { endpoint, keys } = input ?? ({} as PushSubscriptionInput);
   if (typeof endpoint !== "string" || typeof keys?.p256dh !== "string" || typeof keys?.auth !== "string") return false;
   if (!keys.p256dh || !keys.auth || endpoint.length > 2048) return false;
-  // Push services are always HTTPS; refusing anything else keeps the server from being pointed at arbitrary URLs.
-  try {
-    return new URL(endpoint).protocol === "https:";
-  } catch {
-    return false;
-  }
+  return isAllowedPushEndpoint(endpoint);
 }
 
 /**
@@ -212,7 +208,8 @@ export async function listPushDevices(currentEndpoint: string | null): Promise<P
     }));
   } catch (error) {
     console.error("[notifications] Loading push devices failed", { member: identity.memberId, error });
-    return [];
+    // A failed ownership lookup must never look like an unowned browser to the account guard.
+    throw new Error("Couldn't load browser notification devices");
   }
 }
 

@@ -44,30 +44,39 @@ export function BrowserNotificationsToggle({ publicKey, readOnly }: { publicKey:
 
   /** Reload the member's devices, marking this browser's by its subscription endpoint. */
   const refreshDevices = async () => {
-    const registration = supportsPush() ? await navigator.serviceWorker.getRegistration(SERVICE_WORKER_PATH) : undefined;
-    const subscription = await registration?.pushManager.getSubscription();
-    setDevices(await listPushDevices(subscription?.endpoint ?? null));
+    try {
+      const registration = supportsPush() ? await navigator.serviceWorker.getRegistration(SERVICE_WORKER_PATH) : undefined;
+      const subscription = await registration?.pushManager.getSubscription();
+      setDevices(await listPushDevices(subscription?.endpoint ?? null));
+    } catch {
+      setError("Couldn't load your notification devices. Please try again.");
+    }
   };
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      let next: DeviceState = "off";
-      if (!supportsPush()) next = "unsupported";
-      else if (Notification.permission === "denied") next = "blocked";
-      else if (Notification.permission === "granted") {
-        const registration = await navigator.serviceWorker.getRegistration(SERVICE_WORKER_PATH);
-        if (await registration?.pushManager.getSubscription()) next = "on";
-      }
+      const supported = supportsPush();
+      const registration = supported ? await navigator.serviceWorker.getRegistration(SERVICE_WORKER_PATH) : undefined;
+      const subscription = await registration?.pushManager.getSubscription();
+      const devices = await listPushDevices(subscription?.endpoint ?? null);
       if (cancelled) return;
+      let next: DeviceState = "off";
+      if (!supported) next = "unsupported";
+      else if (Notification.permission === "denied") next = "blocked";
+      else if (Notification.permission === "granted" && subscription && devices.some((d) => d.isThisDevice)) next = "on";
+      setDevices(devices);
       setIosTab(isIosBrowserTab());
       setState(next);
-      await refreshDevices();
-    })().catch(() => !cancelled && setState("off"));
+    })().catch(() => {
+      if (!cancelled) {
+        setState("off");
+        setError("Couldn't check notifications for this device. Please try again.");
+      }
+    });
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const sendTest = async () => {

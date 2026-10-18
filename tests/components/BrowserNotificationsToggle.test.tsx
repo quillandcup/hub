@@ -99,6 +99,7 @@ describe("BrowserNotificationsToggle", () => {
 
   it("shows an already-subscribed device as on and turns it off", async () => {
     fakeBrowser({ permission: "granted", existing: true });
+    listPushDevices.mockResolvedValue([{ id: "d1", label: "Chrome", addedAt: "2026-10-01", lastSentAt: null, isThisDevice: true }]);
     render(<BrowserNotificationsToggle publicKey="AAAA" readOnly={false} />);
 
     await userEvent.click(await screen.findByRole("button", { name: "Turn off for this device" }));
@@ -106,6 +107,16 @@ describe("BrowserNotificationsToggle", () => {
     await waitFor(() => expect(screen.getByRole("button", { name: "Turn on for this device" })).toBeInTheDocument());
     expect(removePushSubscription).toHaveBeenCalledWith(subscription.endpoint);
     expect(subscription.unsubscribe).toHaveBeenCalled();
+  });
+
+  it("requires an explicit opt-in when the browser subscription belongs to another account or was removed", async () => {
+    const pushManager = fakeBrowser({ permission: "granted", existing: true });
+    render(<BrowserNotificationsToggle publicKey="AAAA" readOnly={false} />);
+    expect(await screen.findByRole("button", { name: "Turn on for this device" })).toBeInTheDocument();
+    expect(savePushSubscription).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole("button", { name: "Turn on for this device" }));
+    await waitFor(() => expect(savePushSubscription).toHaveBeenCalled());
+    expect(pushManager.subscribe).not.toHaveBeenCalled();
   });
 
   it("explains a blocked permission instead of offering the button", async () => {
@@ -141,6 +152,47 @@ describe("BrowserNotificationsToggle", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Remove Safari on iPhone" }));
     await waitFor(() => expect(removePushDevice).toHaveBeenCalledWith("d2"));
+  });
+
+  it("shows an error when the account's devices cannot be loaded", async () => {
+    fakeBrowser({ permission: "granted", existing: true });
+    listPushDevices.mockRejectedValue(new Error("database unavailable"));
+    render(<BrowserNotificationsToggle publicKey="AAAA" readOnly={false} />);
+    expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't check notifications");
+    expect(savePushSubscription).not.toHaveBeenCalled();
+  });
+
+  it("reports a failed refresh after removing a device", async () => {
+    fakeBrowser({ permission: "default", existing: false });
+    listPushDevices.mockResolvedValueOnce([{ id: "d2", label: "Old phone", addedAt: "2026-10-01", lastSentAt: null, isThisDevice: false }])
+      .mockRejectedValueOnce(new Error("database unavailable"));
+    render(<BrowserNotificationsToggle publicKey="AAAA" readOnly={false} />);
+    await userEvent.click(await screen.findByRole("button", { name: "Remove Old phone" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't load your notification devices");
+  });
+
+  it("can remove another device from a browser without push support", async () => {
+    listPushDevices.mockResolvedValueOnce([{ id: "d2", label: "Old phone", addedAt: "2026-10-01", lastSentAt: null, isThisDevice: false }])
+      .mockResolvedValueOnce([]);
+    render(<BrowserNotificationsToggle publicKey="AAAA" readOnly={false} />);
+    await userEvent.click(await screen.findByRole("button", { name: "Remove Old phone" }));
+    await waitFor(() => expect(listPushDevices).toHaveBeenCalledTimes(2));
+    expect(listPushDevices).toHaveBeenLastCalledWith(null);
+  });
+
+  it.each([false, true])("ignores a pending device lookup after leaving settings (reject: %s)", async (reject) => {
+    let resolveLookup!: (value: []) => void;
+    let rejectLookup!: (error: Error) => void;
+    listPushDevices.mockReturnValue(new Promise((resolve, reject) => { resolveLookup = resolve; rejectLookup = reject; }));
+    const { unmount } = render(<BrowserNotificationsToggle publicKey="AAAA" readOnly={false} />);
+    await waitFor(() => expect(listPushDevices).toHaveBeenCalled());
+    unmount();
+    if (reject) rejectLookup(new Error("offline"));
+    else resolveLookup([]);
+    // Let the lookup finish after cleanup; it must neither enroll nor remove a device.
+    await Promise.resolve();
+    expect(savePushSubscription).not.toHaveBeenCalled();
+    expect(removePushSubscription).not.toHaveBeenCalled();
   });
 
   it("shows the install steps on an iPhone tab, where push isn't available", async () => {

@@ -1,4 +1,5 @@
 import webpush, { WebPushError } from "web-push";
+import { isAllowedPushEndpoint } from "@/lib/push-endpoint";
 import { SUPPORT_EMAIL } from "@/lib/config";
 import { membersWithFeature } from "@/lib/features.server";
 import { createServiceRoleClient } from "@/lib/supabase/service";
@@ -84,9 +85,10 @@ export const webPushChannel: ChannelAdapter = {
     };
 
     const results = await Promise.allSettled(
-      subscriptions.map((s: any) =>
-        webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, payload, options)
-      )
+      subscriptions.map(async (s: any) => {
+        if (!isAllowedPushEndpoint(s.endpoint)) throw new Error("Untrusted push subscription endpoint");
+        return webpush.sendNotification({ endpoint: new URL(s.endpoint).href, keys: { p256dh: s.p256dh, auth: s.auth } }, payload, options);
+      })
     );
 
     const sent: string[] = [];

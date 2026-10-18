@@ -100,7 +100,7 @@ describe("getNotificationSettings", () => {
 });
 
 describe("push subscriptions", () => {
-  const SUBSCRIPTION = { endpoint: "https://push.example.test/abc", keys: { p256dh: "p256", auth: "auth" } };
+  const SUBSCRIPTION = { endpoint: "https://fcm.googleapis.com/fcm/send/abc", keys: { p256dh: "p256", auth: "auth" } };
   const flagged = () =>
     createFakeSupabase({
       feature_flags: { data: { enabled_globally: true } },
@@ -142,6 +142,15 @@ describe("push subscriptions", () => {
     expect(written("upsert")).toEqual([]);
   });
 
+  it.each([
+    "https://127.0.0.1/internal", "https://example.com/push", "https://fcm.googleapis.com.evil.test/push",
+    "https://fcm.googleapis.com:8443/push", "https://user:pass@fcm.googleapis.com/push",
+  ])("rejects an untrusted endpoint without saving it: %s", async (endpoint) => {
+    serviceFake = flagged();
+    expect(await savePushSubscription({ ...SUBSCRIPTION, endpoint }, null)).toEqual({ error: "Invalid push subscription" });
+    expect(written("upsert")).toEqual([]);
+  });
+
   it("removes only the member's own live subscription for that endpoint", async () => {
     serviceFake = flagged();
     expect(await removePushSubscription(SUBSCRIPTION.endpoint)).toEqual({ success: true });
@@ -176,8 +185,8 @@ describe("setNotificationChannel", () => {
 
 describe("push devices", () => {
   const ROWS = [
-    { id: "d1", member_id: "member-1", endpoint: "https://push.example.test/1", user_agent: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) CriOS/126.0 Mobile Safari/604.1", created_at: "2026-10-01T00:00:00Z", last_sent_at: null },
-    { id: "d2", member_id: "member-1", endpoint: "https://push.example.test/2", user_agent: null, created_at: "2026-09-01T00:00:00Z", last_sent_at: "2026-10-02T00:00:00Z" },
+    { id: "d1", member_id: "member-1", endpoint: "https://fcm.googleapis.com/fcm/send/1", user_agent: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) CriOS/126.0 Mobile Safari/604.1", created_at: "2026-10-01T00:00:00Z", last_sent_at: null },
+    { id: "d2", member_id: "member-1", endpoint: "https://fcm.googleapis.com/fcm/send/2", user_agent: null, created_at: "2026-09-01T00:00:00Z", last_sent_at: "2026-10-02T00:00:00Z" },
   ];
   const flagged = (extra = {}) =>
     createFakeSupabase({
@@ -188,13 +197,21 @@ describe("push devices", () => {
 
   it("lists the member's devices with a label, marking the asking browser by its endpoint", async () => {
     serviceFake = createFakeSupabase({ push_subscriptions: { data: ROWS } });
-    const devices = await listPushDevices("https://push.example.test/2");
+    const devices = await listPushDevices("https://fcm.googleapis.com/fcm/send/2");
     expect(devices).toEqual([
       { id: "d1", label: "Chrome on iPhone", addedAt: "2026-10-01T00:00:00Z", lastSentAt: null, isThisDevice: false },
       { id: "d2", label: "Unknown device", addedAt: "2026-09-01T00:00:00Z", lastSentAt: "2026-10-02T00:00:00Z", isThisDevice: true },
     ]);
     const calls = serviceFake.queries.find((q) => q.table === "push_subscriptions")!.calls;
     expect(calls).toContainEqual({ method: "eq", args: ["member_id", "member-1"] });
+  });
+
+  it("reports a device lookup failure instead of treating the current browser as unowned", async () => {
+    serviceFake = createFakeSupabase({ push_subscriptions: { error: { message: "database unavailable" } } });
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    await expect(listPushDevices("https://fcm.googleapis.com/fcm/send/token"))
+      .rejects.toThrow("Couldn't load browser notification devices");
+    error.mockRestore();
   });
 
   it("removes only the member's own device by id, and refuses in sudo", async () => {
