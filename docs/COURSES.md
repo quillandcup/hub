@@ -5,7 +5,10 @@ Plan for moving Quill & Cup's courses from Kajabi into the Hub, starting with **
 ## Decisions so far
 
 - **The Ready Writer goes first and launches in the Hub.** It's an **evergreen** program, not cohort-based. Its first run launches together, and lessons are released as they're finished (a release schedule for content, not drip for its own sake).
-- **Member experience first, course builder later.** Ania keeps authoring in Kajabi's editor. The Hub gets content through a **re-runnable Kajabi → Hub migration**, run as often as needed and once more right before launch.
+- **Member experience first, course builder later.** Ania keeps authoring in Kajabi's editor, **including after launch, until the Hub's course builder is good enough to replace it.** So the Kajabi → Hub migration isn't a one-off: it's an **ongoing sync**, safe to re-run any time, and run once more right before launch.
+- **The full course outline is visible from day one.** Unreleased lessons show as "Coming soon" (see the lesson-state rules under Silver).
+- **Access is configured per course.** The Ready Writer is **one year from purchase and includes membership**. Other courses may be lifetime or not include membership.
+- **The Ready Writer's existing `programs` row is linked** to the course (or replaced, if it doesn't fit), so Big Sisters and membership status keep working from one record.
 - **Evergreen courses only, for now.** The data model leaves room for cohort-based courses (Self-Editing Academy, the 180) without building them.
 - **Kajabi stays the checkout.** Buying the offer in Kajabi is what grants access in the Hub.
 - **Video host: Mux.** Our own themed player on top (Video.js v10 if a half-day test passes, Vidstack otherwise) and our own per-member watch tracking. See "Video" below.
@@ -76,13 +79,23 @@ This follows the medallion rules in `CLAUDE.md`: Bronze mirrors Kajabi, upserted
 - `courses`, `course_modules` and `course_lessons`. **Upserted on their source key and orphans removed, like `prickles`,** so IDs and URLs (`/courses/the-ready-writer/lessons/<id>`) stay stable across re-runs.
   - Each row has `source` (`kajabi` now, `hub` once the builder exists), so the Kajabi reprocess never touches Hub-authored rows.
   - `course_modules.parent_id` handles weeks inside modules.
-- **Lesson state** from Kajabi's publishing option:
-  - `published` → visible.
-  - `draft` → hidden.
-  - `locked`/`drip` → shown as **"Coming soon"**: the title is visible but it can't be opened. This fits "released as they're finished". (Open decision 2.)
+- **Lesson state** from Kajabi's publishing option (modules follow the same rules, and a lesson is never more visible than its module):
+  - `published` → open.
+  - `locked`/`drip` → **"Coming soon"**: the title (and module) is visible but can't be opened. This is how the full course plan appears from day one.
+  - `draft` → hidden. Drafts are work in progress, and some of The Ready Writer's are still leftovers copied from the 180, so they must not leak.
+  - **Convention for Ania:** a planned lesson that should appear as "Coming soon" is set to *Locked* in Kajabi; publishing it in Kajabi opens it in the Hub on the next sync.
 - `course_lessons.body_html`: **sanitized on import** with an allowlist (headings, lists, links, emphasis, images), never rendered raw.
-- `course_access`: who can open which course. Derived from active Kajabi purchases of the course's offers (`deactivated_at IS NULL`) plus `course_access_grants`. Rebuilt on every member/purchase reprocess, so a refund removes access.
-- `courses.kind` (`evergreen` | `cohort`) and a nullable `courses.program_id`, so cohort courses can later use `member_program_enrollments` without a schema change. Only `evergreen` is built now.
+- `course_access`: who can open which course, with `starts_at` and `ends_at`.
+  - Derived from active Kajabi purchases of the course's offers (`deactivated_at IS NULL`), plus `course_access_grants`.
+  - Rebuilt on every member/purchase reprocess, so a refund removes access.
+  - `starts_at` is the purchase date (the same coalesced date cohort matching uses: `created_at_kajabi`, else `effective_start_at`). `ends_at` is `starts_at + courses.access_duration`, or null for lifetime.
+  - A member whose access has ended still sees the course in `/courses`, marked as ended, with their progress. Lessons don't open.
+- **Per-course access settings on `courses`:**
+  - `access_duration` (an interval, null = lifetime). The Ready Writer: 1 year.
+  - Whether the course includes membership. This lives on the linked `programs` row (`includes_membership`, which Big Sisters and member status already read), not duplicated on `courses`.
+  - **Includes membership** means an active `course_access` counts as active membership in member status (`reprocess_members_atomic`) for the length of the access, the way program enrollment does today.
+- `courses.program_id` links a course to its `programs` row. The Ready Writer links to (or replaces) its existing row; the migration upserts that link by program slug, so it survives re-runs.
+- `courses.kind` (`evergreen` | `cohort`), so cohort courses can later use `member_program_enrollments` without a schema change. Only `evergreen` is built now.
 
 ### Local (ours, never reprocessed)
 
@@ -161,13 +174,24 @@ Progress is counted against *available* lessons, since the course grows as lesso
 
 **Fallback:** if the member pages aren't solid by about day 10, launch the first run in Kajabi as usual and keep building. The migration and data stay useful either way.
 
+## Ongoing sync after launch
+
+Ania publishes in Kajabi until the builder replaces it, so the sync runs for months, not once:
+- **Steps A, C and D** run on the server: nightly in the reconcile cron, plus an admin "Sync courses now" button. A lesson Ania publishes then opens in the Hub by the next morning, or right away if someone presses the button.
+- **Step B** (lesson text, PDFs, new videos) needs a logged-in Kajabi admin session, so it can't run in Vercel's cron without storing a Kajabi login. Until that's decided, it's a one-command local run (`npm run courses:migrate`) whenever Ania finishes a batch. The admin page shows when each course's content was last pulled, and flags lessons whose API data changed since then (a sign step B needs a run).
+
 ## Open decisions
 
-1. **After launch, where does Ania author new lessons?** Builder deprioritized implies Kajabi. Then step B (content) has to keep running after launch: by hand each time she publishes, or automated in CI with a stored Kajabi login (see `KAJABI_SCRAPER_DESIGN.md`). That's a credentials decision for Cody.
-2. **Locked/drip lessons:** show them as "Coming soon" with the title (proposed), or hide them entirely?
-3. **Release dates:** does a lesson appear when Ania publishes it in Kajabi (next migration run), or should Hub hold a scheduled "available from" date?
-4. **Access window:** is The Ready Writer access lifetime (evergreen), or does it end when a membership lapses, given the offer includes membership?
-5. **The Ready Writer program row:** `programs` already has Big Sister rules (`includes_membership`). Link the course to it (`courses.program_id`) now, so the first run's launch group can also be tracked as a cohort for Big Sisters?
+1. **Automate step B?** Running it in CI means storing a Kajabi admin login (see `KAJABI_SCRAPER_DESIGN.md`). That's a credentials call for Cody. Until then it's a manual local run, which is fine for launch.
+2. **Notification on release:** when a "Coming soon" lesson opens, should enrolled members get the "New lesson" notification (soon-after-launch scope), or only see it in the outline?
+3. **Access ending:** when a year of The Ready Writer ends, does membership continue only if they've separately subscribed (as today), and should members get a reminder some weeks before access ends?
+
+## Decided (2026-10-18)
+
+- Ania keeps publishing in Kajabi after launch, until the builder is good enough. → "Ongoing sync after launch".
+- Show the full course plan, with unreleased lessons as "Coming soon". → Lesson-state rules.
+- Access is per-course configurable. The Ready Writer is one year and includes membership. → `course_access`, `courses.access_duration`, `programs.includes_membership`.
+- Link to (or replace) the existing The Ready Writer `programs` row. → `courses.program_id`.
 
 ## Prerequisites (Cody)
 
