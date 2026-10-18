@@ -26,4 +26,4 @@ Two flags, both off: `intro_reminders` and `prickle_reminders`. For anyone a fla
 2. Turn a flag on for yourself (a personal preview) to see it live on your own account.
 3. Turn it on for a segment, then globally.
 
-The job only sends to members who are due, in their hour. There's no force-send today, so to see a real one on your own account you need to be due (e.g. locally, set your member's `first_joined_at` a few days back, no log rows, and call the route with the cron secret in your hour).
+The job only sends to members who are due, in their hour. To see either reminder yourself on any channel without waiting, use **Admin → Test Notifications** (`/admin/notifications`): a grid of every notification kind by every channel (Slack, In the Hub, Browser, Email), each cell sending that sample to your own accounts, marked "[Test]". It ignores your notification settings and the flags above, but not what a channel needs to reach you (a matched Slack account, an email address, a subscribed device, the In-app notifications preview), and says why when it can't. Outside production Slack and email are redirected to the dev address.
