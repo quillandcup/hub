@@ -173,6 +173,14 @@ export const ENV_VARS: readonly EnvVarSpec[] = [
     type: "secret",
     destinations: vercelAllEnvs,
   },
+  {
+    name: "GOOGLE_CALENDAR_WEBHOOK_TOKEN",
+    group: "Google Calendar",
+    description:
+      "Channel token Google echoes in X-Goog-Channel-Token on every push notification (/api/webhooks/calendar). Generate with `openssl rand -hex 32` and pass it as `token` when creating the watch channel (docs/WEBHOOK_SETUP.md). Deployed builds reject calendar webhooks while it is unset. Changing it means re-creating the channel with the new token.",
+    type: "secret",
+    destinations: vercelAllEnvs,
+  },
 
   // --- Google OAuth (per-user consent, e.g. Photos Picker) -----------------------------------
   {

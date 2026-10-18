@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import type { NextRequest } from 'next/server'
 import { loadWebhookFixture } from '../../helpers/webhook-helpers'
 import { POST, GET } from '@/app/api/webhooks/calendar/route'
@@ -88,6 +88,55 @@ describe('Calendar Webhook', () => {
       }, { timeout: 1000 })
 
       expect(triggerCalendarSync).toHaveBeenCalledWith({ daysBack: 30, daysForward: 90 })
+    })
+
+    describe('channel token', () => {
+      const TOKEN = 'channel-token-from-env'
+      const send = (token?: string) =>
+        POST(
+          new Request('http://localhost:3000/api/webhooks/calendar', {
+            method: 'POST',
+            headers: new Headers({
+              'x-goog-channel-id': 'hedgie-hub',
+              'x-goog-resource-state': 'exists',
+              'x-goog-resource-id': 'resource-1',
+              ...(token ? { 'x-goog-channel-token': token } : {}),
+            }),
+            body: JSON.stringify({}),
+          }) as unknown as NextRequest
+        )
+
+      afterEach(() => {
+        vi.unstubAllEnvs()
+      })
+
+      it('accepts the token the channel was created with', async () => {
+        vi.stubEnv('GOOGLE_CALENDAR_WEBHOOK_TOKEN', TOKEN)
+        expect((await send(TOKEN)).status).toBe(200)
+      })
+
+      it.each([['a wrong token', 'not-the-token'], ['no token header', undefined]])(
+        'rejects %s and triggers nothing',
+        async (_label, token) => {
+          vi.stubEnv('GOOGLE_CALENDAR_WEBHOOK_TOKEN', TOKEN)
+          expect((await send(token)).status).toBe(401)
+          expect(triggerCalendarSync).not.toHaveBeenCalled()
+        }
+      )
+
+      it('rejects every request on a deployed build while the token is unset', async () => {
+        vi.stubEnv('NODE_ENV', 'production')
+        vi.stubEnv('GOOGLE_CALENDAR_WEBHOOK_TOKEN', '')
+        const response = await send('anything')
+        expect(response.status).toBe(401)
+        expect((await response.json()).error).toBe('Webhook not configured')
+        expect(triggerCalendarSync).not.toHaveBeenCalled()
+      })
+
+      it('skips the check locally when the token is unset', async () => {
+        vi.stubEnv('GOOGLE_CALENDAR_WEBHOOK_TOKEN', '')
+        expect((await send()).status).toBe(200)
+      })
     })
 
     it('should reject invalid webhook payload (missing headers)', async () => {

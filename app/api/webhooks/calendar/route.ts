@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse, after } from "next/server";
 import { triggerCalendarSync } from "@/lib/processing/trigger";
+import { secretsMatch, webhookSecretRequired } from "@/lib/webhook-auth";
 
 // Webhook should respond quickly
 export const maxDuration = 60;
@@ -39,9 +40,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verify channel token if configured
+    // Verify the channel token Google echoes back (set when the watch channel was created).
+    // Deployed builds reject every request while the token is unset, so a missing env var
+    // can't leave this endpoint open to anyone who finds the URL.
     const expectedToken = process.env.GOOGLE_CALENDAR_WEBHOOK_TOKEN;
-    if (expectedToken && channelToken !== expectedToken) {
+    if (!expectedToken && webhookSecretRequired()) {
+      console.error("GOOGLE_CALENDAR_WEBHOOK_TOKEN is not configured; rejecting calendar webhook");
+      return NextResponse.json(
+        { error: "Webhook not configured" },
+        { status: 401 }
+      );
+    }
+    if (expectedToken && !secretsMatch(expectedToken, channelToken)) {
       console.error("Invalid Google Calendar webhook token");
       return NextResponse.json(
         { error: "Invalid token" },
