@@ -337,9 +337,13 @@ const ZOOM_LINE = /zoom\.us|zoomgov\.com|^\s*(meeting id|passcode|password)\b/i;
  */
 export function cleanEventDescription(raw: string | null | undefined): string {
   if (!raw) return "";
-  const text = raw
-    .replace(/<\s*br\s*\/?>|<\/?(p|div|li)>/gi, "\n")
-    .replace(/<[^>]*>/g, "")
+  let text = raw.replace(/<\s*br\s*\/?>|<\/?(p|div|li)>/gi, "\n");
+  // Strip tags until none is left, so nested fragments like "<scr<b>ipt>" can't reassemble into one.
+  for (let previous = ""; previous !== text; ) {
+    previous = text;
+    text = text.replace(/<[^>]*>/g, "");
+  }
+  text = text
     .replace(/&nbsp;/g, " ")
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")
