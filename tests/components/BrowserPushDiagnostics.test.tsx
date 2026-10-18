@@ -5,6 +5,8 @@ import userEvent from "@testing-library/user-event";
 const read = vi.fn();
 const send = vi.fn();
 vi.mock("@/lib/browser-push-diagnostics", () => ({ readPushDiagnostics: () => read(), sendBrowserAlertComparison: (...args: unknown[]) => send(...args) }));
+const push = vi.fn();
+vi.mock("@/app/(admin)/admin/notifications/actions", () => ({ sendDiagnosticPush: (...args: unknown[]) => push(...args) }));
 import BrowserPushDiagnostics from "@/app/(admin)/admin/notifications/BrowserPushDiagnostics";
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
 
@@ -41,6 +43,17 @@ describe("BrowserPushDiagnostics", () => {
     await userEvent.click(tagged);
     expect(await screen.findByText("Sent tagged alert [tagged-2]")).toBeInTheDocument();
     expect(send.mock.calls).toEqual([["tagged"], ["tagged"]]);
+  });
+
+  it("sends each real server push variant and reports the result or the reason it failed", async () => {
+    push.mockResolvedValueOnce({ success: true, sent: 2 }).mockResolvedValueOnce({ error: "No live push subscriptions" });
+    render(<BrowserPushDiagnostics />);
+    await userEvent.click(screen.getByRole("button", { name: "Push tagged" }));
+    expect(await screen.findByText(/Sent tagged server push to 2 device/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Push tagged, urgent" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("No live push subscriptions");
+    expect(screen.queryByText(/Sent tagged server push/)).not.toBeInTheDocument();
+    expect(push.mock.calls).toEqual([["tagged"], ["tagged_urgent"]]);
   });
 
   it("shows the active worker, correlated stages, sanitized messages, paths, and operations", async () => {
