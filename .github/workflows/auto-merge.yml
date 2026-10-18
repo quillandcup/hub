@@ -1,0 +1,36 @@
+name: Auto-merge
+
+# Turns on GitHub's native auto-merge for every new pull request, so it merges
+# by itself once the required checks on main (Test (unit), Test (db) & build,
+# Coverage report; see github-repo-config.yml) pass. It never merges anything
+# early: with a required check failing or pending, the PR just waits.
+#
+# Runs once, when the PR is opened, reopened or marked ready for review, so
+# turning auto-merge off on a PR sticks across later pushes. To keep a PR from
+# merging: open it as a draft, or click "Disable auto-merge" on it.
+#
+# Skipped for drafts, for forks (their GITHUB_TOKEN can't write) and for
+# Dependabot, which has its own stricter workflow (dependabot-auto-merge.yml:
+# patch/minor only). Needs the repo-level "Allow auto-merge" setting
+# (Settings -> General -> Pull Requests); without it `gh pr merge --auto` fails.
+on:
+  pull_request:
+    types: [opened, reopened, ready_for_review]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  auto-merge:
+    if: |
+      !github.event.pull_request.draft &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.actor != 'dependabot[bot]'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Enable auto-merge
+        run: gh pr merge --auto --squash "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
