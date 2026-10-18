@@ -282,6 +282,26 @@ describe("intro reminders", () => {
     expect(log.rows).toHaveLength(1);
     expect(sendSlackDM).toHaveBeenCalledTimes(2);
   });
+
+  it("surfaces a failed reminder claim release and preserves its dedup record", async () => {
+    const now = sendTime("m1", "intro_nudge");
+    const log = nudgeLog();
+    setup({
+      members: { data: [member("m1", joinedDaysBefore(now, 10))] },
+      member_reminder_log: (query: FakeQuery) => query.calls.some((c) => c.method === "delete")
+        ? { error: { message: "database unavailable" } }
+        : log.table(query),
+    });
+    sendSlackDM.mockRejectedValueOnce(new Error("channel_not_found"));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await expect(sendMemberReminders(fake as never, now)).rejects.toThrow(
+      "Releasing intro_nudge notification claim failed: database unavailable"
+    );
+    expect(log.rows).toHaveLength(1);
+    expect((await sendMemberReminders(fake as never, now)).intro).toBe(0);
+    expect(sendSlackDM).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("prickle reminders", () => {

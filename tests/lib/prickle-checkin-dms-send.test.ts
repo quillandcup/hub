@@ -163,6 +163,25 @@ describe("prickle check-in route", () => {
     expect(sendSlackDM).toHaveBeenCalledTimes(2);
   });
 
+  it("surfaces a failed claim release and keeps the notification deduplicated", async () => {
+    const log = dmLog();
+    setup([goalRow("g1", "m1", "proj1", "words")], {
+      prickle_checkin_dm_log: (query) => query.calls.some((c) => c.method === "delete")
+        ? { error: { message: "database unavailable" } }
+        : log(query),
+    });
+    calendarPrickleIds.mockResolvedValue(new Set(["p1"]));
+    sendSlackDM.mockRejectedValueOnce(new Error("channel_not_found"));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await expect(POST(cronRequest())).rejects.toThrow(
+      "Releasing prickle_checkin notification claim failed: database unavailable"
+    );
+    // A failed cleanup must not pretend the claim was released or duplicate an existing claim.
+    expect(await (await POST(cronRequest())).json()).toEqual({ checkins: 0, checkouts: 0 });
+    expect(sendSlackDM).toHaveBeenCalledTimes(1);
+  });
+
   it("keeps the claim when in-app delivery succeeds despite Slack failing", async () => {
     setup([goalRow("g1", "m1", "proj1", "words")], {
       members: { data: [{ id: "m1", user_id: "u1" }] },
