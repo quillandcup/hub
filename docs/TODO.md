@@ -742,6 +742,9 @@ Show a `/live` page displaying the currently active prickle and its attendees in
 
 ## UI Enhancements
 
+### Add an Icon Library
+The app has no icon library: icons are inline SVGs pasted into components. Add one (e.g. lucide-react) and replace the hand-drawn crosshair on Settings' "Use current location" button (`app/(member)/settings/TimezoneSwitcher.tsx`) with its "locate" icon, then move the other inline SVGs over as they're touched.
+
 ### Site-wide "Return To" Handling (Needs Design)
 "Take me back to where I was" is solved ad hoc in several places, each with its own storage, validation and fallback. Build one system for it, like Rails' `redirect_back_or_to` / Devise's `store_location_for` + `stored_location_for`.
 

@@ -94,11 +94,12 @@ export function TimezoneSwitcher({ initialTimezone = "browser" }: TimezoneSwitch
 
   // Nothing saved yet ("browser"): show the zone the browser reports.
   const current = timezone === "browser" ? browserTimezone : timezone;
-  // A zone that isn't in the list (a detected one, or one set elsewhere) still needs an option to show.
-  const options =
-    current && !TIMEZONES.some((tz) => tz.value === current)
-      ? [{ value: current, label: current.replace(/_/g, " ") }, ...TIMEZONES]
-      : TIMEZONES;
+  // A zone that isn't in the list still needs an option: the selected one (set elsewhere), and the
+  // browser's own, so the zone the "Change time zone?" prompt saves can always be picked again.
+  const extras = [...new Set([current, browserTimezone])]
+    .filter((zone) => zone && !TIMEZONES.some((tz) => tz.value === zone))
+    .map((zone) => ({ value: zone, label: `${zone.replace(/_/g, " ")}${zone === browserTimezone ? " (current location)" : ""}` }));
+  const options = [...extras, ...TIMEZONES];
 
   return (
     <div>
@@ -127,6 +128,22 @@ export function TimezoneSwitcher({ initialTimezone = "browser" }: TimezoneSwitch
           )
         )}
       </select>
+      {browserTimezone && current !== browserTimezone && (
+        <button
+          type="button"
+          onClick={() => handleChange(browserTimezone)}
+          disabled={saving}
+          className="mt-2 inline-flex items-center gap-1.5 text-sm font-medium text-plum-600 hover:underline disabled:opacity-50 dark:text-plum-400"
+        >
+          {/* The usual "my location" crosshair. */}
+          <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+            <circle cx="12" cy="12" r="3" />
+            <circle cx="12" cy="12" r="7" />
+            <path d="M12 2v3M12 19v3M2 12h3M19 12h3" />
+          </svg>
+          Use current location ({browserTimezone.replace(/_/g, " ")})
+        </button>
+      )}
       <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
         All times will display in: <span className="font-medium">{current || "Detecting..."}</span>
         {saving && <span className="ml-2 italic">Saving...</span>}
