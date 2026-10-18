@@ -37,5 +37,5 @@ export async function renderNotificationEmail(
 ): Promise<RenderedNotificationEmail> {
   const element = React.createElement(TEMPLATES[kind], props);
   const [html, text] = await Promise.all([render(element), render(element, { plainText: true })]);
-  return { subject: props.text, html, text };
+  return { subject: props.title ?? props.text, html, text };
 }

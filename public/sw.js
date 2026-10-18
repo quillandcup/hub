@@ -33,9 +33,13 @@ self.addEventListener("push", (event) => {
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  // Only ever a Hub path (hubPath in lib/channels/in-app.ts); resolve against our own origin.
+  // A Hub path, or an https link the server allowed (notificationUrl in lib/channels/in-app.ts: the
+  // Slack workspace only); resolve against our own origin.
   const target = new URL(event.notification.data?.url || "/", self.location.origin);
-  if (target.origin !== self.location.origin) return;
+  if (target.origin !== self.location.origin) {
+    if (target.protocol === "https:") event.waitUntil(self.clients.openWindow(target.href));
+    return;
+  }
 
   event.waitUntil(openTarget(target));
 });

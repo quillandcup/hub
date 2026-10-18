@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { createFakeSupabase, type FakeSupabase } from "@/tests/helpers/server-page";
-import { APP_URL, SUPPORT_EMAIL } from "@/lib/config";
+import { APP_URL, SLACK_WORKSPACE_URL, SUPPORT_EMAIL } from "@/lib/config";
 
 let serviceFake: FakeSupabase;
 vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => serviceFake }));
@@ -72,6 +72,11 @@ describe("pushPayload and ttlSeconds", () => {
       tag: "prickle_checkin:p1",
       requireInteraction: false,
     });
+  });
+
+  it("keeps a Slack workspace link, so tapping the push opens Slack", () => {
+    const url = `${SLACK_WORKSPACE_URL}/app_redirect?channel=C1`;
+    expect(pushPayload({ text: "x", url }, { kind: "intro_nudge", memberId: "m1" }, NOW).url).toBe(url);
   });
 
   it("falls back to the Hub home for a link that isn't ours", () => {

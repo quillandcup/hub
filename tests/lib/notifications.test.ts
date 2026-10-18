@@ -130,6 +130,11 @@ describe("slackBlocks (shared Slack channel)", () => {
     expect(blocks).toEqual([{ type: "section", text: { type: "mrkdwn", text: `Hi\n<${APP_URL}/x|Open in the Hub>` } }]);
   });
 
+  it("labels the link with linkLabel when the url isn't the Hub", () => {
+    const blocks = slackBlocks({ text: "Hi", url: "https://x.example/y", linkLabel: "Open #start-here in Slack" });
+    expect(blocks[0].text.text).toBe("Hi\n<https://x.example/y|Open #start-here in Slack>");
+  });
+
   it("renders footer links as a context block", () => {
     const blocks = slackBlocks({ text: "Hi", footerLinks: [link] });
     expect(blocks[1]).toEqual({ type: "context", elements: [{ type: "mrkdwn", text: `<${APP_URL}/s|Settings>` }] });

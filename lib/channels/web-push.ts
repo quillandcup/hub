@@ -3,7 +3,7 @@ import { SUPPORT_EMAIL } from "@/lib/config";
 import { membersWithFeature } from "@/lib/features.server";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { notificationKind, isNotificationKind } from "@/lib/notifications/registry";
-import { hubPath } from "./in-app";
+import { notificationUrl } from "./in-app";
 import type { ChannelAdapter, OutboundMessage, SendContext } from "./types";
 
 /**
@@ -27,7 +27,7 @@ const REQUEST_TIMEOUT_MS = 10_000;
 export interface PushPayload {
   title: string;
   body: string;
-  /** Hub path to open on click. */
+  /** Hub path to open on click, or an allowed external link (the Slack workspace; see lib/notification-links.ts). */
   url: string;
   /** Replaces an earlier notification with the same tag instead of stacking. */
   tag?: string;
@@ -143,7 +143,7 @@ export function pushPayload(message: OutboundMessage, { kind }: SendContext, now
   return {
     title: message.title ?? (isNotificationKind(kind) ? notificationKind(kind).label : "Notification"),
     body: message.text,
-    url: hubPath(message.url) ?? "/",
+    url: notificationUrl(message.url) ?? "/",
     tag: message.ref ? `${kind}:${message.ref}` : undefined,
     requireInteraction: isTimeSensitive(message, now),
   };

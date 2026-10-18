@@ -154,8 +154,14 @@ describe("public/sw.js notification click handler", () => {
     expect(other.focus).not.toHaveBeenCalled();
   });
 
-  it("ignores a url on another origin", async () => {
-    const { openWindow } = await click([], "https://evil.example.test/x");
+  it("opens an https link on another origin (the server only sends allowed ones) in a new window", async () => {
+    const { openWindow } = await click([], "https://workspace.example.test/app_redirect?channel=C1");
+
+    expect(openWindow).toHaveBeenCalledWith("https://workspace.example.test/app_redirect?channel=C1");
+  });
+
+  it("ignores a url that isn't https on another origin", async () => {
+    const { openWindow } = await click([], "http://evil.example.test/x");
 
     expect(openWindow).not.toHaveBeenCalled();
   });

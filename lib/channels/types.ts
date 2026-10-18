@@ -4,10 +4,12 @@ import type { ChannelId } from "./catalog";
 export interface OutboundMessage {
   /** Plain text: the whole message on text-only channels, and the fallback/preview everywhere else. */
   text: string;
-  /** A heading for channels that show one (browser push); defaults to the notification kind's label. */
+  /** A short heading for channels that show one: the push title (defaults to the notification kind's label) and the email's subject and heading (defaults to `text`). */
   title?: string;
   /** Where to act on it in the Hub, for channels that can't do it inline. */
   url?: string;
+  /** What the link says on text-only channels (Slack); defaults to "Open in the Hub". Set it when `url` goes somewhere else. */
+  linkLabel?: string;
   /** Slack Block Kit body, when the Slack version is richer than `text` (e.g. interactive selects). */
   slackBlocks?: any[];
   /** Small trailing links (e.g. "Notification settings"); each channel renders them its own way. */
