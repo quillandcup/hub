@@ -15,6 +15,7 @@ import {
   loadDismissedPairs,
   sendCheckoutDMs,
   tryRecordCheckinDM,
+  releaseCheckinDM,
   type GoalCandidate,
   type RecentPrickle,
   type UpcomingPrickle,
@@ -139,6 +140,7 @@ async function sendCheckins(supabase: SupabaseClient, candidates: GoalCandidate[
 
     const delivered = await notifier.send(memberId, checkinMessage(prickle, saved));
     if (delivered.length > 0) sent++;
+    else await releaseCheckinDM(supabase, prickle.id, memberId, "prickle_checkin");
   }
   return sent;
 }

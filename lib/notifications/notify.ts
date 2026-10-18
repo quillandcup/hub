@@ -55,9 +55,9 @@ export async function loadNotificationPreferences(
       .select("member_id, kind, channel, enabled")
       .eq("kind", kind)
       .in("member_id", memberIds.slice(i, i + MEMBER_ID_CHUNK));
-    // Failing closed (no sends) would silently drop every notification on a transient error; the
-    // defaults are what a member who never opened settings gets anyway.
-    if (error) console.error(`[notifications] Loading ${kind} preferences failed; using defaults`, error);
+    // A missing row means "use defaults"; a failed lookup tells us nothing about opt-outs.
+    // Abort before callers claim dedup records so the next scheduled run can try again.
+    if (error) throw new Error(`Loading ${kind} notification preferences failed: ${error.message}`);
     for (const row of data ?? []) {
       const rows = byMember.get(row.member_id) ?? [];
       rows.push(row);

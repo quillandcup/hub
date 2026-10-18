@@ -88,13 +88,22 @@ describe("createNotifier", () => {
     error.mockRestore();
   });
 
-  it("falls back to the defaults when preferences can't be loaded", async () => {
-    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+  it("aborts before resolving addresses or sending when preferences can't be loaded", async () => {
     const fake = createFakeSupabase({ notification_preferences: { error: { message: "boom" } } });
-    const notifier = await createNotifier(fake, "prickle_checkin", ["m1"]);
+    await expect(createNotifier(fake, "prickle_checkin", ["m1"])).rejects.toThrow("preferences failed: boom");
+    expect(resolveSlackUserIds).not.toHaveBeenCalled();
+    expect(sendSlackDM).not.toHaveBeenCalled();
+  });
 
-    expect(notifier.canReach("m1")).toBe(true);
-    error.mockRestore();
+  it("doesn't use partial preferences when a later batch fails", async () => {
+    let batch = 0;
+    const fake = createFakeSupabase({ notification_preferences: () =>
+      ++batch === 1 ? { data: [] } : { error: { message: "unavailable" } },
+    });
+    await expect(createNotifier(fake, "prickle_checkin", Array.from({ length: 201 }, (_, i) => `m${i}`)))
+      .rejects.toThrow("preferences failed: unavailable");
+    expect(resolveSlackUserIds).not.toHaveBeenCalled();
+    expect(sendSlackDM).not.toHaveBeenCalled();
   });
 
   it("adds a notification settings link to every message", async () => {
