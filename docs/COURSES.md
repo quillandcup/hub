@@ -27,14 +27,14 @@ Plan for moving Quill & Cup's courses from Kajabi into the Hub, starting with **
 
 ### Soon after launch (in priority order)
 
-1. "New lesson" notification kind (in-app, Slack DM or email, following each member's settings).
-2. "Continue watching" on the dashboard.
-3. Admin course stats: who's where, drop-off per video, a per-viewing heatmap.
-4. Audio-only "listen like a podcast" mode (Mux's per-video `audio.m4a`).
-5. Mux config as code (webhook URL, allowed playback domains) and a nightly Mux end-to-end check with a free test video.
+1. "Continue watching" on the dashboard.
+2. Admin course stats: who's where, drop-off per video, a per-viewing heatmap.
+3. Audio-only "listen like a podcast" mode (Mux's per-video `audio.m4a`).
+4. Mux config as code (webhook URL, allowed playback domains) and a nightly Mux end-to-end check with a free test video.
 
 ### Later
 
+- **Access-ending reminder:** a notification some weeks before a course's access ends, prompting the member to switch to or opt in to membership billing.
 - **Video phases 1–2:** Whisper transcripts with search and a follow-along panel; then re-exported clean videos with toggleable caption tracks.
 - **Course builder in the Hub,** so Ania stops authoring in Kajabi.
 - **Cohort-based courses:** Self-Editing Academy (reflection quizzes, level progression), the 180.
@@ -182,9 +182,7 @@ Ania publishes in Kajabi until the builder replaces it, so the sync runs for mon
 
 ## Open decisions
 
-1. **Automate step B?** Running it in CI means storing a Kajabi admin login (see `KAJABI_SCRAPER_DESIGN.md`). That's a credentials call for Cody. Until then it's a manual local run, which is fine for launch.
-2. **Notification on release:** when a "Coming soon" lesson opens, should enrolled members get the "New lesson" notification (soon-after-launch scope), or only see it in the outline?
-3. **Access ending:** when a year of The Ready Writer ends, does membership continue only if they've separately subscribed (as today), and should members get a reminder some weeks before access ends?
+None right now.
 
 ## Decided (2026-10-18)
 
@@ -192,6 +190,9 @@ Ania publishes in Kajabi until the builder replaces it, so the sync runs for mon
 - Show the full course plan, with unreleased lessons as "Coming soon". → Lesson-state rules.
 - Access is per-course configurable. The Ready Writer is one year and includes membership. → `course_access`, `courses.access_duration`, `programs.includes_membership`.
 - Link to (or replace) the existing The Ready Writer `programs` row. → `courses.program_id`.
+- **Lesson-text step stays manual** (a local run when Ania finishes a batch); automating it with a stored Kajabi login is not planned. → "Ongoing sync after launch".
+- **Released lessons appear in the outline only**, with no notification when they open. The "New lesson" notification is dropped from the post-launch list.
+- **Access ending:** membership continues only if the member has subscribed separately, as today. A reminder before access ends, with a prompt to switch to or opt in to membership billing, is wanted but comes later (see "Later").
 
 ## Prerequisites (Cody)
 
