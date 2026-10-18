@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { CHANNELS } from "@/lib/channels/catalog";
 import { NOTIFICATION_KINDS } from "@/lib/notifications/registry";
 import { sendTestNotification } from "./actions";
+import BrowserPushDiagnostics from "./BrowserPushDiagnostics";
 
 type Status = { ok: boolean; message: string };
 
@@ -103,6 +104,7 @@ export default function TestNotifications() {
         the dev address. A check-in or check-out is about the next prickle (or the latest), and answering a sample is saved as
         your own. Big Sister introductions send both versions, to the new member and to the Big Sister.
       </p>
+      <BrowserPushDiagnostics />
     </div>
   );
 }
