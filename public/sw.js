@@ -155,18 +155,22 @@ async function openTarget(target, notificationId, context) {
     .sort((a, b) => rank(a) - rank(b));
   console.log("[sw] notification click", { target: target.href, hubTabs: hubTabs.map((w) => w.url) });
   for (const tab of hubTabs) {
+    let focused = false;
     try {
       context.operation = "focus_tab";
-      if ("focus" in tab) await tab.focus();
+      if ("focus" in tab) { await tab.focus(); focused = true; }
       context.operation = "navigate_tab";
       const navigated = "navigate" in tab ? await tab.navigate(target.href) : null;
       if (navigated) {
         // The tab is already where it should be; a focus failure now mustn't send us on to another tab.
-        try {
-          context.operation = "focus_tab";
-          await navigated.focus();
-        } catch (error) {
-          await recordDiagnostic("focus_failed", notificationId, { ...context, error });
+        // Chrome allows one focus() per click, so a second call after a successful one is denied.
+        if (!focused) {
+          try {
+            context.operation = "focus_tab";
+            await navigated.focus();
+          } catch (error) {
+            await recordDiagnostic("focus_failed", notificationId, { ...context, error });
+          }
         }
         await recordDiagnostic("tab_navigated", notificationId, { ...context, operation: "navigate_tab" });
         return;

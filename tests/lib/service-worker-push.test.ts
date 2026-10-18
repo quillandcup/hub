@@ -117,6 +117,17 @@ describe("public/sw.js notification click handler", () => {
     expect(openWindow).not.toHaveBeenCalled();
   });
 
+  it("focuses the tab once: Chrome denies a second focus() within one click", async () => {
+    const focus = vi.fn().mockResolvedValueOnce(undefined).mockRejectedValue(new Error("Not allowed to focus a window"));
+    const navigate = vi.fn().mockResolvedValue({ focus });
+    const worker = loadWorker({ matchAll: async () => [{ url: `${origin}/dashboard`, focus, navigate }] });
+    await fire(worker.listeners, "notificationclick", { notification: { data: { url: "/prickles/1/checkin" }, close: vi.fn() } });
+
+    expect(focus).toHaveBeenCalledTimes(1);
+    const stages = (await diagnostics(worker.listeners)).entries.map((e: any) => e.stage);
+    expect(stages).toEqual(["click_received", "tab_navigated"]);
+  });
+
   it("still navigates a tab whose url reads as the target, since the Hub navigates in place", async () => {
     const focus = vi.fn().mockResolvedValue(undefined);
     const navigate = vi.fn().mockResolvedValue({ focus });
