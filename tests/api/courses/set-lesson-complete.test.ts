@@ -9,6 +9,7 @@ import { getTestSupabaseAdminClient } from '../../helpers/supabase'
  */
 
 const state = vi.hoisted(() => ({
+  failWrites: false,
   caller: null as null | { userId: string; identity: { memberId: string; isSudo: boolean }; scope: { memberId: string; isAdminActing: boolean } },
 }))
 
@@ -16,7 +17,9 @@ vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 vi.mock('@/lib/courses/caller', () => ({ getCoursesCaller: async () => state.caller }))
 vi.mock('@/lib/supabase/server', async () => {
   const { getTestSupabaseAdminClient } = await import('../../helpers/supabase')
-  return { createClient: async () => getTestSupabaseAdminClient() }
+  const admin = getTestSupabaseAdminClient()
+  // `failWrites` stands in for the member's own session refusing the write.
+  return { createClient: async () => (state.failWrites ? { from: () => ({ upsert: async () => ({ error: { message: 'boom' } }) }) } : admin) }
 })
 vi.mock('@/lib/supabase/service', async () => {
   const { getTestSupabaseAdminClient } = await import('../../helpers/supabase')
@@ -73,6 +76,7 @@ describe('setLessonComplete', () => {
 
   beforeEach(() => {
     state.caller = null
+    state.failWrites = false
   })
 
   it('marks a lesson complete, and complete again is the same, and un-completes', async () => {
@@ -108,6 +112,12 @@ describe('setLessonComplete', () => {
     expect(await setLessonComplete(ids.soon, true)).toEqual({ error: 'Lesson not found' })
     expect(await progress('none', 'open')).toBeNull()
     expect(await progress('ended', 'open')).toBeNull()
+  })
+
+  it("says so, without leaking the error, when the member's own write fails", async () => {
+    callAs('current')
+    state.failWrites = true
+    expect(await setLessonComplete(ids.open, true)).toEqual({ error: "Couldn't save your progress" })
   })
 
   it('refuses an id that is not a lesson id', async () => {
