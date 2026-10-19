@@ -53,9 +53,16 @@ describe('Course member data', () => {
       { member_id: ids.ended, lesson_id: ids.lessonB, completed_at: null, last_position_seconds: 5 },
     ])])
     for (const { error: insertError } of inserts) expect(insertError).toBeNull()
+
+    // An ended course whose title sorts before the current one, for the list order.
+    const { data: old } = await supabase.from('courses').insert({ slug: `${SLUG}-old`, title: `AAA Old ${ts}`, source_key: `${SLUG}-old` }).select('id').single()
+    ids.oldCourse = old!.id
+    const { error: oldError } = await supabase.from('course_access').insert({ member_id: ids.current, course_id: ids.oldCourse, starts_at: daysAgo(900), ends_at: daysAgo(200), origin: 'purchase' })
+    expect(oldError).toBeNull()
   })
 
   afterAll(async () => {
+    await supabase.from('courses').delete().eq('id', ids.oldCourse)
     await supabase.from('courses').delete().eq('id', ids.course) // cascades modules, lessons, access, progress
     await supabase.from('videos').delete().eq('id', ids.video)
     await supabase.from('members').delete().like('email', `member-data-%-${ts}@example.com`)
@@ -73,6 +80,11 @@ describe('Course member data', () => {
       const [item] = (await loadCourseList(supabase, scope('ended'))).filter((i) => i.course.slug === SLUG)
       expect(item.access.kind).toBe('ended')
       expect(item.progress.completed).toBe(1)
+    })
+
+    it('lists current courses before ended ones, even when the ended one sorts first by title', async () => {
+      const slugs = (await loadCourseList(supabase, scope('current'))).map((i) => i.course.slug).filter((slug) => slug.startsWith(SLUG))
+      expect(slugs).toEqual([SLUG, `${SLUG}-old`])
     })
 
     it('lists nothing for a member with no access, and everything for staff acting as themselves', async () => {

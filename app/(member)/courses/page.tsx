@@ -54,7 +54,7 @@ export default async function CoursesPage() {
                     aria-valuemin={0}
                     aria-valuemax={progress.available}
                     aria-valuenow={progress.completed}
-                    className="h-2 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800"
+                    className="h-2 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700"
                   >
                     <div className="h-full bg-plum-600" style={{ width: `${percent}%` }} />
                   </div>

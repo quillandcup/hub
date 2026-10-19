@@ -103,7 +103,7 @@ export interface CourseListItem {
   progress: CourseProgress;
 }
 
-/** The courses a member can see: the ones they have (or had) access to, or all of them for staff. */
+/** The courses a member can see: the ones they have (or had) access to, or all of them for staff. Current courses first, ended ones after, each by title. */
 export async function loadCourseList(supabase: SupabaseClient, scope: MemberScope): Promise<CourseListItem[]> {
   const now = scope.now ?? new Date();
   let courseIds: string[];
@@ -133,7 +133,7 @@ export async function loadCourseList(supabase: SupabaseClient, scope: MemberScop
       return { course, access, progress: courseProgress(outline, completed) };
     })
     .filter((item) => item.access.kind !== "none")
-    .sort((a, b) => a.course.title.localeCompare(b.course.title));
+    .sort((a, b) => Number(a.access.kind === "ended") - Number(b.access.kind === "ended") || a.course.title.localeCompare(b.course.title));
 }
 
 export interface CourseView {
