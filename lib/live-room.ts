@@ -4,7 +4,7 @@ import { joinAt, loadPrickleJoinSettings, type PrickleJoin } from "@/lib/prickle
 import { fetchAllPaginated, loadImportedHostIds, pairIntervals, type ParticipantEventRow } from "@/lib/zoom-presence";
 
 /**
- * Who's in the prickle Zoom room right now, for the "On air" light in the member header.
+ * Who's on the Prickle link right now, for the "On air" light in the member header.
  * Built from the participant joined/left webhooks (bronze.zoom_participant_events, see
  * lib/zoom-presence.ts), so it is only as live as those events are.
  */
@@ -57,7 +57,7 @@ export interface LiveRoom {
   members: LiveRoomMember[];
   /** People in the room who aren't matched to a member (counted in `count`). */
   guests: number;
-  /** The scheduled prickle running now, if any. Null for a Pop-Up Prickle (PUP) or an empty room. */
+  /** The scheduled Prickle running now, if any. Null for a Pop-Up Prickle (PUP) or an empty room. */
   prickle: LiveRoomPrickle | null;
   join: PrickleJoin | null;
 }

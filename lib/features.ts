@@ -90,6 +90,6 @@ export const FEATURE_PREVIEWS: FeaturePreview[] = [
   {
     key: 'live_room',
     name: 'On air light',
-    description: 'A blinking On air light in the header with how many Hedgies are in the prickle Zoom room right now. Click it for the prickle, its host, who is there and the join link; when the room is empty it shows Off air and a link to start a Pop-Up Prickle (PUP)',
+    description: 'A blinking On air light in the header with how many Hedgies are on the Prickle link right now. Click it for the Prickle, its host, who is there and the join link; when the room is empty it shows Off air and a link to start a Pop-Up Prickle (PUP)',
   },
 ];
