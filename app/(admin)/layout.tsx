@@ -5,7 +5,7 @@ import type { FeatureKey } from "@/lib/features";
 import AdminNavigation from "./admin/AdminNavigation";
 import UserMenu from "@/components/UserMenu";
 import AppHeader from "@/components/AppHeader";
-import InAppNotifications from "@/components/InAppNotifications.server";
+import InAppNotificationsLoader from "@/components/InAppNotificationsLoader";
 import FeedbackWidget from "@/components/FeedbackWidget";
 import PageViewTracker from "@/components/PageViewTracker";
 
@@ -29,14 +29,14 @@ export default async function AdminLayout({
     <div className="flex h-dvh overflow-hidden bg-canvas dark:bg-slate-950">
       <AdminNavigation enabledFeatures={enabledFeatures} />
       <div className="flex flex-col flex-1 min-w-0">
-        <InAppNotifications identity={identity} enabledFeatures={enabledFeatures}>
+        <InAppNotificationsLoader identity={identity} enabledFeatures={enabledFeatures}>
           <AppHeader resultsPath="/admin/search" isAdmin={true}>
             <UserMenu userEmail={user.email || "User"} isAdmin={true} />
           </AppHeader>
           <main className="flex-1 overflow-auto">
             {children}
           </main>
-        </InAppNotifications>
+        </InAppNotificationsLoader>
       </div>
       <FeedbackWidget />
       <PageViewTracker />

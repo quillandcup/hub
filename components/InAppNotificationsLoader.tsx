@@ -11,7 +11,7 @@ import { BELL_LIMIT, countInAppNotifications, loadInAppNotifications } from "@/l
  * (an admin with no member record and no sudo) or without the flag it renders `children` alone
  * and the bell and banner stay hidden.
  */
-export default async function InAppNotifications({
+export default async function InAppNotificationsLoader({
   identity,
   enabledFeatures,
   children,

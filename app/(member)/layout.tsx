@@ -8,7 +8,7 @@ import type { FeatureKey } from '@/lib/features'
 import MemberNavigation from '@/components/MemberNavigation'
 import UserMenu from '@/components/UserMenu'
 import AppHeader from '@/components/AppHeader'
-import InAppNotifications from '@/components/InAppNotifications.server'
+import InAppNotificationsLoader from '@/components/InAppNotificationsLoader'
 import SudoBanner from '@/components/SudoBanner'
 import { InstallAppPrompt } from '@/components/InstallAppPrompt'
 import { TimezoneInitializer } from '@/components/TimezoneInitializer'
@@ -72,7 +72,7 @@ export default async function MemberLayout({
           />
         )}
         {showInstallPrompt && <InstallAppPrompt />}
-        <InAppNotifications identity={effectiveIdentity} enabledFeatures={enabledFeatures}>
+        <InAppNotificationsLoader identity={effectiveIdentity} enabledFeatures={enabledFeatures}>
           <AppHeader resultsPath="/search" isAdmin={isAdmin}>
             <UserMenu
               userEmail={effectiveIdentity.memberName}
@@ -83,7 +83,7 @@ export default async function MemberLayout({
             />
           </AppHeader>
           {main}
-        </InAppNotifications>
+        </InAppNotificationsLoader>
         <TimezoneInitializer storedTimezone={storedTimezone} isSudo={effectiveIdentity.isSudo} />
       </div>
       <FeedbackWidget />
