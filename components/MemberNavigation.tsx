@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { FeatureKey } from "@/lib/features";
 import Wordmark from "@/components/Wordmark";
+import { OPEN_MOBILE_NAV_EVENT } from "@/components/MobileMenuButton";
 import { navGroups, type SitePage } from "@/lib/site-pages";
 
 interface MemberNavigationProps {
@@ -84,6 +85,12 @@ export default function MemberNavigation({ isAdmin, enabledFeatures }: MemberNav
   const pathname = usePathname();
 
   useEffect(() => {
+    const open = () => setMobileOpen(true);
+    window.addEventListener(OPEN_MOBILE_NAV_EVENT, open);
+    return () => window.removeEventListener(OPEN_MOBILE_NAV_EVENT, open);
+  }, []);
+
+  useEffect(() => {
     const isMobile = window.innerWidth < 768;
     setCollapsed(isMobile);
     const handleResize = () => setCollapsed(window.innerWidth < 768);
@@ -98,15 +105,6 @@ export default function MemberNavigation({ isAdmin, enabledFeatures }: MemberNav
 
   return (
     <>
-      {/* Mobile hamburger button — no permanent space, just a fixed trigger */}
-      <button
-        onClick={() => setMobileOpen(true)}
-        className="md:hidden fixed top-3 left-4 z-50 h-10 w-10 flex items-center justify-center rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm text-slate-700 dark:text-slate-300"
-        aria-label="Open navigation menu"
-      >
-        <span className="text-lg leading-none">☰</span>
-      </button>
-
       {/* Mobile overlay backdrop */}
       {mobileOpen && (
         <div
