@@ -210,6 +210,8 @@ Routes, under `app/(member)/`, all using `getEffectiveIdentity`:
   - Mark complete, previous/next, and an outline sidebar on desktop (a drawer on mobile).
   - Resumes at the last position.
 
+**Built:** the three pages, behind the `courses` feature flag (off; migration `20261111000200`). They read through a service-role client scoped to the *effective* member (`lib/courses/member.ts`), not RLS, because sudo acts for another member and an ended-access member still sees their course; staff open every course only as themselves, and in sudo the member's own access applies. Mark complete is a server action that checks access itself, writes as the member, and is read-only in sudo. Lessons that can't be opened (no access, ended, coming soon) redirect to the course page, which explains why. The player is signed Mux playback with speed and captions remembered per browser. **Not built yet:** resume position and watch segments (the watch tracking step, which also moves the speed setting to per member), downloads (they need step D's file copy), the "Videos" admin screen, and "Continue watching" on the dashboard. `/admin/player-spike` can be deleted once the lesson player has been seen working with a real video.
+
 Progress is counted against *available* lessons, since the course grows as lessons are released. Light and dark themes, keyboard access and mobile layout are part of "done", not polish.
 
 ## Timeline (two-week target)
