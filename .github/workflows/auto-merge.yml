@@ -9,6 +9,11 @@ name: Auto-merge
 # turning auto-merge off on a PR sticks across later pushes. To keep a PR from
 # merging: open it as a draft, or click "Disable auto-merge" on it.
 #
+# Enables it with GH_TOKEN_AUTO_MERGE (a fine-grained personal token), not the built-in
+# GITHUB_TOKEN: GitHub attributes an auto-merge to whoever enabled it, and a merge made
+# by GITHUB_TOKEN doesn't trigger the push CI run on main (no migrations, deploy or
+# Slack manifest push). Rotate it before it expires, see docs/SECRET_ROTATION.md.
+#
 # Skipped for drafts, for forks (their GITHUB_TOKEN can't write) and for
 # Dependabot, which has its own stricter workflow (dependabot-auto-merge.yml:
 # patch/minor only). Needs the repo-level "Allow auto-merge" setting
@@ -18,8 +23,7 @@ on:
     types: [opened, reopened, ready_for_review]
 
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
 
 jobs:
   auto-merge:
@@ -33,4 +37,4 @@ jobs:
         run: gh pr merge --auto --squash "$PR_URL"
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_TOKEN_AUTO_MERGE }}

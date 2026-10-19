@@ -501,6 +501,14 @@ export const ENV_VARS: readonly EnvVarSpec[] = [
     destinations: [{ kind: "github" }],
   },
   {
+    name: "GH_TOKEN_AUTO_MERGE",
+    group: "GitHub Actions CI",
+    description:
+      "GitHub fine-grained token with Contents and Pull requests read/write on this repo only. Lets auto-merge.yml turn on auto-merge as a real user: a merge GitHub attributes to the workflow's own GITHUB_TOKEN doesn't trigger the push CI run on main (migrations, deploy, Slack manifest).",
+    type: "secret",
+    destinations: [{ kind: "github" }],
+  },
+  {
     name: "DOCKERHUB_USERNAME",
     group: "GitHub Actions CI",
     description:

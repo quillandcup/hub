@@ -26,7 +26,7 @@ Two things a push can't do for you:
 The job fails until all three exist.
 
 1. **`SLACK_APP_ID`** (GitHub variable): the app's `A...` id, in `.env.shared` (the app uses it too); `npm run env:sync:github` sets it.
-2. **`GH_TOKEN_SLACK_MANIFEST`** (GitHub secret): a fine-grained personal access token limited to this repository with **Secrets: Read and write**. Put it in `.env.prod` and run `npm run env:sync:github`. It expires on the date you pick; rotate it then.
+2. **`GH_TOKEN_SLACK_MANIFEST`** (GitHub secret): a fine-grained personal access token limited to this repository with **Secrets: Read and write**. Put it in `.env.shared` and run `npm run env:sync:github`. It expires on the date you pick; rotate it then.
 3. **`SLACK_CONFIG_REFRESH_TOKEN`** (GitHub secret): at api.slack.com/apps → "Your App Configuration Tokens", generate a token for the workspace and copy the **refresh** token (`xoxe-...`):
 
    ```bash

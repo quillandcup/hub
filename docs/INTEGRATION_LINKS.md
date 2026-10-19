@@ -47,6 +47,7 @@ Vercel values. `env-vars.config.ts` is the source of truth for which var goes wh
 | `SLACK_SIGNING_SECRET` | https://api.slack.com/apps/A0AS93BKT09/general -> App Credentials -> Regenerate | `npm run env:sync` |
 | `SLACK_CONFIG_REFRESH_TOKEN` | https://api.slack.com/apps -> "Your App Configuration Tokens" (below the app list) -> Generate Token; copy the refresh token | `gh secret set SLACK_CONFIG_REFRESH_TOKEN --repo quillandcup/hub` (never synced: CI rewrites it every run) |
 | `GH_TOKEN_SLACK_MANIFEST` | https://github.com/settings/personal-access-tokens -> fine-grained, owner `quillandcup`, this repo only, **Secrets: Read and write** | `npm run env:sync:github` |
+| `GH_TOKEN_AUTO_MERGE` | https://github.com/settings/personal-access-tokens -> fine-grained, owner `quillandcup`, this repo only, **Contents** and **Pull requests: Read and write** | `npm run env:sync:github` |
 | `STRIPE_API_KEY` | https://dashboard.stripe.com/apikeys | `npm run env:sync` |
 | `RESEND_API_KEY` | https://resend.com/api-keys | `npm run env:sync:github`, then the next push to main (or `npm run config:push`) updates Supabase's SMTP password |
 | `SENTRY_AUTH_TOKEN` | https://quillandcup.sentry.io/settings/auth-tokens/ | `npm run env:sync:github` |
@@ -281,12 +282,12 @@ worth checking the Billing page above once the trial period ends.
 |------|-----|
 | Actions runs | https://github.com/quillandcup/hub/actions |
 | Secrets & Variables | https://github.com/quillandcup/hub/settings/secrets/actions |
-| Fine-grained personal access tokens (for `GH_TOKEN_SLACK_MANIFEST`) | https://github.com/settings/personal-access-tokens |
+| Fine-grained personal access tokens (for `GH_TOKEN_SLACK_MANIFEST`, `GH_TOKEN_AUTO_MERGE`) | https://github.com/settings/personal-access-tokens |
 
 Secrets: `CHECKLY_API_KEY`, `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD`,
 `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`, `SENTRY_AUTH_TOKEN`, `RESEND_API_KEY`,
-`GH_TOKEN_SLACK_MANIFEST`. Variables: `CHECKLY_ACCOUNT_ID`, `SUPABASE_PROJECT_ID`, `ALERTS_EMAIL`, `SLACK_APP_ID`.
-Secrets/variables synced from `.env.prod` via `scripts/sync-to-github.ts` (`npm run env:sync:github`) -- see `env-vars.config.ts` at the repo root for the source-of-truth list of which vars go where.
+`GH_TOKEN_SLACK_MANIFEST`, `GH_TOKEN_AUTO_MERGE`. Variables: `CHECKLY_ACCOUNT_ID`, `SUPABASE_PROJECT_ID`, `ALERTS_EMAIL`, `SLACK_APP_ID`.
+Secrets/variables synced from `.env.shared` plus `.env.prod` overrides via `scripts/sync-to-github.ts` (`npm run env:sync:github`) -- see `env-vars.config.ts` at the repo root for the source-of-truth list of which vars go where.
 
 Two exceptions to the sync:
 
