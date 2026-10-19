@@ -140,8 +140,12 @@ function MorePill({ count, className }: { count: number; className: string }) {
   );
 }
 
-/** Unread, still time-sensitive notifications, as strips under the header, each dismissible. */
+/** Unread, still time-sensitive notifications, as strips under the header, each dismissible. Renders nothing outside the provider (no member, or the flag is off). */
 export function InAppNotificationBanner() {
+  return useContext(InAppContext) ? <BannerStrips /> : null;
+}
+
+function BannerStrips() {
   const { latest, error, markRead } = useInAppNotifications();
   const unread = latest.filter((n) => n.banner);
   const banners = unread.slice(0, MAX_BANNERS);
@@ -235,6 +239,10 @@ export function NotificationRow({
 
 /** The header bell: unread count, the latest few, mark all read, and the way to the inbox. */
 export function InAppNotificationBell() {
+  return useContext(InAppContext) ? <BellMenu /> : null;
+}
+
+function BellMenu() {
   const { latest, unreadCount, markRead, markAllRead } = useInAppNotifications();
   const [isOpen, setIsOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);

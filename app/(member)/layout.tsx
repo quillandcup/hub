@@ -7,7 +7,8 @@ import { effectiveMemberHasFeature, getUserFeaturePreviews } from '@/lib/feature
 import type { FeatureKey } from '@/lib/features'
 import MemberNavigation from '@/components/MemberNavigation'
 import UserMenu from '@/components/UserMenu'
-import AppChrome from '@/components/AppChrome'
+import AppHeader from '@/components/AppHeader'
+import InAppNotifications from '@/components/InAppNotifications.server'
 import SudoBanner from '@/components/SudoBanner'
 import { InstallAppPrompt } from '@/components/InstallAppPrompt'
 import { TimezoneInitializer } from '@/components/TimezoneInitializer'
@@ -71,12 +72,8 @@ export default async function MemberLayout({
           />
         )}
         {showInstallPrompt && <InstallAppPrompt />}
-        <AppChrome
-          resultsPath="/search"
-          isAdmin={isAdmin}
-          identity={effectiveIdentity}
-          enabledFeatures={enabledFeatures}
-          headerEnd={
+        <InAppNotifications identity={effectiveIdentity} enabledFeatures={enabledFeatures}>
+          <AppHeader resultsPath="/search" isAdmin={isAdmin}>
             <UserMenu
               userEmail={effectiveIdentity.memberName}
               memberId={effectiveIdentity.memberId}
@@ -84,10 +81,9 @@ export default async function MemberLayout({
               isSudo={effectiveIdentity.isSudo}
               canStartOnboarding={showOnboarding}
             />
-          }
-        >
+          </AppHeader>
           {main}
-        </AppChrome>
+        </InAppNotifications>
         <TimezoneInitializer storedTimezone={storedTimezone} isSudo={effectiveIdentity.isSudo} />
       </div>
       <FeedbackWidget />
