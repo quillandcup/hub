@@ -116,7 +116,13 @@ describe("prickle check-in route", () => {
   });
 
   it("does not claim an unflagged member's check-in, so a later rollout can send it", async () => {
-    setup([goalRow("g1", "m1", "proj1", "words")], { feature_flags: { data: { enabled_globally: false } } });
+    setup([goalRow("g1", "m1", "proj1", "words")], {
+      feature_flags: { data: { enabled_globally: false } },
+      notification_preferences: { data: [
+        { member_id: "m1", kind: "prickle_checkin", channel: "slack", enabled: false },
+        { member_id: "m1", kind: "prickle_checkin", channel: "in_app", enabled: false },
+      ] },
+    });
     calendarPrickleIds.mockResolvedValue(new Set(["p1"]));
 
     expect(await (await POST(cronRequest())).json()).toEqual({ checkins: 0, checkouts: 0 });
@@ -153,7 +159,10 @@ describe("prickle check-in route", () => {
 
   it("skips a member who turned check-ins off, without logging it", async () => {
     setup([goalRow("g1", "m1", "proj1", "words"), goalRow("g2", "m2", "proj2", "words")], {
-      notification_preferences: { data: [{ member_id: "m1", kind: "prickle_checkin", channel: "slack", enabled: false }] },
+      notification_preferences: { data: [
+        { member_id: "m1", kind: "prickle_checkin", channel: "slack", enabled: false },
+        { member_id: "m1", kind: "prickle_checkin", channel: "in_app", enabled: false },
+      ] },
     });
     calendarPrickleIds.mockResolvedValue(new Set(["p1"]));
 
@@ -162,7 +171,12 @@ describe("prickle check-in route", () => {
   });
 
   it("retries a check-in after every channel failed, then deduplicates a successful send", async () => {
-    setup([goalRow("g1", "m1", "proj1", "words")]);
+    setup([goalRow("g1", "m1", "proj1", "words")], {
+      notification_preferences: { data: [
+        { member_id: "m1", kind: "prickle_checkin", channel: "slack", enabled: true },
+        { member_id: "m1", kind: "prickle_checkin", channel: "in_app", enabled: false },
+      ] },
+    });
     calendarPrickleIds.mockResolvedValue(new Set(["p1"]));
     sendSlackDM.mockRejectedValueOnce(new Error("channel_not_found"));
     vi.spyOn(console, "error").mockImplementation(() => {});
@@ -176,6 +190,10 @@ describe("prickle check-in route", () => {
   it("surfaces a failed claim release and keeps the notification deduplicated", async () => {
     const log = dmLog();
     setup([goalRow("g1", "m1", "proj1", "words")], {
+      notification_preferences: { data: [
+        { member_id: "m1", kind: "prickle_checkin", channel: "slack", enabled: true },
+        { member_id: "m1", kind: "prickle_checkin", channel: "in_app", enabled: false },
+      ] },
       prickle_checkin_dm_log: (query) => query.calls.some((c) => c.method === "delete")
         ? { error: { message: "database unavailable" } }
         : log(query),
@@ -282,7 +300,12 @@ describe("sendCheckoutDMs", () => {
   }
 
   it("retries a check-out after every channel failed, then deduplicates success", async () => {
-    setup([goalRow("g1", "m1", "proj1", "words")]);
+    setup([goalRow("g1", "m1", "proj1", "words")], {
+      notification_preferences: { data: [
+        { member_id: "m1", kind: "prickle_checkout", channel: "slack", enabled: true },
+        { member_id: "m1", kind: "prickle_checkout", channel: "in_app", enabled: false },
+      ] },
+    });
     sendSlackDM.mockRejectedValueOnce(new Error("channel_not_found"));
     vi.spyOn(console, "error").mockImplementation(() => {});
     expect(await checkout()).toBe(0);
@@ -317,7 +340,10 @@ describe("sendCheckoutDMs", () => {
 
   it("skips an attendee who turned check-outs off, without logging it", async () => {
     setup([goalRow("g1", "m1", "proj1", "words")], {
-      notification_preferences: { data: [{ member_id: "m1", kind: "prickle_checkout", channel: "slack", enabled: false }] },
+      notification_preferences: { data: [
+        { member_id: "m1", kind: "prickle_checkout", channel: "slack", enabled: false },
+        { member_id: "m1", kind: "prickle_checkout", channel: "in_app", enabled: false },
+      ] },
     });
 
     expect(await checkout()).toBe(0);

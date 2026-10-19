@@ -57,18 +57,13 @@ export default async function MemberLayout({
   // The tour is the member's own: hidden during sudo, so an admin browsing as them doesn't see or
   // change it (app/actions/onboarding.ts refuses then too).
   const showOnboarding = !effectiveIdentity.isSudo
-  // In-app notifications show in sudo like the rest of the member's experience, behind the
-  // member's own flag (app/actions/in-app-notifications.ts).
-  const showInApp = await effectiveMemberHasFeature('in_app_notifications', effectiveIdentity, enabledFeatures)
   const showInstallPrompt = await effectiveMemberHasFeature('browser_notifications', effectiveIdentity, enabledFeatures)
   const [onboardingState, inAppNotifications] = await Promise.all([
     showOnboarding ? getOnboardingState(effectiveIdentity.memberId) : null,
-    showInApp
-      ? Promise.all([
-          loadInAppNotifications(supabase, effectiveIdentity.memberId, new Date(), { limit: BELL_LIMIT }),
-          countInAppNotifications(supabase, effectiveIdentity.memberId, { unreadOnly: true }),
-        ]).then(([latest, unreadCount]) => ({ latest, unreadCount }))
-      : null,
+    Promise.all([
+      loadInAppNotifications(supabase, effectiveIdentity.memberId, new Date(), { limit: BELL_LIMIT }),
+      countInAppNotifications(supabase, effectiveIdentity.memberId, { unreadOnly: true }),
+    ]).then(([latest, unreadCount]) => ({ latest, unreadCount })),
   ])
 
   const header = (bell: React.ReactNode) => (
@@ -105,18 +100,11 @@ export default async function MemberLayout({
           />
         )}
         {showInstallPrompt && <InstallAppPrompt />}
-        {inAppNotifications ? (
-          <InAppNotificationsProvider initial={inAppNotifications}>
-            {header(<InAppNotificationBell />)}
-            <InAppNotificationBanner />
-            {main}
-          </InAppNotificationsProvider>
-        ) : (
-          <>
-            {header(null)}
-            {main}
-          </>
-        )}
+        <InAppNotificationsProvider initial={inAppNotifications}>
+          {header(<InAppNotificationBell />)}
+          <InAppNotificationBanner />
+          {main}
+        </InAppNotificationsProvider>
         <TimezoneInitializer storedTimezone={storedTimezone} isSudo={effectiveIdentity.isSudo} />
       </div>
       <FeedbackWidget />

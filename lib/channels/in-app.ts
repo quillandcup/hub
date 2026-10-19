@@ -1,5 +1,4 @@
 import { APP_URL } from "@/lib/config";
-import { membersWithFeature } from "@/lib/features.server";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import type { SortConfig } from "@/lib/hooks/useTableSort";
 import { isAllowedExternalUrl } from "@/lib/notification-links";
@@ -19,10 +18,8 @@ import type { ChannelAdapter, OutboundMessage, SendContext } from "./types";
  * read, or once the feature resolves it with resolveInAppNotifications (e.g. a check-in once
  * they've checked in).
  *
- * Behind the in_app_notifications feature flag: members without it can't be reached here, so
- * senders fall back to their other channels exactly as before. The address is the member id.
+ * The address is the member id.
  */
-export const IN_APP_FEATURE = "in_app_notifications" as const;
 
 /** How many the bell shows; the inbox has the rest. */
 export const BELL_LIMIT = 10;
@@ -30,8 +27,7 @@ export const BELL_LIMIT = 10;
 export const inAppChannel: ChannelAdapter = {
   id: "in_app",
   async resolveAddresses(supabase, memberIds) {
-    const reachable = await membersWithFeature(supabase, IN_APP_FEATURE, memberIds);
-    return new Map([...reachable].map((memberId) => [memberId, memberId]));
+    return new Map(memberIds.map((memberId) => [memberId, memberId]));
   },
   async send(memberId, message, context) {
     const { error } = await createServiceRoleClient().from("in_app_notifications").insert(inAppRow(memberId, message, context));

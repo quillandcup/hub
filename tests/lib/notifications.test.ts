@@ -18,6 +18,10 @@ vi.mock("@/lib/slack-member-ids", () => ({
   resolveSlackUserIds: (s: unknown, ids: string[]) => resolveSlackUserIds(s, ids),
 }));
 
+// Mock service role client for in-app notifications
+let serviceFake: any;
+vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => serviceFake }));
+
 const { effectiveChannels, effectiveSettings, NOTIFICATION_KINDS } = await import("@/lib/notifications/registry");
 const { createNotifier } = await import("@/lib/notifications/notify");
 const { slackBlocks } = await import("@/lib/channels/slack");
@@ -28,6 +32,7 @@ beforeEach(() => {
   resolveSlackUserIds.mockClear();
   captureException.mockClear();
   sendOperationsAlert.mockClear();
+  serviceFake = createFakeSupabase();
 });
 
 describe("effectiveChannels", () => {
@@ -57,13 +62,13 @@ describe("effectiveChannels", () => {
 describe("createNotifier", () => {
   const optedOut = { member_id: "m2", kind: "prickle_checkin", channel: "slack", enabled: false };
 
-  it("keeps Slack off for unflagged members without claiming they are reachable", async () => {
+  it("keeps Slack off for unflagged members but keeps in-app available", async () => {
     const fake = createFakeSupabase();
     const notifier = await createNotifier(fake, "prickle_checkin", ["m1"]);
 
-    expect(notifier.channelsFor("m1")).toEqual([]);
-    expect(notifier.canReach("m1")).toBe(false);
-    expect(await notifier.send("m1", { text: "Hello" })).toEqual([]);
+    expect(notifier.channelsFor("m1")).toEqual(["in_app"]);
+    expect(notifier.canReach("m1")).toBe(true);
+    expect(await notifier.send("m1", { text: "Hello" })).toEqual(["in_app"]);
     expect(resolveSlackUserIds).not.toHaveBeenCalled();
   });
 
@@ -74,8 +79,8 @@ describe("createNotifier", () => {
     });
     const notifier = await createNotifier(fake, "prickle_checkin", ["m1", "m2"]);
 
-    expect(notifier.channelsFor("m1")).toEqual(["slack"]);
-    expect(notifier.channelsFor("m2")).toEqual([]);
+    expect(notifier.channelsFor("m1")).toEqual(["slack", "in_app"]);
+    expect(notifier.channelsFor("m2")).toEqual(["in_app"]);
     expect(resolveSlackUserIds.mock.calls[0][1]).toEqual(["m1"]);
   });
 
@@ -86,7 +91,7 @@ describe("createNotifier", () => {
     });
     const notifier = await createNotifier(fake, "prickle_checkin", ["m1"]);
 
-    expect(notifier.channelsFor("m1")).toEqual(["email"]);
+    expect(notifier.channelsFor("m1")).toEqual(["in_app", "email"]);
     expect(resolveSlackUserIds).not.toHaveBeenCalled();
   });
 
@@ -94,9 +99,9 @@ describe("createNotifier", () => {
     const fake = slackReady({ notification_preferences: { data: [optedOut] } });
     const notifier = await createNotifier(fake, "prickle_checkin", ["m1", "m2", "m3", "m1"]);
 
-    expect(notifier.channelsFor("m1")).toEqual(["slack"]);
-    expect(notifier.canReach("m2")).toBe(false);
-    expect(notifier.canReach("m3")).toBe(false);
+    expect(notifier.channelsFor("m1")).toEqual(["slack", "in_app"]);
+    expect(notifier.canReach("m2")).toBe(true);
+    expect(notifier.canReach("m3")).toBe(true);
     expect(notifier.canReach("unknown")).toBe(false);
     // Only members who want Slack are resolved, once each.
     expect(resolveSlackUserIds).toHaveBeenCalledTimes(1);
@@ -106,24 +111,24 @@ describe("createNotifier", () => {
   it("sends to the member's Slack and reports the delivered channels", async () => {
     const notifier = await createNotifier(slackReady(), "prickle_checkin", ["m1"]);
 
-    expect(await notifier.send("m1", { text: "Hello", url: `${APP_URL}/prickles/p1` })).toEqual(["slack"]);
+    expect(await notifier.send("m1", { text: "Hello", url: `${APP_URL}/prickles/p1` })).toEqual(["slack", "in_app"]);
     expect(sendSlackDM).toHaveBeenCalledWith(expect.objectContaining({ slackUserId: "U-m1", text: "Hello" }));
   });
 
-  it("sends nothing to a member who opted out", async () => {
+  it("still sends in-app to a member who opted out of Slack only", async () => {
     const fake = slackReady({ notification_preferences: { data: [optedOut] } });
     const notifier = await createNotifier(fake, "prickle_checkin", ["m2"]);
 
-    expect(await notifier.send("m2", { text: "Hello" })).toEqual([]);
+    expect(await notifier.send("m2", { text: "Hello" })).toEqual(["in_app"]);
     expect(sendSlackDM).not.toHaveBeenCalled();
   });
 
-  it("logs a failed channel and reports nothing delivered instead of throwing", async () => {
+  it("logs a failed channel and still sends on other channels", async () => {
     sendSlackDM.mockRejectedValueOnce(new Error("channel_not_found"));
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
     const notifier = await createNotifier(slackReady(), "prickle_checkin", ["m1"]);
 
-    expect(await notifier.send("m1", { text: "Hello" })).toEqual([]);
+    expect(await notifier.send("m1", { text: "Hello" })).toEqual(["in_app"]);
     expect(error).toHaveBeenCalled();
     expect(captureException).toHaveBeenCalledWith(expect.any(Error), expect.objectContaining({ tags: { notification_kind: "prickle_checkin", notification_channel: "slack" } }));
     expect(sendOperationsAlert).toHaveBeenCalledWith(expect.anything(), { type: "slack_dm_failed", notificationKind: "prickle_checkin", memberId: "m1" });
