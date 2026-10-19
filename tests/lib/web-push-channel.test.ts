@@ -71,7 +71,6 @@ describe("pushPayload and ttlSeconds", () => {
       body: "Check in",
       url: "/prickles/p1",
       tag: "prickle_checkin:p1",
-      requireInteraction: false,
     });
   });
 
@@ -87,7 +86,7 @@ describe("pushPayload and ttlSeconds", () => {
   it("expires a time-sensitive push when it stops mattering, and keeps others a day", () => {
     const soon = new Date(NOW + 20 * 60_000).toISOString();
     expect(ttlSeconds({ text: "x", timeSensitiveUntil: soon }, NOW)).toBe(20 * 60);
-    expect(pushPayload({ text: "x", timeSensitiveUntil: soon }, { kind: "prickle_checkin", memberId: "m1" }, NOW).requireInteraction).toBe(true);
+    expect(pushPayload({ text: "x", timeSensitiveUntil: soon }, { kind: "prickle_checkin", memberId: "m1" }, NOW)).not.toHaveProperty("requireInteraction");
 
     const past = new Date(NOW - 1000).toISOString();
     expect(ttlSeconds({ text: "x", timeSensitiveUntil: past }, NOW)).toBe(24 * 60 * 60);
@@ -185,7 +184,7 @@ describe("web_push send", () => {
 });
 
 describe("sendDiagnosticPush", () => {
-  const payload = { title: "T", body: "B", url: "/admin/notifications", tag: "t", requireInteraction: true };
+  const payload = { title: "T", body: "B", url: "/admin/notifications", tag: "t" };
   const subs = { push_subscriptions: { data: [{ endpoint: "https://fcm.googleapis.com/fcm/send/abc", p256dh: "p", auth: "a" }] } };
 
   it("sends the caller's payload with the caller's urgency and TTL", async () => {

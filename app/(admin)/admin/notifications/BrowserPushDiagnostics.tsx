@@ -98,11 +98,11 @@ export default function BrowserPushDiagnostics() {
       <div className="space-y-2 border-t border-slate-200 pt-3 dark:border-slate-700">
         <p className="text-sm text-slate-600 dark:text-slate-400">
           Real server pushes to your devices, as a check-in sends them (the alerts above are shown by the page, not pushed).
-          Each adds one thing to the one before: staying on screen until dismissed, a tag, then high urgency with a short expiry. Close any alert first; the
+          Each adds one thing to the one before: a tag, then high urgency with a short expiry. Close any alert first; the
           worker shows no ID here, so match each click entry by time.
         </p>
         <div className="flex flex-wrap gap-2">
-          {([["standard", "Push standard"], ["persistent", "Push persistent"], ["tagged", "Push tagged"], ["tagged_urgent", "Push tagged, urgent"]] as const).map(([variant, label]) => (
+          {([["standard", "Push standard"], ["tagged", "Push tagged"], ["tagged_urgent", "Push tagged, urgent"]] as const).map(([variant, label]) => (
             <button key={variant} type="button" disabled={pending} onClick={() => sendServerPush(variant)} className="rounded-lg border px-3 py-1 text-sm disabled:opacity-50">
               {label}
             </button>
