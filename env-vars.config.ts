@@ -416,7 +416,7 @@ export const ENV_VARS: readonly EnvVarSpec[] = [
   {
     name: "SENTRY_ALERTS_AUTH_TOKEN",
     group: "Analytics & Monitoring",
-    description: "Local ops token for Sentry alert workflow diff/push; needs alerts:read, alerts:write, org:read. Kept separate from the source-map token and never synced to Vercel or CI.",
+    description: "Local ops token from a Sentry internal integration for alert workflow diff/push; needs alerts:read, alerts:write, org:read. Kept separate from the source-map token and never synced to Vercel or CI.",
     type: "secret",
     destinations: [],
   },

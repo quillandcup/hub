@@ -10,7 +10,7 @@ Both notify [#hub-alerts](https://quillandcup.slack.com/archives/C0CA91G8LGH) th
 ## Setup
 
 1. Install Sentry's Slack integration into the Quill & Cup workspace and allow it to post in `#hub-alerts`. The Hub/Billie Bot Slack app is separate.
-2. Create a Sentry organization token with `alerts:read`, `alerts:write`, and `org:read` scopes. Set it as `SENTRY_ALERTS_AUTH_TOKEN` in your shell or local ignored env file. The existing `SENTRY_AUTH_TOKEN` is for source-map uploads and does not have alert-management permission.
+2. In Sentry, open **Settings → Custom Integrations → Create New Integration → Internal Integration**. Name it `hub-alerts-iac`, grant `alerts:read`, `alerts:write`, and `org:read`, save it, then copy its token from the **Tokens** section. Set it as `SENTRY_ALERTS_AUTH_TOKEN` in your shell or local ignored env file. The **Organization Tokens** page only offers the fixed `org:ci` scope for source-map uploads; it cannot configure alert permissions. Keep the existing `SENTRY_AUTH_TOKEN` for CI builds.
 3. If Sentry has more than one active Slack integration, set `SENTRY_ALERTS_SLACK_INTEGRATION_ID` to the desired integration's numeric ID.
 4. Run `npm run sentry:alerts:validate`, `npm run sentry:alerts:diff`, then `npm run sentry:alerts:push`. Run `diff` again; it should report zero pending changes.
 5. Trigger a safe test event in production and verify the Sentry issue, workflow evaluation, and Slack delivery. Do this before relying on the alert for a global Slack notification rollout.
