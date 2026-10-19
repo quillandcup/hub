@@ -1,4 +1,4 @@
-export type FeatureKey = 'member_overrides' | 'hedgieversaries' | 'work_queue' | 'program_cohorts' | 'events' | 'message_privacy' | 'slack_admin_sign_in' | 'in_app_notifications' | 'browser_notifications' | 'chat' | 'chat_posting' | 'big_sisters' | 'intro_reminders' | 'prickle_reminders' | 'slack_notifications' | 'courses' | 'live_room';
+export type FeatureKey = 'member_overrides' | 'hedgieversaries' | 'work_queue' | 'program_cohorts' | 'events' | 'message_privacy' | 'slack_admin_sign_in' | 'in_app_notifications' | 'browser_notifications' | 'chat' | 'chat_posting' | 'big_sisters' | 'intro_reminders' | 'prickle_reminders' | 'slack_notifications' | 'courses';
 
 export interface FeaturePreview {
   key: FeatureKey;
@@ -86,10 +86,5 @@ export const FEATURE_PREVIEWS: FeaturePreview[] = [
     key: 'courses',
     name: 'Courses',
     description: 'Courses in the Hub (The Ready Writer first): a Courses page with progress, the course outline, and lesson pages with video, text and mark-complete. Members see only the courses they have access to; staff see all of them. Keep off until launch day',
-  },
-  {
-    key: 'live_room',
-    name: 'On air light',
-    description: 'A blinking On air light in the header with how many Hedgies are on the Prickle link right now. Click it for the Prickle, its host, who is there and the join link; when the room is empty it shows Off air and a link to start a Pop-Up Prickle (PUP)',
   },
 ];
