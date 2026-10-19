@@ -1,4 +1,5 @@
 import { requireAdmin } from "@/lib/supabase/api-auth";
+import { createServiceRoleClient } from "@/lib/supabase/service";
 import { CourseProcessingError, processCourses } from "@/lib/courses/process";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -11,6 +12,9 @@ export const maxDuration = 300;
  * slug (a new course gets the slug of its Kajabi title); omit it to refresh every Kajabi course
  * already in Silver. `accessDuration` (an interval; `null` for lifetime) is set on the course
  * when given and left alone otherwise.
+ *
+ * The caller is checked as an admin, then the writes use the service role: signed-in admins can
+ * read the course tables but not write them.
  *
  * Reprocessable: Silver rows are upserted on their source key and orphans deleted, so ids stay
  * stable and a lesson that's deleted, drafted or hidden in Kajabi disappears on the next run.
@@ -30,7 +34,7 @@ export async function POST(request: NextRequest) {
       : undefined;
 
   try {
-    const result = await processCourses(auth.supabase, { courseSlug, accessDuration });
+    const result = await processCourses(createServiceRoleClient(), { courseSlug, accessDuration });
     return NextResponse.json({ success: true, ...result });
   } catch (error: any) {
     if (error instanceof CourseProcessingError) {
