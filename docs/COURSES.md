@@ -137,7 +137,7 @@ RLS:
 - Course content is readable by members with a `course_access` row, and by admins.
 - Progress and segments are the member's own, plus admins.
 - Videos are never public. Playback links are minted server-side only after the access check.
-- Schema is in `20261111000000_create_courses.sql`, tested by `supabase/tests/database/courses.test.sql`. Content policies use `has_course_access(course_id)`, which requires *current* access, so a member whose access ended gets their `/courses` listing and outline from the service role after the app's own check, not from RLS.
+- Schema is in `20261111000100_create_courses.sql`, tested by `supabase/tests/database/courses.test.sql`. Content policies use `has_course_access(course_id)`, which requires *current* access, so a member whose access ended gets their `/courses` listing and outline from the service role after the app's own check, not from RLS.
 
 ## Migration pipeline
 

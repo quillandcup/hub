@@ -1,4 +1,4 @@
--- pgTAP tests for the course tables (20261111000000): who can read course content, access rows,
+-- pgTAP tests for the course tables (20261111000100): who can read course content, access rows,
 -- videos, and the member-owned progress and watch segments.
 -- Runs in one transaction that is rolled back, so it leaves the shared local DB untouched.
 -- Run with `npm run test:pgtap` (scripts/test-pgtap.sh; CI runs it in the test-db job).
