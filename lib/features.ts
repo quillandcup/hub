@@ -1,4 +1,4 @@
-export type FeatureKey = 'member_overrides' | 'hedgieversaries' | 'work_queue' | 'program_cohorts' | 'events' | 'message_privacy' | 'slack_admin_sign_in' | 'in_app_notifications' | 'browser_notifications' | 'chat' | 'chat_posting' | 'big_sisters' | 'intro_reminders' | 'prickle_reminders' | 'slack_notifications';
+export type FeatureKey = 'member_overrides' | 'hedgieversaries' | 'work_queue' | 'program_cohorts' | 'events' | 'message_privacy' | 'slack_admin_sign_in' | 'in_app_notifications' | 'browser_notifications' | 'chat' | 'chat_posting' | 'big_sisters' | 'intro_reminders' | 'prickle_reminders' | 'slack_notifications' | 'live_room';
 
 export interface FeaturePreview {
   key: FeatureKey;
@@ -81,5 +81,10 @@ export const FEATURE_PREVIEWS: FeaturePreview[] = [
     key: 'slack_notifications',
     name: 'Slack notifications',
     description: 'Send member notifications as real Billie Bot DMs to the selected members. Applies to every notification kind after each member’s channel preferences; admin test sends still work. Keep SLACK_TEST_MODE=false in production for the selected members to receive them.',
+  },
+  {
+    key: 'live_room',
+    name: 'On air light',
+    description: 'A blinking On air light in the header with how many Hedgies are in the prickle Zoom room right now. Click it for the prickle, its host, who is there and the join link; when the room is empty it shows Off air and a link to start a Pop-Up Prickle (PUP)',
   },
 ];

@@ -7,6 +7,7 @@ import { effectiveMemberHasFeature, getUserFeaturePreviews } from '@/lib/feature
 import type { FeatureKey } from '@/lib/features'
 import MemberNavigation from '@/components/MemberNavigation'
 import UserMenu from '@/components/UserMenu'
+import LiveRoomIndicator from '@/components/LiveRoomIndicator'
 import SearchPalette from '@/components/search/SearchPalette'
 import SudoBanner from '@/components/SudoBanner'
 import { InstallAppPrompt } from '@/components/InstallAppPrompt'
@@ -58,6 +59,7 @@ export default async function MemberLayout({
   // In-app notifications show in sudo like the rest of the member's experience, behind the
   // member's own flag (app/actions/in-app-notifications.ts).
   const showInApp = await effectiveMemberHasFeature('in_app_notifications', effectiveIdentity, enabledFeatures)
+  const showLiveRoom = await effectiveMemberHasFeature('live_room', effectiveIdentity, enabledFeatures)
   const showInstallPrompt = await effectiveMemberHasFeature('browser_notifications', effectiveIdentity, enabledFeatures)
   const [onboardingState, inAppNotifications] = await Promise.all([
     showOnboarding ? getOnboardingState(effectiveIdentity.memberId) : null,
@@ -71,6 +73,7 @@ export default async function MemberLayout({
 
   const header = (bell: React.ReactNode) => (
     <header className="h-16 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex items-center justify-end gap-2 px-6 flex-shrink-0 relative z-30">
+      {showLiveRoom && <LiveRoomIndicator />}
       <SearchPalette resultsPath="/search" isAdmin={isAdmin} />
       {bell}
       <UserMenu
