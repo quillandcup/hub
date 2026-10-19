@@ -19,6 +19,21 @@ export default async function CoursePage({ params }: { params: Promise<{ slug: s
   const { course, access, outline, completed, progress } = view;
 
   // A friendly page, not a 404: someone who just bought it, or was linked to it, needs to know what to do.
+  if (access.kind === "upcoming") {
+    return (
+      <div className="container mx-auto max-w-2xl px-6 py-8">
+        <h1 className="mb-2 text-3xl font-bold">{course.title}</h1>
+        <div className="mt-6 rounded-lg border border-slate-200 bg-white p-6 text-sm text-slate-700 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300">
+          <p className="font-medium">You&apos;re in. This course opens on {formatCourseDate(access.startsAt)}.</p>
+          <p className="mt-2">Your access starts then, and runs for the full length of the course from that day.</p>
+          <Link href="/courses" className="mt-4 inline-block underline">
+            Back to your courses
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   if (!outline || !progress) {
     return (
       <div className="container mx-auto max-w-2xl px-6 py-8">

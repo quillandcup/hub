@@ -47,6 +47,23 @@ describe("computeCourseAccess", () => {
     ]);
   });
 
+  it("starts early buyers' access at launch, so their year runs from launch", () => {
+    const [row] = computeCourseAccess(
+      base({ courses: [{ id: "course-1", offerIds: new Set(["offer-1"]), accessDuration: "P1Y", launchAt: "2026-11-02T05:00:00.000Z" }] })
+    );
+    expect(row).toMatchObject({ starts_at: "2026-11-02T05:00:00.000Z", ends_at: "2027-11-02T05:00:00.000Z" });
+  });
+
+  it("leaves access that starts after launch at its purchase date", () => {
+    const [row] = computeCourseAccess(
+      base({
+        courses: [{ id: "course-1", offerIds: new Set(["offer-1"]), accessDuration: "P1Y", launchAt: "2026-01-01T00:00:00.000Z" }],
+        purchases: [purchase({ created_at_kajabi: "2026-03-01T00:00:00.000Z" })],
+      })
+    );
+    expect(row.starts_at).toBe("2026-03-01T00:00:00.000Z");
+  });
+
   it("is lifetime when the course has no access duration", () => {
     const [row] = computeCourseAccess(base({ courses: [{ id: "course-1", offerIds: new Set(["offer-1"]), accessDuration: null }] }));
     expect(row.ends_at).toBeNull();

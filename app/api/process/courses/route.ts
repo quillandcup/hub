@@ -1,6 +1,8 @@
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { CourseProcessingError, processCourses } from "@/lib/courses/process";
+import { ORG_TIMEZONE } from "@/lib/config";
+import { zonedTimeToUtc } from "@/lib/prickle-schedules";
 import { NextRequest, NextResponse } from "next/server";
 
 export const maxDuration = 300;
@@ -8,10 +10,11 @@ export const maxDuration = 300;
 /**
  * Bronze (Kajabi) -> Silver courses, modules, lessons and `course_access` (docs/COURSES.md, step C).
  *
- * Body: `{ "course": "the-ready-writer", "accessDuration": "1 year" }`. `course` is the Silver
+ * Body: `{ "course": "the-ready-writer", "accessDuration": "1 year", "launchOn": "2026-11-02" }`. `course` is the Silver
  * slug (a new course gets the slug of its Kajabi title); omit it to refresh every Kajabi course
  * already in Silver. `accessDuration` (an interval; `null` for lifetime) is set on the course
- * when given and left alone otherwise.
+ * when given and left alone otherwise. `launchOn` (a YYYY-MM-DD day in the organisation's timezone;
+ * `null` clears it) is when the course opens: pre-order buyers' access starts then, not at purchase.
  *
  * The caller is checked as an admin, then the writes use the service role: signed-in admins can
  * read the course tables but not write them.
@@ -33,8 +36,18 @@ export async function POST(request: NextRequest) {
       ? (body.accessDuration as string | null)
       : undefined;
 
+  let launchAt: string | null | undefined;
+  if (body && "launchOn" in body) {
+    if (body.launchOn === null) launchAt = null;
+    else if (typeof body.launchOn === "string" && /^\d{4}-\d{2}-\d{2}$/.test(body.launchOn) && !Number.isNaN(Date.parse(body.launchOn))) {
+      launchAt = zonedTimeToUtc(body.launchOn, "00:00", ORG_TIMEZONE).toISOString();
+    } else {
+      return NextResponse.json({ error: "launchOn must be a YYYY-MM-DD date or null" }, { status: 400 });
+    }
+  }
+
   try {
-    const result = await processCourses(createServiceRoleClient(), { courseSlug, accessDuration });
+    const result = await processCourses(createServiceRoleClient(), { courseSlug, accessDuration, launchAt });
     return NextResponse.json({ success: true, ...result });
   } catch (error: any) {
     if (error instanceof CourseProcessingError) {

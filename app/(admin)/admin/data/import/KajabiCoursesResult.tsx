@@ -2,19 +2,13 @@
 
 import { useState } from "react";
 import type { CoursesSyncResult } from "@/lib/courses/sync";
-
-/** Access lengths a course can be published with; the choice is required, there is no default. */
-const ACCESS_OPTIONS: { label: string; value: string | null }[] = [
-  { label: "Lifetime", value: null },
-  { label: "1 year", value: "1 year" },
-  { label: "6 months", value: "6 months" },
-  { label: "3 months", value: "3 months" },
-];
+import { ACCESS_OPTIONS } from "@/lib/courses/access-options";
 
 type Unpublished = NonNullable<CoursesSyncResult["unpublished"]>[number];
 
 function PublishRow({ course, onPublished }: { course: Unpublished; onPublished: (slug: string, summary: string) => void }) {
   const [choice, setChoice] = useState<string>("");
+  const [launchOn, setLaunchOn] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -26,7 +20,7 @@ function PublishRow({ course, onPublished }: { course: Unpublished; onPublished:
       const response = await fetch("/api/process/courses", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ course: course.slug, accessDuration: access.value }),
+        body: JSON.stringify({ course: course.slug, accessDuration: access.value, ...(launchOn ? { launchOn } : {}) }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Failed to publish");
@@ -61,6 +55,16 @@ function PublishRow({ course, onPublished }: { course: Unpublished; onPublished:
             </option>
           ))}
         </select>
+        <label className="flex items-center gap-1 text-sm">
+          Opens
+          <input
+            type="date"
+            value={launchOn}
+            onChange={(e) => setLaunchOn(e.target.value)}
+            aria-label={`Launch date for ${course.title} (optional)`}
+            className="rounded border border-slate-300 bg-white px-2 py-1 text-sm dark:border-slate-600 dark:bg-slate-800"
+          />
+        </label>
         <button
           type="button"
           onClick={publish}

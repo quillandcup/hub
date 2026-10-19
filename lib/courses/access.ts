@@ -5,9 +5,10 @@ import { resolveMatchDate } from "@/lib/kajabi-cohort-matching";
  *
  * Derived from active Kajabi purchases of a course's offers (a refunded or cancelled purchase,
  * `deactivated_at` set, grants nothing) plus staff-written grants. `starts_at` is the purchase
- * date (the same coalesced date cohort matching uses), `ends_at` is `starts_at` plus the course's
- * access duration, or null for lifetime. A member with several ways in keeps the one that lasts
- * longest, so buying again after access ended gives access again.
+ * date (the same coalesced date cohort matching uses), or the course's launch if that's later
+ * (pre-orders); `ends_at` is `starts_at` plus the course's access duration, or null for lifetime.
+ * A member with several ways in keeps the one that lasts longest, so buying again after access
+ * ended gives access again.
  */
 
 export interface AccessRow {
@@ -35,7 +36,13 @@ export interface GrantIn {
 
 export interface CourseAccessInput {
   /** Silver course id, its Kajabi offer ids, and the access duration as Postgres prints an interval. */
-  courses: { id: string; offerIds: Set<string>; accessDuration: string | null }[];
+  courses: {
+    id: string;
+    offerIds: Set<string>;
+    accessDuration: string | null;
+    /** Access starts no earlier than this (pre-orders); null or absent = at purchase. */
+    launchAt?: string | null;
+  }[];
   purchases: PurchaseIn[];
   /** Customer id -> canonical (alias-resolved) email. */
   emailByCustomerId: Map<string, string>;
@@ -99,7 +106,10 @@ export function computeCourseAccess(input: CourseAccessInput): AccessRow[] {
       const memberId = email ? input.memberIdByEmail.get(email) : undefined;
       const startsAt = resolveMatchDate(p);
       if (!memberId || !startsAt) continue;
-      const start = new Date(startsAt).toISOString();
+      // Early buyers' access (and its length) runs from launch, not from when they pre-ordered.
+      const purchased = new Date(startsAt);
+      const launch = course.launchAt ? new Date(course.launchAt) : null;
+      const start = (launch && launch.getTime() > purchased.getTime() ? launch : purchased).toISOString();
       consider({
         member_id: memberId,
         course_id: course.id,

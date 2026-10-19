@@ -30,6 +30,8 @@ export interface ProcessCoursesOptions {
   courseSlug?: string;
   /** Access length as an interval ("1 year", "P1Y"); set on the course when given, otherwise left as is (null = lifetime). */
   accessDuration?: string | null;
+  /** When the course opens, as an instant; set when given (null clears it), otherwise left as is. Early buyers' access starts then. */
+  launchAt?: string | null;
 }
 
 export interface ProcessCoursesResult {
@@ -71,7 +73,7 @@ async function deleteIds(supabase: SupabaseClient, table: string, ids: string[])
 /** Rebuild `course_access` for the given Silver courses: upsert what's derived, delete what no longer is (no gap for members mid-run). */
 export async function rebuildCourseAccess(
   supabase: SupabaseClient,
-  courses: { id: string; kajabi_id: string; access_duration: string | null }[]
+  courses: { id: string; kajabi_id: string; access_duration: string | null; launch_at: string | null }[]
 ): Promise<{ members: number; removed: Map<string, number>; rows: AccessRow[] }> {
   if (courses.length === 0) return { members: 0, removed: new Map(), rows: [] };
 
@@ -132,6 +134,7 @@ export async function rebuildCourseAccess(
       id: c.id,
       offerIds: offerIdsByCourse.get(c.kajabi_id) ?? new Set(),
       accessDuration: c.access_duration,
+      launchAt: c.launch_at,
     })),
     purchases,
     emailByCustomerId,
@@ -170,7 +173,7 @@ export async function processCourses(
   const existingSilver = await fetchAll(
     supabase,
     "courses",
-    "id, slug, source_key, access_duration, program_id",
+    "id, slug, source_key, access_duration, launch_at, program_id",
     (q) => q.eq("source", "kajabi")
   );
   const silverByKey = new Map(existingSilver.map((c) => [c.source_key, c]));
@@ -192,7 +195,7 @@ export async function processCourses(
   }
 
   const result: ProcessCoursesResult = { courses: [] };
-  const accessCourses: { id: string; kajabi_id: string; access_duration: string | null }[] = [];
+  const accessCourses: { id: string; kajabi_id: string; access_duration: string | null; launch_at: string | null }[] = [];
 
   for (const bc of targets) {
     const kajabiId: string = bc.kajabi_id;
@@ -214,8 +217,9 @@ export async function processCourses(
           source_key: kajabiId,
           program_id: program?.id ?? null,
           ...(options.accessDuration !== undefined ? { access_duration: options.accessDuration } : {}),
+          ...(options.launchAt !== undefined ? { launch_at: options.launchAt } : {}),
         })
-        .select("id, slug, source_key, access_duration, program_id")
+        .select("id, slug, source_key, access_duration, launch_at, program_id")
         .single();
       if (error) throw new Error(`courses insert failed: ${error.message}`);
       silver = data;
@@ -226,9 +230,10 @@ export async function processCourses(
           title: bc.title,
           description,
           ...(options.accessDuration !== undefined ? { access_duration: options.accessDuration } : {}),
+          ...(options.launchAt !== undefined ? { launch_at: options.launchAt } : {}),
         })
         .eq("id", silver.id)
-        .select("id, slug, source_key, access_duration, program_id")
+        .select("id, slug, source_key, access_duration, launch_at, program_id")
         .single();
       if (error) throw new Error(`courses update failed: ${error.message}`);
       silver = data;
@@ -325,7 +330,7 @@ export async function processCourses(
     const staleModules = silverModules.filter((r) => !tree.modules.has(r.source_key)).map((r) => r.id);
     await deleteIds(supabase, "course_modules", staleModules);
 
-    accessCourses.push({ id: courseId, kajabi_id: kajabiId, access_duration: silver!.access_duration });
+    accessCourses.push({ id: courseId, kajabi_id: kajabiId, access_duration: silver!.access_duration, launch_at: silver!.launch_at });
     result.courses.push({
       slug: silver!.slug,
       created,
