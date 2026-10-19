@@ -30,6 +30,7 @@ vi.mock("@/lib/features.server", () => ({
   getUserFeaturePreviews: vi.fn(async () => []),
 }));
 vi.mock("@/components/LiveRoomIndicator", () => ({ default: () => null }));
+vi.mock("@/components/WithInAppNotifications", () => ({ default: ({ children }: { children: React.ReactNode }) => <>{children}</> }));
 vi.mock("@/app/(admin)/admin/AdminNavigation", () => ({ default: () => <nav data-testid="admin-nav" /> }));
 vi.mock("@/components/UserMenu", () => ({
   default: ({ userEmail }: { userEmail: string }) => <div data-testid="user-menu">{userEmail}</div>,

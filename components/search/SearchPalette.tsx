@@ -120,7 +120,7 @@ interface NavRow {
  * the rest. Enter on a highlighted row opens it; Enter otherwise (or "View all results") goes to
  * the full results page. `resultsPath` is that page for the layout it's in.
  */
-export default function SearchPalette({ resultsPath, isAdmin, reserveMenuSpace = true }: { resultsPath: string; isAdmin: boolean; reserveMenuSpace?: boolean }) {
+export default function SearchPalette({ resultsPath, isAdmin }: { resultsPath: string; isAdmin: boolean }) {
   const router = useRouter();
   const pathname = usePathname();
   const inputRef = useRef<HTMLInputElement>(null);
