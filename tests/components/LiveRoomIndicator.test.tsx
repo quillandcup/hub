@@ -52,4 +52,35 @@ describe("LiveRoomIndicator", () => {
     await waitFor(() => expect(fetch).toHaveBeenCalled());
     expect(screen.queryByRole("button")).toBeNull();
   });
+
+  it("closes on Escape, on a click outside, and when a link inside is followed", async () => {
+    mockRoom({
+      live: true,
+      count: 1,
+      members: [{ memberId: "m1", name: "Alice" }],
+      guests: 0,
+      prickle: { id: "p1", title: "Morning Writing", hostName: null },
+      join: null,
+    });
+    render(<LiveRoomIndicator />);
+    const open = async () => userEvent.click(await screen.findByRole("button", { name: /on air/i }));
+
+    await open();
+    expect(screen.getByText("1 Hedgie at the table", { selector: "p" })).toBeInTheDocument();
+    expect(screen.getByText("No Zoom link is set up yet.")).toBeInTheDocument();
+    await userEvent.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog")).toBeNull();
+
+    await open();
+    await userEvent.click(document.body);
+    expect(screen.queryByRole("dialog")).toBeNull();
+
+    await open();
+    await userEvent.click(screen.getByRole("link", { name: "Alice" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+
+    await open();
+    await userEvent.click(screen.getByRole("link", { name: "Morning Writing" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
 });
