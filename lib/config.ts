@@ -62,6 +62,9 @@ export const SLACK_WORKSPACE_URL = appConfig.slack.workspaceUrl.replace(/\/+$/, 
 /** Name of the Slack channel new members introduce themselves in. */
 export const SLACK_INTRO_CHANNEL = appConfig.slack.introChannel;
 
+/** Channel for production operations alerts posted by Billie Bot. */
+export const SLACK_ALERTS_CHANNEL_ID = appConfig.slack.alertsChannelId;
+
 /** First day (YYYY-MM-DD) prickle attendance is recorded from. */
 export const ATTENDANCE_DATA_STARTS_ON = appConfig.attendanceDataStartsOn;
 

@@ -50,6 +50,7 @@ Vercel values. `env-vars.config.ts` is the source of truth for which var goes wh
 | `STRIPE_API_KEY` | https://dashboard.stripe.com/apikeys | `npm run env:sync` |
 | `RESEND_API_KEY` | https://resend.com/api-keys | `npm run env:sync:github`, then the next push to main (or `npm run config:push`) updates Supabase's SMTP password |
 | `SENTRY_AUTH_TOKEN` | https://quillandcup.sentry.io/settings/auth-tokens/ | `npm run env:sync:github` |
+| `SENTRY_ALERTS_AUTH_TOKEN` (unused) | https://quillandcup.sentry.io/settings/developer-settings/hub-iac-45ec4c/ | No sync needed. Sentry's Slack integration requires a paid plan; app alerts use Billie Bot instead. The token can be removed locally. |
 | `CHECKLY_API_KEY` | https://app.checklyhq.com/settings/user/api-keys | `npm run env:sync:github` |
 | `CHECKLY_HEARTBEAT_*` | Each heartbeat monitor's ping URL, under https://app.checklyhq.com/accounts/6d3ea8e9-8978-4a8b-9721-ef77984bd1f7/checks | `npm run env:sync` |
 | `VERCEL_TOKEN` | https://vercel.com/account/tokens (team-scoped, not project-scoped) | `npm run env:sync:github` |
@@ -63,15 +64,16 @@ Per-service gotchas (what breaks mid-rotation, how to verify it took) are in
 
 ## Alert routing
 
-Every system that sends alerts uses the same per-environment destinations:
+Alert destinations are configured per system and environment:
 
 - **Email**: `ALERTS_EMAIL` -- check `.env.prod` / `.env.preview` (declared in `env-vars.config.ts`).
-- **Slack channel**: not set up yet. When it exists, add its ID as a per-environment var the same way.
+- **Slack channel**: `#hub-alerts` is declared in `app.config.ts` for production app alerts.
 
 | System | Where it's configured | Status |
 |---|---|---|
 | Checkly (uptime, SSL, cron heartbeats) | Code: `__checks__/alert-channels.ts` reads `ALERTS_EMAIL` | Production address |
-| Sentry (error alerts) | Sentry UI: Alerts -> rules, filtered by environment (`production` / `preview`, from `NEXT_PUBLIC_SENTRY_ENVIRONMENT`) | Set each rule's action to that environment's address |
+| Hub app (failed Slack DMs, ambiguous member matches) | `lib/operations-alerts.ts` posts through Billie Bot; `ALERTS_EMAIL` is the fallback (see `docs/SLACK_OPERATIONS_ALERTS.md`) | [#hub-alerts](https://quillandcup.slack.com/archives/C0CA91G8LGH) |
+| Sentry (other error alerts) | Sentry UI; Slack integration requires Team plan | Not routed to Slack on the current plan |
 | Vercel (deploy failures) | Per-user notification settings; Vercel Alerts needs Observability Plus (not enabled) | Not routable per environment today |
 | GitHub Actions (failed runs) | Per-user notification settings | Not routable per environment today |
 

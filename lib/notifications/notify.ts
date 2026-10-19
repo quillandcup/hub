@@ -2,6 +2,7 @@ import { CHANNEL_ADAPTERS, type ChannelId, type OutboundMessage } from "@/lib/ch
 import { APP_URL } from "@/lib/config";
 import { membersWithFeatureForOutreach } from "@/lib/features.server";
 import * as Sentry from "@sentry/nextjs";
+import { sendOperationsAlert } from "@/lib/operations-alerts";
 import { effectiveChannels, type NotificationKindId, type NotificationPreferenceRow } from "./registry";
 
 /**
@@ -126,6 +127,7 @@ export async function createNotifier(
           console.error(`[notifications] ${kind} via ${channel} to member ${memberId} failed`, error);
           if (channel === "slack") {
             Sentry.captureException(error, { tags: { notification_kind: kind, notification_channel: channel }, extra: { memberId } });
+            await sendOperationsAlert(supabase, { type: "slack_dm_failed", notificationKind: kind, memberId });
           }
         }
       }
