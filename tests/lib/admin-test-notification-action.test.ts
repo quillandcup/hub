@@ -70,23 +70,15 @@ describe("sendDiagnosticPush action", () => {
     expect(mocks.push).toHaveBeenCalledWith(
       { service: true },
       "m-admin",
-      expect.objectContaining({ url: "/admin/notifications", tag: "prickle_checkin:diagnostic", requireInteraction: true }),
+      expect.objectContaining({ url: "/admin/notifications", tag: "prickle_checkin:diagnostic" }),
       { urgency: "high", ttlSeconds: 15 * 60 }
-    );
-
-    await sendDiagnosticPush("persistent");
-    expect(mocks.push).toHaveBeenLastCalledWith(
-      { service: true },
-      "m-admin",
-      expect.objectContaining({ tag: undefined, requireInteraction: true }),
-      { urgency: "normal", ttlSeconds: 24 * 60 * 60 }
     );
 
     await sendDiagnosticPush("standard");
     expect(mocks.push).toHaveBeenLastCalledWith(
       { service: true },
       "m-admin",
-      expect.objectContaining({ tag: undefined, requireInteraction: false }),
+      expect.objectContaining({ tag: undefined }),
       { urgency: "normal", ttlSeconds: 24 * 60 * 60 }
     );
   });

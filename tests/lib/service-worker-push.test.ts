@@ -39,16 +39,23 @@ async function push(data: { json: () => unknown; text: () => string } | null) {
 
 describe("public/sw.js push handler", () => {
   it("shows the title, body and url from a JSON payload", async () => {
-    const payload = { title: "Check in", body: "Starts soon", url: "/my-prickles", tag: "k:1", requireInteraction: true };
+    const payload = { title: "Check in", body: "Starts soon", url: "/my-prickles", tag: "k:1" };
     const show = await push({ json: () => payload, text: () => JSON.stringify(payload) });
 
     expect(show).toHaveBeenCalledWith("Check in", {
       body: "Starts soon",
       tag: "k:1",
       renotify: true,
-      requireInteraction: true,
       data: { url: "/my-prickles", notificationId: expect.any(String) },
     });
+  });
+
+  it("never asks for a persistent alert on a push, even from an older payload that does", async () => {
+    // Chrome shows a push-delivered requireInteraction alert but its click never reaches the worker.
+    const payload = { title: "Check in", body: "Starts soon", url: "/my-prickles", requireInteraction: true };
+    const show = await push({ json: () => payload, text: () => JSON.stringify(payload) });
+
+    expect(show.mock.calls[0][1]).not.toHaveProperty("requireInteraction");
   });
 
   it("shows plain text as the body instead of dropping it", async () => {

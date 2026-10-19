@@ -32,8 +32,6 @@ export interface PushPayload {
   url: string;
   /** Replaces an earlier notification with the same tag instead of stacking. */
   tag?: string;
-  /** Stay on screen until dismissed (a time-sensitive one). */
-  requireInteraction: boolean;
 }
 
 export function vapidKeys(): { publicKey: string; privateKey: string } | null {
@@ -195,7 +193,6 @@ export function pushPayload(message: OutboundMessage, { kind }: SendContext, now
     body: message.text,
     url: notificationUrl(message.url) ?? "/",
     tag: message.ref ? `${kind}:${message.ref}` : undefined,
-    requireInteraction: isTimeSensitive(message, now),
   };
 }
 

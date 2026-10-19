@@ -100,10 +100,11 @@ self.addEventListener("push", (event) => {
       tag: payload.tag,
       // Replacing a notification with the same tag should still alert.
       renotify: Boolean(payload.tag),
-      requireInteraction: Boolean(payload.requireInteraction),
+      // Never requireInteraction here: Chrome shows a push-delivered persistent alert but its click never
+      // reaches this worker (no notificationclick). Standard pushes and page-shown persistent alerts do.
       data: { url: payload.url, notificationId },
     }).then(() => recordDiagnostic("shown", notificationId, {
-      target: payload.url || "/", operation: "show_notification", style: payload.requireInteraction ? "persistent" : "standard",
+      target: payload.url || "/", operation: "show_notification", style: "standard",
       tagged: Boolean(payload.tag),
     }))
   );

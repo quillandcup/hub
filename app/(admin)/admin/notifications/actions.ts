@@ -10,10 +10,9 @@ import { createServiceRoleClient } from "@/lib/supabase/service";
 
 /** Real pushes for the click diagnostics; each differs from the one before by one field. */
 const DIAGNOSTIC_PUSHES = {
-  standard: { tag: undefined, requireInteraction: false, urgency: "normal", ttlSeconds: 24 * 60 * 60 },
-  persistent: { tag: undefined, requireInteraction: true, urgency: "normal", ttlSeconds: 24 * 60 * 60 },
-  tagged: { tag: "prickle_checkin:diagnostic", requireInteraction: true, urgency: "normal", ttlSeconds: 24 * 60 * 60 },
-  tagged_urgent: { tag: "prickle_checkin:diagnostic", requireInteraction: true, urgency: "high", ttlSeconds: 15 * 60 },
+  standard: { tag: undefined, urgency: "normal", ttlSeconds: 24 * 60 * 60 },
+  tagged: { tag: "prickle_checkin:diagnostic", urgency: "normal", ttlSeconds: 24 * 60 * 60 },
+  tagged_urgent: { tag: "prickle_checkin:diagnostic", urgency: "high", ttlSeconds: 15 * 60 },
 } as const;
 
 /**
@@ -24,7 +23,7 @@ export async function sendDiagnosticPush(variant: string) {
   const auth = await requireAdminAction();
   if (!auth.ok) return { error: auth.error };
   if (!Object.hasOwn(DIAGNOSTIC_PUSHES, variant)) return { error: "Unknown push variant" };
-  const { tag, requireInteraction, urgency, ttlSeconds } = DIAGNOSTIC_PUSHES[variant as keyof typeof DIAGNOSTIC_PUSHES];
+  const { tag, urgency, ttlSeconds } = DIAGNOSTIC_PUSHES[variant as keyof typeof DIAGNOSTIC_PUSHES];
 
   const identity = await getEffectiveIdentity(auth.user);
   if (!identity) return { error: "Your account has no member record to send to." };
@@ -34,7 +33,7 @@ export async function sendDiagnosticPush(variant: string) {
     const sent = await sendPush(
       createServiceRoleClient(),
       identity.memberId,
-      { title: `[Test] ${variant} server push`, body: "Click to test whether the browser delivers this server push to the Hub.", url: "/admin/notifications", tag, requireInteraction },
+      { title: `[Test] ${variant} server push`, body: "Click to test whether the browser delivers this server push to the Hub.", url: "/admin/notifications", tag },
       { urgency, ttlSeconds }
     );
     return { success: true as const, sent };
