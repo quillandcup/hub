@@ -88,12 +88,32 @@ describe("/courses", () => {
   });
 });
 
+describe("/courses for a pre-order", () => {
+  it("says when it opens instead of offering to start it", async () => {
+    loadCourseList.mockResolvedValue([{ course, access: { kind: "upcoming", startsAt: "2026-11-02T05:00:00Z" }, progress: courseProgress(outline, new Set()) }]);
+    await renderServerPage(CoursesPage, {});
+
+    expect(screen.getByText("Opens November 2, 2026")).toBeInTheDocument();
+    expect(screen.getByText(/The course opens on November 2, 2026, and your access starts then/)).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Start" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
+  });
+});
+
 describe("/courses/[slug]", () => {
   const params = (slug = "the-ready-writer") => ({ params: Promise.resolve({ slug }) });
 
   it("is a 404 for a course that doesn't exist", async () => {
     loadCourseView.mockResolvedValue(null);
     await expect(Promise.resolve().then(() => CoursePage(params("nope")))).rejects.toMatchObject({ digest: "NEXT_HTTP_ERROR_FALLBACK;404" });
+  });
+
+  it("tells a pre-order buyer when the course opens, and shows none of it", async () => {
+    loadCourseView.mockResolvedValue({ course, access: { kind: "upcoming", startsAt: "2026-11-02T05:00:00Z" }, outline: null, completed: new Set(), progress: null });
+    await renderServerPage(CoursePage, params());
+
+    expect(screen.getByText("You're in. This course opens on November 2, 2026.")).toBeInTheDocument();
+    expect(screen.queryByText("You don't have access to this course yet.")).not.toBeInTheDocument();
   });
 
   it("explains how to get access instead of a 404, and shows none of the course", async () => {

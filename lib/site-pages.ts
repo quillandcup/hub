@@ -132,6 +132,7 @@ export const SITE_PAGES: SitePage[] = [
   admin({ title: "Big Sister Effectiveness", href: "/admin/mentorship/big-sisters", section: "Members", keywords: ["mentor", "conversion", "trial", "trend", "quarter"], feature: "big_sisters" }),
   admin({ title: "Hedgieversaries", href: "/admin/hedgieversaries", section: "Members", nav: { icon: "🎂" }, keywords: ["anniversary", "birthday"], feature: "hedgieversaries" }),
   admin({ title: "Member Overrides", href: "/admin/member-overrides", section: "Members", nav: { icon: "🎁" }, feature: "member_overrides" }),
+  admin({ title: "Courses", href: "/admin/courses", section: "Members", nav: { icon: "📚", activeFor: ["/admin/courses/"] }, keywords: ["lessons", "kajabi", "ready writer", "publish", "launch"], feature: "courses" }),
   admin({ title: "Programs", href: "/admin/programs", section: "Members", nav: { icon: "🎓" }, keywords: ["cohorts"], feature: "program_cohorts" }),
   admin({ title: "Network", href: "/admin/members/network", section: "Community", nav: { icon: "🕸️" }, keywords: ["graph"] }),
   admin({ title: "Badges", href: "/admin/badges", section: "Community", nav: { icon: "🏅" } }),
