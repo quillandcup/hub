@@ -30,7 +30,7 @@ function NavLinks({ enabledFeatures, pathname, collapsed, onNavigate }: NavLinks
       </div>
 
       {/* Navigation */}
-      <nav className="p-4 overflow-y-auto flex-1">
+      <nav className="p-4 pb-[max(1rem,env(safe-area-inset-bottom))] overflow-y-auto flex-1">
         {navGroups("admin", enabledFeatures).map((section) => {
           const visibleItems = section.items;
 
@@ -141,7 +141,7 @@ export default function AdminNavigation({ enabledFeatures }: AdminNavigationProp
 
       {/* Mobile slide-in drawer */}
       <aside
-        className={`md:hidden fixed inset-y-0 left-0 z-50 w-64 h-screen bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 transform transition-transform duration-300 flex flex-col ${
+        className={`md:hidden fixed inset-y-0 left-0 z-50 w-64 h-dvh bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 transform transition-transform duration-300 flex flex-col ${
           mobileOpen ? "translate-x-0" : "-translate-x-full"
         }`}
         aria-hidden={!mobileOpen}
