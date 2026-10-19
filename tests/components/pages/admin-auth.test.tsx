@@ -28,7 +28,6 @@ vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 
 vi.mock("@/lib/features.server", () => ({
   getUserFeaturePreviews: vi.fn(async () => []),
-  effectiveMemberHasFeature: vi.fn(async () => false),
 }));
 vi.mock("@/components/LiveRoomIndicator", () => ({ default: () => null }));
 vi.mock("@/app/(admin)/admin/AdminNavigation", () => ({ default: () => <nav data-testid="admin-nav" /> }));

@@ -140,7 +140,7 @@ function MorePill({ count, className }: { count: number; className: string }) {
   );
 }
 
-/** Unread, still time-sensitive notifications, as strips under the header, each dismissible. Renders nothing outside the provider (no member, or the flag is off). */
+/** Unread, still time-sensitive notifications, as strips under the header, each dismissible. Renders nothing outside the provider (no member record). */
 export function InAppNotificationBanner() {
   return useContext(InAppContext) ? <BannerStrips /> : null;
 }
