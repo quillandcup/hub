@@ -14,6 +14,7 @@ vi.mock("@/lib/onboarding.server", () => ({ getOnboardingState: async () => null
 vi.mock("@/components/MemberNavigation", () => ({ default: () => null }));
 vi.mock("@/components/UserMenu", () => ({ default: () => null }));
 vi.mock("@/components/search/SearchPalette", () => ({ default: () => null }));
+vi.mock("@/components/WithInAppNotifications", () => ({ default: ({ children }: { children: React.ReactNode }) => <>{children}</> }));
 vi.mock("@/components/SudoBanner", () => ({ default: () => null }));
 vi.mock("@/components/InstallAppPrompt", () => ({ InstallAppPrompt: () => null }));
 vi.mock("@/components/TimezoneInitializer", () => ({ TimezoneInitializer: () => null }));

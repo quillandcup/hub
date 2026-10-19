@@ -26,7 +26,11 @@ vi.mock("@/lib/sudo", () => import("@/tests/helpers/server-page").then((m) => m.
 vi.mock("@/lib/supabase/server", () => import("@/tests/helpers/server-page").then((m) => m.supabaseServerModule));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 
-vi.mock("@/lib/features.server", () => ({ getUserFeaturePreviews: vi.fn(async () => []) }));
+vi.mock("@/lib/features.server", () => ({
+  getUserFeaturePreviews: vi.fn(async () => []),
+}));
+vi.mock("@/components/LiveRoomIndicator", () => ({ default: () => null }));
+vi.mock("@/components/WithInAppNotifications", () => ({ default: ({ children }: { children: React.ReactNode }) => <>{children}</> }));
 vi.mock("@/app/(admin)/admin/AdminNavigation", () => ({ default: () => <nav data-testid="admin-nav" /> }));
 vi.mock("@/components/UserMenu", () => ({
   default: ({ userEmail }: { userEmail: string }) => <div data-testid="user-menu">{userEmail}</div>,

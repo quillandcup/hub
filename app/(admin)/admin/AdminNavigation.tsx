@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { FeatureKey } from "@/lib/features";
 import { navGroups } from "@/lib/site-pages";
+import { useOpenMobileNav } from "@/components/MobileMenuButton";
 
 interface NavLinksProps {
   enabledFeatures: FeatureKey[];
@@ -106,6 +107,8 @@ export default function AdminNavigation({ enabledFeatures }: AdminNavigationProp
   const [mobileOpen, setMobileOpen] = useState(false);
   const pathname = usePathname();
 
+  useOpenMobileNav(() => setMobileOpen(true));
+
   useEffect(() => {
     const isMobile = window.innerWidth < 768;
     setCollapsed(isMobile);
@@ -121,15 +124,6 @@ export default function AdminNavigation({ enabledFeatures }: AdminNavigationProp
 
   return (
     <>
-      {/* Mobile hamburger button — no permanent space, just a fixed trigger */}
-      <button
-        onClick={() => setMobileOpen(true)}
-        className="md:hidden fixed top-4 left-4 z-40 p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm text-slate-700 dark:text-slate-300"
-        aria-label="Open navigation menu"
-      >
-        <span className="text-lg leading-none">☰</span>
-      </button>
-
       {/* Mobile overlay backdrop */}
       {mobileOpen && (
         <div
