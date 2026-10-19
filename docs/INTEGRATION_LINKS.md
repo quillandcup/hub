@@ -63,7 +63,7 @@ Per-service gotchas (what breaks mid-rotation, how to verify it took) are in
 
 ## Alert routing
 
-Every system that sends alerts uses the same per-environment destinations:
+Alert destinations are configured per system and environment:
 
 - **Email**: `ALERTS_EMAIL` -- check `.env.prod` / `.env.preview` (declared in `env-vars.config.ts`).
 - **Slack channel**: not set up yet. When it exists, add its ID as a per-environment var the same way.
@@ -71,7 +71,7 @@ Every system that sends alerts uses the same per-environment destinations:
 | System | Where it's configured | Status |
 |---|---|---|
 | Checkly (uptime, SSL, cron heartbeats) | Code: `__checks__/alert-channels.ts` reads `ALERTS_EMAIL` | Production address |
-| Sentry (error alerts) | Sentry UI: Alerts -> rules, filtered by environment (`production` / `preview`, from `NEXT_PUBLIC_SENTRY_ENVIRONMENT`) | Set each rule's action to that environment's address |
+| Sentry (Slack notification errors) | `sentry-alerts.config.ts` and `npm run sentry:alerts:diff` / `push` (see `docs/SENTRY_SLACK_ALERTS.md`) | [#hub-alerts](https://quillandcup.slack.com/archives/C0CA91G8LGH) |
 | Vercel (deploy failures) | Per-user notification settings; Vercel Alerts needs Observability Plus (not enabled) | Not routable per environment today |
 | GitHub Actions (failed runs) | Per-user notification settings | Not routable per environment today |
 

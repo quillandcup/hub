@@ -414,6 +414,20 @@ export const ENV_VARS: readonly EnvVarSpec[] = [
     destinations: [{ kind: "github" }],
   },
   {
+    name: "SENTRY_ALERTS_AUTH_TOKEN",
+    group: "Analytics & Monitoring",
+    description: "Local ops token for Sentry alert workflow diff/push; needs alerts:read, alerts:write, org:read. Kept separate from the source-map token and never synced to Vercel or CI.",
+    type: "secret",
+    destinations: [],
+  },
+  {
+    name: "SENTRY_ALERTS_SLACK_INTEGRATION_ID",
+    group: "Analytics & Monitoring",
+    description: "Optional Sentry Slack integration ID when more than one Slack workspace is installed; local alert sync script only.",
+    type: "config",
+    destinations: [],
+  },
+  {
     name: "ALERTS_EMAIL",
     group: "Analytics & Monitoring",
     description:

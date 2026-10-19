@@ -35,6 +35,9 @@
     "github:config:push": "tsx scripts/github-config.ts push",
     "vercel:config:diff": "dotenv -e .env.prod -e .env.shared -- tsx scripts/vercel-config.ts diff",
     "vercel:config:push": "dotenv -e .env.prod -e .env.shared -- tsx scripts/vercel-config.ts push",
+    "sentry:alerts:validate": "tsx scripts/sentry-alerts.ts validate",
+    "sentry:alerts:diff": "dotenv -e .env.prod -e .env.shared -- tsx scripts/sentry-alerts.ts diff",
+    "sentry:alerts:push": "dotenv -e .env.prod -e .env.shared -- tsx scripts/sentry-alerts.ts push",
     "quarantine:remove": "xattr -r -d com.apple.quarantine node_modules",
     "docs:toc": "doctoc --update-only --notitle --minlevel 2 --maxlevel 3",
     "prepare": "husky"

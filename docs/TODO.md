@@ -226,6 +226,9 @@ The `CHECKLY_HEARTBEAT_*` values are ping URLs: anyone who has one can mark that
 ### Sentry Alert Routing _(Needs Scheduling)_
 
 Sentry alert rules don't follow the alert-routing rule in `docs/INTEGRATION_LINKS.md` yet.
+Slack notification failure and ambiguous-match workflows are now declared in
+`sentry-alerts.config.ts` (see `docs/SENTRY_SLACK_ALERTS.md`), but they still need an
+alert-capable Sentry token, Sentry's Slack integration, `sentry:alerts:push`, and an end-to-end delivery test.
 Events are tagged `production` / `preview` (`NEXT_PUBLIC_SENTRY_ENVIRONMENT`) as of PR #46, so
 rules can filter by environment, but Sentry can't email an arbitrary address: an alert action
 notifies org members/teams, an integration (Slack etc.), or a webhook. The free Developer
