@@ -10,7 +10,7 @@ import { matchAttendeeToMember, type Member, type MemberAlias, type MemberEmailA
 
 const BATCH_SIZE = 1000;
 
-async function fetchAllPaginated<T>(queryFn: (offset: number) => PromiseLike<{ data: T[] | null }>): Promise<T[]> {
+export async function fetchAllPaginated<T>(queryFn: (offset: number) => PromiseLike<{ data: T[] | null }>): Promise<T[]> {
   let all: T[] = [];
   let offset = 0;
   let hasMore = true;
@@ -148,7 +148,7 @@ const IMPORTED_HOSTS_LOOKBACK_MS = 90 * 24 * 60 * 60 * 1000;
  * the import doesn't read yet, and those must not count as being at a prickle (docs/TODO.md,
  * "Secondary Zoom rooms").
  */
-async function loadImportedHostIds(supabase: any, now: Date): Promise<Set<string>> {
+export async function loadImportedHostIds(supabase: any, now: Date): Promise<Set<string>> {
   const rows = await fetchAllPaginated<any>((offset) =>
     supabase
       .schema("bronze")
