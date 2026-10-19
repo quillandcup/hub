@@ -7,7 +7,7 @@ import { SENTRY_SLACK_ALERTS, SENTRY_SLACK_ALERT_DESTINATION } from "../sentry-a
 
 const ORG = "quillandcup";
 const PROJECT = "hub";
-const API = `https://de.sentry.io/api/0/organizations/${ORG}`;
+const API = `https://sentry.io/api/0/organizations/${ORG}`;
 
 type Json = null | boolean | number | string | Json[] | { [key: string]: Json };
 type ApiItem = { id: string | number; name?: string; type?: string; projectId?: string | number; provider?: { key?: string }; status?: string; detectorIds?: Array<string | number> };
@@ -43,7 +43,7 @@ async function api(path: string, method = "GET", body?: Json): Promise<{ data: u
   const raw = await response.text();
   if (!response.ok) {
     // Sentry may echo submitted payloads in validation errors. Keep credentials and member data out of CLI output.
-    throw new Error(`${method} ${new URL(response.url).pathname}: HTTP ${response.status}${response.status === 403 ? " (token needs alerts:read/alerts:write and org:read)" : ""}`);
+    throw new Error(`${method} ${new URL(response.url).pathname}: HTTP ${response.status}${response.status === 401 ? " (invalid token; copy the generated token under the internal integration's Tokens section)" : response.status === 403 ? " (token needs alerts:read/alerts:write and org:read)" : ""}`);
   }
   const link = response.headers.get("link") ?? "";
   const next = link.split(",").find((part) => part.includes('rel="next"') && part.includes('results="true"'))?.match(/<([^>]+)>/)?.[1] ?? null;

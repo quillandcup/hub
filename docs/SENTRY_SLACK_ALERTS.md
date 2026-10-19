@@ -17,4 +17,4 @@ Both notify [#hub-alerts](https://quillandcup.slack.com/archives/C0CA91G8LGH) th
 
 `diff` never writes. `push` creates or updates only workflows whose names are declared in the config; it does not delete other Sentry alerts. A later config change is applied by running `push` again. The sync discovers the project's Error Monitor and the installed Slack integration through Sentry's API, so their IDs are not committed.
 
-The script uses Sentry's EU API (`de.sentry.io`) for the `quillandcup` organization. The workflow API is in beta; if Sentry changes its payload, validate against a read-only `diff` and a single `push` before adding automation to CI.
+The script uses Sentry's standard API host (`sentry.io`) for the `quillandcup` organization. The regional `de.sentry.io` host returned 404 for the integrations lookup. The workflow API is in beta; if Sentry changes its payload, validate against a read-only `diff` and a single `push` before adding automation to CI.
