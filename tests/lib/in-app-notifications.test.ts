@@ -40,7 +40,7 @@ describe("membersWithFeature", () => {
 
   it("is everyone with an account when the flag is on globally", async () => {
     const fake = createFakeSupabase({ feature_flags: { data: { enabled_globally: true } }, members: MEMBERS });
-    expect(await membersWithFeature(fake, "in_app_notifications", ["m1", "m2", "m3"])).toEqual(new Set(["m1", "m2"]));
+    expect(await membersWithFeature(fake, "browser_notifications", ["m1", "m2", "m3"])).toEqual(new Set(["m1", "m2"]));
   });
 
   it("is members opted in individually or through a segment", async () => {
@@ -51,14 +51,14 @@ describe("membersWithFeature", () => {
       feature_flag_segments: { data: [{ segment_id: "s1" }] },
       segment_members: { data: [{ member_id: "m2" }] },
     });
-    expect(await membersWithFeature(fake, "in_app_notifications", ["m1", "m2", "m3"])).toEqual(new Set(["m1", "m2"]));
+    expect(await membersWithFeature(fake, "browser_notifications", ["m1", "m2", "m3"])).toEqual(new Set(["m1", "m2"]));
     expect(callsOf(fake, "user_feature_previews")).toContainEqual({ method: "in", args: ["user_id", ["u1", "u2"]] });
     expect(callsOf(fake, "segment_members")).toContainEqual({ method: "in", args: ["segment_id", ["s1"]] });
   });
 
   it("is nobody without the flag, and skips segment lookups when it has no segments", async () => {
     const fake = createFakeSupabase({ members: MEMBERS });
-    expect(await membersWithFeature(fake, "in_app_notifications", ["m1", "m2"])).toEqual(new Set());
+    expect(await membersWithFeature(fake, "browser_notifications", ["m1", "m2"])).toEqual(new Set());
     expect(callsOf(fake, "segment_members")).toEqual([]);
   });
 });
@@ -115,9 +115,8 @@ describe("inAppRow", () => {
 });
 
 describe("in_app channel through createNotifier", () => {
-  it("reaches flagged members by default and stores the banner", async () => {
+  it("reaches members and stores the banner", async () => {
     const fake = createFakeSupabase({
-      feature_flags: { data: { enabled_globally: true } },
       members: { data: [{ id: "m1", user_id: "u1" }] },
     });
     const notifier = await createNotifier(fake, "prickle_checkin", ["m1"]);
@@ -128,17 +127,10 @@ describe("in_app channel through createNotifier", () => {
     expect(insert.args[0]).toMatchObject({ member_id: "m1", kind: "prickle_checkin", ref: "p1", url: "/prickles/p1" });
   });
 
-  it("can't reach members without the flag", async () => {
-    const fake = createFakeSupabase({ members: { data: [{ id: "m1", user_id: "u1" }] } });
-    const notifier = await createNotifier(fake, "prickle_checkin", ["m1"]);
-    expect(notifier.canReach("m1")).toBe(false);
-  });
-
   it("reports nothing delivered when the insert fails", async () => {
     serviceFake = createFakeSupabase({ in_app_notifications: { error: { message: "boom" } } });
     vi.spyOn(console, "error").mockImplementation(() => {});
     const fake = createFakeSupabase({
-      feature_flags: { data: { enabled_globally: true } },
       members: { data: [{ id: "m1", user_id: "u1" }] },
     });
     const notifier = await createNotifier(fake, "prickle_checkin", ["m1"]);

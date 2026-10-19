@@ -12,8 +12,6 @@
  */
 export const CHANNELS = [
   { id: "slack", label: "Slack", description: "A direct message from Billie Bot" },
-  // Behind the in_app_notifications feature flag: members without it can't be reached on it and
-  // don't see it in settings (lib/channels/in-app.ts).
   { id: "in_app", label: "In the Hub", description: "In the Hub's notification inbox, and as a banner while it's time-sensitive" },
   // Behind the browser_notifications feature flag, and only for members who enabled it on a device
   // (lib/channels/web-push.ts).

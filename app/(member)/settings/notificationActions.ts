@@ -6,7 +6,6 @@ import { getEffectiveIdentity } from "@/lib/sudo";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { membersWithFeature } from "@/lib/features.server";
 import type { FeatureKey } from "@/lib/features";
-import { IN_APP_FEATURE } from "@/lib/channels/in-app";
 import { WEB_PUSH_FEATURE, loadPushDevices, vapidKeys, webPushChannel } from "@/lib/channels/web-push";
 import { NOTIFICATION_SETTINGS_PATH } from "@/lib/notifications/notify";
 import { isAllowedPushEndpoint } from "@/lib/push-endpoint";
@@ -23,8 +22,7 @@ import {
 
 export interface NotificationSettings {
   /**
-   * Channels this member can use, as switches: "In the Hub" only with the in_app_notifications
-   * flag, "Browser" only with browser_notifications (and the VAPID keys set).
+   * Channels this member can use, as switches: "Browser" only with browser_notifications (and the VAPID keys set).
    */
   channels: NotificationChannelId[];
   /** The VAPID public key devices subscribe with; null when the member can't turn Browser notifications on. */
@@ -53,8 +51,7 @@ export async function getNotificationSettings(): Promise<NotificationSettings | 
   // The member's flag, not the signed-in admin's in sudo. Service role: it reads their previews.
   const service = createServiceRoleClient();
   const kindFeatures = [...new Set(NOTIFICATION_KINDS.flatMap((k) => ("feature" in k ? [k.feature as FeatureKey] : [])))];
-  const [inApp, browserFlag, ...kindFeatureMembers] = await Promise.all([
-    membersWithFeature(service, IN_APP_FEATURE, [identity.memberId]),
+  const [browserFlag, ...kindFeatureMembers] = await Promise.all([
     membersWithFeature(service, WEB_PUSH_FEATURE, [identity.memberId]),
     ...kindFeatures.map((key) => membersWithFeature(service, key, [identity.memberId])),
   ]);
@@ -64,7 +61,7 @@ export async function getNotificationSettings(): Promise<NotificationSettings | 
   );
   const webPushPublicKey = browserFlag.has(identity.memberId) ? (vapidKeys()?.publicKey ?? null) : null;
   const channels = NOTIFICATION_CHANNELS.map((c) => c.id).filter(
-    (id) => (id !== "in_app" || inApp.has(identity.memberId)) && (id !== "web_push" || webPushPublicKey !== null)
+    (id) => id !== "web_push" || webPushPublicKey !== null
   );
 
   return {

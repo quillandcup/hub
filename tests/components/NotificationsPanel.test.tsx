@@ -11,7 +11,6 @@ import { createFakeSupabase, type FakeSupabase } from "@/tests/helpers/server-pa
 
 let fake: FakeSupabase;
 vi.mock("@/lib/supabase/server", () => ({ createClient: async () => fake }));
-// Whether "In the Hub" shows is the member's in_app_notifications flag, read with the service role.
 let serviceFake: FakeSupabase;
 vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => serviceFake }));
 vi.mock("@/lib/auth", () => ({ getCurrentUser: vi.fn() }));
@@ -50,7 +49,7 @@ describe("getNotificationSettings", () => {
     });
 
     expect(await getNotificationSettings()).toEqual({
-      channels: ["slack", "email"],
+      channels: ["slack", "in_app", "email"],
       webPushPublicKey: null,
       channelsByKind: { prickle_checkin: ["slack", "in_app", "web_push"], prickle_checkout: ["in_app", "web_push"], intro_nudge: ["slack", "in_app"], prickle_nudge: [], big_sister_match: ["slack", "in_app", "web_push"] },
       visibleKinds: ["prickle_checkin", "prickle_checkout", "intro_nudge", "prickle_nudge"],
@@ -69,11 +68,8 @@ describe("getNotificationSettings", () => {
     expect((await getNotificationSettings())?.visibleKinds).toContain("big_sister_match");
   });
 
-  it("offers In the Hub only with the member's in_app_notifications flag", async () => {
-    serviceFake = createFakeSupabase({
-      feature_flags: { data: { enabled_globally: true } },
-      members: { data: [{ id: "member-1", user_id: "user-1" }] },
-    });
+  it("always offers In the Hub as a channel", async () => {
+    serviceFake = createFakeSupabase({});
     expect((await getNotificationSettings())?.channels).toEqual(["slack", "in_app", "email"]);
   });
 
