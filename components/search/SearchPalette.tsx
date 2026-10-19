@@ -120,7 +120,7 @@ interface NavRow {
  * the rest. Enter on a highlighted row opens it; Enter otherwise (or "View all results") goes to
  * the full results page. `resultsPath` is that page for the layout it's in.
  */
-export default function SearchPalette({ resultsPath, isAdmin }: { resultsPath: string; isAdmin: boolean }) {
+export default function SearchPalette({ resultsPath, isAdmin, reserveMenuSpace = true }: { resultsPath: string; isAdmin: boolean; reserveMenuSpace?: boolean }) {
   const router = useRouter();
   const pathname = usePathname();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -403,7 +403,7 @@ export default function SearchPalette({ resultsPath, isAdmin }: { resultsPath: s
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="ml-10 md:ml-0 mr-auto flex h-10 items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 text-sm text-slate-500 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-600 sm:w-80 lg:w-[28rem] xl:w-[36rem]"
+        className={`${reserveMenuSpace ? "ml-10 md:ml-0 " : ""}mr-auto flex h-10 items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 text-sm text-slate-500 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-600 sm:w-80 lg:w-[28rem] xl:w-[36rem]`}
         aria-label="Search"
         aria-keyshortcuts="Meta+K Control+K"
       >

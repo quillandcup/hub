@@ -2,6 +2,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import MobileMenuButton from "@/components/MobileMenuButton";
 import MemberNavigation from "@/components/MemberNavigation";
 
 let pathname = "/dashboard";
@@ -14,6 +15,7 @@ beforeEach(() => {
 });
 
 async function openMobileDrawer() {
+  render(<MobileMenuButton />);
   await userEvent.click(screen.getByRole("button", { name: "Open navigation menu" }));
   return screen.getByRole("complementary", { name: "Mobile navigation" });
 }
