@@ -225,27 +225,16 @@ The `CHECKLY_HEARTBEAT_*` values are ping URLs: anyone who has one can mark that
 
 ### Sentry Alert Routing _(Needs Scheduling)_
 
-Sentry alert rules don't follow the alert-routing rule in `docs/INTEGRATION_LINKS.md` yet.
-Slack notification failure and ambiguous-match workflows are now declared in
-`sentry-alerts.config.ts` (see `docs/SENTRY_SLACK_ALERTS.md`), but they still need an
-alert-capable Sentry token, Sentry's Slack integration, `sentry:alerts:push`, and an end-to-end delivery test.
-Events are tagged `production` / `preview` (`NEXT_PUBLIC_SENTRY_ENVIRONMENT`) as of PR #46, so
-rules can filter by environment, but Sentry can't email an arbitrary address: an alert action
-notifies org members/teams, an integration (Slack etc.), or a webhook. The free Developer
-plan has one user, so the alerts mailbox can't be its own member.
+The Developer plan cannot install Sentry's Slack integration. Failed notification DMs and
+ambiguous Slack member matches now alert directly from the app (see
+`docs/SLACK_OPERATIONS_ALERTS.md`), while their Sentry events and server logs remain.
 
-- [ ] Point every rule at an environment: Alerts -> rule -> Edit Rule -> environment =
-      `production` (duplicate for `preview` if wanted). Any filter on the old
-      `vercel-production` tag needs switching too.
-- [ ] Route the email: User Settings -> Emails -> add + verify the alerts address; User
-      Settings -> Notifications -> Issue Alerts -> Fine tune -> project `hub` -> that address.
-      Rule action: notify Member (you).
-- [ ] Decide on per-environment vs one address. Email routing is per project, not per
-      environment, so preview and production alerts land in the same inbox anyway. Simplest
-      option: **one alerts address for everything** -- make `ALERTS_EMAIL` a single
-      `.env.shared` value (drop it from `.env.preview`/`.env.prod`) and keep per-environment
-      separation for Slack, once the alert channels exist (one per environment; set each
-      rule's action to its channel).
+- [ ] Verify Billie Bot can post in `#hub-alerts` and run an end-to-end production test of
+      channel delivery and the `ALERTS_EMAIL` fallback before broad Slack rollout.
+- [ ] Decide how to route other Sentry errors. Events have `production` / `preview`
+      environment tags (`NEXT_PUBLIC_SENTRY_ENVIRONMENT`), so Sentry issue alerts can filter
+      by environment. Sentry email actions target members rather than arbitrary addresses;
+      the Slack integration needs a paid plan.
 
 ### Un-pin CI Runners from ubuntu-24.04
 **Status:** Pinned 2026-09-24, needs revisiting after 2026-11-19

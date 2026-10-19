@@ -3,6 +3,8 @@ import { createFakeSupabase } from "@/tests/helpers/server-page";
 
 const captureMessage = vi.hoisted(() => vi.fn());
 vi.mock("@sentry/nextjs", () => ({ captureMessage }));
+const sendOperationsAlert = vi.hoisted(() => vi.fn(async () => {}));
+vi.mock("@/lib/operations-alerts", () => ({ sendOperationsAlert }));
 
 import { resolveSlackUserIds, resolveMemberIdForSlackUser } from "@/lib/slack-member-ids";
 
@@ -21,6 +23,7 @@ describe("notification Slack recipient matching", () => {
     expect(await resolveMemberIdForSlackUser(fake, "U1")).toBeNull();
     expect(error).toHaveBeenCalledWith("[notifications] Ambiguous Slack member match", expect.objectContaining({ reason: "ambiguous_candidate" }));
     expect(captureMessage).toHaveBeenCalled();
+    expect(sendOperationsAlert).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ type: "ambiguous_slack_member_match", collisions: expect.any(Array) }));
     error.mockRestore();
   });
 

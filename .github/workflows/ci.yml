@@ -75,9 +75,6 @@ jobs:
       - name: Run lint
         run: npm run lint
 
-      - name: Validate Sentry alert definitions
-        run: npm run sentry:alerts:validate
-
       # This bucket is pure-logic/component tests -- every dependency is mocked
       # (vi.mock / vi.fn / stubbed global.fetch) or the test is pure functions in,
       # assertions out. No Supabase, no app server, no Docker: see vitest.config.mts's
