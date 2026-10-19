@@ -8,7 +8,7 @@ const POLL_MS = 30_000;
 
 /**
  * The "On air" light in the member header: a blinking red dot and the head count while someone is
- * in the prickle Zoom room, a grey "Off air" when it is empty. Click for who is there and the join
+ * on the Prickle link, a grey "Off air" when it is empty. Click for who is there and the join
  * link; off air, the same link starts a Pop-Up Prickle (PUP). Polls /api/live-room while the
  * tab is visible.
  */
@@ -70,7 +70,7 @@ export default function LiveRoomIndicator() {
         }}
         aria-expanded={open}
         aria-haspopup="dialog"
-        title={room.live ? "On air: the prickle room is open" : "Off air: nobody is in the prickle room"}
+        title={room.live ? "On air: Hedgies are at the table" : "Off air: nobody is at the table"}
         className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
       >
         <span className="relative flex h-2.5 w-2.5" aria-hidden="true">
