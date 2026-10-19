@@ -84,7 +84,7 @@ describe("/admin/courses/[id]", () => {
         { kajabiId: "l2", moduleKajabiId: null, position: 1, title: "Loose draft", publishingOption: "draft" },
       ]
     );
-    return { course: row({ published }), explained, content: { l1: { hasText: true, hasVideo: false } }, ...over };
+    return { course: row({ published }), explained, content: { l1: { hasText: true, hasVideo: false } }, hubLessonIds: { l1: "hub-l1", l2: "hub-l2" }, ...over };
   };
   const params = { params: Promise.resolve({ id: "k1" }) };
 
@@ -105,6 +105,22 @@ describe("/admin/courses/[id]", () => {
     expect(within(loose).getByText("Hidden")).toBeInTheDocument();
     expect(within(loose).getByText("Draft in Kajabi")).toBeInTheDocument();
     expect(screen.getByText(/1 open|0 open, 1 coming soon, 1 hidden/)).toBeInTheDocument();
+  });
+
+  it("links a coming-soon lesson to its preview in the Hub, and nothing for a hidden one", async () => {
+    loadAdminCourse.mockResolvedValue(detail());
+    await renderServerPage(AdminCoursePage, params);
+
+    const soon = screen.getByText("Reader expectations").closest("li")!;
+    expect(within(soon).getByRole("link", { name: "Preview" })).toHaveAttribute("href", "/courses/the-ready-writer/lessons/hub-l1");
+    expect(within(screen.getByText("Loose draft").closest("li")!).queryByRole("link")).not.toBeInTheDocument();
+  });
+
+  it("has no lesson links for an unpublished course", async () => {
+    loadAdminCourse.mockResolvedValue(detail(null, { hubLessonIds: {} }));
+    await renderServerPage(AdminCoursePage, params);
+
+    expect(within(screen.getByText("Reader expectations").closest("li")!).queryByRole("link")).not.toBeInTheDocument();
   });
 
   it("gives a published course its settings form with the launch day in the organisation's timezone", async () => {

@@ -61,6 +61,11 @@ describe("lessonNeighbors", () => {
     expect(lessonNeighbors(outline, "c")).toMatchObject({ previous: { id: "b" }, next: null });
   });
 
+  it("steps through coming-soon lessons too for staff previewing", () => {
+    expect(lessonNeighbors(outline, "a", { includeComingSoon: true }).next?.id).toBe("soon");
+    expect(lessonNeighbors(outline, "soon", { includeComingSoon: true })).toMatchObject({ previous: { id: "a" }, next: { id: "b" } });
+  });
+
   it("has no neighbours for a lesson that isn't open or isn't there", () => {
     expect(lessonNeighbors(outline, "soon")).toEqual({ previous: null, next: null });
     expect(lessonNeighbors(outline, "nope")).toEqual({ previous: null, next: null });

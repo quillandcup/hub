@@ -85,6 +85,8 @@ export interface AdminCourseDetail {
   explained: ExplainedCourse;
   /** Per lesson, whether step B has fetched its text and found a video (keyed by Kajabi lesson id). */
   content: Record<string, { hasText: boolean; hasVideo: boolean }>;
+  /** Kajabi lesson id -> the Hub lesson id, for lessons that are in the Hub (published course, not hidden). */
+  hubLessonIds: Record<string, string>;
 }
 
 export async function loadAdminCourse(supabase: SupabaseClient, kajabiId: string, now = new Date()): Promise<AdminCourseDetail | null> {
@@ -100,8 +102,18 @@ export async function loadAdminCourse(supabase: SupabaseClient, kajabiId: string
   const course = rows.find((r) => r.kajabiId === kajabiId);
   if (!course) return null;
 
+  let hubLessonIds: Record<string, string> = {};
+  if (course.published) {
+    const { data: silver } = await supabase.from("courses").select("id").eq("source", "kajabi").eq("source_key", kajabiId).maybeSingle();
+    if (silver) {
+      const hub = await fetchAll(supabase, "course_lessons", "id, source_key", (q) => q.eq("course_id", silver.id).eq("source", "kajabi"));
+      hubLessonIds = Object.fromEntries(hub.map((l) => [l.source_key, l.id]));
+    }
+  }
+
   return {
     course,
+    hubLessonIds,
     explained: explainCourse(toModules(modules), toLessons(lessons)),
     content: Object.fromEntries(lessons.map((l) => [l.kajabi_id, { hasText: l.content_fetched_at !== null, hasVideo: l.video_media_id !== null }])),
   };

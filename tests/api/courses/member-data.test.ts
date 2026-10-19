@@ -130,8 +130,22 @@ describe('Course member data', () => {
       expect(result.video).toEqual({ status: 'ready', playbackId: 'pb-test' })
     })
 
-    it('does not open a coming-soon lesson', async () => {
+    it('does not open a coming-soon lesson for a member, or for staff in sudo', async () => {
       expect((await loadLessonView(supabase, SLUG, ids.lessonSoon, scope('current'))).kind).toBe('coming_soon')
+      expect((await loadLessonView(supabase, SLUG, ids.lessonSoon, scope('staff', false))).kind).toBe('no_access')
+    })
+
+    it('previews a coming-soon lesson for staff, stepping through unreleased lessons too', async () => {
+      const result = await loadLessonView(supabase, SLUG, ids.lessonSoon, scope('staff', true))
+      expect(result.kind).toBe('ok')
+      if (result.kind !== 'ok') return
+      expect(result.preview).toBe(true)
+      expect(result.neighbors.previous?.id).toBe(ids.lessonA)
+      expect(result.neighbors.next?.id).toBe(ids.lessonB)
+      // An open lesson is not a preview, and staff step through coming-soon ones from it.
+      const open = await loadLessonView(supabase, SLUG, ids.lessonA, scope('staff', true))
+      expect(open.kind === 'ok' && open.preview).toBe(false)
+      expect(open.kind === 'ok' && open.neighbors.next?.id).toBe(ids.lessonSoon)
     })
 
     it('does not open lessons once access ended, or without access', async () => {

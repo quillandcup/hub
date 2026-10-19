@@ -98,7 +98,7 @@ export default async function CoursePage({ params }: { params: Promise<{ slug: s
       </div>
 
       <div className="mt-8">
-        <CourseOutline slug={course.slug} outline={outline} completed={completed} canOpen={canOpen} />
+        <CourseOutline slug={course.slug} outline={outline} completed={completed} canOpen={canOpen} previewComingSoon={caller.scope.isAdminActing} />
       </div>
     </div>
   );

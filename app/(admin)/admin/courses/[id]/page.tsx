@@ -25,7 +25,16 @@ function StateBadge({ state }: { state: Visibility }) {
   return <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${STATE_STYLE[state]}`}>{STATE_LABEL[state]}</span>;
 }
 
-function LessonRow({ lesson, content }: { lesson: ExplainedLesson; content?: { hasText: boolean; hasVideo: boolean } }) {
+type Content = Record<string, { hasText: boolean; hasVideo: boolean }>;
+
+/** Where a lesson opens in the Hub: the course slug and the Hub lesson ids, when it's published and the lesson isn't hidden. */
+interface HubLinks {
+  slug: string | null;
+  lessonIds: Record<string, string>;
+}
+
+function LessonRow({ lesson, content, hub }: { lesson: ExplainedLesson; content?: Content[string]; hub: HubLinks }) {
+  const hubId = hub.slug && lesson.state !== "hidden" ? hub.lessonIds[lesson.kajabiId] : undefined;
   return (
     <li className="flex flex-wrap items-center gap-x-3 gap-y-1 py-1.5 text-sm">
       <StateBadge state={lesson.state} />
@@ -36,11 +45,16 @@ function LessonRow({ lesson, content }: { lesson: ExplainedLesson; content?: { h
           text {content.hasText ? "✓" : "–"} · video {content.hasVideo ? "✓" : "–"}
         </span>
       )}
+      {hubId && (
+        <Link href={`/courses/${hub.slug}/lessons/${hubId}`} className="text-xs text-plum-700 underline dark:text-plum-300">
+          {lesson.state === "coming_soon" ? "Preview" : "View"}
+        </Link>
+      )}
     </li>
   );
 }
 
-function ModuleBlock({ module, content, depth }: { module: ExplainedModule; content: Record<string, { hasText: boolean; hasVideo: boolean }>; depth: number }) {
+function ModuleBlock({ module, content, hub, depth }: { module: ExplainedModule; content: Content; hub: HubLinks; depth: number }) {
   return (
     <section className={depth > 0 ? "ml-4 mt-3 border-l border-slate-200 pl-4 dark:border-slate-700" : "mt-6"}>
       <h3 className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm font-semibold">
@@ -50,11 +64,11 @@ function ModuleBlock({ module, content, depth }: { module: ExplainedModule; cont
       </h3>
       <ul className="mt-1 divide-y divide-slate-100 dark:divide-slate-800">
         {module.lessons.map((l) => (
-          <LessonRow key={l.kajabiId} lesson={l} content={content[l.kajabiId]} />
+          <LessonRow key={l.kajabiId} lesson={l} content={content[l.kajabiId]} hub={hub} />
         ))}
       </ul>
       {module.children.map((child) => (
-        <ModuleBlock key={child.kajabiId} module={child} content={content} depth={depth + 1} />
+        <ModuleBlock key={child.kajabiId} module={child} content={content} hub={hub} depth={depth + 1} />
       ))}
     </section>
   );
@@ -67,7 +81,8 @@ export default async function AdminCoursePage({ params }: { params: Promise<{ id
   const detail = await loadAdminCourse(supabase, id);
   if (!detail) notFound();
 
-  const { course, explained, content } = detail;
+  const { course, explained, content, hubLessonIds } = detail;
+  const hub: HubLinks = { slug: course.published?.slug ?? null, lessonIds: hubLessonIds };
 
   return (
     <div className="container mx-auto max-w-5xl px-6 py-8">
@@ -106,18 +121,18 @@ export default async function AdminCoursePage({ params }: { params: Promise<{ id
         <h2 className="text-lg font-semibold">Lessons</h2>
         <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
           {explained.totals.open} open, {explained.totals.coming_soon} coming soon, {explained.totals.hidden} hidden. A lesson is open only when it, its
-          week, and every module above it are Published in Kajabi. Locked shows as coming soon; Draft is hidden. Change them in Kajabi, then sync.
+          week, and every module above it are Published in Kajabi. Locked shows as coming soon; Draft is hidden. Change them in Kajabi, then sync. Coming-soon lessons open for you as a preview.
         </p>
 
         {explained.loose.length > 0 && (
           <ul className="mt-4 divide-y divide-slate-100 dark:divide-slate-800">
             {explained.loose.map((l) => (
-              <LessonRow key={l.kajabiId} lesson={l} content={content[l.kajabiId]} />
+              <LessonRow key={l.kajabiId} lesson={l} content={content[l.kajabiId]} hub={hub} />
             ))}
           </ul>
         )}
         {explained.modules.map((m) => (
-          <ModuleBlock key={m.kajabiId} module={m} content={content} depth={0} />
+          <ModuleBlock key={m.kajabiId} module={m} content={content} hub={hub} depth={0} />
         ))}
       </div>
     </div>
