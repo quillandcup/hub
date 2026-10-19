@@ -3,6 +3,7 @@ import { buildAliasMap, resolveEmail } from "@/lib/email-aliases";
 import { fetchAllBronzeRows } from "@/lib/supabase/bronze-pagination";
 import { computeCourseAccess, type AccessRow } from "@/lib/courses/access";
 import { sanitizeLessonHtml } from "@/lib/courses/sanitize";
+import { fetchAll } from "@/lib/courses/db";
 import { planVisibleTree, slugifyTitle } from "@/lib/courses/visibility";
 
 /**
@@ -64,16 +65,6 @@ async function deleteIds(supabase: SupabaseClient, table: string, ids: string[])
   for (const batch of chunks(ids)) {
     const { error } = await supabase.from(table).delete().in("id", batch);
     if (error) throw new Error(`${table} delete failed: ${error.message}`);
-  }
-}
-
-async function fetchAll(supabase: SupabaseClient, table: string, columns: string, filter: (q: any) => any) {
-  const rows: any[] = [];
-  for (let offset = 0; ; offset += 1000) {
-    const { data, error } = await filter(supabase.from(table).select(columns)).range(offset, offset + 999);
-    if (error) throw new Error(`${table} read failed: ${error.message}`);
-    rows.push(...(data ?? []));
-    if (!data || data.length < 1000) return rows;
   }
 }
 

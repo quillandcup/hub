@@ -86,6 +86,7 @@ export const SITE_PAGES: SitePage[] = [
   member({ title: "Dashboard", href: "/dashboard", section: "Home", nav: { icon: "🏠" }, keywords: ["home"] }),
   member({ title: "My Writing", href: "/projects", section: "My Burrow", nav: { icon: "📝", activeFor: ["/projects/"] }, keywords: ["wip"] }),
   member({ title: "My Prickles", href: "/my-prickles", section: "My Burrow", nav: { icon: "🦔", activeFor: ["/prickles/"] }, keywords: ["sessions"] }),
+  member({ title: "Courses", href: "/courses", section: "My Burrow", nav: { icon: "🎓", activeFor: ["/courses/"] }, keywords: ["ready writer", "lessons", "learn", "video"], feature: "courses" }),
   member({ title: "Streaks", href: "/streaks", section: "My Burrow", nav: { icon: "🔥" } }),
   member({ title: "Members", href: "/members", section: "Community", nav: { icon: "👥" }, keywords: ["directory", "people"] }),
   member({ title: "Big Sisters", href: "/big-sisters", section: "Community", nav: { icon: "👭" }, keywords: ["mentor", "mentorship", "new member", "buddy"], feature: "big_sisters" }),
