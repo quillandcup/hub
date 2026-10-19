@@ -73,8 +73,8 @@ export default async function MemberLayout({
 
   const header = (bell: React.ReactNode) => (
     <header className="h-16 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex items-center justify-end gap-2 px-6 flex-shrink-0 relative z-30">
-      {showLiveRoom && <LiveRoomIndicator />}
       <SearchPalette resultsPath="/search" isAdmin={isAdmin} />
+      {showLiveRoom && <LiveRoomIndicator />}
       {bell}
       <UserMenu
         userEmail={effectiveIdentity.memberName}

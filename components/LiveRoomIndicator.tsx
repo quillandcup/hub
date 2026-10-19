@@ -141,11 +141,10 @@ export default function LiveRoomIndicator() {
                 {room.live ? "Join on Zoom" : "Start a PUP on Zoom"}
               </a>
               {(room.join.meetingId || room.join.passcode) && (
-                <p className="mt-2 text-xs text-slate-500 dark:text-slate-400 text-center">
-                  {[room.join.meetingId && `Meeting ID: ${room.join.meetingId}`, room.join.passcode && `Passcode: ${room.join.passcode}`]
-                    .filter(Boolean)
-                    .join(" · ")}
-                </p>
+                <div className="mt-2 text-xs text-slate-500 dark:text-slate-400 text-center">
+                  {room.join.meetingId && <p>Meeting ID: {room.join.meetingId}</p>}
+                  {room.join.passcode && <p>Passcode: {room.join.passcode}</p>}
+                </div>
               )}
             </>
           ) : (
