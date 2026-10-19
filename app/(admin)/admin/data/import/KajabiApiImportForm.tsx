@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import KajabiCoursesResult from "./KajabiCoursesResult";
 
 export default function KajabiApiImportForm() {
   const [loading, setLoading] = useState(false);
@@ -40,7 +41,7 @@ export default function KajabiApiImportForm() {
     <div>
       <form onSubmit={handleSubmit} className="space-y-4">
         <p className="text-sm text-slate-600 dark:text-slate-400">
-          Imports all Kajabi data (contacts, customers, purchases, offers) to Bronze layer, then processes to canonical members in Silver layer.
+          Imports all Kajabi data (contacts, customers, purchases, offers) to Bronze layer, then processes to canonical members in Silver layer. Then syncs course structure and refreshes the published courses and who has access to them.
         </p>
 
         <button
@@ -121,6 +122,8 @@ export default function KajabiApiImportForm() {
           </div>
         </div>
       )}
+
+      {result && result.courses && <KajabiCoursesResult courses={result.courses} />}
     </div>
   );
 }

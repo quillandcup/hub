@@ -1,6 +1,8 @@
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { createKajabiClient, toKajabiContactBronzeRecord } from "@/lib/kajabi/client";
 import { triggerReprocessing } from "@/lib/processing/trigger";
+import { createServiceRoleClient } from "@/lib/supabase/service";
+import { syncKajabiCourses } from "@/lib/courses/sync";
 import { NextRequest, NextResponse } from "next/server";
 
 /**
@@ -11,6 +13,9 @@ import { NextRequest, NextResponse } from "next/server";
  * 2. Fetches subscriptions from Kajabi API
  * 3. Imports to Bronze layer (kajabi_members, subscription_history)
  * 4. Auto-triggers Silver layer processing
+ * 5. Syncs course structure and refreshes the published courses and their access (after the
+ *    members, so access sees the fresh purchases); a courses problem is reported in `courses`,
+ *    never failing the member sync (lib/courses/sync.ts)
  */
 export async function POST(request: NextRequest) {
   const auth = await requireAdmin(request);
@@ -134,6 +139,8 @@ export async function POST(request: NextRequest) {
         importTimestamp,
         processing: processingResults.processed,
       };
+
+      results.courses = await syncKajabiCourses(createServiceRoleClient(), kajabi);
 
     return NextResponse.json({
       success: true,

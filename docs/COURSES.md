@@ -153,7 +153,9 @@ One command, `npm run courses:migrate -- --course <slug>`, runs all four steps i
 **Built (steps A and C):**
 - **A, `/api/import/kajabi-courses`.** Body `{ "courseIds": [...] }` limits the run, otherwise every course on the site is imported. It fetches everything before writing, so a failed Kajabi call writes and soft-deletes nothing. It never lists step B's columns, so a re-import leaves lesson text and video sources alone. The result reports `unplacedLessons` per course: the OpenAPI spec doesn't say how included lessons point at their module, so parents are resolved from either side (a lesson's `module`/`category`, a module's `lessons`) and a count above zero means the live response differs from what's assumed. **Not yet checked against the live API** (the local credentials couldn't get a token): run it once and look at that number.
 - **C, `/api/process/courses`.** Body `{ "course": "<slug>", "accessDuration": "1 year" }`. A new course takes the slug of its Kajabi title (`the-ready-writer`) and keeps it if the title changes; `accessDuration` is stored on the course when given (`null` = lifetime) and left alone when omitted; omit `course` to refresh every Kajabi course already in Silver. The program is linked on creation when a `programs` row has the same slug. Lesson text goes through an allowlist sanitizer (`sanitize-html`, `lib/courses/sanitize.ts`). `course_access` is upserted and its stale rows deleted, so members never see a gap mid-run.
-- **Not built yet:** rebuilding `course_access` automatically on every member/purchase reprocess (today it runs with this route), and "includes membership" counting as active membership in `reprocess_members_atomic`.
+- **Part of the standard sync.** The admin "Sync from Kajabi API" button (and the nightly member reconciliation) runs step A for every course and then step C for the courses already published, after the member import, so `course_access` is rebuilt from fresh purchases (`lib/courses/sync.ts`). A courses problem is reported in the result and never fails the member sync. A new course is never published by itself: the result lists it under "Not published in the Hub yet" with a required access length and a Publish button, which calls step C.
+- **Both routes write with the service role** after checking the caller is an admin: signed-in admins can read the Bronze and Silver course tables but not write them.
+- **Not built yet:** "includes membership" counting as active membership in `reprocess_members_atomic`.
 
 Tests, per `CLAUDE.md`:
 - Bronze idempotency tests in `tests/api/idempotency/`: first import, re-import with no duplicates, a changed lesson, a removed lesson.
@@ -231,7 +233,7 @@ Progress is counted against *available* lessons, since the course grows as lesso
 
 Ania publishes in Kajabi until the builder replaces it, so the sync is used for months, not once. **It's manual for now:** run `npm run courses:migrate -- --course <slug>` when she finishes a batch. It runs steps A–D in order, skips anything unchanged, and prints what changed (lessons added, updated, removed; videos uploaded or reused).
 
-There's no cron or admin button yet. A nightly job could only run the API steps (structure and access), not lesson text or new videos, which need the Kajabi session in step B and are what changes most. It becomes worthwhile if step B is ever automated; until then it would just rewrite what's already there.
+Steps A and C also run with the standard Kajabi sync (the admin button and the nightly reconciliation), so structure and access stay current without anyone running them. Lesson text and new videos still need step B, which needs the Kajabi session, so that stays manual.
 
 ## Open decisions
 

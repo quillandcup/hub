@@ -1,196 +1,32 @@
 import { requireAdmin } from "@/lib/supabase/api-auth";
+import { createServiceRoleClient } from "@/lib/supabase/service";
 import { createKajabiClient } from "@/lib/kajabi/client";
-import { idsToSoftDelete, parseKajabiCourse, type ParsedCourse } from "@/lib/kajabi/courses";
-import { fetchAllBronzeRows } from "@/lib/supabase/bronze-pagination";
+import { CourseImportError, importKajabiCourses } from "@/lib/courses/import";
 import { NextRequest, NextResponse } from "next/server";
 
 export const maxDuration = 300;
 
-const WRITE_BATCH = 500;
-
-function chunks<T>(rows: T[]): T[][] {
-  const out: T[][] = [];
-  for (let i = 0; i < rows.length; i += WRITE_BATCH) out.push(rows.slice(i, i + WRITE_BATCH));
-  return out;
-}
-
 /**
- * Kajabi courses -> Bronze (docs/COURSES.md, step A of the migration).
+ * Kajabi courses -> Bronze (docs/COURSES.md, step A): see lib/courses/import.ts. The standard
+ * Kajabi sync (/api/import/kajabi) runs this too; this route is for importing on its own.
  *
- * Structure only: courses, modules, lessons and the offers that grant each course, from Kajabi's
- * public API. Lesson text, downloads and video sources come from the content script (step B)
- * and live in other columns of the same rows, so the upserts below never list them and a
- * re-import leaves them alone.
- *
- * Idempotent: upsert on Kajabi ids. Rows a *complete* fetch no longer returns are soft-deleted
- * (`deleted_at`); a row that comes back is undeleted. Everything is fetched before anything is
- * written, so a failed Kajabi call aborts with no soft-deletes (it must not read as a mass
- * deletion). Body: `{ "courseIds": ["..."] }` limits the run to those courses (and skips the
- * "course disappeared" step); omit it to import every course on the site.
+ * Body: `{ "courseIds": ["..."] }` limits the run to those courses; omit it for every course.
+ * The caller is checked as an admin, then the writes use the service role: signed-in admins can
+ * read the course tables but not write them.
  */
 export async function POST(request: NextRequest) {
   const auth = await requireAdmin(request);
   if (!auth.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (auth.forbidden) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  const { supabase } = auth;
 
   const body = await request.json().catch(() => ({}));
-  const onlyIds: string[] | null =
-    Array.isArray(body?.courseIds) && body.courseIds.length > 0 ? body.courseIds.map(String) : null;
+  const courseIds: string[] | undefined = Array.isArray(body?.courseIds) ? body.courseIds.map(String) : undefined;
 
   try {
-    const kajabi = createKajabiClient();
-    const siteCourses = await kajabi.fetchAllCourses();
-    const siteCourseIds = siteCourses.map((c) => String(c.id));
-    const targetIds = onlyIds ? siteCourseIds.filter((id) => onlyIds.includes(id)) : siteCourseIds;
-    if (onlyIds && targetIds.length !== onlyIds.length) {
-      const missing = onlyIds.filter((id) => !siteCourseIds.includes(id));
-      return NextResponse.json({ error: `Courses not found in Kajabi: ${missing.join(", ")}` }, { status: 404 });
-    }
-
-    // Fetch everything first: nothing is written (or soft-deleted) unless every call succeeded.
-    const parsed: ParsedCourse[] = [];
-    for (const id of targetIds) parsed.push(parseKajabiCourse(await kajabi.fetchCourse(id)));
-
-    const fetchedAt = new Date().toISOString();
-    const bronze = supabase.schema("bronze");
-
-    const upsert = async (table: string, rows: object[], onConflict: string) => {
-      for (const batch of chunks(rows)) {
-        const { error } = await bronze.from(table).upsert(batch, { onConflict });
-        if (error) throw new Error(`${table} upsert failed: ${error.message}`);
-      }
-    };
-
-    await upsert(
-      "kajabi_courses",
-      parsed.map((p) => ({
-        kajabi_id: p.course.kajabiId,
-        title: p.course.title,
-        raw_payload: p.course.raw,
-        fetched_at: fetchedAt,
-        deleted_at: null,
-      })),
-      "kajabi_id"
-    );
-    await upsert(
-      "kajabi_course_modules",
-      parsed.flatMap((p) =>
-        p.modules.map((m) => ({
-          kajabi_id: m.kajabiId,
-          course_kajabi_id: p.course.kajabiId,
-          parent_kajabi_id: m.parentKajabiId,
-          position: m.position,
-          title: m.title,
-          publishing_option: m.publishingOption,
-          poster_url: m.posterUrl,
-          raw_payload: m.raw,
-          fetched_at: fetchedAt,
-          deleted_at: null,
-        }))
-      ),
-      "kajabi_id"
-    );
-    // No body_html, thumbnail_url, video_* or content_* here: those belong to step B.
-    await upsert(
-      "kajabi_course_lessons",
-      parsed.flatMap((p) =>
-        p.lessons.map((l) => ({
-          kajabi_id: l.kajabiId,
-          course_kajabi_id: p.course.kajabiId,
-          module_kajabi_id: l.moduleKajabiId,
-          position: l.position,
-          title: l.title,
-          publishing_option: l.publishingOption,
-          video_duration_seconds: l.videoDurationSeconds,
-          raw_payload: l.raw,
-          fetched_at: fetchedAt,
-          deleted_at: null,
-        }))
-      ),
-      "kajabi_id"
-    );
-    await upsert(
-      "kajabi_course_offers",
-      parsed.flatMap((p) =>
-        p.offers.map((o) => ({
-          course_kajabi_id: p.course.kajabiId,
-          offer_kajabi_id: o.kajabiId,
-          offer_title: o.title,
-          fetched_at: fetchedAt,
-          deleted_at: null,
-        }))
-      ),
-      "course_kajabi_id,offer_kajabi_id"
-    );
-
-    // Soft-delete what the complete fetch no longer returns, per course.
-    const softDeleted = { courses: 0, modules: 0, lessons: 0, offers: 0 };
-    const softDelete = async (table: string, keyColumn: string, ids: string[]) => {
-      for (const batch of chunks(ids)) {
-        const { error } = await bronze.from(table).update({ deleted_at: fetchedAt }).in(keyColumn, batch);
-        if (error) throw new Error(`${table} soft-delete failed: ${error.message}`);
-      }
-    };
-    for (const p of parsed) {
-      const courseId = p.course.kajabiId;
-      for (const [table, kind, fetched] of [
-        ["kajabi_course_modules", "modules", p.modules.map((m) => m.kajabiId)],
-        ["kajabi_course_lessons", "lessons", p.lessons.map((l) => l.kajabiId)],
-      ] as const) {
-        const live = await fetchAllBronzeRows(supabase, table, "kajabi_id", (q) =>
-          q.eq("course_kajabi_id", courseId).is("deleted_at", null)
-        );
-        const gone = idsToSoftDelete(live.map((r) => r.kajabi_id), fetched);
-        await softDelete(table, "kajabi_id", gone);
-        softDeleted[kind] += gone.length;
-      }
-      const liveOffers = await fetchAllBronzeRows(supabase, "kajabi_course_offers", "offer_kajabi_id", (q) =>
-        q.eq("course_kajabi_id", courseId).is("deleted_at", null)
-      );
-      const goneOffers = idsToSoftDelete(liveOffers.map((r) => r.offer_kajabi_id), p.offers.map((o) => o.kajabiId));
-      for (const batch of chunks(goneOffers)) {
-        const { error } = await bronze
-          .from("kajabi_course_offers")
-          .update({ deleted_at: fetchedAt })
-          .eq("course_kajabi_id", courseId)
-          .in("offer_kajabi_id", batch);
-        if (error) throw new Error(`kajabi_course_offers soft-delete failed: ${error.message}`);
-      }
-      softDeleted.offers += goneOffers.length;
-    }
-
-    // A whole course that's gone from the site (only knowable from a full, unfiltered list).
-    if (!onlyIds) {
-      const liveCourses = await fetchAllBronzeRows(supabase, "kajabi_courses", "kajabi_id", (q) => q.is("deleted_at", null));
-      const goneCourses = idsToSoftDelete(liveCourses.map((r) => r.kajabi_id), siteCourseIds);
-      await softDelete("kajabi_courses", "kajabi_id", goneCourses);
-      for (const courseId of goneCourses) {
-        for (const table of ["kajabi_course_modules", "kajabi_course_lessons", "kajabi_course_offers"]) {
-          const { error } = await bronze
-            .from(table)
-            .update({ deleted_at: fetchedAt })
-            .eq("course_kajabi_id", courseId)
-            .is("deleted_at", null);
-          if (error) throw new Error(`${table} soft-delete failed: ${error.message}`);
-        }
-      }
-      softDeleted.courses = goneCourses.length;
-    }
-
-    return NextResponse.json({
-      success: true,
-      courses: parsed.map((p) => ({
-        id: p.course.kajabiId,
-        title: p.course.title,
-        modules: p.modules.length,
-        lessons: p.lessons.length,
-        offers: p.offers.length,
-        unplacedLessons: p.unplacedLessons,
-      })),
-      softDeleted,
-    });
+    const result = await importKajabiCourses(createServiceRoleClient(), createKajabiClient(), { courseIds });
+    return NextResponse.json({ success: true, ...result });
   } catch (error: any) {
+    if (error instanceof CourseImportError) return NextResponse.json({ error: error.message }, { status: error.status });
     console.error("Kajabi courses import failed:", error);
     return NextResponse.json({ error: error.message || "Import failed" }, { status: 500 });
   }
