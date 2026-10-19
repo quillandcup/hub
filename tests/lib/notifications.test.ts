@@ -6,6 +6,8 @@ const sendSlackDM = vi.fn(async (_params: { slackUserId: string; text: string; b
 vi.mock("@/lib/slack", () => ({ sendSlackDM: (p: any) => sendSlackDM(p) }));
 const captureException = vi.hoisted(() => vi.fn());
 vi.mock("@sentry/nextjs", () => ({ captureException }));
+const sendOperationsAlert = vi.hoisted(() => vi.fn(async () => {}));
+vi.mock("@/lib/operations-alerts", () => ({ sendOperationsAlert }));
 
 // m1 and m2 have Slack accounts; m3 doesn't.
 const resolveSlackUserIds = vi.fn(
@@ -25,6 +27,7 @@ beforeEach(() => {
   sendSlackDM.mockReset();
   resolveSlackUserIds.mockClear();
   captureException.mockClear();
+  sendOperationsAlert.mockClear();
 });
 
 describe("effectiveChannels", () => {
@@ -123,6 +126,7 @@ describe("createNotifier", () => {
     expect(await notifier.send("m1", { text: "Hello" })).toEqual([]);
     expect(error).toHaveBeenCalled();
     expect(captureException).toHaveBeenCalledWith(expect.any(Error), expect.objectContaining({ tags: { notification_kind: "prickle_checkin", notification_channel: "slack" } }));
+    expect(sendOperationsAlert).toHaveBeenCalledWith(expect.anything(), { type: "slack_dm_failed", notificationKind: "prickle_checkin", memberId: "m1" });
     error.mockRestore();
   });
 

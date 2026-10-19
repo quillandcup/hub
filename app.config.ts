@@ -42,7 +42,12 @@ export const appConfig = {
    * introduce themselves in. The Getting started tour and its reminders look for a member's
    * top-level message there.
    */
-  slack: { workspaceUrl: "https://quillandcup.slack.com", introChannel: "start-here" },
+  slack: {
+    workspaceUrl: "https://quillandcup.slack.com",
+    introChannel: "start-here",
+    /** Production operations alerts for failed notification DMs and ambiguous member matches. */
+    alertsChannelId: "C0CA91G8LGH", // #hub-alerts
+  },
 
   /**
    * First day we have prickle attendance for (YYYY-MM-DD). A member who joined before it may have

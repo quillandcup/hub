@@ -1,6 +1,7 @@
 import { matchSlackUsersToMembers, type SlackUser } from "@/lib/slack-matching";
 import { normalizeName, type Member } from "@/lib/member-matching";
 import * as Sentry from "@sentry/nextjs";
+import { sendOperationsAlert, type OperationsAlert } from "@/lib/operations-alerts";
 
 /**
  * Member <-> Slack user resolution for server code that DMs members (notifications) or handles
@@ -46,6 +47,7 @@ async function buildSlackUserIdToMemberIdMap(
   const slackUsers = (slackUsersResult.data ?? []) as SlackUser[];
   const matched = await matchSlackUsersToMembers(slackUsers, members, aliases);
   const safe = new Map<string, string>();
+  const collisions: Extract<OperationsAlert, { type: "ambiguous_slack_member_match" }>["collisions"][number][] = [];
 
   const reportCollision = (reason: string, slackUserIds: string[], memberIds: string[]) => {
     if (scope.memberIds && !memberIds.some((id) => scope.memberIds!.includes(id))) return;
@@ -58,6 +60,7 @@ async function buildSlackUserIdToMemberIdMap(
       tags: { reason },
       extra: { slackUserIds, memberIds },
     });
+    collisions.push({ reason, slackUserIds, memberIds });
   };
 
   for (const [slackUserId, memberId] of matched) {
@@ -96,6 +99,9 @@ async function buildSlackUserIdToMemberIdMap(
     if (slackUserIds.length <= 1) continue;
     reportCollision("multiple_slack_users", slackUserIds, [memberId]);
     for (const id of slackUserIds) safe.delete(id);
+  }
+  if (collisions.length > 0) {
+    await sendOperationsAlert(supabase, { type: "ambiguous_slack_member_match", collisions });
   }
   return safe;
 }
