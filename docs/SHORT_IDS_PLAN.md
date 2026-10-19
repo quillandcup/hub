@@ -117,95 +117,117 @@ prefix; the cost is one migration for that table.
 
 ## Inventory (scratch stack from this branch, 233 migrations)
 
-**Production size (read-only, estimated row counts, 2026-10-18):** about 250k rows in
-total, tiny. Only these tables have 1000+ rows: `access_events` 60k (bigint id, not
-converted), `member_activities` 56k, `bronze.slack_reactions` 39k, `chat_reactions` 22k,
-`ambiguous_zoom_names` 12k, `prickle_attendance` 9.7k, `bronze.zoom_attendees` 7k,
-`bronze.slack_messages` 6.7k, `chat_messages` / `chat_message_contents` 4.9k each,
-`prickles` 4.8k, `bronze.calendar_events` 3.7k, `bronze.kajabi_members` 2.5k,
-`bronze.zoom_meetings` 2k, then four around 1.9k. The largest table by size is
-`member_activities` at 43 MB. Everything else, including `members`, is under 1000 rows.
-Timeouts: `authenticated` 8s, `anon` 3s, `authenticator` 8s (plus `lock_timeout` 8s),
-`service_role` none, `supabase_admin` 0; `postgres` has no override, so a migration run
-that way uses the server default (2 min seen on a management query). Every backfill here is
-a single `UPDATE` of at most tens of thousands of rows, so one transaction is fine; no
-batching needed.
+### What converts and what doesn't
 
-**Tables with their own uuid `id` (conversion targets): 66.** 18 in `bronze`, 48 in
-`public`; all listed under Prefixes. Plus these whose uuid key *is* a member or prickle
-reference, so they convert as foreign keys and get no prefix: `member_directory.id`,
-`member_engagement.member_id`, `member_metrics.member_id`, `prickle_popularity.prickle_id`,
-`chat_message_contents.message_id`, and the member-keyed one-per-member tables
-(`big_sister_volunteers`, `calendar_feed_tokens`, `member_ask_me_about`,
+| Group | Count | Treatment |
+|---|--:|---|
+| Tables with their own uuid `id` (`bronze` 18, `public` 48) | 66 | Convert; each gets a prefix (see Prefixes) |
+| Member- or prickle-keyed tables whose uuid key *is* a reference | 14 | Convert as foreign keys; no prefix of their own |
+| Composite PKs containing uuids | 7 | Convert the uuid part as foreign keys |
+| Columns referencing `auth.users`, auth sessions or Vault | 28 + 5 | Stay uuid (see below) |
+| `access_events.id`, `audit_log.id` (bigint); text-keyed tables | | Not converted |
+
+**Reference-keyed tables (14, no prefix):** `member_directory.id`, `member_engagement.member_id`,
+`member_metrics.member_id`, `prickle_popularity.prickle_id`, `chat_message_contents.message_id`,
+`big_sister_volunteers`, `calendar_feed_tokens`, `member_ask_me_about`,
 `member_join_date_overrides`, `member_onboarding`, `member_profile_overrides`,
-`member_roster_opt_outs`, `member_slack_connections`, `outreach_leads`). Composite PKs that
-contain uuids: `chat_channel_members`, `member_notes`, `segment_members`,
+`member_roster_opt_outs`, `member_slack_connections`, `outreach_leads`.
+
+**Composite PKs with uuids (7):** `chat_channel_members`, `member_notes`, `segment_members`,
 `feature_flag_segments`, `notification_preferences`, `user_feature_previews`,
 `writing_project_starting_balances`.
 
-**Not converted:** `access_events.id` and `audit_log.id` (bigint), all text-keyed tables
-(`feature_flags`, `restricted_slack_channels`, `slack_identities`, ...).
+**Text-keyed, untouched:** `feature_flags`, `restricted_slack_channels`, `slack_identities`,
+`slack_sign_in_tokens`, `chat_slack_authors`, and the other tables whose key is text.
 
-**Parents with FKs pointing at them:** `members` (by far the most: `host`, `author_member_id`,
-`mentor_member_id`, `new_member_id`, `spinner_member_id`, `matched_member_id`,
-`confirmed_by_member_id`, `subject_member_id`, `resolved_member_id`, `default_host_id`,
-`host_id`, and ~40 plain `member_id`), `prickles`, `prickle_types`, `writing_projects`,
-`events`, `chat_messages` (incl. self `thread_root_id`), `chat_channels`, `segments`,
-`programs`, `program_cohorts`, `badge_types`, `member_books`, `prickle_commitments`,
-`bronze.calendar_events`, `prickle_schedules` (self `carried_forward_from`).
+### Production size
 
-**uuid columns that stay uuid (auth references):** 28 columns, all FKs to `auth.users` or the
-auth session/vault: `members.user_id`, `user_profiles.id`, `slack_identities.user_id`,
-`user_feature_previews.user_id`, `feedback.user_id`, `access_events.user_id`, every
-`created_by`, `updated_by`, `awarded_by`, `locked_by`, `confirmed_by`, `deleted_by`,
-`ignored_by`, `touched_by`, `completed_by`, `actor_user_id`; no-FK ones to leave alone:
-`audit_log.changed_by`, `access_events.session_id`, `restricted_slack_channels.restricted_by`,
-`member_slack_connections.access_secret_id` / `refresh_secret_id` (Vault secrets).
-Why no FK on each: `audit_log.changed_by` is deliberate (history must outlive a deleted user,
-see the comment in `20261006000000_create_audit_log.sql`); `session_id` points at a
-short-lived auth session; the Vault ids are in another schema we don't own;
-`restricted_by` looks like an oversight (an audit stamp that could be a nullable FK with
-`ON DELETE SET NULL`), which is out of scope for this change.
+Read-only, estimated row counts, 2026-10-18. About 250k rows in total.
 
-**Member ids with no FK, must be rewritten by hand:** `audit_log.member_id`,
-`audit_log.acting_as_member_id`, `access_events.acting_as_member_id`,
-`member_activities.acting_as_member_id`. Also `audit_log.entity_id` (text, the audited row's
-id) and `audit_log.changes` (jsonb), for every table audited by the `audit_row_change`
-trigger (about 50 tables).
+| Table | Rows | Note |
+|---|--:|---|
+| `access_events` | 60k | bigint id, not converted |
+| `member_activities` | 56k | largest by size, 43 MB |
+| `bronze.slack_reactions` | 39k | |
+| `chat_reactions` | 22k | |
+| `ambiguous_zoom_names` | 12k | |
+| `prickle_attendance` | 9.7k | |
+| `bronze.zoom_attendees` | 7k | |
+| `bronze.slack_messages` | 6.7k | |
+| `chat_messages`, `chat_message_contents` | 4.9k each | |
+| `prickles` | 4.8k | |
+| `bronze.calendar_events` | 3.7k | |
+| `bronze.kajabi_members` | 2.5k | |
+| `bronze.zoom_meetings` | 2k | |
+| four more tables | about 1.9k each | |
+| everything else, including `members` | under 1k | |
 
-**Ids stored as text/jsonb found so far:** `in_app_notifications.ref` (set to `prickle.id`,
-`lib/prickle-checkin-dms.ts:886,903`) and `.url`; `member_activities.data` (jsonb);
-`chat_message_contents` (`attachments`, `blocks`); `admin_work_queue_completions.occurrence_key`
-(its contents still to confirm; it sits next to `member_id`); `bronze.slack_messages.raw_payload`
-`app_message_id` metadata (see Decisions). Bronze `raw_payload`/`data` columns from external
-systems should not contain our ids, but the post-migration scan covers them too.
+| Role | `statement_timeout` | Other |
+|---|---|---|
+| `authenticated` | 8s | |
+| `anon` | 3s | |
+| `authenticator` | 8s | `lock_timeout` 8s |
+| `service_role` | none | |
+| `supabase_admin` | 0 | |
+| `postgres` | no override | server default, 2 min seen on a management query |
 
-**Dependent objects to drop and recreate:**
-- Views: only two, `bronze.slack_messages_meta` and `bronze.slack_channel_membership_periods`.
-  **Correction to the earlier draft:** `member_directory`, `member_engagement`,
-  `member_metrics` and `prickle_popularity` are plain *tables*, kept in sync by the
-  `sync_member_directory` trigger and the processing routes, not views. They convert like
-  any other table.
-- Functions with a uuid argument or result: 42 (full list from `pg_proc`, e.g.
-  `current_member_id`, `chat_post_message`, `chat_toggle_reaction`, `get_activity_feed`,
-  `count_activity_feed`, `admin_members_page`, `create_prickle_commitment`,
-  `add_event_attendee`, `my_mentorships`, `set_mentorship_note`, the `slack_connection_*`
-  family, `get_record_history`, `get_access_sessions`). Several take auth user ids
-  (`revoke_user_sessions`, `revoke_my_session`): those keep their uuid signature. Read the
-  latest `CREATE OR REPLACE` of each before editing.
-- 279 RLS policies in `public`/`bronze`; any that compare an id column to a uuid-typed
-  expression (`current_member_id()`, `auth.uid()`) need review.
-- 66 `gen_random_uuid()` column defaults (matches the 66 id tables above).
-- Triggers: `audit_row_change` (about 50 tables), `sync_member_directory`,
-  `member_activities_stamp_sudo`, `members_sync_email_aliases`,
-  `guard_member_self_service_update`.
+Every backfill is a single `UPDATE` of at most tens of thousands of rows, so one transaction
+is fine; no batching needed.
 
-**Column worth a decision:** `prickles.host` is an FK to `members` (nullable, `ON DELETE
-SET NULL`): converts as a member reference.
+### Foreign-key parents
 
-**Method:** regenerate with the catalog queries from this session (uuid columns joined to
-`pg_constraint`), rather than trusting this prose, when writing the migration; the migration
-itself should derive FK rewrites from `pg_constraint` at run time.
+| Parent | Referencing columns |
+|---|---|
+| `members` | By far the most: `host` (on `prickles`), `author_member_id`, `mentor_member_id`, `new_member_id`, `spinner_member_id`, `matched_member_id`, `confirmed_by_member_id`, `subject_member_id`, `resolved_member_id`, `default_host_id`, `host_id`, and about 40 plain `member_id` |
+| `prickles` | 8 |
+| `prickle_types` | 6 |
+| `writing_projects` | 5 |
+| `events` | 5 |
+| `chat_messages` | 3, including self `thread_root_id` |
+| `chat_channels`, `segments`, `programs`, `badge_types`, `bronze.calendar_events` | 2 each |
+| `program_cohorts`, `member_books`, `prickle_commitments` | 1 each |
+| `prickle_schedules` | self `carried_forward_from` |
+
+`prickles.host` is nullable with `ON DELETE SET NULL`; it converts as a member reference.
+
+### uuid columns that stay uuid
+
+| Column(s) | Points at | Why it has no FK / stays |
+|---|---|---|
+| `members.user_id`, `user_profiles.id`, `slack_identities.user_id`, `user_feature_previews.user_id`, `feedback.user_id`, `access_events.user_id`, and every `created_by`, `updated_by`, `awarded_by`, `locked_by`, `confirmed_by`, `deleted_by`, `ignored_by`, `touched_by`, `completed_by`, `actor_user_id` (28 columns) | `auth.users` | Supabase owns the id; FKs exist |
+| `audit_log.changed_by` | `auth.users` | Deliberate: history must outlive a deleted user (`20261006000000_create_audit_log.sql`) |
+| `access_events.session_id` | an auth session | Short-lived auth session |
+| `restricted_slack_channels.restricted_by` | `auth.users` | Looks like an oversight (could be a nullable FK with `ON DELETE SET NULL`); out of scope here |
+| `member_slack_connections.access_secret_id`, `refresh_secret_id` | Vault secrets | Another schema we don't own |
+
+### Ids to rewrite that a foreign-key rewrite misses
+
+| Location | What it holds | Handling |
+|---|---|---|
+| `audit_log.member_id`, `audit_log.acting_as_member_id` | member id, no FK | Rewrite via the mapping |
+| `access_events.acting_as_member_id`, `member_activities.acting_as_member_id` | member id, no FK | Rewrite via the mapping |
+| `audit_log.entity_id` (text) | id of the audited row | Rewrite, for every table audited by `audit_row_change` (about 50) |
+| `audit_log.changes` (jsonb) | old/new values, may hold ids | Scan and rewrite |
+| `in_app_notifications.ref`, `.url` | `ref` is a `prickle.id` (`lib/prickle-checkin-dms.ts:886,903`) | Rewrite |
+| `member_activities.data` (jsonb) | may hold ids | Scan |
+| `chat_message_contents.attachments`, `.blocks` (jsonb) | may hold ids | Scan |
+| `admin_work_queue_completions.occurrence_key` | contents still to confirm; sits next to `member_id` | Open item |
+| `bronze.slack_messages.raw_payload` `app_message_id` metadata | chat message id (see Decisions) | Map or remove rows |
+| Bronze `raw_payload` / `data` columns from external systems | should not hold our ids | Covered by the post-migration scan anyway |
+
+### Dependent objects to drop and recreate
+
+| Kind | Count | Notes |
+|---|--:|---|
+| Views | 2 | `bronze.slack_messages_meta`, `bronze.slack_channel_membership_periods`. **Correction to the earlier draft:** `member_directory`, `member_engagement`, `member_metrics` and `prickle_popularity` are plain tables kept in sync by the `sync_member_directory` trigger and the processing routes, not views; they convert like any other table |
+| Functions with a uuid argument or result | 42 | e.g. `current_member_id`, `chat_post_message`, `chat_toggle_reaction`, `get_activity_feed`, `count_activity_feed`, `admin_members_page`, `create_prickle_commitment`, `add_event_attendee`, `my_mentorships`, `set_mentorship_note`, the `slack_connection_*` family, `get_record_history`, `get_access_sessions`. `revoke_user_sessions` and `revoke_my_session` take auth user ids and keep their uuid signature. Read the latest `CREATE OR REPLACE` of each before editing |
+| RLS policies in `public` / `bronze` | 279 | Review any that compare an id column to a uuid-typed expression (`current_member_id()`, `auth.uid()`) |
+| `gen_random_uuid()` column defaults | 66 | Matches the 66 id tables |
+| Triggers | | `audit_row_change` (about 50 tables), `sync_member_directory`, `member_activities_stamp_sudo`, `members_sync_email_aliases`, `guard_member_self_service_update` |
+
+**Method:** regenerate with the catalog queries (uuid columns joined to `pg_constraint`)
+rather than trusting this prose when writing the migration; the migration itself should derive
+FK rewrites from `pg_constraint` at run time.
 
 ## Migration approach (forward migration, data preserved)
 
