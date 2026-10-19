@@ -74,9 +74,42 @@ Calendar) plus a short kind (`slmsg_` Slack messages). The migration records eac
 and every id default uses its table's prefix. The script that builds the list asserts
 uniqueness against Tier 1.
 
-`public`: `admin_work_queue_completions` `qcmp_`, `ambiguous_zoom_names` `ambz_`, `badge_levels` `bdgl_`, `calendar_feed_items` `cfeed_`, `chat_reactions` `rxn_`, `event_attendees` `evatt_`, `event_photos` `evph_`, `feedback` `fdbk_`, `ignored_zoom_names` `ignz_`, `in_app_notifications` `notif_`, `member_activities` `act_`, `member_awards` `awd_`, `member_badges` `bdg_`, `member_email_aliases` `ealias_`, `member_hiatus_history` `hiat_`, `member_name_aliases` `nalias_`, `member_program_enrollments` `enrl_`, `member_reminder_log` `remlog_`, `member_status_overrides` `stovr_`, `mentorships` `mntr_`, `outreach_touches` `touch_`, `prickle_attendance` `pkat_`, `prickle_checkin_dismissals` `pcid_`, `prickle_checkin_dm_log` `pcil_`, `prickle_checkins` `pci_`, `prickle_checkout_dismissals` `pcod_`, `prickle_commitment_slots` `cmts_`, `prickle_host_vibes` `hvib_`, `prickle_schedules` `psch_`, `program_cohorts` `coh_`, `push_subscriptions` `push_`, `staff` `staff_`, `unmatched_calendar_events` `unmc_`, `wheel_of_wonder_matches` `wowm_`, `writing_goals` `wgoal_`, `writing_progress_entries` `wprog_`.
+**`public`**
 
-`bronze`: `calendar_events` `gcal_`, `kajabi_contacts` `kjcon_`, `kajabi_customers` `kjcus_`, `kajabi_members` `kjmem_`, `kajabi_offers` `kjoff_`, `kajabi_purchases` `kjpur_`, `slack_channel_member_events` `slcme_`, `slack_channels` `slch_`, `slack_messages` `slmsg_`, `slack_reactions` `slrxn_`, `slack_users` `slusr_`, `stripe_customers` `stcus_`, `stripe_products` `stprd_`, `stripe_subscriptions` `stsub_`, `subscription_history` `subh_`, `zoom_attendees` `zmatt_`, `zoom_meetings` `zmtg_`, `zoom_participant_events` `zmpev_`.
+| Table | Prefix | Table | Prefix |
+|---|---|---|---|
+| `admin_work_queue_completions` | `qcmp_` | `member_status_overrides` | `stovr_` |
+| `ambiguous_zoom_names` | `ambz_` | `mentorships` | `mntr_` |
+| `badge_levels` | `bdgl_` | `outreach_touches` | `touch_` |
+| `calendar_feed_items` | `cfeed_` | `prickle_attendance` | `pkat_` |
+| `chat_reactions` | `rxn_` | `prickle_checkin_dismissals` | `pcid_` |
+| `event_attendees` | `evatt_` | `prickle_checkin_dm_log` | `pcil_` |
+| `event_photos` | `evph_` | `prickle_checkins` | `pci_` |
+| `feedback` | `fdbk_` | `prickle_checkout_dismissals` | `pcod_` |
+| `ignored_zoom_names` | `ignz_` | `prickle_commitment_slots` | `cmts_` |
+| `in_app_notifications` | `notif_` | `prickle_host_vibes` | `hvib_` |
+| `member_activities` | `act_` | `prickle_schedules` | `psch_` |
+| `member_awards` | `awd_` | `program_cohorts` | `coh_` |
+| `member_badges` | `bdg_` | `push_subscriptions` | `push_` |
+| `member_email_aliases` | `ealias_` | `staff` | `staff_` |
+| `member_hiatus_history` | `hiat_` | `unmatched_calendar_events` | `unmc_` |
+| `member_name_aliases` | `nalias_` | `wheel_of_wonder_matches` | `wowm_` |
+| `member_program_enrollments` | `enrl_` | `writing_goals` | `wgoal_` |
+| `member_reminder_log` | `remlog_` | `writing_progress_entries` | `wprog_` |
+
+**`bronze`**
+
+| Table | Prefix | Table | Prefix |
+|---|---|---|---|
+| `calendar_events` | `gcal_` | `slack_reactions` | `slrxn_` |
+| `kajabi_contacts` | `kjcon_` | `slack_users` | `slusr_` |
+| `kajabi_customers` | `kjcus_` | `stripe_customers` | `stcus_` |
+| `kajabi_members` | `kjmem_` | `stripe_products` | `stprd_` |
+| `kajabi_offers` | `kjoff_` | `stripe_subscriptions` | `stsub_` |
+| `kajabi_purchases` | `kjpur_` | `subscription_history` | `subh_` |
+| `slack_channel_member_events` | `slcme_` | `zoom_attendees` | `zmatt_` |
+| `slack_channels` | `slch_` | `zoom_meetings` | `zmtg_` |
+| `slack_messages` | `slmsg_` | `zoom_participant_events` | `zmpev_` |
 
 Not in the list: `feature_flags` / `feature_flag_segments` (text keys, no uuid). Tier 2 ids rarely appear anywhere a person reads them. If
 one does later (a table starts showing up in URLs), promote it to Tier 1 with a hand-chosen
