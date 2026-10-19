@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { getTestSupabaseAdminClient } from '../../helpers/supabase'
 import { loadAdminCourse, loadAdminCourses } from '@/lib/courses/admin'
+import { accessLabel } from '@/lib/courses/access-options'
 
 /**
  * What the admin Courses page reads, against the real local database: each Kajabi course with its
@@ -70,7 +71,9 @@ describe('Admin course data', () => {
   describe('loadAdminCourses', () => {
     it('lists a published course with its settings, access counts and lesson states', async () => {
       const row = (await loadAdminCourses(supabase, now)).find((c) => c.kajabiId === PUBLISHED)!
-      expect(row.published).toMatchObject({ slug: `admin-published-${ts}`, accessDuration: 'P1Y' })
+      // The interval comes back as ISO or Postgres text depending on the connection; it reads the same.
+      expect(row.published).toMatchObject({ slug: `admin-published-${ts}` })
+      expect(accessLabel(row.published!.accessDuration)).toBe('1 year')
       expect(new Date(row.published!.launchAt!).getTime()).toBeGreaterThan(now.getTime())
       expect(row.access).toEqual({ current: 1, upcoming: 1, ended: 1 })
       expect(row.totals).toEqual({ open: 1, coming_soon: 1, hidden: 1 })
