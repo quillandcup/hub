@@ -38,6 +38,13 @@ describe("CourseOutline", () => {
     expect(within(nav).queryByRole("link", { name: /Later/ })).not.toBeInTheDocument();
   });
 
+  it("lets staff open coming-soon lessons as a preview, still marked coming soon", () => {
+    render(<CourseOutline slug="c" outline={outline} completed={new Set()} canOpen previewComingSoon />);
+    const nav = screen.getByRole("navigation", { name: "Course outline" });
+
+    expect(within(nav).getByRole("link", { name: /Later.*Coming soon/ })).toHaveAttribute("href", "/courses/c/lessons/Later");
+  });
+
   it("highlights the current lesson and shows completed ones to screen readers", () => {
     render(<CourseOutline slug="c" outline={outline} completed={new Set(["Intro"])} canOpen currentLessonId="Day 1" />);
 

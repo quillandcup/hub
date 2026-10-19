@@ -7,10 +7,12 @@ interface Props {
   completed: Set<string>;
   /** Lessons are links only when the member can open them (access not ended). */
   canOpen: boolean;
+  /** Staff: "Coming soon" lessons open too, as a preview. */
+  previewComingSoon?: boolean;
   currentLessonId?: string;
 }
 
-function LessonRow({ slug, lesson, completed, canOpen, current }: { slug: string; lesson: OutlineLesson; completed: boolean; canOpen: boolean; current: boolean }) {
+function LessonRow({ slug, lesson, completed, canOpen, current, previewComingSoon }: { slug: string; lesson: OutlineLesson; completed: boolean; canOpen: boolean; current: boolean; previewComingSoon?: boolean }) {
   const duration = formatDuration(lesson.duration_seconds);
   const comingSoon = lesson.state === "coming_soon";
   const content = (
@@ -37,7 +39,7 @@ function LessonRow({ slug, lesson, completed, canOpen, current }: { slug: string
     </>
   );
   const base = "flex items-start gap-2 rounded px-2 py-1.5 text-sm";
-  if (comingSoon || !canOpen) {
+  if ((comingSoon && !previewComingSoon) || !canOpen) {
     return <li className={`${base} text-slate-500 dark:text-slate-400`}>{content}</li>;
   }
   return (
@@ -73,6 +75,7 @@ function ModuleNode({ node, depth, ...rest }: { node: OutlineNode; depth: number
             completed={rest.completed.has(lesson.id)}
             canOpen={rest.canOpen}
             current={lesson.id === rest.currentLessonId}
+            previewComingSoon={rest.previewComingSoon}
           />
         ))}
       </ul>
@@ -84,18 +87,18 @@ function ModuleNode({ node, depth, ...rest }: { node: OutlineNode; depth: number
 }
 
 /** A course's modules, weeks and lessons: checkmarks, durations, and "Coming soon" for unreleased ones. */
-export default function CourseOutline({ slug, outline, completed, canOpen, currentLessonId }: Props) {
+export default function CourseOutline({ slug, outline, completed, canOpen, currentLessonId, previewComingSoon }: Props) {
   return (
     <nav aria-label="Course outline">
       {outline.loose.length > 0 && (
         <ul>
           {outline.loose.map((lesson) => (
-            <LessonRow key={lesson.id} slug={slug} lesson={lesson} completed={completed.has(lesson.id)} canOpen={canOpen} current={lesson.id === currentLessonId} />
+            <LessonRow key={lesson.id} slug={slug} lesson={lesson} completed={completed.has(lesson.id)} canOpen={canOpen} current={lesson.id === currentLessonId} previewComingSoon={previewComingSoon} />
           ))}
         </ul>
       )}
       {outline.modules.map((node) => (
-        <ModuleNode key={node.module.id} node={node} depth={0} slug={slug} completed={completed} canOpen={canOpen} currentLessonId={currentLessonId} />
+        <ModuleNode key={node.module.id} node={node} depth={0} slug={slug} completed={completed} canOpen={canOpen} currentLessonId={currentLessonId} previewComingSoon={previewComingSoon} />
       ))}
     </nav>
   );

@@ -1,4 +1,4 @@
--- pgTAP tests for the course tables (20261111000100): who can read course content, access rows,
+-- pgTAP tests for the course tables (20261111000100, 20261112000300): who can read course content, access rows,
 -- videos, and the member-owned progress and watch segments.
 -- Runs in one transaction that is rolled back, so it leaves the shared local DB untouched.
 -- Run with `npm run test:pgtap` (scripts/test-pgtap.sh; CI runs it in the test-db job).
@@ -6,7 +6,7 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;
 
-SELECT plan(11);
+SELECT plan(13);
 
 -- Alice has current access, Bob's access ended, Cara has none, Dana is an admin.
 INSERT INTO auth.users (id, instance_id, aud, role, email) VALUES
@@ -30,6 +30,8 @@ INSERT INTO public.courses (id, slug, title, source_key) VALUES
   ('00000000-0000-4000-a000-00000000c100', 'pgtap-course', 'PgTAP Course', 'pgtap-course');
 INSERT INTO public.course_lessons (id, course_id, title, source_key) VALUES
   ('00000000-0000-4000-a000-00000000c200', '00000000-0000-4000-a000-00000000c100', 'Lesson', 'pgtap-lesson');
+INSERT INTO public.course_lessons (id, course_id, title, state, body_html, source_key) VALUES
+  ('00000000-0000-4000-a000-00000000c201', '00000000-0000-4000-a000-00000000c100', 'Coming soon lesson', 'coming_soon', '<p>not yet</p>', 'pgtap-lesson-soon');
 INSERT INTO public.videos (id, source_kind, source_key) VALUES
   ('00000000-0000-4000-a000-00000000c300', 'upload', 'pgtap-video');
 INSERT INTO public.course_access (member_id, course_id, starts_at, ends_at, origin) VALUES
@@ -46,6 +48,7 @@ SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claims',
   '{"sub": "00000000-0000-4000-a000-00000000c0a1", "email": "course-alice@example.test", "role": "authenticated"}', true);
 INSERT INTO result SELECT 'alice_lessons', to_jsonb(count(*)) FROM public.course_lessons;
+INSERT INTO result SELECT 'alice_soon_lessons', to_jsonb(count(*)) FROM public.course_lessons WHERE state = 'coming_soon';
 INSERT INTO result SELECT 'alice_access_rows', to_jsonb(count(*)) FROM public.course_access;
 INSERT INTO result SELECT 'alice_videos', to_jsonb(count(*)) FROM public.videos;
 INSERT INTO public.lesson_progress (member_id, lesson_id, last_position_seconds)
@@ -79,7 +82,8 @@ SELECT ok(NOT has_table_privilege('authenticated', 'public.video_watch_segments'
 SELECT is((SELECT value FROM result WHERE label = 'bob_lessons'), '0'::jsonb, 'ended access opens no lessons');
 SELECT is((SELECT value FROM result WHERE label = 'cara_lessons'), '0'::jsonb, 'no access opens no lessons');
 SELECT is((SELECT value FROM result WHERE label = 'cara_progress'), '0'::jsonb, 'a member does not see another member''s progress');
-SELECT is((SELECT value FROM result WHERE label = 'admin_lessons'), '1'::jsonb, 'admins read course content');
+SELECT is((SELECT value FROM result WHERE label = 'admin_lessons'), '2'::jsonb, 'admins read every lesson, coming soon ones included');
+SELECT is((SELECT value FROM result WHERE label = 'alice_soon_lessons'), '0'::jsonb, 'members cannot read a lesson that is still coming soon');
 SELECT is((SELECT value FROM result WHERE label = 'admin_videos'), '1'::jsonb, 'admins read videos');
 SELECT is((SELECT value FROM result WHERE label = 'admin_progress'), '1'::jsonb, 'admins read members'' progress');
 

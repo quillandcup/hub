@@ -74,9 +74,12 @@ export interface LessonNeighbors {
   next: OutlineLesson | null;
 }
 
-/** The open lessons before and after `lessonId`, in page order. */
-export function lessonNeighbors(outline: Outline, lessonId: string): LessonNeighbors {
-  const open = outline.lessons.filter((l) => l.state === "open");
+/**
+ * The open lessons before and after `lessonId`, in page order. Staff previewing the course pass
+ * `includeComingSoon` to step through unreleased lessons too.
+ */
+export function lessonNeighbors(outline: Outline, lessonId: string, options: { includeComingSoon?: boolean } = {}): LessonNeighbors {
+  const open = outline.lessons.filter((l) => options.includeComingSoon || l.state === "open");
   const i = open.findIndex((l) => l.id === lessonId);
   if (i === -1) return { previous: null, next: null };
   return { previous: open[i - 1] ?? null, next: open[i + 1] ?? null };

@@ -171,6 +171,8 @@ export interface LessonView {
   neighbors: LessonNeighbors;
   completed: boolean;
   video: { status: string; playbackId: string | null } | null;
+  /** Staff previewing a lesson members can't open yet ("Coming soon"). Progress isn't tracked for it. */
+  preview: boolean;
 }
 
 export type LessonResult =
@@ -194,7 +196,9 @@ export async function loadLessonView(
   const withOutline = view as CourseView & { outline: Outline };
   const summary = view.outline.lessons.find((l) => l.id === lessonId);
   if (!summary) return { kind: "not_found" };
-  if (summary.state !== "open") return { kind: "coming_soon", view: withOutline };
+  // Staff acting as themselves can preview unreleased lessons; everyone else (and staff in sudo) gets "Coming soon".
+  const preview = summary.state !== "open";
+  if (preview && !scope.isAdminActing) return { kind: "coming_soon", view: withOutline };
 
   const { data: lesson, error } = await supabase
     .from("course_lessons")
@@ -218,8 +222,9 @@ export async function loadLessonView(
     kind: "ok",
     view: withOutline,
     lesson: { ...summary, body_html: lesson.body_html },
-    neighbors: lessonNeighbors(view.outline, lessonId),
+    neighbors: lessonNeighbors(view.outline, lessonId, { includeComingSoon: scope.isAdminActing }),
     completed: view.completed.has(lessonId),
     video,
+    preview,
   };
 }

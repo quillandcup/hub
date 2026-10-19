@@ -56,6 +56,7 @@ beforeEach(() => {
   loadLessonView.mockReset();
   signPlaybackTokens.mockReset();
   caller.identity.isSudo = false;
+  caller.scope.isAdminActing = false;
 });
 
 describe("/courses", () => {
@@ -139,6 +140,18 @@ describe("/courses/[slug]", () => {
     expect(screen.getByRole("link", { name: "Continue" })).toHaveAttribute("href", `/courses/the-ready-writer/lessons/${LESSON_B}`);
   });
 
+  it("opens the coming-soon lessons in the outline for staff", async () => {
+    caller.scope.isAdminActing = true;
+    const completed = new Set<string>();
+    loadCourseView.mockResolvedValue({ course, access: { kind: "admin" }, outline, completed, progress: courseProgress(outline, completed) });
+    await renderServerPage(CoursePage, params());
+
+    expect(within(screen.getByRole("navigation", { name: "Course outline" })).getByRole("link", { name: /Revision/ })).toHaveAttribute(
+      "href",
+      `/courses/the-ready-writer/lessons/${LESSON_SOON}`
+    );
+  });
+
   it("closes the lessons when access has ended, but keeps the progress", async () => {
     const completed = new Set([LESSON_A]);
     loadCourseView.mockResolvedValue({
@@ -219,6 +232,16 @@ describe("/courses/[slug]/lessons/[lessonId]", () => {
 
     expect(screen.queryByTestId("player")).not.toBeInTheDocument();
     expect(screen.getByRole("status")).toBeInTheDocument();
+  });
+
+  it("shows staff a preview of a coming-soon lesson: a banner, no mark complete, and the outline opens too", async () => {
+    caller.scope.isAdminActing = true;
+    loadLessonView.mockResolvedValue(ok({ preview: true }));
+    await renderServerPage(LessonPage, params());
+
+    expect(screen.getByRole("status")).toHaveTextContent("Preview: members see this lesson as “Coming soon”");
+    expect(screen.queryByRole("button", { name: /Mark complete|Completed/ })).not.toBeInTheDocument();
+    expect(within(screen.getAllByRole("navigation", { name: "Course outline" })[0]).getByRole("link", { name: /Revision/ })).toBeInTheDocument();
   });
 
   it("disables mark complete in sudo, which is read-only", async () => {

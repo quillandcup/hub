@@ -101,6 +101,14 @@ describe('Admin course data', () => {
       expect(detail.explained.loose).toMatchObject([{ title: 'Loose open', state: 'open' }])
     })
 
+    it('maps Kajabi lessons to their Hub lessons, only for lessons that are in the Hub', async () => {
+      const { data: hub } = await supabase.from('course_lessons').insert({ course_id: ids.course, title: 'Published in locked', position: 1, state: 'coming_soon', source_key: `${PUBLISHED}-l1` }).select('id').single()
+      const detail = (await loadAdminCourse(supabase, PUBLISHED, now))!
+      expect(detail.hubLessonIds).toEqual({ [`${PUBLISHED}-l1`]: hub!.id })
+      // An unpublished course has none.
+      expect((await loadAdminCourse(supabase, UNPUBLISHED, now))!.hubLessonIds).toEqual({})
+    })
+
     it('is null for a course Kajabi does not have', async () => {
       expect(await loadAdminCourse(supabase, 'no-such-course', now)).toBeNull()
     })

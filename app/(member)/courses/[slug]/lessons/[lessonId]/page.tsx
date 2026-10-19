@@ -30,10 +30,10 @@ export default async function LessonPage({ params }: { params: Promise<{ slug: s
   const result = await loadLessonView(createServiceRoleClient(), slug, lessonId, caller.scope);
 
   if (result.kind === "not_found") notFound();
-  // Lessons that can't be opened (no access, ended access, coming soon) go back to the course page, which says why.
+  // Lessons that can't be opened (no access, ended access, coming soon for members) go back to the course page, which says why.
   if (result.kind !== "ok") redirect(`/courses/${slug}`);
 
-  const { view, lesson, neighbors, completed, video } = result;
+  const { view, lesson, neighbors, completed, video, preview } = result;
   const duration = formatDuration(lesson.duration_seconds);
 
   let player: React.ReactNode = null;
@@ -50,7 +50,7 @@ export default async function LessonPage({ params }: { params: Promise<{ slug: s
   }
 
   const outline = (
-    <CourseOutline slug={view.course.slug} outline={view.outline} completed={view.completed} canOpen currentLessonId={lesson.id} />
+    <CourseOutline slug={view.course.slug} outline={view.outline} completed={view.completed} canOpen previewComingSoon={caller.scope.isAdminActing} currentLessonId={lesson.id} />
   );
 
   return (
@@ -65,6 +65,11 @@ export default async function LessonPage({ params }: { params: Promise<{ slug: s
         </aside>
 
         <main>
+          {preview && (
+            <p role="status" className="mb-4 rounded-lg bg-amber-100 p-3 text-sm text-amber-900 dark:bg-amber-900/30 dark:text-amber-200">
+              Preview: members see this lesson as &ldquo;Coming soon&rdquo; until it&apos;s published in Kajabi. Progress isn&apos;t tracked here.
+            </p>
+          )}
           <h1 className="text-2xl font-bold">{lesson.title}</h1>
           {duration && <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{duration}</p>}
 
@@ -76,7 +81,7 @@ export default async function LessonPage({ params }: { params: Promise<{ slug: s
           )}
 
           <div className="mt-8 flex flex-wrap items-center justify-between gap-4 border-t border-slate-200 pt-6 dark:border-slate-800">
-            <MarkCompleteButton lessonId={lesson.id} completed={completed} readOnly={caller.identity.isSudo} />
+            {preview ? <span /> : <MarkCompleteButton lessonId={lesson.id} completed={completed} readOnly={caller.identity.isSudo} />}
             <div className="flex gap-3 text-sm">
               {neighbors.previous ? (
                 <Link className="rounded-lg border border-slate-300 px-4 py-2 hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800" href={`/courses/${view.course.slug}/lessons/${neighbors.previous.id}`}>
