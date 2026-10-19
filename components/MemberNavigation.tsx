@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { FeatureKey } from "@/lib/features";
 import Wordmark from "@/components/Wordmark";
-import { OPEN_MOBILE_NAV_EVENT } from "@/components/MobileMenuButton";
+import { useOpenMobileNav } from "@/components/MobileMenuButton";
 import { navGroups, type SitePage } from "@/lib/site-pages";
 
 interface MemberNavigationProps {
@@ -84,11 +84,7 @@ export default function MemberNavigation({ isAdmin, enabledFeatures }: MemberNav
   const [mobileOpen, setMobileOpen] = useState(false);
   const pathname = usePathname();
 
-  useEffect(() => {
-    const open = () => setMobileOpen(true);
-    window.addEventListener(OPEN_MOBILE_NAV_EVENT, open);
-    return () => window.removeEventListener(OPEN_MOBILE_NAV_EVENT, open);
-  }, []);
+  useOpenMobileNav(() => setMobileOpen(true));
 
   useEffect(() => {
     const isMobile = window.innerWidth < 768;

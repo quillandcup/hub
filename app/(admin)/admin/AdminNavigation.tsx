@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { FeatureKey } from "@/lib/features";
 import { navGroups } from "@/lib/site-pages";
-import { OPEN_MOBILE_NAV_EVENT } from "@/components/MobileMenuButton";
+import { useOpenMobileNav } from "@/components/MobileMenuButton";
 
 interface NavLinksProps {
   enabledFeatures: FeatureKey[];
@@ -107,11 +107,7 @@ export default function AdminNavigation({ enabledFeatures }: AdminNavigationProp
   const [mobileOpen, setMobileOpen] = useState(false);
   const pathname = usePathname();
 
-  useEffect(() => {
-    const open = () => setMobileOpen(true);
-    window.addEventListener(OPEN_MOBILE_NAV_EVENT, open);
-    return () => window.removeEventListener(OPEN_MOBILE_NAV_EVENT, open);
-  }, []);
+  useOpenMobileNav(() => setMobileOpen(true));
 
   useEffect(() => {
     const isMobile = window.innerWidth < 768;
