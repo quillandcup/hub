@@ -76,6 +76,19 @@ export interface KajabiOffer {
   links?: Record<string, any>;
 }
 
+/** A JSON:API resource from /v1/courses (and its `included` array). Relationships are untyped on purpose; see lib/kajabi/courses.ts. */
+export interface KajabiCourseResource {
+  id: string;
+  type: string;
+  attributes: Record<string, any>;
+  relationships?: Record<string, { data?: { id: string; type: string } | { id: string; type: string }[] | null }>;
+}
+
+export interface KajabiCourseResponse {
+  data: KajabiCourseResource;
+  included?: KajabiCourseResource[];
+}
+
 /** Contact attributes this app writes back to Kajabi via PATCH /v1/contacts/{id}. */
 export type KajabiWritableContactAttribute = 'name' | 'email' | 'custom_1' | 'custom_2' | 'custom_3';
 
@@ -428,6 +441,23 @@ export class KajabiClient {
 
     console.log(`[Kajabi API] Fetched ${allOffers.length} total offers`);
     return allOffers;
+  }
+
+  /** Every course on the site (id and course-level attributes only; see fetchCourse for structure). */
+  async fetchAllCourses(): Promise<KajabiCourseResource[]> {
+    const all: KajabiCourseResource[] = [];
+    for await (const batch of this.fetchPaginated<KajabiCourseResource>('/v1/courses', 'Courses')) {
+      all.push(...batch);
+    }
+    console.log(`[Kajabi API] Fetched ${all.length} total courses`);
+    return all;
+  }
+
+  /** One course with its modules, lessons, lesson media and offers (the JSON:API `included` array). */
+  async fetchCourse(courseId: string): Promise<KajabiCourseResponse> {
+    return this.request<KajabiCourseResponse>(
+      `/v1/courses/${encodeURIComponent(courseId)}?include=modules,lessons,lessons.media,offers`
+    );
   }
 }
 
