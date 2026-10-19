@@ -263,7 +263,10 @@ describe("intro reminders", () => {
     const now = sendTime("m1", "intro_nudge");
     const log = setup({
       members: { data: [member("m1", joinedDaysBefore(now, 10))] },
-      notification_preferences: { data: [{ member_id: "m1", kind: "intro_nudge", channel: "slack", enabled: false }] },
+      notification_preferences: { data: [
+        { member_id: "m1", kind: "intro_nudge", channel: "slack", enabled: false },
+        { member_id: "m1", kind: "intro_nudge", channel: "in_app", enabled: false },
+      ] },
     });
 
     expect((await sendMemberReminders(fake as never, now)).intro).toBe(0);
@@ -272,7 +275,12 @@ describe("intro reminders", () => {
 
   it("retries a failed reminder without advancing its backoff, then deduplicates success", async () => {
     const now = sendTime("m1", "intro_nudge");
-    const log = setup({ members: { data: [member("m1", joinedDaysBefore(now, 10))] } });
+    const log = setup({
+      members: { data: [member("m1", joinedDaysBefore(now, 10))] },
+      notification_preferences: { data: [
+        { member_id: "m1", kind: "intro_nudge", channel: "in_app", enabled: false },
+      ] },
+    });
     sendSlackDM.mockRejectedValueOnce(new Error("channel_not_found"));
     vi.spyOn(console, "error").mockImplementation(() => {});
 
@@ -289,6 +297,9 @@ describe("intro reminders", () => {
     const log = nudgeLog();
     setup({
       members: { data: [member("m1", joinedDaysBefore(now, 10))] },
+      notification_preferences: { data: [
+        { member_id: "m1", kind: "intro_nudge", channel: "in_app", enabled: false },
+      ] },
       member_reminder_log: (query: FakeQuery) => query.calls.some((c) => c.method === "delete")
         ? { error: { message: "database unavailable" } }
         : log.table(query),
@@ -470,7 +481,7 @@ describe("dry run", () => {
       kind: "intro_nudge",
       memberId: "m1",
       wouldSend: true,
-      channels: ["slack"],
+      channels: ["slack", "in_app"],
       why: { daysSinceJoined: 10, remindersSentBefore: 0, postedInIntroChannel: false, matchedToSlackUser: true },
     });
     expect(line.text).toContain(`#${SLACK_INTRO_CHANNEL}`);

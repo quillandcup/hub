@@ -87,6 +87,12 @@ export default function MemberNavigation({ isAdmin, enabledFeatures }: MemberNav
   useOpenMobileNav(() => setMobileOpen(true));
 
   useEffect(() => {
+    const open = () => setMobileOpen(true);
+    window.addEventListener(OPEN_MOBILE_NAV_EVENT, open);
+    return () => window.removeEventListener(OPEN_MOBILE_NAV_EVENT, open);
+  }, []);
+
+  useEffect(() => {
     const isMobile = window.innerWidth < 768;
     setCollapsed(isMobile);
     const handleResize = () => setCollapsed(window.innerWidth < 768);

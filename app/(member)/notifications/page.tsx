@@ -1,9 +1,8 @@
 import type { Metadata } from "next";
-import { notFound, redirect } from "next/navigation";
+import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
 import { getEffectiveIdentity } from "@/lib/sudo";
-import { effectiveMemberHasFeature, getUserFeaturePreviews } from "@/lib/features.server";
 import { loadInboxPage } from "@/lib/channels/in-app";
 import { parsePageParam, parsePageSizeParam, parseSortParams } from "@/lib/pagination";
 import { DEFAULT_INBOX_SORT, INBOX_SORT_COLUMNS, parseInboxFilter, parseInboxKind } from "@/lib/notifications/inbox";
@@ -18,8 +17,7 @@ type Param = string | string[] | undefined;
 /**
  * Every in-app notification the member has had (lib/channels/in-app.ts), as a server-mode data
  * table like All Members: ?filter= (all/unread), ?kind=, ?sort=&dir=, ?page=&pageSize=, with
- * "Mark all as read". The bell shows only the latest few and links here. Behind the
- * in_app_notifications flag (the sudo'd member's, in sudo); shown as that member, like the bell.
+ * "Mark all as read". The bell shows only the latest few and links here. Shown as the member, like the bell.
  */
 export default async function NotificationsPage({
   searchParams,
@@ -30,8 +28,6 @@ export default async function NotificationsPage({
   if (!user) redirect("/login");
   const identity = await getEffectiveIdentity(user);
   if (!identity) redirect("/admin");
-  const ownFeatures = await getUserFeaturePreviews(user.id);
-  if (!(await effectiveMemberHasFeature("in_app_notifications", identity, ownFeatures))) notFound();
 
   const params = await searchParams;
   const filter = parseInboxFilter(params.filter);
