@@ -81,6 +81,17 @@ describe("KajabiCoursesResult", () => {
       expect(screen.queryByText("Not published in the Hub yet:")).not.toBeInTheDocument();
     });
 
+    it("sends the opening date when one is chosen, so pre-order access starts then", async () => {
+      fetchMock.mockResolvedValue({ ok: true, json: async () => ({ courses: [] }) });
+      render(ui());
+      await userEvent.selectOptions(screen.getByLabelText("Access length for The Ready Writer"), "1 year");
+      await userEvent.type(screen.getByLabelText("Launch date for The Ready Writer (optional)"), "2026-11-02");
+      await userEvent.click(screen.getByRole("button", { name: "Publish" }));
+
+      await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+      expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ course: "the-ready-writer", accessDuration: "1 year", launchOn: "2026-11-02" });
+    });
+
     it("sends null for lifetime access", async () => {
       fetchMock.mockResolvedValue({ ok: true, json: async () => ({ courses: [] }) });
       render(ui());

@@ -26,6 +26,7 @@ export default async function CoursesPage() {
         <ul className="space-y-4">
           {items.map(({ course, access, progress }) => {
             const ended = access.kind === "ended";
+            const upcoming = access.kind === "upcoming";
             const href = ended || !progress.continueLessonId ? `/courses/${course.slug}` : `/courses/${course.slug}/lessons/${progress.continueLessonId}`;
             const percent = progress.available > 0 ? Math.round((progress.completed / progress.available) * 100) : 0;
             const started = progress.completed > 0;
@@ -45,30 +46,43 @@ export default async function CoursesPage() {
                       Access ended {formatCourseDate(access.endsAt)}
                     </span>
                   )}
+                  {upcoming && (
+                    <span className="rounded-full bg-plum-50 px-3 py-1 text-xs text-plum-800 dark:bg-slate-800 dark:text-plum-300">
+                      Opens {formatCourseDate(access.startsAt)}
+                    </span>
+                  )}
                 </div>
 
-                <div className="mt-4">
-                  <div
-                    role="progressbar"
-                    aria-label={`${course.title} progress`}
-                    aria-valuemin={0}
-                    aria-valuemax={progress.available}
-                    aria-valuenow={progress.completed}
-                    className="h-2 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700"
-                  >
-                    <div className="h-full bg-plum-600" style={{ width: `${percent}%` }} />
-                  </div>
-                  <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
-                    {progress.completed} of {progress.available} available {progress.available === 1 ? "lesson" : "lessons"} done
+                {upcoming ? (
+                  <p className="mt-4 text-sm text-slate-600 dark:text-slate-300">
+                    You&apos;re in. The course opens on {formatCourseDate(access.startsAt)}, and your access starts then.
                   </p>
-                </div>
+                ) : (
+                  <>
+                  <div className="mt-4">
+                    <div
+                      role="progressbar"
+                      aria-label={`${course.title} progress`}
+                      aria-valuemin={0}
+                      aria-valuemax={progress.available}
+                      aria-valuenow={progress.completed}
+                      className="h-2 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700"
+                    >
+                      <div className="h-full bg-plum-600" style={{ width: `${percent}%` }} />
+                    </div>
+                    <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
+                      {progress.completed} of {progress.available} available {progress.available === 1 ? "lesson" : "lessons"} done
+                    </p>
+                  </div>
 
-                <Link
-                  href={href}
-                  className="mt-4 inline-block rounded-lg bg-plum-600 px-4 py-2 text-sm font-medium text-white hover:bg-plum-700"
-                >
-                  {ended ? "View progress" : progress.allDone ? "Review" : started ? "Continue" : "Start"}
-                </Link>
+                  <Link
+                    href={href}
+                    className="mt-4 inline-block rounded-lg bg-plum-600 px-4 py-2 text-sm font-medium text-white hover:bg-plum-700"
+                  >
+                    {ended ? "View progress" : progress.allDone ? "Review" : started ? "Continue" : "Start"}
+                  </Link>
+                  </>
+                )}
               </li>
             );
           })}

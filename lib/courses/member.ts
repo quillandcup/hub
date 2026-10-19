@@ -26,6 +26,8 @@ export type CourseAccess =
   /** Staff acting as themselves: every course opens. */
   | { kind: "admin" }
   | { kind: "ended"; endsAt: string }
+  /** Bought ahead of launch: access is theirs, but starts at `startsAt`. */
+  | { kind: "upcoming"; startsAt: string }
   | { kind: "none" };
 
 export interface AccessRowLike {
@@ -35,7 +37,8 @@ export interface AccessRowLike {
 
 export function resolveCourseAccess(row: AccessRowLike | undefined, isAdminActing: boolean, now: Date): CourseAccess {
   if (isAdminActing) return { kind: "admin" };
-  if (!row || new Date(row.starts_at).getTime() > now.getTime()) return { kind: "none" };
+  if (!row) return { kind: "none" };
+  if (new Date(row.starts_at).getTime() > now.getTime()) return { kind: "upcoming", startsAt: row.starts_at };
   if (row.ends_at && new Date(row.ends_at).getTime() <= now.getTime()) return { kind: "ended", endsAt: row.ends_at };
   return { kind: "open", endsAt: row.ends_at };
 }
@@ -139,7 +142,7 @@ export async function loadCourseList(supabase: SupabaseClient, scope: MemberScop
 export interface CourseView {
   course: CourseRow;
   access: CourseAccess;
-  /** Null when the member has no access: nothing of the course is shown. */
+  /** Null when the member has no access, or it hasn't started: nothing of the course is shown. */
   outline: Outline | null;
   completed: Set<string>;
   progress: CourseProgress | null;
@@ -153,7 +156,8 @@ export async function loadCourseView(supabase: SupabaseClient, slug: string, sco
 
   const accessRow = scope.isAdminActing ? undefined : (await loadAccessRows(supabase, scope.memberId, [course.id])).get(course.id);
   const access = resolveCourseAccess(accessRow, scope.isAdminActing, scope.now ?? new Date());
-  if (access.kind === "none") return { course, access, outline: null, completed: new Set(), progress: null };
+  // Nothing of the course is shown before it's theirs to open: no access, or not started yet.
+  if (access.kind === "none" || access.kind === "upcoming") return { course, access, outline: null, completed: new Set(), progress: null };
 
   const { modules, lessons } = await loadStructure(supabase, [course.id]);
   const outline = buildOutline(modules as OutlineModule[], lessons as OutlineLesson[]);

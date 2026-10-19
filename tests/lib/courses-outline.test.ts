@@ -104,12 +104,15 @@ describe("resolveCourseAccess", () => {
     expect(resolveCourseAccess({ starts_at: "2026-01-01T00:00:00Z", ends_at: "2027-01-01T00:00:00Z" }, false, now).kind).toBe("open");
   });
 
-  it("is ended once ends_at has passed, and none before it starts or with no row", () => {
+  it("is ended once ends_at has passed, upcoming before it starts, and none with no row", () => {
     expect(resolveCourseAccess({ starts_at: "2024-01-01T00:00:00Z", ends_at: "2025-01-01T00:00:00Z" }, false, now)).toEqual({
       kind: "ended",
       endsAt: "2025-01-01T00:00:00Z",
     });
-    expect(resolveCourseAccess({ starts_at: "2027-01-01T00:00:00Z", ends_at: null }, false, now).kind).toBe("none");
+    expect(resolveCourseAccess({ starts_at: "2027-01-01T00:00:00Z", ends_at: null }, false, now)).toEqual({
+      kind: "upcoming",
+      startsAt: "2027-01-01T00:00:00Z",
+    });
     expect(resolveCourseAccess(undefined, false, now).kind).toBe("none");
   });
 
@@ -121,6 +124,7 @@ describe("resolveCourseAccess", () => {
     expect(canOpenLessons({ kind: "open", endsAt: null })).toBe(true);
     expect(canOpenLessons({ kind: "admin" })).toBe(true);
     expect(canOpenLessons({ kind: "ended", endsAt: "2025-01-01T00:00:00Z" })).toBe(false);
+    expect(canOpenLessons({ kind: "upcoming", startsAt: "2027-01-01T00:00:00Z" })).toBe(false);
     expect(canOpenLessons({ kind: "none" })).toBe(false);
   });
 });
