@@ -325,26 +325,59 @@ does not make the id private. `events` and `programs` are the same.
 1. Dump production (`supabase db dump --linked`, schema plus data, read-only on prod) into a
    fresh local stack like the scratch one used for the inventory. The dump holds real member
    data: keep it outside the repo, never commit it, delete it afterwards.
-2. Apply the phase's migration there and record the wall-clock time per statement (it is an
-   upper bound for prod, which has similar data on faster hardware, but measure rather than
-   guess).
+2. Apply the phase's migration there and record the wall-clock time per statement. Production
+   is **slower** than a laptop (see the benchmark below), so multiply local times by the
+   measured ratio (plan with 10x) instead of treating the local number as an upper bound.
 3. Run the whole check list on the copy: row counts equal, zero orphan foreign keys, zero old
    uuids left in text/jsonb, pgTAP, then the unit and db suites and a manual click-through of
    the Tier 1 pages (member, prickle, event, course, lesson).
 4. Repeat until the copy is clean, then rehearse the failure path: kill the migration midway
    and confirm nothing changed.
 
+### How much slower is production than the laptop?
+
+Measured 2026-10-20 with a one-off script (`bench.sql`, not committed): inside Postgres, on
+temp tables (so it leaves nothing behind; it ends in a deliberate `RAISE EXCEPTION` that
+rolls everything back and returns the timings), it times a CPU loop, inserts 2 x 250k rows
+with a foreign key, backfills a `new_id` column on 250k rows, rewrites a referencing column
+on 250k rows through a join, and swaps the primary and foreign key. The comparison is
+database against database; a Vercel cron would only time the app, not the database.
+
+| Step | Local (M-series laptop, Docker) | Production (3 runs) | Ratio |
+|---|--:|--:|--:|
+| CPU (3M md5) | 1.1 s | 4.4 to 4.5 s | about 4x |
+| Insert 2 x 250k rows | 1.2 s | 6.6 to 9.7 s | about 5 to 8x |
+| Backfill `new_id` on 250k rows | 1.3 s | 7.1 to 8.2 s | about 5 to 6x |
+| Rewrite a referencing column, 250k rows | 1.5 s | 14.9 to 19.1 s | about 10 to 13x |
+| Swap primary and foreign key | 0.18 s | 1.3 to 1.5 s | about 8x |
+
+So production is roughly **4 to 13 times slower** than the laptop, and the heavier the write
+work the bigger the gap. Limits: temp tables are not WAL-logged, so real tables (which write
+WAL and feed replicas and backups) will be slower again; and prod may be sharing CPU with
+live traffic. If the rehearsal shows the migration is anywhere near a minute locally,
+re-benchmark with real tables on a throwaway project before choosing the window.
+
 ### Expected downtime
 
 Each migration file runs in one transaction, and Postgres DDL is transactional, so the schema
 is either entirely old or entirely new. Inside it the migration takes `ACCESS EXCLUSIVE` locks
 on every table it alters, so reads and writes to those tables wait for the whole transaction.
-Prod is about 250k rows, so the estimate is **tens of seconds to a couple of minutes per
-phase**, to be replaced by the rehearsal number. Waiting queries from the app fail once
-`lock_timeout` (8s for `authenticator`) is hit, so treat the window as an outage, not a
-slowdown: pick a quiet hour, post the one-line notice, and pause the writers during it
-(pg_cron jobs, the Slack, Zoom and Kajabi webhooks, which their senders retry or the nightly
-reconciliation catches up).
+Prod is about 250k rows in total, so the work is about the size of one benchmark pass. Scaled
+by the ratios above that is roughly **30 seconds to 2 minutes per phase** on production, to be
+replaced by (rehearsal time x 10). Waiting queries from the app fail once `lock_timeout` (8s
+for `authenticator`) is hit, so treat the window as an outage, not a slowdown: pick a quiet
+hour, post the one-line notice, and keep it clear of the scheduled writers below.
+
+### Writers during the window (nothing needs deleting)
+
+Do not remove any webhook. What writes to the database, and what to do about each:
+
+| Writer | During the lock | Handling |
+|---|---|---|
+| Slack, Zoom, Google Calendar and Mux webhooks (`app/api/webhooks/*`) | The handler's queries wait, then fail; the sender sees a 5xx | Do nothing: Slack and Zoom retry failed deliveries (confirm Mux and Google Calendar before the cutover), and the "nothing through webhooks alone" rule means the nightly reconciliation (`/api/reconcile/*`) re-imports anything missed. Optional: a maintenance switch in `proxy.ts` returning `503` with `Retry-After` for `/api/webhooks/*` makes the retry explicit |
+| `pg_cron`: `send-prickle-checkins` (every 5 min), `send-member-reminders` (hourly) | A run during the lock fails or waits | Disable both just before (`SELECT cron.alter_job(jobid, active := false)`) and re-enable after; or start the window just after a tick |
+| Vercel crons, nightly reconcile (02:00 to 03:15 UTC) | Same | Start the window after 03:30 UTC (or skip that night) |
+| Members and admins using the app | Pages and actions error | The announced window; optional maintenance page |
 
 ### If the migration partially succeeds
 
@@ -368,9 +401,9 @@ gap must be short and the deploy must not be able to fail late.
 To get there for this change, do not rely on the normal push-to-main sequence:
 - Build the new code as a preview deployment first, and run the unit and db suites against the
   rehearsed copy with it. A broken build is found before anything touches prod.
-- Cut over by hand: pause writers, take a backup (Supabase point-in-time recovery marker, plus
+- Cut over by hand: disable the two `pg_cron` jobs, take a backup (Supabase point-in-time recovery marker, plus
   a `pg_dump` of the affected tables), run the migration, **promote the already-built
-  deployment** (seconds, with nothing left to fail), verify, resume writers.
+  deployment** (seconds, with nothing left to fail), verify, re-enable the jobs.
 - Rolling back after the cutover means restoring the backup and promoting the previous
   deployment, losing any writes since. The mapping table is dropped at the end of the
   migration, so there is no reverse migration; keep the pre-cutover backup until the next
