@@ -3,6 +3,7 @@ import { buildAliasMap, resolveEmail } from "@/lib/email-aliases";
 import { fetchAllBronzeRows } from "@/lib/supabase/bronze-pagination";
 import { computeCourseAccess, type AccessRow } from "@/lib/courses/access";
 import { sanitizeLessonHtml } from "@/lib/courses/sanitize";
+import { lessonExcerpt } from "@/lib/courses/excerpt";
 import { fetchAll } from "@/lib/courses/db";
 import { planVisibleTree, slugifyTitle } from "@/lib/courses/visibility";
 
@@ -306,6 +307,7 @@ export async function processCourses(
       position: l.position ?? 0,
       state: tree.lessons.get(l.kajabi_id),
       body_html: sanitizeLessonHtml(l.body_html),
+      excerpt: lessonExcerpt(sanitizeLessonHtml(l.body_html)),
       thumbnail_url: l.thumbnail_url ?? null,
       duration_seconds: l.video_duration_seconds ?? null,
       source: "kajabi",
