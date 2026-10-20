@@ -36,7 +36,7 @@ export const metadata: Metadata = {
   description:
     "The Quill & Cup member hub: find prickles and events, track your writing streaks and projects, and connect with fellow writers.",
   openGraph: { siteName: appConfig.appName, type: "website" },
-  twitter: { card: "summary" },
+  twitter: { card: "summary_large_image" },
   icons: {
     icon: '/icon.png',
     apple: '/billiebot.png',
