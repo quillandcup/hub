@@ -98,7 +98,7 @@ export default async function CoursePage({ params }: { params: Promise<{ slug: s
           <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm lg:sticky lg:top-6 dark:border-slate-800 dark:bg-slate-900">
             {thumbnail && (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={thumbnail} alt="" className="mb-4 aspect-video w-full rounded object-cover" />
+              <img src={thumbnail} alt="" className="mx-auto mb-4 max-h-40 w-full object-contain" />
             )}
             <div
               role="progressbar"
