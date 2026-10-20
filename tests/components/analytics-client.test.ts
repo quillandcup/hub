@@ -132,11 +132,49 @@ describe("autocapture", () => {
     expect(event.properties).toEqual({ element: "link", route: "/dashboard", target_route: "/members/[id]" });
   });
 
-  it("records nothing about an external link's address", async () => {
-    document.body.innerHTML = `<a href="https://zoom.example/j/123">Join</a>`;
+  it("keeps an external link's label but not its address", async () => {
+    document.body.innerHTML = `<a href="https://zoom.example/j/123">Join on Zoom</a>`;
     document.querySelector("a")!.click();
     const [event] = await captured();
-    expect(event.properties).toEqual({ element: "link", route: "/dashboard" });
+    expect(event.properties).toEqual({ element: "link", route: "/dashboard", text: "Join on Zoom" });
+  });
+
+  it("keeps a navigation link's label, since it names a place and not a person", async () => {
+    document.body.innerHTML = `<a href="/my-prickles">My Prickles</a>`;
+    document.querySelector("a")!.click();
+    expect((await captured())[0].properties).toEqual({
+      element: "link",
+      route: "/dashboard",
+      text: "My Prickles",
+      target_route: "/my-prickles",
+    });
+  });
+
+  it("prefers an aria-label, and names an icon button by it", async () => {
+    document.body.innerHTML = `<button aria-label="Collapse sidebar"><svg></svg></button>`;
+    document.querySelector("button")!.click();
+    expect((await captured())[0].properties).toMatchObject({ element: "button", text: "Collapse sidebar" });
+  });
+
+  it("names a field by its label or name, never its value or options", async () => {
+    document.body.innerHTML = `
+      <label for="days">Window</label>
+      <select id="days" name="days"><option>Last 7 days</option><option selected>Last 30 days</option></select>
+      <input type="checkbox" name="remember-me" />
+      <input type="radio" id="r" value="secret-value" />`;
+    document.querySelector("select")!.click();
+    document.querySelector<HTMLInputElement>('input[type="checkbox"]')!.click();
+    document.querySelector<HTMLInputElement>('input[type="radio"]')!.click();
+    const events = await captured();
+    expect(events[0].properties).toEqual({ element: "input", route: "/dashboard", name: "days", text: "Window" });
+    expect(events[1].properties).toEqual({ element: "input", route: "/dashboard", text: "remember-me" });
+    expect(events[2].properties).toEqual({ element: "input", route: "/dashboard", name: "r" });
+  });
+
+  it("labels other controls such as tabs by their text", async () => {
+    document.body.innerHTML = `<div role="tab">Notifications</div>`;
+    document.querySelector("div")!.click();
+    expect((await captured())[0].properties).toMatchObject({ element: "other", text: "Notifications" });
   });
 
   it("reaches a button from a click on its child", async () => {

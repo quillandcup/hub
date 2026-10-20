@@ -34,8 +34,9 @@ export const EVENTS = {
   /**
    * A click on a button, link or form control, recorded automatically (lib/analytics/autocapture.ts)
    * so there is data for things nobody thought to name. `name` is the element's `data-track`
-   * or `id`; `text` is a button's label only (never a link's, which is often a person's name);
-   * `target_route` is where an internal link goes, as a route template.
+   * or `id`; `text` is its label (aria-label, a field's `<label>`, or its own text), left out for
+   * a link to a record page, whose text is often a person's name; `target_route` is where an
+   * internal link goes, as a route template.
    */
   element_clicked: {
     element: oneOf("button", "link", "input", "other"),
