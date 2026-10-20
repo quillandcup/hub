@@ -103,6 +103,7 @@ export default function CalendarSyncCard({ initialUrls }: { initialUrls: Calenda
         <button
           type="button"
           onClick={toggleCollapsed}
+          data-track="calendar-sync-toggle"
           aria-expanded={!collapsed}
           aria-controls="calendar-sync-body"
           aria-label={collapsed ? "Show calendar sync options" : "Hide calendar sync options"}
@@ -117,16 +118,16 @@ export default function CalendarSyncCard({ initialUrls }: { initialUrls: Calenda
       {!collapsed && (
         <div id="calendar-sync-body" className="mt-4">
           <div className="flex flex-wrap gap-2">
-            <a href={urls.google} target="_blank" rel="noopener noreferrer" className={BUTTON}>
+            <a href={urls.google} data-track="calendar-sync-google" target="_blank" rel="noopener noreferrer" className={BUTTON}>
               Google Calendar
             </a>
-            <a href={urls.webcal} className={BUTTON}>
+            <a href={urls.webcal} data-track="calendar-sync-apple" className={BUTTON}>
               Apple Calendar
             </a>
-            <a href={urls.outlook} target="_blank" rel="noopener noreferrer" className={BUTTON}>
+            <a href={urls.outlook} data-track="calendar-sync-outlook" target="_blank" rel="noopener noreferrer" className={BUTTON}>
               Outlook
             </a>
-            <button type="button" onClick={copyLink} className={BUTTON}>
+            <button type="button" onClick={copyLink} data-track="calendar-sync-copy-link" className={BUTTON}>
               <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={1.75} viewBox="0 0 24 24" aria-hidden="true">
                 <rect x="9" y="9" width="12" height="12" rx="2" />
                 <path d="M5 15V5a2 2 0 012-2h10" />

@@ -56,6 +56,7 @@ export default function UnloggedPricklesCard({ prickles }: UnloggedPricklesCardP
           <li key={p.id} className="py-2 flex items-center justify-between gap-3">
             <Link
               href={`/prickles/${p.id}`}
+              data-track="unlogged-prickles-open"
               className="text-sm text-slate-900 dark:text-slate-100 hover:text-plum-600 dark:hover:text-plum-400 truncate"
             >
               {p.label}
@@ -64,6 +65,7 @@ export default function UnloggedPricklesCard({ prickles }: UnloggedPricklesCardP
               <button
                 type="button"
                 onClick={() => setCheckingOut(p.id)}
+                data-track="unlogged-prickles-check-out"
                 className="px-3 py-1 rounded-full text-xs font-medium border border-plum-300 dark:border-plum-700 text-plum-700 dark:text-plum-300 hover:bg-plum-50 dark:hover:bg-plum-950 transition-colors whitespace-nowrap"
               >
                 Check out →
@@ -71,6 +73,7 @@ export default function UnloggedPricklesCard({ prickles }: UnloggedPricklesCardP
               <button
                 type="button"
                 onClick={() => handleDismiss(p.id)}
+                data-track="unlogged-prickles-dismiss"
                 aria-label={`Dismiss ${p.label}`}
                 title="Not checking out of this one"
                 className="px-2 py-1 text-sm text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 rounded-lg"

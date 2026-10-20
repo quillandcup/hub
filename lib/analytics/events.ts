@@ -46,6 +46,14 @@ export const EVENTS = {
     target_route: optional(text(120)),
   },
 
+  /**
+   * A named control (one with `data-track="..."`) scrolled into view, once per visit
+   * (lib/analytics/impressions.ts). The denominator for click-through: how many visits saw a
+   * control against how many clicked it, which is what shows a control nobody uses. `route` is
+   * the page it was first seen on.
+   */
+  element_seen: { name: text(80), route: text(120) },
+
   // On air light (components/LiveRoomIndicator.tsx). `live` is whether anyone was at the table.
   onair_popover_opened: { live: bool(), room_size: int() },
   /** "Join on Zoom" when live; "Start a PUP on Zoom" when off air. */

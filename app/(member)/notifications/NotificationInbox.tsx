@@ -145,6 +145,7 @@ export default function NotificationInbox({
         <button
           type="button"
           onClick={toggleEditing}
+          data-track="notification-inbox-edit-multiple"
           aria-pressed={editing}
           className="ml-auto text-sm text-plum-600 hover:underline dark:text-plum-400"
         >
@@ -153,6 +154,7 @@ export default function NotificationInbox({
         <button
           type="button"
           onClick={readAll}
+          data-track="notification-inbox-read-all"
           disabled={unread === 0}
           className="text-sm text-plum-600 hover:underline disabled:cursor-default disabled:text-slate-400 disabled:no-underline dark:text-plum-400"
         >

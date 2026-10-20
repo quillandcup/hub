@@ -80,6 +80,7 @@ export default function UserMenu({
             {memberId && (
               <Link
                 href={`/members/${memberId}`}
+                data-track="user-menu-profile"
                 className="block px-4 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
                 onClick={() => setIsOpen(false)}
               >
@@ -89,6 +90,7 @@ export default function UserMenu({
 
             <Link
               href="/settings"
+              data-track="user-menu-settings"
               className="block px-4 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
               onClick={() => setIsOpen(false)}
             >
@@ -99,6 +101,7 @@ export default function UserMenu({
               <button
                 type="button"
                 disabled={isStartingTour}
+                data-track="user-menu-tour"
                 onClick={() =>
                   startTourTransition(async () => {
                     // Revalidates the layout, which re-renders the guide with the restarted tour.
@@ -116,6 +119,7 @@ export default function UserMenu({
               <button
                 type="button"
                 onClick={() => { setIsOpen(false); setIsSudoModalOpen(true) }}
+                data-track="user-menu-sudo"
                 className="w-full text-left px-4 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
               >
                 Sudo As...
