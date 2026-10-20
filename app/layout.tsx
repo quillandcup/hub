@@ -17,6 +17,7 @@ import { analyticsUserId } from "@/lib/analytics-user";
 import { countryNeedsConsent } from "@/lib/gdpr-countries";
 import { DEFAULT_TITLE, TITLE_TEMPLATE } from "@/lib/page-title";
 import appConfig from "@/app.config";
+import { APP_URL } from "@/lib/config";
 
 // Brand display serif for headings and the wordmark (tailwind `font-display`).
 const displayFont = Playfair_Display({
@@ -26,12 +27,16 @@ const displayFont = Playfair_Display({
 });
 
 export const metadata: Metadata = {
+  // Resolves the relative og:image URL (app/opengraph-image.png) to an absolute one for link unfurls.
+  metadataBase: new URL(APP_URL),
   title: {
     default: DEFAULT_TITLE,
     template: TITLE_TEMPLATE,
   },
   description:
     "The Quill & Cup member hub: find prickles and events, track your writing streaks and projects, and connect with fellow writers.",
+  openGraph: { siteName: appConfig.appName, type: "website" },
+  twitter: { card: "summary" },
   icons: {
     icon: '/icon.png',
     apple: '/billiebot.png',
