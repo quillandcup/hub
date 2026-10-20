@@ -318,6 +318,64 @@ does not make the id private. `events` and `programs` are the same.
 - Code that takes an id from a request and compares it to a column should validate the shape
   (`<prefix>_<12 chars>`), not use `.uuid()`; see "App and test changes".
 
+## Rehearsal, cutover and failure modes
+
+### Rehearse on a copy first
+
+1. Dump production (`supabase db dump --linked`, schema plus data, read-only on prod) into a
+   fresh local stack like the scratch one used for the inventory. The dump holds real member
+   data: keep it outside the repo, never commit it, delete it afterwards.
+2. Apply the phase's migration there and record the wall-clock time per statement (it is an
+   upper bound for prod, which has similar data on faster hardware, but measure rather than
+   guess).
+3. Run the whole check list on the copy: row counts equal, zero orphan foreign keys, zero old
+   uuids left in text/jsonb, pgTAP, then the unit and db suites and a manual click-through of
+   the Tier 1 pages (member, prickle, event, course, lesson).
+4. Repeat until the copy is clean, then rehearse the failure path: kill the migration midway
+   and confirm nothing changed.
+
+### Expected downtime
+
+Each migration file runs in one transaction, and Postgres DDL is transactional, so the schema
+is either entirely old or entirely new. Inside it the migration takes `ACCESS EXCLUSIVE` locks
+on every table it alters, so reads and writes to those tables wait for the whole transaction.
+Prod is about 250k rows, so the estimate is **tens of seconds to a couple of minutes per
+phase**, to be replaced by the rehearsal number. Waiting queries from the app fail once
+`lock_timeout` (8s for `authenticator`) is hit, so treat the window as an outage, not a
+slowdown: pick a quiet hour, post the one-line notice, and pause the writers during it
+(pg_cron jobs, the Slack, Zoom and Kajabi webhooks, which their senders retry or the nightly
+reconciliation catches up).
+
+### If the migration partially succeeds
+
+Within one migration file it cannot: any error rolls the whole file back and production stays
+on the old schema and old code. The one real "partial" state is **between phases**, since each
+phase is its own migration. A later phase failing leaves the earlier phases applied, which is
+fine only because each phase's app code ships with that phase; never apply a phase's migration
+without its code. Two parts live outside the transaction and are not atomic: Storage object
+moves through the Storage API (the `book-covers` objects) and the Vercel deploy. Run those
+after the migration and make them re-runnable.
+
+### If the migration works but the deploy fails
+
+The old deployment keeps serving (Vercel does not replace it until the new one is ready), now
+against the new schema. That mostly works, since the app talks to Postgres in strings, but it is
+degraded: routes that validate with `.uuid()` reject every new id (so links to converted pages
+fail), and code that mints a primary key itself (`randomUUID()` in `app/api/feedback`) stores an
+old-format value. So **migrate first, deploy right after** (the CI order) is correct, but the
+gap must be short and the deploy must not be able to fail late.
+
+To get there for this change, do not rely on the normal push-to-main sequence:
+- Build the new code as a preview deployment first, and run the unit and db suites against the
+  rehearsed copy with it. A broken build is found before anything touches prod.
+- Cut over by hand: pause writers, take a backup (Supabase point-in-time recovery marker, plus
+  a `pg_dump` of the affected tables), run the migration, **promote the already-built
+  deployment** (seconds, with nothing left to fail), verify, resume writers.
+- Rolling back after the cutover means restoring the backup and promoting the previous
+  deployment, losing any writes since. The mapping table is dropped at the end of the
+  migration, so there is no reverse migration; keep the pre-cutover backup until the next
+  phase.
+
 ## Phases
 
 Converting a table rewrites the columns that reference it, in the same migration, so a mixed
