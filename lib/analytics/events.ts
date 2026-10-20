@@ -54,6 +54,47 @@ export const EVENTS = {
    */
   element_seen: { name: text(80), route: text(120) },
 
+  // Search (components/search, app/(member)/chat/search). Never the query text: only its shape
+  // (lib/analytics/search.ts) and what happened with the results.
+  /** The header search palette opened: by its button, by Cmd/Ctrl+K, or by pressing "/". */
+  search_opened: { via: oneOf("button", "shortcut_k", "shortcut_slash") },
+  /**
+   * A search ran and its results were shown (the palette reports once typing settles or the member
+   * acts, not per keystroke). `kind` is the `in:` scope or "all", `operators` the operator names
+   * used, `results` the hits shown and `chat_results` how many of them were chat messages.
+   */
+  search_ran: {
+    surface: oneOf("palette", "page", "chat_page"),
+    kind: text(20),
+    operators: text(60),
+    words: int(50),
+    results: int(),
+    chat_results: int(),
+    chat_searched: bool(),
+  },
+  /** A search result was opened: `kind` is what it was (chat, members, pages...), `rank` its place in the list (1 = first). */
+  search_result_clicked: {
+    surface: oneOf("palette", "page", "chat_page"),
+    kind: text(20),
+    rank: int(1000),
+    via: oneOf("click", "enter"),
+  },
+  /** A suggestion on the empty palette was opened: something needing attention, a recent place, or a recent search. */
+  search_suggestion_clicked: {
+    source: oneOf("needs_attention", "recent_place", "recent_search"),
+    kind: text(20),
+    rank: int(100),
+    via: oneOf("click", "enter"),
+  },
+  /** A palette filter was changed (`option` is from a fixed list: a kind, a chip, a time range, an operator name). */
+  search_filter_used: {
+    filter: oneOf("kind", "quick_chip", "from_button", "time_range", "more_option", "date", "completion"),
+    option: optional(text(40)),
+  },
+
+  /** A course lesson was marked complete or cleared (app/(member)/courses/LessonCompletion.tsx): by the member's button, or automatically when the player reached the watched mark. */
+  lesson_completion_changed: { completed: bool(), via: oneOf("button", "watched") },
+
   // On air light (components/LiveRoomIndicator.tsx). `live` is whether anyone was at the table.
   onair_popover_opened: { live: bool(), room_size: int() },
   /** "Join on Zoom" when live; "Start a PUP on Zoom" when off air. */

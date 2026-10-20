@@ -18,6 +18,7 @@ export default function MarkCompleteButton() {
       <button
         type="button"
         onClick={toggle}
+        data-track={completed ? "lesson-unmark-complete" : "lesson-mark-complete"}
         disabled={!!readOnlyReason || pending}
         aria-pressed={completed}
         title={readOnlyReason ?? undefined}

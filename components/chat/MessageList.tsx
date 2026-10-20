@@ -162,6 +162,7 @@ export default function MessageList({
           <button
             type="button"
             onClick={() => void loadOlder()}
+            data-track="chat-load-older"
             disabled={loading}
             className="inline-block mb-2 text-sm text-plum-600 dark:text-plum-400 hover:underline disabled:opacity-60"
           >

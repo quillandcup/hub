@@ -54,6 +54,7 @@ function LessonRow({ slug, lesson, completed, canOpen, current, previewComingSoo
     <li>
       <Link
         href={`/courses/${slug}/lessons/${lesson.id}`}
+        data-track="course-outline-lesson"
         aria-current={current ? "page" : undefined}
         className={`${base} hover:bg-slate-50 dark:hover:bg-slate-800 ${current ? "bg-plum-50 text-plum-900 dark:bg-slate-800 dark:text-slate-100" : ""}`}
       >

@@ -55,7 +55,7 @@ export default function MemberDirectory({
       {results.length === 0 ? (
         <p className="text-sm text-slate-500 dark:text-slate-400">
           No one matches &ldquo;{query}&rdquo;.{" "}
-          <button type="button" onClick={() => search("")} className="underline">
+          <button type="button" onClick={() => search("")} data-track="directory-clear-search" className="underline">
             Clear search
           </button>
         </p>
@@ -71,6 +71,7 @@ export default function MemberDirectory({
                 <div className="flex items-baseline gap-2">
                   <Link
                     href={`/members/${entry.id}`}
+                    data-track="directory-open-member"
                     className="font-semibold text-slate-900 dark:text-slate-100 hover:underline truncate"
                   >
                     {entry.displayName}
@@ -107,6 +108,7 @@ export default function MemberDirectory({
                       <button
                         key={topic}
                         type="button"
+                        data-track="directory-topic"
                         onClick={() => search(topic)}
                         className="rounded-full bg-plum-50 dark:bg-plum-900/30 text-plum-700 dark:text-plum-300 text-xs px-2 py-0.5 hover:bg-plum-100 dark:hover:bg-plum-900/50"
                         title={`Show everyone who mentions ${topic}`}

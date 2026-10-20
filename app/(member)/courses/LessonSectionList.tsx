@@ -53,6 +53,7 @@ function Row({ slug, lesson, number, completed, current, openable }: { slug: str
     <li>
       <Link
         href={`/courses/${slug}/lessons/${lesson.id}`}
+        data-track="lesson-section-list-item"
         aria-current={current ? "page" : undefined}
         className={`${layout} transition hover:bg-white/5 ${current ? "bg-white/10" : ""}`}
       >
@@ -98,6 +99,7 @@ export default function LessonSectionList({ slug, section, completed, currentLes
         <div className="mt-4 flex justify-center">
           <Link
             href={`/courses/${slug}/lessons/${nextModule.id}`}
+            data-track="lesson-next-module"
             className="rounded bg-white/10 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-white/20"
           >
             Next Module

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { FEATURE_PREVIEWS, type FeatureKey } from "@/lib/features";
+import { trackSlug } from "@/lib/analytics/names";
 
 /** Admin-only: switch feature previews on or off for the signed-in admin. */
 export function PreviewsPanel({ enabledFeatures }: { enabledFeatures: FeatureKey[] }) {
@@ -46,6 +47,7 @@ export function PreviewsPanel({ enabledFeatures }: { enabledFeatures: FeatureKey
               </div>
               <button
                 role="switch"
+                data-track={`settings-preview-${trackSlug(feature.key)}`}
                 aria-checked={isEnabled}
                 aria-label={feature.name}
                 disabled={loading === feature.key}

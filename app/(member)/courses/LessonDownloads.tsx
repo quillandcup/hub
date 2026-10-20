@@ -14,6 +14,7 @@ export default function LessonDownloads({ slug, lessonId, files }: { slug: strin
             <li key={file.id}>
               <a
                 href={`/courses/${slug}/lessons/${lessonId}/files/${file.id}`}
+                data-track="lesson-download-file"
                 className="flex items-start gap-2 text-sm text-plum-700 hover:underline dark:text-plum-300"
               >
                 <span aria-hidden="true">📄</span>

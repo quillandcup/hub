@@ -111,6 +111,7 @@ export function TimezoneSwitcher({ initialTimezone = "browser" }: TimezoneSwitch
       </label>
       <select
         id="timezone"
+        data-track="settings-timezone"
         value={current}
         onChange={(e) => handleChange(e.target.value)}
         disabled={saving || !current}
@@ -132,6 +133,7 @@ export function TimezoneSwitcher({ initialTimezone = "browser" }: TimezoneSwitch
         <button
           type="button"
           onClick={() => handleChange(browserTimezone)}
+          data-track="settings-timezone-use-browser"
           disabled={saving}
           className="mt-2 inline-flex items-center gap-1.5 text-sm font-medium text-plum-600 hover:underline disabled:opacity-50 dark:text-plum-400"
         >

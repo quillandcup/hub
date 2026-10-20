@@ -280,6 +280,7 @@ export default function ChatLive({
       {hasNew && (
         <button
           type="button"
+          data-track="chat-new-messages"
           onClick={() => {
             followNewest.current = true;
             setAnnouncedAt(null);

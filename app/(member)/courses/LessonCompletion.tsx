@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useRef, useState, useTransition, type ReactNode } from "react";
 import { setLessonComplete } from "./actions";
+import { track } from "@/lib/analytics/client";
 
 /** A lesson counts as watched once the playhead passes this fraction of the video (Kajabi's "about 90%"). */
 export const AUTO_COMPLETE_FRACTION = 0.9;
@@ -62,12 +63,14 @@ export function LessonCompletionProvider({
   const toggle = useCallback(() => {
     if (readOnlyReason) return;
     decidedByMember.current = true;
+    track("lesson_completion_changed", { completed: !completed, via: "button" });
     apply(!completed);
   }, [apply, completed, readOnlyReason]);
 
   const autoComplete = useCallback(() => {
     if (readOnlyReason || completed || autoDone.current || decidedByMember.current) return;
     autoDone.current = true;
+    track("lesson_completion_changed", { completed: true, via: "watched" });
     apply(true);
   }, [apply, completed, readOnlyReason]);
 

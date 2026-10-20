@@ -51,7 +51,7 @@ export default function ProfileCard({ member }: { member: MemberCard }) {
       />
 
       <p className="text-center">
-        <Link href={`/members/${member.id}`} className="text-sm text-plum-600 hover:underline dark:text-plum-400">
+        <Link href={`/members/${member.id}`} data-track="chat-profile-card-open" className="text-sm text-plum-600 hover:underline dark:text-plum-400">
           View full profile
         </Link>
       </p>

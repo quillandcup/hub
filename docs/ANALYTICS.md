@@ -33,6 +33,26 @@ No migration is needed. Before shipping a feature, write down what use would mak
 
 `/admin/analytics` also ranks the most-clicked things: each control named by its `data-track` name, else its label, else where a link goes, with an optional page prefix and the admin area hidden by default so staff browsing doesn't drown out members. In the explorer a breakdown has its own filters (the funnel's don't apply to it), and free-form filter boxes suggest the values that really occur (last 90 days).
 
+## Search
+
+Search is measured with a few typed events plus named controls (`lib/analytics/search.ts`, `components/search/`). **The query text is never recorded**: a query can hold a name, an email or a phrase from a message. What is recorded is its *shape*: the `in:` scope (a fixed list), which operators it used (by name only: `from:fern` is just "from"), and how many words it had.
+
+| Event | Fires | Answers |
+|---|---|---|
+| `search_opened` | the palette opens (`button`, `shortcut_k`, `shortcut_slash`) | how people reach search |
+| `search_ran` | a search's results were shown (palette: once typing settles or the member acts, not per keystroke; results page and chat search page: on render) | how often each surface is used, how often chat is searched (`chat_searched`), zero-result rate (`results`), which scopes and operators are used |
+| `search_result_clicked` | a result was opened, with its `kind` (chat, members...), `rank`, and `via` click or Enter | how often chat messages (or any kind) are clicked, and how far down |
+| `search_suggestion_clicked` | something on the empty palette was opened: needs attention, a recent place, or a recent search | whether those sections earn their place |
+| `search_filter_used` | a palette filter changed (kind, quick chip, From..., time range, a + option, a date, an autocomplete choice) | which filters get used |
+
+`surface` is `palette`, `page` (the full results page, also `/admin/search`) or `chat_page`. Every palette button is also a named control (`search-filters-toggle`, `search-history-toggle`, `search-recent-item`, `search-attention-item`, `search-place-item`, `search-show-more`, `search-view-all`...), so the Least-clicked table shows click-through per button, counted when the palette opens. In the Explore page, break `search_ran` down by `kind`, `chat_searched` or `surface`.
+
+Pages that report as they render use `trackWhenEnabled` (`lib/analytics/client.ts`): on a first page load the report can run a moment before consent has been read, so it waits for tracking to be switched on, and is dropped (never held) if it isn't.
+
+## What analytics is not for
+
+Operational records stay in their own tables. The Wheel of Wonder's connections (`wheel_of_wonder_matches`) are the source of truth for who was matched and whether a Slack reply confirmed it: they drive the spin's matching, the count shown to members, and are written server-side from Slack webhooks. Usage events are consent-gated, lossy (a declined banner, a blocked script, a closed tab) and deliberately hold no other member's id, so they can show the *funnel around* a feature (spun, revealed, joined) but not replace its record.
+
 ## Who the numbers count
 
 Both usage pages have two filters (`lib/analytics/audience.ts`, `components/admin/AudienceFilter.tsx`), kept in the address (`staff=hide`, `sudo=show`) so a view can be shared:

@@ -10,6 +10,9 @@ import { applyCompletion, completionContext, isServerOperator, staticOptions, ty
 import { KIND_GLYPHS, formatHitDate } from "@/lib/search/format";
 import { KIND_LABELS, type SearchHit } from "@/lib/search/kinds";
 import { TITLE_TEMPLATE } from "@/lib/page-title";
+import { track } from "@/lib/analytics/client";
+import { trackSlug } from "@/lib/analytics/names";
+import { searchShape } from "@/lib/analytics/search";
 import {
   FILTERS_ON_KEY, HISTORY_ON_KEY, isTrackablePlace, readFlag, readPlaces, readSearches, removeSearch, saveSearch, savePlace, writeFlag, type Place,
 } from "@/lib/search/recents";
@@ -20,6 +23,8 @@ import SearchSpinner from "@/components/search/SearchSpinner";
 const DEBOUNCE_MS = 150;
 const MIN_QUERY_CHARS = 2;
 const PLACES_SHOWN = 5;
+/** How long typing must pause before a search counts as one the member meant to run (see reportSearch). */
+const REPORT_SETTLE_MS = 800;
 
 /** One-click filters. `inline` ones are always chips in the bar; the rest are first in "+" and show as a chip while on. */
 const QUICK_CHIPS: { label: string; token: () => string; chatOnly?: boolean; inline?: boolean }[] = [
@@ -68,6 +73,12 @@ function placeGlyph(href: string): string {
   return glyphs[first ?? ""] ?? "Pg";
 }
 
+/** Which part of the app a visited page is in (its first path segment, never an id), for analytics. */
+function placeArea(href: string): string {
+  const parts = href.split("/").filter(Boolean);
+  return (parts[0] === "admin" ? "admin" : (parts[0] ?? "home")).slice(0, 20);
+}
+
 const SearchIcon = ({ className }: { className?: string }) => (
   <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" className={className} aria-hidden="true">
     <circle cx="9" cy="9" r="6" />
@@ -110,6 +121,8 @@ interface NavRow {
   key: string;
   href?: string;
   onSelect?: () => void;
+  /** Reports the row being opened with Enter (a click is reported where the row is rendered). */
+  track?: () => void;
 }
 
 /**
@@ -142,29 +155,71 @@ export default function SearchPalette({ resultsPath, isAdmin }: { resultsPath: s
   const [storeVersion, setStoreVersion] = useState(0);
   const [copied, setCopied] = useState<string | null>(null);
 
+  // Usage analytics (lib/analytics/search.ts): what a search looked like, never what was typed.
+  const openRef = useRef(false);
+  const pendingReport = useRef<{ q: string; data: PaletteSearch } | null>(null);
+  const reportTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const reported = useRef<string | null>(null);
+
+  /**
+   * Records the latest settled search once: when typing pauses, or at once when the member acts on
+   * the results or closes the palette, whichever comes first. A search typed word by word is one
+   * search, not one per keystroke, and reopening to the same query doesn't count again.
+   */
+  const reportSearch = useCallback(() => {
+    clearTimeout(reportTimer.current);
+    const pending = pendingReport.current;
+    pendingReport.current = null;
+    if (!pending || reported.current === pending.q) return;
+    reported.current = pending.q;
+    const shape = searchShape(pending.q);
+    const hitsShown = pending.data.results.flatMap((r) => r.hits);
+    track("search_ran", {
+      surface: "palette",
+      kind: shape.kind,
+      operators: shape.operators,
+      words: shape.words,
+      results: hitsShown.length,
+      chat_results: hitsShown.filter((h) => h.kind === "chat").length,
+      chat_searched: pending.data.chatSearched === true,
+    });
+  }, []);
+  useEffect(() => () => clearTimeout(reportTimer.current), []);
+
+  const openPalette = useCallback((via: "button" | "shortcut_k" | "shortcut_slash") => {
+    if (!openRef.current) track("search_opened", { via });
+    setOpen(true);
+  }, []);
+
   const close = useCallback(() => {
+    reportSearch();
     setOpen(false);
     setMenuOpen(false);
-  }, []);
+  }, [reportSearch]);
+
+  useEffect(() => {
+    openRef.current = open;
+  }, [open]);
 
   // ⌘K / Ctrl+K toggles; "/" opens when you aren't typing somewhere.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
-        setOpen((o) => !o);
+        if (openRef.current) close();
+        else openPalette("shortcut_k");
         return;
       }
       const el = e.target as HTMLElement | null;
       const typing = el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || el.isContentEditable);
       if (e.key === "/" && !typing && !e.metaKey && !e.ctrlKey && !e.altKey) {
         e.preventDefault();
-        setOpen(true);
+        openPalette("shortcut_slash");
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  }, [close, openPalette]);
 
   // Opening: reopening keeps the last query, selected so typing replaces it (as in Slack), and
   // asks what needs the member (it changes between visits, so never cached).
@@ -222,6 +277,9 @@ export default function SearchPalette({ resultsPath, isAdmin }: { resultsPath: s
         if (id === requestId.current) {
           setData(next);
           setAnsweredFor(q);
+          pendingReport.current = { q, data: next };
+          clearTimeout(reportTimer.current);
+          reportTimer.current = setTimeout(reportSearch, REPORT_SETTLE_MS);
         }
       } catch {
         if (id === requestId.current) {
@@ -231,7 +289,7 @@ export default function SearchPalette({ resultsPath, isAdmin }: { resultsPath: s
       }
     }, DEBOUNCE_MS);
     return () => clearTimeout(timer);
-  }, [input, open]);
+  }, [input, open, reportSearch]);
 
   // Members and channels for `from:` and `channel:`, as they are typed.
   useEffect(() => {
@@ -306,6 +364,7 @@ export default function SearchPalette({ resultsPath, isAdmin }: { resultsPath: s
 
   const accept = (option: CompletionOption) => {
     if (!completion) return;
+    track("search_filter_used", { filter: "completion", option: completion.operator.slice(0, 40) });
     setInput((cur) => applyCompletion(cur, completion, option));
     inputRef.current?.focus();
   };
@@ -314,6 +373,19 @@ export default function SearchPalette({ resultsPath, isAdmin }: { resultsPath: s
     saveSearch(input);
     close();
     router.push(href);
+  };
+
+  /** Opening a result by click: report the search, then the click, then go. */
+  const openHit = (hit: SearchHit, rank: number) => {
+    reportSearch();
+    track("search_result_clicked", { surface: "palette", kind: hit.kind, rank, via: "click" });
+    saveSearch(input);
+    close();
+  };
+
+  const chooseRecent = (query: string, rank: number, via: "click" | "enter") => {
+    track("search_suggestion_clicked", { source: "recent_search", kind: "search", rank, via });
+    setInput(query);
   };
 
   const toggleFilters = () => {
@@ -350,9 +422,26 @@ export default function SearchPalette({ resultsPath, isAdmin }: { resultsPath: s
   // What the arrow keys walk, and what Enter does on it.
   const rows = useMemo<NavRow[]>(() => {
     if (mode === "completion") return (options ?? []).map((o) => ({ key: o.value, onSelect: () => accept(o) }));
-    if (mode === "history") return recents.map((r) => ({ key: r, onSelect: () => setInput(r) }));
-    if (mode === "home") return [...needsAttention.map((s) => ({ key: s.id, href: s.href })), ...places.map((p) => ({ key: `place:${p.href}`, href: p.href }))];
-    return hits.map((h) => ({ key: `${h.kind}:${h.id}`, href: h.href }));
+    if (mode === "history") return recents.map((r, i) => ({ key: r, onSelect: () => chooseRecent(r, i + 1, "enter") }));
+    if (mode === "home") {
+      return [
+        ...needsAttention.map((s, i) => ({
+          key: s.id,
+          href: s.href,
+          track: () => track("search_suggestion_clicked", { source: "needs_attention", kind: s.kind, rank: i + 1, via: "enter" }),
+        })),
+        ...places.map((p, i) => ({
+          key: `place:${p.href}`,
+          href: p.href,
+          track: () => track("search_suggestion_clicked", { source: "recent_place", kind: placeArea(p.href), rank: needsAttention.length + i + 1, via: "enter" }),
+        })),
+      ];
+    }
+    return hits.map((h, i) => ({
+      key: `${h.kind}:${h.id}`,
+      href: h.href,
+      track: () => track("search_result_clicked", { surface: "palette", kind: h.kind, rank: i + 1, via: "enter" }),
+    }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, options, recents, needsAttention, places, hits, completion]);
 
@@ -382,6 +471,8 @@ export default function SearchPalette({ resultsPath, isAdmin }: { resultsPath: s
         row.onSelect();
       } else if (row?.href) {
         e.preventDefault();
+        reportSearch();
+        row.track?.();
         go(row.href);
       } else if (trimmed) {
         e.preventDefault();
@@ -402,7 +493,8 @@ export default function SearchPalette({ resultsPath, isAdmin }: { resultsPath: s
     <>
       <button
         type="button"
-        onClick={() => setOpen(true)}
+        onClick={() => openPalette("button")}
+        data-track="search-open"
         className="mr-auto flex h-10 items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 text-sm text-slate-500 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-600 sm:w-80 lg:w-[28rem] xl:w-[36rem]"
         aria-label="Search"
         aria-keyshortcuts="Meta+K Control+K"
@@ -435,13 +527,14 @@ export default function SearchPalette({ resultsPath, isAdmin }: { resultsPath: s
                 spellCheck={false}
               />
               {input && (
-                <button type="button" onClick={() => { setInput(""); inputRef.current?.focus(); }} className="flex-shrink-0 px-1 text-sm text-slate-500 hover:text-slate-800 dark:hover:text-slate-200">
+                <button type="button" onClick={() => { setInput(""); inputRef.current?.focus(); }} data-track="search-clear" className="flex-shrink-0 px-1 text-sm text-slate-500 hover:text-slate-800 dark:hover:text-slate-200">
                   Clear
                 </button>
               )}
               <button
                 type="button"
                 onClick={toggleFilters}
+                data-track="search-filters-toggle"
                 aria-pressed={showFilters}
                 aria-label={showFilters ? "Hide filters" : "Show filters"}
                 title={showFilters ? "Hide filters" : "Show filters"}
@@ -452,6 +545,7 @@ export default function SearchPalette({ resultsPath, isAdmin }: { resultsPath: s
               <button
                 type="button"
                 onClick={toggleHistory}
+                data-track="search-history-toggle"
                 aria-pressed={historyOn}
                 aria-label={historyOn ? "Hide search history" : "Show search history"}
                 title={historyOn ? "Hide search history" : "Show search history"}
@@ -462,6 +556,7 @@ export default function SearchPalette({ resultsPath, isAdmin }: { resultsPath: s
               <button
                 type="button"
                 onClick={close}
+                data-track="search-close"
                 className="sm:hidden flex-shrink-0 rounded-md border border-slate-300 dark:border-slate-600 px-2 py-1 text-sm text-slate-600 dark:text-slate-300"
                 aria-label="Close search"
               >
@@ -474,8 +569,12 @@ export default function SearchPalette({ resultsPath, isAdmin }: { resultsPath: s
                 <div className="flex flex-wrap gap-1.5 px-4 py-2">
                   <select
                     aria-label="Search in"
+                    data-track="search-filter-kind"
                     value={parsed.kind ?? ""}
-                    onChange={(e) => setInput((cur) => withKind(cur, (e.target.value || undefined) as Parameters<typeof withKind>[1]))}
+                    onChange={(e) => {
+                      track("search_filter_used", { filter: "kind", option: e.target.value || "everything" });
+                      setInput((cur) => withKind(cur, (e.target.value || undefined) as Parameters<typeof withKind>[1]));
+                    }}
                     className={`rounded-md border bg-transparent px-2 py-1.5 sm:py-1 text-xs ${parsed.kind ? "border-plum-500 bg-plum-50 text-plum-700 dark:bg-plum-900/30 dark:text-plum-300" : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300"}`}
                   >
                     <option value="">Everything</option>
@@ -489,7 +588,11 @@ export default function SearchPalette({ resultsPath, isAdmin }: { resultsPath: s
                       <button
                         key={chip.label}
                         type="button"
-                        onClick={() => toggleToken(chip.token())}
+                        onClick={() => {
+                          track("search_filter_used", { filter: "quick_chip", option: trackSlug(chip.label) });
+                          toggleToken(chip.token());
+                        }}
+                        data-track={`search-chip-${trackSlug(chip.label)}`}
                         aria-pressed={on}
                         className={`flex-shrink-0 whitespace-nowrap rounded-md border px-2.5 py-1.5 sm:px-2 sm:py-1 text-xs ${on ? "border-plum-500 bg-plum-50 text-plum-700 dark:bg-plum-900/30 dark:text-plum-300" : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"}`}
                       >
@@ -499,15 +602,23 @@ export default function SearchPalette({ resultsPath, isAdmin }: { resultsPath: s
                   })}
                   <button
                     type="button"
-                    onClick={() => addToInput("from:")}
+                    onClick={() => {
+                      track("search_filter_used", { filter: "from_button" });
+                      addToInput("from:");
+                    }}
+                    data-track="search-filter-from"
                     className="flex-shrink-0 whitespace-nowrap rounded-md border border-slate-200 dark:border-slate-700 px-2.5 py-1.5 sm:px-2 sm:py-1 text-xs text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
                   >
                     From…
                   </button>
                   <select
                     aria-label="Time range"
+                    data-track="search-filter-time"
                     value={timeRange ? String(timeRange.days) : afterToken ? "custom" : ""}
-                    onChange={(e) => setTimeRange(e.target.value)}
+                    onChange={(e) => {
+                      track("search_filter_used", { filter: "time_range", option: e.target.value ? `${e.target.value}d` : "any" });
+                      setTimeRange(e.target.value);
+                    }}
                     className={`rounded-md border bg-transparent px-2 py-1.5 sm:py-1 text-xs ${afterToken ? "border-plum-500 bg-plum-50 text-plum-700 dark:bg-plum-900/30 dark:text-plum-300" : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300"}`}
                   >
                     <option value="">Any time</option>
@@ -519,6 +630,7 @@ export default function SearchPalette({ resultsPath, isAdmin }: { resultsPath: s
                   <button
                     type="button"
                     onClick={() => setMenuOpen((m) => !m)}
+                    data-track="search-filter-more"
                     aria-expanded={menuOpen}
                     aria-label="More filters"
                     title="More filters"
@@ -539,7 +651,12 @@ export default function SearchPalette({ resultsPath, isAdmin }: { resultsPath: s
                           type="button"
                           role="menuitemcheckbox"
                           aria-checked={on}
-                          onClick={() => { toggleToken(token); setMenuOpen(false); }}
+                          data-track={`search-chip-${trackSlug(chip.label)}`}
+                          onClick={() => {
+                            track("search_filter_used", { filter: "quick_chip", option: trackSlug(chip.label) });
+                            toggleToken(token);
+                            setMenuOpen(false);
+                          }}
                           className="flex w-full items-center justify-between rounded px-2 py-1.5 text-left hover:bg-slate-100 dark:hover:bg-slate-800"
                         >
                           <span>{chip.label}</span>
@@ -551,7 +668,12 @@ export default function SearchPalette({ resultsPath, isAdmin }: { resultsPath: s
                       <button
                         key={o.token}
                         type="button"
-                        onClick={() => { addToInput(o.token); setMenuOpen(false); }}
+                        data-track={`search-more-${trackSlug(o.token)}`}
+                        onClick={() => {
+                          track("search_filter_used", { filter: "more_option", option: o.token.replace(/:$/, "") });
+                          addToInput(o.token);
+                          setMenuOpen(false);
+                        }}
                         className="flex w-full items-center justify-between rounded px-2 py-1.5 text-left hover:bg-slate-100 dark:hover:bg-slate-800"
                       >
                         <span>{o.label}</span>
@@ -564,8 +686,10 @@ export default function SearchPalette({ resultsPath, isAdmin }: { resultsPath: s
                         <input
                           type="date"
                           aria-label={op === "after" ? "After date" : "Before date"}
+                          data-track={`search-date-${op}`}
                           onChange={(e) => {
                             if (!e.target.value) return;
+                            track("search_filter_used", { filter: "date", option: op });
                             addToInput(`${op}:${e.target.value}`);
                             setMenuOpen(false);
                           }}
@@ -591,6 +715,7 @@ export default function SearchPalette({ resultsPath, isAdmin }: { resultsPath: s
                     <Row
                       key={o.value}
                       active={i === activeIndex}
+                      trackName="search-completion-option"
                       onClick={() => accept(o)}
                       icon={
                         o.imageUrl
@@ -614,13 +739,14 @@ export default function SearchPalette({ resultsPath, isAdmin }: { resultsPath: s
                       key={r}
                       className={`group flex items-center gap-1 pr-2 ${i === activeIndex ? "bg-slate-100 dark:bg-slate-800" : "hover:bg-slate-50 dark:hover:bg-slate-800/60"}`}
                     >
-                      <button type="button" onClick={() => setInput(r)} className="flex min-w-0 flex-1 items-center gap-3 px-4 py-3 sm:py-2 text-left text-sm">
+                      <button type="button" onClick={() => chooseRecent(r, i + 1, "click")} data-track="search-recent-item" className="flex min-w-0 flex-1 items-center gap-3 px-4 py-3 sm:py-2 text-left text-sm">
                         <ClockIcon className="h-5 w-5 flex-shrink-0 text-slate-400" />
                         <span className="min-w-0 flex-1 truncate">{r}</span>
                       </button>
                       <button
                         type="button"
                         onClick={() => copyRecent(r)}
+                        data-track="search-recent-copy"
                         title={copied === r ? "Copied" : "Copy search query"}
                         aria-label={`Copy search query “${r}”`}
                         className={`${iconButton} ${revealOnHover}`}
@@ -630,6 +756,7 @@ export default function SearchPalette({ resultsPath, isAdmin }: { resultsPath: s
                       <button
                         type="button"
                         onClick={() => deleteRecent(r)}
+                        data-track="search-recent-delete"
                         title="Delete"
                         aria-label={`Delete “${r}” from recent searches`}
                         className={`${iconButton} ${revealOnHover}`}
@@ -654,7 +781,11 @@ export default function SearchPalette({ resultsPath, isAdmin }: { resultsPath: s
                             <Row
                               active={flatIndex === activeIndex}
                               href={s.href}
-                              onOpen={close}
+                              trackName="search-attention-item"
+                              onOpen={() => {
+                                track("search_suggestion_clicked", { source: "needs_attention", kind: s.kind, rank: needsAttention.indexOf(s) + 1, via: "click" });
+                                close();
+                              }}
                               icon={<Glyph>{s.kind === "checkin" ? "✓" : s.kind === "chat" ? "#" : "!"}</Glyph>}
                               title={s.title}
                               subtitle={s.subtitle}
@@ -665,6 +796,7 @@ export default function SearchPalette({ resultsPath, isAdmin }: { resultsPath: s
                               <button
                                 type="button"
                                 onClick={() => dismissSuggestion(s)}
+                                data-track="search-attention-dismiss"
                                 title="Mark as read"
                                 aria-label={`Mark “${s.title}” as read`}
                                 className={`${iconButton} ${revealOnHover}`}
@@ -682,7 +814,21 @@ export default function SearchPalette({ resultsPath, isAdmin }: { resultsPath: s
                       <h3 className="px-4 pb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Recent places</h3>
                       {places.map((p: Place) => {
                         flatIndex++;
-                        return <Row key={p.href} active={flatIndex === activeIndex} href={p.href} onOpen={close} icon={<Glyph>{placeGlyph(p.href)}</Glyph>} title={p.title} />;
+                        const rank = needsAttention.length + places.indexOf(p) + 1;
+                        return (
+                          <Row
+                            key={p.href}
+                            active={flatIndex === activeIndex}
+                            href={p.href}
+                            trackName="search-place-item"
+                            onOpen={() => {
+                              track("search_suggestion_clicked", { source: "recent_place", kind: placeArea(p.href), rank, via: "click" });
+                              close();
+                            }}
+                            icon={<Glyph>{placeGlyph(p.href)}</Glyph>}
+                            title={p.title}
+                          />
+                        );
                       })}
                     </section>
                   )}
@@ -713,6 +859,7 @@ export default function SearchPalette({ resultsPath, isAdmin }: { resultsPath: s
                         {group.hasMore && (
                           <Link
                             href={`${resultsPath}?q=${encodeURIComponent(withKind(trimmed, group.kind))}`}
+                            data-track="search-show-more"
                             onClick={() => { saveSearch(input); close(); }}
                             className="text-xs text-plum-700 dark:text-plum-300 hover:underline"
                           >
@@ -722,7 +869,8 @@ export default function SearchPalette({ resultsPath, isAdmin }: { resultsPath: s
                       </div>
                       {group.hits.map((hit) => {
                         flatIndex++;
-                        return <HitRow key={`${hit.kind}:${hit.id}`} hit={hit} words={words} active={flatIndex === activeIndex} onOpen={() => { saveSearch(input); close(); }} />;
+                        const rank = flatIndex + 1;
+                        return <HitRow key={`${hit.kind}:${hit.id}`} hit={hit} words={words} active={flatIndex === activeIndex} onOpen={() => openHit(hit, rank)} />;
                       })}
                     </section>
                   ))}
@@ -730,6 +878,7 @@ export default function SearchPalette({ resultsPath, isAdmin }: { resultsPath: s
                   {shown?.chatSkipped && !shown.unknownKind && (
                     <Link
                       href={`${resultsPath}?q=${encodeURIComponent(withKind(trimmed, "chat"))}`}
+                      data-track="search-chat-prompt"
                       onClick={() => { saveSearch(input); close(); }}
                       className="block px-4 py-3 text-sm text-plum-700 dark:text-plum-300 hover:underline"
                     >
@@ -742,7 +891,7 @@ export default function SearchPalette({ resultsPath, isAdmin }: { resultsPath: s
 
             <div className="flex items-center justify-between border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 px-4 py-2 text-sm">
               {trimmed ? (
-                <Link href={resultsHref} onClick={() => { saveSearch(input); close(); }} className="font-medium text-plum-700 dark:text-plum-300 hover:underline">
+                <Link href={resultsHref} data-track="search-view-all" onClick={() => { saveSearch(input); close(); }} className="font-medium text-plum-700 dark:text-plum-300 hover:underline">
                   View all results
                 </Link>
               ) : (
@@ -771,7 +920,7 @@ function Glyph({ children }: { children: ReactNode }) {
 
 /** A suggestion or autocomplete row: a link when it has `href`, otherwise a button that runs `onClick`. */
 function Row({
-  active, icon, title, subtitle, right, href, onOpen, onClick,
+  active, icon, title, subtitle, right, href, onOpen, onClick, trackName,
 }: {
   active: boolean;
   icon: ReactNode;
@@ -781,6 +930,8 @@ function Row({
   href?: string;
   onOpen?: () => void;
   onClick?: () => void;
+  /** The `data-track` name, so usage of this kind of row can be counted. */
+  trackName?: string;
 }) {
   const linkRef = useRef<HTMLAnchorElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -800,11 +951,11 @@ function Row({
     </>
   );
   return href ? (
-    <Link ref={linkRef} href={href} onClick={onOpen} className={className} aria-current={active || undefined}>
+    <Link ref={linkRef} href={href} onClick={onOpen} data-track={trackName} className={className} aria-current={active || undefined}>
       {body}
     </Link>
   ) : (
-    <button ref={buttonRef} type="button" onClick={onClick} className={className} aria-current={active || undefined}>
+    <button ref={buttonRef} type="button" onClick={onClick} data-track={trackName} className={className} aria-current={active || undefined}>
       {body}
     </button>
   );
@@ -819,6 +970,7 @@ function HitRow({ hit, words, active, onOpen }: { hit: SearchHit; words: string[
     <Link
       ref={ref}
       href={hit.href}
+      data-track="search-hit"
       onClick={onOpen}
       className={`flex items-center gap-3 px-4 py-3 sm:py-2 text-sm ${hit.muted ? "opacity-60" : ""} ${active ? "bg-slate-100 dark:bg-slate-800" : "hover:bg-slate-50 dark:hover:bg-slate-800/60"}`}
       aria-current={active || undefined}

@@ -4,9 +4,12 @@ import { createClient } from "@/lib/supabase/server";
 import { requireChat } from "@/lib/chat/access";
 import { firstParam, isUuid, parseDay } from "@/lib/chat/format";
 import { chatTextContext, loadChatChannels } from "@/lib/chat/load";
-import { MAX_QUERY_LENGTH, searchChat } from "@/lib/chat/search";
+import { MAX_QUERY_LENGTH, SEARCH_PAGE_SIZE, searchChat } from "@/lib/chat/search";
 import { parseSearch } from "@/lib/chat/search-syntax";
 import MessageItem from "@/components/chat/MessageItem";
+import SearchHitLink from "@/components/search/SearchHitLink";
+import SearchRan from "@/components/search/SearchRan";
+import { searchShape } from "@/lib/analytics/search";
 
 export const metadata: Metadata = {
   title: "Search · Chat",
@@ -84,9 +87,24 @@ export default async function ChatSearchPage({
     return `/chat/search?${p.toString()}`;
   };
 
+  // For usage analytics: the shape of the query and how many messages came back, never the query.
+  const shape = searchShape(q);
+
   return (
     <div className="p-6 max-w-3xl">
-      <Link href="/chat" className="mb-2 inline-block text-sm text-plum-600 hover:underline md:hidden dark:text-plum-400">
+      {page && (
+        <SearchRan
+          key={`${q}|${channelParam ?? ""}|${pageNumber}`}
+          surface="chat_page"
+          kind="chat"
+          operators={shape.operators}
+          words={shape.words}
+          results={page.results.length}
+          chatResults={page.results.length}
+          chatSearched
+        />
+      )}
+      <Link href="/chat" data-track="chat-search-back" className="mb-2 inline-block text-sm text-plum-600 hover:underline md:hidden dark:text-plum-400">
         ← Channels
       </Link>
       <h1 className="text-2xl font-bold mb-3">Search messages</h1>
@@ -101,7 +119,7 @@ export default async function ChatSearchPage({
             aria-label="Search messages"
             className={inputClass}
           />
-          <button type="submit" className="px-4 py-1.5 rounded-lg bg-plum-600 text-white text-sm font-medium hover:bg-plum-700">
+          <button type="submit" data-track="chat-search-submit" className="px-4 py-1.5 rounded-lg bg-plum-600 text-white text-sm font-medium hover:bg-plum-700">
             Search
           </button>
         </div>
@@ -153,19 +171,30 @@ export default async function ChatSearchPage({
             </p>
           ) : (
             <ul>
-              {page.results.map((r) => (
+              {page.results.map((r, index) => (
                 <li key={r.message.id} className="border-b border-slate-100 dark:border-slate-800 last:border-0">
                   <p className="pt-3 text-xs text-slate-500 dark:text-slate-400">
-                    <Link href={`/chat/${r.channel.id}`} className="font-medium hover:underline">
+                    <SearchHitLink
+                      href={`/chat/${r.channel.id}`}
+                      surface="chat_page"
+                      kind="chat"
+                      rank={pageNumber * SEARCH_PAGE_SIZE + index + 1}
+                      data-track="chat-search-channel"
+                      className="font-medium hover:underline"
+                    >
                       {r.channel.label}
-                    </Link>
+                    </SearchHitLink>
                     {" · "}
-                    <Link
+                    <SearchHitLink
                       href={`/chat/${r.channel.id}?thread=${r.threadId}#m-${r.message.id}`}
+                      surface="chat_page"
+                      kind="chat"
+                      rank={pageNumber * SEARCH_PAGE_SIZE + index + 1}
+                      data-track="chat-search-open-message"
                       className="text-plum-600 dark:text-plum-400 hover:underline"
                     >
                       {r.threadId === r.message.id ? "Open" : "Open thread"}
-                    </Link>
+                    </SearchHitLink>
                   </p>
                   <MessageItem message={r.message} ctx={ctx} channelId={r.channel.id} inThread />
                 </li>
@@ -174,12 +203,12 @@ export default async function ChatSearchPage({
           )}
           <nav aria-label="Pages" className="mt-3 flex gap-4 text-sm">
             {pageNumber > 0 && (
-              <Link href={linkTo(pageNumber - 1)} className="text-plum-600 dark:text-plum-400 hover:underline">
+              <Link href={linkTo(pageNumber - 1)} data-track="chat-search-previous" className="text-plum-600 dark:text-plum-400 hover:underline">
                 ← Previous
               </Link>
             )}
             {page.hasMore && (
-              <Link href={linkTo(pageNumber + 1)} className="text-plum-600 dark:text-plum-400 hover:underline">
+              <Link href={linkTo(pageNumber + 1)} data-track="chat-search-next" className="text-plum-600 dark:text-plum-400 hover:underline">
                 More results →
               </Link>
             )}
