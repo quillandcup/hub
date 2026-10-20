@@ -82,6 +82,14 @@ describe("LessonPlayer", () => {
       expect(player.playback.play).toHaveBeenCalledTimes(1);
     });
 
+    it("is large (and larger on bigger screens), so it reads as the way in rather than a control", () => {
+      render(ui());
+      const badge = screen.getByRole("button", { name: "Play video" }).firstElementChild as HTMLElement;
+
+      expect(badge).toHaveClass("h-20", "w-28", "sm:h-24", "sm:w-36", "lg:h-28", "lg:w-40");
+      expect(badge.querySelector("svg")).toHaveClass("h-11", "w-11", "lg:h-16", "lg:w-16");
+    });
+
     it("is gone once playback has started", () => {
       player.playback = { started: true, play: vi.fn() };
       render(ui());
