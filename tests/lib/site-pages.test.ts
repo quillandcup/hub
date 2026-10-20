@@ -15,7 +15,6 @@ const EXCLUDED: Record<string, string> = {
   "/search": "the search results page itself",
   "/chat/search": "chat's own search page, reached from chat",
   "/admin/search": "the search results page itself",
-  "/admin/reconciliation": "redirects to /admin/hygiene#reconciliation",
   "/admin/badges/new": "a create form, reached from Badges",
   "/admin/data/prickle-types/new": "a create form, reached from Prickle Types",
   "/admin/data/import/testing": "developer test harness, reached from Import Data",
