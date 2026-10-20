@@ -11,6 +11,7 @@ vi.mock('@/app/(member)/settings/identityActions', () => ({
   updateRealName: vi.fn(),
   updateBirthday: vi.fn(),
   setDisplayName: vi.fn(),
+  setCustomDisplayName: vi.fn(),
   addNameAlias: vi.fn(),
   setNameAliasActive: vi.fn(),
   addEmailAlias: vi.fn(),
@@ -105,5 +106,23 @@ describe('IdentityPanel', () => {
 
     await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Pick one of your active names'))
     expect(identityActions.setDisplayName).toHaveBeenCalledWith(null)
+  })
+
+  it('lets a member write their own display name, which is saved through one action', async () => {
+    vi.mocked(identityActions.getIdentitySettings).mockResolvedValue(baseSettings)
+    vi.mocked(identityActions.setCustomDisplayName).mockResolvedValue({ success: true })
+
+    render(<IdentityPanel />)
+    await waitFor(() => expect(screen.getByDisplayValue('Ada Lovelace')).toBeInTheDocument())
+
+    expect(screen.queryByLabelText('Your own display name')).not.toBeInTheDocument()
+    await userEvent.selectOptions(screen.getByDisplayValue('Ada Lovelace (Real Name)'), 'Write your own…')
+    const input = screen.getByLabelText('Your own display name')
+    await userEvent.type(input, 'River Wilde')
+    await userEvent.click(within(input.closest('form') as HTMLFormElement).getByRole('button', { name: 'Save' }))
+
+    expect(identityActions.setCustomDisplayName).toHaveBeenCalledWith('River Wilde')
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Display name updated.'))
+    expect(screen.queryByLabelText('Your own display name')).not.toBeInTheDocument()
   })
 })

@@ -24,6 +24,8 @@ export interface OutlineLesson {
   duration_seconds: number | null;
   /** Lesson thumbnail from Kajabi (https), when the content step recorded one. */
   thumbnail_url?: string | null;
+  /** Plain-text teaser of the lesson body. */
+  excerpt?: string | null;
 }
 
 export interface OutlineNode {

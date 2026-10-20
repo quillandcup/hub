@@ -27,7 +27,7 @@
  * types listed in Settings → Hosting, the vibe they run each type with.
  */
 
-export const ONBOARDING_STEP_IDS = ["identity", "profile", "intro", "writing", "prickles", "calendar", "big-sister", "hosting", "host-vibe"] as const;
+export const ONBOARDING_STEP_IDS = ["identity", "profile", "slack", "intro", "writing", "prickles", "calendar", "big-sister", "hosting", "host-vibe"] as const;
 export type OnboardingStepId = (typeof ONBOARDING_STEP_IDS)[number];
 
 /** What the member's own data says, gathered once per page load. */
@@ -61,6 +61,8 @@ export interface OnboardingSignals {
   hasCalendarSynced: boolean;
   /** Their Big Sister's name while the match is current (lib/my-mentorship.ts), else null. */
   bigSisterName?: string | null;
+  /** Whether the member can connect Slack in Settings (the panel is shown); absent/null means no step. */
+  slackConnect?: { connected: boolean } | null;
 }
 
 export interface OnboardingStepView {
@@ -102,6 +104,8 @@ export interface OnboardingRecord {
   marked_steps: string[];
   dismissed_at: string | null;
   completed_at: string | null;
+  /** Every step and stop key the member has been through or was shown when they finished; null for none. */
+  acknowledged_steps?: string[] | null;
 }
 
 export interface OnboardingRevisitStop {
@@ -123,15 +127,22 @@ const IDENTITY_STOPS: OnboardingStop[] = [
   {
     id: "basics",
     target: "identity-basics",
-    title: "Your name and birthday",
-    hint: "Is this the name you go by here? And add your birthday, just the month and day, so we can celebrate you!",
+    title: "Your Real Name",
+    hint: "This is your Real Name, the one on your account and records. Is it right? Other members may see a different name, which you choose next.",
     confirmLabel: "Looks right",
+  },
+  {
+    id: "display-name",
+    target: "identity-display-name",
+    title: "Your Display Name",
+    hint: "This is the name other members see everywhere, and it can differ from your Real Name. Pick your Real Name, a pen name, or write your own.",
+    confirmLabel: "My display name looks right",
   },
   {
     id: "names",
     target: "identity-names",
     title: "Pen names and Zoom/Slack names",
-    hint: "We match Zoom and Slack to you by name. If you ever join as something other than your real name, like a pen name or a nickname, add it here.",
+    hint: "We match Zoom and Slack to you by name. If you ever join as something other than your Real Name, like a pen name or a nickname, add it here.",
     confirmLabel: "My names look right",
   },
   {
@@ -141,7 +152,32 @@ const IDENTITY_STOPS: OnboardingStop[] = [
     hint: "Used another email with us, like an old Kajabi or Slack one? Add it here so it all counts as you.",
     confirmLabel: "My emails look right",
   },
+  {
+    id: "birthday",
+    target: "identity-birthday",
+    title: "Your birthday",
+    hint: "Add your birthday, just the month and day, so we can celebrate you!",
+    confirmLabel: "Skip",
+  },
 ];
+
+/** Every step id and stop key: what completing the tour records as seen, so later additions stand out. */
+export function allOnboardingKeys(): string[] {
+  return [...ONBOARDING_STEP_IDS, ...IDENTITY_STOPS.map((stop) => `identity.${stop.id}`)];
+}
+
+/**
+ * Step ids that were added after a finished tour: the step, or one of its stops, isn't in the
+ * snapshot taken at completion. Empty unless the tour was completed (not dismissed) with a snapshot.
+ */
+export function unseenStepIds(record: OnboardingRecord | null): OnboardingStepId[] {
+  if (!record?.completed_at || record.dismissed_at || !record.acknowledged_steps) return [];
+  const seen = new Set(record.acknowledged_steps);
+  return ONBOARDING_STEP_IDS.filter((id) => {
+    const keys = id === "identity" ? [id, ...IDENTITY_STOPS.map((s) => `identity.${s.id}`)] : [id];
+    return keys.some((key) => !seen.has(key));
+  });
+}
 
 export function isOnboardingStepId(value: unknown): value is OnboardingStepId {
   return typeof value === "string" && (ONBOARDING_STEP_IDS as readonly string[]).includes(value);
@@ -209,7 +245,7 @@ function stepViews(signals: OnboardingSignals, marked: Set<string>): StepWithout
     {
       id: "identity",
       title: "Check your details",
-      summary: "Your name and birthday, then any other names and emails you use.",
+      summary: "Your name, email, and birthday.",
       href: "/settings/identity",
       ...stopFields("identity", IDENTITY_STOPS, marked),
     },
@@ -226,6 +262,22 @@ function stepViews(signals: OnboardingSignals, marked: Set<string>): StepWithout
       markKey: "profile",
       done: signals.hasHubProfile || marked.has("profile"),
     },
+    ...(signals.slackConnect
+      ? [
+          {
+        id: "slack" as const,
+        title: "Connect Slack",
+        summary: "Connect your Slack account.",
+        href: "/settings",
+        target: "slack-connect",
+        calloutTitle: "Connect Slack",
+        hint: "Connect once and Open Hedgie Hub in Slack signs you straight in, and chat posts as you.",
+        confirmLabel: "I'll skip this",
+        markKey: "slack",
+        done: signals.slackConnect.connected || marked.has("slack"),
+          },
+        ]
+      : []),
     ...(signals.isNewcomer && signals.introUrl
       ? [
           {
@@ -320,7 +372,11 @@ function stepViews(signals: OnboardingSignals, marked: Set<string>): StepWithout
 }
 
 export function buildOnboardingState(signals: OnboardingSignals, record: OnboardingRecord | null): OnboardingState {
-  const steps = stepViews(signals, new Set(record?.marked_steps ?? [])).map(withRevisitStops);
+  const allSteps = stepViews(signals, new Set(record?.marked_steps ?? [])).map(withRevisitStops);
+  // A finished tour reopens for steps added since, and shows only those.
+  const unseen = new Set<string>(unseenStepIds(record));
+  const reopened = unseen.size > 0 && allSteps.some((s) => unseen.has(s.id) && !s.done);
+  const steps = reopened ? allSteps.filter((s) => unseen.has(s.id)) : allSteps;
   const current = steps.find((s) => !s.done) ?? null;
   const completed = current === null;
 
@@ -329,7 +385,7 @@ export function buildOnboardingState(signals: OnboardingSignals, record: Onboard
   // the Hub). A finished tour stays closed even if a step later reads as undone (say they delete
   // their only goal); they can restart it from the menu. When every step is done but completed_at
   // isn't set yet, the guide stays up to say "all set".
-  const active = !record?.dismissed_at && !record?.completed_at;
+  const active = (!record?.dismissed_at && !record?.completed_at) || reopened;
 
   return { steps, currentStepId: current?.id ?? null, active, completed };
 }

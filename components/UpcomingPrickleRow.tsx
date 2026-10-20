@@ -62,7 +62,7 @@ export default function UpcomingPrickleRow({
   return (
     <div className="py-3 border-b border-slate-100 dark:border-slate-800 last:border-0 -mx-2 px-2 rounded hover:bg-slate-50 dark:hover:bg-slate-800/50">
       <div className="flex items-center justify-between gap-3">
-        <Link href={`/prickles/${prickle.id}`} className="min-w-0 flex-1 block">
+        <Link href={`/prickles/${prickle.id}`} data-track="upcoming-prickle-open" className="min-w-0 flex-1 block">
           <p className="text-sm font-medium truncate">{prickle.typeName}</p>
           <p className="text-xs text-slate-400 mt-0.5">
             {prickle.hostName ? `Hosted by ${hostShortName(prickle.hostName)}` : "No host listed"}
@@ -87,6 +87,7 @@ export default function UpcomingPrickleRow({
           {startsSoon && (
             <Link
               href={checkinHref(prickle.id, "checkin")}
+              data-track="upcoming-prickle-check-in"
               className={`px-3 py-1 rounded-full text-xs font-medium border whitespace-nowrap transition-colors ${
                 checkedIn
                   ? "border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400"

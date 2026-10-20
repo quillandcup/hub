@@ -292,6 +292,7 @@ export default function Wheel({ confirmedConnectionCount = 0 }: WheelProps) {
       {phase !== "revealed" && (
         <button
           onClick={handleSpin}
+          data-track="wheel-spin"
           disabled={phase === "spinning"}
           className="px-6 py-3 rounded-full font-semibold text-white bg-gradient-to-r from-plum-500 to-plum-700 shadow hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
         >

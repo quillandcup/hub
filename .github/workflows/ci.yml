@@ -53,6 +53,37 @@ env:
   LOCAL_SUPABASE_SERVICE_ROLE_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU
 
 jobs:
+  # The Supabase CLI rejects a migration numbered at or below the latest already on main,
+  # which used to surface only in push-migrations, minutes into a main run. This runs in
+  # parallel with the tests and fails within seconds: on pull requests against the base
+  # branch, on main against the commit before the push (two PRs that each passed alone can
+  # still collide). See scripts/check-migration-order.ts.
+  check-migrations:
+    name: Check migration numbering
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: ".nvmrc"
+          cache: npm
+
+      - run: npm ci
+
+      # Skipped on workflow_dispatch (manual redeploy, nothing new to compare), but the job
+      # still succeeds so push-migrations, which needs it, still runs.
+      - name: Fetch the comparison commit
+        if: github.event_name != 'workflow_dispatch'
+        run: git fetch --no-tags --depth=1 origin "$BASE"
+        env:
+          BASE: ${{ github.event_name == 'pull_request' && github.base_ref || github.event.before }}
+
+      - name: Check migration numbering
+        if: github.event_name != 'workflow_dispatch'
+        run: npm run check:migrations -- FETCH_HEAD
+
   test-unit:
     name: Test (unit)
     runs-on: ubuntu-24.04
@@ -329,7 +360,7 @@ jobs:
 
   push-migrations:
     name: Push migrations to production
-    needs: [test-unit, test-db]
+    needs: [check-migrations, test-unit, test-db]
     # needs: [test-unit, test-db] succeeding already gates this on both test
     # buckets (and the build, which test-db also runs) passing; the event/ref
     # check keeps it off pull_request runs. workflow_dispatch on main is the

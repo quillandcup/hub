@@ -44,7 +44,7 @@ describe("onboarding actions", () => {
     expect(await startOnboarding()).toEqual({ success: true });
     expect(sb.from).toHaveBeenCalledWith("member_onboarding");
     expect(sb.upsert).toHaveBeenCalledWith(
-      { member_id: "member-1", marked_steps: [], dismissed_at: null, completed_at: null, updated_at: expect.any(String) },
+      { member_id: "member-1", marked_steps: [], dismissed_at: null, completed_at: null, acknowledged_steps: null, updated_at: expect.any(String) },
       { onConflict: "member_id" }
     );
     expect(revalidatePath).toHaveBeenCalledWith("/", "layout");

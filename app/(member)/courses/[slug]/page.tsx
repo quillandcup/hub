@@ -7,6 +7,7 @@ import { createServiceRoleClient } from "@/lib/supabase/service";
 import { SUPPORT_EMAIL } from "@/lib/config";
 import CourseOutline from "../CourseOutline";
 import { courseTitle } from "@/lib/courses/page-title";
+import { safeUrl } from "@/lib/url";
 import { formatCourseDate } from "@/lib/courses/format";
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
@@ -60,49 +61,63 @@ export default async function CoursePage({ params }: { params: Promise<{ slug: s
   const started = progress.completed > 0;
   const percent = progress.available > 0 ? Math.round((progress.completed / progress.available) * 100) : 0;
 
+  const thumbnail = safeUrl(course.thumbnail_url);
+  const buttonLabel = progress.allDone ? "Review" : started ? "Continue" : "Start";
+
   return (
-    <div className="container mx-auto max-w-3xl px-6 py-8">
-      <Link href="/courses" className="text-sm text-slate-500 hover:underline dark:text-slate-400">
-        ← Courses
-      </Link>
-      <h1 className="mt-2 text-3xl font-bold">{course.title}</h1>
-      {course.description && <p className="mt-2 text-slate-600 dark:text-slate-300">{course.description}</p>}
-
-      {access.kind === "ended" && (
-        <p role="status" className="mt-4 rounded-lg bg-slate-100 p-4 text-sm text-slate-700 dark:bg-slate-800 dark:text-slate-200">
-          Your access ended on {formatCourseDate(access.endsAt)}. Your progress is saved below, but the lessons are closed.
-        </p>
-      )}
-      {access.kind === "open" && access.endsAt && (
-        <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">Your access runs until {formatCourseDate(access.endsAt)}.</p>
-      )}
-
-      <div className="mt-6">
-        <div
-          role="progressbar"
-          aria-label="Course progress"
-          aria-valuemin={0}
-          aria-valuemax={progress.available}
-          aria-valuenow={progress.completed}
-          className="h-2 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700"
-        >
-          <div className="h-full bg-plum-600" style={{ width: `${percent}%` }} />
-        </div>
-        <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
-          {progress.completed} of {progress.available} available {progress.available === 1 ? "lesson" : "lessons"} done
-        </p>
-        {canOpen && progress.continueLessonId && (
-          <Link
-            href={`/courses/${course.slug}/lessons/${progress.continueLessonId}`}
-            className="mt-4 inline-block rounded-lg bg-plum-600 px-4 py-2 text-sm font-medium text-white hover:bg-plum-700"
-          >
-            {progress.allDone ? "Review" : started ? "Continue" : "Start"}
+    <div>
+      <header className="bg-plum-700 px-6 py-10 text-center text-white">
+        <div className="mx-auto max-w-3xl">
+          <Link href="/courses" className="text-sm text-plum-100 hover:underline">
+            ← Courses
           </Link>
-        )}
-      </div>
+          <h1 className="mt-2 text-3xl font-bold">{course.title}</h1>
+          {course.description && <p className="mt-3 text-sm leading-relaxed text-plum-50">{course.description}</p>}
+          {canOpen && progress.continueLessonId && (
+            <Link
+              href={`/courses/${course.slug}/lessons/${progress.continueLessonId}`}
+              className="mt-6 inline-block rounded bg-white px-6 py-2.5 text-sm font-semibold text-plum-700 hover:bg-plum-50"
+            >
+              {buttonLabel}
+            </Link>
+          )}
+        </div>
+      </header>
 
-      <div className="mt-8">
-        <CourseOutline slug={course.slug} outline={outline} completed={completed} canOpen={canOpen} previewComingSoon={caller.scope.isAdminActing} />
+      <div className="container mx-auto grid max-w-5xl gap-6 px-6 py-8 lg:grid-cols-[1fr_18rem]">
+        <div>
+          {access.kind === "ended" && (
+            <p role="status" className="mb-4 rounded-lg bg-slate-100 p-4 text-sm text-slate-700 dark:bg-slate-800 dark:text-slate-200">
+              Your access ended on {formatCourseDate(access.endsAt)}. Your progress is saved below, but the lessons are closed.
+            </p>
+          )}
+          <CourseOutline slug={course.slug} outline={outline} completed={completed} canOpen={canOpen} previewComingSoon={caller.scope.isAdminActing} />
+        </div>
+
+        <aside className="order-first lg:order-none">
+          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm lg:sticky lg:top-6 dark:border-slate-800 dark:bg-slate-900">
+            {thumbnail && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={thumbnail} alt="" className="mb-4 aspect-video w-full rounded object-cover" />
+            )}
+            <div
+              role="progressbar"
+              aria-label="Course progress"
+              aria-valuemin={0}
+              aria-valuemax={progress.available}
+              aria-valuenow={progress.completed}
+              className="h-2 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700"
+            >
+              <div className="h-full bg-plum-600" style={{ width: `${percent}%` }} />
+            </div>
+            <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
+              {progress.completed} of {progress.available} available {progress.available === 1 ? "lesson" : "lessons"} done
+            </p>
+            {access.kind === "open" && access.endsAt && (
+              <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">Your access runs until {formatCourseDate(access.endsAt)}.</p>
+            )}
+          </div>
+        </aside>
       </div>
     </div>
   );

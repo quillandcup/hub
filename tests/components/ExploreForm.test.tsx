@@ -14,7 +14,7 @@ import { ExploreForm } from "@/app/(admin)/admin/analytics/explore/ExploreForm";
 const events = describeEvents();
 
 function renderForm(props: Partial<React.ComponentProps<typeof ExploreForm>> = {}) {
-  return render(<ExploreForm events={events} initialSteps={[]} initialBreakdown={null} initialDays={30} {...props} />);
+  return render(<ExploreForm events={events} initialSteps={[]} initialBreakdown={null} initialDays={30} audience={{ ignoreStaff: false, ignoreSudo: true }} {...props} />);
 }
 
 function pushedUrl() {
@@ -126,6 +126,15 @@ describe("ExploreForm", () => {
     expect(screen.queryByLabelText("Step 1 filter 1 value")).toBeNull();
     await userEvent.click(screen.getByRole("button", { name: "Run" }));
     expect(pushedUrl().searchParams.getAll("step")).toEqual(["element_clicked"]);
+  });
+
+  it("keeps the who-to-count filters when the question is run again", async () => {
+    renderForm({ audience: { ignoreStaff: true, ignoreSudo: false } });
+    await userEvent.click(screen.getByRole("button", { name: "Add step" }));
+    await userEvent.click(screen.getByRole("button", { name: "Run" }));
+    const url = pushedUrl();
+    expect(url.searchParams.get("staff")).toBe("hide");
+    expect(url.searchParams.get("sudo")).toBe("show");
   });
 
   it("starts from the question in the URL, and steps can be removed", async () => {

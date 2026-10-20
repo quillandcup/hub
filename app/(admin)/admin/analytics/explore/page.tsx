@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { requireAdminPage } from "@/lib/admin-auth";
+import { AudienceFilter } from "@/components/admin/AudienceFilter";
+import { audienceRpcArgs, parseAudience } from "@/lib/analytics/audience";
 import { describeEvents } from "@/lib/analytics/events";
 import { parseBreakdown, parseSteps } from "@/lib/analytics/explore";
 import { parseWindowDays } from "@/lib/analytics/funnels";
@@ -16,7 +18,7 @@ export const maxDuration = 60;
 
 const DAY_MS = 24 * 60 * 60_000;
 
-type Params = { days?: string; step?: string | string[]; breakdown?: string; bfilter?: string };
+type Params = { days?: string; step?: string | string[]; breakdown?: string; bfilter?: string; staff?: string; sudo?: string };
 
 interface BreakdownRow {
   value: string | null;
@@ -31,15 +33,16 @@ export default async function ExploreUsagePage({ searchParams }: { searchParams:
   const days = parseWindowDays(params.days);
   const steps = parseSteps(params.step);
   const breakdown = parseBreakdown(params.breakdown, params.bfilter);
+  const audience = parseAudience(params);
   const since = new Date(Date.now() - days * DAY_MS).toISOString();
 
   const supabase = await createClient();
   const [funnel, grouped] = await Promise.all([
     steps.length > 0
-      ? supabase.rpc("analytics_funnel", { steps: steps.map((s) => s.event), since, filters: steps.map((s) => s.where) })
+      ? supabase.rpc("analytics_funnel", { steps: steps.map((s) => s.event), since, filters: steps.map((s) => s.where), ...audienceRpcArgs(audience) })
       : null,
     breakdown
-      ? supabase.rpc("analytics_property_breakdown", { event_name: breakdown.event, property: breakdown.property, since, filter: breakdown.where })
+      ? supabase.rpc("analytics_property_breakdown", { event_name: breakdown.event, property: breakdown.property, since, filter: breakdown.where, ...audienceRpcArgs(audience) })
       : null,
   ]);
   const error = funnel?.error ?? grouped?.error;
@@ -57,6 +60,7 @@ export default async function ExploreUsagePage({ searchParams }: { searchParams:
             Back to Feature Usage
           </Link>
         </p>
+        <AudienceFilter path="/admin/analytics/explore" params={params} audience={audience} />
       </div>
 
       <ExploreForm
@@ -64,8 +68,9 @@ export default async function ExploreUsagePage({ searchParams }: { searchParams:
         initialSteps={steps}
         initialBreakdown={breakdown}
         initialDays={days}
+        audience={audience}
         // The form keeps its own state; re-key it so following a link to another question resets it.
-        key={`${days}|${steps.map((s) => JSON.stringify(s)).join("|")}|${JSON.stringify(breakdown)}`}
+        key={`${days}|${audience.ignoreStaff}|${audience.ignoreSudo}|${steps.map((s) => JSON.stringify(s)).join("|")}|${JSON.stringify(breakdown)}`}
       />
 
       {error && <p className="text-sm text-red-600">Could not load usage: {error.message}</p>}

@@ -51,6 +51,7 @@ export interface CourseRow {
   slug: string;
   title: string;
   description: string | null;
+  thumbnail_url?: string | null;
 }
 
 export interface MemberScope {
@@ -73,7 +74,7 @@ async function loadAccessRows(supabase: SupabaseClient, memberId: string, course
 async function loadStructure(supabase: SupabaseClient, courseIds: string[]) {
   const [modules, lessons] = await Promise.all([
     fetchAll(supabase, "course_modules", "id, course_id, parent_id, title, position, state", (q) => q.in("course_id", courseIds)),
-    fetchAll(supabase, "course_lessons", "id, course_id, module_id, title, position, state, duration_seconds, thumbnail_url", (q) => q.in("course_id", courseIds)),
+    fetchAll(supabase, "course_lessons", "id, course_id, module_id, title, position, state, duration_seconds, thumbnail_url, excerpt", (q) => q.in("course_id", courseIds)),
   ]);
   return { modules, lessons };
 }
@@ -122,7 +123,7 @@ export async function loadCourseList(supabase: SupabaseClient, scope: MemberScop
   }
   if (courseIds.length === 0) return [];
 
-  const courses: CourseRow[] = await fetchAll(supabase, "courses", "id, slug, title, description", (q) => q.in("id", courseIds));
+  const courses: CourseRow[] = await fetchAll(supabase, "courses", "id, slug, title, description, thumbnail_url", (q) => q.in("id", courseIds));
   const { modules, lessons } = await loadStructure(supabase, courseIds);
   const completed = await loadCompleted(supabase, scope.memberId, lessons.map((l) => l.id));
 

@@ -10,7 +10,7 @@ const NOW = new Date("2026-10-03T12:00:00Z");
 
 const NOT_NEWCOMER = { isNewcomer: false, introUrl: null, hasIntroduced: false, hasAttendedPrickle: false, hasUpcomingPrickle: false, hasCalendarSynced: false };
 const NOT_HOST = { isHost: false, hasHostingSchedule: false, hostedRecently: false, hasHostVibe: false, isNewcomer: false, introUrl: null, hasIntroduced: false, hasAttendedPrickle: false, hasUpcomingPrickle: false, hasCalendarSynced: false };
-const IDENTITY_DONE = ["identity.basics", "identity.names", "identity.emails"];
+const IDENTITY_DONE = ["identity.basics", "identity.display-name", "identity.names", "identity.emails", "identity.birthday"];
 const EVERYTHING_MARKED = [...IDENTITY_DONE, "calendar"];
 const NOTHING: OnboardingSignals = { hasHubProfile: false, latestProjectId: null, hasGoal: false, hasPricklePlan: false, ...NOT_HOST };
 const record = (r: Partial<OnboardingRecord> = {}): OnboardingRecord => ({
@@ -56,26 +56,38 @@ describe("buildOnboardingState", () => {
     expect(state.steps[0].confirmLabel).toBeTruthy();
   });
 
-  it("walks identity's stops in order: name and birthday, pen names, then emails", () => {
+  it("walks identity's stops in order: real name, display name, pen names, emails, then birthday", () => {
     const identityWith = (marked: string[]) =>
       buildOnboardingState(NOTHING, record({ marked_steps: marked })).steps[0];
 
     expect(identityWith([])).toMatchObject({
       target: "identity-basics",
       markKey: "identity.basics",
-      stop: { number: 1, count: 3 },
+      stop: { number: 1, count: 5 },
       done: false,
     });
     expect(identityWith(["identity.basics"])).toMatchObject({
-      target: "identity-names",
-      markKey: "identity.names",
-      stop: { number: 2, count: 3 },
+      target: "identity-display-name",
+      markKey: "identity.display-name",
+      stop: { number: 2, count: 5 },
       done: false,
     });
-    expect(identityWith(["identity.basics", "identity.names"])).toMatchObject({
+    expect(identityWith(["identity.basics", "identity.display-name"])).toMatchObject({
+      target: "identity-names",
+      markKey: "identity.names",
+      stop: { number: 3, count: 5 },
+      done: false,
+    });
+    expect(identityWith(["identity.basics", "identity.display-name", "identity.names"])).toMatchObject({
       target: "identity-emails",
       markKey: "identity.emails",
-      stop: { number: 3, count: 3 },
+      stop: { number: 4, count: 5 },
+      done: false,
+    });
+    expect(identityWith(["identity.basics", "identity.display-name", "identity.names", "identity.emails"])).toMatchObject({
+      target: "identity-birthday",
+      markKey: "identity.birthday",
+      stop: { number: 5, count: 5 },
       done: false,
     });
     expect(identityWith(IDENTITY_DONE).done).toBe(true);
@@ -285,5 +297,28 @@ describe("Big Sister step", () => {
   it("is done once the member confirms it", () => {
     const state = buildOnboardingState({ ...NOTHING, bigSisterName: "Ada Quill" }, record({ marked_steps: ["big-sister"] }));
     expect(state.steps.find((s) => s.id === "big-sister")?.done).toBe(true);
+  });
+});
+
+describe("steps added after a finished tour", () => {
+  const SEEN = ["identity", "identity.basics", "identity.display-name", "identity.names", "identity.emails", "identity.birthday", "profile", "intro", "writing", "prickles", "calendar", "big-sister", "hosting", "host-vibe"];
+  const finished = (r: Partial<OnboardingRecord> = {}) =>
+    record({ completed_at: NOW.toISOString(), acknowledged_steps: SEEN, ...r });
+  const withSlack = (connected: boolean): OnboardingSignals => ({ ...NOTHING, slackConnect: { connected } });
+
+  it("reopens a completed tour for just the new step", () => {
+    const state = buildOnboardingState(withSlack(false), finished());
+    expect(state.active).toBe(true);
+    expect(state.steps.map((s) => s.id)).toEqual(["slack"]);
+    expect(state.currentStepId).toBe("slack");
+  });
+
+  it("stays closed when the new step is already done", () => {
+    expect(buildOnboardingState(withSlack(true), finished()).active).toBe(false);
+  });
+
+  it("stays closed when the step isn't offered or the tour was dismissed", () => {
+    expect(buildOnboardingState(NOTHING, finished()).active).toBe(false);
+    expect(buildOnboardingState(withSlack(false), finished({ dismissed_at: NOW.toISOString() })).active).toBe(false);
   });
 });

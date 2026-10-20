@@ -3,6 +3,7 @@ import { buildAliasMap, resolveEmail } from "@/lib/email-aliases";
 import { fetchAllBronzeRows } from "@/lib/supabase/bronze-pagination";
 import { computeCourseAccess, type AccessRow } from "@/lib/courses/access";
 import { sanitizeLessonHtml } from "@/lib/courses/sanitize";
+import { lessonExcerpt } from "@/lib/courses/excerpt";
 import { fetchAll } from "@/lib/courses/db";
 import { planVisibleTree, slugifyTitle } from "@/lib/courses/visibility";
 
@@ -200,6 +201,7 @@ export async function processCourses(
   for (const bc of targets) {
     const kajabiId: string = bc.kajabi_id;
     const description: string | null = bc.raw_payload?.attributes?.description ?? null;
+    const thumbnailUrl: string | null = bc.raw_payload?.attributes?.thumbnail_url || null;
     let silver = silverByKey.get(kajabiId);
     const created = !silver;
 
@@ -213,6 +215,7 @@ export async function processCourses(
           slug,
           title: bc.title,
           description,
+          thumbnail_url: thumbnailUrl,
           source: "kajabi",
           source_key: kajabiId,
           program_id: program?.id ?? null,
@@ -229,6 +232,7 @@ export async function processCourses(
         .update({
           title: bc.title,
           description,
+          thumbnail_url: thumbnailUrl,
           ...(options.accessDuration !== undefined ? { access_duration: options.accessDuration } : {}),
           ...(options.launchAt !== undefined ? { launch_at: options.launchAt } : {}),
         })
@@ -303,6 +307,7 @@ export async function processCourses(
       position: l.position ?? 0,
       state: tree.lessons.get(l.kajabi_id),
       body_html: sanitizeLessonHtml(l.body_html),
+      excerpt: lessonExcerpt(sanitizeLessonHtml(l.body_html)),
       thumbnail_url: l.thumbnail_url ?? null,
       duration_seconds: l.video_duration_seconds ?? null,
       source: "kajabi",

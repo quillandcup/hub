@@ -108,6 +108,7 @@ function BigPlayButton() {
     <button
       type="button"
       aria-label="Play video"
+      data-track="lesson-play-video"
       onClick={() => void playback.play()}
       className="group absolute inset-x-0 top-0 bottom-14 z-30 flex items-center justify-center focus:outline-none"
     >
