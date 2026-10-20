@@ -5,9 +5,12 @@ name: Auto-merge
 # Coverage report; see github-repo-config.yml) pass. It never merges anything
 # early: with a required check failing or pending, the PR just waits.
 #
-# Runs once, when the PR is opened, reopened or marked ready for review, so
-# turning auto-merge off on a PR sticks across later pushes. To keep a PR from
-# merging: open it as a draft, or click "Disable auto-merge" on it.
+# Runs when the PR is opened, reopened or marked ready for review, and on every push
+# (synchronize) as a backstop: GitHub doesn't run pull_request workflows on a PR that has
+# merge conflicts, so one opened while conflicting never got auto-merge, and the push that
+# fixed the conflict is the first chance to enable it. A push never turns it back on after
+# a person turned it off: the PR's timeline records that as auto_merge_disabled, and we
+# stop there. To keep a PR from merging: open it as a draft, or click "Disable auto-merge".
 #
 # Enables it with GH_TOKEN_AUTO_MERGE (a fine-grained personal token), not the built-in
 # GITHUB_TOKEN: GitHub attributes an auto-merge to whoever enabled it, and a merge made
@@ -20,7 +23,7 @@ name: Auto-merge
 # (Settings -> General -> Pull Requests); without it `gh pr merge --auto` fails.
 on:
   pull_request:
-    types: [opened, reopened, ready_for_review]
+    types: [opened, reopened, ready_for_review, synchronize]
 
 permissions:
   contents: read
@@ -34,7 +37,18 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Enable auto-merge
-        run: gh pr merge --auto --squash "$PR_URL"
+        run: |
+          if [ "$EVENT_ACTION" = "synchronize" ]; then
+            opted_out=$(gh api --paginate "repos/$REPO/issues/$PR_NUMBER/timeline" --jq '.[] | select(.event == "auto_merge_disabled") | .event')
+            if [ -n "$opted_out" ]; then
+              echo "Auto-merge was turned off on this PR; leaving it off."
+              exit 0
+            fi
+          fi
+          gh pr merge --auto --squash "$PR_URL"
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+          EVENT_ACTION: ${{ github.event.action }}
           GH_TOKEN: ${{ secrets.GH_TOKEN_AUTO_MERGE }}
