@@ -6,6 +6,7 @@
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 
 const player = vi.hoisted(() => ({
   rate: { playbackRate: 1, setPlaybackRate: undefined as undefined | ((r: number) => void) },
@@ -19,12 +20,18 @@ const player = vi.hoisted(() => ({
         setValue: (v: string) => void;
       },
   muxSource: undefined as unknown,
+  playback: { started: false, play: vi.fn() } as { started: boolean; play: () => void },
 }));
 
 vi.mock("@videojs/react", () => ({
+  selectPlayback: "playback",
   selectPlaybackRate: "rate",
   selectSource: "source",
-  usePlayer: (selector: string) => (selector === "rate" ? player.rate : { canPlay: player.canPlay }),
+  usePlayer: (selector: string) => {
+    if (selector === "rate") return player.rate;
+    if (selector === "playback") return player.playback;
+    return { canPlay: player.canPlay };
+  },
   useCaptionsOptions: () => player.captions,
 }));
 vi.mock("@videojs/react/video", () => ({
@@ -51,6 +58,7 @@ beforeEach(() => {
   player.canPlay = false;
   player.captions = undefined;
   player.muxSource = undefined;
+  player.playback = { started: false, play: vi.fn() };
 });
 
 describe("LessonPlayer", () => {
@@ -63,6 +71,22 @@ describe("LessonPlayer", () => {
       playback: { token: "tok-play" },
       poster: { time: 2, token: "tok-poster" },
       storyboard: { format: "webp", token: "tok-board" },
+    });
+  });
+
+  describe("big play button", () => {
+    it("shows a labelled play button over the poster before the first play, and plays on click", async () => {
+      render(ui());
+      await userEvent.click(screen.getByRole("button", { name: "Play video" }));
+
+      expect(player.playback.play).toHaveBeenCalledTimes(1);
+    });
+
+    it("is gone once playback has started", () => {
+      player.playback = { started: true, play: vi.fn() };
+      render(ui());
+
+      expect(screen.queryByRole("button", { name: "Play video" })).not.toBeInTheDocument();
     });
   });
 

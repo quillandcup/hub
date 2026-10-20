@@ -52,6 +52,36 @@ describe("CourseOutline", () => {
     expect(screen.getByRole("link", { name: /Intro.*completed/ })).not.toHaveAttribute("aria-current");
   });
 
+  describe("thumbnails and label", () => {
+    const withThumbs = buildOutline(
+      [mod("Week", 1)],
+      [
+        { ...lesson("a", 1, "Week"), thumbnail_url: "https://cdn.test/a.jpg" },
+        { ...lesson("b", 2, "Week"), thumbnail_url: "javascript:alert(1)" },
+        lesson("c", 3, "Week"),
+      ]
+    );
+
+    it("shows a lesson's thumbnail beside its title when asked, and only for a safe https image", () => {
+      const { container } = render(<CourseOutline slug="c" outline={withThumbs} completed={new Set()} canOpen thumbnails />);
+
+      const images = container.querySelectorAll("img");
+      expect(images).toHaveLength(1);
+      expect(images[0]).toHaveAttribute("src", "https://cdn.test/a.jpg");
+      expect(images[0]).toHaveAttribute("alt", "");
+    });
+
+    it("shows no thumbnails by default", () => {
+      const { container } = render(<CourseOutline slug="c" outline={withThumbs} completed={new Set()} canOpen />);
+      expect(container.querySelectorAll("img")).toHaveLength(0);
+    });
+
+    it("takes an accessible label for where it is used", () => {
+      render(<CourseOutline slug="c" outline={withThumbs} completed={new Set()} canOpen label="Lessons in this section" />);
+      expect(screen.getByRole("navigation", { name: "Lessons in this section" })).toBeInTheDocument();
+    });
+  });
+
   it("has no links at all when the lessons can't be opened", () => {
     render(<CourseOutline slug="c" outline={outline} completed={new Set()} canOpen={false} />);
 

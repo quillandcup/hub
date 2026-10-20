@@ -22,6 +22,8 @@ export interface OutlineLesson {
   position: number;
   state: "open" | "coming_soon";
   duration_seconds: number | null;
+  /** Lesson thumbnail from Kajabi (https), when the content step recorded one. */
+  thumbnail_url?: string | null;
 }
 
 export interface OutlineNode {
@@ -83,6 +85,26 @@ export function lessonNeighbors(outline: Outline, lessonId: string, options: { i
   const i = open.findIndex((l) => l.id === lessonId);
   if (i === -1) return { previous: null, next: null };
   return { previous: open[i - 1] ?? null, next: open[i + 1] ?? null };
+}
+
+/**
+ * The module a lesson sits directly in, with just its own lessons (not nested modules), as a
+ * one-module outline: what the lesson page lists next to the video ("this week's lessons").
+ * Null for a lesson outside any module.
+ */
+export function lessonSection(outline: Outline, lessonId: string): Outline | null {
+  let found: OutlineNode | null = null;
+  const find = (nodes: OutlineNode[]) => {
+    for (const node of nodes) {
+      if (node.lessons.some((l) => l.id === lessonId)) found = node;
+      else find(node.children);
+      if (found) return;
+    }
+  };
+  find(outline.modules);
+  if (!found) return null;
+  const node: OutlineNode = found;
+  return { loose: [], modules: [{ ...node, children: [] }], lessons: node.lessons };
 }
 
 export interface LessonContext {
