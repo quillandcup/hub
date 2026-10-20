@@ -241,6 +241,33 @@ describe("/courses/[slug]/lessons/[lessonId]", () => {
     expect(screen.queryByRole("link", { name: /^Next/ })).not.toBeInTheDocument();
   });
 
+  it("puts the main action, title and text together in one bounded card, like the Downloads card beside it", async () => {
+    loadLessonView.mockResolvedValue(ok({ files: [{ id: "f1", filename: "Sheet.pdf", size_bytes: 10 }] }));
+    await renderServerPage(LessonPage, params());
+
+    const card = screen.getByRole("article");
+    expect(card).toHaveClass("rounded-xl", "border", "bg-white", "dark:bg-slate-900");
+    expect(card).toContainElement(screen.getByRole("button", { name: "Mark as complete" }));
+    expect(card).toContainElement(screen.getByRole("heading", { level: 1, name: "Voice" }));
+    expect(card).toContainElement(screen.getByRole("heading", { name: "Find your voice" }));
+    // The Downloads card is its own bordered card in the next column, level with it.
+    const downloads = screen.getByRole("region", { name: "Downloads" });
+    expect(downloads).toHaveClass("rounded-xl", "border");
+    expect(card).not.toContainElement(downloads);
+    // The Back / Next buttons stay outside it, under the video.
+    expect(card).not.toContainElement(screen.getByRole("link", { name: "Back: Welcome" }));
+  });
+
+  it("keeps the next-lesson card inside the text card, right after the button", async () => {
+    loadLessonView.mockResolvedValue(ok({ completed: true, neighbors: { previous: null, next: lesson(LESSON_A, "Welcome", 1) } }));
+    await renderServerPage(LessonPage, params());
+
+    const card = screen.getByRole("article");
+    const preview = screen.getByText("Great job! Keep going!").closest("a")!;
+    expect(card).toContainElement(preview);
+    expect(Boolean(screen.getByRole("button", { name: "Complete" }).compareDocumentPosition(preview) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
+  });
+
   describe("Mark complete and Back / Next under the video", () => {
     const withVideo = (over: Record<string, unknown> = {}) => {
       signPlaybackTokens.mockResolvedValue({ playback: "p", poster: "t", storyboard: "s" });

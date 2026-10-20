@@ -5,7 +5,7 @@ import type { LessonFileView } from "@/lib/courses/member";
 export default function LessonDownloads({ slug, lessonId, files }: { slug: string; lessonId: string; files: LessonFileView[] }) {
   if (files.length === 0) return null;
   return (
-    <section aria-label="Downloads" className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+    <section aria-label="Downloads" className="rounded-xl border border-slate-200 bg-white p-6 dark:border-slate-800 dark:bg-slate-900">
       <h2 className="text-sm font-semibold">Downloads</h2>
       <ul className="mt-3 space-y-2">
         {files.map((file) => {
