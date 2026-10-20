@@ -28,6 +28,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
   { tab: "profile", id: "profile-whos-coming", title: "Who's coming", keywords: ["roster", "privacy", "hide", "list", "calendar", "committed"] },
 
   { tab: "identity", id: "identity-real-name", title: "Real name", keywords: ["name", "legal"] },
+  { tab: "identity", id: "identity-display-name", title: "Display name", keywords: ["name", "pen name", "shown"] },
   { tab: "identity", id: "identity-birthday", title: "Birthday", keywords: ["birth", "date", "hedgie birthday"] },
   { tab: "identity", id: "identity-pen-names", title: "Pen names and Zoom/Slack names", keywords: ["pen name", "alias", "aliases", "zoom name", "slack name", "display name", "other names"] },
   { tab: "identity", id: "identity-email-aliases", title: "Email aliases", keywords: ["email", "other email addresses", "old email", "kajabi"] },
