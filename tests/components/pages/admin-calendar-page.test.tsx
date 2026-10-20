@@ -6,7 +6,6 @@ import { renderServerPage, resetServerPageMocks, useFakeSupabase } from "@/tests
 vi.mock("@/lib/supabase/server", () => import("@/tests/helpers/server-page").then((m) => m.supabaseServerModule));
 vi.mock("@/lib/admin-auth", () => ({ requireAdminPage: vi.fn(async () => undefined) }));
 vi.mock("@/lib/timezone", () => ({ getUserTimezonePreference: vi.fn(async () => "UTC") }));
-vi.mock("@/components/CalendarKeyboardNav", () => ({ default: () => null }));
 vi.mock("@/components/CalendarWeekView", () => ({
   default: ({ weekStartDate }: { weekStartDate: { year: number; month: number; day: number } }) => (
     <div data-testid="week">{`${weekStartDate.year}-${weekStartDate.month + 1}-${weekStartDate.day}`}</div>
