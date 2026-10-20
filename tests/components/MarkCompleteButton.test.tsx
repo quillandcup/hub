@@ -39,6 +39,11 @@ describe("MarkCompleteButton", () => {
     expect(screen.getByRole("button", { name: "Mark complete" })).toBeInTheDocument();
   });
 
+  it("shows the reason it was given when read-only, e.g. a staff preview", () => {
+    render(<MarkCompleteButton lessonId="l1" completed={false} readOnly readOnlyReason="Not tracked in a preview" />);
+    expect(screen.getByRole("button", { name: "Mark complete" })).toHaveAttribute("title", "Not tracked in a preview");
+  });
+
   it("is disabled, with a reason, when read-only (sudo)", async () => {
     render(<MarkCompleteButton lessonId="l1" completed={false} readOnly />);
     const button = screen.getByRole("button", { name: "Mark complete" });

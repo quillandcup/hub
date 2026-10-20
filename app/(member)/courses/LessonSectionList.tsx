@@ -1,0 +1,87 @@
+import Link from "next/link";
+import { safeUrl } from "@/lib/url";
+import type { Outline, OutlineLesson } from "@/lib/courses/outline";
+
+interface Props {
+  slug: string;
+  /** A one-module outline (see lessonSection): the module the lesson is in, with its own lessons. */
+  section: Outline;
+  completed: Set<string>;
+  currentLessonId: string;
+  /** Staff: coming-soon lessons open too, as a preview. */
+  previewComingSoon?: boolean;
+}
+
+function Row({ slug, lesson, number, completed, current, openable }: { slug: string; lesson: OutlineLesson; number: number; completed: boolean; current: boolean; openable: boolean }) {
+  const thumbnail = safeUrl(lesson.thumbnail_url);
+  const content = (
+    <>
+      <span aria-hidden="true" className="text-center text-sm text-slate-400">
+        {current ? <span className="text-plum-400">▶</span> : completed ? <span className="text-plum-400">✓</span> : number}
+      </span>
+      {thumbnail ? (
+        // Decorative (the title is beside it); a plain img so any Kajabi image host works.
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={thumbnail} alt="" loading="lazy" className="aspect-video w-full rounded object-cover" />
+      ) : (
+        <span aria-hidden="true" className="aspect-video w-full rounded bg-white/10" />
+      )}
+      <span className="min-w-0 text-sm leading-snug">
+        {lesson.title}
+        {completed && (
+          <>
+            {" "}
+            <span className="sr-only">(completed)</span>
+          </>
+        )}
+      </span>
+    </>
+  );
+  const layout = "grid grid-cols-[1.25rem_6rem_minmax(0,1fr)] items-center gap-3 px-5 py-3";
+  if (!openable) return <li className={`${layout} opacity-50`}>{content}</li>;
+  return (
+    <li>
+      <Link
+        href={`/courses/${slug}/lessons/${lesson.id}`}
+        aria-current={current ? "page" : undefined}
+        className={`${layout} transition hover:bg-white/5 ${current ? "bg-white/10" : ""}`}
+      >
+        {content}
+      </Link>
+    </li>
+  );
+}
+
+/**
+ * The lessons of the section (week or module) the current lesson is in, as the panel beside the
+ * video: always dark, like the player, so the two read as one component. The caller sizes and
+ * scrolls it. Lessons that aren't released show dimmed, without a label: the number and the dimming
+ * are enough here.
+ */
+export default function LessonSectionList({ slug, section, completed, currentLessonId, previewComingSoon }: Props) {
+  const node = section.modules[0];
+  const lessons = section.lessons;
+  return (
+    <nav aria-label="Lessons in this section" className="text-slate-100">
+      <div className="flex items-baseline justify-between gap-3 px-5 py-4">
+        <h2 className="font-semibold leading-snug">{node.module.title}</h2>
+        <span className="shrink-0 text-xs font-semibold text-slate-400">
+          {lessons.length} {lessons.length === 1 ? "Lesson" : "Lessons"}
+        </span>
+      </div>
+      <ol>
+        {lessons.map((lesson, i) => (
+          <Row
+            key={lesson.id}
+            slug={slug}
+            lesson={lesson}
+            number={i + 1}
+            completed={completed.has(lesson.id)}
+            current={lesson.id === currentLessonId}
+            openable={lesson.state === "open" || !!previewComingSoon}
+          />
+        ))}
+      </ol>
+    </nav>
+  );
+}
