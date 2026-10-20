@@ -89,8 +89,8 @@ function BigPlayButton() {
       onClick={() => void playback.play()}
       className="group absolute inset-x-0 top-0 bottom-14 z-30 flex items-center justify-center focus:outline-none"
     >
-      <span className="flex h-16 w-24 items-center justify-center rounded-xl bg-plum-600 text-white shadow-xl ring-1 ring-white/30 transition group-hover:scale-105 group-hover:bg-plum-500 group-focus-visible:ring-2 group-focus-visible:ring-white">
-        <svg viewBox="0 0 24 24" className="h-9 w-9" fill="currentColor" aria-hidden="true">
+      <span className="flex h-20 w-28 items-center justify-center rounded-2xl sm:h-24 sm:w-36 lg:h-28 lg:w-40 bg-plum-600 text-white shadow-xl ring-1 ring-white/30 transition group-hover:scale-105 group-hover:bg-plum-500 group-focus-visible:ring-2 group-focus-visible:ring-white">
+        <svg viewBox="0 0 24 24" className="h-11 w-11 sm:h-14 sm:w-14 lg:h-16 lg:w-16" fill="currentColor" aria-hidden="true">
           <path d="M8 5v14l11-7z" />
         </svg>
       </span>
