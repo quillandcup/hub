@@ -19,7 +19,7 @@ function Row({ slug, lesson, number, completed, current, openable }: { slug: str
   const content = (
     <>
       <span aria-hidden="true" className="text-center text-sm text-slate-400">
-        {current ? <span className="text-plum-400">▶</span> : completed ? <span className="text-plum-400">✓</span> : number}
+        {current ? <span className="text-plum-400">▶</span> : number}
       </span>
       {thumbnail ? (
         // Decorative (the title is beside it); a plain img so any Kajabi image host works.
@@ -37,9 +37,17 @@ function Row({ slug, lesson, number, completed, current, openable }: { slug: str
           </>
         )}
       </span>
+      {/* A bold check in the Hub's color to the right of a completed lesson (the number stays on the left, as in Kajabi's). */}
+      <span aria-hidden="true" className="flex w-5 justify-end text-plum-400">
+        {completed && (
+          <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" data-testid="completed-check">
+            <path d="M4 12.5l5.5 5.5L20 6.5" />
+          </svg>
+        )}
+      </span>
     </>
   );
-  const layout = "grid grid-cols-[1.25rem_6rem_minmax(0,1fr)] items-center gap-3 px-5 py-3";
+  const layout = "grid grid-cols-[1.25rem_6rem_minmax(0,1fr)_1.25rem] items-center gap-3 px-5 py-3";
   if (!openable) return <li className={`${layout} opacity-50`}>{content}</li>;
   return (
     <li>
