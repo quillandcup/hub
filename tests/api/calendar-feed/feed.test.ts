@@ -43,15 +43,15 @@ describe('calendar feed', () => {
   const committedByA = hourFromNow(72) // hosted by B, committed to by A
   // Added by hand by A (calendar_feed_items), all hosted by B, all of a second type:
   const addedOnce = hourFromNow(96) // "just this one"
-  const weekly1 = hourFromNow(120) // "every week": this one and the next
-  // Same local wall-clock time one week on (not +7 days of UTC: that drifts an hour across a DST change).
-  const weekly2 = (() => {
-    const slot = slotTimeForInstant(weekly1.toISOString(), SCHEDULE_TIMEZONE)
-    const date = new Date(`${localDateFor(weekly1, SCHEDULE_TIMEZONE)}T00:00:00Z`)
-    date.setUTCDate(date.getUTCDate() + 7)
-    return expectedOccurrenceStart(date.toISOString().slice(0, 10), { startTimeLocal: slot.startTimeLocal, timezone: SCHEDULE_TIMEZONE })
-  })()
-  const notAdded = hourFromNow(130) // same type, different slot: stays out
+  // Local midday on the same weekday a week apart (not +7 days of UTC, which drifts an hour across a DST change,
+  // and not an hour near the 2 a.m. changeover, which is ambiguous).
+  const localMidday = (daysAhead: number) => {
+    const date = new Date(`${localDateFor(hourFromNow(24 * daysAhead), SCHEDULE_TIMEZONE)}T00:00:00Z`)
+    return expectedOccurrenceStart(date.toISOString().slice(0, 10), { startTimeLocal: '12:00', timezone: SCHEDULE_TIMEZONE })
+  }
+  const weekly1 = localMidday(5) // "every week": this one and the next
+  const weekly2 = localMidday(12)
+  const notAdded = new Date(weekly1.getTime() + 3 * 60 * 60 * 1000) // same type, different slot: stays out
   const eventStart = hourFromNow(24 * 10).toISOString().slice(0, 10)
   const eventEnd = hourFromNow(24 * 12).toISOString().slice(0, 10)
 
