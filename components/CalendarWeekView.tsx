@@ -283,14 +283,14 @@ export default function CalendarWeekView({
                 <div
                   key={i}
                   className={`p-1 sm:p-3 text-center border-l border-slate-200 dark:border-slate-800 ${
-                    isToday ? "bg-plum-50 dark:bg-plum-950" : "bg-slate-50 dark:bg-slate-800"
+                    isToday ? "bg-plum-100 border-t-2 border-t-plum-500 dark:bg-plum-950 dark:border-t-0" : "bg-slate-50 dark:bg-slate-800"
                   }`}
                 >
-                  <div className={`text-xs sm:text-sm font-semibold ${isToday ? "text-plum-600 dark:text-plum-400" : "text-slate-700 dark:text-slate-300"}`}>
+                  <div className={`text-xs sm:text-sm font-semibold ${isToday ? "text-plum-700 dark:text-plum-400" : "text-slate-700 dark:text-slate-300"}`}>
                     <span className="sm:hidden">{dayNames[day.getDay()].slice(0, 3)}</span>
                     <span className="hidden sm:inline">{dayNames[day.getDay()]}</span>
                   </div>
-                  <div className={`text-xs ${isToday ? "text-plum-500 dark:text-plum-500" : "text-slate-500 dark:text-slate-400"}`}>
+                  <div className={`text-xs ${isToday ? "text-plum-600 dark:text-plum-500" : "text-slate-500 dark:text-slate-400"}`}>
                     {day.getMonth() + 1}/{day.getDate()}
                   </div>
                 </div>
@@ -325,7 +325,7 @@ export default function CalendarWeekView({
                       <div
                         key={hour}
                         className={`h-[60px] border-b border-slate-200 dark:border-slate-800 ${
-                          isToday ? "bg-plum-50/30 dark:bg-plum-950/20" : ""
+                          isToday ? "bg-plum-100/60 dark:bg-plum-950/20" : ""
                         } ${onSlotClick ? "cursor-pointer hover:bg-plum-100/60 dark:hover:bg-plum-900/30" : ""}`}
                         onClick={onSlotClick ? (e) => {
                           const rect = e.currentTarget.getBoundingClientRect();
