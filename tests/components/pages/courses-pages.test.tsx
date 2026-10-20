@@ -95,6 +95,22 @@ describe("/courses", () => {
   });
 });
 
+describe("/courses cards", () => {
+  it("shows the course image when there is one, and a title placeholder when there isn't", async () => {
+    loadCourseList.mockResolvedValue([
+      { course: { ...course, thumbnail_url: "https://cdn.test/ready-writer.jpg" }, access: { kind: "open", endsAt: null }, progress: courseProgress(outline, new Set()) },
+      { course: { ...course, id: "c2", slug: "bare", title: "Bare Course", thumbnail_url: null }, access: { kind: "open", endsAt: null }, progress: courseProgress(outline, new Set()) },
+    ]);
+    const { container } = await renderServerPage(CoursesPage, {});
+
+    const images = container.querySelectorAll("img");
+    expect(images).toHaveLength(1);
+    expect(images[0]).toHaveAttribute("src", "https://cdn.test/ready-writer.jpg");
+    // The placeholder repeats the title inside the image area.
+    expect(screen.getAllByText("Bare Course")).toHaveLength(2);
+  });
+});
+
 describe("/courses for a pre-order", () => {
   it("says when it opens instead of offering to start it", async () => {
     loadCourseList.mockResolvedValue([{ course, access: { kind: "upcoming", startsAt: "2026-11-02T05:00:00Z" }, progress: courseProgress(outline, new Set()) }]);
