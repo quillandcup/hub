@@ -26,11 +26,15 @@ subscriptions can break. Existing data must be preserved (Slack data has aged ou
   `user_feature_previews.user_id`, ...). External ids (Slack, Zoom, Kajabi, Stripe) are
   already text and don't change. Each column must be checked: a member reference converts,
   an auth reference stays.
-- **No legacy mapping kept.** Old UUID links, bookmarks, Slack DMs and email links may
-  break. Only the early-access users are affected: tell them in one line (brief
+- **Legacy mapping: open decision (changed 2026-10-20).** The earlier draft assumed nothing
+  external depended on old ids because `SLACK_TEST_MODE=true` in prod. It is now `false`, so
+  real members have Slack DMs (45 check-in DMs sent so far) and in-app notifications (46)
+  holding old `/prickles/<uuid>` links, plus bookmarks, calendar feeds and, with courses,
+  lesson URLs. Exposure is still small in prod (945 members, 14 with accounts, 9 calendar
+  feed tokens, 2 push subscriptions, 1 course). See "Old links" below for the options; until
+  decided, assume old links break and the people above are told in one line (brief
   maintenance window; calendar-feed subscribers must re-subscribe because feed event
-  `UID`s change; see `lib/calendar-feed.ts`). `SLACK_TEST_MODE=true` in prod, emails are
-  new and opt-in, so nothing external depends on old ids.
+  `UID`s change; see `lib/calendar-feed.ts`).
 - The signed email-unsubscribe tokens embed the member id (`lib/email-unsubscribe.ts`);
   old tokens will stop verifying. Accepted this once. The rule "never rotate" still holds
   going forward.
@@ -48,7 +52,7 @@ traceable* (an orphan id in a log tells you which table it came from), not prett
 (Slack prefixes a few dozen user-visible kinds with one letter; Stripe has 100+ and the long
 tail is cryptic; nobody minds either).
 
-**Tier 1: hand-chosen, readable (12).** Needs owner sign-off. These are the entities that
+**Tier 1: hand-chosen, readable (15).** Needs owner sign-off. These are the entities that
 appear in URLs or messages:
 
 | Table | Prefix | Table | Prefix |
@@ -59,8 +63,10 @@ appear in URLs or messages:
 | `events` | `evt_` | `programs` | `prg_` |
 | `chat_messages` | `msg_` | `chat_channels` | `chn_` |
 | `segments` | `seg_` | `badge_types` | `bdgt_` |
+| `courses` | `course_` | `course_modules` | `module_` |
+| `course_lessons` | `lesson_` | | |
 
-**Tier 2: short but readable (54).** Not worth debating one by one; the rule is what gets
+**Tier 2: short but readable (60).** Not worth debating one by one; the rule is what gets
 reviewed. Pronounceable and close to the table's own words, so the prefix is obvious
 (`fdbk_` for `feedback`, not `fee_`); the `member_` part of a name is dropped, since much of
 the data model is about members anyway (`member_activities` is `act_`, `member_badges` is
@@ -78,24 +84,27 @@ uniqueness against Tier 1.
 
 | Table | Prefix | Table | Prefix |
 |---|---|---|---|
-| `admin_work_queue_completions` | `qcmp_` | `member_status_overrides` | `stovr_` |
-| `ambiguous_zoom_names` | `ambz_` | `mentorships` | `mntr_` |
-| `badge_levels` | `bdgl_` | `outreach_touches` | `touch_` |
-| `calendar_feed_items` | `cfeed_` | `prickle_attendance` | `pkat_` |
-| `chat_reactions` | `rxn_` | `prickle_checkin_dismissals` | `pcid_` |
-| `event_attendees` | `evatt_` | `prickle_checkin_dm_log` | `pcil_` |
-| `event_photos` | `evph_` | `prickle_checkins` | `pci_` |
-| `feedback` | `fdbk_` | `prickle_checkout_dismissals` | `pcod_` |
-| `ignored_zoom_names` | `ignz_` | `prickle_commitment_slots` | `cmts_` |
-| `in_app_notifications` | `notif_` | `prickle_host_vibes` | `hvib_` |
-| `member_activities` | `act_` | `prickle_schedules` | `psch_` |
-| `member_awards` | `awd_` | `program_cohorts` | `coh_` |
-| `member_badges` | `bdg_` | `push_subscriptions` | `push_` |
-| `member_email_aliases` | `ealias_` | `staff` | `staff_` |
-| `member_hiatus_history` | `hiat_` | `unmatched_calendar_events` | `unmc_` |
-| `member_name_aliases` | `nalias_` | `wheel_of_wonder_matches` | `wowm_` |
-| `member_program_enrollments` | `enrl_` | `writing_goals` | `wgoal_` |
-| `member_reminder_log` | `remlog_` | `writing_progress_entries` | `wprog_` |
+| `admin_work_queue_completions` | `qcmp_` | `mentorships` | `mntr_` |
+| `ambiguous_zoom_names` | `ambz_` | `outreach_touches` | `touch_` |
+| `badge_levels` | `bdgl_` | `prickle_attendance` | `pkat_` |
+| `calendar_feed_items` | `cfeed_` | `prickle_checkin_dismissals` | `pcid_` |
+| `chat_reactions` | `rxn_` | `prickle_checkin_dm_log` | `pcil_` |
+| `course_access_grants` | `cgrant_` | `prickle_checkins` | `pci_` |
+| `course_lesson_files` | `lfile_` | `prickle_checkout_dismissals` | `pcod_` |
+| `event_attendees` | `evatt_` | `prickle_commitment_slots` | `cmts_` |
+| `event_photos` | `evph_` | `prickle_host_vibes` | `hvib_` |
+| `feedback` | `fdbk_` | `prickle_join_settings` | `pjoin_` |
+| `ignored_zoom_names` | `ignz_` | `prickle_schedules` | `psch_` |
+| `in_app_notifications` | `notif_` | `program_cohorts` | `coh_` |
+| `member_activities` | `act_` | `push_subscriptions` | `push_` |
+| `member_awards` | `awd_` | `staff` | `staff_` |
+| `member_badges` | `bdg_` | `unmatched_calendar_events` | `unmc_` |
+| `member_email_aliases` | `ealias_` | `video_text_tracks` | `vtrk_` |
+| `member_hiatus_history` | `hiat_` | `video_watch_segments` | `vwatch_` |
+| `member_name_aliases` | `nalias_` | `videos` | `video_` |
+| `member_program_enrollments` | `enrl_` | `wheel_of_wonder_matches` | `wowm_` |
+| `member_reminder_log` | `remlog_` | `writing_goals` | `wgoal_` |
+| `member_status_overrides` | `stovr_` | `writing_progress_entries` | `wprog_` |
 
 **`bronze`**
 
@@ -115,16 +124,16 @@ Not in the list: `feature_flags` / `feature_flag_segments` (text keys, no uuid).
 one does later (a table starts showing up in URLs), promote it to Tier 1 with a hand-chosen
 prefix; the cost is one migration for that table.
 
-## Inventory (scratch stack from this branch, 233 migrations)
+## Inventory (scratch stack, 249 migrations, re-run 2026-10-20 after courses and analytics landed)
 
 ### What converts and what doesn't
 
 | Group | Count | Treatment |
 |---|--:|---|
-| Tables with their own uuid `id` (`bronze` 18, `public` 48) | 66 | Convert; each gets a prefix (see Prefixes) |
+| Tables with their own uuid `id` (`bronze` 18, `public` 57) | 75 | Convert; each gets a prefix (see Prefixes) |
 | Member- or prickle-keyed tables whose uuid key *is* a reference | 14 | Convert as foreign keys; no prefix of their own |
-| Composite PKs containing uuids | 7 | Convert the uuid part as foreign keys |
-| Columns referencing `auth.users`, auth sessions or Vault | 28 + 5 | Stay uuid (see below) |
+| Composite PKs containing uuids | 9 | Convert the uuid part as foreign keys |
+| Columns referencing `auth.users`, auth sessions or Vault, and client-generated ids | 31 + 8 | Stay uuid (see below) |
 | `access_events.id`, `audit_log.id` (bigint); text-keyed tables | | Not converted |
 
 **Reference-keyed tables (14, no prefix):** `member_directory.id`, `member_engagement.member_id`,
@@ -133,7 +142,7 @@ prefix; the cost is one migration for that table.
 `member_join_date_overrides`, `member_onboarding`, `member_profile_overrides`,
 `member_roster_opt_outs`, `member_slack_connections`, `outreach_leads`.
 
-**Composite PKs with uuids (7):** `chat_channel_members`, `member_notes`, `segment_members`,
+**Composite PKs with uuids (9):** `course_access`, `lesson_progress`, `chat_channel_members`, `member_notes`, `segment_members`,
 `feature_flag_segments`, `notification_preferences`, `user_feature_previews`,
 `writing_project_starting_balances`.
 
@@ -171,7 +180,7 @@ Read-only, estimated row counts, 2026-10-18. About 250k rows in total.
 | `supabase_admin` | 0 | |
 | `postgres` | no override | server default, 2 min seen on a management query |
 
-Every backfill is a single `UPDATE` of at most tens of thousands of rows, so one transaction
+Every backfill is a single `UPDATE` of at most tens of thousands of rows (the new course and video tables have a handful of rows in prod), so one transaction
 is fine; no batching needed.
 
 ### Foreign-key parents
@@ -184,7 +193,12 @@ is fine; no batching needed.
 | `writing_projects` | 5 |
 | `events` | 5 |
 | `chat_messages` | 3, including self `thread_root_id` |
-| `chat_channels`, `segments`, `programs`, `badge_types`, `bronze.calendar_events` | 2 each |
+| `courses` | 4 (`course_access`, `course_access_grants`, `course_modules`, `course_lessons`) |
+| `course_modules` | 2, including self `parent_id` |
+| `course_lessons` | 3 (`lesson_progress`, `course_lesson_files`, ...) |
+| `videos` | 3 (`course_lessons.video_id`, `video_text_tracks`, `video_watch_segments`) |
+| `chat_channels`, `segments`, `badge_types`, `bronze.calendar_events` | 2 each |
+| `programs` | 3 (now also `courses.program_id`) |
 | `program_cohorts`, `member_books`, `prickle_commitments` | 1 each |
 | `prickle_schedules` | self `carried_forward_from` |
 
@@ -194,11 +208,12 @@ is fine; no batching needed.
 
 | Column(s) | Points at | Why it has no FK / stays |
 |---|---|---|
-| `members.user_id`, `user_profiles.id`, `slack_identities.user_id`, `user_feature_previews.user_id`, `feedback.user_id`, `access_events.user_id`, and every `created_by`, `updated_by`, `awarded_by`, `locked_by`, `confirmed_by`, `deleted_by`, `ignored_by`, `touched_by`, `completed_by`, `actor_user_id` (28 columns) | `auth.users` | Supabase owns the id; FKs exist |
+| `members.user_id`, `user_profiles.id`, `slack_identities.user_id`, `user_feature_previews.user_id`, `feedback.user_id`, `access_events.user_id`, and every `created_by`, `updated_by`, `awarded_by`, `locked_by`, `confirmed_by`, `deleted_by`, `ignored_by`, `touched_by`, `completed_by`, `actor_user_id` (31 columns, including `course_access_grants.created_by`, `prickle_join_settings.created_by`, `analytics_events.user_id`) | `auth.users` | Supabase owns the id; FKs exist |
 | `audit_log.changed_by` | `auth.users` | Deliberate: history must outlive a deleted user (`20261006000000_create_audit_log.sql`) |
 | `access_events.session_id` | an auth session | Short-lived auth session |
 | `restricted_slack_channels.restricted_by` | `auth.users` | Looks like an oversight (could be a nullable FK with `ON DELETE SET NULL`); out of scope here |
 | `member_slack_connections.access_secret_id`, `refresh_secret_id` | Vault secrets | Another schema we don't own |
+| `analytics_events.message_id`, `analytics_events.session_id`, `video_watch_segments.session_id` | nothing (client-generated) | Generated in the browser; a retried batch re-sends them for idempotency, so they must not change |
 
 ### Ids to rewrite that a foreign-key rewrite misses
 
@@ -220,10 +235,46 @@ is fine; no batching needed.
 | Kind | Count | Notes |
 |---|--:|---|
 | Views | 2 | `bronze.slack_messages_meta`, `bronze.slack_channel_membership_periods`. **Correction to the earlier draft:** `member_directory`, `member_engagement`, `member_metrics` and `prickle_popularity` are plain tables kept in sync by the `sync_member_directory` trigger and the processing routes, not views; they convert like any other table |
-| Functions with a uuid argument or result | 42 | e.g. `current_member_id`, `chat_post_message`, `chat_toggle_reaction`, `get_activity_feed`, `count_activity_feed`, `admin_members_page`, `create_prickle_commitment`, `add_event_attendee`, `my_mentorships`, `set_mentorship_note`, the `slack_connection_*` family, `get_record_history`, `get_access_sessions`. `revoke_user_sessions` and `revoke_my_session` take auth user ids and keep their uuid signature. Read the latest `CREATE OR REPLACE` of each before editing |
-| RLS policies in `public` / `bronze` | 279 | Review any that compare an id column to a uuid-typed expression (`current_member_id()`, `auth.uid()`) |
-| `gen_random_uuid()` column defaults | 66 | Matches the 66 id tables |
+| Functions with a uuid argument or result | 43 | e.g. `current_member_id`, `chat_post_message`, `chat_toggle_reaction`, `get_activity_feed`, `count_activity_feed`, `admin_members_page`, `create_prickle_commitment`, `add_event_attendee`, `my_mentorships`, `set_mentorship_note`, the `slack_connection_*` family, `get_record_history`, `get_access_sessions`. `revoke_user_sessions` and `revoke_my_session` take auth user ids and keep their uuid signature. Read the latest `CREATE OR REPLACE` of each before editing |
+| RLS policies in `public` / `bronze` | 301 | Review any that compare an id column to a uuid-typed expression (`current_member_id()`, `auth.uid()`) |
+| `gen_random_uuid()` column defaults | 75 | Matches the 75 id tables |
 | Triggers | | `audit_row_change` (about 50 tables), `sync_member_directory`, `member_activities_stamp_sudo`, `members_sync_email_aliases`, `guard_member_self_service_update` |
+
+### Storage buckets (new in this audit)
+
+Object names in Storage are paths, and some embed our ids. Renaming an object means a copy
+plus delete through the Storage API (updating `storage.objects.name` in SQL does not move
+the file), so the safest rule is: **leave existing objects where they are** and let the row's
+`storage_path` stay authoritative. Only RLS that matches on the path needs care.
+
+| Bucket | Path built from | RLS matches path? | Handling |
+|---|---|---|---|
+| `book-covers` (public) | `<member id>/<random>.ext` | **Yes**: first folder must equal `current_member_id()::text` | After conversion the member's new id no longer matches existing folders, so members could not replace or delete old covers (1 object in prod). Move those objects with the Storage API, or accept for a one-off and re-upload |
+| `event-photos` | `<event id>/<item id>` | No (role-based) | Leave in place; `event_photos.storage_path` is authoritative |
+| `course-files` | `<course id>/<lesson id>/<file id>-<name>` | No | Leave in place (8 objects in prod); new uploads use new ids |
+| `feedback-screenshots` | `<auth user id>/<id>.png` | Yes, on `auth.uid()` | Unaffected: auth ids stay uuid |
+| `slack-files` | Slack ids | No | Unaffected |
+
+`video_text_tracks.storage_path` follows the same rule. `videos.mux_asset_id` /
+`mux_playback_id` are external ids and don't change.
+
+### Old links
+
+Both the audit and prod now show real exposure, so this needs a decision rather than an
+assumption. Where old uuids live outside the database: Slack DMs and in-app notification
+`url` / `ref` (45 and 46 rows), emails, bookmarks, calendar feeds, and lesson / module /
+file URLs (`/courses/[slug]/lessons/[lessonId]`). The `[id]` routes take a string, so a
+fallback is cheap to build if wanted.
+
+| Option | What it costs | What it keeps working |
+|---|---|---|
+| A. Break old links (current plan) | Nothing extra; tell the 14 members with accounts in one line | Nothing; Slack DMs and bookmarks 404 |
+| B. Rewrite stored links only | Migration also rewrites `in_app_notifications.url` / `ref` (already in scope) | In-app links; not Slack DMs already sent |
+| C. Keep a temporary `legacy_ids` table (old uuid, new id, table) and have the `[id]` routes redirect | One table, a shared resolver in the routes, a removal date | Every old link, for as long as the table exists |
+
+My recommendation is B plus C for a bounded window (say 90 days), because the table is tiny
+(a few thousand rows) and the cost of 404s in real members' Slack history is higher now
+that the app has launched. Drop the table after the window.
 
 **Method:** regenerate with the catalog queries (uuid columns joined to `pg_constraint`)
 rather than trusting this prose when writing the migration; the migration itself should derive
@@ -276,7 +327,7 @@ change and the migration together (CI pushes migrations before the Vercel deploy
    temp dir, change `project_id` and every port in `config.toml`, run `supabase start`
    there (it applies all migrations), and query it with `docker exec` into its `db`
    container. The shared local DB is untouched.
-2. Confirm the 12 Tier 1 prefixes and the Tier 2 rule with the owner (Prefixes section); resolve the open items:
+2. Confirm the 15 Tier 1 prefixes and the Tier 2 rule with the owner (Prefixes section); resolve the open items:
    `admin_work_queue_completions.occurrence_key` contents, and the other jsonb/text
    locations that may embed our ids.
 3. ~~Row counts and timeouts~~ done (see Inventory): single transaction.
