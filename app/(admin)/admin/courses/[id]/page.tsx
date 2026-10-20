@@ -12,6 +12,7 @@ import type { ExplainedLesson, ExplainedModule } from "@/lib/courses/explain";
 import type { Visibility } from "@/lib/courses/visibility";
 import CourseSettingsForm from "./CourseSettingsForm";
 import CourseVideosPanel from "./CourseVideosPanel";
+import CourseFilesPanel from "./CourseFilesPanel";
 
 export const metadata: Metadata = { title: "Courses" };
 
@@ -82,7 +83,7 @@ export default async function AdminCoursePage({ params }: { params: Promise<{ id
   const detail = await loadAdminCourse(supabase, id);
   if (!detail) notFound();
 
-  const { course, explained, content, hubLessonIds, videos } = detail;
+  const { course, explained, content, hubLessonIds, videos, files } = detail;
   const hub: HubLinks = { slug: course.published?.slug ?? null, lessonIds: hubLessonIds };
 
   return (
@@ -119,6 +120,7 @@ export default async function AdminCoursePage({ params }: { params: Promise<{ id
       </div>
 
       <CourseVideosPanel slug={course.published?.slug ?? null} videos={videos} />
+      <CourseFilesPanel slug={course.published?.slug ?? null} plan={files} />
 
       <div className="mt-6 rounded-lg bg-white p-6 shadow dark:bg-slate-900">
         <h2 className="text-lg font-semibold">Lessons</h2>

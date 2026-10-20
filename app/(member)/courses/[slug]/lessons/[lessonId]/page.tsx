@@ -8,6 +8,7 @@ import { createMuxClient, signPlaybackTokens } from "@/lib/mux";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { isUuid } from "@/lib/chat/format";
 import CourseOutline from "../../../CourseOutline";
+import LessonDownloads from "../../../LessonDownloads";
 import LessonPlayer, { type PlaybackTokens } from "../../../LessonPlayer";
 import MarkCompleteButton from "../../../MarkCompleteButton";
 
@@ -83,7 +84,7 @@ export default async function LessonPage({ params }: { params: Promise<{ slug: s
   // Lessons that can't be opened (no access, ended access, coming soon for members) go back to the course page, which says why.
   if (result.kind !== "ok") redirect(`/courses/${slug}`);
 
-  const { view, lesson, neighbors, completed, video, preview } = result;
+  const { view, lesson, neighbors, completed, video, preview, files } = result;
   const duration = formatDuration(lesson.duration_seconds);
 
   let player: React.ReactNode = null;
@@ -138,6 +139,11 @@ export default async function LessonPage({ params }: { params: Promise<{ slug: s
             <div className="prose prose-slate prose-lg mt-8 max-w-4xl dark:prose-invert" dangerouslySetInnerHTML={{ __html: lesson.body_html }} />
           )}
 
+          {/* The side column is hidden on a phone, so the downloads sit below the text there ("available below"). */}
+          <div className="mt-8 lg:hidden">
+            <LessonDownloads slug={view.course.slug} lessonId={lesson.id} files={files} />
+          </div>
+
           <div className="mt-10 border-t border-slate-200 pt-6 dark:border-slate-800">
             {(neighbors.previous || neighbors.next) && (
               <div className="grid gap-3 sm:grid-cols-2">
@@ -155,19 +161,24 @@ export default async function LessonPage({ params }: { params: Promise<{ slug: s
         </main>
 
         {/* This week's lessons beside the video, on a wide screen only (phones get Back/Next under the video instead). */}
-        {section && (
+        {(section || files.length > 0) && (
           <aside className="hidden lg:block">
-            <div className="sticky top-6 rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
-              <CourseOutline
-                slug={view.course.slug}
-                outline={section}
-                completed={view.completed}
-                canOpen
-                previewComingSoon={caller.scope.isAdminActing}
-                currentLessonId={lesson.id}
-                label="Lessons in this section"
-                thumbnails
-              />
+            <div className="sticky top-6 space-y-4">
+              {section && (
+                <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+                  <CourseOutline
+                    slug={view.course.slug}
+                    outline={section}
+                    completed={view.completed}
+                    canOpen
+                    previewComingSoon={caller.scope.isAdminActing}
+                    currentLessonId={lesson.id}
+                    label="Lessons in this section"
+                    thumbnails
+                  />
+                </div>
+              )}
+              <LessonDownloads slug={view.course.slug} lessonId={lesson.id} files={files} />
             </div>
           </aside>
         )}

@@ -130,6 +130,20 @@ describe('Course member data', () => {
       expect(result.video).toEqual({ status: 'ready', playbackId: 'pb-test' })
     })
 
+    it("gives the lesson's downloads in order, and none for a lesson without any", async () => {
+      await supabase.from('course_lesson_files').insert([
+        { lesson_id: ids.lessonA, source_key: `${SLUG}-f2`, filename: 'Second.pdf', storage_path: 'x/second', position: 2, size_bytes: 20 },
+        { lesson_id: ids.lessonA, source_key: `${SLUG}-f1`, filename: 'First.pdf', storage_path: 'x/first', position: 1, size_bytes: 10 },
+      ])
+      const withFiles = await loadLessonView(supabase, SLUG, ids.lessonA, scope('current'))
+      expect(withFiles.kind === 'ok' && withFiles.files.map((f) => [f.filename, f.size_bytes])).toEqual([['First.pdf', 10], ['Second.pdf', 20]])
+      // The storage path is never part of what the page gets.
+      expect(withFiles.kind === 'ok' && withFiles.files[0]).not.toHaveProperty('storage_path')
+
+      const without = await loadLessonView(supabase, SLUG, ids.lessonB, scope('current'))
+      expect(without.kind === 'ok' && without.files).toEqual([])
+    })
+
     it('does not open a coming-soon lesson for a member, or for staff in sudo', async () => {
       expect((await loadLessonView(supabase, SLUG, ids.lessonSoon, scope('current'))).kind).toBe('coming_soon')
       expect((await loadLessonView(supabase, SLUG, ids.lessonSoon, scope('staff', false))).kind).toBe('no_access')

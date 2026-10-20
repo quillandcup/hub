@@ -173,6 +173,14 @@ export interface LessonView {
   video: { status: string; playbackId: string | null } | null;
   /** Staff previewing a lesson members can't open yet ("Coming soon"). Progress isn't tracked for it. */
   preview: boolean;
+  /** The lesson's downloads, in order. They're served through the download route, never by path. */
+  files: LessonFileView[];
+}
+
+export interface LessonFileView {
+  id: string;
+  filename: string;
+  size_bytes: number | null;
 }
 
 export type LessonResult =
@@ -218,8 +226,16 @@ export async function loadLessonView(
     if (v) video = { status: v.status, playbackId: v.mux_playback_id };
   }
 
+  const { data: files, error: filesError } = await supabase
+    .from("course_lesson_files")
+    .select("id, filename, size_bytes")
+    .eq("lesson_id", lessonId)
+    .order("position");
+  if (filesError) throw new Error(`course_lesson_files read failed: ${filesError.message}`);
+
   return {
     kind: "ok",
+    files: (files ?? []) as LessonFileView[],
     view: withOutline,
     lesson: { ...summary, body_html: lesson.body_html },
     neighbors: lessonNeighbors(view.outline, lessonId, { includeComingSoon: scope.isAdminActing }),
