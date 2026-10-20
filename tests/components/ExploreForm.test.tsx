@@ -112,6 +112,22 @@ describe("ExploreForm", () => {
     });
   });
 
+  it("takes a typed value for a free-form filter, and a filter can be removed", async () => {
+    renderForm();
+    await userEvent.click(screen.getByRole("button", { name: "Add step" }));
+    await userEvent.selectOptions(screen.getByLabelText("Step 1 event"), "element_clicked");
+    await userEvent.click(screen.getByRole("button", { name: "Add filter" }));
+    await userEvent.selectOptions(screen.getByLabelText("Step 1 filter 1 property"), "text");
+    await userEvent.type(screen.getByLabelText("Step 1 filter 1 value"), "Settings");
+    await userEvent.click(screen.getByRole("button", { name: "Run" }));
+    expect(pushedUrl().searchParams.getAll("step")).toEqual(["element_clicked:text=Settings"]);
+
+    await userEvent.click(screen.getByRole("button", { name: "Remove" }));
+    expect(screen.queryByLabelText("Step 1 filter 1 value")).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Run" }));
+    expect(pushedUrl().searchParams.getAll("step")).toEqual(["element_clicked"]);
+  });
+
   it("starts from the question in the URL, and steps can be removed", async () => {
     renderForm({
       initialSteps: [
