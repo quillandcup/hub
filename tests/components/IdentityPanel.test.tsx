@@ -90,4 +90,20 @@ describe('IdentityPanel', () => {
     await waitFor(() => expect(identityActions.setDisplayName).toHaveBeenCalledWith('A. Byron'))
     await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Display name updated.'))
   })
+
+  it('shows the error when the display name cannot be saved', async () => {
+    vi.mocked(identityActions.getIdentitySettings).mockResolvedValue({
+      ...baseSettings,
+      displayName: 'A. Byron',
+      nameAliases: [{ id: '1', alias: 'A. Byron', source: 'member', active: true, createdAt: '2026-01-01' }],
+    })
+    vi.mocked(identityActions.setDisplayName).mockResolvedValue({ error: 'Pick one of your active names' })
+
+    render(<IdentityPanel />)
+    const dropdown = await screen.findByDisplayValue('A. Byron')
+    await userEvent.selectOptions(dropdown, 'Ada Lovelace (Real Name)')
+
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Pick one of your active names'))
+    expect(identityActions.setDisplayName).toHaveBeenCalledWith(null)
+  })
 })

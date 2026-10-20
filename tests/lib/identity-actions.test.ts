@@ -21,7 +21,7 @@ vi.mock("@/lib/kajabi/client", () => ({
   createKajabiClient: () => ({ updateContact: updateContactMock }),
 }));
 
-import { updateRealName } from "@/app/(member)/settings/identityActions";
+import { setDisplayName, updateRealName } from "@/app/(member)/settings/identityActions";
 import { createClient } from "@/lib/supabase/server";
 import { getEffectiveIdentity } from "@/lib/sudo";
 import { SUPPORT_EMAIL } from "@/lib/config"
@@ -126,5 +126,65 @@ describe("updateRealName", () => {
     const result = await updateRealName("Erica Haraldsen");
     expect(result).toEqual({ error: "Kajabi is down" });
     expect(mock.__update).not.toHaveBeenCalled();
+  });
+});
+
+describe("setDisplayName", () => {
+  function makeMock({
+    alias = { id: "a1" } as { id: string } | null,
+    updateResult = { data: { id: "member-1" }, error: null } as { data: unknown; error: { message: string } | null },
+  } = {}) {
+    const update = vi.fn(() => ({
+      eq: () => ({ select: () => ({ single: () => Promise.resolve(updateResult) }) }),
+    }));
+    const aliasChain: any = {
+      select: () => aliasChain,
+      eq: () => aliasChain,
+      maybeSingle: () => Promise.resolve({ data: alias }),
+    };
+    const from = vi.fn((table: string) => (table === "member_name_aliases" ? aliasChain : { update }));
+    return {
+      auth: { getClaims: vi.fn().mockResolvedValue({ data: { claims: { sub: "auth-user-1" } }, error: null }) },
+      from,
+      __update: update,
+    };
+  }
+
+  it("saves one of the member's active aliases", async () => {
+    const mock = makeMock();
+    vi.mocked(createClient).mockResolvedValue(mock as any);
+
+    expect(await setDisplayName("Pen Name")).toEqual({ success: true });
+    expect(mock.__update).toHaveBeenCalledWith({ display_name: "Pen Name" });
+  });
+
+  it("rejects a name that isn't an active alias of the member", async () => {
+    const mock = makeMock({ alias: null });
+    vi.mocked(createClient).mockResolvedValue(mock as any);
+
+    expect(await setDisplayName("Someone Else")).toEqual({ error: expect.any(String) });
+    expect(mock.__update).not.toHaveBeenCalled();
+  });
+
+  it("clears the display name with null, without an alias lookup", async () => {
+    const mock = makeMock({ alias: null });
+    vi.mocked(createClient).mockResolvedValue(mock as any);
+
+    expect(await setDisplayName(null)).toEqual({ success: true });
+    expect(mock.__update).toHaveBeenCalledWith({ display_name: null });
+  });
+
+  it("returns the database error when the update fails", async () => {
+    const mock = makeMock({ updateResult: { data: null, error: { message: "boom" } } });
+    vi.mocked(createClient).mockResolvedValue(mock as any);
+
+    expect(await setDisplayName("Pen Name")).toEqual({ error: "boom" });
+  });
+
+  it("requires a member record", async () => {
+    vi.mocked(createClient).mockResolvedValue(makeMock() as any);
+    vi.mocked(getEffectiveIdentity).mockResolvedValue(null);
+
+    expect(await setDisplayName(null)).toEqual({ error: "No member record" });
   });
 });
