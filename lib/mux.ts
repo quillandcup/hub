@@ -1,4 +1,5 @@
 import Mux from "@mux/mux-node";
+import type { CourseMuxApi } from "@/lib/courses/media";
 
 /**
  * Mux helper for course videos (docs/COURSES.md, "Video"). Assets use a signed playback policy,
@@ -38,6 +39,27 @@ export async function createVideoAsset(
     passthrough: opts.videoId,
   });
   return { assetId: asset.id };
+}
+
+export interface MuxAssetStatus {
+  status: "preparing" | "ready" | "errored";
+  durationSeconds?: number;
+  /** The signed playback id, once the asset has one. */
+  playbackId?: string;
+}
+
+/**
+ * An asset's current state, read from Mux. The webhook normally delivers this; reading it is how
+ * a deployment without the webhook (a preview, or production before it's set up) catches up.
+ */
+export async function getAssetStatus(mux: Mux, assetId: string): Promise<MuxAssetStatus> {
+  const asset = await mux.video.assets.retrieve(assetId);
+  const status = asset.status === "ready" || asset.status === "errored" ? asset.status : "preparing";
+  return {
+    status,
+    durationSeconds: typeof asset.duration === "number" ? asset.duration : undefined,
+    playbackId: asset.playback_ids?.find((p) => p.policy === "signed")?.id,
+  };
 }
 
 export interface PlaybackTokens {
@@ -106,4 +128,12 @@ export function assetUpdateFromEvent(event: {
     };
   }
   return null;
+}
+
+/** The two Mux calls the course media step makes, over a real client. */
+export function courseMuxApi(mux: Mux): CourseMuxApi {
+  return {
+    createAsset: (opts) => createVideoAsset(mux, opts),
+    getAsset: (assetId) => getAssetStatus(mux, assetId),
+  };
 }

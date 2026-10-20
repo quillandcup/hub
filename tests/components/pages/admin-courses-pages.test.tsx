@@ -16,6 +16,9 @@ vi.mock("@/lib/courses/admin", () => ({
   loadAdminCourses: (...a: unknown[]) => loadAdminCourses(...a),
   loadAdminCourse: (...a: unknown[]) => loadAdminCourse(...a),
 }));
+vi.mock("@/app/(admin)/admin/courses/[id]/CourseVideosPanel", () => ({
+  default: (props: { slug: string | null; videos: unknown[] }) => <div data-testid="videos" data-slug={props.slug ?? ""} data-count={props.videos.length} />,
+}));
 vi.mock("@/app/(admin)/admin/courses/[id]/CourseSettingsForm", () => ({
   default: (props: { slug: string; accessDuration: string | null; launchOn: string }) => (
     <div data-testid="settings" data-slug={props.slug} data-access={props.accessDuration ?? "lifetime"} data-launch={props.launchOn} />
@@ -84,7 +87,7 @@ describe("/admin/courses/[id]", () => {
         { kajabiId: "l2", moduleKajabiId: null, position: 1, title: "Loose draft", publishingOption: "draft" },
       ]
     );
-    return { course: row({ published }), explained, content: { l1: { hasText: true, hasVideo: false } }, hubLessonIds: { l1: "hub-l1", l2: "hub-l2" }, ...over };
+    return { course: row({ published }), explained, content: { l1: { hasText: true, hasVideo: false } }, hubLessonIds: { l1: "hub-l1", l2: "hub-l2" }, videos: [], ...over };
   };
   const params = { params: Promise.resolve({ id: "k1" }) };
 
@@ -131,6 +134,13 @@ describe("/admin/courses/[id]", () => {
     expect(screen.getByTestId("settings")).toHaveAttribute("data-access", "P1Y");
     expect(screen.getByTestId("settings")).toHaveAttribute("data-launch", "2026-11-02");
     expect(screen.getByText(/11 start later/)).toBeInTheDocument();
+  });
+
+  it("gives the course's videos to the videos panel, with the slug only once it's published", async () => {
+    loadAdminCourse.mockResolvedValue(detail(undefined, { videos: [{ mediaId: "m1" }, { mediaId: "m2" }] }));
+    await renderServerPage(AdminCoursePage, params);
+    expect(screen.getByTestId("videos")).toHaveAttribute("data-count", "2");
+    expect(screen.getByTestId("videos")).toHaveAttribute("data-slug", "the-ready-writer");
   });
 
   it("points an unpublished course at the import page instead of a form", async () => {
