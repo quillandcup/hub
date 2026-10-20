@@ -53,6 +53,9 @@ interface CalendarWeekViewProps {
   // rather than merely absent. Hides the tooltip's attendance/host-flag
   // lines; the on-block badge is already member-mode-only.
   showAttendanceDetails?: boolean;
+  // Start of the newest imported Zoom meeting. Ended prickles that started after it, with no
+  // attendance, show "Awaiting data" instead of 0. null = nothing imported; undefined = assume imported.
+  attendanceDataThrough?: string | null;
   // When provided, clicking a prickle block calls this instead of navigating to the prickle
   // (e.g. picking prickles to commit to). Blocks become toggle buttons; those whose id is in
   // selectedPrickleIds render as pressed/highlighted.
@@ -82,6 +85,29 @@ function getAttendanceColor(count: number): string {
   } else {
     return "bg-plum-600 dark:bg-plum-600 text-white border-plum-700 dark:border-plum-400";
   }
+}
+
+// Label for a prickle's attendance: null before it starts (no data can exist),
+// "Awaiting data" when nothing is recorded and it either hasn't ended or no Zoom
+// meeting at or after its start has been imported (`dataThrough` is the newest
+// imported meeting's start), else the count. If later meetings are in, a prickle
+// with 0 attendees really had none. `undefined` means "assume imported".
+function attendanceLabel(
+  prickle: { start_time: string; end_time: string; attendance_count: number },
+  dataThrough: string | null | undefined,
+  countOnly = false
+): string | null {
+  const now = Date.now();
+  if (new Date(prickle.start_time).getTime() > now) return null;
+  const count = prickle.attendance_count;
+  const covered =
+    dataThrough === undefined ||
+    (dataThrough !== null &&
+      new Date(prickle.end_time).getTime() <= now &&
+      new Date(prickle.start_time).getTime() <= new Date(dataThrough).getTime());
+  if (count === 0 && !covered) return "Awaiting data";
+  if (countOnly) return String(count);
+  return `${count} ${count === 1 ? "attendee" : "attendees"}`;
 }
 
 // Get the position and height for a prickle block in the calendar
@@ -135,6 +161,7 @@ export default function CalendarWeekView({
   onSlotClick,
   selectedSlot,
   showAttendanceDetails = true,
+  attendanceDataThrough,
   onPrickleClick,
   selectedPrickleIds,
 }: CalendarWeekViewProps) {
@@ -428,9 +455,9 @@ export default function CalendarWeekView({
                               <div className="text-xs truncate">
                                 {startTime}
                               </div>
-                              {mode !== "member" && (
+                              {mode !== "member" && attendanceLabel(prickle, attendanceDataThrough) && (
                                 <div className="text-xs font-bold mt-0.5">
-                                  {prickle.attendance_count} {prickle.attendance_count === 1 ? "attendee" : "attendees"}
+                                  {attendanceLabel(prickle, attendanceDataThrough)}
                                 </div>
                               )}
                             </div>
@@ -451,7 +478,9 @@ export default function CalendarWeekView({
                                 <div>Host: {prickle.host || "none"}</div>
                                 {showAttendanceDetails && (
                                   <>
-                                    <div>Attendance: {prickle.attendance_count}</div>
+                                    {attendanceLabel(prickle, attendanceDataThrough) && (
+                                      <div>Attendance: {attendanceLabel(prickle, attendanceDataThrough, true)}</div>
+                                    )}
                                     {prickle.host_missing && <div className="text-yellow-400 dark:text-orange-600 mt-1">⚠️ Host did not attend</div>}
                                     {prickle.host_late && <div className="text-yellow-400 dark:text-orange-600 mt-1">⚠️ Host was late (&gt;5 min)</div>}
                                   </>

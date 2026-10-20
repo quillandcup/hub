@@ -35,4 +35,8 @@ describe('AdminCalendarPage navigation', () => {
   it('passes prickleBasePath="/admin/prickles" to CalendarWeekView', () => {
     expect(src).toContain('prickleBasePath="/admin/prickles"');
   });
+
+  it('passes the newest Zoom meeting start to CalendarWeekView', () => {
+    expect(src).toContain('attendanceDataThrough={latestMeeting?.start_time ?? null}');
+  });
 });
