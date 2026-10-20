@@ -45,6 +45,7 @@ const lesson = (id: string, title: string, position: number, state: "open" | "co
   position,
   state,
   duration_seconds: id === LESSON_A ? 545 : null,
+  thumbnail_url: id === LESSON_A ? "https://cdn.test/welcome.jpg" : null,
 });
 const outline = buildOutline([mod], [lesson(LESSON_A, "Welcome", 1), lesson(LESSON_B, "Voice", 2), lesson(LESSON_SOON, "Revision", 3, "coming_soon")]);
 const course = { id: "c1", slug: "the-ready-writer", title: "The Ready Writer", description: "Write a book." };
@@ -195,29 +196,62 @@ describe("/courses/[slug]/lessons/[lessonId]", () => {
     }
   });
 
-  it("shows the lesson text, where it sits, previous/next with titles, and mark complete, with no outline of its own", async () => {
+  it("shows the lesson text, where it sits, Back/Next, and mark complete, with no whole-course outline", async () => {
     loadLessonView.mockResolvedValue(ok());
     await renderServerPage(LessonPage, params());
 
     expect(screen.getByRole("heading", { level: 1, name: "Voice" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Find your voice" })).toBeInTheDocument();
     expect(screen.getByText(/Month 1 · Lesson 2 of 2/)).toBeInTheDocument();
-    const previous = screen.getByRole("link", { name: /Previous.*Welcome/ });
-    expect(previous).toHaveAttribute("href", `/courses/the-ready-writer/lessons/${LESSON_A}`);
-    expect(screen.queryByRole("link", { name: /Next/ })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Mark complete" })).toBeEnabled();
     expect(screen.queryByTestId("player")).not.toBeInTheDocument();
-    // The outline lives on the course page; the lesson only links back to it.
     expect(screen.queryByRole("navigation", { name: "Course outline" })).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "View the full course outline" })).toHaveAttribute("href", "/courses/the-ready-writer");
   });
 
-  it("shows the next lesson's title on a Next card", async () => {
+  it("puts Back and Next buttons under the video, disabled at the ends, and cards with titles at the bottom", async () => {
+    loadLessonView.mockResolvedValue(ok());
+    await renderServerPage(LessonPage, params());
+
+    expect(screen.getByRole("link", { name: "Back: Welcome" })).toHaveAttribute("href", `/courses/the-ready-writer/lessons/${LESSON_A}`);
+    expect(screen.getByText("Next →", { selector: "span[aria-disabled]" })).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByRole("link", { name: /Previous.*Welcome/ })).toHaveAttribute("href", `/courses/the-ready-writer/lessons/${LESSON_A}`);
+    expect(screen.queryByRole("link", { name: /^Next/ })).not.toBeInTheDocument();
+  });
+
+  it("centers Mark complete between Back and Next, in the row under the video", async () => {
+    loadLessonView.mockResolvedValue(ok());
+    await renderServerPage(LessonPage, params());
+
+    const row = screen.getByRole("button", { name: "Mark complete" }).closest("div.grid")!;
+    const children = Array.from(row.children);
+    expect(children).toHaveLength(3);
+    expect(children[0]).toHaveTextContent("← Back");
+    expect(children[1]).toContainElement(screen.getByRole("button", { name: "Mark complete" }));
+    expect(children[2]).toHaveTextContent("Next →");
+  });
+
+  it("links the next lesson from both the button and the card", async () => {
     loadLessonView.mockResolvedValue(ok({ neighbors: { previous: null, next: lesson(LESSON_B, "Voice", 2) } }));
     await renderServerPage(LessonPage, params(LESSON_A));
 
-    expect(screen.getByRole("link", { name: /Next.*Voice/ })).toHaveAttribute("href", `/courses/the-ready-writer/lessons/${LESSON_B}`);
-    expect(screen.queryByRole("link", { name: /Previous/ })).not.toBeInTheDocument();
+    const href = `/courses/the-ready-writer/lessons/${LESSON_B}`;
+    expect(screen.getByRole("link", { name: "Next: Voice" })).toHaveAttribute("href", href);
+    expect(screen.getByRole("link", { name: /^Next →\s*Voice/ })).toHaveAttribute("href", href);
+    expect(screen.getByText("← Back", { selector: "span[aria-disabled]" })).toBeInTheDocument();
+  });
+
+  it("lists this section's lessons beside the video, with thumbnails, and nothing from other modules", async () => {
+    loadLessonView.mockResolvedValue(ok());
+    const { container } = await renderServerPage(LessonPage, params());
+
+    const section = screen.getByRole("navigation", { name: "Lessons in this section" });
+    expect(within(section).getByRole("heading", { name: "Month 1" })).toBeInTheDocument();
+    expect(within(section).getByRole("link", { name: /Welcome/ })).toBeInTheDocument();
+    expect(within(section).getByRole("link", { name: /Voice/ })).toHaveAttribute("aria-current", "page");
+    expect(container.querySelector("img[src='https://cdn.test/welcome.jpg']")).not.toBeNull();
+    // Phones don't get it: the column is hidden below the lg breakpoint.
+    expect(section.closest("aside")).toHaveClass("hidden", "lg:block");
   });
 
   it("plays a ready video with signed tokens minted for it", async () => {
@@ -253,6 +287,8 @@ describe("/courses/[slug]/lessons/[lessonId]", () => {
 
     expect(screen.getByRole("status")).toHaveTextContent("Preview: members see this lesson as “Coming soon”");
     expect(screen.queryByRole("button", { name: /Mark complete|Completed/ })).not.toBeInTheDocument();
+    // Staff can open coming-soon lessons from the section list too.
+    expect(within(screen.getByRole("navigation", { name: "Lessons in this section" })).getByRole("link", { name: /Revision/ })).toBeInTheDocument();
   });
 
   it("disables mark complete in sudo, which is read-only", async () => {

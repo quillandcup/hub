@@ -5,6 +5,7 @@ import {
   formatDuration,
   lessonContext,
   lessonNeighbors,
+  lessonSection,
   type OutlineLesson,
   type OutlineModule,
 } from "@/lib/courses/outline";
@@ -70,6 +71,33 @@ describe("lessonNeighbors", () => {
   it("has no neighbours for a lesson that isn't open or isn't there", () => {
     expect(lessonNeighbors(outline, "soon")).toEqual({ previous: null, next: null });
     expect(lessonNeighbors(outline, "nope")).toEqual({ previous: null, next: null });
+  });
+});
+
+describe("lessonSection", () => {
+  const outline = buildOutline(
+    [mod("Month", 1), mod("Week", 1, "Month"), mod("Week 2", 2, "Month")],
+    [lesson("intro", 1, "Month"), lesson("a", 1, "Week"), lesson("soon", 2, "Week", "coming_soon"), lesson("c", 1, "Week 2"), lesson("loose", 1, null)]
+  );
+
+  it("is the module a lesson sits in, with just its own lessons", () => {
+    const section = lessonSection(outline, "a")!;
+    expect(section.modules.map((n) => n.module.id)).toEqual(["Week"]);
+    expect(section.modules[0].lessons.map((l) => l.id)).toEqual(["a", "soon"]);
+    expect(section.lessons.map((l) => l.id)).toEqual(["a", "soon"]);
+    expect(section.loose).toEqual([]);
+  });
+
+  it("leaves out the module's nested modules, so a month with weeks lists only its own lessons", () => {
+    const section = lessonSection(outline, "intro")!;
+    expect(section.modules[0].module.id).toBe("Month");
+    expect(section.modules[0].children).toEqual([]);
+    expect(section.lessons.map((l) => l.id)).toEqual(["intro"]);
+  });
+
+  it("is null for a lesson outside any module, or not in the course", () => {
+    expect(lessonSection(outline, "loose")).toBeNull();
+    expect(lessonSection(outline, "nope")).toBeNull();
   });
 });
 

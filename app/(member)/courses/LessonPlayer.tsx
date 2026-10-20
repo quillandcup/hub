@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { selectPlaybackRate, selectSource, useCaptionsOptions, usePlayer } from "@videojs/react";
+import { selectPlayback, selectPlaybackRate, selectSource, useCaptionsOptions, usePlayer } from "@videojs/react";
 import { VideoPlayer, VideoSkin } from "@videojs/react/video";
 import { MuxVideo } from "@videojs/react/media/mux-video";
 import "@videojs/react/video/skin.css";
@@ -74,6 +74,30 @@ function RememberCaptions() {
   return null;
 }
 
+/**
+ * The big plum play button over the poster, until the first play (the v10 skin has only the control
+ * bar). It stops above the control bar so that stays usable, and is a real button, so it works from
+ * the keyboard and screen readers.
+ */
+function BigPlayButton() {
+  const playback = usePlayer(selectPlayback);
+  if (!playback || playback.started) return null;
+  return (
+    <button
+      type="button"
+      aria-label="Play video"
+      onClick={() => void playback.play()}
+      className="group absolute inset-x-0 top-0 bottom-14 z-30 flex items-center justify-center focus:outline-none"
+    >
+      <span className="flex h-16 w-24 items-center justify-center rounded-xl bg-plum-600 text-white shadow-xl ring-1 ring-white/30 transition group-hover:scale-105 group-hover:bg-plum-500 group-focus-visible:ring-2 group-focus-visible:ring-white">
+        <svg viewBox="0 0 24 24" className="h-9 w-9" fill="currentColor" aria-hidden="true">
+          <path d="M8 5v14l11-7z" />
+        </svg>
+      </span>
+    </button>
+  );
+}
+
 // The skin's public theming properties; plum is the Hub's plum-600 from tailwind.config.ts.
 const SKIN_THEME = {
   aspectRatio: "16 / 9",
@@ -89,6 +113,7 @@ export default function LessonPlayer({ title, playbackId, tokens }: { title: str
       <VideoSkin style={SKIN_THEME}>
         <RememberSpeed />
         <RememberCaptions />
+        <BigPlayButton />
         <MuxVideo
           source={{
             playbackId,
