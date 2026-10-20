@@ -19,19 +19,35 @@ interface EventSummaryRow {
   last_seen: string;
 }
 
+interface TopClickRow {
+  label: string;
+  element: string | null;
+  events: number;
+  members: number;
+  sessions: number;
+  routes: number;
+}
+
 const DAY_MS = 24 * 60 * 60_000;
 
-export default async function FeatureUsagePage({ searchParams }: { searchParams: Promise<{ days?: string }> }) {
+type Params = { days?: string; route?: string; admin?: string };
+
+export default async function FeatureUsagePage({ searchParams }: { searchParams: Promise<Params> }) {
   await requireAdminPage();
-  const days = parseWindowDays((await searchParams).days);
+  const params = await searchParams;
+  const days = parseWindowDays(params.days);
+  // Staff clicking around the admin area would drown out what members do, so it starts hidden.
+  const showAdmin = params.admin === "show";
+  const routePrefix = params.route?.trim().slice(0, 120) || null;
   const since = new Date(Date.now() - days * DAY_MS).toISOString();
 
   const supabase = await createClient();
-  const [summary, ...funnels] = await Promise.all([
+  const [summary, topClicks, ...funnels] = await Promise.all([
     supabase.rpc("analytics_event_summary", { since }),
+    supabase.rpc("analytics_top_clicks", { since, route_prefix: routePrefix, hide_admin: !showAdmin }),
     ...FUNNELS.map((f) => supabase.rpc("analytics_funnel", { steps: f.steps.map((s) => s.event), since, filters: f.steps.map((s) => s.where ?? {}) })),
   ]);
-  const error = summary.error ?? funnels.find((f) => f.error)?.error;
+  const error = summary.error ?? topClicks.error ?? funnels.find((f) => f.error)?.error;
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-8">
@@ -49,7 +65,7 @@ export default async function FeatureUsagePage({ searchParams }: { searchParams:
           {WINDOW_DAYS.map((d) => (
             <Link
               key={d}
-              href={`/admin/analytics?days=${d}`}
+              href={`/admin/analytics?${new URLSearchParams({ days: String(d), ...(routePrefix ? { route: routePrefix } : {}), ...(showAdmin ? { admin: "show" } : {}) })}`}
               className={`px-3 py-1 rounded-lg border ${
                 d === days
                   ? "border-plum-600 bg-plum-50 dark:bg-plum-900/20 text-plum-700 dark:text-plum-300"
@@ -74,6 +90,68 @@ export default async function FeatureUsagePage({ searchParams }: { searchParams:
           </section>
         );
       })}
+
+      <section>
+        <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Most-clicked things</h2>
+        <p className="text-sm text-slate-600 dark:text-slate-400">
+          Every button, link and control members click, named by its label (or <code>data-track</code> name, or where a link goes). Links to a
+          person or record show only where they go, never the name.
+        </p>
+        <form method="get" className="mt-3 flex flex-wrap items-center gap-3 text-sm">
+          <input type="hidden" name="days" value={days} />
+          <label className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
+            Only pages under
+            <input
+              name="route"
+              defaultValue={routePrefix ?? ""}
+              placeholder="/courses"
+              className="rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-2 py-1 text-slate-900 dark:text-slate-100"
+            />
+          </label>
+          <label className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
+            <input type="checkbox" name="admin" value="show" defaultChecked={showAdmin} />
+            Include admin pages
+          </label>
+          <button type="submit" className="px-3 py-1 rounded-lg border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800">
+            Apply
+          </button>
+        </form>
+        <div className="mt-3 overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-700">
+          <table className="w-full text-sm">
+            <thead className="bg-slate-50 dark:bg-slate-800 text-left text-slate-600 dark:text-slate-400">
+              <tr>
+                <th className="px-3 py-2">Clicked</th>
+                <th className="px-3 py-2">Kind</th>
+                <th className="px-3 py-2 text-right">Times</th>
+                <th className="px-3 py-2 text-right">Members</th>
+                <th className="px-3 py-2 text-right">Visits</th>
+                <th className="px-3 py-2 text-right">Pages</th>
+              </tr>
+            </thead>
+            <tbody>
+              {((topClicks.data ?? []) as TopClickRow[]).map((row) => (
+                <tr key={`${row.label}|${row.element}`} className="border-t border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200">
+                  <td className="px-3 py-2">
+                    {row.label === "(unlabelled)" ? <span className="text-slate-500">(unlabelled)</span> : <span className="font-mono text-xs">{row.label}</span>}
+                  </td>
+                  <td className="px-3 py-2 text-slate-600 dark:text-slate-400">{row.element ?? ""}</td>
+                  <td className="px-3 py-2 text-right">{row.events}</td>
+                  <td className="px-3 py-2 text-right">{row.members}</td>
+                  <td className="px-3 py-2 text-right">{row.sessions}</td>
+                  <td className="px-3 py-2 text-right">{row.routes}</td>
+                </tr>
+              ))}
+              {(topClicks.data ?? []).length === 0 && (
+                <tr>
+                  <td colSpan={6} className="px-3 py-6 text-center text-slate-500">
+                    No clicks in this window.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
 
       <section>
         <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">All events</h2>

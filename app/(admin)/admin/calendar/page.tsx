@@ -22,7 +22,7 @@ export default async function CalendarPage({
   // Await searchParams in Next.js 15
   const params = await searchParams;
 
-  // Get week from URL param or default to last week
+  // Get week from URL param or default to the current week
   let weekStart: Date;
   if (params.week) {
     // Parse week from URL (format: YYYY-MM-DD) and normalize to Sunday
@@ -34,11 +34,11 @@ export default async function CalendarPage({
     weekStart.setDate(paramDate.getDate() - dayOfWeek); // Adjust to Sunday
     weekStart.setHours(0, 0, 0, 0);
   } else {
-    // Default to last week (7 days ago, starting on Sunday)
+    // Default to the current week, starting on Sunday
     const now = new Date();
     const dayOfWeek = now.getDay(); // 0 = Sunday
     weekStart = new Date(now);
-    weekStart.setDate(now.getDate() - dayOfWeek - 7); // Last Sunday
+    weekStart.setDate(now.getDate() - dayOfWeek); // This Sunday
     weekStart.setHours(0, 0, 0, 0);
   }
 

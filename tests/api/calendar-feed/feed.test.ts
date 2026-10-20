@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { NextRequest } from 'next/server'
 import { getTestSupabaseAdminClient, getTestSupabaseClient } from '../../helpers/supabase'
 import { GET } from '@/app/api/calendar/feed/[token]/route'
-import { expectedOccurrenceStart, localDateFor, slotTimeForInstant } from '@/lib/commitments'
+import { slotTimeForInstant } from '@/lib/commitments'
 import { SCHEDULE_TIMEZONE } from '@/lib/calendar-feed'
 
 /**
@@ -43,15 +43,18 @@ describe('calendar feed', () => {
   const committedByA = hourFromNow(72) // hosted by B, committed to by A
   // Added by hand by A (calendar_feed_items), all hosted by B, all of a second type:
   const addedOnce = hourFromNow(96) // "just this one"
-  // Local midday on the same weekday a week apart (not +7 days of UTC, which drifts an hour across a DST change,
-  // and not an hour near the 2 a.m. changeover, which is ambiguous).
-  const localMidday = (daysAhead: number) => {
-    const date = new Date(`${localDateFor(hourFromNow(24 * daysAhead), SCHEDULE_TIMEZONE)}T00:00:00Z`)
-    return expectedOccurrenceStart(date.toISOString().slice(0, 10), { startTimeLocal: '12:00', timezone: SCHEDULE_TIMEZONE })
-  }
-  const weekly1 = localMidday(5) // "every week": this one and the next
-  const weekly2 = localMidday(12)
-  const notAdded = new Date(weekly1.getTime() + 3 * 60 * 60 * 1000) // same type, different slot: stays out
+  const weekly1 = hourFromNow(120) // "every week": this one and the next
+  // Next week's occurrence at the same local wall time, so a DST change in between doesn't move it off the slot.
+  const weekly2 = (() => {
+    const wanted = slotTimeForInstant(weekly1.toISOString(), SCHEDULE_TIMEZONE).startTimeLocal
+    const nextWeek = weekly1.getTime() + 7 * 24 * 60 * 60 * 1000
+    const hour = 60 * 60 * 1000
+    const match = [0, -hour, hour].map((shift) => new Date(nextWeek + shift)).find(
+      (d) => slotTimeForInstant(d.toISOString(), SCHEDULE_TIMEZONE).startTimeLocal === wanted
+    )
+    return match ?? new Date(nextWeek)
+  })()
+  const notAdded = hourFromNow(130) // same type, different slot: stays out
   const eventStart = hourFromNow(24 * 10).toISOString().slice(0, 10)
   const eventEnd = hourFromNow(24 * 12).toISOString().slice(0, 10)
 
