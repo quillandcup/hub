@@ -55,7 +55,7 @@ describe("SplitMemberModal submit", () => {
 
   it("shows the server's error and stays open", async () => {
     const onClose = vi.fn();
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, json: async () => ({ error: "Another member already has that email." }) }));
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, json: async () => ({ error: "Another member already has that email.", conflictingMemberId: "other-1" }) }));
     render(<SplitMemberModal member={member} nameAliases={nameAliases} emailAliases={emailAliases} isOpen onClose={onClose} />);
 
     await userEvent.click(screen.getByLabelText("Ivy Marsh"));
@@ -63,6 +63,7 @@ describe("SplitMemberModal submit", () => {
     await userEvent.click(screen.getByRole("button", { name: /split into new member/i }));
 
     expect(await screen.findByText("Another member already has that email.")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "View that member" })).toHaveAttribute("href", "/admin/members/other-1");
     expect(onClose).not.toHaveBeenCalled();
   });
 

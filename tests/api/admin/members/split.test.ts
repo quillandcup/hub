@@ -105,11 +105,19 @@ describe("POST /api/admin/members/split", () => {
   });
 
   it("rejects an email another member already has", async () => {
-    const mock = makeSupabaseMock({ emailHolder: { id: "other" } });
+    const mock = makeSupabaseMock({ emailHolder: { id: "other", name: "Ivy Marsh" } as any });
     useMock(mock);
     const res = await POST(request(BODY));
     expect(res.status).toBe(409);
+    expect(await res.json()).toMatchObject({ conflictingMemberId: "other", error: expect.stringContaining("Ivy Marsh") });
     expect(mock.calls.some((c) => c.op === "insert")).toBe(false);
+  });
+
+  it("rejects the original member's own primary email", async () => {
+    useMock(makeSupabaseMock({ emailHolder: { id: ORIGINAL.id, name: ORIGINAL.name } as any }));
+    const res = await POST(request(BODY));
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toContain("own primary email");
   });
 
   it("rejects an email that is an alias of a different member", async () => {
