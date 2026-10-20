@@ -66,7 +66,7 @@ export default async function CoursePage({ params }: { params: Promise<{ slug: s
 
   return (
     <div>
-      <header className="bg-plum-700 px-6 py-10 text-center text-white">
+      <header className="bg-plum-700 px-6 py-12 text-center text-white">
         <div className="mx-auto max-w-3xl">
           <Link href="/courses" className="text-sm text-plum-100 hover:underline">
             ← Courses
@@ -95,11 +95,12 @@ export default async function CoursePage({ params }: { params: Promise<{ slug: s
         </div>
 
         <aside className="order-first lg:order-none">
-          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm lg:sticky lg:top-6 dark:border-slate-800 dark:bg-slate-900">
+          <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm lg:sticky lg:top-6 dark:border-slate-800 dark:bg-slate-900">
             {thumbnail && (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={thumbnail} alt="" className="mb-4 aspect-video w-full rounded object-cover" />
+              <img src={thumbnail} alt="" className="block w-full" />
             )}
+            <div className="p-5">
             <div
               role="progressbar"
               aria-label="Course progress"
@@ -116,6 +117,7 @@ export default async function CoursePage({ params }: { params: Promise<{ slug: s
             {access.kind === "open" && access.endsAt && (
               <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">Your access runs until {formatCourseDate(access.endsAt)}.</p>
             )}
+            </div>
           </div>
         </aside>
       </div>
