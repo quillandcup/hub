@@ -6,9 +6,13 @@ import { canOpenLessons, loadCourseView } from "@/lib/courses/member";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { SUPPORT_EMAIL } from "@/lib/config";
 import CourseOutline from "../CourseOutline";
+import { courseTitle } from "@/lib/courses/page-title";
 import { formatCourseDate } from "@/lib/courses/format";
 
-export const metadata: Metadata = { title: "Courses" };
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const { slug } = await params;
+  return { title: await courseTitle(slug, () => []) };
+}
 
 export default async function CoursePage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
