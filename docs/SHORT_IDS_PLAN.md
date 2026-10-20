@@ -347,8 +347,12 @@ change and the migration together (CI pushes migrations before the Vercel deploy
 
 **A Tier 2 table's id must never reach a user.** That means no page URL, no link in a Slack
 message, email, notification or calendar feed, no id a person can copy out of an image or
-download link, and no id in a public API response. Tier 2 ids stay internal (joins, logs,
-admin `fetch` calls between our own client and server).
+download link, and no id in an export or download (CSV, reports) or in an API consumed by anything other than
+our own client (a public or partner API, an outbound webhook). Admins count as users: an admin
+page URL is exposure, since URLs get pasted into Slack and support threads. Tier 2 ids stay
+internal (joins, logs, and the `fetch` calls and request bodies between our own client and
+server, even in admin code). Today every `app/api` route is of that internal kind; the first
+public or partner API is the moment to re-check what it returns.
 
 **If a feature needs to expose one, elevate the table to Tier 1 first**: pick a readable
 prefix (Prefixes section), add it to the Tier 1 table, and convert it before the feature
