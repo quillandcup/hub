@@ -59,9 +59,9 @@ tail is cryptic; nobody minds either).
 | `members` | `mbr_` | `chat_channels` | `chn_` |
 | `prickles` | `prkl_` | `segments` | `seg_` |
 | `prickle_types` | `prty_` | `badge_types` | `bdgt_` |
-| `prickle_commitments` | `cmt_` | `courses` | `course_` |
-| `writing_projects` | `prj_` | `course_modules` | `module_` |
-| `member_books` | `book_` | `course_lessons` | `lesson_` |
+| `prickle_commitments` | `cmt_` | `courses` | `crs_` |
+| `writing_projects` | `prj_` | `course_modules` | `mod_` |
+| `member_books` | `book_` | `course_lessons` | `les_` |
 | `events` | `evt_` | `event_photos` | `photo_` |
 | `programs` | `prg_` | `course_lesson_files` | `file_` |
 | `chat_messages` | `msg_` |  | |
