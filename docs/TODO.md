@@ -169,6 +169,13 @@ Slack tests currently replace the `@slack/web-api` `WebClient` class with a hand
 - Migrate every Slack-touching test (sign-in, nudges, wheel of wonder, feedback, private channel access) and delete the per-file `vi.mock('@slack/web-api')` fakes.
 - Keep the complementary layers: `@slack/types` typing on block builders, Block Kit limit tests (`tests/lib/slack-sign-in-blocks.test.ts`), real HMAC-signed webhook requests. Optionally, a nightly non-hermetic smoke test that publishes to a test user in a Slack developer sandbox workspace, since only Slack itself fully validates Block Kit.
 
+### Enforce "Tier 2 Ids Are Never Exposed" _(After the Short IDs Scheme Lands)_
+`CLAUDE.md` ("Resource ID Tiers") and `docs/SHORT_IDS_PLAN.md` say a Tier 2 table's id must never reach a user; today a reviewer has to catch it. Once the short id scheme is in place, add a check so a violation fails CI:
+- Keep the tier lists in one machine-readable place (a small module or the `COMMENT ON TABLE ... 'id prefix: xxx_'` comments the migration adds), not just prose.
+- A test that scans `app/**/[param]` route segments, `href` / `url` / `ref` builders in `lib/notifications` and `lib/channels`, Slack block builders and the calendar feed for ids that come from a Tier 2 table, with an explicit allowlist (each entry with a reason, like the admin-route test in `tests/components/pages/admin-auth.test.tsx`).
+- Possible shortcut: a runtime guard in the link / notification helpers that rejects an id whose prefix is not a Tier 1 prefix.
+- Add the Tier 1 promotion step (readable prefix, migration, tier list) to the PR checklist.
+
 ### Check Migration Numbering Before CI Pushes
 CI's `supabase db push` rejects a local migration numbered older than the remote's latest, and it only fails on main, after merge (the Big Sister migrations did this on 2026-10-15). Add a PR check that fails when a new migration's version is lower than the latest already on main, so it's caught before merge. Related: `docs/CI_MIGRATION_ORDERING.md`, and an unmerged `origin/fix-ci-migration-include-all` branch that may already do part of it.
 
