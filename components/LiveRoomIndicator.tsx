@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import type { LiveRoom } from "@/lib/live-room";
+import { track } from "@/lib/analytics/client";
 
 const POLL_MS = 30_000;
 
@@ -65,6 +66,7 @@ export default function LiveRoomIndicator() {
       <button
         type="button"
         onClick={() => {
+          if (!open) track("onair_popover_opened", { live: room.live, room_size: room.count });
           setOpen((o) => !o);
           refresh();
         }}
@@ -92,7 +94,14 @@ export default function LiveRoomIndicator() {
             <>
               <p className="font-semibold text-slate-900 dark:text-slate-100">
                 {room.prickle ? (
-                  <Link href={`/prickles/${room.prickle.id}`} className="hover:underline" onClick={() => setOpen(false)}>
+                  <Link
+                    href={`/prickles/${room.prickle.id}`}
+                    className="hover:underline"
+                    onClick={() => {
+                      track("onair_prickle_clicked", { room_size: room.count });
+                      setOpen(false);
+                    }}
+                  >
                     {room.prickle.title}
                   </Link>
                 ) : (
@@ -109,7 +118,10 @@ export default function LiveRoomIndicator() {
                     <Link
                       href={`/members/${m.memberId}`}
                       className="text-slate-700 dark:text-slate-300 hover:underline"
-                      onClick={() => setOpen(false)}
+                      onClick={() => {
+                        track("onair_member_clicked", { room_size: room.count });
+                        setOpen(false);
+                      }}
                     >
                       {m.name}
                     </Link>
@@ -136,6 +148,8 @@ export default function LiveRoomIndicator() {
                 href={room.join.url}
                 target="_blank"
                 rel="noopener noreferrer"
+                data-track={room.live ? "onair-join-zoom" : "onair-start-pup"}
+                onClick={() => track("onair_join_clicked", { live: room.live, room_size: room.count })}
                 className="mt-4 block text-center rounded-lg bg-plum-600 hover:bg-plum-700 text-white font-medium px-3 py-2 transition-colors"
               >
                 {room.live ? "Join on Zoom" : "Start a PUP on Zoom"}

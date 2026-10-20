@@ -16,8 +16,7 @@
  */
 
 import { useEffect, useState } from "react";
-
-const STORAGE_KEY = "ga-consent";
+import { CONSENT_CHANGE_EVENT, CONSENT_STORAGE_KEY as STORAGE_KEY } from "@/lib/analytics/consent";
 
 type ConsentChoice = "granted" | "denied";
 
@@ -65,6 +64,8 @@ export function ConsentBanner({ needsConsent }: { needsConsent: boolean }) {
       // Best-effort persistence -- if storage is unavailable the visitor will
       // just see the banner again next visit.
     }
+    // Usage tracking (components/AnalyticsEvents.tsx) follows this choice too.
+    window.dispatchEvent(new Event(CONSENT_CHANGE_EVENT));
     setVisible(false);
   }
 
@@ -72,8 +73,8 @@ export function ConsentBanner({ needsConsent }: { needsConsent: boolean }) {
     <div className="fixed bottom-0 inset-x-0 z-50 border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-lg">
       <div className="max-w-3xl mx-auto px-4 py-3 flex flex-col sm:flex-row items-center gap-3 text-sm text-slate-700 dark:text-slate-300">
         <p className="flex-1">
-          We use Google Analytics to understand how Hedgie Hub is used. We only turn it on
-          with your consent.
+          We use Google Analytics and our own usage log (which pages and buttons you use, never what
+          you type) to understand how Hedgie Hub is used. We only turn them on with your consent.
         </p>
         <div className="flex gap-2 shrink-0">
           <button

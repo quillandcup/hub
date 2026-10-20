@@ -154,6 +154,10 @@ Layers: **channels** (`lib/channels/`: Slack, in-app, browser push and email tod
 
 Exceptions that stay direct: replies the member just asked for (Slack sign-in link), shared rooms (Wheel of Wonder intro), and staff-channel posts (`notifyStaffNewBook`, `notifyStaffNewAward`, the feedback widget). For a send the member explicitly requested that should still look like the notification (admin test DMs), use `createNotifier(..., { channels: ["slack"] })`, which skips preferences.
 
+### Usage Analytics
+
+**RULE**: A feature that ships needs events that show whether it is used. Declare them in the tracking plan (`lib/analytics/events.ts`) and call `track("object_action", { ... })` from `lib/analytics/client.ts`; never write to `analytics_events` directly, send to a provider, or add a property that could hold a person's name, email or typed text. Only declared events and properties are stored. Clicks are autocaptured; put `data-track="name"` on important controls and `data-track-ignore` on anything that shouldn't be recorded. Funnels for admins go in `lib/analytics/funnels.ts` (`/admin/analytics`). Details, consent and privacy rules: `docs/ANALYTICS.md`.
+
 ### Tabbed Pages: Tabs Are Paths
 
 **RULE**: A tabbed page's tabs are URL paths, never `?tab=`: the first tab at the base path, the rest at `<basePath>/<id>` (`/my-prickles`, `/my-prickles/all`; `/settings/notifications`). See `lib/tab-routes.ts`.
