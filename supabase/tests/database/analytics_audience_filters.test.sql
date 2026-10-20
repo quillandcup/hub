@@ -1,4 +1,4 @@
--- pgTAP tests for the audience filters (20261122000300): ignore_staff and ignore_sudo on every
+-- pgTAP tests for the audience filters (20261125000100): ignore_staff and ignore_sudo on every
 -- analytics function, and the two helpers behind them.
 -- Staff = an admin profile, or a member with a staff_role. A sudo event belongs to the member being
 -- viewed, so ignore_staff does not remove it; ignore_sudo alone decides whether it counts.
