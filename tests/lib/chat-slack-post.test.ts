@@ -77,7 +77,7 @@ const supabase = {
 };
 
 beforeEach(() => {
-  // Production runs with SLACK_TEST_MODE on, and chat posting must not care.
+  // Chat posting does not depend on SLACK_TEST_MODE, even if it is enabled in production.
   vi.stubEnv("SLACK_TEST_MODE", "true");
   vi.stubEnv("SLACK_BOT_TOKEN", "xoxb-test");
   config.isProduction = true;
