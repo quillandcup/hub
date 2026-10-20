@@ -34,9 +34,9 @@ vi.mock("@/app/(member)/courses/LessonPlayer", () => ({
 vi.mock("@/app/(member)/courses/actions", () => ({ setLessonComplete: vi.fn(async () => ({})) }));
 
 import CoursesPage from "@/app/(member)/courses/page";
-import CoursePage from "@/app/(member)/courses/[slug]/page";
-import ModulePage from "@/app/(member)/courses/[slug]/modules/[moduleId]/page";
-import LessonPage from "@/app/(member)/courses/[slug]/lessons/[lessonId]/page";
+import CoursePage, { generateMetadata as generateCourseMetadata } from "@/app/(member)/courses/[slug]/page";
+import ModulePage, { generateMetadata as generateModuleMetadata } from "@/app/(member)/courses/[slug]/modules/[moduleId]/page";
+import LessonPage, { generateMetadata as generateLessonMetadata } from "@/app/(member)/courses/[slug]/lessons/[lessonId]/page";
 
 const LESSON_A = "11111111-1111-4111-8111-111111111111";
 const LESSON_B = "22222222-2222-4222-8222-222222222222";
@@ -575,5 +575,47 @@ describe("/courses/[slug]/lessons/[lessonId]", () => {
     await renderServerPage(LessonPage, params());
 
     expect(screen.getByRole("button", { name: "Mark as complete" })).toBeDisabled();
+  });
+});
+
+describe("course page tab titles", () => {
+  const nested = buildOutline(
+    [
+      { id: "m2", parent_id: null, title: "Module 2: What Your Novel Needs", position: 1, state: "open" },
+      { id: "w1", parent_id: "m2", title: "Week 1: Writing for Yourself", position: 1, state: "open" },
+    ],
+    [{ id: LESSON_A, module_id: "w1", title: "Lesson 1: Reader Expectations", position: 1, state: "open", duration_seconds: null, thumbnail_url: null }],
+  );
+  const view = (access: { kind: string; endsAt?: null },withOutline = true) => ({ course, access, outline: withOutline ? nested : null, completed: new Set<string>(), progress: null });
+  const slugParams = { params: Promise.resolve({ slug: course.slug }) };
+
+  it("names the course on the course page", async () => {
+    loadCourseView.mockResolvedValue(view({ kind: "open", endsAt: null }));
+    expect(await generateCourseMetadata(slugParams)).toEqual({ title: "The Ready Writer · Courses" });
+  });
+
+  it("names the module and the modules above it, innermost first", async () => {
+    loadCourseView.mockResolvedValue(view({ kind: "open", endsAt: null }));
+    const metadata = await generateModuleMetadata({ params: Promise.resolve({ slug: course.slug, moduleId: "w1" }) });
+    expect(metadata.title).toBe("Week 1: Writing for Yourself · Module 2: What Your Novel Needs · The Ready Writer · Courses");
+  });
+
+  it("names the lesson, then its modules, then the course", async () => {
+    loadCourseView.mockResolvedValue(view({ kind: "open", endsAt: null }));
+    const metadata = await generateLessonMetadata({ params: Promise.resolve({ slug: course.slug, lessonId: LESSON_A }) });
+    expect(metadata.title).toBe(
+      "Lesson 1: Reader Expectations · Week 1: Writing for Yourself · Module 2: What Your Novel Needs · The Ready Writer · Courses",
+    );
+  });
+
+  it("shows only the course name to someone who can't open it", async () => {
+    loadCourseView.mockResolvedValue(view({ kind: "none" }, false));
+    const metadata = await generateLessonMetadata({ params: Promise.resolve({ slug: course.slug, lessonId: LESSON_A }) });
+    expect(metadata.title).toBe("The Ready Writer · Courses");
+  });
+
+  it("falls back to Courses for a course that doesn't exist", async () => {
+    loadCourseView.mockResolvedValue(null);
+    expect(await generateCourseMetadata(slugParams)).toEqual({ title: "Courses" });
   });
 });
