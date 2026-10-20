@@ -44,7 +44,8 @@ describe('/api/process/course-media', () => {
     // Only the one-byte source check is faked; the database client keeps using the real fetch.
     const realFetch = globalThis.fetch
     vi.stubGlobal('fetch', async (input: Parameters<typeof fetch>[0], init?: RequestInit) => {
-      if (typeof input === 'string' && input.startsWith('https://kajabi.test')) {
+      // Compare the parsed host, not a string prefix (a prefix also matches e.g. https://kajabi.test.evil.example).
+      if (typeof input === 'string' && new URL(input).hostname === 'kajabi.test') {
         return new Response(null, { status: 206, headers: { 'content-range': 'bytes 0-0/1234', etag: '"e"', 'last-modified': 'Mon' } })
       }
       return realFetch(input, init)
