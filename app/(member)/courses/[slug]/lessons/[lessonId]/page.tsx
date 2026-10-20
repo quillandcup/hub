@@ -3,11 +3,12 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { requireCoursesPage } from "@/lib/courses/caller";
 import { loadLessonView } from "@/lib/courses/member";
-import { formatDuration, lessonContext, lessonSection, type OutlineLesson } from "@/lib/courses/outline";
+import { lessonContext, lessonSection, type OutlineLesson } from "@/lib/courses/outline";
 import { createMuxClient, signPlaybackTokens } from "@/lib/mux";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { isUuid } from "@/lib/chat/format";
-import CourseOutline from "../../../CourseOutline";
+import PageBanner from "@/components/PageBanner";
+import LessonSectionList from "../../../LessonSectionList";
 import LessonDownloads from "../../../LessonDownloads";
 import LessonPlayer, { type PlaybackTokens } from "../../../LessonPlayer";
 import MarkCompleteButton from "../../../MarkCompleteButton";
@@ -85,7 +86,6 @@ export default async function LessonPage({ params }: { params: Promise<{ slug: s
   if (result.kind !== "ok") redirect(`/courses/${slug}`);
 
   const { view, lesson, neighbors, completed, video, preview, files } = result;
-  const duration = formatDuration(lesson.duration_seconds);
 
   let player: React.ReactNode = null;
   if (video) {
@@ -102,87 +102,95 @@ export default async function LessonPage({ params }: { params: Promise<{ slug: s
 
   const context = lessonContext(view.outline, lesson.id);
   const section = lessonSection(view.outline, lesson.id);
-  const courseHref = `/courses/${view.course.slug}`;
+  const sectionList = section && (
+    <LessonSectionList slug={view.course.slug} section={section} completed={view.completed} currentLessonId={lesson.id} previewComingSoon={caller.scope.isAdminActing} />
+  );
 
   return (
-    <div className="mx-auto w-full max-w-screen-2xl px-6 py-8">
-      <Link href={courseHref} className="text-sm text-slate-500 hover:underline dark:text-slate-400">
-        ← {view.course.title}
-      </Link>
+    <>
+      {preview && (
+        <PageBanner>Preview: members see this lesson as &ldquo;Coming soon&rdquo; until it&apos;s published in Kajabi. Progress isn&apos;t tracked here.</PageBanner>
+      )}
 
-      <div className="mt-6 lg:grid lg:grid-cols-[minmax(0,1fr)_19rem] lg:gap-8">
-        <main>
-          {preview && (
-            <p role="status" className="mb-6 rounded-lg bg-amber-100 p-3 text-sm text-amber-900 dark:bg-amber-900/30 dark:text-amber-200">
-              Preview: members see this lesson as &ldquo;Coming soon&rdquo; until it&apos;s published in Kajabi. Progress isn&apos;t tracked here.
-            </p>
-          )}
-
-          <header>
-            {context && (
-              <p className="text-xs font-semibold uppercase tracking-wide text-plum-700 dark:text-plum-300">
-                {`${context.trail.length > 0 ? `${context.trail.join(" › ")} · ` : ""}Lesson ${context.position} of ${context.total}`}
-              </p>
-            )}
-            <h1 className="mt-2 text-3xl font-bold leading-tight">{lesson.title}</h1>
-            {duration && <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{duration}</p>}
-          </header>
-
-          {player && <div className="mt-6 overflow-hidden rounded-2xl shadow-lg ring-1 ring-black/5 dark:ring-white/10">{player}</div>}
-
-          <StepButtons slug={view.course.slug} previous={neighbors.previous} next={neighbors.next}>
-            {!preview && <MarkCompleteButton lessonId={lesson.id} completed={completed} readOnly={caller.identity.isSudo} />}
-          </StepButtons>
-
-          {lesson.body_html && (
-            // Sanitized with an allowlist when it was imported (lib/courses/sanitize.ts); never stored or rendered raw.
-            <div className="prose prose-slate prose-lg mt-8 max-w-4xl dark:prose-invert" dangerouslySetInnerHTML={{ __html: lesson.body_html }} />
-          )}
-
-          {/* The side column is hidden on a phone, so the downloads sit below the text there ("available below"). */}
-          <div className="mt-8 lg:hidden">
-            <LessonDownloads slug={view.course.slug} lessonId={lesson.id} files={files} />
-          </div>
-
-          <div className="mt-10 border-t border-slate-200 pt-6 dark:border-slate-800">
-            {(neighbors.previous || neighbors.next) && (
-              <div className="grid gap-3 sm:grid-cols-2">
-                {neighbors.previous ? <NeighborCard slug={view.course.slug} lesson={neighbors.previous} direction="previous" /> : <span />}
-                {neighbors.next ? <NeighborCard slug={view.course.slug} lesson={neighbors.next} direction="next" /> : <span />}
-              </div>
-            )}
-
-            <p className="mt-8 text-center text-sm">
-              <Link href={courseHref} className="text-slate-500 underline hover:text-plum-700 dark:text-slate-400 dark:hover:text-plum-300">
-                View the full course outline
+      <div className="mx-auto w-full max-w-screen-2xl px-6 py-6">
+        <nav aria-label="Breadcrumb" className="text-sm text-slate-500 dark:text-slate-400">
+          <ol className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <li>
+              <Link href={`/courses/${view.course.slug}`} className="hover:underline">
+                {view.course.title}
               </Link>
-            </p>
-          </div>
-        </main>
+            </li>
+            {(context?.trail ?? []).map((title) => (
+              <li key={title} className="flex gap-2">
+                <span aria-hidden="true">/</span>
+                <span>{title}</span>
+              </li>
+            ))}
+            <li aria-current="page" className="flex gap-2 text-slate-900 dark:text-slate-100">
+              <span aria-hidden="true">/</span>
+              <span>{lesson.title}</span>
+            </li>
+          </ol>
+        </nav>
 
-        {/* This week's lessons beside the video, on a wide screen only (phones get Back/Next under the video instead). */}
-        {(section || files.length > 0) && (
-          <aside className="hidden lg:block">
-            <div className="sticky top-6 space-y-4">
-              {section && (
-                <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
-                  <CourseOutline
-                    slug={view.course.slug}
-                    outline={section}
-                    completed={view.completed}
-                    canOpen
-                    previewComingSoon={caller.scope.isAdminActing}
-                    currentLessonId={lesson.id}
-                    label="Lessons in this section"
-                    thumbnails
-                  />
+        <div className="mt-4 grid lg:grid-cols-[minmax(0,1fr)_22rem]">
+          {/* The video and this section's lessons are one component: a dark panel flush against the player, the same height. */}
+          {player && (
+            <div className="overflow-hidden rounded-2xl bg-neutral-900 shadow-lg ring-1 ring-black/5 dark:ring-white/10 lg:col-span-2 lg:grid lg:grid-cols-[minmax(0,1fr)_22rem]">
+              <div>{player}</div>
+              {sectionList && (
+                <aside className="relative hidden lg:block">
+                  <div className="absolute inset-0 overflow-y-auto">{sectionList}</div>
+                </aside>
+              )}
+            </div>
+          )}
+
+          <div className="lg:col-start-1">
+            <StepButtons slug={view.course.slug} previous={neighbors.previous} next={neighbors.next}>
+              <MarkCompleteButton
+                lessonId={lesson.id}
+                completed={completed}
+                readOnly={caller.identity.isSudo || preview}
+                readOnlyReason={preview ? "Progress isn't tracked for lessons members can't open yet" : undefined}
+              />
+            </StepButtons>
+          </div>
+
+          {/* The title and text sit below the video and its controls. */}
+          <div className="mt-8 lg:col-start-1 lg:row-start-3 lg:pr-8">
+            <h1 className="text-3xl font-bold leading-tight">{lesson.title}</h1>
+
+            {lesson.body_html && (
+              // Sanitized with an allowlist when it was imported (lib/courses/sanitize.ts); never stored or rendered raw.
+              <div className="prose prose-slate prose-lg mt-6 max-w-none dark:prose-invert" dangerouslySetInnerHTML={{ __html: lesson.body_html }} />
+            )}
+
+            <div className="mt-10 border-t border-slate-200 pt-6 dark:border-slate-800">
+              {(neighbors.previous || neighbors.next) && (
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {neighbors.previous ? <NeighborCard slug={view.course.slug} lesson={neighbors.previous} direction="previous" /> : <span />}
+                  {neighbors.next ? <NeighborCard slug={view.course.slug} lesson={neighbors.next} direction="next" /> : <span />}
                 </div>
               )}
+              <p className="mt-8 text-center text-sm">
+                <Link href={`/courses/${view.course.slug}`} className="text-slate-500 underline hover:text-plum-700 dark:text-slate-400 dark:hover:text-plum-300">
+                  View the full course outline
+                </Link>
+              </p>
+            </div>
+          </div>
+
+          {/* Downloads: beside the text on a wide screen, after it on a phone ("available below"). The section list stands in for
+              the player panel when a lesson has no video. */}
+          {(files.length > 0 || (!player && sectionList)) && (
+            <div className="mt-8 space-y-4 lg:col-start-2 lg:row-start-3 lg:mt-8">
+              {!player && sectionList && <div className="hidden overflow-hidden rounded-2xl bg-neutral-900 lg:block">{sectionList}</div>}
               <LessonDownloads slug={view.course.slug} lessonId={lesson.id} files={files} />
             </div>
-          </aside>
-        )}
+          )}
+        </div>
       </div>
-    </div>
+    </>
   );
 }

@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { safeUrl } from "@/lib/url";
 import { formatDuration, type Outline, type OutlineLesson, type OutlineNode } from "@/lib/courses/outline";
 
 interface Props {
@@ -11,16 +10,11 @@ interface Props {
   /** Staff: "Coming soon" lessons open too, as a preview. */
   previewComingSoon?: boolean;
   currentLessonId?: string;
-  /** Accessible name of the list ("Course outline" by default). */
-  label?: string;
-  /** Show each lesson's thumbnail beside its title. */
-  thumbnails?: boolean;
 }
 
-function LessonRow({ slug, lesson, completed, canOpen, current, previewComingSoon, thumbnails }: { slug: string; lesson: OutlineLesson; completed: boolean; canOpen: boolean; current: boolean; previewComingSoon?: boolean; thumbnails?: boolean }) {
+function LessonRow({ slug, lesson, completed, canOpen, current, previewComingSoon }: { slug: string; lesson: OutlineLesson; completed: boolean; canOpen: boolean; current: boolean; previewComingSoon?: boolean }) {
   const duration = formatDuration(lesson.duration_seconds);
   const comingSoon = lesson.state === "coming_soon";
-  const thumbnail = thumbnails ? safeUrl(lesson.thumbnail_url) : null;
   const content = (
     <>
       <span
@@ -33,11 +27,6 @@ function LessonRow({ slug, lesson, completed, canOpen, current, previewComingSoo
       >
         {completed ? "✓" : ""}
       </span>
-      {thumbnail && (
-        // Decorative (the title is right beside it); a plain img so any Kajabi image host works.
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={thumbnail} alt="" loading="lazy" className="h-9 w-16 shrink-0 rounded object-cover" />
-      )}
       <span className="min-w-0 flex-1">
         <span className={current ? "font-medium" : ""}>{lesson.title}</span>
         {completed && <span className="sr-only"> (completed)</span>}
@@ -87,7 +76,6 @@ function ModuleNode({ node, depth, ...rest }: { node: OutlineNode; depth: number
             canOpen={rest.canOpen}
             current={lesson.id === rest.currentLessonId}
             previewComingSoon={rest.previewComingSoon}
-            thumbnails={rest.thumbnails}
           />
         ))}
       </ul>
@@ -99,18 +87,18 @@ function ModuleNode({ node, depth, ...rest }: { node: OutlineNode; depth: number
 }
 
 /** A course's modules, weeks and lessons: checkmarks, durations, and "Coming soon" for unreleased ones. */
-export default function CourseOutline({ slug, outline, completed, canOpen, currentLessonId, previewComingSoon, label = "Course outline", thumbnails }: Props) {
+export default function CourseOutline({ slug, outline, completed, canOpen, currentLessonId, previewComingSoon }: Props) {
   return (
-    <nav aria-label={label}>
+    <nav aria-label="Course outline">
       {outline.loose.length > 0 && (
         <ul>
           {outline.loose.map((lesson) => (
-            <LessonRow key={lesson.id} slug={slug} lesson={lesson} completed={completed.has(lesson.id)} canOpen={canOpen} current={lesson.id === currentLessonId} previewComingSoon={previewComingSoon} thumbnails={thumbnails} />
+            <LessonRow key={lesson.id} slug={slug} lesson={lesson} completed={completed.has(lesson.id)} canOpen={canOpen} current={lesson.id === currentLessonId} previewComingSoon={previewComingSoon} />
           ))}
         </ul>
       )}
       {outline.modules.map((node) => (
-        <ModuleNode key={node.module.id} node={node} depth={0} slug={slug} completed={completed} canOpen={canOpen} currentLessonId={currentLessonId} previewComingSoon={previewComingSoon} thumbnails={thumbnails} />
+        <ModuleNode key={node.module.id} node={node} depth={0} slug={slug} completed={completed} canOpen={canOpen} currentLessonId={currentLessonId} previewComingSoon={previewComingSoon} />
       ))}
     </nav>
   );
