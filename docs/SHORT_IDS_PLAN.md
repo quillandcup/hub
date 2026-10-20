@@ -280,7 +280,7 @@ own checks (row counts equal, no orphans, no old uuids left for the tables it co
 
 | Phase | Tables | Why this order |
 |---|---|---|
-| 1 | The 17 Tier 1 tables, every column that references them (about 50 `member_id`-style columns in Tier 2 tables), and `calendar_feed_items` | Everything a user can see or copy. `calendar_feed_items` is not readable but its id is part of the `.ics` `UID`; moving it later would force a second re-subscribe, so it goes now with the members and prickles that already change the `UID`s |
+| 1 | The 17 Tier 1 tables and every column that references them (about 50 `member_id`-style columns in Tier 2 tables) | Everything a user can see or copy. The `.ics` feed `UID`s are built from member, prickle and prickle-type ids (`lib/calendar-feed.ts`), all Tier 1, so subscribers re-subscribe once |
 | 2 | Remaining Tier 2 tables in `public` | Internal only; mostly leaf tables, so each is a primary-key swap plus a default change |
 | 3 | Bronze (18 tables) | Never shown to users; can wait or be skipped |
 
