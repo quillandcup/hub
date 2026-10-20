@@ -264,11 +264,16 @@ the file), so the safest rule is: **leave existing objects where they are** and 
 
 ### Old links
 
-Decided: break them (see Decisions). Where old uuids live outside the database, so everyone
-knows what stops working: Slack DMs and in-app notification `url` / `ref` (45 and 46 rows,
-barely read yet), emails, bookmarks, calendar feeds, and lesson / module / file URLs. The
-`in_app_notifications` rows are still rewritten (they are in the database, so the scan finds
-them); nothing is kept for links already sent.
+Decided: break links that live outside our database (see Decisions). Anything inside it is
+rewritten and keeps working.
+
+| Where the old uuid lives | After the migration |
+|---|---|
+| `in_app_notifications.url` / `ref` (46 rows) and any other id in our tables or jsonb | **Rewritten, keeps working.** It is in the database, so the migration's scan finds and maps it; the post-migration check fails if an old uuid remains |
+| Slack DMs already sent (45 check-in DMs) | Break. The links are text in Slack's copy of the message. Rewriting them would need `chat.update` with the stored channel and message `ts`; not worth it, as they are barely read |
+| Emails already sent | Break (including unsubscribe links, already accepted) |
+| Bookmarks, calendar feed subscriptions | Break (feed `UID`s change; re-subscribe) |
+| Lesson, module and file URLs | Break, but only 1 course and no progress rows yet in prod |
 
 **Method:** regenerate with the catalog queries (uuid columns joined to `pg_constraint`)
 rather than trusting this prose when writing the migration; the migration itself should derive
