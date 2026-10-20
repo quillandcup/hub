@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import { selectPlayback, selectPlaybackRate, selectSource, selectTime, useCaptionsOptions, usePlayer } from "@videojs/react";
+import { useEffect, useRef, useState } from "react";
+import { selectPlayback, selectPlaybackRate, selectSource, selectTime, useCaptionsOptions, useMedia, usePlayer } from "@videojs/react";
 import { VideoPlayer, VideoSkin } from "@videojs/react/video";
 import { MuxVideo } from "@videojs/react/media/mux-video";
 import "@videojs/react/video/skin.css";
 import { safeUrl } from "@/lib/url";
+import { MAX_SEGMENTS_PER_BATCH, RESUME_MAX_FRACTION, type WatchSegmentInput } from "@/lib/courses/watch";
 import { AUTO_COMPLETE_FRACTION, useLessonCompletion } from "./LessonCompletion";
 
 export interface PlaybackTokens {
@@ -17,7 +18,7 @@ export interface PlaybackTokens {
 const RATE_KEY = "course-player:playback-rate";
 const CAPTIONS_KEY = "course-player:captions";
 
-// Restores the saved speed once, then saves every later change. (Stored per browser for now; per member comes with watch tracking.)
+// Restores the saved speed once, then saves every later change. (Stored per browser for now; per member is still to do.)
 function RememberSpeed() {
   const rate = usePlayer(selectPlaybackRate);
   const canPlay = usePlayer(selectSource)?.canPlay;
@@ -96,6 +97,164 @@ function AutoCompleteAtWatchedMark() {
   return null;
 }
 
+/** How often a long stretch is checkpointed, so a closed tab or a crash loses at most this much. */
+const CHECKPOINT_MS = 30_000;
+/** Stretches kept for a resend while saves are failing; the oldest go first so an outage can't grow without bound. */
+const MAX_PENDING_SEGMENTS = 200;
+
+/** Starts the video where the member left off, once, unless that was (nearly) the end. */
+function ResumePosition({ seconds }: { seconds: number }) {
+  const media = useMedia();
+  const done = useRef(false);
+
+  useEffect(() => {
+    if (!media || seconds <= 0) return;
+    const el = media as unknown as HTMLMediaElement;
+    const apply = () => {
+      if (done.current || !(el.duration > 0)) return;
+      done.current = true;
+      if (seconds / el.duration < RESUME_MAX_FRACTION) el.currentTime = seconds;
+    };
+    apply();
+    el.addEventListener("loadedmetadata", apply);
+    return () => el.removeEventListener("loadedmetadata", apply);
+  }, [media, seconds]);
+
+  return null;
+}
+
+/**
+ * Records what the member watched: one row per continuous stretch (opens on play, closes on pause,
+ * seek, speed or captions change, tab hide or show, page leave or the end), with the media seconds
+ * from the element's own clock. Rows are batched and sent every 30s while playing and whenever the
+ * stretch ends for a reason that may mean leaving; the playhead goes along so the next visit can
+ * resume. Sending is best effort (a save that fails for a passing reason is queued and resent; each stretch's id makes a resend safe).
+ */
+function WatchTracker({ lessonId }: { lessonId: string }) {
+  const media = useMedia();
+  const captions = useCaptionsOptions();
+  // null when captions are off; the label ("English") otherwise, since track ids change per video.
+  const captionsLabel = !captions?.state.subtitlesShowing ? null : (captions.options.find((o) => o.value === captions.value)?.label ?? null);
+  const captionsRef = useRef(captionsLabel);
+  const onCaptionsChange = useRef<(() => void) | null>(null);
+  const [sessionId] = useState(() => crypto.randomUUID());
+
+  // Declared before the captions effect so the handler sees the new label.
+  useEffect(() => {
+    captionsRef.current = captionsLabel;
+  });
+  useEffect(() => {
+    onCaptionsChange.current?.();
+  }, [captionsLabel]);
+
+  useEffect(() => {
+    if (!media) return;
+    const el = media as unknown as HTMLMediaElement;
+    let open: { start: number; last: number; rate: number; captions: string | null; visible: boolean } | null = null;
+    let pending: WatchSegmentInput[] = [];
+    let sentPosition = -1;
+
+    const flush = () => {
+      const position = el.currentTime;
+      if (pending.length === 0 && Math.abs(position - sentPosition) < 1) return;
+      // The server takes a limited batch; anything over goes in the next request.
+      const segments = pending.slice(0, MAX_SEGMENTS_PER_BATCH);
+      pending = pending.slice(MAX_SEGMENTS_PER_BATCH);
+      const previousPosition = sentPosition;
+      sentPosition = position;
+      // A save that fails for a reason that may pass (offline, a server error) goes back in the queue and is
+      // resent with the next one; the segment ids make a resend of one that did arrive harmless. A refusal
+      // (signed out, no access, bad data) won't pass, so it is dropped. Whatever is queued is lost if the page is.
+      const requeue = () => {
+        pending = [...segments, ...pending].slice(-MAX_PENDING_SEGMENTS);
+        sentPosition = previousPosition;
+      };
+      void fetch("/api/courses/watch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        // keepalive lets it finish while the page unloads.
+        keepalive: true,
+        body: JSON.stringify({ lessonId, sessionId, segments, position }),
+      })
+        .then((response) => {
+          if (response.status >= 500) requeue();
+          else if (pending.length > 0) flush();
+        })
+        .catch(requeue);
+    };
+    const close = () => {
+      if (!open) return;
+      const { start, last, rate, captions, visible } = open;
+      open = null;
+      if (last - start > 0.25) {
+        pending.push({ id: crypto.randomUUID(), start, end: last, rate, captions, visible });
+        if (pending.length > MAX_PENDING_SEGMENTS) pending = pending.slice(-MAX_PENDING_SEGMENTS);
+      }
+    };
+    const begin = () => {
+      if (!open) open = { start: el.currentTime, last: el.currentTime, rate: el.playbackRate, captions: captionsRef.current, visible: !document.hidden };
+    };
+    const onTime = () => {
+      if (open && !el.seeking) open.last = el.currentTime;
+    };
+    // Close the stretch, send, and carry on if still playing (a speed change, a checkpoint).
+    const split = (send: boolean) => {
+      onTime();
+      close();
+      if (send) flush();
+      if (!el.paused) begin();
+    };
+    const stop = () => {
+      onTime();
+      close();
+      flush();
+    };
+
+    const onPause = () => stop();
+    const onEnded = () => stop();
+    const onSeeking = () => close();
+    const onSeeked = () => {
+      if (!el.paused) begin();
+    };
+    const onRate = () => split(false);
+    // Hiding the tab splits the stretch but doesn't end it: audio can keep playing, and no `playing`
+    // event fires on return. `visible` tells watching on screen from playing in the background.
+    const onVisibility = () => split(document.hidden);
+    const onLeave = () => stop();
+    // Restored from the back/forward cache after pagehide closed the stretch: if it is still playing, reopen it.
+    const onShow = (e: Event) => {
+      if ((e as PageTransitionEvent).persisted && !el.paused) begin();
+    };
+    onCaptionsChange.current = () => split(false);
+
+    const events: [string, EventListener][] = [
+      ["playing", begin], ["timeupdate", onTime], ["pause", onPause], ["seeking", onSeeking],
+      ["seeked", onSeeked], ["ratechange", onRate], ["ended", onEnded],
+    ];
+    events.forEach(([e, f]) => el.addEventListener(e, f));
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("pagehide", onLeave);
+    window.addEventListener("pageshow", onShow);
+    const checkpoint = window.setInterval(() => {
+      if (!el.paused) split(true);
+    }, CHECKPOINT_MS);
+    // The element may already be playing when this attaches.
+    if (!el.paused) begin();
+
+    return () => {
+      events.forEach(([e, f]) => el.removeEventListener(e, f));
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("pagehide", onLeave);
+      window.removeEventListener("pageshow", onShow);
+      window.clearInterval(checkpoint);
+      onCaptionsChange.current = null;
+      stop();
+    };
+  }, [media, lessonId, sessionId]);
+
+  return null;
+}
+
 /**
  * The big plum play button over the poster, until the first play (the v10 skin has only the control
  * bar). It stops above the control bar so that stays usable, and is a real button, so it works from
@@ -130,7 +289,7 @@ const SKIN_THEME = {
 } as React.CSSProperties;
 
 /**
- * The themed lesson player: signed Mux playback, speed and captions remembered. The poster is the
+ * The themed lesson player: signed Mux playback, speed and captions remembered, resuming where the member left off, and recording what they watched. The poster is the
  * lesson's own thumbnail from Kajabi (what the course author chose), falling back to a frame of the
  * video when there isn't one. The skin's title overlay is hidden, since the page already shows the
  * lesson's title; the title stays as the player's accessible name.
@@ -140,12 +299,20 @@ export default function LessonPlayer({
   playbackId,
   tokens,
   posterUrl,
+  lessonId,
+  resumeSeconds = 0,
+  trackProgress = false,
 }: {
   title: string;
   playbackId: string;
   tokens: PlaybackTokens;
   /** The lesson's thumbnail; only http(s) is used. */
   posterUrl?: string | null;
+  lessonId?: string;
+  /** Where to start, from the member's saved position. */
+  resumeSeconds?: number;
+  /** Save watch segments and the playhead. Off in sudo and in a staff preview, which leave no viewing history. */
+  trackProgress?: boolean;
 }) {
   const poster = safeUrl(posterUrl);
   return (
@@ -155,6 +322,8 @@ export default function LessonPlayer({
           <RememberSpeed />
           <RememberCaptions />
           <AutoCompleteAtWatchedMark />
+          <ResumePosition seconds={resumeSeconds} />
+          {trackProgress && lessonId && <WatchTracker lessonId={lessonId} />}
           <BigPlayButton />
           <MuxVideo
             source={{

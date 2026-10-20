@@ -4,8 +4,8 @@
  * speed and captions choice. Video.js is replaced by stand-ins whose state the tests control; what
  * the real library does with a stream was checked by hand in the player spike (docs/COURSES.md).
  */
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 const player = vi.hoisted(() => ({
@@ -22,6 +22,7 @@ const player = vi.hoisted(() => ({
   muxSource: undefined as unknown,
   playback: { started: false, paused: true, play: vi.fn() } as { started: boolean; paused: boolean; play: () => void },
   time: { currentTime: 0, duration: 0 },
+  media: undefined as undefined | (EventTarget & { currentTime: number; duration: number; paused: boolean; seeking: boolean; playbackRate: number }),
 }));
 
 vi.mock("@/app/(member)/courses/actions", () => ({ setLessonComplete: vi.fn(async () => ({})) }));
@@ -37,6 +38,7 @@ vi.mock("@videojs/react", () => ({
     return { canPlay: player.canPlay };
   },
   useCaptionsOptions: () => player.captions,
+  useMedia: () => player.media,
 }));
 vi.mock("@videojs/react/video", () => ({
   VideoPlayer: ({ children, title, poster }: { children: React.ReactNode; title: string; poster?: string }) => (
@@ -70,6 +72,7 @@ beforeEach(() => {
   player.muxSource = undefined;
   player.playback = { started: false, paused: true, play: vi.fn() };
   player.time = { currentTime: 0, duration: 0 };
+  player.media = undefined;
   vi.mocked(setLessonComplete).mockClear();
 });
 
@@ -283,5 +286,320 @@ describe("LessonPlayer", () => {
       rerender(ui());
       expect(setValue).not.toHaveBeenCalled();
     });
+  });
+});
+
+/** A stand-in for the video element: the tests move its clock and fire the events the browser would. */
+function fakeMedia(over: Partial<{ currentTime: number; duration: number; paused: boolean; playbackRate: number }> = {}) {
+  return Object.assign(new EventTarget(), { currentTime: 0, duration: 600, paused: true, seeking: false, playbackRate: 1, ...over });
+}
+
+describe("LessonPlayer watch tracking", () => {
+  const fetchMock = vi.fn(async (_url: string, _init?: RequestInit) => new Response("{}"));
+  const sent = () => fetchMock.mock.calls.map(([, init]) => JSON.parse(init!.body as string));
+  const tracked = () => <LessonPlayer title="T" playbackId="pb-1" tokens={tokens} lessonId="lesson-1" trackProgress />;
+  const fire = (media: NonNullable<typeof player.media>, event: string) => act(() => void media.dispatchEvent(new Event(event)));
+  const play = (media: NonNullable<typeof player.media>, at: number) => {
+    media.currentTime = at;
+    media.paused = false;
+    fire(media, "playing");
+  };
+  const advance = (media: NonNullable<typeof player.media>, to: number) => {
+    media.currentTime = to;
+    fire(media, "timeupdate");
+  };
+  const pause = (media: NonNullable<typeof player.media>) => {
+    media.paused = true;
+    fire(media, "pause");
+  };
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    fetchMock.mockClear();
+    vi.stubGlobal("fetch", fetchMock);
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  it("sends a stretch on pause, with the speed, captions state and where the playhead is", () => {
+    const media = (player.media = fakeMedia({ playbackRate: 1.5 }));
+    render(tracked());
+    play(media, 10);
+    advance(media, 40);
+    pause(media);
+
+    expect(fetchMock).toHaveBeenCalledWith("/api/courses/watch", expect.objectContaining({ method: "POST", keepalive: true }));
+    expect(sent()).toEqual([
+      { lessonId: "lesson-1", sessionId: expect.any(String), segments: [{ id: expect.any(String), start: 10, end: 40, rate: 1.5, captions: null, visible: true }], position: 40 },
+    ]);
+  });
+
+  it("closes a stretch at a seek and starts the next where the member landed", () => {
+    const media = (player.media = fakeMedia());
+    render(tracked());
+    play(media, 0);
+    advance(media, 20);
+    fire(media, "seeking");
+    media.currentTime = 100;
+    fire(media, "seeked");
+    advance(media, 130);
+    pause(media);
+
+    expect(sent().flatMap((b) => b.segments)).toEqual([
+      { id: expect.any(String), start: 0, end: 20, rate: 1, captions: null, visible: true },
+      { id: expect.any(String), start: 100, end: 130, rate: 1, captions: null, visible: true },
+    ]);
+  });
+
+  it("drops a blip shorter than a quarter second", () => {
+    const media = (player.media = fakeMedia());
+    render(tracked());
+    play(media, 5);
+    advance(media, 5.1);
+    pause(media);
+
+    expect(sent().flatMap((b) => b.segments)).toEqual([]);
+  });
+
+  it("splits at a speed change and carries on at the new speed", () => {
+    const media = (player.media = fakeMedia());
+    render(tracked());
+    play(media, 0);
+    advance(media, 30);
+    media.playbackRate = 2;
+    fire(media, "ratechange");
+    advance(media, 90);
+    pause(media);
+
+    expect(sent().flatMap((b) => b.segments)).toEqual([
+      { id: expect.any(String), start: 0, end: 30, rate: 1, captions: null, visible: true },
+      { id: expect.any(String), start: 30, end: 90, rate: 2, captions: null, visible: true },
+    ]);
+  });
+
+  it("checkpoints a long stretch every 30 seconds so leaving loses little", () => {
+    const media = (player.media = fakeMedia());
+    render(tracked());
+    play(media, 0);
+    advance(media, 30);
+    act(() => void vi.advanceTimersByTime(30_000));
+
+    expect(sent()).toHaveLength(1);
+    expect(sent()[0]).toMatchObject({ segments: [{ id: expect.any(String), start: 0, end: 30 }], position: 30 });
+    // The stretch carries on from there.
+    advance(media, 45);
+    pause(media);
+    expect(sent().flatMap((b) => b.segments).at(-1)).toMatchObject({ id: expect.any(String), start: 30, end: 45 });
+  });
+
+  it("sends what's pending when the page is left or the player goes away", () => {
+    const media = (player.media = fakeMedia());
+    const { unmount } = render(tracked());
+    play(media, 0);
+    advance(media, 12);
+    act(() => void window.dispatchEvent(new Event("pagehide")));
+    expect(sent().flatMap((b) => b.segments)).toEqual([{ id: expect.any(String), start: 0, end: 12, rate: 1, captions: null, visible: true }]);
+
+    fetchMock.mockClear();
+    advance(media, 20);
+    unmount();
+    expect(sent()).toEqual([expect.objectContaining({ position: 20 })]);
+  });
+
+  it("reopens a stretch when the page comes back from the back/forward cache still playing", () => {
+    const media = (player.media = fakeMedia());
+    render(tracked());
+    play(media, 0);
+    advance(media, 10);
+    act(() => void window.dispatchEvent(new Event("pagehide")));
+    // Restored while still playing: no `playing` event fires.
+    media.currentTime = 10;
+    act(() => void window.dispatchEvent(Object.assign(new Event("pageshow"), { persisted: true })));
+    advance(media, 25);
+    pause(media);
+
+    expect(sent().flatMap((b) => b.segments)).toEqual([
+      { id: expect.any(String), start: 0, end: 10, rate: 1, captions: null, visible: true },
+      { id: expect.any(String), start: 10, end: 25, rate: 1, captions: null, visible: true },
+    ]);
+  });
+
+  it("ignores a plain page load's pageshow", () => {
+    const media = (player.media = fakeMedia());
+    render(tracked());
+    act(() => void window.dispatchEvent(Object.assign(new Event("pageshow"), { persisted: false })));
+    media.paused = false;
+    advance(media, 5);
+    pause(media);
+
+    expect(sent().flatMap((b) => b.segments)).toEqual([]);
+  });
+
+  it("marks a stretch played in the background as not visible", () => {
+    const media = (player.media = fakeMedia());
+    render(tracked());
+    play(media, 0);
+    advance(media, 10);
+    Object.defineProperty(document, "hidden", { value: true, configurable: true });
+    act(() => void document.dispatchEvent(new Event("visibilitychange")));
+    advance(media, 25);
+    pause(media);
+    Object.defineProperty(document, "hidden", { value: false, configurable: true });
+
+    expect(sent().flatMap((b) => b.segments)).toEqual([
+      { id: expect.any(String), start: 0, end: 10, rate: 1, captions: null, visible: true },
+      { id: expect.any(String), start: 10, end: 25, rate: 1, captions: null, visible: false },
+    ]);
+  });
+
+  it("tags a stretch with the captions language showing, by label", () => {
+    player.captions = {
+      state: { availability: "available", subtitlesShowing: true } as never,
+      options: [{ value: "t1", label: "Spanish" }],
+      value: "t1",
+      setValue: vi.fn(),
+    };
+    const media = (player.media = fakeMedia());
+    render(tracked());
+    play(media, 0);
+    advance(media, 8);
+    pause(media);
+
+    expect(sent().flatMap((b) => b.segments)).toEqual([{ id: expect.any(String), start: 0, end: 8, rate: 1, captions: "Spanish", visible: true }]);
+  });
+
+  it("records nothing unless tracking is on (sudo, a staff preview)", () => {
+    const media = (player.media = fakeMedia());
+    render(<LessonPlayer title="T" playbackId="pb-1" tokens={tokens} lessonId="lesson-1" />);
+    play(media, 0);
+    advance(media, 30);
+    pause(media);
+
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  describe("when a save fails", () => {
+    const stretch = (media: NonNullable<typeof player.media>, from: number, to: number) => {
+      play(media, from);
+      advance(media, to);
+      pause(media);
+    };
+
+    it("resends the stretch with the next save after a server error or a lost connection, with the same id", async () => {
+      const media = (player.media = fakeMedia());
+      render(tracked());
+      fetchMock.mockResolvedValueOnce(new Response("{}", { status: 500 }));
+      stretch(media, 0, 10);
+      await act(async () => {});
+      fetchMock.mockRejectedValueOnce(new TypeError("offline"));
+      stretch(media, 20, 30);
+      await act(async () => {});
+      stretch(media, 40, 50);
+
+      const calls = sent();
+      const firstId = calls[0].segments[0].id;
+      expect(calls[1].segments.map((s: { start: number }) => s.start)).toEqual([0, 20]);
+      expect(calls[1].segments[0].id).toBe(firstId);
+      expect(calls[2].segments.map((s: { start: number }) => s.start)).toEqual([0, 20, 40]);
+      expect(calls[2].segments[0].id).toBe(firstId);
+    });
+
+    it("stops resending once a save goes through", async () => {
+      const media = (player.media = fakeMedia());
+      render(tracked());
+      fetchMock.mockResolvedValueOnce(new Response("{}", { status: 503 }));
+      stretch(media, 0, 10);
+      await act(async () => {});
+      stretch(media, 20, 30);
+      await act(async () => {});
+      stretch(media, 40, 50);
+
+      expect(sent()[2].segments.map((s: { start: number }) => s.start)).toEqual([40]);
+    });
+
+    it("drops stretches the server refused, since resending can't help", async () => {
+      const media = (player.media = fakeMedia());
+      render(tracked());
+      fetchMock.mockResolvedValueOnce(new Response("{}", { status: 403 }));
+      stretch(media, 0, 10);
+      await act(async () => {});
+      stretch(media, 20, 30);
+
+      expect(sent()[1].segments.map((s: { start: number }) => s.start)).toEqual([20]);
+    });
+
+    it("keeps only the newest 200 while saves keep failing, and sends them in batches the server accepts", async () => {
+      const media = (player.media = fakeMedia());
+      render(tracked());
+      fetchMock.mockResolvedValue(new Response("{}", { status: 500 }));
+      for (let i = 0; i < 210; i++) {
+        stretch(media, i * 10, i * 10 + 5);
+        await act(async () => {});
+      }
+      fetchMock.mockClear();
+      fetchMock.mockResolvedValue(new Response("{}"));
+      stretch(media, 5000, 5005);
+      await act(async () => {});
+      await act(async () => {});
+      await act(async () => {});
+      await act(async () => {});
+
+      const batches = sent().map((b) => b.segments);
+      expect(batches.every((b: unknown[]) => b.length <= 50)).toBe(true);
+      const starts = batches.flat().map((s: { start: number }) => s.start);
+      expect(starts).toHaveLength(200);
+      expect(starts.at(-1)).toBe(5000);
+      expect(starts[0]).toBeGreaterThan(0);
+    });
+  });
+
+  it("does not send a position it has already sent", () => {
+    const media = (player.media = fakeMedia());
+    render(tracked());
+    play(media, 0);
+    advance(media, 20);
+    pause(media);
+    fetchMock.mockClear();
+    act(() => void window.dispatchEvent(new Event("pagehide")));
+
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("LessonPlayer resume", () => {
+  const resumed = (seconds: number) => <LessonPlayer title="T" playbackId="pb-1" tokens={tokens} lessonId="lesson-1" resumeSeconds={seconds} />;
+
+  it("starts where the member left off once the length is known", () => {
+    const media = (player.media = fakeMedia({ duration: 0 }));
+    render(resumed(125));
+    expect(media.currentTime).toBe(0);
+
+    media.duration = 600;
+    act(() => void media.dispatchEvent(new Event("loadedmetadata")));
+    expect(media.currentTime).toBe(125);
+  });
+
+  it("jumps straight away when the length is already known, and only once", () => {
+    const media = (player.media = fakeMedia({ duration: 600 }));
+    render(resumed(125));
+    expect(media.currentTime).toBe(125);
+
+    media.currentTime = 7;
+    act(() => void media.dispatchEvent(new Event("loadedmetadata")));
+    expect(media.currentTime).toBe(7);
+  });
+
+  it("starts over when they had (nearly) finished it", () => {
+    const media = (player.media = fakeMedia({ duration: 600 }));
+    render(resumed(580));
+    expect(media.currentTime).toBe(0);
+  });
+
+  it("does nothing without a saved position", () => {
+    const media = (player.media = fakeMedia({ duration: 600 }));
+    render(resumed(0));
+    expect(media.currentTime).toBe(0);
   });
 });
