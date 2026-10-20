@@ -183,6 +183,41 @@ describe("autocapture", () => {
     expect((await captured())[0].properties).toMatchObject({ element: "button", name: "go", text: "Go" });
   });
 
+  it("never labels a control that shows who is signed in, but still records the click by name", async () => {
+    document.body.innerHTML = `<button data-track="user-menu" data-track-no-text><span>F</span><span>Fern Quillsby</span></button>`;
+    document.querySelector("button")!.click();
+    expect((await captured())[0].properties).toEqual({ element: "button", route: "/dashboard", name: "user-menu" });
+  });
+
+  it("drops a label that looks like an email address", async () => {
+    document.body.innerHTML = `<button>Ccody@example.test</button>`;
+    document.querySelector("button")!.click();
+    expect((await captured())[0].properties).toEqual({ element: "button", route: "/dashboard" });
+  });
+
+  it("drops a label inside a table, where rows hold people and their data", async () => {
+    document.body.innerHTML = `<table><tbody><tr><td><button>Fern Quillsby</button></td></tr></tbody></table>`;
+    document.querySelector("button")!.click();
+    expect((await captured())[0].properties).toEqual({ element: "button", route: "/dashboard" });
+  });
+
+  it("keeps no labels in the admin area, but still names what it can", async () => {
+    window.history.pushState({}, "", "/admin/members");
+    document.body.innerHTML = `<button data-track="export-csv">Export Fern's data</button><a href="/admin/hosts">Hosts</a>`;
+    document.querySelector("button")!.click();
+    document.querySelector("a")!.click();
+    const [button, link] = await captured();
+    expect(button.properties).toEqual({ element: "button", route: "/admin/members", name: "export-csv" });
+    expect(link.properties).toEqual({ element: "link", route: "/admin/members", target_route: "/admin/hosts" });
+  });
+
+  it("does not mistake a page that only starts with admin for the admin area", async () => {
+    window.history.pushState({}, "", "/administrivia");
+    document.body.innerHTML = `<button>Save</button>`;
+    document.querySelector("button")!.click();
+    expect((await captured())[0].properties).toMatchObject({ text: "Save" });
+  });
+
   it("skips data-track-ignore and plain text", async () => {
     document.body.innerHTML = `<div data-track-ignore><button>Secret</button></div><p>hello</p>`;
     document.querySelector("button")!.click();

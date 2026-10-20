@@ -6,6 +6,10 @@ const INTERACTIVE =
 
 const MAX_LABEL = 40;
 
+/** Where a label is never recorded: opted out with `data-track-no-text`, or in a table (rows of people and their data). */
+const NO_LABEL_ZONE = "[data-track-no-text], table";
+const EMAIL_LIKE = /\S+@\S+/;
+
 const clean = (value: string | null | undefined) => (value ?? "").replace(/\s+/g, " ").trim();
 
 /**
@@ -30,12 +34,17 @@ function labelOf(el: Element): string {
  *
  * What it keeps is deliberately thin: the element kind, its `data-track` name (or `id`), a label
  * (cut to 40 characters), the route it happened on, and for an internal link the route it goes to
- * as a template. A link's label is left out when it goes to a record page (`/members/[id]`,
- * `/prickles/[id]`...), since that text is a person's name or a title; navigation, buttons and
- * external links keep theirs. Text typed into fields, and a field's value, are never read. Put
- * `data-track-ignore` on an element (or any ancestor) to skip it entirely, and name important
- * controls with `data-track="..."` so they can be found later. A feature worth a funnel should
- * still get its own named event.
+ * as a template. A label is a guess at "text the UI defines", and a control that shows a person's
+ * name or email would leak it, so a label is left out when:
+ *   - the link goes to a record page (`/members/[id]`, `/prickles/[id]`...): that text is a name or a title;
+ *   - the page is in the admin area, which is full of member data;
+ *   - the control is inside a table, or inside anything marked `data-track-no-text`
+ *     (put it on any control that shows who is signed in, or other people);
+ *   - it looks like an email address.
+ * Text typed into fields, and a field's value, are never read. Put `data-track-ignore` on an element
+ * (or any ancestor) to skip the click entirely, and name important controls with `data-track="..."`
+ * so they can be found when their label is left out. A feature worth a funnel should still get its
+ * own named event.
  */
 export function startAutocapture(): () => void {
   const onClick = (event: MouseEvent) => {
@@ -60,12 +69,15 @@ export function startAutocapture(): () => void {
       }
     }
 
+    const route = templateRoute(window.location.pathname) ?? "/";
     const pointsAtRecord = targetRoute?.includes("[id]") ?? false;
-    const label = pointsAtRecord ? "" : labelOf(el);
+    const labelAllowed = !pointsAtRecord && !(route === "/admin" || route.startsWith("/admin/")) && !el.closest(NO_LABEL_ZONE);
+    const found = labelAllowed ? labelOf(el) : "";
+    const label = EMAIL_LIKE.test(found) ? "" : found;
 
     track("element_clicked", {
       element,
-      route: templateRoute(window.location.pathname) ?? "/",
+      route,
       ...(name ? { name: name.slice(0, 80) } : {}),
       ...(label ? { text: label.slice(0, MAX_LABEL) } : {}),
       ...(targetRoute ? { target_route: targetRoute } : {}),

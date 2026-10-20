@@ -55,12 +55,14 @@ export default async function FeatureUsagePage({ searchParams }: { searchParams:
         <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Feature Usage</h1>
         <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
           What members do in the Hub, from the usage log (the events are listed in lib/analytics/events.ts).
-          Views while an admin is viewing as a member are left out.{" "}
-          <Link href="/admin/analytics/explore" className="text-plum-600 dark:text-plum-400 hover:underline">
-            Build your own funnel or breakdown
-          </Link>
-          .
+          Views while an admin is viewing as a member are left out.
         </p>
+        <Link
+          href="/admin/analytics/explore"
+          className="mt-3 inline-block px-3 py-1.5 text-sm rounded-lg bg-plum-600 hover:bg-plum-700 text-white font-medium"
+        >
+          Explore: build a funnel or breakdown
+        </Link>
         <div className="mt-3 flex gap-2 text-sm">
           {WINDOW_DAYS.map((d) => (
             <Link
