@@ -6,6 +6,7 @@ import { loadLessonView } from "@/lib/courses/member";
 import { lessonContext, lessonSection, nextModuleLesson, type OutlineLesson } from "@/lib/courses/outline";
 import { createMuxClient, signPlaybackTokens } from "@/lib/mux";
 import { createServiceRoleClient } from "@/lib/supabase/service";
+import { courseTitle, lessonTitles } from "@/lib/courses/page-title";
 import { isUuid } from "@/lib/chat/format";
 import PageBanner from "@/components/PageBanner";
 import LessonSectionList from "../../../LessonSectionList";
@@ -15,7 +16,10 @@ import { LessonCompletionProvider } from "../../../LessonCompletion";
 import MarkCompleteButton from "../../../MarkCompleteButton";
 import NextLessonPreview from "../../../NextLessonPreview";
 
-export const metadata: Metadata = { title: "Courses" };
+export async function generateMetadata({ params }: { params: Promise<{ slug: string; lessonId: string }> }): Promise<Metadata> {
+  const { slug, lessonId } = await params;
+  return { title: await courseTitle(slug, (outline) => lessonTitles(outline, lessonId)) };
+}
 
 /** Playback tokens, only for a ready video and only after the access check has passed. */
 async function mintTokens(playbackId: string): Promise<PlaybackTokens | null> {

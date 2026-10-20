@@ -4,11 +4,15 @@ import { notFound, redirect } from "next/navigation";
 import { requireCoursesPage } from "@/lib/courses/caller";
 import { canOpenLessons, loadCourseView } from "@/lib/courses/member";
 import { moduleView, nodeLessons, type OutlineLesson, type OutlineNode } from "@/lib/courses/outline";
+import { courseTitle, moduleTitles } from "@/lib/courses/page-title";
 import { safeUrl } from "@/lib/url";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import PageBanner from "@/components/PageBanner";
 
-export const metadata: Metadata = { title: "Courses" };
+export async function generateMetadata({ params }: { params: Promise<{ slug: string; moduleId: string }> }): Promise<Metadata> {
+  const { slug, moduleId } = await params;
+  return { title: await courseTitle(slug, (outline) => moduleTitles(outline, moduleId)) };
+}
 
 const row = "grid grid-cols-[6rem_minmax(0,1fr)_1.5rem] items-center gap-4 rounded-lg p-2 transition";
 
