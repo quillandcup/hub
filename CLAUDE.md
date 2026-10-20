@@ -183,7 +183,7 @@ Tests assert against the imported config values (e.g. `SUPPORT_EMAIL` from `@/li
 
 **Why**: Tier 1 tables get hand-chosen readable ids (`mbr_`, `prkl_`, `photo_`, ...) because people see them; Tier 2 (the rest) get short internal prefixes and can be migrated later without breaking any link. Exposing a Tier 2 id would make a later migration break links. Tier lists and the migration plan: `docs/SHORT_IDS_PLAN.md` (the id scheme is planned, not yet in place; the rule applies now, since exposing a table's uuid today has the same cost later).
 
-Not everything that looks like an id is one of ours: slugs, text keys, external ids (Slack, Zoom, Kajabi, Stripe, Mux), client-generated idempotency ids and secret tokens keep their own form, and a client never supplies a primary key. See "Ids we don't generate" in `docs/SHORT_IDS_PLAN.md`.
+Not everything that looks like an id is one of ours. Slugs and feature or badge keys are chosen by people, external ids (Slack, Zoom, Kajabi, Stripe, Mux) by other systems, and secret tokens and browser-generated idempotency keys stay as they are; none of them is converted. A row's primary key is always produced by the server, never supplied by a person or a request body. See "Ids we don't generate" in `docs/SHORT_IDS_PLAN.md`.
 
 ### Admin Route Protection
 
