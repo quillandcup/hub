@@ -47,6 +47,12 @@ describe("/admin/analytics", () => {
     expect(requireAdminPage).toHaveBeenCalled();
   });
 
+  it("links to the explorer", async () => {
+    useFakeSupabase();
+    await renderServerPage(FeatureUsagePage, { searchParams: Promise.resolve({}) });
+    expect(screen.getByRole("link", { name: /Explore/ })).toHaveAttribute("href", "/admin/analytics/explore");
+  });
+
   it("shows the funnels, the most-clicked things and every event", async () => {
     useFakeSupabase({
       "rpc:analytics_event_summary": { data: summary },
