@@ -27,7 +27,7 @@
  * types listed in Settings → Hosting, the vibe they run each type with.
  */
 
-export const ONBOARDING_STEP_IDS = ["identity", "profile", "intro", "writing", "prickles", "calendar", "big-sister", "hosting", "host-vibe"] as const;
+export const ONBOARDING_STEP_IDS = ["identity", "profile", "intro", "writing", "prickles", "calendar", "slack", "big-sister", "hosting", "host-vibe"] as const;
 export type OnboardingStepId = (typeof ONBOARDING_STEP_IDS)[number];
 
 /** What the member's own data says, gathered once per page load. */
@@ -61,6 +61,8 @@ export interface OnboardingSignals {
   hasCalendarSynced: boolean;
   /** Their Big Sister's name while the match is current (lib/my-mentorship.ts), else null. */
   bigSisterName?: string | null;
+  /** Whether the member can connect Slack in Settings (the panel is shown); absent/null means no step. */
+  slackConnect?: { connected: boolean } | null;
 }
 
 export interface OnboardingStepView {
@@ -102,6 +104,8 @@ export interface OnboardingRecord {
   marked_steps: string[];
   dismissed_at: string | null;
   completed_at: string | null;
+  /** Every step and stop key the member has been through or was shown when they finished; null for none. */
+  acknowledged_steps?: string[] | null;
 }
 
 export interface OnboardingRevisitStop {
@@ -142,6 +146,24 @@ const IDENTITY_STOPS: OnboardingStop[] = [
     confirmLabel: "My emails look right",
   },
 ];
+
+/** Every step id and stop key: what completing the tour records as seen, so later additions stand out. */
+export function allOnboardingKeys(): string[] {
+  return [...ONBOARDING_STEP_IDS, ...IDENTITY_STOPS.map((stop) => `identity.${stop.id}`)];
+}
+
+/**
+ * Step ids that were added after a finished tour: the step, or one of its stops, isn't in the
+ * snapshot taken at completion. Empty unless the tour was completed (not dismissed) with a snapshot.
+ */
+export function unseenStepIds(record: OnboardingRecord | null): OnboardingStepId[] {
+  if (!record?.completed_at || record.dismissed_at || !record.acknowledged_steps) return [];
+  const seen = new Set(record.acknowledged_steps);
+  return ONBOARDING_STEP_IDS.filter((id) => {
+    const keys = id === "identity" ? [id, ...IDENTITY_STOPS.map((s) => `identity.${s.id}`)] : [id];
+    return keys.some((key) => !seen.has(key));
+  });
+}
 
 export function isOnboardingStepId(value: unknown): value is OnboardingStepId {
   return typeof value === "string" && (ONBOARDING_STEP_IDS as readonly string[]).includes(value);
@@ -274,6 +296,20 @@ function stepViews(signals: OnboardingSignals, marked: Set<string>): StepWithout
       done: signals.hasCalendarSynced || marked.has("calendar"),
     },
   ];
+  if (signals.slackConnect) {
+    steps.push({
+      id: "slack",
+      title: "Connect Slack",
+      summary: "Link your Slack account in Settings so we know which Slack account is yours.",
+      href: "/settings",
+      target: "slack-connect",
+      calloutTitle: "Connect Slack",
+      hint: "Connect your Slack account so we match it to you for sure, and Hub chat posts as you with what you've read kept in sync. You can also use Open Hedgie Hub on Billie Bot's Home tab in Slack to sign in with one click.",
+      confirmLabel: "I'll skip this",
+      markKey: "slack",
+      done: signals.slackConnect.connected || marked.has("slack"),
+    });
+  }
   if (signals.bigSisterName) {
     steps.push({
       id: "big-sister",
@@ -320,7 +356,11 @@ function stepViews(signals: OnboardingSignals, marked: Set<string>): StepWithout
 }
 
 export function buildOnboardingState(signals: OnboardingSignals, record: OnboardingRecord | null): OnboardingState {
-  const steps = stepViews(signals, new Set(record?.marked_steps ?? [])).map(withRevisitStops);
+  const allSteps = stepViews(signals, new Set(record?.marked_steps ?? [])).map(withRevisitStops);
+  // A finished tour reopens for steps added since, and shows only those.
+  const unseen = new Set<string>(unseenStepIds(record));
+  const reopened = unseen.size > 0 && allSteps.some((s) => unseen.has(s.id) && !s.done);
+  const steps = reopened ? allSteps.filter((s) => unseen.has(s.id)) : allSteps;
   const current = steps.find((s) => !s.done) ?? null;
   const completed = current === null;
 
@@ -329,7 +369,7 @@ export function buildOnboardingState(signals: OnboardingSignals, record: Onboard
   // the Hub). A finished tour stays closed even if a step later reads as undone (say they delete
   // their only goal); they can restart it from the menu. When every step is done but completed_at
   // isn't set yet, the guide stays up to say "all set".
-  const active = !record?.dismissed_at && !record?.completed_at;
+  const active = (!record?.dismissed_at && !record?.completed_at) || reopened;
 
   return { steps, currentStepId: current?.id ?? null, active, completed };
 }

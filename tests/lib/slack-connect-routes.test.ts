@@ -53,7 +53,7 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllEnvs());
 
 describe("GET /api/oauth/slack/start", () => {
-  it("sends a signed-in member with the preview to Slack with a fresh state", async () => {
+  it("sends a signed-in member to Slack with a fresh state", async () => {
     const res = await start(request("/api/oauth/slack/start"));
     expect(location(res)).toContain("https://slack.com/oauth/v2/authorize");
     expect(location(res)).toContain("state=state-1");
@@ -71,8 +71,6 @@ describe("GET /api/oauth/slack/start", () => {
     expect(location(await start(request("/api/oauth/slack/start")))).toBe("https://hub.example.test/settings?slack=unavailable");
     vi.stubEnv("SLACK_CLIENT_SECRET", "secret-1");
 
-    hasFeature.mockResolvedValueOnce(false);
-    expect(location(await start(request("/api/oauth/slack/start")))).toBe("https://hub.example.test/settings?slack=unavailable");
     expect(setConnectStateCookie).not.toHaveBeenCalled();
   });
 });
