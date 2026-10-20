@@ -105,9 +105,9 @@ INSERT INTO member_hiatus_history (member_id, start_date, end_date, reason, note
 -- Get type IDs from prickle_types table
 DO $$
 DECLARE
-  sprint_type_id UUID;
-  heads_down_type_id UUID;
-  progress_type_id UUID;
+  sprint_type_id text;
+  heads_down_type_id text;
+  progress_type_id text;
 BEGIN
   SELECT id INTO sprint_type_id FROM prickle_types WHERE normalized_name = 'sprint';
   SELECT id INTO heads_down_type_id FROM prickle_types WHERE normalized_name = 'heads-down';
