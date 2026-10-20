@@ -272,7 +272,7 @@ export function IdentityPanel() {
         <div>
           <h3 id="identity-real-name" className="text-sm font-medium text-slate-900 dark:text-slate-100 mb-1">Real Name</h3>
           <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">
-            Your canonical name, used for your account and records.
+            Your Real Name: the one on your account and records. Not necessarily what other members see; that's your Display Name, below.
           </p>
           {data.nameChangeLocked ? (
             <div className="max-w-md">
@@ -305,30 +305,6 @@ export function IdentityPanel() {
               </button>
             </form>
           )}
-        </div>
-
-        {/* Display Name: what the community sees, right under Real Name. */}
-        <div>
-          <h3 id="identity-display-name" className="text-sm font-medium text-slate-900 dark:text-slate-100 mb-1">Display Name</h3>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">
-            The name other members see everywhere. Choose your Real Name or one of your
-            active pen names below.
-          </p>
-          <select
-            value={data.displayName ?? ""}
-            onChange={(e) => handleDisplayNameChange(e.target.value)}
-            disabled={savingDisplayName}
-            className="w-full max-w-md px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-sm disabled:opacity-50"
-          >
-            <option value="">{data.realName} (Real Name)</option>
-            {data.nameAliases
-              .filter((a) => a.active && a.alias !== data.realName)
-              .map((a) => (
-                <option key={a.id} value={a.alias}>
-                  {a.alias}
-                </option>
-              ))}
-          </select>
         </div>
 
         {/* Birthday */}
@@ -392,7 +368,7 @@ export function IdentityPanel() {
           Other names you go by, such as a pen name or a different name in Zoom or Slack. These only match your
           attendance; they don&apos;t change the name shown in the community. Add
           one here if your attendance isn&apos;t showing up because you joined under a name other than your
-          Real Name above.
+          Real Name above. Once added, you can choose one as your Display Name below.
         </p>
         <div className="flex flex-wrap gap-2 mb-3">
           {data.nameAliases.length === 0 && (
@@ -427,6 +403,30 @@ export function IdentityPanel() {
             {addingNameAlias ? "Adding…" : "Add"}
           </button>
         </form>
+      </div>
+
+      {/* Display Name: what the community sees. After Pen Names, since it picks from them. */}
+      <div data-tour="identity-display-name">
+        <h3 id="identity-display-name" className="text-sm font-medium text-slate-900 dark:text-slate-100 mb-1">Display Name</h3>
+        <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">
+          The name other members see everywhere, as opposed to your Real Name, which stays on
+          your account and records. Choose your Real Name or one of the pen names above.
+        </p>
+        <select
+          value={data.displayName ?? ""}
+          onChange={(e) => handleDisplayNameChange(e.target.value)}
+          disabled={savingDisplayName}
+          className="w-full max-w-md px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-sm disabled:opacity-50"
+        >
+          <option value="">{data.realName} (Real Name)</option>
+          {data.nameAliases
+            .filter((a) => a.active && a.alias !== data.realName)
+            .map((a) => (
+              <option key={a.id} value={a.alias}>
+                {a.alias}
+              </option>
+            ))}
+        </select>
       </div>
 
       {/* Email aliases */}
