@@ -782,6 +782,13 @@ The app has no icon library: icons are inline SVGs pasted into components. Add o
 - Client-side session expiry: whatever detects a 401 or expired session in the browser should send the member to `/login` with the current location stored, instead of relying on the next full page load hitting the proxy.
 - Tests: one shared suite for the validator (open-redirect cases), plus a flow test per slot.
 
+### Course Hero Image _(Needs Scheduling)_
+The course page (`app/(member)/courses/[slug]/page.tsx`) has a plain plum hero band, while Kajabi shows a banner photo behind the title (e.g. a notebook for Murky Middle) that is **not** the course thumbnail (the puzzle). Kajabi's course API only returns `thumbnail_url`, so the hero image can't be imported.
+
+- Add `courses.hero_image_url` and let an admin set it (upload to storage, or paste a URL) on the admin course page.
+- Render it as the hero backdrop under a dark overlay (`bg-black/60`) so the white title stays readable; with none set, keep the plum band.
+- Until then, the sidebar shows the thumbnail, full width at the top of the card.
+
 ### Remove legacy `?tab=` redirects _(Cleanup, review on or after 2027-01-03)_
 Tabs became URL paths on 2026-10-03 (`/settings/notifications`, `/my-prickles/all`; see `lib/tab-routes.ts` and CLAUDE.md "Tabbed Pages"). Old `?tab=` links still work because each base page calls `redirectLegacyTabParam`. Nothing is stored; it's four one-line calls plus the helper:
 - `app/(member)/settings/page.tsx`, `app/(member)/my-prickles/page.tsx` (also rewrites `?tab=commitments&slot=X` to `/my-prickles/all?commit=X`), `app/(member)/projects/page.tsx`, `app/(admin)/admin/members/[id]/page.tsx`
