@@ -29,15 +29,12 @@ subscriptions can break. Existing data must be preserved (Slack data has aged ou
   `user_feature_previews.user_id`, ...). External ids (Slack, Zoom, Kajabi, Stripe) are
   already text and don't change. Each column must be checked: a member reference converts,
   an auth reference stays.
-- **Legacy mapping: open decision (changed 2026-10-20).** The earlier draft assumed nothing
-  external depended on old ids because `SLACK_TEST_MODE=true` in prod. It is now `false`, so
-  real members have Slack DMs (45 check-in DMs sent so far) and in-app notifications (46)
-  holding old `/prickles/<uuid>` links, plus bookmarks, calendar feeds and, with courses,
-  lesson URLs. Exposure is still small in prod (945 members, 14 with accounts, 9 calendar
-  feed tokens, 2 push subscriptions, 1 course). See "Old links" below for the options; until
-  decided, assume old links break and the people above are told in one line (brief
-  maintenance window; calendar-feed subscribers must re-subscribe because feed event
-  `UID`s change; see `lib/calendar-feed.ts`).
+- **Old links break; no legacy mapping** (decided 2026-10-20). `SLACK_TEST_MODE=false` now,
+  but members have barely received any Slack messages, so old `/prickles/<uuid>` links in
+  DMs and notifications are not worth a compatibility layer. Exposure is small (945 members,
+  14 with accounts, 9 calendar feed tokens, 2 push subscriptions, 1 course); tell them in one
+  line (brief maintenance window; calendar-feed subscribers must re-subscribe because feed
+  event `UID`s change, see `lib/calendar-feed.ts`).
 - The signed email-unsubscribe tokens embed the member id (`lib/email-unsubscribe.ts`);
   old tokens will stop verifying. Accepted this once. The rule "never rotate" still holds
   going forward.
@@ -262,25 +259,33 @@ the file), so the safest rule is: **leave existing objects where they are** and 
 
 ### Old links
 
-Both the audit and prod now show real exposure, so this needs a decision rather than an
-assumption. Where old uuids live outside the database: Slack DMs and in-app notification
-`url` / `ref` (45 and 46 rows), emails, bookmarks, calendar feeds, and lesson / module /
-file URLs (`/courses/[slug]/lessons/[lessonId]`). The `[id]` routes take a string, so a
-fallback is cheap to build if wanted.
-
-| Option | What it costs | What it keeps working |
-|---|---|---|
-| A. Break old links (current plan) | Nothing extra; tell the 14 members with accounts in one line | Nothing; Slack DMs and bookmarks 404 |
-| B. Rewrite stored links only | Migration also rewrites `in_app_notifications.url` / `ref` (already in scope) | In-app links; not Slack DMs already sent |
-| C. Keep a temporary `legacy_ids` table (old uuid, new id, table) and have the `[id]` routes redirect | One table, a shared resolver in the routes, a removal date | Every old link, for as long as the table exists |
-
-My recommendation is B plus C for a bounded window (say 90 days), because the table is tiny
-(a few thousand rows) and the cost of 404s in real members' Slack history is higher now
-that the app has launched. Drop the table after the window.
+Decided: break them (see Decisions). Where old uuids live outside the database, so everyone
+knows what stops working: Slack DMs and in-app notification `url` / `ref` (45 and 46 rows,
+barely read yet), emails, bookmarks, calendar feeds, and lesson / module / file URLs. The
+`in_app_notifications` rows are still rewritten (they are in the database, so the scan finds
+them); nothing is kept for links already sent.
 
 **Method:** regenerate with the catalog queries (uuid columns joined to `pg_constraint`)
 rather than trusting this prose when writing the migration; the migration itself should derive
 FK rewrites from `pg_constraint` at run time.
+
+## Phases
+
+Converting a table rewrites the columns that reference it, in the same migration, so a mixed
+schema is valid at every step. Tier 2 ids are never shown to a user, so converting them
+later breaks nothing a person can see. What a later phase *can* still touch is internal:
+`audit_log.entity_id` / `changes` for the tables in that phase, jsonb and text copies of
+their ids, and anything keyed on the id. Each phase runs the same table-driven script and its
+own checks (row counts equal, no orphans, no old uuids left for the tables it converted).
+
+| Phase | Tables | Why this order |
+|---|---|---|
+| 1 | The 17 Tier 1 tables, every column that references them (about 50 `member_id`-style columns in Tier 2 tables), and `calendar_feed_items` | Everything a user can see or copy. `calendar_feed_items` is not readable but its id is part of the `.ics` `UID`; moving it later would force a second re-subscribe, so it goes now with the members and prickles that already change the `UID`s |
+| 2 | Remaining Tier 2 tables in `public` | Internal only; mostly leaf tables, so each is a primary-key swap plus a default change |
+| 3 | Bronze (18 tables) | Never shown to users; can wait or be skipped |
+
+If a Tier 2 table later starts appearing in a URL or message, promote it to Tier 1 with a
+hand-chosen prefix: one small migration for that table.
 
 ## Migration approach (forward migration, data preserved)
 
