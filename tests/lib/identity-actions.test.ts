@@ -21,7 +21,11 @@ vi.mock("@/lib/kajabi/client", () => ({
   createKajabiClient: () => ({ updateContact: updateContactMock }),
 }));
 
-import { setDisplayName, updateRealName } from "@/app/(member)/settings/identityActions";
+vi.mock("@/lib/processing/trigger", () => ({
+  triggerReprocessing: vi.fn(),
+}));
+
+import { setCustomDisplayName, setDisplayName, updateRealName } from "@/app/(member)/settings/identityActions";
 import { createClient } from "@/lib/supabase/server";
 import { getEffectiveIdentity } from "@/lib/sudo";
 import { SUPPORT_EMAIL } from "@/lib/config"
@@ -186,5 +190,85 @@ describe("setDisplayName", () => {
     vi.mocked(getEffectiveIdentity).mockResolvedValue(null);
 
     expect(await setDisplayName(null)).toEqual({ error: "No member record" });
+  });
+});
+
+describe("setCustomDisplayName", () => {
+  function makeMock({
+    existing = null as { id: string; active: boolean } | null,
+    insertError = null as { code?: string; message: string } | null,
+  } = {}) {
+    // The alias is looked up twice: once to see whether it exists, then by setDisplayName.
+    const lookups = [{ data: existing }, { data: { id: "a1" } }];
+    const aliasChain: any = {
+      select: () => aliasChain,
+      eq: () => aliasChain,
+      maybeSingle: () => Promise.resolve(lookups.shift()),
+    };
+    const insert = vi.fn(() => Promise.resolve({ error: insertError }));
+    const aliasUpdate = vi.fn(() => ({
+      eq: () => ({ eq: () => ({ select: () => ({ single: () => Promise.resolve({ data: { id: "a1" }, error: null }) }) }) }),
+    }));
+    const memberUpdate = vi.fn(() => ({
+      eq: () => ({ select: () => ({ single: () => Promise.resolve({ data: { id: "member-1" }, error: null }) }) }),
+    }));
+    const memberSelect = () => ({ eq: () => ({ single: () => Promise.resolve({ data: { name: IDENTITY.memberName } }) }) });
+    const from = vi.fn((table: string) =>
+      table === "member_name_aliases"
+        ? Object.assign(aliasChain, { insert, update: aliasUpdate })
+        : { select: memberSelect, update: memberUpdate }
+    );
+    return { auth: { getClaims: vi.fn().mockResolvedValue({ data: { claims: { sub: "auth-user-1" } }, error: null }) }, from, __insert: insert, __aliasUpdate: aliasUpdate, __memberUpdate: memberUpdate };
+  }
+
+  it("adds the name as a pen name, then chooses it", async () => {
+    const mock = makeMock();
+    vi.mocked(createClient).mockResolvedValue(mock as any);
+
+    expect(await setCustomDisplayName("  River Wilde ")).toEqual({ success: true });
+    expect(mock.__insert).toHaveBeenCalledWith({ member_id: "member-1", alias: "River Wilde", source: "member" });
+    expect(mock.__memberUpdate).toHaveBeenCalledWith({ display_name: "River Wilde" });
+  });
+
+  it("reactivates an existing inactive pen name instead of adding a duplicate", async () => {
+    const mock = makeMock({ existing: { id: "a1", active: false } });
+    vi.mocked(createClient).mockResolvedValue(mock as any);
+
+    expect(await setCustomDisplayName("River Wilde")).toEqual({ success: true });
+    expect(mock.__insert).not.toHaveBeenCalled();
+    expect(mock.__aliasUpdate).toHaveBeenCalledWith({ active: true });
+    expect(mock.__memberUpdate).toHaveBeenCalledWith({ display_name: "River Wilde" });
+  });
+
+  it("just chooses an existing active pen name", async () => {
+    const mock = makeMock({ existing: { id: "a1", active: true } });
+    vi.mocked(createClient).mockResolvedValue(mock as any);
+
+    expect(await setCustomDisplayName("River Wilde")).toEqual({ success: true });
+    expect(mock.__insert).not.toHaveBeenCalled();
+    expect(mock.__aliasUpdate).not.toHaveBeenCalled();
+  });
+
+  it("clears the display name when the Real Name is typed, without adding an alias", async () => {
+    const mock = makeMock();
+    vi.mocked(createClient).mockResolvedValue(mock as any);
+
+    expect(await setCustomDisplayName(IDENTITY.memberName)).toEqual({ success: true });
+    expect(mock.__insert).not.toHaveBeenCalled();
+    expect(mock.__memberUpdate).toHaveBeenCalledWith({ display_name: null });
+  });
+
+  it("doesn't choose the name when another member already owns that alias", async () => {
+    const mock = makeMock({ insertError: { code: "23505", message: "duplicate" } });
+    vi.mocked(createClient).mockResolvedValue(mock as any);
+
+    expect(await setCustomDisplayName("Taken Name")).toEqual({ error: expect.stringContaining("already registered") });
+    expect(mock.__memberUpdate).not.toHaveBeenCalled();
+  });
+
+  it("rejects a blank name", async () => {
+    vi.mocked(createClient).mockResolvedValue(makeMock() as any);
+
+    expect(await setCustomDisplayName("   ")).toEqual({ error: expect.any(String) });
   });
 });

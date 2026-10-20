@@ -194,6 +194,44 @@ export async function setDisplayName(alias: string | null): Promise<{ success: t
   return { success: true };
 }
 
+/**
+ * Display name typed by hand: makes sure it's one of the member's active pen names (adding or
+ * reactivating it), then chooses it. Typing the Real Name just clears the display name.
+ */
+export async function setCustomDisplayName(name: string): Promise<{ success: true } | { error: string }> {
+  const ctx = await requireIdentity();
+  if ("error" in ctx) return ctx;
+  const { supabase, effectiveIdentity } = ctx;
+
+  const trimmed = name.trim();
+  if (!trimmed) return { error: "Enter a name first" };
+  if (trimmed.length > 200) return { error: "That name is too long" };
+
+  const { data: member } = await supabase
+    .from("members")
+    .select("name")
+    .eq("id", effectiveIdentity.memberId)
+    .single();
+  if (trimmed === (member?.name ?? effectiveIdentity.memberName)) return setDisplayName(null);
+
+  const { data: existing } = await supabase
+    .from("member_name_aliases")
+    .select("id, active")
+    .eq("member_id", effectiveIdentity.memberId)
+    .eq("alias", trimmed)
+    .maybeSingle();
+
+  if (!existing) {
+    const added = await addNameAlias(trimmed);
+    if ("error" in added) return added;
+  } else if (!existing.active) {
+    const reactivated = await setNameAliasActive(existing.id, true);
+    if ("error" in reactivated) return reactivated;
+  }
+
+  return setDisplayName(trimmed);
+}
+
 const DAYS_IN_MONTH = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
 
 export async function updateBirthday(

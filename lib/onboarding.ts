@@ -127,9 +127,16 @@ const IDENTITY_STOPS: OnboardingStop[] = [
   {
     id: "basics",
     target: "identity-basics",
-    title: "Your name and birthday",
-    hint: "This is your Real Name, the one on your account and records. Check it, and add your birthday, just the month and day, so we can celebrate you!",
+    title: "Your Real Name",
+    hint: "This is your Real Name, the one on your account and records. Is it right? Other members may see a different name, which you choose next.",
     confirmLabel: "Looks right",
+  },
+  {
+    id: "display-name",
+    target: "identity-display-name",
+    title: "Your Display Name",
+    hint: "This is the name other members see everywhere, and it can differ from your Real Name. Pick your Real Name, a pen name, or write your own.",
+    confirmLabel: "My display name looks right",
   },
   {
     id: "names",
@@ -139,18 +146,18 @@ const IDENTITY_STOPS: OnboardingStop[] = [
     confirmLabel: "My names look right",
   },
   {
-    id: "display-name",
-    target: "identity-display-name",
-    title: "Your Display Name",
-    hint: "This is the name other members see everywhere, and it can differ from your Real Name. Pick your Real Name or one of the pen names you just added.",
-    confirmLabel: "My display name looks right",
-  },
-  {
     id: "emails",
     target: "identity-emails",
     title: "Other email addresses",
     hint: "Used another email with us, like an old Kajabi or Slack one? Add it here so it all counts as you.",
     confirmLabel: "My emails look right",
+  },
+  {
+    id: "birthday",
+    target: "identity-birthday",
+    title: "Your birthday",
+    hint: "Add your birthday, just the month and day, so we can celebrate you!",
+    confirmLabel: "Skip",
   },
 ];
 
@@ -238,7 +245,7 @@ function stepViews(signals: OnboardingSignals, marked: Set<string>): StepWithout
     {
       id: "identity",
       title: "Check your details",
-      summary: "Your name and birthday, then any other names and emails you use.",
+      summary: "Your name, email, and birthday.",
       href: "/settings/identity",
       ...stopFields("identity", IDENTITY_STOPS, marked),
     },
