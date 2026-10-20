@@ -35,6 +35,7 @@ vi.mock("@/app/(member)/courses/actions", () => ({ setLessonComplete: vi.fn(asyn
 
 import CoursesPage from "@/app/(member)/courses/page";
 import CoursePage from "@/app/(member)/courses/[slug]/page";
+import ModulePage from "@/app/(member)/courses/[slug]/modules/[moduleId]/page";
 import LessonPage from "@/app/(member)/courses/[slug]/lessons/[lessonId]/page";
 
 const LESSON_A = "11111111-1111-4111-8111-111111111111";
@@ -175,6 +176,66 @@ describe("/courses/[slug]", () => {
   });
 });
 
+describe("/courses/[slug]/modules/[moduleId]", () => {
+  const params = (moduleId = "mod") => ({ params: Promise.resolve({ slug: "the-ready-writer", moduleId }) });
+  const open = (completed = new Set<string>()) =>
+    loadCourseView.mockResolvedValue({ course, access: { kind: "open", endsAt: null }, outline, completed, progress: courseProgress(outline, completed) });
+
+  it("is a 404 for a module that isn't in the course", async () => {
+    open();
+    await expect(Promise.resolve().then(() => ModulePage(params("nope")))).rejects.toMatchObject({ digest: "NEXT_HTTP_ERROR_FALLBACK;404" });
+  });
+
+  it("goes back to the course page when the member can't open lessons", async () => {
+    loadCourseView.mockResolvedValue({ course, access: { kind: "ended", endsAt: "2026-01-01T00:00:00Z" }, outline, completed: new Set(), progress: courseProgress(outline, new Set()) });
+    await expectRedirect(ModulePage, params(), "/courses/the-ready-writer");
+  });
+
+  it("lists the module's lessons with a check on completed ones, and links its breadcrumb", async () => {
+    open(new Set([LESSON_A]));
+    await renderServerPage(ModulePage, params());
+
+    expect(screen.getByRole("heading", { level: 1, name: "Month 1" })).toBeInTheDocument();
+    expect(screen.getByText("1 of 2 lessons done")).toBeInTheDocument();
+    const welcome = screen.getByRole("link", { name: /Welcome.*completed/ });
+    expect(welcome).toHaveAttribute("href", `/courses/the-ready-writer/lessons/${LESSON_A}`);
+    expect(within(welcome).getByTestId("completed-check")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Voice" })).toBeInTheDocument();
+    // Not released: listed, not linked.
+    expect(screen.getByText("Revision")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Revision/ })).not.toBeInTheDocument();
+    const crumbs = screen.getByRole("navigation", { name: "Breadcrumb" });
+    expect(within(crumbs).getByRole("link", { name: "The Ready Writer" })).toHaveAttribute("href", "/courses/the-ready-writer");
+    expect(crumbs.querySelector("[aria-current='page']")).toHaveTextContent("Month 1");
+  });
+
+  it("lists nested modules as links with their own progress, under a linked parent crumb", async () => {
+    const nested = buildOutline(
+      [mod, { id: "week", parent_id: "mod", title: "Week 1", position: 1, state: "open" }, { id: "later", parent_id: "mod", title: "Week 2", position: 2, state: "coming_soon" }],
+      [{ ...lesson(LESSON_A, "Welcome", 1), module_id: "week" }, { ...lesson(LESSON_SOON, "Later", 1, "coming_soon"), module_id: "later" }]
+    );
+    loadCourseView.mockResolvedValue({ course, access: { kind: "open", endsAt: null }, outline: nested, completed: new Set([LESSON_A]), progress: courseProgress(nested, new Set([LESSON_A])) });
+    await renderServerPage(ModulePage, params());
+    expect(screen.getByRole("link", { name: /Week 1/ })).toHaveAttribute("href", "/courses/the-ready-writer/modules/week");
+    expect(screen.queryByRole("link", { name: /Week 2/ })).not.toBeInTheDocument();
+
+    document.body.innerHTML = "";
+    await renderServerPage(ModulePage, params("week"));
+    expect(within(screen.getByRole("navigation", { name: "Breadcrumb" })).getByRole("link", { name: "Month 1" })).toHaveAttribute("href", "/courses/the-ready-writer/modules/mod");
+  });
+
+  it("hides an unreleased module from members and previews it for staff", async () => {
+    const soon = buildOutline([{ ...mod, state: "coming_soon" }], [lesson(LESSON_SOON, "Revision", 1, "coming_soon")]);
+    loadCourseView.mockResolvedValue({ course, access: { kind: "open", endsAt: null }, outline: soon, completed: new Set(), progress: courseProgress(soon, new Set()) });
+    await expectRedirect(ModulePage, params(), "/courses/the-ready-writer");
+
+    caller.scope.isAdminActing = true;
+    await renderServerPage(ModulePage, params());
+    expect(screen.getByRole("status")).toHaveTextContent("Preview");
+    expect(screen.getByRole("link", { name: "Revision" })).toBeInTheDocument();
+  });
+});
+
 describe("/courses/[slug]/lessons/[lessonId]", () => {
   const params = (lessonId = LESSON_B) => ({ params: Promise.resolve({ slug: "the-ready-writer", lessonId }) });
   const ok = (over: Record<string, unknown> = {}) => ({
@@ -209,7 +270,7 @@ describe("/courses/[slug]/lessons/[lessonId]", () => {
     expect(screen.getByRole("heading", { name: "Find your voice" })).toBeInTheDocument();
     const crumbs = screen.getByRole("navigation", { name: "Breadcrumb" });
     expect(within(crumbs).getByRole("link", { name: "The Ready Writer" })).toHaveAttribute("href", "/courses/the-ready-writer");
-    expect(within(crumbs).getByText("Month 1")).toBeInTheDocument();
+    expect(within(crumbs).getByRole("link", { name: "Month 1" })).toHaveAttribute("href", "/courses/the-ready-writer/modules/mod");
     expect(crumbs.querySelector("[aria-current='page']")).toHaveTextContent("Voice");
     expect(screen.queryByText(/Lesson 2 of/)).not.toBeInTheDocument();
     expect(screen.queryByText("9:05")).not.toBeInTheDocument();

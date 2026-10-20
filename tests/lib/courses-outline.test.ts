@@ -148,8 +148,8 @@ describe("lessonContext", () => {
   );
 
   it("gives the modules a lesson sits in, outermost first, and its place among the open lessons", () => {
-    expect(lessonContext(outline, "b")).toEqual({ trail: ["Month", "Week"], position: 4, total: 4 });
-    expect(lessonContext(outline, "intro")).toEqual({ trail: ["Month"], position: 2, total: 4 });
+    expect(lessonContext(outline, "b")).toEqual({ trail: [expect.objectContaining({ title: "Month" }), expect.objectContaining({ title: "Week" })], position: 4, total: 4 });
+    expect(lessonContext(outline, "intro")).toEqual({ trail: [expect.objectContaining({ title: "Month" })], position: 2, total: 4 });
   });
 
   it("has an empty trail for a lesson outside any module", () => {
@@ -157,7 +157,7 @@ describe("lessonContext", () => {
   });
 
   it("counts a coming-soon lesson (a staff preview) among all lessons, not the open ones", () => {
-    expect(lessonContext(outline, "soon")).toEqual({ trail: ["Month", "Week"], position: 4, total: 6 });
+    expect(lessonContext(outline, "soon")).toEqual({ trail: [expect.objectContaining({ title: "Month" }), expect.objectContaining({ title: "Week" })], position: 4, total: 6 });
   });
 
   it("is null for a lesson that isn't in the course", () => {

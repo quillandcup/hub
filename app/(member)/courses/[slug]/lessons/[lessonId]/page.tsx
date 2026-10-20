@@ -138,10 +138,12 @@ export default async function LessonPage({ params }: { params: Promise<{ slug: s
                 {view.course.title}
               </Link>
             </li>
-            {(context?.trail ?? []).map((title) => (
-              <li key={title} className="flex gap-2">
+            {(context?.trail ?? []).map((crumb) => (
+              <li key={crumb.id} className="flex gap-2">
                 <span aria-hidden="true">/</span>
-                <span>{title}</span>
+                <Link href={`/courses/${view.course.slug}/modules/${crumb.id}`} className="hover:underline">
+                  {crumb.title}
+                </Link>
               </li>
             ))}
             <li aria-current="page" className="flex gap-2 text-slate-900 dark:text-slate-100">

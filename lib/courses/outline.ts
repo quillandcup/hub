@@ -125,9 +125,33 @@ export function nextModuleLesson(outline: Outline, lessonId: string, options: { 
   );
 }
 
+/** The first module node (depth-first, page order) matching `test`, with the modules above it, outermost first, and itself last. */
+function findNode(outline: Outline, test: (node: OutlineNode) => boolean): { node: OutlineNode; trail: { id: string; title: string }[] } | null {
+  const search = (nodes: OutlineNode[], path: { id: string; title: string }[]): { node: OutlineNode; trail: { id: string; title: string }[] } | null => {
+    for (const node of nodes) {
+      const here = [...path, { id: node.module.id, title: node.module.title }];
+      if (test(node)) return { node, trail: here };
+      const inner = search(node.children, here);
+      if (inner) return inner;
+    }
+    return null;
+  };
+  return search(outline.modules, []);
+}
+
+/** A module's page: the module itself (its lessons and nested modules) and the modules above it, outermost first, itself last. */
+export function moduleView(outline: Outline, moduleId: string): { node: OutlineNode; trail: { id: string; title: string }[] } | null {
+  return findNode(outline, (node) => node.module.id === moduleId);
+}
+
+/** Lessons under a node, nested modules included (what a module card counts). */
+export function nodeLessons(node: OutlineNode): OutlineLesson[] {
+  return [...node.lessons, ...node.children.flatMap(nodeLessons)];
+}
+
 export interface LessonContext {
-  /** Titles of the modules the lesson sits in, outermost first ("Module 2", "Week 1"). */
-  trail: string[];
+  /** The modules the lesson sits in, outermost first ("Module 2", "Week 1"): each links to its own page. */
+  trail: { id: string; title: string }[];
   /** 1-based place among the lessons members can open, and how many there are. */
   position: number;
   total: number;
@@ -142,19 +166,7 @@ export function lessonContext(outline: Outline, lessonId: string): LessonContext
   const current = outline.lessons.find((l) => l.id === lessonId);
   if (!current) return null;
 
-  let trail: string[] = [];
-  const find = (nodes: OutlineNode[], path: string[]): boolean => {
-    for (const node of nodes) {
-      const here = [...path, node.module.title];
-      if (node.lessons.some((l) => l.id === lessonId)) {
-        trail = here;
-        return true;
-      }
-      if (find(node.children, here)) return true;
-    }
-    return false;
-  };
-  find(outline.modules, []);
+  const trail = findNode(outline, (node) => node.lessons.some((l) => l.id === lessonId))?.trail ?? [];
 
   const pool = current.state === "open" ? outline.lessons.filter((l) => l.state === "open") : outline.lessons;
   return { trail, position: pool.findIndex((l) => l.id === lessonId) + 1, total: pool.length };
