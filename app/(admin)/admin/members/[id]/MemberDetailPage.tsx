@@ -9,6 +9,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import MemberDetails from "./MemberDetails";
 import MergeButton from "./MergeButton";
+import SplitButton from "./SplitButton";
 import { getUserTimezonePreference } from "@/lib/timezone";
 import { startSudo } from "@/app/actions/sudo";
 import { fetchMembershipHistory } from "@/lib/kajabi/membership-history";
@@ -306,6 +307,11 @@ export default async function MemberDetailPage({
                 </button>
               </form>
               <MergeButton member={{ id: member.id, name: member.name, email: member.email }} />
+              <SplitButton
+                member={{ id: member.id, name: member.name, email: member.email }}
+                nameAliases={nameAliasRows ?? []}
+                emailAliases={emailAliases ?? []}
+              />
             </div>
             <div className="mt-1 flex flex-col gap-1">
               {(member.kajabi_id || member.stripe_customer_id) && (
