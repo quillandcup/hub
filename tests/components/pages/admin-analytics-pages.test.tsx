@@ -41,6 +41,30 @@ describe("/admin/analytics", () => {
     return { data: args.filters[0].live ? [{ sessions: 10 }, { sessions: 4 }] : [{ sessions: 5 }, { sessions: 0 }] };
   }
 
+  it("counts staff and leaves out sudo by default, and passes the filters to every query", async () => {
+    const supabase = useFakeSupabase();
+    await renderServerPage(FeatureUsagePage, { searchParams: Promise.resolve({}) });
+    for (const fn of ["analytics_event_summary", "analytics_top_clicks", "analytics_control_rates", "analytics_funnel"]) {
+      for (const [args] of rpcCalls(supabase, fn)) expect(args).toMatchObject({ ignore_staff: false, ignore_sudo: true });
+    }
+    expect(screen.getByRole("link", { name: /Ignore staff in sudo/ })).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("applies ignore-staff and include-sudo from the address, and keeps them in the window links and forms", async () => {
+    const supabase = useFakeSupabase();
+    await renderServerPage(FeatureUsagePage, { searchParams: Promise.resolve({ staff: "hide", sudo: "show", days: "7" }) });
+    for (const fn of ["analytics_event_summary", "analytics_top_clicks", "analytics_control_rates", "analytics_funnel"]) {
+      for (const [args] of rpcCalls(supabase, fn)) expect(args).toMatchObject({ ignore_staff: true, ignore_sudo: false });
+    }
+    const window = new URL(screen.getByRole("link", { name: "Last 30 days" }).getAttribute("href")!, "http://x").searchParams;
+    expect(window.get("staff")).toBe("hide");
+    expect(window.get("sudo")).toBe("show");
+    for (const form of document.querySelectorAll("form")) {
+      expect(form.querySelector('input[type="hidden"][name="staff"]')).toHaveValue("hide");
+      expect(form.querySelector('input[type="hidden"][name="sudo"]')).toHaveValue("show");
+    }
+  });
+
   it("checks the caller is an admin first", async () => {
     useFakeSupabase();
     await renderServerPage(FeatureUsagePage, { searchParams: Promise.resolve({}) });
@@ -160,6 +184,16 @@ describe("/admin/analytics/explore", () => {
     useFakeSupabase();
     await renderServerPage(ExploreUsagePage, { searchParams: Promise.resolve({}) });
     expect(requireAdminPage).toHaveBeenCalled();
+  });
+
+  it("passes the who-to-count filters to the funnel and the breakdown, and on to the form", async () => {
+    const supabase = useFakeSupabase();
+    await renderServerPage(ExploreUsagePage, {
+      searchParams: Promise.resolve({ step: "page_viewed", breakdown: "page_viewed.route", staff: "hide" }),
+    });
+    expect(rpcCalls(supabase, "analytics_funnel")[0][0]).toMatchObject({ ignore_staff: true, ignore_sudo: true });
+    expect(rpcCalls(supabase, "analytics_property_breakdown")[0][0]).toMatchObject({ ignore_staff: true, ignore_sudo: true });
+    expect(screen.getByRole("link", { name: /Ignore staff$/ })).toHaveAttribute("aria-pressed", "true");
   });
 
   it("asks nothing of the database until there is a question", async () => {

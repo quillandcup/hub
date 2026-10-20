@@ -33,6 +33,15 @@ No migration is needed. Before shipping a feature, write down what use would mak
 
 `/admin/analytics` also ranks the most-clicked things: each control named by its `data-track` name, else its label, else where a link goes, with an optional page prefix and the admin area hidden by default so staff browsing doesn't drown out members. In the explorer a breakdown has its own filters (the funnel's don't apply to it), and free-form filter boxes suggest the values that really occur (last 90 days).
 
+## Who the numbers count
+
+Both usage pages have two filters (`lib/analytics/audience.ts`, `components/admin/AudienceFilter.tsx`), kept in the address (`staff=hide`, `sudo=show`) so a view can be shared:
+
+- **Ignore staff** (off by default): leave out events from staff, meaning admins (`user_profiles.role = 'admin'`) and members with a `staff_role`. Turn it on once real members use the Hub, so staff testing doesn't read as usage.
+- **Ignore staff in sudo** (on by default): leave out events recorded while an admin viewed as a member. Those are the viewed member's experience driven by staff, so "ignore staff" does not remove them; this filter alone decides whether they count, which keeps the two independent.
+
+Every analytics function takes `ignore_staff` and `ignore_sudo` (defaults: false and true, so a caller that passes neither behaves as before) and applies them through `analytics_counts()` / `analytics_is_staff()`.
+
 ## Naming controls, and click-through
 
 Every control worth asking "is this used?" about gets `data-track="feature-control"` (lower-case kebab-case, see `lib/analytics/names.ts`; `tests/lib/track-names.test.ts` checks every literal name). Name the main controls of a feature when it ships. The name does three jobs: it identifies a click when the label is left out, it is counted when the control scrolls into view (`element_seen`, once per visit, `lib/analytics/impressions.ts`), and it is the key for click-through.

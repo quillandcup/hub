@@ -93,7 +93,7 @@ SELECT is(
    WHERE n.nspname = 'public' AND p.proname = 'analytics_control_rates' AND NOT p.prosecdef),
   1, 'it runs as the caller (SECURITY INVOKER)');
 SELECT is(
-  has_function_privilege('anon', 'public.analytics_control_rates(timestamptz, text, boolean)', 'EXECUTE'),
+  has_function_privilege('anon', 'public.analytics_control_rates(timestamptz, text, boolean, boolean, boolean)', 'EXECUTE'),
   false, 'anonymous callers cannot execute it');
 SELECT ok(
   NOT EXISTS (SELECT 1 FROM public.analytics_events WHERE properties ->> 'name' = 'rt-sudo' AND NOT sudo),

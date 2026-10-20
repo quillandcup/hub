@@ -4,6 +4,8 @@ import { createClient } from "@/lib/supabase/server";
 import { requireAdminPage } from "@/lib/admin-auth";
 import { FUNNELS, WINDOW_DAYS, parseWindowDays } from "@/lib/analytics/funnels";
 import { FunnelBars } from "@/components/admin/FunnelBars";
+import { AudienceFilter } from "@/components/admin/AudienceFilter";
+import { audienceQuery, audienceRpcArgs, parseAudience } from "@/lib/analytics/audience";
 
 export const metadata: Metadata = {
   title: "Feature Usage",
@@ -39,7 +41,7 @@ interface TopClickRow {
 
 const DAY_MS = 24 * 60 * 60_000;
 
-type Params = { days?: string; route?: string; admin?: string; min?: string; age?: string };
+type Params = { days?: string; route?: string; admin?: string; min?: string; age?: string; staff?: string; sudo?: string };
 
 /** A positive whole number from a query value, else the default. */
 function wholeNumber(value: string | undefined, fallback: number, min: number): number {
@@ -56,6 +58,8 @@ export default async function FeatureUsagePage({ searchParams }: { searchParams:
   // Staff clicking around the admin area would drown out what members do, so it starts hidden.
   const showAdmin = params.admin === "show";
   const routePrefix = params.route?.trim().slice(0, 120) || null;
+  const audience = parseAudience(params);
+  const audienceArgs = audienceRpcArgs(audience);
   // A rate from a handful of visits, or of a control that just shipped, says nothing: hold those back.
   const minVisits = wholeNumber(params.min, 10, 1);
   const minAgeDays = wholeNumber(params.age, 14, 0);
@@ -63,10 +67,10 @@ export default async function FeatureUsagePage({ searchParams }: { searchParams:
 
   const supabase = await createClient();
   const [summary, topClicks, controlRates, ...funnels] = await Promise.all([
-    supabase.rpc("analytics_event_summary", { since }),
-    supabase.rpc("analytics_top_clicks", { since, route_prefix: routePrefix, hide_admin: !showAdmin }),
-    supabase.rpc("analytics_control_rates", { since, route_prefix: routePrefix, hide_admin: !showAdmin }),
-    ...FUNNELS.map((f) => supabase.rpc("analytics_funnel", { steps: f.steps.map((s) => s.event), since, filters: f.steps.map((s) => s.where ?? {}) })),
+    supabase.rpc("analytics_event_summary", { since, ...audienceArgs }),
+    supabase.rpc("analytics_top_clicks", { since, route_prefix: routePrefix, hide_admin: !showAdmin, ...audienceArgs }),
+    supabase.rpc("analytics_control_rates", { since, route_prefix: routePrefix, hide_admin: !showAdmin, ...audienceArgs }),
+    ...FUNNELS.map((f) => supabase.rpc("analytics_funnel", { steps: f.steps.map((s) => s.event), since, filters: f.steps.map((s) => s.where ?? {}), ...audienceArgs })),
   ]);
   const oldEnough = Date.now() - minAgeDays * DAY_MS;
   const allControls = (controlRates.data ?? []) as ControlRateRow[];
@@ -92,7 +96,7 @@ export default async function FeatureUsagePage({ searchParams }: { searchParams:
           {WINDOW_DAYS.map((d) => (
             <Link
               key={d}
-              href={`/admin/analytics?${new URLSearchParams({ days: String(d), ...(routePrefix ? { route: routePrefix } : {}), ...(showAdmin ? { admin: "show" } : {}), ...(params.min ? { min: String(minVisits) } : {}), ...(params.age ? { age: String(minAgeDays) } : {}) })}`}
+              href={`/admin/analytics?${new URLSearchParams({ days: String(d), ...(routePrefix ? { route: routePrefix } : {}), ...(showAdmin ? { admin: "show" } : {}), ...(params.min ? { min: String(minVisits) } : {}), ...(params.age ? { age: String(minAgeDays) } : {}), ...audienceQuery(audience) })}`}
               className={`px-3 py-1 rounded-lg border ${
                 d === days
                   ? "border-plum-600 bg-plum-50 dark:bg-plum-900/20 text-plum-700 dark:text-plum-300"
@@ -103,6 +107,7 @@ export default async function FeatureUsagePage({ searchParams }: { searchParams:
             </Link>
           ))}
         </div>
+        <AudienceFilter path="/admin/analytics" params={params} audience={audience} />
       </div>
 
       {error && <p className="text-sm text-red-600">Could not load usage: {error.message}</p>}
@@ -126,6 +131,9 @@ export default async function FeatureUsagePage({ searchParams }: { searchParams:
         </p>
         <form method="get" className="mt-3 flex flex-wrap items-center gap-3 text-sm">
           <input type="hidden" name="days" value={days} />
+          {Object.entries(audienceQuery(audience)).map(([key, value]) => (
+            <input key={key} type="hidden" name={key} value={value} />
+          ))}
           <label className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
             Only pages under
             <input
@@ -189,6 +197,9 @@ export default async function FeatureUsagePage({ searchParams }: { searchParams:
         </p>
         <form method="get" className="mt-3 flex flex-wrap items-center gap-3 text-sm">
           <input type="hidden" name="days" value={days} />
+          {Object.entries(audienceQuery(audience)).map(([key, value]) => (
+            <input key={key} type="hidden" name={key} value={value} />
+          ))}
           {routePrefix && <input type="hidden" name="route" value={routePrefix} />}
           {showAdmin && <input type="hidden" name="admin" value="show" />}
           <label className="flex items-center gap-2 text-slate-600 dark:text-slate-400">

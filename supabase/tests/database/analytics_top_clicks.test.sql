@@ -77,7 +77,7 @@ SELECT is(
    WHERE n.nspname = 'public' AND p.proname = 'analytics_top_clicks' AND NOT p.prosecdef),
   1, 'it runs as the caller (SECURITY INVOKER)');
 SELECT is(
-  has_function_privilege('anon', 'public.analytics_top_clicks(timestamptz, text, boolean)', 'EXECUTE'),
+  has_function_privilege('anon', 'public.analytics_top_clicks(timestamptz, text, boolean, boolean, boolean)', 'EXECUTE'),
   false, 'anonymous callers cannot execute it');
 
 SELECT * FROM finish(true);
