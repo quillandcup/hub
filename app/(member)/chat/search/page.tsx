@@ -3,7 +3,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { requireChat } from "@/lib/chat/access";
-import { firstParam, isUuid, parseDay } from "@/lib/chat/format";
+import { firstParam, parseDay } from "@/lib/chat/format";
+import { isId } from "@/lib/ids";
 import { chatTextContext, loadChatChannels } from "@/lib/chat/load";
 import { MAX_QUERY_LENGTH, SEARCH_PAGE_SIZE, searchChat } from "@/lib/chat/search";
 import { parseSearch } from "@/lib/chat/search-syntax";
@@ -50,7 +51,7 @@ export default async function ChatSearchPage({
   const supabase = await createClient();
   const all = await loadChatChannels(supabase, identity.memberId, identity.isSudo);
   const searchable = all.filter((c) => !(identity.isSudo && c.restricted));
-  let scope = isUuid(channelParam) ? searchable.filter((c) => c.id === channelParam) : searchable;
+  let scope = isId(channelParam, "chn") ? searchable.filter((c) => c.id === channelParam) : searchable;
   if (parsed.inChannel) {
     // in:#name (or the name of a group message); an unknown name searches nothing, as in Slack.
     const wanted = parsed.inChannel.toLowerCase();
@@ -78,7 +79,7 @@ export default async function ChatSearchPage({
   const linkTo = (n: number) => {
     const p = new URLSearchParams();
     p.set("q", q);
-    if (isUuid(channelParam)) p.set("channel", channelParam);
+    if (isId(channelParam, "chn")) p.set("channel", channelParam);
     if (author) p.set("author", author);
     if (firstParam(sp.from) && parseDay(sp.from)) p.set("from", firstParam(sp.from) as string);
     if (firstParam(sp.to) && parseDay(sp.to, 1)) p.set("to", firstParam(sp.to) as string);
@@ -128,7 +129,7 @@ export default async function ChatSearchPage({
           <div className="grid gap-3 @pair:grid-cols-4 text-sm">
           <label className="block">
             <span className="block text-xs text-slate-500 mb-0.5">Channel</span>
-            <select data-track="chat-search-channel-filter" name="channel" defaultValue={isUuid(channelParam) ? channelParam : ""} className={inputClass}>
+            <select data-track="chat-search-channel-filter" name="channel" defaultValue={isId(channelParam, "chn") ? channelParam : ""} className={inputClass}>
               <option value="">All conversations</option>
               {searchable.map((c) => (
                 <option key={c.id} value={c.id}>

@@ -41,10 +41,6 @@ export function formatChatDay(iso: string, timeZone: string = ORG_TIMEZONE): str
   return `${get("weekday")}, ${get("month")} ${ordinal(Number(get("day")))}`;
 }
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-export const isUuid = (value: string | undefined | null): value is string => Boolean(value && UUID_RE.test(value));
-
 /** A valid ISO timestamp from a query param, or null. */
 export function parseBefore(value: string | string[] | undefined): string | null {
   const v = Array.isArray(value) ? value[0] : value;

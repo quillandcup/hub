@@ -157,9 +157,9 @@ describe("suggestOperatorValues", () => {
 });
 
 describe("markSuggestionsRead", () => {
-  const A = "00000000-0000-4000-a000-00000000000a";
-  const B = "00000000-0000-4000-a000-00000000000b";
-  const C = "00000000-0000-4000-a000-00000000000c";
+  const A = "prkl_AAAAAAAAAAAa"; // a prickle
+  const B = "prkl_AAAAAAAAAAAb";
+  const C = "chn_AAAAAAAAAAAc";
   const D = "00000000-0000-4000-a000-00000000000d";
 
   it("dismisses check-ins and check-outs, reads notifications, and ignores chats and junk", async () => {

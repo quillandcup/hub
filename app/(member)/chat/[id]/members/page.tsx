@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireChat } from "@/lib/chat/access";
-import { isUuid } from "@/lib/chat/format";
+import { isId } from "@/lib/ids";
 import { loadChannelForMember, loadChannelMembers } from "@/lib/chat/load";
 import { membershipAbilities } from "@/lib/chat/membership-abilities";
 import { effectiveMemberHasFeature, getUserFeaturePreviews } from "@/lib/features.server";
@@ -21,7 +21,7 @@ export const metadata: Metadata = {
 export default async function ChatMembersPage({ params }: { params: Promise<{ id: string }> }) {
   const { user, identity } = await requireChat();
   const { id } = await params;
-  if (!isUuid(id)) notFound();
+  if (!isId(id, "chn")) notFound();
 
   const supabase = await createClient();
   const channel = await loadChannelForMember(supabase, id, identity.memberId, identity.isSudo);

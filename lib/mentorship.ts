@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { quarterKey } from "@/lib/badges";
+import { isId } from "@/lib/ids";
 
 // The Big Sister program: every new member (a trial, a direct sign-up, someone rejoining, someone
 // arriving through a program that includes membership) is matched with an existing member for 30
@@ -336,7 +337,6 @@ export interface MatchInput {
   newMemberId: string;
 }
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** Checks the two members chosen in the admin form before the match is made. The start date isn't
  * entered: it comes from the new member's sign-up (lib/arrivals.ts). */
@@ -345,8 +345,8 @@ export function parseMatchInput(raw: {
   newMemberId?: string | null;
 }): { ok: true; value: MatchInput } | { ok: false; error: string } {
   const { mentorMemberId, newMemberId } = raw;
-  if (!mentorMemberId || !UUID.test(mentorMemberId)) return { ok: false, error: "Choose a big sister." };
-  if (!newMemberId || !UUID.test(newMemberId)) return { ok: false, error: "Choose a new member." };
+  if (!mentorMemberId || !isId(mentorMemberId, "mbr")) return { ok: false, error: "Choose a big sister." };
+  if (!newMemberId || !isId(newMemberId, "mbr")) return { ok: false, error: "Choose a new member." };
   if (mentorMemberId === newMemberId) return { ok: false, error: "A member can't be their own big sister." };
   return { ok: true, value: { mentorMemberId, newMemberId } };
 }

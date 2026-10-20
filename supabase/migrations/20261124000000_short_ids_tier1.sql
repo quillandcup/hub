@@ -173,7 +173,7 @@ AS $function$
 DECLARE
   v_badge_type_id text;
   v_starts_at DATE;
-  v_inserted UUID;
+  v_inserted text;
 BEGIN
   INSERT INTO event_attendees (event_id, member_id, created_by)
   VALUES (p_event_id, p_member_id, p_admin_id)

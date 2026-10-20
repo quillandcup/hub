@@ -45,8 +45,8 @@ vi.mock("@/lib/chat/file-cleanup", () => ({ removeChatFileBytes: m.removeBytes }
 
 import { deleteChatFile, deleteChatMessage, editChatMessage, prepareChatUploads, sendChatMessage, toggleChatReaction } from "@/app/(member)/chat/actions";
 
-const CHANNEL = "00000000-0000-4000-a000-0000000000c1";
-const MESSAGE = "00000000-0000-4000-a000-0000000000d1";
+const CHANNEL = "chn_AAAAAAAAAAC1";
+const MESSAGE = "msg_AAAAAAAAAAD1";
 const flushAfter = async () => {
   while (m.afterCallbacks.length) await m.afterCallbacks.shift()!();
 };

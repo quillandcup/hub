@@ -110,7 +110,8 @@ const { default: ChatIndexPage } = await import("@/app/(member)/chat/page");
 const { default: ChatChannelPage } = await import("@/app/(member)/chat/[id]/page");
 const { default: ChatMembersPage } = await import("@/app/(member)/chat/[id]/members/page");
 
-const id = (n: number) => `00000000-0000-4000-a000-${String(n).padStart(12, "0")}`;
+// Channels are 1-99, messages 100-899, members 900 and up; base58 has no 0, so it is written as A.
+const id = (n: number) => `${n < 100 ? "chn" : n < 900 ? "msg" : "mbr"}_${String(n).replace(/0/g, "A").padStart(12, "1")}`;
 const GENERAL = id(1);
 const HOSTS = id(2);
 const SECRET = id(3);

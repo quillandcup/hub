@@ -231,11 +231,11 @@ describe("pageLabel / summarizePages", () => {
     expect(pageLabel("/")).toBe("Home");
     expect(pageLabel("/dashboard")).toBe("Dashboard");
     expect(pageLabel("/my-prickles/all?commit=1")).toBe("My Prickles · All");
-    expect(pageLabel("/prickles/aab9da99-7d3d-401b-bbdf-8f40747c011d")).toBe("Prickles · one");
+    expect(pageLabel("/prickles/prkl_7Kx2mQ9dFh3N")).toBe("Prickles · one");
   });
 
   it("counts places, most visited first", () => {
-    expect(summarizePages(["/projects", "/dashboard", "/projects", "/prickles/aab9da99-7d3d-401b-bbdf-8f40747c011d"])).toEqual([
+    expect(summarizePages(["/projects", "/dashboard", "/projects", "/prickles/prkl_7Kx2mQ9dFh3N"])).toEqual([
       { label: "Projects", count: 2 },
       { label: "Dashboard", count: 1 },
       { label: "Prickles · one", count: 1 },

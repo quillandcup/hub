@@ -7,7 +7,8 @@ import { createClient } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { catchUpChannel } from "@/lib/chat/gap-fill";
 import { requireChat } from "@/lib/chat/access";
-import { isUuid, parseBefore } from "@/lib/chat/format";
+import { parseBefore } from "@/lib/chat/format";
+import { isId } from "@/lib/ids";
 import {
   buildMessageViews,
   chatTextContext,
@@ -54,7 +55,7 @@ export default async function ChatChannelPage({
   const { user, identity } = await requireChat();
   const { id } = await params;
   const { before, thread, profile } = await searchParams;
-  if (!isUuid(id)) notFound();
+  if (!isId(id, "chn")) notFound();
 
   const supabase = await createClient();
   const channel = await loadChannelForMember(supabase, id, identity.memberId, identity.isSudo);
@@ -76,9 +77,9 @@ export default async function ChatChannelPage({
     });
   }
   const threadId = Array.isArray(thread) ? thread[0] : thread;
-  if (threadId !== undefined && !isUuid(threadId)) notFound();
+  if (threadId !== undefined && !isId(threadId, "msg")) notFound();
   const profileParam = Array.isArray(profile) ? profile[0] : profile;
-  const profileId = profileParam && isUuid(profileParam) ? profileParam : null;
+  const profileId = profileParam && isId(profileParam, "mbr") ? profileParam : null;
 
   // The conversation always shows its messages; a thread or a profile opens beside it.
   let root = null;

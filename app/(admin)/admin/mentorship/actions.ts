@@ -6,6 +6,7 @@ import { MENTORSHIP_DAYS, parseMatchInput, type MentorshipStatus } from "@/lib/m
 import { getArrivals } from "@/lib/arrivals";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { sendMatchIntroductions } from "@/lib/mentorship-intro";
+import { isId } from "@/lib/ids";
 
 const BASE_PATH = "/admin/mentorship";
 
@@ -95,13 +96,11 @@ export async function deleteMentorship(id: string): Promise<ActionResult> {
   return { success: true };
 }
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
 /** Adds a member to the volunteer pool for staff (a member can also do it themselves on /big-sisters). */
 export async function addVolunteer(memberId: string | null, note?: string | null): Promise<ActionResult> {
   const auth = await requireAdminAction();
   if (!auth.ok) return { error: auth.error };
-  if (!memberId || !UUID.test(memberId)) return { error: "Choose a member." };
+  if (!memberId || !isId(memberId, "mbr")) return { error: "Choose a member." };
   const trimmed = note?.trim() || null;
   if (trimmed && trimmed.length > 300) return { error: "Keep the note under 300 characters." };
 

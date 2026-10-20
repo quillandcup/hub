@@ -37,8 +37,8 @@ vi.mock("@/lib/chat/load", () => ({
 
 import { loadLatestChat, loadThreadChat } from "@/app/(member)/chat/actions";
 
-const CHANNEL = "00000000-0000-4000-a000-0000000000c1";
-const ROOT = "00000000-0000-4000-a000-0000000000d1";
+const CHANNEL = "chn_AAAAAAAAAAC1";
+const ROOT = "msg_AAAAAAAAAAD1";
 
 beforeEach(() => {
   for (const fn of Object.values(m)) fn.mockReset();
@@ -65,7 +65,7 @@ describe("loadLatestChat", () => {
   });
 
   it("also returns the messages asked for (their reactions changed), once each, however old", async () => {
-    const OLD = "00000000-0000-4000-a000-0000000000e1";
+    const OLD = "msg_AAAAAAAAAAE1";
     m.loadMessagesByIds.mockResolvedValue([{ id: OLD }, { id: "m1" }]);
 
     await loadLatestChat(CHANNEL, [OLD, OLD, "not-a-uuid", "m1"]);

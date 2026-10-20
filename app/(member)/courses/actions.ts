@@ -5,7 +5,7 @@ import { requireAdminAction } from "@/lib/admin-auth";
 import { getCoursesCaller } from "@/lib/courses/caller";
 import { recordLessonCompleted } from "@/lib/courses/activity";
 import { canOpenLessons, loadMemberCourseAccess } from "@/lib/courses/member";
-import { isUuid } from "@/lib/chat/format";
+import { isId } from "@/lib/ids";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 
@@ -16,7 +16,7 @@ import { withAction } from "@/lib/analytics/server";
  * read-only, so an admin previewing as a member never changes that member's progress.
  */
 async function setLessonCompleteImpl(lessonId: string, complete: boolean): Promise<{ error?: string }> {
-  if (!isUuid(lessonId)) return { error: "Lesson not found" };
+  if (!isId(lessonId, "les")) return { error: "Lesson not found" };
   const caller = await getCoursesCaller();
   if (!caller) return { error: "Not available" };
   if (caller.identity.isSudo) return { error: "Progress can't be changed while viewing as a member" };
@@ -57,7 +57,7 @@ async function setLessonCompleteImpl(lessonId: string, complete: boolean): Promi
 export async function clearMyLessonProgress(lessonId: string): Promise<{ error?: string; segments?: number }> {
   const auth = await requireAdminAction();
   if (!auth.ok) return { error: auth.error };
-  if (!isUuid(lessonId)) return { error: "Lesson not found" };
+  if (!isId(lessonId, "les")) return { error: "Lesson not found" };
   const caller = await getCoursesCaller();
   if (!caller || !caller.scope.isAdminActing) return { error: "Not available" };
 

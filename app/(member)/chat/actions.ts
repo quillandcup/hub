@@ -12,7 +12,7 @@ import { pullReadFromSlack, pushReadToSlack } from "@/lib/chat/slack-read";
 import { removeChatFileBytes } from "@/lib/chat/file-cleanup";
 import { deleteChatFileInSlack, deleteChatMessageInSlack, updateChatMessageInSlack } from "@/lib/chat/slack-edit";
 import { getSlackConnectionStatus } from "@/lib/slack-connect";
-import { isUuid } from "@/lib/chat/format";
+import { isId } from "@/lib/ids";
 import { PENDING_FILE_PREFIX } from "@/lib/chat/files";
 import { MAX_CHAT_FILES, MAX_CHAT_FILE_BYTES, isOwnStagingPath, newStagingPath, type StagedUpload } from "@/lib/chat/staging";
 import { SLACK_FILES_BUCKET } from "@/lib/slack-capture";
@@ -42,7 +42,7 @@ import { chatCaller, postingCaller } from "@/lib/chat/caller";
  * admin never marks things read for the member they are looking at.
  */
 export async function markChatRead(channelId: string, through: string): Promise<void> {
-  if (!isUuid(channelId)) return;
+  if (!isId(channelId, "chn")) return;
   if (Number.isNaN(Date.parse(through))) return;
   const caller = await chatCaller();
   if (!caller || caller.identity.isSudo) return;
@@ -67,7 +67,7 @@ export async function markChatRead(channelId: string, through: string): Promise<
 export async function syncChatReadFromSlack(openChannelId: string | null): Promise<Record<string, number> | null> {
   const caller = await chatCaller();
   if (!caller || caller.identity.isSudo) return null;
-  const exceptChannelId = openChannelId && isUuid(openChannelId) ? openChannelId : null;
+  const exceptChannelId = openChannelId && isId(openChannelId, "chn") ? openChannelId : null;
   const pulled = await pullReadFromSlack(createServiceRoleClient(), caller.identity.memberId, { exceptChannelId }).catch((e) => {
     console.error("pullReadFromSlack failed:", e);
     return false;
@@ -90,7 +90,7 @@ export interface OlderChat {
  * Null when it can't be loaded (no access, bad cursor).
  */
 export async function loadOlderChat(channelId: string, before: string): Promise<OlderChat | null> {
-  if (!isUuid(channelId) || Number.isNaN(Date.parse(before))) return null;
+  if (!isId(channelId, "chn") || Number.isNaN(Date.parse(before))) return null;
   const caller = await chatCaller();
   if (!caller) return null;
   const { identity } = caller;
@@ -116,7 +116,7 @@ export async function loadOlderChat(channelId: string, before: string): Promise<
  * channel list isn't read again. Null when it can't be loaded, and the caller refreshes the page.
  */
 export async function loadLatestChat(channelId: string, alsoMessageIds: string[] = []): Promise<OlderChat | null> {
-  if (!isUuid(channelId)) return null;
+  if (!isId(channelId, "chn")) return null;
   const started = performance.now();
   const caller = await chatCaller();
   if (!caller) return null;
@@ -128,7 +128,7 @@ export async function loadLatestChat(channelId: string, alsoMessageIds: string[]
   if (!channel || (identity.isSudo && channel.restricted)) return null;
   const afterChannel = performance.now();
 
-  const wanted = [...new Set(alsoMessageIds.filter(isUuid))].slice(0, 50);
+  const wanted = [...new Set(alsoMessageIds.filter((m) => isId(m, "msg")))].slice(0, 50);
   const [page, extra] = await Promise.all([
     loadMessages(supabase, channel.id, {}),
     loadMessagesByIds(supabase, channel.id, wanted),
@@ -163,7 +163,7 @@ export interface ThreadChat {
  * access, or the root is gone), and the caller refreshes the page.
  */
 export async function loadThreadChat(channelId: string, threadRootId: string): Promise<ThreadChat | null> {
-  if (!isUuid(channelId) || !isUuid(threadRootId)) return null;
+  if (!isId(channelId, "chn") || !isId(threadRootId, "msg")) return null;
   const caller = await chatCaller();
   if (!caller) return null;
   const { identity } = caller;
@@ -252,7 +252,7 @@ async function stagedFilesFor(memberId: string, uploads: StagedUpload[]): Promis
  * marked failed, and the member can retry it; the nightly chat run retries too.
  */
 async function sendChatMessageImpl(channelId: string, body: string, threadRootId?: string, uploads: StagedUpload[] = []): Promise<SendChatResult> {
-  if (!isUuid(channelId) || (threadRootId !== undefined && !isUuid(threadRootId))) return { ok: false, error: "Something went wrong." };
+  if (!isId(channelId, "chn") || (threadRootId !== undefined && !isId(threadRootId, "msg"))) return { ok: false, error: "Something went wrong." };
   const caller = await postingCaller();
   if (!caller) return { ok: false, error: "Posting isn't available to you yet." };
 
@@ -304,7 +304,7 @@ const REACT_ERRORS: Record<string, string> = {
  * the Hub (the bot can't react under a member's name). Same gate as posting.
  */
 async function toggleChatReactionImpl(messageId: string, emoji: string): Promise<ToggleReactionResult> {
-  if (!isUuid(messageId)) return { ok: false, error: "Something went wrong." };
+  if (!isId(messageId, "msg")) return { ok: false, error: "Something went wrong." };
   const caller = await postingCaller();
   if (!caller) return { ok: false, error: "Reacting isn't available to you yet." };
 
@@ -346,7 +346,7 @@ async function toggleChatReactionImpl(messageId: string, emoji: string): Promise
 
 /** The author sends one of their own failed messages to Slack again. */
 export async function retryChatMessage(messageId: string): Promise<SendChatResult> {
-  if (!isUuid(messageId)) return { ok: false, error: "Something went wrong." };
+  if (!isId(messageId, "msg")) return { ok: false, error: "Something went wrong." };
   const caller = await postingCaller();
   if (!caller) return { ok: false, error: "Posting isn't available to you yet." };
 
@@ -386,7 +386,7 @@ const changeError = (error: { message?: string } | null, verb: "edit" | "delete"
  * Same gate as posting.
  */
 async function editChatMessageImpl(messageId: string, body: string): Promise<ChangeChatResult> {
-  if (!isUuid(messageId)) return { ok: false, error: "Something went wrong." };
+  if (!isId(messageId, "msg")) return { ok: false, error: "Something went wrong." };
   const caller = await postingCaller();
   if (!caller) return { ok: false, error: "Editing isn't available to you yet." };
 
@@ -406,7 +406,7 @@ async function editChatMessageImpl(messageId: string, body: string): Promise<Cha
 
 /** The author deletes one of their own messages written in the Hub: in Slack first, then the Hub (a tombstone, the text kept). */
 async function deleteChatMessageImpl(messageId: string): Promise<ChangeChatResult> {
-  if (!isUuid(messageId)) return { ok: false, error: "Something went wrong." };
+  if (!isId(messageId, "msg")) return { ok: false, error: "Something went wrong." };
   const caller = await postingCaller();
   if (!caller) return { ok: false, error: "Deleting isn't available to you yet." };
 
@@ -421,7 +421,7 @@ async function deleteChatMessageImpl(messageId: string): Promise<ChangeChatResul
 
 /** The author removes one attachment from their own Hub message: in Slack first, then the Hub's file list. */
 async function deleteChatFileImpl(messageId: string, fileId: string): Promise<ChangeChatResult> {
-  if (!isUuid(messageId) || !fileId || fileId.startsWith(PENDING_FILE_PREFIX)) return { ok: false, error: "Something went wrong." };
+  if (!isId(messageId, "msg") || !fileId || fileId.startsWith(PENDING_FILE_PREFIX)) return { ok: false, error: "Something went wrong." };
   const caller = await postingCaller();
   if (!caller) return { ok: false, error: "Deleting isn't available to you yet." };
 
