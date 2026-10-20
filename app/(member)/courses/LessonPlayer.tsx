@@ -6,7 +6,7 @@ import { VideoPlayer, VideoSkin } from "@videojs/react/video";
 import { MuxVideo } from "@videojs/react/media/mux-video";
 import "@videojs/react/video/skin.css";
 import { safeUrl } from "@/lib/url";
-import { RESUME_MAX_FRACTION, type WatchSegmentInput } from "@/lib/courses/watch";
+import { MAX_SEGMENTS_PER_BATCH, RESUME_MAX_FRACTION, type WatchSegmentInput } from "@/lib/courses/watch";
 import { AUTO_COMPLETE_FRACTION, useLessonCompletion } from "./LessonCompletion";
 
 export interface PlaybackTokens {
@@ -99,6 +99,8 @@ function AutoCompleteAtWatchedMark() {
 
 /** How often a long stretch is checkpointed, so a closed tab or a crash loses at most this much. */
 const CHECKPOINT_MS = 30_000;
+/** Stretches kept for a resend while saves are failing; the oldest go first so an outage can't grow without bound. */
+const MAX_PENDING_SEGMENTS = 200;
 
 /** Starts the video where the member left off, once, unless that was (nearly) the end. */
 function ResumePosition({ seconds }: { seconds: number }) {
@@ -126,7 +128,7 @@ function ResumePosition({ seconds }: { seconds: number }) {
  * seek, speed or captions change, tab hide or show, page leave or the end), with the media seconds
  * from the element's own clock. Rows are batched and sent every 30s while playing and whenever the
  * stretch ends for a reason that may mean leaving; the playhead goes along so the next visit can
- * resume. Sending is best effort (a failed save is dropped, never retried into duplicates).
+ * resume. Sending is best effort (a save that fails for a passing reason is queued and resent; each stretch's id makes a resend safe).
  */
 function WatchTracker({ lessonId }: { lessonId: string }) {
   const media = useMedia();
@@ -155,22 +157,39 @@ function WatchTracker({ lessonId }: { lessonId: string }) {
     const flush = () => {
       const position = el.currentTime;
       if (pending.length === 0 && Math.abs(position - sentPosition) < 1) return;
-      const segments = pending;
-      pending = [];
+      // The server takes a limited batch; anything over goes in the next request.
+      const segments = pending.slice(0, MAX_SEGMENTS_PER_BATCH);
+      pending = pending.slice(MAX_SEGMENTS_PER_BATCH);
+      const previousPosition = sentPosition;
       sentPosition = position;
+      // A save that fails for a reason that may pass (offline, a server error) goes back in the queue and is
+      // resent with the next one; the segment ids make a resend of one that did arrive harmless. A refusal
+      // (signed out, no access, bad data) won't pass, so it is dropped. Whatever is queued is lost if the page is.
+      const requeue = () => {
+        pending = [...segments, ...pending].slice(-MAX_PENDING_SEGMENTS);
+        sentPosition = previousPosition;
+      };
       void fetch("/api/courses/watch", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         // keepalive lets it finish while the page unloads.
         keepalive: true,
         body: JSON.stringify({ lessonId, sessionId, segments, position }),
-      }).catch(() => {});
+      })
+        .then((response) => {
+          if (response.status >= 500) requeue();
+          else if (pending.length > 0) flush();
+        })
+        .catch(requeue);
     };
     const close = () => {
       if (!open) return;
       const { start, last, rate, captions, visible } = open;
       open = null;
-      if (last - start > 0.25) pending.push({ start, end: last, rate, captions, visible });
+      if (last - start > 0.25) {
+        pending.push({ id: crypto.randomUUID(), start, end: last, rate, captions, visible });
+        if (pending.length > MAX_PENDING_SEGMENTS) pending = pending.slice(-MAX_PENDING_SEGMENTS);
+      }
     };
     const begin = () => {
       if (!open) open = { start: el.currentTime, last: el.currentTime, rate: el.playbackRate, captions: captionsRef.current, visible: !document.hidden };

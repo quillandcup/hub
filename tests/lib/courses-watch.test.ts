@@ -3,7 +3,8 @@ import { MAX_SEGMENTS_PER_BATCH, parseWatchBatch, resumeSeconds } from '@/lib/co
 
 const LESSON = '00000000-0000-4000-a000-00000000c200'
 const SESSION = '00000000-0000-4000-a000-00000000c999'
-const segment = { start: 1, end: 9.5, rate: 1.5, captions: 'English', visible: true }
+const SEGMENT_ID = '00000000-0000-4000-a000-00000000e001'
+const segment = { id: SEGMENT_ID, start: 1, end: 9.5, rate: 1.5, captions: 'English', visible: true }
 const batch = (over: Record<string, unknown> = {}) => ({ lessonId: LESSON, sessionId: SESSION, segments: [segment], position: 9.5, ...over })
 
 describe('parseWatchBatch', () => {
@@ -29,6 +30,8 @@ describe('parseWatchBatch', () => {
     ['segments that are not a list', batch({ segments: {} })],
     ['too many segments', batch({ segments: Array(MAX_SEGMENTS_PER_BATCH + 1).fill(segment) })],
     ['a segment ending before it starts', batch({ segments: [{ ...segment, start: 5, end: 4 }] })],
+    ['a segment without an id', batch({ segments: [{ ...segment, id: undefined }] })],
+    ['a segment id that is not a uuid', batch({ segments: [{ ...segment, id: 'abc' }] })],
     ['a negative start', batch({ segments: [{ ...segment, start: -1 }] })],
     ['a non-finite end', batch({ segments: [{ ...segment, end: Infinity }] })],
     ['a zero rate', batch({ segments: [{ ...segment, rate: 0 }] })],

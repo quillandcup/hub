@@ -15,6 +15,8 @@ import { createServiceRoleClient } from "@/lib/supabase/service";
  * viewing history), and progress isn't tracked for lessons members can't open yet.
  *
  * Written as the member, so RLS only lets it touch their own rows. Completion is never changed here.
+ * Safe to resend: each segment has a client-made id (unique per member), so one that already arrived
+ * is skipped, and `saved` counts only the new ones.
  */
 export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => undefined);
@@ -35,9 +37,12 @@ export async function POST(request: NextRequest) {
   const supabase = await createClient();
   const memberId = caller.identity.memberId;
 
+  // Each segment carries the player's own id, so a resend of a save that already arrived is ignored (stored once).
+  let saved = 0;
   if (batch.segments.length > 0) {
-    const { error } = await supabase.from("video_watch_segments").insert(
+    const { data, error } = await supabase.from("video_watch_segments").upsert(
       batch.segments.map((s) => ({
+        client_segment_id: s.id,
         member_id: memberId,
         video_id: lesson.video_id,
         session_id: batch.sessionId,
@@ -46,12 +51,14 @@ export async function POST(request: NextRequest) {
         playback_rate: s.rate,
         captions_language: s.captions,
         visible: s.visible,
-      }))
-    );
+      })),
+      { onConflict: "member_id,client_segment_id", ignoreDuplicates: true }
+    ).select("id");
     if (error) {
       console.error("video_watch_segments insert failed:", error.message);
       return NextResponse.json({ error: "Couldn't save your progress" }, { status: 500 });
     }
+    saved = data?.length ?? 0;
   }
 
   if (batch.position !== null) {
@@ -65,5 +72,5 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  return NextResponse.json({ saved: batch.segments.length });
+  return NextResponse.json({ saved });
 }

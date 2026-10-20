@@ -6,7 +6,7 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;
 
-SELECT plan(13);
+SELECT plan(16);
 
 -- Alice has current access, Bob's access ended, Cara has none, Dana is an admin.
 INSERT INTO auth.users (id, instance_id, aud, role, email) VALUES
@@ -86,6 +86,24 @@ SELECT is((SELECT value FROM result WHERE label = 'admin_lessons'), '2'::jsonb, 
 SELECT is((SELECT value FROM result WHERE label = 'alice_soon_lessons'), '0'::jsonb, 'members cannot read a lesson that is still coming soon');
 SELECT is((SELECT value FROM result WHERE label = 'admin_videos'), '1'::jsonb, 'admins read videos');
 SELECT is((SELECT value FROM result WHERE label = 'admin_progress'), '1'::jsonb, 'admins read members'' progress');
+
+-- A resent watch segment (same member and client id) is refused by the unique index, which the
+-- route turns into a no-op; rows without a client id never collide.
+INSERT INTO public.video_watch_segments (member_id, video_id, session_id, start_seconds, end_seconds, client_segment_id)
+VALUES ('00000000-0000-4000-a000-00000000c001', '00000000-0000-4000-a000-00000000c300', gen_random_uuid(), 0, 5, '00000000-0000-4000-a000-00000000d001');
+SELECT throws_ok(
+  $$INSERT INTO public.video_watch_segments (member_id, video_id, session_id, start_seconds, end_seconds, client_segment_id)
+    VALUES ('00000000-0000-4000-a000-00000000c001', '00000000-0000-4000-a000-00000000c300', gen_random_uuid(), 0, 5, '00000000-0000-4000-a000-00000000d001')$$,
+  '23505', NULL, 'the same client segment id twice for one member is refused');
+SELECT lives_ok(
+  $$INSERT INTO public.video_watch_segments (member_id, video_id, session_id, start_seconds, end_seconds, client_segment_id)
+    VALUES ('00000000-0000-4000-a000-00000000c001', '00000000-0000-4000-a000-00000000c300', gen_random_uuid(), 0, 5, NULL),
+           ('00000000-0000-4000-a000-00000000c001', '00000000-0000-4000-a000-00000000c300', gen_random_uuid(), 0, 5, NULL)$$,
+  'rows without a client id never collide');
+SELECT lives_ok(
+  $$INSERT INTO public.video_watch_segments (member_id, video_id, session_id, start_seconds, end_seconds, client_segment_id)
+    VALUES ('00000000-0000-4000-a000-00000000c002', '00000000-0000-4000-a000-00000000c300', gen_random_uuid(), 0, 5, '00000000-0000-4000-a000-00000000d001')$$,
+  'the same client id for a different member is a different segment');
 
 SELECT * FROM finish(true);
 ROLLBACK;
