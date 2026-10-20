@@ -35,7 +35,9 @@ export const metadata: Metadata = {
   },
   description:
     "The Quill & Cup member hub: find prickles and events, track your writing streaks and projects, and connect with fellow writers.",
-  openGraph: { siteName: appConfig.appName, type: "website" },
+  // No og:site_name: its "&" is escaped to "&amp;", which Slack's iPhone app shows literally.
+  // Slack falls back to the domain.
+  openGraph: { type: "website" },
   twitter: { card: "summary_large_image" },
   icons: {
     icon: '/icon.png',
