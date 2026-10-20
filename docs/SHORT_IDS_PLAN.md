@@ -119,9 +119,9 @@ uniqueness against Tier 1.
 | `slack_channels` | `slch_` | `zoom_meetings` | `zmtg_` |
 | `slack_messages` | `slmsg_` | `zoom_participant_events` | `zmpev_` |
 
-Not in the list: `feature_flags` / `feature_flag_segments` (text keys, no uuid). Tier 2 ids rarely appear anywhere a person reads them. If
-one does later (a table starts showing up in URLs), promote it to Tier 1 with a hand-chosen
-prefix; the cost is one migration for that table.
+Not in the list: `feature_flags` / `feature_flag_segments` (text keys, no uuid). Tier 2 ids
+are never shown to a person (see "Rule: Tier 2 ids are never exposed"). If a table needs to be,
+promote it to Tier 1 with a hand-chosen prefix first; the cost is one migration for that table.
 
 ## Inventory (scratch stack, 249 migrations, re-run 2026-10-20 after courses and analytics landed)
 
