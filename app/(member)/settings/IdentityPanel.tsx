@@ -5,6 +5,7 @@ import {
   getIdentitySettings,
   updateRealName,
   updateBirthday,
+  setDisplayName,
   addNameAlias,
   setNameAliasActive,
   addEmailAlias,
@@ -43,9 +44,11 @@ function AliasChip({
   source,
   active,
   pending,
+  isDisplayName,
   onToggle,
 }: {
   label: string;
+  isDisplayName?: boolean;
   source: string;
   active: boolean;
   pending: boolean;
@@ -64,6 +67,11 @@ function AliasChip({
           {label}
         </span>
         <span className="ml-2 text-xs text-slate-400 dark:text-slate-500">{sourceLabel(source)}</span>
+        {isDisplayName && (
+          <span className="ml-2 text-xs px-1.5 py-0.5 rounded bg-plum-100 dark:bg-plum-900/40 text-plum-700 dark:text-plum-300">
+            Your display name
+          </span>
+        )}
       </div>
       <button
         type="button"
@@ -92,6 +100,7 @@ export function IdentityPanel() {
   const [addingNameAlias, setAddingNameAlias] = useState(false);
   const [emailAliasInput, setEmailAliasInput] = useState("");
   const [addingEmailAlias, setAddingEmailAlias] = useState(false);
+  const [savingDisplayName, setSavingDisplayName] = useState(false);
   const [pendingAliasId, setPendingAliasId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -128,6 +137,20 @@ export function IdentityPanel() {
       await load();
     }
     setSavingName(false);
+  }
+
+  async function handleDisplayNameChange(value: string) {
+    setSavingDisplayName(true);
+    setError(null);
+    setMessage(null);
+    const result = await setDisplayName(value === "" ? null : value);
+    if ("error" in result) {
+      setError(result.error);
+    } else {
+      setMessage("Display name updated.");
+      await load();
+    }
+    setSavingDisplayName(false);
   }
 
   async function handleSaveBirthday(e: FormEvent) {
@@ -249,7 +272,7 @@ export function IdentityPanel() {
         <div>
           <h3 id="identity-real-name" className="text-sm font-medium text-slate-900 dark:text-slate-100 mb-1">Real Name</h3>
           <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">
-            Your canonical name — used across the app unless a pen name below matches instead.
+            Your canonical name, used for your account and records.
           </p>
           {data.nameChangeLocked ? (
             <div className="max-w-md">
@@ -282,6 +305,30 @@ export function IdentityPanel() {
               </button>
             </form>
           )}
+        </div>
+
+        {/* Display Name: what the community sees, right under Real Name. */}
+        <div>
+          <h3 id="identity-display-name" className="text-sm font-medium text-slate-900 dark:text-slate-100 mb-1">Display Name</h3>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">
+            The name other members see everywhere. Choose your Real Name or one of your
+            active pen names below.
+          </p>
+          <select
+            value={data.displayName ?? ""}
+            onChange={(e) => handleDisplayNameChange(e.target.value)}
+            disabled={savingDisplayName}
+            className="w-full max-w-md px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-sm disabled:opacity-50"
+          >
+            <option value="">{data.realName} (Real Name)</option>
+            {data.nameAliases
+              .filter((a) => a.active && a.alias !== data.realName)
+              .map((a) => (
+                <option key={a.id} value={a.alias}>
+                  {a.alias}
+                </option>
+              ))}
+          </select>
         </div>
 
         {/* Birthday */}
@@ -342,7 +389,8 @@ export function IdentityPanel() {
       <div data-tour="identity-names">
         <h3 id="identity-pen-names" className="text-sm font-medium text-slate-900 dark:text-slate-100 mb-1">Pen Names &amp; Zoom/Slack Names</h3>
         <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">
-          Other names people know you by — a pen name, or a different name you use in Zoom or Slack. Add
+          Other names you go by, such as a pen name or a different name in Zoom or Slack. These only match your
+          attendance; they don&apos;t change the name shown in the community. Add
           one here if your attendance isn&apos;t showing up because you joined under a name other than your
           Real Name above.
         </p>
@@ -357,6 +405,7 @@ export function IdentityPanel() {
               source={alias.source}
               active={alias.active}
               pending={pendingAliasId === alias.id}
+              isDisplayName={alias.alias === data.displayName}
               onToggle={() => handleToggleNameAlias(alias)}
             />
           ))}

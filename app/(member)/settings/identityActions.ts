@@ -27,6 +27,8 @@ export interface EmailAliasRow {
 
 export interface IdentitySettings {
   realName: string;
+  /** Pen name staff chose as the community-facing name, or null when the real name is shown. */
+  displayName: string | null;
   primaryEmail: string;
   birthdayMonth: number | null;
   birthdayDay: number | null;
@@ -71,7 +73,7 @@ export async function getIdentitySettings(): Promise<IdentitySettings | { error:
   const [memberResult, nameAliasResult, emailAliasResult, attendanceResult] = await Promise.all([
     supabase
       .from("members")
-      .select("name, email, birthday_month, birthday_day, kajabi_id, self_service_name_changed_at")
+      .select("name, display_name, email, birthday_month, birthday_day, kajabi_id, self_service_name_changed_at")
       .eq("id", effectiveIdentity.memberId)
       .single(),
     supabase
@@ -92,6 +94,7 @@ export async function getIdentitySettings(): Promise<IdentitySettings | { error:
 
   return {
     realName: memberResult.data?.name ?? effectiveIdentity.memberName,
+    displayName: memberResult.data?.display_name ?? null,
     primaryEmail: memberResult.data?.email ?? effectiveIdentity.memberEmail,
     birthdayMonth: memberResult.data?.birthday_month ?? null,
     birthdayDay: memberResult.data?.birthday_day ?? null,
@@ -156,6 +159,35 @@ export async function updateRealName(name: string): Promise<{ success: true } | 
     .single();
 
   if (error || !data) return { error: error?.message ?? "Couldn't update your name" };
+
+  revalidatePath("/settings", "layout");
+  revalidatePath(`/members/${effectiveIdentity.memberId}`);
+  return { success: true };
+}
+
+export async function setDisplayName(alias: string | null): Promise<{ success: true } | { error: string }> {
+  const ctx = await requireIdentity();
+  if ("error" in ctx) return ctx;
+  const { supabase, effectiveIdentity } = ctx;
+
+  if (alias !== null) {
+    const { data: row } = await supabase
+      .from("member_name_aliases")
+      .select("id")
+      .eq("member_id", effectiveIdentity.memberId)
+      .eq("alias", alias)
+      .eq("active", true)
+      .maybeSingle();
+    if (!row) return { error: "Pick one of your active names" };
+  }
+
+  const { data, error } = await supabase
+    .from("members")
+    .update({ display_name: alias })
+    .eq("id", effectiveIdentity.memberId)
+    .select("id")
+    .single();
+  if (error || !data) return { error: error?.message ?? "Couldn't update your display name" };
 
   revalidatePath("/settings", "layout");
   revalidatePath(`/members/${effectiveIdentity.memberId}`);
