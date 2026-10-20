@@ -310,3 +310,10 @@ describe("steps added after a finished tour", () => {
     expect(buildOnboardingState(withSlack(false), finished({ dismissed_at: NOW.toISOString() })).active).toBe(false);
   });
 });
+
+describe("Connect Slack step order", () => {
+  it("comes right after the basic settings steps, before writing and prickles", () => {
+    const state = buildOnboardingState({ ...NOTHING, slackConnect: { connected: false } }, null);
+    expect(state.steps.map((s) => s.id)).toEqual(["identity", "profile", "slack", "writing", "prickles", "calendar"]);
+  });
+});
