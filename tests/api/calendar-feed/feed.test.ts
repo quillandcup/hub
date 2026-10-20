@@ -44,7 +44,16 @@ describe('calendar feed', () => {
   // Added by hand by A (calendar_feed_items), all hosted by B, all of a second type:
   const addedOnce = hourFromNow(96) // "just this one"
   const weekly1 = hourFromNow(120) // "every week": this one and the next
-  const weekly2 = new Date(weekly1.getTime() + 7 * 24 * 60 * 60 * 1000)
+  // Next week's occurrence at the same local wall time, so a DST change in between doesn't move it off the slot.
+  const weekly2 = (() => {
+    const wanted = slotTimeForInstant(weekly1.toISOString(), SCHEDULE_TIMEZONE).startTimeLocal
+    const nextWeek = weekly1.getTime() + 7 * 24 * 60 * 60 * 1000
+    const hour = 60 * 60 * 1000
+    const match = [0, -hour, hour].map((shift) => new Date(nextWeek + shift)).find(
+      (d) => slotTimeForInstant(d.toISOString(), SCHEDULE_TIMEZONE).startTimeLocal === wanted
+    )
+    return match ?? new Date(nextWeek)
+  })()
   const notAdded = hourFromNow(130) // same type, different slot: stays out
   const eventStart = hourFromNow(24 * 10).toISOString().slice(0, 10)
   const eventEnd = hourFromNow(24 * 12).toISOString().slice(0, 10)
