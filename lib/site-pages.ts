@@ -41,7 +41,6 @@ export const ADMIN_NAV_GROUPS: { name: string; /** Rarely-used maintenance tooli
   { name: "Education" },
   { name: "Accountability" },
   { name: "Community" },
-  { name: "Data Health" },
   { name: "Analytics", collapsible: true },
   { name: "System", collapsible: true },
   { name: "Developer", collapsible: true },
@@ -160,17 +159,17 @@ export const SITE_PAGES: SitePage[] = [
   admin({ title: "Test Notifications", href: "/admin/notifications", section: "Developer", nav: { icon: "🔔" }, keywords: ["send test", "slack", "email", "push", "in-app", "reminders"] }),
 
   // Admin pages reached by drilling in (mostly from the health check), not from the sidebar
-  admin({ title: "Unmatched Calendar Events", href: "/admin/hygiene/unmatched-events", section: "Data Health" }),
-  admin({ title: "Prickles Missing Hosts", href: "/admin/data-health/missing-hosts", section: "Data Health" }),
-  admin({ title: "Unmatched Zoom Names", href: "/admin/hygiene/unmatched-zoom", section: "Data Health" }),
-  admin({ title: "Ambiguous Zoom Names", href: "/admin/hygiene/ambiguous-names", section: "Data Health" }),
-  admin({ title: "Unmatched Slack Users", href: "/admin/hygiene/unmatched-slack", section: "Data Health" }),
-  admin({ title: "Members Without Slack", href: "/admin/hygiene/members-without-slack", section: "Data Health" }),
-  admin({ title: "Merge & Fix", href: "/admin/hygiene/merge-fix", section: "Data Health", keywords: ["duplicates", "merge"] }),
-  admin({ title: "External Conflicts", href: "/admin/hygiene/external-conflicts", section: "Data Health" }),
-  admin({ title: "Missing Member Data", href: "/admin/hygiene/missing-member-data", section: "Data Health" }),
-  admin({ title: "Name Matching Game", href: "/admin/hygiene/name-matching", section: "Data Health" }),
-  admin({ title: "Name Aliases", href: "/admin/data/aliases", section: "Data Health" }),
+  admin({ title: "Unmatched Calendar Events", href: "/admin/hygiene/unmatched-events", section: "System" }),
+  admin({ title: "Prickles Missing Hosts", href: "/admin/data-health/missing-hosts", section: "System" }),
+  admin({ title: "Unmatched Zoom Names", href: "/admin/hygiene/unmatched-zoom", section: "System" }),
+  admin({ title: "Ambiguous Zoom Names", href: "/admin/hygiene/ambiguous-names", section: "System" }),
+  admin({ title: "Unmatched Slack Users", href: "/admin/hygiene/unmatched-slack", section: "System" }),
+  admin({ title: "Members Without Slack", href: "/admin/hygiene/members-without-slack", section: "System" }),
+  admin({ title: "Merge & Fix", href: "/admin/hygiene/merge-fix", section: "System", keywords: ["duplicates", "merge"] }),
+  admin({ title: "External Conflicts", href: "/admin/hygiene/external-conflicts", section: "System" }),
+  admin({ title: "Missing Member Data", href: "/admin/hygiene/missing-member-data", section: "System" }),
+  admin({ title: "Name Matching Game", href: "/admin/hygiene/name-matching", section: "System" }),
+  admin({ title: "Name Aliases", href: "/admin/data/aliases", section: "System" }),
 ];
 
 /** True when the page's feature (if any) is on. */
