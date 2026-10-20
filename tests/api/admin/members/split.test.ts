@@ -18,6 +18,8 @@ interface Fixtures {
   emailHolder?: { id: string } | null;
   emailAlias?: { id: string; member_id: string } | null;
   nameRows?: { id: string }[];
+  noAttendance?: boolean;
+  failOn?: { table: string; op: string };
   emailRows?: { id: string; alias_email: string }[];
 }
 
@@ -43,9 +45,12 @@ function makeSupabaseMock(fx: Fixtures = {}) {
       maybeSingle: () => {
         if (table === "members") return Promise.resolve({ data: fx.emailHolder ?? null, error: null });
         if (table === "member_email_aliases") return Promise.resolve({ data: fx.emailAlias ?? null, error: null });
-        return Promise.resolve({ data: { join_time: "2025-01-02T10:00:00Z" }, error: null });
+        return Promise.resolve({ data: fx.noAttendance ? null : { join_time: "2025-01-02T10:00:00Z" }, error: null });
       },
       then: (resolve: (v: unknown) => unknown) => {
+        if (fx.failOn && fx.failOn.table === table && fx.failOn.op === call.op) {
+          return resolve({ data: null, error: { message: `${table} ${call.op} failed` } });
+        }
         const data =
           call.op !== "select" ? [] : table === "member_name_aliases" ? (fx.nameRows ?? []) : (fx.emailRows ?? []);
         return resolve({ data, error: null });
@@ -113,6 +118,31 @@ describe("POST /api/admin/members/split", () => {
     const res = await POST(request(BODY));
     expect(res.status).toBe(409);
     expect(mock.calls.some((c) => c.op === "insert")).toBe(false);
+  });
+
+  it("falls back to the last 90 days when the original has no attendance", async () => {
+    useMock(makeSupabaseMock({ noAttendance: true }));
+    const res = await POST(request(BODY));
+    expect(res.status).toBe(200);
+    const { from } = vi.mocked(triggerAttendanceReprocessing).mock.calls[0][0];
+    expect(Date.now() - from.getTime()).toBeGreaterThan(89 * 86_400_000);
+    expect(Date.now() - from.getTime()).toBeLessThan(91 * 86_400_000);
+  });
+
+  it("reports a failed alias move as a 500", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    useMock(makeSupabaseMock({ nameRows: [{ id: "n1" }], failOn: { table: "member_name_aliases", op: "update" } }));
+    const res = await POST(request(BODY));
+    expect(res.status).toBe(500);
+    expect(await res.json()).toEqual({ error: "member_name_aliases update failed" });
+  });
+
+  it("still succeeds when the background reprocess fails", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.mocked(triggerAttendanceReprocessing).mockRejectedValueOnce(new Error("boom"));
+    useMock(makeSupabaseMock());
+    const res = await POST(request(BODY));
+    expect(res.status).toBe(200);
   });
 
   it("validates the body", async () => {

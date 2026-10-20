@@ -30,3 +30,47 @@ describe("SplitMemberModal", () => {
     expect(screen.getByLabelText(/new member name/i)).toHaveValue("Ivy M. Marsh");
   });
 });
+
+describe("SplitMemberModal submit", () => {
+  it("posts the ticked aliases and closes on success", async () => {
+    const onClose = vi.fn();
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ memberId: "new-1" }) });
+    vi.stubGlobal("fetch", fetchMock);
+    render(<SplitMemberModal member={member} nameAliases={nameAliases} emailAliases={emailAliases} isOpen onClose={onClose} />);
+
+    expect(screen.getByRole("button", { name: /split into new member/i })).toBeDisabled();
+    await userEvent.click(screen.getByLabelText("Ivy Marsh"));
+    await userEvent.click(screen.getByLabelText("ivy@example.com"));
+    await userEvent.click(screen.getByRole("button", { name: /split into new member/i }));
+
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({
+      memberId: "m1",
+      name: "Ivy Marsh",
+      email: "ivy@example.com",
+      nameAliasIds: ["n1"],
+      emailAliasIds: ["e1"],
+    });
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it("shows the server's error and stays open", async () => {
+    const onClose = vi.fn();
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, json: async () => ({ error: "Another member already has that email." }) }));
+    render(<SplitMemberModal member={member} nameAliases={nameAliases} emailAliases={emailAliases} isOpen onClose={onClose} />);
+
+    await userEvent.click(screen.getByLabelText("Ivy Marsh"));
+    await userEvent.click(screen.getByLabelText("ivy@example.com"));
+    await userEvent.click(screen.getByRole("button", { name: /split into new member/i }));
+
+    expect(await screen.findByText("Another member already has that email.")).toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("untoggles an alias", async () => {
+    setup();
+    const box = screen.getByLabelText("Ivy Marsh");
+    await userEvent.click(box);
+    await userEvent.click(box);
+    expect(box).not.toBeChecked();
+  });
+});
