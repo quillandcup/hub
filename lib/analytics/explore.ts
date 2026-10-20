@@ -1,3 +1,4 @@
+import { audienceQuery, type Audience } from "@/lib/analytics/audience";
 import { EVENTS, isEventName, type EventName } from "@/lib/analytics/events";
 
 /**
@@ -132,8 +133,9 @@ export function parseBreakdown(raw: string | string[] | undefined, filters?: str
   return { event, property, where: parseFilters(event, asList(filters)[0] ?? "") };
 }
 
-export function exploreHref(state: { days: number; steps: ExploreStep[]; breakdown: Breakdown | null }): string {
+export function exploreHref(state: { days: number; steps: ExploreStep[]; breakdown: Breakdown | null; audience?: Audience }): string {
   const params = new URLSearchParams({ days: String(state.days) });
+  if (state.audience) for (const [key, value] of Object.entries(audienceQuery(state.audience))) params.set(key, value);
   for (const step of state.steps) params.append("step", formatStep(step));
   if (state.breakdown) {
     params.set("breakdown", `${state.breakdown.event}.${state.breakdown.property}`);

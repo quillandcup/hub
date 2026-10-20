@@ -3,6 +3,7 @@
 import { useEffect, useId, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { EventDescription, EventName, PropertyDescription } from "@/lib/analytics/events";
+import type { Audience } from "@/lib/analytics/audience";
 import { MAX_STEPS, exploreHref, filtersFromFields, stepFromFields, type Breakdown, type ExploreStep } from "@/lib/analytics/explore";
 import { WINDOW_DAYS } from "@/lib/analytics/funnels";
 import { suggestFilterValues } from "./actions";
@@ -143,11 +144,14 @@ export function ExploreForm({
   initialSteps,
   initialBreakdown,
   initialDays,
+  audience,
 }: {
   events: EventDescription[];
   initialSteps: ExploreStep[];
   initialBreakdown: Breakdown | null;
   initialDays: number;
+  /** The usage page's who-to-count filters, kept when the question is run again. */
+  audience: Audience;
 }) {
   const router = useRouter();
   const [steps, setSteps] = useState<FormStep[]>(initialSteps.map((s) => ({ event: s.event, filters: toFilters(s.where) })));
@@ -164,6 +168,7 @@ export function ExploreForm({
     e.preventDefault();
     router.push(
       exploreHref({
+        audience,
         days,
         steps: steps.map((s) => stepFromFields(s.event, s.filters)),
         breakdown: breakdown && {

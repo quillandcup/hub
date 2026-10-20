@@ -245,6 +245,7 @@ export default function PrickleWizard({ members }: PrickleWizardProps) {
                   <Link
                     key={occ.id}
                     href={prickleHref(occ.id, feelings, need)}
+                    data-track="prickle-picker-result"
                     className="px-3 py-1.5 rounded-lg text-sm bg-plum-50 dark:bg-plum-900/20 text-plum-700 dark:text-plum-300 hover:bg-plum-100 dark:hover:bg-plum-900/40 transition-colors"
                   >
                     {formatOccurrence(occ.startTime, timezone)}
@@ -437,6 +438,7 @@ export default function PrickleWizard({ members }: PrickleWizardProps) {
           <button
             type="button"
             onClick={goNext}
+            data-track="prickle-picker-next"
             className="px-6 py-2 bg-plum-600 hover:bg-plum-700 text-white rounded-lg font-medium transition-colors"
           >
             Next →
@@ -445,6 +447,7 @@ export default function PrickleWizard({ members }: PrickleWizardProps) {
           <button
             type="button"
             onClick={handleSubmit}
+            data-track="prickle-picker-show-prickles"
             disabled={loading}
             className="px-6 py-2 bg-plum-600 hover:bg-plum-700 disabled:bg-plum-400 text-white rounded-lg font-medium transition-colors"
           >

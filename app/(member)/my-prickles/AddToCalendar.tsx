@@ -128,6 +128,7 @@ export function AddPrickleToCalendar({
         <button
           type="button"
           onClick={() => setOpen((o) => !o)}
+          data-track="add-to-calendar-icon"
           aria-haspopup="menu"
           aria-expanded={open}
           aria-label={triggerLabel}
@@ -142,6 +143,7 @@ export function AddPrickleToCalendar({
         <button
           type="button"
           onClick={() => setOpen((o) => !o)}
+          data-track="add-to-calendar"
           aria-haspopup="menu"
           aria-expanded={open}
           className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800"
@@ -166,6 +168,7 @@ export function AddPrickleToCalendar({
             aria-checked={added}
             disabled={busy || !!shown.weeklyItemId}
             onClick={() => toggle("once")}
+            data-track="add-to-calendar-once"
             className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-60 disabled:hover:bg-transparent"
           >
             <CheckMark on={added} />
@@ -179,6 +182,7 @@ export function AddPrickleToCalendar({
             aria-checked={!!shown.weeklyItemId}
             disabled={busy}
             onClick={() => toggle("weekly")}
+            data-track="add-to-calendar-weekly"
             className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-60"
           >
             <CheckMark on={!!shown.weeklyItemId} />
@@ -222,6 +226,7 @@ export function AddEventToCalendar({ eventId, itemId: savedItemId }: { eventId: 
         <button
           type="button"
           onClick={toggle}
+          data-track="add-to-calendar-toggle"
           disabled={busy}
           aria-pressed={!!itemId}
           className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-60"

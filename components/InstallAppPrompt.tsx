@@ -59,6 +59,7 @@ export function InstallSteps() {
         <button
           type="button"
           onClick={openShareMenu}
+          data-track="install-app-share-menu"
           className="mt-2 rounded-md border border-plum-300 px-3 py-1.5 font-medium hover:bg-plum-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-plum-500 dark:border-plum-700 dark:hover:bg-plum-900"
         >
           Open the Share menu
@@ -110,6 +111,7 @@ export function InstallAppPrompt() {
       <button
         type="button"
         onClick={dismiss}
+        data-track="install-app-dismiss"
         className="shrink-0 rounded-md px-2 py-1 font-medium hover:bg-plum-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-plum-500 dark:hover:bg-plum-900"
       >
         Not now

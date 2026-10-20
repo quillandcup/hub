@@ -41,6 +41,30 @@ describe("/admin/analytics", () => {
     return { data: args.filters[0].live ? [{ sessions: 10 }, { sessions: 4 }] : [{ sessions: 5 }, { sessions: 0 }] };
   }
 
+  it("counts staff and leaves out sudo by default, and passes the filters to every query", async () => {
+    const supabase = useFakeSupabase();
+    await renderServerPage(FeatureUsagePage, { searchParams: Promise.resolve({}) });
+    for (const fn of ["analytics_event_summary", "analytics_top_clicks", "analytics_control_rates", "analytics_funnel"]) {
+      for (const [args] of rpcCalls(supabase, fn)) expect(args).toMatchObject({ ignore_staff: false, ignore_sudo: true });
+    }
+    expect(screen.getByRole("link", { name: /Ignore staff in sudo/ })).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("applies ignore-staff and include-sudo from the address, and keeps them in the window links and forms", async () => {
+    const supabase = useFakeSupabase();
+    await renderServerPage(FeatureUsagePage, { searchParams: Promise.resolve({ staff: "hide", sudo: "show", days: "7" }) });
+    for (const fn of ["analytics_event_summary", "analytics_top_clicks", "analytics_control_rates", "analytics_funnel"]) {
+      for (const [args] of rpcCalls(supabase, fn)) expect(args).toMatchObject({ ignore_staff: true, ignore_sudo: false });
+    }
+    const window = new URL(screen.getByRole("link", { name: "Last 30 days" }).getAttribute("href")!, "http://x").searchParams;
+    expect(window.get("staff")).toBe("hide");
+    expect(window.get("sudo")).toBe("show");
+    for (const form of document.querySelectorAll("form")) {
+      expect(form.querySelector('input[type="hidden"][name="staff"]')).toHaveValue("hide");
+      expect(form.querySelector('input[type="hidden"][name="sudo"]')).toHaveValue("show");
+    }
+  });
+
   it("checks the caller is an admin first", async () => {
     useFakeSupabase();
     await renderServerPage(FeatureUsagePage, { searchParams: Promise.resolve({}) });
@@ -86,7 +110,7 @@ describe("/admin/analytics", () => {
     await renderServerPage(FeatureUsagePage, { searchParams: Promise.resolve({ admin: "show", route: " /courses ", days: "7" }) });
     expect(rpcCalls(supabase, "analytics_top_clicks")[0][0]).toMatchObject({ hide_admin: false, route_prefix: "/courses" });
     expect(screen.getByLabelText("Include admin pages")).toBeChecked();
-    expect(screen.getByDisplayValue("/courses")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("/courses")).toHaveValue("/courses");
   });
 
   it("keeps the page filter when the window changes", async () => {
@@ -94,6 +118,56 @@ describe("/admin/analytics", () => {
     await renderServerPage(FeatureUsagePage, { searchParams: Promise.resolve({ route: "/courses", admin: "show" }) });
     const link = screen.getByRole("link", { name: "Last 90 days" });
     expect(new URL(link.getAttribute("href")!, "http://x").searchParams.toString()).toBe("days=90&route=%2Fcourses&admin=show");
+  });
+
+  describe("least-clicked controls", () => {
+    const old = "2026-01-01T00:00:00Z";
+    const rates = [
+      { name: "export-csv", seen_sessions: 40, seen_members: 12, clicked_sessions: 1, clicked_members: 1, first_seen: old },
+      { name: "save-goal", seen_sessions: 20, seen_members: 9, clicked_sessions: 10, clicked_members: 8, first_seen: old },
+      { name: "tiny-sample", seen_sessions: 3, seen_members: 3, clicked_sessions: 0, clicked_members: 0, first_seen: old },
+      { name: "just-shipped", seen_sessions: 50, seen_members: 20, clicked_sessions: 0, clicked_members: 0, first_seen: new Date().toISOString() },
+    ];
+
+    const section = () => within(screen.getByRole("heading", { name: "Least-clicked controls" }).closest("section")!);
+
+    it("shows click-through for controls with enough visits and age, lowest first, and says how many are held back", async () => {
+      useFakeSupabase({ "rpc:analytics_control_rates": { data: rates } });
+      await renderServerPage(FeatureUsagePage, { searchParams: Promise.resolve({}) });
+
+      const rows = section().getAllByRole("row").slice(1);
+      expect(rows.map((r) => r.textContent)).toEqual([
+        expect.stringContaining("export-csv3%1 / 40"),
+        expect.stringContaining("save-goal50%10 / 20"),
+      ]);
+      expect(section().queryByText("tiny-sample")).toBeNull();
+      expect(section().queryByText("just-shipped")).toBeNull();
+      expect(section().getByText("2 controls are held back: seen by fewer than 10 visits, or first seen less than 14 days ago.")).toBeInTheDocument();
+    });
+
+    it("lets the thresholds be changed, and passes the page filters on", async () => {
+      const supabase = useFakeSupabase({ "rpc:analytics_control_rates": { data: rates } });
+      await renderServerPage(FeatureUsagePage, { searchParams: Promise.resolve({ min: "1", age: "0", route: "/courses", admin: "show" }) });
+
+      expect(section().getByText("tiny-sample")).toBeInTheDocument();
+      expect(section().getByText("just-shipped")).toBeInTheDocument();
+      expect(section().getByRole("row", { name: /just-shipped 0% 0 \/ 50/ })).toBeInTheDocument();
+      expect(section().queryByText(/ held back: seen by fewer/)).toBeNull();
+      expect(rpcCalls(supabase, "analytics_control_rates")[0][0]).toMatchObject({ route_prefix: "/courses", hide_admin: false });
+      expect(screen.getByDisplayValue("1")).toBeInTheDocument();
+    });
+
+    it("falls back to the defaults for nonsense thresholds", async () => {
+      useFakeSupabase({ "rpc:analytics_control_rates": { data: rates } });
+      await renderServerPage(FeatureUsagePage, { searchParams: Promise.resolve({ min: "-5", age: "soon" }) });
+      expect(section().getByText(/fewer than 10 visits, or first seen less than 14 days ago/)).toBeInTheDocument();
+    });
+
+    it("explains an empty table", async () => {
+      useFakeSupabase();
+      await renderServerPage(FeatureUsagePage, { searchParams: Promise.resolve({}) });
+      expect(section().getByText("No control has been seen by 10+ visits and for 14+ days yet.")).toBeInTheDocument();
+    });
   });
 
   it("says so when there is nothing yet, and shows an error from the database", async () => {
@@ -110,6 +184,16 @@ describe("/admin/analytics/explore", () => {
     useFakeSupabase();
     await renderServerPage(ExploreUsagePage, { searchParams: Promise.resolve({}) });
     expect(requireAdminPage).toHaveBeenCalled();
+  });
+
+  it("passes the who-to-count filters to the funnel and the breakdown, and on to the form", async () => {
+    const supabase = useFakeSupabase();
+    await renderServerPage(ExploreUsagePage, {
+      searchParams: Promise.resolve({ step: "page_viewed", breakdown: "page_viewed.route", staff: "hide" }),
+    });
+    expect(rpcCalls(supabase, "analytics_funnel")[0][0]).toMatchObject({ ignore_staff: true, ignore_sudo: true });
+    expect(rpcCalls(supabase, "analytics_property_breakdown")[0][0]).toMatchObject({ ignore_staff: true, ignore_sudo: true });
+    expect(screen.getByRole("link", { name: /Ignore staff$/ })).toHaveAttribute("aria-pressed", "true");
   });
 
   it("asks nothing of the database until there is a question", async () => {

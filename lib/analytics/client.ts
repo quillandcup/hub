@@ -75,6 +75,11 @@ function viewportClass(): "sm" | "md" | "lg" {
   return width < 640 ? "sm" : width < 1024 ? "md" : "lg";
 }
 
+/** The current visit's session id (renewing it after a long idle). Null until tracking is enabled. */
+export function getSessionId(): string | null {
+  return enabled && typeof window !== "undefined" ? currentSessionId(Date.now()) : null;
+}
+
 /** Queues one event. A no-op until tracking is enabled and outside the browser. */
 export function track<N extends EventName>(name: N, properties: EventProps<N>): void {
   if (!enabled || typeof window === "undefined") return;

@@ -132,6 +132,7 @@ function MorePill({ count, className }: { count: number; className: string }) {
   return (
     <Link
       href={INBOX_PATH}
+      data-track="notifications-banner-more"
       aria-label={`${count} more notifications`}
       className={`${className} shrink-0 rounded-full bg-white/20 px-2 py-0.5 text-xs font-medium text-white hover:bg-white/30`}
     >
@@ -227,11 +228,11 @@ export function NotificationRow({
   );
   const rowClass = `block w-full px-4 py-3 text-left ${n.read ? "" : "bg-plum-50/60 dark:bg-plum-950/60"}`;
   return n.url ? (
-    <Link href={n.url} {...externalLinkProps(n.url)} onClick={() => onOpen(n)} className={`${rowClass} hover:bg-slate-50 dark:hover:bg-slate-800`}>
+    <Link href={n.url} {...externalLinkProps(n.url)} data-track="notifications-open-item" onClick={() => onOpen(n)} className={`${rowClass} hover:bg-slate-50 dark:hover:bg-slate-800`}>
       {body}
     </Link>
   ) : (
-    <button type="button" onClick={() => onOpen(n)} className={`${rowClass} hover:bg-slate-50 dark:hover:bg-slate-800`}>
+    <button type="button" data-track="notifications-open-item" onClick={() => onOpen(n)} className={`${rowClass} hover:bg-slate-50 dark:hover:bg-slate-800`}>
       {body}
     </button>
   );
@@ -273,6 +274,7 @@ function BellMenu() {
       <button
         type="button"
         onClick={() => setIsOpen((o) => !o)}
+        data-track="notifications-bell"
         aria-expanded={isOpen}
         aria-label={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : "Notifications"}
         className="relative flex h-10 w-10 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
@@ -300,6 +302,7 @@ function BellMenu() {
             <button
               type="button"
               onClick={() => markAllRead()}
+              data-track="notifications-mark-all-read"
               disabled={unreadCount === 0}
               className="text-xs text-plum-600 hover:underline disabled:cursor-default disabled:text-slate-400 disabled:no-underline dark:text-plum-400"
             >
@@ -319,6 +322,7 @@ function BellMenu() {
           )}
           <Link
             href={INBOX_PATH}
+            data-track="notifications-see-all"
             onClick={() => setIsOpen(false)}
             className="block border-t border-slate-200 px-4 py-2 text-center text-sm text-plum-600 hover:bg-slate-50 dark:border-slate-700 dark:text-plum-400 dark:hover:bg-slate-800"
           >

@@ -36,6 +36,7 @@ function NeighborCard({ slug, lesson, direction }: { slug: string; lesson: Outli
   return (
     <Link
       href={`/courses/${slug}/lessons/${lesson.id}`}
+      data-track={`lesson-${direction}-card`}
       className={`group block rounded-xl border border-slate-200 bg-white p-4 transition hover:border-plum-300 hover:shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:hover:border-plum-700 ${
         direction === "next" ? "sm:text-right" : ""
       }`}
@@ -60,7 +61,7 @@ function StepButtons({ slug, previous, next, hideOnWide }: { slug: string; previ
   return (
     <div className={`mt-3 flex items-center justify-between gap-3 ${hideOnWide ? "lg:hidden" : ""}`}>
       {previous ? (
-        <Link href={`/courses/${slug}/lessons/${previous.id}`} aria-label={`Back: ${previous.title}`} className={`${base} ${enabled}`}>
+        <Link href={`/courses/${slug}/lessons/${previous.id}`} data-track="lesson-previous" aria-label={`Back: ${previous.title}`} className={`${base} ${enabled}`}>
           ← Back
         </Link>
       ) : (
@@ -69,7 +70,7 @@ function StepButtons({ slug, previous, next, hideOnWide }: { slug: string; previ
         </span>
       )}
       {next ? (
-        <Link href={`/courses/${slug}/lessons/${next.id}`} aria-label={`Next: ${next.title}`} className={`${base} ${enabled}`}>
+        <Link href={`/courses/${slug}/lessons/${next.id}`} data-track="lesson-next" aria-label={`Next: ${next.title}`} className={`${base} ${enabled}`}>
           Next →
         </Link>
       ) : (
