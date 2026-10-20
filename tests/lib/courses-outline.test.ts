@@ -3,6 +3,7 @@ import {
   buildOutline,
   courseProgress,
   formatDuration,
+  lessonContext,
   lessonNeighbors,
   type OutlineLesson,
   type OutlineModule,
@@ -69,6 +70,30 @@ describe("lessonNeighbors", () => {
   it("has no neighbours for a lesson that isn't open or isn't there", () => {
     expect(lessonNeighbors(outline, "soon")).toEqual({ previous: null, next: null });
     expect(lessonNeighbors(outline, "nope")).toEqual({ previous: null, next: null });
+  });
+});
+
+describe("lessonContext", () => {
+  const outline = buildOutline(
+    [mod("Month", 1), mod("Week", 1, "Month"), mod("Later", 2, null, "coming_soon")],
+    [lesson("intro", 1, "Month"), lesson("a", 1, "Week"), lesson("soon", 2, "Week", "coming_soon"), lesson("b", 3, "Week"), lesson("z", 1, "Later", "coming_soon"), lesson("loose", 1, null)]
+  );
+
+  it("gives the modules a lesson sits in, outermost first, and its place among the open lessons", () => {
+    expect(lessonContext(outline, "b")).toEqual({ trail: ["Month", "Week"], position: 4, total: 4 });
+    expect(lessonContext(outline, "intro")).toEqual({ trail: ["Month"], position: 2, total: 4 });
+  });
+
+  it("has an empty trail for a lesson outside any module", () => {
+    expect(lessonContext(outline, "loose")).toEqual({ trail: [], position: 1, total: 4 });
+  });
+
+  it("counts a coming-soon lesson (a staff preview) among all lessons, not the open ones", () => {
+    expect(lessonContext(outline, "soon")).toEqual({ trail: ["Month", "Week"], position: 4, total: 6 });
+  });
+
+  it("is null for a lesson that isn't in the course", () => {
+    expect(lessonContext(outline, "nope")).toBeNull();
   });
 });
 

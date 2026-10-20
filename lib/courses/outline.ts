@@ -85,6 +85,41 @@ export function lessonNeighbors(outline: Outline, lessonId: string, options: { i
   return { previous: open[i - 1] ?? null, next: open[i + 1] ?? null };
 }
 
+export interface LessonContext {
+  /** Titles of the modules the lesson sits in, outermost first ("Module 2", "Week 1"). */
+  trail: string[];
+  /** 1-based place among the lessons members can open, and how many there are. */
+  position: number;
+  total: number;
+}
+
+/**
+ * Where a lesson sits, for its page header (the lesson page has no outline of its own). The count
+ * is of open lessons, the ones that count as available; a "Coming soon" lesson (a staff preview) is
+ * counted among all lessons instead, since it isn't one of the open ones.
+ */
+export function lessonContext(outline: Outline, lessonId: string): LessonContext | null {
+  const current = outline.lessons.find((l) => l.id === lessonId);
+  if (!current) return null;
+
+  let trail: string[] = [];
+  const find = (nodes: OutlineNode[], path: string[]): boolean => {
+    for (const node of nodes) {
+      const here = [...path, node.module.title];
+      if (node.lessons.some((l) => l.id === lessonId)) {
+        trail = here;
+        return true;
+      }
+      if (find(node.children, here)) return true;
+    }
+    return false;
+  };
+  find(outline.modules, []);
+
+  const pool = current.state === "open" ? outline.lessons.filter((l) => l.state === "open") : outline.lessons;
+  return { trail, position: pool.findIndex((l) => l.id === lessonId) + 1, total: pool.length };
+}
+
 export interface CourseProgress {
   /** Open lessons, the ones that count: the course grows as lessons are released. */
   available: number;

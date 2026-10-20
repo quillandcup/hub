@@ -195,17 +195,29 @@ describe("/courses/[slug]/lessons/[lessonId]", () => {
     }
   });
 
-  it("shows the lesson text, previous/next, the outline and mark complete", async () => {
+  it("shows the lesson text, where it sits, previous/next with titles, and mark complete, with no outline of its own", async () => {
     loadLessonView.mockResolvedValue(ok());
     await renderServerPage(LessonPage, params());
 
     expect(screen.getByRole("heading", { level: 1, name: "Voice" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Find your voice" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "← Previous" })).toHaveAttribute("href", `/courses/the-ready-writer/lessons/${LESSON_A}`);
+    expect(screen.getByText(/Month 1 · Lesson 2 of 2/)).toBeInTheDocument();
+    const previous = screen.getByRole("link", { name: /Previous.*Welcome/ });
+    expect(previous).toHaveAttribute("href", `/courses/the-ready-writer/lessons/${LESSON_A}`);
     expect(screen.queryByRole("link", { name: /Next/ })).not.toBeInTheDocument();
-    expect(screen.getAllByRole("navigation", { name: "Course outline" }).length).toBeGreaterThan(0);
     expect(screen.getByRole("button", { name: "Mark complete" })).toBeEnabled();
     expect(screen.queryByTestId("player")).not.toBeInTheDocument();
+    // The outline lives on the course page; the lesson only links back to it.
+    expect(screen.queryByRole("navigation", { name: "Course outline" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "View the full course outline" })).toHaveAttribute("href", "/courses/the-ready-writer");
+  });
+
+  it("shows the next lesson's title on a Next card", async () => {
+    loadLessonView.mockResolvedValue(ok({ neighbors: { previous: null, next: lesson(LESSON_B, "Voice", 2) } }));
+    await renderServerPage(LessonPage, params(LESSON_A));
+
+    expect(screen.getByRole("link", { name: /Next.*Voice/ })).toHaveAttribute("href", `/courses/the-ready-writer/lessons/${LESSON_B}`);
+    expect(screen.queryByRole("link", { name: /Previous/ })).not.toBeInTheDocument();
   });
 
   it("plays a ready video with signed tokens minted for it", async () => {
@@ -241,7 +253,6 @@ describe("/courses/[slug]/lessons/[lessonId]", () => {
 
     expect(screen.getByRole("status")).toHaveTextContent("Preview: members see this lesson as “Coming soon”");
     expect(screen.queryByRole("button", { name: /Mark complete|Completed/ })).not.toBeInTheDocument();
-    expect(within(screen.getAllByRole("navigation", { name: "Course outline" })[0]).getByRole("link", { name: /Revision/ })).toBeInTheDocument();
   });
 
   it("disables mark complete in sudo, which is read-only", async () => {
