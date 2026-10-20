@@ -51,6 +51,7 @@ export interface CourseRow {
   slug: string;
   title: string;
   description: string | null;
+  thumbnail_url?: string | null;
 }
 
 export interface MemberScope {
@@ -122,7 +123,7 @@ export async function loadCourseList(supabase: SupabaseClient, scope: MemberScop
   }
   if (courseIds.length === 0) return [];
 
-  const courses: CourseRow[] = await fetchAll(supabase, "courses", "id, slug, title, description", (q) => q.in("id", courseIds));
+  const courses: CourseRow[] = await fetchAll(supabase, "courses", "id, slug, title, description, thumbnail_url", (q) => q.in("id", courseIds));
   const { modules, lessons } = await loadStructure(supabase, courseIds);
   const completed = await loadCompleted(supabase, scope.memberId, lessons.map((l) => l.id));
 
