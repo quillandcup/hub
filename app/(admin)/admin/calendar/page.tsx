@@ -83,6 +83,16 @@ export default async function CalendarPage({
     throw pricklesError;
   }
 
+  // Zoom attendance is imported after the fact. If a meeting at or after a prickle's start is
+  // already in, that prickle's data is in too, so 0 attendees means nobody came.
+  const { data: latestMeeting } = await supabase
+    .schema("bronze")
+    .from("zoom_meetings")
+    .select("start_time")
+    .order("start_time", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
   // Get user's timezone preference
   const userTimezone = await getUserTimezonePreference();
 
@@ -185,6 +195,7 @@ export default async function CalendarPage({
           }}
           userTimezonePreference={userTimezone}
           prickleBasePath="/admin/prickles"
+          attendanceDataThrough={latestMeeting?.start_time ?? null}
         />
       </div>
     </div>

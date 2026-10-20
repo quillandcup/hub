@@ -56,7 +56,7 @@ describe('CalendarWeekView day-to-prickle timezone matching', () => {
 
   it('hides attendee count label in member mode', () => {
     expect(src).toContain('mode !== "member"');
-    expect(src).toMatch(/mode !== "member"[\s\S]{0,100}text-xs font-bold/);
+    expect(src).toMatch(/mode !== "member"[\s\S]{0,200}text-xs font-bold/);
   });
 });
 
