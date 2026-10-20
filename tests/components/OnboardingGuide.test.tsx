@@ -33,7 +33,7 @@ import {
 } from "@/app/actions/onboarding";
 
 const NOT_HOST = { isHost: false, hasHostingSchedule: false, hostedRecently: false, hasHostVibe: false, isNewcomer: false, introUrl: null, hasIntroduced: false, hasAttendedPrickle: false, hasUpcomingPrickle: false, hasCalendarSynced: false };
-const IDENTITY_DONE = ["identity.basics", "identity.names", "identity.emails"];
+const IDENTITY_DONE = ["identity.basics", "identity.names", "identity.display-name", "identity.emails"];
 const EVERYTHING_MARKED = [...IDENTITY_DONE, "calendar"];
 const fresh = (): OnboardingState =>
   buildOnboardingState(
@@ -79,7 +79,7 @@ describe("OnboardingGuide", () => {
   it("spotlights each stop on the step's page in turn, and the step is done after the last", async () => {
     nav.pathname = "/settings/identity";
     nav.search = "";
-    for (const id of ["identity-basics", "identity-names", "identity-emails"]) {
+    for (const id of ["identity-basics", "identity-names", "identity-display-name", "identity-emails"]) {
       const target = document.createElement("div");
       target.setAttribute("data-tour", id);
       document.body.appendChild(target);
@@ -94,7 +94,7 @@ describe("OnboardingGuide", () => {
     render(<OnboardingGuide initialState={fresh()} />);
 
     const first = await screen.findByRole("dialog", { name: "Your name and birthday" });
-    expect(first).toHaveTextContent("Step 1 of 5 · 1 of 3");
+    expect(first).toHaveTextContent("Step 1 of 5 · 1 of 4");
     expect(first).toHaveTextContent(/celebrate you/);
     expect(screen.getByTestId("onboarding-highlight")).toBeInTheDocument();
 
@@ -102,11 +102,16 @@ describe("OnboardingGuide", () => {
     await userEvent.click(screen.getByRole("button", { name: "Looks right" }));
     expect(markOnboardingStep).toHaveBeenCalledWith("identity.basics");
     const second = await screen.findByRole("dialog", { name: "Pen names and Zoom/Slack names" });
-    expect(second).toHaveTextContent("Step 1 of 5 · 2 of 3");
+    expect(second).toHaveTextContent("Step 1 of 5 · 2 of 4");
 
     vi.mocked(getMyOnboardingState).mockResolvedValue(withMarked(["identity.basics", "identity.names"]));
     await userEvent.click(screen.getByRole("button", { name: "My names look right" }));
     expect(markOnboardingStep).toHaveBeenCalledWith("identity.names");
+    await screen.findByRole("dialog", { name: "Your Display Name" });
+
+    vi.mocked(getMyOnboardingState).mockResolvedValue(withMarked(["identity.basics", "identity.names", "identity.display-name"]));
+    await userEvent.click(screen.getByRole("button", { name: "My display name looks right" }));
+    expect(markOnboardingStep).toHaveBeenCalledWith("identity.display-name");
     await screen.findByRole("dialog", { name: "Other email addresses" });
 
     vi.mocked(getMyOnboardingState).mockResolvedValue(withMarked(IDENTITY_DONE));
@@ -220,7 +225,7 @@ describe("OnboardingGuide", () => {
         { marked_steps: IDENTITY_DONE, dismissed_at: null, completed_at: null }
       );
     const addTargets = () => {
-      for (const id of ["identity-basics", "identity-names", "identity-emails"]) {
+      for (const id of ["identity-basics", "identity-names", "identity-display-name", "identity-emails"]) {
         const target = document.createElement("div");
         target.setAttribute("data-tour", id);
         document.body.appendChild(target);
@@ -241,9 +246,11 @@ describe("OnboardingGuide", () => {
       rerender(<OnboardingGuide initialState={identityDone()} />);
 
       const first = await screen.findByRole("dialog", { name: "Your name and birthday" });
-      expect(first).toHaveTextContent("1 of 3");
+      expect(first).toHaveTextContent("1 of 4");
       await userEvent.click(screen.getByRole("button", { name: "Next" }));
       await screen.findByRole("dialog", { name: "Pen names and Zoom/Slack names" });
+      await userEvent.click(screen.getByRole("button", { name: "Next" }));
+      await screen.findByRole("dialog", { name: "Your Display Name" });
       await userEvent.click(screen.getByRole("button", { name: "Next" }));
       await screen.findByRole("dialog", { name: "Other email addresses" });
       await userEvent.click(screen.getByRole("button", { name: "Done" }));

@@ -403,30 +403,30 @@ export function IdentityPanel() {
             {addingNameAlias ? "Adding…" : "Add"}
           </button>
         </form>
+      </div>
 
-        {/* Display Name: what the community sees. After Pen Names, since it picks from them. */}
-        <div className="mt-8">
-          <h3 id="identity-display-name" className="text-sm font-medium text-slate-900 dark:text-slate-100 mb-1">Display Name</h3>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">
-            The name other members see everywhere, as opposed to your Real Name, which stays on
-            your account and records. Choose your Real Name or one of the pen names above.
-          </p>
-          <select
-            value={data.displayName ?? ""}
-            onChange={(e) => handleDisplayNameChange(e.target.value)}
-            disabled={savingDisplayName}
-            className="w-full max-w-md px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-sm disabled:opacity-50"
-          >
-            <option value="">{data.realName} (Real Name)</option>
-            {data.nameAliases
-              .filter((a) => a.active && a.alias !== data.realName)
-              .map((a) => (
-                <option key={a.id} value={a.alias}>
-                  {a.alias}
-                </option>
-              ))}
-          </select>
-        </div>
+      {/* Display Name: what the community sees. After Pen Names, since it picks from them. */}
+      <div data-tour="identity-display-name">
+        <h3 id="identity-display-name" className="text-sm font-medium text-slate-900 dark:text-slate-100 mb-1">Display Name</h3>
+        <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">
+          The name other members see everywhere, as opposed to your Real Name, which stays on
+          your account and records. Choose your Real Name or one of the pen names above.
+        </p>
+        <select
+          value={data.displayName ?? ""}
+          onChange={(e) => handleDisplayNameChange(e.target.value)}
+          disabled={savingDisplayName}
+          className="w-full max-w-md px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-sm disabled:opacity-50"
+        >
+          <option value="">{data.realName} (Real Name)</option>
+          {data.nameAliases
+            .filter((a) => a.active && a.alias !== data.realName)
+            .map((a) => (
+              <option key={a.id} value={a.alias}>
+                {a.alias}
+              </option>
+            ))}
+        </select>
       </div>
 
       {/* Email aliases */}

@@ -135,8 +135,15 @@ const IDENTITY_STOPS: OnboardingStop[] = [
     id: "names",
     target: "identity-names",
     title: "Pen names and Zoom/Slack names",
-    hint: "We match Zoom and Slack to you by name. If you ever join as something other than your Real Name, like a pen name or a nickname, add it here first. Then pick the Display Name other members see: your Real Name or one of these.",
+    hint: "We match Zoom and Slack to you by name. If you ever join as something other than your Real Name, like a pen name or a nickname, add it here.",
     confirmLabel: "My names look right",
+  },
+  {
+    id: "display-name",
+    target: "identity-display-name",
+    title: "Your Display Name",
+    hint: "This is the name other members see everywhere, and it can differ from your Real Name. Pick your Real Name or one of the pen names you just added.",
+    confirmLabel: "My display name looks right",
   },
   {
     id: "emails",
