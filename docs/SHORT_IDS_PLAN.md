@@ -343,6 +343,23 @@ change and the migration together (CI pushes migrations before the Vercel deploy
 5. Update app code and tests; run `npm run build` (the pre-commit hook does).
 6. Notify the early-access users (one line), run the migration in a quiet window.
 
+## Rule: Tier 2 ids are never exposed
+
+**A Tier 2 table's id must never reach a user.** That means no page URL, no link in a Slack
+message, email, notification or calendar feed, no id a person can copy out of an image or
+download link, and no id in a public API response. Tier 2 ids stay internal (joins, logs,
+admin `fetch` calls between our own client and server).
+
+**If a feature needs to expose one, elevate the table to Tier 1 first**: pick a readable
+prefix (Prefixes section), add it to the Tier 1 table, and convert it before the feature
+ships. Once the scheme has landed that is a small migration (`new_id` default, rewrite of the
+id and its references, the same checks as a phase). Before it has landed, add the table to
+Phase 1. The exposed form is what matters, not the column: if you would show the id, use
+Tier 1, or show something else (a slug, a token) instead.
+
+Reviewing a PR: if it adds a route param, a link, a notification `url` / `ref` or a response
+field built from a Tier 2 id, ask for the elevation.
+
 ## Constraints to remember
 
 - Public repo: no real names, emails or non-public ids in commits, docs or PR text.
