@@ -3,6 +3,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { requireAdminPage } from "@/lib/admin-auth";
 import { FUNNELS, WINDOW_DAYS, parseWindowDays } from "@/lib/analytics/funnels";
+import { FunnelBars } from "@/components/admin/FunnelBars";
 
 export const metadata: Metadata = {
   title: "Feature Usage",
@@ -38,7 +39,11 @@ export default async function FeatureUsagePage({ searchParams }: { searchParams:
         <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Feature Usage</h1>
         <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
           What members do in the Hub, from the usage log (the events are listed in lib/analytics/events.ts).
-          Views while an admin is viewing as a member are left out.
+          Views while an admin is viewing as a member are left out.{" "}
+          <Link href="/admin/analytics/explore" className="text-plum-600 dark:text-plum-400 hover:underline">
+            Build your own funnel or breakdown
+          </Link>
+          .
         </p>
         <div className="mt-3 flex gap-2 text-sm">
           {WINDOW_DAYS.map((d) => (
@@ -60,32 +65,12 @@ export default async function FeatureUsagePage({ searchParams }: { searchParams:
       {error && <p className="text-sm text-red-600">Could not load usage: {error.message}</p>}
 
       {FUNNELS.map((funnel, i) => {
-        const rows = funnels[i].data ?? [];
-        const top = Number(rows[0]?.sessions ?? 0);
+        const rows = (funnels[i].data ?? []) as { sessions: number }[];
         return (
           <section key={funnel.title}>
             <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">{funnel.title}</h2>
             <p className="text-sm text-slate-600 dark:text-slate-400">{funnel.description}</p>
-            <ol className="mt-3 space-y-2">
-              {funnel.steps.map((step, s) => {
-                const count = Number(rows[s]?.sessions ?? 0);
-                const pct = top > 0 ? Math.round((count / top) * 100) : 0;
-                return (
-                  <li key={step.event} className="text-sm">
-                    <div className="flex justify-between text-slate-700 dark:text-slate-300">
-                      <span>{step.label}</span>
-                      <span>
-                        {count} {count === 1 ? "visit" : "visits"}
-                        {s > 0 && top > 0 ? ` (${pct}% of step 1)` : ""}
-                      </span>
-                    </div>
-                    <div className="mt-1 h-2 rounded bg-slate-100 dark:bg-slate-800">
-                      <div className="h-2 rounded bg-plum-500" style={{ width: `${pct}%` }} />
-                    </div>
-                  </li>
-                );
-              })}
-            </ol>
+            <FunnelBars steps={funnel.steps.map((step, s) => ({ label: step.label, count: Number(rows[s]?.sessions ?? 0) }))} />
           </section>
         );
       })}
