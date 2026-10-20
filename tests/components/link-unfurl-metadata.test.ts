@@ -43,11 +43,11 @@ function bytes(file: string): number {
 }
 
 describe("link unfurl metadata", () => {
-  it("resolves image URLs against the app URL and asks for a large twitter card", async () => {
+  it("resolves image URLs against the app URL and asks for a summary twitter card", async () => {
     const { metadata } = await import("@/app/layout");
     expect(String(metadata.metadataBase)).toBe(`${APP_URL}/`);
     expect(metadata.openGraph).toMatchObject({ siteName: appConfig.appName, type: "website" });
-    expect(metadata.twitter).toMatchObject({ card: "summary_large_image" });
+    expect(metadata.twitter).toMatchObject({ card: "summary" });
   });
 
   it("has one 1.91:1 og:image; Slack crops its central square, so the content is centered", () => {
