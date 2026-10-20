@@ -128,14 +128,14 @@ const IDENTITY_STOPS: OnboardingStop[] = [
     id: "basics",
     target: "identity-basics",
     title: "Your name and birthday",
-    hint: "Is this the name you go by here? And add your birthday, just the month and day, so we can celebrate you!",
+    hint: "This is your Real Name, the one on your account and records. Check it, and add your birthday, just the month and day, so we can celebrate you!",
     confirmLabel: "Looks right",
   },
   {
     id: "names",
     target: "identity-names",
     title: "Pen names and Zoom/Slack names",
-    hint: "We match Zoom and Slack to you by name. If you ever join as something other than your real name, like a pen name or a nickname, add it here.",
+    hint: "We match Zoom and Slack to you by name. If you ever join as something other than your Real Name, like a pen name or a nickname, add it here first. Then pick the Display Name other members see: your Real Name or one of these.",
     confirmLabel: "My names look right",
   },
   {
