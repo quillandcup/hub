@@ -168,16 +168,15 @@ export default async function LessonPage({ params }: { params: Promise<{ slug: s
 
           <div className="lg:col-start-1">
             <StepButtons slug={view.course.slug} previous={neighbors.previous} next={neighbors.next} hideOnWide={Boolean(player && sectionList)} />
-            {/* Wide, like Kajabi's: the main action, right under the video. Once it's complete, a preview of the next lesson. */}
-            <div className="mt-3">
-              <MarkCompleteButton />
-              <NextLessonPreview slug={view.course.slug} next={nextLesson} />
-            </div>
           </div>
 
-          {/* The title and text sit below the video and its controls. */}
-          <div className="mt-8 lg:col-start-1 lg:row-start-3 lg:pr-8">
-            <h1 className="text-3xl font-bold leading-tight">{lesson.title}</h1>
+          {/* The main action, title and text sit together in one bounded card below the video and its controls, like the Downloads
+              card beside it (and Kajabi's). Once the lesson is complete, a preview of the next lesson follows the button. */}
+          <article className="mt-6 rounded-xl border border-slate-200 bg-white p-6 sm:p-8 dark:border-slate-800 dark:bg-slate-900 lg:col-start-1 lg:row-start-3 lg:mr-8">
+            <MarkCompleteButton />
+            <NextLessonPreview slug={view.course.slug} next={nextLesson} />
+
+            <h1 className="mt-8 text-3xl font-bold leading-tight">{lesson.title}</h1>
 
             {lesson.body_html && (
               // Sanitized with an allowlist when it was imported (lib/courses/sanitize.ts); never stored or rendered raw.
@@ -197,12 +196,12 @@ export default async function LessonPage({ params }: { params: Promise<{ slug: s
                 </Link>
               </p>
             </div>
-          </div>
+          </article>
 
           {/* Downloads: beside the text on a wide screen, after it on a phone ("available below"). The section list stands in for
               the player panel when a lesson has no video. */}
           {(files.length > 0 || (!player && sectionList)) && (
-            <div className="mt-8 space-y-4 lg:col-start-2 lg:row-start-3 lg:mt-8">
+            <div className="mt-6 space-y-4 lg:col-start-2 lg:row-start-3">
               {!player && sectionList && <div className="hidden overflow-hidden rounded-2xl bg-neutral-900 lg:block">{sectionList}</div>}
               <LessonDownloads slug={view.course.slug} lessonId={lesson.id} files={files} />
             </div>
