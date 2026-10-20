@@ -219,6 +219,18 @@ describe("/courses/[slug]/lessons/[lessonId]", () => {
     expect(screen.queryByRole("link", { name: /^Next/ })).not.toBeInTheDocument();
   });
 
+  it("centers Mark complete between Back and Next, in the row under the video", async () => {
+    loadLessonView.mockResolvedValue(ok());
+    await renderServerPage(LessonPage, params());
+
+    const row = screen.getByRole("button", { name: "Mark complete" }).closest("div.grid")!;
+    const children = Array.from(row.children);
+    expect(children).toHaveLength(3);
+    expect(children[0]).toHaveTextContent("← Back");
+    expect(children[1]).toContainElement(screen.getByRole("button", { name: "Mark complete" }));
+    expect(children[2]).toHaveTextContent("Next →");
+  });
+
   it("links the next lesson from both the button and the card", async () => {
     loadLessonView.mockResolvedValue(ok({ neighbors: { previous: null, next: lesson(LESSON_B, "Voice", 2) } }));
     await renderServerPage(LessonPage, params(LESSON_A));

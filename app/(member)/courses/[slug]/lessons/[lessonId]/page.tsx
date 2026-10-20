@@ -40,13 +40,16 @@ function NeighborCard({ slug, lesson, direction }: { slug: string; lesson: Outli
   );
 }
 
-/** Back / Next right under the video (compact, so it works on a phone); disabled at the ends. */
-function StepButtons({ slug, previous, next }: { slug: string; previous: OutlineLesson | null; next: OutlineLesson | null }) {
+/**
+ * Back / Next right under the video (compact, so it works on a phone; disabled at the ends), with
+ * whatever goes between them (Mark complete) centered.
+ */
+function StepButtons({ slug, previous, next, children }: { slug: string; previous: OutlineLesson | null; next: OutlineLesson | null; children?: React.ReactNode }) {
   const base = "rounded-lg px-4 py-2 text-sm font-medium";
   const enabled = "bg-plum-600 text-white hover:bg-plum-700";
   const disabled = "cursor-not-allowed bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-600";
   return (
-    <div className="mt-3 flex items-center justify-between gap-3">
+    <div className="mt-3 grid grid-cols-[auto_1fr_auto] items-center gap-3">
       {previous ? (
         <Link href={`/courses/${slug}/lessons/${previous.id}`} aria-label={`Back: ${previous.title}`} className={`${base} ${enabled}`}>
           ← Back
@@ -56,6 +59,7 @@ function StepButtons({ slug, previous, next }: { slug: string; previous: Outline
           ← Back
         </span>
       )}
+      <div className="flex justify-center">{children}</div>
       {next ? (
         <Link href={`/courses/${slug}/lessons/${next.id}`} aria-label={`Next: ${next.title}`} className={`${base} ${enabled}`}>
           Next →
@@ -125,13 +129,9 @@ export default async function LessonPage({ params }: { params: Promise<{ slug: s
 
           {player && <div className="mt-6 overflow-hidden rounded-2xl shadow-lg ring-1 ring-black/5 dark:ring-white/10">{player}</div>}
 
-          <StepButtons slug={view.course.slug} previous={neighbors.previous} next={neighbors.next} />
-
-          {!preview && (
-            <div className="mt-6">
-              <MarkCompleteButton lessonId={lesson.id} completed={completed} readOnly={caller.identity.isSudo} />
-            </div>
-          )}
+          <StepButtons slug={view.course.slug} previous={neighbors.previous} next={neighbors.next}>
+            {!preview && <MarkCompleteButton lessonId={lesson.id} completed={completed} readOnly={caller.identity.isSudo} />}
+          </StepButtons>
 
           {lesson.body_html && (
             // Sanitized with an allowlist when it was imported (lib/courses/sanitize.ts); never stored or rendered raw.
