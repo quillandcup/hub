@@ -180,6 +180,7 @@ describe("/courses/[slug]/lessons/[lessonId]", () => {
     neighbors: { previous: lesson(LESSON_A, "Welcome", 1), next: null },
     completed: false,
     video: null,
+    files: [],
     ...over,
   });
 
@@ -252,6 +253,27 @@ describe("/courses/[slug]/lessons/[lessonId]", () => {
     expect(container.querySelector("img[src='https://cdn.test/welcome.jpg']")).not.toBeNull();
     // Phones don't get it: the column is hidden below the lg breakpoint.
     expect(section.closest("aside")).toHaveClass("hidden", "lg:block");
+  });
+
+  it("shows a lesson's downloads in the side column on a wide screen and below the text on a phone", async () => {
+    const files = [{ id: "f1", filename: "Tracker_Sheet.pdf", size_bytes: 2048 }];
+    loadLessonView.mockResolvedValue(ok({ files }));
+    await renderServerPage(LessonPage, params());
+
+    const cards = screen.getAllByRole("region", { name: "Downloads" });
+    expect(cards).toHaveLength(2);
+    expect(cards[0].closest("div.lg\\:hidden")).not.toBeNull(); // below the text, small screens only
+    expect(cards[1].closest("aside")).toHaveClass("hidden", "lg:block"); // beside the video on wide screens
+    for (const card of cards) {
+      expect(within(card).getByRole("link", { name: /Tracker_Sheet\.pdf/ })).toHaveAttribute("href", `/courses/the-ready-writer/lessons/${LESSON_B}/files/f1`);
+    }
+  });
+
+  it("shows no downloads card when the lesson has none", async () => {
+    loadLessonView.mockResolvedValue(ok());
+    await renderServerPage(LessonPage, params());
+
+    expect(screen.queryByRole("region", { name: "Downloads" })).not.toBeInTheDocument();
   });
 
   it("plays a ready video with signed tokens minted for it", async () => {

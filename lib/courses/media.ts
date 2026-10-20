@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { explainCourse } from "@/lib/courses/explain";
+import { visibleLessonIds } from "@/lib/courses/visible";
 import { fetchAllBronzeRows } from "@/lib/supabase/bronze-pagination";
 import { inBatches } from "@/lib/courses/db";
 import type { MuxAssetStatus, MuxVideoQuality } from "@/lib/mux";
@@ -73,17 +73,7 @@ export async function planCourseVideos(supabase: SupabaseClient, courseKajabiId:
   ]);
 
   // Same visibility rule as members get: a draft (or a lesson under one) is never uploaded.
-  const explained = explainCourse(
-    modules.map((m) => ({ kajabiId: m.kajabi_id, parentKajabiId: m.parent_kajabi_id, position: m.position, title: m.title, publishingOption: m.publishing_option })),
-    lessons.map((l) => ({ kajabiId: l.kajabi_id, moduleKajabiId: l.module_kajabi_id, position: l.position, title: l.title, publishingOption: l.publishing_option }))
-  );
-  const visibleIds = new Set<string>();
-  const walk = (m: (typeof explained.modules)[number]) => {
-    m.lessons.forEach((l) => l.state !== "hidden" && visibleIds.add(l.kajabiId));
-    m.children.forEach(walk);
-  };
-  explained.loose.forEach((l) => l.state !== "hidden" && visibleIds.add(l.kajabiId));
-  explained.modules.forEach(walk);
+  const visibleIds = visibleLessonIds(modules, lessons);
 
   const withVideo = lessons.filter((l) => l.video_media_id && visibleIds.has(l.kajabi_id));
   const mediaIds = Array.from(new Set(withVideo.map((l) => l.video_media_id as string)));

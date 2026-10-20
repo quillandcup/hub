@@ -19,6 +19,9 @@ vi.mock("@/lib/courses/admin", () => ({
 vi.mock("@/app/(admin)/admin/courses/[id]/CourseVideosPanel", () => ({
   default: (props: { slug: string | null; videos: unknown[] }) => <div data-testid="videos" data-slug={props.slug ?? ""} data-count={props.videos.length} />,
 }));
+vi.mock("@/app/(admin)/admin/courses/[id]/CourseFilesPanel", () => ({
+  default: (props: { slug: string | null; plan: { files: unknown[] } }) => <div data-testid="files" data-slug={props.slug ?? ""} data-count={props.plan.files.length} />,
+}));
 vi.mock("@/app/(admin)/admin/courses/[id]/CourseSettingsForm", () => ({
   default: (props: { slug: string; accessDuration: string | null; launchOn: string }) => (
     <div data-testid="settings" data-slug={props.slug} data-access={props.accessDuration ?? "lifetime"} data-launch={props.launchOn} />
@@ -87,7 +90,7 @@ describe("/admin/courses/[id]", () => {
         { kajabiId: "l2", moduleKajabiId: null, position: 1, title: "Loose draft", publishingOption: "draft" },
       ]
     );
-    return { course: row({ published }), explained, content: { l1: { hasText: true, hasVideo: false } }, hubLessonIds: { l1: "hub-l1", l2: "hub-l2" }, videos: [], ...over };
+    return { course: row({ published }), explained, content: { l1: { hasText: true, hasVideo: false } }, hubLessonIds: { l1: "hub-l1", l2: "hub-l2" }, videos: [], files: { files: [], stale: [], courseId: null }, ...over };
   };
   const params = { params: Promise.resolve({ id: "k1" }) };
 
@@ -141,6 +144,13 @@ describe("/admin/courses/[id]", () => {
     await renderServerPage(AdminCoursePage, params);
     expect(screen.getByTestId("videos")).toHaveAttribute("data-count", "2");
     expect(screen.getByTestId("videos")).toHaveAttribute("data-slug", "the-ready-writer");
+  });
+
+  it("gives the course's downloads to the files panel", async () => {
+    loadAdminCourse.mockResolvedValue(detail(undefined, { files: { files: [{ kajabiFileId: "f1" }], stale: [], courseId: "c" } }));
+    await renderServerPage(AdminCoursePage, params);
+    expect(screen.getByTestId("files")).toHaveAttribute("data-count", "1");
+    expect(screen.getByTestId("files")).toHaveAttribute("data-slug", "the-ready-writer");
   });
 
   it("points an unpublished course at the import page instead of a form", async () => {

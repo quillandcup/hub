@@ -5,6 +5,7 @@ import { resolveCourseAccess } from "@/lib/courses/member";
 import { fetchAllBronzeRows } from "@/lib/supabase/bronze-pagination";
 import { slugifyTitle } from "@/lib/courses/visibility";
 import { planCourseVideos, type PlannedVideo } from "@/lib/courses/media";
+import { planCourseFiles, type FilePlan } from "@/lib/courses/files";
 
 /**
  * What the admin Courses page reads: every Kajabi course with its Hub state (published or not,
@@ -90,6 +91,8 @@ export interface AdminCourseDetail {
   hubLessonIds: Record<string, string>;
   /** Each distinct video of a visible lesson, and what step D would do with it. */
   videos: PlannedVideo[];
+  /** Each download of a visible lesson, what is already copied, and what would be removed. */
+  files: FilePlan;
 }
 
 export async function loadAdminCourse(supabase: SupabaseClient, kajabiId: string, now = new Date()): Promise<AdminCourseDetail | null> {
@@ -97,11 +100,12 @@ export async function loadAdminCourse(supabase: SupabaseClient, kajabiId: string
   if (error) throw new Error(`kajabi_courses read failed: ${error.message}`);
   if (!bronze) return null;
 
-  const [modules, lessons, rows, videos] = await Promise.all([
+  const [modules, lessons, rows, videos, files] = await Promise.all([
     fetchAllBronzeRows(supabase, "kajabi_course_modules", "kajabi_id, parent_kajabi_id, position, title, publishing_option", (q) => q.eq("course_kajabi_id", kajabiId).is("deleted_at", null)),
     fetchAllBronzeRows(supabase, "kajabi_course_lessons", "kajabi_id, module_kajabi_id, position, title, publishing_option, video_media_id, content_fetched_at", (q) => q.eq("course_kajabi_id", kajabiId).is("deleted_at", null)),
     loadAdminCourses(supabase, now),
     planCourseVideos(supabase, kajabiId, now),
+    planCourseFiles(supabase, kajabiId, now),
   ]);
   const course = rows.find((r) => r.kajabiId === kajabiId);
   if (!course) return null;
@@ -119,6 +123,7 @@ export async function loadAdminCourse(supabase: SupabaseClient, kajabiId: string
     course,
     hubLessonIds,
     videos,
+    files,
     explained: explainCourse(toModules(modules), toLessons(lessons)),
     content: Object.fromEntries(lessons.map((l) => [l.kajabi_id, { hasText: l.content_fetched_at !== null, hasVideo: l.video_media_id !== null }])),
   };
