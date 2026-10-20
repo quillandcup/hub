@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Modal from "@/components/Modal";
 import type { EmailAliasRow, NameAliasRow } from "./MemberIdentityPanel";
@@ -21,6 +22,7 @@ export default function SplitMemberModal({ member, nameAliases, emailAliases, is
   const [emailIds, setEmailIds] = useState<Set<string>>(new Set());
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [conflictId, setConflictId] = useState<string | null>(null);
 
   function toggle(set: Set<string>, id: string, update: (next: Set<string>) => void) {
     const next = new Set(set);
@@ -43,6 +45,7 @@ export default function SplitMemberModal({ member, nameAliases, emailAliases, is
   async function handleSplit() {
     setSaving(true);
     setError(null);
+    setConflictId(null);
     try {
       const res = await fetch("/api/admin/members/split", {
         method: "POST",
@@ -56,7 +59,10 @@ export default function SplitMemberModal({ member, nameAliases, emailAliases, is
         }),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Split failed");
+      if (!res.ok) {
+        setConflictId(json.conflictingMemberId ?? null);
+        throw new Error(json.error || "Split failed");
+      }
       onClose();
       router.push(`/admin/members/${json.memberId}`);
     } catch (err: unknown) {
@@ -117,7 +123,19 @@ export default function SplitMemberModal({ member, nameAliases, emailAliases, is
           </fieldset>
         )}
 
-        {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+        {error && (
+          <p className="text-sm text-red-600 dark:text-red-400">
+            {error}
+            {conflictId && (
+              <>
+                {" "}
+                <Link href={`/admin/members/${conflictId}`} className="underline">
+                  View that member
+                </Link>
+              </>
+            )}
+          </p>
+        )}
 
         <div className="flex justify-end gap-3 pt-1">
           <button onClick={onClose} className="px-4 py-2 text-sm text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200">

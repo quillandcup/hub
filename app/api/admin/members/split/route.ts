@@ -52,14 +52,26 @@ export async function POST(request: NextRequest) {
 
   // The new email must be free, or be an alias of the member being split.
   const [{ data: holder }, { data: emailAlias }] = await Promise.all([
-    supabase.from("members").select("id").eq("email", newEmail).maybeSingle(),
+    supabase.from("members").select("id, name").eq("email", newEmail).maybeSingle(),
     supabase.from("member_email_aliases").select("id, member_id").eq("alias_email", newEmail).maybeSingle(),
   ]);
   if (holder) {
-    return NextResponse.json({ error: "Another member already has that email." }, { status: 409 });
+    return NextResponse.json(
+      {
+        error:
+          holder.id === original.id
+            ? "That is this member's own primary email."
+            : `${holder.name} already has that email. If they are the new member, move the aliases to them instead of splitting.`,
+        conflictingMemberId: holder.id,
+      },
+      { status: 409 }
+    );
   }
   if (emailAlias && emailAlias.member_id !== original.id) {
-    return NextResponse.json({ error: "That email is already an alias of another member." }, { status: 409 });
+    return NextResponse.json(
+      { error: "That email is already an alias of another member.", conflictingMemberId: emailAlias.member_id },
+      { status: 409 }
+    );
   }
 
   // Only aliases that belong to the original member can move.
