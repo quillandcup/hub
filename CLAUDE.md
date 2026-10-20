@@ -214,7 +214,7 @@ The hook is tested by `supabase/tests/database/custom_access_token_hook.test.sql
 
 ### Migration numbering
 
-A new migration's timestamp must be newer than the latest on `main`, with no duplicate versions: `supabase db push` rejects an older one only after merge, when it fails the deploy. `npm run check:migrations` (`scripts/check-migration-order.ts`, compared with `origin/main`) runs in the pre-commit hook and in the unit CI job on pull requests. If it fails, rename the file with a fresh timestamp (and check other worktrees for the number you pick).
+A new migration's timestamp must be newer than the latest on `main`, with no duplicate versions: `supabase db push` rejects an older one only after merge, when it fails the deploy. `npm run check:migrations` (`scripts/check-migration-order.ts`, compared with `origin/main`) runs in the pre-commit hook and in the `Check migration numbering` CI job, which starts first and fails in seconds: on pull requests against the base branch, and on main against the commit before the push (two PRs that each passed alone can still collide). `push-migrations` waits on it. If it fails, rename the file with a fresh timestamp (and check other worktrees for the number you pick).
 
 ### GitHub repo settings as code
 
