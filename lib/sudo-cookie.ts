@@ -15,7 +15,7 @@ export function signSudoCookie(adminId: string, memberId: string): string {
 }
 
 // Cookie format: "${adminId}:${memberId}:${hmacHex}"
-// UUIDs contain hyphens but not colons, so split(':') gives exactly 3 parts.
+// Neither a uuid nor a member id (`mbr_...`) contains a colon, so split(':') gives exactly 3 parts.
 export function parseSudoCookie(value: string): { adminId: string; memberId: string } | null {
   const secret = process.env.SUDO_SECRET
   if (!secret) return null

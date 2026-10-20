@@ -261,6 +261,12 @@ the file), so the safest rule is: **leave existing objects where they are** and 
 | `feedback-screenshots` | `<auth user id>/<id>.png` | Yes, on `auth.uid()` | Unaffected: auth ids stay uuid |
 | `slack-files` | Slack ids | No | Unaffected |
 
+**Decided 2026-10-20: leave existing objects in place, no mapping kept after the migration.**
+The Tier 1 migration does not touch `storage_path` or `cover_url` values (a rehearsal scan on a
+production copy lists them as the only remaining old ids, on purpose). The one effect is the
+single `book-covers` object in prod: its folder is the member's old id, so that member cannot
+replace or delete it until they upload a new cover. New uploads use the new id.
+
 `video_text_tracks.storage_path` follows the same rule. `videos.mux_asset_id` /
 `mux_playback_id` are external ids and don't change.
 
