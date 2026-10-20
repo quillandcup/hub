@@ -6,6 +6,7 @@ import {
   lessonContext,
   lessonNeighbors,
   lessonSection,
+  nextModuleLesson,
   type OutlineLesson,
   type OutlineModule,
 } from "@/lib/courses/outline";
@@ -98,6 +99,45 @@ describe("lessonSection", () => {
   it("is null for a lesson outside any module, or not in the course", () => {
     expect(lessonSection(outline, "loose")).toBeNull();
     expect(lessonSection(outline, "nope")).toBeNull();
+  });
+});
+
+describe("nextModuleLesson", () => {
+  const outline = buildOutline(
+    [mod("Week 1", 1), mod("Week 2", 2), mod("Week 3", 3, null, "coming_soon"), mod("Week 4", 4)],
+    [
+      lesson("a", 1, "Week 1"),
+      lesson("b", 2, "Week 1"),
+      lesson("c", 1, "Week 2"),
+      lesson("soon", 1, "Week 3", "coming_soon"),
+      lesson("d", 1, "Week 4"),
+      lesson("loose", 1, null),
+    ]
+  );
+
+  it("is the first lesson of the next module, from any lesson of this one", () => {
+    expect(nextModuleLesson(outline, "a")?.id).toBe("c");
+    expect(nextModuleLesson(outline, "b")?.id).toBe("c");
+  });
+
+  it("skips modules with nothing open, for members", () => {
+    expect(nextModuleLesson(outline, "c")?.id).toBe("d");
+  });
+
+  it("lets staff previewing land on a coming-soon module", () => {
+    expect(nextModuleLesson(outline, "c", { includeComingSoon: true })?.id).toBe("soon");
+  });
+
+  it("is null in the last module, for a lesson outside any module, or an unknown lesson", () => {
+    expect(nextModuleLesson(outline, "d")).toBeNull();
+    expect(nextModuleLesson(outline, "loose")).toBeNull();
+    expect(nextModuleLesson(outline, "nope")).toBeNull();
+  });
+
+  it("treats the weeks inside a month as the modules that follow its own lessons", () => {
+    const nested = buildOutline([mod("Month", 1), mod("Week 1", 1, "Month"), mod("Week 2", 2, "Month")], [lesson("intro", 1, "Month"), lesson("w1", 1, "Week 1"), lesson("w2", 1, "Week 2")]);
+    expect(nextModuleLesson(nested, "intro")?.id).toBe("w1");
+    expect(nextModuleLesson(nested, "w1")?.id).toBe("w2");
   });
 });
 

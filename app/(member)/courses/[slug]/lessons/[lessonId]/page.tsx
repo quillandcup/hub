@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { requireCoursesPage } from "@/lib/courses/caller";
 import { loadLessonView } from "@/lib/courses/member";
-import { lessonContext, lessonSection, type OutlineLesson } from "@/lib/courses/outline";
+import { lessonContext, lessonSection, nextModuleLesson, type OutlineLesson } from "@/lib/courses/outline";
 import { createMuxClient, signPlaybackTokens } from "@/lib/mux";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { isUuid } from "@/lib/chat/format";
@@ -11,7 +11,9 @@ import PageBanner from "@/components/PageBanner";
 import LessonSectionList from "../../../LessonSectionList";
 import LessonDownloads from "../../../LessonDownloads";
 import LessonPlayer, { type PlaybackTokens } from "../../../LessonPlayer";
+import { LessonCompletionProvider } from "../../../LessonCompletion";
 import MarkCompleteButton from "../../../MarkCompleteButton";
+import NextLessonPreview from "../../../NextLessonPreview";
 
 export const metadata: Metadata = { title: "Courses" };
 
@@ -102,9 +104,25 @@ export default async function LessonPage({ params }: { params: Promise<{ slug: s
 
   const context = lessonContext(view.outline, lesson.id);
   const section = lessonSection(view.outline, lesson.id);
+  const nextModule = nextModuleLesson(view.outline, lesson.id, { includeComingSoon: caller.scope.isAdminActing });
   const sectionList = section && (
-    <LessonSectionList slug={view.course.slug} section={section} completed={view.completed} currentLessonId={lesson.id} previewComingSoon={caller.scope.isAdminActing} />
+    <LessonSectionList
+      slug={view.course.slug}
+      section={section}
+      completed={view.completed}
+      currentLessonId={lesson.id}
+      previewComingSoon={caller.scope.isAdminActing}
+      nextModule={nextModule}
+    />
   );
+  // Completion can't be changed in sudo (read-only) or in a staff preview (progress isn't tracked there).
+  const readOnlyReason = preview
+    ? "Progress isn't tracked for lessons members can't open yet"
+    : caller.identity.isSudo
+      ? "Progress can't be changed while viewing as a member"
+      : null;
+  // The next lesson, with its thumbnail, for the "keep going" card once this one is complete.
+  const nextLesson = neighbors.next && { id: neighbors.next.id, title: neighbors.next.title, thumbnail_url: neighbors.next.thumbnail_url };
 
   return (
     <>
@@ -133,6 +151,8 @@ export default async function LessonPage({ params }: { params: Promise<{ slug: s
           </ol>
         </nav>
 
+        {/* Completion is shared by the player (which sets it at ~90% watched), the button and the next-lesson card. */}
+        <LessonCompletionProvider lessonId={lesson.id} initiallyCompleted={completed} readOnlyReason={readOnlyReason}>
         <div className="mt-4 grid lg:grid-cols-[minmax(0,1fr)_22rem]">
           {/* The video and this section's lessons are one component: a dark panel flush against the player, the same height. */}
           {player && (
@@ -148,15 +168,10 @@ export default async function LessonPage({ params }: { params: Promise<{ slug: s
 
           <div className="lg:col-start-1">
             <StepButtons slug={view.course.slug} previous={neighbors.previous} next={neighbors.next} hideOnWide={Boolean(player && sectionList)} />
-            {/* Wide, like Kajabi's: the main action, right under the video. */}
+            {/* Wide, like Kajabi's: the main action, right under the video. Once it's complete, a preview of the next lesson. */}
             <div className="mt-3">
-              <MarkCompleteButton
-                lessonId={lesson.id}
-                completed={completed}
-                readOnly={caller.identity.isSudo || preview}
-                readOnlyReason={preview ? "Progress isn't tracked for lessons members can't open yet" : undefined}
-                fullWidth
-              />
+              <MarkCompleteButton />
+              <NextLessonPreview slug={view.course.slug} next={nextLesson} />
             </div>
           </div>
 
@@ -193,6 +208,7 @@ export default async function LessonPage({ params }: { params: Promise<{ slug: s
             </div>
           )}
         </div>
+        </LessonCompletionProvider>
       </div>
     </>
   );

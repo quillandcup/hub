@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { selectPlayback, selectPlaybackRate, selectSource, useCaptionsOptions, usePlayer } from "@videojs/react";
+import { selectPlayback, selectPlaybackRate, selectSource, selectTime, useCaptionsOptions, usePlayer } from "@videojs/react";
 import { VideoPlayer, VideoSkin } from "@videojs/react/video";
 import { MuxVideo } from "@videojs/react/media/mux-video";
 import "@videojs/react/video/skin.css";
+import { AUTO_COMPLETE_FRACTION, useLessonCompletion } from "./LessonCompletion";
 
 export interface PlaybackTokens {
   playback: string;
@@ -75,6 +76,26 @@ function RememberCaptions() {
 }
 
 /**
+ * Completes the lesson once the playhead passes ~90% of the video *while it is playing* (jumping a
+ * paused playhead to the end doesn't count). Does nothing outside a completion provider, for a
+ * lesson that's already complete, or when the member has chosen for themselves.
+ */
+function AutoCompleteAtWatchedMark() {
+  const completion = useLessonCompletion();
+  const time = usePlayer(selectTime);
+  const playback = usePlayer(selectPlayback);
+  const autoComplete = completion?.autoComplete;
+  const reached = !!time && time.duration > 0 && time.currentTime / time.duration >= AUTO_COMPLETE_FRACTION;
+  const playing = !!playback && playback.started && !playback.paused;
+
+  useEffect(() => {
+    if (reached && playing) autoComplete?.();
+  }, [reached, playing, autoComplete]);
+
+  return null;
+}
+
+/**
  * The big plum play button over the poster, until the first play (the v10 skin has only the control
  * bar). It stops above the control bar so that stays usable, and is a real button, so it works from
  * the keyboard and screen readers.
@@ -113,6 +134,7 @@ export default function LessonPlayer({ title, playbackId, tokens }: { title: str
       <VideoSkin style={SKIN_THEME}>
         <RememberSpeed />
         <RememberCaptions />
+        <AutoCompleteAtWatchedMark />
         <BigPlayButton />
         <MuxVideo
           source={{

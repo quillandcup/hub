@@ -10,6 +10,8 @@ interface Props {
   currentLessonId: string;
   /** Staff: coming-soon lessons open too, as a preview. */
   previewComingSoon?: boolean;
+  /** The first lesson of the next module, when there is one: the "Next Module" button goes there. */
+  nextModule?: { id: string } | null;
 }
 
 function Row({ slug, lesson, number, completed, current, openable }: { slug: string; lesson: OutlineLesson; number: number; completed: boolean; current: boolean; openable: boolean }) {
@@ -58,11 +60,13 @@ function Row({ slug, lesson, number, completed, current, openable }: { slug: str
  * scrolls it. Lessons that aren't released show dimmed, without a label: the number and the dimming
  * are enough here.
  */
-export default function LessonSectionList({ slug, section, completed, currentLessonId, previewComingSoon }: Props) {
+export default function LessonSectionList({ slug, section, completed, currentLessonId, previewComingSoon, nextModule }: Props) {
   const node = section.modules[0];
   const lessons = section.lessons;
   return (
-    <nav aria-label="Lessons in this section" className="text-slate-100">
+    // The list block is a shade lighter than the panel around it, so where the list ends and the empty
+    // panel carries on below it reads as a slightly different tone (as in Kajabi's).
+    <nav aria-label="Lessons in this section" className="bg-neutral-800/60 pb-5 text-slate-100">
       <div className="flex items-baseline justify-between gap-3 px-5 py-4">
         <h2 className="font-semibold leading-snug">{node.module.title}</h2>
         <span className="shrink-0 text-xs font-semibold text-slate-400">
@@ -82,6 +86,16 @@ export default function LessonSectionList({ slug, section, completed, currentLes
           />
         ))}
       </ol>
+      {nextModule && (
+        <div className="mt-4 flex justify-center">
+          <Link
+            href={`/courses/${slug}/lessons/${nextModule.id}`}
+            className="rounded bg-white/10 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-white/20"
+          >
+            Next Module
+          </Link>
+        </div>
+      )}
     </nav>
   );
 }

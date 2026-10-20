@@ -77,4 +77,22 @@ describe("LessonSectionList", () => {
     rerender(<LessonSectionList slug="c" section={section(lessons)} completed={new Set()} currentLessonId="a" previewComingSoon />);
     expect(screen.getByRole("link", { name: /Promises/ })).toHaveAttribute("href", "/courses/c/lessons/c");
   });
+
+  it("offers a Next Module button, to the next module's first lesson, when there is one", () => {
+    render(<LessonSectionList slug="c" section={section(lessons)} completed={new Set()} currentLessonId="a" nextModule={{ id: "w2-first" }} />);
+
+    expect(screen.getByRole("link", { name: "Next Module" })).toHaveAttribute("href", "/courses/c/lessons/w2-first");
+  });
+
+  it("has no Next Module button in the last module", () => {
+    render(<LessonSectionList slug="c" section={section(lessons)} completed={new Set()} currentLessonId="a" nextModule={null} />);
+
+    expect(screen.queryByRole("link", { name: "Next Module" })).not.toBeInTheDocument();
+  });
+
+  it("shades the list block a step lighter than the panel around it, so where the list ends is visible", () => {
+    render(<LessonSectionList slug="c" section={section(lessons)} completed={new Set()} currentLessonId="a" />);
+
+    expect(screen.getByRole("navigation", { name: "Lessons in this section" })).toHaveClass("bg-neutral-800/60");
+  });
 });

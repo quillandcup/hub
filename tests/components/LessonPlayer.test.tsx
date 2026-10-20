@@ -20,16 +20,20 @@ const player = vi.hoisted(() => ({
         setValue: (v: string) => void;
       },
   muxSource: undefined as unknown,
-  playback: { started: false, play: vi.fn() } as { started: boolean; play: () => void },
+  playback: { started: false, paused: true, play: vi.fn() } as { started: boolean; paused: boolean; play: () => void },
+  time: { currentTime: 0, duration: 0 },
 }));
 
+vi.mock("@/app/(member)/courses/actions", () => ({ setLessonComplete: vi.fn(async () => ({})) }));
 vi.mock("@videojs/react", () => ({
   selectPlayback: "playback",
   selectPlaybackRate: "rate",
   selectSource: "source",
+  selectTime: "time",
   usePlayer: (selector: string) => {
     if (selector === "rate") return player.rate;
     if (selector === "playback") return player.playback;
+    if (selector === "time") return player.time;
     return { canPlay: player.canPlay };
   },
   useCaptionsOptions: () => player.captions,
@@ -47,6 +51,8 @@ vi.mock("@videojs/react/media/mux-video", () => ({
 vi.mock("@videojs/react/video/skin.css", () => ({}));
 
 import LessonPlayer from "@/app/(member)/courses/LessonPlayer";
+import { LessonCompletionProvider } from "@/app/(member)/courses/LessonCompletion";
+import { setLessonComplete } from "@/app/(member)/courses/actions";
 
 const tokens = { playback: "tok-play", poster: "tok-poster", storyboard: "tok-board" };
 // A new element each time: re-rendering the identical one would be skipped, and the stand-in hooks never re-run.
@@ -58,10 +64,72 @@ beforeEach(() => {
   player.canPlay = false;
   player.captions = undefined;
   player.muxSource = undefined;
-  player.playback = { started: false, play: vi.fn() };
+  player.playback = { started: false, paused: true, play: vi.fn() };
+  player.time = { currentTime: 0, duration: 0 };
+  vi.mocked(setLessonComplete).mockClear();
 });
 
 describe("LessonPlayer", () => {
+  describe("completing at the watched mark", () => {
+    const withCompletion = (over: { initiallyCompleted?: boolean; readOnlyReason?: string | null } = {}) => (
+      <LessonCompletionProvider lessonId="l1" initiallyCompleted={over.initiallyCompleted ?? false} readOnlyReason={over.readOnlyReason ?? null}>
+        <LessonPlayer title="Your writing space" playbackId="pb-1" tokens={tokens} />
+      </LessonCompletionProvider>
+    );
+    const watching = (fraction: number, over: Partial<typeof player.playback> = {}) => {
+      player.playback = { started: true, paused: false, play: vi.fn(), ...over };
+      player.time = { currentTime: fraction * 600, duration: 600 };
+    };
+
+    it("completes the lesson once the playhead passes 90% while playing", () => {
+      watching(0.91);
+      render(withCompletion());
+
+      expect(setLessonComplete).toHaveBeenCalledTimes(1);
+      expect(setLessonComplete).toHaveBeenCalledWith("l1", true);
+    });
+
+    it("does nothing before the mark", () => {
+      watching(0.89);
+      render(withCompletion());
+
+      expect(setLessonComplete).not.toHaveBeenCalled();
+    });
+
+    it("does not count a paused playhead (jumping to the end without playing)", () => {
+      watching(0.99, { paused: true });
+      render(withCompletion());
+
+      expect(setLessonComplete).not.toHaveBeenCalled();
+    });
+
+    it("does not count a video that hasn't started, or has no known length yet", () => {
+      player.playback = { started: false, paused: false, play: vi.fn() };
+      player.time = { currentTime: 0, duration: 0 };
+      render(withCompletion());
+
+      expect(setLessonComplete).not.toHaveBeenCalled();
+    });
+
+    it("leaves a lesson that's already complete alone, and one that's read-only (a preview)", () => {
+      watching(0.95);
+      const { unmount } = render(withCompletion({ initiallyCompleted: true }));
+      expect(setLessonComplete).not.toHaveBeenCalled();
+      unmount();
+
+      render(withCompletion({ readOnlyReason: "preview" }));
+      expect(setLessonComplete).not.toHaveBeenCalled();
+    });
+
+    it("plays fine outside a completion provider", () => {
+      watching(0.95);
+      render(ui());
+
+      expect(screen.getByTestId("player")).toBeInTheDocument();
+      expect(setLessonComplete).not.toHaveBeenCalled();
+    });
+  });
+
   it("gives Mux the playback id and a token for the stream, the poster and the seek previews", () => {
     render(ui());
 
@@ -91,7 +159,7 @@ describe("LessonPlayer", () => {
     });
 
     it("is gone once playback has started", () => {
-      player.playback = { started: true, play: vi.fn() };
+      player.playback = { started: true, paused: false, play: vi.fn() };
       render(ui());
 
       expect(screen.queryByRole("button", { name: "Play video" })).not.toBeInTheDocument();
