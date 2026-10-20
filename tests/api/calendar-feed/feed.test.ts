@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { NextRequest } from 'next/server'
 import { getTestSupabaseAdminClient, getTestSupabaseClient } from '../../helpers/supabase'
 import { GET } from '@/app/api/calendar/feed/[token]/route'
-import { slotTimeForInstant } from '@/lib/commitments'
+import { expectedOccurrenceStart, localDateFor, slotTimeForInstant } from '@/lib/commitments'
 import { SCHEDULE_TIMEZONE } from '@/lib/calendar-feed'
 
 /**
@@ -44,7 +44,13 @@ describe('calendar feed', () => {
   // Added by hand by A (calendar_feed_items), all hosted by B, all of a second type:
   const addedOnce = hourFromNow(96) // "just this one"
   const weekly1 = hourFromNow(120) // "every week": this one and the next
-  const weekly2 = new Date(weekly1.getTime() + 7 * 24 * 60 * 60 * 1000)
+  // Same local wall-clock time one week on (not +7 days of UTC: that drifts an hour across a DST change).
+  const weekly2 = (() => {
+    const slot = slotTimeForInstant(weekly1.toISOString(), SCHEDULE_TIMEZONE)
+    const date = new Date(`${localDateFor(weekly1, SCHEDULE_TIMEZONE)}T00:00:00Z`)
+    date.setUTCDate(date.getUTCDate() + 7)
+    return expectedOccurrenceStart(date.toISOString().slice(0, 10), { startTimeLocal: slot.startTimeLocal, timezone: SCHEDULE_TIMEZONE })
+  })()
   const notAdded = hourFromNow(130) // same type, different slot: stays out
   const eventStart = hourFromNow(24 * 10).toISOString().slice(0, 10)
   const eventEnd = hourFromNow(24 * 12).toISOString().slice(0, 10)
