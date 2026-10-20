@@ -5,6 +5,7 @@ import { selectPlayback, selectPlaybackRate, selectSource, selectTime, useCaptio
 import { VideoPlayer, VideoSkin } from "@videojs/react/video";
 import { MuxVideo } from "@videojs/react/media/mux-video";
 import "@videojs/react/video/skin.css";
+import { safeUrl } from "@/lib/url";
 import { AUTO_COMPLETE_FRACTION, useLessonCompletion } from "./LessonCompletion";
 
 export interface PlaybackTokens {
@@ -127,26 +128,46 @@ const SKIN_THEME = {
   "--media-border-radius": "1rem",
 } as React.CSSProperties;
 
-/** The themed lesson player: signed Mux playback, speed and captions remembered. */
-export default function LessonPlayer({ title, playbackId, tokens }: { title: string; playbackId: string; tokens: PlaybackTokens }) {
+/**
+ * The themed lesson player: signed Mux playback, speed and captions remembered. The poster is the
+ * lesson's own thumbnail from Kajabi (what the course author chose), falling back to a frame of the
+ * video when there isn't one. The skin's title overlay is hidden, since the page already shows the
+ * lesson's title; the title stays as the player's accessible name.
+ */
+export default function LessonPlayer({
+  title,
+  playbackId,
+  tokens,
+  posterUrl,
+}: {
+  title: string;
+  playbackId: string;
+  tokens: PlaybackTokens;
+  /** The lesson's thumbnail; only http(s) is used. */
+  posterUrl?: string | null;
+}) {
+  const poster = safeUrl(posterUrl);
   return (
-    <VideoPlayer title={title}>
-      <VideoSkin style={SKIN_THEME}>
-        <RememberSpeed />
-        <RememberCaptions />
-        <AutoCompleteAtWatchedMark />
-        <BigPlayButton />
-        <MuxVideo
-          source={{
-            playbackId,
-            playback: { token: tokens.playback },
-            poster: { time: 2, token: tokens.poster },
-            storyboard: { format: "webp", token: tokens.storyboard },
-          }}
-          playsInline
-          crossOrigin="anonymous"
-        />
-      </VideoSkin>
-    </VideoPlayer>
+    <div role="group" aria-label={title} className="[&_.media-title]:hidden">
+      <VideoPlayer title={title} poster={poster ?? undefined}>
+        <VideoSkin style={SKIN_THEME}>
+          <RememberSpeed />
+          <RememberCaptions />
+          <AutoCompleteAtWatchedMark />
+          <BigPlayButton />
+          <MuxVideo
+            source={{
+              playbackId,
+              playback: { token: tokens.playback },
+              // Mux's own frame only when there's no lesson thumbnail to use.
+              ...(poster ? {} : { poster: { time: 2, token: tokens.poster } }),
+              storyboard: { format: "webp", token: tokens.storyboard },
+            }}
+            playsInline
+            crossOrigin="anonymous"
+          />
+        </VideoSkin>
+      </VideoPlayer>
+    </div>
   );
 }

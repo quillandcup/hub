@@ -39,7 +39,11 @@ vi.mock("@videojs/react", () => ({
   useCaptionsOptions: () => player.captions,
 }));
 vi.mock("@videojs/react/video", () => ({
-  VideoPlayer: ({ children, title }: { children: React.ReactNode; title: string }) => <div data-testid="player" data-title={title}>{children}</div>,
+  VideoPlayer: ({ children, title, poster }: { children: React.ReactNode; title: string; poster?: string }) => (
+    <div data-testid="player" data-title={title} data-poster={poster}>
+      {children}
+    </div>
+  ),
   VideoSkin: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }));
 vi.mock("@videojs/react/media/mux-video", () => ({
@@ -70,6 +74,38 @@ beforeEach(() => {
 });
 
 describe("LessonPlayer", () => {
+  describe("poster and title", () => {
+    it("uses the lesson's thumbnail as the poster, and doesn't ask Mux for a frame", () => {
+      render(<LessonPlayer title="Your writing space" playbackId="pb-1" tokens={tokens} posterUrl="https://cdn.test/lesson.jpg" />);
+
+      expect(screen.getByTestId("player")).toHaveAttribute("data-poster", "https://cdn.test/lesson.jpg");
+      expect(player.muxSource).toEqual({
+        playbackId: "pb-1",
+        playback: { token: "tok-play" },
+        storyboard: { format: "webp", token: "tok-board" },
+      });
+    });
+
+    it("falls back to a frame of the video when the lesson has no thumbnail, or an unsafe one", () => {
+      const { unmount } = render(<LessonPlayer title="T" playbackId="pb-1" tokens={tokens} posterUrl={null} />);
+      expect(screen.getByTestId("player")).not.toHaveAttribute("data-poster");
+      expect(player.muxSource).toMatchObject({ poster: { time: 2, token: "tok-poster" } });
+      unmount();
+
+      render(<LessonPlayer title="T" playbackId="pb-1" tokens={tokens} posterUrl="javascript:alert(1)" />);
+      expect(screen.getByTestId("player")).not.toHaveAttribute("data-poster");
+      expect(player.muxSource).toMatchObject({ poster: { time: 2, token: "tok-poster" } });
+    });
+
+    it("hides the skin's title overlay (the page already shows the title) but keeps it as the player's accessible name", () => {
+      render(ui());
+      const group = screen.getByRole("group", { name: "Your writing space" });
+
+      expect(group).toHaveClass("[&_.media-title]:hidden");
+      expect(group).toContainElement(screen.getByTestId("player"));
+    });
+  });
+
   describe("completing at the watched mark", () => {
     const withCompletion = (over: { initiallyCompleted?: boolean; readOnlyReason?: string | null } = {}) => (
       <LessonCompletionProvider lessonId="l1" initiallyCompleted={over.initiallyCompleted ?? false} readOnlyReason={over.readOnlyReason ?? null}>
