@@ -176,9 +176,6 @@ Slack tests currently replace the `@slack/web-api` `WebClient` class with a hand
 - Possible shortcut: a runtime guard in the link / notification helpers that rejects an id whose prefix is not a Tier 1 prefix.
 - Add the Tier 1 promotion step (readable prefix, migration, tier list) to the PR checklist.
 
-### Check Migration Numbering Before CI Pushes
-CI's `supabase db push` rejects a local migration numbered older than the remote's latest, and it only fails on main, after merge (the Big Sister migrations did this on 2026-10-15). Add a PR check that fails when a new migration's version is lower than the latest already on main, so it's caught before merge. Related: `docs/CI_MIGRATION_ORDERING.md`, and an unmerged `origin/fix-ci-migration-include-all` branch that may already do part of it.
-
 ### Mask the Checkly Heartbeat Ping URLs in CI Logs
 The `CHECKLY_HEARTBEAT_*` values are ping URLs: anyone who has one can mark that job as healthy. CI can print them in deploy logs. Register each with GitHub's log masking (`echo "::add-mask::$VALUE"`) at the top of the steps that use them (`checkly.yml`), so they show as `***`.
 

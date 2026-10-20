@@ -67,6 +67,14 @@ jobs:
 
       - run: npm ci
 
+      # `supabase db push` on main rejects a migration numbered at or below the latest
+      # already there, after merge. Catch it on the PR instead (scripts/check-migration-order.ts).
+      - name: Check migration numbering
+        if: github.event_name == 'pull_request'
+        run: |
+          git fetch --no-tags --depth=1 origin "${{ github.base_ref }}"
+          npm run check:migrations -- FETCH_HEAD
+
       # Next.js 16 removed linting from `next build` entirely (it used to run
       # as part of the "Production build" step in test-db below, gated by
       # next.config.ts's now-removed `eslint.ignoreDuringBuilds` option), so
