@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import CalendarWeekView from "@/components/CalendarWeekView";
+import CalendarKeyboardNav from "@/components/CalendarKeyboardNav";
 import { getUserTimezonePreference } from "@/lib/timezone";
 import { computeHostStatus } from "@/lib/hosting-stats";
 import { requireAdminPage } from "@/lib/admin-auth";
@@ -137,7 +138,16 @@ export default async function CalendarPage({
           </div>
           <div className="flex items-center gap-2">
             <Link
+              href="/admin/calendar"
+              data-track="admin_calendar_today"
+              title="Jump to this week (t)"
+              className="px-3 py-2 border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-700 dark:text-slate-300 transition-colors"
+            >
+              Today
+            </Link>
+            <Link
               href={`/admin/calendar?week=${prevWeekParam}`}
+              title="Previous week (p)"
               className="px-3 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg text-slate-700 dark:text-slate-300 transition-colors"
             >
               ← Previous
@@ -160,6 +170,11 @@ export default async function CalendarPage({
           </div>
         </div>
       </div>
+      <CalendarKeyboardNav
+        prevHref={`/admin/calendar?week=${prevWeekParam}`}
+        nextHref={isNextDisabled ? null : `/admin/calendar?week=${nextWeekParam}`}
+        todayHref="/admin/calendar"
+      />
       <div className="overflow-x-auto -mx-6 px-6 sm:mx-0 sm:px-0">
         <CalendarWeekView
           prickles={pricklesWithCount}
