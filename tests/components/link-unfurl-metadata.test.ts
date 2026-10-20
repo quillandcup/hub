@@ -5,7 +5,6 @@
 import { describe, it, expect, vi } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
-import appConfig from "@/app.config";
 import { APP_URL } from "@/lib/config";
 
 // Imported only so the layout module loads in a node test; none of it runs here.
@@ -46,7 +45,8 @@ describe("link unfurl metadata", () => {
   it("resolves image URLs against the app URL and asks for a large twitter card", async () => {
     const { metadata } = await import("@/app/layout");
     expect(String(metadata.metadataBase)).toBe(`${APP_URL}/`);
-    expect(metadata.openGraph).toMatchObject({ siteName: appConfig.appName, type: "website" });
+    expect(metadata.openGraph).toMatchObject({ type: "website" })
+    expect(metadata.openGraph).not.toHaveProperty("siteName");
     expect(metadata.twitter).toMatchObject({ card: "summary_large_image" });
   });
 
