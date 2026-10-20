@@ -10,6 +10,8 @@ import { GoogleAnalytics } from "@next/third-parties/google";
 import { EnvironmentIndicator } from "@/components/EnvironmentIndicator";
 import { ConsentBanner } from "@/components/ConsentBanner";
 import { AnalyticsIdentity } from "@/components/AnalyticsIdentity";
+import { AnalyticsEvents } from "@/components/AnalyticsEvents";
+import { getCurrentUser } from "@/lib/auth";
 import { initialUserIdCommand } from "@/lib/analytics-identity";
 import { analyticsUserId } from "@/lib/analytics-user";
 import { countryNeedsConsent } from "@/lib/gdpr-countries";
@@ -55,6 +57,11 @@ export default async function RootLayout({
   // lib/analytics-identity.ts).
   const gaUserId = await analyticsUserId(gaId);
 
+  // Usage events (lib/analytics) are for signed-in members and follow the same consent rule as GA.
+  // Outside production there is no banner to ask with, so they are on for development.
+  const signedIn = (await getCurrentUser()) !== null;
+  const eventsNeedConsent = needsConsent && process.env.NODE_ENV === "production";
+
   return (
     <html lang="en" className={displayFont.variable} suppressHydrationWarning>
       <body className="antialiased">
@@ -67,6 +74,7 @@ export default async function RootLayout({
           <EnvironmentIndicator />
           {children}
         </ThemeProvider>
+        {signedIn && <AnalyticsEvents needsConsent={eventsNeedConsent} />}
         <Analytics />
         <SpeedInsights />
         {gaId && (

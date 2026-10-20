@@ -4,6 +4,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import LiveRoomIndicator from "@/components/LiveRoomIndicator";
 import type { LiveRoom } from "@/lib/live-room";
+import * as analytics from "@/lib/analytics/client";
 
 const join = { url: "https://zoom.example/j/1", meetingId: "123", passcode: "pw" };
 
@@ -11,7 +12,10 @@ function mockRoom(room: LiveRoom) {
   vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, json: async () => room })));
 }
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+});
 
 describe("LiveRoomIndicator", () => {
   it("shows On air with the count, and who is there on click", async () => {
@@ -82,5 +86,48 @@ describe("LiveRoomIndicator", () => {
     await open();
     await userEvent.click(screen.getByRole("link", { name: "Morning Writing" }));
     expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  describe("usage tracking", () => {
+    it("records opening the popover and clicking through when someone is at the table", async () => {
+      const track = vi.spyOn(analytics, "track").mockImplementation(() => {});
+      mockRoom({
+        live: true,
+        count: 2,
+        members: [{ memberId: "m1", name: "Alice" }],
+        guests: 1,
+        prickle: { id: "p1", title: "Morning Writing", hostName: "Alice" },
+        join,
+      });
+      render(<LiveRoomIndicator />);
+      await userEvent.click(await screen.findByRole("button", { name: /on air/i }));
+      expect(track).toHaveBeenLastCalledWith("onair_popover_opened", { live: true, room_size: 2 });
+
+      const zoom = screen.getByRole("link", { name: "Join on Zoom" });
+      zoom.addEventListener("click", (e) => e.preventDefault());
+      await userEvent.click(zoom);
+      expect(track).toHaveBeenLastCalledWith("onair_join_clicked", { live: true, room_size: 2 });
+
+      await userEvent.click(screen.getByRole("link", { name: "Alice" }));
+      expect(track).toHaveBeenLastCalledWith("onair_member_clicked", { room_size: 2 });
+    });
+
+    it("tells starting a PUP from joining, and does not count closing the popover as opening it", async () => {
+      const track = vi.spyOn(analytics, "track").mockImplementation(() => {});
+      mockRoom({ live: false, count: 0, members: [], guests: 0, prickle: null, join });
+      render(<LiveRoomIndicator />);
+      const button = await screen.findByRole("button", { name: /off air/i });
+      await userEvent.click(button);
+      expect(track).toHaveBeenLastCalledWith("onair_popover_opened", { live: false, room_size: 0 });
+
+      const start = screen.getByRole("link", { name: "Start a PUP on Zoom" });
+      start.addEventListener("click", (e) => e.preventDefault());
+      await userEvent.click(start);
+      expect(track).toHaveBeenLastCalledWith("onair_join_clicked", { live: false, room_size: 0 });
+
+      track.mockClear();
+      await userEvent.click(button);
+      expect(track).not.toHaveBeenCalled();
+    });
   });
 });

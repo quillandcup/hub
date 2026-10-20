@@ -144,6 +144,7 @@ export const SITE_PAGES: SitePage[] = [
   admin({ title: "Slack Engagement", href: "/admin/insights/slack-engagement", section: "Analytics", nav: { icon: "💬" } }),
   admin({ title: "Resubscriptions", href: "/admin/insights/resubscriptions", section: "Analytics", nav: { icon: "🔄" } }),
   admin({ title: "Wheel of Wonder", href: "/admin/wheel-of-wonder", section: "Analytics", nav: { icon: "🎡" } }),
+  admin({ title: "Feature Usage", href: "/admin/analytics", section: "Analytics", nav: { icon: "📈" }, keywords: ["events", "funnel", "clicks"] }),
   admin({ title: "Import Data", href: "/admin/data/import", section: "Developer", nav: { icon: "📥" }, keywords: ["sync", "kajabi", "zoom"] }),
   admin({ title: "Prickle Types", href: "/admin/data/prickle-types", section: "System", nav: { icon: "🏷️" } }),
   admin({ title: "Slack Channels", href: "/admin/data/slack-channels", section: "System", nav: { icon: "🔒" }, keywords: ["restricted", "privacy"] }),
