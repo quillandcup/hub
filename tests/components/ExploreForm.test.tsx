@@ -6,6 +6,8 @@ import { describeEvents } from "@/lib/analytics/events";
 
 const push = vi.fn();
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
+const suggestFilterValues = vi.fn();
+vi.mock("@/app/(admin)/admin/analytics/explore/actions", () => ({ suggestFilterValues: (...args: unknown[]) => suggestFilterValues(...args) }));
 
 import { ExploreForm } from "@/app/(admin)/admin/analytics/explore/ExploreForm";
 
@@ -19,7 +21,11 @@ function pushedUrl() {
   return new URL(push.mock.calls.at(-1)![0], "http://x");
 }
 
-beforeEach(() => push.mockClear());
+beforeEach(() => {
+  push.mockClear();
+  suggestFilterValues.mockReset();
+  suggestFilterValues.mockResolvedValue([]);
+});
 
 describe("ExploreForm", () => {
   it("builds a filtered funnel from the plan and runs it", async () => {
@@ -67,6 +73,59 @@ describe("ExploreForm", () => {
     await userEvent.click(screen.getByRole("button", { name: "Run" }));
     expect(pushedUrl().searchParams.get("breakdown")).toBe("onair_join_clicked.live");
     expect(pushedUrl().searchParams.getAll("step")).toEqual([]);
+  });
+
+  it("gives the breakdown its own filters, separate from the funnel's", async () => {
+    renderForm();
+    await userEvent.click(screen.getByRole("button", { name: "Add step" }));
+    await userEvent.selectOptions(screen.getByLabelText("Step 1 event"), "element_clicked");
+    await userEvent.click(screen.getAllByRole("button", { name: "Add filter" })[0]);
+    await userEvent.selectOptions(screen.getByLabelText("Step 1 filter 1 property"), "element");
+    await userEvent.selectOptions(screen.getByLabelText("Step 1 filter 1 value"), "input");
+
+    await userEvent.selectOptions(screen.getByLabelText("Breakdown event"), "element_clicked");
+    await userEvent.selectOptions(screen.getByLabelText("Breakdown property"), "text");
+    await userEvent.click(screen.getAllByRole("button", { name: "Add filter" })[1]);
+    await userEvent.selectOptions(screen.getByLabelText("Breakdown filter 1 property"), "element");
+    await userEvent.selectOptions(screen.getByLabelText("Breakdown filter 1 value"), "button");
+    await userEvent.click(screen.getByRole("button", { name: "Run" }));
+
+    const url = pushedUrl();
+    expect(url.searchParams.getAll("step")).toEqual(["element_clicked:element=input"]);
+    expect(url.searchParams.get("breakdown")).toBe("element_clicked.text");
+    expect(url.searchParams.get("bfilter")).toBe("element=button");
+  });
+
+  it("offers the values that really occur for a free-form filter", async () => {
+    suggestFilterValues.mockResolvedValue(["Settings", "Off air"]);
+    renderForm();
+    await userEvent.click(screen.getByRole("button", { name: "Add step" }));
+    await userEvent.selectOptions(screen.getByLabelText("Step 1 event"), "element_clicked");
+    await userEvent.click(screen.getByRole("button", { name: "Add filter" }));
+    await userEvent.selectOptions(screen.getByLabelText("Step 1 filter 1 property"), "text");
+
+    expect(suggestFilterValues).toHaveBeenCalledWith("element_clicked", "text");
+    const input = screen.getByLabelText("Step 1 filter 1 value");
+    await vi.waitFor(() => {
+      const list = document.getElementById(input.getAttribute("list")!)!;
+      expect(Array.from(list.querySelectorAll("option")).map((o) => o.getAttribute("value"))).toEqual(["Settings", "Off air"]);
+    });
+  });
+
+  it("takes a typed value for a free-form filter, and a filter can be removed", async () => {
+    renderForm();
+    await userEvent.click(screen.getByRole("button", { name: "Add step" }));
+    await userEvent.selectOptions(screen.getByLabelText("Step 1 event"), "element_clicked");
+    await userEvent.click(screen.getByRole("button", { name: "Add filter" }));
+    await userEvent.selectOptions(screen.getByLabelText("Step 1 filter 1 property"), "text");
+    await userEvent.type(screen.getByLabelText("Step 1 filter 1 value"), "Settings");
+    await userEvent.click(screen.getByRole("button", { name: "Run" }));
+    expect(pushedUrl().searchParams.getAll("step")).toEqual(["element_clicked:text=Settings"]);
+
+    await userEvent.click(screen.getByRole("button", { name: "Remove" }));
+    expect(screen.queryByLabelText("Step 1 filter 1 value")).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Run" }));
+    expect(pushedUrl().searchParams.getAll("step")).toEqual(["element_clicked"]);
   });
 
   it("starts from the question in the URL, and steps can be removed", async () => {

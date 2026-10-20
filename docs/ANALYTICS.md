@@ -31,6 +31,8 @@ No migration is needed. Before shipping a feature, write down what use would mak
 
 `/admin/analytics/explore` builds its pickers from the tracking plan (`describeEvents()`), so a new event and its properties show up there with no page changes. Choose the funnel's events in order, filter each step by its declared properties (booleans and enums offer their values), or pick an event and count it by the values of one property. The question lives in the URL (`lib/analytics/explore.ts`), so a view can be bookmarked or shared; a hand-edited URL is re-checked against the plan and anything it doesn't allow is ignored. Permanent funnels still go in `funnels.ts`.
 
+`/admin/analytics` also ranks the most-clicked things: each control named by its `data-track` name, else its label, else where a link goes, with an optional page prefix and the admin area hidden by default so staff browsing doesn't drown out members. In the explorer a breakdown has its own filters (the funnel's don't apply to it), and free-form filter boxes suggest the values that really occur (last 90 days).
+
 ## Identity and sessions
 
 Events are for signed-in members and carry `user_id` (the auth user ID, as in `access_events`). There is no anonymous ID and no cookie of our own. `session_id` is a random UUID kept in `sessionStorage`; it rotates after 30 idle minutes and groups one visit. Retried batches are safe: `(user_id, message_id)` is unique and the receiver skips duplicates.
@@ -40,7 +42,7 @@ Events sent while an admin views as a member (sudo) are stored with `sudo = true
 ## Privacy
 
 - **Allowlist.** The receiver drops unknown events and undeclared properties; nothing else reaches the table.
-- **Autocapture** keeps the element kind, its `data-track` name or `id`, the route template, an internal link's target route, and a *button's* label (40 characters). Link text is not kept (often a name). Text typed into fields is never read. Put `data-track-ignore` on an element or ancestor to skip it.
+- **Autocapture** keeps the element kind, its `data-track` name or `id`, a label (40 characters), the route template, and an internal link's target route. The label is the control's `aria-label`, else a field's `<label>` or `name` (never its value or options, which are what someone typed or picked), else its own text. A link to a record page (`/members/[id]`, `/prickles/[id]`...) keeps no label, since that text is a person's name or a title; navigation, buttons and external links keep theirs. Put `data-track-ignore` on an element or ancestor to skip it.
 - **Routes are templates**, never real paths or query strings.
 - **Consent.** Where Google Analytics needs consent (EU/EEA/UK, or location unknown), events wait for the same Accept as GA; Decline stops them. Elsewhere they are on. Outside production they are always on (there is no banner). This is stricter than needed for signed-in first-party logging, on purpose: the banner says what it covers and Decline has to mean something. If you ever record without consent, that is a legal decision, not a code one.
 - **Erasure.** `user_id` is `ON DELETE CASCADE`; deleting an account deletes its events. There is no soft delete: this is append-only telemetry with no history worth keeping once its person is gone.

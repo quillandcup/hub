@@ -79,7 +79,20 @@ describe("parseSteps", () => {
 
 describe("parseBreakdown", () => {
   it("reads event.property when the plan declares it", () => {
-    expect(parseBreakdown("onair_join_clicked.live")).toEqual({ event: "onair_join_clicked", property: "live" });
+    expect(parseBreakdown("onair_join_clicked.live")).toEqual({ event: "onair_join_clicked", property: "live", where: {} });
+  });
+
+  it("reads the breakdown's own filters, checked against the plan", () => {
+    expect(parseBreakdown("element_clicked.text", "bogus=1,element=marquee")).toEqual({
+      event: "element_clicked",
+      property: "text",
+      where: {},
+    });
+    expect(parseBreakdown("element_clicked.text", "element=button")).toEqual({
+      event: "element_clicked",
+      property: "text",
+      where: { element: "button" },
+    });
   });
 
   it.each([undefined, "", "onair_join_clicked", "onair_join_clicked.email", "made_up.live", "onair_join_clicked.constructor"])(
@@ -108,12 +121,21 @@ describe("exploreHref / formatStep", () => {
       { event: "onair_popover_opened", where: { live: false } },
       { event: "page_viewed", where: { route: "/a,b:c" } },
     ];
-    const href = exploreHref({ days: 7, steps, breakdown: { event: "onair_join_clicked", property: "live" } });
+    const href = exploreHref({ days: 7, steps, breakdown: { event: "onair_join_clicked", property: "live", where: { room_size: 2 } } });
     const url = new URL(href, "http://x");
     expect(url.pathname).toBe("/admin/analytics/explore");
     expect(url.searchParams.get("days")).toBe("7");
     expect(parseSteps(url.searchParams.getAll("step"))).toEqual(steps);
-    expect(parseBreakdown(url.searchParams.get("breakdown")!)).toEqual({ event: "onair_join_clicked", property: "live" });
+    expect(parseBreakdown(url.searchParams.get("breakdown")!, url.searchParams.get("bfilter")!)).toEqual({
+      event: "onair_join_clicked",
+      property: "live",
+      where: { room_size: 2 },
+    });
+  });
+
+  it("leaves out bfilter when the breakdown has no filters", () => {
+    const href = exploreHref({ days: 7, steps: [], breakdown: { event: "page_viewed", property: "route", where: {} } });
+    expect(new URL(href, "http://x").searchParams.has("bfilter")).toBe(false);
   });
 
   it("omits the breakdown when there is none", () => {

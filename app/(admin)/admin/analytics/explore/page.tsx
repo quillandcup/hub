@@ -16,7 +16,7 @@ export const maxDuration = 60;
 
 const DAY_MS = 24 * 60 * 60_000;
 
-type Params = { days?: string; step?: string | string[]; breakdown?: string };
+type Params = { days?: string; step?: string | string[]; breakdown?: string; bfilter?: string };
 
 interface BreakdownRow {
   value: string | null;
@@ -30,7 +30,7 @@ export default async function ExploreUsagePage({ searchParams }: { searchParams:
   const params = await searchParams;
   const days = parseWindowDays(params.days);
   const steps = parseSteps(params.step);
-  const breakdown = parseBreakdown(params.breakdown);
+  const breakdown = parseBreakdown(params.breakdown, params.bfilter);
   const since = new Date(Date.now() - days * DAY_MS).toISOString();
 
   const supabase = await createClient();
@@ -39,7 +39,7 @@ export default async function ExploreUsagePage({ searchParams }: { searchParams:
       ? supabase.rpc("analytics_funnel", { steps: steps.map((s) => s.event), since, filters: steps.map((s) => s.where) })
       : null,
     breakdown
-      ? supabase.rpc("analytics_property_breakdown", { event_name: breakdown.event, property: breakdown.property, since })
+      ? supabase.rpc("analytics_property_breakdown", { event_name: breakdown.event, property: breakdown.property, since, filter: breakdown.where })
       : null,
   ]);
   const error = funnel?.error ?? grouped?.error;
@@ -65,7 +65,7 @@ export default async function ExploreUsagePage({ searchParams }: { searchParams:
         initialBreakdown={breakdown}
         initialDays={days}
         // The form keeps its own state; re-key it so following a link to another question resets it.
-        key={`${days}|${steps.map((s) => JSON.stringify(s)).join("|")}|${breakdown?.event}.${breakdown?.property}`}
+        key={`${days}|${steps.map((s) => JSON.stringify(s)).join("|")}|${JSON.stringify(breakdown)}`}
       />
 
       {error && <p className="text-sm text-red-600">Could not load usage: {error.message}</p>}
@@ -96,6 +96,15 @@ export default async function ExploreUsagePage({ searchParams }: { searchParams:
           <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
             {breakdown.event} by {breakdown.property}
           </h2>
+          {Object.keys(breakdown.where).length > 0 && (
+            <p className="text-sm text-slate-600 dark:text-slate-400">
+              Only where{" "}
+              {Object.entries(breakdown.where)
+                .map(([k, v]) => `${k} = ${v}`)
+                .join(", ")}
+              .
+            </p>
+          )}
           <div className="mt-3 overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-700">
             <table className="w-full text-sm">
               <thead className="bg-slate-50 dark:bg-slate-800 text-left text-slate-600 dark:text-slate-400">
