@@ -27,7 +27,7 @@
  * types listed in Settings → Hosting, the vibe they run each type with.
  */
 
-export const ONBOARDING_STEP_IDS = ["identity", "profile", "intro", "writing", "prickles", "calendar", "slack", "big-sister", "hosting", "host-vibe"] as const;
+export const ONBOARDING_STEP_IDS = ["identity", "profile", "slack", "intro", "writing", "prickles", "calendar", "big-sister", "hosting", "host-vibe"] as const;
 export type OnboardingStepId = (typeof ONBOARDING_STEP_IDS)[number];
 
 /** What the member's own data says, gathered once per page load. */
@@ -248,6 +248,22 @@ function stepViews(signals: OnboardingSignals, marked: Set<string>): StepWithout
       markKey: "profile",
       done: signals.hasHubProfile || marked.has("profile"),
     },
+    ...(signals.slackConnect
+      ? [
+          {
+        id: "slack" as const,
+        title: "Connect Slack",
+        summary: "Link your Slack account in Settings so we know which Slack account is yours.",
+        href: "/settings",
+        target: "slack-connect",
+        calloutTitle: "Connect Slack",
+        hint: "Connect your Slack account so we match it to you for sure, and Hub chat posts as you with what you've read kept in sync. You can also use Open Hedgie Hub on Billie Bot's Home tab in Slack to sign in with one click.",
+        confirmLabel: "I'll skip this",
+        markKey: "slack",
+        done: signals.slackConnect.connected || marked.has("slack"),
+          },
+        ]
+      : []),
     ...(signals.isNewcomer && signals.introUrl
       ? [
           {
@@ -296,20 +312,6 @@ function stepViews(signals: OnboardingSignals, marked: Set<string>): StepWithout
       done: signals.hasCalendarSynced || marked.has("calendar"),
     },
   ];
-  if (signals.slackConnect) {
-    steps.push({
-      id: "slack",
-      title: "Connect Slack",
-      summary: "Link your Slack account in Settings so we know which Slack account is yours.",
-      href: "/settings",
-      target: "slack-connect",
-      calloutTitle: "Connect Slack",
-      hint: "Connect your Slack account so we match it to you for sure, and Hub chat posts as you with what you've read kept in sync. You can also use Open Hedgie Hub on Billie Bot's Home tab in Slack to sign in with one click.",
-      confirmLabel: "I'll skip this",
-      markKey: "slack",
-      done: signals.slackConnect.connected || marked.has("slack"),
-    });
-  }
   if (signals.bigSisterName) {
     steps.push({
       id: "big-sister",
