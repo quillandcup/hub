@@ -1,4 +1,4 @@
-export type FeatureKey = 'member_overrides' | 'hedgieversaries' | 'work_queue' | 'program_cohorts' | 'events' | 'message_privacy' | 'slack_admin_sign_in' | 'browser_notifications' | 'chat' | 'chat_posting' | 'big_sisters' | 'intro_reminders' | 'prickle_reminders' | 'slack_notifications' | 'courses';
+export type FeatureKey = 'member_overrides' | 'hedgieversaries' | 'work_queue' | 'program_cohorts' | 'events' | 'message_privacy' | 'slack_admin_sign_in' | 'browser_notifications' | 'chat' | 'chat_posting' | 'big_sisters' | 'intro_reminders' | 'prickle_reminders' | 'courses';
 
 export interface FeaturePreview {
   key: FeatureKey;
@@ -71,11 +71,6 @@ export const FEATURE_PREVIEWS: FeaturePreview[] = [
     key: 'prickle_reminders',
     name: 'Send prickle reminders',
     description: 'Sends the reminder to put a prickle on your calendar (it backs off the longer it goes unanswered) for real to the members this covers: everyone when switched on globally, otherwise only members in a linked segment or with their own preview. For everyone else the job only logs who it would have reminded and why. Members also have to turn the reminders on themselves in Settings → Notifications, as they are off until then',
-  },
-  {
-    key: 'slack_notifications',
-    name: 'Slack notifications',
-    description: 'Send member notifications as real Billie Bot DMs to the selected members. Applies to every notification kind after each member’s channel preferences; admin test sends still work. Keep SLACK_TEST_MODE=false in production for the selected members to receive them.',
   },
   {
     key: 'courses',

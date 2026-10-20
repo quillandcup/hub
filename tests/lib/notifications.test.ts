@@ -25,7 +25,7 @@ vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => servic
 const { effectiveChannels, effectiveSettings, NOTIFICATION_KINDS } = await import("@/lib/notifications/registry");
 const { createNotifier } = await import("@/lib/notifications/notify");
 const { slackBlocks } = await import("@/lib/channels/slack");
-const slackReady = (tables: FakeTables = {}) => createFakeSupabase({ feature_flags: { data: { enabled_globally: true } }, ...tables });
+const slackReady = (tables: FakeTables = {}) => createFakeSupabase(tables);
 
 beforeEach(() => {
   sendSlackDM.mockReset();
@@ -62,37 +62,13 @@ describe("effectiveChannels", () => {
 describe("createNotifier", () => {
   const optedOut = { member_id: "m2", kind: "prickle_checkin", channel: "slack", enabled: false };
 
-  it("keeps Slack off for unflagged members but keeps in-app available", async () => {
+  it("offers Slack to matched members without requiring a Hub account", async () => {
     const fake = createFakeSupabase();
-    const notifier = await createNotifier(fake, "prickle_checkin", ["m1"]);
-
-    expect(notifier.channelsFor("m1")).toEqual(["in_app"]);
-    expect(notifier.canReach("m1")).toBe(true);
-    expect(await notifier.send("m1", { text: "Hello" })).toEqual(["in_app"]);
-    expect(resolveSlackUserIds).not.toHaveBeenCalled();
-  });
-
-  it("limits real Slack notifications to the flagged cohort", async () => {
-    const fake = createFakeSupabase({
-      members: { data: [{ id: "m1", user_id: "u1" }, { id: "m2", user_id: "u2" }] },
-      user_feature_previews: (query) => ({ data: query.calls.some((c) => c.method === "eq" && c.args[1] === "slack_notifications") ? [{ user_id: "u1" }] : [] }),
-    });
     const notifier = await createNotifier(fake, "prickle_checkin", ["m1", "m2"]);
 
     expect(notifier.channelsFor("m1")).toEqual(["slack", "in_app"]);
-    expect(notifier.channelsFor("m2")).toEqual(["in_app"]);
-    expect(resolveSlackUserIds.mock.calls[0][1]).toEqual(["m1"]);
-  });
-
-  it("keeps an unflagged member's other chosen channels", async () => {
-    const fake = createFakeSupabase({
-      members: { data: [{ id: "m1", user_id: "u1", email: "m1@example.com" }] },
-      notification_preferences: { data: [{ member_id: "m1", kind: "prickle_checkin", channel: "email", enabled: true }] },
-    });
-    const notifier = await createNotifier(fake, "prickle_checkin", ["m1"]);
-
-    expect(notifier.channelsFor("m1")).toEqual(["in_app", "email"]);
-    expect(resolveSlackUserIds).not.toHaveBeenCalled();
+    expect(notifier.channelsFor("m2")).toEqual(["slack", "in_app"]);
+    expect(resolveSlackUserIds.mock.calls[0][1]).toEqual(["m1", "m2"]);
   });
 
   it("reaches members on their channels, skipping opt-outs and members with no address", async () => {

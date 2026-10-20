@@ -23,8 +23,7 @@ export function hubMessageMetadata(messageId: string) {
 
 /**
  * Whether the Hub may write to the real Slack workspace (post, react): only the production deploy.
- * Not SLACK_TEST_MODE: that switch redirects member DMs and production runs with it on, so chat
- * would never post, and turning it off would send real DMs. Chat is already limited to the members
+ * Not SLACK_TEST_MODE: that switch redirects member DMs in local and preview environments. Chat is limited to members
  * who have the chat_posting preview. Local and preview deploys never write to Slack, so a dev or
  * preview session can't post into a real channel; the message stays pending.
  */

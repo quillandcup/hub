@@ -106,7 +106,6 @@ function setup({ log = nudgeLog(), ...rest }: Tables = {}) {
   fake = createFakeSupabase({
     "bronze.slack_channels": { data: [{ channel_id: "C-START" }] },
     member_reminder_log: log.table,
-    feature_flags: (query: FakeQuery) => ({ data: { enabled_globally: query.calls.some((c) => c.method === "eq" && c.args[1] === "slack_notifications") } }),
     ...(rest as FakeTables),
   });
   return log;
@@ -573,7 +572,7 @@ describe("the reminder feature flags", () => {
     });
   /** feature_flags where exactly these keys are switched on globally. */
   const flagsOn = (...keys: string[]) => (query: FakeQuery) => ({
-    data: [{ enabled_globally: ["slack_notifications", ...keys].includes(String(query.calls.find((c) => c.method === "eq" && c.args[0] === "feature_key")?.args[1])) }],
+    data: [{ enabled_globally: keys.includes(String(query.calls.find((c) => c.method === "eq" && c.args[0] === "feature_key")?.args[1])) }],
   });
 
   async function runRoute(tables: Record<string, any>, memberKind: "intro" | "prickle" = "intro") {
