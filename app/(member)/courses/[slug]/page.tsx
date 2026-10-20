@@ -66,14 +66,8 @@ export default async function CoursePage({ params }: { params: Promise<{ slug: s
 
   return (
     <div>
-      <header className="relative overflow-hidden bg-plum-700 px-6 py-12 text-center text-white">
-        {thumbnail && (
-          // Decorative backdrop, darkened so the white title stays readable.
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={thumbnail} alt="" className="absolute inset-0 h-full w-full object-cover" />
-        )}
-        {thumbnail && <div aria-hidden="true" className="absolute inset-0 bg-black/60" />}
-        <div className="relative mx-auto max-w-3xl">
+      <header className="bg-plum-700 px-6 py-12 text-center text-white">
+        <div className="mx-auto max-w-3xl">
           <Link href="/courses" className="text-sm text-plum-100 hover:underline">
             ← Courses
           </Link>
