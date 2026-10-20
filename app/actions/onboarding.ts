@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
 import { getEffectiveIdentity } from "@/lib/sudo";
-import { isOnboardingMarkKey, type OnboardingState } from "@/lib/onboarding";
+import { allOnboardingKeys, isOnboardingMarkKey, type OnboardingState } from "@/lib/onboarding";
 import { getOnboardingState } from "@/lib/onboarding.server";
 
 type Result = { success: true } | { error: string };
@@ -51,7 +51,7 @@ export async function getMyOnboardingState(): Promise<OnboardingState | null> {
 
 /** Start (or restart) the tour from the first step not yet done in the member's data. */
 export async function startOnboarding(): Promise<Result> {
-  return save({ marked_steps: [], dismissed_at: null, completed_at: null }, "startOnboarding");
+  return save({ marked_steps: [], dismissed_at: null, completed_at: null, acknowledged_steps: null }, "startOnboarding");
 }
 
 /** Close the tour for good; the user menu can start it again. */
@@ -61,7 +61,7 @@ export async function dismissOnboarding(): Promise<Result> {
 
 /** Close the tour once every step is done. */
 export async function completeOnboarding(): Promise<Result> {
-  return save({ completed_at: new Date().toISOString() }, "completeOnboarding");
+  return save({ completed_at: new Date().toISOString(), acknowledged_steps: allOnboardingKeys() }, "completeOnboarding");
 }
 
 /** Count a step as done without data to show it: confirmed ("my names look right") or skipped. */

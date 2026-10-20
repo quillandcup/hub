@@ -16,7 +16,7 @@ const FLASH: Record<string, { ok: boolean; text: string }> = {
 };
 
 /**
- * "Connect your Slack account" (Settings → Account, behind the chat_posting preview). Connected, the
+ * "Connect your Slack account" (Settings → Account, for everyone once the Slack app is configured). Connected, the
  * Hub posts your chat messages and reactions to Slack as you; without it, messages go through
  * Billie Bot under your name and reactions stay in the Hub. Connected with the read scopes, what you
  * read in Hub chat and in Slack is read in both; a connection from before that asks to reconnect.

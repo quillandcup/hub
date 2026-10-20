@@ -287,3 +287,26 @@ describe("Big Sister step", () => {
     expect(state.steps.find((s) => s.id === "big-sister")?.done).toBe(true);
   });
 });
+
+describe("steps added after a finished tour", () => {
+  const SEEN = ["identity", "identity.basics", "identity.names", "identity.emails", "profile", "intro", "writing", "prickles", "calendar", "big-sister", "hosting", "host-vibe"];
+  const finished = (r: Partial<OnboardingRecord> = {}) =>
+    record({ completed_at: NOW.toISOString(), acknowledged_steps: SEEN, ...r });
+  const withSlack = (connected: boolean): OnboardingSignals => ({ ...NOTHING, slackConnect: { connected } });
+
+  it("reopens a completed tour for just the new step", () => {
+    const state = buildOnboardingState(withSlack(false), finished());
+    expect(state.active).toBe(true);
+    expect(state.steps.map((s) => s.id)).toEqual(["slack"]);
+    expect(state.currentStepId).toBe("slack");
+  });
+
+  it("stays closed when the new step is already done", () => {
+    expect(buildOnboardingState(withSlack(true), finished()).active).toBe(false);
+  });
+
+  it("stays closed when the step isn't offered or the tour was dismissed", () => {
+    expect(buildOnboardingState(NOTHING, finished()).active).toBe(false);
+    expect(buildOnboardingState(withSlack(false), finished({ dismissed_at: NOW.toISOString() })).active).toBe(false);
+  });
+});

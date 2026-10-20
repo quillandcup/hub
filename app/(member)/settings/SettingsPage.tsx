@@ -49,10 +49,9 @@ export default async function SettingsPage({ tab }: { tab: SettingsTabId }) {
     redirect("/settings");
   }
 
-  // Connecting Slack: a chat_posting preview, only once the Slack app's client ID and secret are set,
-  // and only for your own account (not while viewing as another member).
-  const showSlackConnect =
-    isSlackConnectConfigured() && effectiveIdentity !== null && !effectiveIdentity.isSudo && enabledFeatures.includes("chat_posting");
+  // Connecting Slack: only once the Slack app's client ID and secret are set, and only for your own
+  // account (not while viewing as another member).
+  const showSlackConnect = isSlackConnectConfigured() && effectiveIdentity !== null && !effectiveIdentity.isSudo;
   const slackStatus = showSlackConnect ? await getSlackConnectionStatus(createServiceRoleClient(), effectiveIdentity!.memberId) : null;
   const slackConnected = slackStatus?.connected ?? false;
 
@@ -101,7 +100,7 @@ export default async function SettingsPage({ tab }: { tab: SettingsTabId }) {
                     </div>
 
                     {showSlackConnect && (
-                      <div className="border-t border-slate-200 dark:border-slate-700 pt-6">
+                      <div data-tour="slack-connect" className="border-t border-slate-200 dark:border-slate-700 pt-6">
                         <SlackConnectPanel connected={slackConnected} sharesReadState={slackStatus?.sharesReadState ?? false} />
                       </div>
                     )}

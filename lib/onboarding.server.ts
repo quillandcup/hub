@@ -5,6 +5,7 @@ import {
   type OnboardingRecord,
   type OnboardingSignals,
   type OnboardingState,
+  unseenStepIds,
 } from "@/lib/onboarding";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { SLACK_WORKSPACE_URL } from "@/lib/config";
@@ -15,6 +16,7 @@ import { PICKER_HISTORY_MONTHS } from "@/lib/prickle-picker";
 import { getMonthStart } from "@/lib/prickle-schedules";
 import { getMyMentorships } from "@/lib/my-mentorship";
 import { membersWithFeature } from "@/lib/features.server";
+import { getSlackConnectionStatus, isSlackConnectConfigured } from "@/lib/slack-connect";
 
 /** Placeholder signals for a tour that isn't showing: nothing reads the steps then. */
 const NO_SIGNALS: OnboardingSignals = {
@@ -77,12 +79,13 @@ export const getOnboardingState = cache(async (memberId: string): Promise<Onboar
   // or finished it skips the other twelve reads.
   const { data: record } = await supabase
     .from("member_onboarding")
-    .select("marked_steps, dismissed_at, completed_at")
+    .select("marked_steps, dismissed_at, completed_at, acknowledged_steps")
     .eq("member_id", memberId)
     .maybeSingle();
   const recordData = (record as OnboardingRecord | null) ?? null;
   const idle = buildOnboardingState(NO_SIGNALS, recordData);
-  if (!idle.active) return idle;
+  // A finished tour may reopen for newly added steps, which only the real signals can tell.
+  if (!idle.active && unseenStepIds(recordData).length === 0) return idle;
 
   const [
     override,
@@ -98,6 +101,7 @@ export const getOnboardingState = cache(async (memberId: string): Promise<Onboar
     feedToken,
     newcomer,
     bigSistersOn,
+    slackStatus,
   ] = await Promise.all([
     // Written only when the member saves their bio or socials in the Hub. members.bio isn't read:
     // it's usually Kajabi's copy, which they haven't necessarily looked at here.
@@ -137,6 +141,8 @@ export const getOnboardingState = cache(async (memberId: string): Promise<Onboar
     loadNewcomerSignals(supabase, memberId, now),
     // The Big Sister step is behind the big_sisters preview (this member's own flag).
     membersWithFeature(createServiceRoleClient(), "big_sisters", [memberId]).then((on) => on.has(memberId)),
+    // Same gate as the Slack panel in Settings (SettingsPage): the Slack app is configured.
+    isSlackConnectConfigured() ? getSlackConnectionStatus(createServiceRoleClient(), memberId) : Promise.resolve(null),
   ]);
   const mentorships = bigSistersOn
     ? await getMyMentorships(supabase, memberId, now.toISOString().slice(0, 10))
@@ -158,6 +164,7 @@ export const getOnboardingState = cache(async (memberId: string): Promise<Onboar
       hasHostVibe: (hostVibes.count ?? 0) > 0,
       hasCalendarSynced: !!feedToken.data?.first_fetched_at,
       ...newcomer,
+      slackConnect: slackStatus ? { connected: slackStatus.connected } : null,
       bigSisterName: mentorships?.bigSister?.name ?? null,
     },
     recordData
