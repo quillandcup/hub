@@ -1,4 +1,4 @@
--- pgTAP tests for analytics_control_rates (20261122000200): per named control, visits that saw it
+-- pgTAP tests for analytics_control_rates (20261125000000): per named control, visits that saw it
 -- and visits that also clicked it, lowest click-through first, with first_seen over all time,
 -- the window, a route prefix, the admin-area switch, sudo left out, and RLS deciding who sees what.
 -- Runs in one transaction that is rolled back, so it leaves the shared local DB untouched.
