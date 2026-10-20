@@ -228,9 +228,11 @@ is fine; no batching needed.
 | `audit_log.entity_id` (text) | id of the audited row | Rewrite, for every table audited by `audit_row_change` (about 50) |
 | `audit_log.changes` (jsonb) | old/new values, may hold ids | Scan and rewrite |
 | `in_app_notifications.ref`, `.url` | `ref` is a `prickle.id` (`lib/prickle-checkin-dms.ts:886,903`) | Rewrite |
-| `member_activities.data` (jsonb) | may hold ids | Scan |
+| `member_activities.data` (jsonb) | Only the commitment `slots[].type_id` found in code (next row); the rest hold names, text and `via` | Rewrite that key, then scan |
 | `chat_message_contents.attachments`, `.blocks` (jsonb) | may hold ids | Scan |
-| `admin_work_queue_completions.occurrence_key` | contents still to confirm; sits next to `member_id` | Open item |
+| `admin_work_queue_completions.occurrence_key` | Per `queue_type`: `hedgieversary` a milestone month count; `welcome_back` a `member_hiatus_history.id`; `hiatus_nudge` that id plus `:25`/`:50`/`:75`; `big_sister` a start date (`lib/admin-work-queue.ts`). Confirmed 2026-10-20 | Rewrite the id part of `welcome_back` and `hiatus_nudge` keys through the `member_hiatus_history` mapping; leave the others. The unique key `(queue_type, member_id, occurrence_key)` must survive |
+| `member_activities.related_id` (text) | The id of the source row, by `source` (`prickle_checkins`, `outreach_touches`, `prickle_commitments`, writing entries, logins...). Has a partial unique index on `(source, related_id)` | Rewrite per `source` through that table's mapping; found 2026-10-20, was missing from this table |
+| `member_activities.data` `slots[].type_id` | `prickle_types.id`, written by `createCommitment` (`app/(member)/my-prickles/commitment-actions.ts`) | Rewrite through the prickle-type mapping |
 | `bronze.slack_messages.raw_payload` `app_message_id` metadata | chat message id (see Decisions) | Map or remove rows |
 | Bronze `raw_payload` / `data` columns from external systems | should not hold our ids | Covered by the post-migration scan anyway |
 
@@ -474,9 +476,7 @@ change and the migration together (CI pushes migrations before the Vercel deploy
    temp dir, change `project_id` and every port in `config.toml`, run `supabase start`
    there (it applies all migrations), and query it with `docker exec` into its `db`
    container. The shared local DB is untouched.
-2. Confirm the 17 Tier 1 prefixes and the Tier 2 rule with the owner (Prefixes section); resolve the open items:
-   `admin_work_queue_completions.occurrence_key` contents, and the other jsonb/text
-   locations that may embed our ids.
+2. ~~Confirm the 17 Tier 1 prefixes and the Tier 2 rule~~ confirmed by the owner. ~~Open items~~ resolved from the code (see "Ids to rewrite"); the post-migration scan on a production copy still checks `audit_log.changes`, `chat_message_contents` and anything missed.
 3. ~~Row counts and timeouts~~ done (see Inventory): single transaction.
 4. Write the migration, run it against a copy of production data if possible, then the
    full db + unit + pgTAP suites.
