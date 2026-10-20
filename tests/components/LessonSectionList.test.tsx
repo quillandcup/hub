@@ -37,15 +37,39 @@ describe("LessonSectionList", () => {
     expect(screen.getByText("1 Lesson")).toBeInTheDocument();
   });
 
-  it("marks the current lesson, shows a check for completed ones and a number for the rest", () => {
-    render(<LessonSectionList slug="c" section={section(lessons)} completed={new Set(["b"])} currentLessonId="a" />);
+  it("marks the current lesson with a ▶ and numbers the rest", () => {
+    render(<LessonSectionList slug="c" section={section(lessons)} completed={new Set()} currentLessonId="a" />);
     const items = screen.getAllByRole("listitem");
 
     expect(items[0]).toHaveTextContent("▶");
     expect(within(items[0]).getByRole("link")).toHaveAttribute("aria-current", "page");
-    expect(items[1]).toHaveTextContent("✓");
-    expect(within(items[1]).getByRole("link", { name: /Tropes and Expectations \(completed\)/ })).toHaveAttribute("href", "/courses/c/lessons/b");
+    expect(items[1]).toHaveTextContent("2");
     expect(items[2]).toHaveTextContent("3");
+  });
+
+  it("keeps a completed lesson's number on the left and puts a bold check on the right", () => {
+    render(<LessonSectionList slug="c" section={section(lessons)} completed={new Set(["b"])} currentLessonId="a" />);
+    const items = screen.getAllByRole("listitem");
+
+    // The number stays; the check is a separate, last element of the row, in the Hub's color.
+    expect(items[1]).toHaveTextContent("2");
+    const check = within(items[1]).getByTestId("completed-check");
+    expect(check).toHaveAttribute("stroke-width", "3.5");
+    expect(check.parentElement).toHaveClass("text-plum-400");
+    expect(check.closest("span[aria-hidden]")).toBe(items[1].querySelector("a")!.lastElementChild);
+    // Screen readers get "(completed)" in the lesson's name instead.
+    expect(within(items[1]).getByRole("link", { name: /Tropes and Expectations \(completed\)/ })).toHaveAttribute("href", "/courses/c/lessons/b");
+    // Lessons that aren't complete have no check.
+    expect(within(items[0]).queryByTestId("completed-check")).not.toBeInTheDocument();
+    expect(within(items[2]).queryByTestId("completed-check")).not.toBeInTheDocument();
+  });
+
+  it("shows the check on the current lesson too, beside its ▶, once it's complete", () => {
+    render(<LessonSectionList slug="c" section={section(lessons)} completed={new Set(["a"])} currentLessonId="a" />);
+    const current = screen.getAllByRole("listitem")[0];
+
+    expect(current).toHaveTextContent("▶");
+    expect(within(current).getByTestId("completed-check")).toBeInTheDocument();
   });
 
   it("aligns a thumbnail (or a placeholder of the same size) with each title", () => {
@@ -55,10 +79,10 @@ describe("LessonSectionList", () => {
     expect(images).toHaveLength(1);
     expect(images[0]).toHaveAttribute("src", "https://cdn.test/a.jpg");
     expect(images[0]).toHaveAttribute("alt", "");
-    // Every row has the same three columns (marker, thumbnail, title), so the thumbnails line up.
+    // Every row has the same four columns (marker, thumbnail, title, check), so the thumbnails line up.
     for (const item of screen.getAllByRole("listitem")) {
       const row = item.className.includes("grid-cols") ? item : (item.firstElementChild as HTMLElement);
-      expect(row.className).toContain("grid-cols-[1.25rem_6rem_minmax(0,1fr)]");
+      expect(row.className).toContain("grid-cols-[1.25rem_6rem_minmax(0,1fr)_1.25rem]");
     }
   });
 
