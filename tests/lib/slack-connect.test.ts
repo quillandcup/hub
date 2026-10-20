@@ -15,6 +15,8 @@ import {
   disconnectSlack,
   exchangeSlackCode,
   getSlackUserToken,
+  hasReadSyncScopes,
+  SLACK_USER_SCOPES,
   isDeadTokenError,
   isSlackConnectConfigured,
   slackRedirectUri,
@@ -58,7 +60,9 @@ describe("configuration and the authorize URL", () => {
     const url = new URL(buildSlackAuthorizeUrl("state-1"));
     expect(url.origin + url.pathname).toBe("https://slack.com/oauth/v2/authorize");
     expect(url.searchParams.get("client_id")).toBe("client-1");
-    expect(url.searchParams.get("user_scope")).toBe("chat:write,reactions:write");
+    expect(url.searchParams.get("user_scope")).toBe(
+      "chat:write,reactions:write,channels:read,groups:read,mpim:read,channels:write,groups:write,mpim:write"
+    );
     expect(url.searchParams.get("redirect_uri")).toBe(`${APP_URL}/api/oauth/slack/callback`);
     expect(slackRedirectUri()).toBe(`${APP_URL}/api/oauth/slack/callback`);
     expect(url.searchParams.get("state")).toBe("state-1");
@@ -167,5 +171,13 @@ describe("disconnectSlack and dead tokens", () => {
     expect(isDeadTokenError({ data: { error: "token_revoked" } })).toBe(true);
     expect(isDeadTokenError({ data: { error: "channel_not_found" } })).toBe(false);
     expect(isDeadTokenError(new Error("boom"))).toBe(false);
+  });
+});
+
+describe("hasReadSyncScopes", () => {
+  it("is true only for a connection granted every scope read sync needs", () => {
+    expect(hasReadSyncScopes([...SLACK_USER_SCOPES])).toBe(true);
+    expect(hasReadSyncScopes(["chat:write", "reactions:write"])).toBe(false);
+    expect(hasReadSyncScopes([])).toBe(false);
   });
 });

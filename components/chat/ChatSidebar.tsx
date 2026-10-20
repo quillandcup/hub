@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { authenticateRealtime } from "@/lib/chat/live";
 import type { ChannelSummary } from "@/lib/chat/load";
+import { syncChatReadFromSlack } from "@/app/(member)/chat/actions";
 
 /** A badge reads 99+ beyond that; the server stops counting at 100. */
 const badge = (n: number) => (n > 99 ? "99+" : String(n));
@@ -116,6 +117,30 @@ function useUnreadCounts(
     return () => {
       cancelled = true;
       if (subscription) void supabase.removeChannel(subscription);
+    };
+  }, [selfMemberId]);
+
+  // Catch up with what the member read in Slack when they open chat and whenever they come back to
+  // this window (from Slack, say). The server answers with fresh counts, or nothing when the member
+  // hasn't connected Slack or asked a moment ago.
+  useEffect(() => {
+    if (!selfMemberId) return;
+    let cancelled = false;
+    const pull = () => {
+      if (document.visibilityState !== "visible") return;
+      void syncChatReadFromSlack(active.current)
+        .then((fresh) => {
+          if (!cancelled && fresh) setCounts(fresh);
+        })
+        .catch(() => {});
+    };
+    pull();
+    document.addEventListener("visibilitychange", pull);
+    window.addEventListener("focus", pull);
+    return () => {
+      cancelled = true;
+      document.removeEventListener("visibilitychange", pull);
+      window.removeEventListener("focus", pull);
     };
   }, [selfMemberId]);
 

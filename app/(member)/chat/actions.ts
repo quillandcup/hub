@@ -8,6 +8,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { sendChatMessageToSlack } from "@/lib/chat/slack-post";
 import { syncReactionToSlack } from "@/lib/chat/slack-react";
+import { pullReadFromSlack, pushReadToSlack } from "@/lib/chat/slack-read";
 import { getSlackConnectionStatus } from "@/lib/slack-connect";
 import { isUuid } from "@/lib/chat/format";
 import {
@@ -18,6 +19,7 @@ import {
   loadMessage,
   loadMessages,
   loadMessagesByIds,
+  loadUnreadCounts,
   type ChatMessageView,
 } from "@/lib/chat/load";
 import type { ChatTextContext } from "@/components/chat/ChatText";
@@ -54,7 +56,30 @@ export async function markChatRead(channelId: string, through: string): Promise<
 
   const supabase = await createClient();
   const { error } = await supabase.rpc("chat_mark_read", { p_channel_id: channelId, p_through: through });
-  if (error) console.error("chat_mark_read failed:", error.message);
+  if (error) {
+    console.error("chat_mark_read failed:", error.message);
+    return;
+  }
+  // Slack stops showing it as unread too, once the response is out (members who connected Slack only).
+  after(() => pushReadToSlack(createServiceRoleClient(), { memberId: caller.identity.memberId, channelId, through }).catch((e) => console.error("pushReadToSlack failed:", e)));
+}
+
+/**
+ * The member came back to the Hub (or opened the search box): bring their read markers up to what
+ * they have read in Slack, and answer with the unread counts as they now stand. `openChannelId` is
+ * the conversation on screen, whose marker is left alone so its "New" line doesn't jump. Null when
+ * nothing was pulled (not connected to Slack, asked again within the throttle, sudo, chat off), so
+ * the caller keeps the numbers it has.
+ */
+export async function syncChatReadFromSlack(openChannelId: string | null): Promise<Record<string, number> | null> {
+  const caller = await chatCaller();
+  if (!caller || caller.identity.isSudo) return null;
+  const exceptChannelId = openChannelId && isUuid(openChannelId) ? openChannelId : null;
+  const pulled = await pullReadFromSlack(createServiceRoleClient(), caller.identity.memberId, { exceptChannelId }).catch((e) => {
+    console.error("pullReadFromSlack failed:", e);
+    return false;
+  });
+  return pulled ? loadUnreadCounts(await createClient()) : null;
 }
 
 export interface OlderChat {

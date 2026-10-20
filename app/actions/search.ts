@@ -6,6 +6,8 @@ import { parseUniversal, wantsChat } from "@/lib/search/syntax";
 import { universalSearch, type KindResults } from "@/lib/search/universal";
 import { MAX_QUERY_LENGTH } from "@/lib/chat/search";
 import { loadUnreadCounts } from "@/lib/chat/load";
+import { pullReadFromSlack } from "@/lib/chat/slack-read";
+import { createServiceRoleClient } from "@/lib/supabase/service";
 import { notificationKindLabel } from "@/lib/notifications/inbox";
 import { getCheckinPrickles } from "@/lib/upcoming-prickles";
 import { checkinAnswered, checkinHref } from "@/lib/prickle-checkins";
@@ -14,6 +16,7 @@ import { dismissCheckin, dismissCheckout, loadDismissedCheckinIds } from "@/lib/
 import { getUnloggedRecentPrickles } from "@/app/(member)/projects/actions";
 import { getUserTimezonePreference } from "@/lib/timezone";
 import { ORG_TIMEZONE } from "@/lib/config";
+import { clock } from "@/lib/clock";
 
 export interface PaletteSearch {
   results: KindResults[];
@@ -86,6 +89,20 @@ async function openCheckins(supabase: Searcher["ctx"]["supabase"], memberId: str
   return [...ins, ...outs];
 }
 
+/** The most the search box waits for Slack's read markers before showing the counts it has. */
+const SLACK_READ_PULL_WAIT_MS = 2500;
+
+/**
+ * Unread chat counts after catching the member's markers up with what they read in Slack (for
+ * members who connected it; throttled, so most opens skip straight to the count). A slow or failed
+ * pull only means the counts come from the Hub's own markers this time.
+ */
+async function syncedUnreadCounts(supabase: Searcher["ctx"]["supabase"], memberId: string): Promise<Record<string, number>> {
+  const pull = pullReadFromSlack(createServiceRoleClient(), memberId).catch(() => false);
+  await Promise.race([pull, clock.sleep(SLACK_READ_PULL_WAIT_MS)]);
+  return loadUnreadCounts(supabase).catch(() => ({} as Record<string, number>));
+}
+
 /**
  * What the empty search box offers before you type: things waiting on the member, open check-ins
  * first (derived from the prickles themselves, plus any unanswered in-app notification not already
@@ -108,7 +125,7 @@ export async function searchSuggestions(): Promise<{ needsAttention: Suggestion[
       .order("created_at", { ascending: false })
       .limit(20)
       .then((r) => r.data ?? [], () => []),
-    chatOn ? loadUnreadCounts(supabase).catch(() => ({} as Record<string, number>)) : Promise.resolve({} as Record<string, number>),
+    chatOn ? syncedUnreadCounts(supabase, viewerMemberId) : Promise.resolve({} as Record<string, number>),
     chatOn && typeof searcher.ctx.chatChannels === "function" ? searcher.ctx.chatChannels().catch(() => []) : Promise.resolve([]),
   ]);
 

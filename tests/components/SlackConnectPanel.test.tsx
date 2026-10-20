@@ -28,6 +28,16 @@ describe("SlackConnectPanel", () => {
     expect(screen.getByText(/appear in Slack as you, not as Billie Bot/)).toBeInTheDocument();
   });
 
+  it("asks a connection made before read sync to reconnect, and says read state is shared once it has", () => {
+    render(<SlackConnectPanel connected sharesReadState={false} />);
+    expect(screen.getByRole("link", { name: "Reconnect Slack" })).toHaveAttribute("href", "/api/oauth/slack/start");
+    cleanup();
+
+    render(<SlackConnectPanel connected sharesReadState />);
+    expect(screen.queryByRole("link", { name: "Reconnect Slack" })).not.toBeInTheDocument();
+    expect(screen.getByText(/marked read in the other/)).toBeInTheDocument();
+  });
+
   it("shows the outcome Slack sent the member back with", () => {
     slackParam = "connected";
     render(<SlackConnectPanel connected />);
