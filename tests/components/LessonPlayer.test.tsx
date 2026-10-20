@@ -332,7 +332,7 @@ describe("LessonPlayer watch tracking", () => {
 
     expect(fetchMock).toHaveBeenCalledWith("/api/courses/watch", expect.objectContaining({ method: "POST", keepalive: true }));
     expect(sent()).toEqual([
-      { lessonId: "lesson-1", sessionId: expect.any(String), segments: [{ start: 10, end: 40, rate: 1.5, captions: null, visible: true }], position: 40 },
+      { lessonId: "lesson-1", sessionId: expect.any(String), segments: [{ id: expect.any(String), start: 10, end: 40, rate: 1.5, captions: null, visible: true }], position: 40 },
     ]);
   });
 
@@ -348,8 +348,8 @@ describe("LessonPlayer watch tracking", () => {
     pause(media);
 
     expect(sent().flatMap((b) => b.segments)).toEqual([
-      { start: 0, end: 20, rate: 1, captions: null, visible: true },
-      { start: 100, end: 130, rate: 1, captions: null, visible: true },
+      { id: expect.any(String), start: 0, end: 20, rate: 1, captions: null, visible: true },
+      { id: expect.any(String), start: 100, end: 130, rate: 1, captions: null, visible: true },
     ]);
   });
 
@@ -374,8 +374,8 @@ describe("LessonPlayer watch tracking", () => {
     pause(media);
 
     expect(sent().flatMap((b) => b.segments)).toEqual([
-      { start: 0, end: 30, rate: 1, captions: null, visible: true },
-      { start: 30, end: 90, rate: 2, captions: null, visible: true },
+      { id: expect.any(String), start: 0, end: 30, rate: 1, captions: null, visible: true },
+      { id: expect.any(String), start: 30, end: 90, rate: 2, captions: null, visible: true },
     ]);
   });
 
@@ -387,11 +387,11 @@ describe("LessonPlayer watch tracking", () => {
     act(() => void vi.advanceTimersByTime(30_000));
 
     expect(sent()).toHaveLength(1);
-    expect(sent()[0]).toMatchObject({ segments: [{ start: 0, end: 30 }], position: 30 });
+    expect(sent()[0]).toMatchObject({ segments: [{ id: expect.any(String), start: 0, end: 30 }], position: 30 });
     // The stretch carries on from there.
     advance(media, 45);
     pause(media);
-    expect(sent().flatMap((b) => b.segments).at(-1)).toMatchObject({ start: 30, end: 45 });
+    expect(sent().flatMap((b) => b.segments).at(-1)).toMatchObject({ id: expect.any(String), start: 30, end: 45 });
   });
 
   it("sends what's pending when the page is left or the player goes away", () => {
@@ -400,7 +400,7 @@ describe("LessonPlayer watch tracking", () => {
     play(media, 0);
     advance(media, 12);
     act(() => void window.dispatchEvent(new Event("pagehide")));
-    expect(sent().flatMap((b) => b.segments)).toEqual([{ start: 0, end: 12, rate: 1, captions: null, visible: true }]);
+    expect(sent().flatMap((b) => b.segments)).toEqual([{ id: expect.any(String), start: 0, end: 12, rate: 1, captions: null, visible: true }]);
 
     fetchMock.mockClear();
     advance(media, 20);
@@ -421,8 +421,8 @@ describe("LessonPlayer watch tracking", () => {
     pause(media);
 
     expect(sent().flatMap((b) => b.segments)).toEqual([
-      { start: 0, end: 10, rate: 1, captions: null, visible: true },
-      { start: 10, end: 25, rate: 1, captions: null, visible: true },
+      { id: expect.any(String), start: 0, end: 10, rate: 1, captions: null, visible: true },
+      { id: expect.any(String), start: 10, end: 25, rate: 1, captions: null, visible: true },
     ]);
   });
 
@@ -449,8 +449,8 @@ describe("LessonPlayer watch tracking", () => {
     Object.defineProperty(document, "hidden", { value: false, configurable: true });
 
     expect(sent().flatMap((b) => b.segments)).toEqual([
-      { start: 0, end: 10, rate: 1, captions: null, visible: true },
-      { start: 10, end: 25, rate: 1, captions: null, visible: false },
+      { id: expect.any(String), start: 0, end: 10, rate: 1, captions: null, visible: true },
+      { id: expect.any(String), start: 10, end: 25, rate: 1, captions: null, visible: false },
     ]);
   });
 
@@ -467,7 +467,7 @@ describe("LessonPlayer watch tracking", () => {
     advance(media, 8);
     pause(media);
 
-    expect(sent().flatMap((b) => b.segments)).toEqual([{ start: 0, end: 8, rate: 1, captions: "Spanish", visible: true }]);
+    expect(sent().flatMap((b) => b.segments)).toEqual([{ id: expect.any(String), start: 0, end: 8, rate: 1, captions: "Spanish", visible: true }]);
   });
 
   it("records nothing unless tracking is on (sudo, a staff preview)", () => {
@@ -478,6 +478,81 @@ describe("LessonPlayer watch tracking", () => {
     pause(media);
 
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  describe("when a save fails", () => {
+    const stretch = (media: NonNullable<typeof player.media>, from: number, to: number) => {
+      play(media, from);
+      advance(media, to);
+      pause(media);
+    };
+
+    it("resends the stretch with the next save after a server error or a lost connection, with the same id", async () => {
+      const media = (player.media = fakeMedia());
+      render(tracked());
+      fetchMock.mockResolvedValueOnce(new Response("{}", { status: 500 }));
+      stretch(media, 0, 10);
+      await act(async () => {});
+      fetchMock.mockRejectedValueOnce(new TypeError("offline"));
+      stretch(media, 20, 30);
+      await act(async () => {});
+      stretch(media, 40, 50);
+
+      const calls = sent();
+      const firstId = calls[0].segments[0].id;
+      expect(calls[1].segments.map((s: { start: number }) => s.start)).toEqual([0, 20]);
+      expect(calls[1].segments[0].id).toBe(firstId);
+      expect(calls[2].segments.map((s: { start: number }) => s.start)).toEqual([0, 20, 40]);
+      expect(calls[2].segments[0].id).toBe(firstId);
+    });
+
+    it("stops resending once a save goes through", async () => {
+      const media = (player.media = fakeMedia());
+      render(tracked());
+      fetchMock.mockResolvedValueOnce(new Response("{}", { status: 503 }));
+      stretch(media, 0, 10);
+      await act(async () => {});
+      stretch(media, 20, 30);
+      await act(async () => {});
+      stretch(media, 40, 50);
+
+      expect(sent()[2].segments.map((s: { start: number }) => s.start)).toEqual([40]);
+    });
+
+    it("drops stretches the server refused, since resending can't help", async () => {
+      const media = (player.media = fakeMedia());
+      render(tracked());
+      fetchMock.mockResolvedValueOnce(new Response("{}", { status: 403 }));
+      stretch(media, 0, 10);
+      await act(async () => {});
+      stretch(media, 20, 30);
+
+      expect(sent()[1].segments.map((s: { start: number }) => s.start)).toEqual([20]);
+    });
+
+    it("keeps only the newest 200 while saves keep failing, and sends them in batches the server accepts", async () => {
+      const media = (player.media = fakeMedia());
+      render(tracked());
+      fetchMock.mockResolvedValue(new Response("{}", { status: 500 }));
+      for (let i = 0; i < 210; i++) {
+        stretch(media, i * 10, i * 10 + 5);
+        await act(async () => {});
+      }
+      fetchMock.mockClear();
+      fetchMock.mockResolvedValue(new Response("{}"));
+      stretch(media, 5000, 5005);
+      await act(async () => {});
+      await act(async () => {});
+      await act(async () => {});
+      await act(async () => {});
+
+      const batches = sent().map((b) => b.segments);
+      expect(batches.every((b: unknown[]) => b.length <= 50)).toBe(true);
+      const starts = batches.flat().map((s: { start: number }) => s.start);
+      expect(starts).toHaveLength(200);
+      expect(starts.at(-1)).toBe(5000);
+      expect(starts[0]).toBeGreaterThan(0);
+    });
   });
 
   it("does not send a position it has already sent", () => {

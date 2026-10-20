@@ -2,6 +2,8 @@ import { isUuid } from "@/lib/chat/format";
 
 /** One continuous stretch of a video a member watched, as the player reports it. */
 export interface WatchSegmentInput {
+  /** Made by the player when the stretch closes; a resent save carries the same id, so it is stored once. */
+  id: string;
   start: number;
   end: number;
   rate: number;
@@ -34,11 +36,12 @@ const seconds = (v: unknown): v is number => typeof v === "number" && Number.isF
 function parseSegment(raw: unknown): WatchSegmentInput | null {
   if (typeof raw !== "object" || raw === null) return null;
   const s = raw as Record<string, unknown>;
+  if (typeof s.id !== "string" || !isUuid(s.id)) return null;
   if (!seconds(s.start) || !seconds(s.end) || s.end < s.start) return null;
   if (typeof s.rate !== "number" || !Number.isFinite(s.rate) || s.rate <= 0 || s.rate > MAX_RATE) return null;
   if (s.captions !== null && (typeof s.captions !== "string" || s.captions.length > MAX_CAPTIONS_LABEL)) return null;
   if (typeof s.visible !== "boolean") return null;
-  return { start: s.start, end: s.end, rate: s.rate, captions: s.captions, visible: s.visible };
+  return { id: s.id, start: s.start, end: s.end, rate: s.rate, captions: s.captions, visible: s.visible };
 }
 
 /** Checks a request body from the player; null when any part is malformed (nothing is partly accepted). */

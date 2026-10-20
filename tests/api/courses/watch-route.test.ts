@@ -23,7 +23,8 @@ describe('/api/courses/watch', () => {
   const supabase = getTestSupabaseAdminClient()
   const ids: Record<string, string> = {}
   const sessionId = '00000000-0000-4000-a000-00000000c999'
-  const segment = { start: 0, end: 30, rate: 1.25, captions: 'English', visible: true }
+  const newId = () => crypto.randomUUID()
+  const segment = { id: newId(), start: 0, end: 30, rate: 1.25, captions: 'English', visible: true }
 
   const post = (body: unknown) =>
     apiFetch(`${getTestApiBaseUrl()}/api/courses/watch`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
@@ -85,7 +86,7 @@ describe('/api/courses/watch', () => {
   })
 
   it("saves the segments against the lesson's own video, and the position for resume", async () => {
-    const response = await post(body({ segments: [segment, { ...segment, start: 40, end: 55, captions: null, visible: false }], position: 55 }))
+    const response = await post(body({ segments: [segment, { ...segment, id: newId(), start: 40, end: 55, captions: null, visible: false }], position: 55 }))
     expect(response.status).toBe(200)
     expect(await response.json()).toEqual({ saved: 2 })
 
@@ -94,6 +95,16 @@ describe('/api/courses/watch', () => {
     expect(rows.every((r) => r.video_id === ids.video && r.session_id === sessionId)).toBe(true)
     expect(rows.find((r) => r.start_seconds === '40' || r.start_seconds === 40)).toMatchObject({ end_seconds: 55, captions_language: null, visible: false })
     expect(await progressOf('current', ids.lessonA)).toMatchObject({ last_position_seconds: 55, completed_at: null })
+  })
+
+  it('stores a resent segment once', async () => {
+    const first = { ...segment, id: newId() }
+    expect(await (await post(body({ segments: [first] }))).json()).toEqual({ saved: 1 })
+    // The same save again (its first response was lost), now with a new stretch after it.
+    const second = { ...segment, id: newId(), start: 60, end: 70 }
+    expect(await (await post(body({ segments: [first, second] }))).json()).toEqual({ saved: 1 })
+    expect(await (await post(body({ segments: [first, second] }))).json()).toEqual({ saved: 0 })
+    expect((await segmentsOf('current')).map((r) => Number(r.start_seconds)).sort((a, b) => a - b)).toEqual([0, 60])
   })
 
   it('moves the position without touching completion', async () => {
