@@ -6,6 +6,7 @@ import {
   updateRealName,
   updateBirthday,
   setDisplayName,
+  setCustomDisplayName,
   addNameAlias,
   setNameAliasActive,
   addEmailAlias,
@@ -20,6 +21,7 @@ const MONTHS = [
   "January", "February", "March", "April", "May", "June",
   "July", "August", "September", "October", "November", "December",
 ];
+const WRITE_OWN = "__write_own__";
 const DAYS_IN_MONTH = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
 
 function sourceLabel(source: string): string {
@@ -101,6 +103,7 @@ export function IdentityPanel() {
   const [emailAliasInput, setEmailAliasInput] = useState("");
   const [addingEmailAlias, setAddingEmailAlias] = useState(false);
   const [savingDisplayName, setSavingDisplayName] = useState(false);
+  const [customDisplayName, setCustomDisplayNameInput] = useState<string | null>(null);
   const [pendingAliasId, setPendingAliasId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -140,6 +143,11 @@ export function IdentityPanel() {
   }
 
   async function handleDisplayNameChange(value: string) {
+    if (value === WRITE_OWN) {
+      setCustomDisplayNameInput("");
+      return;
+    }
+    setCustomDisplayNameInput(null);
     setSavingDisplayName(true);
     setError(null);
     setMessage(null);
@@ -147,6 +155,23 @@ export function IdentityPanel() {
     if ("error" in result) {
       setError(result.error);
     } else {
+      setMessage("Display name updated.");
+      await load();
+    }
+    setSavingDisplayName(false);
+  }
+
+  async function handleSaveCustomDisplayName(e: FormEvent) {
+    e.preventDefault();
+    if (!customDisplayName?.trim()) return;
+    setSavingDisplayName(true);
+    setError(null);
+    setMessage(null);
+    const result = await setCustomDisplayName(customDisplayName);
+    if ("error" in result) {
+      setError(result.error);
+    } else {
+      setCustomDisplayNameInput(null);
       setMessage("Display name updated.");
       await load();
     }
@@ -266,99 +291,92 @@ export function IdentityPanel() {
         </div>
       )}
 
-      {/* Real name and birthday: the Getting started tour checks these together. */}
-      <div data-tour="identity-basics" className="space-y-8">
-        {/* Real Name */}
-        <div>
-          <h3 id="identity-real-name" className="text-sm font-medium text-slate-900 dark:text-slate-100 mb-1">Real Name</h3>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">
-            Your Real Name: the one on your account and records. Not necessarily what other members see; that's your Display Name, below.
-          </p>
-          {data.nameChangeLocked ? (
-            <div className="max-w-md">
-              <p className="px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-md bg-slate-50 dark:bg-slate-800 text-sm text-slate-900 dark:text-slate-100">
-                {data.realName}
-              </p>
-              <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                You&apos;ve already changed your name once. Email{" "}
-                <a href={`mailto:${SUPPORT_EMAIL}`} className="underline">
-                  {SUPPORT_EMAIL}
-                </a>{" "}
-                if it needs to change again.
-              </p>
-            </div>
-          ) : (
-            <form onSubmit={handleSaveName} className="flex gap-2 max-w-md">
-              <input
-                type="text"
-                value={nameInput}
-                onChange={(e) => setNameInput(e.target.value)}
-                className="flex-1 px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-sm"
-                maxLength={200}
-              />
-              <button
-                type="submit"
-                disabled={savingName || nameInput.trim() === data.realName || !nameInput.trim()}
-                className="px-4 py-2 bg-plum-600 text-white text-sm rounded-md hover:bg-plum-700 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {savingName ? "Saving…" : "Save"}
-              </button>
-            </form>
-          )}
-        </div>
-
-        {/* Birthday */}
-        <div>
-          <h3 id="identity-birthday" className="text-sm font-medium text-slate-900 dark:text-slate-100 mb-1">Birthday</h3>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">
-            Month and day only — no year needed. Used to celebrate your hedgie birthday with you.
-          </p>
-          <form onSubmit={handleSaveBirthday} className="flex gap-2 max-w-md">
-            <select
-              value={birthdayMonth}
-              onChange={(e) => {
-                setBirthdayMonth(e.target.value);
-                setBirthdayDay("");
-              }}
-              className="px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-sm"
-            >
-              <option value="">Month</option>
-              {MONTHS.map((label, i) => (
-                <option key={label} value={i + 1}>
-                  {label}
-                </option>
-              ))}
-            </select>
-            <select
-              value={birthdayDay}
-              onChange={(e) => setBirthdayDay(e.target.value)}
-              disabled={!birthdayMonth}
-              className="px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-sm disabled:opacity-50"
-            >
-              <option value="">Day</option>
-              {Array.from(
-                { length: birthdayMonth ? DAYS_IN_MONTH[Number(birthdayMonth) - 1] : 31 },
-                (_, i) => i + 1
-              ).map((d) => (
-                <option key={d} value={d}>
-                  {d}
-                </option>
-              ))}
-            </select>
+      {/* Real Name, then Display Name, then the rest, most important first. Each block is a Getting started stop. */}
+      {/* Real Name */}
+      <div data-tour="identity-basics">
+        <h3 id="identity-real-name" className="text-sm font-medium text-slate-900 dark:text-slate-100 mb-1">Real Name</h3>
+        <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">
+          Your Real Name: the one on your account and records. Not necessarily what other members see; that's your Display Name, below.
+        </p>
+        {data.nameChangeLocked ? (
+          <div className="max-w-md">
+            <p className="px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-md bg-slate-50 dark:bg-slate-800 text-sm text-slate-900 dark:text-slate-100">
+              {data.realName}
+            </p>
+            <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+              You&apos;ve already changed your name once. Email{" "}
+              <a href={`mailto:${SUPPORT_EMAIL}`} className="underline">
+                {SUPPORT_EMAIL}
+              </a>{" "}
+              if it needs to change again.
+            </p>
+          </div>
+        ) : (
+          <form onSubmit={handleSaveName} className="flex gap-2 max-w-md">
+            <input
+              type="text"
+              value={nameInput}
+              onChange={(e) => setNameInput(e.target.value)}
+              className="flex-1 px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-sm"
+              maxLength={200}
+            />
             <button
               type="submit"
-              disabled={
-                savingBirthday ||
-                (!!birthdayMonth !== !!birthdayDay) ||
-                (Number(birthdayMonth) === (data.birthdayMonth ?? 0) &&
-                  Number(birthdayDay) === (data.birthdayDay ?? 0))
-              }
+              disabled={savingName || nameInput.trim() === data.realName || !nameInput.trim()}
               className="px-4 py-2 bg-plum-600 text-white text-sm rounded-md hover:bg-plum-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {savingBirthday ? "Saving…" : "Save"}
+              {savingName ? "Saving…" : "Save"}
             </button>
           </form>
-        </div>
+        )}
+      </div>
+
+      {/* Display Name: what the community sees. */}
+      <div data-tour="identity-display-name">
+        <h3 id="identity-display-name" className="text-sm font-medium text-slate-900 dark:text-slate-100 mb-1">Display Name</h3>
+        <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">
+          The name other members see everywhere, as opposed to your Real Name, which stays on
+          your account and records. Choose your Real Name, one of your pen names below, or write your own.
+        </p>
+        <select
+          value={customDisplayName !== null ? WRITE_OWN : (data.displayName ?? "")}
+          onChange={(e) => handleDisplayNameChange(e.target.value)}
+          disabled={savingDisplayName}
+          className="w-full max-w-md px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-sm disabled:opacity-50"
+        >
+          <option value="">{data.realName} (Real Name)</option>
+          {data.nameAliases
+            .filter((a) => a.active && a.alias !== data.realName)
+            .map((a) => (
+              <option key={a.id} value={a.alias}>
+                {a.alias}
+              </option>
+            ))}
+          <option value={WRITE_OWN}>Write your own…</option>
+        </select>
+        {customDisplayName !== null && (
+          <form onSubmit={handleSaveCustomDisplayName} className="flex gap-2 max-w-md mt-2">
+            <input
+              type="text"
+              value={customDisplayName}
+              onChange={(e) => setCustomDisplayNameInput(e.target.value)}
+              placeholder="e.g. River Wilde"
+              aria-label="Your own display name"
+              className="flex-1 px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-sm"
+              maxLength={200}
+            />
+            <button
+              type="submit"
+              disabled={savingDisplayName || !customDisplayName.trim()}
+              className="px-4 py-2 bg-plum-600 text-white text-sm rounded-md hover:bg-plum-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {savingDisplayName ? "Saving…" : "Save"}
+            </button>
+          </form>
+        )}
+        <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+          A name you write here is also saved as a pen name, so it matches your Zoom and Slack attendance.
+        </p>
       </div>
 
       {/* Pen Names / Zoom & Slack aliases */}
@@ -368,7 +386,7 @@ export function IdentityPanel() {
           Other names you go by, such as a pen name or a different name in Zoom or Slack. These only match your
           attendance; they don&apos;t change the name shown in the community. Add
           one here if your attendance isn&apos;t showing up because you joined under a name other than your
-          Real Name above. Once added, you can choose one as your Display Name below.
+          Real Name above. Once added, you can choose one as your Display Name above.
         </p>
         <div className="flex flex-wrap gap-2 mb-3">
           {data.nameAliases.length === 0 && (
@@ -403,30 +421,6 @@ export function IdentityPanel() {
             {addingNameAlias ? "Adding…" : "Add"}
           </button>
         </form>
-      </div>
-
-      {/* Display Name: what the community sees. After Pen Names, since it picks from them. */}
-      <div data-tour="identity-display-name">
-        <h3 id="identity-display-name" className="text-sm font-medium text-slate-900 dark:text-slate-100 mb-1">Display Name</h3>
-        <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">
-          The name other members see everywhere, as opposed to your Real Name, which stays on
-          your account and records. Choose your Real Name or one of the pen names above.
-        </p>
-        <select
-          value={data.displayName ?? ""}
-          onChange={(e) => handleDisplayNameChange(e.target.value)}
-          disabled={savingDisplayName}
-          className="w-full max-w-md px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-sm disabled:opacity-50"
-        >
-          <option value="">{data.realName} (Real Name)</option>
-          {data.nameAliases
-            .filter((a) => a.active && a.alias !== data.realName)
-            .map((a) => (
-              <option key={a.id} value={a.alias}>
-                {a.alias}
-              </option>
-            ))}
-        </select>
       </div>
 
       {/* Email aliases */}
@@ -465,6 +459,59 @@ export function IdentityPanel() {
             className="px-4 py-2 bg-plum-600 text-white text-sm rounded-md hover:bg-plum-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {addingEmailAlias ? "Adding…" : "Add"}
+          </button>
+        </form>
+      </div>
+
+      {/* Birthday */}
+      <div data-tour="identity-birthday">
+        <h3 id="identity-birthday" className="text-sm font-medium text-slate-900 dark:text-slate-100 mb-1">Birthday</h3>
+        <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">
+          Month and day only — no year needed. Used to celebrate your hedgie birthday with you.
+        </p>
+        <form onSubmit={handleSaveBirthday} className="flex gap-2 max-w-md">
+          <select
+            value={birthdayMonth}
+            onChange={(e) => {
+              setBirthdayMonth(e.target.value);
+              setBirthdayDay("");
+            }}
+            className="px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-sm"
+          >
+            <option value="">Month</option>
+            {MONTHS.map((label, i) => (
+              <option key={label} value={i + 1}>
+                {label}
+              </option>
+            ))}
+          </select>
+          <select
+            value={birthdayDay}
+            onChange={(e) => setBirthdayDay(e.target.value)}
+            disabled={!birthdayMonth}
+            className="px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-sm disabled:opacity-50"
+          >
+            <option value="">Day</option>
+            {Array.from(
+              { length: birthdayMonth ? DAYS_IN_MONTH[Number(birthdayMonth) - 1] : 31 },
+              (_, i) => i + 1
+            ).map((d) => (
+              <option key={d} value={d}>
+                {d}
+              </option>
+            ))}
+          </select>
+          <button
+            type="submit"
+            disabled={
+              savingBirthday ||
+              (!!birthdayMonth !== !!birthdayDay) ||
+              (Number(birthdayMonth) === (data.birthdayMonth ?? 0) &&
+                Number(birthdayDay) === (data.birthdayDay ?? 0))
+            }
+            className="px-4 py-2 bg-plum-600 text-white text-sm rounded-md hover:bg-plum-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {savingBirthday ? "Saving…" : "Save"}
           </button>
         </form>
       </div>

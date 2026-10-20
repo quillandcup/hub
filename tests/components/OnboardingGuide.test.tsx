@@ -33,7 +33,7 @@ import {
 } from "@/app/actions/onboarding";
 
 const NOT_HOST = { isHost: false, hasHostingSchedule: false, hostedRecently: false, hasHostVibe: false, isNewcomer: false, introUrl: null, hasIntroduced: false, hasAttendedPrickle: false, hasUpcomingPrickle: false, hasCalendarSynced: false };
-const IDENTITY_DONE = ["identity.basics", "identity.names", "identity.display-name", "identity.emails"];
+const IDENTITY_DONE = ["identity.basics", "identity.display-name", "identity.names", "identity.emails", "identity.birthday"];
 const EVERYTHING_MARKED = [...IDENTITY_DONE, "calendar"];
 const fresh = (): OnboardingState =>
   buildOnboardingState(
@@ -79,7 +79,7 @@ describe("OnboardingGuide", () => {
   it("spotlights each stop on the step's page in turn, and the step is done after the last", async () => {
     nav.pathname = "/settings/identity";
     nav.search = "";
-    for (const id of ["identity-basics", "identity-names", "identity-display-name", "identity-emails"]) {
+    for (const id of ["identity-basics", "identity-display-name", "identity-names", "identity-emails", "identity-birthday"]) {
       const target = document.createElement("div");
       target.setAttribute("data-tour", id);
       document.body.appendChild(target);
@@ -93,30 +93,30 @@ describe("OnboardingGuide", () => {
     vi.mocked(markOnboardingStep).mockResolvedValue({ success: true });
     render(<OnboardingGuide initialState={fresh()} />);
 
-    const first = await screen.findByRole("dialog", { name: "Your name and birthday" });
-    expect(first).toHaveTextContent("Step 1 of 5 · 1 of 4");
-    expect(first).toHaveTextContent(/celebrate you/);
+    const first = await screen.findByRole("dialog", { name: "Your Real Name" });
+    expect(first).toHaveTextContent("Step 1 of 5 · 1 of 5");
+    expect(first).toHaveTextContent(/on your account and records/);
     expect(screen.getByTestId("onboarding-highlight")).toBeInTheDocument();
 
-    vi.mocked(getMyOnboardingState).mockResolvedValue(withMarked(["identity.basics"]));
-    await userEvent.click(screen.getByRole("button", { name: "Looks right" }));
-    expect(markOnboardingStep).toHaveBeenCalledWith("identity.basics");
-    const second = await screen.findByRole("dialog", { name: "Pen names and Zoom/Slack names" });
-    expect(second).toHaveTextContent("Step 1 of 5 · 2 of 4");
-
-    vi.mocked(getMyOnboardingState).mockResolvedValue(withMarked(["identity.basics", "identity.names"]));
-    await userEvent.click(screen.getByRole("button", { name: "My names look right" }));
-    expect(markOnboardingStep).toHaveBeenCalledWith("identity.names");
-    await screen.findByRole("dialog", { name: "Your Display Name" });
-
-    vi.mocked(getMyOnboardingState).mockResolvedValue(withMarked(["identity.basics", "identity.names", "identity.display-name"]));
-    await userEvent.click(screen.getByRole("button", { name: "My display name looks right" }));
-    expect(markOnboardingStep).toHaveBeenCalledWith("identity.display-name");
-    await screen.findByRole("dialog", { name: "Other email addresses" });
+    const stops = [
+      ["basics", "Looks right", "Your Display Name"],
+      ["display-name", "My display name looks right", "Pen names and Zoom/Slack names"],
+      ["names", "My names look right", "Other email addresses"],
+      ["emails", "My emails look right", "Your birthday"],
+    ];
+    const marked: string[] = [];
+    for (const [i, [key, button, next]] of stops.entries()) {
+      marked.push(`identity.${key}`);
+      vi.mocked(getMyOnboardingState).mockResolvedValue(withMarked([...marked]));
+      await userEvent.click(screen.getByRole("button", { name: button }));
+      expect(markOnboardingStep).toHaveBeenCalledWith(`identity.${key}`);
+      const dialog = await screen.findByRole("dialog", { name: next });
+      expect(dialog).toHaveTextContent(`Step 1 of 5 · ${i + 2} of 5`);
+    }
 
     vi.mocked(getMyOnboardingState).mockResolvedValue(withMarked(IDENTITY_DONE));
-    await userEvent.click(screen.getByRole("button", { name: "My emails look right" }));
-    expect(markOnboardingStep).toHaveBeenCalledWith("identity.emails");
+    await userEvent.click(screen.getByRole("button", { name: "Skip" }));
+    expect(markOnboardingStep).toHaveBeenCalledWith("identity.birthday");
     await waitFor(() => expect(screen.getByText(/1 of 5 done/)).toBeInTheDocument());
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
@@ -134,7 +134,7 @@ describe("OnboardingGuide", () => {
 
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole("link", { name: "Show me →" }));
-    expect(await screen.findByRole("dialog", { name: "Your name and birthday" })).toBeInTheDocument();
+    expect(await screen.findByRole("dialog", { name: "Your Real Name" })).toBeInTheDocument();
   });
 
   it("using the spotlit control works as normal and steps the spotlight aside", async () => {
@@ -195,7 +195,7 @@ describe("OnboardingGuide", () => {
     vi.mocked(getMyOnboardingState).mockResolvedValue(fresh());
     render(<OnboardingGuide initialState={fresh()} />);
 
-    await screen.findByRole("dialog", { name: "Your name and birthday" });
+    await screen.findByRole("dialog", { name: "Your Real Name" });
     const header = screen.getByRole("button", { name: /Getting started/ });
     expect(header).toHaveAttribute("aria-expanded", "false");
     expect(screen.queryByText("Introduce yourself")).not.toBeInTheDocument();
@@ -225,7 +225,7 @@ describe("OnboardingGuide", () => {
         { marked_steps: IDENTITY_DONE, dismissed_at: null, completed_at: null }
       );
     const addTargets = () => {
-      for (const id of ["identity-basics", "identity-names", "identity-display-name", "identity-emails"]) {
+      for (const id of ["identity-basics", "identity-display-name", "identity-names", "identity-emails", "identity-birthday"]) {
         const target = document.createElement("div");
         target.setAttribute("data-tour", id);
         document.body.appendChild(target);
@@ -245,14 +245,12 @@ describe("OnboardingGuide", () => {
       addTargets();
       rerender(<OnboardingGuide initialState={identityDone()} />);
 
-      const first = await screen.findByRole("dialog", { name: "Your name and birthday" });
-      expect(first).toHaveTextContent("1 of 4");
-      await userEvent.click(screen.getByRole("button", { name: "Next" }));
-      await screen.findByRole("dialog", { name: "Pen names and Zoom/Slack names" });
-      await userEvent.click(screen.getByRole("button", { name: "Next" }));
-      await screen.findByRole("dialog", { name: "Your Display Name" });
-      await userEvent.click(screen.getByRole("button", { name: "Next" }));
-      await screen.findByRole("dialog", { name: "Other email addresses" });
+      const first = await screen.findByRole("dialog", { name: "Your Real Name" });
+      expect(first).toHaveTextContent("1 of 5");
+      for (const next of ["Your Display Name", "Pen names and Zoom/Slack names", "Other email addresses", "Your birthday"]) {
+        await userEvent.click(screen.getByRole("button", { name: "Next" }));
+        await screen.findByRole("dialog", { name: next });
+      }
       await userEvent.click(screen.getByRole("button", { name: "Done" }));
 
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
@@ -266,7 +264,7 @@ describe("OnboardingGuide", () => {
       nav.pathname = "/settings/identity";
       addTargets();
       rerender(<OnboardingGuide initialState={identityDone()} />);
-      await screen.findByRole("dialog", { name: "Your name and birthday" });
+      await screen.findByRole("dialog", { name: "Your Real Name" });
 
       nav.pathname = "/dashboard";
       rerender(<OnboardingGuide initialState={identityDone()} />);
