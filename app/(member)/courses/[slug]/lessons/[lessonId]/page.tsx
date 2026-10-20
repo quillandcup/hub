@@ -94,7 +94,7 @@ export default async function LessonPage({ params }: { params: Promise<{ slug: s
     const tokens = video.status === "ready" && video.playbackId ? await mintTokens(video.playbackId) : null;
     player =
       tokens && video.playbackId ? (
-        <LessonPlayer title={lesson.title} playbackId={video.playbackId} tokens={tokens} />
+        <LessonPlayer title={lesson.title} playbackId={video.playbackId} tokens={tokens} posterUrl={lesson.thumbnail_url} />
       ) : (
         <p role="status" className="rounded-lg bg-slate-100 p-6 text-sm text-slate-600 dark:bg-slate-800 dark:text-slate-300">
           {video.status === "errored" ? "This video couldn't be prepared. We've been told." : "This video is still being prepared. Check back soon."}

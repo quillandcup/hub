@@ -25,7 +25,11 @@ vi.mock("@/lib/courses/member", async (importOriginal) => ({
 const signPlaybackTokens = vi.fn();
 vi.mock("@/lib/mux", () => ({ createMuxClient: () => ({}), signPlaybackTokens: (...a: unknown[]) => signPlaybackTokens(...a) }));
 vi.mock("@/app/(member)/courses/LessonPlayer", () => ({
-  default: ({ playbackId }: { playbackId: string }) => <div data-testid="player">{playbackId}</div>,
+  default: ({ playbackId, posterUrl }: { playbackId: string; posterUrl?: string | null }) => (
+    <div data-testid="player" data-poster={posterUrl ?? ""}>
+      {playbackId}
+    </div>
+  ),
 }));
 vi.mock("@/app/(member)/courses/actions", () => ({ setLessonComplete: vi.fn(async () => ({})) }));
 
@@ -431,6 +435,16 @@ describe("/courses/[slug]/lessons/[lessonId]", () => {
 
     expect(screen.getByTestId("player")).toHaveTextContent("pb-1");
     expect(signPlaybackTokens).toHaveBeenCalledWith({}, "pb-1");
+  });
+
+  it("gives the player the lesson's own thumbnail as its poster", async () => {
+    signPlaybackTokens.mockResolvedValue({ playback: "p", poster: "t", storyboard: "s" });
+    loadLessonView.mockResolvedValue(
+      ok({ video: { status: "ready", playbackId: "pb-1" }, lesson: { ...lesson(LESSON_B, "Voice", 2), thumbnail_url: "https://cdn.test/voice.jpg", body_html: null } })
+    );
+    await renderServerPage(LessonPage, params());
+
+    expect(screen.getByTestId("player")).toHaveAttribute("data-poster", "https://cdn.test/voice.jpg");
   });
 
   it("says a video is still being prepared, and mints nothing for it", async () => {
