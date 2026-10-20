@@ -29,6 +29,7 @@ function LessonRow({ slug, lesson, completed, canOpen, current, previewComingSoo
       <span className="min-w-0 flex-1">
         <span className={`block text-sm ${current ? "font-semibold" : "font-medium"}`}>{lesson.title}</span>
         {completed && <span className="sr-only"> (completed)</span>}
+        {lesson.excerpt && <span className="mt-0.5 line-clamp-2 block text-xs text-slate-500 dark:text-slate-400">{lesson.excerpt}</span>}
         {comingSoon ? (
           <span className="mt-1 inline-block rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500 dark:bg-slate-800 dark:text-slate-400">Coming soon</span>
         ) : (

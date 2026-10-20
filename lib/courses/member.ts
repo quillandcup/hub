@@ -74,7 +74,7 @@ async function loadAccessRows(supabase: SupabaseClient, memberId: string, course
 async function loadStructure(supabase: SupabaseClient, courseIds: string[]) {
   const [modules, lessons] = await Promise.all([
     fetchAll(supabase, "course_modules", "id, course_id, parent_id, title, position, state", (q) => q.in("course_id", courseIds)),
-    fetchAll(supabase, "course_lessons", "id, course_id, module_id, title, position, state, duration_seconds, thumbnail_url", (q) => q.in("course_id", courseIds)),
+    fetchAll(supabase, "course_lessons", "id, course_id, module_id, title, position, state, duration_seconds, thumbnail_url, excerpt", (q) => q.in("course_id", courseIds)),
   ]);
   return { modules, lessons };
 }
