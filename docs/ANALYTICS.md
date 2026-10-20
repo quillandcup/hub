@@ -15,6 +15,7 @@ Page-level analytics (Google Analytics, Vercel) stay as they are; this is the pr
 | Receiver (validates against the plan) | `app/api/track/events`, `lib/analytics/receive.ts` |
 | Storage, funnel and summary SQL | `analytics_events`, `analytics_funnel()`, `analytics_event_summary()` |
 | Funnels shown to admins | `lib/analytics/funnels.ts` -> `/admin/analytics` |
+| Explorer: ad-hoc funnels and breakdowns | `/admin/analytics/explore`, `lib/analytics/explore.ts`, `analytics_property_breakdown()` |
 
 `app/api/track/page-view` is separate and unchanged: it feeds the access log and its page trail (`access_events`). The new stream records `page_viewed` too, so page views and feature events share sessions.
 
@@ -22,9 +23,13 @@ Page-level analytics (Google Analytics, Vercel) stay as they are; this is the pr
 
 1. Declare it in `EVENTS` (`lib/analytics/events.ts`): `object_action` name, snake_case properties. Prefer booleans, counts and enums; use `text` only for labels the UI itself defines, never for anything a person typed or a name.
 2. Call `track("name", { ... })` where it happens (client components). `track` is typed from the plan.
-3. To see it as a funnel, add it to `FUNNELS` (`lib/analytics/funnels.ts`). `where` filters a step on property values.
+3. To see it as a funnel, add it to `FUNNELS` (`lib/analytics/funnels.ts`) for a permanent, reviewed view. `where` filters a step on property values. For one-off questions, use the explorer instead: nothing to add.
 
 No migration is needed. Before shipping a feature, write down what use would make it worth keeping and when you will look.
+
+## Exploring without code
+
+`/admin/analytics/explore` builds its pickers from the tracking plan (`describeEvents()`), so a new event and its properties show up there with no page changes. Choose the funnel's events in order, filter each step by its declared properties (booleans and enums offer their values), or pick an event and count it by the values of one property. The question lives in the URL (`lib/analytics/explore.ts`), so a view can be bookmarked or shared; a hand-edited URL is re-checked against the plan and anything it doesn't allow is ignored. Permanent funnels still go in `funnels.ts`.
 
 ## Identity and sessions
 

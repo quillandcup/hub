@@ -121,3 +121,29 @@ export function validateProperties(name: EventName, raw: unknown): PropertiesRes
   }
   return { ok: true, properties };
 }
+
+export interface PropertyDescription {
+  name: string;
+  kind: Spec["kind"];
+  /** The allowed words, for an enum. */
+  values?: readonly string[];
+  optional: boolean;
+}
+
+export interface EventDescription {
+  name: EventName;
+  properties: PropertyDescription[];
+}
+
+/** The plan as plain data, for pickers that build themselves from it (the usage explorer). */
+export function describeEvents(): EventDescription[] {
+  return (Object.keys(EVENTS) as EventName[]).map((name) => ({
+    name,
+    properties: (Object.entries(EVENTS[name]) as [string, Spec][]).map(([property, spec]) => ({
+      name: property,
+      kind: spec.kind,
+      ...(spec.kind === "enum" ? { values: spec.values } : {}),
+      optional: spec.optional === true,
+    })),
+  }));
+}
