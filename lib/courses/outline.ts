@@ -107,6 +107,24 @@ export function lessonSection(outline: Outline, lessonId: string): Outline | nul
   return { loose: [], modules: [{ ...node, children: [] }], lessons: node.lessons };
 }
 
+/**
+ * The first lesson of the next section (module or week): the first lesson after the current
+ * lesson's own module, in page order, that sits in a different module. Members only get open
+ * lessons; staff previewing pass `includeComingSoon`. Null when there is no next module (the last
+ * section, a lesson outside any module, or nothing open after it).
+ */
+export function nextModuleLesson(outline: Outline, lessonId: string, options: { includeComingSoon?: boolean } = {}): OutlineLesson | null {
+  const current = outline.lessons.find((l) => l.id === lessonId);
+  if (!current || !current.module_id) return null;
+  const moduleId = current.module_id;
+  const lastOfSection = outline.lessons.map((l) => l.module_id).lastIndexOf(moduleId);
+  return (
+    outline.lessons
+      .slice(lastOfSection + 1)
+      .find((l) => l.module_id !== moduleId && l.module_id !== null && (options.includeComingSoon || l.state === "open")) ?? null
+  );
+}
+
 export interface LessonContext {
   /** Titles of the modules the lesson sits in, outermost first ("Module 2", "Week 1"). */
   trail: string[];
