@@ -3,6 +3,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { getEffectiveIdentity } from "@/lib/sudo";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import {
+  bindSlackIdentity,
   consumeConnectStateCookie,
   exchangeSlackCode,
   isSlackConnectConfigured,
@@ -14,7 +15,7 @@ import {
  * Where Slack sends the member back after they approve (or refuse). This exact path is the redirect
  * URL registered in slack-app-manifest.yml. Checks the flow started in this browser (state cookie),
  * that the signed-in member is the one connecting (not in sudo), and that the Slack account that
- * approved is theirs, then stores the user token in Vault.
+ * approved is theirs (matched already, or bound to them now), then stores the user token in Vault.
  */
 export async function GET(request: NextRequest) {
   const back = (reason: string) => NextResponse.redirect(new URL(`/settings?slack=${reason}`, request.nextUrl.origin));
@@ -36,7 +37,8 @@ export async function GET(request: NextRequest) {
   try {
     const grant = await exchangeSlackCode(code);
     const service = createServiceRoleClient();
-    if (!(await slackUserIsMember(service, grant.slackUserId, identity.memberId, user.id))) return back("wrong_account");
+    const isMember = await slackUserIsMember(service, grant.slackUserId, identity.memberId, user.id);
+    if (!isMember && !(await bindSlackIdentity(service, grant.slackUserId, identity.memberId, user.id))) return back("wrong_account");
     await saveSlackConnection(service, identity.memberId, grant);
     return back("connected");
   } catch (error) {

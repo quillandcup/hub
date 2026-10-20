@@ -121,6 +121,22 @@ export async function slackUserIsMember(service: SupabaseClient, slackUserId: st
   return matched?.member_id === memberId || identity?.user_id === authUserId;
 }
 
+/**
+ * Bind the Slack account that just approved to the signed-in member, so "Open Hedgie Hub" works
+ * even when their Slack email isn't one of their Hub emails. Slack's OAuth shows they control that
+ * Slack account and their session shows the Hub one. Refuses a Slack account already matched to
+ * another member, or a Hub account already bound to a different Slack user (the unique keys).
+ */
+export async function bindSlackIdentity(service: SupabaseClient, slackUserId: string, memberId: string, authUserId: string): Promise<boolean> {
+  const { data: matched } = await service.from("chat_slack_authors").select("member_id").eq("slack_user_id", slackUserId).maybeSingle();
+  if (matched && matched.member_id !== memberId) return false;
+  const { error } = await service
+    .from("slack_identities")
+    .insert({ slack_user_id: slackUserId, user_id: authUserId, linked_via: "slack_connect" });
+  if (error) console.error("slack-connect: could not bind %s to user %s:", slackUserId, authUserId, error);
+  return !error;
+}
+
 export async function saveSlackConnection(service: SupabaseClient, memberId: string, grant: SlackGrant): Promise<void> {
   const { error } = await service.rpc("slack_connection_save", {
     p_member: memberId,

@@ -21,6 +21,7 @@ import {
   isSlackConnectConfigured,
   slackRedirectUri,
   slackUserIsMember,
+  bindSlackIdentity,
 } from "@/lib/slack-connect";
 
 const NOW = Date.parse("2026-10-10T12:00:00Z");
@@ -107,6 +108,36 @@ describe("slackUserIsMember", () => {
   it("refuses a Slack account matched to someone else, or to no one", async () => {
     expect(await slackUserIsMember(fakeService({ rows: { chat_slack_authors: { member_id: "other" } } }), "U1", "m1", "auth-1")).toBe(false);
     expect(await slackUserIsMember(fakeService(), "U1", "m1", "auth-1")).toBe(false);
+  });
+});
+
+describe("bindSlackIdentity", () => {
+  /** insert() resolves with `error`; reads come from `rows`. */
+  function bindService(rows: Record<string, unknown>, error: unknown = null) {
+    const insert = vi.fn(async () => ({ error }));
+    const from = (table: string) => ({
+      select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: rows[table] ?? null }) }) }),
+      insert,
+    });
+    return { service: { from } as never as import("@supabase/supabase-js").SupabaseClient, insert };
+  }
+
+  it("binds an unmatched Slack user to the signed-in account", async () => {
+    const { service, insert } = bindService({});
+    expect(await bindSlackIdentity(service, "U1", "m1", "auth-1")).toBe(true);
+    expect(insert).toHaveBeenCalledWith({ slack_user_id: "U1", user_id: "auth-1", linked_via: "slack_connect" });
+  });
+
+  it("refuses a Slack user matched to another member, without inserting", async () => {
+    const { service, insert } = bindService({ chat_slack_authors: { member_id: "other" } });
+    expect(await bindSlackIdentity(service, "U1", "m1", "auth-1")).toBe(false);
+    expect(insert).not.toHaveBeenCalled();
+  });
+
+  it("refuses when the insert conflicts (either side already bound elsewhere)", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const { service } = bindService({}, { code: "23505" });
+    expect(await bindSlackIdentity(service, "U1", "m1", "auth-1")).toBe(false);
   });
 });
 

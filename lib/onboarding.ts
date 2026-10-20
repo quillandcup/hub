@@ -260,11 +260,11 @@ function stepViews(signals: OnboardingSignals, marked: Set<string>): StepWithout
           {
         id: "slack" as const,
         title: "Connect Slack",
-        summary: "Link your Slack account in Settings so we know which Slack account is yours.",
+        summary: "Connect your Slack account.",
         href: "/settings",
         target: "slack-connect",
         calloutTitle: "Connect Slack",
-        hint: "Connect your Slack account so we match it to you for sure, and Hub chat posts as you with what you've read kept in sync. You can also use Open Hedgie Hub on Billie Bot's Home tab in Slack to sign in with one click.",
+        hint: "Connect once and Open Hedgie Hub in Slack signs you straight in, and chat posts as you.",
         confirmLabel: "I'll skip this",
         markKey: "slack",
         done: signals.slackConnect.connected || marked.has("slack"),
