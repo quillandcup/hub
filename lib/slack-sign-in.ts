@@ -379,7 +379,7 @@ export function buildSlackSignInBlocks(
     const text =
       resolution.status === "admin"
         ? `Admins sign in to Hedgie Hub by email: <${loginUrl}|go to the sign-in page>. To sign in from here instead, turn on *Slack Sign-In for Admins* in your Feature Previews.`
-        : `We couldn't match your Slack account to a Hedgie Hub account. <${loginUrl}|Sign in by email>, then connect Slack in <${new URL("/settings", origin).toString()}|Settings> once, and this button will work.`;
+        : `We couldn't match your Slack account to a Hedgie Hub account. Connect Slack in <${new URL("/settings#slack-connect-heading", origin).toString()}|Settings> once (you'll sign in first) and this button will work.`;
     return [{ type: "section", text: { type: "mrkdwn", text } }];
   }
 
