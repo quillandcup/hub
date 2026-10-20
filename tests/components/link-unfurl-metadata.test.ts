@@ -46,7 +46,8 @@ describe("link unfurl metadata", () => {
   it("resolves image URLs against the app URL and asks for a large twitter card", async () => {
     const { metadata } = await import("@/app/layout");
     expect(String(metadata.metadataBase)).toBe(`${APP_URL}/`);
-    expect(metadata.openGraph).toMatchObject({ siteName: appConfig.appName, type: "website" });
+    expect(metadata.openGraph).toMatchObject({ siteName: appConfig.appName.replace(/&/g, "and"), type: "website" })
+    expect(metadata.openGraph?.siteName).not.toContain("&");
     expect(metadata.twitter).toMatchObject({ card: "summary_large_image" });
   });
 
