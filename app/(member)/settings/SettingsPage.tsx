@@ -53,9 +53,8 @@ export default async function SettingsPage({ tab }: { tab: SettingsTabId }) {
   // and only for your own account (not while viewing as another member).
   const showSlackConnect =
     isSlackConnectConfigured() && effectiveIdentity !== null && !effectiveIdentity.isSudo && enabledFeatures.includes("chat_posting");
-  const slackConnected = showSlackConnect
-    ? (await getSlackConnectionStatus(createServiceRoleClient(), effectiveIdentity!.memberId)).connected
-    : false;
+  const slackStatus = showSlackConnect ? await getSlackConnectionStatus(createServiceRoleClient(), effectiveIdentity!.memberId) : null;
+  const slackConnected = slackStatus?.connected ?? false;
 
   // The effective identity's email, so sudo shows the member's email rather than the admin's.
   const displayEmail = effectiveIdentity?.memberEmail ?? user.email;
@@ -103,7 +102,7 @@ export default async function SettingsPage({ tab }: { tab: SettingsTabId }) {
 
                     {showSlackConnect && (
                       <div className="border-t border-slate-200 dark:border-slate-700 pt-6">
-                        <SlackConnectPanel connected={slackConnected} />
+                        <SlackConnectPanel connected={slackConnected} sharesReadState={slackStatus?.sharesReadState ?? false} />
                       </div>
                     )}
 

@@ -23,6 +23,9 @@ const realtime: { on: ReturnType<typeof vi.fn>; subscribe: ReturnType<typeof vi.
 vi.mock("@/lib/chat/live", () => ({ authenticateRealtime: vi.fn(async () => {}) }));
 vi.mock("@/lib/supabase/client", () => ({ createClient: () => ({ channel: () => realtime, removeChannel: vi.fn() }) }));
 
+const syncRead = vi.hoisted(() => vi.fn());
+vi.mock("@/app/(member)/chat/actions", () => ({ syncChatReadFromSlack: syncRead }));
+
 import ChatSidebar from "@/components/chat/ChatSidebar";
 
 const channel = (id: string, label: string, extra: Partial<ChannelSummary> = {}): ChannelSummary => ({
@@ -47,6 +50,8 @@ const CHANNELS = [
 beforeEach(() => {
   pathname = "/chat";
   subscribe.mockClear();
+  syncRead.mockReset();
+  syncRead.mockResolvedValue(null);
 });
 
 const ME = "member-me";
@@ -138,6 +143,36 @@ describe("ChatSidebar", () => {
       render(<ChatSidebar channels={CHANNELS} unread={{}} selfMemberId={null} />);
       await flush();
       expect(subscribe).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("read state shared with Slack", () => {
+    it("catches up with Slack on open and takes the fresh counts it answers with", async () => {
+      pathname = "/chat/2";
+      syncRead.mockResolvedValue({ "1": 1 });
+      render(<ChatSidebar channels={CHANNELS} unread={{ "1": 4 }} selfMemberId={ME} />);
+      await flush();
+      expect(syncRead).toHaveBeenCalledWith("2");
+      expect(screen.getByRole("link", { name: "#general, 1 unread" })).toBeInTheDocument();
+    });
+
+    it("keeps its numbers when the server had nothing to pull, and asks again when the window regains focus", async () => {
+      render(<ChatSidebar channels={CHANNELS} unread={{ "1": 4 }} selfMemberId={ME} />);
+      await flush();
+      expect(syncRead).toHaveBeenCalledWith(null);
+      expect(screen.getByRole("link", { name: "#general, 4 unread" })).toBeInTheDocument();
+
+      syncRead.mockResolvedValue({});
+      act(() => void window.dispatchEvent(new Event("focus")));
+      await flush();
+      expect(syncRead).toHaveBeenCalledTimes(2);
+      expect(screen.getByRole("link", { name: "#general" })).toBeInTheDocument();
+    });
+
+    it("does not ask in sudo", async () => {
+      render(<ChatSidebar channels={CHANNELS} unread={{}} selfMemberId={null} />);
+      await flush();
+      expect(syncRead).not.toHaveBeenCalled();
     });
   });
 });

@@ -6,6 +6,9 @@ const universalSearch = vi.fn();
 vi.mock("@/lib/search/universal", () => ({ universalSearch: (...args: unknown[]) => universalSearch(...args) }));
 const loadUnreadCounts = vi.fn();
 vi.mock("@/lib/chat/load", () => ({ loadUnreadCounts: (...args: unknown[]) => loadUnreadCounts(...args) }));
+const pullReadFromSlack = vi.fn();
+vi.mock("@/lib/chat/slack-read", () => ({ pullReadFromSlack: (...args: unknown[]) => pullReadFromSlack(...args) }));
+vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => ({ service: true }) }));
 vi.mock("@/lib/search/metrics", () => ({ recordSearchTimings: vi.fn() }));
 
 const getRankedUpcomingPrickles = vi.fn();
@@ -49,6 +52,7 @@ describe("searchSuggestions", () => {
   beforeEach(() => {
     getSearcher.mockReset();
     loadUnreadCounts.mockReset().mockResolvedValue({});
+    pullReadFromSlack.mockReset().mockResolvedValue(true);
     getRankedUpcomingPrickles.mockReset().mockResolvedValue([]);
     getMyCheckins.mockReset().mockResolvedValue({});
     getUnloggedRecentPrickles.mockReset().mockResolvedValue([]);
@@ -98,6 +102,24 @@ describe("searchSuggestions", () => {
       ["Morning Writing", "Check in", "/my-prickles/history?checkin=p1"],
       ["Sunday Sprint", "Check out", "/my-prickles/history?checkout=p9"],
     ]);
+  });
+
+  it("catches the member's read markers up with Slack before counting unread chat", async () => {
+    const order: string[] = [];
+    pullReadFromSlack.mockImplementation(async () => void order.push("pull"));
+    loadUnreadCounts.mockImplementation(async () => (order.push("count"), {}));
+    getSearcher.mockResolvedValue(searcher());
+    await searchSuggestions();
+    expect(order).toEqual(["pull", "count"]);
+    expect(pullReadFromSlack).toHaveBeenCalledWith({ service: true }, "me");
+  });
+
+  it("still counts from the Hub's own markers when the Slack pull fails", async () => {
+    pullReadFromSlack.mockRejectedValue(new Error("slack down"));
+    loadUnreadCounts.mockResolvedValue({ c1: 2 });
+    getSearcher.mockResolvedValue(searcher());
+    const { needsAttention } = await searchSuggestions();
+    expect(needsAttention.map((s) => s.title)).toEqual(["#general"]);
   });
 
   it("leaves chat out when the member doesn't have it", async () => {

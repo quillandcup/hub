@@ -53,6 +53,14 @@ oauth_config:
     user:
       - chat:write
       - reactions:write
+      # Read state shared with Slack (lib/chat/slack-read.ts): read each conversation's last_read,
+      # and move the marker when the member reads in the Hub.
+      - channels:read
+      - groups:read
+      - mpim:read
+      - channels:write
+      - groups:write
+      - mpim:write
   # Where Slack sends a member back after they approve (app/api/oauth/slack/callback).
   redirect_urls:
     - https://hub.quillandcup.com/api/oauth/slack/callback

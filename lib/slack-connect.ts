@@ -12,8 +12,25 @@ import { clock } from "@/lib/clock";
  * the slack_connection_* functions (service role only).
  */
 
-/** What the Hub asks to do as the member. More (leaving channels) comes with invite/kick. */
-export const SLACK_USER_SCOPES = ["chat:write", "reactions:write"];
+/**
+ * What the Hub asks to do as the member. Posting and reacting; and sharing read state: the *:read
+ * scopes let it see how far they have read in each conversation, the *:write ones let it move
+ * Slack's marker when they read in the Hub (conversations.mark takes the write scopes).
+ * More (leaving channels) comes with invite/kick.
+ */
+export const SLACK_USER_SCOPES = [
+  "chat:write",
+  "reactions:write",
+  "channels:read",
+  "groups:read",
+  "mpim:read",
+  "channels:write",
+  "groups:write",
+  "mpim:write",
+];
+
+/** Whether a stored connection predates read sync and needs to be reconnected to share read state. */
+export const hasReadSyncScopes = (scopes: string[]): boolean => SLACK_USER_SCOPES.every((s) => scopes.includes(s));
 
 /** Registered as a redirect URL in slack-app-manifest.yml; Slack requires an exact match. */
 export const SLACK_REDIRECT_PATH = "/api/oauth/slack/callback";
@@ -121,17 +138,24 @@ export interface SlackConnectionStatus {
   connected: boolean;
   slackUserId: string | null;
   connectedAt: string | null;
+  /** Connected with every scope read sync needs; false for a connection made before it existed. */
+  sharesReadState: boolean;
 }
 
 /** Whether the member has an active connection (the row, never the tokens). */
 export async function getSlackConnectionStatus(service: SupabaseClient, memberId: string): Promise<SlackConnectionStatus> {
   const { data } = await service
     .from("member_slack_connections")
-    .select("slack_user_id, connected_at, revoked_at")
+    .select("slack_user_id, connected_at, revoked_at, scopes")
     .eq("member_id", memberId)
     .maybeSingle();
   const connected = Boolean(data && !data.revoked_at);
-  return { connected, slackUserId: connected ? data!.slack_user_id : null, connectedAt: connected ? data!.connected_at : null };
+  return {
+    connected,
+    slackUserId: connected ? data!.slack_user_id : null,
+    connectedAt: connected ? data!.connected_at : null,
+    sharesReadState: connected && hasReadSyncScopes((data!.scopes as string[] | null) ?? []),
+  };
 }
 
 /** Refresh a rotating token when it has less than this left. */

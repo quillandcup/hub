@@ -18,9 +18,10 @@ const FLASH: Record<string, { ok: boolean; text: string }> = {
 /**
  * "Connect your Slack account" (Settings → Account, behind the chat_posting preview). Connected, the
  * Hub posts your chat messages and reactions to Slack as you; without it, messages go through
- * Billie Bot under your name and reactions stay in the Hub.
+ * Billie Bot under your name and reactions stay in the Hub. Connected with the read scopes, what you
+ * read in Hub chat and in Slack is read in both; a connection from before that asks to reconnect.
  */
-export default function SlackConnectPanel({ connected }: { connected: boolean }) {
+export default function SlackConnectPanel({ connected, sharesReadState = true }: { connected: boolean; sharesReadState?: boolean }) {
   const router = useRouter();
   const flash = FLASH[useSearchParams().get("slack") ?? ""];
   const [error, setError] = useState<string | null>(null);
@@ -39,8 +40,17 @@ export default function SlackConnectPanel({ connected }: { connected: boolean })
       {connected ? (
         <>
           <p className="text-sm text-slate-600 dark:text-slate-400">
-            Your Slack account is connected. Messages and reactions you send in Hub chat appear in Slack as you.
+            Your Slack account is connected. Messages and reactions you send in Hub chat appear in Slack as you
+            {sharesReadState ? ", and what you read in one place is marked read in the other." : "."}
           </p>
+          {!sharesReadState && (
+            <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
+              To mark conversations read in both places, reconnect Slack once so it can share how far you have read.{" "}
+              <a href="/api/oauth/slack/start" className="font-medium text-plum-700 underline dark:text-plum-400">
+                Reconnect Slack
+              </a>
+            </p>
+          )}
           <button
             type="button"
             disabled={pending}

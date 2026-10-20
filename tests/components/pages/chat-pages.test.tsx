@@ -33,6 +33,7 @@ vi.mock("@/lib/badges", async (original) => ({
 }));
 vi.mock("@/app/(member)/chat/actions", () => ({
   markChatRead: vi.fn(),
+  syncChatReadFromSlack: vi.fn(async () => null),
   loadOlderChat: vi.fn(),
   sendChatMessage: vi.fn(),
   retryChatMessage: vi.fn(),
