@@ -43,15 +43,16 @@ function NeighborCard({ slug, lesson, direction }: { slug: string; lesson: Outli
 }
 
 /**
- * Back / Next right under the video (compact, so it works on a phone; disabled at the ends), with
- * whatever goes between them (Mark complete) centered.
+ * Back / Next right under the video (compact, so it works on a phone; disabled at the ends). Where the
+ * section's lessons sit beside the video they are the way to move around, so these hide there
+ * (`hideOnWide`) and only show once that list is gone.
  */
-function StepButtons({ slug, previous, next, children }: { slug: string; previous: OutlineLesson | null; next: OutlineLesson | null; children?: React.ReactNode }) {
+function StepButtons({ slug, previous, next, hideOnWide }: { slug: string; previous: OutlineLesson | null; next: OutlineLesson | null; hideOnWide: boolean }) {
   const base = "rounded-lg px-4 py-2 text-sm font-medium";
   const enabled = "bg-plum-600 text-white hover:bg-plum-700";
   const disabled = "cursor-not-allowed bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-600";
   return (
-    <div className="mt-3 grid grid-cols-[auto_1fr_auto] items-center gap-3">
+    <div className={`mt-3 flex items-center justify-between gap-3 ${hideOnWide ? "lg:hidden" : ""}`}>
       {previous ? (
         <Link href={`/courses/${slug}/lessons/${previous.id}`} aria-label={`Back: ${previous.title}`} className={`${base} ${enabled}`}>
           ← Back
@@ -61,7 +62,6 @@ function StepButtons({ slug, previous, next, children }: { slug: string; previou
           ← Back
         </span>
       )}
-      <div className="flex justify-center">{children}</div>
       {next ? (
         <Link href={`/courses/${slug}/lessons/${next.id}`} aria-label={`Next: ${next.title}`} className={`${base} ${enabled}`}>
           Next →
@@ -147,14 +147,17 @@ export default async function LessonPage({ params }: { params: Promise<{ slug: s
           )}
 
           <div className="lg:col-start-1">
-            <StepButtons slug={view.course.slug} previous={neighbors.previous} next={neighbors.next}>
+            <StepButtons slug={view.course.slug} previous={neighbors.previous} next={neighbors.next} hideOnWide={Boolean(player && sectionList)} />
+            {/* Wide, like Kajabi's: the main action, right under the video. */}
+            <div className="mt-3">
               <MarkCompleteButton
                 lessonId={lesson.id}
                 completed={completed}
                 readOnly={caller.identity.isSudo || preview}
                 readOnlyReason={preview ? "Progress isn't tracked for lessons members can't open yet" : undefined}
+                fullWidth
               />
-            </StepButtons>
+            </div>
           </div>
 
           {/* The title and text sit below the video and its controls. */}
