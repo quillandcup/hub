@@ -83,7 +83,7 @@ export default function MemberCalendarClient({
   const [currentWeekStart, setCurrentWeekStart] = useState(() => {
     const now = new Date();
     const ws = new Date(now);
-    ws.setDate(now.getDate() - now.getDay() - 7);
+    ws.setDate(now.getDate() - now.getDay());
     ws.setHours(0, 0, 0, 0);
     return ws;
   });
