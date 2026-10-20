@@ -237,16 +237,54 @@ describe("/courses/[slug]/lessons/[lessonId]", () => {
     expect(screen.queryByRole("link", { name: /^Next/ })).not.toBeInTheDocument();
   });
 
-  it("centers Mark complete between Back and Next, in the row under the video", async () => {
-    loadLessonView.mockResolvedValue(ok());
-    await renderServerPage(LessonPage, params());
+  describe("Mark complete and Back / Next under the video", () => {
+    const withVideo = (over: Record<string, unknown> = {}) => {
+      signPlaybackTokens.mockResolvedValue({ playback: "p", poster: "t", storyboard: "s" });
+      loadLessonView.mockResolvedValue(ok({ video: { status: "ready", playbackId: "pb-1" }, ...over }));
+    };
 
-    const row = screen.getByRole("button", { name: "Mark complete" }).closest("div.grid")!;
-    const children = Array.from(row.children);
-    expect(children).toHaveLength(3);
-    expect(children[0]).toHaveTextContent("← Back");
-    expect(children[1]).toContainElement(screen.getByRole("button", { name: "Mark complete" }));
-    expect(children[2]).toHaveTextContent("Next →");
+    it("makes Mark complete the wide main action, wider than Back and Next", async () => {
+      withVideo();
+      await renderServerPage(LessonPage, params());
+
+      const complete = screen.getByRole("button", { name: "Mark complete" });
+      expect(complete).toHaveClass("w-full", "py-3");
+      const back = screen.getByRole("link", { name: "Back: Welcome" });
+      expect(back).not.toHaveClass("w-full");
+    });
+
+    it("hides Back and Next on a wide screen, where this section's lessons sit beside the video", async () => {
+      withVideo();
+      await renderServerPage(LessonPage, params());
+
+      expect(screen.getByRole("link", { name: "Back: Welcome" }).parentElement).toHaveClass("lg:hidden");
+      // Still in the page for smaller screens, where the list is hidden and they're the way to move around.
+      expect(screen.getByRole("link", { name: "Back: Welcome" })).toBeInTheDocument();
+    });
+
+    it("keeps Back and Next at every width when there is no list beside the video (a lesson outside any module)", async () => {
+      const looseOutline = buildOutline([], [lesson(LESSON_B, "Voice", 2)].map((l) => ({ ...l, module_id: null })));
+      withVideo({ view: { course, access: { kind: "open", endsAt: null }, outline: looseOutline, completed: new Set(), progress: courseProgress(looseOutline, new Set()) } });
+      await renderServerPage(LessonPage, params());
+
+      expect(screen.getByRole("link", { name: "Back: Welcome" }).parentElement).not.toHaveClass("lg:hidden");
+    });
+
+    it("keeps Back and Next when the lesson has no video (the list isn't beside a player then)", async () => {
+      loadLessonView.mockResolvedValue(ok());
+      await renderServerPage(LessonPage, params());
+
+      expect(screen.getByRole("link", { name: "Back: Welcome" }).parentElement).not.toHaveClass("lg:hidden");
+    });
+
+    it("puts Mark complete below the Back / Next row", async () => {
+      withVideo();
+      await renderServerPage(LessonPage, params());
+
+      const back = screen.getByRole("link", { name: "Back: Welcome" });
+      const complete = screen.getByRole("button", { name: "Mark complete" });
+      expect(Boolean(back.compareDocumentPosition(complete) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
+    });
   });
 
   it("links the next lesson from both the button and the card", async () => {

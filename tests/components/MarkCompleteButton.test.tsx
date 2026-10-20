@@ -39,6 +39,14 @@ describe("MarkCompleteButton", () => {
     expect(screen.getByRole("button", { name: "Mark complete" })).toBeInTheDocument();
   });
 
+  it("stretches across its column, with more padding, when asked (the lesson page's main action)", () => {
+    const { rerender } = render(<MarkCompleteButton lessonId="l1" completed={false} readOnly={false} />);
+    expect(screen.getByRole("button", { name: "Mark complete" })).not.toHaveClass("w-full");
+
+    rerender(<MarkCompleteButton lessonId="l1" completed={false} readOnly={false} fullWidth />);
+    expect(screen.getByRole("button", { name: "Mark complete" })).toHaveClass("w-full", "px-6", "py-3");
+  });
+
   it("shows the reason it was given when read-only, e.g. a staff preview", () => {
     render(<MarkCompleteButton lessonId="l1" completed={false} readOnly readOnlyReason="Not tracked in a preview" />);
     expect(screen.getByRole("button", { name: "Mark complete" })).toHaveAttribute("title", "Not tracked in a preview");
