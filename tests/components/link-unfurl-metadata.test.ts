@@ -1,6 +1,6 @@
 /**
  * Link unfurls (Slack, Facebook, LinkedIn) need an absolute og:image and a twitter card. Next builds
- * the image tags from app/opengraph-image.png and app/twitter-image.png, sized per platform.
+ * the image tags from app/opengraph-image.jpg and app/twitter-image.jpg, sized per platform.
  */
 import { describe, it, expect, vi } from "vitest";
 import fs from "node:fs";
@@ -23,9 +23,23 @@ vi.mock("@/components/AnalyticsIdentity", () => ({ AnalyticsIdentity: () => null
 vi.mock("@/components/AnalyticsEvents", () => ({ AnalyticsEvents: () => null }));
 vi.mock("@/lib/auth", () => ({ getCurrentUser: async () => null }));
 
-function pngSize(file: string): { width: number; height: number } {
+// Reads the size from the JPEG's start-of-frame marker.
+function jpegSize(file: string): { width: number; height: number } {
   const buf = fs.readFileSync(path.join(process.cwd(), "app", file));
-  return { width: buf.readUInt32BE(16), height: buf.readUInt32BE(20) };
+  let i = 2;
+  while (i < buf.length) {
+    const marker = buf[i + 1];
+    const isStartOfFrame = marker >= 0xc0 && marker <= 0xcf && marker !== 0xc4 && marker !== 0xc8 && marker !== 0xcc;
+    if (isStartOfFrame) return { height: buf.readUInt16BE(i + 5), width: buf.readUInt16BE(i + 7) };
+    i += 2 + buf.readUInt16BE(i + 2);
+  }
+  throw new Error(`no frame header in ${file}`);
+}
+
+// Slack's unfurl fetcher drops large images, so keep the photos small.
+const MAX_BYTES = 500 * 1024;
+function bytes(file: string): number {
+  return fs.statSync(path.join(process.cwd(), "app", file)).size;
 }
 
 describe("link unfurl metadata", () => {
@@ -37,10 +51,15 @@ describe("link unfurl metadata", () => {
   });
 
   it("has a 1.91:1 og:image for Facebook and LinkedIn", () => {
-    expect(pngSize("opengraph-image.png")).toEqual({ width: 1200, height: 630 });
+    expect(jpegSize("opengraph-image.jpg")).toEqual({ width: 1200, height: 630 });
   });
 
   it("has a square twitter:image for Slack's thumbnail", () => {
-    expect(pngSize("twitter-image.png")).toEqual({ width: 1200, height: 1200 });
+    expect(jpegSize("twitter-image.jpg")).toEqual({ width: 630, height: 630 });
+  });
+
+  it("keeps both images small enough for Slack to fetch", () => {
+    expect(bytes("opengraph-image.jpg")).toBeLessThan(MAX_BYTES);
+    expect(bytes("twitter-image.jpg")).toBeLessThan(MAX_BYTES);
   });
 });
