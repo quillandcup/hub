@@ -34,8 +34,8 @@ export const FEATURE_PREVIEWS: FeaturePreview[] = [
   },
   {
     key: 'message_privacy',
-    name: 'Message Privacy Page',
-    description: 'Member-facing /privacy page explaining what staff can see in Slack and Hub chat. Describes the planned chat bridge; keep off until that ships',
+    name: 'Privacy Page',
+    description: 'Member-facing /privacy page explaining what staff can see: Slack and Hub chat, how course videos are watched, and where members connect from. The chat part describes the planned chat bridge; keep off until that ships',
   },
   {
     key: 'slack_admin_sign_in',

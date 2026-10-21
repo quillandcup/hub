@@ -144,7 +144,7 @@ describe('views and play rate', () => {
     expect(stats.playRate).toBeCloseTo(0.5)
   })
 
-  it('counts a session with stretches as viewed even without a marker, so older data never reads above 100%', () => {
+  it('counts a session with stretches as viewed even without a marker, so a marker that never arrived cannot push play rate above 100%', () => {
     const stats = computeVideoWatchStats([seg('a', 0, 50), seg('b', 0, 50)], 100)
     expect(stats.views).toBe(2)
     expect(stats.playRate).toBe(1)

@@ -72,8 +72,23 @@ describe("access_events row from the proxy", () => {
       session_id: "auth-session-1",
       acting_as_member_id: null,
       user_agent: CHROME_ON_MAC,
+      ip_address: null,
+      country: null,
+      region: null,
+      city: null,
       ga_client_id: "1234567890.1700000000",
     });
+  });
+
+  it("records where the request came from: the IP and Vercel's place for it", async () => {
+    await visit("/dashboard", {
+      "x-forwarded-for": "203.0.113.7, 10.0.0.1",
+      "x-vercel-ip-country": "US",
+      "x-vercel-ip-country-region": "IN",
+      "x-vercel-ip-city": "Muncie",
+    });
+
+    expect(state.insert).toHaveBeenCalledWith(expect.objectContaining({ ip_address: "203.0.113.7", country: "US", region: "IN", city: "Muncie" }));
   });
 
   it("records nulls when the request has no user agent or GA cookie", async () => {

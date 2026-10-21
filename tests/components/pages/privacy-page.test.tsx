@@ -40,8 +40,18 @@ describe("/privacy (message_privacy flag)", () => {
     signInAs(MEMBER_USER, MEMBER_IDENTITY);
     getUserFeaturePreviews.mockResolvedValue(["message_privacy"]);
     await renderServerPage(PrivacyPage, {});
-    expect(screen.getByRole("heading", { name: "Message Privacy" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "Privacy" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Break-glass access" })).toBeInTheDocument();
     expect(screen.getByText(/^Direct messages and group DMs in the Hub/)).toBeInTheDocument();
+  });
+
+  it("says how course videos are watched and what is recorded about where a visit came from", async () => {
+    signInAs(MEMBER_USER, MEMBER_IDENTITY);
+    getUserFeaturePreviews.mockResolvedValue(["message_privacy"]);
+    await renderServerPage(PrivacyPage, {});
+    expect(screen.getByRole("heading", { name: "Course videos" })).toBeInTheDocument();
+    expect(screen.getByText(/we record where you stopped/)).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Where you connect from" })).toBeInTheDocument();
+    expect(screen.getByText(/we record the IP address your connection comes from/)).toBeInTheDocument();
   });
 });

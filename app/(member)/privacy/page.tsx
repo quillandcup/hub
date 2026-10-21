@@ -4,12 +4,14 @@ import { getCurrentUser } from "@/lib/auth";
 import { getUserFeaturePreviews } from "@/lib/features.server";
 
 export const metadata: Metadata = {
-  title: "Message Privacy",
+  title: "Privacy",
 };
 
 /**
- * What staff can and can't see in Slack and Hub chat.
+ * What staff can and can't see: Slack and Hub chat, how course videos are watched, and where
+ * members connect from.
  *
+ * The chat sections:
  * Behind the `message_privacy` flag because it describes the Slack-bridged chat design, not
  * today's app: the content/metadata split, per-channel "restricted" flag, break-glass access
  * with its audit log, and soft-deleted messages are not built yet. Every statement here must be
@@ -25,9 +27,10 @@ export default async function PrivacyPage() {
 
   return (
     <div className="container mx-auto px-6 py-6 max-w-3xl">
-      <h1 className="text-2xl font-bold mb-1">Message Privacy</h1>
+      <h1 className="text-2xl font-bold mb-1">Privacy</h1>
       <p className="text-sm text-slate-600 dark:text-slate-400 mb-8">
-        What Quill &amp; Cup staff can and can&apos;t see when you talk with other hedgies in Slack or in the Hub.
+        What Quill &amp; Cup staff can and can&apos;t see: when you talk with other hedgies in Slack or in the Hub, how you
+        watch course videos, and where you connect from.
       </p>
 
       <Section title="Content vs. activity">
@@ -71,6 +74,24 @@ export default async function PrivacyPage() {
           restricted channel or direct message. Doing so requires recording a reason, is limited to that one
           conversation for a limited time, and is permanently recorded in an audit log that staff review. You
           won&apos;t receive an automatic notification when this happens.
+        </p>
+      </Section>
+
+      <Section title="Course videos">
+        <p>
+          When you watch a lesson video, we record where you stopped (so it can pick up there next time), which parts you
+          watched, how fast, whether captions were on, whether the tab was in view, and the device and browser you used.
+          Staff can see this by name for each visit, to learn which lessons work and where people drop off. The video
+          itself is streamed from our video provider, Mux. This is removed if your account is removed.
+        </p>
+      </Section>
+
+      <Section title="Where you connect from">
+        <p>
+          Each time you use the Hub, we record the IP address your connection comes from and the city, region and country
+          it appears to be in, along with the page you opened and your browser. Staff can see it. We use it to understand
+          where our community writes from, and to know which device and place a visit came from. These locations are
+          approximate (a VPN or a mobile carrier can make them wrong). This is removed if your account is removed.
         </p>
       </Section>
 
