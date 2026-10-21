@@ -32,7 +32,7 @@ import {
   markOnboardingStep,
 } from "@/app/actions/onboarding";
 
-const NOT_HOST = { isHost: false, hasHostingSchedule: false, hostedRecently: false, hasHostVibe: false, isNewcomer: false, introUrl: null, hasIntroduced: false, hasAttendedPrickle: false, hasUpcomingPrickle: false, hasCalendarSynced: false };
+const NOT_HOST = { isHost: false, hasHostingSchedule: false, hostedRecently: false, hasHostVibe: false, isNewcomer: false, introUrl: null, hasIntroduced: false, hasAttendedPrickle: false, hasUpcomingPrickle: false, hasCalendarSynced: false, hasBirthday: false };
 const IDENTITY_DONE = ["identity.basics", "identity.display-name", "identity.names", "identity.emails", "identity.birthday"];
 const EVERYTHING_MARKED = [...IDENTITY_DONE, "calendar"];
 const fresh = (): OnboardingState =>
@@ -115,7 +115,7 @@ describe("OnboardingGuide", () => {
     }
 
     vi.mocked(getMyOnboardingState).mockResolvedValue(withMarked(IDENTITY_DONE));
-    await userEvent.click(screen.getByRole("button", { name: "Skip" }));
+    await userEvent.click(screen.getByRole("button", { name: "I'll skip this" }));
     expect(markOnboardingStep).toHaveBeenCalledWith("identity.birthday");
     await waitFor(() => expect(screen.getByText(/1 of 5 done/)).toBeInTheDocument());
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
