@@ -146,8 +146,10 @@ describe("/admin/courses/[id]/stats/[lessonId]", () => {
     // 1000s played in all; member a replayed 100s of what they had already watched, and b's overlap with a is another person, not a rewatch.
     expect(tile("Rewatched")).toHaveTextContent("1:40");
     expect(screen.getByText("of 16:40 played")).toBeInTheDocument();
-    expect(screen.getAllByRole("img", { name: /Engagement over the 10:00 video/ })).toHaveLength(2);
-    // One table view under the engagement chart, one under the over-time chart.
+    // One panel: the frames and the three counts together, not a heatmap and a separate chart.
+    expect(screen.getAllByRole("img", { name: /Engagement over the 10:00 video/ })).toHaveLength(1);
+    expect(screen.queryByRole("heading", { name: "Heatmap" })).not.toBeInTheDocument();
+    // One table view under the engagement panel, one under the over-time chart.
     expect(screen.getAllByText("Table view")).toHaveLength(2);
     expect(screen.getByText("1.5x")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "View lesson" })).toHaveAttribute("href", `/courses/the-ready-writer/lessons/${L1}`);
@@ -166,8 +168,9 @@ describe("/admin/courses/[id]/stats/[lessonId]", () => {
   it("draws the heatmap over the video's frames, signing one still per slice at its middle moment", async () => {
     await renderServerPage(LessonWatchStatsPage, lessonProps());
 
-    expect(screen.getByRole("heading", { name: "Heatmap" })).toBeInTheDocument();
-    expect(screen.getByRole("img", { name: /drawn over its frames/ })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Engagement" })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: /times watched, plays and people by moment, drawn over its frames/ })).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "Show video frames" })).toBeChecked();
     const [, playbackId, times] = signThumbnailTokens.mock.calls[0];
     expect(playbackId).toBe("pb-1");
     expect(times).toHaveLength(stats.buckets.length);
@@ -175,7 +178,7 @@ describe("/admin/courses/[id]/stats/[lessonId]", () => {
     expect(times[times.length - 1]).toBeCloseTo(597);
   });
 
-  it("keeps the heatmap, on a plain backdrop, when the stills can't be signed or the video has no playback id", async () => {
+  it("keeps the engagement chart, on a plain panel, when the stills can't be signed or the video has no playback id", async () => {
     signThumbnailTokens.mockRejectedValue(new Error("Mux is down"));
     const log = vi.spyOn(console, "error").mockImplementation(() => {});
     await renderServerPage(LessonWatchStatsPage, lessonProps());
@@ -194,10 +197,11 @@ describe("/admin/courses/[id]/stats/[lessonId]", () => {
 
     // Total plays is per visit; rewinding inside one is still one play.
     expect(screen.getByText(/rewinding or replaying within one visit is still one play/)).toBeInTheDocument();
-    // The engagement graph says it is not the play count.
-    expect(screen.getByText(/How many times each moment of the 10:00 video was watched, counting every rewind or replay/)).toBeInTheDocument();
-    expect(screen.getByText(/This isn't the play count: a play is one visit in which the video was played, however often it was rewound/)).toBeInTheDocument();
+    // The engagement panel names its three counts and how they nest.
     expect(screen.getByText("Times watched, rewatches included")).toBeInTheDocument();
+    expect(screen.getByText("Plays (visits)")).toBeInTheDocument();
+    expect(screen.getByText("People, each counted once")).toBeInTheDocument();
+    expect(screen.getByText(/each stricter than the last/)).toBeInTheDocument();
   });
 
   it("shows the play rate: the share of visits where the video was played", async () => {
