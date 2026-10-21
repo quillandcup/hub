@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { safeUrl } from "@/lib/url";
-import { formatDuration, type Outline, type OutlineLesson, type OutlineNode } from "@/lib/courses/outline";
+import { formatDuration, unreleasedLabel, type Outline, type OutlineLesson, type OutlineNode } from "@/lib/courses/outline";
 
 interface Props {
   slug: string;
@@ -8,14 +8,15 @@ interface Props {
   completed: Set<string>;
   /** Lessons are links only when the member can open them (access not ended). */
   canOpen: boolean;
-  /** Staff: "Coming soon" lessons open too, as a preview. */
+  /** Staff: "Coming soon" lessons and drafts open too, as a preview. */
   previewComingSoon?: boolean;
   currentLessonId?: string;
 }
 
 function LessonRow({ slug, lesson, completed, canOpen, current, previewComingSoon }: { slug: string; lesson: OutlineLesson; completed: boolean; canOpen: boolean; current: boolean; previewComingSoon?: boolean }) {
   const duration = formatDuration(lesson.duration_seconds);
-  const comingSoon = lesson.state === "coming_soon";
+  // Not released yet: "Coming soon", or (only staff ever get these) a Kajabi draft.
+  const comingSoon = lesson.state !== "open";
   const thumbnail = safeUrl(lesson.thumbnail_url);
   const content = (
     <>
@@ -31,7 +32,7 @@ function LessonRow({ slug, lesson, completed, canOpen, current, previewComingSoo
         {completed && <span className="sr-only"> (completed)</span>}
         {lesson.excerpt && <span className="mt-0.5 line-clamp-2 block text-xs text-slate-500 dark:text-slate-400">{lesson.excerpt}</span>}
         {comingSoon ? (
-          <span className="mt-1 inline-block rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500 dark:bg-slate-800 dark:text-slate-400">Coming soon</span>
+          <span className="mt-1 inline-block rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500 dark:bg-slate-800 dark:text-slate-400">{unreleasedLabel(lesson.state)}</span>
         ) : (
           duration && <span className="mt-1 block text-xs text-slate-500 dark:text-slate-400">{duration}</span>
         )}
@@ -65,14 +66,14 @@ function LessonRow({ slug, lesson, completed, canOpen, current, previewComingSoo
 }
 
 function ModuleNode({ node, depth, ...rest }: { node: OutlineNode; depth: number } & Omit<Props, "outline">) {
-  const comingSoon = node.module.state === "coming_soon";
+  const comingSoon = node.module.state !== "open";
   const Heading = depth === 0 ? "h2" : "h3";
   const body = (
     <>
       <Heading className={`flex items-center gap-2 ${depth === 0 ? "text-lg font-semibold" : "text-base font-semibold"}`}>
         {node.module.title}
         {comingSoon && (
-          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-normal text-slate-500 dark:bg-slate-800 dark:text-slate-400">Coming soon</span>
+          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-normal text-slate-500 dark:bg-slate-800 dark:text-slate-400">{unreleasedLabel(node.module.state)}</span>
         )}
       </Heading>
       <ul className="mt-2 space-y-1">

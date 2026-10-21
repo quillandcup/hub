@@ -72,10 +72,17 @@ async function loadAccessRows(supabase: SupabaseClient, memberId: string, course
   return new Map((data ?? []).map((r) => [r.course_id as string, r as AccessRowLike]));
 }
 
-async function loadStructure(supabase: SupabaseClient, courseIds: string[]) {
+/**
+ * The modules and lessons of courses. Hidden ones (Kajabi drafts) are left out unless `includeHidden`,
+ * which only staff acting as themselves pass: a member's outline must never contain a draft, not even
+ * its title. This is the one place the member pages read the structure, so it is the one place that decides.
+ */
+async function loadStructure(supabase: SupabaseClient, courseIds: string[], includeHidden = false) {
   const [modules, lessons] = await Promise.all([
-    fetchAll(supabase, "course_modules", "id, course_id, parent_id, title, position, state", (q) => q.in("course_id", courseIds)),
-    fetchAll(supabase, "course_lessons", "id, course_id, module_id, title, position, state, duration_seconds, thumbnail_url, excerpt", (q) => q.in("course_id", courseIds)),
+    fetchAll(supabase, "course_modules", "id, course_id, parent_id, title, position, state", (q) => (includeHidden ? q : q.neq("state", "hidden")).in("course_id", courseIds)),
+    fetchAll(supabase, "course_lessons", "id, course_id, module_id, title, position, state, duration_seconds, thumbnail_url, excerpt", (q) =>
+      (includeHidden ? q : q.neq("state", "hidden")).in("course_id", courseIds)
+    ),
   ]);
   return { modules, lessons };
 }
@@ -125,7 +132,7 @@ export async function loadCourseList(supabase: SupabaseClient, scope: MemberScop
   if (courseIds.length === 0) return [];
 
   const courses: CourseRow[] = await fetchAll(supabase, "courses", "id, slug, title, description, thumbnail_url", (q) => q.in("id", courseIds));
-  const { modules, lessons } = await loadStructure(supabase, courseIds);
+  const { modules, lessons } = await loadStructure(supabase, courseIds, scope.isAdminActing);
   const completed = await loadCompleted(supabase, scope.memberId, lessons.map((l) => l.id));
 
   return courses
@@ -161,7 +168,7 @@ export async function loadCourseView(supabase: SupabaseClient, slug: string, sco
   // Nothing of the course is shown before it's theirs to open: no access, or not started yet.
   if (access.kind === "none" || access.kind === "upcoming") return { course, access, outline: null, completed: new Set(), progress: null };
 
-  const { modules, lessons } = await loadStructure(supabase, [course.id]);
+  const { modules, lessons } = await loadStructure(supabase, [course.id], scope.isAdminActing);
   const outline = buildOutline(modules as OutlineModule[], lessons as OutlineLesson[]);
   const completed = await loadCompleted(supabase, scope.memberId, outline.lessons.map((l) => l.id));
   return { course, access, outline, completed, progress: courseProgress(outline, completed) };
@@ -175,7 +182,7 @@ export interface LessonView {
   video: { id: string; status: string; playbackId: string | null } | null;
   /** Seconds to start the video at: where the member left off, 0 when there is nothing worth resuming. */
   resumeSeconds: number;
-  /** Staff previewing a lesson members can't open yet ("Coming soon"). Progress isn't tracked for it. */
+  /** Staff previewing a lesson members can't open yet ("Coming soon" or a draft). Progress isn't tracked for it unless staff turn recording on. */
   preview: boolean;
   /** The lesson's downloads, in order. They're served through the download route, never by path. */
   files: LessonFileView[];

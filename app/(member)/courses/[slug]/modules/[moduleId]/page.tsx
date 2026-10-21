@@ -99,7 +99,7 @@ export default async function ModulePage({ params }: { params: Promise<{ slug: s
   const found = moduleView(view.outline, moduleId);
   if (!found) notFound();
   const { node, trail } = found;
-  const preview = node.module.state === "coming_soon";
+  const preview = node.module.state !== "open";
   // Members can't see a module that isn't released; staff previewing can.
   if (preview && !caller.scope.isAdminActing) redirect(`/courses/${slug}`);
 
@@ -108,7 +108,13 @@ export default async function ModulePage({ params }: { params: Promise<{ slug: s
 
   return (
     <>
-      {preview && <PageBanner>Preview: members can&apos;t see this module until it&apos;s published in Kajabi.</PageBanner>}
+      {preview && (
+        <PageBanner>
+          {node.module.state === "hidden"
+            ? "Draft: this module is a draft in Kajabi, so members can't see it at all."
+            : "Preview: members can't see this module until it's published in Kajabi."}
+        </PageBanner>
+      )}
       <div className="mx-auto w-full max-w-4xl px-6 py-6">
         <nav aria-label="Breadcrumb" className="text-sm text-slate-500 dark:text-slate-400">
           <ol className="flex flex-wrap items-center gap-x-2 gap-y-1">

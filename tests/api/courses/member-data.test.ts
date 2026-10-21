@@ -159,6 +159,36 @@ describe('Course member data', () => {
       expect(without.kind === 'ok' && without.files).toEqual([])
     })
 
+    it('keeps a draft out of a member\'s outline and lessons, title included, and lets staff open it as a preview', async () => {
+      const { data: sibling } = await supabase.from('course_lessons').select('module_id').eq('id', ids.lessonA).single()
+      const { data: draft, error } = await supabase
+        .from('course_lessons')
+        .insert({ course_id: ids.course, module_id: sibling!.module_id, title: 'Secret draft', position: 9, state: 'hidden', body_html: '<p>not for members</p>', source_key: `${SLUG}-draft` })
+        .select('id')
+        .single()
+      expect(error).toBeNull()
+      try {
+        // A member: not in the outline, not openable, not counted (and "not found", not "coming soon", so even the title isn't confirmed).
+        const asMember = await loadCourseView(supabase, SLUG, scope('current'))
+        expect(asMember!.outline!.lessons.map((l) => l.title)).not.toContain('Secret draft')
+        expect((await loadLessonView(supabase, SLUG, draft!.id, scope('current'))).kind).toBe('not_found')
+        const memberList = await loadCourseList(supabase, scope('current'))
+        expect(memberList.find((c) => c.course.slug === SLUG)!.progress.available).toBe(asMember!.progress!.available)
+
+        // Staff acting as themselves: in the outline as hidden, openable as a preview, but not counted as available.
+        const asStaff = await loadCourseView(supabase, SLUG, scope('staff', true))
+        expect(asStaff!.outline!.lessons.find((l) => l.title === 'Secret draft')).toMatchObject({ state: 'hidden' })
+        expect(asStaff!.progress!.available).toBe(asMember!.progress!.available)
+        const opened = await loadLessonView(supabase, SLUG, draft!.id, scope('staff', true))
+        expect(opened.kind).toBe('ok')
+        if (opened.kind !== 'ok') return
+        expect(opened.preview).toBe(true)
+        expect(opened.lesson).toMatchObject({ title: 'Secret draft', state: 'hidden', body_html: '<p>not for members</p>' })
+      } finally {
+        await supabase.from('course_lessons').delete().eq('id', draft!.id)
+      }
+    })
+
     it('does not open a coming-soon lesson for a member, or for staff in sudo', async () => {
       expect((await loadLessonView(supabase, SLUG, ids.lessonSoon, scope('current'))).kind).toBe('coming_soon')
       expect((await loadLessonView(supabase, SLUG, ids.lessonSoon, scope('staff', false))).kind).toBe('no_access')

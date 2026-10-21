@@ -11,6 +11,7 @@ const ts = Date.now()
 const COURSE = `test-cm-${ts}`
 const SLUG = `cm-course-${ts}`
 const MEDIA = `${COURSE}-media`
+const MEDIA_DRAFT = `${COURSE}-media-draft`
 
 const mux = vi.hoisted(() => ({ created: 0, ready: false }))
 vi.mock('@/lib/mux', () => ({
@@ -35,7 +36,7 @@ describe('/api/process/course-media', () => {
 
   async function cleanup() {
     await supabase.from('courses').delete().eq('source_key', COURSE)
-    await supabase.from('videos').delete().eq('source_key', MEDIA)
+    await supabase.from('videos').delete().in('source_key', [MEDIA, MEDIA_DRAFT])
     await bronze.from('kajabi_course_lessons').delete().eq('course_kajabi_id', COURSE)
     await bronze.from('kajabi_courses').delete().eq('kajabi_id', COURSE)
   }
@@ -52,6 +53,17 @@ describe('/api/process/course-media', () => {
     })
     await cleanup()
     await bronze.from('kajabi_courses').insert({ kajabi_id: COURSE, title: `CM Course ${ts}`, raw_payload: { attributes: { title: `CM Course ${ts}` } } })
+    // A draft lesson with a video of its own: stored as hidden for staff previews, never uploaded by the normal upload.
+    await bronze.from('kajabi_course_lessons').insert({
+      kajabi_id: `${COURSE}-draft`,
+      course_kajabi_id: COURSE,
+      position: 2,
+      title: 'Draft L',
+      publishing_option: 'draft',
+      video_media_id: MEDIA_DRAFT,
+      video_duration_seconds: 120,
+      video_source: { download_url: 'https://kajabi.test/draft-video?sig=1', download_url_expires_at: new Date(Date.now() + 5 * 86_400_000).toISOString() },
+    })
     await bronze.from('kajabi_course_lessons').insert({
       kajabi_id: `${COURSE}-l`,
       course_kajabi_id: COURSE,
@@ -107,13 +119,44 @@ describe('/api/process/course-media', () => {
     const video = (await supabase.from('videos').select('id, status, mux_asset_id').eq('source_key', MEDIA).single()).data!
     expect(video).toMatchObject({ status: 'preparing', mux_asset_id: 'asset-1' })
     const course = (await supabase.from('courses').select('id').eq('source_key', COURSE).single()).data!
-    const lesson = (await supabase.from('course_lessons').select('video_id').eq('course_id', course.id).single()).data!
+    const lesson = (await supabase.from('course_lessons').select('video_id').eq('course_id', course.id).eq('source_key', `${COURSE}-l`).single()).data!
     expect(lesson.video_id).toBe(video.id)
 
     const again = await (await post({ course: SLUG, action: 'upload' })).json()
     expect(again.upload.uploaded).toEqual([])
     expect(again.upload.alreadyInMux).toBe(1)
     expect(mux.created).toBe(1)
+  })
+
+  it('uploads a draft lesson\'s video only when asked for drafts, and links it for the staff preview', async () => {
+    const draftVideo = async () => (await supabase.from('videos').select('id, mux_asset_id').eq('source_key', MEDIA_DRAFT).maybeSingle()).data
+    const course = (await supabase.from('courses').select('id').eq('source_key', COURSE).single()).data!
+    const draftLesson = async () =>
+      (await supabase.from('course_lessons').select('state, video_id').eq('course_id', course.id).eq('source_key', `${COURSE}-draft`).single()).data!
+
+    // The normal upload (run above, and again here) never touches it: drafts are stored as hidden, with no video.
+    await post({ course: SLUG, action: 'upload' })
+    expect(await draftVideo()).toBeNull()
+    expect(await draftLesson()).toMatchObject({ state: 'hidden', video_id: null })
+
+    const response = await post({ course: SLUG, action: 'upload_drafts' })
+    expect(response.status).toBe(200)
+    const body = await response.json()
+    // Only the draft's video: the visible lesson's is already in Mux and isn't this action's business.
+    expect(body.upload.uploaded).toHaveLength(1)
+    expect(body.upload.uploaded[0].mediaId).toBe(MEDIA_DRAFT)
+    expect(body.upload.alreadyInMux).toBe(0)
+
+    const video = await draftVideo()
+    expect(video).toMatchObject({ mux_asset_id: expect.stringMatching(/^asset-/) })
+    expect(await draftLesson()).toMatchObject({ state: 'hidden', video_id: video!.id })
+
+    // Repeating it uploads nothing more.
+    const created = mux.created
+    const again = await (await post({ course: SLUG, action: 'upload_drafts' })).json()
+    expect(again.upload.uploaded).toEqual([])
+    expect(again.upload.alreadyInMux).toBe(1)
+    expect(mux.created).toBe(created)
   })
 
   it('"refresh" only brings statuses up to date', async () => {

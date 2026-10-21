@@ -29,14 +29,15 @@ function StateBadge({ state }: { state: Visibility }) {
 
 type Content = Record<string, { hasText: boolean; hasVideo: boolean }>;
 
-/** Where a lesson opens in the Hub: the course slug and the Hub lesson ids, when it's published and the lesson isn't hidden. */
+/** Where a lesson opens in the Hub: the course slug and the Hub lesson ids, when the course is published (drafts are stored too, for staff to preview). */
 interface HubLinks {
   slug: string | null;
   lessonIds: Record<string, string>;
 }
 
 function LessonRow({ lesson, content, hub }: { lesson: ExplainedLesson; content?: Content[string]; hub: HubLinks }) {
-  const hubId = hub.slug && lesson.state !== "hidden" ? hub.lessonIds[lesson.kajabiId] : undefined;
+  // Drafts are in the Hub too (stored as hidden), so staff can preview them; members never see them.
+  const hubId = hub.slug ? hub.lessonIds[lesson.kajabiId] : undefined;
   return (
     <li className="flex flex-wrap items-center gap-x-3 gap-y-1 py-1.5 text-sm">
       <StateBadge state={lesson.state} />
@@ -49,7 +50,7 @@ function LessonRow({ lesson, content, hub }: { lesson: ExplainedLesson; content?
       )}
       {hubId && (
         <Link href={`/courses/${hub.slug}/lessons/${hubId}`} className="text-xs text-plum-700 underline dark:text-plum-300">
-          {lesson.state === "coming_soon" ? "Preview" : "View"}
+          {lesson.state === "open" ? "View" : "Preview"}
         </Link>
       )}
     </li>
@@ -131,7 +132,7 @@ export default async function AdminCoursePage({ params }: { params: Promise<{ id
         <h2 className="text-lg font-semibold">Lessons</h2>
         <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
           {explained.totals.open} open, {explained.totals.coming_soon} coming soon, {explained.totals.hidden} hidden. A lesson is open only when it, its
-          week, and every module above it are Published in Kajabi. Locked shows as coming soon; Draft is hidden. Change them in Kajabi, then sync. Coming-soon lessons open for you as a preview.
+          week, and every module above it are Published in Kajabi. Locked shows as coming soon; Draft is hidden from members. Change them in Kajabi, then sync. Coming-soon lessons and drafts open for you as a preview, and members never see drafts.
         </p>
 
         {explained.loose.length > 0 && (
