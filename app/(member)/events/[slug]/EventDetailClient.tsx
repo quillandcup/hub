@@ -116,7 +116,7 @@ export default function EventDetailClient({
           <p className="text-slate-500">No photos yet.</p>
         ) : (
           <div className="@container">
-            <div className="grid grid-cols-2 @xl:grid-cols-4 gap-2">
+            <div className="grid grid-cols-2 @pair:grid-cols-4 gap-2">
             {photos.map((photo, i) => (
               <button data-track="event-open-photo" key={photo.id} onClick={() => setLightboxIndex(i)} className="aspect-square">
                 {/* eslint-disable-next-line @next/next/no-img-element -- served via the private event-photos proxy route */}

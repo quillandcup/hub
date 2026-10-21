@@ -123,7 +123,7 @@ export default async function LessonWatchStatsPage({
       ) : (
         <>
           <div className="@container">
-            <div className="mt-6 grid gap-4 @xl:grid-cols-2 @4xl:grid-cols-3">
+            <div className="mt-6 grid gap-4 @pair:grid-cols-2 @columns:grid-cols-3">
             <Tile
               label="Engagement"
               value={percent(stats.engagementRate)}
@@ -175,7 +175,7 @@ export default async function LessonWatchStatsPage({
           <div className="mt-6 rounded-lg bg-white p-6 shadow dark:bg-slate-900">
             <h2 className="text-lg font-semibold">How it was watched</h2>
             <div className="@container">
-              <dl className="mt-3 grid gap-x-8 gap-y-3 text-sm @xl:grid-cols-2">
+              <dl className="mt-3 grid gap-x-8 gap-y-3 text-sm @pair:grid-cols-2">
               <div>
                 <dt className="text-slate-500 dark:text-slate-400">Playback speed (share of time played)</dt>
                 <dd className="mt-1">

@@ -402,7 +402,7 @@ describe("/courses/[slug]/lessons/[lessonId]", () => {
       withVideo();
       await renderServerPage(LessonPage, params());
 
-      expect(screen.getByRole("link", { name: "Back: Welcome" }).parentElement).toHaveClass("@[62rem]:hidden");
+      expect(screen.getByRole("link", { name: "Back: Welcome" }).parentElement).toHaveClass("@outline:hidden");
       // Still in the page for smaller screens, where the list is hidden and they're the way to move around.
       expect(screen.getByRole("link", { name: "Back: Welcome" })).toBeInTheDocument();
     });
@@ -412,14 +412,14 @@ describe("/courses/[slug]/lessons/[lessonId]", () => {
       withVideo({ view: { course, access: { kind: "open", endsAt: null }, outline: looseOutline, completed: new Set(), progress: courseProgress(looseOutline, new Set()) } });
       await renderServerPage(LessonPage, params());
 
-      expect(screen.getByRole("link", { name: "Back: Welcome" }).parentElement).not.toHaveClass("@[62rem]:hidden");
+      expect(screen.getByRole("link", { name: "Back: Welcome" }).parentElement).not.toHaveClass("@outline:hidden");
     });
 
     it("keeps Back and Next when the lesson has no video (the list isn't beside a player then)", async () => {
       loadLessonView.mockResolvedValue(ok());
       await renderServerPage(LessonPage, params());
 
-      expect(screen.getByRole("link", { name: "Back: Welcome" }).parentElement).not.toHaveClass("@[62rem]:hidden");
+      expect(screen.getByRole("link", { name: "Back: Welcome" }).parentElement).not.toHaveClass("@outline:hidden");
     });
 
     it("puts Mark complete below the Back / Next row", async () => {
@@ -454,7 +454,7 @@ describe("/courses/[slug]/lessons/[lessonId]", () => {
 
       const section = sectionList();
       const aside = section.closest("aside")!;
-      expect(aside).toHaveClass("relative", "hidden", "@[62rem]:block");
+      expect(aside).toHaveClass("relative", "hidden", "@outline:block");
       expect(aside.parentElement).toContainElement(screen.getByTestId("player")); // the player and the list share one container
     });
 
@@ -464,7 +464,7 @@ describe("/courses/[slug]/lessons/[lessonId]", () => {
 
       const details = screen.getByText("Lessons in this section", { selector: "summary span" }).closest("details")!;
       expect(details).not.toHaveAttribute("open");
-      expect(details).toHaveClass("@[62rem]:hidden");
+      expect(details).toHaveClass("@outline:hidden");
       expect(within(details).getByRole("navigation", { name: "Lessons in this section" })).toBeInTheDocument();
     });
 
@@ -472,7 +472,7 @@ describe("/courses/[slug]/lessons/[lessonId]", () => {
       loadLessonView.mockResolvedValue(ok({ video: null }));
       await renderServerPage(LessonPage, params());
 
-      expect(screen.getByText("Lessons in this section", { selector: "summary span" }).closest("details")).toHaveClass("@[62rem]:hidden");
+      expect(screen.getByText("Lessons in this section", { selector: "summary span" }).closest("details")).toHaveClass("@outline:hidden");
     });
 
     it("lists the module's lessons with number, check or marker, aligned thumbnail and title, and nothing from other modules", async () => {
@@ -502,7 +502,7 @@ describe("/courses/[slug]/lessons/[lessonId]", () => {
       await renderServerPage(LessonPage, params());
 
       const section = sectionList();
-      expect(section.closest("div.hidden")).toHaveClass("@[62rem]:block");
+      expect(section.closest("div.hidden")).toHaveClass("@outline:block");
     });
   });
 
@@ -573,7 +573,7 @@ describe("/courses/[slug]/lessons/[lessonId]", () => {
     await renderServerPage(LessonPage, params());
 
     const card = screen.getByRole("region", { name: "Downloads" });
-    expect(card.parentElement).toHaveClass("@[62rem]:col-start-2", "@[62rem]:row-start-3");
+    expect(card.parentElement).toHaveClass("@outline:col-start-2", "@outline:row-start-3");
     expect(within(card).getByRole("link", { name: /Tracker_Sheet\.pdf/ })).toHaveAttribute("href", `/courses/the-ready-writer/lessons/${LESSON_B}/files/f1`);
     const text = screen.getByRole("heading", { level: 1, name: "Voice" });
     expect(Boolean(text.compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true); // after the text in reading order

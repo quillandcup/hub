@@ -205,7 +205,7 @@ export default async function SlackEngagementPage({
       </div>
 
       <div className="@container">
-        <div className="grid grid-cols-2 @2xl:grid-cols-4 gap-4 mb-8">
+        <div className="grid grid-cols-2 @cards:grid-cols-4 gap-4 mb-8">
         <StatCard
           emoji="💬"
           value={hero.totalMessages.toLocaleString()}
@@ -231,7 +231,7 @@ export default async function SlackEngagementPage({
       </div>
 
       <div className="@container">
-        <div className="grid grid-cols-2 @2xl:grid-cols-4 gap-4 mb-8">
+        <div className="grid grid-cols-2 @cards:grid-cols-4 gap-4 mb-8">
         <StatCard emoji="📅" value={hero.busiestDay} label="busiest day (ET)" />
         <StatCard emoji="🕐" value={formatHour(hero.busiestHour)} label="busiest hour (ET)" />
         <StatCard

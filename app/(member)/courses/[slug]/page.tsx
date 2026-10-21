@@ -85,7 +85,7 @@ export default async function CoursePage({ params }: { params: Promise<{ slug: s
       </header>
 
       <div className="@container">
-      <div className="container mx-auto grid max-w-5xl gap-6 px-6 py-8 @3xl:grid-cols-[1fr_18rem]">
+      <div className="container mx-auto grid max-w-5xl gap-6 px-6 py-8 @split:grid-cols-[1fr_18rem]">
         <div>
           {access.kind === "ended" && (
             <p role="status" className="mb-4 rounded-lg bg-slate-100 p-4 text-sm text-slate-700 dark:bg-slate-800 dark:text-slate-200">
@@ -95,8 +95,8 @@ export default async function CoursePage({ params }: { params: Promise<{ slug: s
           <CourseOutline slug={course.slug} outline={outline} completed={completed} canOpen={canOpen} previewComingSoon={caller.scope.isAdminActing} />
         </div>
 
-        <aside className="order-first @3xl:order-none">
-          <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm @3xl:sticky @3xl:top-6 dark:border-slate-800 dark:bg-slate-900">
+        <aside className="order-first @split:order-none">
+          <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm @split:sticky @split:top-6 dark:border-slate-800 dark:bg-slate-900">
             {thumbnail && (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={thumbnail} alt="" className="block w-full" />

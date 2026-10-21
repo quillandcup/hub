@@ -165,7 +165,7 @@ function EventGrid({ heading, events, empty }: { heading: string; events: EventR
         <p className="text-sm text-slate-500">{empty}</p>
       ) : (
         <div className="@container">
-          <div className="grid grid-cols-1 @xl:grid-cols-2 @4xl:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 @pair:grid-cols-2 @columns:grid-cols-3 gap-4">
           {events.map((event) => (
             <EventCard key={event.id} event={event} />
           ))}

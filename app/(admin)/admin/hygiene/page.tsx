@@ -593,7 +593,7 @@ export default async function DataHygienePage() {
             Is data flowing in from Calendar/Zoom/Slack/Kajabi and getting processed on schedule?
           </p>
           <div className="@container">
-            <div className="grid grid-cols-1 @2xl:grid-cols-2 @4xl:grid-cols-3 gap-6 mb-6">
+            <div className="grid grid-cols-1 @cards:grid-cols-2 @columns:grid-cols-3 gap-6 mb-6">
             {/* Calendar Events */}
             <Link
               href="/admin/hygiene/unmatched-events"
@@ -743,7 +743,7 @@ export default async function DataHygienePage() {
             above.
           </p>
           <div className="@container">
-            <div className="grid grid-cols-1 @2xl:grid-cols-2 @4xl:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 @cards:grid-cols-2 @columns:grid-cols-4 gap-6">
             {/* Slack Users */}
             <Link
               href="/admin/hygiene/unmatched-slack"
@@ -873,7 +873,7 @@ export default async function DataHygienePage() {
             Does the same person have more than one record — in this app, or in an external system?
           </p>
           <div className="@container">
-            <div className="grid grid-cols-1 @2xl:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 @cards:grid-cols-2 gap-6">
             {/* Merge & Fix */}
             <Link
               href="/admin/hygiene/merge-fix"
@@ -944,7 +944,7 @@ export default async function DataHygienePage() {
             Is a real, matched member missing a field this app relies on?
           </p>
           <div className="@container">
-            <div className="grid grid-cols-1 @2xl:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 @cards:grid-cols-2 gap-6">
             {/* Missing Member Data */}
             <Link
               href="/admin/hygiene/missing-member-data"

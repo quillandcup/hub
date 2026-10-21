@@ -93,7 +93,7 @@ export default function SidePanel({
       ref={panel}
       aria-label={title}
       style={{ "--chat-panel-width": `${width}px` } as React.CSSProperties}
-      className="flex h-full min-h-0 shrink-0 flex-col border-l border-slate-200 bg-canvas dark:border-slate-800 dark:bg-slate-950 absolute inset-0 z-20 @3xl:relative @3xl:inset-auto @3xl:z-auto @3xl:w-[var(--chat-panel-width)] @3xl:min-w-[20rem] @3xl:max-w-[60%]"
+      className="flex h-full min-h-0 shrink-0 flex-col border-l border-slate-200 bg-canvas dark:border-slate-800 dark:bg-slate-950 absolute inset-0 z-20 @split:relative @split:inset-auto @split:z-auto @split:w-[var(--chat-panel-width)] @split:min-w-[20rem] @split:max-w-[60%]"
     >
       <div
         role="separator"
@@ -126,7 +126,7 @@ export default function SidePanel({
           drag.current = null;
           setDragging(false);
         }}
-        className={`absolute inset-y-0 -left-1 z-10 w-2 cursor-col-resize touch-none transition-colors hover:bg-plum-300/60 focus-visible:bg-plum-400/70 focus-visible:outline-none hidden @3xl:block ${
+        className={`absolute inset-y-0 -left-1 z-10 w-2 cursor-col-resize touch-none transition-colors hover:bg-plum-300/60 focus-visible:bg-plum-400/70 focus-visible:outline-none hidden @split:block ${
           dragging ? "bg-plum-400/70" : ""
         }`}
       />

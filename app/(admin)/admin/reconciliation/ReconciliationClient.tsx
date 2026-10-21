@@ -321,7 +321,7 @@ export default function ReconciliationClient() {
 
       {/* Summary Cards */}
       <div className="@container">
-        <div className="grid grid-cols-2 @2xl:grid-cols-3 @4xl:grid-cols-7 gap-4 mb-6">
+        <div className="grid grid-cols-2 @cards:grid-cols-3 @columns:grid-cols-7 gap-4 mb-6">
         <div className="p-4 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded">
           <div className="text-2xl font-bold dark:text-white">{data.summary.total_members}</div>
           <div className="text-sm text-gray-600 dark:text-gray-400">Total Members</div>

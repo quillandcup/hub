@@ -172,7 +172,7 @@ export default function MemberDetails({
       {activeTab === "overview" && (
         <div className="space-y-6">
           <div className="@container">
-            <div className="grid grid-cols-1 @2xl:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 @cards:grid-cols-2 gap-6">
             <SummaryCard
               title="Attendance"
               onViewAll={() => setActiveTab("attendance")}
@@ -307,7 +307,7 @@ function SummaryCard({
         </button>
       </div>
       <div className="@container">
-        <div className="grid grid-cols-2 @xl:grid-cols-4 gap-4">{children}</div>
+        <div className="grid grid-cols-2 @pair:grid-cols-4 gap-4">{children}</div>
       </div>
     </div>
   );

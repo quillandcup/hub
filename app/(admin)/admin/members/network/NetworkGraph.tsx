@@ -261,9 +261,9 @@ export default function NetworkGraph({ nodes: initialNodes, edges }: NetworkGrap
       </div>
 
       <div className="@container">
-        <div className="grid grid-cols-1 @4xl:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 @columns:grid-cols-3 gap-6">
         {/* Graph */}
-        <div className="@4xl:col-span-2 bg-white dark:bg-slate-900 rounded-lg shadow p-4">
+        <div className="@columns:col-span-2 bg-white dark:bg-slate-900 rounded-lg shadow p-4">
           <svg
             ref={canvasRef}
             width={width}

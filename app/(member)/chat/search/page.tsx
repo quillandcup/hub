@@ -104,7 +104,7 @@ export default async function ChatSearchPage({
           chatSearched
         />
       )}
-      <Link href="/chat" data-track="chat-search-back" className="mb-2 inline-block text-sm text-plum-600 hover:underline @3xl:hidden dark:text-plum-400">
+      <Link href="/chat" data-track="chat-search-back" className="mb-2 inline-block text-sm text-plum-600 hover:underline @split:hidden dark:text-plum-400">
         ← Channels
       </Link>
       <h1 className="text-2xl font-bold mb-3">Search messages</h1>
@@ -124,7 +124,7 @@ export default async function ChatSearchPage({
           </button>
         </div>
         <div className="@container">
-          <div className="grid gap-3 @xl:grid-cols-4 text-sm">
+          <div className="grid gap-3 @pair:grid-cols-4 text-sm">
           <label className="block">
             <span className="block text-xs text-slate-500 mb-0.5">Channel</span>
             <select data-track="chat-search-channel-filter" name="channel" defaultValue={isUuid(channelParam) ? channelParam : ""} className={inputClass}>

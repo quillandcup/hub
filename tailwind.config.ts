@@ -68,6 +68,19 @@ export default {
         beige: "#c19d85",
         brown: { DEFAULT: "#8e583d", deep: "#482815" },
       },
+      // Container-query sizes (`@container` wrapper, `@split:grid-cols-2` on children; see "Responsive
+      // Layout" in CLAUDE.md). Name the layout change, not the width, and use these everywhere so pages
+      // reflow at the same widths. `outline` is derived from the app shell: the sidebar appears at `lg`
+      // (1024px) and takes 16rem, so no content width reachable below ~1296px of window gets to 62rem,
+      // and a side column keyed to it appears once as the window widens (a smaller size would reappear
+      // after the sidebar's arrival narrows the content area by 16rem).
+      containers: {
+        pair: "36rem", // a second column of cards or fields fits beside the first
+        cards: "42rem", // two columns of panels
+        split: "48rem", // list or side panel beside the main pane
+        columns: "56rem", // three or more columns; a side column next to the main content
+        outline: "62rem", // video with its outline beside it
+      },
       fontFamily: {
         // Brand serif. Silver South (the licensed brand font) isn't web-licensed here yet, so
         // this is its Google Fonts stand-in, Playfair Display, loaded in app/layout.tsx.

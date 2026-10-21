@@ -134,7 +134,7 @@ export default function ActivityFilters(props: ActivityFiltersProps) {
 
       {props.variant !== "member" && (
       <div className="@container">
-        <div className="grid gap-3 @xl:grid-cols-2 max-w-2xl">
+        <div className="grid gap-3 @pair:grid-cols-2 max-w-2xl">
         <label className="block text-sm text-slate-600 dark:text-slate-400">
           <span className="block mb-1">Member</span>
           <MemberSearch

@@ -441,7 +441,7 @@ export default async function NetworkPage() {
           </div>
 
           <div className="@container">
-            <div className="grid gap-4 mt-6 @xl:grid-cols-2 @4xl:grid-cols-3">
+            <div className="grid gap-4 mt-6 @pair:grid-cols-2 @columns:grid-cols-3">
             {!hasPostedInSlack && (
               <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 p-6">
                 <div className="text-2xl mb-2" aria-hidden>
