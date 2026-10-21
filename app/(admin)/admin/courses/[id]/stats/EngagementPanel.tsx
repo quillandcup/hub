@@ -7,13 +7,10 @@ import { formatClock } from "@/lib/courses/watch-stats";
 const STILL_BASE = "https://image.mux.com";
 
 const W = 720;
-const MARGIN = { left: 44, right: 84, bottom: 34 };
+const MARGIN = { left: 44, right: 84, top: 12, bottom: 34 };
 const PLOT_W = W - MARGIN.left - MARGIN.right;
-/** With frames the box is 16:9 and the chart sits in its lower part, leaving the frame clear above; without, a shorter dark panel. */
-const GEOMETRY = {
-  frames: { height: 405, top: 196 },
-  plain: { height: 270, top: 16 },
-};
+/** The plot is 16:9 when it shows the frames (so a frame fits it exactly, uncropped) and shorter without. */
+const PLOT_H = { frames: Math.round((PLOT_W * 9) / 16), plain: 200 };
 
 const plays1 = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
 
@@ -96,10 +93,10 @@ export default function EngagementPanel({
 
   if (n === 0) return <p className="text-sm text-slate-500 dark:text-slate-400">Nobody has watched this video yet.</p>;
 
-  const geometry = framesOn ? GEOMETRY.frames : GEOMETRY.plain;
-  const H = geometry.height;
-  const plotTop = geometry.top;
-  const plotH = H - plotTop - MARGIN.bottom;
+  const plotH = framesOn ? PLOT_H.frames : PLOT_H.plain;
+  const plotTop = MARGIN.top;
+  const H = plotTop + plotH + MARGIN.bottom;
+  const pct = (value: number, of: number) => `${(value / of) * 100}%`;
   const top = niceMax(Math.max(...buckets.map((b) => b.timesWatched)));
   const x = (i: number) => MARGIN.left + (n === 1 ? PLOT_W / 2 : (i / (n - 1)) * PLOT_W);
   const y = (v: number) => plotTop + plotH - (v / top) * plotH;
@@ -174,17 +171,23 @@ export default function EngagementPanel({
         style={{ aspectRatio: `${W} / ${H}` }}
         className="relative w-full touch-none overflow-hidden rounded-lg bg-slate-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-plum-500"
       >
-        {framesOn && shown && stillUrl && (
-          // eslint-disable-next-line @next/next/no-img-element -- a signed, per-moment Mux still; next/image can't carry the token
-          <img src={shown} alt="" className="absolute inset-0 h-full w-full object-cover" draggable={false} />
-        )}
-        {showFrames && !canShowFrames && <p className="absolute left-3 top-3 text-xs text-slate-300">Frame previews aren&apos;t available for this video.</p>}
-        {framesOn && <div className="pointer-events-none absolute inset-x-0 bottom-0 h-[62%] bg-gradient-to-t from-slate-950/90 via-slate-950/70 to-transparent" />}
+        {/* The frame lives only inside the plot, so the axes and labels around it sit on a solid background and stay readable. */}
+        <div
+          className="pointer-events-none absolute overflow-hidden rounded-sm bg-slate-800"
+          style={{ left: pct(MARGIN.left, W), top: pct(plotTop, H), width: pct(PLOT_W, W), height: pct(plotH, H) }}
+        >
+          {framesOn && shown && stillUrl && (
+            // eslint-disable-next-line @next/next/no-img-element -- a signed, per-moment Mux still; next/image can't carry the token
+            <img src={shown} alt="" className="absolute inset-0 h-full w-full object-cover" draggable={false} />
+          )}
+          {framesOn && <div className="absolute inset-0 bg-slate-950/60" />}
+          {showFrames && !canShowFrames && <p className="absolute left-3 top-3 text-xs text-slate-300">Frame previews aren&apos;t available for this video.</p>}
+        </div>
 
         <svg viewBox={`0 0 ${W} ${H}`} className="pointer-events-none absolute inset-0 h-full w-full" aria-hidden="true">
           {yTicks.map((t) => (
             <g key={t}>
-              <line x1={MARGIN.left} x2={W - MARGIN.right} y1={y(t)} y2={y(t)} strokeWidth="1" className="stroke-white/20" />
+              <line x1={MARGIN.left} x2={W - MARGIN.right} y1={y(t)} y2={y(t)} strokeWidth="1" className="stroke-white/25" />
               <text x={MARGIN.left - 6} y={y(t)} textAnchor="end" dominantBaseline="middle" className="fill-slate-200 text-[11px]">
                 {plays1(t)}
               </text>
@@ -196,7 +199,7 @@ export default function EngagementPanel({
             </text>
           ))}
 
-          <path d={area} className="fill-plum-400/35" />
+          <path d={area} className="fill-plum-400/60" />
           {SERIES.map((s) => (
             <path key={s.key} d={line(s.key)} fill="none" strokeWidth={s.width} strokeDasharray={s.dash} strokeLinejoin="round" className={s.stroke} />
           ))}
@@ -209,7 +212,7 @@ export default function EngagementPanel({
 
           {hovered && active !== null && (
             <g>
-              <line x1={x(active)} x2={x(active)} y1={0} y2={baseline} strokeWidth="1" className="stroke-white/80" />
+              <line x1={x(active)} x2={x(active)} y1={plotTop} y2={baseline} strokeWidth="1" className="stroke-white/80" />
               {SERIES.map((s) => (
                 <circle key={s.key} cx={x(active)} cy={y(hovered[s.key])} r="3.5" strokeWidth="1.5" className={`fill-slate-900 ${s.stroke}`} />
               ))}
@@ -220,8 +223,8 @@ export default function EngagementPanel({
         {hovered && active !== null && (
           <div
             role="status"
-            className="pointer-events-none absolute top-2 w-52 rounded-md bg-slate-900/90 p-2 text-xs text-white shadow"
-            style={tooltipOnRight ? { left: `${(x(active) / W) * 100 + 1.5}%` } : { right: `${100 - (x(active) / W) * 100 + 1.5}%` }}
+            className="pointer-events-none absolute w-52 rounded-md bg-slate-900/90 p-2 text-xs text-white shadow ring-1 ring-white/15"
+            style={{ top: `calc(${pct(plotTop, H)} + 8px)`, ...(tooltipOnRight ? { left: `${(x(active) / W) * 100 + 1.5}%` } : { right: `${100 - (x(active) / W) * 100 + 1.5}%` }) }}
           >
             <p className="text-slate-300">
               {formatClock(hovered.start)} to {formatClock(hovered.end)}

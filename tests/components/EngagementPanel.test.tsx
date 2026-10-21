@@ -173,6 +173,20 @@ describe("EngagementPanel", () => {
     expect(screen.getByRole("status")).toHaveTextContent("100% of plays watched this");
   });
 
+  it("keeps the frame inside the plot, so the axes and labels around it sit on a solid background", async () => {
+    const { container } = render(ui());
+    await act(async () => {});
+    const img = container.querySelector("img")!;
+    // The frame's box is the plot: an inset rectangle that clips it, not the whole panel.
+    const plotBox = img.parentElement as HTMLElement;
+    expect(plotBox).toHaveClass("overflow-hidden");
+    expect(plotBox.style.left).not.toBe("0%");
+    expect(plotBox.style.width).not.toBe("100%");
+    // The panel itself has no image or scrim of its own.
+    expect(img.closest("[role=img]")!.querySelectorAll("img")).toHaveLength(1);
+    expect(plotBox.querySelector(".bg-slate-950\\/60")).toBeInTheDocument();
+  });
+
   it("labels the three lines at their right-hand ends, kept apart where they finish together", () => {
     render(ui());
     const labels = [...screen.getByRole("img").querySelectorAll("svg text")].map((t) => t.textContent).filter((t) => ["Watched", "Plays", "People"].includes(t ?? ""));
