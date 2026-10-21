@@ -1,4 +1,4 @@
-import { isEventName, validateProperties } from "@/lib/analytics/events";
+import { SERVER_ONLY_EVENTS, isEventName, validateProperties } from "@/lib/analytics/events";
 import { templateRoute } from "@/lib/analytics/route";
 
 export const MAX_EVENTS_PER_REQUEST = 50;
@@ -45,6 +45,7 @@ export function parseBatch(
     const e = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
     const fail = (reason: string) => rejected.push({ index, reason });
     if (!isEventName(e.event)) return fail("unknown event");
+    if (SERVER_ONLY_EVENTS.has(e.event)) return fail("server-only event");
     if (typeof e.messageId !== "string" || !UUID.test(e.messageId)) return fail("bad messageId");
     if (typeof e.sessionId !== "string" || !UUID.test(e.sessionId)) return fail("bad sessionId");
     const at = typeof e.timestamp === "string" ? Date.parse(e.timestamp) : NaN;

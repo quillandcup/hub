@@ -9,6 +9,7 @@ import { createKajabiClient } from "@/lib/kajabi/client";
 import { revalidatePath } from "next/cache";
 import { SUPPORT_EMAIL } from "@/lib/config";
 
+import { withAction } from "@/lib/analytics/server";
 export interface NameAliasRow {
   id: string;
   alias: string;
@@ -117,7 +118,7 @@ export async function getIdentitySettings(): Promise<IdentitySettings | { error:
   };
 }
 
-export async function updateRealName(name: string): Promise<{ success: true } | { error: string }> {
+async function updateRealNameImpl(name: string): Promise<{ success: true } | { error: string }> {
   const ctx = await requireIdentity();
   if ("error" in ctx) return ctx;
   const { supabase, effectiveIdentity } = ctx;
@@ -165,7 +166,7 @@ export async function updateRealName(name: string): Promise<{ success: true } | 
   return { success: true };
 }
 
-export async function setDisplayName(alias: string | null): Promise<{ success: true } | { error: string }> {
+async function setDisplayNameImpl(alias: string | null): Promise<{ success: true } | { error: string }> {
   const ctx = await requireIdentity();
   if ("error" in ctx) return ctx;
   const { supabase, effectiveIdentity } = ctx;
@@ -198,7 +199,7 @@ export async function setDisplayName(alias: string | null): Promise<{ success: t
  * Display name typed by hand: makes sure it's one of the member's active pen names (adding or
  * reactivating it), then chooses it. Typing the Real Name just clears the display name.
  */
-export async function setCustomDisplayName(name: string): Promise<{ success: true } | { error: string }> {
+async function setCustomDisplayNameImpl(name: string): Promise<{ success: true } | { error: string }> {
   const ctx = await requireIdentity();
   if ("error" in ctx) return ctx;
   const { supabase, effectiveIdentity } = ctx;
@@ -212,7 +213,7 @@ export async function setCustomDisplayName(name: string): Promise<{ success: tru
     .select("name")
     .eq("id", effectiveIdentity.memberId)
     .single();
-  if (trimmed === (member?.name ?? effectiveIdentity.memberName)) return setDisplayName(null);
+  if (trimmed === (member?.name ?? effectiveIdentity.memberName)) return setDisplayNameImpl(null);
 
   const { data: existing } = await supabase
     .from("member_name_aliases")
@@ -222,19 +223,19 @@ export async function setCustomDisplayName(name: string): Promise<{ success: tru
     .maybeSingle();
 
   if (!existing) {
-    const added = await addNameAlias(trimmed);
+    const added = await addNameAliasImpl(trimmed);
     if ("error" in added) return added;
   } else if (!existing.active) {
     const reactivated = await setNameAliasActive(existing.id, true);
     if ("error" in reactivated) return reactivated;
   }
 
-  return setDisplayName(trimmed);
+  return setDisplayNameImpl(trimmed);
 }
 
 const DAYS_IN_MONTH = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
 
-export async function updateBirthday(
+async function updateBirthdayImpl(
   month: number | null,
   day: number | null
 ): Promise<{ success: true } | { error: string }> {
@@ -267,7 +268,7 @@ export async function updateBirthday(
   return { success: true };
 }
 
-export async function addNameAlias(alias: string): Promise<{ success: true } | { error: string }> {
+async function addNameAliasImpl(alias: string): Promise<{ success: true } | { error: string }> {
   const ctx = await requireIdentity();
   if ("error" in ctx) return ctx;
   const { supabase, effectiveIdentity } = ctx;
@@ -336,7 +337,7 @@ export async function setNameAliasActive(
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-export async function addEmailAlias(email: string): Promise<{ success: true } | { error: string }> {
+async function addEmailAliasImpl(email: string): Promise<{ success: true } | { error: string }> {
   const ctx = await requireIdentity();
   if ("error" in ctx) return ctx;
   const { supabase, effectiveIdentity } = ctx;
@@ -394,4 +395,30 @@ export async function setEmailAliasActive(
 
   revalidatePath("/settings", "layout");
   return { success: true };
+}
+
+// Usage analytics: each action records whether it worked (lib/analytics/server.ts).
+export async function updateRealName(...args: Parameters<typeof updateRealNameImpl>): ReturnType<typeof updateRealNameImpl> {
+  return withAction("real_name_changed", () => updateRealNameImpl(...args));
+}
+
+export async function setCustomDisplayName(...args: Parameters<typeof setCustomDisplayNameImpl>): ReturnType<typeof setCustomDisplayNameImpl> {
+  return withAction("display_name_changed", () => setCustomDisplayNameImpl(...args));
+}
+
+export async function updateBirthday(...args: Parameters<typeof updateBirthdayImpl>): ReturnType<typeof updateBirthdayImpl> {
+  return withAction("birthday_saved", () => updateBirthdayImpl(...args));
+}
+
+export async function addEmailAlias(...args: Parameters<typeof addEmailAliasImpl>): ReturnType<typeof addEmailAliasImpl> {
+  return withAction("email_alias_added", () => addEmailAliasImpl(...args));
+}
+
+// Usage analytics: each action records whether it worked (lib/analytics/server.ts).
+export async function setDisplayName(...args: Parameters<typeof setDisplayNameImpl>): ReturnType<typeof setDisplayNameImpl> {
+  return withAction("display_name_changed", () => setDisplayNameImpl(...args));
+}
+
+export async function addNameAlias(...args: Parameters<typeof addNameAliasImpl>): ReturnType<typeof addNameAliasImpl> {
+  return withAction("name_alias_added", () => addNameAliasImpl(...args));
 }

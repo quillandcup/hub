@@ -20,6 +20,7 @@ import {
   type NotificationKindId,
 } from "@/lib/notifications/registry";
 
+import { withAction } from "@/lib/analytics/server";
 export interface NotificationSettings {
   /**
    * Channels this member can use, as switches: "Browser" only with browser_notifications (and the VAPID keys set).
@@ -78,7 +79,7 @@ export async function getNotificationSettings(): Promise<NotificationSettings | 
  * today's default, so it sticks if the default changes. Refused in sudo (RLS also keeps writes
  * owner-only).
  */
-export async function setNotificationChannel(
+async function setNotificationChannelImpl(
   kind: string,
   channel: string,
   enabled: boolean
@@ -123,7 +124,7 @@ function validSubscription(input: PushSubscriptionInput): boolean {
  * asking. Subscribing the same browser again reuses its row and revives it if it had been removed;
  * a browser that moved to another member's account moves with it.
  */
-export async function savePushSubscription(
+async function savePushSubscriptionImpl(
   subscription: PushSubscriptionInput,
   userAgent: string | null
 ): Promise<{ success: true; memberId: string } | { error: string }> {
@@ -160,7 +161,7 @@ export async function savePushSubscription(
 }
 
 /** Stop sending Browser notifications to this device (soft delete; only the member's own subscription). */
-export async function removePushSubscription(endpoint: string): Promise<{ success: true } | { error: string }> {
+async function removePushSubscriptionImpl(endpoint: string): Promise<{ success: true } | { error: string }> {
   const user = await getCurrentUser();
   if (!user) return { error: "Not authenticated" };
   const identity = await getEffectiveIdentity(user);
@@ -298,4 +299,17 @@ export async function sendTestPushNotification(): Promise<{ success: true } | { 
     return { error: `Couldn't send the test: ${reason}. Try turning notifications off and on again for this device.` };
   }
   return { success: true };
+}
+
+// Usage analytics: each action records whether it worked (lib/analytics/server.ts).
+export async function setNotificationChannel(...args: Parameters<typeof setNotificationChannelImpl>): ReturnType<typeof setNotificationChannelImpl> {
+  return withAction("notification_setting_changed", () => setNotificationChannelImpl(...args));
+}
+
+export async function savePushSubscription(...args: Parameters<typeof savePushSubscriptionImpl>): ReturnType<typeof savePushSubscriptionImpl> {
+  return withAction("push_enabled", () => savePushSubscriptionImpl(...args));
+}
+
+export async function removePushSubscription(...args: Parameters<typeof removePushSubscriptionImpl>): ReturnType<typeof removePushSubscriptionImpl> {
+  return withAction("push_disabled", () => removePushSubscriptionImpl(...args));
 }

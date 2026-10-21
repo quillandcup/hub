@@ -30,6 +30,23 @@ interface ControlRateRow {
   first_seen: string;
 }
 
+interface ActionRow {
+  action: string;
+  attempts: number;
+  succeeded: number;
+  failed: number;
+  members: number;
+}
+
+interface NotificationRow {
+  kind: string;
+  channel: string;
+  sent: number;
+  sent_members: number;
+  opened: number;
+  opened_members: number;
+}
+
 interface TopClickRow {
   label: string;
   element: string | null;
@@ -66,17 +83,21 @@ export default async function FeatureUsagePage({ searchParams }: { searchParams:
   const since = new Date(Date.now() - days * DAY_MS).toISOString();
 
   const supabase = await createClient();
-  const [summary, topClicks, controlRates, ...funnels] = await Promise.all([
+  const [summary, topClicks, controlRates, actionOutcomes, notificationRates, ...funnels] = await Promise.all([
     supabase.rpc("analytics_event_summary", { since, ...audienceArgs }),
     supabase.rpc("analytics_top_clicks", { since, route_prefix: routePrefix, hide_admin: !showAdmin, ...audienceArgs }),
     supabase.rpc("analytics_control_rates", { since, route_prefix: routePrefix, hide_admin: !showAdmin, ...audienceArgs }),
+    supabase.rpc("analytics_action_outcomes", { since, ...audienceArgs }),
+    supabase.rpc("analytics_notification_rates", { since, ...audienceArgs }),
     ...FUNNELS.map((f) => supabase.rpc("analytics_funnel", { steps: f.steps.map((s) => s.event), since, filters: f.steps.map((s) => s.where ?? {}), ...audienceArgs })),
   ]);
   const oldEnough = Date.now() - minAgeDays * DAY_MS;
   const allControls = (controlRates.data ?? []) as ControlRateRow[];
   const judged = allControls.filter((c) => c.seen_sessions >= minVisits && Date.parse(c.first_seen) <= oldEnough);
   const held = allControls.length - judged.length;
-  const error = summary.error ?? topClicks.error ?? controlRates.error ?? funnels.find((f) => f.error)?.error;
+  const actions = (actionOutcomes.data ?? []) as ActionRow[];
+  const notifications = (notificationRates.data ?? []) as NotificationRow[];
+  const error = summary.error ?? topClicks.error ?? controlRates.error ?? actionOutcomes.error ?? notificationRates.error ?? funnels.find((f) => f.error)?.error;
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-8">
@@ -266,6 +287,90 @@ export default async function FeatureUsagePage({ searchParams }: { searchParams:
             {held} {held === 1 ? "control is" : "controls are"} held back: seen by fewer than {minVisits} visits, or first seen less than {minAgeDays} days ago.
           </p>
         )}
+      </section>
+
+      <section>
+        <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Actions: did they work?</h2>
+        <p className="text-sm text-slate-600 dark:text-slate-400">
+          What members tried to do and whether it worked, recorded by the server when an action finishes (not clicks). A low success rate means
+          people hit an error, not that they didn&apos;t try.
+        </p>
+        <div className="mt-3 overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-700">
+          <table className="w-full text-sm">
+            <thead className="bg-slate-50 dark:bg-slate-800 text-left text-slate-600 dark:text-slate-400">
+              <tr>
+                <th className="px-3 py-2">Action</th>
+                <th className="px-3 py-2 text-right">Tried</th>
+                <th className="px-3 py-2 text-right">Worked</th>
+                <th className="px-3 py-2 text-right">Failed</th>
+                <th className="px-3 py-2 text-right">Success rate</th>
+                <th className="px-3 py-2 text-right">Members</th>
+              </tr>
+            </thead>
+            <tbody>
+              {actions.map((row) => (
+                <tr key={row.action} className="border-t border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200">
+                  <td className="px-3 py-2 font-mono text-xs">{row.action}</td>
+                  <td className="px-3 py-2 text-right">{row.attempts}</td>
+                  <td className="px-3 py-2 text-right">{row.succeeded}</td>
+                  <td className="px-3 py-2 text-right">{row.failed}</td>
+                  <td className={`px-3 py-2 text-right font-medium ${row.failed > 0 && row.succeeded / row.attempts < 0.9 ? "text-red-600 dark:text-red-400" : ""}`}>
+                    {formatRate(row.succeeded, row.attempts)}
+                  </td>
+                  <td className="px-3 py-2 text-right">{row.members}</td>
+                </tr>
+              ))}
+              {actions.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="px-3 py-6 text-center text-slate-500">
+                    No actions recorded in this window.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section>
+        <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Notifications: sent and opened</h2>
+        <p className="text-sm text-slate-600 dark:text-slate-400">
+          For each kind and channel, how many were sent and how many were opened: a click on an in-app notification, or a visit that arrived through
+          a link in a Slack message, email or push. Opens in this window can belong to sends just before it, so read short windows with care.
+        </p>
+        <div className="mt-3 overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-700">
+          <table className="w-full text-sm">
+            <thead className="bg-slate-50 dark:bg-slate-800 text-left text-slate-600 dark:text-slate-400">
+              <tr>
+                <th className="px-3 py-2">Notification</th>
+                <th className="px-3 py-2">Channel</th>
+                <th className="px-3 py-2 text-right">Sent</th>
+                <th className="px-3 py-2 text-right">Opened</th>
+                <th className="px-3 py-2 text-right">Open rate</th>
+                <th className="px-3 py-2 text-right">Members reached</th>
+              </tr>
+            </thead>
+            <tbody>
+              {notifications.map((row) => (
+                <tr key={`${row.kind}|${row.channel}`} className="border-t border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200">
+                  <td className="px-3 py-2 font-mono text-xs">{row.kind}</td>
+                  <td className="px-3 py-2">{row.channel}</td>
+                  <td className="px-3 py-2 text-right">{row.sent}</td>
+                  <td className="px-3 py-2 text-right">{row.opened}</td>
+                  <td className="px-3 py-2 text-right font-medium">{row.sent > 0 ? formatRate(Math.min(row.opened, row.sent), row.sent) : "–"}</td>
+                  <td className="px-3 py-2 text-right">{row.sent_members}</td>
+                </tr>
+              ))}
+              {notifications.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="px-3 py-6 text-center text-slate-500">
+                    No notifications recorded in this window.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </section>
 
       <section>

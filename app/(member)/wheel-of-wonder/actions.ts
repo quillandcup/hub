@@ -13,6 +13,7 @@ import {
   type WheelCandidate,
 } from "@/lib/wheel-of-wonder";
 
+import { actionOutcome, withAction } from "@/lib/analytics/server";
 const BATCH_SIZE = 1000;
 const SLACK_ACTIVITY_WINDOW_DAYS = 45;
 const REEL_SLOT_COUNT = 8;
@@ -169,7 +170,7 @@ async function loadCandidatePool(viewerMemberId: string): Promise<CandidatePoolR
   };
 }
 
-export async function spinWheel(): Promise<WheelSpinResponse> {
+async function spinWheelImpl(): Promise<WheelSpinResponse> {
   const supabase = await createClient();
 
   const user = await getCurrentUser();
@@ -292,4 +293,9 @@ export async function spinWheel(): Promise<WheelSpinResponse> {
     },
     reel,
   };
+}
+
+// Usage analytics: each action records whether it worked (lib/analytics/server.ts).
+export async function spinWheel(...args: Parameters<typeof spinWheelImpl>): ReturnType<typeof spinWheelImpl> {
+  return withAction("wheel_spun", () => spinWheelImpl(...args), (result) => ("noOneAvailable" in result ? { ok: true, detail: "nobody" } : actionOutcome(result)));
 }

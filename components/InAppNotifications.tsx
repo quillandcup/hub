@@ -12,6 +12,7 @@ import {
 } from "@/app/actions/in-app-notifications";
 import type { InAppNotification } from "@/lib/channels/in-app";
 import { formatRelativeTime } from "@/lib/formatters";
+import { track } from "@/lib/analytics/client";
 
 /** At most this many banners at once; the rest are still in the bell. */
 export const MAX_BANNERS = 3;
@@ -171,7 +172,10 @@ function BannerStrips() {
                 <Link
                   href={n.url}
                   {...externalLinkProps(n.url)}
-                  onClick={() => markRead([n.id])}
+                  onClick={() => {
+                    track("notification_opened", { kind: n.kind, channel: "in_app" });
+                    markRead([n.id]);
+                  }}
                   className="font-medium text-white underline underline-offset-2 hover:text-plum-100"
                 >
                   Open&nbsp;→
@@ -265,6 +269,7 @@ function BellMenu() {
   }, [isOpen]);
 
   function open(n: InAppNotification) {
+    track("notification_opened", { kind: n.kind, channel: "in_app" });
     if (!n.read) markRead([n.id]);
     if (n.url) setIsOpen(false);
   }

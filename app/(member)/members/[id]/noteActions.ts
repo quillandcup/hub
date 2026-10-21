@@ -6,6 +6,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { getEffectiveIdentity } from "@/lib/sudo";
 import { MAX_NOTE_LENGTH } from "@/lib/member-notes";
 
+import { withAction } from "@/lib/analytics/server";
 export type SaveMemberNoteResult = { success: true; updatedAt: string | null } | { error: string };
 
 /**
@@ -15,7 +16,7 @@ export type SaveMemberNoteResult = { success: true; updatedAt: string | null } |
  * RLS resolves the author from the session, not the sudo cookie -- so sudo is refused here
  * rather than writing the admin's own note while they're viewing as someone else.
  */
-export async function saveMemberNote(subjectMemberId: string, body: string): Promise<SaveMemberNoteResult> {
+async function saveMemberNoteImpl(subjectMemberId: string, body: string): Promise<SaveMemberNoteResult> {
   const user = await getCurrentUser();
   if (!user) return { error: "Not authenticated" };
   const identity = await getEffectiveIdentity(user);
@@ -57,4 +58,9 @@ export async function saveMemberNote(subjectMemberId: string, body: string): Pro
   }
   revalidatePath(`/members/${subjectMemberId}`);
   return { success: true, updatedAt: data?.updated_at ?? null };
+}
+
+// Usage analytics: each action records whether it worked (lib/analytics/server.ts).
+export async function saveMemberNote(...args: Parameters<typeof saveMemberNoteImpl>): ReturnType<typeof saveMemberNoteImpl> {
+  return withAction("member_note_saved", () => saveMemberNoteImpl(...args));
 }

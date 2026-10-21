@@ -8,6 +8,7 @@ import { safeUrl } from "@/lib/url";
 import { validateBookInput } from "@/lib/bookValidation";
 import { notifyStaffNewBook } from "@/lib/slack";
 
+import { withAction } from "@/lib/analytics/server";
 export type BookFormat = "print" | "ebook";
 
 export interface BookInput {
@@ -80,7 +81,7 @@ export async function getMyBooks(): Promise<MyBookRow[]> {
   }));
 }
 
-export async function addBook(input: BookInput): Promise<{ success: true } | { error: string }> {
+async function addBookImpl(input: BookInput): Promise<{ success: true } | { error: string }> {
   const ctx = await requireIdentity();
   if ("error" in ctx) return ctx;
   const { supabase, effectiveIdentity } = ctx;
@@ -166,4 +167,9 @@ export async function deleteBook(bookId: string): Promise<{ success: true } | { 
   revalidatePath("/projects", "layout");
   revalidatePath(`/members/${effectiveIdentity.memberId}`);
   return { success: true };
+}
+
+// Usage analytics: each action records whether it worked (lib/analytics/server.ts).
+export async function addBook(...args: Parameters<typeof addBookImpl>): ReturnType<typeof addBookImpl> {
+  return withAction("book_added", () => addBookImpl(...args));
 }

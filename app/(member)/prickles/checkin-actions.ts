@@ -13,6 +13,7 @@ import { ORG_TIMEZONE } from "@/lib/config";
 import { localDateOf } from "@/lib/prickle-writing";
 import { progressMeasureFor, progressQuestion, type WritingMeasure } from "@/lib/writing-projects";
 
+import { withAction } from "@/lib/analytics/server";
 export type SaveCheckinResult = { success: true } | { error: string };
 
 /**
@@ -189,7 +190,7 @@ export async function getCheckinForLogging(
  * Refused in sudo: a check-in is the member's own feelings, so nobody records them on someone's
  * behalf (RLS also keeps writes owner-only, resolving the member from the session).
  */
-export async function saveCheckin(prickleId: string, input: CheckinInput): Promise<SaveCheckinResult> {
+async function saveCheckinImpl(prickleId: string, input: CheckinInput): Promise<SaveCheckinResult> {
   const user = await getCurrentUser();
   if (!user) return { error: "Not authenticated" };
   const identity = await getEffectiveIdentity(user);
@@ -220,7 +221,7 @@ export type CheckinHalf = "checkin" | "checkout";
  * after), merged into what's saved now so the other half, answered meanwhile in Slack or another
  * tab, isn't overwritten.
  */
-export async function saveCheckinHalf(
+async function saveCheckinHalfImpl(
   prickleId: string,
   half: CheckinHalf,
   answers: Partial<CheckinInput>
@@ -236,11 +237,21 @@ export async function saveCheckinHalf(
     half === "checkin"
       ? { ...latest, feelingsBefore: answers.feelingsBefore ?? [], need: answers.need ?? null }
       : { ...latest, sessionRating: answers.sessionRating ?? null, feelingsAfter: answers.feelingsAfter ?? [] };
-  return saveCheckin(prickleId, merged);
+  return saveCheckinImpl(prickleId, merged);
 }
 
 /** The check-in/out modal lives on My Prickles' history tab; the prickle page shows a summary. */
 function revalidateCheckinPages(prickleId: string) {
   revalidatePath("/my-prickles", "layout");
   revalidatePath(`/prickles/${prickleId}`);
+}
+
+// Usage analytics: each action records whether it worked (lib/analytics/server.ts).
+export async function saveCheckinHalf(...args: Parameters<typeof saveCheckinHalfImpl>): ReturnType<typeof saveCheckinHalfImpl> {
+  return withAction("checkin_half_saved", () => saveCheckinHalfImpl(...args));
+}
+
+// Usage analytics: each action records whether it worked (lib/analytics/server.ts).
+export async function saveCheckin(...args: Parameters<typeof saveCheckinImpl>): ReturnType<typeof saveCheckinImpl> {
+  return withAction("checkin_saved", () => saveCheckinImpl(...args));
 }

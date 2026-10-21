@@ -8,6 +8,7 @@ import { safeUrl } from "@/lib/url";
 import { validateAwardInput } from "@/lib/awardValidation";
 import { notifyStaffNewAward } from "@/lib/slack";
 
+import { withAction } from "@/lib/analytics/server";
 export interface AwardInput {
   awardName: string;
   category?: string;
@@ -74,7 +75,7 @@ export async function getMyAwards(): Promise<MyAwardRow[]> {
   }));
 }
 
-export async function addAward(input: AwardInput): Promise<{ success: true } | { error: string }> {
+async function addAwardImpl(input: AwardInput): Promise<{ success: true } | { error: string }> {
   const ctx = await requireIdentity();
   if ("error" in ctx) return ctx;
   const { supabase, effectiveIdentity } = ctx;
@@ -158,4 +159,9 @@ export async function deleteAward(awardId: string): Promise<{ success: true } | 
   revalidatePath("/projects", "layout");
   revalidatePath("/awards");
   return { success: true };
+}
+
+// Usage analytics: each action records whether it worked (lib/analytics/server.ts).
+export async function addAward(...args: Parameters<typeof addAwardImpl>): ReturnType<typeof addAwardImpl> {
+  return withAction("award_added", () => addAwardImpl(...args));
 }

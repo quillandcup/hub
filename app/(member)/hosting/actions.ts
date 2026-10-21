@@ -20,6 +20,7 @@ import { fetchHostedPrickleRecords } from "@/lib/hosted-prickles";
 import { fetchHostEligibilityByMember, hostEligibilityMessage, type HostEligibility } from "@/lib/host-eligibility";
 import { ORG_TIMEZONE } from "@/lib/config";
 
+import { withAction } from "@/lib/analytics/server";
 const DEFAULT_TIMEZONE = ORG_TIMEZONE;
 
 export interface MyScheduleRow {
@@ -268,7 +269,7 @@ export interface RequestToHostInput {
  * month is already locked (RLS would also reject it, but this gives the UI
  * something better than a raw Postgres error).
  */
-export async function requestToHost(
+async function requestToHostImpl(
   input: RequestToHostInput
 ): Promise<{ success: true } | { error: string }> {
   const supabase = await createClient();
@@ -345,7 +346,7 @@ export interface UpdateScheduleInput {
  * those aren't parameters this function takes at all, so there's nothing to
  * strip; confirmation is admin-only, via /admin/hosts.
  */
-export async function updateMySchedule(
+async function updateMyScheduleImpl(
   id: string,
   patch: UpdateScheduleInput
 ): Promise<{ success: true } | { error: string }> {
@@ -395,7 +396,7 @@ export async function updateMySchedule(
 }
 
 /** Soft delete, scoped to the acting member's own unlocked-month rows. */
-export async function withdrawMySchedule(id: string): Promise<{ success: true } | { error: string }> {
+async function withdrawMyScheduleImpl(id: string): Promise<{ success: true } | { error: string }> {
   const supabase = await createClient();
 
   const user = await getCurrentUser();
@@ -449,4 +450,17 @@ export async function getMyHostingStats(): Promise<HostingStats> {
 
   const records = await fetchHostedPrickleRecords(supabase, effectiveIdentity.memberId);
   return computeHostingStats(records);
+}
+
+// Usage analytics: each action records whether it worked (lib/analytics/server.ts).
+export async function requestToHost(...args: Parameters<typeof requestToHostImpl>): ReturnType<typeof requestToHostImpl> {
+  return withAction("host_requested", () => requestToHostImpl(...args));
+}
+
+export async function updateMySchedule(...args: Parameters<typeof updateMyScheduleImpl>): ReturnType<typeof updateMyScheduleImpl> {
+  return withAction("hosting_schedule_updated", () => updateMyScheduleImpl(...args));
+}
+
+export async function withdrawMySchedule(...args: Parameters<typeof withdrawMyScheduleImpl>): ReturnType<typeof withdrawMyScheduleImpl> {
+  return withAction("hosting_schedule_withdrawn", () => withdrawMyScheduleImpl(...args));
 }

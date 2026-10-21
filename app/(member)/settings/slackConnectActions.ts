@@ -6,8 +6,9 @@ import { getEffectiveIdentity } from "@/lib/sudo";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { disconnectSlack } from "@/lib/slack-connect";
 
+import { withAction } from "@/lib/analytics/server";
 /** The signed-in member disconnects their own Slack account (never in sudo): the token is revoked in Slack and deleted here. */
-export async function disconnectSlackAction(): Promise<{ ok: true } | { ok: false; error: string }> {
+async function disconnectSlackActionImpl(): Promise<{ ok: true } | { ok: false; error: string }> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: "Not signed in." };
   const identity = await getEffectiveIdentity(user);
@@ -21,4 +22,9 @@ export async function disconnectSlackAction(): Promise<{ ok: true } | { ok: fals
   }
   revalidatePath("/settings", "layout");
   return { ok: true };
+}
+
+// Usage analytics: each action records whether it worked (lib/analytics/server.ts).
+export async function disconnectSlackAction(...args: Parameters<typeof disconnectSlackActionImpl>): ReturnType<typeof disconnectSlackActionImpl> {
+  return withAction("slack_disconnected", () => disconnectSlackActionImpl(...args));
 }

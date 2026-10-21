@@ -5,6 +5,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { isValidTimeZone } from "@/lib/time-zone";
 
+import { withAction } from "@/lib/analytics/server";
 export interface SessionRow {
   id: string;
   created_at: string;
@@ -57,7 +58,7 @@ export async function getMySessions(): Promise<GetMySessionsResult> {
   return { sessions: (data ?? []) as SessionRow[] };
 }
 
-export async function revokeSession(sessionId: string) {
+async function revokeSessionImpl(sessionId: string) {
   const supabase = await createClient();
 
   const {
@@ -88,7 +89,7 @@ export async function revokeSession(sessionId: string) {
 // directly (scope: 'others' signs out every session except the one making
 // this request). Deliberately does not accept a session id — "others" is a
 // server-side concept in GoTrue keyed off the request's own access token.
-export async function signOutOtherSessions() {
+async function signOutOtherSessionsImpl() {
   const supabase = await createClient();
 
   const {
@@ -110,7 +111,7 @@ export async function signOutOtherSessions() {
 }
 
 /** Saves the member's time zone, an IANA name ("browser" and other non-zones are refused). */
-export async function updateTimezonePreference(timezone: string) {
+async function updateTimezonePreferenceImpl(timezone: string) {
   if (!isValidTimeZone(timezone)) {
     return { error: "Choose a valid time zone" };
   }
@@ -134,4 +135,17 @@ export async function updateTimezonePreference(timezone: string) {
 
   revalidatePath("/settings", "layout");
   return { success: true };
+}
+
+// Usage analytics: each action records whether it worked (lib/analytics/server.ts).
+export async function updateTimezonePreference(...args: Parameters<typeof updateTimezonePreferenceImpl>): ReturnType<typeof updateTimezonePreferenceImpl> {
+  return withAction("timezone_changed", () => updateTimezonePreferenceImpl(...args));
+}
+
+export async function revokeSession(...args: Parameters<typeof revokeSessionImpl>): ReturnType<typeof revokeSessionImpl> {
+  return withAction("session_revoked", () => revokeSessionImpl(...args));
+}
+
+export async function signOutOtherSessions(...args: Parameters<typeof signOutOtherSessionsImpl>): ReturnType<typeof signOutOtherSessionsImpl> {
+  return withAction("session_revoked", () => signOutOtherSessionsImpl(...args));
 }
