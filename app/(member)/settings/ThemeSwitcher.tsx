@@ -39,6 +39,7 @@ export function ThemeSwitcher() {
       </label>
       <select
         id="theme"
+        data-track="settings-theme"
         value={theme}
         onChange={(e) => setTheme(e.target.value)}
         className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-plum-500 focus:border-transparent"

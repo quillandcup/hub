@@ -10,6 +10,7 @@ import {
 import { ChannelIcon } from "@/components/ChannelIcon";
 import { BrowserNotificationsToggle } from "./BrowserNotificationsToggle";
 import { setNotificationChannel, type NotificationSettings } from "./notificationActions";
+import { trackSlug } from "@/lib/analytics/names";
 
 /**
  * Per-kind, per-channel notification switches: a row per kind (grouped by category), with a logo
@@ -93,6 +94,7 @@ export function NotificationsPanel({ initial }: { initial: NotificationSettings 
                         title={`${channel.label}: ${on ? "on" : "off"}${initial.readOnly ? "" : " (click to turn " + (on ? "off)" : "on)")}`}
                         disabled={initial.readOnly || busy}
                         aria-busy={busy}
+                        data-track={`settings-notification-${trackSlug(kind.id)}-${trackSlug(channel.id)}`}
                         onClick={() => toggle(kind.id, channel.id, !on)}
                         className={`rounded-md p-1.5 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-plum-500 disabled:cursor-default ${
                           on

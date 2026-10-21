@@ -31,6 +31,7 @@ function ClearHint({ value, noun, onClear }: { value: string; noun: string; onCl
         <button
           type="button"
           onClick={onClear}
+          data-track="settings-profile-remove-field"
           aria-label={`Remove ${noun}`}
           className="shrink-0 underline hover:text-slate-700 dark:hover:text-slate-200"
         >
@@ -280,7 +281,7 @@ export function ProfilePanel() {
           />
           <ClearHint value={xInput} noun="X link" onClear={() => setXInput("")} />
         </div>
-        <button type="submit" disabled={saving} className={SAVE_CLASS}>
+        <button type="submit" data-track="settings-profile-save" disabled={saving} className={SAVE_CLASS}>
           {saving ? "Saving…" : "Save profile"}
         </button>
       </form>
@@ -294,6 +295,7 @@ export function ProfilePanel() {
             type="checkbox"
             checked={data.showInRoster}
             disabled={rosterSaving}
+            data-track="settings-profile-show-in-roster"
             onChange={(e) => handleRosterChange(e.target.checked)}
             className="mt-0.5 rounded"
           />

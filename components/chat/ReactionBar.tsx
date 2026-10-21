@@ -64,6 +64,7 @@ export default function ReactionBar({
                 disabled={pending}
                 aria-pressed={r.mine}
                 aria-label={`${r.mine ? "Remove your" : "Add"} :${r.emoji}: reaction (${r.count})`}
+                data-track="chat-reaction-toggle"
                 onClick={() => toggle(r.emoji)}
                 className={`${chipClass(r.mine)} hover:border-plum-400 disabled:opacity-60`}
                 title={`:${r.emoji}:`}
@@ -83,6 +84,7 @@ export default function ReactionBar({
               type="button"
               aria-expanded={picking}
               aria-label="Add reaction"
+              data-track="chat-reaction-add"
               onClick={() => setPicking((p) => !p)}
               className="px-2 py-0.5 rounded-full text-xs border border-dashed border-slate-300 text-slate-500 hover:border-plum-400 dark:border-slate-600"
             >
@@ -98,6 +100,7 @@ export default function ReactionBar({
                     <button
                       type="button"
                       aria-label={`React with :${name}:`}
+                      data-track="chat-reaction-quick-pick"
                       onClick={() => toggle(name)}
                       className="rounded px-1.5 py-0.5 text-base hover:bg-slate-100 dark:hover:bg-slate-800"
                     >

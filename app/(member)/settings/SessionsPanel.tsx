@@ -95,6 +95,7 @@ export function SessionsPanel() {
         <button
           type="button"
           onClick={handleSignOutOthers}
+          data-track="settings-sessions-sign-out-others"
           disabled={signingOutOthers || otherSessionCount === 0}
           className="text-sm px-3 py-1.5 rounded-md border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed"
         >
@@ -148,6 +149,7 @@ export function SessionsPanel() {
               <button
                 type="button"
                 onClick={() => handleRevoke(session.id)}
+                data-track="settings-sessions-revoke"
                 disabled={session.is_current || pendingId === session.id}
                 title={session.is_current ? "Sign out from this device instead" : undefined}
                 className="shrink-0 text-sm px-3 py-1.5 rounded-md border border-red-300 dark:border-red-800 text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950 disabled:opacity-40 disabled:cursor-not-allowed"

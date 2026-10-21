@@ -196,7 +196,7 @@ export function BrowserNotificationsToggle({ publicKey, readOnly }: { publicKey:
       <div className="flex items-center justify-between gap-3">
         <div id="browser-notifications" className="font-medium text-slate-900 dark:text-slate-100">Browser notifications</div>
         {(canToggle || otherDevices.length > 0) && devices.length > 0 && (
-          <button type="button" disabled={readOnly || busy} onClick={sendTest} className={buttonClass}>
+          <button type="button" data-track="settings-browser-notifications-test" disabled={readOnly || busy} onClick={sendTest} className={buttonClass}>
             Send a test notification
           </button>
         )}
@@ -238,6 +238,7 @@ export function BrowserNotificationsToggle({ publicKey, readOnly }: { publicKey:
                   type="button"
                   disabled={readOnly || busy}
                   aria-busy={busy}
+                  data-track={state === "on" ? "settings-browser-notifications-off" : "settings-browser-notifications-on"}
                   onClick={state === "on" ? disable : enable}
                   className={buttonClass}
                 >
@@ -258,6 +259,7 @@ export function BrowserNotificationsToggle({ publicKey, readOnly }: { publicKey:
                   type="button"
                   disabled={readOnly || busy}
                   aria-label={`Remove ${device.label}`}
+                  data-track="settings-browser-notifications-remove-device"
                   onClick={() => removeDevice(device.id)}
                   className="rounded-md px-2 py-1 text-red-600 hover:bg-red-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-plum-500 disabled:opacity-50 dark:text-red-400 dark:hover:bg-red-950"
                 >

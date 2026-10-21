@@ -34,6 +34,7 @@ function Section({
             <li key={c.id}>
               <Link
                 href={`/chat/${c.id}`}
+                data-track="chat-sidebar-channel"
                 aria-current={active ? "page" : undefined}
                 aria-label={count > 0 ? `${c.label}, ${badge(count)} unread` : undefined}
                 className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors ${

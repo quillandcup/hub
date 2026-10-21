@@ -16,6 +16,7 @@ export default function RetryButton({ channelId, messageId }: { channelId: strin
       <button
         type="button"
         disabled={pending}
+        data-track="chat-retry-message"
         onClick={() =>
           startTransition(async () => {
             const result = await retryChatMessage(messageId);

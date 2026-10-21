@@ -71,3 +71,12 @@ describe("MarkCompleteButton", () => {
     expect(container).toBeEmptyDOMElement();
   });
 });
+
+describe("MarkCompleteButton usage analytics", () => {
+  it("is named for what pressing it does, so marking and clearing are counted apart", async () => {
+    render(ui());
+    expect(screen.getByRole("button", { name: "Mark as complete" })).toHaveAttribute("data-track", "lesson-mark-complete");
+    await userEvent.click(screen.getByRole("button", { name: "Mark as complete" }));
+    expect(screen.getByRole("button", { name: "Complete" })).toHaveAttribute("data-track", "lesson-unmark-complete");
+  });
+});

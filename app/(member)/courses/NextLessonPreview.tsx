@@ -18,7 +18,7 @@ export default function NextLessonPreview({ slug, next }: { slug: string; next: 
       <div role="status" className="mt-3 rounded-lg bg-slate-100 p-4 text-sm dark:bg-slate-800">
         <p className="font-semibold">Great job!</p>
         <p className="mt-1 text-slate-600 dark:text-slate-300">That&apos;s the last lesson available so far.</p>
-        <Link href={`/courses/${slug}`} className="mt-2 inline-block font-semibold text-plum-700 hover:underline dark:text-plum-300">
+        <Link href={`/courses/${slug}`} data-track="lesson-back-to-course" className="mt-2 inline-block font-semibold text-plum-700 hover:underline dark:text-plum-300">
           Back to the course
         </Link>
       </div>
@@ -29,6 +29,7 @@ export default function NextLessonPreview({ slug, next }: { slug: string; next: 
   return (
     <Link
       href={`/courses/${slug}/lessons/${next.id}`}
+      data-track="lesson-next-preview"
       role="status"
       aria-label={`Great job! Keep going! Next lesson: ${next.title}`}
       className="mt-3 flex items-center gap-4 rounded-lg bg-slate-100 p-3 transition hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700"

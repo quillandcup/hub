@@ -6,6 +6,9 @@ import userEvent from "@testing-library/user-event";
 const setLessonComplete = vi.fn<(lessonId: string, complete: boolean) => Promise<{ error?: string }>>();
 vi.mock("@/app/(member)/courses/actions", () => ({ setLessonComplete: (...a: [string, boolean]) => setLessonComplete(...a) }));
 
+const track = vi.fn();
+vi.mock("@/lib/analytics/client", () => ({ track: (...a: unknown[]) => track(...a) }));
+
 import { AUTO_COMPLETE_FRACTION, LessonCompletionProvider, useLessonCompletion } from "@/app/(member)/courses/LessonCompletion";
 
 /** Shows the provider's state and exposes its two actions as buttons, as the player and the button do. */
@@ -30,6 +33,7 @@ const auto = () => userEvent.click(screen.getByRole("button", { name: "auto" }))
 const toggle = () => userEvent.click(screen.getByRole("button", { name: "toggle" }));
 
 beforeEach(() => {
+  track.mockReset();
   setLessonComplete.mockReset();
   setLessonComplete.mockResolvedValue({});
 });
@@ -89,5 +93,31 @@ describe("LessonCompletionProvider", () => {
   it("is null outside a provider, so the player just plays", () => {
     render(<Probe />);
     expect(screen.getByTestId("state")).toHaveTextContent("no provider");
+  });
+});
+
+describe("usage analytics", () => {
+  it("records the player completing it automatically, once", async () => {
+    render(ui());
+    await auto();
+    await auto();
+    expect(track.mock.calls).toEqual([["lesson_completion_changed", { completed: true, via: "watched" }]]);
+  });
+
+  it("records the member completing it and clearing it with the button", async () => {
+    render(ui());
+    await toggle();
+    await toggle();
+    expect(track.mock.calls).toEqual([
+      ["lesson_completion_changed", { completed: true, via: "button" }],
+      ["lesson_completion_changed", { completed: false, via: "button" }],
+    ]);
+  });
+
+  it("records nothing when read-only, where nothing changes", async () => {
+    render(ui({ readOnlyReason: "preview" }));
+    await auto();
+    await toggle();
+    expect(track).not.toHaveBeenCalled();
   });
 });

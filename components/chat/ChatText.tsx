@@ -67,7 +67,7 @@ function renderInline(nodes: Inline[], ctx: ChatTextContext): ReactNode[] {
         const label = `@${ctx.userNames[n.id] ?? "someone"}`;
         const memberId = ctx.userMembers[n.id];
         return memberId ? (
-          <Link key={i} href={`/members/${memberId}`} className={`${CHIP_CLASS} ${LINK_CLASS} no-underline hover:underline`}>
+          <Link key={i} href={`/members/${memberId}`} data-track="chat-mention" className={`${CHIP_CLASS} ${LINK_CLASS} no-underline hover:underline`}>
             {label}
           </Link>
         ) : (
@@ -80,7 +80,7 @@ function renderInline(nodes: Inline[], ctx: ChatTextContext): ReactNode[] {
         const hubId = ctx.channelIds[n.id];
         const label = `#${ctx.channelNames[n.id] ?? n.label ?? "channel"}`;
         return hubId ? (
-          <Link key={i} href={`/chat/${hubId}`} className={`${CHIP_CLASS} ${LINK_CLASS} no-underline hover:underline`}>
+          <Link key={i} href={`/chat/${hubId}`} data-track="chat-channel-mention" className={`${CHIP_CLASS} ${LINK_CLASS} no-underline hover:underline`}>
             {label}
           </Link>
         ) : (

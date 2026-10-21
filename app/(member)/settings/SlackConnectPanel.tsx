@@ -46,7 +46,7 @@ export default function SlackConnectPanel({ connected, sharesReadState = true }:
           {!sharesReadState && (
             <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
               To mark conversations read in both places, reconnect Slack once so it can share how far you have read.{" "}
-              <a href="/api/oauth/slack/start" className="font-medium text-plum-700 underline dark:text-plum-400">
+              <a href="/api/oauth/slack/start" data-track="settings-slack-reconnect" className="font-medium text-plum-700 underline dark:text-plum-400">
                 Reconnect Slack
               </a>
             </p>
@@ -54,6 +54,7 @@ export default function SlackConnectPanel({ connected, sharesReadState = true }:
           <button
             type="button"
             disabled={pending}
+            data-track="settings-slack-disconnect"
             onClick={() =>
               startTransition(async () => {
                 setError(null);

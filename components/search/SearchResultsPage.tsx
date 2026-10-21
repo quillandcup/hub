@@ -1,4 +1,3 @@
-import Link from "next/link";
 import PendingLink from "@/components/search/PendingLink";
 import { notFound } from "next/navigation";
 import { getSearcher } from "@/lib/search/context";
@@ -9,6 +8,9 @@ import { recordSearchTimings } from "@/lib/search/metrics";
 import { universalSearch } from "@/lib/search/universal";
 import { MAX_QUERY_LENGTH } from "@/lib/chat/search";
 import Highlight from "@/components/search/Highlight";
+import SearchHitLink from "@/components/search/SearchHitLink";
+import SearchRan from "@/components/search/SearchRan";
+import { searchShape } from "@/lib/analytics/search";
 import ResultsSearchBox from "@/components/search/ResultsSearchBox";
 
 export const SEARCH_PAGE_TITLE = "Search";
@@ -58,6 +60,13 @@ export default async function SearchResultsPage({
     recordSearchTimings("results_page", { setupMs, totalMs: Math.round(performance.now() - started), kindsMs: timings, stagesMs: stages });
   }
 
+  // For usage analytics (SearchRan, SearchHitLink): the shape of the query and how many results it
+  // showed, never the query itself. Rank counts across the page, 1 = the first row shown.
+  const shape = searchShape(raw);
+  const shownHits = results.reduce((n, r) => n + r.hits.length, 0);
+  const chatHits = results.find((r) => r.kind === "chat")?.hits.length ?? 0;
+  let rank = 0;
+
   const href = (q: string, page = 0) => `${basePath}?q=${encodeURIComponent(q)}${page > 0 ? `&page=${page}` : ""}`;
   const visibleKinds = SEARCH_KINDS.filter((k) => !searcher.skip.includes(k));
 
@@ -73,10 +82,24 @@ export default async function SearchResultsPage({
         maxLength={MAX_QUERY_LENGTH}
       />
 
+      {raw && !query.unknownKind && (
+        <SearchRan
+          key={`${raw}|${pageNumber}`}
+          surface="page"
+          kind={shape.kind}
+          operators={shape.operators}
+          words={shape.words}
+          results={shownHits}
+          chatResults={chatHits}
+          chatSearched={!skip.includes("chat")}
+        />
+      )}
+
       {raw && (
         <nav className="mb-6 flex flex-wrap gap-2" aria-label="Kinds">
           <PendingLink
             href={href(withKind(raw))}
+            data-track="search-page-kind-all"
             className={`rounded-lg px-3 py-1.5 text-sm ${!scoped ? "bg-slate-200 dark:bg-slate-700 font-medium" : "bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700"}`}
           >
             All
@@ -85,6 +108,7 @@ export default async function SearchResultsPage({
             <PendingLink
               key={k}
               href={href(withKind(raw, k))}
+              data-track={`search-page-kind-${k}`}
               className={`rounded-lg px-3 py-1.5 text-sm ${scoped === k ? "bg-slate-200 dark:bg-slate-700 font-medium" : "bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700"}`}
             >
               {KIND_LABELS[k]}
@@ -103,7 +127,7 @@ export default async function SearchResultsPage({
 
       {raw && !query.unknownKind && chatSkipped && (
         <p className="mb-4 text-sm text-slate-600 dark:text-slate-400">
-          Chat messages aren’t included. <PendingLink href={href(withKind(raw, "chat"))} className="text-plum-700 dark:text-plum-300 hover:underline">Search chat messages</PendingLink>
+          Chat messages aren’t included. <PendingLink href={href(withKind(raw, "chat"))} data-track="search-page-chat-prompt" className="text-plum-700 dark:text-plum-300 hover:underline">Search chat messages</PendingLink>
         </p>
       )}
 
@@ -120,7 +144,7 @@ export default async function SearchResultsPage({
               <div className="mb-2 flex items-baseline justify-between">
                 <h2 className="text-lg font-semibold">{KIND_LABELS[group.kind]}</h2>
                 {!scoped && group.hasMore && (
-                  <PendingLink href={href(withKind(raw, group.kind))} className="text-sm text-plum-700 dark:text-plum-300 hover:underline">
+                  <PendingLink href={href(withKind(raw, group.kind))} data-track="search-page-view-all" className="text-sm text-plum-700 dark:text-plum-300 hover:underline">
                     View all
                   </PendingLink>
                 )}
@@ -139,9 +163,9 @@ export default async function SearchResultsPage({
                     {group.hits.map((hit) => (
                       <tr key={`${hit.kind}:${hit.id}`} className={`hover:bg-slate-50 dark:hover:bg-slate-800/40 ${hit.muted ? "opacity-60" : ""}`}>
                         <td className="max-w-md px-3 py-2">
-                          <Link href={hit.href} className="font-medium hover:underline">
+                          <SearchHitLink href={hit.href} surface="page" kind={hit.kind} rank={++rank} data-track="search-page-hit" className="font-medium hover:underline">
                             <Highlight text={hit.title} words={words} />
-                          </Link>
+                          </SearchHitLink>
                         </td>
                         {columns.subtitle && (
                           <td className="max-w-xs truncate px-3 py-2 text-slate-600 dark:text-slate-400">
@@ -161,8 +185,8 @@ export default async function SearchResultsPage({
               </div>
               {scoped && (pageNumber > 0 || group.hasMore) && (
                 <div className="mt-3 flex justify-between text-sm">
-                  {pageNumber > 0 ? <PendingLink href={href(raw, pageNumber - 1)} className="hover:underline">← Previous</PendingLink> : <span />}
-                  {group.hasMore && <PendingLink href={href(raw, pageNumber + 1)} className="hover:underline">Next →</PendingLink>}
+                  {pageNumber > 0 ? <PendingLink href={href(raw, pageNumber - 1)} data-track="search-page-previous" className="hover:underline">← Previous</PendingLink> : <span />}
+                  {group.hasMore && <PendingLink href={href(raw, pageNumber + 1)} data-track="search-page-next" className="hover:underline">Next →</PendingLink>}
                 </div>
               )}
             </section>

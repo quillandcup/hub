@@ -5,7 +5,7 @@
  * a way back into their thread.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import {
   MEMBER_IDENTITY,
@@ -28,6 +28,8 @@ vi.mock("@/lib/features.server", () => ({
   getUserFeaturePreviews: vi.fn(),
   effectiveMemberHasFeature: async (key: string, _identity: unknown, own: string[]) => own.includes(key),
 }));
+const { track, trackWhenEnabled } = vi.hoisted(() => ({ track: vi.fn(), trackWhenEnabled: vi.fn(() => () => {}) }));
+vi.mock("@/lib/analytics/client", () => ({ track, trackWhenEnabled }));
 vi.mock("@/lib/chat/names", () => ({
   slackUserNames: vi.fn(async () => ({})),
   slackAuthorIdsByTs: vi.fn(async () => ({})),
@@ -189,5 +191,46 @@ describe("chat search page", () => {
     expect(messages.closest("form")).toHaveAttribute("action", "/chat/search");
     const finder = screen.getByRole("searchbox", { name: "Find a channel" });
     expect(finder.closest("form")).toBeNull();
+  });
+});
+
+describe("chat search page usage analytics", () => {
+  beforeEach(() => {
+    track.mockClear();
+    trackWhenEnabled.mockClear();
+  });
+
+  it("reports a search by shape and message count, never the words", async () => {
+    hits = [{ message_id: id(101) }, { message_id: id(102) }];
+    rows = [row(1), row(2)];
+    await renderSearch({ q: 'from:gale in:#general "secret plans" lunch' });
+    expect(trackWhenEnabled).toHaveBeenCalledWith("search_ran", {
+      surface: "chat_page",
+      kind: "chat",
+      operators: "from,in",
+      words: 2,
+      results: 2,
+      chat_results: 2,
+      chat_searched: true,
+    });
+    expect(JSON.stringify(trackWhenEnabled.mock.calls)).not.toMatch(/gale|general|secret|plans|lunch/);
+  });
+
+  it("reports nothing when no search ran", async () => {
+    await renderSearch();
+    expect(trackWhenEnabled).not.toHaveBeenCalled();
+  });
+
+  it("records opening a message or its channel, with its place in the results", async () => {
+    hits = [{ message_id: id(101) }, { message_id: id(102) }];
+    rows = [row(1), row(2)];
+    await renderSearch({ q: "pineapple" });
+    const results = within(screen.getByRole("region", { name: "Results" }));
+    fireEvent.click(results.getAllByRole("link", { name: /^Open/ })[1]);
+    fireEvent.click(results.getAllByRole("link", { name: "#general" })[0]);
+    expect(track.mock.calls).toEqual([
+      ["search_result_clicked", { surface: "chat_page", kind: "chat", rank: 2, via: "click" }],
+      ["search_result_clicked", { surface: "chat_page", kind: "chat", rank: 1, via: "click" }],
+    ]);
   });
 });

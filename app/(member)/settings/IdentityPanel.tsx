@@ -78,6 +78,7 @@ function AliasChip({
       <button
         type="button"
         onClick={onToggle}
+        data-track="settings-identity-toggle-active"
         disabled={pending}
         className="shrink-0 text-xs px-2 py-0.5 rounded border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed"
       >
@@ -322,6 +323,7 @@ export function IdentityPanel() {
             />
             <button
               type="submit"
+              data-track="settings-identity-save-name"
               disabled={savingName || nameInput.trim() === data.realName || !nameInput.trim()}
               className="px-4 py-2 bg-plum-600 text-white text-sm rounded-md hover:bg-plum-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
@@ -340,6 +342,7 @@ export function IdentityPanel() {
         </p>
         <select
           value={customDisplayName !== null ? WRITE_OWN : (data.displayName ?? "")}
+          data-track="settings-identity-display-name"
           onChange={(e) => handleDisplayNameChange(e.target.value)}
           disabled={savingDisplayName}
           className="w-full max-w-md px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-sm disabled:opacity-50"
@@ -367,6 +370,7 @@ export function IdentityPanel() {
             />
             <button
               type="submit"
+              data-track="settings-identity-save-display-name"
               disabled={savingDisplayName || !customDisplayName.trim()}
               className="px-4 py-2 bg-plum-600 text-white text-sm rounded-md hover:bg-plum-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
@@ -415,6 +419,7 @@ export function IdentityPanel() {
           />
           <button
             type="submit"
+            data-track="settings-identity-add-name-alias"
             disabled={addingNameAlias || !nameAliasInput.trim()}
             className="px-4 py-2 bg-plum-600 text-white text-sm rounded-md hover:bg-plum-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
@@ -455,6 +460,7 @@ export function IdentityPanel() {
           />
           <button
             type="submit"
+            data-track="settings-identity-add-email-alias"
             disabled={addingEmailAlias || !emailAliasInput.trim()}
             className="px-4 py-2 bg-plum-600 text-white text-sm rounded-md hover:bg-plum-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
@@ -503,6 +509,7 @@ export function IdentityPanel() {
           </select>
           <button
             type="submit"
+            data-track="settings-identity-save-birthday"
             disabled={
               savingBirthday ||
               (!!birthdayMonth !== !!birthdayDay) ||

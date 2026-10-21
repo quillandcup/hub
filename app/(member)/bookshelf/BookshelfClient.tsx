@@ -39,7 +39,7 @@ export default function BookshelfClient({ shelf }: BookshelfClientProps) {
         <h1 className="text-2xl font-bold">🐚 Hedgie Bookshelf</h1>
         <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
           Books published by members of the community.{" "}
-          <Link href="/projects" className="text-plum-600 hover:text-plum-700 dark:text-plum-400">
+          <Link href="/projects" data-track="bookshelf-publish-project" className="text-plum-600 hover:text-plum-700 dark:text-plum-400">
             Publish a project
           </Link>{" "}
           to add yours — it also earns you the Published Author badge.
@@ -66,13 +66,13 @@ export default function BookshelfClient({ shelf }: BookshelfClientProps) {
               />
               <div className="min-w-0">
                 <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-                  <a href={book.purchaseUrl} target="_blank" rel="noopener noreferrer" className="hover:underline">
+                  <a href={book.purchaseUrl} data-track="bookshelf-open-book" target="_blank" rel="noopener noreferrer" className="hover:underline">
                     {book.title}
                   </a>
                 </h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                   by{" "}
-                  <Link href={`/members/${book.memberId}`} className="hover:underline">
+                  <Link href={`/members/${book.memberId}`} data-track="bookshelf-open-author" className="hover:underline">
                     {book.memberName}
                   </Link>{" "}
                   · {formatDate(book.publishedDate)}

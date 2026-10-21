@@ -34,9 +34,17 @@ let queue: QueuedEvent[] = [];
 let timer: ReturnType<typeof setTimeout> | null = null;
 let memorySession: { id: string; last: number } | null = null;
 
+/** Callbacks waiting for tracking to be switched on (see `trackWhenEnabled`). */
+const whenEnabled = new Set<() => void>();
+
 export function setTrackingEnabled(on: boolean): void {
   enabled = on;
+  if (on) {
+    for (const send of whenEnabled) send();
+    whenEnabled.clear();
+  }
   if (!on) {
+    whenEnabled.clear();
     queue = [];
     if (timer) clearTimeout(timer);
     timer = null;
@@ -78,6 +86,23 @@ function viewportClass(): "sm" | "md" | "lg" {
 /** The current visit's session id (renewing it after a long idle). Null until tracking is enabled. */
 export function getSessionId(): string | null {
   return enabled && typeof window !== "undefined" ? currentSessionId(Date.now()) : null;
+}
+
+/**
+ * Like `track`, for a page that reports as it mounts: on a first load that effect can run a moment
+ * before consent has been read and tracking switched on, and `track` would drop it. This sends it
+ * when tracking turns on, and never if it doesn't (nothing is held for a visitor who hasn't
+ * agreed: the callback is just dropped when tracking is switched off or the page unmounts).
+ * Returns the function that cancels it.
+ */
+export function trackWhenEnabled<N extends EventName>(name: N, properties: EventProps<N>): () => void {
+  if (enabled) {
+    track(name, properties);
+    return () => {};
+  }
+  const send = () => track(name, properties);
+  whenEnabled.add(send);
+  return () => void whenEnabled.delete(send);
 }
 
 /** Queues one event. A no-op until tracking is enabled and outside the browser. */

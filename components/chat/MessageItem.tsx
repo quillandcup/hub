@@ -40,7 +40,7 @@ export default function MessageItem({
       <div className="min-w-0 flex-1">
         <header className="flex items-baseline gap-2 text-sm">
           {message.authorMemberId ? (
-            <Link href={profileHref} scroll={false} className="font-semibold hover:underline">
+            <Link href={profileHref} scroll={false} data-track="chat-message-author" className="font-semibold hover:underline">
               {message.authorName}
             </Link>
           ) : (
@@ -81,6 +81,7 @@ export default function MessageItem({
         {!inThread && message.replyCount > 0 && (
           <Link
             href={`/chat/${channelId}?thread=${message.id}`}
+            data-track="chat-open-thread"
             scroll={false}
             className="mt-1.5 inline-flex items-center gap-2 text-xs text-plum-600 dark:text-plum-400 hover:underline"
           >
