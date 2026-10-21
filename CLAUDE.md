@@ -170,11 +170,11 @@ Exceptions that stay direct: replies the member just asked for (Slack sign-in li
 
 ### Responsive Layout: Viewport for the Shell, Container Queries Inside It
 
-**RULE**: Viewport breakpoints (`sm:`/`md:`/`lg:`/`xl:`) decide the app shell only; a layout *inside the content area* that depends on how much room it has uses container queries (`@container` on the wrapper, `@md:`/`@lg:`/`@max-md:` on children; built into Tailwind v4).
+**RULE**: Viewport breakpoints (`sm:`/`md:`/`lg:`/`xl:`) decide the app shell only; a layout *inside the content area* that depends on how much room it has uses container queries (`@container` on the wrapper, `@md:`/`@lg:` on children, from the `@tailwindcss/container-queries` plugin in `tailwind.config.ts`; the app is on Tailwind 3.4). Write them mobile-first: the plugin has no `@max-*` variants, so the small-screen style is the base and `@3xl:` overrides it. A container can't query itself, so the `@container` goes on a wrapper around the element that changes, and never on an ancestor of `fixed` overlays (it contains them).
 
 **Why**: The content area is narrower than the window by the sidebar's width. A page that picks its own viewport breakpoint has to guess what the shell is doing, and the guesses drift: the lesson page moved its outline into a side column at `lg` (1024px) while the sidebar was still visible until `md` (768px), so from 768-1023px the video was squeezed between two panels.
 
-- The member and admin sidebars show from `lg` and become a hamburger menu below it (`components/MemberNavigation.tsx`, `app/(admin)/admin/AdminNavigation.tsx`, `components/MobileMenuButton.tsx`: change all three together). Use Tailwind's default breakpoints; define any new one once in `@theme` (`--breakpoint-*`), not as `min-[...px]` literals.
+- The member and admin sidebars show from `lg` and become a hamburger menu below it (`components/MemberNavigation.tsx`, `app/(admin)/admin/AdminNavigation.tsx`, `components/MobileMenuButton.tsx`: change all three together). Use Tailwind's default breakpoints; define any new one once in `theme.screens` in `tailwind.config.ts`, not as `min-[...px]` literals.
 - Until a page is converted to container queries, a side column next to the main content must start at a viewport breakpoint at which the sidebar is already shown *and* enough room is left (the sidebar is 16rem wide).
 - Mobile-first: base styles for small screens, then add `sm:`/`md:`... as it grows. Don't pick a layout in JavaScript (`useMediaQuery`): it flashes and mismatches on hydration.
 - Check a layout change at widths just either side of every breakpoint it touches (e.g. 700, 800, 1000, 1100px), not just phone/tablet/desktop; the squeezed zone sits between two breakpoints.

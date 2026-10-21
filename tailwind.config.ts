@@ -1,5 +1,6 @@
 import type { Config } from "tailwindcss";
 import typography from "@tailwindcss/typography";
+import containerQueries from "@tailwindcss/container-queries";
 
 /**
  * Quill & Cup brand palette (from the brand guide). `plum` is the app's accent -- the
@@ -74,5 +75,5 @@ export default {
       },
     },
   },
-  plugins: [typography],
+  plugins: [typography, containerQueries],
 } satisfies Config;
