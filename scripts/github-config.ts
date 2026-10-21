@@ -81,6 +81,41 @@ function canonical(value: Json): Json {
   return value;
 }
 
+const isMap = (v: Json | undefined): v is { [key: string]: Json } => !!v && typeof v === "object" && !Array.isArray(v);
+
+/**
+ * What differs between two canonical values, one line per change with its path: `+` only in the
+ * file, `-` only live, `~` changed. List items are matched by `identity` (rule type, check
+ * context...), the same way `project` does, so a new rule reads as one `+` line.
+ */
+function structDiff(have: Json | undefined, need: Json | undefined, path = ""): string[] {
+  const show = (v: Json | undefined) => JSON.stringify(v);
+  if (Array.isArray(have) && Array.isArray(need)) {
+    const lines: string[] = [];
+    for (const want of need) {
+      const id = identity(want);
+      const live = have.find((h) => identity(h) === id);
+      if (live === undefined) lines.push(`+ ${path}[${id}]: ${show(want)}`);
+      else lines.push(...structDiff(live, want, `${path}[${id}]`));
+    }
+    for (const live of have) {
+      if (!need.some((want) => identity(want) === identity(live))) lines.push(`- ${path}[${identity(live)}]: ${show(live)}`);
+    }
+    return lines;
+  }
+  if (isMap(have) && isMap(need)) {
+    const lines: string[] = [];
+    for (const key of new Set([...Object.keys(have), ...Object.keys(need)])) {
+      const at = path ? `${path}.${key}` : key;
+      if (!(key in have)) lines.push(`+ ${at}: ${show(need[key])}`);
+      else if (!(key in need)) lines.push(`- ${at}: ${show(have[key])}`);
+      else lines.push(...structDiff(have[key], need[key], at));
+    }
+    return lines;
+  }
+  return JSON.stringify(have) === JSON.stringify(need) ? [] : [`~ ${path}: ${show(have)} -> ${show(need)}`];
+}
+
 function main(): void {
   const mode = process.argv[2];
   if (mode !== "diff" && mode !== "push") fail("usage: github-config.ts diff|push");
@@ -89,13 +124,14 @@ function main(): void {
   let changes = 0;
 
   if (Object.keys(settings).length > 0) {
-    const have = JSON.stringify(canonical(project(JSON.parse(gh(["api", `repos/${repo}`])) as Json, settings)), null, 2);
-    const need = JSON.stringify(canonical(settings), null, 2);
-    if (have === need) {
+    const have = canonical(project(JSON.parse(gh(["api", `repos/${repo}`])) as Json, settings));
+    const need = canonical(settings);
+    const diff = structDiff(have, need);
+    if (diff.length === 0) {
       console.log("= settings: up to date");
     } else {
       changes++;
-      console.log(`~ settings: differ\n--- live\n${have}\n--- ${CONFIG_FILE}\n${need}`);
+      console.log(`~ settings: differ (- live only, + ${CONFIG_FILE} only)\n${diff.join("\n")}`);
       if (mode === "push") gh(["api", "-X", "PATCH", `repos/${repo}`, "--input", "-"], JSON.stringify(settings));
     }
   }
@@ -111,14 +147,14 @@ function main(): void {
       continue;
     }
     const full = JSON.parse(gh(["api", `repos/${repo}/rulesets/${existing.id}`])) as Json;
-    const have = JSON.stringify(canonical(project(full, want)), null, 2);
-    const need = JSON.stringify(canonical(want), null, 2);
-    if (have === need) {
+    const have = canonical(project(full, want));
+    const diff = structDiff(have, canonical(want));
+    if (diff.length === 0) {
       console.log(`= ${want.name}: up to date`);
       continue;
     }
     changes++;
-    console.log(`~ ${want.name}: differs\n--- live\n${have}\n--- ${CONFIG_FILE}\n${need}`);
+    console.log(`~ ${want.name}: differs (- live only, + ${CONFIG_FILE} only)\n${diff.join("\n")}`);
     if (mode === "push") gh(["api", "-X", "PUT", `repos/${repo}/rulesets/${existing.id}`, "--input", "-"], JSON.stringify(want));
   }
 
