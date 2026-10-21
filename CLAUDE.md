@@ -154,6 +154,16 @@ Layers: **channels** (`lib/channels/`: Slack, in-app, browser push and email tod
 
 Exceptions that stay direct: replies the member just asked for (Slack sign-in link), shared rooms (Wheel of Wonder intro), and staff-channel posts (`notifyStaffNewBook`, `notifyStaffNewAward`, the feedback widget). For a send the member explicitly requested that should still look like the notification (admin test DMs), use `createNotifier(..., { channels: ["slack"] })`, which skips preferences.
 
+### Notification Messages: Links, Copy, Rollout
+
+What the message says and where it leads matters as much as how it's routed (the section above).
+
+- **Link to the exact thing.** A message about X opens X, not a page that merely relates to it: a check-out DM links to the check-out, and a "Check in" link that lands on a prickle page showing nothing about check-in is a bug. Send yourself the test message (Admin → Test Notifications, `/admin/notifications`; locally with Mailpit) and click the link before shipping.
+- **No link previews.** Slack sends set `unfurl_links: false` and `unfurl_media: false` (see `lib/slack.ts`); a preview card under a DM is noise. The notifier and the Slack helpers already do; any new send must too.
+- **Say what and ask the question**, in the voice of the existing messages: "Ready for {type} in ~20 min? Check in: how are you feeling coming in?", not a bare "Check in: {type}". Keep it short. Test sends are prefixed "[Test] ".
+- **Escape going out, decode and resolve coming in.** Slack text writes `&`, `<`, `>` as `&amp;`, `&lt;`, `&gt;`, and mentions and channels are tokens (`<@U…>`, `<#C…>`). Escape what you send; decode entities and resolve tokens to names for what you display (`lib/chat/render.ts`, `lib/chat/names.ts`). A literal `&amp;`, `#channel` or a user id on screen is this bug. Test with a name that contains `&` and `<`.
+- **A new automated sender starts in dry run.** Put it behind a feature flag per kind that says who gets it for real (`liveFor` in `lib/member-reminders.ts`, the `intro_reminders` and `prickle_reminders` flags in `lib/features.ts`); for everyone else it only logs the member id, kind, why, channels and message, and writes no dedup or backoff row, so switching it on later starts from a clean slate. Read the logs for a run or two, then widen: yourself, a segment, everyone.
+
 ### Usage Analytics
 
 **RULE**: A feature that ships needs events that show whether it is used. Declare them in the tracking plan (`lib/analytics/events.ts`) and call `track("object_action", { ... })` from `lib/analytics/client.ts`; never write to `analytics_events` directly, send to a provider, or add a property that could hold a person's name, email or typed text. Only declared events and properties are stored. Clicks are autocaptured; put `data-track="name"` on important controls and `data-track-ignore` on anything that shouldn't be recorded. Funnels for admins go in `lib/analytics/funnels.ts` (`/admin/analytics`). A server action whose result matters (something saved, created, sent) is wrapped with `withAction` so its outcome is recorded (`lib/analytics/actions.ts`, `lib/analytics/server.ts`). Notifications are tagged with their kind and channel by `createNotifier`: never build a notification link that bypasses it. Details, consent and privacy rules: `docs/ANALYTICS.md`.
@@ -187,6 +197,15 @@ Exceptions that stay direct: replies the member just asked for (Slack sign-in li
 - **Secret, or not fit to publish (the repo is public)** -> an env var declared in `env-vars.config.ts`, synced to Vercel/GitHub/Vault by the `env:sync*` scripts. Its value goes in `.env.shared` when every environment uses the same one (one Zoom/Kajabi/Google/Slack account), else in `.env.preview`/`.env.prod`, which override `.env.shared` (`scripts/env-files.ts`). Keep a client ID with its secret. Sync a new required var before the code that reads it deploys.
 
 Tests assert against the imported config values (e.g. `SUPPORT_EMAIL` from `@/lib/config`), not repeated literals.
+
+### Business Facts: Derive, Don't Assume
+
+**RULE**: Don't hardcode a business number or assume a naming pattern from what you happened to see. Read it from the source data, or derive it.
+
+- Trial length is not a constant: it is usually 7 days but has been a month, many Stripe offers have no trial, and some programs (180 Program, Self Editing Academy) have none at all. Take it from the contact's or offer's own data, and handle "none".
+- Whether a trial converted, who counts as a returning member, and similar outcomes are derived from membership history (see `lib/mentorship.ts`), never stored or guessed.
+- Titles and labels come from the data. Don't parse "Week 1" or "Module 2" out of a title, or assume every module has one; they don't all start that way.
+- If the data isn't there, say so and add a `docs/TODO.md` entry (`.claude/rules/defer-to-todo.md`) instead of picking a default.
 
 ### Resource ID Tiers
 
