@@ -7,8 +7,7 @@ import { createServiceRoleClient } from "@/lib/supabase/service";
 import { loadCourseWatchStats } from "@/lib/courses/watch-stats-data";
 import { formatClock } from "@/lib/courses/watch-stats";
 import { createMuxClient, signThumbnailTokens } from "@/lib/mux";
-import EngagementChart from "../EngagementChart";
-import EngagementFrame from "../EngagementFrame";
+import EngagementPanel from "../EngagementPanel";
 import ViewerList from "../ViewerList";
 import TimeSeriesSection from "../TimeSeriesSection";
 import { ORG_TIMEZONE } from "@/lib/config";
@@ -164,17 +163,11 @@ export default async function LessonWatchStatsPage({
           {series && <TimeSeriesSection series={series} preset={controls.preset} action={here} staff={includeStaff} />}
 
           <div className="mt-6 rounded-lg bg-white p-6 shadow dark:bg-slate-900">
-            <h2 className="text-lg font-semibold">Heatmap</h2>
-            <p className="mb-3 mt-1 text-sm text-slate-600 dark:text-slate-300">Move over the video to see each moment and how many plays watched it.</p>
-            <EngagementFrame buckets={stats.buckets} durationSeconds={stats.durationSeconds} plays={stats.plays} playbackId={entry.playbackId} frames={frames} />
-          </div>
-
-          <div className="mt-6 rounded-lg bg-white p-6 shadow dark:bg-slate-900">
             <h2 className="text-lg font-semibold">Engagement</h2>
             <p className="mb-3 mt-1 text-sm text-slate-600 dark:text-slate-300">
-              How many times each moment of the {formatClock(stats.durationSeconds)} video was watched, counting every rewind or replay. Where the solid line rises above the dashed one, someone watched that part more than once (one person watching twice is 2 times watched, 1 person). This isn&apos;t the play count: a play is one visit in which the video was played, however often it was rewound.
+              How each moment of the {formatClock(stats.durationSeconds)} video was watched, over its own frames. Move over it to see the frame from that moment and its counts.
             </p>
-            <EngagementChart buckets={stats.buckets} durationSeconds={stats.durationSeconds} />
+            <EngagementPanel buckets={stats.buckets} durationSeconds={stats.durationSeconds} totalPlays={stats.plays} playbackId={entry.playbackId} frames={frames} />
           </div>
 
           <div className="mt-6 rounded-lg bg-white p-6 shadow dark:bg-slate-900">
