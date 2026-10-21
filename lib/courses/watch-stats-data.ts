@@ -9,6 +9,15 @@ import { computePlaySessions, computeVideoWatchStats, type PlaySession, type Vid
  * segments; nothing here is shown to members.
  */
 
+/** Where a visit came from: the access log's latest located event before it (see access_locations_at). */
+export interface SessionLocation {
+  /** "Muncie, IN, US" (whatever parts are known), or null when only the IP is known. */
+  place: string | null;
+  ip: string | null;
+}
+
+export type ViewSession = PlaySession & { memberName: string; location: SessionLocation | null };
+
 export interface LessonWatchStats {
   lesson: OutlineLesson;
   /** Null for a lesson with no video. */
@@ -18,7 +27,7 @@ export interface LessonWatchStats {
   /** Null for a lesson with no video or that nobody has viewed. */
   stats: VideoWatchStats | null;
   /** The player sessions, newest first, with who: only when asked for (`withSessions`). */
-  sessions: (PlaySession & { memberName: string })[];
+  sessions: ViewSession[];
 }
 
 export interface CourseWatchStats {
@@ -54,7 +63,7 @@ async function loadStaffMemberIds(supabase: SupabaseClient): Promise<Set<string>
 export async function loadCourseWatchStats(
   supabase: SupabaseClient,
   kajabiId: string,
-  options: { includeStaff?: boolean; lessonId?: string; withSessions?: boolean } = {}
+  options: { includeStaff?: boolean; lessonId?: string; withSessions?: boolean; /** How many of the newest visits get a place (the page shows that many). */ sessionLimit?: number } = {}
 ): Promise<CourseWatchStats | null> {
   const { data: course, error } = await supabase.from("courses").select("id, title, slug").eq("source", "kajabi").eq("source_key", kajabiId).maybeSingle();
   if (error) throw new Error(`courses read failed: ${error.message}`);
@@ -115,18 +124,39 @@ export async function loadCourseWatchStats(
 
   // Names for the session list (staff-only pages; the people who watched, by name).
   const names = new Map<string, string>();
+  const userIds = new Map<string, string>();
   const memberIds = [...new Set([...sessionsByVideo.values()].flatMap((list) => list.map((x) => x.memberId)))];
   for (const batch of inBatches(memberIds)) {
-    const { data, error: namesError } = await supabase.from("members").select("id, name").in("id", batch);
+    const { data, error: namesError } = await supabase.from("members").select("id, name, user_id").in("id", batch);
     if (namesError) throw new Error(`members read failed: ${namesError.message}`);
-    for (const m of data ?? []) names.set(m.id as string, (m.name as string | null) ?? "Unknown member");
+    for (const m of data ?? []) {
+      names.set(m.id as string, (m.name as string | null) ?? "Unknown member");
+      if (m.user_id) userIds.set(m.id as string, m.user_id as string);
+    }
+  }
+
+  // Where each shown visit came from: the member's latest located access event before it, in one call.
+  const locations = new Map<string, SessionLocation>();
+  if (options.withSessions) {
+    const shown = [...sessionsByVideo.values()].flatMap((list) => list.slice(0, options.sessionLimit ?? 50)).filter((x) => x.startedAt && userIds.has(x.memberId));
+    if (shown.length > 0) {
+      const { data, error: placesError } = await supabase.rpc("access_locations_at", {
+        p_user_ids: shown.map((x) => userIds.get(x.memberId)),
+        p_times: shown.map((x) => x.startedAt),
+      });
+      if (placesError) throw new Error(`access_locations_at failed: ${placesError.message}`);
+      for (const row of (data ?? []) as { idx: number; ip_address: string | null; country: string | null; region: string | null; city: string | null }[]) {
+        const place = [row.city, row.region, row.country].filter(Boolean).join(", ");
+        locations.set(shown[row.idx - 1].sessionId, { place: place || null, ip: row.ip_address });
+      }
+    }
   }
 
   return {
     course: { id: course.id, title: course.title, slug: course.slug },
     lessons: lessons.map((lesson) => {
       const videoId = videoOf.get(lesson.id) ?? null;
-      return { lesson, videoId, playbackId: videoId ? (playbackIds.get(videoId) ?? null) : null, stats: videoId ? (statsByVideo.get(videoId) ?? null) : null, sessions: (videoId ? (sessionsByVideo.get(videoId) ?? []) : []).map((x) => ({ ...x, memberName: names.get(x.memberId) ?? "Unknown member" })) };
+      return { lesson, videoId, playbackId: videoId ? (playbackIds.get(videoId) ?? null) : null, stats: videoId ? (statsByVideo.get(videoId) ?? null) : null, sessions: (videoId ? (sessionsByVideo.get(videoId) ?? []) : []).map((x) => ({ ...x, memberName: names.get(x.memberId) ?? "Unknown member", location: locations.get(x.sessionId) ?? null })) };
     }),
     viewers: viewerIds.size,
     watchedSeconds,

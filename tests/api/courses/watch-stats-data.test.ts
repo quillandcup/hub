@@ -16,6 +16,7 @@ describe('loadCourseWatchStats', () => {
   const supabase = getTestSupabaseAdminClient()
   const ids: Record<string, string> = {}
   let staffAuthId: string | null = null
+  let annAuthId: string | null = null
 
   const segment = (who: string, video: string, start: number, end: number, over: Record<string, unknown> = {}) => ({
     // Every row has the same keys: a bulk insert needs that.
@@ -36,6 +37,19 @@ describe('loadCourseWatchStats', () => {
     staffAuthId = auth.user.id
     await supabase.from('user_profiles').update({ role: 'admin' }).eq('id', staffAuthId)
     await supabase.from('members').update({ user_id: staffAuthId }).eq('id', ids.staff)
+
+    // Ann has an account too, with access events from two places before her visits: where a visit came from is her latest located event before it.
+    const { data: annAuth, error: annAuthError } = await supabase.auth.admin.createUser({ email: emailOf('ann'), email_confirm: true })
+    if (annAuthError || !annAuth.user) throw new Error(`createUser failed: ${annAuthError?.message}`)
+    annAuthId = annAuth.user.id
+    await supabase.from('members').update({ user_id: annAuthId }).eq('id', ids.ann)
+    const hoursAgo = (h: number) => new Date(Date.now() - h * 3_600_000).toISOString()
+    const events = await supabase.from('access_events').insert([
+      { user_id: annAuthId, path: '/dashboard', is_page: true, created_at: hoursAgo(6), ip_address: '198.51.100.9', country: 'US', region: 'MA', city: 'Boston' },
+      { user_id: annAuthId, path: '/courses', is_page: true, created_at: hoursAgo(2), ip_address: '203.0.113.7', country: 'US', region: 'IN', city: 'Muncie' },
+      { user_id: annAuthId, path: '/api/x', is_page: false, created_at: hoursAgo(1), ip_address: null, country: null, region: null, city: null },
+    ])
+    expect(events.error).toBeNull()
 
     const { data: course } = await supabase.from('courses').insert({ slug: SLUG, title: `Watch Stats ${ts}`, source_key: SLUG }).select('id').single()
     ids.course = course!.id
@@ -82,6 +96,7 @@ describe('loadCourseWatchStats', () => {
     await supabase.from('videos').delete().in('id', [ids.videoA, ids.videoB])
     await supabase.from('members').delete().in('id', [ids.ann, ids.bea, ids.staff])
     if (staffAuthId) await supabase.auth.admin.deleteUser(staffAuthId)
+    if (annAuthId) await supabase.auth.admin.deleteUser(annAuthId)
   })
 
   it('is null for a course that is not in the Hub', async () => {
@@ -132,6 +147,10 @@ describe('loadCourseWatchStats', () => {
     expect(sessions.every((x) => ['Watch Stats ann', 'Watch Stats bea'].includes(x.memberName))).toBe(true)
     expect(sessions.filter((x) => x.played)).toHaveLength(3)
     expect(sessions.find((x) => x.userAgent?.includes('Macintosh'))).toMatchObject({ memberName: 'Watch Stats ann', played: false, coveredFraction: 0 })
+    // Where a visit came from: Ann's latest located access event before it (Muncie, not the older Boston, and not the later event without a place). Bea has no account.
+    const annsMarker = sessions.find((x) => x.userAgent?.includes('Macintosh'))!
+    expect(annsMarker.location).toEqual({ place: 'Muncie, IN, US', ip: '203.0.113.7' })
+    expect(sessions.filter((x) => x.memberName === 'Watch Stats bea').every((x) => x.location === null)).toBe(true)
     const times = sessions.map((x) => x.startedAt ?? '')
     expect(times).toEqual([...times].sort().reverse())
   })

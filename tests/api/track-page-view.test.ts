@@ -73,8 +73,40 @@ describe('POST /api/track/page-view', () => {
       session_id: AUTH_SESSION_ID,
       acting_as_member_id: null,
       user_agent: CHROME_ON_MAC,
+      ip_address: null,
+      country: null,
+      region: null,
+      city: null,
       ga_client_id: null,
     })
+  })
+
+  it("records where the request came from: the IP and Vercel's place for it", async () => {
+    const { insert } = setup()
+    const req = new NextRequest(`http://localhost${PAGE_VIEW_PATH}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-forwarded-for': '203.0.113.7, 10.0.0.1',
+        'x-vercel-ip-country': 'US',
+        'x-vercel-ip-country-region': 'IN',
+        'x-vercel-ip-city': 'Muncie',
+      },
+      body: JSON.stringify({ path: '/dashboard' }),
+    })
+    await POST(req)
+    expect(insert).toHaveBeenCalledWith(expect.objectContaining({ ip_address: '203.0.113.7', country: 'US', region: 'IN', city: 'Muncie' }))
+  })
+
+  it('records a page view without a place rather than failing when the headers are junk', async () => {
+    const { insert } = setup()
+    const req = new NextRequest(`http://localhost${PAGE_VIEW_PATH}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-forwarded-for': 'garbage', 'x-vercel-ip-country': 'USA' },
+      body: JSON.stringify({ path: '/dashboard' }),
+    })
+    expect((await POST(req)).status).toBe(204)
+    expect(insert).toHaveBeenCalledWith(expect.objectContaining({ ip_address: null, country: null }))
   })
 
   it("records GA's browser ID from the _ga cookie", async () => {

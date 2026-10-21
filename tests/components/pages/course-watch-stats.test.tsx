@@ -34,7 +34,9 @@ const segments = [seg("a", 0, 600, { startedAt: "2026-10-06T22:10:30Z" }), seg("
 const views = [view("a", "2026-10-06T22:10:00Z", WINDOWS_CHROME), view("b", "2026-10-05T20:24:00Z"), view("c", "2026-10-07T09:00:00Z")];
 const stats = computeVideoWatchStats(segments, 600, views);
 const NAMES: Record<string, string> = { a: "Fern Quillsby", b: "Bramble Hedgewick", c: "Moss Thistledown" };
-const sessions = computePlaySessions(segments, 600, views).map((x) => ({ ...x, memberName: NAMES[x.memberId] }));
+// Only a's visit has a recorded place and IP (the access log had no located event before the others).
+const LOCATIONS: Record<string, { place: string | null; ip: string | null }> = { a: { place: "Muncie, IN, US", ip: "203.0.113.7" } };
+const sessions = computePlaySessions(segments, 600, views).map((x) => ({ ...x, memberName: NAMES[x.memberId], location: LOCATIONS[x.memberId] ?? null }));
 const data = (over: object = {}) => ({
   course: { id: "c1", title: "The Ready Writer", slug: "the-ready-writer" },
   lessons: [
@@ -136,7 +138,7 @@ describe("/admin/courses/[id]/stats/[lessonId]", () => {
   it("asks the loader for just this lesson, and shows the numbers, the engagement chart and how it was watched", async () => {
     await renderServerPage(LessonWatchStatsPage, lessonProps());
 
-    expect(loadCourseWatchStats).toHaveBeenCalledWith(expect.anything(), KAJABI, { includeStaff: false, lessonId: L1, withSessions: true });
+    expect(loadCourseWatchStats).toHaveBeenCalledWith(expect.anything(), KAJABI, { includeStaff: false, lessonId: L1, withSessions: true, sessionLimit: 20 });
     expect(screen.getByRole("heading", { level: 1, name: "Reader Expectations" })).toBeInTheDocument();
     expect(tile("Viewers")).toHaveTextContent("2");
     expect(screen.getByText("Average watched")).toBeInTheDocument();
@@ -208,17 +210,23 @@ describe("/admin/courses/[id]/stats/[lessonId]", () => {
     expect(within(rows[1]).getByRole("img")).toHaveAccessibleName("Covered 100% of the video: 0:00 to 10:00");
     expect(within(rows[1]).getByText("Chrome on Windows")).toBeInTheDocument();
     expect(within(rows[2]).getByText("Unknown device")).toBeInTheDocument();
+    // Where it came from: the place and the raw IP for a, nothing recorded for the others.
+    expect(within(rows[1]).getByText("Muncie, IN, US")).toBeInTheDocument();
+    expect(within(rows[1]).getByText("203.0.113.7")).toBeInTheDocument();
+    expect(within(rows[0]).getAllByText("Not recorded")).toHaveLength(2);
     expect(within(rows[1]).getByText(/October 6, 2026/)).toBeInTheDocument();
   });
 
   it("pages the visits: twenty at a time, with Load more asking for another page and keeping the staff choice", async () => {
     const many = Array.from({ length: 45 }, (_, i) => ({ ...sessions[1], sessionId: `s-${i}`, memberName: `Member ${i}`, startedAt: `2026-09-${String(10 + (i % 18)).padStart(2, "0")}T10:00:00Z` }));
+    // The loader is asked to place as many visits as the page shows.
     loadCourseWatchStats.mockResolvedValue(data({ staffExcluded: false, lessons: [{ lesson: lesson(L1, "Reader Expectations"), videoId: "v1", playbackId: "pb-1", stats, sessions: many }] }));
 
     await renderServerPage(LessonWatchStatsPage, lessonProps(L1, { staff: "1" }));
     expect(screen.getAllByRole("listitem").filter((li) => li.querySelector("details"))).toHaveLength(20);
     expect(screen.getByText("Showing 20 of 45")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Load more" })).toHaveAttribute("href", `/admin/courses/${KAJABI}/stats/${L1}?limit=40&staff=1`);
+    expect(loadCourseWatchStats).toHaveBeenLastCalledWith(expect.anything(), KAJABI, { includeStaff: true, lessonId: L1, withSessions: true, sessionLimit: 20 });
   });
 
   it("shows more when asked, and offers nothing more once everything is shown", async () => {
@@ -233,7 +241,7 @@ describe("/admin/courses/[id]/stats/[lessonId]", () => {
   it("says when the lesson was viewed but nobody played it", async () => {
     const viewedOnly = computeVideoWatchStats([], 600, [view("c", "2026-10-07T09:00:00Z")]);
     loadCourseWatchStats.mockResolvedValue(
-      data({ lessons: [{ lesson: lesson(L1, "Reader Expectations"), videoId: "v1", playbackId: "pb-1", stats: viewedOnly, sessions: computePlaySessions([], 600, [view("c", "2026-10-07T09:00:00Z")]).map((x) => ({ ...x, memberName: "Moss Thistledown" })) }] }),
+      data({ lessons: [{ lesson: lesson(L1, "Reader Expectations"), videoId: "v1", playbackId: "pb-1", stats: viewedOnly, sessions: computePlaySessions([], 600, [view("c", "2026-10-07T09:00:00Z")]).map((x) => ({ ...x, memberName: "Moss Thistledown", location: null })) }] }),
     );
     await renderServerPage(LessonWatchStatsPage, lessonProps());
 

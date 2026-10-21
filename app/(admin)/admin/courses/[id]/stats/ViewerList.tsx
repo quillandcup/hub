@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { formatCourseDateTime } from "@/lib/courses/format";
 import { describeDevice } from "@/lib/device-label";
-import { formatClock, type PlaySession } from "@/lib/courses/watch-stats";
+import { formatClock } from "@/lib/courses/watch-stats";
+import type { ViewSession } from "@/lib/courses/watch-stats-data";
 
 const percent = (fraction: number) => `${Math.round(fraction * 100)}%`;
 
@@ -13,8 +14,8 @@ function describeCoverage(intervals: [number, number][], durationSeconds: number
 
 /**
  * One row per visit to the lesson (a player session), newest first, like Kajabi's "Video stats": who,
- * when, a bar of which parts of the video they covered and how much, and on opening a row the device
- * and how long they played. A visit where the player appeared but nothing was played shows an empty bar.
+ * when, a bar of which parts of the video they covered and how much, and on opening a row the device,
+ * where it came from (the access log's place and IP) and how long they played. A visit where the player appeared but nothing was played shows an empty bar.
  */
 export default function ViewerList({
   sessions,
@@ -22,7 +23,7 @@ export default function ViewerList({
   shown,
   more,
 }: {
-  sessions: (PlaySession & { memberName: string })[];
+  sessions: ViewSession[];
   durationSeconds: number;
   /** How many rows to show. */
   shown: number;
@@ -64,6 +65,10 @@ export default function ViewerList({
               <dl className="grid grid-cols-[6rem_1fr] gap-y-1 border-t border-slate-100 p-3 text-sm dark:border-slate-800">
                 <dt className="text-slate-500 dark:text-slate-400">Device</dt>
                 <dd>{describeDevice(s.userAgent)}</dd>
+                <dt className="text-slate-500 dark:text-slate-400">Location</dt>
+                <dd>{s.location?.place ?? "Not recorded"}</dd>
+                <dt className="text-slate-500 dark:text-slate-400">IP</dt>
+                <dd className="tabular-nums">{s.location?.ip ?? "Not recorded"}</dd>
                 <dt className="text-slate-500 dark:text-slate-400">Played</dt>
                 <dd className="tabular-nums">{s.played ? `${formatClock(s.watchedSeconds)} of video time` : "Not played"}</dd>
                 <dt className="text-slate-500 dark:text-slate-400">Covered</dt>

@@ -51,7 +51,7 @@ export default async function LessonWatchStatsPage({
   const includeStaff = query.staff === "1";
   // How many visits to list; "Load more" asks for another page of them.
   const limit = Math.min(Math.max(Number.parseInt(query.limit ?? "", 10) || PAGE_SIZE, PAGE_SIZE), MAX_LIMIT);
-  const data = await loadCourseWatchStats(createServiceRoleClient(), id, { includeStaff, lessonId, withSessions: true });
+  const data = await loadCourseWatchStats(createServiceRoleClient(), id, { includeStaff, lessonId, withSessions: true, sessionLimit: limit });
   const entry = data?.lessons[0];
   if (!data || !entry) notFound();
 

@@ -6,6 +6,7 @@ import { ADMIN_NO_ACCESS_PATH, isAdminPath } from '@/lib/admin-paths'
 import { SUDO_COOKIE_NAME, actingAsHeaderValue } from '@/lib/sudo-cookie'
 import { PAGE_VIEW_PATH } from '@/lib/page-views'
 import { NEXT_PATH_COOKIE, NEXT_PATH_COOKIE_MAX_AGE_SECONDS, safeNextPath } from '@/lib/safe-next'
+import { requestLocation } from '@/lib/request-location'
 import { userAgentForStorage } from '@/lib/device-label'
 import { GA_COOKIE_NAME, gaClientIdFromCookie } from '@/lib/analytics-identity'
 
@@ -111,6 +112,8 @@ export async function updateSession(request: NextRequest) {
       actingAsHeaderValue(request.cookies.get(SUDO_COOKIE_NAME)?.value, userId)?.split(':')[1] ?? null
     // GA's anonymous browser ID, linking this browser's signed-out visits to the user.
     const gaClientId = gaClientIdFromCookie(request.cookies.get(GA_COOKIE_NAME)?.value)
+    // Where this request came from (the connection's IP and the place it appears to be).
+    const location = requestLocation(request.headers)
     after(async () => {
       try {
         await supabase.from('access_events').insert({
@@ -120,6 +123,7 @@ export async function updateSession(request: NextRequest) {
           session_id: eventSessionId,
           acting_as_member_id: actingAsMemberId,
           user_agent: userAgentForStorage(userAgent),
+          ...location,
           ga_client_id: gaClientId,
         })
       } catch {
