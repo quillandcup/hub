@@ -9,6 +9,14 @@ name: CI
 # to production, deploys, and then pushes slack-app-manifest.yml to the Slack app if
 # it changed.
 #
+# Docs-only changes skip all of that. The `changes` job lists the files the change touches
+# (scripts/docs-only.ts) and, when every one is documentation, the jobs below are skipped at
+# the job level: a skipped job reports as passing, so the required checks are satisfied and
+# auto-merge still works. The decision comes from the files, not from the commit message; a
+# `[skip ci]` in a message would skip the whole workflow instead, leaving the required checks
+# pending (the PR can't merge) and, on main, skipping the deploy with no verification at all.
+# On main a skipped run also skips push-migrations and deploy, since there is nothing to ship.
+#
 # Why the migration push exists: nobody was reliably running `supabase db push`
 # after a merge -- new code has 500'd in prod waiting on a table/column that
 # was never migrated in. This job makes that step automatic instead of
@@ -53,6 +61,42 @@ env:
   LOCAL_SUPABASE_SERVICE_ROLE_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU
 
 jobs:
+  # Whether the change is documentation only. Bare Node (24 strips types), so no `npm ci`.
+  # workflow_dispatch is a manual redeploy: always the full run. Any failure to work it out
+  # (an unfetchable base, an empty diff) answers false, so nothing is skipped by accident.
+  changes:
+    name: Detect docs-only change
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      docs_only: ${{ steps.docs.outputs.docs_only }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: ".nvmrc"
+
+      # A failed fetch leaves FETCH_HEAD at the checked-out commit, so the diff is empty and the
+      # answer is false (run everything); it must not fail this job.
+      - name: Fetch the comparison commit
+        if: github.event_name != 'workflow_dispatch'
+        continue-on-error: true
+        run: git fetch --no-tags --depth=1 origin "$BASE"
+        env:
+          BASE: ${{ github.event_name == 'pull_request' && github.base_ref || github.event.before }}
+
+      - name: Check whether only docs changed
+        id: docs
+        run: |
+          if [ "$EVENT" = "workflow_dispatch" ]; then
+            echo "docs_only=false" >> "$GITHUB_OUTPUT"
+          else
+            node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/docs-only.ts FETCH_HEAD
+          fi
+        env:
+          EVENT: ${{ github.event_name }}
+
   # The Supabase CLI rejects a migration numbered at or below the latest already on main,
   # which used to surface only in push-migrations, minutes into a main run. This runs in
   # parallel with the tests and fails within seconds: on pull requests against the base
@@ -62,6 +106,9 @@ jobs:
   # it is renumbered. See scripts/check-migration-order.ts.
   check-migrations:
     name: Check migration numbering
+    needs: changes
+    # !cancelled() keeps these running if `changes` itself fails: only an explicit `true` skips.
+    if: ${{ !cancelled() && needs.changes.outputs.docs_only != 'true' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -106,6 +153,9 @@ jobs:
 
   test-unit:
     name: Test (unit)
+    needs: changes
+    # !cancelled() keeps these running if `changes` itself fails: only an explicit `true` skips.
+    if: ${{ !cancelled() && needs.changes.outputs.docs_only != 'true' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -145,6 +195,9 @@ jobs:
 
   test-db:
     name: Test (db) & build
+    needs: changes
+    # !cancelled() keeps these running if `changes` itself fails: only an explicit `true` skips.
+    if: ${{ !cancelled() && needs.changes.outputs.docs_only != 'true' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:

@@ -16,6 +16,13 @@ fi
 git fetch origin main --quiet 2>/dev/null
 npm run --silent check:migrations || exit 1
 
+# Nothing a build could catch changed when every staged file is documentation (the same check CI
+# uses to skip its test and deploy jobs, decided from the files, not the commit message).
+if [ "$(node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/docs-only.ts --staged 2>/dev/null)" = "true" ]; then
+  echo "📝 Docs-only commit: skipping the production build."
+  exit 0
+fi
+
 echo "🔍 Running production build before commit..."
 npm run build
 

@@ -11,7 +11,9 @@ settings:
 
 # One ruleset on the default branch. Required checks are the job names in
 # .github/workflows/ci.yml; a check skipped by its `if:` (Coverage report on a push to main)
-# counts as passing, so only pull requests wait on it. Nothing can be pushed to main directly,
+# counts as passing, so only pull requests wait on it; that is also how a docs-only change gets
+# through (ci.yml skips the test jobs, scripts/docs-only.ts decides). Don't use `[skip ci]` for
+# that: it skips the whole workflow and leaves these checks pending forever. Nothing can be pushed to main directly,
 # admins included: changes go through a pull request, where the checks and the coverage gate run
 # (the Coverage report job is PR-only). An admin can still override a failing PR with "Merge
 # without waiting for requirements".
