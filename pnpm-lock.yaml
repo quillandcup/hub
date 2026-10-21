@@ -284,8 +284,8 @@ importers:
         version: 3.6.7(supports-color@8.1.1)
     devDependencies:
       '@slack/types':
-        specifier: ^2.22.0
-        version: 2.22.0
+        specifier: ^3.2.0
+        version: 3.2.0
       '@testing-library/jest-dom':
         specifier: ^7.0.1
         version: 7.0.1(@testing-library/dom@10.4.1)(vitest@4.1.11)
@@ -2068,6 +2068,10 @@ packages:
   '@slack/types@2.22.0':
     resolution: {integrity: sha512-sZ9lIgJhPX2qft/tKWiklFlc0o1FWeI7QtciZJfW1+ErH1eGGHvOZ8e73sleTCFEFJp1q/R0WeS8Oa7AsiDprg==}
     engines: {node: '>= 12.13.0', npm: '>= 6.12.0'}
+
+  '@slack/types@3.2.0':
+    resolution: {integrity: sha512-IN4gdtlzQt8UJoj+1v+qAHeR4TxHO0KMlIs841SFfDQAcFFnsrWaGsEAE4goxVt8O/JOAFaGGdrFTzhNBop/Fg==}
+    engines: {node: '>= 20', npm: '>=9.6.4'}
 
   '@slack/web-api@7.15.0':
     resolution: {integrity: sha512-va7zYIt3QHG1x9M/jqXXRPFMoOVlVSSRHC5YH+DzKYsrz5xUKOA3lR4THsu/Zxha9N1jOndbKFKLtr0WOPW1Vw==}
@@ -8415,6 +8419,8 @@ snapshots:
       '@types/node': 22.19.17
 
   '@slack/types@2.22.0': {}
+
+  '@slack/types@3.2.0': {}
 
   '@slack/web-api@7.15.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)':
     dependencies:
