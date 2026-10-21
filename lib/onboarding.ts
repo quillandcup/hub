@@ -127,15 +127,22 @@ const IDENTITY_STOPS: OnboardingStop[] = [
   {
     id: "basics",
     target: "identity-basics",
-    title: "Your name and birthday",
-    hint: "Is this the name you go by here? And add your birthday, just the month and day, so we can celebrate you!",
+    title: "Your Real Name",
+    hint: "This is your Real Name, the one on your account and records. Is it right? Other members may see a different name, which you choose next.",
     confirmLabel: "Looks right",
+  },
+  {
+    id: "display-name",
+    target: "identity-display-name",
+    title: "Your Display Name",
+    hint: "This is the name other members see everywhere, and it can differ from your Real Name. Pick your Real Name, a pen name, or write your own.",
+    confirmLabel: "My display name looks right",
   },
   {
     id: "names",
     target: "identity-names",
     title: "Pen names and Zoom/Slack names",
-    hint: "We match Zoom and Slack to you by name. If you ever join as something other than your real name, like a pen name or a nickname, add it here.",
+    hint: "We match Zoom and Slack to you by name. If you ever join as something other than your Real Name, like a pen name or a nickname, add it here.",
     confirmLabel: "My names look right",
   },
   {
@@ -144,6 +151,13 @@ const IDENTITY_STOPS: OnboardingStop[] = [
     title: "Other email addresses",
     hint: "Used another email with us, like an old Kajabi or Slack one? Add it here so it all counts as you.",
     confirmLabel: "My emails look right",
+  },
+  {
+    id: "birthday",
+    target: "identity-birthday",
+    title: "Your birthday",
+    hint: "Add your birthday, just the month and day, so we can celebrate you!",
+    confirmLabel: "Skip",
   },
 ];
 
@@ -231,7 +245,7 @@ function stepViews(signals: OnboardingSignals, marked: Set<string>): StepWithout
     {
       id: "identity",
       title: "Check your details",
-      summary: "Your name and birthday, then any other names and emails you use.",
+      summary: "Your name, email, and birthday.",
       href: "/settings/identity",
       ...stopFields("identity", IDENTITY_STOPS, marked),
     },
@@ -253,11 +267,11 @@ function stepViews(signals: OnboardingSignals, marked: Set<string>): StepWithout
           {
         id: "slack" as const,
         title: "Connect Slack",
-        summary: "Link your Slack account in Settings so we know which Slack account is yours.",
+        summary: "Connect your Slack account.",
         href: "/settings",
         target: "slack-connect",
         calloutTitle: "Connect Slack",
-        hint: "Connect your Slack account so we match it to you for sure, and Hub chat posts as you with what you've read kept in sync. You can also use Open Hedgie Hub on Billie Bot's Home tab in Slack to sign in with one click.",
+        hint: "Connect once and Open Hedgie Hub in Slack signs you straight in, and chat posts as you.",
         confirmLabel: "I'll skip this",
         markKey: "slack",
         done: signals.slackConnect.connected || marked.has("slack"),

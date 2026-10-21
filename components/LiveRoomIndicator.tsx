@@ -70,6 +70,7 @@ export default function LiveRoomIndicator() {
           setOpen((o) => !o);
           refresh();
         }}
+        data-track="onair-light"
         aria-expanded={open}
         aria-haspopup="dialog"
         title={room.live ? "On air: Hedgies are at the table" : "Off air: nobody is at the table"}
@@ -96,6 +97,7 @@ export default function LiveRoomIndicator() {
                 {room.prickle ? (
                   <Link
                     href={`/prickles/${room.prickle.id}`}
+                    data-track="onair-prickle"
                     className="hover:underline"
                     onClick={() => {
                       track("onair_prickle_clicked", { room_size: room.count });
@@ -117,6 +119,7 @@ export default function LiveRoomIndicator() {
                   <li key={m.memberId}>
                     <Link
                       href={`/members/${m.memberId}`}
+                      data-track="onair-member"
                       className="text-slate-700 dark:text-slate-300 hover:underline"
                       onClick={() => {
                         track("onair_member_clicked", { room_size: room.count });

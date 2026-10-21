@@ -127,7 +127,22 @@ describe('Course member data', () => {
       expect(result.neighbors.previous).toBeNull()
       expect(result.neighbors.next?.id).toBe(ids.lessonB)
       expect(result.completed).toBe(true)
-      expect(result.video).toEqual({ status: 'ready', playbackId: 'pb-test' })
+      expect(result.video).toEqual({ id: ids.video, status: 'ready', playbackId: 'pb-test' })
+      expect(result.resumeSeconds).toBe(0)
+    })
+
+    it("gives where the member left off, but not a trivial position or someone else's", async () => {
+      await supabase.from('lesson_progress').update({ last_position_seconds: 42.5 }).eq('member_id', ids.current).eq('lesson_id', ids.lessonA)
+      const resumed = await loadLessonView(supabase, SLUG, ids.lessonA, scope('current'))
+      expect(resumed.kind === 'ok' && resumed.resumeSeconds).toBe(42.5)
+
+      await supabase.from('lesson_progress').update({ last_position_seconds: 3 }).eq('member_id', ids.current).eq('lesson_id', ids.lessonA)
+      const barely = await loadLessonView(supabase, SLUG, ids.lessonA, scope('current'))
+      expect(barely.kind === 'ok' && barely.resumeSeconds).toBe(0)
+
+      const staff = await loadLessonView(supabase, SLUG, ids.lessonA, scope('staff', true))
+      expect(staff.kind === 'ok' && staff.resumeSeconds).toBe(0)
+      await supabase.from('lesson_progress').update({ last_position_seconds: 0 }).eq('member_id', ids.current).eq('lesson_id', ids.lessonA)
     })
 
     it("gives the lesson's downloads in order, and none for a lesson without any", async () => {

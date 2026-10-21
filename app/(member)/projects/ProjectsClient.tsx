@@ -38,6 +38,7 @@ export default function ProjectsClient({ initialProjects }: ProjectsClientProps)
           type="button"
           onClick={() => setShowNewProject(true)}
           data-tour="new-project"
+          data-track="projects-new-project"
           className="px-4 py-2 bg-plum-600 hover:bg-plum-700 text-white rounded-lg text-sm font-medium"
         >
           New project
@@ -64,6 +65,7 @@ export default function ProjectsClient({ initialProjects }: ProjectsClientProps)
         <button
           type="button"
           onClick={() => setShowImport(true)}
+          data-track="projects-import-trackbear"
           className="px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg text-sm font-medium"
         >
           Import from TrackBear
@@ -72,6 +74,7 @@ export default function ProjectsClient({ initialProjects }: ProjectsClientProps)
           type="button"
           onClick={() => setShowNewProject(true)}
           data-tour="new-project"
+          data-track="projects-new-project"
           className="px-4 py-2 bg-plum-600 hover:bg-plum-700 text-white rounded-lg text-sm font-medium"
         >
           New project

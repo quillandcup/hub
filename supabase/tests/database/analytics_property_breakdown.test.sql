@@ -73,7 +73,7 @@ SELECT is(
    WHERE n.nspname = 'public' AND p.proname = 'analytics_property_breakdown' AND NOT p.prosecdef),
   1, 'it runs as the caller (SECURITY INVOKER)');
 SELECT is(
-  has_function_privilege('anon', 'public.analytics_property_breakdown(text, text, timestamptz, jsonb)', 'EXECUTE'),
+  has_function_privilege('anon', 'public.analytics_property_breakdown(text, text, timestamptz, jsonb, boolean, boolean)', 'EXECUTE'),
   false, 'anonymous callers cannot execute it');
 
 SELECT * FROM finish(true);

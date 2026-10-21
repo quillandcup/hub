@@ -103,6 +103,7 @@ export default async function DashboardPage() {
               <div key={goal.id}>
                 <Link
                   href={`/projects/${goal.projectId}`}
+                  data-track="dashboard-goal-project"
                   className="text-lg font-semibold text-slate-900 dark:text-slate-100 hover:text-plum-600 dark:hover:text-plum-400"
                 >
                   {goal.projectTitle}
@@ -125,6 +126,7 @@ export default async function DashboardPage() {
           </p>
           <Link
             href="/my-prickles"
+            data-track="dashboard-find-a-prickle"
             className="inline-block mt-3 text-sm text-plum-600 hover:text-plum-700 dark:text-plum-400"
           >
             Find a prickle →

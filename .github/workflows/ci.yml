@@ -57,7 +57,9 @@ jobs:
   # which used to surface only in push-migrations, minutes into a main run. This runs in
   # parallel with the tests and fails within seconds: on pull requests against the base
   # branch, on main against the commit before the push (two PRs that each passed alone can
-  # still collide). See scripts/check-migration-order.ts.
+  # still collide). On main it also compares against production's applied list, so a
+  # migration that merged below one production already has fails here on every run until
+  # it is renumbered. See scripts/check-migration-order.ts.
   check-migrations:
     name: Check migration numbering
     runs-on: ubuntu-24.04
@@ -83,6 +85,24 @@ jobs:
       - name: Check migration numbering
         if: github.event_name != 'workflow_dispatch'
         run: npm run check:migrations -- FETCH_HEAD
+
+      # Only on main (and manual redeploys): pull request runs don't get the production
+      # credentials.
+      - uses: supabase/setup-cli@v1
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        with:
+          version: ${{ env.SUPABASE_CLI_VERSION }}
+
+      - name: Check against production's applied migrations
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        run: |
+          supabase link --project-ref "$SUPABASE_PROJECT_ID"
+          supabase migration list --linked > "$RUNNER_TEMP/migration-list.json"
+          npm run check:migrations -- --applied "$RUNNER_TEMP/migration-list.json"
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          SUPABASE_PROJECT_ID: ${{ vars.SUPABASE_PROJECT_ID }}
 
   test-unit:
     name: Test (unit)

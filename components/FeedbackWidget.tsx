@@ -101,6 +101,7 @@ export default function FeedbackWidget() {
               {TYPES.map((t) => (
                 <button
                   key={t.value}
+                  data-track={`feedback-type-${t.value}`}
                   onClick={() => setFeedbackType(t.value)}
                   className={`flex-1 text-xs px-2 py-1.5 rounded-md border text-center transition-colors ${
                     feedbackType === t.value
@@ -139,6 +140,7 @@ export default function FeedbackWidget() {
 
             <button
               onClick={submit}
+              data-track="feedback-send"
               disabled={!message.trim() || submitStatus === "submitting"}
               className="w-full text-sm font-medium bg-plum-600 hover:bg-plum-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-md py-2 transition-colors"
             >
@@ -150,6 +152,7 @@ export default function FeedbackWidget() {
 
       <button
         onClick={() => (isOpen ? setIsOpen(false) : open())}
+        data-track="feedback-open"
         aria-label="Send feedback"
         className="w-12 h-12 rounded-full bg-plum-600 hover:bg-plum-700 text-white shadow-lg flex items-center justify-center text-xl transition-colors"
       >

@@ -36,6 +36,7 @@ function NeighborCard({ slug, lesson, direction }: { slug: string; lesson: Outli
   return (
     <Link
       href={`/courses/${slug}/lessons/${lesson.id}`}
+      data-track={`lesson-${direction}-card`}
       className={`group block rounded-xl border border-slate-200 bg-white p-4 transition hover:border-plum-300 hover:shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:hover:border-plum-700 ${
         direction === "next" ? "sm:text-right" : ""
       }`}
@@ -60,7 +61,7 @@ function StepButtons({ slug, previous, next, hideOnWide }: { slug: string; previ
   return (
     <div className={`mt-3 flex items-center justify-between gap-3 ${hideOnWide ? "lg:hidden" : ""}`}>
       {previous ? (
-        <Link href={`/courses/${slug}/lessons/${previous.id}`} aria-label={`Back: ${previous.title}`} className={`${base} ${enabled}`}>
+        <Link href={`/courses/${slug}/lessons/${previous.id}`} data-track="lesson-previous" aria-label={`Back: ${previous.title}`} className={`${base} ${enabled}`}>
           ← Back
         </Link>
       ) : (
@@ -69,7 +70,7 @@ function StepButtons({ slug, previous, next, hideOnWide }: { slug: string; previ
         </span>
       )}
       {next ? (
-        <Link href={`/courses/${slug}/lessons/${next.id}`} aria-label={`Next: ${next.title}`} className={`${base} ${enabled}`}>
+        <Link href={`/courses/${slug}/lessons/${next.id}`} data-track="lesson-next" aria-label={`Next: ${next.title}`} className={`${base} ${enabled}`}>
           Next →
         </Link>
       ) : (
@@ -91,14 +92,24 @@ export default async function LessonPage({ params }: { params: Promise<{ slug: s
   // Lessons that can't be opened (no access, ended access, coming soon for members) go back to the course page, which says why.
   if (result.kind !== "ok") redirect(`/courses/${slug}`);
 
-  const { view, lesson, neighbors, completed, video, preview, files } = result;
+  const { view, lesson, neighbors, completed, video, preview, files, resumeSeconds } = result;
 
   let player: React.ReactNode = null;
   if (video) {
     const tokens = video.status === "ready" && video.playbackId ? await mintTokens(video.playbackId) : null;
     player =
       tokens && video.playbackId ? (
-        <LessonPlayer title={lesson.title} playbackId={video.playbackId} tokens={tokens} posterUrl={lesson.thumbnail_url} />
+        <LessonPlayer
+          // A new player per lesson, so the watch tracker flushes the old lesson and starts clean on the next one.
+          key={lesson.id}
+          title={lesson.title}
+          playbackId={video.playbackId}
+          tokens={tokens}
+          posterUrl={lesson.thumbnail_url}
+          lessonId={lesson.id}
+          resumeSeconds={resumeSeconds}
+          trackProgress={!preview && !caller.identity.isSudo}
+        />
       ) : (
         <p role="status" className="rounded-lg bg-slate-100 p-6 text-sm text-slate-600 dark:bg-slate-800 dark:text-slate-300">
           {video.status === "errored" ? "This video couldn't be prepared. We've been told." : "This video is still being prepared. Check back soon."}

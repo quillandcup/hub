@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 /** The member courses pages: list, course outline, lesson. Data loaders are mocked; markup is real. */
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { screen, within } from "@testing-library/react";
+import { cleanup, screen, within } from "@testing-library/react";
 import { SUPPORT_EMAIL } from "@/lib/config";
 import { buildOutline, courseProgress, type OutlineLesson, type OutlineModule } from "@/lib/courses/outline";
 import { expectRedirect, renderServerPage, resetServerPageMocks } from "@/tests/helpers/server-page";
@@ -25,14 +25,15 @@ vi.mock("@/lib/courses/member", async (importOriginal) => ({
 const signPlaybackTokens = vi.fn();
 vi.mock("@/lib/mux", () => ({ createMuxClient: () => ({}), signPlaybackTokens: (...a: unknown[]) => signPlaybackTokens(...a) }));
 vi.mock("@/app/(member)/courses/LessonPlayer", () => ({
-  default: ({ playbackId, posterUrl }: { playbackId: string; posterUrl?: string | null }) => (
-    <div data-testid="player" data-poster={posterUrl ?? ""}>
+  default: ({ playbackId, posterUrl, lessonId, resumeSeconds, trackProgress }: { playbackId: string; posterUrl?: string | null; lessonId?: string; resumeSeconds?: number; trackProgress?: boolean }) => (
+    <div data-testid="player" data-poster={posterUrl ?? ""} data-lesson={lessonId} data-resume={resumeSeconds} data-tracking={String(trackProgress)}>
       {playbackId}
     </div>
   ),
 }));
 vi.mock("@/app/(member)/courses/actions", () => ({ setLessonComplete: vi.fn(async () => ({})) }));
 
+import LessonPlayerMock from "@/app/(member)/courses/LessonPlayer";
 import CoursesPage from "@/app/(member)/courses/page";
 import CoursePage, { generateMetadata as generateCourseMetadata } from "@/app/(member)/courses/[slug]/page";
 import ModulePage, { generateMetadata as generateModuleMetadata } from "@/app/(member)/courses/[slug]/modules/[moduleId]/page";
@@ -92,6 +93,22 @@ describe("/courses", () => {
     expect(screen.getByRole("link", { name: "Start" })).toHaveAttribute("href", `/courses/the-ready-writer/lessons/${LESSON_A}`);
     expect(screen.getByText("Access ended January 15, 2026")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "View progress" })).toHaveAttribute("href", "/courses/old");
+  });
+});
+
+describe("/courses cards", () => {
+  it("shows the course image when there is one, and a title placeholder when there isn't", async () => {
+    loadCourseList.mockResolvedValue([
+      { course: { ...course, thumbnail_url: "https://cdn.test/ready-writer.jpg" }, access: { kind: "open", endsAt: null }, progress: courseProgress(outline, new Set()) },
+      { course: { ...course, id: "c2", slug: "bare", title: "Bare Course", thumbnail_url: null }, access: { kind: "open", endsAt: null }, progress: courseProgress(outline, new Set()) },
+    ]);
+    const { container } = await renderServerPage(CoursesPage, {});
+
+    const images = container.querySelectorAll("img");
+    expect(images).toHaveLength(1);
+    expect(images[0]).toHaveAttribute("src", "https://cdn.test/ready-writer.jpg");
+    // The placeholder repeats the title inside the image area.
+    expect(screen.getAllByText("Bare Course")).toHaveLength(2);
   });
 });
 
@@ -245,6 +262,7 @@ describe("/courses/[slug]/lessons/[lessonId]", () => {
     neighbors: { previous: lesson(LESSON_A, "Welcome", 1), next: null },
     completed: false,
     video: null,
+    resumeSeconds: 0,
     files: [],
     ...over,
   });
@@ -567,6 +585,52 @@ describe("/courses/[slug]/lessons/[lessonId]", () => {
     expect(button).toHaveAttribute("title", "Progress isn't tracked for lessons members can't open yet");
     // Staff can open coming-soon lessons from the section list too.
     expect(within(screen.getByRole("navigation", { name: "Lessons in this section" })).getByRole("link", { name: /Revision/ })).toBeInTheDocument();
+  });
+
+  describe("watch tracking", () => {
+    const withVideo = (over: Record<string, unknown> = {}) => ok({ video: { id: "vid", status: "ready", playbackId: "pb-1" }, resumeSeconds: 125, ...over });
+
+    it("hands the player the lesson, where the member left off, and turns tracking on", async () => {
+      signPlaybackTokens.mockResolvedValue({ playback: "p", poster: "t", storyboard: "s" });
+      loadLessonView.mockResolvedValue(withVideo());
+      await renderServerPage(LessonPage, params());
+
+      expect(screen.getByTestId("player")).toHaveAttribute("data-lesson", LESSON_B);
+      expect(screen.getByTestId("player")).toHaveAttribute("data-resume", "125");
+      expect(screen.getByTestId("player")).toHaveAttribute("data-tracking", "true");
+    });
+
+    it("keys the player by lesson, so moving between lessons gets a fresh player and tracker", async () => {
+      signPlaybackTokens.mockResolvedValue({ playback: "p", poster: "t", storyboard: "s" });
+      const keyOfPlayer = async (lessonId: string) => {
+        loadLessonView.mockResolvedValue(withVideo({ lesson: { ...lesson(lessonId, "L", 1), body_html: "" } }));
+        const find = (node: unknown): string | null | undefined => {
+          if (Array.isArray(node)) return node.map(find).find((k) => k !== undefined);
+          if (!node || typeof node !== "object" || !("props" in node)) return undefined;
+          const el = node as { type: unknown; key: string | null; props: { children?: unknown } };
+          return el.type === LessonPlayerMock ? el.key : find(el.props.children);
+        };
+        return find(await LessonPage(params(lessonId)));
+      };
+
+      expect(await keyOfPlayer(LESSON_A)).toBe(LESSON_A);
+      expect(await keyOfPlayer(LESSON_B)).toBe(LESSON_B);
+    });
+
+    it("leaves tracking off in sudo and in a staff preview, which leave no viewing history", async () => {
+      signPlaybackTokens.mockResolvedValue({ playback: "p", poster: "t", storyboard: "s" });
+      caller.identity.isSudo = true;
+      loadLessonView.mockResolvedValue(withVideo());
+      await renderServerPage(LessonPage, params());
+      expect(screen.getByTestId("player")).toHaveAttribute("data-tracking", "false");
+      cleanup();
+
+      caller.identity.isSudo = false;
+      caller.scope.isAdminActing = true;
+      loadLessonView.mockResolvedValue(withVideo({ preview: true }));
+      await renderServerPage(LessonPage, params());
+      expect(screen.getByTestId("player")).toHaveAttribute("data-tracking", "false");
+    });
   });
 
   it("disables mark complete in sudo, which is read-only", async () => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { findMigrationProblems } from "@/scripts/check-migration-order";
+import { findMigrationProblems, findProductionProblems, parseAppliedVersions } from "@/scripts/check-migration-order";
 
 const base = ["20261101000000_a.sql", "20261120000000_b.sql"];
 
@@ -34,5 +34,53 @@ describe("findMigrationProblems", () => {
   it("ignores old files already on the base, even oddly named", () => {
     const legacy = ["001_old.sql", ...base];
     expect(findMigrationProblems(legacy, [...legacy, "20261122000000_c.sql"])).toEqual([]);
+  });
+});
+
+describe("findProductionProblems", () => {
+  const applied = ["20261101000000", "20261123000200"];
+
+  it("accepts migrations production has applied, and newer ones", () => {
+    const local = ["20261101000000_a.sql", "20261123000200_b.sql", "20261125000000_c.sql"];
+    expect(findProductionProblems(applied, local)).toEqual([]);
+  });
+
+  it("rejects an unapplied migration numbered below the latest applied one", () => {
+    const problems = findProductionProblems(applied, ["20261101000000_a.sql", "20261122000200_late.sql", "20261123000200_b.sql"]);
+    expect(problems).toHaveLength(1);
+    expect(problems[0]).toContain("20261122000200_late.sql");
+    expect(problems[0]).toContain("20261123000200");
+  });
+
+  it("ignores versions that only exist on production and legacy file names", () => {
+    expect(findProductionProblems(["20261101000000", "20261201000000"], ["001_old.sql", "20261101000000_a.sql"])).toEqual([]);
+  });
+
+  it("accepts anything when production has applied nothing", () => {
+    expect(findProductionProblems([], ["20261101000000_a.sql"])).toEqual([]);
+  });
+});
+
+describe("parseAppliedVersions", () => {
+  it("reads the Remote column of the CLI's table", () => {
+    const table = [
+      "",
+      "   Local          | Remote         | Time (UTC)          ",
+      "  ----------------|----------------|---------------------",
+      "   20261101000000 | 20261101000000 | 2026-11-01 00:00:00 ",
+      "   20261122000200 |                | 2026-11-22 00:02:00 ",
+      "                  | 20261123000200 | 2026-11-23 00:02:00 ",
+    ].join("\n");
+    expect(parseAppliedVersions(table)).toEqual(["20261101000000", "20261123000200"]);
+  });
+
+  it("reads a table whose cells are wrapped in backticks", () => {
+    const table = [" Local | Remote | Time (UTC) ", "-------|--------|-----------", " `20261101000000` | `20261101000000` | `2026-11-01 00:00:00` ", " ` ` | `20261123000200` | `2026-11-23 00:02:00` "].join("\n");
+    expect(parseAppliedVersions(table)).toEqual(["20261101000000", "20261123000200"]);
+  });
+
+  it("reads the CLI's JSON form", () => {
+    const json = JSON.stringify({ migrations: [{ local: "a", remote: "20261101000000" }, { local: "b", remote: "" }] });
+    expect(parseAppliedVersions(json)).toEqual(["20261101000000"]);
   });
 });

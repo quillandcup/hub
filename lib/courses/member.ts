@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { fetchAll, inBatches } from "@/lib/courses/db";
+import { resumeSeconds } from "@/lib/courses/watch";
 import {
   buildOutline,
   courseProgress,
@@ -51,6 +52,7 @@ export interface CourseRow {
   slug: string;
   title: string;
   description: string | null;
+  thumbnail_url?: string | null;
 }
 
 export interface MemberScope {
@@ -73,7 +75,7 @@ async function loadAccessRows(supabase: SupabaseClient, memberId: string, course
 async function loadStructure(supabase: SupabaseClient, courseIds: string[]) {
   const [modules, lessons] = await Promise.all([
     fetchAll(supabase, "course_modules", "id, course_id, parent_id, title, position, state", (q) => q.in("course_id", courseIds)),
-    fetchAll(supabase, "course_lessons", "id, course_id, module_id, title, position, state, duration_seconds, thumbnail_url", (q) => q.in("course_id", courseIds)),
+    fetchAll(supabase, "course_lessons", "id, course_id, module_id, title, position, state, duration_seconds, thumbnail_url, excerpt", (q) => q.in("course_id", courseIds)),
   ]);
   return { modules, lessons };
 }
@@ -122,7 +124,7 @@ export async function loadCourseList(supabase: SupabaseClient, scope: MemberScop
   }
   if (courseIds.length === 0) return [];
 
-  const courses: CourseRow[] = await fetchAll(supabase, "courses", "id, slug, title, description", (q) => q.in("id", courseIds));
+  const courses: CourseRow[] = await fetchAll(supabase, "courses", "id, slug, title, description, thumbnail_url", (q) => q.in("id", courseIds));
   const { modules, lessons } = await loadStructure(supabase, courseIds);
   const completed = await loadCompleted(supabase, scope.memberId, lessons.map((l) => l.id));
 
@@ -170,7 +172,9 @@ export interface LessonView {
   lesson: OutlineLesson & { body_html: string | null };
   neighbors: LessonNeighbors;
   completed: boolean;
-  video: { status: string; playbackId: string | null } | null;
+  video: { id: string; status: string; playbackId: string | null } | null;
+  /** Seconds to start the video at: where the member left off, 0 when there is nothing worth resuming. */
+  resumeSeconds: number;
   /** Staff previewing a lesson members can't open yet ("Coming soon"). Progress isn't tracked for it. */
   preview: boolean;
   /** The lesson's downloads, in order. They're served through the download route, never by path. */
@@ -223,7 +227,7 @@ export async function loadLessonView(
       .eq("id", lesson.video_id)
       .maybeSingle();
     if (videoError) throw new Error(`videos read failed: ${videoError.message}`);
-    if (v) video = { status: v.status, playbackId: v.mux_playback_id };
+    if (v) video = { id: lesson.video_id, status: v.status, playbackId: v.mux_playback_id };
   }
 
   const { data: files, error: filesError } = await supabase
@@ -233,8 +237,17 @@ export async function loadLessonView(
     .order("position");
   if (filesError) throw new Error(`course_lesson_files read failed: ${filesError.message}`);
 
+  const { data: progress, error: progressError } = await supabase
+    .from("lesson_progress")
+    .select("last_position_seconds")
+    .eq("member_id", scope.memberId)
+    .eq("lesson_id", lessonId)
+    .maybeSingle();
+  if (progressError) throw new Error(`lesson_progress read failed: ${progressError.message}`);
+
   return {
     kind: "ok",
+    resumeSeconds: resumeSeconds(progress ? Number(progress.last_position_seconds) : null),
     files: (files ?? []) as LessonFileView[],
     view: withOutline,
     lesson: { ...summary, body_html: lesson.body_html },
