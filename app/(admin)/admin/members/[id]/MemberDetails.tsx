@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import MemberAttendanceView from "@/components/MemberAttendanceView";
 import { MemberStatusBadge } from "@/components/MemberStatusBadge";
+import { InfoTip } from "@/components/InfoTip";
 import { TabBar, replaceTabPath, setTabDocumentTitle, useFollowTabPath } from "@/components/Tabs";
 import { MEMBER_TAB_IDS, MEMBER_TAB_LABELS, type MemberTabId } from "./tabs";
 import { parseDateOnly } from "@/lib/member-tenure";
@@ -119,14 +120,20 @@ export default function MemberDetails({
               )}
             </div>
           </StatItem>
-          <StatItem label="Engagement (30 days)">
+          <StatItem
+            label="Engagement"
+            info="Activity points from the last 30 days (a prickle is worth 10, Slack activity 1-3), capped at 100."
+          >
             <span className="text-lg font-bold text-slate-900 dark:text-slate-100">
               {memberMetrics.engagement_score || 0}
               <span className="text-xs font-normal text-slate-500 dark:text-slate-400"> / 100</span>
             </span>
           </StatItem>
           {member.status === "active" && (
-            <StatItem label="Churn risk (days since last prickle)">
+            <StatItem
+              label="Churn risk"
+              info="Days since the member last attended a prickle: low under 15, medium 15-30, high over 30 or never. Separate from the engagement score."
+            >
               <RiskBadge risk={memberEngagement.risk_level || "low"} />
             </StatItem>
           )}
@@ -263,10 +270,13 @@ export default function MemberDetails({
   );
 }
 
-function StatItem({ label, children }: { label: string; children: React.ReactNode }) {
+function StatItem({ label, info, children }: { label: string; info?: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-0.5">
-      <span className="text-xs font-medium text-slate-500 dark:text-slate-400">{label}</span>
+      <span className="flex items-center gap-1 text-xs font-medium text-slate-500 dark:text-slate-400">
+        {label}
+        {info && <InfoTip label={`About ${label}`}>{info}</InfoTip>}
+      </span>
       <div className="flex items-center gap-2">{children}</div>
     </div>
   );
