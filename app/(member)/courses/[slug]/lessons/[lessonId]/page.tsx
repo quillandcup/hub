@@ -60,7 +60,7 @@ function StepButtons({ slug, previous, next, hideOnWide }: { slug: string; previ
   const enabled = "bg-plum-600 text-white hover:bg-plum-700";
   const disabled = "cursor-not-allowed bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-600";
   return (
-    <div className={`mt-3 flex items-center justify-between gap-3 ${hideOnWide ? "lg:hidden" : ""}`}>
+    <div className={`mt-3 flex items-center justify-between gap-3 ${hideOnWide ? "@4xl:hidden" : ""}`}>
       {previous ? (
         <Link href={`/courses/${slug}/lessons/${previous.id}`} data-track="lesson-previous" aria-label={`Back: ${previous.title}`} className={`${base} ${enabled}`}>
           ← Back
@@ -161,7 +161,7 @@ export default async function LessonPage({
         </PageBanner>
       )}
 
-      <div className="mx-auto w-full max-w-screen-2xl px-6 py-6">
+      <div className="@container mx-auto w-full max-w-screen-2xl px-6 py-6">
         <nav aria-label="Breadcrumb" className="text-sm text-slate-500 dark:text-slate-400">
           <ol className="flex flex-wrap items-center gap-x-2 gap-y-1">
             <li>
@@ -186,20 +186,20 @@ export default async function LessonPage({
 
         {/* Completion is shared by the player (which sets it at ~90% watched), the button and the next-lesson card. */}
         <LessonCompletionProvider lessonId={lesson.id} initiallyCompleted={completed} readOnlyReason={readOnlyReason}>
-        <div className="mt-4 grid lg:grid-cols-[minmax(0,1fr)_22rem]">
+        <div className="mt-4 grid @4xl:grid-cols-[minmax(0,1fr)_22rem]">
           {/* The video and this section's lessons are one component: a dark panel flush against the player, the same height. */}
           {player && (
-            <div className="overflow-hidden rounded-2xl bg-neutral-900 shadow-lg ring-1 ring-black/5 dark:ring-white/10 lg:col-span-2 lg:grid lg:grid-cols-[minmax(0,1fr)_22rem]">
+            <div className="overflow-hidden rounded-2xl bg-neutral-900 shadow-lg ring-1 ring-black/5 dark:ring-white/10 @4xl:col-span-2 @4xl:grid @4xl:grid-cols-[minmax(0,1fr)_22rem]">
               <div>{player}</div>
               {sectionList && (
-                <aside className="relative hidden lg:block">
+                <aside className="relative hidden @4xl:block">
                   <div className="absolute inset-0 overflow-y-auto">{sectionList}</div>
                 </aside>
               )}
             </div>
           )}
 
-          <div className="lg:col-start-1">
+          <div className="@4xl:col-start-1">
             <StepButtons slug={view.course.slug} previous={neighbors.previous} next={neighbors.next} hideOnWide={Boolean(player && sectionList)} />
             {caller.scope.isAdminActing && video && (
               <StaffProgressTools lessonId={lesson.id} lessonPath={`/courses/${view.course.slug}/lessons/${lesson.id}`} preview={preview} recording={watchRecorded} />
@@ -208,7 +208,7 @@ export default async function LessonPage({
 
           {/* The main action, title and text sit together in one bounded card below the video and its controls, like the Downloads
               card beside it (and Kajabi's). Once the lesson is complete, a preview of the next lesson follows the button. */}
-          <article className="mt-6 rounded-xl border border-slate-200 bg-white p-6 sm:p-8 dark:border-slate-800 dark:bg-slate-900 lg:col-start-1 lg:row-start-3 lg:mr-8">
+          <article className="mt-6 rounded-xl border border-slate-200 bg-white p-6 sm:p-8 dark:border-slate-800 dark:bg-slate-900 @4xl:col-start-1 @4xl:row-start-3 @4xl:mr-8">
             <MarkCompleteButton />
             <NextLessonPreview slug={view.course.slug} next={nextLesson} />
 
@@ -237,8 +237,8 @@ export default async function LessonPage({
           {/* Downloads: beside the text on a wide screen, after it on a phone ("available below"). The section list stands in for
               the player panel when a lesson has no video. */}
           {(files.length > 0 || (!player && sectionList)) && (
-            <div className="mt-6 space-y-4 lg:col-start-2 lg:row-start-3">
-              {!player && sectionList && <div className="hidden overflow-hidden rounded-2xl bg-neutral-900 lg:block">{sectionList}</div>}
+            <div className="mt-6 space-y-4 @4xl:col-start-2 @4xl:row-start-3">
+              {!player && sectionList && <div className="hidden overflow-hidden rounded-2xl bg-neutral-900 @4xl:block">{sectionList}</div>}
               <LessonDownloads slug={view.course.slug} lessonId={lesson.id} files={files} />
             </div>
           )}

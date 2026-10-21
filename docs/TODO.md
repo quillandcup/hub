@@ -820,14 +820,11 @@ Show a `/live` page displaying the currently active prickle and its attendees in
 ## UI Enhancements
 
 ### Convert Page Layouts to Container Queries _(Needs Scheduling)_
-Pages choose their layout with viewport breakpoints (`lg:`, `md:`) but really depend on the content area's width, which is the window minus the sidebar (see "Responsive Layout" in CLAUDE.md). Moving the sidebar to `lg` fixed the worst case, but each page still hard-codes a guess about the shell. Mark each page's wrapper `@container` and switch to `@md:`/`@lg:`/`@max-md:` so it adapts to the room it has, with or without the sidebar. Check at widths just either side of each breakpoint.
+Pages choose their layout with viewport breakpoints (`lg:`, `md:`) but really depend on the content area's width, which is the window minus the sidebar (see "Responsive Layout" in CLAUDE.md). Mark each page's wrapper `@container` and switch to `@md:`/`@lg:`/`@max-md:` so it adapts to the room it has. Check at widths just either side of each breakpoint.
 
-**Start with the lesson page** (`app/(member)/courses/[slug]/lessons/[lessonId]/page.tsx`): the outline column, the `lg:grid-cols-[minmax(0,1fr)_22rem]` grid, the column/row placements and the Back/Next row that hides when the outline shows (`hideOnWide`) all switch at one viewport breakpoint and should switch together on one container width.
+**Done:** the lesson page (`@4xl`), the course overview (`@3xl`) and chat (`@3xl`: layout, `ChatSidebar`, `SidePanel`, back links).
 
-**Also call out:**
-- Course overview (`app/(member)/courses/[slug]/page.tsx`): `lg:grid-cols-[1fr_18rem]` side column and its sticky outline.
-- Chat (`app/(member)/chat/layout.tsx`, `components/chat/SidePanel.tsx`): `md:flex-row` channel list and `max-md:` side panel, still on `md` now that the app sidebar stays until `lg`, so 768-1023px is the squeezed zone.
-- Then sweep the rest: `grep -rnE "(md|lg|xl):(grid-cols|flex-row)" app components`.
+**Still to sweep:** the remaining multi-column grids, `grep -rnE "(md|lg|xl):(grid-cols|flex-row)" app components` (member network/courses/events lists, admin dashboards and panels). Most are card grids that only change column count and are low risk.
 
 ### Add an Icon Library
 The app has no icon library: icons are inline SVGs pasted into components. Add one (e.g. lucide-react) and replace the hand-drawn crosshair on Settings' "Use current location" button (`app/(member)/settings/TimezoneSwitcher.tsx`) with its "locate" icon, then move the other inline SVGs over as they're touched.

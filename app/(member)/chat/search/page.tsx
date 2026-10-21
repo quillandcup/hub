@@ -104,7 +104,7 @@ export default async function ChatSearchPage({
           chatSearched
         />
       )}
-      <Link href="/chat" data-track="chat-search-back" className="mb-2 inline-block text-sm text-plum-600 hover:underline md:hidden dark:text-plum-400">
+      <Link href="/chat" data-track="chat-search-back" className="mb-2 inline-block text-sm text-plum-600 hover:underline @3xl:hidden dark:text-plum-400">
         ← Channels
       </Link>
       <h1 className="text-2xl font-bold mb-3">Search messages</h1>

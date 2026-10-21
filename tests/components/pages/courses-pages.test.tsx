@@ -399,7 +399,7 @@ describe("/courses/[slug]/lessons/[lessonId]", () => {
       withVideo();
       await renderServerPage(LessonPage, params());
 
-      expect(screen.getByRole("link", { name: "Back: Welcome" }).parentElement).toHaveClass("lg:hidden");
+      expect(screen.getByRole("link", { name: "Back: Welcome" }).parentElement).toHaveClass("@4xl:hidden");
       // Still in the page for smaller screens, where the list is hidden and they're the way to move around.
       expect(screen.getByRole("link", { name: "Back: Welcome" })).toBeInTheDocument();
     });
@@ -409,14 +409,14 @@ describe("/courses/[slug]/lessons/[lessonId]", () => {
       withVideo({ view: { course, access: { kind: "open", endsAt: null }, outline: looseOutline, completed: new Set(), progress: courseProgress(looseOutline, new Set()) } });
       await renderServerPage(LessonPage, params());
 
-      expect(screen.getByRole("link", { name: "Back: Welcome" }).parentElement).not.toHaveClass("lg:hidden");
+      expect(screen.getByRole("link", { name: "Back: Welcome" }).parentElement).not.toHaveClass("@4xl:hidden");
     });
 
     it("keeps Back and Next when the lesson has no video (the list isn't beside a player then)", async () => {
       loadLessonView.mockResolvedValue(ok());
       await renderServerPage(LessonPage, params());
 
-      expect(screen.getByRole("link", { name: "Back: Welcome" }).parentElement).not.toHaveClass("lg:hidden");
+      expect(screen.getByRole("link", { name: "Back: Welcome" }).parentElement).not.toHaveClass("@4xl:hidden");
     });
 
     it("puts Mark complete below the Back / Next row", async () => {
@@ -451,7 +451,7 @@ describe("/courses/[slug]/lessons/[lessonId]", () => {
 
       const section = screen.getByRole("navigation", { name: "Lessons in this section" });
       const aside = section.closest("aside")!;
-      expect(aside).toHaveClass("relative", "hidden", "lg:block");
+      expect(aside).toHaveClass("relative", "hidden", "@4xl:block");
       expect(aside.parentElement).toContainElement(screen.getByTestId("player")); // the player and the list share one container
     });
 
@@ -482,7 +482,7 @@ describe("/courses/[slug]/lessons/[lessonId]", () => {
       await renderServerPage(LessonPage, params());
 
       const section = screen.getByRole("navigation", { name: "Lessons in this section" });
-      expect(section.closest("div.hidden")).toHaveClass("lg:block");
+      expect(section.closest("div.hidden")).toHaveClass("@4xl:block");
     });
   });
 
@@ -553,7 +553,7 @@ describe("/courses/[slug]/lessons/[lessonId]", () => {
     await renderServerPage(LessonPage, params());
 
     const card = screen.getByRole("region", { name: "Downloads" });
-    expect(card.parentElement).toHaveClass("lg:col-start-2", "lg:row-start-3");
+    expect(card.parentElement).toHaveClass("@4xl:col-start-2", "@4xl:row-start-3");
     expect(within(card).getByRole("link", { name: /Tracker_Sheet\.pdf/ })).toHaveAttribute("href", `/courses/the-ready-writer/lessons/${LESSON_B}/files/f1`);
     const text = screen.getByRole("heading", { level: 1, name: "Voice" });
     expect(Boolean(text.compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true); // after the text in reading order

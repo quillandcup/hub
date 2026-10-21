@@ -21,9 +21,11 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
   ]);
 
   return (
-    <div className="flex h-full flex-col md:flex-row">
-      <ChatSidebar channels={channels} unread={unread} selfMemberId={identity.isSudo ? null : identity.memberId} />
-      <div className="min-h-0 min-w-0 flex-1 overflow-y-auto">{children}</div>
+    <div className="@container h-full">
+      <div className="flex h-full flex-col @3xl:flex-row">
+        <ChatSidebar channels={channels} unread={unread} selfMemberId={identity.isSudo ? null : identity.memberId} />
+        <div className="min-h-0 min-w-0 flex-1 overflow-y-auto">{children}</div>
+      </div>
     </div>
   );
 }
