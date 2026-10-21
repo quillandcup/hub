@@ -108,7 +108,8 @@ export default function MemberSlackActivityPanel({ slackActivities }: MemberSlac
       {slackActivities.length > 0 ? (
         <div className="p-6">
           {/* Slack Stats Grid */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+          <div className="@container">
+            <div className="grid grid-cols-2 @2xl:grid-cols-4 gap-4 mb-6">
             <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-4">
               <div className="text-sm font-medium text-slate-600 dark:text-slate-400">Messages</div>
               <div className="mt-1 text-2xl font-bold text-slate-900 dark:text-slate-100">
@@ -133,6 +134,7 @@ export default function MemberSlackActivityPanel({ slackActivities }: MemberSlac
                 {slackStats.channels.length}
               </div>
             </div>
+          </div>
           </div>
 
           {/* Channel Participation */}

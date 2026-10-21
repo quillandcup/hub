@@ -46,7 +46,8 @@ export default async function ResubscriptionsPage() {
       <main className="container mx-auto px-6 py-8 space-y-8">
         <>
             {/* Stat cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="@container">
+              <div className="grid grid-cols-1 @xl:grid-cols-2 gap-4">
               <StatCard
                 value={data.totalResubscribingMembers}
                 label="Members who resubscribed"
@@ -58,6 +59,7 @@ export default async function ResubscriptionsPage() {
                 sub={`out of ${data.totalActiveMembers} active members`}
                 isText
               />
+            </div>
             </div>
 
             {/* Cohort chart */}

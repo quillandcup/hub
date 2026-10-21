@@ -847,11 +847,7 @@ Show a `/live` page displaying the currently active prickle and its attendees in
 ## UI Enhancements
 
 ### Convert Page Layouts to Container Queries _(Needs Scheduling)_
-Pages choose their layout with viewport breakpoints (`lg:`, `md:`) but really depend on the content area's width, which is the window minus the sidebar (see "Responsive Layout" in CLAUDE.md). Mark each page's wrapper `@container` and switch to `@md:`/`@lg:`/`@max-md:` so it adapts to the room it has. Check at widths just either side of each breakpoint.
-
-**Done:** the lesson page (`@4xl`), the course overview (`@3xl`) and chat (`@3xl`: layout, `ChatSidebar`, `SidePanel`, back links).
-
-**Still to sweep:** the remaining multi-column grids, `grep -rnE "(md|lg|xl):(grid-cols|flex-row)" app components` (member network/courses/events lists, admin dashboards and panels). Most are card grids that only change column count and are low risk.
+The lesson page, course overview, chat and every `sm:`/`md:`/`lg:`/`xl:` `grid-cols` grid in `app` and `components` now use container queries (see "Responsive Layout" in CLAUDE.md): a wrapper marked `@container` with `@xl`/`@2xl`/`@4xl`/`@6xl` on the grid. What's left is the row-direction toggles (`sm:flex-row` in `MemberDirectory`, `Wheel`, `ConsentBanner`) and `CalendarWeekView`'s column template, which still use viewport breakpoints. Check any converted page at widths just either side of its breakpoints.
 
 ### Add an Icon Library
 The app has no icon library: icons are inline SVGs pasted into components. Add one (e.g. lucide-react) and replace the hand-drawn crosshair on Settings' "Use current location" button (`app/(member)/settings/TimezoneSwitcher.tsx`) with its "locate" icon, then move the other inline SVGs over as they're touched.

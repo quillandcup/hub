@@ -123,7 +123,8 @@ export default async function ChatSearchPage({
             Search
           </button>
         </div>
-        <div className="grid gap-3 sm:grid-cols-4 text-sm">
+        <div className="@container">
+          <div className="grid gap-3 @xl:grid-cols-4 text-sm">
           <label className="block">
             <span className="block text-xs text-slate-500 mb-0.5">Channel</span>
             <select data-track="chat-search-channel-filter" name="channel" defaultValue={isUuid(channelParam) ? channelParam : ""} className={inputClass}>
@@ -147,6 +148,7 @@ export default async function ChatSearchPage({
             <span className="block text-xs text-slate-500 mb-0.5">On or before</span>
             <input type="date" name="to" defaultValue={parseDay(sp.to, 1) ? firstParam(sp.to) : ""} className={inputClass} />
           </label>
+        </div>
         </div>
         <div className="flex gap-4 text-sm">
           <label className="inline-flex items-center gap-1.5">

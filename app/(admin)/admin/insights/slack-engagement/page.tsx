@@ -204,7 +204,8 @@ export default async function SlackEngagementPage({
         <DateRangeFilter from={from} to={to} />
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+      <div className="@container">
+        <div className="grid grid-cols-2 @2xl:grid-cols-4 gap-4 mb-8">
         <StatCard
           emoji="💬"
           value={hero.totalMessages.toLocaleString()}
@@ -227,8 +228,10 @@ export default async function SlackEngagementPage({
           label="of messages were thread replies"
         />
       </div>
+      </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+      <div className="@container">
+        <div className="grid grid-cols-2 @2xl:grid-cols-4 gap-4 mb-8">
         <StatCard emoji="📅" value={hero.busiestDay} label="busiest day (ET)" />
         <StatCard emoji="🕐" value={formatHour(hero.busiestHour)} label="busiest hour (ET)" />
         <StatCard
@@ -242,6 +245,7 @@ export default async function SlackEngagementPage({
           value={channelEngagement[0] ? `#${channelEngagement[0].name}` : "—"}
           label="most active channel"
         />
+      </div>
       </div>
 
       <SlackEngagementCharts

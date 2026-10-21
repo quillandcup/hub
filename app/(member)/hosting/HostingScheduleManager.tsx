@@ -232,7 +232,8 @@ function ScheduleForm({
 
       <div>
         <p className="text-sm font-medium mb-2 text-slate-700 dark:text-slate-300">How often will you host?</p>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        <div className="@container">
+          <div className="grid grid-cols-2 @xl:grid-cols-4 gap-2">
           {RECURRENCE_OPTIONS.map((opt) => (
             <button data-track="hosting-schedule-recurrence-change"
               key={opt.value}
@@ -247,6 +248,7 @@ function ScheduleForm({
               {opt.label}
             </button>
           ))}
+        </div>
         </div>
       </div>
 

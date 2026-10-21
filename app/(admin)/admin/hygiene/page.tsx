@@ -592,7 +592,8 @@ export default async function DataHygienePage() {
           <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
             Is data flowing in from Calendar/Zoom/Slack/Kajabi and getting processed on schedule?
           </p>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
+          <div className="@container">
+            <div className="grid grid-cols-1 @2xl:grid-cols-2 @4xl:grid-cols-3 gap-6 mb-6">
             {/* Calendar Events */}
             <Link
               href="/admin/hygiene/unmatched-events"
@@ -667,6 +668,7 @@ export default async function DataHygienePage() {
               )}
             </Link>
           </div>
+          </div>
 
           {/* Recent Activity */}
           <div className="bg-white dark:bg-slate-900 rounded-lg shadow border border-slate-200 dark:border-slate-800 p-6">
@@ -740,7 +742,8 @@ export default async function DataHygienePage() {
             </a>{" "}
             above.
           </p>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="@container">
+            <div className="grid grid-cols-1 @2xl:grid-cols-2 @4xl:grid-cols-4 gap-6">
             {/* Slack Users */}
             <Link
               href="/admin/hygiene/unmatched-slack"
@@ -857,6 +860,7 @@ export default async function DataHygienePage() {
               )}
             </Link>
           </div>
+          </div>
         </section>
 
         {/* Duplicate & Conflict Detection: does the same person have more than
@@ -868,7 +872,8 @@ export default async function DataHygienePage() {
           <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
             Does the same person have more than one record — in this app, or in an external system?
           </p>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="@container">
+            <div className="grid grid-cols-1 @2xl:grid-cols-2 gap-6">
             {/* Merge & Fix */}
             <Link
               href="/admin/hygiene/merge-fix"
@@ -927,6 +932,7 @@ export default async function DataHygienePage() {
               )}
             </Link>
           </div>
+          </div>
         </section>
 
         {/* Data Completeness: is a real member missing a field this app needs? */}
@@ -937,7 +943,8 @@ export default async function DataHygienePage() {
           <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
             Is a real, matched member missing a field this app relies on?
           </p>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="@container">
+            <div className="grid grid-cols-1 @2xl:grid-cols-2 gap-6">
             {/* Missing Member Data */}
             <Link
               href="/admin/hygiene/missing-member-data"
@@ -983,6 +990,7 @@ export default async function DataHygienePage() {
                 View all aliases →
               </p>
             </Link>
+          </div>
           </div>
         </section>
       </div>

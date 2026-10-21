@@ -60,7 +60,8 @@ export default function MemberDirectory({
           </button>
         </p>
       ) : (
-        <ul className="grid gap-4 sm:grid-cols-2">
+        <div className="@container">
+          <ul className="grid gap-4 @xl:grid-cols-2">
           {results.map((entry) => (
             <li
               key={entry.id}
@@ -122,6 +123,7 @@ export default function MemberDirectory({
             </li>
           ))}
         </ul>
+        </div>
       )}
     </div>
   )

@@ -440,7 +440,8 @@ export default async function NetworkPage() {
             </p>
           </div>
 
-          <div className="grid gap-4 mt-6 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="@container">
+            <div className="grid gap-4 mt-6 @xl:grid-cols-2 @4xl:grid-cols-3">
             {!hasPostedInSlack && (
               <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 p-6">
                 <div className="text-2xl mb-2" aria-hidden>
@@ -518,6 +519,7 @@ export default async function NetworkPage() {
                 <p className="text-sm text-slate-400">Check back once more prickles have run.</p>
               )}
             </div>
+          </div>
           </div>
         </div>
       )}
