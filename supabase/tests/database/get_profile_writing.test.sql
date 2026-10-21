@@ -1,6 +1,6 @@
 -- pgTAP test for public.get_profile_writing (20260928000400_writing_goal_details_and_profile.sql).
 -- Runs in one transaction that is rolled back, so it leaves the shared local DB untouched.
--- Run with `npm run test:pgtap` (scripts/test-pgtap.sh; CI runs it in the test-db job). It runs
+-- Run with `pnpm test:pgtap` (scripts/test-pgtap.sh; CI runs it in the test-db job). It runs
 -- as supabase_admin, since tests here SET ROLE to roles postgres can't. finish(true) raises on
 -- any "not ok", so a failed assertion fails the run.
 BEGIN;

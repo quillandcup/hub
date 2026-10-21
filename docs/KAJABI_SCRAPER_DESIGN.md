@@ -154,7 +154,7 @@ jobs:
           node-version: '20'
       
       - name: Install dependencies
-        run: npm ci
+        run: pnpm install --frozen-lockfile
       
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
@@ -163,13 +163,13 @@ jobs:
         env:
           KAJABI_EMAIL: ${{ secrets.KAJABI_EMAIL }}
           KAJABI_PASSWORD: ${{ secrets.KAJABI_PASSWORD }}
-        run: npm run kajabi:export
+        run: pnpm kajabi:export
       
       - name: Upload to app
         env:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           APP_URL: ${{ secrets.APP_URL }}
-        run: npm run kajabi:upload
+        run: pnpm kajabi:upload
       
       - name: Notify on failure
         if: failure()
@@ -208,14 +208,14 @@ jobs:
 ### Manual Testing
 ```bash
 # 1. Install dependencies
-npm install playwright
+pnpm add playwright
 
 # 2. Set environment variables
 export KAJABI_EMAIL="your@email.com"
 export KAJABI_PASSWORD="your-password"
 
 # 3. Run export script (with browser visible for debugging)
-npm run kajabi:export
+pnpm kajabi:export
 
 # 4. Check downloads folder for CSVs
 ls -lh downloads/
@@ -224,7 +224,7 @@ ls -lh downloads/
 ### Dry Run Mode
 Add flag to download but NOT upload:
 ```bash
-npm run kajabi:export --dry-run
+pnpm kajabi:export --dry-run
 ```
 
 ## Error Handling
@@ -276,7 +276,7 @@ await page.click('[data-testid="export-button"]');
 
 ## Next Steps
 
-1. [ ] Install Playwright: `npm install -D playwright`
+1. [ ] Install Playwright: `pnpm add -D playwright`
 2. [ ] Create `scripts/kajabi-export.ts`
 3. [ ] Test login flow manually
 4. [ ] Find correct selectors for export buttons

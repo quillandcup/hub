@@ -141,7 +141,7 @@ RLS:
 
 ## Migration pipeline
 
-One command, `npm run courses:migrate -- --course <slug>`, runs all four steps in order. Every step is safe to re-run and only does new work.
+One command, `pnpm courses:migrate --course <slug>`, runs all four steps in order. Every step is safe to re-run and only does new work.
 
 | Step | Runs where | What it does | Idempotency |
 |---|---|---|---|
@@ -244,7 +244,7 @@ Progress is counted against *available* lessons, since the course grows as lesso
 
 ## Ongoing sync after launch
 
-Ania publishes in Kajabi until the builder replaces it, so the sync is used for months, not once. **It's manual for now:** run `npm run courses:migrate -- --course <slug>` when she finishes a batch. It runs steps A–D in order, skips anything unchanged, and prints what changed (lessons added, updated, removed; videos uploaded or reused).
+Ania publishes in Kajabi until the builder replaces it, so the sync is used for months, not once. **It's manual for now:** run `pnpm courses:migrate --course <slug>` when she finishes a batch. It runs steps A–D in order, skips anything unchanged, and prints what changed (lessons added, updated, removed; videos uploaded or reused).
 
 Steps A and C also run with the standard Kajabi sync (the admin button and the nightly reconciliation), so structure and access stay current without anyone running them. Lesson text and new videos still need step B, which needs the Kajabi session, so that stays manual.
 
@@ -264,8 +264,8 @@ None right now.
 
 ## Prerequisites (Cody)
 
-- [ ] Mux keys in `.env.preview` too (currently only `.env.local` and `.env.prod`). `npm run env:sync` exits with an error for any target missing a value.
-- [ ] Merge the env var PR (#102), then run `npm run env:sync` (all values filled in).
+- [ ] Mux keys in `.env.preview` too (currently only `.env.local` and `.env.prod`). `pnpm env:sync` exits with an error for any target missing a value.
+- [ ] Merge the env var PR (#102), then run `pnpm env:sync` (all values filled in).
 - [ ] After the webhook route deploys: create the production Mux webhook pointing at `/api/webhooks/mux` and put its secret in `.env.prod`.
 - [ ] A separate Low-priority Mux token for the migration (`hub-migration`); revoke it after launch.
 - [ ] Billing alert in Mux (Organization Settings → Billing → Alerts; needs a paid plan).

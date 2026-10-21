@@ -10,7 +10,7 @@ on:
       - "lib/cron-heartbeats.ts"
       - "app.config.ts"
       - "package.json"
-      - "package-lock.json"
+      - "pnpm-lock.yaml"
       - ".github/workflows/checkly.yml"
   push:
     branches: [main]
@@ -20,7 +20,7 @@ on:
       - "lib/cron-heartbeats.ts"
       - "app.config.ts"
       - "package.json"
-      - "package-lock.json"
+      - "pnpm-lock.yaml"
       - ".github/workflows/checkly.yml"
   # Manual deploy, e.g. to check a rotated CHECKLY_API_KEY: `gh workflow run checkly.yml --ref main`.
   workflow_dispatch:
@@ -43,10 +43,11 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v6.1.0
       - uses: checkly/checkly-action@v1
         with:
           command: test
-          install-command: npm ci
+          install-command: pnpm install --frozen-lockfile
         env:
           CHECKLY_API_KEY: ${{ secrets.CHECKLY_API_KEY }}
           CHECKLY_ACCOUNT_ID: ${{ vars.CHECKLY_ACCOUNT_ID }}
@@ -65,8 +66,9 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
-      - run: npm ci
-      - run: npx checkly deploy --force
+      - uses: pnpm/action-setup@v6.1.0
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec checkly deploy --force
         env:
           CHECKLY_API_KEY: ${{ secrets.CHECKLY_API_KEY }}
           CHECKLY_ACCOUNT_ID: ${{ vars.CHECKLY_ACCOUNT_ID }}

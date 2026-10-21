@@ -8,12 +8,12 @@ These tests verify that all Silver layer processing routes follow the **DELETE +
 
 1. Start the dev server in one terminal:
    ```bash
-   npm run dev
+   pnpm dev
    ```
 
 2. Run the tests in another terminal:
    ```bash
-   npm test -- tests/api/reprocessability/
+   pnpm test tests/api/reprocessability/
    ```
 
 ## What These Tests Verify
@@ -55,19 +55,19 @@ If UPSERT was used, the orphan would remain, failing the test.
 
 ```bash
 # Members only
-npm test -- tests/api/reprocessability/members-reprocessability.test.ts
+pnpm test tests/api/reprocessability/members-reprocessability.test.ts
 
 # Calendar only
-npm test -- tests/api/reprocessability/calendar-reprocessability.test.ts
+pnpm test tests/api/reprocessability/calendar-reprocessability.test.ts
 
 # Attendance only
-npm test -- tests/api/reprocessability/attendance-reprocessability.test.ts
+pnpm test tests/api/reprocessability/attendance-reprocessability.test.ts
 ```
 
 ## Troubleshooting
 
 **Tests fail with "fetch failed" or connection errors:**
-- Ensure `npm run dev` is running on port 3000
+- Ensure `pnpm dev` is running on port 3000
 - Check that the database is accessible (local Supabase or remote)
 
 **Tests fail with authentication errors:**

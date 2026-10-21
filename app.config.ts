@@ -5,7 +5,7 @@
 // env-vars.config.ts. Nothing else in the code should hardcode these.
 //
 // Read by lib/config.ts (app code), next.config.ts, __checks__/config.ts (Checkly), and
-// scripts. SQL can't import this file: `npm run env:sync:vault` copies the values pg_cron
+// scripts. SQL can't import this file: `pnpm env:sync:vault` copies the values pg_cron
 // needs into Supabase Vault (SHARED_CONFIG_IN_VAULT in scripts/sync-vault-secrets.ts) -- re-run
 // it after changing one of those.
 

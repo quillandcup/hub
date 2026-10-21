@@ -1,7 +1,7 @@
 -- pgTAP tests for prickle_checkins (20261003000000, 20261003140000): the member and admins read,
 -- only the member writes, nobody but a cascade hard-deletes, and the CHECKs on the option keys.
 -- Runs in one transaction that is rolled back, so it leaves the shared local DB untouched.
--- Run with `npm run test:pgtap` (scripts/test-pgtap.sh; CI runs it in the test-db job).
+-- Run with `pnpm test:pgtap` (scripts/test-pgtap.sh; CI runs it in the test-db job).
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;

@@ -1,5 +1,5 @@
 # GitHub repository settings that live in git, applied by scripts/github-config.ts
-# (`npm run github:config:diff` previews, `npm run github:config:push` applies; needs repo admin
+# (`pnpm github:config:diff` previews, `pnpm github:config:push` applies; needs repo admin
 # through `gh auth login`). Edit this file, not the Settings page: a push makes the live
 # ruleset match it.
 #

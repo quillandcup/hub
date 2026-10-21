@@ -480,7 +480,7 @@ change and the migration together (CI pushes migrations before the Vercel deploy
 3. ~~Row counts and timeouts~~ done (see Inventory): single transaction.
 4. Write the migration, run it against a copy of production data if possible, then the
    full db + unit + pgTAP suites.
-5. Update app code and tests; run `npm run build` (the pre-commit hook does).
+5. Update app code and tests; run `pnpm build` (the pre-commit hook does).
 6. Notify the early-access users (one line), run the migration in a quiet window.
 
 ## Rule: Tier 2 ids are never exposed

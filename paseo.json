@@ -1,7 +1,8 @@
 {
   "worktree": {
     "setup": [
-      "cp \"$PASEO_SOURCE_CHECKOUT_PATH/.env.local\" .env.local"
+      "cp \"$PASEO_SOURCE_CHECKOUT_PATH/.env.local\" .env.local",
+      "pnpm install --frozen-lockfile"
     ],
     "teardown": [
       "git checkout --detach",

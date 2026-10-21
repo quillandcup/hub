@@ -45,7 +45,7 @@ export default defineConfig({
     globals: true,
     environment: 'node',
     setupFiles: ['./tests/setup.ts', './tests/setup-msw.ts', './tests/setup-jsdom.ts'],
-    // Only applies with --coverage (npm run test:unit:coverage / test:db:coverage).
+    // Only applies with --coverage (pnpm test:unit:coverage / test:db:coverage).
     // Each project writes to its own directory (see the scripts in package.json) so CI
     // can merge the two lcov files. 
     coverage: {

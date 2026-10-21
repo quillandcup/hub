@@ -1,6 +1,6 @@
 -- pgTAP tests for notification_preferences (20261003160000): the member and admins read, only the
 -- member writes, and a member's rows go with them. Runs in one transaction that is rolled back, so
--- it leaves the shared local DB untouched. Run with `npm run test:pgtap`.
+-- it leaves the shared local DB untouched. Run with `pnpm test:pgtap`.
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;

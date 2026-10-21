@@ -19,7 +19,7 @@ export type Environment = 'development' | 'preview' | 'production';
  * Current environment
  * - 'production': Production deployment (main branch, custom domain)
  * - 'preview': Preview deployment (feature branches, PR previews)
- * - 'development': Local development (npm run dev)
+ * - 'development': Local development (pnpm dev)
  */
 export const environment: Environment =
   (process.env.VERCEL_ENV as Environment) || 'development';

@@ -127,7 +127,7 @@ Comprehensive test suite at `tests/lib/member-matching.test.ts` covers:
 
 Run tests:
 ```bash
-npm test -- tests/lib/member-matching.test.ts
+pnpm test tests/lib/member-matching.test.ts
 ```
 
 ## Common Issues

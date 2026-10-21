@@ -183,14 +183,14 @@ See: [Slack Events API](https://api.slack.com/apis/connections/events-api)
 
 ## Local Testing with a tunnel
 
-Vendors send webhooks from their own servers, so `localhost:3000` means nothing to them. `npm run tunnel` opens a public https address that forwards to your dev server, one command for every vendor (Mux, Zoom, Google Calendar, Slack):
+Vendors send webhooks from their own servers, so `localhost:3000` means nothing to them. `pnpm tunnel` opens a public https address that forwards to your dev server, one command for every vendor (Mux, Zoom, Google Calendar, Slack):
 
 ```bash
 # Terminal 1: Start dev server
-npm run dev
+pnpm dev
 
-# Terminal 2: Start the tunnel (optionally: npm run tunnel -- 3107 for another port)
-npm run tunnel
+# Terminal 2: Start the tunnel (optionally: pnpm tunnel 3107 for another port)
+pnpm tunnel
 ```
 
 Paste the `https://...` address it prints, plus the route, into the vendor's webhook settings, for example `https://<address>/api/webhooks/calendar`.

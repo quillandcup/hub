@@ -2,7 +2,7 @@
 -- restores the caller's own Hub-only reaction, only in public channels and conversations they are
 -- in (an admin's wider read access doesn't count), never on a deleted message or in an archived
 -- conversation, and members cannot write chat_reactions directly.
--- Rolled back; run with `npm run test:pgtap`.
+-- Rolled back; run with `pnpm test:pgtap`.
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;

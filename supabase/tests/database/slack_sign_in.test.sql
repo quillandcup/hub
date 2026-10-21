@@ -1,6 +1,6 @@
 -- pgTAP test for Slack sign-in storage (20260929000300_create_slack_sign_in.sql) and the rate
 -- limiter (20260929000400_create_rate_limit_counters.sql): only the service role may touch them,
--- and rate_limit_hit() counts per bucket and window. Rolled back; run with `npm run test:pgtap`.
+-- and rate_limit_hit() counts per bucket and window. Rolled back; run with `pnpm test:pgtap`.
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;

@@ -1,7 +1,7 @@
 -- pgTAP tests for audit_log + get_activity_feed (20261006000000): the generic trigger records the
 -- delta and the actor (staff via auth.uid(), system without one), ignores bookkeeping-only
 -- updates, and only admins can read the log or the feed. Runs in one transaction that is rolled
--- back, so it leaves the shared local DB untouched. Run with `npm run test:pgtap`.
+-- back, so it leaves the shared local DB untouched. Run with `pnpm test:pgtap`.
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;

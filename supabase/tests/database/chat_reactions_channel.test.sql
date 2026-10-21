@@ -1,7 +1,7 @@
 -- pgTAP tests for 20261028000000_chat_reactions_channel.sql: a reaction's channel_id is filled in
 -- from its message on insert (whoever inserts it, and whichever way: the Hub's toggle or the Slack
 -- projection), the column can't be left empty, and the backfill matches the message's channel.
--- Rolled back; run with `npm run test:pgtap`.
+-- Rolled back; run with `pnpm test:pgtap`.
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;

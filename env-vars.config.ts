@@ -530,7 +530,7 @@ export const ENV_VARS: readonly EnvVarSpec[] = [
     name: "RESEND_API_KEY",
     group: "Email (Resend)",
     description:
-      "Resend API key (sending access). The app sends member notification emails with it (lib/email.ts). The same key is Supabase Auth's SMTP password: the config push (`npm run config:push` locally, and CI's push-migrations job on every push to main) reads it via config.toml's env(RESEND_API_KEY), and CI refuses to push config without it, since the push would otherwise overwrite production's SMTP password.",
+      "Resend API key (sending access). The app sends member notification emails with it (lib/email.ts). The same key is Supabase Auth's SMTP password: the config push (`pnpm config:push` locally, and CI's push-migrations job on every push to main) reads it via config.toml's env(RESEND_API_KEY), and CI refuses to push config without it, since the push would otherwise overwrite production's SMTP password.",
     type: "secret",
     destinations: [...vercelAllEnvs, { kind: "github" }],
   },

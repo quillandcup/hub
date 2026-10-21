@@ -1,7 +1,7 @@
 -- pgTAP tests for 20261104000100_slack_fill_channel_name.sql: Bronze messages and reactions get the
 -- channel's name from bronze.slack_channels at insert when the writer supplied none (the webhook's
 -- case), keep a supplied name, and stay nameless for an unknown channel or a group DM.
--- Rolled back; run with `npm run test:pgtap`.
+-- Rolled back; run with `pnpm test:pgtap`.
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;

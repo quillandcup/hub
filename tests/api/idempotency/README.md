@@ -7,7 +7,7 @@ These tests verify that all Bronze layer imports are idempotent - they can be ru
 These are unit tests that interact directly with the database (no API server required):
 
 ```bash
-npm test -- tests/api/idempotency/
+pnpm test tests/api/idempotency/
 ```
 
 ## Idempotency Patterns
@@ -88,13 +88,13 @@ Both are essential architectural properties!
 
 ```bash
 # Calendar sync only
-npm test -- tests/api/idempotency/calendar-sync-idempotency.test.ts
+pnpm test tests/api/idempotency/calendar-sync-idempotency.test.ts
 
 # Zoom import only
-npm test -- tests/api/idempotency/zoom-import-idempotency.test.ts
+pnpm test tests/api/idempotency/zoom-import-idempotency.test.ts
 
 # Members import only
-npm test -- tests/api/idempotency/members-import-idempotency.test.ts
+pnpm test tests/api/idempotency/members-import-idempotency.test.ts
 ```
 
 ## Troubleshooting

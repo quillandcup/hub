@@ -12,7 +12,7 @@ export interface SyncArgs {
 export type ParsedSyncArgs = ({ ok: true } & SyncArgs) | { ok: false; error: string };
 
 export const SYNC_USAGE = [
-  "Usage: npm run env:sync [-- --only=NAME[,NAME...]] [--target=preview|production[,...]]",
+  "Usage: pnpm env:sync [--only=NAME[,NAME...]] [--target=preview|production[,...]]",
   "  --only    sync just these variables (a name that isn't synced to Vercel is an error)",
   "  --target  sync to just these Vercel environments",
   "  Both flags also take a space instead of =, e.g. --only NAME.",

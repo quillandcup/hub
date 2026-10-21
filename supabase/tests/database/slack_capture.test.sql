@@ -3,7 +3,7 @@
 -- 20261009000000_slack_content_privacy.sql) and writable by no API user, the slack-files bucket is
 -- private with no member access, and reprocess_slack_activities_atomic never copies
 -- direct-message text (group DMs, DMs with the bot) into member_activities.
--- Rolled back; run with `npm run test:pgtap`.
+-- Rolled back; run with `pnpm test:pgtap`.
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;

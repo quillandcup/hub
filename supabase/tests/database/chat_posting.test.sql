@@ -3,7 +3,7 @@
 -- Slack), members have no way to write chat_messages directly, the outbox's service-role steps
 -- fold a duplicate projection into the app row, and Slack's event for our own post (identified by
 -- its metadata) is linked to that row instead of becoming a second one.
--- Rolled back; run with `npm run test:pgtap`.
+-- Rolled back; run with `pnpm test:pgtap`.
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;

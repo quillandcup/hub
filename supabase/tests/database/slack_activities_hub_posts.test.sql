@@ -2,7 +2,7 @@
 -- is posted to Slack by the bot, and the Slack activity rebuild credits it to the member who wrote
 -- it (the app-origin chat_messages row for the same channel and ts), not to nobody. Other bot posts
 -- still count for nobody, and messages from mapped Slack users are unchanged.
--- Rolled back; run with `npm run test:pgtap`.
+-- Rolled back; run with `pnpm test:pgtap`.
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;

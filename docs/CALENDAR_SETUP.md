@@ -75,7 +75,7 @@ GOOGLE_CALENDAR_ID=dd6745e544f1a8a93f0f7fd6d3fc633ab9c864e1090603a793c69d101f695
 
 ### 7. Test It
 
-1. Restart your dev server: `npm run dev`
+1. Restart your dev server: `pnpm dev`
 2. Go to `http://localhost:3000/dashboard/import`
 3. Scroll to "Import Prickles from Google Calendar"
 4. Click "Sync Now"

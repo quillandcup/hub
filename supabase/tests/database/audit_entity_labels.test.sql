@@ -1,6 +1,6 @@
 -- pgTAP tests for audit_entity_label (20261029000100): audit rows for records with no title of their
 -- own are named after what they point at, and rows with a title keep it. Rolled back.
--- Run with `npm run test:pgtap`.
+-- Run with `pnpm test:pgtap`.
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;
