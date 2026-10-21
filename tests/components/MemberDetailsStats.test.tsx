@@ -46,15 +46,18 @@ function renderDetails(status: string, stats: Record<string, unknown> = { member
 describe('MemberDetails engagement and churn risk', () => {
   it('labels the score out of 100 and shows churn risk separately for an active member', () => {
     renderDetails('active')
-    expect(screen.getByText('Engagement (30 days)')).toBeTruthy()
+    expect(screen.getByText('Engagement')).toBeTruthy()
     expect(screen.getByText('/ 100')).toBeTruthy()
-    expect(screen.getByText('Churn risk (days since last prickle)')).toBeTruthy()
+    expect(screen.getByText('Churn risk')).toBeTruthy()
     expect(screen.getByText('medium')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'About Engagement' })).toBeTruthy()
+    expect(screen.getAllByRole('tooltip')).toHaveLength(2)
+    expect(screen.getByRole('button', { name: 'About Churn risk' })).toBeTruthy()
   })
 
   it('shows no churn risk for a cancelled member', () => {
     renderDetails('cancelled')
-    expect(screen.queryByText('Churn risk (days since last prickle)')).toBeNull()
+    expect(screen.queryByText('Churn risk')).toBeNull()
     expect(screen.queryByText('medium')).toBeNull()
   })
 
