@@ -261,11 +261,15 @@ the file), so the safest rule is: **leave existing objects where they are** and 
 | `feedback-screenshots` | `<auth user id>/<id>.png` | Yes, on `auth.uid()` | Unaffected: auth ids stay uuid |
 | `slack-files` | Slack ids | No | Unaffected |
 
-**Decided 2026-10-20: leave existing objects in place, no mapping kept after the migration.**
-The Tier 1 migration does not touch `storage_path` or `cover_url` values (a rehearsal scan on a
-production copy lists them as the only remaining old ids, on purpose). The one effect is the
-single `book-covers` object in prod: its folder is the member's old id, so that member cannot
-replace or delete it until they upload a new cover. New uploads use the new id.
+**Decided 2026-10-20: move the objects.** The Tier 1 migration rewrites the path columns
+(`event_photos.storage_path`, `course_lesson_files.storage_path`, the `book-covers` URLs in
+`writing_projects.cover_url` and `member_books.cover_url`) and queues each rename in
+`public.storage_path_moves` (service role only, 80 rows in the production copy: 71 event
+photos, 8 lesson files, 1 cover). Right after the migration is pushed, run
+`npm run storage:move` (`scripts/move-storage-objects.ts`, `lib/storage-moves.ts`): it moves
+each object through the Storage API, deletes the queue row as it goes, and is safe to re-run.
+Until it has run, those files 404 under their new paths. A later migration drops the empty
+table. It is not part of the Tier 1 migration because migrations run before the script can.
 
 `video_text_tracks.storage_path` follows the same rule. `videos.mux_asset_id` /
 `mux_playback_id` are external ids and don't change.

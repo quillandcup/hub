@@ -26,6 +26,7 @@
     "supabase:status": "supabase status",
     "db:push": "dotenv -e .env.prod -- supabase db push",
     "db:up": "supabase migration up",
+    "storage:move": "dotenv -e .env.prod -- tsx scripts/move-storage-objects.ts",
     "env:sync": "tsx scripts/sync-to-vercel.ts",
     "env:sync:github": "tsx scripts/sync-to-github.ts",
     "env:sync:vault": "tsx scripts/sync-vault-secrets.ts",

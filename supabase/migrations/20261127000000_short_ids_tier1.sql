@@ -143,6 +143,40 @@ UPDATE public.access_events SET path = pg_temp.sid_remap(path) WHERE path ~ '[0-
 ALTER TABLE public.ambiguous_zoom_names ALTER COLUMN candidate_member_ids TYPE text[] USING candidate_member_ids::text[];
 UPDATE public.ambiguous_zoom_names a SET candidate_member_ids = ARRAY(SELECT coalesce((SELECT m.new FROM sid_map m WHERE m.old = x), x) FROM unnest(a.candidate_member_ids) WITH ORDINALITY AS u(x, n) ORDER BY n);
 
+-- Storage object paths embed these ids too (`<member id>/<file>`, `<event id>/<photo id>`, ...).
+-- The path columns are rewritten here so the app is consistent at once; the objects themselves
+-- can only be renamed through the Storage API (SQL on storage.objects does not move the file),
+-- so each rename is queued in storage_path_moves for scripts/move-storage-objects.ts, which
+-- deletes the rows as it goes. A follow-up migration drops the table once it is empty.
+CREATE TABLE public.storage_path_moves (
+  bucket text NOT NULL,
+  old_path text NOT NULL,
+  new_path text NOT NULL,
+  PRIMARY KEY (bucket, old_path)
+);
+ALTER TABLE public.storage_path_moves ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON public.storage_path_moves FROM anon, authenticated;
+COMMENT ON TABLE public.storage_path_moves IS
+  'Storage objects to rename after the Tier 1 id migration; drained by scripts/move-storage-objects.ts (service role only), then dropped.';
+
+INSERT INTO public.storage_path_moves
+SELECT 'event-photos', storage_path, pg_temp.sid_remap(storage_path) FROM public.event_photos
+WHERE pg_temp.sid_remap(storage_path) <> storage_path;
+UPDATE public.event_photos SET storage_path = pg_temp.sid_remap(storage_path) WHERE pg_temp.sid_remap(storage_path) <> storage_path;
+
+INSERT INTO public.storage_path_moves
+SELECT 'course-files', storage_path, pg_temp.sid_remap(storage_path) FROM public.course_lesson_files
+WHERE pg_temp.sid_remap(storage_path) <> storage_path;
+UPDATE public.course_lesson_files SET storage_path = pg_temp.sid_remap(storage_path) WHERE pg_temp.sid_remap(storage_path) <> storage_path;
+
+-- Book covers are stored as public URLs; the object path is what follows the bucket name.
+INSERT INTO public.storage_path_moves
+SELECT DISTINCT 'book-covers', substring(u from 'book-covers/(.+)$'), substring(pg_temp.sid_remap(u) from 'book-covers/(.+)$')
+FROM (SELECT cover_url AS u FROM public.writing_projects UNION SELECT cover_url FROM public.member_books) c
+WHERE u LIKE '%book-covers/%' AND pg_temp.sid_remap(u) <> u;
+UPDATE public.writing_projects SET cover_url = pg_temp.sid_remap(cover_url) WHERE pg_temp.sid_remap(cover_url) <> cover_url;
+UPDATE public.member_books SET cover_url = pg_temp.sid_remap(cover_url) WHERE pg_temp.sid_remap(cover_url) <> cover_url;
+
 -- 7. Functions ---------------------------------------------------------------------------------------
 -- Generated from the current definitions: member/prickle/chat/... id arguments and results become text;
 -- auth user and session ids, Vault ids and Tier 2 ids stay uuid. Signatures change, so the old ones are
