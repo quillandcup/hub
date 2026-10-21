@@ -23,6 +23,7 @@ export default function SplitMemberModal({ member, nameAliases, emailAliases, is
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [conflictId, setConflictId] = useState<string | null>(null);
+  const [moveTarget, setMoveTarget] = useState<{ id: string; name: string } | null>(null);
 
   function toggle(set: Set<string>, id: string, update: (next: Set<string>) => void) {
     const next = new Set(set);
@@ -42,10 +43,38 @@ export default function SplitMemberModal({ member, nameAliases, emailAliases, is
     if (!emailIds.has(row.id) && !email) setEmail(row.alias_email);
   }
 
+  // The new person already exists (a sync recreated them): give them the ticked aliases instead.
+  async function handleMove() {
+    if (!moveTarget) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/admin/members/move-aliases", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fromMemberId: member.id,
+          toMemberId: moveTarget.id,
+          nameAliasIds: [...nameIds],
+          emailAliasIds: [...emailIds],
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Move failed");
+      onClose();
+      router.push(`/admin/members/${moveTarget.id}`);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Move failed");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function handleSplit() {
     setSaving(true);
     setError(null);
     setConflictId(null);
+    setMoveTarget(null);
     try {
       const res = await fetch("/api/admin/members/split", {
         method: "POST",
@@ -61,6 +90,7 @@ export default function SplitMemberModal({ member, nameAliases, emailAliases, is
       const json = await res.json();
       if (!res.ok) {
         setConflictId(json.conflictingMemberId ?? null);
+        if (json.canMoveAliases) setMoveTarget({ id: json.conflictingMemberId, name: json.conflictingMemberName });
         throw new Error(json.error || "Split failed");
       }
       onClose();
@@ -135,6 +165,16 @@ export default function SplitMemberModal({ member, nameAliases, emailAliases, is
               </>
             )}
           </p>
+        )}
+
+        {moveTarget && (
+          <button
+            onClick={handleMove}
+            disabled={saving || (nameIds.size === 0 && emailIds.size === 0)}
+            className="px-4 py-2 text-sm font-medium bg-plum-600 hover:bg-plum-700 disabled:bg-plum-300 text-white rounded-lg transition-colors"
+          >
+            {saving ? "Moving..." : `Move ticked names and emails to ${moveTarget.name}`}
+          </button>
         )}
 
         <div className="flex justify-end gap-3 pt-1">

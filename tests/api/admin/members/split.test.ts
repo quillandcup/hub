@@ -109,7 +109,7 @@ describe("POST /api/admin/members/split", () => {
     useMock(mock);
     const res = await POST(request(BODY));
     expect(res.status).toBe(409);
-    expect(await res.json()).toMatchObject({ conflictingMemberId: "other", error: expect.stringContaining("Ivy Marsh") });
+    expect(await res.json()).toMatchObject({ conflictingMemberId: "other", canMoveAliases: true, error: expect.stringContaining("Ivy Marsh") });
     expect(mock.calls.some((c) => c.op === "insert")).toBe(false);
   });
 

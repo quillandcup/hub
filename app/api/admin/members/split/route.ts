@@ -63,6 +63,8 @@ export async function POST(request: NextRequest) {
             ? "That is this member's own primary email."
             : `${holder.name} already has that email. If they are the new member, move the aliases to them instead of splitting.`,
         conflictingMemberId: holder.id,
+        conflictingMemberName: holder.name,
+        canMoveAliases: holder.id !== original.id,
       },
       { status: 409 }
     );
