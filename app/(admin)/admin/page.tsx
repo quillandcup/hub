@@ -251,7 +251,8 @@ export default async function DashboardPage() {
   return (
     <div className="container mx-auto px-6 py-8">
         {/* Top Metrics */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
+        <div className="@container">
+          <div className="grid grid-cols-1 @2xl:grid-cols-2 @4xl:grid-cols-5 gap-6 mb-8">
           <MetricCard
             label="Total Members"
             value={totalMembers}
@@ -289,6 +290,7 @@ export default async function DashboardPage() {
             description="Former paying members"
           />
         </div>
+        </div>
 
         {/* Hedgie Welcome */}
         <div className="bg-gradient-to-r from-plum-50 to-cream dark:from-plum-900/20 dark:to-slate-900 rounded-lg p-6 mb-8 flex items-center gap-6">
@@ -309,7 +311,8 @@ export default async function DashboardPage() {
         <DashboardCharts weeklyAttendance={weeklyAttendanceArray} dailyHours={dailyHoursArray} />
 
         {/* Engagement Insights */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+        <div className="@container">
+          <div className="grid grid-cols-1 @2xl:grid-cols-2 gap-6 mb-8">
           {/* Top Attendees */}
           <div className="bg-white dark:bg-slate-900 rounded-lg shadow p-6">
             <h2 className="text-xl font-bold mb-4">🌟 Top Attendees</h2>
@@ -363,6 +366,7 @@ export default async function DashboardPage() {
               )}
             </div>
           </div>
+        </div>
         </div>
 
     </div>

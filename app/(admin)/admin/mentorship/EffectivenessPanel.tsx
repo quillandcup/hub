@@ -31,13 +31,15 @@ export default function EffectivenessPanel({
 }) {
   return (
     <div className="space-y-8">
-      <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
+      <div className="@container">
+        <div className="grid grid-cols-2 @2xl:grid-cols-6 gap-4">
         <Stat label="Matches" value={overall.total} />
         <Stat label="No trial" value={overall.noTrial} />
         <Stat label="Trials converted" value={overall.converted} />
         <Stat label="Did not convert" value={overall.notConverted} />
         <Stat label="Trials in progress" value={overall.inTrial} />
         <Stat label="Conversion rate" value={percent(overall.conversionRate)} />
+      </div>
       </div>
       <p className="text-xs text-slate-500 dark:text-slate-400 -mt-4">
         Conversion rate is for trials only: converted ÷ (converted + did not convert), with trials still in progress left

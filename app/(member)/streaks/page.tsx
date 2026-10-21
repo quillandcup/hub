@@ -320,7 +320,8 @@ export default async function StreaksPage() {
         )}
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="@container">
+        <div className="grid grid-cols-1 @xl:grid-cols-2 gap-4">
         {/* Prickle streaks */}
         <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 p-4">
           <h2 className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
@@ -377,6 +378,7 @@ export default async function StreaksPage() {
             </div>
           )}
         </div>
+      </div>
       </div>
     </div>
   )

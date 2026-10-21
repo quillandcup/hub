@@ -221,7 +221,7 @@ export default async function LessonPage({
 
             <div className="mt-10 border-t border-slate-200 pt-6 dark:border-slate-800">
               {(neighbors.previous || neighbors.next) && (
-                <div className="grid gap-3 sm:grid-cols-2">
+                <div className="grid gap-3 @xl:grid-cols-2">
                   {neighbors.previous ? <NeighborCard slug={view.course.slug} lesson={neighbors.previous} direction="previous" /> : <span />}
                   {neighbors.next ? <NeighborCard slug={view.course.slug} lesson={neighbors.next} direction="next" /> : <span />}
                 </div>

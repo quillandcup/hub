@@ -171,7 +171,8 @@ export default function MemberDetails({
 
       {activeTab === "overview" && (
         <div className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="@container">
+            <div className="grid grid-cols-1 @2xl:grid-cols-2 gap-6">
             <SummaryCard
               title="Attendance"
               onViewAll={() => setActiveTab("attendance")}
@@ -205,6 +206,7 @@ export default function MemberDetails({
                 <p className="text-sm text-slate-500 dark:text-slate-400">No Slack activity yet.</p>
               )}
             </SummaryCard>
+          </div>
           </div>
 
           <MemberTimelinePanel
@@ -304,7 +306,9 @@ function SummaryCard({
           {viewAllLabel} →
         </button>
       </div>
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">{children}</div>
+      <div className="@container">
+        <div className="grid grid-cols-2 @xl:grid-cols-4 gap-4">{children}</div>
+      </div>
     </div>
   );
 }

@@ -52,7 +52,8 @@ export default function BookshelfClient({ shelf }: BookshelfClientProps) {
       {shelf.length === 0 ? (
         <p className="text-sm text-slate-500 dark:text-slate-400">No books yet — be the first!</p>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="@container">
+          <div className="grid grid-cols-1 @xl:grid-cols-2 gap-4">
           {shelf.map((book) => (
             <div
               key={book.id}
@@ -90,6 +91,7 @@ export default function BookshelfClient({ shelf }: BookshelfClientProps) {
               </div>
             </div>
           ))}
+        </div>
         </div>
       )}
     </div>

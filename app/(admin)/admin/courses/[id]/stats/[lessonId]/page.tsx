@@ -122,7 +122,8 @@ export default async function LessonWatchStatsPage({
         </p>
       ) : (
         <>
-          <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="@container">
+            <div className="mt-6 grid gap-4 @xl:grid-cols-2 @4xl:grid-cols-3">
             <Tile
               label="Engagement"
               value={percent(stats.engagementRate)}
@@ -159,6 +160,7 @@ export default async function LessonWatchStatsPage({
               definition="Video time viewers replayed after already watching it: the time played minus the time covered. It leaves out two different members watching the same part."
             />
           </div>
+          </div>
 
           {series && <TimeSeriesSection series={series} preset={controls.preset} action={here} staff={includeStaff} />}
 
@@ -172,7 +174,8 @@ export default async function LessonWatchStatsPage({
 
           <div className="mt-6 rounded-lg bg-white p-6 shadow dark:bg-slate-900">
             <h2 className="text-lg font-semibold">How it was watched</h2>
-            <dl className="mt-3 grid gap-x-8 gap-y-3 text-sm sm:grid-cols-2">
+            <div className="@container">
+              <dl className="mt-3 grid gap-x-8 gap-y-3 text-sm @xl:grid-cols-2">
               <div>
                 <dt className="text-slate-500 dark:text-slate-400">Playback speed (share of time played)</dt>
                 <dd className="mt-1">
@@ -197,6 +200,7 @@ export default async function LessonWatchStatsPage({
                 </div>
               </div>
             </dl>
+            </div>
           </div>
 
           <div className="mt-6 rounded-lg bg-white p-6 shadow dark:bg-slate-900">

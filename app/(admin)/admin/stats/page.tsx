@@ -155,7 +155,8 @@ export default async function CommunityStatsPage({
         <DateRangeFilter from={from} to={to} />
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+      <div className="@container">
+        <div className="grid grid-cols-2 @2xl:grid-cols-4 gap-4 mb-8">
         <StatCard
           emoji="✍️"
           value={attendedPrickles.length.toLocaleString()}
@@ -180,6 +181,7 @@ export default async function CommunityStatsPage({
           label="of weekdays at 7am"
           sub="someone was always writing"
         />
+      </div>
       </div>
 
       <CommunityStatsCharts

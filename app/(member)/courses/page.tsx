@@ -24,7 +24,8 @@ export default async function CoursesPage() {
           You don&apos;t have any courses yet. Once you join one, it shows up here.
         </div>
       ) : (
-        <ul className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="@container">
+          <ul className="grid gap-6 @xl:grid-cols-2 @4xl:grid-cols-3">
           {items.map(({ course, access, progress }) => {
             const ended = access.kind === "ended";
             const upcoming = access.kind === "upcoming";
@@ -104,6 +105,7 @@ export default async function CoursesPage() {
             );
           })}
         </ul>
+        </div>
       )}
     </div>
   );

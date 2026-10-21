@@ -476,7 +476,8 @@ export default function ProgramDetailClient({ programId }: { programId: string }
 
         {showCohortForm && (
           <form onSubmit={handleCreateCohort} className="mb-6 p-4 border border-gray-200 dark:border-slate-700 rounded bg-gray-50 dark:bg-slate-800 space-y-3">
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="@container">
+              <div className="grid grid-cols-1 @xl:grid-cols-3 gap-3">
               <div>
                 <label className="block text-sm font-medium mb-1 dark:text-gray-200">Name</label>
                 <input
@@ -516,6 +517,7 @@ export default function ProgramDetailClient({ programId }: { programId: string }
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Defaults to 6 months out</p>
               </div>
             </div>
+            </div>
             <div>
               <label className="block text-sm font-medium mb-1 dark:text-gray-200">Notes (optional)</label>
               <input
@@ -548,7 +550,8 @@ export default function ProgramDetailClient({ programId }: { programId: string }
               <div key={cohort.id} className="border border-gray-200 dark:border-slate-700 rounded p-3">
                 {editingCohortId === cohort.id ? (
                   <form onSubmit={(e) => handleUpdateCohort(e, cohort.id)} className="space-y-3">
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="@container">
+                      <div className="grid grid-cols-1 @xl:grid-cols-3 gap-3">
                       <div>
                         <label className="block text-sm font-medium mb-1 dark:text-gray-200">Name</label>
                         <input
@@ -579,6 +582,7 @@ export default function ProgramDetailClient({ programId }: { programId: string }
                           required
                         />
                       </div>
+                    </div>
                     </div>
                     <div>
                       <label className="block text-sm font-medium mb-1 dark:text-gray-200">Notes (optional)</label>

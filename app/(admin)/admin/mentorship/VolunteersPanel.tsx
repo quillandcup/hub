@@ -58,7 +58,8 @@ export default function VolunteersPanel({ volunteers }: { volunteers: VolunteerS
         <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
           Members add themselves on the Big Sisters page. Use this when someone tells you they&apos;re up for it.
         </p>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="@container">
+          <div className="grid grid-cols-1 @2xl:grid-cols-2 gap-4">
           <MemberSearch
             members={members}
             selectedMemberId={picked?.id ?? null}
@@ -74,6 +75,7 @@ export default function VolunteersPanel({ volunteers }: { volunteers: VolunteerS
             aria-label="Note"
             className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-sm"
           />
+        </div>
         </div>
         {error && <p className="mt-3 text-sm text-red-600 dark:text-red-400">{error}</p>}
         <button

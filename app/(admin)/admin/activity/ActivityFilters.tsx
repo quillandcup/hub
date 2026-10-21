@@ -133,7 +133,8 @@ export default function ActivityFilters(props: ActivityFiltersProps) {
       )}
 
       {props.variant !== "member" && (
-      <div className="grid gap-3 sm:grid-cols-2 max-w-2xl">
+      <div className="@container">
+        <div className="grid gap-3 @xl:grid-cols-2 max-w-2xl">
         <label className="block text-sm text-slate-600 dark:text-slate-400">
           <span className="block mb-1">Member</span>
           <MemberSearch
@@ -157,6 +158,7 @@ export default function ActivityFilters(props: ActivityFiltersProps) {
           />
           <span className="block mt-1 text-xs text-slate-500">Only what this admin or assistant did</span>
         </label>
+      </div>
       </div>
       )}
     </div>

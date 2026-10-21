@@ -52,10 +52,12 @@ export default async function CourseWatchStatsPage({
         </Link>
       </p>
 
-      <div className="mt-6 grid gap-4 sm:grid-cols-3">
+      <div className="@container">
+        <div className="mt-6 grid gap-4 @xl:grid-cols-3">
         <Tile label="Viewers" value={String(data.viewers)} />
         <Tile label="Time watched" value={hours(data.watchedSeconds)} />
         <Tile label="Lessons watched" value={`${watched.length} of ${withVideo.length}`} />
+      </div>
       </div>
 
       <div className="mt-6 overflow-x-auto rounded-lg bg-white p-6 shadow dark:bg-slate-900">
