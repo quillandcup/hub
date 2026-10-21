@@ -29,7 +29,7 @@ export default function CheckinPills({
           ["checkout", "Check out", "Checked out", checkoutAnswered(checkin)],
         ] as const
       ).map(([half, todoLabel, doneLabel, answered]) => (
-        <button
+        <button data-track="checkin-pills-answered"
           key={half}
           type="button"
           className={answered ? done : todo}

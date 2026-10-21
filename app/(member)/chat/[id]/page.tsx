@@ -125,7 +125,7 @@ export default async function ChatChannelPage({
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="shrink-0 flex items-start justify-between gap-4 border-b border-slate-200 px-6 pb-3 pt-5 dark:border-slate-800">
           <div>
-            <Link href="/chat" className="mb-1 inline-block text-sm text-plum-600 hover:underline md:hidden dark:text-plum-400">
+            <Link data-track="chat-channel-channels" href="/chat" className="mb-1 inline-block text-sm text-plum-600 hover:underline md:hidden dark:text-plum-400">
               ← Channels
             </Link>
             <h1 className="text-2xl font-bold">{channel.label}</h1>
@@ -134,7 +134,7 @@ export default async function ChatChannelPage({
             )}
           </div>
           {people.length > 0 && (
-            <Link
+            <Link data-track="chat-channel-members"
               href={`/chat/${channel.id}/members`}
               aria-label={`${people.length} ${people.length === 1 ? "member" : "members"}`}
               className="shrink-0 inline-flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-700 px-2 py-1 text-sm hover:bg-slate-100 dark:hover:bg-slate-800"

@@ -77,14 +77,14 @@ export function ConsentBanner({ needsConsent }: { needsConsent: boolean }) {
           you type) to understand how Hedgie Hub is used. We only turn them on with your consent.
         </p>
         <div className="flex gap-2 shrink-0">
-          <button
+          <button data-track="consent-banner-decline"
             type="button"
             onClick={() => choose("denied")}
             className="px-3 py-1.5 text-sm text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 border border-slate-300 dark:border-slate-600 hover:border-slate-400 dark:hover:border-slate-500 rounded"
           >
             Decline
           </button>
-          <button
+          <button data-track="consent-banner-accept"
             type="button"
             onClick={() => choose("granted")}
             className="px-3 py-1.5 text-sm text-white bg-plum-600 hover:bg-plum-700 rounded"

@@ -163,14 +163,14 @@ export default async function LessonPage({
         <nav aria-label="Breadcrumb" className="text-sm text-slate-500 dark:text-slate-400">
           <ol className="flex flex-wrap items-center gap-x-2 gap-y-1">
             <li>
-              <Link href={`/courses/${view.course.slug}`} className="hover:underline">
+              <Link data-track="lesson-breadcrumb-course" href={`/courses/${view.course.slug}`} className="hover:underline">
                 {view.course.title}
               </Link>
             </li>
             {(context?.trail ?? []).map((crumb) => (
               <li key={crumb.id} className="flex gap-2">
                 <span aria-hidden="true">/</span>
-                <Link href={`/courses/${view.course.slug}/modules/${crumb.id}`} className="hover:underline">
+                <Link data-track="lesson-breadcrumb-module" href={`/courses/${view.course.slug}/modules/${crumb.id}`} className="hover:underline">
                   {crumb.title}
                 </Link>
               </li>
@@ -225,7 +225,7 @@ export default async function LessonPage({
                 </div>
               )}
               <p className="mt-8 text-center text-sm">
-                <Link href={`/courses/${view.course.slug}`} className="text-slate-500 underline hover:text-plum-700 dark:text-slate-400 dark:hover:text-plum-300">
+                <Link data-track="lesson-id-view-the-full-course-outline" href={`/courses/${view.course.slug}`} className="text-slate-500 underline hover:text-plum-700 dark:text-slate-400 dark:hover:text-plum-300">
                   View the full course outline
                 </Link>
               </p>

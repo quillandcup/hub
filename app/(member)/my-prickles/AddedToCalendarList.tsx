@@ -42,7 +42,7 @@ export default function AddedToCalendarList({ items }: { items: MyCalendarItem[]
         {shown.map((item) => (
           <li key={item.id} className="flex items-center justify-between gap-3 text-sm text-slate-700 dark:text-slate-300">
             <span className="min-w-0 truncate">{item.label}</span>
-            <button
+            <button data-track="added-to-calendar-list-remove"
               type="button"
               onClick={() => removeItem(item)}
               aria-label={`Remove ${item.label} from your calendar`}

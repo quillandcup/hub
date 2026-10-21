@@ -28,7 +28,7 @@ export default function MessageItem({
     <article className="py-3 border-b border-slate-100 dark:border-slate-800 last:border-0 flex gap-3" id={`m-${message.id}`}>
       <div className="shrink-0 pt-0.5">
         {message.authorMemberId ? (
-          <Link href={profileHref} scroll={false} aria-hidden="true" tabIndex={-1}>
+          <Link data-track="chat-message-avatar" href={profileHref} scroll={false} aria-hidden="true" tabIndex={-1}>
             <MemberAvatar name={message.authorName} photoUrl={message.authorPhotoUrl} size={36} />
           </Link>
         ) : (

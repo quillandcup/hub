@@ -38,7 +38,7 @@ export default async function CoursesPage() {
                 key={course.id}
                 className="flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900"
               >
-                <Link href={courseHref} tabIndex={-1} aria-hidden="true" className="relative block aspect-video bg-plum-50 dark:bg-slate-800">
+                <Link data-track="courses-open-course-image" href={courseHref} tabIndex={-1} aria-hidden="true" className="relative block aspect-video bg-plum-50 dark:bg-slate-800">
                   {thumbnail ? (
                     // Decorative (the title is below); a plain img so any Kajabi image host works.
                     // eslint-disable-next-line @next/next/no-img-element
@@ -62,7 +62,7 @@ export default async function CoursesPage() {
 
                 <div className="flex flex-1 flex-col p-5">
                   <h2 className="text-lg font-semibold leading-snug">
-                    <Link href={courseHref} className="hover:underline">
+                    <Link data-track="courses-open-course" href={courseHref} className="hover:underline">
                       {course.title}
                     </Link>
                   </h2>
@@ -90,7 +90,7 @@ export default async function CoursesPage() {
                         <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
                           {progress.completed} of {progress.available} available {progress.available === 1 ? "lesson" : "lessons"} done
                         </p>
-                        <Link
+                        <Link data-track="courses-start-course"
                           href={href}
                           className="mt-4 inline-block rounded-lg bg-plum-600 px-4 py-2 text-sm font-medium text-white hover:bg-plum-700"
                         >

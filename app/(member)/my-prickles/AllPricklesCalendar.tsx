@@ -83,7 +83,7 @@ export default function AllPricklesCalendar({
     <div>
       <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
         <div className="flex items-center gap-2">
-          <button
+          <button data-track="all-prickles-calendar-prev"
             type="button"
             onClick={() => setWeekStart((d) => addDays(d, -7))}
             disabled={isPrevDisabled}
@@ -91,14 +91,14 @@ export default function AllPricklesCalendar({
           >
             ← Prev
           </button>
-          <button
+          <button data-track="all-prickles-calendar-this-week"
             type="button"
             onClick={() => setWeekStart(thisWeekStart)}
             className="px-2.5 py-1 text-sm border border-slate-300 dark:border-slate-600 rounded-lg text-slate-600 dark:text-slate-300"
           >
             This Week
           </button>
-          <button
+          <button data-track="all-prickles-calendar-next"
             type="button"
             onClick={() => setWeekStart((d) => addDays(d, 7))}
             disabled={isNextDisabled}
@@ -108,7 +108,7 @@ export default function AllPricklesCalendar({
           </button>
         </div>
         {types.length > 1 && (
-          <select
+          <select data-track="all-prickles-calendar-type-filter"
             value={typeFilter}
             onChange={(e) => setTypeFilter(e.target.value)}
             className="px-3 py-1.5 text-sm border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"

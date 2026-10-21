@@ -87,7 +87,7 @@ export default function FeedbackWidget() {
             <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
               Send feedback
             </h3>
-            <button
+            <button data-track="feedback-widget-close"
               onClick={() => setIsOpen(false)}
               aria-label="Close"
               className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"

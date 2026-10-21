@@ -99,7 +99,7 @@ export default function CommitPanel({
             Tick prickles in the table, or click them in the calendar. Pick as many weekly times as you like.
           </p>
         </div>
-        <button
+        <button data-track="commit-close"
           type="button"
           onClick={onClose}
           className="text-xs text-slate-500 hover:text-slate-700 dark:text-slate-400 flex-shrink-0"
@@ -111,7 +111,7 @@ export default function CommitPanel({
       {saved && slots.length === 0 && (
         <p className="text-sm text-emerald-700 dark:text-emerald-400">
           Commitment saved. You&apos;ve got this!{" "}
-          <Link href="/my-prickles/commitments" className="underline">
+          <Link data-track="commit-see-your-commitments" href="/my-prickles/commitments" className="underline">
             See your commitments →
           </Link>
         </p>
@@ -128,7 +128,7 @@ export default function CommitPanel({
                 className="flex items-center gap-1 rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 pl-3 pr-1 py-0.5 text-xs"
               >
                 <span>{s.label}</span>
-                <button
+                <button data-track="commit-remove"
                   type="button"
                   onClick={() => onRemove(s.key)}
                   aria-label={`Remove ${s.label}`}
@@ -143,7 +143,7 @@ export default function CommitPanel({
           <div className="flex flex-wrap items-end gap-4">
             <label className="block text-sm">
               <span className="text-slate-700 dark:text-slate-300">For</span>
-              <select
+              <select data-track="commit-weeks"
                 value={weeks}
                 onChange={(e) => setWeeks(Number(e.target.value))}
                 className="mt-1 block px-3 py-1.5 text-sm border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800"

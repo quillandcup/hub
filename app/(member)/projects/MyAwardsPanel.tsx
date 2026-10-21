@@ -50,7 +50,7 @@ export default function MyAwardsPanel({ initialAwards, myBooks }: MyAwardsPanelP
         <h2 className="text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide">
           My Awards
         </h2>
-        <button
+        <button data-track="project-awards-add-an-award"
           type="button"
           onClick={() => setShowAdd(true)}
           className="px-3 py-1.5 bg-plum-600 hover:bg-plum-700 text-white rounded-lg text-sm font-medium"
@@ -77,14 +77,14 @@ export default function MyAwardsPanel({ initialAwards, myBooks }: MyAwardsPanelP
                 </p>
               </div>
               <div className="flex items-center gap-3 flex-shrink-0">
-                <button
+                <button data-track="project-awards-edit"
                   type="button"
                   onClick={() => setEditingAward(award)}
                   className="text-xs text-plum-600 dark:text-plum-400 hover:underline"
                 >
                   Edit
                 </button>
-                <button
+                <button data-track="project-awards-remove"
                   type="button"
                   onClick={() => handleDelete(award)}
                   disabled={deletingId === award.id}

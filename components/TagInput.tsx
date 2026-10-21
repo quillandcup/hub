@@ -60,7 +60,7 @@ export default function TagInput({ id, tags, onChange, placeholder, maxTags, max
           className="inline-flex items-center gap-1 rounded-full bg-plum-50 dark:bg-plum-900/30 text-plum-700 dark:text-plum-300 text-sm pl-2.5 pr-1 py-0.5"
         >
           {tag}
-          <button
+          <button data-track="tag-input-change"
             type="button"
             onClick={() => onChange(tags.filter((t) => t !== tag))}
             aria-label={`Remove ${tag}`}

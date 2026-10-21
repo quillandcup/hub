@@ -47,7 +47,7 @@ export function Pagination({
         {onPageSizeChange && (
           <label className="flex items-center gap-1.5">
             <span>Per page</span>
-            <select
+            <select data-track="pagination-page-size"
               value={pageSize}
               onChange={(e) => onPageSizeChange(Number(e.target.value))}
               className="px-2 py-1 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
@@ -60,7 +60,7 @@ export function Pagination({
             </select>
           </label>
         )}
-        <button
+        <button data-track="pagination-prev"
           type="button"
           className={BUTTON_CLASS}
           onClick={() => onPageChange(bounds.page - 1)}
@@ -71,7 +71,7 @@ export function Pagination({
         <span aria-current="page">
           Page {bounds.page} of {bounds.pageCount}
         </span>
-        <button
+        <button data-track="pagination-next"
           type="button"
           className={BUTTON_CLASS}
           onClick={() => onPageChange(bounds.page + 1)}

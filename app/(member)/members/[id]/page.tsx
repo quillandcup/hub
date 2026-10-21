@@ -203,7 +203,7 @@ export default async function MemberProfilePage({
           )}
         </div>
         {member.id === effectiveIdentity.memberId && (
-          <Link
+          <Link data-track="member-profile-edit-profile"
             href="/settings/profile"
             className="ml-auto shrink-0 text-sm px-3 py-1.5 rounded-md border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
           >
@@ -321,7 +321,7 @@ export default async function MemberProfilePage({
                   )}
                   <div className="min-w-0">
                     {safePurchase ? (
-                      <a
+                      <a data-track="member-profile-open-book"
                         href={safePurchase}
                         target="_blank"
                         rel="noopener noreferrer"
@@ -369,7 +369,7 @@ export default async function MemberProfilePage({
                       <>
                         {" "}
                         ·{" "}
-                        <a
+                        <a data-track="member-profile-details"
                           href={safeAwardUrl}
                           target="_blank"
                           rel="noopener noreferrer"

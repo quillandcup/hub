@@ -57,7 +57,7 @@ export default function NewProjectModal({ isOpen, onClose, onCreated }: NewProje
 
         <div>
           <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Phase</label>
-          <select
+          <select data-track="new-project-phase"
             value={phase}
             onChange={(e) => setPhase(e.target.value as typeof phase)}
             className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-sm"
@@ -73,14 +73,14 @@ export default function NewProjectModal({ isOpen, onClose, onCreated }: NewProje
         {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
 
         <div className="flex justify-end gap-3 pt-2">
-          <button
+          <button data-track="new-project-cancel"
             type="button"
             onClick={onClose}
             className="px-4 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
           >
             Cancel
           </button>
-          <button
+          <button data-track="new-project-create-project"
             type="submit"
             disabled={isPending}
             className="px-4 py-2 text-sm bg-plum-600 text-white rounded-lg hover:bg-plum-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"

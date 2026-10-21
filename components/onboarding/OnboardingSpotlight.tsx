@@ -214,7 +214,7 @@ export default function OnboardingSpotlight({
         <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">{step.hint}</p>
         <div className="mt-3 flex flex-wrap items-center gap-2">
           {onConfirm && step.confirmLabel && (
-            <button
+            <button data-track="onboarding-spotlight-confirm"
               type="button"
               disabled={pending}
               onClick={onConfirm}
@@ -224,7 +224,7 @@ export default function OnboardingSpotlight({
             </button>
           )}
           {!onConfirm && (
-            <button
+            <button data-track="onboarding-spotlight-skip-this-step"
               type="button"
               disabled={pending}
               onClick={onSkip}
@@ -233,7 +233,7 @@ export default function OnboardingSpotlight({
               Skip this step
             </button>
           )}
-          <button
+          <button data-track="onboarding-spotlight-hide"
             type="button"
             onClick={onHide}
             className="ml-auto px-3 py-1.5 text-sm text-slate-500 dark:text-slate-400 hover:underline"

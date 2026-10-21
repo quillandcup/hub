@@ -143,7 +143,7 @@ export default function CalendarSyncCard({ initialUrls }: { initialUrls: Calenda
 
           {/* One row for both secondary actions, so the expanded card stays short; the steps open below it. */}
           <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs">
-            <button
+            <button data-track="calendar-sync-how-does-it-work"
               type="button"
               onClick={() => setShowHelp((v) => !v)}
               aria-expanded={showHelp}
@@ -155,7 +155,7 @@ export default function CalendarSyncCard({ initialUrls }: { initialUrls: Calenda
             {confirmingRegenerate ? (
               <div className="flex flex-wrap items-center gap-2 text-slate-700 dark:text-slate-300">
                 <span>Calendars subscribed to your current link will stop updating.</span>
-                <button
+                <button data-track="calendar-sync-generate-new-link"
                   type="button"
                   onClick={regenerate}
                   disabled={busy}
@@ -163,12 +163,12 @@ export default function CalendarSyncCard({ initialUrls }: { initialUrls: Calenda
                 >
                   {busy ? "Generating…" : "Generate new link"}
                 </button>
-                <button type="button" onClick={() => setConfirmingRegenerate(false)} className="px-2.5 py-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800">
+                <button data-track="calendar-sync-cancel" type="button" onClick={() => setConfirmingRegenerate(false)} className="px-2.5 py-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800">
                   Cancel
                 </button>
               </div>
             ) : (
-              <button
+              <button data-track="calendar-sync-generate-new-link-2"
                 type="button"
                 onClick={() => setConfirmingRegenerate(true)}
                 className="text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 underline-offset-2 hover:underline"

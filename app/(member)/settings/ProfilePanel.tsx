@@ -169,7 +169,7 @@ export function ProfilePanel() {
         </div>
         <p className="text-sm text-slate-600 dark:text-slate-400">
           Shown on your{" "}
-          <Link href={`/members/${data.memberId}`} className="underline">
+          <Link data-track="settings-profile-member-profile" href={`/members/${data.memberId}`} className="underline">
             member profile
           </Link>
           .
@@ -242,7 +242,7 @@ export function ProfilePanel() {
           ) : (
             <p className="text-xs text-slate-500 dark:text-slate-400">
               Instagram isn&apos;t set up for your account yet. Email{" "}
-              <a href={`mailto:${SUPPORT_EMAIL}`} className="underline">
+              <a data-track="settings-profile-contact-support" href={`mailto:${SUPPORT_EMAIL}`} className="underline">
                 {SUPPORT_EMAIL}
               </a>{" "}
               and we&apos;ll sort it out.

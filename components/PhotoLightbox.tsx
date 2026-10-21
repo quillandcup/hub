@@ -45,7 +45,7 @@ export default function PhotoLightbox({ photos, openIndex, onClose, onNavigate }
       onClick={onClose}
     >
       {openIndex! > 0 && (
-        <button
+        <button data-track="photo-lightbox-previous-photo"
           onClick={(e) => {
             e.stopPropagation();
             onNavigate(openIndex! - 1);
@@ -66,7 +66,7 @@ export default function PhotoLightbox({ photos, openIndex, onClose, onNavigate }
       />
 
       {openIndex! < photos.length - 1 && (
-        <button
+        <button data-track="photo-lightbox-next-photo"
           onClick={(e) => {
             e.stopPropagation();
             onNavigate(openIndex! + 1);
@@ -78,7 +78,7 @@ export default function PhotoLightbox({ photos, openIndex, onClose, onNavigate }
         </button>
       )}
 
-      <button
+      <button data-track="photo-lightbox-close"
         onClick={onClose}
         className="absolute top-4 right-4 text-white/80 hover:text-white text-2xl leading-none p-2"
         aria-label="Close"

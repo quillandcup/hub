@@ -51,7 +51,7 @@ function HostedTypeRow({ initial }: { initial: HostedVibeInfo }) {
 
       <div className="flex flex-wrap gap-2">
         {VIBE_OPTIONS.map((opt) => (
-          <button
+          <button data-track="host-vibe-option"
             key={opt.value}
             type="button"
             onClick={() => setVibe(opt.value)}
@@ -76,7 +76,7 @@ function HostedTypeRow({ initial }: { initial: HostedVibeInfo }) {
 
       {error && <p className="text-xs text-red-600 dark:text-red-400">{error}</p>}
 
-      <button
+      <button data-track="host-vibe-save"
         type="button"
         onClick={handleSave}
         disabled={!dirty || saving}

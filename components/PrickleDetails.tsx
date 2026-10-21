@@ -123,7 +123,7 @@ export default function PrickleDetails({
       <div className="flex justify-end">
         <div className="flex items-center gap-2">
           <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Timezone:</span>
-          <select
+          <select data-track="prickle-timezone"
             value={timezone}
             onChange={(e) => setTimezone(e.target.value)}
             className="px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg text-sm text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-plum-500"
@@ -153,7 +153,7 @@ export default function PrickleDetails({
             <p className="font-semibold">
               {hostMember ? (
                 <>
-                  <Link href={`${memberBasePath}/${hostMember.id}`} className="text-plum-600 hover:text-plum-700 dark:text-plum-400 hover:underline">
+                  <Link data-track="prickle-open-host" href={`${memberBasePath}/${hostMember.id}`} className="text-plum-600 hover:text-plum-700 dark:text-plum-400 hover:underline">
                     {hostMember.name}
                   </Link>
                   {(hostMissing || hostLate) && (
@@ -185,7 +185,7 @@ export default function PrickleDetails({
             <span className="text-slate-600 dark:text-slate-400">Time:</span>
             <p className="font-semibold text-slate-900 dark:text-slate-100">
               {insightsSlotUrl ? (
-                <Link href={insightsSlotUrl} className="text-plum-600 hover:text-plum-700 dark:text-plum-400 hover:underline">
+                <Link data-track="prickle-open-insights" href={insightsSlotUrl} className="text-plum-600 hover:text-plum-700 dark:text-plum-400 hover:underline">
                   {formatTime(startTime)} - {formatTime(endTime)}
                 </Link>
               ) : (
@@ -272,7 +272,7 @@ export default function PrickleDetails({
                   return (
                     <tr key={record.id} className="hover:bg-slate-50 dark:hover:bg-slate-800">
                       <td className="px-6 py-4">
-                        <Link href={`${memberBasePath}/${member.id}`} className="text-sm font-medium text-plum-600 hover:text-plum-700 dark:text-plum-400 hover:underline">
+                        <Link data-track="prickle-open-attendee" href={`${memberBasePath}/${member.id}`} className="text-sm font-medium text-plum-600 hover:text-plum-700 dark:text-plum-400 hover:underline">
                           {member.name}
                         </Link>
                         {showMemberEmails && (
@@ -315,7 +315,7 @@ export default function PrickleDetails({
                     {ROSTER_REASONS[entry.reason].icon}
                   </span>
                   <span className="min-w-0">
-                    <Link
+                    <Link data-track="prickle-open-roster-member"
                       href={`${memberBasePath}/${entry.memberId}`}
                       className="font-medium text-plum-600 hover:text-plum-700 dark:text-plum-400 hover:underline"
                     >
@@ -343,7 +343,7 @@ export default function PrickleDetails({
             )}
             <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
               Don&apos;t want to be listed?{" "}
-              <Link href="/settings/profile" className="underline">
+              <Link data-track="prickle-change-it-in-your-profile" href="/settings/profile" className="underline">
                 Change it in your profile settings
               </Link>
               .

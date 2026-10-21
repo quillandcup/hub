@@ -219,7 +219,7 @@ export default function MemberCalendarClient({
             {/* View toggle */}
             <div className="flex bg-slate-100 dark:bg-slate-800 rounded-lg p-1">
               {(["month", "week", "list"] as const).map((v) => (
-                <button
+                <button data-track="member-calendar-view"
                   key={v}
                   onClick={() => setView(v)}
                   className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${
@@ -239,7 +239,7 @@ export default function MemberCalendarClient({
                 {navLabel}
               </span>
               <div className="flex items-center gap-1">
-                <button
+                <button data-track="member-calendar-prev"
                   onClick={handlePrev}
                   disabled={isPrevDisabled}
                   className={`px-3 py-2 rounded-lg transition-colors ${
@@ -250,13 +250,13 @@ export default function MemberCalendarClient({
                 >
                   ←
                 </button>
-                <button
+                <button data-track="member-calendar-today"
                   onClick={handleToday}
                   className="px-3 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg text-slate-700 dark:text-slate-300 transition-colors text-sm"
                 >
                   Today
                 </button>
-                <button
+                <button data-track="member-calendar-next"
                   onClick={handleNext}
                   disabled={isNextDisabled}
                   className={`px-3 py-2 rounded-lg transition-colors ${

@@ -31,7 +31,7 @@ export default async function CoursePage({ params }: { params: Promise<{ slug: s
         <div className="mt-6 rounded-lg border border-slate-200 bg-white p-6 text-sm text-slate-700 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300">
           <p className="font-medium">You&apos;re in. This course opens on {formatCourseDate(access.startsAt)}.</p>
           <p className="mt-2">Your access starts then, and runs for the full length of the course from that day.</p>
-          <Link href="/courses" className="mt-4 inline-block underline">
+          <Link data-track="course-back-to-your-courses" href="/courses" className="mt-4 inline-block underline">
             Back to your courses
           </Link>
         </div>
@@ -47,9 +47,9 @@ export default async function CoursePage({ params }: { params: Promise<{ slug: s
           <p className="font-medium">You don&apos;t have access to this course yet.</p>
           <p className="mt-2">
             If you&apos;ve just bought it, it can take a little while to show up here. If it&apos;s been a day or more, or you think you
-            should already have it, email <a className="underline" href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</a> and we&apos;ll sort it out.
+            should already have it, email <a data-track="course-contact-support" className="underline" href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</a> and we&apos;ll sort it out.
           </p>
-          <Link href="/courses" className="mt-4 inline-block underline">
+          <Link data-track="course-back-to-your-courses-2" href="/courses" className="mt-4 inline-block underline">
             Back to your courses
           </Link>
         </div>
@@ -68,13 +68,13 @@ export default async function CoursePage({ params }: { params: Promise<{ slug: s
     <div>
       <header className="bg-plum-700 px-6 py-12 text-center text-white">
         <div className="mx-auto max-w-3xl">
-          <Link href="/courses" className="text-sm text-plum-100 hover:underline">
+          <Link data-track="course-breadcrumb-courses" href="/courses" className="text-sm text-plum-100 hover:underline">
             ← Courses
           </Link>
           <h1 className="mt-2 text-3xl font-bold">{course.title}</h1>
           {course.description && <p className="mt-3 text-sm leading-relaxed text-plum-50">{course.description}</p>}
           {canOpen && progress.continueLessonId && (
-            <Link
+            <Link data-track="course-continue"
               href={`/courses/${course.slug}/lessons/${progress.continueLessonId}`}
               className="mt-6 inline-block rounded bg-white px-6 py-2.5 text-sm font-semibold text-plum-700 hover:bg-plum-50"
             >

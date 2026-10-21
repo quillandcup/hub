@@ -45,7 +45,7 @@ export default function ProjectsClient({ initialProjects }: ProjectsClientProps)
         </button>
         <p className="text-sm text-slate-500 dark:text-slate-400 mt-3">
           Already tracking in TrackBear?{" "}
-          <button
+          <button data-track="projects-import-your-projects"
             type="button"
             onClick={() => setShowImport(true)}
             className="text-plum-600 dark:text-plum-400 hover:underline"
@@ -102,7 +102,7 @@ export default function ProjectsClient({ initialProjects }: ProjectsClientProps)
                   </div>
                 )}
                 <div className="min-w-0">
-                  <Link
+                  <Link data-track="projects-open-project"
                     href={`/projects/${project.id}`}
                     className="text-lg font-semibold text-slate-900 dark:text-slate-100 hover:text-plum-600 dark:hover:text-plum-400"
                   >
@@ -115,7 +115,7 @@ export default function ProjectsClient({ initialProjects }: ProjectsClientProps)
                 </div>
               </div>
               <div className="flex-shrink-0 flex items-center gap-2">
-                <button
+                <button data-track="projects-log-progress"
                   type="button"
                   onClick={() => setLogProgressFor(project.id)}
                   className="px-3 py-1.5 text-sm bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg font-medium"
@@ -123,7 +123,7 @@ export default function ProjectsClient({ initialProjects }: ProjectsClientProps)
                   + Log progress
                 </button>
                 {!project.book && (
-                  <button
+                  <button data-track="projects-publish"
                     type="button"
                     onClick={() => setPublishing(project)}
                     className="px-3 py-1.5 text-sm bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg font-medium"

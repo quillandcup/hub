@@ -124,7 +124,7 @@ export default function AllPricklesTable({
     <div>
       {types.length > 1 && (
         <div className="flex justify-end mb-3">
-          <select
+          <select data-track="all-prickles-table-type-filter"
             value={typeFilter}
             onChange={(e) => setTypeFilter(e.target.value)}
             className="px-3 py-1.5 text-sm border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
@@ -194,7 +194,7 @@ export default function AllPricklesTable({
                     {selection && (
                       <td className="py-2 pr-2">
                         {row.typeId && (
-                          <input
+                          <input data-track="all-prickles-table-select-row"
                             type="checkbox"
                             checked={selection.selected.has(row.seriesKey)}
                             onChange={() => selection.onToggle(row.seriesKey)}
@@ -205,7 +205,7 @@ export default function AllPricklesTable({
                       </td>
                     )}
                     <td className="py-0">
-                      <Link
+                      <Link data-track="all-prickles-table-open-prickle"
                         href={`/prickles/${row.nextOccurrenceId}`}
                         className="flex items-center py-2 pr-2 text-slate-900 dark:text-slate-100 group-hover:text-plum-600 dark:group-hover:text-plum-400"
                       >

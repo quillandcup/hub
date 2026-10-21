@@ -26,7 +26,7 @@ export default function WelcomeBackBanner({
   return (
     <div className="mb-6 flex items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-900/20 dark:text-amber-300">
       <span>🎉 Welcome back! You rejoined in {monthLabel}.</span>
-      <button
+      <button data-track="welcome-back-banner-dismiss"
         onClick={() => {
           window.localStorage.setItem(key, "1")
           setDismissed(true)

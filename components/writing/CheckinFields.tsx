@@ -43,7 +43,7 @@ export function FeelingPicker({
             {group.map((f) => {
               const isSelected = selected.includes(f.key);
               return (
-                <button
+                <button data-track="checkin-feeling"
                   key={f.key}
                   type="button"
                   aria-pressed={isSelected}
@@ -83,7 +83,7 @@ export function RatingPicker({
           const isSelected = value === r.value;
           const filled = value !== null && r.value <= value;
           return (
-            <button
+            <button data-track="checkin-rating"
               key={r.value}
               type="button"
               aria-pressed={isSelected}
@@ -123,7 +123,7 @@ export function NeedPicker({
         {NEEDS.map((n) => {
           const isSelected = value === n.key;
           return (
-            <button
+            <button data-track="checkin-need"
               key={n.key}
               type="button"
               aria-pressed={isSelected}

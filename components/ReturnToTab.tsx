@@ -65,7 +65,7 @@ export function ReturnToTabLink({
   }
 
   return (
-    <Link href={fallbackHref} onClick={handleClick} className={className}>
+    <Link data-track="return-to-tab-click" href={fallbackHref} onClick={handleClick} className={className}>
       {children}
     </Link>
   );

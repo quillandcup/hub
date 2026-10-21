@@ -54,7 +54,7 @@ function LessonRow({ slug, lesson, completed, openable }: { slug: string; lesson
   if (!openable) return <li className={`${row} opacity-50`}>{content}</li>;
   return (
     <li>
-      <Link href={`/courses/${slug}/lessons/${lesson.id}`} className={`${row} hover:bg-slate-50 dark:hover:bg-slate-800`}>
+      <Link data-track="course-module-open-lesson" href={`/courses/${slug}/lessons/${lesson.id}`} className={`${row} hover:bg-slate-50 dark:hover:bg-slate-800`}>
         {content}
       </Link>
     </li>
@@ -80,7 +80,7 @@ function ModuleRow({ slug, node, completed, openable }: { slug: string; node: Ou
   if (!openable) return <li className={`${row} opacity-50`}>{content}</li>;
   return (
     <li>
-      <Link href={`/courses/${slug}/modules/${node.module.id}`} className={`${row} hover:bg-slate-50 dark:hover:bg-slate-800`}>
+      <Link data-track="course-module-open-module" href={`/courses/${slug}/modules/${node.module.id}`} className={`${row} hover:bg-slate-50 dark:hover:bg-slate-800`}>
         {content}
       </Link>
     </li>
@@ -113,14 +113,14 @@ export default async function ModulePage({ params }: { params: Promise<{ slug: s
         <nav aria-label="Breadcrumb" className="text-sm text-slate-500 dark:text-slate-400">
           <ol className="flex flex-wrap items-center gap-x-2 gap-y-1">
             <li>
-              <Link href={`/courses/${slug}`} className="hover:underline">
+              <Link data-track="course-module-breadcrumb-course" href={`/courses/${slug}`} className="hover:underline">
                 {view.course.title}
               </Link>
             </li>
             {trail.slice(0, -1).map((crumb) => (
               <li key={crumb.id} className="flex gap-2">
                 <span aria-hidden="true">/</span>
-                <Link href={`/courses/${slug}/modules/${crumb.id}`} className="hover:underline">
+                <Link data-track="course-module-breadcrumb-module" href={`/courses/${slug}/modules/${crumb.id}`} className="hover:underline">
                   {crumb.title}
                 </Link>
               </li>

@@ -72,7 +72,7 @@ export default function MemberHostingCard({
           <ul className="divide-y divide-slate-100 dark:divide-slate-800">
             {slots.map((slot) => (
               <li key={slot.seriesKey}>
-                <Link
+                <Link data-track="member-hosting-open-slot"
                   href={`/prickles/${slot.nextOccurrenceId}`}
                   className="group flex items-baseline justify-between gap-3 py-2 text-sm"
                 >

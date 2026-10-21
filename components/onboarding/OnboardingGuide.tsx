@@ -187,7 +187,7 @@ export default function OnboardingGuide({ initialState }: { initialState: Onboar
         aria-label="Getting started"
         className="fixed bottom-20 right-5 z-40 w-[min(20rem,calc(100vw-2.5rem))] rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl"
       >
-        <button
+        <button data-track="onboarding-getting-started-of-done"
           type="button"
           onClick={toggleExpanded}
           aria-expanded={expanded}
@@ -237,7 +237,7 @@ export default function OnboardingGuide({ initialState }: { initialState: Onboar
                         <span className="sr-only">{step.done ? " (done)" : ""}</span>
                       </p>
                       {step.done && !step.externalHref && (
-                        <Link
+                        <Link data-track="onboarding-revisit"
                           href={step.href}
                           onClick={() => {
                             setRevisit({ stepId: step.id, stopIndex: 0, arrived: false });
@@ -255,7 +255,7 @@ export default function OnboardingGuide({ initialState }: { initialState: Onboar
                           <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{step.summary}</p>
                           {step.externalHref ? (
                             <div className="flex flex-wrap items-center gap-3 mt-2">
-                              <a
+                              <a data-track="onboarding-open-slack"
                                 href={step.externalHref}
                                 target="_blank"
                                 rel="noopener noreferrer"
@@ -264,7 +264,7 @@ export default function OnboardingGuide({ initialState }: { initialState: Onboar
                                 Open Slack ↗
                               </a>
                               {step.confirmLabel && (
-                                <button
+                                <button data-track="onboarding-run"
                                   type="button"
                                   disabled={isPending}
                                   onClick={() => run(() => markOnboardingStep(step.markKey))}
@@ -275,7 +275,7 @@ export default function OnboardingGuide({ initialState }: { initialState: Onboar
                               )}
                             </div>
                           ) : !isOnStepPage(step, pathname, search) || hiddenOn === pageKey ? (
-                            <Link
+                            <Link data-track="onboarding-show-me"
                               href={step.href}
                               onClick={() => {
                                 setRevisit(null);
@@ -301,7 +301,7 @@ export default function OnboardingGuide({ initialState }: { initialState: Onboar
                 <p className="text-sm text-slate-700 dark:text-slate-300">
                   You&apos;re all set! You can find the tour again in your menu at the top right.
                 </p>
-                <button
+                <button data-track="onboarding-finish"
                   type="button"
                   disabled={isPending}
                   onClick={() => run(completeOnboarding)}
@@ -319,7 +319,7 @@ export default function OnboardingGuide({ initialState }: { initialState: Onboar
             )}
 
             {!state.completed && (
-              <button
+              <button data-track="onboarding-close-the-tour"
                 type="button"
                 disabled={isPending}
                 onClick={() => run(dismissOnboarding)}

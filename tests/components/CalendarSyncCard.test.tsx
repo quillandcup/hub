@@ -69,6 +69,20 @@ describe("CalendarSyncCard", () => {
     expect(screen.getByRole("link", { name: "Apple Calendar" })).toHaveAttribute("href", NEW_URLS.webcal);
   });
 
+  it("keeps the current link when the confirmation is cancelled", async () => {
+    const user = userEvent.setup();
+    render(<CalendarSyncCard initialUrls={URLS} />);
+    await user.click(screen.getByRole("button", { name: "Generate new link" }));
+    expect(screen.getByText(/will stop updating/)).toBeInTheDocument();
+
+    const cancel = screen.getByRole("button", { name: "Cancel" });
+    expect(cancel).toHaveAttribute("data-track", "calendar-sync-cancel");
+    await user.click(cancel);
+    expect(screen.queryByText(/will stop updating/)).not.toBeInTheDocument();
+    expect(regenerate).not.toHaveBeenCalled();
+    expect(screen.getByRole("link", { name: "Google Calendar" })).toHaveAttribute("href", URLS.google);
+  });
+
   it("keeps the current link and shows the error if regenerating fails", async () => {
     const user = userEvent.setup();
     regenerate.mockResolvedValue({ error: "Couldn't generate a new link. Please try again." });

@@ -27,7 +27,7 @@ export default function BadgeChip({ badge, href }: { badge: EarnedBadge; href?: 
 
   if (href) {
     return (
-      <Link href={href} className={`${className} hover:shadow-sm hover:brightness-95 transition`} title={title || undefined}>
+      <Link data-track="badge-chip-open" href={href} className={`${className} hover:shadow-sm hover:brightness-95 transition`} title={title || undefined}>
         {content}
       </Link>
     );

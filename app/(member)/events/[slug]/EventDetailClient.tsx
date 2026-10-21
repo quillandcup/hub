@@ -101,7 +101,7 @@ export default function EventDetailClient({
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold">Photos</h2>
           {event.google_photos_album_url && (
-            <a
+            <a data-track="event-view-full-album-on-google"
               href={event.google_photos_album_url}
               target="_blank"
               rel="noopener noreferrer"
@@ -117,7 +117,7 @@ export default function EventDetailClient({
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             {photos.map((photo, i) => (
-              <button key={photo.id} onClick={() => setLightboxIndex(i)} className="aspect-square">
+              <button data-track="event-open-photo" key={photo.id} onClick={() => setLightboxIndex(i)} className="aspect-square">
                 {/* eslint-disable-next-line @next/next/no-img-element -- served via the private event-photos proxy route */}
                 <img
                   src={`/api/events/${event.id}/photos/${photo.id}`}

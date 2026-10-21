@@ -95,7 +95,7 @@ export default async function PrickleDetailPage({
   // Members go back to the My Prickles tab they came from (e.g. All Prickles), when known.
   const backLink = (className: string) =>
     isActingAsAdmin ? (
-      <Link href={backHref} className={className}>
+      <Link data-track="prickle-page-back" href={backHref} className={className}>
         {backLabel}
       </Link>
     ) : (

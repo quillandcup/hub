@@ -234,7 +234,7 @@ function ScheduleForm({
         <p className="text-sm font-medium mb-2 text-slate-700 dark:text-slate-300">How often will you host?</p>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           {RECURRENCE_OPTIONS.map((opt) => (
-            <button
+            <button data-track="hosting-schedule-recurrence-change"
               key={opt.value}
               type="button"
               onClick={() => handleRecurrenceChange(opt.value)}
@@ -266,7 +266,7 @@ function ScheduleForm({
         <label htmlFor="hosting-type" className="block text-sm font-medium mb-1 text-slate-700 dark:text-slate-300">
           Prickle type
         </label>
-        <select
+        <select data-track="hosting-schedule-prickle-type"
           id="hosting-type"
           value={form.typeId}
           onChange={(e) => setForm({ ...form, typeId: e.target.value })}
@@ -283,7 +283,7 @@ function ScheduleForm({
       </div>
 
       <div>
-        <button
+        <button data-track="hosting-schedule-enter-date-manually"
           type="button"
           onClick={() => setManualOpen((v) => !v)}
           className="text-sm text-plum-600 hover:text-plum-800 dark:text-plum-400 underline"
@@ -298,7 +298,7 @@ function ScheduleForm({
                 <label htmlFor="hosting-day-weekly" className="block text-sm font-medium mb-1 text-slate-700 dark:text-slate-300">
                   Day
                 </label>
-                <select
+                <select data-track="hosting-schedule-weekly-day"
                   id="hosting-day-weekly"
                   value={form.dayOfWeek}
                   onChange={(e) => setForm({ ...form, dayOfWeek: Number(e.target.value) })}
@@ -335,7 +335,7 @@ function ScheduleForm({
                   <label htmlFor="hosting-week-monthly" className="block text-sm font-medium mb-1 text-slate-700 dark:text-slate-300">
                     Week
                   </label>
-                  <select
+                  <select data-track="hosting-schedule-monthly-week"
                     id="hosting-week-monthly"
                     value={form.weekOfMonth}
                     onChange={(e) => setForm({ ...form, weekOfMonth: Number(e.target.value) })}
@@ -352,7 +352,7 @@ function ScheduleForm({
                   <label htmlFor="hosting-day-monthly" className="block text-sm font-medium mb-1 text-slate-700 dark:text-slate-300">
                     Day
                   </label>
-                  <select
+                  <select data-track="hosting-schedule-monthly-day"
                     id="hosting-day-monthly"
                     value={form.dayOfWeek}
                     onChange={(e) => setForm({ ...form, dayOfWeek: Number(e.target.value) })}
@@ -417,14 +417,14 @@ function ScheduleForm({
       {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
 
       <div className="flex gap-2">
-        <button
+        <button data-track="hosting-schedule-submit-request"
           type="submit"
           disabled={saving}
           className="px-4 py-2 bg-plum-600 hover:bg-plum-700 disabled:bg-slate-300 dark:disabled:bg-slate-700 text-white rounded-lg text-sm font-medium transition-colors"
         >
           {saving ? "Submitting…" : "Submit request"}
         </button>
-        <button
+        <button data-track="hosting-schedule-cancel"
           type="button"
           onClick={onCancel}
           className="px-4 py-2 bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-lg text-sm font-medium hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors"
@@ -510,7 +510,7 @@ function ScheduleRowActions({
   return (
     <div className="space-y-1">
       <div className="flex gap-3 text-sm">
-        <button
+        <button data-track="hosting-schedule-edit-notes"
           type="button"
           onClick={() => setEditingNotes((v) => !v)}
           disabled={busy}
@@ -518,7 +518,7 @@ function ScheduleRowActions({
         >
           {editingNotes ? "Cancel" : "Edit notes"}
         </button>
-        <button
+        <button data-track="hosting-schedule-withdraw"
           type="button"
           onClick={handleWithdraw}
           disabled={busy}
@@ -535,7 +535,7 @@ function ScheduleRowActions({
             rows={2}
             className="flex-1 px-2 py-1 border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800 text-sm"
           />
-          <button
+          <button data-track="hosting-schedule-save"
             type="button"
             onClick={handleSaveNotes}
             disabled={busy}
@@ -604,7 +604,7 @@ function MonthSection({
             🔒 Locked
           </span>
         ) : (
-          <button
+          <button data-track="hosting-schedule-request-a-slot"
             type="button"
             onClick={onRequestSlot}
             className="text-sm text-plum-600 hover:text-plum-800 dark:text-plum-400 font-medium"
@@ -788,7 +788,7 @@ export default function HostingScheduleManager({
             </p>
           </>
         )}
-        <button
+        <button data-track="hosting-schedule-request-to-host"
           type="button"
           onClick={() => setRequestingForMonth(nextMonth)}
           disabled={nextMonthLocked}

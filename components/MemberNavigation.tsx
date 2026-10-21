@@ -125,7 +125,7 @@ export default function MemberNavigation({ isAdmin, enabledFeatures }: MemberNav
       >
         <div className="h-16 flex items-center justify-between px-4 border-b border-slate-200 dark:border-slate-800 flex-shrink-0">
           <Wordmark className="text-lg" />
-          <button
+          <button data-track="nav-close-mobile-menu"
             onClick={() => setMobileOpen(false)}
             className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
             aria-label="Close navigation menu"

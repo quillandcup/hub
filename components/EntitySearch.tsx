@@ -59,7 +59,7 @@ export default function EntitySearch({
       {displayName && !isFocused ? (
         <div className="flex items-center justify-between px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded text-sm text-slate-900 dark:text-slate-100">
           <span className="flex-1 truncate">{displayName}</span>
-          <button
+          <button data-track="entity-search-select"
             type="button"
             onClick={() => handleSelect(null)}
             className="ml-2 text-gray-400 hover:text-gray-600 dark:text-slate-500 dark:hover:text-slate-300"
@@ -82,7 +82,7 @@ export default function EntitySearch({
           {showDropdown && (
             <div className="absolute z-10 w-full mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg max-h-60 overflow-y-auto">
               {matches.map((item) => (
-                <button
+                <button data-track="entity-search-pick"
                   key={item.id}
                   type="button"
                   onClick={() => handleSelect(item)}

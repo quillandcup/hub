@@ -23,7 +23,7 @@ function Person({
     <div className="flex items-center gap-4">
       <MemberAvatar name={partner.name} photoUrl={partner.photoUrl} size={48} />
       <div className="min-w-0 flex-1">
-        <Link
+        <Link data-track="big-sister-open-partner"
           href={`/members/${partner.memberId}`}
           className="text-base font-semibold text-slate-900 dark:text-slate-100 hover:text-plum-600 dark:hover:text-plum-400"
         >
@@ -32,7 +32,7 @@ function Person({
         <p className="text-xs text-slate-500 dark:text-slate-400">{caption}</p>
       </div>
       {slackLink && (
-        <a
+        <a data-track="big-sister-say-hi-on-slack"
           href={slackLink}
           className="shrink-0 px-3 py-1.5 text-sm font-medium bg-plum-600 hover:bg-plum-700 text-white rounded-lg transition-colors"
         >
@@ -75,7 +75,7 @@ export default function BigSisterCards({
             caption={`Here to show you around since ${day(bigSister.startedOn)}. Ask away.`}
           />
           {linkToPage && (
-            <Link
+            <Link data-track="big-sister-about-big-sisters"
               href="/big-sisters"
               className="inline-block mt-4 text-sm text-plum-600 hover:text-plum-700 dark:text-plum-400"
             >
@@ -100,7 +100,7 @@ export default function BigSisterCards({
             ))}
           </div>
           {linkToPage && (
-            <Link
+            <Link data-track="big-sister-about-big-sisters-2"
               href="/big-sisters"
               className="inline-block mt-4 text-sm text-plum-600 hover:text-plum-700 dark:text-plum-400"
             >
