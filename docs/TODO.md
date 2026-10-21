@@ -296,6 +296,33 @@ ambiguous Slack member matches now alert directly from the app (see
       by environment. Sentry email actions target members rather than arbitrary addresses;
       the Slack integration needs a paid plan.
 
+### Migrate to Tailwind CSS 4 _(Blocks 28 `npm audit` Findings)_
+**Status:** Not started (added 2026-10-21)
+
+The app is on Tailwind 3.4 (`tailwind.config.ts`, `@tailwind` directives in
+`app/globals.css`). `npm audit` still reports 28 findings (3 moderate, 25 high) after
+`npm audit fix`, and `npm audit fix --force` would clear most of them only by moving to
+Tailwind 4. They trace to `braces` (via tailwindcss 3 → chokidar/fast-glob/micromatch, and
+the `vercel` CLI's ts-morph chain) and `postcss-selector-parser` (via
+`@tailwindcss/typography` and postcss-nested). All are denial-of-service advisories in
+build/dev tooling that only processes our own source, so the real risk is low, but the
+audit stays red until this lands. The `vercel` CLI chain may stay flagged either way.
+
+CLAUDE.md already describes v4 features (`@theme`, built-in container queries), so the docs
+are ahead of the code.
+
+- [ ] Run `npx @tailwindcss/upgrade` on a branch: config moves into CSS (`@theme`,
+      `@plugin`), `@tailwind` directives become `@import "tailwindcss"`, PostCSS uses
+      `@tailwindcss/postcss`.
+- [ ] Load `@tailwindcss/typography` through `@plugin`; check it still resolves.
+- [ ] Review renamed utilities and changed defaults (border/ring colors, `shadow-sm`,
+      `rounded-sm`) for visual changes.
+- [ ] Check every page at widths either side of each breakpoint (see CLAUDE.md,
+      Responsive Layout) and in dark mode.
+- [ ] Confirm the supported-browser floor (Safari 16.4+, Chrome 111+, Firefox 128+) is
+      acceptable.
+- [ ] Re-run `npm audit` and record what remains.
+
 ### Un-pin CI Runners from ubuntu-24.04
 **Status:** Pinned 2026-09-24, needs revisiting after 2026-11-19
 
