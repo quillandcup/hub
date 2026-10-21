@@ -15,12 +15,16 @@
 // with the worktree, so it can't clean up after worktrees that are already gone; run the full
 // form once for that.
 //
-// A branch goes only when its latest pull request merged and the branch still points at exactly
-// the commit that was merged. A branch with newer commits (a follow-up pushed after the merge)
-// is kept and reported, because deleting it would lose them. Branches with an open pull request,
-// the default branch, and branches checked out in any worktree are never touched. Squash merges
-// leave the branch unmerged as far as git can tell, which is why this asks GitHub instead of
-// using `git branch --merged`.
+// A branch goes when either
+//   - its latest pull request merged and the branch still points at exactly the commit that was
+//     merged. A branch with newer commits (a follow-up pushed after the merge) is kept and
+//     reported, because deleting it would lose them. Squash merges leave the branch unmerged as
+//     far as git can tell, which is why this asks GitHub instead of using `git branch --merged`; or
+//   - every commit on it is already in origin/main (git's own `--merged`), with or without a pull
+//     request: scratch, backup and agent branches that were never opened as a PR, or that
+//     merged by fast-forward. It has nothing of its own, so deleting it loses nothing.
+// Branches with an open pull request, the default branch, and branches checked out in any
+// worktree are never touched.
 import { spawnSync } from "node:child_process";
 
 export interface BranchRef {
@@ -35,18 +39,20 @@ export interface PullRef {
 }
 
 export interface PrunePlan {
-  remove: BranchRef[];
+  remove: (BranchRef & { why: "merged pull request" | "already in main" })[];
   keep: { name: string; reason: string }[];
 }
 
-export function planPrune(branches: BranchRef[], pulls: PullRef[], protectedNames: Set<string>): PrunePlan {
+/** `containedInMain` holds the names of branches whose every commit is already in the default branch. */
+export function planPrune(branches: BranchRef[], pulls: PullRef[], protectedNames: Set<string>, containedInMain: Set<string> = new Set()): PrunePlan {
   const plan: PrunePlan = { remove: [], keep: [] };
   for (const branch of branches) {
     const mine = pulls.filter((pull) => pull.headRefName === branch.name);
     if (protectedNames.has(branch.name)) plan.keep.push({ name: branch.name, reason: "default branch or checked out" });
     else if (mine.some((pull) => pull.state === "OPEN")) plan.keep.push({ name: branch.name, reason: "has an open pull request" });
+    else if (mine.some((pull) => pull.state === "MERGED" && pull.headRefOid === branch.sha)) plan.remove.push({ ...branch, why: "merged pull request" });
+    else if (containedInMain.has(branch.name)) plan.remove.push({ ...branch, why: "already in main" });
     else if (!mine.some((pull) => pull.state === "MERGED")) plan.keep.push({ name: branch.name, reason: "no merged pull request" });
-    else if (mine.some((pull) => pull.state === "MERGED" && pull.headRefOid === branch.sha)) plan.remove.push(branch);
     else plan.keep.push({ name: branch.name, reason: "has commits that were not in the merged pull request" });
   }
   return plan;
@@ -98,6 +104,31 @@ function defaultBranch(): string {
   return run("gh", ["repo", "view", "--json", "defaultBranchRef", "--jq", ".defaultBranchRef.name"]).trim();
 }
 
+/**
+ * Branches (local, or origin's) whose every commit is already in origin/<trunk>, by git's own
+ * `--merged`. Best effort: after a fresh fetch, and empty if origin/<trunk> can't be resolved.
+ * For origin the tracking ref must be at the sha `ls-remote` just reported, so a branch pushed to
+ * since the fetch is not treated as merged.
+ */
+function containedInTrunk(trunk: string, remote: boolean, branches: BranchRef[]): Set<string> {
+  spawnSync("git", ["fetch", "--quiet", "--prune", "origin"], { encoding: "utf8" });
+  const base = `origin/${trunk}`;
+  if (spawnSync("git", ["rev-parse", "--verify", "--quiet", base], { encoding: "utf8" }).status !== 0) {
+    console.warn(`prune-branches: ${base} not available, skipping the "already in main" rule`);
+    return new Set();
+  }
+  const prefix = remote ? "refs/remotes/origin/" : "refs/heads/";
+  const merged = lines(run("git", ["for-each-ref", "--merged", base, "--format=%(objectname) %(refname)", prefix]));
+  const shaByName = new Map(branches.map((branch) => [branch.name, branch.sha]));
+  const names = new Set<string>();
+  for (const entry of merged) {
+    const [sha, ref] = entry.split(" ");
+    const name = ref.slice(prefix.length);
+    if (shaByName.get(name) === sha) names.add(name);
+  }
+  return names;
+}
+
 function main() {
   const remote = process.argv.includes("--remote");
   const apply = process.argv.includes("--apply");
@@ -106,7 +137,8 @@ function main() {
     console.error("✗ --mine reads this worktree's reflog and only applies to local branches; drop --remote");
     process.exit(1);
   }
-  const protectedNames = new Set([defaultBranch()]);
+  const trunk = defaultBranch();
+  const protectedNames = new Set([trunk]);
 
   let branches: BranchRef[];
   if (remote) {
@@ -127,11 +159,14 @@ function main() {
   }
 
   const pulls = JSON.parse(run("gh", ["pr", "list", "--state", "all", "--limit", "1000", "--json", "headRefName,headRefOid,state"])) as PullRef[];
-  const plan = planPrune(branches, pulls, protectedNames);
+  const plan = planPrune(branches, pulls, protectedNames, containedInTrunk(trunk, remote, branches));
   const where = remote ? "origin" : ownOnly ? "local (this worktree's)" : "local";
 
   console.log(`${where}: ${branches.length} branches, ${plan.remove.length} merged and removable, ${plan.keep.length} kept`);
-  for (const branch of plan.remove) console.log(`  ${apply ? "deleting" : "would delete"} ${branch.name}`);
+  for (const branch of plan.remove) {
+    const note = branch.why === "already in main" ? " (already in main, no merged pull request)" : "";
+    console.log(`  ${apply ? "deleting" : "would delete"} ${branch.name}${note}`);
+  }
   const unusual = plan.keep.filter((entry) => entry.reason.startsWith("has commits"));
   for (const entry of unusual) console.log(`  kept ${entry.name}: ${entry.reason}`);
 

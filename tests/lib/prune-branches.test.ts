@@ -8,8 +8,33 @@ const keep = new Set(["main", "current-work"]);
 describe("planPrune", () => {
   it("removes a branch that still points at the commit its pull request merged", () => {
     const plan = planPrune([{ name: "feat-a", sha: "aaa" }], [pull("feat-a", "aaa", "MERGED")], keep);
-    expect(plan.remove).toEqual([{ name: "feat-a", sha: "aaa" }]);
+    expect(plan.remove).toEqual([{ name: "feat-a", sha: "aaa", why: "merged pull request" }]);
     expect(plan.keep).toEqual([]);
+  });
+
+  it("removes a branch with no pull request when every commit on it is already in main", () => {
+    const plan = planPrune([{ name: "scratch", sha: "s1" }], [], keep, new Set(["scratch"]));
+    expect(plan.remove).toEqual([{ name: "scratch", sha: "s1", why: "already in main" }]);
+  });
+
+  it("removes a contained branch whose pull request was closed without merging", () => {
+    const plan = planPrune([{ name: "abandoned", sha: "c1" }], [pull("abandoned", "c1", "CLOSED")], keep, new Set(["abandoned"]));
+    expect(plan.remove.map((branch) => branch.name)).toEqual(["abandoned"]);
+  });
+
+  it("keeps a branch with no pull request and commits main doesn't have", () => {
+    const plan = planPrune([{ name: "wip", sha: "w1" }], [], keep, new Set(["scratch"]));
+    expect(plan.remove).toEqual([]);
+    expect(plan.keep).toEqual([{ name: "wip", reason: "no merged pull request" }]);
+  });
+
+  it("never removes a contained branch that has an open pull request or is protected", () => {
+    const branches = [
+      { name: "open-one", sha: "o1" },
+      { name: "current-work", sha: "k1" },
+    ];
+    const plan = planPrune(branches, [pull("open-one", "o1", "OPEN")], keep, new Set(["open-one", "current-work"]));
+    expect(plan.remove).toEqual([]);
   });
 
   it("keeps a branch with commits beyond the merged pull request, so a follow-up is not lost", () => {
