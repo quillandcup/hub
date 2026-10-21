@@ -46,7 +46,7 @@
     "@mux/ts": "^15.6.1",
     "@next/third-parties": "16.4.2",
     "@sentry/nextjs": "^10.75.2",
-    "@slack/web-api": "^7.15.0",
+    "@slack/web-api": "^8.2.0",
     "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.118.0",
     "@tailwindcss/container-queries": "^0.1.1",
