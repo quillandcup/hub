@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 /** The staff watch-stats pages for a course and a lesson. The data loader is mocked; markup is real. */
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { screen, within } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, screen, within } from "@testing-library/react";
 import { computePlaySessions, computeVideoWatchStats } from "@/lib/courses/watch-stats";
 import { ADMIN_USER, MEMBER_USER, expectRedirect, renderServerPage, resetServerPageMocks, signInAs, useFakeSupabase, type FakeQuery } from "@/tests/helpers/server-page";
 
@@ -119,7 +119,7 @@ describe("/admin/courses/[id]/stats", () => {
   });
 
   it("says so when no lesson has a video", async () => {
-    loadCourseWatchStats.mockResolvedValue(data({ lessons: [{ lesson: lesson(L3, "Reading list"), videoId: null, stats: null }] }));
+    loadCourseWatchStats.mockResolvedValue(data({ lessons: [{ lesson: lesson(L3, "Reading list"), videoId: null, playbackId: null, stats: null, sessions: [] }] }));
     await renderServerPage(CourseWatchStatsPage, courseProps());
     expect(screen.getByText("No lesson of this course has a video yet.")).toBeInTheDocument();
   });
@@ -147,7 +147,8 @@ describe("/admin/courses/[id]/stats/[lessonId]", () => {
     expect(tile("Rewatched")).toHaveTextContent("1:40");
     expect(screen.getByText("of 16:40 played")).toBeInTheDocument();
     expect(screen.getAllByRole("img", { name: /Engagement over the 10:00 video/ })).toHaveLength(2);
-    expect(screen.getByText("Table view")).toBeInTheDocument();
+    // One table view under the engagement chart, one under the over-time chart.
+    expect(screen.getAllByText("Table view")).toHaveLength(2);
     expect(screen.getByText("1.5x")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "View lesson" })).toHaveAttribute("href", `/courses/the-ready-writer/lessons/${L1}`);
   });
@@ -238,6 +239,95 @@ describe("/admin/courses/[id]/stats/[lessonId]", () => {
     expect(screen.queryByRole("link", { name: "Load more" })).not.toBeInTheDocument();
   });
 
+  describe("over time", () => {
+    // Pinned so the presets mean the same thing every day: Tuesday 20 October 2026, mid-afternoon in the organisation's timezone.
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(new Date("2026-10-20T19:00:00Z"));
+    });
+    afterEach(() => vi.useRealTimers());
+
+    it("charts total plays by day over the last 30 days by default, with the controls and what the metric means", async () => {
+      await renderServerPage(LessonWatchStatsPage, lessonProps());
+
+      expect(screen.getByRole("heading", { name: "Over time" })).toBeInTheDocument();
+      expect(screen.getByLabelText("Metric")).toHaveValue("total_plays");
+      expect(screen.getByLabelText("Range")).toHaveValue("30d");
+      expect(screen.getByLabelText("By")).toHaveValue("day");
+      expect(screen.getByLabelText("From")).toHaveValue("2026-09-21");
+      expect(screen.getByLabelText("To")).toHaveValue("2026-10-20");
+      // a and b played; c only opened the lesson.
+      expect(screen.getByTestId("series-total")).toHaveTextContent("2");
+      expect(screen.getByText(/Visits to the lesson in which the video was played at all/)).toBeInTheDocument();
+      expect(screen.getByRole("img", { name: /Total plays by day, Sep 21 to Oct 20/ })).toBeInTheDocument();
+    });
+
+    it("offers the six metrics, the ranges and day, week and month", async () => {
+      await renderServerPage(LessonWatchStatsPage, lessonProps());
+
+      const options = (label: string) => [...(screen.getByLabelText(label) as HTMLSelectElement).options].map((o) => o.textContent);
+      expect(options("Metric")).toEqual(["Total plays", "Unique plays", "Unique viewers", "Play rate", "Engagement rate", "Hours watched"]);
+      expect(options("Range")).toEqual(["Today", "Last 7 days", "Last 30 days", "Last month", "This month", "Last quarter", "This quarter", "This year", "Last 12 months", "All time", "Custom range"]);
+      expect(options("By")).toEqual(["Day", "Week", "Month"]);
+    });
+
+    it("shows the metric, range and grouping the link asks for", async () => {
+      await renderServerPage(LessonWatchStatsPage, lessonProps(L1, { metric: "play_rate", range: "this_month", by: "week" }));
+
+      expect(screen.getByLabelText("Metric")).toHaveValue("play_rate");
+      expect(screen.getByLabelText("Range")).toHaveValue("this_month");
+      // Two of the three visits in October played the video.
+      expect(screen.getByTestId("series-total")).toHaveTextContent("67%");
+      // The definition is in the play rate tile and under the chart's total.
+      expect(screen.getAllByText(/The percentage of visits to the lesson, where the video appeared, in which it was played/)).toHaveLength(2);
+      expect(screen.getByRole("img", { name: /Play rate by week, Sep 27 to Oct 18/ })).toBeInTheDocument();
+    });
+
+    it("takes a custom range", async () => {
+      await renderServerPage(LessonWatchStatsPage, lessonProps(L1, { range: "custom", from: "2026-10-06", to: "2026-10-06" }));
+
+      expect(screen.getByLabelText("From")).toHaveValue("2026-10-06");
+      expect(screen.getByLabelText("To")).toHaveValue("2026-10-06");
+      // Only a's visit began on the 6th (local time).
+      expect(screen.getByTestId("series-total")).toHaveTextContent("1");
+    });
+
+    it("runs all time from the first recorded visit", async () => {
+      await renderServerPage(LessonWatchStatsPage, lessonProps(L1, { range: "all" }));
+      expect(screen.getByLabelText("From")).toHaveValue("2026-10-05");
+      expect(screen.getByTestId("series-total")).toHaveTextContent("2");
+    });
+
+    it("falls back to the defaults for a link it doesn't understand", async () => {
+      await renderServerPage(LessonWatchStatsPage, lessonProps(L1, { metric: "revenue", range: "forever", by: "year", from: "junk" }));
+      expect(screen.getByLabelText("Metric")).toHaveValue("total_plays");
+      expect(screen.getByLabelText("Range")).toHaveValue("30d");
+    });
+
+    it("keeps the staff choice when Apply is pressed, and only then", async () => {
+      const { container } = await renderServerPage(LessonWatchStatsPage, lessonProps(L1, { staff: "1" }));
+      expect(container.querySelector("form input[name=staff]")).toHaveAttribute("value", "1");
+      cleanup();
+
+      const without = await renderServerPage(LessonWatchStatsPage, lessonProps());
+      expect(without.container.querySelector("form input[name=staff]")).not.toBeInTheDocument();
+    });
+
+    it("keeps the chart's settings when loading more visits", async () => {
+      const many = Array.from({ length: 45 }, (_, i) => ({ ...sessions[1], sessionId: `s-${i}`, memberName: `Member ${i}` }));
+      loadCourseWatchStats.mockResolvedValue(data({ lessons: [{ lesson: lesson(L1, "Reader Expectations"), videoId: "v1", playbackId: "pb-1", stats, sessions: many }] }));
+      await renderServerPage(LessonWatchStatsPage, lessonProps(L1, { metric: "hours_watched", by: "week", range: "7d" }));
+
+      expect(screen.getByRole("link", { name: "Load more" })).toHaveAttribute("href", `/admin/courses/${KAJABI}/stats/${L1}?limit=40&metric=hours_watched&by=week&range=7d`);
+    });
+
+    it("has no chart when nobody has opened the video", async () => {
+      loadCourseWatchStats.mockResolvedValue(data({ lessons: [{ lesson: lesson(L1, "Voice"), videoId: "v1", playbackId: "pb-1", stats: null, sessions: [] }] }));
+      await renderServerPage(LessonWatchStatsPage, lessonProps());
+      expect(screen.queryByRole("heading", { name: "Over time" })).not.toBeInTheDocument();
+    });
+  });
+
   it("says when the lesson was viewed but nobody played it", async () => {
     const viewedOnly = computeVideoWatchStats([], 600, [view("c", "2026-10-07T09:00:00Z")]);
     loadCourseWatchStats.mockResolvedValue(
@@ -257,13 +347,13 @@ describe("/admin/courses/[id]/stats/[lessonId]", () => {
   });
 
   it("says when nobody has watched it, or when it has no video", async () => {
-    loadCourseWatchStats.mockResolvedValue(data({ lessons: [{ lesson: lesson(L1, "Voice"), videoId: "v1", stats: null }] }));
+    loadCourseWatchStats.mockResolvedValue(data({ lessons: [{ lesson: lesson(L1, "Voice"), videoId: "v1", playbackId: "pb-1", stats: null, sessions: [] }] }));
     await renderServerPage(LessonWatchStatsPage, lessonProps());
     expect(screen.getByText(/Nobody has watched this video yet \(staff viewing is left out\)/)).toBeInTheDocument();
   });
 
   it("says a lesson has no video", async () => {
-    loadCourseWatchStats.mockResolvedValue(data({ lessons: [{ lesson: lesson(L3, "Reading list"), videoId: null, stats: null }] }));
+    loadCourseWatchStats.mockResolvedValue(data({ lessons: [{ lesson: lesson(L3, "Reading list"), videoId: null, playbackId: null, stats: null, sessions: [] }] }));
     await renderServerPage(LessonWatchStatsPage, lessonProps(L3));
     expect(screen.getByText("This lesson has no video.")).toBeInTheDocument();
   });
