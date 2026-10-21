@@ -18,7 +18,7 @@ vi.mock('@/app/(admin)/admin/activity/ActivityFilters', () => ({ default: () => 
 vi.mock('@/app/(admin)/admin/members/[id]/MemberBadgesPanel', () => ({ default: () => null }))
 vi.mock('@/app/(admin)/admin/members/[id]/MemberIdentityPanel', () => ({ default: () => null }))
 
-function renderDetails(status: string) {
+function renderDetails(status: string, stats: Record<string, unknown> = { member_metrics: { engagement_score: 100 }, member_engagement: { risk_level: 'medium' } }) {
   render(
     <MemberDetails
       initialTab="overview"
@@ -26,8 +26,7 @@ function renderDetails(status: string) {
         id: 'mbr_1',
         name: 'Test Member',
         status,
-        member_metrics: { engagement_score: 100 },
-        member_engagement: { risk_level: 'medium' },
+        ...stats,
       }}
       attendanceRecords={[]}
       hiatusHistory={[]}
@@ -57,5 +56,11 @@ describe('MemberDetails engagement and churn risk', () => {
     renderDetails('cancelled')
     expect(screen.queryByText('Churn risk (days since last prickle)')).toBeNull()
     expect(screen.queryByText('medium')).toBeNull()
+  })
+
+  it('falls back to 0 and low risk when the member has no metrics yet', () => {
+    renderDetails('active', {})
+    expect(screen.getByText('/ 100')).toBeTruthy()
+    expect(screen.getByText('low')).toBeTruthy()
   })
 })

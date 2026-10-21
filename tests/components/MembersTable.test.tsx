@@ -97,4 +97,10 @@ describe('MembersTable churn risk', () => {
     expect(screen.getAllByText('low')).toHaveLength(2)
     expect(screen.queryByText('medium')).toBeNull()
   })
+
+  it('treats an active member with no engagement data as low risk', () => {
+    const noData: MemberRow = { id: 'n', name: 'Nora', email: 'n@example.com', status: 'active', member_metrics: null, member_engagement: null } as MemberRow
+    render(<MembersTable members={[noData]} />)
+    expect(screen.getByText('low')).toBeTruthy()
+  })
 })
