@@ -7,12 +7,22 @@
  * outline but can't be opened, so navigation skips them.
  */
 
+/**
+ * What members get of a module or lesson: open, "Coming soon" (the title only), or hidden (a Kajabi
+ * draft, or under one). Hidden ones are in an outline only for staff acting as themselves, who
+ * preview them; members' outlines never contain them (lib/courses/member.ts).
+ */
+export type OutlineState = "open" | "coming_soon" | "hidden";
+
+/** The word for a module or lesson members can't open yet, as staff see it: "Coming soon" or "Draft". */
+export const unreleasedLabel = (state: OutlineState): string => (state === "hidden" ? "Draft" : "Coming soon");
+
 export interface OutlineModule {
   id: string;
   parent_id: string | null;
   title: string;
   position: number;
-  state: "open" | "coming_soon";
+  state: OutlineState;
 }
 
 export interface OutlineLesson {
@@ -20,7 +30,7 @@ export interface OutlineLesson {
   module_id: string | null;
   title: string;
   position: number;
-  state: "open" | "coming_soon";
+  state: OutlineState;
   duration_seconds: number | null;
   /** Lesson thumbnail from Kajabi (https), when the content step recorded one. */
   thumbnail_url?: string | null;

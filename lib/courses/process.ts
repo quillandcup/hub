@@ -5,7 +5,7 @@ import { computeCourseAccess, type AccessRow } from "@/lib/courses/access";
 import { sanitizeLessonHtml } from "@/lib/courses/sanitize";
 import { lessonExcerpt } from "@/lib/courses/excerpt";
 import { fetchAll } from "@/lib/courses/db";
-import { planVisibleTree, slugifyTitle } from "@/lib/courses/visibility";
+import { planFullTree, slugifyTitle } from "@/lib/courses/visibility";
 
 /**
  * Bronze (Kajabi) + Local -> Silver courses (docs/COURSES.md, step C).
@@ -251,12 +251,14 @@ export async function processCourses(
       q.eq("course_kajabi_id", kajabiId).is("deleted_at", null)
     );
 
-    const tree = planVisibleTree(
+    // Every module and lesson is stored with its effective state. A Kajabi draft (or anything under
+    // one) is `hidden`: kept so staff can preview it, never shown to members (docs/COURSES.md).
+    const tree = planFullTree(
       modules.map((m) => ({ kajabiId: m.kajabi_id, parentKajabiId: m.parent_kajabi_id, publishingOption: m.publishing_option })),
       lessons.map((l) => ({ kajabiId: l.kajabi_id, moduleKajabiId: l.module_kajabi_id, publishingOption: l.publishing_option }))
     );
-    const visibleModules = modules.filter((m) => tree.modules.has(m.kajabi_id));
-    const visibleLessons = lessons.filter((l) => tree.lessons.has(l.kajabi_id));
+    const stateOf = (states: Map<string, string>, kajabiId: string) => states.get(kajabiId) ?? "hidden";
+    const countOf = (states: Map<string, string>, wanted: string) => [...states.values()].filter((state) => state === wanted).length;
 
     // Modules in two passes so ids are known before parents are linked. Pass 1 writes roots with
     // parent_id null and nested modules without a parent_id column at all (a re-run never nulls an
@@ -267,13 +269,13 @@ export async function processCourses(
       title: m.title,
       position: m.position ?? 0,
       poster_url: m.poster_url ?? null,
-      state: tree.modules.get(m.kajabi_id),
+      state: stateOf(tree.modules, m.kajabi_id),
       source: "kajabi",
       source_key: m.kajabi_id,
     });
     const isNested = (m: any) => Boolean(m.parent_kajabi_id && tree.modules.has(m.parent_kajabi_id));
-    const roots = visibleModules.filter((m) => !isNested(m));
-    const nested = visibleModules.filter(isNested);
+    const roots = modules.filter((m) => !isNested(m));
+    const nested = modules.filter(isNested);
     const moduleIds = await upsertAll(supabase, "course_modules", roots.map((m) => moduleRow(m, null)), "source,source_key");
     for (const [key, id] of await upsertAll(supabase, "course_modules", nested.map((m) => moduleRow(m)), "source,source_key")) {
       moduleIds.set(key, id);
@@ -289,7 +291,7 @@ export async function processCourses(
 
     // Lessons. A video is linked only when its Local `videos` row exists; lessons without one are
     // upserted without a video_id column at all, so a link made earlier isn't wiped by a re-run.
-    const mediaIds = Array.from(new Set(visibleLessons.map((l) => l.video_media_id).filter(Boolean)));
+    const mediaIds = Array.from(new Set(lessons.map((l) => l.video_media_id).filter(Boolean)));
     const videoIdByMedia = new Map<string, string>();
     for (const batch of chunks(mediaIds, LOOKUP_BATCH)) {
       const { data, error } = await supabase
@@ -305,7 +307,7 @@ export async function processCourses(
       module_id: l.module_kajabi_id ? moduleIds.get(l.module_kajabi_id) ?? null : null,
       title: l.title,
       position: l.position ?? 0,
-      state: tree.lessons.get(l.kajabi_id),
+      state: stateOf(tree.lessons, l.kajabi_id),
       body_html: sanitizeLessonHtml(l.body_html),
       excerpt: lessonExcerpt(sanitizeLessonHtml(l.body_html)),
       thumbnail_url: l.thumbnail_url ?? null,
@@ -313,8 +315,8 @@ export async function processCourses(
       source: "kajabi",
       source_key: l.kajabi_id,
     });
-    const withVideo = visibleLessons.filter((l) => l.video_media_id && videoIdByMedia.has(l.video_media_id));
-    const withoutVideo = visibleLessons.filter((l) => !(l.video_media_id && videoIdByMedia.has(l.video_media_id)));
+    const withVideo = lessons.filter((l) => l.video_media_id && videoIdByMedia.has(l.video_media_id));
+    const withoutVideo = lessons.filter((l) => !(l.video_media_id && videoIdByMedia.has(l.video_media_id)));
     await upsertAll(
       supabase,
       "course_lessons",
@@ -323,7 +325,8 @@ export async function processCourses(
     );
     await upsertAll(supabase, "course_lessons", withoutVideo.map(lessonRow), "source,source_key");
 
-    // Orphans: Silver rows (kajabi-sourced, this course) whose source is gone or no longer visible.
+    // Orphans: Silver rows (kajabi-sourced, this course) whose source is gone from Kajabi. A lesson that
+    // became a draft stays, as `hidden` (and keeps its members' progress).
     const silverLessons = await fetchAll(supabase, "course_lessons", "id, source_key", (q) =>
       q.eq("course_id", courseId).eq("source", "kajabi")
     );
@@ -339,10 +342,10 @@ export async function processCourses(
     result.courses.push({
       slug: silver!.slug,
       created,
-      modules: visibleModules.length,
-      lessons: visibleLessons.length,
-      comingSoon: visibleLessons.filter((l) => tree.lessons.get(l.kajabi_id) === "coming_soon").length,
-      hiddenLessons: lessons.length - visibleLessons.length,
+      modules: modules.length - countOf(tree.modules, "hidden"),
+      lessons: lessons.length - countOf(tree.lessons, "hidden"),
+      comingSoon: countOf(tree.lessons, "coming_soon"),
+      hiddenLessons: countOf(tree.lessons, "hidden"),
       deleted: { modules: staleModules.length, lessons: staleLessons.length },
       access: { members: 0, removed: 0 },
     });

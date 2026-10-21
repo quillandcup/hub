@@ -44,7 +44,7 @@ const LESSON_B = "22222222-2222-4222-8222-222222222222";
 const LESSON_SOON = "33333333-3333-4333-8333-333333333333";
 
 const mod: OutlineModule = { id: "mod", parent_id: null, title: "Month 1", position: 1, state: "open" };
-const lesson = (id: string, title: string, position: number, state: "open" | "coming_soon" = "open"): OutlineLesson => ({
+const lesson = (id: string, title: string, position: number, state: "open" | "coming_soon" | "hidden" = "open"): OutlineLesson => ({
   id,
   module_id: "mod",
   title,
@@ -175,6 +175,24 @@ describe("/courses/[slug]", () => {
     );
   });
 
+  it("shows staff a draft in the outline as a draft, openable as a preview, and not counted as available", async () => {
+    caller.scope.isAdminActing = true;
+    const withDraft = buildOutline(
+      [mod, { id: "draftmod", parent_id: null, title: "Month 2 (draft)", position: 2, state: "hidden" }],
+      [lesson(LESSON_A, "Welcome", 1), { ...lesson(LESSON_SOON, "Secret plot twist", 2, "hidden"), module_id: "draftmod" }],
+    );
+    loadCourseView.mockResolvedValue({ course, access: { kind: "admin" }, outline: withDraft, completed: new Set(), progress: courseProgress(withDraft, new Set()) });
+    await renderServerPage(CoursePage, params());
+
+    const nav = screen.getByRole("navigation", { name: "Course outline" });
+    expect(within(nav).getByRole("link", { name: /Secret plot twist/ })).toHaveAttribute("href", `/courses/the-ready-writer/lessons/${LESSON_SOON}`);
+    // The module and the lesson both say Draft, and neither says Coming soon.
+    expect(within(nav).getAllByText("Draft")).toHaveLength(2);
+    expect(within(nav).queryByText("Coming soon")).not.toBeInTheDocument();
+    // Only the open lesson counts.
+    expect(screen.getByText("0 of 1 available lesson done")).toBeInTheDocument();
+  });
+
   it("closes the lessons when access has ended, but keeps the progress", async () => {
     const completed = new Set([LESSON_A]);
     loadCourseView.mockResolvedValue({
@@ -250,6 +268,20 @@ describe("/courses/[slug]/modules/[moduleId]", () => {
     await renderServerPage(ModulePage, params());
     expect(screen.getByRole("status")).toHaveTextContent("Preview");
     expect(screen.getByRole("link", { name: "Revision" })).toBeInTheDocument();
+  });
+});
+
+describe("/courses/[slug]/modules/[moduleId] drafts", () => {
+  const params = () => ({ params: Promise.resolve({ slug: "the-ready-writer", moduleId: "mod" }) });
+
+  it("says a draft module is a draft, for the staff who can open it", async () => {
+    caller.scope.isAdminActing = true;
+    const drafted = buildOutline([{ ...mod, state: "hidden" }], [lesson(LESSON_SOON, "Secret plot twist", 1, "hidden")]);
+    loadCourseView.mockResolvedValue({ course, access: { kind: "admin" }, outline: drafted, completed: new Set(), progress: courseProgress(drafted, new Set()) });
+    await renderServerPage(ModulePage, params());
+
+    expect(screen.getByRole("status")).toHaveTextContent("Draft: this module is a draft in Kajabi, so members can't see it at all.");
+    expect(screen.getByRole("link", { name: "Secret plot twist" })).toBeInTheDocument();
   });
 });
 
@@ -585,6 +617,17 @@ describe("/courses/[slug]/lessons/[lessonId]", () => {
     expect(button).toHaveAttribute("title", "Progress isn't tracked for lessons members can't open yet");
     // Staff can open coming-soon lessons from the section list too.
     expect(within(screen.getByRole("navigation", { name: "Lessons in this section" })).getByRole("link", { name: /Revision/ })).toBeInTheDocument();
+  });
+
+  it("tells staff a draft lesson is a draft, not 'coming soon', and keeps its progress untracked", async () => {
+    caller.scope.isAdminActing = true;
+    loadLessonView.mockResolvedValue(ok({ preview: true, lesson: { ...lesson(LESSON_B, "Voice", 2, "hidden"), body_html: "<p>Draft text</p>" } }));
+    await renderServerPage(LessonPage, params());
+
+    expect(screen.getByRole("status")).toHaveTextContent("Draft: this lesson is a draft in Kajabi, so members can't see it at all.");
+    expect(screen.getByRole("status")).not.toHaveTextContent("Coming soon");
+    expect(screen.getByRole("button", { name: "Mark as complete" })).toBeDisabled();
+    expect(screen.getByText("Draft text")).toBeInTheDocument();
   });
 
   describe("watch tracking", () => {

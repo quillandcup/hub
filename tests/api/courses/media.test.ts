@@ -80,14 +80,17 @@ describe('Course media step', () => {
     vi.mocked(api.createAsset).mockClear()
   })
 
-  it('plans only the videos of visible lessons, with what each needs', async () => {
+  it('plans the videos of visible lessons and, marked as drafts, the ones only drafts use, with what each needs', async () => {
     const plan = await planCourseVideos(supabase, COURSE, NOW)
     const byMedia = Object.fromEntries(plan.map((p) => [p.mediaId, p]))
 
-    expect(Object.keys(byMedia).sort()).toEqual([media('a'), media('b'), media('c')])
-    expect(byMedia[media('a')]).toMatchObject({ state: 'ready_to_upload', lessonTitles: ['Lesson a', 'Lesson a2'], durationSeconds: 600 })
-    expect(byMedia[media('b')].state).toBe('link_expired')
-    expect(byMedia[media('c')].state).toBe('no_link')
+    expect(Object.keys(byMedia).sort()).toEqual([media('a'), media('b'), media('c'), media('draft'), media('indraft')])
+    expect(byMedia[media('a')]).toMatchObject({ draft: false, state: 'ready_to_upload', lessonTitles: ['Lesson a', 'Lesson a2'], durationSeconds: 600 })
+    expect(byMedia[media('b')]).toMatchObject({ draft: false, state: 'link_expired' })
+    expect(byMedia[media('c')]).toMatchObject({ draft: false, state: 'no_link' })
+    // A draft lesson's video, and one under a draft module, are planned for staff previews but flagged.
+    expect(byMedia[media('draft')]).toMatchObject({ draft: true, state: 'ready_to_upload' })
+    expect(byMedia[media('indraft')]).toMatchObject({ draft: true, state: 'ready_to_upload' })
   })
 
   it('uploads a video once, recording the video, its fingerprint and the Mux asset', async () => {
@@ -184,5 +187,29 @@ describe('Course media step', () => {
     const a = plan.find((p) => p.mediaId === media('a'))!
     expect(a).toMatchObject({ state: 'ready_to_upload', videoStatus: 'errored' })
     expect(a.retryVideoId).toBeTruthy()
+  })
+
+  it('never uploads the videos only drafts use in the normal upload, and uploads exactly those when asked for drafts', async () => {
+    const draftKeys = [media('draft'), media('indraft')]
+    try {
+      const normal = await uploadCourseVideos(supabase, api, COURSE, NOW, fingerprint)
+      // The normal upload may retry the visible lesson's errored video (the test before), but never a draft's.
+      expect(normal.uploaded.every((u) => !draftKeys.includes(u.mediaId))).toBe(true)
+      expect(await supabase.from('videos').select('id').in('source_key', draftKeys)).toMatchObject({ data: [] })
+      const afterNormal = mux.created.length
+
+      const drafts = await uploadCourseVideos(supabase, api, COURSE, NOW, fingerprint, { drafts: true })
+      expect(drafts.uploaded.map((u) => u.mediaId).sort()).toEqual([media('draft'), media('indraft')])
+      // Only drafts: the visible lessons' videos aren't this action's business.
+      expect(drafts.needsNewLink).toEqual([])
+      expect(mux.created.length).toBe(afterNormal + 2)
+
+      // Repeating it uploads nothing more.
+      const again = await uploadCourseVideos(supabase, api, COURSE, NOW, fingerprint, { drafts: true })
+      expect(again.uploaded).toEqual([])
+      expect(again.alreadyInMux).toBe(2)
+    } finally {
+      await supabase.from('videos').delete().in('source_key', draftKeys)
+    }
   })
 })

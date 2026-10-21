@@ -47,7 +47,18 @@ export interface VisibleTree {
   lessons: Map<string, "open" | "coming_soon">;
 }
 
-export function planVisibleTree(modules: ModuleIn[], lessons: LessonIn[]): VisibleTree {
+/** Every module's and lesson's state, drafts included (`hidden`), by Kajabi id. */
+export interface FullTree {
+  modules: Map<string, Visibility>;
+  lessons: Map<string, Visibility>;
+}
+
+/**
+ * The effective state of every module and lesson, by the one rule: its own publishing option,
+ * limited by every module above it. Hidden ones are in the result, marked `hidden`: they are stored
+ * so staff can preview them, and never shown to members.
+ */
+export function planFullTree(modules: ModuleIn[], lessons: LessonIn[]): FullTree {
   const byId = new Map(modules.map((m) => [m.kajabiId, m]));
   const effective = new Map<string, Visibility>();
 
@@ -63,20 +74,25 @@ export function planVisibleTree(modules: ModuleIn[], lessons: LessonIn[]): Visib
     return v;
   };
 
-  const visibleModules = new Map<string, "open" | "coming_soon">();
-  for (const m of modules) {
-    const v = moduleVisibility(m.kajabiId);
-    if (v !== "hidden") visibleModules.set(m.kajabiId, v);
-  }
+  const moduleStates = new Map<string, Visibility>();
+  for (const m of modules) moduleStates.set(m.kajabiId, moduleVisibility(m.kajabiId));
 
-  const visibleLessons = new Map<string, "open" | "coming_soon">();
+  const lessonStates = new Map<string, Visibility>();
   for (const l of lessons) {
     let v = visibilityFromPublishing(l.publishingOption);
     if (l.moduleKajabiId && byId.has(l.moduleKajabiId)) v = lessVisible(v, moduleVisibility(l.moduleKajabiId));
-    if (v !== "hidden") visibleLessons.set(l.kajabiId, v);
+    lessonStates.set(l.kajabiId, v);
   }
 
-  return { modules: visibleModules, lessons: visibleLessons };
+  return { modules: moduleStates, lessons: lessonStates };
+}
+
+/** What members see: `planFullTree` without the hidden ones. */
+export function planVisibleTree(modules: ModuleIn[], lessons: LessonIn[]): VisibleTree {
+  const full = planFullTree(modules, lessons);
+  const visible = <T extends Map<string, Visibility>>(states: T) =>
+    new Map([...states].filter((entry): entry is [string, "open" | "coming_soon"] => entry[1] !== "hidden"));
+  return { modules: visible(full.modules), lessons: visible(full.lessons) };
 }
 
 /** URL slug for a course, from its Kajabi title: "The Ready Writer" -> "the-ready-writer". */

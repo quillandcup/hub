@@ -11,6 +11,7 @@ import type { PlannedVideo } from "@/lib/courses/media";
 
 const video = (over: Partial<PlannedVideo> = {}): PlannedVideo => ({
   mediaId: "m1",
+  draft: false,
   lessonTitles: ["Lesson 1: Reader Expectations"],
   durationSeconds: 600,
   state: "ready_to_upload",
@@ -108,5 +109,61 @@ describe("CourseVideosPanel", () => {
     render(<CourseVideosPanel slug={null} videos={[video()]} />);
     expect(screen.getByText(/Publish the course first/)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Upload/ })).not.toBeInTheDocument();
+  });
+  describe("draft lessons' videos", () => {
+    const draft = (over: Partial<PlannedVideo> = {}) => video({ mediaId: "d1", draft: true, lessonTitles: ["Draft: Plot twists"], durationSeconds: 1200, ...over });
+
+    it("lists them apart from the visible lessons' videos, so the normal upload can't be mistaken for theirs", () => {
+      render(<CourseVideosPanel slug="c" videos={[video(), draft()]} />);
+
+      expect(screen.getByText("Lesson 1: Reader Expectations")).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: "Draft lessons' videos" })).toBeInTheDocument();
+      expect(screen.getByText("Draft: Plot twists")).toBeInTheDocument();
+      // One button each, each counting only its own list.
+      expect(screen.getByRole("button", { name: "Upload 1 to Mux" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Upload 1 draft video to Mux" })).toBeInTheDocument();
+    });
+
+    it("shows a course whose only videos are drafts' as having drafts, not as having none", () => {
+      render(<CourseVideosPanel slug="c" videos={[draft()]} />);
+      expect(screen.queryByText(/No visible lesson has a video recorded yet/)).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Upload 1 draft video to Mux" })).toBeEnabled();
+    });
+
+    it("asks before uploading drafts, says how many minutes are billed, and sends the drafts action", async () => {
+      fetchMock.mockResolvedValue(new Response(JSON.stringify({ success: true, upload: { uploaded: [{}], needsNewLink: [], failed: [] }, refresh: { ready: 0, stillPreparing: 1 } })));
+      const user = userEvent.setup();
+      render(<CourseVideosPanel slug="c" videos={[video(), draft()]} />);
+
+      await user.click(screen.getByRole("button", { name: "Upload 1 draft video to Mux" }));
+      expect(screen.getByText(/Upload 1 draft video \(about 20 minutes\) to Mux\? Mux bills per minute\./)).toBeInTheDocument();
+      expect(fetchMock).not.toHaveBeenCalled();
+
+      await user.click(screen.getByRole("button", { name: "Upload drafts" }));
+      await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+      expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ course: "c", action: "upload_drafts" });
+    });
+
+    it("sends the normal action from the normal button, never the drafts one", async () => {
+      fetchMock.mockResolvedValue(new Response(JSON.stringify({ success: true, upload: { uploaded: [{}], needsNewLink: [], failed: [] }, refresh: { ready: 0, stillPreparing: 1 } })));
+      const user = userEvent.setup();
+      render(<CourseVideosPanel slug="c" videos={[video(), draft()]} />);
+
+      await user.click(screen.getByRole("button", { name: "Upload 1 to Mux" }));
+      await user.click(screen.getByRole("button", { name: "Upload" }));
+      await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+      expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ course: "c", action: "upload" });
+    });
+
+    it("can be cancelled without uploading, and is disabled when there is nothing to upload", async () => {
+      const user = userEvent.setup();
+      const { rerender } = render(<CourseVideosPanel slug="c" videos={[draft()]} />);
+      await user.click(screen.getByRole("button", { name: "Upload 1 draft video to Mux" }));
+      await user.click(screen.getByRole("button", { name: "Cancel" }));
+      expect(fetchMock).not.toHaveBeenCalled();
+
+      rerender(<CourseVideosPanel slug="c" videos={[draft({ state: "uploaded", videoStatus: "ready" })]} />);
+      expect(screen.getByRole("button", { name: "Upload 0 draft videos to Mux" })).toBeDisabled();
+    });
   });
 });

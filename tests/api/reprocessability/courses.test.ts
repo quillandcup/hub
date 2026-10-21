@@ -6,9 +6,9 @@ import { apiFetch } from '../../helpers/api-fetch'
  * /api/process/courses is reprocessable (Silver pattern: UPSERT on the source key so ids stay
  * stable, DELETE orphans):
  * 1. First run creates the course, modules, lessons and access from Bronze + Local
- * 2. Draft lessons stay hidden, locked ones show as "coming soon", text is sanitized
+ * 2. Drafts are stored as hidden (kept so staff can preview them), locked ones show as "coming soon", text is sanitized
  * 3. Re-running keeps every id (and so every /courses/... URL)
- * 4. A lesson deleted or drafted in Kajabi disappears; a changed one updates
+ * 4. A lesson deleted in Kajabi disappears; one drafted again becomes hidden (same row, so same id and progress); a changed one updates
  * 5. Access follows active purchases: a refund removes it, grants add to it
  * 6. The slug set at creation never changes, even if the Kajabi title does
  *
@@ -126,7 +126,7 @@ describe('Courses processing (Bronze -> Silver) reprocessability', () => {
 
   afterAll(cleanup)
 
-  it('creates the course, its visible modules and lessons, and access, on first run', async () => {
+  it('creates the course, its modules and lessons (drafts hidden), and access, on first run', async () => {
     const response = await process()
     expect(response.status).toBe(200)
     const result = (await response.json()).courses[0]
@@ -138,12 +138,19 @@ describe('Courses processing (Bronze -> Silver) reprocessability', () => {
     const modules = await silverModules()
     const month = modules.find((m: any) => m.source_key === M_MONTH)
     const week = modules.find((m: any) => m.source_key === M_WEEK)
-    expect(modules.map((m: any) => m.source_key).sort()).toEqual([M_MONTH, M_WEEK].sort())
+    // The draft module is stored too, as hidden: kept for staff previews, never shown to members.
+    expect(Object.fromEntries(modules.map((m: any) => [m.source_key, m.state]))).toEqual({ [M_MONTH]: 'open', [M_WEEK]: 'open', [M_DRAFT]: 'hidden' })
     expect(week.parent_id).toBe(month.id)
     expect(month.parent_id).toBeNull()
 
     const lessons = await silverLessons()
-    expect(Object.fromEntries(lessons.map((l: any) => [l.source_key, l.state]))).toEqual({ [L('open')]: 'open', [L('soon')]: 'coming_soon', [L('removed')]: 'open' })
+    expect(Object.fromEntries(lessons.map((l: any) => [l.source_key, l.state]))).toEqual({
+      [L('open')]: 'open',
+      [L('soon')]: 'coming_soon',
+      [L('draft')]: 'hidden',
+      [L('indraftmod')]: 'hidden',
+      [L('removed')]: 'open',
+    })
     expect(lessons.find((l: any) => l.source_key === L('open'))!.module_id).toBe(week.id)
   })
 
@@ -185,7 +192,8 @@ describe('Courses processing (Bronze -> Silver) reprocessability', () => {
     expect(open).toMatchObject({ id: idBefore, title: 'Lesson open, renamed', body_html: '<h2>New</h2>' })
   })
 
-  it('opens a lesson once Kajabi publishes it, and removes one that is deleted or drafted again', async () => {
+  it('opens a lesson once Kajabi publishes it, hides one drafted again (same row), and removes one that is deleted', async () => {
+    const openBefore = (await silverLessons()).find((l: any) => l.source_key === L('open'))!.id
     await bronze.from('kajabi_course_lessons').update({ publishing_option: 'published' }).eq('kajabi_id', L('soon'))
     await bronze.from('kajabi_course_lessons').update({ publishing_option: 'draft' }).eq('kajabi_id', L('open'))
     await bronze.from('kajabi_course_lessons').update({ deleted_at: new Date().toISOString() }).eq('kajabi_id', L('removed'))
@@ -193,15 +201,27 @@ describe('Courses processing (Bronze -> Silver) reprocessability', () => {
     expect(response.status).toBe(200)
 
     const lessons = await silverLessons()
-    expect(Object.fromEntries(lessons.map((l: any) => [l.source_key, l.state]))).toEqual({ [L('soon')]: 'open' })
+    expect(Object.fromEntries(lessons.map((l: any) => [l.source_key, l.state]))).toEqual({
+      [L('soon')]: 'open',
+      [L('open')]: 'hidden',
+      [L('draft')]: 'hidden',
+      [L('indraftmod')]: 'hidden',
+    })
+    // Drafted again is hidden, not deleted: the row (and so its id and every member's progress on it) stays.
+    expect(lessons.find((l: any) => l.source_key === L('open'))!.id).toBe(openBefore)
   })
 
-  it('removes a module that Kajabi hides, with what is inside it', async () => {
+  it('hides a module that Kajabi drafts, with what is inside it, and keeps the rows', async () => {
+    const before = { modules: (await silverModules()).length, lessons: (await silverLessons()).length }
     await bronze.from('kajabi_course_modules').update({ publishing_option: 'draft' }).eq('kajabi_id', M_MONTH)
     expect((await process({ course: SLUG })).status).toBe(200)
 
-    expect(await silverModules()).toHaveLength(0)
-    expect(await silverLessons()).toHaveLength(0)
+    const modules = await silverModules()
+    const lessons = await silverLessons()
+    expect(modules).toHaveLength(before.modules)
+    expect(lessons).toHaveLength(before.lessons)
+    expect(modules.every((m: any) => m.state === 'hidden')).toBe(true)
+    expect(lessons.every((l: any) => l.state === 'hidden')).toBe(true)
     await bronze.from('kajabi_course_modules').update({ publishing_option: 'published' }).eq('kajabi_id', M_MONTH)
   })
 

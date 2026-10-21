@@ -10,10 +10,13 @@ import type { MuxAssetStatus, MuxVideoQuality } from "@/lib/mux";
  * has Mux fetch it straight from that link, and records the result as a Local `videos` row.
  * Step C then links each lesson to its video.
  *
- * Only lessons that are visible in the Hub (open or "Coming soon") are uploaded: drafts are work in
- * progress, and every upload is billed. A video already uploaded is never uploaded again, and a
- * run only ever does new work, so it is safe to repeat. An upload is a button press, not part of the
- * automatic sync, for the same cost reason.
+ * Videos of lessons that are visible in the Hub (open or "Coming soon") are uploaded by the normal
+ * upload. A video used only by Kajabi drafts is planned too (`draft`) so staff can preview those
+ * lessons, but it is never uploaded by the normal upload: every upload is billed, and drafts are
+ * work in progress (some are leftovers), so uploading them is a separate, deliberate action
+ * (`drafts: true`). A video already uploaded is never uploaded again, and a run only ever does new
+ * work, so it is safe to repeat. An upload is a button press, not part of the automatic sync, for
+ * the same cost reason.
  *
  * Writes need a service-role client (`videos` is service-role only).
  */
@@ -42,6 +45,8 @@ export type VideoPlanState =
 
 export interface PlannedVideo {
   mediaId: string;
+  /** Only Kajabi drafts use this video: it is for staff previews and is uploaded on request, never with the rest. */
+  draft: boolean;
   lessonTitles: string[];
   durationSeconds: number | null;
   state: VideoPlanState;
@@ -58,7 +63,7 @@ interface VideoRow {
   mux_asset_id: string | null;
 }
 
-/** The videos of a course's visible lessons, and what each needs. Reads only. */
+/** The videos of a course's lessons, drafts' included and marked, and what each needs. Reads only. */
 export async function planCourseVideos(supabase: SupabaseClient, courseKajabiId: string, now: Date): Promise<PlannedVideo[]> {
   const [modules, lessons] = await Promise.all([
     fetchAllBronzeRows(supabase, "kajabi_course_modules", "kajabi_id, parent_kajabi_id, position, title, publishing_option", (q) =>
@@ -72,10 +77,10 @@ export async function planCourseVideos(supabase: SupabaseClient, courseKajabiId:
     ),
   ]);
 
-  // Same visibility rule as members get: a draft (or a lesson under one) is never uploaded.
+  // Same visibility rule as members get: a video is a draft's when no visible lesson uses it.
   const visibleIds = visibleLessonIds(modules, lessons);
 
-  const withVideo = lessons.filter((l) => l.video_media_id && visibleIds.has(l.kajabi_id));
+  const withVideo = lessons.filter((l) => l.video_media_id);
   const mediaIds = Array.from(new Set(withVideo.map((l) => l.video_media_id as string)));
 
   const videos = new Map<string, VideoRow>();
@@ -104,6 +109,7 @@ export async function planCourseVideos(supabase: SupabaseClient, courseKajabiId:
 
     return {
       mediaId,
+      draft: group.every((l) => !visibleIds.has(l.kajabi_id)),
       lessonTitles: group.map((l) => l.title),
       durationSeconds: group.map((l) => l.video_duration_seconds).find((d) => typeof d === "number") ?? null,
       state,
@@ -139,12 +145,15 @@ export async function uploadCourseVideos(
   api: CourseMuxApi,
   courseKajabiId: string,
   now: Date,
-  fingerprint: (url: string) => Promise<string> = fingerprintSource
+  fingerprint: (url: string) => Promise<string> = fingerprintSource,
+  /** `drafts` uploads the videos only drafts use, and only those: the normal upload never does. */
+  options: { drafts?: boolean } = {}
 ): Promise<UploadResult> {
   const plan = await planCourseVideos(supabase, courseKajabiId, now);
   const result: UploadResult = { uploaded: [], alreadyInMux: 0, needsNewLink: [], failed: [] };
 
   for (const item of plan) {
+    if (item.draft !== (options.drafts ?? false)) continue;
     if (item.state === "uploaded") {
       result.alreadyInMux++;
       continue;

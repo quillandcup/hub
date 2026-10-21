@@ -87,7 +87,7 @@ export interface AdminCourseDetail {
   explained: ExplainedCourse;
   /** Per lesson, whether step B has fetched its text and found a video (keyed by Kajabi lesson id). */
   content: Record<string, { hasText: boolean; hasVideo: boolean }>;
-  /** Kajabi lesson id -> the Hub lesson id, for lessons that are in the Hub (published course, not hidden). */
+  /** Kajabi lesson id -> the Hub lesson id, for lessons that are in the Hub (published course; drafts are stored too, as hidden). */
   hubLessonIds: Record<string, string>;
   /** Each distinct video of a visible lesson, and what step D would do with it. */
   videos: PlannedVideo[];

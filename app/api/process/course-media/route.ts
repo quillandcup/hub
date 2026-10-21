@@ -28,8 +28,8 @@ export async function POST(request: NextRequest) {
   if (body === undefined) return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   const slug = typeof body?.course === "string" ? body.course : "";
   const action = body?.action;
-  if (!slug || (action !== "upload" && action !== "refresh")) {
-    return NextResponse.json({ error: 'Body needs "course" (a slug) and "action" ("upload" or "refresh")' }, { status: 400 });
+  if (!slug || (action !== "upload" && action !== "upload_drafts" && action !== "refresh")) {
+    return NextResponse.json({ error: 'Body needs "course" (a slug) and "action" ("upload", "upload_drafts" or "refresh")' }, { status: 400 });
   }
   if (!process.env.MUX_TOKEN_ID || !process.env.MUX_TOKEN_SECRET) {
     return NextResponse.json({ error: "Mux isn't configured here (MUX_TOKEN_ID / MUX_TOKEN_SECRET)" }, { status: 503 });
@@ -41,7 +41,10 @@ export async function POST(request: NextRequest) {
 
   try {
     const api = courseMuxApi(createMuxClient());
-    const upload = action === "upload" ? await uploadCourseVideos(supabase, api, course.source_key, new Date()) : undefined;
+    const upload =
+      action === "refresh"
+        ? undefined
+        : await uploadCourseVideos(supabase, api, course.source_key, new Date(), undefined, { drafts: action === "upload_drafts" });
     const refresh = await refreshVideoStatuses(supabase, api);
     // Links each lesson to its video (a lesson without a `videos` row yet keeps its existing link).
     const processed = await processCourses(supabase, { courseSlug: slug });

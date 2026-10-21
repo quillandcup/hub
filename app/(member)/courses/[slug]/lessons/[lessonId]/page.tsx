@@ -154,7 +154,9 @@ export default async function LessonPage({
     <>
       {preview && (
         <PageBanner>
-          Preview: members see this lesson as &ldquo;Coming soon&rdquo; until it&apos;s published in Kajabi.{" "}
+          {lesson.state === "hidden"
+            ? "Draft: this lesson is a draft in Kajabi, so members can't see it at all."
+            : "Preview: members see this lesson as “Coming soon” until it's published in Kajabi."}{" "}
           {watchRecorded ? "Your watching is recorded (completion isn't)." : "Progress isn't tracked here."}
         </PageBanner>
       )}

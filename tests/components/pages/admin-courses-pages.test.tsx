@@ -113,12 +113,21 @@ describe("/admin/courses/[id]", () => {
     expect(screen.getByText(/1 open|0 open, 1 coming soon, 1 hidden/)).toBeInTheDocument();
   });
 
-  it("links a coming-soon lesson to its preview in the Hub, and nothing for a hidden one", async () => {
+  it("links a coming-soon lesson and a draft to their previews in the Hub", async () => {
     loadAdminCourse.mockResolvedValue(detail());
     await renderServerPage(AdminCoursePage, params);
 
     const soon = screen.getByText("Reader expectations").closest("li")!;
     expect(within(soon).getByRole("link", { name: "Preview" })).toHaveAttribute("href", "/courses/the-ready-writer/lessons/hub-l1");
+    // Drafts are stored in the Hub too (hidden from members), so staff preview them the same way.
+    const draft = screen.getByText("Loose draft").closest("li")!;
+    expect(within(draft).getByRole("link", { name: "Preview" })).toHaveAttribute("href", "/courses/the-ready-writer/lessons/hub-l2");
+  });
+
+  it("has no link for a draft the Hub doesn't have yet (before the next sync)", async () => {
+    loadAdminCourse.mockResolvedValue(detail(undefined, { hubLessonIds: { l1: "hub-l1" } }));
+    await renderServerPage(AdminCoursePage, params);
+
     expect(within(screen.getByText("Loose draft").closest("li")!).queryByRole("link")).not.toBeInTheDocument();
   });
 
