@@ -189,6 +189,17 @@ describe("/admin/courses/[id]/stats/[lessonId]", () => {
     expect(signThumbnailTokens).not.toHaveBeenCalled();
   });
 
+  it("keeps 'plays' (one per visit) apart from 'times watched' (passes over a moment), and says so", async () => {
+    await renderServerPage(LessonWatchStatsPage, lessonProps());
+
+    // Total plays is per visit; rewinding inside one is still one play.
+    expect(screen.getByText(/rewinding or replaying within one visit is still one play/)).toBeInTheDocument();
+    // The engagement graph says it is not the play count.
+    expect(screen.getByText(/How many times each moment of the 10:00 video was watched, counting every rewind or replay/)).toBeInTheDocument();
+    expect(screen.getByText(/This isn't the play count: a play is one visit in which the video was played, however often it was rewound/)).toBeInTheDocument();
+    expect(screen.getByText("Times watched, rewatches included")).toBeInTheDocument();
+  });
+
   it("shows the play rate: the share of visits where the video was played", async () => {
     await renderServerPage(LessonWatchStatsPage, lessonProps());
 

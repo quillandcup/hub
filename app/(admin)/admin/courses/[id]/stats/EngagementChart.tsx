@@ -21,11 +21,13 @@ function niceMax(max: number): number {
 const plays1 = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
 
 /**
- * Wistia-style engagement graph for one video. The area is how many times each moment was played in
- * all, rewatches included; the dashed line is how many different people (members) played it, each
- * counted once however often. Where the area sits above the line, someone played that part more than
- * once: one person watching twice is 2 plays and 1 person. Hover (or arrow keys) reads a moment;
- * the table below has every value.
+ * Wistia-style engagement graph for one video. The area is how many times each moment was watched in
+ * all, a rewind or a replay counted each time; the dashed line is how many different people
+ * (members) watched it, each counted once however often. Where the area sits above the line,
+ * someone watched that part more than once: one person watching twice is 2 times watched and 1
+ * person. It is a count of passes over each moment, not of plays: a play is one visit in which the
+ * video was played, so rewinding inside a visit is still one play (the stats tiles). Hover (or arrow
+ * keys) reads a moment; the table below has every value.
  */
 export default function EngagementChart({ buckets, durationSeconds }: { buckets: HeatBucket[]; durationSeconds: number }) {
   const [active, setActive] = useState<number | null>(null);
@@ -77,7 +79,7 @@ export default function EngagementChart({ buckets, durationSeconds }: { buckets:
       <div className="mb-2 flex flex-wrap items-center gap-x-5 gap-y-1 text-sm text-slate-700 dark:text-slate-300">
         <span className="inline-flex items-center gap-2">
           <span aria-hidden="true" className="inline-block h-3 w-5 rounded-sm bg-plum-600/30 ring-1 ring-inset ring-plum-600 dark:bg-plum-400/30 dark:ring-plum-400" />
-          Plays, rewatches included
+          Times watched, rewatches included
         </span>
         <span className="inline-flex items-center gap-2">
           <svg aria-hidden="true" width="20" height="8" className="stroke-slate-500 dark:stroke-slate-400">
@@ -91,7 +93,7 @@ export default function EngagementChart({ buckets, durationSeconds }: { buckets:
         <svg
           viewBox={`0 0 ${W} ${H}`}
           role="img"
-          aria-label={`Engagement over the ${formatClock(durationSeconds)} video: plays and different viewers by moment. Arrow keys read each moment; the table below has every value.`}
+          aria-label={`Engagement over the ${formatClock(durationSeconds)} video: times watched and people by moment. Arrow keys read each moment; the table below has every value.`}
           tabIndex={0}
           onKeyDown={onKeyDown}
           onBlur={() => setActive(null)}
@@ -118,7 +120,7 @@ export default function EngagementChart({ buckets, durationSeconds }: { buckets:
           <path d={viewersLine} fill="none" strokeWidth="2" strokeDasharray="5 3" strokeLinejoin="round" className="stroke-slate-500 dark:stroke-slate-400" />
 
           <text x={W - M.right + 6} y={playsLabelY} dominantBaseline="middle" className="fill-slate-700 text-[11px] dark:fill-slate-300">
-            Plays
+            Watched
           </text>
           <text x={W - M.right + 6} y={viewersLabelY} dominantBaseline="middle" className="fill-slate-700 text-[11px] dark:fill-slate-300">
             People
@@ -145,7 +147,7 @@ export default function EngagementChart({ buckets, durationSeconds }: { buckets:
             <p className="mt-1 flex items-center justify-between gap-2">
               <span className="inline-flex items-center gap-1.5 text-slate-600 dark:text-slate-400">
                 <span aria-hidden="true" className="inline-block h-0.5 w-3 bg-plum-600 dark:bg-plum-400" />
-                Plays
+                Times watched
               </span>
               <strong className="text-slate-900 dark:text-slate-100">{plays1(hovered.plays)}</strong>
             </p>
@@ -172,7 +174,7 @@ export default function EngagementChart({ buckets, durationSeconds }: { buckets:
             <thead className="sticky top-0 bg-white text-slate-500 dark:bg-slate-900 dark:text-slate-400">
               <tr>
                 <th className="py-1 pr-3 font-medium">Moment</th>
-                <th className="py-1 pr-3 text-right font-medium">Plays</th>
+                <th className="py-1 pr-3 text-right font-medium">Times watched</th>
                 <th className="py-1 pr-3 text-right font-medium">People</th>
                 <th className="py-1 text-right font-medium">Rewatched</th>
               </tr>
