@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { computeVideoWatchStats, formatClock, MAX_BUCKETS, type WatchSegment } from '@/lib/courses/watch-stats'
 
+// By default each member has one player session of their own.
 const seg = (memberId: string, start: number, end: number, over: Partial<WatchSegment> = {}): WatchSegment => ({
   memberId,
+  sessionId: `session-${memberId}`,
   start,
   end,
   rate: 1,
@@ -13,7 +15,7 @@ const seg = (memberId: string, start: number, end: number, over: Partial<WatchSe
 
 describe('computeVideoWatchStats', () => {
   it('is empty with no segments or no usable length', () => {
-    expect(computeVideoWatchStats([], 100)).toMatchObject({ viewers: 0, buckets: [], watchedSeconds: 0 })
+    expect(computeVideoWatchStats([], 100)).toMatchObject({ viewers: 0, plays: 0, engagementRate: 0, buckets: [], watchedSeconds: 0 })
     expect(computeVideoWatchStats([seg('a', 5, 5)], 100).viewers).toBe(0)
     expect(computeVideoWatchStats([], null).durationSeconds).toBe(0)
   })
@@ -80,6 +82,37 @@ describe('computeVideoWatchStats', () => {
     const unknown = computeVideoWatchStats([seg('a', 0, 40)], null)
     expect(unknown.durationSeconds).toBe(40)
     expect(unknown.averageWatchedFraction).toBeCloseTo(1)
+  })
+
+  it('counts a play per player session, so coming back on another day is another play', () => {
+    const stats = computeVideoWatchStats(
+      [seg('a', 0, 100, { sessionId: 'a-monday' }), seg('a', 0, 50, { sessionId: 'a-friday' }), seg('b', 0, 100, { sessionId: 'b-1' }), seg('b', 0, 10, { sessionId: 'b-1' })],
+      100,
+    )
+    expect(stats.viewers).toBe(2)
+    expect(stats.plays).toBe(3)
+  })
+
+  it("gives Kajabi's engagement: total watch time over plays times video length", () => {
+    // Two plays of a 100s video: one watched all of it, one watched 20s.
+    const stats = computeVideoWatchStats([seg('a', 0, 100), seg('b', 0, 20)], 100)
+    expect(stats.plays).toBe(2)
+    expect(stats.engagementRate).toBeCloseTo(120 / 200)
+    // Rewatching inside a play adds to the time, so it can lift a play above one full watch.
+    const rewatch = computeVideoWatchStats([seg('a', 0, 100), seg('a', 0, 50)], 100)
+    expect(rewatch.plays).toBe(1)
+    expect(rewatch.engagementRate).toBeCloseTo(1.5)
+  })
+
+  it("shows, per slice, how many plays watched it, which over the plays is that moment's engagement", () => {
+    const stats = computeVideoWatchStats([seg('a', 0, 100), seg('b', 0, 50), seg('c', 0, 10)], 100)
+    expect(stats.plays).toBe(3)
+    expect(stats.buckets[5].sessions).toBe(3)
+    expect(stats.buckets[30].sessions).toBe(2)
+    expect(stats.buckets[80].sessions).toBe(1)
+    // A rewatch inside one play is still one play at that slice.
+    const again = computeVideoWatchStats([seg('a', 0, 50), seg('a', 0, 50)], 100)
+    expect(again.buckets[10]).toMatchObject({ plays: 2, viewers: 1, sessions: 1 })
   })
 
   it('breaks time down by speed, captions and background playing', () => {

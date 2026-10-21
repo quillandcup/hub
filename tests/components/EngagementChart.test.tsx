@@ -7,10 +7,10 @@ import type { HeatBucket } from "@/lib/courses/watch-stats";
 
 // A 100s video in 4 buckets: everyone watches the start, two people rewatch the third quarter.
 const buckets: HeatBucket[] = [
-  { start: 0, end: 25, plays: 4, viewers: 4 },
-  { start: 25, end: 50, plays: 3, viewers: 3 },
-  { start: 50, end: 75, plays: 5, viewers: 3 },
-  { start: 75, end: 100, plays: 1, viewers: 1 },
+  { start: 0, end: 25, plays: 4, viewers: 4, sessions: 4 },
+  { start: 25, end: 50, plays: 3, viewers: 3, sessions: 3 },
+  { start: 50, end: 75, plays: 5, viewers: 3, sessions: 3 },
+  { start: 75, end: 100, plays: 1, viewers: 1, sessions: 1 },
 ];
 
 describe("EngagementChart", () => {

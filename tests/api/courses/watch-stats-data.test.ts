@@ -85,7 +85,13 @@ describe('loadCourseWatchStats', () => {
     expect(result!.lessons.map((l) => l.lesson.title)).toEqual(['One', 'Two', 'Three'])
 
     const [one, two, three] = result!.lessons
+
     expect(one.videoId).toBe(ids.videoA)
+    // The Mux playback id is there once the video is ready, for stills of it; each segment here is its own player session.
+    expect(one.playbackId).toBe('pb-a')
+    expect(one.stats!.plays).toBe(3)
+    expect(two.playbackId).toBe('pb-b')
+    expect(three.playbackId).toBeNull()
     expect(one.stats).toMatchObject({ viewers: 2, durationSeconds: 100, watchedSeconds: 170, uniqueWatchedSeconds: 150 })
     expect(one.stats!.speeds).toEqual([{ rate: 1, seconds: 70 }, { rate: 1.5, seconds: 100 }].sort((a, b) => b.seconds - a.seconds))
     expect(one.stats!.captionsShare).toBeCloseTo(100 / 170)
