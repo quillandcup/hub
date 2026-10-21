@@ -176,7 +176,7 @@ export default function ChatSidebar({
     <nav
       aria-label="Conversations"
       className={`shrink-0 overflow-y-auto border-slate-200 p-4 @3xl:h-full @3xl:w-60 @3xl:border-r dark:border-slate-800 ${
-        pathname === "/chat" ? "@max-3xl:flex-1" : "@max-3xl:hidden"
+        pathname === "/chat" ? "flex-1 @3xl:flex-none" : "hidden @3xl:block"
       }`}
     >
       <form action="/chat/search" role="search" className="mb-4 px-1">
