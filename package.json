@@ -44,7 +44,7 @@
   "dependencies": {
     "@mux/ts": "^15.6.1",
     "@next/third-parties": "16.3.8",
-    "@sentry/nextjs": "^10.75.2",
+    "@sentry/nextjs": "^11.8.0",
     "@slack/web-api": "^7.15.0",
     "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.117.2",
