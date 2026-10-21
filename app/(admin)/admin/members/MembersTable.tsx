@@ -197,7 +197,7 @@ export default function MembersTable({ members, table: serverTable }: MembersTab
                 onClick={() => handleSort("engagement_score")}
               />
               <SortableTh
-                label="Risk"
+                label="Churn risk"
                 active={sortColumn === "risk_level"}
                 direction={sortDirection}
                 onClick={() => handleSort("risk_level")}
@@ -248,7 +248,9 @@ export default function MembersTable({ members, table: serverTable }: MembersTab
                   {member.member_metrics?.engagement_score ?? 0}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
-                  <RiskBadge risk={member.member_engagement?.risk_level ?? "low"} />
+                  {member.status === "active" && (
+                    <RiskBadge risk={member.member_engagement?.risk_level ?? "low"} />
+                  )}
                 </td>
               </tr>
             ))}
