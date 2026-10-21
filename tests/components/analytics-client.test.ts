@@ -231,3 +231,58 @@ describe("autocapture", () => {
     expect(await captured()).toEqual([]);
   });
 });
+
+describe("session cookie", () => {
+  const cookie = () => document.cookie.split("; ").find((c) => c.startsWith("hub_sid="))?.slice("hub_sid=".length);
+
+  beforeEach(() => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(null, { status: 200 })));
+    sessionStorage.clear();
+    document.cookie = "hub_sid=; Max-Age=0; Path=/";
+  });
+
+  afterEach(() => {
+    setTrackingEnabled(false);
+    vi.unstubAllGlobals();
+  });
+
+  it("is not set until tracking is on and something is tracked", () => {
+    expect(cookie()).toBeUndefined();
+    setTrackingEnabled(true);
+    expect(cookie()).toBeUndefined();
+  });
+
+  it("carries the visit's session id, the same one the events carry", async () => {
+    setTrackingEnabled(true);
+    track("onair_member_clicked", { room_size: 1 });
+    const id = cookie();
+    expect(id).toMatch(/^[0-9a-f-]{36}$/);
+    await flush();
+    const body = JSON.parse((fetch as unknown as ReturnType<typeof vi.fn>).mock.calls[0][1].body);
+    expect(body.events[0].sessionId).toBe(id);
+  });
+
+  it("follows the session when a long idle starts a new visit", () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-11-13T12:00:00Z"));
+    try {
+      setTrackingEnabled(true);
+      track("onair_member_clicked", { room_size: 1 });
+      const first = cookie();
+      vi.setSystemTime(Date.now() + SESSION_IDLE_MS + 1);
+      track("onair_member_clicked", { room_size: 1 });
+      expect(cookie()).toMatch(/^[0-9a-f-]{36}$/);
+      expect(cookie()).not.toBe(first);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("is cleared the moment tracking stops, so the server stops recording too", () => {
+    setTrackingEnabled(true);
+    track("onair_member_clicked", { room_size: 1 });
+    expect(cookie()).toBeDefined();
+    setTrackingEnabled(false);
+    expect(cookie()).toBeUndefined();
+  });
+});

@@ -24,6 +24,7 @@ import {
 } from "@/lib/chat/load";
 import type { ChatTextContext } from "@/components/chat/ChatText";
 
+import { withAction } from "@/lib/analytics/server";
 /**
  * Who is calling a chat action: the signed-in member with chat on, or null (signed out, no member
  * record, chat off). Actions are directly callable endpoints, so each one checks for itself rather
@@ -216,7 +217,7 @@ async function postingCaller() {
  * else as the bot under their name and photo). If Slack is down the message stays in the Hub
  * marked failed, and the member can retry it; the nightly chat run retries too.
  */
-export async function sendChatMessage(channelId: string, body: string, threadRootId?: string): Promise<SendChatResult> {
+async function sendChatMessageImpl(channelId: string, body: string, threadRootId?: string): Promise<SendChatResult> {
   if (!isUuid(channelId) || (threadRootId !== undefined && !isUuid(threadRootId))) return { ok: false, error: "Something went wrong." };
   if (!(await postingCaller())) return { ok: false, error: "Posting isn't available to you yet." };
 
@@ -260,7 +261,7 @@ const REACT_ERRORS: Record<string, string> = {
  * it. A member who connected Slack has the reaction sent to Slack as them; otherwise it stays in
  * the Hub (the bot can't react under a member's name). Same gate as posting.
  */
-export async function toggleChatReaction(messageId: string, emoji: string): Promise<ToggleReactionResult> {
+async function toggleChatReactionImpl(messageId: string, emoji: string): Promise<ToggleReactionResult> {
   if (!isUuid(messageId)) return { ok: false, error: "Something went wrong." };
   const caller = await postingCaller();
   if (!caller) return { ok: false, error: "Reacting isn't available to you yet." };
@@ -319,4 +320,13 @@ export async function retryChatMessage(messageId: string): Promise<SendChatResul
   }
   const result = await sendChatMessageToSlack(createServiceRoleClient(), messageId);
   return result === "failed" ? { ok: false, error: "Slack didn't take it. Try again in a moment." } : { ok: true, id: messageId };
+}
+
+// Usage analytics: each action records whether it worked (lib/analytics/server.ts).
+export async function sendChatMessage(...args: Parameters<typeof sendChatMessageImpl>): ReturnType<typeof sendChatMessageImpl> {
+  return withAction("chat_message_sent", () => sendChatMessageImpl(...args));
+}
+
+export async function toggleChatReaction(...args: Parameters<typeof toggleChatReactionImpl>): ReturnType<typeof toggleChatReactionImpl> {
+  return withAction("chat_reaction_toggled", () => toggleChatReactionImpl(...args));
 }

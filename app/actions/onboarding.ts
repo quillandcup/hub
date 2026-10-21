@@ -7,6 +7,7 @@ import { getEffectiveIdentity } from "@/lib/sudo";
 import { allOnboardingKeys, isOnboardingMarkKey, type OnboardingState } from "@/lib/onboarding";
 import { getOnboardingState } from "@/lib/onboarding.server";
 
+import { withAction } from "@/lib/analytics/server";
 type Result = { success: true } | { error: string };
 
 /**
@@ -50,22 +51,22 @@ export async function getMyOnboardingState(): Promise<OnboardingState | null> {
 }
 
 /** Start (or restart) the tour from the first step not yet done in the member's data. */
-export async function startOnboarding(): Promise<Result> {
+async function startOnboardingImpl(): Promise<Result> {
   return save({ marked_steps: [], dismissed_at: null, completed_at: null, acknowledged_steps: null }, "startOnboarding");
 }
 
 /** Close the tour for good; the user menu can start it again. */
-export async function dismissOnboarding(): Promise<Result> {
+async function dismissOnboardingImpl(): Promise<Result> {
   return save({ dismissed_at: new Date().toISOString() }, "dismissOnboarding");
 }
 
 /** Close the tour once every step is done. */
-export async function completeOnboarding(): Promise<Result> {
+async function completeOnboardingImpl(): Promise<Result> {
   return save({ completed_at: new Date().toISOString(), acknowledged_steps: allOnboardingKeys() }, "completeOnboarding");
 }
 
 /** Count a step as done without data to show it: confirmed ("my names look right") or skipped. */
-export async function markOnboardingStep(stepId: string): Promise<Result> {
+async function markOnboardingStepImpl(stepId: string): Promise<Result> {
   if (!isOnboardingMarkKey(stepId)) return { error: "Unknown step" };
   const ctx = await requireOwnMember();
   if (!ctx.ok) return { error: ctx.error };
@@ -78,4 +79,21 @@ export async function markOnboardingStep(stepId: string): Promise<Result> {
   const marked = new Set<string>(existing?.marked_steps ?? []);
   marked.add(stepId);
   return save({ marked_steps: [...marked] }, "markOnboardingStep");
+}
+
+// Usage analytics: each action records whether it worked (lib/analytics/server.ts).
+export async function startOnboarding(...args: Parameters<typeof startOnboardingImpl>): ReturnType<typeof startOnboardingImpl> {
+  return withAction("onboarding_started", () => startOnboardingImpl(...args));
+}
+
+export async function dismissOnboarding(...args: Parameters<typeof dismissOnboardingImpl>): ReturnType<typeof dismissOnboardingImpl> {
+  return withAction("onboarding_dismissed", () => dismissOnboardingImpl(...args));
+}
+
+export async function completeOnboarding(...args: Parameters<typeof completeOnboardingImpl>): ReturnType<typeof completeOnboardingImpl> {
+  return withAction("onboarding_completed", () => completeOnboardingImpl(...args));
+}
+
+export async function markOnboardingStep(...args: Parameters<typeof markOnboardingStepImpl>): ReturnType<typeof markOnboardingStepImpl> {
+  return withAction("onboarding_step_marked", () => markOnboardingStepImpl(...args));
 }

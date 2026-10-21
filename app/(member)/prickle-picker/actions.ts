@@ -25,6 +25,7 @@ import { getHostVibeTypes } from "@/lib/host-vibes";
 import { ORG_TIMEZONE } from "@/lib/config";
 import { validateCheckin, type Feeling, type Need } from "@/lib/prickle-checkins";
 
+import { withAction } from "@/lib/analytics/server";
 const BATCH_SIZE = 1000;
 const DEFAULT_TIMEZONE = ORG_TIMEZONE;
 const FALLBACK_WINDOW_DAYS = 14;
@@ -279,7 +280,7 @@ export async function getHostedVibes(): Promise<HostedVibeInfo[]> {
  * write another host's row through this action — including while sudo'd,
  * since getEffectiveIdentity already resolves to the sudo'd member's own id.
  */
-export async function saveHostVibe(
+async function saveHostVibeImpl(
   typeId: string,
   vibe: Vibe,
   notes: string
@@ -313,4 +314,9 @@ export async function saveHostVibe(
 
   revalidatePath("/settings", "layout");
   return { success: true };
+}
+
+// Usage analytics: each action records whether it worked (lib/analytics/server.ts).
+export async function saveHostVibe(...args: Parameters<typeof saveHostVibeImpl>): ReturnType<typeof saveHostVibeImpl> {
+  return withAction("host_vibe_saved", () => saveHostVibeImpl(...args));
 }

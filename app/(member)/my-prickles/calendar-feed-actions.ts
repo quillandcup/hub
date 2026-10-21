@@ -11,6 +11,7 @@ import { calendarFeedUrls, SCHEDULE_TIMEZONE, type CalendarFeedUrls, type MyCale
 import { formatSlotLabel, slotInTimeZone, slotKey, slotTimeForInstant } from "@/lib/commitments";
 import { APP_URL, ORG_TIMEZONE } from "@/lib/config";
 
+import { withAction } from "@/lib/analytics/server";
 /** Labels fall back to the org's timezone when the member's preference is "browser" (the server
  * can't see the browser's), same as the My Prickles page. Labels always name the zone. */
 
@@ -79,7 +80,7 @@ export async function getMyCalendarFeedUrls(): Promise<CalendarFeedUrls | null> 
  * Replace the acting member's token ("Generate new link"). Every calendar subscribed to the old
  * link stops updating; the member re-subscribes with the new one.
  */
-export async function regenerateMyCalendarFeedToken(): Promise<{ urls: CalendarFeedUrls } | { error: string }> {
+async function regenerateMyCalendarFeedTokenImpl(): Promise<{ urls: CalendarFeedUrls } | { error: string }> {
   const memberId = await effectiveMemberId();
   if (!memberId) return { error: "Not signed in" };
   const supabase = await createClient();
@@ -220,7 +221,7 @@ async function addItem(row: Record<string, unknown>): Promise<ItemResult> {
  * ids are stable), or its weekly slot, ongoing ("weekly"): the prickle's weekday and start time in
  * SCHEDULE_TIMEZONE, the timezone the schedule repeats in.
  */
-export async function addPrickleToMyCalendar(prickleId: string, mode: "once" | "weekly"): Promise<ItemResult> {
+async function addPrickleToMyCalendarImpl(prickleId: string, mode: "once" | "weekly"): Promise<ItemResult> {
   if (mode !== "once" && mode !== "weekly") return { error: "Invalid option" };
   const supabase = await createClient();
   const { data: prickle } = await supabase.from("prickles").select("id, type_id, start_time").eq("id", prickleId).maybeSingle();
@@ -241,7 +242,7 @@ export async function addPrickleToMyCalendar(prickleId: string, mode: "once" | "
 }
 
 /** Add an event (e.g. a retreat) to the acting member's calendar feed. */
-export async function addEventToMyCalendar(eventId: string): Promise<ItemResult> {
+async function addEventToMyCalendarImpl(eventId: string): Promise<ItemResult> {
   const supabase = await createClient();
   const { data: event } = await supabase.from("events").select("id").eq("id", eventId).maybeSingle();
   if (!event) return { error: "That event couldn't be found." };
@@ -260,4 +261,17 @@ export async function removeMyCalendarItem(itemId: string): Promise<ItemResult> 
   }
   revalidateCalendarViews();
   return { ok: true };
+}
+
+// Usage analytics: each action records whether it worked (lib/analytics/server.ts).
+export async function addPrickleToMyCalendar(...args: Parameters<typeof addPrickleToMyCalendarImpl>): ReturnType<typeof addPrickleToMyCalendarImpl> {
+  return withAction("calendar_item_added", () => addPrickleToMyCalendarImpl(...args));
+}
+
+export async function addEventToMyCalendar(...args: Parameters<typeof addEventToMyCalendarImpl>): ReturnType<typeof addEventToMyCalendarImpl> {
+  return withAction("calendar_item_added", () => addEventToMyCalendarImpl(...args));
+}
+
+export async function regenerateMyCalendarFeedToken(...args: Parameters<typeof regenerateMyCalendarFeedTokenImpl>): ReturnType<typeof regenerateMyCalendarFeedTokenImpl> {
+  return withAction("calendar_feed_regenerated", () => regenerateMyCalendarFeedTokenImpl(...args));
 }

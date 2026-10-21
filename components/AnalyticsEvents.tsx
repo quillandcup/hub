@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { startAutocapture } from "@/lib/analytics/autocapture";
 import { startImpressions } from "@/lib/analytics/impressions";
-import { flush, setTrackingEnabled, track } from "@/lib/analytics/client";
+import { flush, setTrackingEnabled, track, trackWhenEnabled } from "@/lib/analytics/client";
+import { readAttribution, stripAttribution } from "@/lib/notifications/attribution";
 import { CONSENT_CHANGE_EVENT, CONSENT_STORAGE_KEY, eventsAllowed } from "@/lib/analytics/consent";
 import { templateRoute } from "@/lib/analytics/route";
 
@@ -50,6 +51,17 @@ export function AnalyticsEvents({ needsConsent }: { needsConsent: boolean }) {
       window.removeEventListener("pagehide", onHidden);
     };
   }, [allowed]);
+
+  // Arrived through a link in a notification (lib/notifications/attribution.ts): record which one, once,
+  // and take the tag off the address. It is stripped whether or not tracking is on, so the address
+  // stays clean; recording waits for tracking, and is dropped, never held, if it never starts.
+  useEffect(() => {
+    const attribution = readAttribution(window.location.search);
+    if (!attribution) return;
+    const { pathname: path, search, hash } = window.location;
+    window.history.replaceState(window.history.state, "", path + stripAttribution(search) + hash);
+    return trackWhenEnabled("notification_opened", attribution);
+  }, []);
 
   useEffect(() => {
     if (!allowed || !pathname) return;

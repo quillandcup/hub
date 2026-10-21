@@ -44,7 +44,7 @@ describe("/admin/analytics", () => {
   it("counts staff and leaves out sudo by default, and passes the filters to every query", async () => {
     const supabase = useFakeSupabase();
     await renderServerPage(FeatureUsagePage, { searchParams: Promise.resolve({}) });
-    for (const fn of ["analytics_event_summary", "analytics_top_clicks", "analytics_control_rates", "analytics_funnel"]) {
+    for (const fn of ["analytics_event_summary", "analytics_top_clicks", "analytics_control_rates", "analytics_action_outcomes", "analytics_notification_rates", "analytics_funnel"]) {
       for (const [args] of rpcCalls(supabase, fn)) expect(args).toMatchObject({ ignore_staff: false, ignore_sudo: true });
     }
     expect(screen.getByRole("link", { name: /Ignore staff in sudo/ })).toHaveAttribute("aria-pressed", "true");
@@ -53,7 +53,7 @@ describe("/admin/analytics", () => {
   it("applies ignore-staff and include-sudo from the address, and keeps them in the window links and forms", async () => {
     const supabase = useFakeSupabase();
     await renderServerPage(FeatureUsagePage, { searchParams: Promise.resolve({ staff: "hide", sudo: "show", days: "7" }) });
-    for (const fn of ["analytics_event_summary", "analytics_top_clicks", "analytics_control_rates", "analytics_funnel"]) {
+    for (const fn of ["analytics_event_summary", "analytics_top_clicks", "analytics_control_rates", "analytics_action_outcomes", "analytics_notification_rates", "analytics_funnel"]) {
       for (const [args] of rpcCalls(supabase, fn)) expect(args).toMatchObject({ ignore_staff: true, ignore_sudo: false });
     }
     const window = new URL(screen.getByRole("link", { name: "Last 30 days" }).getAttribute("href")!, "http://x").searchParams;
@@ -167,6 +167,56 @@ describe("/admin/analytics", () => {
       useFakeSupabase();
       await renderServerPage(FeatureUsagePage, { searchParams: Promise.resolve({}) });
       expect(section().getByText("No control has been seen by 10+ visits and for 14+ days yet.")).toBeInTheDocument();
+    });
+  });
+
+  describe("actions and notifications", () => {
+    const section = (name: string) => within(screen.getByRole("heading", { name }).closest("section")!);
+
+    it("shows what server actions did, with a success rate, and flags the ones that fail often", async () => {
+      useFakeSupabase({
+        "rpc:analytics_action_outcomes": {
+          data: [
+            { action: "progress_logged", attempts: 20, succeeded: 19, failed: 1, members: 8 },
+            { action: "book_added", attempts: 10, succeeded: 4, failed: 6, members: 3 },
+            { action: "wheel_spun", attempts: 5, succeeded: 5, failed: 0, members: 2 },
+          ],
+        },
+      });
+      await renderServerPage(FeatureUsagePage, { searchParams: Promise.resolve({}) });
+      const actions = section("Actions: did they work?");
+      expect(actions.getByRole("row", { name: /progress_logged 20 19 1 95% 8/ })).toBeInTheDocument();
+      expect(actions.getByRole("row", { name: /book_added 10 4 6 40% 3/ })).toBeInTheDocument();
+      expect(actions.getByText("40%")).toHaveClass("text-red-600");
+      expect(actions.getByText("95%")).not.toHaveClass("text-red-600");
+      expect(actions.getByText("100%")).not.toHaveClass("text-red-600");
+    });
+
+    it("shows sends and opens per kind and channel with an open rate, and never more than 100%", async () => {
+      useFakeSupabase({
+        "rpc:analytics_notification_rates": {
+          data: [
+            { kind: "prickle_checkin", channel: "slack", sent: 40, sent_members: 12, opened: 10, opened_members: 8 },
+            { kind: "prickle_checkin", channel: "email", sent: 10, sent_members: 10, opened: 0, opened_members: 0 },
+            { kind: "streak_nudge", channel: "in_app", sent: 3, sent_members: 3, opened: 5, opened_members: 3 },
+            { kind: "never_sent", channel: "push", sent: 0, sent_members: 0, opened: 2, opened_members: 1 },
+          ],
+        },
+      });
+      await renderServerPage(FeatureUsagePage, { searchParams: Promise.resolve({}) });
+      const notifications = section("Notifications: sent and opened");
+      expect(notifications.getByRole("row", { name: /prickle_checkin slack 40 10 25% 12/ })).toBeInTheDocument();
+      expect(notifications.getByRole("row", { name: /prickle_checkin email 10 0 0% 10/ })).toBeInTheDocument();
+      // An open whose send fell before the window can't push the rate past 100%.
+      expect(notifications.getByRole("row", { name: /streak_nudge in_app 3 5 100% 3/ })).toBeInTheDocument();
+      expect(notifications.getByRole("row", { name: /never_sent push 0 2 – 0/ })).toBeInTheDocument();
+    });
+
+    it("says so when there is nothing yet", async () => {
+      useFakeSupabase();
+      await renderServerPage(FeatureUsagePage, { searchParams: Promise.resolve({}) });
+      expect(section("Actions: did they work?").getByText("No actions recorded in this window.")).toBeInTheDocument();
+      expect(section("Notifications: sent and opened").getByText("No notifications recorded in this window.")).toBeInTheDocument();
     });
   });
 

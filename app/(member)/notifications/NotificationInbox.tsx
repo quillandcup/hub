@@ -11,6 +11,7 @@ import { BulkActionBar, BulkActionButton } from "@/components/BulkActionBar";
 import { useRowSelection } from "@/lib/hooks/useRowSelection";
 import { useServerDataTable } from "@/lib/hooks/useDataTable";
 import { formatRelativeTime } from "@/lib/formatters";
+import { track } from "@/lib/analytics/client";
 import { NOTIFICATION_KINDS } from "@/lib/notifications/registry";
 import {
   DEFAULT_INBOX_SORT,
@@ -89,6 +90,7 @@ export default function NotificationInbox({
   }
 
   function open(n: InAppNotification) {
+    track("notification_opened", { kind: n.kind, channel: "in_app" });
     if (!n.read) setRead([n.id], true);
   }
 

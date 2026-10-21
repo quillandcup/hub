@@ -12,6 +12,8 @@
  * Prefer a boolean, count or enum over `text`; use `text` only for labels the UI itself defines.
  */
 
+import { OUTCOME_ACTIONS } from "@/lib/analytics/actions";
+
 type Spec =
   | { kind: "bool"; optional?: boolean }
   | { kind: "int"; max: number; optional?: boolean }
@@ -94,6 +96,26 @@ export const EVENTS = {
 
   /** A course lesson was marked complete or cleared (app/(member)/courses/LessonCompletion.tsx): by the member's button, or automatically when the player reached the watched mark. */
   lesson_completion_changed: { completed: bool(), via: oneOf("button", "watched") },
+
+  /**
+   * A server action finished (lib/analytics/server.ts: `withAction`): `action` is which one, `ok`
+   * whether it worked, `detail` a short word when "worked" needs qualifying (a wheel spin that found
+   * nobody). Recorded by the server, in the visit that made the request and only for visitors who
+   * allow usage tracking; the browser can't send it.
+   */
+  action_completed: { action: oneOf(...OUTCOME_ACTIONS), ok: bool(), detail: optional(text(20)) },
+
+  /**
+   * The app sent a member a notification (`kind` is a notification kind, `channel` slack, email, push
+   * or in_app). Recorded by the system as it sends, with no visit; the browser can't send it. With
+   * `notification_opened` it gives each kind and channel an open rate.
+   */
+  notification_sent: { kind: text(40), channel: text(20) },
+  /**
+   * A member opened a notification: by clicking it in the Hub (in_app), or by arriving through a link
+   * in one (the link carries its kind and channel; lib/notifications/attribution.ts reads and strips them).
+   */
+  notification_opened: { kind: text(40), channel: text(20) },
 
   // On air light (components/LiveRoomIndicator.tsx). `live` is whether anyone was at the table.
   onair_popover_opened: { live: bool(), room_size: int() },
@@ -197,3 +219,6 @@ export function describeEvents(): EventDescription[] {
     })),
   }));
 }
+
+/** Events only the server or the system may record; the browser's batch endpoint refuses them. */
+export const SERVER_ONLY_EVENTS: ReadonlySet<EventName> = new Set<EventName>(["action_completed", "notification_sent"]);

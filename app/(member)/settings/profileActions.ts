@@ -21,6 +21,7 @@ import { FACEBOOK_BASE_URL, X_BASE_URL, parseBioInput, parseFacebookInput, parse
 import { normalizeTopics } from "@/lib/ask-me-about";
 import { SUPPORT_EMAIL } from "@/lib/config";
 
+import { withAction } from "@/lib/analytics/server";
 /**
  * Member self-service for the public profile shown on /members/[id].
  *
@@ -247,7 +248,7 @@ export async function getProfileSettings(): Promise<ProfileSettings | { error: s
  * to your calendar. Saved on its own (not with the rest of the profile form); no reprocessing, it
  * takes effect at once.
  */
-export async function setRosterVisibility(show: boolean): Promise<{ success: true } | { error: string }> {
+async function setRosterVisibilityImpl(show: boolean): Promise<{ success: true } | { error: string }> {
   const ctx = await requireIdentity();
   if ("error" in ctx) return ctx;
   if (typeof show !== "boolean") return { error: "Invalid setting" };
@@ -301,7 +302,7 @@ export interface ProfileDetailsInput {
  *   - blanked          -> '' (cleared: the profile shows nothing, no Kajabi fallback)
  *   - any other value  -> stored as the member's own value, even if it equals Kajabi's
  */
-export async function updateProfileDetails(input: ProfileDetailsInput): Promise<UpdateProfileResult> {
+async function updateProfileDetailsImpl(input: ProfileDetailsInput): Promise<UpdateProfileResult> {
   const ctx = await requireIdentity();
   if ("error" in ctx) return ctx;
   const { supabase, effectiveIdentity, user } = ctx;
@@ -378,7 +379,7 @@ export async function updateProfileDetails(input: ProfileDetailsInput): Promise<
  * Hub-only data read straight from member_ask_me_about by the profile and the
  * directory, so no reprocessing: the change shows as soon as it's saved.
  */
-export async function updateAskMeAbout(input: string[]): Promise<UpdateProfileResult> {
+async function updateAskMeAboutImpl(input: string[]): Promise<UpdateProfileResult> {
   const ctx = await requireIdentity();
   if ("error" in ctx) return ctx;
   const { supabase, effectiveIdentity, user } = ctx;
@@ -511,4 +512,17 @@ export async function updateInstagramHandle(input: string): Promise<UpdateProfil
   revalidatePath("/settings", "layout");
   revalidatePath(`/members/${effectiveIdentity.memberId}`);
   return { success: true, syncPending: true };
+}
+
+// Usage analytics: each action records whether it worked (lib/analytics/server.ts).
+export async function setRosterVisibility(...args: Parameters<typeof setRosterVisibilityImpl>): ReturnType<typeof setRosterVisibilityImpl> {
+  return withAction("profile_saved", () => setRosterVisibilityImpl(...args));
+}
+
+export async function updateProfileDetails(...args: Parameters<typeof updateProfileDetailsImpl>): ReturnType<typeof updateProfileDetailsImpl> {
+  return withAction("profile_saved", () => updateProfileDetailsImpl(...args));
+}
+
+export async function updateAskMeAbout(...args: Parameters<typeof updateAskMeAboutImpl>): ReturnType<typeof updateAskMeAboutImpl> {
+  return withAction("ask_me_about_saved", () => updateAskMeAboutImpl(...args));
 }

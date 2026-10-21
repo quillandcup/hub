@@ -8,12 +8,13 @@ import { isUuid } from "@/lib/chat/format";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 
+import { withAction } from "@/lib/analytics/server";
 /**
  * Mark a lesson complete (or not). A directly callable endpoint, so it checks for itself: the
  * signed-in member with courses on, access to the lesson's course, and an open lesson. Sudo is
  * read-only, so an admin previewing as a member never changes that member's progress.
  */
-export async function setLessonComplete(lessonId: string, complete: boolean): Promise<{ error?: string }> {
+async function setLessonCompleteImpl(lessonId: string, complete: boolean): Promise<{ error?: string }> {
   if (!isUuid(lessonId)) return { error: "Lesson not found" };
   const caller = await getCoursesCaller();
   if (!caller) return { error: "Not available" };
@@ -78,4 +79,9 @@ export async function clearMyLessonProgress(lessonId: string): Promise<{ error?:
 
   revalidatePath("/courses", "layout");
   return { segments };
+}
+
+// Usage analytics: each action records whether it worked (lib/analytics/server.ts).
+export async function setLessonComplete(...args: Parameters<typeof setLessonCompleteImpl>): ReturnType<typeof setLessonCompleteImpl> {
+  return withAction("lesson_completion_saved", () => setLessonCompleteImpl(...args));
 }

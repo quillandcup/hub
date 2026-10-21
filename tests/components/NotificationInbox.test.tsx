@@ -4,6 +4,8 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
 
+const { track } = vi.hoisted(() => ({ track: vi.fn() }));
+vi.mock("@/lib/analytics/client", () => ({ track }));
 const markRead = vi.fn();
 const markUnread = vi.fn();
 vi.mock("@/components/InAppNotifications", () => ({
@@ -43,6 +45,7 @@ function renderInbox() {
 }
 
 beforeEach(() => {
+  track.mockClear();
   markRead.mockReset().mockResolvedValue(true);
   markUnread.mockReset().mockResolvedValue(true);
 });
@@ -113,5 +116,17 @@ describe("NotificationInbox", () => {
     await user.click(screen.getByRole("button", { name: "Mark as read" }));
     expect(screen.getByRole("button", { name: /^Unread \(2\)/ })).toBeInTheDocument();
     expect(screen.getByRole("toolbar", { name: "Bulk actions" })).toBeInTheDocument();
+  });
+});
+
+describe("NotificationInbox usage analytics", () => {
+  it("records opening a notification by its kind", async () => {
+    const user = userEvent.setup();
+    const inbox: InboxPage = { items: [{ ...base, url: "/prickles/p1" }], total: 1, counts: { all: 1, unread: 1 }, page: 1, pageSize: 25 };
+    render(<NotificationInbox inbox={inbox} filter="all" kind={null} />);
+    const link = screen.getByRole("link", { name: /First/ });
+    link.addEventListener("click", (e) => e.preventDefault());
+    await user.click(link);
+    expect(track).toHaveBeenCalledWith("notification_opened", { kind: "prickle_checkin", channel: "in_app" });
   });
 });

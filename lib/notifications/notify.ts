@@ -2,6 +2,8 @@ import { CHANNEL_ADAPTERS, type ChannelId, type OutboundMessage } from "@/lib/ch
 import { APP_URL } from "@/lib/config";
 import * as Sentry from "@sentry/nextjs";
 import { sendOperationsAlert } from "@/lib/operations-alerts";
+import { attributeMessage } from "./attribution";
+import { recordSystemEvents } from "@/lib/analytics/system";
 import { effectiveChannels, type NotificationKindId, type NotificationPreferenceRow } from "./registry";
 
 /**
@@ -94,6 +96,9 @@ export async function createNotifier(
     )
   );
 
+  // A send the member asked for just now (an admin's test button) isn't the app reaching out: leave it out of the usage log.
+  const userIds = options.channels ? new Map<string, string>() : await loadUserIds(supabase, unique);
+
   const channelsFor = (memberId: string) =>
     (wanted.get(memberId) ?? []).filter((channel) => addresses.get(channel)?.has(memberId));
 
@@ -111,7 +116,10 @@ export async function createNotifier(
       const delivered: ChannelId[] = [];
       for (const channel of channelsFor(memberId)) {
         try {
-          await CHANNEL_ADAPTERS[channel].send(addresses.get(channel)!.get(memberId)!, withSettingsLink, { kind, memberId });
+          // Tag the Hub links so a visit through one says which notification it came from. In-app
+          // notifications aren't tagged: the click is recorded in the Hub.
+          const outgoing = channel === "in_app" ? withSettingsLink : attributeMessage(withSettingsLink, APP_URL, { kind, channel });
+          await CHANNEL_ADAPTERS[channel].send(addresses.get(channel)!.get(memberId)!, outgoing, { kind, memberId });
           delivered.push(channel);
         } catch (error) {
           console.error(`[notifications] ${kind} via ${channel} to member ${memberId} failed`, error);
@@ -121,7 +129,32 @@ export async function createNotifier(
           }
         }
       }
+      const userId = userIds.get(memberId);
+      if (userId && delivered.length > 0) {
+        await recordSystemEvents(
+          supabase,
+          delivered.map((channel) => ({ userId, event: "notification_sent" as const, properties: { kind, channel } }))
+        );
+      }
       return delivered;
     },
   };
+}
+
+/**
+ * memberId -> auth user id, for the usage log (a notification sent is recorded against the user it
+ * went to). Best effort: a failed lookup just means those sends aren't counted.
+ */
+async function loadUserIds(supabase: any, memberIds: string[]): Promise<Map<string, string>> {
+  const userIds = new Map<string, string>();
+  try {
+    for (let i = 0; i < memberIds.length; i += MEMBER_ID_CHUNK) {
+      const { data, error } = await supabase.from("members").select("id, user_id").in("id", memberIds.slice(i, i + MEMBER_ID_CHUNK));
+      if (error) throw error;
+      for (const row of data ?? []) if (row.user_id) userIds.set(row.id, row.user_id);
+    }
+  } catch (error) {
+    console.error("[notifications] Loading user ids for the usage log failed", error instanceof Error ? error.message : error);
+  }
+  return userIds;
 }

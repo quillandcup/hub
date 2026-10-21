@@ -1,4 +1,5 @@
 import { templateRoute } from "@/lib/analytics/route";
+import { SESSION_COOKIE } from "@/lib/analytics/session-cookie";
 import type { EventName, EventProps } from "@/lib/analytics/events";
 
 /**
@@ -34,6 +35,21 @@ let queue: QueuedEvent[] = [];
 let timer: ReturnType<typeof setTimeout> | null = null;
 let memorySession: { id: string; last: number } | null = null;
 
+/**
+ * Tells the server which visit this is (lib/analytics/session-cookie.ts), so an outcome it records
+ * joins the clicks that led to it. Set only while tracking is allowed, expires with the visit.
+ */
+function writeSessionCookie(id: string | null): void {
+  try {
+    const secure = window.location.protocol === "https:" ? "; Secure" : "";
+    document.cookie = id
+      ? `${SESSION_COOKIE}=${id}; Path=/; Max-Age=${SESSION_IDLE_MS / 1000}; SameSite=Lax${secure}`
+      : `${SESSION_COOKIE}=; Path=/; Max-Age=0; SameSite=Lax${secure}`;
+  } catch {
+    // No cookies available: server outcomes just won't be recorded.
+  }
+}
+
 /** Callbacks waiting for tracking to be switched on (see `trackWhenEnabled`). */
 const whenEnabled = new Set<() => void>();
 
@@ -49,6 +65,7 @@ export function setTrackingEnabled(on: boolean): void {
     if (timer) clearTimeout(timer);
     timer = null;
     memorySession = null;
+    writeSessionCookie(null);
     try {
       sessionStorage.removeItem(SESSION_STORAGE_KEY);
     } catch {
@@ -70,6 +87,7 @@ function currentSessionId(now: number): string {
   }
   session = { id: session.id, last: now };
   memorySession = session;
+  writeSessionCookie(session.id);
   try {
     sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(session));
   } catch {

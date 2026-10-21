@@ -180,3 +180,82 @@ describe("slackBlocks (shared Slack channel)", () => {
     expect(blocks[1].elements.map((e: any) => e.text)).toEqual(["Optional.", `<${APP_URL}/s|Settings>`]);
   });
 });
+
+describe("createNotifier: usage analytics", () => {
+  const members = { members: { data: [{ id: "m1", user_id: "u-1" }, { id: "m2", user_id: "u-2" }] } };
+  const inserted = (fake: ReturnType<typeof createFakeSupabase>, table: string) =>
+    fake.queries.filter((q) => q.table === table).flatMap((q) => q.calls.filter((c) => c.method === "insert").map((c) => c.args[0]));
+
+  it("tags the Hub links in what goes out on Slack with the kind and channel", async () => {
+    const notifier = await createNotifier(slackReady(), "prickle_checkin", ["m1"]);
+    await notifier.send("m1", { text: "Hello", url: `${APP_URL}/prickles/p1` });
+
+    const first = sendSlackDM.mock.calls[0][0].blocks![0].text.text as string;
+    expect(first).toContain(`${APP_URL}/prickles/p1?nk=prickle_checkin&nc=slack`);
+    // The settings link in the footer isn't tagged: opening settings isn't opening the notification.
+    expect(sendSlackDM.mock.calls[0][0].blocks!.at(-1).elements.at(-1).text).toBe(`<${APP_URL}/settings/notifications|Notification settings>`);
+  });
+
+  it("tags links a feature put in its own Slack blocks", async () => {
+    const notifier = await createNotifier(slackReady(), "prickle_checkin", ["m1"]);
+    await notifier.send("m1", {
+      text: "Hello",
+      slackBlocks: [{ type: "actions", elements: [{ type: "button", url: `${APP_URL}/streaks` }] }],
+    });
+    expect(sendSlackDM.mock.calls[0][0].blocks![0].elements[0].url).toBe(`${APP_URL}/streaks?nk=prickle_checkin&nc=slack`);
+  });
+
+  it("does not tag in-app notifications: the click is recorded in the Hub", async () => {
+    const notifier = await createNotifier(slackReady(), "prickle_checkin", ["m1"]);
+    await notifier.send("m1", { text: "Hello", url: `${APP_URL}/prickles/p1` });
+    const rows = inserted(serviceFake, "in_app_notifications").flat();
+    expect(rows.length).toBeGreaterThan(0);
+    for (const row of rows) expect(JSON.stringify(row)).not.toContain("nk=");
+  });
+
+  it("records a notification_sent for each channel it reached, against the member's user", async () => {
+    const fake = slackReady(members);
+    const notifier = await createNotifier(fake, "prickle_checkin", ["m1"]);
+    await notifier.send("m1", { text: "Hello" });
+
+    const [rows] = inserted(fake, "analytics_events");
+    expect(rows).toHaveLength(2);
+    expect(rows).toEqual([
+      expect.objectContaining({ user_id: "u-1", source: "system", session_id: null, event: "notification_sent", properties: { kind: "prickle_checkin", channel: "slack" } }),
+      expect.objectContaining({ user_id: "u-1", event: "notification_sent", properties: { kind: "prickle_checkin", channel: "in_app" } }),
+    ]);
+  });
+
+  it("records only the channels that delivered", async () => {
+    sendSlackDM.mockRejectedValueOnce(new Error("channel_not_found"));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const fake = slackReady(members);
+    const notifier = await createNotifier(fake, "prickle_checkin", ["m1"]);
+    await notifier.send("m1", { text: "Hello" });
+    expect((inserted(fake, "analytics_events")[0] as any[]).map((r) => r.properties.channel)).toEqual(["in_app"]);
+    vi.restoreAllMocks();
+  });
+
+  it("records nothing for a send the member asked for (forced channels), and doesn't even look up users", async () => {
+    const fake = slackReady(members);
+    const notifier = await createNotifier(fake, "prickle_checkin", ["m1"], { channels: ["slack"] });
+    await notifier.send("m1", { text: "Test" });
+    expect(inserted(fake, "analytics_events")).toEqual([]);
+    expect(fake.queries.some((q) => q.table === "members")).toBe(false);
+  });
+
+  it("records nothing for a member with no Hub account", async () => {
+    const fake = slackReady({ members: { data: [{ id: "m1", user_id: null }] } });
+    const notifier = await createNotifier(fake, "prickle_checkin", ["m1"]);
+    await notifier.send("m1", { text: "Hello" });
+    expect(inserted(fake, "analytics_events")).toEqual([]);
+  });
+
+  it("still sends when the usage log can't be reached", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const fake = slackReady({ members: { error: { message: "down" } }, analytics_events: { error: { message: "down" } } });
+    const notifier = await createNotifier(fake, "prickle_checkin", ["m1"]);
+    expect(await notifier.send("m1", { text: "Hello" })).toEqual(["slack", "in_app"]);
+    vi.restoreAllMocks();
+  });
+});

@@ -27,6 +27,7 @@ import {
   type SlotPrickle,
 } from "@/lib/commitments";
 
+import { withAction } from "@/lib/analytics/server";
 const BATCH_SIZE = 1000;
 const PRICKLE_ID_BATCH = 100;
 /** How far ahead createCommitment looks for a real prickle in each requested slot. */
@@ -264,7 +265,7 @@ async function findMissingSlots(
  * readable message). The commitment and its slots are created atomically by the
  * create_prickle_commitment SQL function.
  */
-export async function createCommitment(
+async function createCommitmentImpl(
   input: CommitmentInput
 ): Promise<{ success: true; id: string } | { error: string }> {
   const supabase = await createClient();
@@ -349,7 +350,7 @@ export async function createCommitment(
 }
 
 /** Cancels one of the acting member's own active commitments (never a hard delete). */
-export async function cancelCommitment(id: string): Promise<{ success: true } | { error: string }> {
+async function cancelCommitmentImpl(id: string): Promise<{ success: true } | { error: string }> {
   const supabase = await createClient();
 
   const user = await getCurrentUser();
@@ -375,4 +376,13 @@ export async function cancelCommitment(id: string): Promise<{ success: true } | 
 
   revalidatePath("/my-prickles", "layout");
   return { success: true };
+}
+
+// Usage analytics: each action records whether it worked (lib/analytics/server.ts).
+export async function createCommitment(...args: Parameters<typeof createCommitmentImpl>): ReturnType<typeof createCommitmentImpl> {
+  return withAction("commitment_created", () => createCommitmentImpl(...args));
+}
+
+export async function cancelCommitment(...args: Parameters<typeof cancelCommitmentImpl>): ReturnType<typeof cancelCommitmentImpl> {
+  return withAction("commitment_cancelled", () => cancelCommitmentImpl(...args));
 }

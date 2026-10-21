@@ -53,6 +53,23 @@ Pages that report as they render use `trackWhenEnabled` (`lib/analytics/client.t
 
 Operational records stay in their own tables. The Wheel of Wonder's connections (`wheel_of_wonder_matches`) are the source of truth for who was matched and whether a Slack reply confirmed it: they drive the spin's matching, the count shown to members, and are written server-side from Slack webhooks. Usage events are consent-gated, lossy (a declined banner, a blocked script, a closed tab) and deliberately hold no other member's id, so they can show the *funnel around* a feature (spun, revealed, joined) but not replace its record.
 
+## Outcomes: did it work?
+
+A click on "Save" says someone tried. `action_completed` says whether it worked: the server records `{ action, ok }` when a server action finishes (`lib/analytics/server.ts`).
+
+- **Wiring an action.** Add its id to `OUTCOME_ACTIONS` (`lib/analytics/actions.ts`), rename the action to `fooImpl`, and export a wrapper at the bottom of the file: `export async function foo(...args: Parameters<typeof fooImpl>): ReturnType<typeof fooImpl> { return withAction("foo_done", () => fooImpl(...args)); }`. Actions that delegate to each other call the `Impl`, so only the one the member invoked is recorded. `tests/lib/outcome-wiring.test.ts` fails if an id is unused, or an action reports the wrong one.
+- **What counts as success.** A result with `error`, `success: false` or `ok: false` is a failure; so is a throw (a thrown redirect is not). `withAction` takes a third argument for an action that needs its own rule (the wheel reports "nobody" as a success with a detail).
+- **Consent.** The browser sets a first-party cookie, `hub_sid`, holding the visit's random session id, only while usage tracking is allowed, and clears it when tracking stops (`lib/analytics/session-cookie.ts`, `lib/analytics/client.ts`). The server records an outcome only when that cookie is present, so nothing is recorded for a visitor who declined, and the outcome carries the visit's id so it joins the clicks that led to it (a funnel can go click, then success).
+- **Never in the way.** Recording swallows every error, and the action's own result or error always comes back unchanged.
+- The `Actions: did they work?` table on `/admin/analytics` shows attempts, successes and failures per action, and flags the ones that fail often. In the Explore page, `action_completed` breaks down by `action` and `ok`.
+
+## Notifications: sent and opened
+
+- **Sent** (`notification_sent`, `source = 'system'`): recorded by `createNotifier` for each channel a notification actually reached, against the member's user, with no visit (`session_id` is null, so it never counts as a visit). Sends the member asked for (an admin's "send me a test") aren't recorded.
+- **Opened** (`notification_opened`): in-app notifications record the click in the Hub (bell, banner, inbox). For Slack, email and push, every Hub link in the message is tagged `?nk=<kind>&nc=<channel>` (`lib/notifications/attribution.ts`, including links inside a feature's own Slack blocks); when the member lands, `AnalyticsEvents` records which notification it was, once, and strips the tag from the address. The unsubscribe links, API routes and the notification settings page are never tagged.
+- The `Notifications: sent and opened` table shows each kind and channel's sends, opens and open rate. Opens are counted in the same window as sends, so read short windows with care.
+- Events carry `source`: `client` (the browser), `server` (an outcome, in a visit), `system` (the app on its own). The browser's batch endpoint refuses `server` and `system` events (`SERVER_ONLY_EVENTS`), so a member can't forge them.
+
 ## Who the numbers count
 
 Both usage pages have two filters (`lib/analytics/audience.ts`, `components/admin/AudienceFilter.tsx`), kept in the address (`staff=hide`, `sudo=show`) so a view can be shared:

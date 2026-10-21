@@ -19,6 +19,9 @@ const { InAppNotificationsProvider, InAppNotificationBanner, InAppNotificationBe
   await import("@/components/InAppNotifications");
 import type { InAppNotification } from "@/lib/channels/in-app";
 
+const { track } = vi.hoisted(() => ({ track: vi.fn() }));
+vi.mock("@/lib/analytics/client", () => ({ track }));
+
 const IDENTITY = { memberId: "member-1", memberName: "Member One", memberEmail: "m1@example.com", isSudo: false };
 // A time-sensitive check-in (banner), an older check-out only in the bell, and a read one.
 const CHECKIN: InAppNotification = {
@@ -53,6 +56,7 @@ function renderInApp(latest: InAppNotification[], unreadCount = latest.filter((n
 }
 
 beforeEach(() => {
+  track.mockClear();
   fake = createFakeSupabase();
   vi.mocked(getCurrentUser).mockResolvedValue({ id: "user-1", email: "m1@example.com" } as never);
   vi.mocked(getEffectiveIdentity).mockResolvedValue(IDENTITY as never);
@@ -280,5 +284,33 @@ describe("InAppNotificationsProvider polling", () => {
       document.dispatchEvent(new Event("visibilitychange"));
     });
     expect(await screen.findByRole("button", { name: "Notifications, 1 unread" })).toBeInTheDocument();
+  });
+});
+
+describe("notification_opened (usage analytics)", () => {
+  it("is recorded, by kind, when a notification is opened from the bell", async () => {
+    const user = userEvent.setup();
+    renderInApp([CHECKIN, CHECKOUT]);
+    await user.click(screen.getByRole("button", { name: "Notifications, 2 unread" }));
+    expect(track).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("link", { name: new RegExp(CHECKOUT.text.replace("?", "\\?")) }));
+    expect(track).toHaveBeenCalledTimes(1);
+    expect(track).toHaveBeenCalledWith("notification_opened", { kind: "prickle_checkout", channel: "in_app" });
+  });
+
+  it("is recorded when the link in a time-sensitive banner is followed, but not when it is only dismissed", async () => {
+    const user = userEvent.setup();
+    renderInApp([CHECKIN]);
+    await user.click(screen.getByRole("button", { name: /^Dismiss/ }));
+    expect(track).not.toHaveBeenCalled();
+  });
+
+  it("is recorded for the banner's own link", async () => {
+    const user = userEvent.setup();
+    renderInApp([CHECKIN]);
+    const link = within(screen.getByRole("region", { name: "Time-sensitive notifications" })).getByRole("link");
+    link.addEventListener("click", (e) => e.preventDefault());
+    await user.click(link);
+    expect(track).toHaveBeenCalledWith("notification_opened", { kind: "prickle_checkin", channel: "in_app" });
   });
 });

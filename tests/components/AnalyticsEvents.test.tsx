@@ -82,3 +82,49 @@ describe("AnalyticsEvents", () => {
     expect(events[1].properties).toMatchObject({ element: "button", name: "save", text: "Save" });
   });
 });
+
+describe("AnalyticsEvents: arriving through a notification", () => {
+  function landOn(path: string) {
+    window.history.replaceState({}, "", path);
+  }
+
+  it("records which notification brought the visit, once, and takes the tag off the address", async () => {
+    landOn("/prickles/p1?tab=notes&nk=prickle_checkin&nc=slack#m-3");
+    render(<AnalyticsEvents needsConsent={false} />);
+    const opened = (await sent()).filter((e) => e.event === "notification_opened");
+    expect(opened).toEqual([expect.objectContaining({ properties: { kind: "prickle_checkin", channel: "slack" } })]);
+    expect(window.location.pathname + window.location.search + window.location.hash).toBe("/prickles/p1?tab=notes#m-3");
+  });
+
+  it("leaves the address alone and records nothing when there is no tag", async () => {
+    landOn("/prickles/p1?tab=notes");
+    render(<AnalyticsEvents needsConsent={false} />);
+    expect((await sent()).filter((e) => e.event === "notification_opened")).toEqual([]);
+    expect(window.location.search).toBe("?tab=notes");
+  });
+
+  it("ignores a malformed tag, leaving it in place", async () => {
+    landOn("/dashboard?nk=<script>&nc=slack");
+    render(<AnalyticsEvents needsConsent={false} />);
+    expect((await sent()).filter((e) => e.event === "notification_opened")).toEqual([]);
+  });
+
+  it("cleans the address but records nothing where consent is required and was not given", async () => {
+    landOn("/dashboard?nk=prickle_checkin&nc=email");
+    render(<AnalyticsEvents needsConsent={true} />);
+    expect(await sent()).toEqual([]);
+    expect(window.location.search).toBe("");
+  });
+
+  it("records it as soon as consent is given, and never if it is not", async () => {
+    landOn("/dashboard?nk=prickle_checkin&nc=email");
+    render(<AnalyticsEvents needsConsent={true} />);
+    act(() => {
+      localStorage.setItem(CONSENT_STORAGE_KEY, "granted");
+      window.dispatchEvent(new Event(CONSENT_CHANGE_EVENT));
+    });
+    expect((await sent()).filter((e) => e.event === "notification_opened")).toEqual([
+      expect.objectContaining({ properties: { kind: "prickle_checkin", channel: "email" } }),
+    ]);
+  });
+});

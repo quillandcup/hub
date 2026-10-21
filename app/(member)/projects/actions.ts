@@ -37,6 +37,7 @@ import {
   type PrickleOption,
 } from "@/lib/prickle-writing";
 
+import { withAction } from "@/lib/analytics/server";
 const PHASES = PROJECT_PHASES;
 type Phase = ProjectPhase;
 
@@ -474,7 +475,7 @@ function toEntryRow(e: RawEntry, timeZone: string): EntryRow {
   };
 }
 
-export async function createProject(
+async function createProjectImpl(
   title: string,
   phase: Phase = "drafting"
 ): Promise<{ success: true; id: string } | { error: string }> {
@@ -670,7 +671,7 @@ async function assertOwnsProject(
  * "Publish" action on the Projects UI. A project can never end up phase='published' without a
  * linked member_books row: there's no other way to set this phase (see PHASES/the plan doc).
  */
-export async function publishProject(
+async function publishProjectImpl(
   projectId: string,
   book: BookInput
 ): Promise<{ success: true } | { error: string }> {
@@ -747,7 +748,7 @@ function normalizeTags(tags: string[] | undefined): string[] {
   return [...new Set(tags.map((t) => t.trim().toLowerCase()).filter(Boolean))];
 }
 
-export async function logProgress(
+async function logProgressImpl(
   input: LogProgressInput
 ): Promise<{ success: true; id: string } | { error: string }> {
   const ctx = await requireIdentity();
@@ -1047,7 +1048,7 @@ export async function getUnloggedRecentPrickles(): Promise<PrickleOption[]> {
  * Hides a prickle from the dashboard's "What did you write?" prompt for good -- for sessions the
  * member won't log (forgot to track, not a writing session for them, untracked work).
  */
-export async function dismissUnloggedPrickle(prickleId: string): Promise<{ success: true } | { error: string }> {
+async function dismissUnloggedPrickleImpl(prickleId: string): Promise<{ success: true } | { error: string }> {
   const ctx = await requireIdentity();
   if ("error" in ctx) return ctx;
   const { supabase, effectiveIdentity } = ctx;
@@ -1149,7 +1150,7 @@ function buildGoalFields(
   };
 }
 
-export async function createGoal(
+async function createGoalImpl(
   input: CreateGoalInput
 ): Promise<{ success: true; id: string } | { error: string }> {
   const ctx = await requireIdentity();
@@ -1517,4 +1518,25 @@ export async function getProfileWriting(
   }));
 
   return { projects, goals };
+}
+
+// Usage analytics: each action records whether it worked (lib/analytics/server.ts).
+export async function createProject(...args: Parameters<typeof createProjectImpl>): ReturnType<typeof createProjectImpl> {
+  return withAction("project_created", () => createProjectImpl(...args));
+}
+
+export async function publishProject(...args: Parameters<typeof publishProjectImpl>): ReturnType<typeof publishProjectImpl> {
+  return withAction("project_published", () => publishProjectImpl(...args));
+}
+
+export async function logProgress(...args: Parameters<typeof logProgressImpl>): ReturnType<typeof logProgressImpl> {
+  return withAction("progress_logged", () => logProgressImpl(...args));
+}
+
+export async function createGoal(...args: Parameters<typeof createGoalImpl>): ReturnType<typeof createGoalImpl> {
+  return withAction("goal_created", () => createGoalImpl(...args));
+}
+
+export async function dismissUnloggedPrickle(...args: Parameters<typeof dismissUnloggedPrickleImpl>): ReturnType<typeof dismissUnloggedPrickleImpl> {
+  return withAction("unlogged_prickle_dismissed", () => dismissUnloggedPrickleImpl(...args));
 }

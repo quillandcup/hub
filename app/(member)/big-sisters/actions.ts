@@ -6,11 +6,12 @@ import { getCurrentUser } from "@/lib/auth";
 import { getEffectiveIdentity } from "@/lib/sudo";
 import { getVolunteerEligibility, volunteerEligibilityMessage } from "@/lib/big-sister-volunteers";
 
+import { withAction } from "@/lib/analytics/server";
 type Result = { success: true } | { error: string };
 
 /** Volunteer to be a Big Sister (with an optional note for staff), or withdraw. The member's own
  * row only, and read-only in sudo. */
-export async function setBigSisterAvailability(available: boolean, note?: string): Promise<Result> {
+async function setBigSisterAvailabilityImpl(available: boolean, note?: string): Promise<Result> {
   const user = await getCurrentUser();
   if (!user) return { error: "Not signed in" };
   const identity = await getEffectiveIdentity(user);
@@ -72,4 +73,9 @@ export async function saveReasonNote(mentorshipId: string, note: string): Promis
   revalidatePath("/big-sisters");
   revalidatePath("/dashboard");
   return { success: true };
+}
+
+// Usage analytics: each action records whether it worked (lib/analytics/server.ts).
+export async function setBigSisterAvailability(...args: Parameters<typeof setBigSisterAvailabilityImpl>): ReturnType<typeof setBigSisterAvailabilityImpl> {
+  return withAction("big_sister_availability_set", () => setBigSisterAvailabilityImpl(...args));
 }
