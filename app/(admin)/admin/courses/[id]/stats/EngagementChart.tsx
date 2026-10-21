@@ -156,7 +156,7 @@ export default function EngagementChart({ buckets, durationSeconds }: { buckets:
                 <span aria-hidden="true" className="inline-block h-0.5 w-3 bg-slate-500 dark:bg-slate-400" />
                 People
               </span>
-              <strong className="text-slate-900 dark:text-slate-100">{hovered.viewers}</strong>
+              <strong className="text-slate-900 dark:text-slate-100">{plays1(hovered.viewers)}</strong>
             </p>
             {rewatching >= 0.05 && (
               <p className="mt-1 border-t border-slate-100 pt-1 text-slate-600 dark:border-slate-800 dark:text-slate-400">
@@ -186,7 +186,7 @@ export default function EngagementChart({ buckets, durationSeconds }: { buckets:
                     {formatClock(b.start)} to {formatClock(b.end)}
                   </td>
                   <td className="py-1 pr-3 text-right tabular-nums">{plays1(b.plays)}</td>
-                  <td className="py-1 pr-3 text-right tabular-nums">{b.viewers}</td>
+                  <td className="py-1 pr-3 text-right tabular-nums">{plays1(b.viewers)}</td>
                   <td className="py-1 text-right tabular-nums">{plays1(Math.max(0, Math.round((b.plays - b.viewers) * 10) / 10))}</td>
                 </tr>
               ))}

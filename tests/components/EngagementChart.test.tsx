@@ -70,6 +70,18 @@ describe("EngagementChart", () => {
     expect(screen.getByText("Times watched, rewatches included")).toBeInTheDocument();
   });
 
+  it("shows a part-covered slice as a fraction of a person too, so the people line sits under the times-watched line at a stretch's edge", () => {
+    const edge: HeatBucket[] = [{ start: 0, end: 4, plays: 0.5, viewers: 0.5, sessions: 0.5 }, { start: 4, end: 8, plays: 1, viewers: 1, sessions: 1 }];
+    const { container } = render(<EngagementChart buckets={edge} durationSeconds={8} />);
+    fireEvent.keyDown(screen.getByRole("img"), { key: "Home" });
+    const tooltip = screen.getByRole("status");
+    expect(tooltip).toHaveTextContent("Times watched0.5");
+    expect(tooltip).toHaveTextContent("People0.5");
+    // Nothing was rewatched, so no phantom rewatch line.
+    expect(tooltip).not.toHaveTextContent("Rewatched:");
+    expect(within(container.querySelectorAll("tbody tr")[0] as HTMLElement).getAllByRole("cell").map((c) => c.textContent)).toEqual(["0:00 to 0:04", "0.5", "0.5", "0"]);
+  });
+
   it("is focusable so the keyboard works without a pointer", () => {
     render(<EngagementChart buckets={buckets} durationSeconds={100} />);
     expect(screen.getByRole("img")).toHaveAttribute("tabindex", "0");

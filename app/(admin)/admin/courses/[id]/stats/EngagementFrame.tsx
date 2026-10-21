@@ -6,7 +6,7 @@ import { formatClock } from "@/lib/courses/watch-stats";
 
 const STILL_BASE = "https://image.mux.com";
 
-/** The percent of plays that watched a slice (at least half of it). */
+/** The share of plays that watched a slice, each counted by how much of the slice it covered. */
 const engagementOf = (bucket: HeatBucket, plays: number) => (plays > 0 ? bucket.sessions / plays : 0);
 
 /**

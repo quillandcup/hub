@@ -59,13 +59,33 @@ describe('computeVideoWatchStats', () => {
     expect(stats.buckets[80].viewers).toBe(1)
   })
 
-  it('splits plays across buckets in proportion to the overlap', () => {
+  it('splits plays, people and plays-per-session across buckets in proportion to the overlap, on one scale', () => {
     // 10s video, 10 buckets of 1s: 0.5 to 2.5 covers half of bucket 0, all of 1, half of 2.
     const stats = computeVideoWatchStats([seg('a', 0.5, 2.5)], 10)
     expect(stats.buckets).toHaveLength(10)
     expect(stats.buckets.slice(0, 4).map((b) => b.plays)).toEqual([0.5, 1, 0.5, 0])
-    // A bucket counts as viewed once it is at least half covered.
-    expect(stats.buckets.slice(0, 4).map((b) => b.viewers)).toEqual([1, 1, 1, 0])
+    // One person covering half a slice is half a person there, not a whole one: the same numbers as plays.
+    expect(stats.buckets.slice(0, 4).map((b) => b.viewers)).toEqual([0.5, 1, 0.5, 0])
+    expect(stats.buckets.slice(0, 4).map((b) => b.sessions)).toEqual([0.5, 1, 0.5, 0])
+  })
+
+  it('never shows more people than times watched, and the two coincide wherever nobody rewatched', () => {
+    // Several people, short and uneven stretches (so slices at the edges are partly covered), nobody replaying anything.
+    const stats = computeVideoWatchStats([seg('a', 3.3, 41.7), seg('b', 10.2, 22.9), seg('c', 60, 77.4), seg('d', 70.1, 99.9)], 100)
+    for (const b of stats.buckets) {
+      expect(b.viewers).toBeLessThanOrEqual(b.plays + 1e-9)
+      expect(b.viewers).toBeCloseTo(b.plays, 3)
+    }
+  })
+
+  it('shows rewatching as plays above people, by exactly the replayed share of the slice', () => {
+    // a watches 0 to 50, then 25 to 75: 25 to 50 is played twice by one person.
+    const stats = computeVideoWatchStats([seg('a', 0, 50), seg('a', 25, 75)], 100)
+    const at = (second: number) => stats.buckets[Math.floor(second)]
+    expect(at(10)).toMatchObject({ plays: 1, viewers: 1 })
+    expect(at(30)).toMatchObject({ plays: 2, viewers: 1 })
+    expect(at(60)).toMatchObject({ plays: 1, viewers: 1 })
+    for (const b of stats.buckets) expect(b.viewers).toBeLessThanOrEqual(b.plays + 1e-9)
   })
 
   it('caps the buckets and spans the whole video', () => {
