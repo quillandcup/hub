@@ -15,6 +15,7 @@ import LessonPlayer, { type PlaybackTokens } from "../../../LessonPlayer";
 import { LessonCompletionProvider } from "../../../LessonCompletion";
 import MarkCompleteButton from "../../../MarkCompleteButton";
 import NextLessonPreview from "../../../NextLessonPreview";
+import StaffProgressTools from "../../../StaffProgressTools";
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string; lessonId: string }> }): Promise<Metadata> {
   const { slug, lessonId } = await params;
@@ -82,8 +83,15 @@ function StepButtons({ slug, previous, next, hideOnWide }: { slug: string; previ
   );
 }
 
-export default async function LessonPage({ params }: { params: Promise<{ slug: string; lessonId: string }> }) {
+export default async function LessonPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ slug: string; lessonId: string }>;
+  searchParams?: Promise<{ track?: string }>;
+}) {
   const { slug, lessonId } = await params;
+  const trackPreview = (await searchParams)?.track === "1";
   if (!isUuid(lessonId)) notFound();
   const caller = await requireCoursesPage();
   const result = await loadLessonView(createServiceRoleClient(), slug, lessonId, caller.scope);
@@ -93,6 +101,9 @@ export default async function LessonPage({ params }: { params: Promise<{ slug: s
   if (result.kind !== "ok") redirect(`/courses/${slug}`);
 
   const { view, lesson, neighbors, completed, video, preview, files, resumeSeconds } = result;
+
+  // Watching is recorded for members' open lessons, and nowhere else (sudo, a staff preview) unless staff turn it on for a preview.
+  const watchRecorded = !caller.identity.isSudo && (!preview || (caller.scope.isAdminActing && trackPreview));
 
   let player: React.ReactNode = null;
   if (video) {
@@ -108,7 +119,7 @@ export default async function LessonPage({ params }: { params: Promise<{ slug: s
           posterUrl={lesson.thumbnail_url}
           lessonId={lesson.id}
           resumeSeconds={resumeSeconds}
-          trackProgress={!preview && !caller.identity.isSudo}
+          trackProgress={watchRecorded}
         />
       ) : (
         <p role="status" className="rounded-lg bg-slate-100 p-6 text-sm text-slate-600 dark:bg-slate-800 dark:text-slate-300">
@@ -142,7 +153,10 @@ export default async function LessonPage({ params }: { params: Promise<{ slug: s
   return (
     <>
       {preview && (
-        <PageBanner>Preview: members see this lesson as &ldquo;Coming soon&rdquo; until it&apos;s published in Kajabi. Progress isn&apos;t tracked here.</PageBanner>
+        <PageBanner>
+          Preview: members see this lesson as &ldquo;Coming soon&rdquo; until it&apos;s published in Kajabi.{" "}
+          {watchRecorded ? "Your watching is recorded (completion isn't)." : "Progress isn't tracked here."}
+        </PageBanner>
       )}
 
       <div className="mx-auto w-full max-w-screen-2xl px-6 py-6">
@@ -185,6 +199,9 @@ export default async function LessonPage({ params }: { params: Promise<{ slug: s
 
           <div className="lg:col-start-1">
             <StepButtons slug={view.course.slug} previous={neighbors.previous} next={neighbors.next} hideOnWide={Boolean(player && sectionList)} />
+            {caller.scope.isAdminActing && video && (
+              <StaffProgressTools lessonId={lesson.id} lessonPath={`/courses/${view.course.slug}/lessons/${lesson.id}`} preview={preview} recording={watchRecorded} />
+            )}
           </div>
 
           {/* The main action, title and text sit together in one bounded card below the video and its controls, like the Downloads

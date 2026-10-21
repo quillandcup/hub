@@ -31,7 +31,7 @@ vi.mock("@/app/(member)/courses/LessonPlayer", () => ({
     </div>
   ),
 }));
-vi.mock("@/app/(member)/courses/actions", () => ({ setLessonComplete: vi.fn(async () => ({})) }));
+vi.mock("@/app/(member)/courses/actions", () => ({ setLessonComplete: vi.fn(async () => ({})), clearMyLessonProgress: vi.fn(async () => ({})) }));
 
 import LessonPlayerMock from "@/app/(member)/courses/LessonPlayer";
 import CoursesPage from "@/app/(member)/courses/page";
@@ -615,6 +615,54 @@ describe("/courses/[slug]/lessons/[lessonId]", () => {
 
       expect(await keyOfPlayer(LESSON_A)).toBe(LESSON_A);
       expect(await keyOfPlayer(LESSON_B)).toBe(LESSON_B);
+    });
+
+    const withTrack = (track?: string) => ({ ...params(), searchParams: Promise.resolve(track ? { track } : {}) });
+
+    it("lets staff turn recording on for a preview with ?track=1, and says so", async () => {
+      signPlaybackTokens.mockResolvedValue({ playback: "p", poster: "t", storyboard: "s" });
+      caller.scope.isAdminActing = true;
+      loadLessonView.mockResolvedValue(withVideo({ preview: true }));
+      await renderServerPage(LessonPage, withTrack("1"));
+
+      expect(screen.getByTestId("player")).toHaveAttribute("data-tracking", "true");
+      expect(screen.getByRole("status")).toHaveTextContent("Your watching is recorded (completion isn't).");
+      expect(screen.getByRole("link", { name: "Stop recording my watching" })).toBeInTheDocument();
+    });
+
+    it("keeps a preview off by default, with the toggle offered", async () => {
+      signPlaybackTokens.mockResolvedValue({ playback: "p", poster: "t", storyboard: "s" });
+      caller.scope.isAdminActing = true;
+      loadLessonView.mockResolvedValue(withVideo({ preview: true }));
+      await renderServerPage(LessonPage, withTrack());
+
+      expect(screen.getByTestId("player")).toHaveAttribute("data-tracking", "false");
+      expect(screen.getByRole("status")).toHaveTextContent("Progress isn't tracked here.");
+      expect(screen.getByRole("link", { name: "Record my watching in this preview" })).toHaveAttribute("href", expect.stringContaining("?track=1"));
+    });
+
+    it("never records in sudo, even with ?track=1", async () => {
+      signPlaybackTokens.mockResolvedValue({ playback: "p", poster: "t", storyboard: "s" });
+      caller.identity.isSudo = true;
+      loadLessonView.mockResolvedValue(withVideo());
+      await renderServerPage(LessonPage, withTrack("1"));
+
+      expect(screen.getByTestId("player")).toHaveAttribute("data-tracking", "false");
+      expect(screen.queryByLabelText("Staff tools")).not.toBeInTheDocument();
+    });
+
+    it("shows the staff tools only to staff acting as themselves, with clear but no toggle on an open lesson", async () => {
+      signPlaybackTokens.mockResolvedValue({ playback: "p", poster: "t", storyboard: "s" });
+      loadLessonView.mockResolvedValue(withVideo());
+      await renderServerPage(LessonPage, params());
+      expect(screen.queryByLabelText("Staff tools")).not.toBeInTheDocument();
+      cleanup();
+
+      caller.scope.isAdminActing = true;
+      await renderServerPage(LessonPage, params());
+      expect(screen.getByLabelText("Staff tools")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Clear my progress for this lesson" })).toBeInTheDocument();
+      expect(screen.queryByRole("link", { name: /Record my watching/ })).not.toBeInTheDocument();
     });
 
     it("leaves tracking off in sudo and in a staff preview, which leave no viewing history", async () => {

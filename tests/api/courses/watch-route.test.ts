@@ -126,6 +126,19 @@ describe('/api/courses/watch', () => {
     expect(await progressOf('current', ids.lessonA)).toBeNull()
   })
 
+  it('lets staff acting as themselves record a lesson members cannot open yet, into their own rows', async () => {
+    actAs('current', { isAdminActing: true })
+    const response = await post(body({ lessonId: ids.lessonSoon }))
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({ saved: 1 })
+    expect(await segmentsOf('current')).toHaveLength(1)
+    // Still nothing in sudo, and still no lesson without a video.
+    actAs('current', { isAdminActing: false, isSudo: true })
+    expect(await (await post(body({ lessonId: ids.lessonSoon }))).json()).toMatchObject({ saved: 0 })
+    actAs('current', { isAdminActing: true })
+    expect((await post(body({ lessonId: ids.lessonNoVideo }))).status).toBe(404)
+  })
+
   it("doesn't track a lesson that is still coming soon, one without a video, or an unknown one", async () => {
     expect((await post(body({ lessonId: ids.lessonSoon }))).status).toBe(404)
     expect((await post(body({ lessonId: ids.lessonNoVideo }))).status).toBe(404)
