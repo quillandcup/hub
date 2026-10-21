@@ -17,17 +17,27 @@ export const CHANNEL_PARAM = "nc";
 const UNTAGGED = [/^\/api(\/|$)/, /^\/unsubscribe(\/|$)/, /^\/settings\/notifications(\/|$)/];
 const KIND = /^[a-z][a-z0-9_]{0,39}$/;
 const CHANNEL = /^[a-z][a-z0-9_]{0,19}$/;
-/** Characters that end a URL inside text or Slack's <url|label>. */
-const URL_BODY = /[^\s<>"'|)\]]*/.source;
+/** Any web address in a piece of text; it ends at whitespace or at what ends a URL in Slack's <url|label>. */
+const ANY_URL = /https?:\/\/[^\s<>"'|)\]]+/g;
 
 export interface Attribution {
   kind: string;
   channel: string;
 }
 
+/**
+ * Whether `url` is a link into the Hub at `appUrl`: the same origin exactly, so `hub.example.test.evil.com`
+ * and `hub.example.test:8080` aren't mistaken for `hub.example.test`.
+ */
+function isHubUrl(url: string, appUrl: string): boolean {
+  if (!url.startsWith(appUrl)) return false;
+  const rest = url.slice(appUrl.length);
+  return rest === "" || /^[/?#]/.test(rest);
+}
+
 /** `url` with the attribution added, or unchanged if it isn't a Hub link that should carry one. */
 export function withAttribution(url: string, appUrl: string, attribution: Attribution): string {
-  if (!url.startsWith(appUrl)) return url;
+  if (!isHubUrl(url, appUrl)) return url;
   let parsed: URL;
   try {
     parsed = new URL(url);
@@ -42,8 +52,8 @@ export function withAttribution(url: string, appUrl: string, attribution: Attrib
 
 /** Tags every Hub link in a piece of text (a message, or Slack's mrkdwn). Trailing punctuation stays outside the link. */
 export function attributeText(text: string, appUrl: string, attribution: Attribution): string {
-  const hub = new RegExp(`${appUrl.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}${URL_BODY}`, "g");
-  return text.replace(hub, (match) => {
+  // Find every web address, then decide which are the Hub's: no pattern is built from the Hub's own address.
+  return text.replace(ANY_URL, (match) => {
     const trailing = /[.,;:!?]+$/.exec(match)?.[0] ?? "";
     const url = trailing ? match.slice(0, -trailing.length) : match;
     return withAttribution(url, appUrl, attribution) + trailing;

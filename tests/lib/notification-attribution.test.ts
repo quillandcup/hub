@@ -23,6 +23,9 @@ describe("withAttribution", () => {
     ["the unsubscribe page, which carries a signed token", `${APP}/unsubscribe?t=abc`],
     ["notification settings, since opening those isn't opening the notification", `${APP}/settings/notifications`],
     ["something that isn't a URL", `${APP} not a url`],
+    ["a lookalike host that starts with the Hub's address", "https://hub.example.test.evil.com/prickles/p1"],
+    ["the same host on another port", "https://hub.example.test:8080/prickles/p1"],
+    ["a lookalike host with a path-like suffix", "https://hub.example.testing/prickles/p1"],
   ])("leaves %s alone", (_label, url) => {
     expect(withAttribution(url, APP, TAG)).toBe(url);
   });
@@ -53,6 +56,16 @@ describe("attributeText", () => {
     const odd = "https://hub.example.test:8080";
     expect(attributeText(`${odd}/a`, odd, TAG)).toBe(`${odd}/a?nk=prickle_checkin&nc=slack`);
     expect(attributeText("https://hubXexample.test:8080/a", odd, TAG)).toBe("https://hubXexample.test:8080/a");
+  });
+
+  it("does not tag lookalike hosts in text", () => {
+    const text = `Spoof: https://hub.example.test.evil.com/x and https://hub.example.testing/y`;
+    expect(attributeText(text, APP, TAG)).toBe(text);
+  });
+
+  it("tags a bare Hub address, with or without a trailing slash", () => {
+    expect(attributeText(`Home: ${APP}`, APP, TAG)).toBe(`Home: ${APP}/?nk=prickle_checkin&nc=slack`);
+    expect(attributeText(`Home: ${APP}/ ok`, APP, TAG)).toBe(`Home: ${APP}/?nk=prickle_checkin&nc=slack ok`);
   });
 });
 
