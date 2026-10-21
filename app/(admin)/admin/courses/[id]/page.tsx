@@ -44,7 +44,7 @@ function LessonRow({ lesson, content, hub }: { lesson: ExplainedLesson; content?
       <span className="min-w-0 flex-1 font-medium">{lesson.title}</span>
       <span className="text-xs text-slate-500 dark:text-slate-400">{lesson.reason}</span>
       {content && (
-        <span className="text-xs text-slate-500 dark:text-slate-400" title="From the Kajabi content step">
+        <span className="text-xs text-slate-500 dark:text-slate-400" title="From the content step">
           text {content.hasText ? "✓" : "–"} · video {content.hasVideo ? "✓" : "–"}
         </span>
       )}

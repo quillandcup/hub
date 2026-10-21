@@ -111,8 +111,8 @@ export default async function ModulePage({ params }: { params: Promise<{ slug: s
       {preview && (
         <PageBanner>
           {node.module.state === "hidden"
-            ? "Draft: this module is a draft in Kajabi, so members can't see it at all."
-            : "Preview: members can't see this module until it's published in Kajabi."}
+            ? "Draft: this module is a draft, so members can't see it at all."
+            : "Preview: members can't see this module until it's published."}
         </PageBanner>
       )}
       <div className="mx-auto w-full max-w-4xl px-6 py-6">

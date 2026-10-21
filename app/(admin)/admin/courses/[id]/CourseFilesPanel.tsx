@@ -7,7 +7,7 @@ import type { FilePlan, PlannedFile } from "@/lib/courses/files";
 const STATE_TEXT: Record<PlannedFile["state"], string> = {
   copied: "In the Hub",
   ready_to_copy: "Ready to copy",
-  link_expired: "Link expired: run the Kajabi content step again",
+  link_expired: "Link expired: run the content step again",
   no_link: "No download link recorded",
   lesson_not_in_hub: "Its lesson isn't in the Hub yet: publish or sync first",
 };
@@ -64,7 +64,7 @@ export default function CourseFilesPanel({ slug, plan }: { slug: string | null; 
             {plan.stale.map((f) => (
               <li key={f.id} className="flex flex-wrap items-center gap-x-3 py-1.5">
                 <span className="min-w-0 flex-1">{f.filename}</span>
-                <span className="text-xs text-slate-500 dark:text-slate-400">No longer in Kajabi: will be removed</span>
+                <span className="text-xs text-slate-500 dark:text-slate-400">No longer listed: will be removed</span>
               </li>
             ))}
           </ul>

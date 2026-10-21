@@ -280,7 +280,7 @@ describe("/courses/[slug]/modules/[moduleId] drafts", () => {
     loadCourseView.mockResolvedValue({ course, access: { kind: "admin" }, outline: drafted, completed: new Set(), progress: courseProgress(drafted, new Set()) });
     await renderServerPage(ModulePage, params());
 
-    expect(screen.getByRole("status")).toHaveTextContent("Draft: this module is a draft in Kajabi, so members can't see it at all.");
+    expect(screen.getByRole("status")).toHaveTextContent("Draft: this module is a draft, so members can't see it at all.");
     expect(screen.getByRole("link", { name: "Secret plot twist" })).toBeInTheDocument();
   });
 });
@@ -639,12 +639,25 @@ describe("/courses/[slug]/lessons/[lessonId]", () => {
     expect(within(sectionList()).getByRole("link", { name: /Revision/ })).toBeInTheDocument();
   });
 
+  it("doesn't name Kajabi in a preview or draft banner (members and most staff don't know it)", async () => {
+    caller.scope.isAdminActing = true;
+    loadLessonView.mockResolvedValue(ok({ preview: true }));
+    const soon = await renderServerPage(LessonPage, params());
+    expect(screen.getByRole("status")).toHaveTextContent("until it's published.");
+    expect(soon.container.textContent).not.toMatch(/kajabi/i);
+    soon.unmount();
+
+    loadLessonView.mockResolvedValue(ok({ preview: true, lesson: { ...lesson(LESSON_B, "Voice", 2, "hidden"), body_html: "" } }));
+    const draft = await renderServerPage(LessonPage, params());
+    expect(draft.container.textContent).not.toMatch(/kajabi/i);
+  });
+
   it("tells staff a draft lesson is a draft, not 'coming soon', and keeps its progress untracked", async () => {
     caller.scope.isAdminActing = true;
     loadLessonView.mockResolvedValue(ok({ preview: true, lesson: { ...lesson(LESSON_B, "Voice", 2, "hidden"), body_html: "<p>Draft text</p>" } }));
     await renderServerPage(LessonPage, params());
 
-    expect(screen.getByRole("status")).toHaveTextContent("Draft: this lesson is a draft in Kajabi, so members can't see it at all.");
+    expect(screen.getByRole("status")).toHaveTextContent("Draft: this lesson is a draft, so members can't see it at all.");
     expect(screen.getByRole("status")).not.toHaveTextContent("Coming soon");
     expect(screen.getByRole("button", { name: "Mark as complete" })).toBeDisabled();
     expect(screen.getByText("Draft text")).toBeInTheDocument();

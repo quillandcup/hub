@@ -7,7 +7,7 @@ import type { PlannedVideo } from "@/lib/courses/media";
 const STATE_TEXT: Record<PlannedVideo["state"], string> = {
   uploaded: "In Mux",
   ready_to_upload: "Ready to upload",
-  link_expired: "Link expired: run the Kajabi content step again",
+  link_expired: "Link expired: run the content step again",
   no_link: "No download link recorded",
 };
 
@@ -131,7 +131,7 @@ export default function CourseVideosPanel({ slug, videos: all }: { slug: string 
             <div className="mt-6 border-t border-slate-100 pt-4 dark:border-slate-800">
               <h3 className="font-medium">Draft lessons&apos; videos</h3>
               <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-                {drafts.length} {drafts.length === 1 ? "video is" : "videos are"} used only by Kajabi drafts. Members never see them; upload them to preview those lessons. Some drafts are leftovers, so this is a separate step.
+                {drafts.length} {drafts.length === 1 ? "video is" : "videos are"} used only by draft lessons. Members never see them; upload them to preview those lessons. Some drafts are leftovers, so this is a separate step.
               </p>
               <ul className="mt-3 divide-y divide-slate-100 text-sm dark:divide-slate-800">
                 {drafts.map((v) => (
