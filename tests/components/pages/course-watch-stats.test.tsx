@@ -2,7 +2,7 @@
 /** The staff watch-stats pages for a course and a lesson. The data loader is mocked; markup is real. */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { screen, within } from "@testing-library/react";
-import { computeVideoWatchStats } from "@/lib/courses/watch-stats";
+import { computePlaySessions, computeVideoWatchStats } from "@/lib/courses/watch-stats";
 import { ADMIN_USER, MEMBER_USER, expectRedirect, renderServerPage, resetServerPageMocks, signInAs, useFakeSupabase, type FakeQuery } from "@/tests/helpers/server-page";
 
 vi.mock("next/navigation", () => import("@/tests/helpers/server-page").then((m) => m.nextNavigationModule));
@@ -27,13 +27,20 @@ const L3 = "00000000-0000-4000-a000-00000000a003";
 const seg = (m: string, start: number, end: number, over: object = {}) => ({ memberId: m, sessionId: `s-${m}`, start, end, rate: 1, captions: null, visible: true, ...over });
 const lesson = (id: string, title: string, over: object = {}) => ({ id, module_id: null, title, position: 1, state: "open", duration_seconds: 600, ...over });
 
-const stats = computeVideoWatchStats([seg("a", 0, 600), seg("b", 0, 300, { rate: 1.5, captions: "English" }), seg("a", 100, 200)], 600);
+const WINDOWS_CHROME = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36";
+const view = (m: string, startedAt: string, userAgent: string | null = null) => ({ memberId: m, sessionId: `s-${m}`, startedAt, userAgent });
+// Three visits: a and b played, c only opened the lesson.
+const segments = [seg("a", 0, 600, { startedAt: "2026-10-06T22:10:30Z" }), seg("b", 0, 300, { rate: 1.5, captions: "English", startedAt: "2026-10-05T20:24:30Z" }), seg("a", 100, 200, { startedAt: "2026-10-06T22:12:00Z" })];
+const views = [view("a", "2026-10-06T22:10:00Z", WINDOWS_CHROME), view("b", "2026-10-05T20:24:00Z"), view("c", "2026-10-07T09:00:00Z")];
+const stats = computeVideoWatchStats(segments, 600, views);
+const NAMES: Record<string, string> = { a: "Fern Quillsby", b: "Bramble Hedgewick", c: "Moss Thistledown" };
+const sessions = computePlaySessions(segments, 600, views).map((x) => ({ ...x, memberName: NAMES[x.memberId] }));
 const data = (over: object = {}) => ({
   course: { id: "c1", title: "The Ready Writer", slug: "the-ready-writer" },
   lessons: [
-    { lesson: lesson(L1, "Reader Expectations"), videoId: "v1", playbackId: "pb-1", stats },
-    { lesson: lesson(L2, "Voice", { state: "coming_soon" }), videoId: "v2", playbackId: null, stats: null },
-    { lesson: lesson(L3, "Reading list"), videoId: null, playbackId: null, stats: null },
+    { lesson: lesson(L1, "Reader Expectations"), videoId: "v1", playbackId: "pb-1", stats, sessions },
+    { lesson: lesson(L2, "Voice", { state: "coming_soon" }), videoId: "v2", playbackId: null, stats: null, sessions: [] },
+    { lesson: lesson(L3, "Reading list"), videoId: null, playbackId: null, stats: null, sessions: [] },
   ],
   viewers: 2,
   watchedSeconds: 1000,
@@ -118,7 +125,7 @@ describe("/admin/courses/[id]/stats", () => {
 
 describe("/admin/courses/[id]/stats/[lessonId]", () => {
   beforeEach(() => {
-    loadCourseWatchStats.mockResolvedValue(data({ lessons: [{ lesson: lesson(L1, "Reader Expectations"), videoId: "v1", playbackId: "pb-1", stats }] }));
+    loadCourseWatchStats.mockResolvedValue(data({ lessons: [{ lesson: lesson(L1, "Reader Expectations"), videoId: "v1", playbackId: "pb-1", stats, sessions }] }));
   });
 
   it("sends a member to /no-access", async () => {
@@ -129,7 +136,7 @@ describe("/admin/courses/[id]/stats/[lessonId]", () => {
   it("asks the loader for just this lesson, and shows the numbers, the engagement chart and how it was watched", async () => {
     await renderServerPage(LessonWatchStatsPage, lessonProps());
 
-    expect(loadCourseWatchStats).toHaveBeenCalledWith(expect.anything(), KAJABI, { includeStaff: false, lessonId: L1 });
+    expect(loadCourseWatchStats).toHaveBeenCalledWith(expect.anything(), KAJABI, { includeStaff: false, lessonId: L1, withSessions: true });
     expect(screen.getByRole("heading", { level: 1, name: "Reader Expectations" })).toBeInTheDocument();
     expect(tile("Viewers")).toHaveTextContent("2");
     expect(screen.getByText("Average watched")).toBeInTheDocument();
@@ -174,13 +181,69 @@ describe("/admin/courses/[id]/stats/[lessonId]", () => {
     log.mockRestore();
 
     signThumbnailTokens.mockClear();
-    loadCourseWatchStats.mockResolvedValue(data({ lessons: [{ lesson: lesson(L1, "Reader Expectations"), videoId: "v1", playbackId: null, stats }] }));
+    loadCourseWatchStats.mockResolvedValue(data({ lessons: [{ lesson: lesson(L1, "Reader Expectations"), videoId: "v1", playbackId: null, stats, sessions }] }));
     await renderServerPage(LessonWatchStatsPage, lessonProps());
     expect(signThumbnailTokens).not.toHaveBeenCalled();
   });
 
+  it("shows the play rate: the share of visits where the video was played", async () => {
+    await renderServerPage(LessonWatchStatsPage, lessonProps());
+
+    // Three visits (a, b and c opened the lesson), two of them played.
+    expect(tile("Play rate")).toHaveTextContent("67%");
+    expect(screen.getByText("2 of 3 visits")).toBeInTheDocument();
+    expect(screen.getByText(/The percentage of visits to the lesson, where the video appeared, in which it was played/)).toBeInTheDocument();
+  });
+
+  it("lists the visits newest first, by member name, with a coverage bar and the device behind a click", async () => {
+    await renderServerPage(LessonWatchStatsPage, lessonProps());
+
+    const rows = screen.getAllByRole("listitem").filter((li) => li.querySelector("details"));
+    expect(rows.map((r) => within(r).getByRole("link").textContent)).toEqual(["Moss Thistledown", "Fern Quillsby", "Bramble Hedgewick"]);
+    expect(within(rows[0]).getByRole("link")).toHaveAttribute("href", "/admin/members/c");
+
+    // c only opened the lesson: an empty bar. a covered all of it, on Windows.
+    expect(within(rows[0]).getByRole("img")).toHaveAccessibleName("Covered 0% of the video: nothing played");
+    expect(within(rows[0]).getByText("Not played")).toBeInTheDocument();
+    expect(within(rows[1]).getByRole("img")).toHaveAccessibleName("Covered 100% of the video: 0:00 to 10:00");
+    expect(within(rows[1]).getByText("Chrome on Windows")).toBeInTheDocument();
+    expect(within(rows[2]).getByText("Unknown device")).toBeInTheDocument();
+    expect(within(rows[1]).getByText(/October 6, 2026/)).toBeInTheDocument();
+  });
+
+  it("pages the visits: twenty at a time, with Load more asking for another page and keeping the staff choice", async () => {
+    const many = Array.from({ length: 45 }, (_, i) => ({ ...sessions[1], sessionId: `s-${i}`, memberName: `Member ${i}`, startedAt: `2026-09-${String(10 + (i % 18)).padStart(2, "0")}T10:00:00Z` }));
+    loadCourseWatchStats.mockResolvedValue(data({ staffExcluded: false, lessons: [{ lesson: lesson(L1, "Reader Expectations"), videoId: "v1", playbackId: "pb-1", stats, sessions: many }] }));
+
+    await renderServerPage(LessonWatchStatsPage, lessonProps(L1, { staff: "1" }));
+    expect(screen.getAllByRole("listitem").filter((li) => li.querySelector("details"))).toHaveLength(20);
+    expect(screen.getByText("Showing 20 of 45")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Load more" })).toHaveAttribute("href", `/admin/courses/${KAJABI}/stats/${L1}?limit=40&staff=1`);
+  });
+
+  it("shows more when asked, and offers nothing more once everything is shown", async () => {
+    const many = Array.from({ length: 45 }, (_, i) => ({ ...sessions[1], sessionId: `s-${i}`, memberName: `Member ${i}` }));
+    loadCourseWatchStats.mockResolvedValue(data({ lessons: [{ lesson: lesson(L1, "Reader Expectations"), videoId: "v1", playbackId: "pb-1", stats, sessions: many }] }));
+
+    await renderServerPage(LessonWatchStatsPage, lessonProps(L1, { limit: "60" }));
+    expect(screen.getAllByRole("listitem").filter((li) => li.querySelector("details"))).toHaveLength(45);
+    expect(screen.queryByRole("link", { name: "Load more" })).not.toBeInTheDocument();
+  });
+
+  it("says when the lesson was viewed but nobody played it", async () => {
+    const viewedOnly = computeVideoWatchStats([], 600, [view("c", "2026-10-07T09:00:00Z")]);
+    loadCourseWatchStats.mockResolvedValue(
+      data({ lessons: [{ lesson: lesson(L1, "Reader Expectations"), videoId: "v1", playbackId: "pb-1", stats: viewedOnly, sessions: computePlaySessions([], 600, [view("c", "2026-10-07T09:00:00Z")]).map((x) => ({ ...x, memberName: "Moss Thistledown" })) }] }),
+    );
+    await renderServerPage(LessonWatchStatsPage, lessonProps());
+
+    expect(tile("Play rate")).toHaveTextContent("0%");
+    expect(tile("Total plays")).toHaveTextContent("0");
+    expect(screen.getByText("Not played")).toBeInTheDocument();
+  });
+
   it("labels a preview lesson's link as a preview", async () => {
-    loadCourseWatchStats.mockResolvedValue(data({ lessons: [{ lesson: lesson(L1, "Voice", { state: "coming_soon" }), videoId: "v1", stats }] }));
+    loadCourseWatchStats.mockResolvedValue(data({ lessons: [{ lesson: lesson(L1, "Voice", { state: "coming_soon" }), videoId: "v1", playbackId: "pb-1", stats, sessions }] }));
     await renderServerPage(LessonWatchStatsPage, lessonProps());
     expect(screen.getByRole("link", { name: "Preview lesson" })).toBeInTheDocument();
   });

@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { fetchAll, inBatches } from "@/lib/courses/db";
 import { buildOutline, type OutlineLesson, type OutlineModule } from "@/lib/courses/outline";
-import { computeVideoWatchStats, type VideoWatchStats, type WatchSegment } from "@/lib/courses/watch-stats";
+import { computePlaySessions, computeVideoWatchStats, type PlaySession, type VideoWatchStats, type ViewMarker, type WatchSegment } from "@/lib/courses/watch-stats";
 
 /**
  * What the staff watch-stats pages read: each lesson's video, and how it was watched. Takes a
@@ -15,8 +15,10 @@ export interface LessonWatchStats {
   videoId: string | null;
   /** The video's Mux playback id once it is ready, for stills of it on the stats page. */
   playbackId: string | null;
-  /** Null for a lesson with no video or that nobody has watched. */
+  /** Null for a lesson with no video or that nobody has viewed. */
   stats: VideoWatchStats | null;
+  /** The player sessions, newest first, with who: only when asked for (`withSessions`). */
+  sessions: (PlaySession & { memberName: string })[];
 }
 
 export interface CourseWatchStats {
@@ -52,7 +54,7 @@ async function loadStaffMemberIds(supabase: SupabaseClient): Promise<Set<string>
 export async function loadCourseWatchStats(
   supabase: SupabaseClient,
   kajabiId: string,
-  options: { includeStaff?: boolean; lessonId?: string } = {}
+  options: { includeStaff?: boolean; lessonId?: string; withSessions?: boolean } = {}
 ): Promise<CourseWatchStats | null> {
   const { data: course, error } = await supabase.from("courses").select("id, title, slug").eq("source", "kajabi").eq("source_key", kajabiId).maybeSingle();
   if (error) throw new Error(`courses read failed: ${error.message}`);
@@ -70,12 +72,13 @@ export async function loadCourseWatchStats(
   const durations = new Map<string, number | null>();
   const playbackIds = new Map<string, string | null>();
   const segmentsByVideo = new Map<string, WatchSegment[]>();
+  const viewsByVideo = new Map<string, ViewMarker[]>();
   const staff = options.includeStaff ? new Set<string>() : await loadStaffMemberIds(supabase);
 
   for (const batch of inBatches(videoIds)) {
     const [videos, segments] = await Promise.all([
       fetchAll(supabase, "videos", "id, duration_seconds, mux_playback_id, status", (q) => q.in("id", batch)),
-      fetchAll(supabase, "video_watch_segments", "member_id, session_id, video_id, start_seconds, end_seconds, playback_rate, captions_language, visible", (q) => q.in("video_id", batch)),
+      fetchAll(supabase, "video_watch_segments", "member_id, session_id, video_id, kind, start_seconds, end_seconds, playback_rate, captions_language, visible, user_agent, started_at", (q) => q.in("video_id", batch)),
     ]);
     for (const v of videos) {
       durations.set(v.id, v.duration_seconds === null ? null : Number(v.duration_seconds));
@@ -83,29 +86,47 @@ export async function loadCourseWatchStats(
     }
     for (const s of segments) {
       if (staff.has(s.member_id)) continue;
+      if (s.kind === "viewed") {
+        const views = viewsByVideo.get(s.video_id) ?? [];
+        views.push({ memberId: s.member_id, sessionId: s.session_id, startedAt: s.started_at, userAgent: s.user_agent });
+        viewsByVideo.set(s.video_id, views);
+        continue;
+      }
       const list = segmentsByVideo.get(s.video_id) ?? [];
-      list.push({ memberId: s.member_id, sessionId: s.session_id, start: Number(s.start_seconds), end: Number(s.end_seconds), rate: Number(s.playback_rate), captions: s.captions_language, visible: s.visible });
+      list.push({ memberId: s.member_id, sessionId: s.session_id, start: Number(s.start_seconds), end: Number(s.end_seconds), rate: Number(s.playback_rate), captions: s.captions_language, visible: s.visible, startedAt: s.started_at });
       segmentsByVideo.set(s.video_id, list);
     }
   }
 
   const statsByVideo = new Map<string, VideoWatchStats>();
+  const sessionsByVideo = new Map<string, PlaySession[]>();
   const viewerIds = new Set<string>();
   let watchedSeconds = 0;
   for (const videoId of videoIds) {
     const segments = segmentsByVideo.get(videoId) ?? [];
-    if (segments.length === 0) continue;
-    const stats = computeVideoWatchStats(segments, durations.get(videoId) ?? null);
+    const views = viewsByVideo.get(videoId) ?? [];
+    if (segments.length === 0 && views.length === 0) continue;
+    const stats = computeVideoWatchStats(segments, durations.get(videoId) ?? null, views);
     statsByVideo.set(videoId, stats);
     watchedSeconds += stats.watchedSeconds;
     for (const s of segments) viewerIds.add(s.memberId);
+    if (options.withSessions) sessionsByVideo.set(videoId, computePlaySessions(segments, durations.get(videoId) ?? stats.durationSeconds, views));
+  }
+
+  // Names for the session list (staff-only pages; the people who watched, by name).
+  const names = new Map<string, string>();
+  const memberIds = [...new Set([...sessionsByVideo.values()].flatMap((list) => list.map((x) => x.memberId)))];
+  for (const batch of inBatches(memberIds)) {
+    const { data, error: namesError } = await supabase.from("members").select("id, name").in("id", batch);
+    if (namesError) throw new Error(`members read failed: ${namesError.message}`);
+    for (const m of data ?? []) names.set(m.id as string, (m.name as string | null) ?? "Unknown member");
   }
 
   return {
     course: { id: course.id, title: course.title, slug: course.slug },
     lessons: lessons.map((lesson) => {
       const videoId = videoOf.get(lesson.id) ?? null;
-      return { lesson, videoId, playbackId: videoId ? (playbackIds.get(videoId) ?? null) : null, stats: videoId ? (statsByVideo.get(videoId) ?? null) : null };
+      return { lesson, videoId, playbackId: videoId ? (playbackIds.get(videoId) ?? null) : null, stats: videoId ? (statsByVideo.get(videoId) ?? null) : null, sessions: (videoId ? (sessionsByVideo.get(videoId) ?? []) : []).map((x) => ({ ...x, memberName: names.get(x.memberId) ?? "Unknown member" })) };
     }),
     viewers: viewerIds.size,
     watchedSeconds,

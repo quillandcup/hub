@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCoursesCaller } from "@/lib/courses/caller";
 import { canOpenLessons, loadMemberCourseAccess } from "@/lib/courses/member";
 import { parseWatchBatch } from "@/lib/courses/watch";
+import { userAgentForStorage } from "@/lib/device-label";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 
@@ -16,6 +17,8 @@ import { createServiceRoleClient } from "@/lib/supabase/service";
  * themselves (the lesson page only sends for a preview when the staff member turned recording on).
  *
  * Written as the member, so RLS only lets it touch their own rows. Completion is never changed here.
+ * `viewed` records that the player appeared for this session (a marker row beside the stretches: the
+ * play rate's denominator, and the device a view came from).
  * Safe to resend: each segment has a client-made id (unique per member), so one that already arrived
  * is skipped, and `saved` counts only the new ones.
  */
@@ -39,6 +42,27 @@ export async function POST(request: NextRequest) {
 
   const supabase = await createClient();
   const memberId = caller.identity.memberId;
+
+  // The player appeared: one "viewed" marker per player session (its client id is the session id, so a resend is ignored).
+  if (batch.viewed) {
+    const { error } = await supabase.from("video_watch_segments").upsert(
+      {
+        client_segment_id: batch.sessionId,
+        member_id: memberId,
+        video_id: lesson.video_id,
+        session_id: batch.sessionId,
+        kind: "viewed",
+        start_seconds: 0,
+        end_seconds: 0,
+        user_agent: userAgentForStorage(request.headers.get("user-agent")),
+      },
+      { onConflict: "member_id,client_segment_id", ignoreDuplicates: true }
+    );
+    if (error) {
+      console.error("video_watch_segments viewed marker failed:", error.message);
+      return NextResponse.json({ error: "Couldn't save your progress" }, { status: 500 });
+    }
+  }
 
   // Each segment carries the player's own id, so a resend of a save that already arrived is ignored (stored once).
   let saved = 0;

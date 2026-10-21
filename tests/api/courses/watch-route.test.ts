@@ -26,8 +26,8 @@ describe('/api/courses/watch', () => {
   const newId = () => crypto.randomUUID()
   const segment = { id: newId(), start: 0, end: 30, rate: 1.25, captions: 'English', visible: true }
 
-  const post = (body: unknown) =>
-    apiFetch(`${getTestApiBaseUrl()}/api/courses/watch`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+  const post = (body: unknown, headers: Record<string, string> = {}) =>
+    apiFetch(`${getTestApiBaseUrl()}/api/courses/watch`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...headers }, body: JSON.stringify(body) })
   const body = (over: Record<string, unknown> = {}) => ({ lessonId: ids.lessonA, sessionId, segments: [segment], position: 30, ...over })
   const actAs = (who: string, over: { isSudo?: boolean; isAdminActing?: boolean } = {}) => {
     caller.current = { identity: { memberId: ids[who], isSudo: over.isSudo ?? false }, scope: { memberId: ids[who], isAdminActing: over.isAdminActing ?? false } }
@@ -105,6 +105,34 @@ describe('/api/courses/watch', () => {
     expect(await (await post(body({ segments: [first, second] }))).json()).toEqual({ saved: 1 })
     expect(await (await post(body({ segments: [first, second] }))).json()).toEqual({ saved: 0 })
     expect((await segmentsOf('current')).map((r) => Number(r.start_seconds)).sort((a, b) => a - b)).toEqual([0, 60])
+  })
+
+  it('records a viewed marker when the player appears, once per session, with the device', async () => {
+    const marker = body({ segments: [], position: null, viewed: true })
+    const agent = { 'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/130.0 Safari/537.36' }
+    expect((await post(marker, agent)).status).toBe(200)
+    // Resent (the first response was lost, or a later save carries it too): still one marker.
+    expect((await post(marker, agent)).status).toBe(200)
+    expect((await post(body({ viewed: true }), agent)).status).toBe(200)
+
+    const rows = await segmentsOf('current')
+    const viewed = rows.filter((r) => r.kind === 'viewed')
+    expect(viewed).toHaveLength(1)
+    expect(viewed[0]).toMatchObject({ video_id: ids.video, session_id: sessionId, client_segment_id: sessionId, user_agent: agent['user-agent'] })
+    expect(Number(viewed[0].start_seconds)).toBe(0)
+    expect(Number(viewed[0].end_seconds)).toBe(0)
+    // The marker is not a stretch, and it moves no position.
+    expect(rows.filter((r) => r.kind === 'watched')).toHaveLength(1)
+    expect(await progressOf('current', ids.lessonA)).toMatchObject({ last_position_seconds: 30 })
+  })
+
+  it('records no marker in sudo, and none for a lesson the member cannot open', async () => {
+    actAs('current', { isSudo: true })
+    await post(body({ segments: [], position: null, viewed: true }))
+    actAs('ended')
+    expect((await post(body({ segments: [], position: null, viewed: true }))).status).toBe(403)
+    expect(await segmentsOf('current')).toEqual([])
+    expect(await segmentsOf('ended')).toEqual([])
   })
 
   it('moves the position without touching completion', async () => {

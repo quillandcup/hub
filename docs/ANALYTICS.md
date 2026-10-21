@@ -70,6 +70,12 @@ A click on "Save" says someone tried. `action_completed` says whether it worked:
 - The `Notifications: sent and opened` table shows each kind and channel's sends, opens and open rate. Opens are counted in the same window as sends, so read short windows with care.
 - Events carry `source`: `client` (the browser), `server` (an outcome, in a visit), `system` (the app on its own). The browser's batch endpoint refuses `server` and `system` events (`SERVER_ONLY_EVENTS`), so a member can't forge them.
 
+## Course viewing data is not analytics events
+
+What the lesson player records (`video_watch_segments`: the playhead for resume, each stretch watched, a "viewed" marker per player session with the browser's user agent) is stored as **first-party course data**, in its own tables, written by `/api/courses/watch`. It does **not** go through the consent-gated event pipeline above, so it is not lost when a member in the EU, EEA or UK hasn't accepted the banner, and a member's views are attributed to them by name for staff (`/admin/courses/<id>/stats`). That was a deliberate choice (2026-10-20): the membership is paid, signed in, and about 90% US, and the course stats are core to running the course.
+
+Known risk, so the choice stays visible: the EDPB's reading (Guidelines 2/2023, section 2.5) is that JavaScript which makes the browser send information to the site's own server is "gaining access" to the device under the ePrivacy Directive, which needs consent unless an exemption applies. Resume position and completion are the most defensible as strictly necessary for the course the member asked for. Feeding staff statistics from the same data is a weaker fit for EU, EEA and UK members. The UK has had a statistical-purposes exemption (with notice and an easy objection) since 5 February 2026, and the EU's Digital Omnibus proposes one for aggregated audience measurement, but that is a proposal. Mitigations in place: nothing is shared with a third party, no IP or location is stored with it, only staff can read it, and it is erased with the member (`ON DELETE CASCADE`). Still to do: say so in a member-facing notice (see `docs/TODO.md`, "Member Location History, and Video Viewing Attribution"), and revisit with counsel if EU/UK membership grows. This is not legal advice.
+
 ## Who the numbers count
 
 Both usage pages have two filters (`lib/analytics/audience.ts`, `components/admin/AudienceFilter.tsx`), kept in the address (`staff=hide`, `sudo=show`) so a view can be shared:

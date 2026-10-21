@@ -9,7 +9,7 @@ const batch = (over: Record<string, unknown> = {}) => ({ lessonId: LESSON, sessi
 
 describe('parseWatchBatch', () => {
   it('accepts a well-formed batch', () => {
-    expect(parseWatchBatch(batch())).toEqual({ lessonId: LESSON, sessionId: SESSION, segments: [segment], position: 9.5 })
+    expect(parseWatchBatch(batch())).toEqual({ lessonId: LESSON, sessionId: SESSION, segments: [segment], position: 9.5, viewed: false })
   })
 
   it('takes a position-only update, and a missing position as none', () => {
@@ -46,6 +46,19 @@ describe('parseWatchBatch', () => {
 
   it('accepts exactly the most segments allowed', () => {
     expect(parseWatchBatch(batch({ segments: Array(MAX_SEGMENTS_PER_BATCH).fill(segment) }))?.segments).toHaveLength(MAX_SEGMENTS_PER_BATCH)
+  })
+})
+
+describe('parseWatchBatch viewed', () => {
+  it('reads the viewed marker flag, false when absent, and refuses a flag that is not a boolean', () => {
+    expect(parseWatchBatch(batch())?.viewed).toBe(false)
+    expect(parseWatchBatch(batch({ viewed: true }))?.viewed).toBe(true)
+    expect(parseWatchBatch(batch({ viewed: false }))?.viewed).toBe(false)
+    expect(parseWatchBatch(batch({ viewed: 'yes' }))).toBeNull()
+  })
+
+  it('takes a marker with no stretches and no position (the player appearing)', () => {
+    expect(parseWatchBatch(batch({ viewed: true, segments: [], position: null }))).toMatchObject({ viewed: true, segments: [], position: null })
   })
 })
 
