@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { mergedPullBlockingPush } from "@/scripts/check-push-target";
-import { planPrune, type PullRef } from "@/scripts/prune-branches";
+import { branchesFromReflog, planPrune, type PullRef } from "@/scripts/prune-branches";
 
 const pull = (headRefName: string, headRefOid: string, state: PullRef["state"]): PullRef => ({ headRefName, headRefOid, state });
 const keep = new Set(["main", "current-work"]);
@@ -61,5 +61,33 @@ describe("mergedPullBlockingPush", () => {
         { number: 2, state: "OPEN" },
       ]),
     ).toBeUndefined();
+  });
+});
+
+describe("branchesFromReflog", () => {
+  it("collects every branch a worktree switched between, and both sides of a rename", () => {
+    const subjects = [
+      "checkout: moving from rules-watch-verification to branch-hygiene",
+      "checkout: moving from ci-skip-docs-only to rules-watch-verification",
+      "commit: Rules: something",
+      "checkout: moving from claude-rule-recommendations to ci-skip-docs-only",
+      "Branch: renamed refs/heads/unarmed-dolphin to refs/heads/claude-rule-recommendations",
+    ];
+    expect([...branchesFromReflog(subjects)].sort()).toEqual([
+      "branch-hygiene",
+      "ci-skip-docs-only",
+      "claude-rule-recommendations",
+      "rules-watch-verification",
+      "unarmed-dolphin",
+    ]);
+  });
+
+  it("includes the branch left behind by a detach, and ignores every other entry", () => {
+    const subjects = ["checkout: moving from feat-a to 224fc3372f4d", "commit (amend): message", "reset: moving to HEAD", "pull: Fast-forward"];
+    expect([...branchesFromReflog(subjects)].sort()).toEqual(["224fc3372f4d", "feat-a"]);
+  });
+
+  it("is empty for an empty reflog", () => {
+    expect(branchesFromReflog([]).size).toBe(0);
   });
 });

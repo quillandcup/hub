@@ -7,6 +7,13 @@
 //   tsx scripts/prune-branches.ts --apply         delete them
 //   tsx scripts/prune-branches.ts --remote        the same for branches on origin
 //   tsx scripts/prune-branches.ts --remote --apply
+//   tsx scripts/prune-branches.ts --mine --apply  only branches this worktree has been on
+//
+// --mine reads the current worktree's own HEAD reflog (git keeps one per worktree), so it covers
+// every branch an agent switched to here, whoever created it, including ones renamed since. It
+// is what the Paseo teardown runs when a worktree is archived (paseo.json). The reflog goes away
+// with the worktree, so it can't clean up after worktrees that are already gone; run the full
+// form once for that.
 //
 // A branch goes only when its latest pull request merged and the branch still points at exactly
 // the commit that was merged. A branch with newer commits (a follow-up pushed after the merge)
@@ -45,6 +52,28 @@ export function planPrune(branches: BranchRef[], pulls: PullRef[], protectedName
   return plan;
 }
 
+/**
+ * Branch names a worktree has been on, from its HEAD reflog subjects: `checkout: moving from A to B`
+ * (switch and switch -c) and `Branch: renamed refs/heads/A to refs/heads/B`. Names that are
+ * commits, or no longer exist, are harmless: the caller keeps only branches that exist.
+ */
+export function branchesFromReflog(subjects: string[]): Set<string> {
+  const names = new Set<string>();
+  for (const subject of subjects) {
+    const moved = subject.match(/^checkout: moving from (\S+) to (\S+)$/);
+    if (moved) {
+      names.add(moved[1]);
+      names.add(moved[2]);
+    }
+    const renamed = subject.match(/^Branch: renamed refs\/heads\/(\S+) to refs\/heads\/(\S+)$/);
+    if (renamed) {
+      names.add(renamed[1]);
+      names.add(renamed[2]);
+    }
+  }
+  return names;
+}
+
 function run(command: string, args: string[]): string {
   const res = spawnSync(command, args, { encoding: "utf8" });
   if (res.status !== 0) {
@@ -72,6 +101,11 @@ function defaultBranch(): string {
 function main() {
   const remote = process.argv.includes("--remote");
   const apply = process.argv.includes("--apply");
+  const ownOnly = process.argv.includes("--mine");
+  if (ownOnly && remote) {
+    console.error("✗ --mine reads this worktree's reflog and only applies to local branches; drop --remote");
+    process.exit(1);
+  }
   const protectedNames = new Set([defaultBranch()]);
 
   let branches: BranchRef[];
@@ -86,11 +120,15 @@ function main() {
       const [sha, ...name] = line.split(" ");
       return { name: name.join(" "), sha };
     });
+    if (ownOnly) {
+      const visited = branchesFromReflog(lines(run("git", ["reflog", "show", "HEAD", "--format=%gs"])));
+      branches = branches.filter((branch) => visited.has(branch.name));
+    }
   }
 
   const pulls = JSON.parse(run("gh", ["pr", "list", "--state", "all", "--limit", "1000", "--json", "headRefName,headRefOid,state"])) as PullRef[];
   const plan = planPrune(branches, pulls, protectedNames);
-  const where = remote ? "origin" : "local";
+  const where = remote ? "origin" : ownOnly ? "local (this worktree's)" : "local";
 
   console.log(`${where}: ${branches.length} branches, ${plan.remove.length} merged and removable, ${plan.keep.length} kept`);
   for (const branch of plan.remove) console.log(`  ${apply ? "deleting" : "would delete"} ${branch.name}`);
