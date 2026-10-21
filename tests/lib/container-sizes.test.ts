@@ -11,11 +11,16 @@ import config from "@/tailwind.config";
  */
 const sizes = Object.keys(((config.theme as { extend?: { containers?: Record<string, string> } }).extend ?? {}).containers ?? {});
 
+const root = path.resolve(__dirname, "../..");
+const skippedDirs = new Set(["node_modules", ".next", ".git", ".vercel", "coverage", "playwright-report", "test-results"]);
+const thisFile = path.join(root, "tests/lib/container-sizes.test.ts");
+
+/** Every code file in the repo (not just app and components: emails, lib, scripts, tests...), so a class can't hide elsewhere. */
 function sourceFiles(dir: string): string[] {
   return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
     const full = path.join(dir, entry.name);
-    if (entry.isDirectory()) return sourceFiles(full);
-    return /\.(tsx?|css)$/.test(entry.name) ? [full] : [];
+    if (entry.isDirectory()) return skippedDirs.has(entry.name) ? [] : sourceFiles(full);
+    return /\.(tsx?|jsx?|mjs|cjs|css|html)$/.test(entry.name) && full !== thisFile ? [full] : [];
   });
 }
 
@@ -24,10 +29,9 @@ describe("container query sizes", () => {
     expect(sizes).toEqual(["pair", "cards", "split", "columns", "outline"]);
   });
 
-  it("are the only sizes used in app and components", () => {
-    const root = path.resolve(__dirname, "../..");
+  it("are the only sizes used anywhere in the repo", () => {
     const offenders: string[] = [];
-    for (const file of ["app", "components"].flatMap((dir) => sourceFiles(path.join(root, dir)))) {
+    for (const file of sourceFiles(root)) {
       const text = fs.readFileSync(file, "utf8");
       // `@container` (no colon) is the wrapper; `@name:` is a variant. Anything not named is an offender.
       for (const match of text.matchAll(/(?<![\w-])@([\w[\].-]+):/g)) {
