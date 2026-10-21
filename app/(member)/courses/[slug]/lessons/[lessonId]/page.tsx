@@ -186,7 +186,7 @@ export default async function LessonPage({
 
         {/* Completion is shared by the player (which sets it at ~90% watched), the button and the next-lesson card. */}
         <LessonCompletionProvider lessonId={lesson.id} initiallyCompleted={completed} readOnlyReason={readOnlyReason}>
-        <div className="mt-4 grid @4xl:grid-cols-[minmax(0,1fr)_22rem]">
+        <div className="mt-4 grid grid-cols-[minmax(0,1fr)] @4xl:grid-cols-[minmax(0,1fr)_22rem]">
           {/* The video and this section's lessons are one component: a dark panel flush against the player, the same height. */}
           {player && (
             <div className="overflow-hidden rounded-2xl bg-neutral-900 shadow-lg ring-1 ring-black/5 dark:ring-white/10 @4xl:col-span-2 @4xl:grid @4xl:grid-cols-[minmax(0,1fr)_22rem]">
