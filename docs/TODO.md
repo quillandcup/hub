@@ -213,7 +213,19 @@ the route runs about 20 unrelated writes with no transaction.
 - Needs the usual new-table work: grants in the same migration, RLS, pgTAP coverage, and
   the merge route's existing tests moved onto the function.
 
-Keep Split and move-aliases as the fallback for merges made before the log existed.
+Keep Split and move-aliases as the fallback for merges made before the log existed (see
+the removal item below).
+
+### Remove Split and Move-Aliases Once the Merge Log Exists _(After "Log Member Merges")_
+`POST /api/admin/members/split`, `POST /api/admin/members/move-aliases`, the Split button
+and `SplitMemberModal` (`app/(admin)/admin/members/[id]/`) exist only to undo merges made
+before merges were logged: they guess from the leftover aliases and rebuild attendance,
+because nothing recorded what the merge moved. Once merges are logged and "Undo merge"
+works, the only merges they could still help with are the old, unlogged ones, so they
+become close to dead code. Remove them (routes, modal, button, their tests in
+`tests/api/admin/members/` and `tests/components/`) once the unlogged merges that matter
+have been checked and fixed, or after a set period with no use; whichever comes first.
+Check the `audit_log`/activity feed for recent use before deleting.
 
 ### Refresh Admin Member Pages After Moving Aliases
 After "Move ticked names and emails to ..." in the Split dialog, the source member's
