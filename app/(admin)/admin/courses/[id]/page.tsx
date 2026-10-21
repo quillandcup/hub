@@ -92,6 +92,11 @@ export default async function AdminCoursePage({ params }: { params: Promise<{ id
         ← Courses
       </Link>
       <h1 className="mt-2 text-3xl font-bold">{course.title}</h1>
+      {course.published && (
+        <Link href={`/admin/courses/${course.kajabiId}/stats`} data-track="admin-course-watch-stats" className="mt-1 inline-block text-sm text-plum-700 underline dark:text-plum-300">
+          Watch stats
+        </Link>
+      )}
 
       <div className="mt-6 rounded-lg bg-white p-6 shadow dark:bg-slate-900">
         <h2 className="mb-3 text-lg font-semibold">In the Hub</h2>
