@@ -172,7 +172,7 @@ export default async function LessonWatchStatsPage({
           <div className="mt-6 rounded-lg bg-white p-6 shadow dark:bg-slate-900">
             <h2 className="text-lg font-semibold">Engagement</h2>
             <p className="mb-3 mt-1 text-sm text-slate-600 dark:text-slate-300">
-              How often each moment of the {formatClock(stats.durationSeconds)} video was played. Where plays rise above viewers, people watched it again.
+              How often each moment of the {formatClock(stats.durationSeconds)} video was played. Where the solid line rises above the dashed one, someone watched that part more than once (one person watching twice is 2 plays, 1 person).
             </p>
             <EngagementChart buckets={stats.buckets} durationSeconds={stats.durationSeconds} />
           </div>
