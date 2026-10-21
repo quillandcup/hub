@@ -88,6 +88,25 @@ export async function signPlaybackTokens(
 }
 
 /**
+ * One signed thumbnail token per moment, for a still of the video at each of `times`. Mux wants a
+ * signed thumbnail's options (the time, the width) inside the token's claims, not in the URL, so each
+ * moment has its own token and the URL is just `thumbnail.webp?token=...`.
+ */
+export async function signThumbnailTokens(
+  mux: Mux,
+  playbackId: string,
+  times: number[],
+  options: { width?: number; expiration?: string } = {},
+): Promise<string[]> {
+  const { width = 640, expiration = "1h" } = options;
+  return Promise.all(
+    times.map((time) =>
+      mux.jwt.signPlaybackId(playbackId, { type: "thumbnail", expiration, params: { time: String(Math.round(time * 10) / 10), width: String(width) } }),
+    ),
+  );
+}
+
+/**
  * Verify a webhook's signature and parse it. Throws on a bad or missing signature, an old
  * timestamp, or an unset secret. The body must be the raw text, not re-serialized JSON.
  */

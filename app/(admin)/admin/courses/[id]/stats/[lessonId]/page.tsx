@@ -6,19 +6,30 @@ import { isUuid } from "@/lib/chat/format";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { loadCourseWatchStats } from "@/lib/courses/watch-stats-data";
 import { formatClock } from "@/lib/courses/watch-stats";
+import { createMuxClient, signThumbnailTokens } from "@/lib/mux";
 import EngagementChart from "../EngagementChart";
+import EngagementFrame from "../EngagementFrame";
 
 export const metadata: Metadata = { title: "Lesson watch stats · Courses" };
 
 const percent = (fraction: number) => `${Math.round(fraction * 100)}%`;
 
-function Tile({ label, value, hint }: { label: string; value: string; hint?: string }) {
+/** A stat tile that opens to say what the number means. */
+function Tile({ label, value, definition, hint }: { label: string; value: string; definition: string; hint?: string }) {
   return (
-    <div className="rounded-lg bg-white p-4 shadow dark:bg-slate-900">
-      <p className="text-sm text-slate-500 dark:text-slate-400">{label}</p>
-      <p className="mt-1 text-3xl font-semibold tabular-nums">{value}</p>
-      {hint && <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{hint}</p>}
-    </div>
+    <details className="group rounded-lg bg-white p-4 shadow dark:bg-slate-900">
+      <summary className="flex cursor-pointer list-none items-start justify-between gap-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-plum-500">
+        <span>
+          <span className="block text-sm text-slate-500 dark:text-slate-400">{label}</span>
+          <span className="mt-1 block text-3xl font-semibold tabular-nums">{value}</span>
+          {hint && <span className="mt-1 block text-xs text-slate-500 dark:text-slate-400">{hint}</span>}
+        </span>
+        <span aria-hidden="true" className="mt-1 text-slate-400 transition group-open:rotate-180">
+          &#9662;
+        </span>
+      </summary>
+      <p className="mt-3 text-sm text-slate-600 dark:text-slate-300">{definition}</p>
+    </details>
   );
 }
 
@@ -38,6 +49,20 @@ export default async function LessonWatchStatsPage({
   if (!data || !entry) notFound();
 
   const { lesson, stats } = entry;
+
+  // A still of the video for each slice (the hover frames). Failing to sign them just leaves the heatmap on a plain backdrop.
+  let frames: string[] | null = null;
+  if (stats && entry.playbackId) {
+    try {
+      frames = await signThumbnailTokens(
+        createMuxClient(),
+        entry.playbackId,
+        stats.buckets.map((b) => (b.start + b.end) / 2),
+      );
+    } catch (error) {
+      console.error("Couldn't sign Mux thumbnail tokens:", error instanceof Error ? error.message : error);
+    }
+  }
   const base = `/admin/courses/${id}/stats`;
   const here = `${base}/${lessonId}`;
 
@@ -66,15 +91,42 @@ export default async function LessonWatchStatsPage({
         </p>
       ) : (
         <>
-          <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <Tile label="Viewers" value={String(stats.viewers)} />
-            <Tile label="Average watched" value={percent(stats.averageWatchedFraction)} hint="of the video, per viewer" />
-            <Tile label="Watched 90%+" value={`${stats.watchedMarkViewers} of ${stats.viewers}`} hint="covered at least 90% of it" />
+          <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <Tile
+              label="Engagement"
+              value={percent(stats.engagementRate)}
+              definition="How much of the video people play: total watch time divided by (total plays × video length). Replaying a part within a play adds to it, so it can pass 100%."
+            />
+            <Tile
+              label="Total plays"
+              value={String(stats.plays)}
+              definition="Times the video was played: one for each visit to the lesson with at least one stretch watched. The same member coming back another day counts again."
+            />
+            <Tile label="Viewers" value={String(stats.viewers)} definition="Different members who watched any of the video." />
+            <Tile
+              label="Average watched"
+              value={percent(stats.averageWatchedFraction)}
+              hint="of the video, per viewer"
+              definition="On average, the share of the video each viewer covered, counting each part once however often they replayed it."
+            />
+            <Tile
+              label="Watched 90%+"
+              value={`${stats.watchedMarkViewers} of ${stats.viewers}`}
+              hint="covered at least 90% of it"
+              definition="Viewers who covered at least 90% of the video (Kajabi's mark for a lesson watched)."
+            />
             <Tile
               label="Rewatched"
               value={formatClock(Math.max(0, stats.watchedSeconds - stats.uniqueWatchedSeconds))}
               hint={`of ${formatClock(stats.watchedSeconds)} played`}
+              definition="Video time viewers replayed after already watching it: the time played minus the time covered. It leaves out two different members watching the same part."
             />
+          </div>
+
+          <div className="mt-6 rounded-lg bg-white p-6 shadow dark:bg-slate-900">
+            <h2 className="text-lg font-semibold">Heatmap</h2>
+            <p className="mb-3 mt-1 text-sm text-slate-600 dark:text-slate-300">Move over the video to see each moment and how many plays watched it.</p>
+            <EngagementFrame buckets={stats.buckets} durationSeconds={stats.durationSeconds} plays={stats.plays} playbackId={entry.playbackId} frames={frames} />
           </div>
 
           <div className="mt-6 rounded-lg bg-white p-6 shadow dark:bg-slate-900">

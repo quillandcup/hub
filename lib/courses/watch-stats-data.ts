@@ -13,6 +13,8 @@ export interface LessonWatchStats {
   lesson: OutlineLesson;
   /** Null for a lesson with no video. */
   videoId: string | null;
+  /** The video's Mux playback id once it is ready, for stills of it on the stats page. */
+  playbackId: string | null;
   /** Null for a lesson with no video or that nobody has watched. */
   stats: VideoWatchStats | null;
 }
@@ -66,19 +68,23 @@ export async function loadCourseWatchStats(
 
   const videoIds = [...new Set(lessons.map((l) => videoOf.get(l.id)).filter((v): v is string => Boolean(v)))];
   const durations = new Map<string, number | null>();
+  const playbackIds = new Map<string, string | null>();
   const segmentsByVideo = new Map<string, WatchSegment[]>();
   const staff = options.includeStaff ? new Set<string>() : await loadStaffMemberIds(supabase);
 
   for (const batch of inBatches(videoIds)) {
     const [videos, segments] = await Promise.all([
-      fetchAll(supabase, "videos", "id, duration_seconds", (q) => q.in("id", batch)),
-      fetchAll(supabase, "video_watch_segments", "member_id, video_id, start_seconds, end_seconds, playback_rate, captions_language, visible", (q) => q.in("video_id", batch)),
+      fetchAll(supabase, "videos", "id, duration_seconds, mux_playback_id, status", (q) => q.in("id", batch)),
+      fetchAll(supabase, "video_watch_segments", "member_id, session_id, video_id, start_seconds, end_seconds, playback_rate, captions_language, visible", (q) => q.in("video_id", batch)),
     ]);
-    for (const v of videos) durations.set(v.id, v.duration_seconds === null ? null : Number(v.duration_seconds));
+    for (const v of videos) {
+      durations.set(v.id, v.duration_seconds === null ? null : Number(v.duration_seconds));
+      playbackIds.set(v.id, v.status === "ready" ? (v.mux_playback_id ?? null) : null);
+    }
     for (const s of segments) {
       if (staff.has(s.member_id)) continue;
       const list = segmentsByVideo.get(s.video_id) ?? [];
-      list.push({ memberId: s.member_id, start: Number(s.start_seconds), end: Number(s.end_seconds), rate: Number(s.playback_rate), captions: s.captions_language, visible: s.visible });
+      list.push({ memberId: s.member_id, sessionId: s.session_id, start: Number(s.start_seconds), end: Number(s.end_seconds), rate: Number(s.playback_rate), captions: s.captions_language, visible: s.visible });
       segmentsByVideo.set(s.video_id, list);
     }
   }
@@ -99,7 +105,7 @@ export async function loadCourseWatchStats(
     course: { id: course.id, title: course.title, slug: course.slug },
     lessons: lessons.map((lesson) => {
       const videoId = videoOf.get(lesson.id) ?? null;
-      return { lesson, videoId, stats: videoId ? (statsByVideo.get(videoId) ?? null) : null };
+      return { lesson, videoId, playbackId: videoId ? (playbackIds.get(videoId) ?? null) : null, stats: videoId ? (statsByVideo.get(videoId) ?? null) : null };
     }),
     viewers: viewerIds.size,
     watchedSeconds,

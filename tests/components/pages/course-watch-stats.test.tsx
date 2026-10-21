@@ -11,6 +11,9 @@ vi.mock("@/lib/sudo", () => import("@/tests/helpers/server-page").then((m) => m.
 vi.mock("@/lib/supabase/server", () => import("@/tests/helpers/server-page").then((m) => m.supabaseServerModule));
 vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => ({}) }));
 
+const signThumbnailTokens = vi.fn();
+vi.mock("@/lib/mux", () => ({ createMuxClient: () => ({}), signThumbnailTokens: (...a: unknown[]) => signThumbnailTokens(...a) }));
+
 const loadCourseWatchStats = vi.fn();
 vi.mock("@/lib/courses/watch-stats-data", () => ({ loadCourseWatchStats: (...a: unknown[]) => loadCourseWatchStats(...a) }));
 
@@ -21,16 +24,16 @@ const KAJABI = "kaj-1";
 const L1 = "00000000-0000-4000-a000-00000000a001";
 const L2 = "00000000-0000-4000-a000-00000000a002";
 const L3 = "00000000-0000-4000-a000-00000000a003";
-const seg = (m: string, start: number, end: number, over: object = {}) => ({ memberId: m, start, end, rate: 1, captions: null, visible: true, ...over });
+const seg = (m: string, start: number, end: number, over: object = {}) => ({ memberId: m, sessionId: `s-${m}`, start, end, rate: 1, captions: null, visible: true, ...over });
 const lesson = (id: string, title: string, over: object = {}) => ({ id, module_id: null, title, position: 1, state: "open", duration_seconds: 600, ...over });
 
 const stats = computeVideoWatchStats([seg("a", 0, 600), seg("b", 0, 300, { rate: 1.5, captions: "English" }), seg("a", 100, 200)], 600);
 const data = (over: object = {}) => ({
   course: { id: "c1", title: "The Ready Writer", slug: "the-ready-writer" },
   lessons: [
-    { lesson: lesson(L1, "Reader Expectations"), videoId: "v1", stats },
-    { lesson: lesson(L2, "Voice", { state: "coming_soon" }), videoId: "v2", stats: null },
-    { lesson: lesson(L3, "Reading list"), videoId: null, stats: null },
+    { lesson: lesson(L1, "Reader Expectations"), videoId: "v1", playbackId: "pb-1", stats },
+    { lesson: lesson(L2, "Voice", { state: "coming_soon" }), videoId: "v2", playbackId: null, stats: null },
+    { lesson: lesson(L3, "Reading list"), videoId: null, playbackId: null, stats: null },
   ],
   viewers: 2,
   watchedSeconds: 1000,
@@ -49,6 +52,8 @@ beforeEach(() => {
   useFakeSupabase({ user_profiles: userProfiles });
   signInAs(ADMIN_USER, null);
   loadCourseWatchStats.mockReset();
+  signThumbnailTokens.mockReset();
+  signThumbnailTokens.mockImplementation(async (_mux: unknown, _id: string, times: number[]) => times.map((_, i) => `tok${i}`));
   loadCourseWatchStats.mockResolvedValue(data());
 });
 
@@ -113,7 +118,7 @@ describe("/admin/courses/[id]/stats", () => {
 
 describe("/admin/courses/[id]/stats/[lessonId]", () => {
   beforeEach(() => {
-    loadCourseWatchStats.mockResolvedValue(data({ lessons: [{ lesson: lesson(L1, "Reader Expectations"), videoId: "v1", stats }] }));
+    loadCourseWatchStats.mockResolvedValue(data({ lessons: [{ lesson: lesson(L1, "Reader Expectations"), videoId: "v1", playbackId: "pb-1", stats }] }));
   });
 
   it("sends a member to /no-access", async () => {
@@ -132,10 +137,46 @@ describe("/admin/courses/[id]/stats/[lessonId]", () => {
     // 1000s played in all; member a replayed 100s of what they had already watched, and b's overlap with a is another person, not a rewatch.
     expect(tile("Rewatched")).toHaveTextContent("1:40");
     expect(screen.getByText("of 16:40 played")).toBeInTheDocument();
-    expect(screen.getByRole("img", { name: /Engagement over the 10:00 video/ })).toBeInTheDocument();
+    expect(screen.getAllByRole("img", { name: /Engagement over the 10:00 video/ })).toHaveLength(2);
     expect(screen.getByText("Table view")).toBeInTheDocument();
     expect(screen.getByText("1.5x")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "View lesson" })).toHaveAttribute("href", `/courses/the-ready-writer/lessons/${L1}`);
+  });
+
+  it("shows Kajabi's engagement and total plays, each with what it means", async () => {
+    await renderServerPage(LessonWatchStatsPage, lessonProps());
+
+    // a played all 600s (twice over 100-200), b played 300s, in two sessions: 1000 / (2 x 600).
+    expect(tile("Engagement")).toHaveTextContent("83%");
+    expect(tile("Total plays")).toHaveTextContent("2");
+    expect(screen.getByText(/total watch time divided by \(total plays × video length\)/)).toBeInTheDocument();
+    expect(screen.getByText(/one for each visit to the lesson with at least one stretch watched/)).toBeInTheDocument();
+  });
+
+  it("draws the heatmap over the video's frames, signing one still per slice at its middle moment", async () => {
+    await renderServerPage(LessonWatchStatsPage, lessonProps());
+
+    expect(screen.getByRole("heading", { name: "Heatmap" })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: /drawn over its frames/ })).toBeInTheDocument();
+    const [, playbackId, times] = signThumbnailTokens.mock.calls[0];
+    expect(playbackId).toBe("pb-1");
+    expect(times).toHaveLength(stats.buckets.length);
+    expect(times[0]).toBeCloseTo(3);
+    expect(times[times.length - 1]).toBeCloseTo(597);
+  });
+
+  it("keeps the heatmap, on a plain backdrop, when the stills can't be signed or the video has no playback id", async () => {
+    signThumbnailTokens.mockRejectedValue(new Error("Mux is down"));
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    await renderServerPage(LessonWatchStatsPage, lessonProps());
+    expect(screen.getByText("Frame previews aren't available for this video.")).toBeInTheDocument();
+    expect(log).toHaveBeenCalledWith("Couldn't sign Mux thumbnail tokens:", "Mux is down");
+    log.mockRestore();
+
+    signThumbnailTokens.mockClear();
+    loadCourseWatchStats.mockResolvedValue(data({ lessons: [{ lesson: lesson(L1, "Reader Expectations"), videoId: "v1", playbackId: null, stats }] }));
+    await renderServerPage(LessonWatchStatsPage, lessonProps());
+    expect(signThumbnailTokens).not.toHaveBeenCalled();
   });
 
   it("labels a preview lesson's link as a preview", async () => {

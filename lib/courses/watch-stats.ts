@@ -8,6 +8,8 @@
 
 export interface WatchSegment {
   memberId: string;
+  /** The player session (one page view of the lesson) the stretch belongs to: a "play" is a session with at least one stretch. */
+  sessionId: string;
   start: number;
   end: number;
   rate: number;
@@ -26,12 +28,18 @@ export interface HeatBucket {
   plays: number;
   /** How many different members watched it at least half through. `plays - viewers` is the rewatching. */
   viewers: number;
+  /** How many plays (player sessions) watched it at least half through. Over the video's plays, this is the moment's engagement. */
+  sessions: number;
 }
 
 export interface VideoWatchStats {
   durationSeconds: number;
   /** Members who watched any of it. */
   viewers: number;
+  /** Plays: player sessions with at least one stretch. A member who came back on another day counts again. */
+  plays: number;
+  /** Kajabi's engagement: total watch time / (total plays x video length). Rewatching within a play adds to it. */
+  engagementRate: number;
   /** All video time played, rewatches included. */
   watchedSeconds: number;
   /** Video time played counting each stretch of the video once per member. */
@@ -70,6 +78,17 @@ function mergeIntervals(intervals: Interval[]): Interval[] {
 
 const overlap = (aStart: number, aEnd: number, bStart: number, bEnd: number) => Math.max(0, Math.min(aEnd, bEnd) - Math.max(aStart, bStart));
 
+/** How many seconds of each slice the (already merged) intervals cover. */
+function coverageByBucket(merged: Interval[], span: number, bucketCount: number): number[] {
+  const covered = new Array<number>(bucketCount).fill(0);
+  for (const [a, b] of merged) {
+    const first = Math.min(bucketCount - 1, Math.floor(a / span));
+    const last = Math.min(bucketCount - 1, Math.floor((b - 1e-9) / span));
+    for (let i = first; i <= last; i++) covered[i] += overlap(a, b, i * span, (i + 1) * span);
+  }
+  return covered;
+}
+
 /**
  * `durationSeconds` is the video's length when known; otherwise the furthest point anyone reached
  * stands in for it. Stretches are clipped to the video, so a position past the end (a stale length)
@@ -81,6 +100,8 @@ export function computeVideoWatchStats(segments: WatchSegment[], durationSeconds
   const empty: VideoWatchStats = {
     durationSeconds: duration,
     viewers: 0,
+    plays: 0,
+    engagementRate: 0,
     watchedSeconds: 0,
     uniqueWatchedSeconds: 0,
     averageWatchedFraction: 0,
@@ -126,13 +147,23 @@ export function computeVideoWatchStats(segments: WatchSegment[], durationSeconds
     fractionSum += covered / duration;
     if (covered >= WATCHED_MARK * duration) watchedMarkViewers++;
     // A bucket is "viewed" by the member when their merged coverage fills at least half of it.
-    const coveredInBucket = new Array<number>(bucketCount).fill(0);
-    for (const [a, b] of merged) {
-      const first = Math.min(bucketCount - 1, Math.floor(a / span));
-      const last = Math.min(bucketCount - 1, Math.floor((b - 1e-9) / span));
-      for (let i = first; i <= last; i++) coveredInBucket[i] += overlap(a, b, i * span, (i + 1) * span);
-    }
-    for (let i = 0; i < bucketCount; i++) if (coveredInBucket[i] >= span / 2 - 1e-9) viewersPerBucket[i]++;
+    coverageByBucket(merged, span, bucketCount).forEach((c, i) => {
+      if (c >= span / 2 - 1e-9) viewersPerBucket[i]++;
+    });
+  }
+
+  // The same per play (player session): a play watched a slice when it covered at least half of it.
+  const bySession = new Map<string, Interval[]>();
+  for (const s of clipped) {
+    const list = bySession.get(s.sessionId);
+    if (list) list.push([s.start, s.end]);
+    else bySession.set(s.sessionId, [[s.start, s.end]]);
+  }
+  const sessionsPerBucket = new Array<number>(bucketCount).fill(0);
+  for (const intervals of bySession.values()) {
+    coverageByBucket(mergeIntervals(intervals), span, bucketCount).forEach((c, i) => {
+      if (c >= span / 2 - 1e-9) sessionsPerBucket[i]++;
+    });
   }
 
   const watchedSeconds = clipped.reduce((sum, s) => sum + (s.end - s.start), 0);
@@ -150,11 +181,13 @@ export function computeVideoWatchStats(segments: WatchSegment[], durationSeconds
   return {
     durationSeconds: duration,
     viewers: byMember.size,
+    plays: bySession.size,
+    engagementRate: watchedSeconds / (bySession.size * duration),
     watchedSeconds,
     uniqueWatchedSeconds,
     averageWatchedFraction: fractionSum / byMember.size,
     watchedMarkViewers,
-    buckets: plays.map((p, i) => ({ start: i * span, end: (i + 1) * span, plays: round(p, 3), viewers: viewersPerBucket[i] })),
+    buckets: plays.map((p, i) => ({ start: i * span, end: (i + 1) * span, plays: round(p, 3), viewers: viewersPerBucket[i], sessions: sessionsPerBucket[i] })),
     speeds: [...bySpeed].map(([rate, seconds]) => ({ rate, seconds })).sort((a, b) => b.seconds - a.seconds),
     captionsShare: captionsSeconds / watchedSeconds,
     backgroundShare: backgroundSeconds / watchedSeconds,
