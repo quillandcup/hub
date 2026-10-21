@@ -11,7 +11,7 @@ export default function MobileMenuButton() {
     <button data-track="nav-open-mobile-menu"
       type="button"
       onClick={() => window.dispatchEvent(new Event(OPEN_MOBILE_NAV_EVENT))}
-      className="md:hidden mr-2 h-10 w-10 flex-shrink-0 flex items-center justify-center rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm text-slate-700 dark:text-slate-300"
+      className="lg:hidden mr-2 h-10 w-10 flex-shrink-0 flex items-center justify-center rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm text-slate-700 dark:text-slate-300"
       aria-label="Open navigation menu"
     >
       <span className="text-lg leading-none">☰</span>
