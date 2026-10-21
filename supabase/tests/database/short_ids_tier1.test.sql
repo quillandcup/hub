@@ -1,4 +1,4 @@
--- pgTAP tests for the Tier 1 short id conversion (20261127000000): each Tier 1 table has a text
+-- pgTAP tests for the Tier 1 short id conversion (20261129000000): each Tier 1 table has a text
 -- id defaulting to its own prefix, every column that references one is text too, and a new row
 -- gets an id in the right shape.
 -- Runs in one transaction that is rolled back, so it leaves the shared local DB untouched.
