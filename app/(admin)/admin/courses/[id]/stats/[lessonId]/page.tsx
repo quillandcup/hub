@@ -151,7 +151,7 @@ export default async function LessonWatchStatsPage({
               label="Watched 90%+"
               value={`${stats.watchedMarkViewers} of ${stats.viewers}`}
               hint="covered at least 90% of it"
-              definition="Viewers who covered at least 90% of the video (Kajabi's mark for a lesson watched)."
+              definition="Viewers who covered at least 90% of the video."
             />
             <Tile
               label="Rewatched"

@@ -52,7 +52,7 @@ describe("CourseVideosPanel", () => {
     expect(screen.getByText("Ready to upload")).toBeInTheDocument();
     expect(screen.getByText("Ready")).toBeInTheDocument();
     expect(screen.getByText("Preparing in Mux")).toBeInTheDocument();
-    expect(screen.getByText("Link expired: run the Kajabi content step again")).toBeInTheDocument();
+    expect(screen.getByText("Link expired: run the content step again")).toBeInTheDocument();
     expect(screen.getByText("Failed last time (will retry)")).toBeInTheDocument();
     expect(screen.getByText("2 min")).toBeInTheDocument();
   });

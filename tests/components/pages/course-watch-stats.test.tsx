@@ -204,6 +204,11 @@ describe("/admin/courses/[id]/stats/[lessonId]", () => {
     expect(screen.getByText(/each stricter than the last/)).toBeInTheDocument();
   });
 
+  it("never names Kajabi in the stats page's text", async () => {
+    const { container } = await renderServerPage(LessonWatchStatsPage, lessonProps());
+    expect(container.textContent).not.toMatch(/kajabi/i);
+  });
+
   it("shows the play rate: the share of visits where the video was played", async () => {
     await renderServerPage(LessonWatchStatsPage, lessonProps());
 

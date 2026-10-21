@@ -53,9 +53,9 @@ describe("CourseFilesPanel", () => {
 
     expect(screen.getByText("Ready to copy")).toBeInTheDocument();
     expect(screen.getByText("In the Hub")).toBeInTheDocument();
-    expect(screen.getByText("Link expired: run the Kajabi content step again")).toBeInTheDocument();
+    expect(screen.getByText("Link expired: run the content step again")).toBeInTheDocument();
     expect(screen.getByText("Its lesson isn't in the Hub yet: publish or sync first")).toBeInTheDocument();
-    expect(screen.getByText("No longer in Kajabi: will be removed")).toBeInTheDocument();
+    expect(screen.getByText("No longer listed: will be removed")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Copy 1 file and remove 1" })).toBeEnabled();
   });
 
