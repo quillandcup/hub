@@ -10,6 +10,9 @@ import { createMuxClient, signThumbnailTokens } from "@/lib/mux";
 import EngagementChart from "../EngagementChart";
 import EngagementFrame from "../EngagementFrame";
 import ViewerList from "../ViewerList";
+import TimeSeriesSection from "../TimeSeriesSection";
+import { ORG_TIMEZONE } from "@/lib/config";
+import { computeTimeSeries, parseTimeSeriesQuery, resolveRange, localDate } from "@/lib/courses/watch-timeseries";
 
 export const metadata: Metadata = { title: "Lesson watch stats · Courses" };
 
@@ -42,7 +45,7 @@ export default async function LessonWatchStatsPage({
   searchParams,
 }: {
   params: Promise<{ id: string; lessonId: string }>;
-  searchParams: Promise<{ staff?: string; limit?: string }>;
+  searchParams: Promise<{ staff?: string; limit?: string; metric?: string; by?: string; range?: string; from?: string; to?: string }>;
 }) {
   await requireAdminPage();
   const { id, lessonId } = await params;
@@ -56,6 +59,28 @@ export default async function LessonWatchStatsPage({
   if (!data || !entry) notFound();
 
   const { lesson, stats, sessions } = entry;
+
+  // What "Load more" keeps, so paging the visits doesn't reset the staff choice or the chart's controls.
+  const carriedParams = (["staff", "metric", "by", "range", "from", "to"] as const)
+    .filter((key) => query[key])
+    .map((key) => `&${key}=${encodeURIComponent(query[key] as string)}`)
+    .join("");
+
+  // "Over time": the chosen metric by day, week or month over the chosen range, from the visits above.
+  const controls = parseTimeSeriesQuery(query);
+  const earliest = sessions.reduce<string | null>((first, x) => {
+    const day = x.startedAt ? localDate(x.startedAt, ORG_TIMEZONE) : null;
+    return day && (!first || day < first) ? day : first;
+  }, null);
+  const series = stats
+    ? computeTimeSeries(sessions, {
+        metric: controls.metric,
+        granularity: controls.granularity,
+        range: resolveRange(controls.preset, new Date(), ORG_TIMEZONE, { custom: { from: controls.from, to: controls.to }, earliest }),
+        timeZone: ORG_TIMEZONE,
+        durationSeconds: stats.durationSeconds,
+      })
+    : null;
 
   // A still of the video for each slice (the hover frames). Failing to sign them just leaves the heatmap on a plain backdrop.
   let frames: string[] | null = null;
@@ -136,6 +161,8 @@ export default async function LessonWatchStatsPage({
             />
           </div>
 
+          {series && <TimeSeriesSection series={series} preset={controls.preset} action={here} staff={includeStaff} />}
+
           <div className="mt-6 rounded-lg bg-white p-6 shadow dark:bg-slate-900">
             <h2 className="text-lg font-semibold">Heatmap</h2>
             <p className="mb-3 mt-1 text-sm text-slate-600 dark:text-slate-300">Move over the video to see each moment and how many plays watched it.</p>
@@ -186,7 +213,7 @@ export default async function LessonWatchStatsPage({
               sessions={sessions}
               durationSeconds={stats.durationSeconds}
               shown={limit}
-              more={sessions.length > limit ? `${here}?limit=${limit + PAGE_SIZE}${includeStaff ? "&staff=1" : ""}` : null}
+              more={sessions.length > limit ? `${here}?limit=${limit + PAGE_SIZE}${carriedParams}` : null}
             />
           </div>
         </>
