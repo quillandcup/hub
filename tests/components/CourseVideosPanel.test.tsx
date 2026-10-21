@@ -124,6 +124,16 @@ describe("CourseVideosPanel", () => {
       expect(screen.getByRole("button", { name: "Upload 1 draft video to Mux" })).toBeInTheDocument();
     });
 
+    it("says how many videos only drafts use, in the singular and the plural, without naming Kajabi", () => {
+      const { container, rerender } = render(<CourseVideosPanel slug="c" videos={[draft()]} />);
+      expect(screen.getByText(/1 video is used only by draft lessons\./)).toBeInTheDocument();
+      expect(container.textContent).not.toMatch(/kajabi/i);
+
+      rerender(<CourseVideosPanel slug="c" videos={[draft(), draft({ mediaId: "d2", lessonTitles: ["Draft: Another"] })]} />);
+      expect(screen.getByText(/2 videos are used only by draft lessons\./)).toBeInTheDocument();
+      expect(container.textContent).not.toMatch(/kajabi/i);
+    });
+
     it("shows a course whose only videos are drafts' as having drafts, not as having none", () => {
       render(<CourseVideosPanel slug="c" videos={[draft()]} />);
       expect(screen.queryByText(/No visible lesson has a video recorded yet/)).not.toBeInTheDocument();
