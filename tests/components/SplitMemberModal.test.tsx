@@ -75,3 +75,48 @@ describe("SplitMemberModal submit", () => {
     expect(box).not.toBeChecked();
   });
 });
+
+describe("SplitMemberModal move to existing member", () => {
+  it("offers to move the aliases when the email already belongs to a member", async () => {
+    const onClose = vi.fn();
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: false,
+        json: async () => ({ error: "Ivy Marsh already has that email.", conflictingMemberId: "other-1", conflictingMemberName: "Ivy Marsh", canMoveAliases: true }),
+      })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ success: true }) });
+    vi.stubGlobal("fetch", fetchMock);
+    render(<SplitMemberModal member={member} nameAliases={nameAliases} emailAliases={emailAliases} isOpen onClose={onClose} />);
+
+    await userEvent.click(screen.getByLabelText("Ivy Marsh"));
+    await userEvent.click(screen.getByLabelText("ivy@example.com"));
+    await userEvent.click(screen.getByRole("button", { name: /split into new member/i }));
+    await userEvent.click(await screen.findByRole("button", { name: /move ticked names and emails to ivy marsh/i }));
+
+    expect(fetchMock.mock.calls[1][0]).toBe("/api/admin/members/move-aliases");
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toEqual({
+      fromMemberId: "m1",
+      toMemberId: "other-1",
+      nameAliasIds: ["n1"],
+      emailAliasIds: ["e1"],
+    });
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it("shows the error when the move fails", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValueOnce({ ok: false, json: async () => ({ error: "x", conflictingMemberId: "o", conflictingMemberName: "Ivy", canMoveAliases: true }) })
+        .mockResolvedValueOnce({ ok: false, json: async () => ({ error: "Move blew up" }) })
+    );
+    render(<SplitMemberModal member={member} nameAliases={nameAliases} emailAliases={emailAliases} isOpen onClose={() => {}} />);
+    await userEvent.click(screen.getByLabelText("Ivy Marsh"));
+    await userEvent.click(screen.getByLabelText("ivy@example.com"));
+    await userEvent.click(screen.getByRole("button", { name: /split into new member/i }));
+    await userEvent.click(await screen.findByRole("button", { name: /move ticked names and emails/i }));
+    expect(await screen.findByText("Move blew up")).toBeInTheDocument();
+  });
+});
