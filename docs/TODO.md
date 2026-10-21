@@ -179,6 +179,50 @@ Slack tests currently replace the `@slack/web-api` `WebClient` class with a hand
 ### Mask the Checkly Heartbeat Ping URLs in CI Logs
 The `CHECKLY_HEARTBEAT_*` values are ping URLs: anyone who has one can mark that job as healthy. CI can print them in deploy logs. Register each with GitHub's log masking (`echo "::add-mask::$VALUE"`) at the top of the steps that use them (`checkly.yml`), so they show as `***`.
 
+### Log Member Merges So They Can Be Undone Exactly _(Needs Scheduling)_
+A merge (`POST /api/admin/members/merge`) re-points everything from the absorbed member to
+the survivor and then deletes the absorbed member, so nothing records what moved. Undoing
+a wrong merge today is a heuristic: the Split button (`/api/admin/members/split`) and
+`/api/admin/members/move-aliases` take the name and email aliases the merge left behind and
+reprocess attendance, but they can't restore anything that isn't rebuilt from Bronze
+(hiatuses, status overrides, program enrollments, hosting, append-only activities such as
+writing progress, outreach touches and logins, and external ids copied to the survivor).
+`audit_log` records most of those re-points as separate field changes, but nothing ties
+them to one merge, `prickle_attendance` and `member_activities` moves aren't audited, and
+the route runs about 20 unrelated writes with no transaction.
+
+**Proposed:**
+- A `member_merges` table, one row per merge, written in the same transaction as the
+  merge: actor, time, primary id, and the absorbed member's full original row as JSON
+  (including its id).
+- A child `member_merge_moved_rows` table: `(merge_id, table_name, row_id)` for each row
+  re-pointed, and the full row for anything the merge deleted because it collided with the
+  survivor's (duplicate name aliases, duplicate cohort enrollments). Also record the
+  external ids copied to the survivor and the `ambiguous_zoom_names.candidate_member_ids`
+  arrays that were rewritten.
+- Move the merge into one Postgres function so it is atomic and writes the log itself; the
+  route (single and bulk merge both use it) just calls it. A failure partway then leaves
+  nothing half-merged.
+- An exact unmerge on top of the log: recreate the member with the same id, move the logged
+  rows back, restore the deleted ones, put the copied external ids back, then reprocess
+  attendance and Slack activity from Bronze. Offer it as an "Undo merge" action on the
+  log entry (the log alone, with undo done by hand from it, is the smaller first step).
+- Keep the log permanently (admin-read only; no member-facing exposure), so old merges stay
+  undoable. The moved-rows table grows with a long-time member's attendance, still small
+  next to `audit_log`.
+- Needs the usual new-table work: grants in the same migration, RLS, pgTAP coverage, and
+  the merge route's existing tests moved onto the function.
+
+Keep Split and move-aliases as the fallback for merges made before the log existed.
+
+### Refresh Admin Member Pages After Moving Aliases
+After "Move ticked names and emails to ..." in the Split dialog, the source member's
+Identity tab kept showing the moved email for a short while before it disappeared. The
+alias is deleted before the route responds, so this is probably the client router cache
+holding the previous page render rather than the database lagging, but that isn't
+confirmed. If it is, the split and move-aliases routes should `revalidatePath` the source
+member's page (and the target's) so the next visit is fresh.
+
 ### Multi-Environment Setup
 **Status:** Documentation created, awaiting implementation
 
