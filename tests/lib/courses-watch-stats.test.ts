@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { computeVideoWatchStats, formatClock, MAX_BUCKETS, type WatchSegment } from '@/lib/courses/watch-stats'
+import { computePlaySessions, computeVideoWatchStats, formatClock, MAX_BUCKETS, type ViewMarker, type WatchSegment } from '@/lib/courses/watch-stats'
 
 // By default each member has one player session of their own.
 const seg = (memberId: string, start: number, end: number, over: Partial<WatchSegment> = {}): WatchSegment => ({
@@ -130,6 +130,66 @@ describe('computeVideoWatchStats', () => {
     ])
     expect(stats.captionsShare).toBeCloseTo(0.6)
     expect(stats.backgroundShare).toBeCloseTo(0.2)
+  })
+})
+
+const view = (memberId: string, sessionId: string, startedAt = '2026-10-06T22:10:00Z', userAgent: string | null = null): ViewMarker => ({ memberId, sessionId, startedAt, userAgent })
+
+describe('views and play rate', () => {
+  it('counts a view per player session, whether or not anything was played, and the play rate over them', () => {
+    // Four visits: two played (a, b), two only opened the lesson (c, d).
+    const stats = computeVideoWatchStats([seg('a', 0, 50), seg('b', 0, 50)], 100, [view('a', 'session-a'), view('b', 'session-b'), view('c', 'session-c'), view('d', 'session-d')])
+    expect(stats.views).toBe(4)
+    expect(stats.plays).toBe(2)
+    expect(stats.playRate).toBeCloseTo(0.5)
+  })
+
+  it('counts a session with stretches as viewed even without a marker, so older data never reads above 100%', () => {
+    const stats = computeVideoWatchStats([seg('a', 0, 50), seg('b', 0, 50)], 100)
+    expect(stats.views).toBe(2)
+    expect(stats.playRate).toBe(1)
+    // A marker for a session that also played is one view, not two.
+    expect(computeVideoWatchStats([seg('a', 0, 50)], 100, [view('a', 'session-a')]).views).toBe(1)
+  })
+
+  it('still reports views when nothing was played', () => {
+    const stats = computeVideoWatchStats([], 100, [view('a', 'session-a'), view('b', 'session-b')])
+    expect(stats).toMatchObject({ views: 2, plays: 0, playRate: 0, viewers: 0, buckets: [] })
+  })
+})
+
+describe('computePlaySessions', () => {
+  it('gives one row per player session, newest first, with who, the device and how much was covered', () => {
+    const sessions = computePlaySessions(
+      [
+        seg('a', 0, 50, { sessionId: 'a-1', startedAt: '2026-10-06T22:10:30Z' }),
+        seg('a', 25, 75, { sessionId: 'a-1', startedAt: '2026-10-06T22:12:00Z' }),
+        seg('b', 0, 100, { sessionId: 'b-1', startedAt: '2026-10-05T20:24:30Z' }),
+      ],
+      100,
+      [view('a', 'a-1', '2026-10-06T22:10:00Z', 'Mozilla/5.0 (Windows NT 10.0) Chrome/130.0 Safari/537.36'), view('b', 'b-1', '2026-10-05T20:24:00Z')],
+    )
+
+    expect(sessions.map((s) => s.sessionId)).toEqual(['a-1', 'b-1'])
+    expect(sessions[0]).toMatchObject({ memberId: 'a', startedAt: '2026-10-06T22:10:00Z', played: true, watchedSeconds: 100, coveredFraction: 0.75, intervals: [[0, 0.75]] })
+    expect(sessions[0].userAgent).toContain('Windows')
+    expect(sessions[1]).toMatchObject({ memberId: 'b', coveredFraction: 1, userAgent: null })
+  })
+
+  it('lists a visit that only opened the lesson, with no coverage', () => {
+    const [only] = computePlaySessions([], 100, [view('c', 'c-1')])
+    expect(only).toMatchObject({ memberId: 'c', played: false, watchedSeconds: 0, coveredFraction: 0, intervals: [] })
+  })
+
+  it('keeps separate stretches apart in the intervals, as fractions of the video, and clips to its length', () => {
+    const [one] = computePlaySessions([seg('a', 10, 20, { sessionId: 's' }), seg('a', 60, 130, { sessionId: 's' })], 100)
+    expect(one.intervals).toEqual([[0.1, 0.2], [0.6, 1]])
+    expect(one.coveredFraction).toBeCloseTo(0.5)
+  })
+
+  it('falls back to the furthest point reached when the length is unknown', () => {
+    const [one] = computePlaySessions([seg('a', 0, 40)], null)
+    expect(one.coveredFraction).toBe(1)
   })
 })
 

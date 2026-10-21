@@ -19,6 +19,8 @@ export interface WatchBatch {
   segments: WatchSegmentInput[];
   /** Where the playhead was, for resume. Omitted when the player has nothing to say. */
   position: number | null;
+  /** The player appeared for this session: records the "viewed" marker (once; a resend is ignored). */
+  viewed: boolean;
 }
 
 export const MAX_SEGMENTS_PER_BATCH = 50;
@@ -59,7 +61,8 @@ export function parseWatchBatch(body: unknown): WatchBatch | null {
   }
   const position = b.position === undefined || b.position === null ? null : b.position;
   if (position !== null && !seconds(position)) return null;
-  return { lessonId: b.lessonId, sessionId: b.sessionId, segments, position };
+  if (b.viewed !== undefined && typeof b.viewed !== "boolean") return null;
+  return { lessonId: b.lessonId, sessionId: b.sessionId, segments, position, viewed: b.viewed === true };
 }
 
 /**

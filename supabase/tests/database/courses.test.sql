@@ -6,7 +6,7 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;
 
-SELECT plan(16);
+SELECT plan(19);
 
 -- Alice has current access, Bob's access ended, Cara has none, Dana is an admin.
 INSERT INTO auth.users (id, instance_id, aud, role, email) VALUES
@@ -104,6 +104,20 @@ SELECT lives_ok(
   $$INSERT INTO public.video_watch_segments (member_id, video_id, session_id, start_seconds, end_seconds, client_segment_id)
     VALUES ('00000000-0000-4000-a000-00000000c002', '00000000-0000-4000-a000-00000000c300', gen_random_uuid(), 0, 5, '00000000-0000-4000-a000-00000000d001')$$,
   'the same client id for a different member is a different segment');
+
+-- A "viewed" marker is a point at the start of the video; a watched stretch is the default kind.
+SELECT lives_ok(
+  $$INSERT INTO public.video_watch_segments (member_id, video_id, session_id, start_seconds, end_seconds, kind, user_agent, client_segment_id)
+    VALUES ('00000000-0000-4000-a000-00000000c001', '00000000-0000-4000-a000-00000000c300', gen_random_uuid(), 0, 0, 'viewed', 'Mozilla/5.0 test', gen_random_uuid())$$,
+  'a viewed marker is a point at the start');
+SELECT throws_ok(
+  $$INSERT INTO public.video_watch_segments (member_id, video_id, session_id, start_seconds, end_seconds, kind)
+    VALUES ('00000000-0000-4000-a000-00000000c001', '00000000-0000-4000-a000-00000000c300', gen_random_uuid(), 0, 30, 'viewed')$$,
+  '23514', NULL, 'a viewed marker cannot cover a stretch of the video');
+SELECT throws_ok(
+  $$INSERT INTO public.video_watch_segments (member_id, video_id, session_id, start_seconds, end_seconds, kind)
+    VALUES ('00000000-0000-4000-a000-00000000c001', '00000000-0000-4000-a000-00000000c300', gen_random_uuid(), 0, 5, 'skimmed')$$,
+  '23514', NULL, 'only watched and viewed are kinds');
 
 SELECT * FROM finish(true);
 ROLLBACK;

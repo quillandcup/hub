@@ -17,6 +17,18 @@ export interface WatchSegment {
   captions: string | null;
   /** Was the tab on screen. */
   visible: boolean;
+  /** When the stretch was saved (ISO), for ordering a session's plays. */
+  startedAt?: string;
+}
+
+/** The player appearing for a session (a "viewed" marker row), whether or not anything was played. */
+export interface ViewMarker {
+  memberId: string;
+  sessionId: string;
+  /** ISO time. */
+  startedAt: string;
+  /** The browser's user agent, for the device. */
+  userAgent: string | null;
 }
 
 /** One slice of the video in the engagement graph. */
@@ -36,6 +48,10 @@ export interface VideoWatchStats {
   durationSeconds: number;
   /** Members who watched any of it. */
   viewers: number;
+  /** Views: player sessions in all, whether or not anything was played (a session with a stretch always counts as viewed). */
+  views: number;
+  /** Kajabi's play rate: plays / views, the share of visits where the video was played. 0 with no views. */
+  playRate: number;
   /** Plays: player sessions with at least one stretch. A member who came back on another day counts again. */
   plays: number;
   /** Kajabi's engagement: total watch time / (total plays x video length). Rewatching within a play adds to it. */
@@ -94,12 +110,15 @@ function coverageByBucket(merged: Interval[], span: number, bucketCount: number)
  * stands in for it. Stretches are clipped to the video, so a position past the end (a stale length)
  * can't make a bucket count more than was there.
  */
-export function computeVideoWatchStats(segments: WatchSegment[], durationSeconds: number | null): VideoWatchStats {
+export function computeVideoWatchStats(segments: WatchSegment[], durationSeconds: number | null, views: ViewMarker[] = []): VideoWatchStats {
   const furthest = segments.reduce((max, s) => Math.max(max, s.end), 0);
   const duration = durationSeconds && durationSeconds > 0 ? durationSeconds : furthest;
+  const viewedSessions = new Set([...views.map((v) => v.sessionId), ...segments.map((s) => s.sessionId)]);
   const empty: VideoWatchStats = {
     durationSeconds: duration,
     viewers: 0,
+    views: viewedSessions.size,
+    playRate: 0,
     plays: 0,
     engagementRate: 0,
     watchedSeconds: 0,
@@ -181,6 +200,8 @@ export function computeVideoWatchStats(segments: WatchSegment[], durationSeconds
   return {
     durationSeconds: duration,
     viewers: byMember.size,
+    views: viewedSessions.size,
+    playRate: bySession.size / viewedSessions.size,
     plays: bySession.size,
     engagementRate: watchedSeconds / (bySession.size * duration),
     watchedSeconds,
@@ -201,4 +222,67 @@ export function formatClock(seconds: number): string {
   const m = Math.floor((total % 3600) / 60);
   const s = total % 60;
   return h > 0 ? `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}` : `${m}:${String(s).padStart(2, "0")}`;
+}
+
+/** One player session (a visit to the lesson), for the per-viewer list. */
+export interface PlaySession {
+  sessionId: string;
+  memberId: string;
+  /** When the session began (ISO), or null when nothing recorded it. */
+  startedAt: string | null;
+  userAgent: string | null;
+  /** Whether anything was played (otherwise the player only appeared). */
+  played: boolean;
+  /** Video time played in this session, rewatching included. */
+  watchedSeconds: number;
+  /** How much of the video this session covered, 0 to 1. */
+  coveredFraction: number;
+  /** The covered stretches as fractions of the video (0 to 1), merged, for drawing a coverage bar. */
+  intervals: [number, number][];
+}
+
+/**
+ * One row per player session, newest first: who, when, on what device, and which parts of the video
+ * they covered. A session that only viewed (the player appeared, nothing played) is a row with no
+ * coverage. `durationSeconds` is the video's length, or the furthest point reached.
+ */
+export function computePlaySessions(segments: WatchSegment[], durationSeconds: number | null, views: ViewMarker[] = []): PlaySession[] {
+  const duration = durationSeconds && durationSeconds > 0 ? durationSeconds : segments.reduce((max, s) => Math.max(max, s.end), 0);
+  const sessions = new Map<string, { memberId: string; startedAt: string | null; userAgent: string | null; intervals: Interval[]; watched: number }>();
+  const earlier = (a: string | null, b: string | undefined | null) => (a && b ? (a < b ? a : b) : (a ?? b ?? null));
+
+  for (const v of views) {
+    const entry = sessions.get(v.sessionId) ?? { memberId: v.memberId, startedAt: null, userAgent: null, intervals: [], watched: 0 };
+    entry.startedAt = earlier(entry.startedAt, v.startedAt);
+    entry.userAgent = entry.userAgent ?? v.userAgent;
+    sessions.set(v.sessionId, entry);
+  }
+  for (const s of segments) {
+    const entry = sessions.get(s.sessionId) ?? { memberId: s.memberId, startedAt: null, userAgent: null, intervals: [], watched: 0 };
+    entry.startedAt = earlier(entry.startedAt, s.startedAt);
+    const start = Math.min(s.start, duration);
+    const end = Math.min(s.end, duration);
+    if (end > start) {
+      entry.intervals.push([start, end]);
+      entry.watched += end - start;
+    }
+    sessions.set(s.sessionId, entry);
+  }
+
+  return [...sessions]
+    .map(([sessionId, e]): PlaySession => {
+      const merged = duration > 0 ? mergeIntervals(e.intervals) : [];
+      const covered = merged.reduce((sum, [a, b]) => sum + (b - a), 0);
+      return {
+        sessionId,
+        memberId: e.memberId,
+        startedAt: e.startedAt,
+        userAgent: e.userAgent,
+        played: e.watched > 0,
+        watchedSeconds: e.watched,
+        coveredFraction: duration > 0 ? covered / duration : 0,
+        intervals: merged.map(([a, b]): [number, number] => [a / duration, b / duration]),
+      };
+    })
+    .sort((a, b) => (b.startedAt ?? "").localeCompare(a.startedAt ?? ""));
 }

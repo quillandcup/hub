@@ -9,8 +9,12 @@ import { formatClock } from "@/lib/courses/watch-stats";
 import { createMuxClient, signThumbnailTokens } from "@/lib/mux";
 import EngagementChart from "../EngagementChart";
 import EngagementFrame from "../EngagementFrame";
+import ViewerList from "../ViewerList";
 
 export const metadata: Metadata = { title: "Lesson watch stats · Courses" };
+
+const PAGE_SIZE = 20;
+const MAX_LIMIT = 1000;
 
 const percent = (fraction: number) => `${Math.round(fraction * 100)}%`;
 
@@ -38,17 +42,20 @@ export default async function LessonWatchStatsPage({
   searchParams,
 }: {
   params: Promise<{ id: string; lessonId: string }>;
-  searchParams: Promise<{ staff?: string }>;
+  searchParams: Promise<{ staff?: string; limit?: string }>;
 }) {
   await requireAdminPage();
   const { id, lessonId } = await params;
   if (!isUuid(lessonId)) notFound();
-  const includeStaff = (await searchParams).staff === "1";
-  const data = await loadCourseWatchStats(createServiceRoleClient(), id, { includeStaff, lessonId });
+  const query = await searchParams;
+  const includeStaff = query.staff === "1";
+  // How many visits to list; "Load more" asks for another page of them.
+  const limit = Math.min(Math.max(Number.parseInt(query.limit ?? "", 10) || PAGE_SIZE, PAGE_SIZE), MAX_LIMIT);
+  const data = await loadCourseWatchStats(createServiceRoleClient(), id, { includeStaff, lessonId, withSessions: true });
   const entry = data?.lessons[0];
   if (!data || !entry) notFound();
 
-  const { lesson, stats } = entry;
+  const { lesson, stats, sessions } = entry;
 
   // A still of the video for each slice (the hover frames). Failing to sign them just leaves the heatmap on a plain backdrop.
   let frames: string[] | null = null;
@@ -101,6 +108,12 @@ export default async function LessonWatchStatsPage({
               label="Total plays"
               value={String(stats.plays)}
               definition="Times the video was played: one for each visit to the lesson with at least one stretch watched. The same member coming back another day counts again."
+            />
+            <Tile
+              label="Play rate"
+              value={percent(stats.playRate)}
+              hint={`${stats.plays} of ${stats.views} ${stats.views === 1 ? "visit" : "visits"}`}
+              definition="The percentage of visits to the lesson, where the video appeared, in which it was played."
             />
             <Tile label="Viewers" value={String(stats.viewers)} definition="Different members who watched any of the video." />
             <Tile
@@ -164,6 +177,17 @@ export default async function LessonWatchStatsPage({
                 </div>
               </div>
             </dl>
+          </div>
+
+          <div className="mt-6 rounded-lg bg-white p-6 shadow dark:bg-slate-900">
+            <h2 className="text-lg font-semibold">Views</h2>
+            <p className="mb-3 mt-1 text-sm text-slate-600 dark:text-slate-300">Each visit to the lesson, newest first. The bar shows which parts of the video were covered.</p>
+            <ViewerList
+              sessions={sessions}
+              durationSeconds={stats.durationSeconds}
+              shown={limit}
+              more={sessions.length > limit ? `${here}?limit=${limit + PAGE_SIZE}${includeStaff ? "&staff=1" : ""}` : null}
+            />
           </div>
         </>
       )}

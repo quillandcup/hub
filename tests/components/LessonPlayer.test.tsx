@@ -296,7 +296,12 @@ function fakeMedia(over: Partial<{ currentTime: number; duration: number; paused
 
 describe("LessonPlayer watch tracking", () => {
   const fetchMock = vi.fn(async (_url: string, _init?: RequestInit) => new Response("{}"));
-  const sent = () => fetchMock.mock.calls.map(([, init]) => JSON.parse(init!.body as string));
+  const requests = () => fetchMock.mock.calls.map(([, init]) => JSON.parse(init!.body as string));
+  // The saves of stretches and positions: not the "viewed" marker that goes out when the player appears, which has its own tests.
+  const sent = () =>
+    requests()
+      .filter((b) => b.segments.length > 0 || b.position !== null)
+      .map(({ viewed: _viewed, ...rest }) => rest);
   const tracked = () => <LessonPlayer title="T" playbackId="pb-1" tokens={tokens} lessonId="lesson-1" trackProgress />;
   const fire = (media: NonNullable<typeof player.media>, event: string) => act(() => void media.dispatchEvent(new Event(event)));
   const play = (media: NonNullable<typeof player.media>, at: number) => {
@@ -321,6 +326,49 @@ describe("LessonPlayer watch tracking", () => {
   afterEach(() => {
     vi.useRealTimers();
     vi.unstubAllGlobals();
+  });
+
+  describe("the viewed marker", () => {
+    it("goes out when the player appears, before anything is played, with no stretch and no position", async () => {
+      player.media = fakeMedia();
+      render(tracked());
+      await act(async () => {});
+
+      expect(requests()).toEqual([{ lessonId: "lesson-1", sessionId: expect.any(String), segments: [], position: null, viewed: true }]);
+    });
+
+    it("stops being sent once a request has been confirmed, so one view is one marker", async () => {
+      const media = (player.media = fakeMedia());
+      render(tracked());
+      await act(async () => {});
+      play(media, 0);
+      advance(media, 20);
+      pause(media);
+
+      expect(requests().filter((b) => b.viewed)).toHaveLength(1);
+    });
+
+    it("rides along on the next save when the first request failed", async () => {
+      fetchMock.mockResolvedValueOnce(new Response("{}", { status: 500 }));
+      const media = (player.media = fakeMedia());
+      render(tracked());
+      await act(async () => {});
+      play(media, 0);
+      advance(media, 20);
+      pause(media);
+      await act(async () => {});
+
+      const withMarker = requests().filter((b) => b.viewed);
+      expect(withMarker.length).toBeGreaterThanOrEqual(2);
+      expect(new Set(withMarker.map((b) => b.sessionId)).size).toBe(1);
+    });
+
+    it("is not sent when tracking is off (sudo, a staff preview)", async () => {
+      player.media = fakeMedia();
+      render(<LessonPlayer title="T" playbackId="pb-1" tokens={tokens} lessonId="lesson-1" />);
+      await act(async () => {});
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
   });
 
   it("sends a stretch on pause, with the speed, captions state and where the playhead is", () => {

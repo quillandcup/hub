@@ -65,6 +65,17 @@ describe('loadCourseWatchStats', () => {
       segment('staff', ids.videoA, 0, 100),
     ])
     expect(segmentsError).toBeNull()
+
+    // Two visits where the player appeared and nothing was played (ann, bea), and a staff one.
+    const marker = (who: string, userAgent: string | null) => ({
+      member_id: ids[who], video_id: ids.videoA, session_id: crypto.randomUUID(), client_segment_id: crypto.randomUUID(), kind: 'viewed', start_seconds: 0, end_seconds: 0, user_agent: userAgent,
+    })
+    const { error: viewsError } = await supabase.from('video_watch_segments').insert([
+      marker('ann', 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Chrome/130.0 Safari/537.36'),
+      marker('bea', null),
+      marker('staff', null),
+    ])
+    expect(viewsError).toBeNull()
   })
   afterAll(async () => {
     await supabase.from('courses').delete().eq('id', ids.course)
@@ -90,6 +101,8 @@ describe('loadCourseWatchStats', () => {
     // The Mux playback id is there once the video is ready, for stills of it; each segment here is its own player session.
     expect(one.playbackId).toBe('pb-a')
     expect(one.stats!.plays).toBe(3)
+    // Five visits (the three that played and the two that only opened the lesson), three of them played. A viewed marker is not a stretch.
+    expect(one.stats).toMatchObject({ views: 5, playRate: 0.6 })
     expect(two.playbackId).toBe('pb-b')
     expect(three.playbackId).toBeNull()
     expect(one.stats).toMatchObject({ viewers: 2, durationSeconds: 100, watchedSeconds: 170, uniqueWatchedSeconds: 150 })
@@ -105,8 +118,22 @@ describe('loadCourseWatchStats', () => {
   it('includes staff viewing on request', async () => {
     const result = await loadCourseWatchStats(supabase, SLUG, { includeStaff: true })
     expect(result!.staffExcluded).toBe(false)
-    expect(result!.lessons[0].stats).toMatchObject({ viewers: 3, watchedSeconds: 270 })
+    expect(result!.lessons[0].stats).toMatchObject({ viewers: 3, watchedSeconds: 270, plays: 4, views: 7 })
     expect(result!.viewers).toBe(3)
+  })
+
+  it('lists the visits with who and the device when asked, newest first, staff left out', async () => {
+    const without = await loadCourseWatchStats(supabase, SLUG, { lessonId: ids.lessonOne })
+    expect(without!.lessons[0].sessions).toEqual([])
+
+    const result = await loadCourseWatchStats(supabase, SLUG, { lessonId: ids.lessonOne, withSessions: true })
+    const sessions = result!.lessons[0].sessions
+    expect(sessions).toHaveLength(5)
+    expect(sessions.every((x) => ['Watch Stats ann', 'Watch Stats bea'].includes(x.memberName))).toBe(true)
+    expect(sessions.filter((x) => x.played)).toHaveLength(3)
+    expect(sessions.find((x) => x.userAgent?.includes('Macintosh'))).toMatchObject({ memberName: 'Watch Stats ann', played: false, coveredFraction: 0 })
+    const times = sessions.map((x) => x.startedAt ?? '')
+    expect(times).toEqual([...times].sort().reverse())
   })
 
   it('reads just one lesson when asked', async () => {

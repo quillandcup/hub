@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { selectPlayback, selectPlaybackRate, selectSource, selectTime, useCaptionsOptions, useMedia, usePlayer } from "@videojs/react";
 import { VideoPlayer, VideoSkin } from "@videojs/react/video";
 import { MuxVideo } from "@videojs/react/media/mux-video";
@@ -138,6 +138,31 @@ function WatchTracker({ lessonId }: { lessonId: string }) {
   const captionsRef = useRef(captionsLabel);
   const onCaptionsChange = useRef<(() => void) | null>(null);
   const [sessionId] = useState(() => crypto.randomUUID());
+  // The "viewed" marker (the player appeared for this session) rides on requests until one is confirmed.
+  const viewedConfirmed = useRef(false);
+
+  // One request to the watch route. Resolves with whether the server answered at all (a refusal is an answer).
+  const post = useCallback(
+    (segments: WatchSegmentInput[], position: number | null) => {
+      const viewed = !viewedConfirmed.current;
+      return fetch("/api/courses/watch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        // keepalive lets it finish while the page unloads.
+        keepalive: true,
+        body: JSON.stringify({ lessonId, sessionId, segments, position, ...(viewed ? { viewed: true } : {}) }),
+      }).then((response) => {
+        if (viewed && response.ok) viewedConfirmed.current = true;
+        return response;
+      });
+    },
+    [lessonId, sessionId],
+  );
+
+  // The player appeared: record the view, whether or not anything is played (the play rate's denominator).
+  useEffect(() => {
+    void post([], null).catch(() => {});
+  }, [post]);
 
   // Declared before the captions effect so the handler sees the new label.
   useEffect(() => {
@@ -169,13 +194,7 @@ function WatchTracker({ lessonId }: { lessonId: string }) {
         pending = [...segments, ...pending].slice(-MAX_PENDING_SEGMENTS);
         sentPosition = previousPosition;
       };
-      void fetch("/api/courses/watch", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        // keepalive lets it finish while the page unloads.
-        keepalive: true,
-        body: JSON.stringify({ lessonId, sessionId, segments, position }),
-      })
+      void post(segments, position)
         .then((response) => {
           if (response.status >= 500) requeue();
           else if (pending.length > 0) flush();
@@ -250,7 +269,7 @@ function WatchTracker({ lessonId }: { lessonId: string }) {
       onCaptionsChange.current = null;
       stop();
     };
-  }, [media, lessonId, sessionId]);
+  }, [media, post]);
 
   return null;
 }
