@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import type Mux from '@mux/mux-node'
+import type Mux from '@mux/ts'
 import { signThumbnailTokens } from '@/lib/mux'
 
 describe('signThumbnailTokens', () => {

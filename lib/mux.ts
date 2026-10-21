@@ -1,4 +1,4 @@
-import Mux from "@mux/mux-node";
+import Mux from "@mux/ts";
 import type { CourseMuxApi } from "@/lib/courses/media";
 
 /**
