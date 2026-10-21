@@ -59,6 +59,8 @@ export interface OnboardingSignals {
   hasUpcomingPrickle: boolean;
   /** A calendar app has fetched their feed link at least once (calendar_feed_tokens.first_fetched_at). */
   hasCalendarSynced: boolean;
+  /** Has a birthday saved (month and day), so the birthday stop asks them to confirm it rather than offering to skip. */
+  hasBirthday: boolean;
   /** Their Big Sister's name while the match is current (lib/my-mentorship.ts), else null. */
   bigSisterName?: string | null;
   /** Whether the member can connect Slack in Settings (the panel is shown); absent/null means no step. */
@@ -120,6 +122,7 @@ interface OnboardingStop {
   title: string;
   hint: string;
   confirmLabel: string;
+  confirmLabelWhenSet?: string;
 }
 
 /** Checked one at a time on Settings → Identity, top to bottom. */
@@ -156,8 +159,10 @@ const IDENTITY_STOPS: OnboardingStop[] = [
     id: "birthday",
     target: "identity-birthday",
     title: "Your birthday",
-    hint: "Add your birthday, just the month and day, so we can celebrate you!",
-    confirmLabel: "Skip",
+    hint: "Optional: add your birthday, just the month and day, so we can celebrate you!",
+    confirmLabel: "I'll skip this",
+    /** Shown instead once a birthday is saved. */
+    confirmLabelWhenSet: "My birthday looks right",
   },
 ];
 
@@ -190,7 +195,7 @@ export function isOnboardingMarkKey(value: unknown): value is string {
 }
 
 /** A step's view fields for its first unconfirmed stop (or its last, once all are confirmed). */
-function stopFields(stepId: OnboardingStepId, stops: OnboardingStop[], marked: Set<string>) {
+function stopFields(stepId: OnboardingStepId, stops: OnboardingStop[], marked: Set<string>, hasBirthday = false) {
   const firstOpen = stops.findIndex((stop) => !marked.has(`${stepId}.${stop.id}`));
   const index = firstOpen === -1 ? stops.length - 1 : firstOpen;
   const stop = stops[index];
@@ -198,7 +203,7 @@ function stopFields(stepId: OnboardingStepId, stops: OnboardingStop[], marked: S
     target: stop.target,
     calloutTitle: stop.title,
     hint: stop.hint,
-    confirmLabel: stop.confirmLabel,
+    confirmLabel: (stop.id === "birthday" && hasBirthday && stop.confirmLabelWhenSet) || stop.confirmLabel,
     markKey: `${stepId}.${stop.id}`,
     stop: { number: index + 1, count: stops.length },
     done: firstOpen === -1,
@@ -247,7 +252,7 @@ function stepViews(signals: OnboardingSignals, marked: Set<string>): StepWithout
       title: "Check your details",
       summary: "Your name, email, and birthday.",
       href: "/settings/identity",
-      ...stopFields("identity", IDENTITY_STOPS, marked),
+      ...stopFields("identity", IDENTITY_STOPS, marked, signals.hasBirthday),
     },
     {
       id: "profile",

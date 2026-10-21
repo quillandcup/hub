@@ -34,6 +34,7 @@ const NO_SIGNALS: OnboardingSignals = {
   hasAttendedPrickle: false,
   hasUpcomingPrickle: false,
   hasCalendarSynced: false,
+  hasBirthday: false,
   bigSisterName: null,
 };
 
@@ -101,6 +102,7 @@ export const getOnboardingState = cache(async (memberId: string): Promise<Onboar
     feedToken,
     newcomer,
     bigSistersOn,
+    birthday,
     slackStatus,
   ] = await Promise.all([
     // Written only when the member saves their bio or socials in the Hub. members.bio isn't read:
@@ -141,6 +143,7 @@ export const getOnboardingState = cache(async (memberId: string): Promise<Onboar
     loadNewcomerSignals(supabase, memberId, now),
     // The Big Sister step is behind the big_sisters preview (this member's own flag).
     membersWithFeature(createServiceRoleClient(), "big_sisters", [memberId]).then((on) => on.has(memberId)),
+    supabase.from("members").select("birthday_month, birthday_day").eq("id", memberId).maybeSingle(),
     // Same gate as the Slack panel in Settings (SettingsPage): the Slack app is configured.
     isSlackConnectConfigured() ? getSlackConnectionStatus(createServiceRoleClient(), memberId) : Promise.resolve(null),
   ]);
@@ -163,6 +166,7 @@ export const getOnboardingState = cache(async (memberId: string): Promise<Onboar
       hostedRecently: (hostedRecently.count ?? 0) > 0,
       hasHostVibe: (hostVibes.count ?? 0) > 0,
       hasCalendarSynced: !!feedToken.data?.first_fetched_at,
+      hasBirthday: birthday.data?.birthday_month != null && birthday.data?.birthday_day != null,
       ...newcomer,
       slackConnect: slackStatus ? { connected: slackStatus.connected } : null,
       bigSisterName: mentorships?.bigSister?.name ?? null,
