@@ -61,7 +61,7 @@ export default function MemberDirectory({
         </p>
       ) : (
         <div className="@container">
-          <ul className="grid gap-4 @xl:grid-cols-2">
+          <ul className="grid gap-4 @pair:grid-cols-2">
           {results.map((entry) => (
             <li
               key={entry.id}

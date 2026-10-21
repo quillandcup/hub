@@ -36,7 +36,7 @@ export default async function ChatMembersPage({ params }: { params: Promise<{ id
         <p className="text-sm text-slate-500">No members to show.</p>
       ) : (
         <div className="@container">
-          <ul className="grid gap-1 @xl:grid-cols-2">
+          <ul className="grid gap-1 @pair:grid-cols-2">
           {people.map((p) => (
             <li key={p.memberId}>
               <Link data-track="chat-members-open-member"

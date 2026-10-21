@@ -73,7 +73,7 @@ export default async function WheelOfWonderAdminPage() {
 
       <main className="container mx-auto px-6 py-8">
         <div className="@container">
-          <div className="grid grid-cols-1 @xl:grid-cols-3 gap-4 mb-6">
+          <div className="grid grid-cols-1 @pair:grid-cols-3 gap-4 mb-6">
           <div className="bg-white dark:bg-slate-900 rounded-lg shadow p-6">
             <div className="text-3xl font-bold text-slate-900 dark:text-slate-100">{matches.length}</div>
             <div className="text-sm text-slate-600 dark:text-slate-400">total matches</div>

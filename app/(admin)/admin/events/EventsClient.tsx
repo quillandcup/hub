@@ -149,7 +149,7 @@ export default function EventsClient() {
       {showForm && (
         <form onSubmit={handleSubmit} className="mb-6 p-4 border border-gray-200 dark:border-slate-700 rounded bg-gray-50 dark:bg-slate-800 space-y-3">
           <div className="@container">
-            <div className="grid grid-cols-1 @xl:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 @pair:grid-cols-2 gap-3">
             <div>
               <label className="block text-sm font-medium mb-1 dark:text-gray-200">Title</label>
               <input

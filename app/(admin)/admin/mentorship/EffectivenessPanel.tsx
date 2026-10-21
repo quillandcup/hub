@@ -32,7 +32,7 @@ export default function EffectivenessPanel({
   return (
     <div className="space-y-8">
       <div className="@container">
-        <div className="grid grid-cols-2 @2xl:grid-cols-6 gap-4">
+        <div className="grid grid-cols-2 @cards:grid-cols-6 gap-4">
         <Stat label="Matches" value={overall.total} />
         <Stat label="No trial" value={overall.noTrial} />
         <Stat label="Trials converted" value={overall.converted} />

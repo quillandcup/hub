@@ -218,7 +218,7 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
         {editing && editForm ? (
           <form onSubmit={handleSave} className="space-y-3">
             <div className="@container">
-              <div className="grid grid-cols-1 @xl:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 @pair:grid-cols-2 gap-3">
               <div>
                 <label className="block text-sm font-medium mb-1 dark:text-gray-200">Title</label>
                 <input
@@ -334,7 +334,7 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
           </form>
         ) : (
           <div className="@container">
-            <dl className="grid grid-cols-1 @xl:grid-cols-2 gap-4 text-sm">
+            <dl className="grid grid-cols-1 @pair:grid-cols-2 gap-4 text-sm">
             <div>
               <dt className="text-gray-500 dark:text-gray-400">Type</dt>
               <dd>{EVENT_TYPES.find((t) => t.value === event.event_type)?.label || event.event_type}</dd>
@@ -353,31 +353,31 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
               </div>
             )}
             {event.focus && (
-              <div className="@xl:col-span-2">
+              <div className="@pair:col-span-2">
                 <dt className="text-gray-500 dark:text-gray-400">Focus</dt>
                 <dd>{event.focus}</dd>
               </div>
             )}
             {event.description && (
-              <div className="@xl:col-span-2">
+              <div className="@pair:col-span-2">
                 <dt className="text-gray-500 dark:text-gray-400">Description</dt>
                 <dd className="whitespace-pre-wrap">{event.description}</dd>
               </div>
             )}
             {event.agenda && (
-              <div className="@xl:col-span-2">
+              <div className="@pair:col-span-2">
                 <dt className="text-gray-500 dark:text-gray-400">Agenda</dt>
                 <dd className="whitespace-pre-wrap">{event.agenda}</dd>
               </div>
             )}
             {event.results && (
-              <div className="@xl:col-span-2">
+              <div className="@pair:col-span-2">
                 <dt className="text-gray-500 dark:text-gray-400">Results</dt>
                 <dd className="whitespace-pre-wrap">{event.results}</dd>
               </div>
             )}
             {event.google_photos_album_url && (
-              <div className="@xl:col-span-2">
+              <div className="@pair:col-span-2">
                 <dt className="text-gray-500 dark:text-gray-400">Google Photos album</dt>
                 <dd>
                   <a
@@ -472,7 +472,7 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
           <p className="text-gray-500">No photos imported yet.</p>
         ) : (
           <div className="@container">
-            <div className="grid grid-cols-2 @xl:grid-cols-4 @2xl:grid-cols-6 gap-2">
+            <div className="grid grid-cols-2 @pair:grid-cols-4 @cards:grid-cols-6 gap-2">
             {visiblePhotos.map((photo, i) => (
               <div key={photo.id} className="relative group aspect-square">
                 <button onClick={() => setLightboxIndex(i)} className="w-full h-full">
@@ -506,7 +506,7 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
             </button>
             {showHidden && (
               <div className="@container">
-                <div className="grid grid-cols-2 @xl:grid-cols-4 @2xl:grid-cols-6 gap-2 mt-3">
+                <div className="grid grid-cols-2 @pair:grid-cols-4 @cards:grid-cols-6 gap-2 mt-3">
                 {hiddenPhotos.map((photo, i) => (
                   <div key={photo.id} className="relative group aspect-square">
                     <button onClick={() => setLightboxIndex(visiblePhotos.length + i)} className="w-full h-full">

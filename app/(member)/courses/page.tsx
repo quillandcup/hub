@@ -25,7 +25,7 @@ export default async function CoursesPage() {
         </div>
       ) : (
         <div className="@container">
-          <ul className="grid gap-6 @xl:grid-cols-2 @4xl:grid-cols-3">
+          <ul className="grid gap-6 @pair:grid-cols-2 @columns:grid-cols-3">
           {items.map(({ course, access, progress }) => {
             const ended = access.kind === "ended";
             const upcoming = access.kind === "upcoming";

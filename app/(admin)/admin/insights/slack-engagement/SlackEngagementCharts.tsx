@@ -428,7 +428,7 @@ export default function SlackEngagementCharts({
       </ChartCard>
 
       <div className="@container">
-        <div className="grid grid-cols-1 @2xl:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 @cards:grid-cols-2 gap-6">
         <ChartCard title="📣 Most Engaged Channels" subtitle={`Messages + reactions since ${sinceLabel}`}>
           <HorizontalBars
             data={channelBarData}

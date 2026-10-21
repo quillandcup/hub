@@ -847,7 +847,7 @@ Show a `/live` page displaying the currently active prickle and its attendees in
 ## UI Enhancements
 
 ### Convert Page Layouts to Container Queries _(Needs Scheduling)_
-The lesson page, course overview, chat and every `sm:`/`md:`/`lg:`/`xl:` `grid-cols` grid in `app` and `components` now use container queries (see "Responsive Layout" in CLAUDE.md): a wrapper marked `@container` with `@xl`/`@2xl`/`@4xl`/`@6xl` on the grid. What's left is the row-direction toggles (`sm:flex-row` in `MemberDirectory`, `Wheel`, `ConsentBanner`) and `CalendarWeekView`'s column template, which still use viewport breakpoints. Check any converted page at widths just either side of its breakpoints.
+The lesson page, course overview, chat and every `sm:`/`md:`/`lg:`/`xl:` `grid-cols` grid in `app` and `components` now use container queries (see "Responsive Layout" in CLAUDE.md): a wrapper marked `@container` with the named sizes (`@pair`/`@cards`/`@split`/`@columns`/`@outline`, defined in `tailwind.config.ts`) on the grid. What's left is the row-direction toggles (`sm:flex-row` in `MemberDirectory`, `Wheel`, `ConsentBanner`) and `CalendarWeekView`'s column template, which still use viewport breakpoints. Check any converted page at widths just either side of its breakpoints.
 
 ### Add an Icon Library
 The app has no icon library: icons are inline SVGs pasted into components. Add one (e.g. lucide-react) and replace the hand-drawn crosshair on Settings' "Use current location" button (`app/(member)/settings/TimezoneSwitcher.tsx`) with its "locate" icon, then move the other inline SVGs over as they're touched.

@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 export default async function ChatPage() {
   await requireChat();
   return (
-    <div className="hidden p-6 @3xl:block">
+    <div className="hidden p-6 @split:block">
       <h1 className="text-2xl font-bold mb-2">Chat</h1>
       <p className="text-sm text-slate-600 dark:text-slate-400 max-w-prose">
         A read-only view of our Slack conversations, kept here for good. Pick one on the left. Posting still happens in

@@ -60,7 +60,7 @@ export default function DashboardCharts({ weeklyAttendance, dailyHours }: Dashbo
 
   return (
     <div className="@container">
-      <div className="grid grid-cols-1 @2xl:grid-cols-2 gap-6 mb-8">
+      <div className="grid grid-cols-1 @cards:grid-cols-2 gap-6 mb-8">
       {/* Weekly Total Attendance */}
       <div className="bg-white dark:bg-slate-900 rounded-lg shadow p-6">
         <div className="flex items-center mb-4">

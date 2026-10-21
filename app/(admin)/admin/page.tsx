@@ -252,7 +252,7 @@ export default async function DashboardPage() {
     <div className="container mx-auto px-6 py-8">
         {/* Top Metrics */}
         <div className="@container">
-          <div className="grid grid-cols-1 @2xl:grid-cols-2 @4xl:grid-cols-5 gap-6 mb-8">
+          <div className="grid grid-cols-1 @cards:grid-cols-2 @columns:grid-cols-5 gap-6 mb-8">
           <MetricCard
             label="Total Members"
             value={totalMembers}
@@ -312,7 +312,7 @@ export default async function DashboardPage() {
 
         {/* Engagement Insights */}
         <div className="@container">
-          <div className="grid grid-cols-1 @2xl:grid-cols-2 gap-6 mb-8">
+          <div className="grid grid-cols-1 @cards:grid-cols-2 gap-6 mb-8">
           {/* Top Attendees */}
           <div className="bg-white dark:bg-slate-900 rounded-lg shadow p-6">
             <h2 className="text-xl font-bold mb-4">🌟 Top Attendees</h2>

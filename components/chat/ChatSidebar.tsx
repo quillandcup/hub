@@ -175,8 +175,8 @@ export default function ChatSidebar({
     // gives way to whatever is open (which has a link back).
     <nav
       aria-label="Conversations"
-      className={`shrink-0 overflow-y-auto border-slate-200 p-4 @3xl:h-full @3xl:w-60 @3xl:border-r dark:border-slate-800 ${
-        pathname === "/chat" ? "flex-1 @3xl:flex-none" : "hidden @3xl:block"
+      className={`shrink-0 overflow-y-auto border-slate-200 p-4 @split:h-full @split:w-60 @split:border-r dark:border-slate-800 ${
+        pathname === "/chat" ? "flex-1 @split:flex-none" : "hidden @split:block"
       }`}
     >
       <form action="/chat/search" role="search" className="mb-4 px-1">

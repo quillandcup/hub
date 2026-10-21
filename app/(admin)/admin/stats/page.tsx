@@ -156,7 +156,7 @@ export default async function CommunityStatsPage({
       </div>
 
       <div className="@container">
-        <div className="grid grid-cols-2 @2xl:grid-cols-4 gap-4 mb-8">
+        <div className="grid grid-cols-2 @cards:grid-cols-4 gap-4 mb-8">
         <StatCard
           emoji="✍️"
           value={attendedPrickles.length.toLocaleString()}

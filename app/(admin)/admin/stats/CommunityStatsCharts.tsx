@@ -261,7 +261,7 @@ export default function CommunityStatsCharts({
     <div className="space-y-6">
       {/* Row 1: Top Hosts + Top Attendees */}
       <div className="@container">
-        <div className="grid grid-cols-1 @2xl:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 @cards:grid-cols-2 gap-6">
         <ChartCard title="🏆 Top Hosts" subtitle={`Prickles hosted since ${sinceLabel}`}>
           <HorizontalBars
             data={topHosts}
@@ -284,7 +284,7 @@ export default function CommunityStatsCharts({
 
       {/* Row 2: Prickle Types + Day of Week */}
       <div className="@container">
-        <div className="grid grid-cols-1 @2xl:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 @cards:grid-cols-2 gap-6">
         <ChartCard
           title="📚 Prickle Types by Avg Attendance"
           subtitle="Average members per session (min 3 sessions)"

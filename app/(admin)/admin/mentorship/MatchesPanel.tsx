@@ -148,7 +148,7 @@ export default function MatchesPanel({
           Pick the two people. When their membership began, and whether it was a trial, comes from their sign-up.
         </p>
         <div className="@container">
-          <div className="grid grid-cols-1 @2xl:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 @cards:grid-cols-2 gap-4">
           <div>
             <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">New member</label>
             <MemberSearch
