@@ -60,7 +60,7 @@ function StepButtons({ slug, previous, next, hideOnWide }: { slug: string; previ
   const enabled = "bg-plum-600 text-white hover:bg-plum-700";
   const disabled = "cursor-not-allowed bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-600";
   return (
-    <div className={`mt-3 flex items-center justify-between gap-3 ${hideOnWide ? "@4xl:hidden" : ""}`}>
+    <div className={`mt-3 flex items-center justify-between gap-3 ${hideOnWide ? "@[62rem]:hidden" : ""}`}>
       {previous ? (
         <Link href={`/courses/${slug}/lessons/${previous.id}`} data-track="lesson-previous" aria-label={`Back: ${previous.title}`} className={`${base} ${enabled}`}>
           ← Back
@@ -186,21 +186,36 @@ export default async function LessonPage({
 
         {/* Completion is shared by the player (which sets it at ~90% watched), the button and the next-lesson card. */}
         <LessonCompletionProvider lessonId={lesson.id} initiallyCompleted={completed} readOnlyReason={readOnlyReason}>
-        <div className="mt-4 grid grid-cols-[minmax(0,1fr)] @4xl:grid-cols-[minmax(0,1fr)_22rem]">
+        <div className="mt-4 grid grid-cols-[minmax(0,1fr)] @[62rem]:grid-cols-[minmax(0,1fr)_22rem]">
           {/* The video and this section's lessons are one component: a dark panel flush against the player, the same height. */}
           {player && (
-            <div className="overflow-hidden rounded-2xl bg-neutral-900 shadow-lg ring-1 ring-black/5 dark:ring-white/10 @4xl:col-span-2 @4xl:grid @4xl:grid-cols-[minmax(0,1fr)_22rem]">
+            <div className="overflow-hidden rounded-2xl bg-neutral-900 shadow-lg ring-1 ring-black/5 dark:ring-white/10 @[62rem]:col-span-2 @[62rem]:grid @[62rem]:grid-cols-[minmax(0,1fr)_22rem]">
               <div>{player}</div>
               {sectionList && (
-                <aside className="relative hidden @4xl:block">
+                <aside className="relative hidden @[62rem]:block">
                   <div className="absolute inset-0 overflow-y-auto">{sectionList}</div>
                 </aside>
               )}
             </div>
           )}
 
-          <div className="@4xl:col-start-1">
+          <div className="@[62rem]:col-start-1">
             <StepButtons slug={view.course.slug} previous={neighbors.previous} next={neighbors.next} hideOnWide={Boolean(player && sectionList)} />
+            {/* Where the list isn't beside the video, it follows it, closed: the way around the section stays one tap away. */}
+            {sectionList && section && (
+              <details className="group mt-3 overflow-hidden rounded-2xl bg-neutral-900 @[62rem]:hidden">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-3 text-sm font-semibold text-slate-100 [&::-webkit-details-marker]:hidden">
+                  <span>Lessons in this section</span>
+                  <span className="flex items-center gap-2 text-xs font-semibold text-slate-400">
+                    {section.lessons.length} {section.lessons.length === 1 ? "Lesson" : "Lessons"}
+                    <svg aria-hidden="true" viewBox="0 0 20 20" className="h-4 w-4 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="m5 8 5 5 5-5" />
+                    </svg>
+                  </span>
+                </summary>
+                {sectionList}
+              </details>
+            )}
             {caller.scope.isAdminActing && video && (
               <StaffProgressTools lessonId={lesson.id} lessonPath={`/courses/${view.course.slug}/lessons/${lesson.id}`} preview={preview} recording={watchRecorded} />
             )}
@@ -208,7 +223,7 @@ export default async function LessonPage({
 
           {/* The main action, title and text sit together in one bounded card below the video and its controls, like the Downloads
               card beside it (and Kajabi's). Once the lesson is complete, a preview of the next lesson follows the button. */}
-          <article className="mt-6 rounded-xl border border-slate-200 bg-white p-6 sm:p-8 dark:border-slate-800 dark:bg-slate-900 @4xl:col-start-1 @4xl:row-start-3 @4xl:mr-8">
+          <article className="mt-6 rounded-xl border border-slate-200 bg-white p-6 sm:p-8 dark:border-slate-800 dark:bg-slate-900 @[62rem]:col-start-1 @[62rem]:row-start-3 @[62rem]:mr-8">
             <MarkCompleteButton />
             <NextLessonPreview slug={view.course.slug} next={nextLesson} />
 
@@ -237,8 +252,8 @@ export default async function LessonPage({
           {/* Downloads: beside the text on a wide screen, after it on a phone ("available below"). The section list stands in for
               the player panel when a lesson has no video. */}
           {(files.length > 0 || (!player && sectionList)) && (
-            <div className="mt-6 space-y-4 @4xl:col-start-2 @4xl:row-start-3">
-              {!player && sectionList && <div className="hidden overflow-hidden rounded-2xl bg-neutral-900 @4xl:block">{sectionList}</div>}
+            <div className="mt-6 space-y-4 @[62rem]:col-start-2 @[62rem]:row-start-3">
+              {!player && sectionList && <div className="hidden overflow-hidden rounded-2xl bg-neutral-900 @[62rem]:block">{sectionList}</div>}
               <LessonDownloads slug={view.course.slug} lessonId={lesson.id} files={files} />
             </div>
           )}
