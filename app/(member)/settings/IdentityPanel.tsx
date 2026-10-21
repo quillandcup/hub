@@ -306,7 +306,7 @@ export function IdentityPanel() {
             </p>
             <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
               You&apos;ve already changed your name once. Email{" "}
-              <a href={`mailto:${SUPPORT_EMAIL}`} className="underline">
+              <a data-track="settings-identity-contact-support" href={`mailto:${SUPPORT_EMAIL}`} className="underline">
                 {SUPPORT_EMAIL}
               </a>{" "}
               if it needs to change again.
@@ -476,7 +476,7 @@ export function IdentityPanel() {
           Month and day only — no year needed. Used to celebrate your hedgie birthday with you.
         </p>
         <form onSubmit={handleSaveBirthday} className="flex gap-2 max-w-md">
-          <select
+          <select data-track="settings-identity-birthday-month"
             value={birthdayMonth}
             onChange={(e) => {
               setBirthdayMonth(e.target.value);
@@ -491,7 +491,7 @@ export function IdentityPanel() {
               </option>
             ))}
           </select>
-          <select
+          <select data-track="settings-identity-birthday-day"
             value={birthdayDay}
             onChange={(e) => setBirthdayDay(e.target.value)}
             disabled={!birthdayMonth}

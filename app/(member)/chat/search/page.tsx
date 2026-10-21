@@ -126,7 +126,7 @@ export default async function ChatSearchPage({
         <div className="grid gap-3 sm:grid-cols-4 text-sm">
           <label className="block">
             <span className="block text-xs text-slate-500 mb-0.5">Channel</span>
-            <select name="channel" defaultValue={isUuid(channelParam) ? channelParam : ""} className={inputClass}>
+            <select data-track="chat-search-channel-filter" name="channel" defaultValue={isUuid(channelParam) ? channelParam : ""} className={inputClass}>
               <option value="">All conversations</option>
               {searchable.map((c) => (
                 <option key={c.id} value={c.id}>
@@ -150,10 +150,10 @@ export default async function ChatSearchPage({
         </div>
         <div className="flex gap-4 text-sm">
           <label className="inline-flex items-center gap-1.5">
-            <input type="checkbox" name="files" value="1" defaultChecked={hasFiles} /> Has files
+            <input data-track="chat-search-files" type="checkbox" name="files" value="1" defaultChecked={hasFiles} /> Has files
           </label>
           <label className="inline-flex items-center gap-1.5">
-            <input type="checkbox" name="thread" value="1" defaultChecked={inThread} /> Only thread replies
+            <input data-track="chat-search-thread" type="checkbox" name="thread" value="1" defaultChecked={inThread} /> Only thread replies
           </label>
         </div>
       </form>

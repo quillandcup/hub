@@ -163,7 +163,7 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
           {!project.book && (
             <label className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
               Status
-              <select
+              <select data-track="project-phase"
                 value={phase}
                 disabled={phasePending}
                 onChange={handlePhaseChange}
@@ -177,7 +177,7 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
               </select>
             </label>
           )}
-          <button
+          <button data-track="project-edit-details"
             type="button"
             onClick={() => setShowEditDetails(true)}
             className="text-plum-600 hover:text-plum-700 dark:text-plum-400"
@@ -185,7 +185,7 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
             ✏️ Edit details
           </button>
         </div>
-        <a
+        <a data-track="project-export-csv"
           href={`/api/projects/export?projectId=${project.id}`}
           className="text-plum-600 hover:text-plum-700 dark:text-plum-400"
         >
@@ -205,7 +205,7 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
             <h2 className="text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
               Published
             </h2>
-            <a
+            <a data-track="project-buy-book"
               href={project.book.purchaseUrl}
               target="_blank"
               rel="noopener noreferrer"
@@ -219,20 +219,20 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
               {project.book.price != null && <span>· ${project.book.price.toFixed(2)}</span>}
             </p>
             <p className="text-xs mt-2">
-              <Link href="/bookshelf" className="text-plum-600 hover:text-plum-700 dark:text-plum-400">
+              <Link data-track="project-view-on-the-bookshelf" href="/bookshelf" className="text-plum-600 hover:text-plum-700 dark:text-plum-400">
                 View on the Bookshelf
               </Link>
             </p>
           </div>
           <div className="flex-shrink-0 flex flex-col items-end gap-2 text-xs">
-            <button
+            <button data-track="project-edit"
               type="button"
               onClick={() => setShowEditBook(true)}
               className="text-plum-600 dark:text-plum-400 hover:underline"
             >
               Edit
             </button>
-            <button
+            <button data-track="project-remove"
               type="button"
               onClick={handleRemoveBook}
               disabled={removingBook}
@@ -261,7 +261,7 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
               ? "Not published yet."
               : "No cover yet — add one from Edit details, or wait until you publish."}
           </p>
-          <button
+          <button data-track="project-publish"
             type="button"
             onClick={() => setShowPublish(true)}
             className="flex-shrink-0 px-4 py-2 bg-plum-600 hover:bg-plum-700 text-white rounded-lg text-sm font-medium"
@@ -314,7 +314,7 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
                   <GoalDisplay goal={goal} />
                 </div>
                 <div className="flex-shrink-0 flex items-center gap-3 mt-1">
-                  <button
+                  <button data-track="project-edit-goal"
                     type="button"
                     onClick={() => {
                       setEditingGoal(goal);
@@ -325,7 +325,7 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
                   >
                     ✏️
                   </button>
-                  <button
+                  <button data-track="project-delete-goal"
                     type="button"
                     onClick={() => handleDeleteGoal(goal.id)}
                     className="text-slate-400 hover:text-red-600 dark:hover:text-red-400"
@@ -352,7 +352,7 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
       )}
 
       <div className="flex items-center justify-between">
-        <button
+        <button data-track="project-add-a-goal"
           type="button"
           onClick={() => {
             setShowNewGoal((v) => !v);
@@ -363,7 +363,7 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
         >
           {showNewGoal ? "Cancel" : "+ Add a goal"}
         </button>
-        <button
+        <button data-track="project-log-progress"
           type="button"
           onClick={() => setShowLogProgress(true)}
           className="px-4 py-2 bg-plum-600 hover:bg-plum-700 text-white rounded-lg text-sm font-medium"
@@ -428,7 +428,7 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
                   </td>
                   <td className="px-5 py-3 text-slate-500 dark:text-slate-400 truncate max-w-xs">
                     {entry.prickleId && (
-                      <Link
+                      <Link data-track="project-open-prickle"
                         href={`/prickles/${entry.prickleId}`}
                         className="block text-xs text-plum-600 hover:text-plum-700 dark:text-plum-400 hover:underline truncate"
                       >
@@ -450,7 +450,7 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
                     )}
                   </td>
                   <td className="px-5 py-3 text-right whitespace-nowrap">
-                    <button
+                    <button data-track="project-edit-entry"
                       type="button"
                       onClick={() => setEditingEntry(entry)}
                       className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 mr-3"
@@ -458,7 +458,7 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
                     >
                       ✏️
                     </button>
-                    <button
+                    <button data-track="project-delete-entry"
                       type="button"
                       onClick={() => handleDelete(entry.id)}
                       className="text-slate-400 hover:text-red-600 dark:hover:text-red-400"
@@ -616,7 +616,7 @@ export function GoalForm({
       className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 p-5 space-y-3"
     >
       <div className="flex rounded-lg border border-slate-300 dark:border-slate-700 overflow-hidden w-fit">
-        <button
+        <button data-track="project-goal-type-target"
           type="button"
           onClick={() => setGoalType("target")}
           className={`px-3 py-1.5 text-sm font-medium ${
@@ -625,7 +625,7 @@ export function GoalForm({
         >
           Target
         </button>
-        <button
+        <button data-track="project-goal-type-habit"
           type="button"
           onClick={() => setGoalType("habit")}
           className={`px-3 py-1.5 text-sm font-medium ${
@@ -674,7 +674,7 @@ export function GoalForm({
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label htmlFor="goal-measure" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Measure</label>
-          <select
+          <select data-track="project-goal-measure"
             id="goal-measure"
             value={measure}
             onChange={(e) => setMeasure(e.target.value as WritingMeasure)}
@@ -705,7 +705,7 @@ export function GoalForm({
         ) : (
           <div>
             <label htmlFor="goal-habit-period" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Period</label>
-            <select
+            <select data-track="project-goal-habit-period"
               id="goal-habit-period"
               value={habitPeriod}
               onChange={(e) => setHabitPeriod(e.target.value as HabitPeriod)}
@@ -770,7 +770,7 @@ export function GoalForm({
 
       <div className="space-y-1.5">
         <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400 cursor-pointer">
-          <input
+          <input data-track="project-goal-star"
             type="checkbox"
             checked={isStarred}
             onChange={(e) => setIsStarred(e.target.checked)}
@@ -780,7 +780,7 @@ export function GoalForm({
           Pin to my dashboard <span className="text-slate-400">(only you see your dashboard)</span>
         </label>
         <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400 cursor-pointer">
-          <input
+          <input data-track="project-goal-show-on-profile"
             type="checkbox"
             checked={showOnProfile}
             onChange={(e) => setShowOnProfile(e.target.checked)}
@@ -795,7 +795,7 @@ export function GoalForm({
 
       <div className="flex items-center justify-between gap-2">
         {isEditing && onArchive ? (
-          <button
+          <button data-track="project-mark-as-done"
             type="button"
             onClick={onArchive}
             className="text-sm text-slate-500 hover:text-emerald-600 dark:text-slate-400 dark:hover:text-emerald-400"
@@ -808,7 +808,7 @@ export function GoalForm({
         )}
         <div className="flex gap-2">
           {onCancel && (
-            <button
+            <button data-track="project-cancel"
               type="button"
               onClick={onCancel}
               className="px-4 py-2 text-sm text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100"
@@ -816,7 +816,7 @@ export function GoalForm({
               Cancel
             </button>
           )}
-          <button
+          <button data-track="project-add-goal"
             type="submit"
             disabled={isPending}
             className="px-4 py-2 text-sm bg-plum-600 text-white rounded-lg hover:bg-plum-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"

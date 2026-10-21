@@ -68,19 +68,19 @@ export function TimezoneInitializer({ storedTimezone, isSudo }: { storedTimezone
         Change time zone to {formatTzDisplay(detectedTz)}?
       </p>
       <div className="flex items-center gap-5 justify-end">
-        <button
+        <button data-track="timezone-initializer-yes"
           onClick={handleYes}
           className="text-sm font-medium text-plum-600 dark:text-plum-400 border border-plum-500 dark:border-plum-400 rounded-full px-4 py-1 hover:bg-plum-50 dark:hover:bg-plum-950 transition-colors"
         >
           Yes
         </button>
-        <button
+        <button data-track="timezone-initializer-no"
           onClick={handleNo}
           className="text-sm font-medium text-plum-600 dark:text-plum-400 hover:underline"
         >
           No
         </button>
-        <button
+        <button data-track="timezone-initializer-never-ask-again"
           onClick={handleNeverAskAgain}
           className="text-sm font-medium text-plum-600 dark:text-plum-400 hover:underline"
         >

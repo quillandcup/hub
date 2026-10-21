@@ -25,7 +25,7 @@ export default async function ChatMembersPage({ params }: { params: Promise<{ id
   return (
     <div className="p-6 max-w-3xl">
       <header className="mb-4 pb-3 border-b border-slate-200 dark:border-slate-800">
-        <Link href={`/chat/${channel.id}`} className="text-sm text-plum-700 dark:text-plum-300 hover:underline">
+        <Link data-track="chat-members-back-to" href={`/chat/${channel.id}`} className="text-sm text-plum-700 dark:text-plum-300 hover:underline">
           ← Back to {channel.label}
         </Link>
         <h1 className="text-2xl font-bold mt-1">
@@ -38,7 +38,7 @@ export default async function ChatMembersPage({ params }: { params: Promise<{ id
         <ul className="grid gap-1 sm:grid-cols-2">
           {people.map((p) => (
             <li key={p.memberId}>
-              <Link
+              <Link data-track="chat-members-open-member"
                 href={`/members/${p.memberId}`}
                 className="flex items-center gap-3 rounded-lg px-2 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-800"
               >

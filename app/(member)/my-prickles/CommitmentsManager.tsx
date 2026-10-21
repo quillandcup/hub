@@ -95,7 +95,7 @@ function CommitmentCard({ commitment, onCancelled }: { commitment: MyCommitment;
         {commitment.status === "active" &&
           (confirming ? (
             <div className="flex gap-2 flex-shrink-0">
-              <button
+              <button data-track="commitments-yes-cancel"
                 type="button"
                 onClick={handleCancel}
                 disabled={busy}
@@ -103,7 +103,7 @@ function CommitmentCard({ commitment, onCancelled }: { commitment: MyCommitment;
               >
                 {busy ? "Cancelling…" : "Yes, cancel"}
               </button>
-              <button
+              <button data-track="commitments-keep-it"
                 type="button"
                 onClick={() => setConfirming(false)}
                 className="text-xs px-2 py-1 rounded border border-slate-300 dark:border-slate-600"
@@ -112,7 +112,7 @@ function CommitmentCard({ commitment, onCancelled }: { commitment: MyCommitment;
               </button>
             </div>
           ) : (
-            <button
+            <button data-track="commitments-cancel"
               type="button"
               onClick={() => setConfirming(true)}
               className="text-xs text-slate-500 hover:text-rose-600 dark:text-slate-400 flex-shrink-0"
@@ -138,7 +138,7 @@ export default function CommitmentsManager({ commitments }: { commitments: MyCom
           <h2 className="text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide">
             Active commitments
           </h2>
-          <Link
+          <Link data-track="commitments-make-a-commitment"
             href="/my-prickles/all?commit="
             className="text-sm text-plum-600 dark:text-plum-400 hover:underline"
           >
@@ -148,7 +148,7 @@ export default function CommitmentsManager({ commitments }: { commitments: MyCom
         {active.length === 0 ? (
           <p className="text-sm text-slate-500 dark:text-slate-400">
             No active commitments yet. Pick the prickles you&apos;ll show up to from{" "}
-            <Link href="/my-prickles/all?commit=" className="text-plum-600 dark:text-plum-400 hover:underline">
+            <Link data-track="commitments-all-prickles" href="/my-prickles/all?commit=" className="text-plum-600 dark:text-plum-400 hover:underline">
               All Prickles
             </Link>{" "}
             and choose how many weeks, and we&apos;ll track which ones you made.

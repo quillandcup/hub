@@ -74,7 +74,7 @@ export default function HostingCalendarPicker({ month, onPick, selectedSlot }: P
           slots — times shown in Eastern.
         </p>
         <div className="flex items-center gap-2">
-          <button
+          <button data-track="hosting-calendar-prev"
             type="button"
             onClick={() => setWeekStart((w) => addDays(w, -7))}
             className="px-2 py-1 text-sm border border-slate-300 dark:border-slate-600 rounded hover:bg-slate-100 dark:hover:bg-slate-800"
@@ -82,7 +82,7 @@ export default function HostingCalendarPicker({ month, onPick, selectedSlot }: P
             ← Prev
           </button>
           <span className="text-sm text-slate-700 dark:text-slate-300 min-w-[9rem] text-center">{weekLabel}</span>
-          <button
+          <button data-track="hosting-calendar-next"
             type="button"
             onClick={() => setWeekStart((w) => addDays(w, 7))}
             className="px-2 py-1 text-sm border border-slate-300 dark:border-slate-600 rounded hover:bg-slate-100 dark:hover:bg-slate-800"

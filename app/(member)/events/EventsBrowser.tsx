@@ -176,7 +176,7 @@ function EventGrid({ heading, events, empty }: { heading: string; events: EventR
 
 function EventCard({ event }: { event: EventRow }) {
   return (
-    <Link
+    <Link data-track="events-event-location-event-focus"
       href={`/events/${event.slug}`}
       className="block bg-white dark:bg-slate-900 rounded-lg shadow overflow-hidden hover:shadow-md transition-shadow"
     >
@@ -234,7 +234,7 @@ function EducationalSection({
         <ul>
           {prickles.map((p) => (
             <li key={p.id}>
-              <Link
+              <Link data-track="events-open-prickle"
                 href={`/prickles/${p.id}`}
                 className="flex items-center justify-between gap-4 py-2.5 border-b border-slate-200/70 dark:border-slate-800 last:border-0 -mx-2 px-2 rounded hover:bg-white/70 dark:hover:bg-slate-800/50"
               >
@@ -253,7 +253,7 @@ function EducationalSection({
         </ul>
       )}
       {moreCount > 0 && onSeeAll && (
-        <button
+        <button data-track="events-see-all-educational-prickles"
           type="button"
           onClick={onSeeAll}
           className="mt-2 text-sm text-plum-600 dark:text-plum-400 hover:underline"

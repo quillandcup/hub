@@ -71,7 +71,7 @@ export default function TrackbearImportModal({ isOpen, onClose, onImported }: Tr
           <ol className="text-sm text-slate-600 dark:text-slate-400 list-decimal pl-5 space-y-2">
             <li>
               Open your{" "}
-              <a
+              <a data-track="trackbear-import-track-bear-account-page"
                 href="https://trackbear.app/account"
                 target="_blank"
                 rel="noopener noreferrer"
@@ -123,14 +123,14 @@ export default function TrackbearImportModal({ isOpen, onClose, onImported }: Tr
           {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
 
           <div className="flex justify-end gap-3 pt-2">
-            <button
+            <button data-track="trackbear-import-cancel"
               type="button"
               onClick={handleClose}
               className="px-4 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
             >
               Cancel
             </button>
-            <button
+            <button data-track="trackbear-import-import"
               type="submit"
               disabled={isPending}
               className="px-4 py-2 text-sm bg-plum-600 text-white rounded-lg hover:bg-plum-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
@@ -190,7 +190,7 @@ function ImportResult({ result, onDone }: { result: TrackbearImportResult; onDon
       ))}
 
       <div className="flex justify-end pt-2">
-        <button
+        <button data-track="trackbear-import-done"
           type="button"
           onClick={onDone}
           className="px-4 py-2 text-sm bg-plum-600 text-white rounded-lg hover:bg-plum-700 transition-colors"

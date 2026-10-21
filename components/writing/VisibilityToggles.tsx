@@ -20,7 +20,7 @@ const buttonClass = "flex-shrink-0 text-lg leading-none disabled:opacity-50";
 export function StarToggle({ on, onToggle, disabled, className = "" }: ToggleProps) {
   const label = on ? "Pinned to your dashboard (click to unpin)" : "Pin to my dashboard";
   return (
-    <button
+    <button data-track="visibility-toggles-pin-to-my-dashboard"
       type="button"
       onClick={onToggle}
       disabled={disabled}
@@ -46,7 +46,7 @@ export function ProfileVisibilityToggle({
     ? `Visible on your profile to other members (click to hide)`
     : `Only you can see this ${noun} (click to show on your profile)`;
   return (
-    <button
+    <button data-track="visibility-toggles-show-on-my-profile"
       type="button"
       onClick={onToggle}
       disabled={disabled}

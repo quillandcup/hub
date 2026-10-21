@@ -316,7 +316,7 @@ export default function Wheel({ confirmedConnectionCount = 0 }: WheelProps) {
                 <p className="text-xs text-slate-400 dark:text-slate-500 mb-1">Something to open with:</p>
                 <div className="flex items-start gap-2 bg-slate-50 dark:bg-slate-800 rounded-lg p-3">
                   <p className="text-sm text-slate-700 dark:text-slate-300 flex-1">{winner.starterText}</p>
-                  <button
+                  <button data-track="wheel-copy-starter"
                     onClick={() => handleCopyStarter(winner.starterText!)}
                     className="text-xs px-2 py-1 rounded font-medium text-plum-600 dark:text-plum-400 hover:bg-plum-50 dark:hover:bg-plum-900/20 transition-colors flex-shrink-0"
                   >
@@ -328,13 +328,13 @@ export default function Wheel({ confirmedConnectionCount = 0 }: WheelProps) {
           )}
 
           <div className="flex flex-col gap-2 sm:flex-row sm:justify-center">
-            <a
+            <a data-track="wheel-message-on-slack"
               href={winner.dmUrl}
               className="px-5 py-2.5 rounded-lg font-medium text-white bg-emerald-600 hover:bg-emerald-700 transition-colors"
             >
               Message on Slack →
             </a>
-            <button
+            <button data-track="wheel-spin-again"
               onClick={handleSpin}
               className="px-5 py-2.5 rounded-lg font-medium text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
             >
@@ -349,7 +349,7 @@ export default function Wheel({ confirmedConnectionCount = 0 }: WheelProps) {
           <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
             No one&apos;s around in Slack right now — try again in a bit!
           </p>
-          <button
+          <button data-track="wheel-try-again"
             onClick={handleSpin}
             className="px-5 py-2.5 rounded-lg font-medium text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
           >
@@ -368,7 +368,7 @@ export default function Wheel({ confirmedConnectionCount = 0 }: WheelProps) {
         The Wheel of Wonder leans toward Hedgies who haven&apos;t connected much yet, so newer or
         quieter folks turn up as matches more often. Posting, reacting, and showing up to a
         Prickle is still the fastest way to build connections on your own.{" "}
-        <Link href="/network" className="underline hover:text-slate-600 dark:hover:text-slate-300">
+        <Link data-track="wheel-see-your-connections" href="/network" className="underline hover:text-slate-600 dark:hover:text-slate-300">
           See your connections →
         </Link>
       </p>

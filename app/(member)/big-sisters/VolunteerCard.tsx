@@ -56,7 +56,7 @@ export default function VolunteerCard({
             className="w-full px-3 py-2 mb-4 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-sm"
           />
           <div className="flex gap-3">
-            <button
+            <button data-track="big-sisters-volunteer-add-me-to-the-list"
               type="button"
               disabled={readOnly || pending}
               onClick={() => save(true)}
@@ -65,7 +65,7 @@ export default function VolunteerCard({
               {volunteering ? "Save note" : "Add me to the list"}
             </button>
             {volunteering && (
-              <button
+              <button data-track="big-sisters-volunteer-step-off-the-list"
                 type="button"
                 disabled={readOnly || pending}
                 onClick={() => save(false)}

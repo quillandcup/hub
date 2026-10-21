@@ -57,7 +57,7 @@ export default function MyBooksPanel({ initialBooks, projectTitles }: MyBooksPan
     <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 p-6">
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide">My Books</h2>
-        <button
+        <button data-track="project-books-add-a-book"
           type="button"
           onClick={() => setShowAdd(true)}
           className="px-3 py-1.5 bg-plum-600 hover:bg-plum-700 text-white rounded-lg text-sm font-medium"
@@ -82,7 +82,7 @@ export default function MyBooksPanel({ initialBooks, projectTitles }: MyBooksPan
                   {book.projectId && projectTitles[book.projectId] && (
                     <>
                       {" · From "}
-                      <Link
+                      <Link data-track="project-books-open-project"
                         href={`/projects/${book.projectId}`}
                         className="text-plum-600 dark:text-plum-400 hover:underline"
                       >
@@ -93,14 +93,14 @@ export default function MyBooksPanel({ initialBooks, projectTitles }: MyBooksPan
                 </p>
               </div>
               <div className="flex items-center gap-3 flex-shrink-0">
-                <button
+                <button data-track="project-books-edit"
                   type="button"
                   onClick={() => setEditingBook(book)}
                   className="text-xs text-plum-600 dark:text-plum-400 hover:underline"
                 >
                   Edit
                 </button>
-                <button
+                <button data-track="project-books-remove"
                   type="button"
                   onClick={() => handleDelete(book)}
                   disabled={deletingId === book.id}

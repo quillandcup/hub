@@ -83,7 +83,7 @@ export default function MemberNotesCard({
             <span className="text-slate-400 dark:text-slate-500">Last edited {formatSavedAt(updatedAt)}</span>
           ) : null}
         </span>
-        <button
+        <button data-track="member-notes-save-note"
           type="submit"
           disabled={saving || !dirty}
           className="px-3 py-1.5 bg-plum-600 text-white text-sm rounded-md hover:bg-plum-700 disabled:opacity-50 disabled:cursor-not-allowed"

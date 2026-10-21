@@ -99,7 +99,7 @@ export default function UpcomingPrickleRow({
           )}
         </div>
       </div>
-      <Link href={`/prickles/${prickle.id}`} className="block">
+      <Link data-track="upcoming-prickle-open-card" href={`/prickles/${prickle.id}`} className="block">
         <ReasonBadges reasons={reasons} />
       </Link>
     </div>

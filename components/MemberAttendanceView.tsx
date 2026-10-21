@@ -158,7 +158,7 @@ export default function MemberAttendanceView({
             {/* Timezone selector */}
             <div className="flex items-center gap-2">
               <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Timezone:</span>
-              <select
+              <select data-track="attendance-timezone"
                 value={timezone}
                 onChange={(e) => setTimezone(e.target.value)}
                 className="px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg text-sm text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-plum-500"
@@ -172,7 +172,7 @@ export default function MemberAttendanceView({
             </div>
             {/* View toggle */}
             <div className="flex bg-slate-100 dark:bg-slate-800 rounded-lg p-1">
-              <button
+              <button data-track="attendance-list"
                 onClick={() => setView("list")}
                 className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${
                   view === "list"
@@ -182,7 +182,7 @@ export default function MemberAttendanceView({
               >
                 List
               </button>
-              <button
+              <button data-track="attendance-calendar"
                 onClick={() => setView("calendar")}
                 className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${
                   view === "calendar"
@@ -268,7 +268,7 @@ export default function MemberAttendanceView({
                         </td>
                         <td className="px-6 py-4 text-sm text-slate-700 dark:text-slate-300">
                           {prickle.host ? (
-                            <Link
+                            <Link data-track="attendance-open-host"
                               href={`${memberBasePath}/${prickle.host.id}`}
                               className="text-plum-600 hover:text-plum-700 dark:text-plum-400 hover:underline"
                               onClick={(e) => e.stopPropagation()}
@@ -294,19 +294,19 @@ export default function MemberAttendanceView({
                   {currentDate.toLocaleDateString("en-US", { month: "long", year: "numeric" })}
                 </h3>
                 <div className="flex gap-2">
-                  <button
+                  <button data-track="attendance-previous-month"
                     onClick={() => setCurrentDate(new Date(year, month - 1, 1))}
                     className="px-3 py-1 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded hover:bg-slate-50 dark:hover:bg-slate-700"
                   >
                     ←
                   </button>
-                  <button
+                  <button data-track="attendance-today"
                     onClick={() => setCurrentDate(new Date())}
                     className="px-3 py-1 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded hover:bg-slate-50 dark:hover:bg-slate-700 text-sm"
                   >
                     Today
                   </button>
-                  <button
+                  <button data-track="attendance-next-month"
                     onClick={() => setCurrentDate(new Date(year, month + 1, 1))}
                     className="px-3 py-1 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded hover:bg-slate-50 dark:hover:bg-slate-700"
                   >
@@ -407,7 +407,7 @@ export default function MemberAttendanceView({
                               {prickle.host && (
                                 <div className="text-sm text-slate-500 dark:text-slate-400 mt-1">
                                   Host:{" "}
-                                  <Link
+                                  <Link data-track="attendance-list-open-host"
                                     href={`${memberBasePath}/${prickle.host.id}`}
                                     className="text-plum-600 hover:text-plum-700 dark:text-plum-400 hover:underline"
                                     onClick={(e) => e.stopPropagation()}

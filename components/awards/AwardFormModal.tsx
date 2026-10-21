@@ -96,7 +96,7 @@ export default function AwardFormModal({ isOpen, onClose, onSaved, award, myBook
             <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
               Link to one of your books (optional)
             </label>
-            <select
+            <select data-track="award-form-not-one-of-my-bookshelf"
               value={bookId}
               onChange={(e) => handleBookChange(e.target.value)}
               className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-sm"
@@ -162,14 +162,14 @@ export default function AwardFormModal({ isOpen, onClose, onSaved, award, myBook
         {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
 
         <div className="flex justify-end gap-2 pt-2">
-          <button
+          <button data-track="award-form-cancel"
             type="button"
             onClick={onClose}
             className="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"
           >
             Cancel
           </button>
-          <button
+          <button data-track="award-form-add-award"
             type="submit"
             disabled={isPending}
             className="px-4 py-2 bg-plum-600 hover:bg-plum-700 disabled:bg-plum-400 text-white rounded-lg text-sm font-medium"

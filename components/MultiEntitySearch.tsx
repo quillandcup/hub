@@ -78,7 +78,7 @@ export default function MultiEntitySearch({
               >
                 {name}
                 {note && <span className="text-xs">{note}</span>}
-                <button
+                <button data-track="multi-entity-search-remove"
                   type="button"
                   onClick={() => remove(id)}
                   className={
@@ -108,7 +108,7 @@ export default function MultiEntitySearch({
         {showDropdown && (
           <div className="absolute z-10 w-full mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg max-h-60 overflow-y-auto">
             {matches.map((item) => (
-              <button
+              <button data-track="multi-entity-search-pick"
                 key={item.id}
                 type="button"
                 onClick={() => add(item.id)}

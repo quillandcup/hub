@@ -79,7 +79,7 @@ export default function AllPricklesView({
         </div>
         <div className="flex items-center gap-2">
           {!committing && slotOptions.length > 0 && (
-            <button
+            <button data-track="all-prickles-make-a-commitment"
               type="button"
               onClick={() => setCommitting(true)}
               className="px-3 py-1.5 text-sm rounded-lg border border-plum-300 dark:border-plum-800 text-plum-700 dark:text-plum-300 hover:bg-plum-50 dark:hover:bg-plum-950/40"

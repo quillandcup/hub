@@ -80,7 +80,7 @@ export default function SlackConnectPanel({ connected, sharesReadState = true }:
             then, your messages go through Billie Bot under your name and your reactions stay in the Hub. You can disconnect any time.
           </p>
           {/* A full navigation: this goes to Slack and comes back through the callback route. */}
-          <a
+          <a data-track="settings-slack-connect-slack"
             href="/api/oauth/slack/start"
             className="mt-3 inline-block rounded-lg bg-plum-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-plum-700"
           >

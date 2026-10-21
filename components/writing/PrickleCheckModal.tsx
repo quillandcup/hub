@@ -126,14 +126,14 @@ export default function PrickleCheckModal({ prickleId, half, onClose, onSaved, p
             </p>
           ))}
           <div className="flex justify-end gap-3">
-            <button
+            <button data-track="prickle-check-close"
               type="button"
               onClick={onClose}
               className="px-4 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
             >
               Close
             </button>
-            <a
+            <a data-track="prickle-check-join-the-prickle"
               href={data.join.url}
               target="_blank"
               rel="noopener noreferrer"
@@ -232,14 +232,14 @@ export default function PrickleCheckModal({ prickleId, half, onClose, onSaved, p
 
           {!readOnly && (isCheckout ? data.hasStarted : true) && (
             <div className="flex justify-end gap-3">
-              <button
+              <button data-track="prickle-check-cancel"
                 type="button"
                 onClick={onClose}
                 className="px-4 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
               >
                 Cancel
               </button>
-              <button
+              <button data-track="prickle-check-save"
                 type="submit"
                 disabled={isPending}
                 className="px-4 py-2 text-sm bg-plum-600 text-white rounded-lg hover:bg-plum-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"

@@ -382,7 +382,7 @@ export default async function NetworkPage() {
               ))}
             </svg>
 
-            <Link
+            <Link data-track="network-open-self"
               href={`/members/${memberId}`}
               className="absolute flex flex-col items-center gap-1.5"
               style={{ left: "50%", top: "50%", transform: "translate(-50%, -50%)" }}
@@ -394,7 +394,7 @@ export default async function NetworkPage() {
             </Link>
 
             {positioned.map((c) => (
-              <Link
+              <Link data-track="network-open-connection"
                 key={c.memberId}
                 href={`/members/${c.memberId}`}
                 className="absolute flex flex-col items-center gap-1 group"
@@ -419,7 +419,7 @@ export default async function NetworkPage() {
           {totalConnections > connections.length && (
             <p className="text-center text-xs text-slate-400 mt-2">
               Showing top {connections.length} of {totalConnections}.{" "}
-              <Link href="/streaks" className="text-plum-600 dark:text-plum-400 hover:underline">
+              <Link data-track="network-see-all-on-streaks" href="/streaks" className="text-plum-600 dark:text-plum-400 hover:underline">
                 See all on Streaks →
               </Link>
             </p>
@@ -452,7 +452,7 @@ export default async function NetworkPage() {
                   radar.
                 </p>
                 {slackStartHereUrl && (
-                  <Link
+                  <Link data-track="network-open-start-here"
                     href={slackStartHereUrl}
                     target="_blank"
                     rel="noopener noreferrer"
@@ -484,7 +484,7 @@ export default async function NetworkPage() {
               ) : (
                 <p className="text-sm text-slate-400 mb-3">Check the calendar for upcoming sessions.</p>
               )}
-              <Link
+              <Link data-track="network-try-the-prickle-picker"
                 href="/my-prickles/find"
                 className="text-sm font-medium text-plum-600 dark:text-plum-400 hover:underline"
               >
@@ -504,7 +504,7 @@ export default async function NetworkPage() {
                 <ul className="space-y-2.5">
                   {wellConnected.map((m) => (
                     <li key={m.id}>
-                      <Link
+                      <Link data-track="network-open-well-connected-member"
                         href={`/members/${m.id}`}
                         className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:underline"
                       >

@@ -77,7 +77,7 @@ function ChipGroup<T extends string>({
       {options.map((opt) => {
         const selected = opt.value === value;
         return (
-          <button
+          <button data-track="prickle-picker-change"
             key={opt.value}
             type="button"
             onClick={() => onChange(opt.value)}
@@ -265,7 +265,7 @@ export default function PrickleWizard({ members }: PrickleWizardProps) {
                 ? "No exact matches"
                 : "No matches this time"}
           </h2>
-          <button
+          <button data-track="prickle-picker-start-over"
             onClick={startOver}
             className="text-sm text-plum-600 hover:text-plum-700 dark:text-plum-400 font-medium"
           >
@@ -370,7 +370,7 @@ export default function PrickleWizard({ members }: PrickleWizardProps) {
                     const selected = feelings.includes(f.key);
                     const atMax = !selected && feelings.length >= MAX_FEELINGS;
                     return (
-                      <button
+                      <button data-track="prickle-picker-feeling"
                         key={f.key}
                         type="button"
                         aria-pressed={selected}
@@ -398,7 +398,7 @@ export default function PrickleWizard({ members }: PrickleWizardProps) {
               {NEEDS.map((n) => {
                 const selected = need === n.key;
                 return (
-                  <button
+                  <button data-track="prickle-picker-need"
                     key={n.key}
                     type="button"
                     aria-pressed={selected}
@@ -426,7 +426,7 @@ export default function PrickleWizard({ members }: PrickleWizardProps) {
       )}
 
       <div className="flex justify-between pt-2">
-        <button
+        <button data-track="prickle-picker-back"
           type="button"
           onClick={() => setStep((s) => Math.max(0, s - 1))}
           disabled={step === 0}
@@ -457,7 +457,7 @@ export default function PrickleWizard({ members }: PrickleWizardProps) {
       </div>
 
       <p className="text-xs text-center text-slate-400 dark:text-slate-500">
-        <Link href="/my-prickles/history" className="hover:underline">
+        <Link data-track="prickle-picker-never-mind-back-to-my" href="/my-prickles/history" className="hover:underline">
           Never mind, back to my calendar
         </Link>
       </p>

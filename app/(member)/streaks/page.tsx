@@ -121,7 +121,7 @@ function SisterStreakRow({
             {s.memberName}
           </span>
           {slackDmUrl && (
-            <Link
+            <Link data-track="streaks-message-on-slack"
               href={slackDmUrl}
               target="_blank"
               rel="noopener noreferrer"
@@ -159,7 +159,7 @@ function SisterStreakRow({
           </summary>
           <div className="mt-1.5 flex flex-wrap gap-1.5">
             {sharedPrickles.map((p) => (
-              <Link
+              <Link data-track="streaks-open-prickle"
                 key={p.id}
                 href={`/prickles/${p.id}`}
                 className="text-xs bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded px-2 py-0.5 text-slate-600 dark:text-slate-300"

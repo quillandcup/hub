@@ -183,7 +183,7 @@ export default function LogProgressModal({
         {!editingEntry && (
           <div>
             <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Project</label>
-            <select
+            <select data-track="log-progress-project"
               value={projectId}
               onChange={(e) => setProjectId(e.target.value)}
               className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-sm"
@@ -200,7 +200,7 @@ export default function LogProgressModal({
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Measure</label>
-            <select
+            <select data-track="log-progress-measure"
               value={measure}
               onChange={(e) => setMeasure(e.target.value as WritingMeasure)}
               className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-sm"
@@ -231,7 +231,7 @@ export default function LogProgressModal({
           >
             During which prickle?
           </label>
-          <select
+          <select data-track="log-progress-no-prickle"
             id="log-progress-prickle"
             value={prickleChoice}
             onChange={(e) => {
@@ -260,7 +260,7 @@ export default function LogProgressModal({
           <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Amount</label>
           <div className="flex gap-2">
             <div className="flex rounded-lg border border-slate-300 dark:border-slate-700 overflow-hidden flex-shrink-0">
-              <button
+              <button data-track="log-progress-add"
                 type="button"
                 onClick={() => setMode("delta")}
                 className={`px-3 py-2 text-sm font-medium ${
@@ -272,7 +272,7 @@ export default function LogProgressModal({
               >
                 +Add
               </button>
-              <button
+              <button data-track="log-progress-set-total"
                 type="button"
                 onClick={() => setMode("set_total")}
                 className={`px-3 py-2 text-sm font-medium ${
@@ -339,7 +339,7 @@ export default function LogProgressModal({
                 Check out <span className="text-slate-400 font-normal">(optional)</span>
               </h3>
               {/* New tab, so following it doesn't lose what's typed here. */}
-              <Link
+              <Link data-track="log-progress-edit-check-in"
                 href={checkinHref(prickleChoice, "checkin")}
                 target="_blank"
                 rel="noopener noreferrer"
@@ -365,7 +365,7 @@ export default function LogProgressModal({
         {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
 
         <div className="flex justify-end gap-3 pt-2">
-          <button
+          <button data-track="log-progress-cancel"
             type="button"
             onClick={onClose}
             className="px-4 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"

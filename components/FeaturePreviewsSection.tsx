@@ -63,7 +63,7 @@ export function FeaturePreviewsSection({
           const isEnabled = localEnabled.has(feature.key);
           const isLoading = loading === feature.key;
           return (
-            <button
+            <button data-track="feature-previews-toggle"
               key={feature.key}
               onClick={() => toggleFeature(feature.key, !isEnabled)}
               disabled={isLoading}

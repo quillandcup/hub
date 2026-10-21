@@ -186,7 +186,7 @@ export default async function MyPricklesPage({
                   {displayedUpcoming.length === 0 ? (
                     <p className="text-sm text-slate-500 dark:text-slate-400">
                       No prickles scheduled in the next {UPCOMING_WINDOW_DAYS} days.{" "}
-                      <Link href="/my-prickles/all" className="text-plum-600 dark:text-plum-400 hover:underline">
+                      <Link data-track="my-prickles-see-the-full-schedule" href="/my-prickles/all" className="text-plum-600 dark:text-plum-400 hover:underline">
                         See the full schedule →
                       </Link>
                     </p>
@@ -207,14 +207,14 @@ export default async function MyPricklesPage({
                       {ranked.length > displayedUpcoming.length && (
                         <p className="text-xs text-slate-400 mt-3">
                           Showing the top {displayedUpcoming.length} of {ranked.length}. Looking for something specific?{" "}
-                          <Link
+                          <Link data-track="my-prickles-see-all-prickles"
                             href="/my-prickles/all"
                             className="text-plum-600 dark:text-plum-400 hover:underline"
                           >
                             See all Prickles →
                           </Link>{" "}
                           or try{" "}
-                          <Link
+                          <Link data-track="my-prickles-find-a-prickle"
                             href="/my-prickles/find"
                             className="text-plum-600 dark:text-plum-400 hover:underline"
                           >

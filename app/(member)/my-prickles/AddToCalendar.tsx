@@ -190,7 +190,7 @@ export function AddPrickleToCalendar({
           </button>
           <p className="px-2 pt-1.5 pb-1 text-xs text-slate-500 dark:text-slate-400 border-t border-slate-100 dark:border-slate-800 mt-1">
             Shows up in your synced calendar.{" "}
-            <Link href={SYNC_HINT_HREF} className="text-plum-600 dark:text-plum-400 hover:underline">
+            <Link data-track="add-to-calendar-sync-setup" href={SYNC_HINT_HREF} className="text-plum-600 dark:text-plum-400 hover:underline">
               Set up sync
             </Link>
           </p>
@@ -234,7 +234,7 @@ export function AddEventToCalendar({ eventId, itemId: savedItemId }: { eventId: 
           <CalendarGlyph added={!!itemId} />
           {itemId ? "In my calendar · Remove" : "Add to my calendar"}
         </button>
-        <Link href={SYNC_HINT_HREF} className="text-xs text-slate-500 dark:text-slate-400 hover:underline">
+        <Link data-track="add-to-calendar-sync-hint" href={SYNC_HINT_HREF} className="text-xs text-slate-500 dark:text-slate-400 hover:underline">
           Set up calendar sync
         </Link>
       </div>

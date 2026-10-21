@@ -47,7 +47,7 @@ export function PillFilter<T extends string>({
         {options.map((opt, i) => {
           const active = opt.id === value;
           return (
-            <button
+            <button data-track="pill-filter-change"
               key={opt.id}
               type="button"
               aria-pressed={active}
@@ -72,7 +72,7 @@ export function PillFilter<T extends string>({
       {options.map((opt) => {
         const active = opt.id === value;
         return (
-          <button
+          <button data-track="pill-filter-change-2"
             key={opt.id}
             type="button"
             aria-pressed={active}

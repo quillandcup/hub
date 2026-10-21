@@ -271,7 +271,7 @@ export default function CalendarWeekView({
             </div>
             <div className="flex items-center gap-4">
               <label className="flex items-center gap-2 cursor-pointer">
-                <input
+                <input data-track="calendar-week-show-pups"
                   type="checkbox"
                   checked={showPups}
                   onChange={(e) => setShowPups(e.target.checked)}
@@ -281,7 +281,7 @@ export default function CalendarWeekView({
               </label>
               <div className="flex items-center gap-2">
                 <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Timezone:</span>
-                <select
+                <select data-track="calendar-week-timezone"
                   aria-label="Timezone"
                   value={timezone}
                   onChange={(e) => setTimezone(e.target.value)}

@@ -53,7 +53,7 @@ function renderInline(nodes: Inline[], ctx: ChatTextContext): ReactNode[] {
         );
       case "link":
         return (
-          <a
+          <a data-track="chat-link"
             key={i}
             href={n.href}
             target="_blank"

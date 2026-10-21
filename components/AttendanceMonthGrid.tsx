@@ -182,7 +182,7 @@ export default function AttendanceMonthGrid({
                       {prickle.host && (
                         <div className="text-sm text-slate-500 dark:text-slate-400 mt-1">
                           Host:{" "}
-                          <Link
+                          <Link data-track="attendance-grid-open-host"
                             href={`${memberBasePath}/${prickle.host.id}`}
                             className="text-plum-600 hover:text-plum-700 dark:text-plum-400 hover:underline"
                             onClick={(e) => e.stopPropagation()}
