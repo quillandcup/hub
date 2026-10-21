@@ -18,6 +18,7 @@
     "test:db:coverage": "vitest run --project db --coverage --coverage.reportsDirectory=coverage/db",
     "test:pgtap": "scripts/test-pgtap.sh",
     "check:migrations": "tsx scripts/check-migration-order.ts",
+    "branches:prune": "tsx scripts/prune-branches.ts",
     "test:run": "vitest run",
     "export:slack": "NODE_OPTIONS='--dns-result-order=ipv4first' tsx scripts/export-slack-data.ts",
     "supabase:start": "supabase start &",
