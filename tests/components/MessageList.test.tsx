@@ -28,6 +28,7 @@ const view = (n: number, extra: Partial<ChatMessageView> = {}): ChatMessageView 
   reactions: [],
   syncStatus: null,
   mine: false,
+  fromHub: false,
   ...extra,
 });
 const texts = () => screen.getAllByRole("article").map((a) => /message \d+|from the next page/.exec(a.textContent ?? "")![0]);

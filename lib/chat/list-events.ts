@@ -89,5 +89,6 @@ export function optimisticView(opts: {
     reactions: [],
     syncStatus: "pending",
     mine: true,
+    fromHub: true,
   };
 }

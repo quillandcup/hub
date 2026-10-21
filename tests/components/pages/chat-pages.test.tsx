@@ -58,6 +58,7 @@ const EXAMPLE_VIEW = {
   reactions: [],
   syncStatus: null,
   mine: false,
+  fromHub: false,
 };
 
 let earnedBadges: unknown[] = [];
