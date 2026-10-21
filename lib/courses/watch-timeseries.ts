@@ -15,7 +15,7 @@ export type RangePreset = "today" | "7d" | "30d" | "last_month" | "this_month" |
 export type Unit = "count" | "percent" | "hours";
 
 export const METRICS: { value: Metric; label: string; unit: Unit; definition: string }[] = [
-  { value: "total_plays", label: "Total plays", unit: "count", definition: "Visits to the lesson in which the video was played at all. The same member coming back counts again." },
+  { value: "total_plays", label: "Total plays", unit: "count", definition: "Visits to the lesson in which the video was played at all. The same member coming back counts again; rewinding within one visit does not." },
   { value: "unique_plays", label: "Unique plays", unit: "count", definition: "Different members who played the video, counting each member once however many times they played it." },
   { value: "unique_viewers", label: "Unique viewers", unit: "count", definition: "Different members who opened the video, whether or not they played it." },
   { value: "play_rate", label: "Play rate", unit: "percent", definition: "The percentage of visits to the lesson, where the video appeared, in which it was played." },

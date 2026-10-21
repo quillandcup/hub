@@ -132,7 +132,7 @@ export default async function LessonWatchStatsPage({
             <Tile
               label="Total plays"
               value={String(stats.plays)}
-              definition="Times the video was played: one for each visit to the lesson with at least one stretch watched. The same member coming back another day counts again."
+              definition="Times the video was played: one for each visit to the lesson with at least one stretch watched, however much was watched. The same member coming back another day counts again; rewinding or replaying within one visit is still one play (the engagement graph counts those passes separately, as times watched)."
             />
             <Tile
               label="Play rate"
@@ -172,7 +172,7 @@ export default async function LessonWatchStatsPage({
           <div className="mt-6 rounded-lg bg-white p-6 shadow dark:bg-slate-900">
             <h2 className="text-lg font-semibold">Engagement</h2>
             <p className="mb-3 mt-1 text-sm text-slate-600 dark:text-slate-300">
-              How often each moment of the {formatClock(stats.durationSeconds)} video was played. Where the solid line rises above the dashed one, someone watched that part more than once (one person watching twice is 2 plays, 1 person).
+              How many times each moment of the {formatClock(stats.durationSeconds)} video was watched, counting every rewind or replay. Where the solid line rises above the dashed one, someone watched that part more than once (one person watching twice is 2 times watched, 1 person). This isn&apos;t the play count: a play is one visit in which the video was played, however often it was rewound.
             </p>
             <EngagementChart buckets={stats.buckets} durationSeconds={stats.durationSeconds} />
           </div>

@@ -21,7 +21,7 @@ describe("EngagementChart", () => {
 
   it("has a legend, direct labels, a time axis and a table of every moment", () => {
     const { container } = render(<EngagementChart buckets={buckets} durationSeconds={100} />);
-    expect(screen.getByText("Plays, rewatches included")).toBeInTheDocument();
+    expect(screen.getByText("Times watched, rewatches included")).toBeInTheDocument();
     expect(screen.getByText("People, each counted once")).toBeInTheDocument();
     const chart = screen.getByRole("img", { name: /Engagement over the 1:40 video/ });
     expect(within(chart as unknown as HTMLElement).getByText("1:40")).toBeInTheDocument();
@@ -40,7 +40,7 @@ describe("EngagementChart", () => {
     fireEvent.keyDown(chart, { key: "ArrowRight" });
     const tooltip = screen.getByRole("status");
     expect(tooltip).toHaveTextContent("0:50 to 1:15");
-    expect(tooltip).toHaveTextContent("Plays5");
+    expect(tooltip).toHaveTextContent("Times watched5");
     expect(tooltip).toHaveTextContent("People3");
     expect(tooltip).toHaveTextContent("Rewatched: 2");
 
@@ -55,16 +55,19 @@ describe("EngagementChart", () => {
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });
 
-  it("labels the dashed line as people counted once, so one person watching twice reads as 2 plays and 1 person", () => {
+  it("labels the dashed line as people counted once, so one person watching a part twice reads as 2 times watched and 1 person", () => {
     // One member watched the first quarter twice: 2 plays, 1 person.
     const twice: HeatBucket[] = [{ start: 0, end: 50, plays: 2, viewers: 1, sessions: 2 }, { start: 50, end: 100, plays: 0, viewers: 0, sessions: 0 }];
     render(<EngagementChart buckets={twice} durationSeconds={100} />);
     fireEvent.keyDown(screen.getByRole("img"), { key: "Home" });
     const tooltip = screen.getByRole("status");
-    expect(tooltip).toHaveTextContent("Plays2");
+    expect(tooltip).toHaveTextContent("Times watched2");
     expect(tooltip).toHaveTextContent("People1");
     expect(tooltip).toHaveTextContent("Rewatched: 1");
     expect(screen.queryByText(/different viewers/i)).not.toBeInTheDocument();
+    // The graph counts passes over a moment, never "plays": that word is the stats tiles' (one per visit).
+    expect(screen.queryByText("Plays")).not.toBeInTheDocument();
+    expect(screen.getByText("Times watched, rewatches included")).toBeInTheDocument();
   });
 
   it("is focusable so the keyboard works without a pointer", () => {
