@@ -285,6 +285,9 @@ describe("/courses/[slug]/modules/[moduleId] drafts", () => {
   });
 });
 
+/** The section list beside the video (or standing in for it); the one in the closed "Lessons in this section" panel is a second copy. */
+const sectionList = () => screen.getAllByRole("navigation", { name: "Lessons in this section" }).find((nav) => !nav.closest("details"))!;
+
 describe("/courses/[slug]/lessons/[lessonId]", () => {
   const params = (lessonId = LESSON_B) => ({ params: Promise.resolve({ slug: "the-ready-writer", lessonId }) });
   const ok = (over: Record<string, unknown> = {}) => ({
@@ -399,7 +402,7 @@ describe("/courses/[slug]/lessons/[lessonId]", () => {
       withVideo();
       await renderServerPage(LessonPage, params());
 
-      expect(screen.getByRole("link", { name: "Back: Welcome" }).parentElement).toHaveClass("@4xl:hidden");
+      expect(screen.getByRole("link", { name: "Back: Welcome" }).parentElement).toHaveClass("@[62rem]:hidden");
       // Still in the page for smaller screens, where the list is hidden and they're the way to move around.
       expect(screen.getByRole("link", { name: "Back: Welcome" })).toBeInTheDocument();
     });
@@ -409,14 +412,14 @@ describe("/courses/[slug]/lessons/[lessonId]", () => {
       withVideo({ view: { course, access: { kind: "open", endsAt: null }, outline: looseOutline, completed: new Set(), progress: courseProgress(looseOutline, new Set()) } });
       await renderServerPage(LessonPage, params());
 
-      expect(screen.getByRole("link", { name: "Back: Welcome" }).parentElement).not.toHaveClass("@4xl:hidden");
+      expect(screen.getByRole("link", { name: "Back: Welcome" }).parentElement).not.toHaveClass("@[62rem]:hidden");
     });
 
     it("keeps Back and Next when the lesson has no video (the list isn't beside a player then)", async () => {
       loadLessonView.mockResolvedValue(ok());
       await renderServerPage(LessonPage, params());
 
-      expect(screen.getByRole("link", { name: "Back: Welcome" }).parentElement).not.toHaveClass("@4xl:hidden");
+      expect(screen.getByRole("link", { name: "Back: Welcome" }).parentElement).not.toHaveClass("@[62rem]:hidden");
     });
 
     it("puts Mark complete below the Back / Next row", async () => {
@@ -449,17 +452,34 @@ describe("/courses/[slug]/lessons/[lessonId]", () => {
       withVideo();
       await renderServerPage(LessonPage, params());
 
-      const section = screen.getByRole("navigation", { name: "Lessons in this section" });
+      const section = sectionList();
       const aside = section.closest("aside")!;
-      expect(aside).toHaveClass("relative", "hidden", "@4xl:block");
+      expect(aside).toHaveClass("relative", "hidden", "@[62rem]:block");
       expect(aside.parentElement).toContainElement(screen.getByTestId("player")); // the player and the list share one container
+    });
+
+    it("repeats the list in a closed panel under the video, which goes away once the list sits beside it", async () => {
+      withVideo();
+      await renderServerPage(LessonPage, params());
+
+      const details = screen.getByText("Lessons in this section", { selector: "summary span" }).closest("details")!;
+      expect(details).not.toHaveAttribute("open");
+      expect(details).toHaveClass("@[62rem]:hidden");
+      expect(within(details).getByRole("navigation", { name: "Lessons in this section" })).toBeInTheDocument();
+    });
+
+    it("has the closed panel for a lesson with no video too", async () => {
+      loadLessonView.mockResolvedValue(ok({ video: null }));
+      await renderServerPage(LessonPage, params());
+
+      expect(screen.getByText("Lessons in this section", { selector: "summary span" }).closest("details")).toHaveClass("@[62rem]:hidden");
     });
 
     it("lists the module's lessons with number, check or marker, aligned thumbnail and title, and nothing from other modules", async () => {
       withVideo();
       const { container } = await renderServerPage(LessonPage, params());
 
-      const section = screen.getByRole("navigation", { name: "Lessons in this section" });
+      const section = sectionList();
       expect(within(section).getByRole("heading", { name: "Month 1" })).toBeInTheDocument();
       expect(within(section).getByText("3 Lessons")).toBeInTheDocument();
       expect(within(section).getByRole("link", { name: /Welcome \(completed\)/ })).toBeInTheDocument();
@@ -471,7 +491,7 @@ describe("/courses/[slug]/lessons/[lessonId]", () => {
       withVideo();
       await renderServerPage(LessonPage, params());
 
-      const section = screen.getByRole("navigation", { name: "Lessons in this section" });
+      const section = sectionList();
       expect(within(section).getByText("Revision")).toBeInTheDocument();
       expect(within(section).queryByRole("link", { name: /Revision/ })).not.toBeInTheDocument();
       expect(within(section).queryByText(/Coming soon/)).not.toBeInTheDocument();
@@ -481,8 +501,8 @@ describe("/courses/[slug]/lessons/[lessonId]", () => {
       loadLessonView.mockResolvedValue(ok());
       await renderServerPage(LessonPage, params());
 
-      const section = screen.getByRole("navigation", { name: "Lessons in this section" });
-      expect(section.closest("div.hidden")).toHaveClass("@4xl:block");
+      const section = sectionList();
+      expect(section.closest("div.hidden")).toHaveClass("@[62rem]:block");
     });
   });
 
@@ -507,7 +527,7 @@ describe("/courses/[slug]/lessons/[lessonId]", () => {
       inTwoModules();
       await renderServerPage(LessonPage, params());
 
-      const section = screen.getByRole("navigation", { name: "Lessons in this section" });
+      const section = sectionList();
       expect(within(section).getByRole("link", { name: "Next Module" })).toHaveAttribute("href", `/courses/the-ready-writer/lessons/${NEXT_WEEK}`);
     });
 
@@ -553,7 +573,7 @@ describe("/courses/[slug]/lessons/[lessonId]", () => {
     await renderServerPage(LessonPage, params());
 
     const card = screen.getByRole("region", { name: "Downloads" });
-    expect(card.parentElement).toHaveClass("@4xl:col-start-2", "@4xl:row-start-3");
+    expect(card.parentElement).toHaveClass("@[62rem]:col-start-2", "@[62rem]:row-start-3");
     expect(within(card).getByRole("link", { name: /Tracker_Sheet\.pdf/ })).toHaveAttribute("href", `/courses/the-ready-writer/lessons/${LESSON_B}/files/f1`);
     const text = screen.getByRole("heading", { level: 1, name: "Voice" });
     expect(Boolean(text.compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true); // after the text in reading order
@@ -616,7 +636,7 @@ describe("/courses/[slug]/lessons/[lessonId]", () => {
     expect(button).toBeDisabled();
     expect(button).toHaveAttribute("title", "Progress isn't tracked for lessons members can't open yet");
     // Staff can open coming-soon lessons from the section list too.
-    expect(within(screen.getByRole("navigation", { name: "Lessons in this section" })).getByRole("link", { name: /Revision/ })).toBeInTheDocument();
+    expect(within(sectionList()).getByRole("link", { name: /Revision/ })).toBeInTheDocument();
   });
 
   it("tells staff a draft lesson is a draft, not 'coming soon', and keeps its progress untracked", async () => {
