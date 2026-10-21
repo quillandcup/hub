@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireAdminPage } from "@/lib/admin-auth";
-import { isUuid } from "@/lib/chat/format";
+import { isId } from "@/lib/ids";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { loadCourseWatchStats } from "@/lib/courses/watch-stats-data";
 import { formatClock } from "@/lib/courses/watch-stats";
@@ -48,7 +48,7 @@ export default async function LessonWatchStatsPage({
 }) {
   await requireAdminPage();
   const { id, lessonId } = await params;
-  if (!isUuid(lessonId)) notFound();
+  if (!isId(lessonId, "les")) notFound();
   const query = await searchParams;
   const includeStaff = query.staff === "1";
   // How many visits to list; "Load more" asks for another page of them.

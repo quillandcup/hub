@@ -15,6 +15,11 @@ export function isId(value: string | null | undefined, prefix: IdPrefix): value 
   return Boolean(value && new RegExp(`^${prefix}_${BASE58}$`).test(value));
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** A uuid: an auth user id, or an id the browser made up (analytics, watch segments), never one of ours. */
+export const isUuid = (value: string | undefined | null): value is string => Boolean(value && UUID_RE.test(value));
+
 /** Any Tier 1 id, whatever table it is from (for turning a URL segment into "[id]" or "one"). */
 export function isAnyId(value: string | null | undefined): boolean {
   return Boolean(value && ID_PREFIXES.some((p) => isId(value, p)));
