@@ -1,4 +1,4 @@
--- pgTAP tests for 20261029000000_chat_edit_delete.sql: a member edits and deletes only their own
+-- pgTAP tests for 20261130000000_chat_edit_delete.sql: a member edits and deletes only their own
 -- messages written in the Hub (not Slack's, not someone else's, not a deleted one, not in an
 -- archived conversation), edits are trimmed and bounded like posts, a delete is soft and keeps the
 -- text, and a deleted reply stops counting toward its thread.
