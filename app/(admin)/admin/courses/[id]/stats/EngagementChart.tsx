@@ -22,8 +22,9 @@ const plays1 = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
 
 /**
  * Wistia-style engagement graph for one video. The area is how many times each moment was played in
- * all, rewatches included; the line is how many different members watched it. Where the area sits
- * above the line, people watched that part more than once. Hover (or arrow keys) reads a moment;
+ * all, rewatches included; the dashed line is how many different people (members) played it, each
+ * counted once however often. Where the area sits above the line, someone played that part more than
+ * once: one person watching twice is 2 plays and 1 person. Hover (or arrow keys) reads a moment;
  * the table below has every value.
  */
 export default function EngagementChart({ buckets, durationSeconds }: { buckets: HeatBucket[]; durationSeconds: number }) {
@@ -82,7 +83,7 @@ export default function EngagementChart({ buckets, durationSeconds }: { buckets:
           <svg aria-hidden="true" width="20" height="8" className="stroke-slate-500 dark:stroke-slate-400">
             <line x1="0" y1="4" x2="20" y2="4" strokeWidth="2" strokeDasharray="5 3" />
           </svg>
-          Different viewers
+          People, each counted once
         </span>
       </div>
 
@@ -120,7 +121,7 @@ export default function EngagementChart({ buckets, durationSeconds }: { buckets:
             Plays
           </text>
           <text x={W - M.right + 6} y={viewersLabelY} dominantBaseline="middle" className="fill-slate-700 text-[11px] dark:fill-slate-300">
-            Viewers
+            People
           </text>
 
           {active !== null && hovered && (
@@ -151,7 +152,7 @@ export default function EngagementChart({ buckets, durationSeconds }: { buckets:
             <p className="flex items-center justify-between gap-2">
               <span className="inline-flex items-center gap-1.5 text-slate-600 dark:text-slate-400">
                 <span aria-hidden="true" className="inline-block h-0.5 w-3 bg-slate-500 dark:bg-slate-400" />
-                Viewers
+                People
               </span>
               <strong className="text-slate-900 dark:text-slate-100">{hovered.viewers}</strong>
             </p>
@@ -172,7 +173,7 @@ export default function EngagementChart({ buckets, durationSeconds }: { buckets:
               <tr>
                 <th className="py-1 pr-3 font-medium">Moment</th>
                 <th className="py-1 pr-3 text-right font-medium">Plays</th>
-                <th className="py-1 pr-3 text-right font-medium">Viewers</th>
+                <th className="py-1 pr-3 text-right font-medium">People</th>
                 <th className="py-1 text-right font-medium">Rewatched</th>
               </tr>
             </thead>

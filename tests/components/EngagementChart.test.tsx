@@ -22,11 +22,11 @@ describe("EngagementChart", () => {
   it("has a legend, direct labels, a time axis and a table of every moment", () => {
     const { container } = render(<EngagementChart buckets={buckets} durationSeconds={100} />);
     expect(screen.getByText("Plays, rewatches included")).toBeInTheDocument();
-    expect(screen.getByText("Different viewers")).toBeInTheDocument();
+    expect(screen.getByText("People, each counted once")).toBeInTheDocument();
     const chart = screen.getByRole("img", { name: /Engagement over the 1:40 video/ });
     expect(within(chart as unknown as HTMLElement).getByText("1:40")).toBeInTheDocument();
     expect(container.querySelectorAll("tbody tr")).toHaveLength(4);
-    // The table gives the rewatching directly: plays minus viewers.
+    // The table gives the rewatching directly: plays minus people.
     expect(within(container.querySelectorAll("tbody tr")[2] as HTMLElement).getAllByRole("cell").map((c) => c.textContent)).toEqual(["0:50 to 1:15", "5", "3", "2"]);
   });
 
@@ -41,7 +41,7 @@ describe("EngagementChart", () => {
     const tooltip = screen.getByRole("status");
     expect(tooltip).toHaveTextContent("0:50 to 1:15");
     expect(tooltip).toHaveTextContent("Plays5");
-    expect(tooltip).toHaveTextContent("Viewers3");
+    expect(tooltip).toHaveTextContent("People3");
     expect(tooltip).toHaveTextContent("Rewatched: 2");
 
     fireEvent.keyDown(chart, { key: "Home" });
@@ -53,6 +53,18 @@ describe("EngagementChart", () => {
     expect(screen.getByRole("status")).toHaveTextContent("1:15 to 1:40");
     fireEvent.keyDown(chart, { key: "Escape" });
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
+
+  it("labels the dashed line as people counted once, so one person watching twice reads as 2 plays and 1 person", () => {
+    // One member watched the first quarter twice: 2 plays, 1 person.
+    const twice: HeatBucket[] = [{ start: 0, end: 50, plays: 2, viewers: 1, sessions: 2 }, { start: 50, end: 100, plays: 0, viewers: 0, sessions: 0 }];
+    render(<EngagementChart buckets={twice} durationSeconds={100} />);
+    fireEvent.keyDown(screen.getByRole("img"), { key: "Home" });
+    const tooltip = screen.getByRole("status");
+    expect(tooltip).toHaveTextContent("Plays2");
+    expect(tooltip).toHaveTextContent("People1");
+    expect(tooltip).toHaveTextContent("Rewatched: 1");
+    expect(screen.queryByText(/different viewers/i)).not.toBeInTheDocument();
   });
 
   it("is focusable so the keyboard works without a pointer", () => {
