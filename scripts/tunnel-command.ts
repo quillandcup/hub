@@ -13,7 +13,7 @@ export type TunnelPlan =
 /** Next's default dev port, used when none is given. */
 export const DEFAULT_PORT = "3000";
 
-export const TUNNEL_USAGE = `Usage: npm run tunnel [-- <port>]
+export const TUNNEL_USAGE = `Usage: pnpm tunnel [<port>]
 
 Opens a public https address that forwards to localhost:<port> (default ${DEFAULT_PORT}),
 for testing vendor webhooks (Mux, Zoom, Google Calendar, Slack) against your dev server.

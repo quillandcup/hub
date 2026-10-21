@@ -1,6 +1,6 @@
 -- pgTAP tests for get_record_history's p_parent_column and p_member_rows (20261102000000): an
 -- event's history includes its attendees' adds and removes, and a member's includes every row about
--- them, but another event's attendees stay out. Rolled back. Run with `npm run test:pgtap`.
+-- them, but another event's attendees stay out. Rolled back. Run with `pnpm test:pgtap`.
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;

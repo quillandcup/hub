@@ -84,12 +84,12 @@ These tests are written but require integration test infrastructure (shared test
 
 ```bash
 # Run all webhook tests
-npm test -- tests/api/webhooks/
+pnpm test tests/api/webhooks/
 
 # Run specific webhook test
-npm test -- tests/api/webhooks/calendar.test.ts
-npm test -- tests/api/webhooks/zoom.test.ts
-npm test -- tests/api/webhooks/slack.test.ts
+pnpm test tests/api/webhooks/calendar.test.ts
+pnpm test tests/api/webhooks/zoom.test.ts
+pnpm test tests/api/webhooks/slack.test.ts
 ```
 
 ## Test Infrastructure
@@ -97,7 +97,7 @@ npm test -- tests/api/webhooks/slack.test.ts
 ### Dependencies
 
 ```bash
-npm install --save-dev msw@latest
+pnpm add -D msw@latest
 ```
 
 ### Configuration Files
@@ -261,7 +261,7 @@ Once integration infrastructure is ready:
 - [ ] Add Bronze verification to Calendar tests (2-3 new tests)
 - [ ] Add Bronze verification to Zoom tests (2-3 new tests)
 - [ ] Update this documentation with integration test examples
-- [ ] Run full test suite: `npm test -- tests/api/webhooks/`
+- [ ] Run full test suite: `pnpm test tests/api/webhooks/`
 - [ ] Target: 27 passing tests (no skipped)
 
 ## Next Steps

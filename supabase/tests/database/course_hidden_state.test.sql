@@ -1,6 +1,6 @@
 -- pgTAP tests for hidden (draft) course lessons and modules (20261129000100): the tables hold them, and
 -- members never read them through row-level security while staff do. Runs in one transaction that is rolled
--- back, so it leaves the shared local DB untouched. Run with `npm run test:pgtap`.
+-- back, so it leaves the shared local DB untouched. Run with `pnpm test:pgtap`.
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;

@@ -2,7 +2,7 @@
 // Diffs or pushes slack-app-manifest.yml against the live Slack app (Billie Bot), so the
 // manifest in the repo is the source of truth instead of a file someone remembers to paste
 // into api.slack.com. CI runs `push` after every production deploy (ci.yml,
-// push-slack-manifest job); `npm run slack:manifest:diff` is the read-only preview.
+// push-slack-manifest job); `pnpm slack:manifest:diff` is the read-only preview.
 //
 //   tsx scripts/slack-manifest.ts diff   show what a push would change (read-only)
 //   tsx scripts/slack-manifest.ts push   replace the live app's configuration

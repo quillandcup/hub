@@ -1,6 +1,6 @@
 -- pgTAP tests for 20261010000000_chat_mirror.sql: the Slack → chat projection (channels, membership,
 -- messages, threads, reactions, soft deletes, re-runs) and the access rules for the chat_* tables.
--- Rolled back; run with `npm run test:pgtap`.
+-- Rolled back; run with `pnpm test:pgtap`.
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;

@@ -1,0 +1,28 @@
+allowBuilds:
+  '@sentry/cli': false
+  esbuild: false
+  fsevents: false
+  msw: false
+  unrs-resolver: false
+overrides:
+  "tar": "^7.5.16"
+  "smol-toml": "^1.6.1"
+  "esbuild": "^0.28.1"
+  "js-yaml": "^4.2.0"
+  "next>postcss": "^8.5.23"
+  "@vercel/static-config>ajv": "^8.17.2"
+  "@vercel/fun>@tootallnate/once": "^2.0.1"
+  "@vercel/fun>path-to-regexp": "^8.4.2"
+  "@vercel/backends>path-to-regexp": "^8.4.2"
+  "@vercel/express>path-to-regexp": "^8.4.2"
+  "@vercel/hono>path-to-regexp": "^8.4.2"
+  "@vercel/node>path-to-regexp": "^6.3.0"
+  "@vercel/node>undici": "^6.28.0"
+  "@vercel/remix-builder>path-to-regexp": "^6.3.0"
+  "@vercel/python-analysis>minimatch": "^10.2.3"
+  "vercel>undici": "^6.28.0"
+  "@vercel/sandbox>undici": "^7.29.0"
+  "minimatch@3>brace-expansion": "^1.1.18"
+  "minimatch@10>brace-expansion": "^5.0.12"
+  "@types/react": "19.3.0"
+  "@types/react-dom": "19.3.0"

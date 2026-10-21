@@ -4,7 +4,7 @@ import { getTestApiBaseUrl, getTestAuthHeaders } from '../../helpers/supabase'
 /**
  * The other API tests call route handlers in-process (tests/helpers/api-fetch.ts), which keeps
  * their coverage but skips Next's own server: routing, the proxy, body parsing and the real
- * Request/Response. These few go over HTTP to the built app (`npm run start`) so that layer
+ * Request/Response. These few go over HTTP to the built app (`pnpm start`) so that layer
  * stays covered. Don't add more here without a reason an in-process call can't show.
  */
 describe('HTTP smoke (built app server)', () => {

@@ -2,11 +2,11 @@
 # This catches TypeScript errors before committing
 
 # Staged .md files that carry doctoc's START/END markers get their table of contents regenerated
-# (npm run docs:toc); files without the markers are left alone. To add one to a doc, put the two
+# (pnpm docs:toc); files without the markers are left alone. To add one to a doc, put the two
 # marker comments where the TOC should go (see docs/INTEGRATION_LINKS.md).
 STAGED_DOCS=$(git diff --cached --name-only --diff-filter=ACM -- '*.md')
 if [ -n "$STAGED_DOCS" ]; then
-  echo "$STAGED_DOCS" | xargs npm run --silent docs:toc -- > /dev/null
+  echo "$STAGED_DOCS" | xargs pnpm --silent docs:toc > /dev/null
   echo "$STAGED_DOCS" | xargs git add
 fi
 
@@ -14,7 +14,7 @@ fi
 # `supabase db push` fail on main after merge. Refresh origin/main first (best effort,
 # offline is fine) so the comparison is current.
 git fetch origin main --quiet 2>/dev/null
-npm run --silent check:migrations || exit 1
+pnpm --silent check:migrations || exit 1
 
 # Nothing a build could catch changed when every staged file is documentation (the same check CI
 # uses to skip its test and deploy jobs, decided from the files, not the commit message).
@@ -24,7 +24,7 @@ if [ "$(node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/docs-only.ts
 fi
 
 echo "🔍 Running production build before commit..."
-npm run build
+pnpm build
 
 if [ $? -ne 0 ]; then
   echo ""

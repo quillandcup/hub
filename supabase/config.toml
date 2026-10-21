@@ -277,8 +277,8 @@ max_frequency = "5s"
 # This hook runs before a token is issued and allows you to add additional claims based on the authentication method used.
 # Adds the `app_role` claim (user_profiles.role) that proxy.ts's /admin pre-filter reads instead of
 # querying user_profiles; see supabase/migrations/20260926000900_add_role_to_access_token.sql.
-# Not overridden under [remotes.prod], so `npm run config:push` enables it on production too. Apply
-# that migration to production (`npm run db:push`) BEFORE pushing this: while the hook points at a
+# Not overridden under [remotes.prod], so `pnpm config:push` enables it on production too. Apply
+# that migration to production (`pnpm db:push`) BEFORE pushing this: while the hook points at a
 # missing function, Auth can't issue tokens and every sign-in and refresh fails.
 # Local auth only reads this at startup: restart the stack (supabase stop && supabase start) to apply.
 [auth.hook.custom_access_token]
@@ -455,7 +455,7 @@ enroll_enabled = true
 verify_enabled = true
 
 # Production's current values for settings where the local defaults above differ, pinned so
-# `npm run config:push` doesn't silently change them (it would have cut the auth email rate
+# `pnpm config:push` doesn't silently change them (it would have cut the auth email rate
 # limit from 20/h to 2/h and turned off storage analytics/vector). Local stays at the CLI
 # defaults. See "Supabase config as code" in CLAUDE.md.
 [remotes.prod.auth.rate_limit]

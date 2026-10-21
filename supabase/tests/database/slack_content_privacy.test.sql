@@ -2,7 +2,7 @@
 -- content or raw payloads from Bronze, only the metadata view; restricting a channel is
 -- admin-only, audited, clears text already copied into member_activities and keeps it out of
 -- rebuilds; and the activity feed can narrow to those privacy changes.
--- Rolled back; run with `npm run test:pgtap`.
+-- Rolled back; run with `pnpm test:pgtap`.
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;

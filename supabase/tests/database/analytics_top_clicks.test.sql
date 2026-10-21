@@ -1,7 +1,7 @@
 -- pgTAP tests for analytics_top_clicks (20261113000200): clicks ranked by their best label, with
 -- a route prefix, an admin-area switch, sudo left out, and RLS deciding who sees what.
 -- Runs in one transaction that is rolled back, so it leaves the shared local DB untouched.
--- Run with `npm run test:pgtap` (scripts/test-pgtap.sh; CI runs it in the test-db job).
+-- Run with `pnpm test:pgtap` (scripts/test-pgtap.sh; CI runs it in the test-db job).
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;

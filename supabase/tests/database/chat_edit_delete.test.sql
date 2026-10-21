@@ -2,7 +2,7 @@
 -- messages written in the Hub (not Slack's, not someone else's, not a deleted one, not in an
 -- archived conversation), edits are trimmed and bounded like posts, a delete is soft and keeps the
 -- text, and a deleted reply stops counting toward its thread.
--- Rolled back; run with `npm run test:pgtap`.
+-- Rolled back; run with `pnpm test:pgtap`.
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;

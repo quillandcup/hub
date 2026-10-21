@@ -9,12 +9,12 @@ On a push to main that changes `slack-app-manifest.yml` or `scripts/slack-manife
 ## Before merging a manifest change
 
 ```bash
-SLACK_CONFIG_TOKEN=xoxe.xoxp-... npm run slack:manifest:diff
+SLACK_CONFIG_TOKEN=xoxe.xoxp-... pnpm slack:manifest:diff
 ```
 
 Read-only. Make sure it shows only the change you intend. A `-` line is something the live app has that the manifest doesn't: the push would remove it, so add it to the manifest if it should stay.
 
-`SLACK_CONFIG_TOKEN` is an app configuration **access** token from [api.slack.com/apps](https://api.slack.com/apps) → "Your App Configuration Tokens" (valid 12 hours). `SLACK_APP_ID` comes from `.env.shared`/`.env.prod`. `npm run slack:manifest:push` does a manual push the same way.
+`SLACK_CONFIG_TOKEN` is an app configuration **access** token from [api.slack.com/apps](https://api.slack.com/apps) → "Your App Configuration Tokens" (valid 12 hours). `SLACK_APP_ID` comes from `.env.shared`/`.env.prod`. `pnpm slack:manifest:push` does a manual push the same way.
 
 Two things a push can't do for you:
 
@@ -25,8 +25,8 @@ Two things a push can't do for you:
 
 The job fails until all three exist.
 
-1. **`SLACK_APP_ID`** (GitHub variable): the app's `A...` id, in `.env.shared` (the app uses it too); `npm run env:sync:github` sets it.
-2. **`GH_TOKEN_SLACK_MANIFEST`** (GitHub secret): a fine-grained personal access token limited to this repository with **Secrets: Read and write**. Put it in `.env.shared` and run `npm run env:sync:github`. It expires on the date you pick; rotate it then.
+1. **`SLACK_APP_ID`** (GitHub variable): the app's `A...` id, in `.env.shared` (the app uses it too); `pnpm env:sync:github` sets it.
+2. **`GH_TOKEN_SLACK_MANIFEST`** (GitHub secret): a fine-grained personal access token limited to this repository with **Secrets: Read and write**. Put it in `.env.shared` and run `pnpm env:sync:github`. It expires on the date you pick; rotate it then.
 3. **`SLACK_CONFIG_REFRESH_TOKEN`** (GitHub secret): at api.slack.com/apps → "Your App Configuration Tokens", generate a token for the workspace and copy the **refresh** token (`xoxe-...`):
 
    ```bash

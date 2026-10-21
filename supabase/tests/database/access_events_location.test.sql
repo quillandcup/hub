@@ -1,6 +1,6 @@
 -- pgTAP tests for where an access event came from (20261128000100): the place and IP columns' checks,
 -- and access_locations_at(), the latest located event before a time. Runs in one transaction that is rolled
--- back, so it leaves the shared local DB untouched. Run with `npm run test:pgtap`.
+-- back, so it leaves the shared local DB untouched. Run with `pnpm test:pgtap`.
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;

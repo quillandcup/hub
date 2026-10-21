@@ -1,7 +1,7 @@
 -- pgTAP tests for 20261121000000_chat_slack_read_sync.sql: a Slack read marker moves the Hub marker
 -- forward only (to the newest message at or before it, numerically), only for a conversation the
 -- member is in; and the pull claim lets one pull through per interval. Rolled back; run with
--- `npm run test:pgtap`.
+-- `pnpm test:pgtap`.
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;

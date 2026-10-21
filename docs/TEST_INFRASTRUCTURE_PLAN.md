@@ -7,7 +7,7 @@ mechanisms than the code samples originally suggested — noting the actual
 state rather than rewriting the aspirational sections wholesale:
 
 - **Server-in-CI**: resolved, but via a bash step in `.github/workflows/ci.yml`
-  (`npm run start` + a curl readiness loop) rather than the `globalSetup`/
+  (`pnpm start` + a curl readiness loop) rather than the `globalSetup`/
   vitest-config approach sketched in Phase 1 below. Same problem, different
   implementation.
 - **MSW for external API mocks**: already set up (`tests/setup-msw.ts`,
@@ -40,7 +40,7 @@ state rather than rewriting the aspirational sections wholesale:
    - Requires manual start/stop
    - ~~Can't run tests in CI without server setup~~ **Resolved**: `.github/workflows/ci.yml`'s
      "Production build" + "Start app server" steps now build and boot the app
-     with `next start` before `npm run test:run`, and tear it down after. This
+     with `next start` before `pnpm test:run`, and tear it down after. This
      was in fact the actual cause of a real CI failure (tests that fetch
      `TEST_API_BASE_URL` had nothing listening in a fresh runner, while local
      runs "passed" only by accident of whatever `next dev` happened to already

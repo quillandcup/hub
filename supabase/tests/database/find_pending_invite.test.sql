@@ -1,6 +1,6 @@
 -- pgTAP test for public.find_pending_invite (20260929000100_create_find_pending_invite.sql).
 -- Runs in one transaction that is rolled back, so it leaves the shared local DB untouched.
--- Run with `npm run test:pgtap`.
+-- Run with `pnpm test:pgtap`.
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;

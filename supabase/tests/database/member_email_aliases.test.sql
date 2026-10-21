@@ -5,7 +5,7 @@
 --   * RLS ownership follows member_id, including after the member's email changes.
 --   * reprocess_members_atomic writes member_id and keeps aliases through email changes.
 -- Runs in one transaction that is rolled back, so it leaves the shared local DB untouched.
--- Run with `npm run test:pgtap` (scripts/test-pgtap.sh; CI runs it in the test-db job).
+-- Run with `pnpm test:pgtap` (scripts/test-pgtap.sh; CI runs it in the test-db job).
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;

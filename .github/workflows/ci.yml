@@ -114,12 +114,15 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      - uses: pnpm/action-setup@v6.1.0
+
+
       - uses: actions/setup-node@v7
         with:
           node-version-file: ".nvmrc"
-          cache: npm
+          cache: pnpm
 
-      - run: npm ci
+      - run: pnpm install --frozen-lockfile
 
       # Skipped on workflow_dispatch (manual redeploy, nothing new to compare), but the job
       # still succeeds so push-migrations, which needs it, still runs.
@@ -131,7 +134,7 @@ jobs:
 
       - name: Check migration numbering
         if: github.event_name != 'workflow_dispatch'
-        run: npm run check:migrations -- FETCH_HEAD
+        run: pnpm check:migrations FETCH_HEAD
 
       # Only on main (and manual redeploys): pull request runs don't get the production
       # credentials.
@@ -145,7 +148,7 @@ jobs:
         run: |
           supabase link --project-ref "$SUPABASE_PROJECT_ID"
           supabase migration list --linked > "$RUNNER_TEMP/migration-list.json"
-          npm run check:migrations -- --applied "$RUNNER_TEMP/migration-list.json"
+          pnpm check:migrations --applied "$RUNNER_TEMP/migration-list.json"
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
@@ -161,12 +164,15 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      - uses: pnpm/action-setup@v6.1.0
+
+
       - uses: actions/setup-node@v7
         with:
           node-version-file: ".nvmrc"
-          cache: npm
+          cache: pnpm
 
-      - run: npm ci
+      - run: pnpm install --frozen-lockfile
 
       # Next.js 16 removed linting from `next build` entirely (it used to run
       # as part of the "Production build" step in test-db below, gated by
@@ -174,7 +180,7 @@ jobs:
       # this is now the only thing that lints the codebase. Placed in the
       # fast unit job (no Supabase/Docker needed) for quick feedback.
       - name: Run lint
-        run: npm run lint
+        run: pnpm lint
 
       # This bucket is pure-logic/component tests -- every dependency is mocked
       # (vi.mock / vi.fn / stubbed global.fetch) or the test is pure functions in,
@@ -183,7 +189,7 @@ jobs:
       # Runs the unit suite once, with v8 coverage. The coverage floors are on the unit and db
       # runs combined, so they are checked by the Coverage report job (scripts/coverage-report.ts).
       - name: Run unit test suite (with coverage)
-        run: npm run test:unit:coverage
+        run: pnpm test:unit:coverage
 
       - name: Upload coverage report
         if: ${{ !cancelled() }}
@@ -203,12 +209,15 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      - uses: pnpm/action-setup@v6.1.0
+
+
       - uses: actions/setup-node@v7
         with:
           node-version-file: ".nvmrc"
-          cache: npm
+          cache: pnpm
 
-      - run: npm ci
+      - run: pnpm install --frozen-lockfile
 
       - uses: supabase/setup-cli@v1
         with:
@@ -249,7 +258,7 @@ jobs:
       # on 2026-10-09 and blocked the migration push and deploy). continue-on-error because
       # runs without our secrets (Dependabot, forks) must still try anonymously.
       # DOCKERHUB_USERNAME is a GitHub variable, DOCKERHUB_TOKEN a secret; both come from
-      # env-vars.config.ts via `npm run env:sync:github`.
+      # env-vars.config.ts via `pnpm env:sync:github`.
       - name: Log in to Docker Hub
         continue-on-error: true
         uses: docker/login-action@v4
@@ -274,11 +283,11 @@ jobs:
       # above -- the build only needs the Supabase URL/key env vars present
       # (baked in / read at runtime), not a live database.
       #
-      # `npm run build` (package.json) now runs `next build --turbopack`
+      # `pnpm build` (package.json) now runs `next build --turbopack`
       # directly, matching what Vercel's production deploys use -- so this
       # step no longer needs to forward the flag itself.
       - name: Production build
-        run: npm run build
+        run: pnpm build
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ env.LOCAL_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ env.LOCAL_SUPABASE_ANON_KEY }}
@@ -331,7 +340,7 @@ jobs:
       # already running on :3000 (TEST_API_BASE_URL overrides).
       - name: Start app server
         run: |
-          npm run start > /tmp/next-server.log 2>&1 &
+          pnpm start > /tmp/next-server.log 2>&1 &
           echo $! > /tmp/next-server.pid
           ready=""
           for i in $(seq 1 60); do
@@ -357,7 +366,7 @@ jobs:
       # counts them; only the few HTTP smoke tests use the app server above. The coverage job
       # below merges this with the unit run and checks the floors.
       - name: Run db test suite (with coverage)
-        run: npm run test:db:coverage
+        run: pnpm test:db:coverage
 
       - name: Upload db coverage report
         if: ${{ !cancelled() }}
@@ -370,7 +379,7 @@ jobs:
       # SQL-level tests (pgTAP) in supabase/tests/database: RLS, SECURITY DEFINER functions,
       # auth hooks -- things only observable as a specific Postgres role. Each file rolls back.
       - name: Run pgTAP test suite
-        run: npm run test:pgtap
+        run: pnpm test:pgtap
 
       - name: Stop app server
         if: always()
@@ -396,12 +405,15 @@ jobs:
         with:
           fetch-depth: 0 # the new-lines check diffs against the PR's base branch
 
+      - uses: pnpm/action-setup@v6.1.0
+
+
       - uses: actions/setup-node@v7
         with:
           node-version-file: ".nvmrc"
-          cache: npm
+          cache: pnpm
 
-      - run: npm ci
+      - run: pnpm install --frozen-lockfile
 
       - uses: actions/download-artifact@v8
         with:
@@ -429,7 +441,7 @@ jobs:
           if gh pr view "$PR_NUMBER" --json labels --jq '.labels[].name' | grep -qx 'skip-patch-coverage'; then
             export PATCH_COVERAGE_SKIP=1
           fi
-          npx tsx scripts/coverage-report.ts --suite unit=coverage/unit --suite db=coverage/db --patch-base "origin/$BASE_REF"
+          pnpm exec tsx scripts/coverage-report.ts --suite unit=coverage/unit --suite db=coverage/db --patch-base "origin/$BASE_REF"
 
   push-migrations:
     name: Push migrations to production
@@ -438,7 +450,7 @@ jobs:
     # buckets (and the build, which test-db also runs) passing; the event/ref
     # check keeps it off pull_request runs. workflow_dispatch on main is the
     # manual redeploy (`gh workflow run ci.yml --ref main`), e.g. after
-    # `npm run env:sync` changes production env vars.
+    # `pnpm env:sync` changes production env vars.
     if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -501,15 +513,15 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      # `cache: npm` here caches npm's download cache (~/.npm) keyed on
-      # package-lock.json -- `vercel build` below runs its own `npm install`
-      # internally (not `npm ci`, and there's no way to skip that install
-      # step), so this is what actually speeds it up. No explicit `npm ci`
-      # step needed in this job.
+      # `cache: pnpm` here caches pnpm's store, keyed on pnpm-lock.yaml -- `vercel build`
+      # below runs its own install internally (and there is no way to skip it), so this is
+      # what speeds it up. No explicit install step needed in this job.
+      - uses: pnpm/action-setup@v6.1.0
+
       - uses: actions/setup-node@v7
         with:
           node-version-file: ".nvmrc"
-          cache: npm
+          cache: pnpm
 
       - run: npm install -g "vercel@$VERCEL_CLI_VERSION"
 
@@ -522,9 +534,9 @@ jobs:
         uses: actions/cache@v6
         with:
           path: ${{ github.workspace }}/.next/cache
-          key: ${{ runner.os }}-nextjs-${{ hashFiles('package-lock.json') }}-${{ hashFiles('**/*.js', '**/*.jsx', '**/*.ts', '**/*.tsx') }}
+          key: ${{ runner.os }}-nextjs-${{ hashFiles('pnpm-lock.yaml') }}-${{ hashFiles('**/*.js', '**/*.jsx', '**/*.ts', '**/*.tsx') }}
           restore-keys: |
-            ${{ runner.os }}-nextjs-${{ hashFiles('package-lock.json') }}-
+            ${{ runner.os }}-nextjs-${{ hashFiles('pnpm-lock.yaml') }}-
 
       # Pulls the linked project's real production env vars/settings (this is
       # what makes vercel.json's git.deploymentEnabled.main:false safe --
@@ -601,16 +613,19 @@ jobs:
         env:
           BEFORE: ${{ github.event.before }}
 
+      - uses: pnpm/action-setup@v6.1.0
+
+
       - uses: actions/setup-node@v7
         if: steps.manifest.outputs.changed == 'true'
         with:
           node-version-file: ".nvmrc"
-          cache: npm
+          cache: pnpm
 
-      - run: npm ci
+      - run: pnpm install --frozen-lockfile
         if: steps.manifest.outputs.changed == 'true'
 
-      # Calls scripts/slack-manifest.ts directly rather than `npm run slack:manifest:push`,
+      # Calls scripts/slack-manifest.ts directly rather than `pnpm slack:manifest:push`,
       # which wraps it in dotenv for the local .env files.
       - name: Push Slack app manifest
         if: steps.manifest.outputs.changed == 'true'
@@ -619,7 +634,7 @@ jobs:
             echo "SLACK_CONFIG_REFRESH_TOKEN, GH_TOKEN_SLACK_MANIFEST (secrets) and SLACK_APP_ID (variable) must all be set -- see docs/SLACK_MANIFEST.md."
             exit 1
           fi
-          npx tsx scripts/slack-manifest.ts push
+          pnpm exec tsx scripts/slack-manifest.ts push
         env:
           SLACK_APP_ID: ${{ vars.SLACK_APP_ID }}
           SLACK_CONFIG_REFRESH_TOKEN: ${{ secrets.SLACK_CONFIG_REFRESH_TOKEN }}
@@ -655,18 +670,21 @@ jobs:
         env:
           BEFORE: ${{ github.event.before }}
 
+      - uses: pnpm/action-setup@v6.1.0
+
+
       - uses: actions/setup-node@v7
         if: steps.config.outputs.changed == 'true'
         with:
           node-version-file: ".nvmrc"
-          cache: npm
+          cache: pnpm
 
-      - run: npm ci
+      - run: pnpm install --frozen-lockfile
         if: steps.config.outputs.changed == 'true'
 
       - name: Push Vercel project config
         if: steps.config.outputs.changed == 'true'
-        run: npx tsx scripts/vercel-config.ts push
+        run: pnpm exec tsx scripts/vercel-config.ts push
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}

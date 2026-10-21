@@ -134,7 +134,7 @@ function main(): void {
     next.push(url ? `preview  npx vercel redeploy ${url}` : "preview  push to the PR branch to rebuild its preview");
   }
   if (syncedNames.has("CRON_INTERNAL_SECRET") && syncedTargets.has("production")) {
-    next.push("vault    npm run env:sync:vault   # pg_cron reads CRON_INTERNAL_SECRET from Supabase Vault");
+    next.push("vault    pnpm env:sync:vault   # pg_cron reads CRON_INTERNAL_SECRET from Supabase Vault");
   }
   if (next.length) console.log(`\nRedeploy to apply:\n${next.map((l) => `  ${l}`).join("\n")}`);
 

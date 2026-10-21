@@ -2,7 +2,7 @@
 -- mentorships (they name trial members and hold outcome notes), any signed-in member can get the
 -- badge counts through mentorship_counts() without seeing who was mentored, a trial member has
 -- one active big sister, and changes are audited. Runs in one transaction that is rolled back.
--- Run with `npm run test:pgtap`.
+-- Run with `pnpm test:pgtap`.
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;

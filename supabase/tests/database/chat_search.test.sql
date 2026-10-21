@@ -1,6 +1,6 @@
 -- pgTAP tests for 20261015000000_chat_search.sql: search_chat_messages runs as the caller, so RLS
 -- decides what matches (deleted, restricted-for-admins and other people's private channels never do),
--- and the filters narrow it. Rolled back; run with `npm run test:pgtap`.
+-- and the filters narrow it. Rolled back; run with `pnpm test:pgtap`.
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;

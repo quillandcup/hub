@@ -21,16 +21,16 @@ management).
 3. **Sync:**
    ```bash
    # Scoped sync -- just the vars you rotated, production only (fast, low blast radius)
-   npm run env:sync -- --only=NAME1,NAME2 --target=production
+   pnpm env:sync --only=NAME1,NAME2 --target=production
 
    # Full Vercel sync -- every var, preview + production (e.g. after editing .env.shared)
-   npm run env:sync
+   pnpm env:sync
 
    # GitHub Actions secrets (CHECKLY_*, SUPABASE_ACCESS_TOKEN, SUPABASE_DB_PASSWORD, VERCEL_*)
-   npm run env:sync:github
+   pnpm env:sync:github
 
    # Supabase Vault (CRON_INTERNAL_SECRET only, read by pg_cron -- not covered by the above)
-   npm run env:sync:vault
+   pnpm env:sync:vault
    ```
 4. **Trigger a deploy** -- push a commit to `main` (even a trivial one) or re-run the `CI`
    workflow. This is the actual test: `vercel pull`/`build`/`deploy` in the `deploy` job will
@@ -128,11 +128,11 @@ management).
 ### GitHub
 - `GH_TOKEN_SLACK_MANIFEST`: https://github.com/settings/personal-access-tokens -> generate a
   fine-grained token, resource owner `quillandcup`, only this repository, **Secrets: Read and
-  write**. Put it in `.env.shared`, run `npm run env:sync:github`, then delete the old token on
+  write**. Put it in `.env.shared`, run `pnpm env:sync:github`, then delete the old token on
   that page. It has an expiry date; the Slack manifest job fails once it passes.
 - `GH_TOKEN_AUTO_MERGE`: same page, fine-grained, resource owner `quillandcup`, only this
   repository, **Contents: Read and write** and **Pull requests: Read and write**. Put it in
-  `.env.shared`, run `npm run env:sync:github`, then delete the old token. Once it expires,
+  `.env.shared`, run `pnpm env:sync:github`, then delete the old token. Once it expires,
   new PRs stop getting auto-merge enabled (the Auto-merge workflow fails).
 
 ### Sentry
@@ -159,12 +159,12 @@ generate a fresh one and paste it in:
 ```bash
 openssl rand -hex 32
 ```
-`CRON_INTERNAL_SECRET` additionally needs `npm run env:sync:vault` (pg_cron reads it from
+`CRON_INTERNAL_SECRET` additionally needs `pnpm env:sync:vault` (pg_cron reads it from
 Supabase Vault, not from Vercel's `process.env`).
 
 ## Backfilling vars missing from the value files
 
-`npm run env:sync` lists every var it skipped and the file(s) it expected it in (it leaves
+`pnpm env:sync` lists every var it skipped and the file(s) it expected it in (it leaves
 Vercel's copy alone, and exits non-zero so the gap stays visible). To fill one in:
 
 - **Config-type values** can be copied out of Vercel -- pull to a throwaway file, copy the line,
@@ -176,7 +176,7 @@ Vercel's copy alone, and exits non-zero so the gap stays visible). To fill one i
 - **Secret-type values** come back as `[SENSITIVE]`, so they have to come from the provider
   (per-service sections above) or be generated (`openssl rand -hex 32` for self-generated ones;
   use a different value for preview than production).
-- **GitHub Actions credentials** (`npm run env:sync:github`) can't be read back from GitHub
+- **GitHub Actions credentials** (`pnpm env:sync:github`) can't be read back from GitHub
   either -- create a new token at the provider, put it in `.env.prod`, sync, then revoke the old one.
 
 ## Gotchas learned the hard way (2026-09-25 incident)

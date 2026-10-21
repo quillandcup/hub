@@ -4,7 +4,7 @@
 --    neither knows;
 --  * chat_toggle_reaction counts a reaction the member made in Slack as theirs: toggling takes it away
 --    (and any Hub row) instead of adding a second one, and toggling again adds the Hub reaction.
--- Rolled back; run with `npm run test:pgtap`.
+-- Rolled back; run with `pnpm test:pgtap`.
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;

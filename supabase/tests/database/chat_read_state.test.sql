@@ -1,7 +1,7 @@
 -- pgTAP tests for 20261017000000_chat_read_state.sql: unread counts per conversation for the caller
 -- (own messages, replies, deleted messages, archived and left conversations don't count; a new
 -- membership counts from when it began), and chat_mark_read only ever moves the caller's own marker.
--- Rolled back; run with `npm run test:pgtap`.
+-- Rolled back; run with `pnpm test:pgtap`.
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;

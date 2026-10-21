@@ -297,7 +297,7 @@ KAJABI_CLIENT_SECRET=your_kajabi_client_secret
 
 ```bash
 # Start local development server
-npm run dev
+pnpm dev
 
 # Server runs at http://localhost:3000
 # Uses .env.local credentials (development Supabase)
@@ -335,7 +335,7 @@ export const config = {
 ### Step 5.1: Test Local Development
 
 ```bash
-npm run dev
+pnpm dev
 ```
 
 - Open http://localhost:3000
@@ -428,7 +428,7 @@ Environment variables are baked in at build time.
 vercel env pull .env.local --environment=development
 
 # Restart dev server
-npm run dev
+pnpm dev
 ```
 
 ---

@@ -51,7 +51,7 @@ SUPABASE_SERVICE_ROLE_KEY=eyJhbGc... (from supabase start output)
 ### 3. Run Your Dev Server
 
 ```bash
-npm run dev
+pnpm dev
 ```
 
 Your app connects to **local** Supabase (completely isolated from dev/prod).
@@ -61,7 +61,7 @@ Your app connects to **local** Supabase (completely isolated from dev/prod).
 After editing `.env.shared`, `.env.preview` or `.env.prod`:
 
 ```bash
-npm run env:sync
+pnpm env:sync
 ```
 
 This updates Vercel's environment variables:
@@ -73,7 +73,7 @@ Vercel's **Development** environment isn't used (local dev runs on `.env.local`)
 To sync only some variables or environments:
 
 ```bash
-npm run env:sync -- --only=NAME1,NAME2 --target=production
+pnpm env:sync --only=NAME1,NAME2 --target=production
 ```
 
 `--only` and `--target` also take a space instead of `=`. Anything the script doesn't understand, including a name that isn't synced to Vercel, stops the run with an error rather than syncing everything. A "not a variable synced to Vercel" error usually means your checkout is behind `main` (heartbeat variables, for instance, are generated from `lib/cron-heartbeats.ts`), so `git pull` first.
@@ -87,7 +87,7 @@ npm run env:sync -- --only=NAME1,NAME2 --target=production
 supabase start
 
 # Start Next.js
-npm run dev
+pnpm dev
 ```
 
 ✅ **Use this for**:
@@ -107,7 +107,7 @@ Only if you need to test with shared dev data:
 # into .env.local
 
 # Start Next.js
-npm run dev
+pnpm dev
 
 # IMPORTANT: Switch back when done!
 git checkout .env.local  # or re-run supabase start
@@ -154,10 +154,10 @@ supabase start
 # 3. Add remote credentials: shared ones to .env.shared, per-environment ones to
 #    .env.preview / .env.prod
 # 4. Sync remote envs to Vercel
-npm run env:sync
+pnpm env:sync
 
 # 5. Start coding!
-npm run dev
+pnpm dev
 ```
 
 ### Daily Development
@@ -167,7 +167,7 @@ npm run dev
 supabase start
 
 # Start dev server
-npm run dev
+pnpm dev
 ```
 
 ### After Changing Remote Environment Variables
@@ -175,7 +175,7 @@ npm run dev
 ```bash
 # 1. Edit .env.shared, .env.preview or .env.prod
 # 2. Sync to Vercel
-npm run env:sync
+pnpm env:sync
 
 # 3. Redeploy (or wait for next git push)
 ```
@@ -251,7 +251,7 @@ supabase start
 
 ```bash
 # Re-sync environment variables
-npm run env:sync
+pnpm env:sync
 
 # Trigger new deployment
 git push

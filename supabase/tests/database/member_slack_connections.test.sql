@@ -1,7 +1,7 @@
 -- pgTAP tests for 20261021000000_member_slack_connections.sql: tokens live in Vault (never in the
 -- table), come back through slack_connection_tokens, are replaced on reconnect, updated on
 -- refresh and deleted on revoke, and nobody but the service role can touch any of it.
--- Rolled back; run with `npm run test:pgtap`.
+-- Rolled back; run with `pnpm test:pgtap`.
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;

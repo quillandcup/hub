@@ -1,7 +1,7 @@
 -- pgTAP tests for 20261008021700_slack_channel_member_events.sql: the membership event log is
 -- admin-readable metadata that only the service role writes, each source is idempotent, and the
 -- periods view turns events from several sources into one row per stretch a person spent in a
--- conversation. Rolled back; run with `npm run test:pgtap`.
+-- conversation. Rolled back; run with `pnpm test:pgtap`.
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;

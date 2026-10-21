@@ -1,6 +1,6 @@
 -- The pre-prickle nudge job (20260831170001) called a hardcoded https://hub.quillandcup.com.
 -- Read the base URL from Vault instead, like the job's auth secret: `app_url` is synced from
--- NEXT_PUBLIC_APP_URL in .env.prod by `npm run env:sync:vault` (see env-vars.config.ts).
+-- NEXT_PUBLIC_APP_URL in .env.prod by `pnpm env:sync:vault` (see env-vars.config.ts).
 --
 -- Run that sync BEFORE this migration reaches production. Without `app_url` the URL is NULL,
 -- so every run fails (visible in cron.job_run_details, and the job's Checkly heartbeat goes

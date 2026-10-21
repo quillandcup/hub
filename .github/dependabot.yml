@@ -1,6 +1,6 @@
 version: 2
 updates:
-  # App dependencies (package.json / package-lock.json)
+  # App dependencies (package.json / pnpm-lock.yaml)
   - package-ecosystem: "npm"
     directory: "/"
     schedule:

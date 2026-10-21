@@ -35,13 +35,13 @@ This will:
 ### 3. Install Dependencies
 
 ```bash
-npm install
+pnpm install
 ```
 
 ### 4. Start Next.js Dev Server
 
 ```bash
-npm run dev
+pnpm dev
 ```
 
 Visit: http://localhost:3000

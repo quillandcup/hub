@@ -1,7 +1,7 @@
 -- pgTAP tests for prickle_join_settings (20261109000000): any signed-in member can read the Zoom
 -- link history, only admins can add rows, links must be https, nothing is ever updated, and only a
 -- not-yet-effective row can be deleted. Runs in one transaction that is rolled back.
--- Run with `npm run test:pgtap`.
+-- Run with `pnpm test:pgtap`.
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;

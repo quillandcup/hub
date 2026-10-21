@@ -1,7 +1,7 @@
 -- pgTAP tests for 20261006100000 (audit member actions): member writes through their own client are
 -- recorded under the member (not as staff), a redacted column is logged without its value, the Wheel
 -- of Wonder spinner is the subject of a match, and the activity feed shows a member's own edits only
--- outside the Audit view (unless an admin made them in sudo). Rolled back; run with `npm run test:pgtap`.
+-- outside the Audit view (unless an admin made them in sudo). Rolled back; run with `pnpm test:pgtap`.
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;
