@@ -12,7 +12,8 @@ import { createServiceRoleClient } from "@/lib/supabase/service";
  * `fetch(..., { keepalive: true })`. Checks for itself like the mark-complete action: the signed-in
  * member with courses on, access to the lesson's course, an open lesson, and a video that really
  * belongs to that lesson. Nothing is written in sudo (an admin previewing as a member leaves no
- * viewing history), and progress isn't tracked for lessons members can't open yet.
+ * viewing history). Lessons members can't open yet are refused, except for staff acting as
+ * themselves (the lesson page only sends for a preview when the staff member turned recording on).
  *
  * Written as the member, so RLS only lets it touch their own rows. Completion is never changed here.
  * Safe to resend: each segment has a client-made id (unique per member), so one that already arrived
@@ -30,7 +31,9 @@ export async function POST(request: NextRequest) {
 
   const service = createServiceRoleClient();
   const { data: lesson } = await service.from("course_lessons").select("course_id, state, video_id").eq("id", batch.lessonId).maybeSingle();
-  if (!lesson || lesson.state !== "open" || !lesson.video_id) return NextResponse.json({ error: "Lesson not found" }, { status: 404 });
+  // Members only get open lessons; staff acting as themselves can also record a preview of an unreleased one (their own rows).
+  const openToCaller = lesson?.state === "open" || caller.scope.isAdminActing;
+  if (!lesson || !openToCaller || !lesson.video_id) return NextResponse.json({ error: "Lesson not found" }, { status: 404 });
   const access = await loadMemberCourseAccess(service, caller.scope, lesson.course_id);
   if (!canOpenLessons(access)) return NextResponse.json({ error: "No access to this course" }, { status: 403 });
 
