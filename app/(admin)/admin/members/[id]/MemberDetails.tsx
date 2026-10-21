@@ -119,12 +119,17 @@ export default function MemberDetails({
               )}
             </div>
           </StatItem>
-          <StatItem label="Engagement">
+          <StatItem label="Engagement (30 days)">
             <span className="text-lg font-bold text-slate-900 dark:text-slate-100">
               {memberMetrics.engagement_score || 0}
+              <span className="text-xs font-normal text-slate-500 dark:text-slate-400"> / 100</span>
             </span>
-            <RiskBadge risk={memberEngagement.risk_level || "low"} />
           </StatItem>
+          {member.status === "active" && (
+            <StatItem label="Churn risk (days since last prickle)">
+              <RiskBadge risk={memberEngagement.risk_level || "low"} />
+            </StatItem>
+          )}
           <StatItem label="Total Prickles">
             <span className="text-lg font-bold text-slate-900 dark:text-slate-100">
               {memberMetrics.total_prickles || 0}

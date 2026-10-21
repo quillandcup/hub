@@ -88,3 +88,19 @@ describe('MembersTable sorting', () => {
     expect(renderedNames()).toEqual(['Carol', 'Alice', 'Bob'])
   })
 })
+
+describe('MembersTable churn risk', () => {
+  it('shows a churn risk badge only for active members', () => {
+    render(<MembersTable members={members} />)
+    expect(screen.getByText('Churn risk')).toBeTruthy()
+    // Carol and Alice are active (low); Bob is cancelled (medium) and gets no badge.
+    expect(screen.getAllByText('low')).toHaveLength(2)
+    expect(screen.queryByText('medium')).toBeNull()
+  })
+
+  it('treats an active member with no engagement data as low risk', () => {
+    const noData: MemberRow = { id: 'n', name: 'Nora', email: 'n@example.com', status: 'active', member_metrics: null, member_engagement: null } as MemberRow
+    render(<MembersTable members={[noData]} />)
+    expect(screen.getByText('low')).toBeTruthy()
+  })
+})
