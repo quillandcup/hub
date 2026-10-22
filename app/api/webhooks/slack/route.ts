@@ -450,7 +450,7 @@ function triggerSlackProcessing(channelId: string, messageTs: string, opts: { th
           console.info("[chat] gap-fill from a webhook event recovered %d messages and %d reactions%s", filled.messages, filled.reactions, filled.error ? ` (failed: ${filled.error})` : "");
         }
       }
-      await triggerReprocessing("slack_messages", "bronze", { dateRange: { from, to }, exclude: ["chat"] });
+      await triggerReprocessing("slack_messages", "bronze", { dateRange: { from, to }, exclude: ["chat", "member_interactions"] });
       console.log("Slack processing triggered successfully");
     } catch (error) {
       console.error("Error triggering Slack processing:", error);

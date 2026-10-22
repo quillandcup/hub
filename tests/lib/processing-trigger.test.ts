@@ -47,18 +47,28 @@ describe('getAffectedSilverTables', () => {
 })
 
 describe('slack reprocessing scope', () => {
-  it('a Slack message or reaction reprocesses slack and the chat mirror, not members', () => {
-    expect(getProcessingOrder(getAffectedSilverTables('slack_messages', 'bronze')).sort()).toEqual(['chat', 'slack'])
-    expect(getProcessingOrder(getAffectedSilverTables('slack_reactions', 'bronze')).sort()).toEqual(['chat', 'slack'])
+  it('a Slack message or reaction reprocesses slack, the chat mirror and who talked with whom, not members', () => {
+    expect(getProcessingOrder(getAffectedSilverTables('slack_messages', 'bronze')).sort()).toEqual(['chat', 'member_interactions', 'slack'])
+    expect(getProcessingOrder(getAffectedSilverTables('slack_reactions', 'bronze')).sort()).toEqual(['chat', 'member_interactions', 'slack'])
   })
 
-  it('channel and membership changes only rebuild the chat mirror', () => {
+  it('a channel change only rebuilds the chat mirror; membership also changes who is in a DM', () => {
     expect(getAffectedSilverTables('slack_channels', 'bronze')).toEqual(['chat'])
-    expect(getAffectedSilverTables('slack_channel_members', 'bronze')).toEqual(['chat'])
+    expect(getAffectedSilverTables('slack_channel_members', 'bronze').sort()).toEqual(['chat', 'member_interactions'])
   })
 
   it('the chat mirror runs after members', () => {
     expect(getProcessingOrder(['chat', 'members'])).toEqual(['members', 'chat'])
+  })
+
+  it('who talked with whom is rebuilt after the chat mirror it reads, whatever order they are asked in', () => {
+    expect(getProcessingOrder(['member_interactions', 'chat'])).toEqual(['chat', 'member_interactions'])
+    expect(getProcessingOrder(['member_interactions', 'chat', 'members', 'slack'])).toEqual(['members', 'chat', 'member_interactions', 'slack'])
+  })
+
+  it('the Slack webhook can leave both out, so a single event rebuilds neither', async () => {
+    const affected = getAffectedSilverTables('slack_messages', 'bronze').filter((t) => !['chat', 'member_interactions'].includes(t))
+    expect(affected).toEqual(['slack'])
   })
 
   it('a Slack user change reprocesses members', () => {

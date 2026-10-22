@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
+import type { ComponentProps } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import "@testing-library/jest-dom/vitest";
 import NetworkGraph from "@/app/(admin)/admin/members/network/NetworkGraph";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: () => {} }) }));
@@ -58,5 +60,52 @@ describe("NetworkGraph", () => {
     fireEvent.wheel(svg, { deltaY: -1000, clientX: 300, clientY: 200 });
 
     expect(content()).toBe("translate(-600, -400) scale(2)"); // the point under the pointer (600, 400 units) stays put
+  });
+
+  describe("a member's connections", () => {
+    const people = [
+      { id: "a", name: "Fern Quillsby", email: "fern@example.test", totalPrickles: 12 },
+      { id: "b", name: "Quill Hollis", email: "quill@example.test", totalPrickles: 3 },
+      { id: "c", name: "Hazel Burrows", email: "hazel@example.test", totalPrickles: 0 },
+      { id: "d", name: "Gale Prickleton", email: "gale@example.test", totalPrickles: 5 },
+    ];
+    const connected: ComponentProps<typeof NetworkGraph>["edges"] = [
+      // prickles and chat, some of it private
+      { source: "a", target: "b", weight: 8.5, normalizedWeight: 50, prickles: 4, chat: 4.5, chatByKind: { dm: 2, reaction: 5, thread_reply: 1 }, chatPrivate: 2 },
+      // only chat: no attendance to compare
+      { source: "a", target: "c", weight: 3, normalizedWeight: 0, prickles: 0, chat: 3, chatByKind: { mention: 3 }, chatPrivate: 0 },
+      // only prickles
+      { source: "a", target: "d", weight: 2, normalizedWeight: 40, prickles: 2, chat: 0, chatByKind: {}, chatPrivate: 0 },
+    ];
+
+    it("shows prickles together and what they talked about, with how much of it was private", () => {
+      const { container } = render(<NetworkGraph nodes={people} edges={connected} />);
+      // Click Fern (the first node drawn).
+      fireEvent.click(container.querySelector("circle")!);
+
+      expect(screen.getByText("Top Connections (3)")).toBeInTheDocument();
+      expect(screen.getByText("Chat: 5 reactions, 2 DMs, 1 thread reply (2 private)")).toBeInTheDocument();
+      expect(screen.getByText("Chat: 3 mentions")).toBeInTheDocument();
+      expect(screen.getByText("4 Prickles")).toBeInTheDocument();
+      expect(screen.getByText("50% of attendance overlap")).toBeInTheDocument();
+    });
+
+    it("doesn't claim an attendance overlap for people who only talk, nor a chat line for people who only attend together", () => {
+      const { container } = render(<NetworkGraph nodes={people} edges={connected} />);
+      fireEvent.click(container.querySelector("circle")!);
+
+      expect(screen.queryByText("0% of attendance overlap")).not.toBeInTheDocument();
+      expect(screen.getAllByText(/% of attendance overlap/)).toHaveLength(2);
+      expect(screen.getAllByText(/^Chat:/)).toHaveLength(2);
+    });
+
+    it("still reads an edge from before chat was counted (weight only) as prickles", () => {
+      const { container } = render(<NetworkGraph nodes={people.slice(0, 2)} edges={[{ source: "a", target: "b", weight: 4, normalizedWeight: 40 }]} />);
+      fireEvent.click(container.querySelector("circle")!);
+
+      expect(screen.getByText("4 Prickles")).toBeInTheDocument();
+      expect(screen.getByText("40% of attendance overlap")).toBeInTheDocument();
+      expect(screen.queryByText(/^Chat:/)).not.toBeInTheDocument();
+    });
   });
 });

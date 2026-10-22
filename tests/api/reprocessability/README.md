@@ -20,6 +20,12 @@ These tests verify that all Silver layer processing routes follow the **DELETE +
 
 Each test suite verifies that its corresponding route is fully reprocessable:
 
+### Member interactions (`/api/process/member-interactions`)
+- ✓ Creates interactions (who talked with whom) from the chat tables on the first run
+- ✓ Removes interactions whose source is gone (a deleted message) and carries changed sources over
+- ✓ Replaces its date range (a stray row in range goes, one outside stays) and rebuilds several weeks one at a time
+- ✓ Is idempotent, with no duplicates
+
 ### Members (`/api/process/members`)
 - ✓ Creates members from Bronze on first process
 - ✓ Removes deleted members when reprocessing

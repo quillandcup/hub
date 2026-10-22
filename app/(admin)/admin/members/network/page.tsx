@@ -5,14 +5,50 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import NetworkGraph from "./NetworkGraph";
 import { requireAdminPage } from "@/lib/admin-auth";
+import {
+  CHAT_MODES,
+  WINDOW_DAYS,
+  buildNetworkEdges,
+  parseChatMode,
+  parseWindowDays,
+  type ChatMode,
+  type ChatPairRow,
+} from "@/lib/member-network";
 
 export const metadata: Metadata = {
   title: "Member Network",
 };
 
-export default async function MemberNetworkPage() {
+const CHAT_MODE_LABELS: Record<ChatMode, string> = { off: "Off", public: "Public channels", all: "Everything" };
+
+/** Interactions between each pair of members since a date, paged past the API's 1000-row limit. */
+async function loadChatPairs(supabase: Awaited<ReturnType<typeof createClient>>, since: Date, includePrivate: boolean) {
+  const rows: ChatPairRow[] = [];
+  const BATCH_SIZE = 1000;
+  let offset = 0;
+  let hasMore = true;
+  while (hasMore) {
+    const { data: batch } = await supabase
+      .rpc("member_interaction_pairs", { p_since: since.toISOString(), p_include_private: includePrivate })
+      .range(offset, offset + BATCH_SIZE - 1);
+    const page = (batch ?? []) as ChatPairRow[];
+    rows.push(...page.map((r) => ({ ...r, n: Number(r.n) })));
+    offset += page.length;
+    hasMore = page.length === BATCH_SIZE;
+  }
+  return rows;
+}
+
+export default async function MemberNetworkPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ chat?: string | string[]; days?: string | string[] }>;
+}) {
   await requireAdminPage();
   const supabase = await createClient();
+  const params = await searchParams;
+  const chatMode = parseChatMode(params.chat);
+  const windowDays = parseWindowDays(params.days);
 
   const user = await getCurrentUser();
 
@@ -87,22 +123,17 @@ export default async function MemberNetworkPage() {
     totalPrickles: memberPrickleCounts.get(m.id) || 0,
   }));
 
-  const edges = Array.from(connections.entries()).map(([key, weight]) => {
-    const [member1, member2] = key.split("||");
-    const member1Total = memberPrickleCounts.get(member1) || 1;
-    const member2Total = memberPrickleCounts.get(member2) || 1;
-    const minTotal = Math.min(member1Total, member2Total);
-    const normalizedWeight = Math.round((weight / minTotal) * 100);
-
-    return {
-      source: member1,
-      target: member2,
-      weight,
-      normalizedWeight,
-    };
+  // Chat: who talked with whom in the window (never what was said), when asked for.
+  const chatPairs =
+    chatMode === "off"
+      ? []
+      : await loadChatPairs(supabase, new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000), chatMode === "all");
+  const edges = buildNetworkEdges({
+    prickleConnections: connections,
+    prickleTotals: memberPrickleCounts,
+    chatPairs,
+    activeIds: new Set(members.map((m) => m.id)),
   });
-
-  edges.sort((a, b) => b.weight - a.weight);
 
   const networkData = { nodes, edges };
 
@@ -119,9 +150,45 @@ export default async function MemberNetworkPage() {
           <div className="mt-2">
             <h1 className="text-2xl font-bold">Member Network</h1>
             <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
-              Visualize connections between members based on shared prickle attendance
+              Connections between members from shared prickle attendance and, if you include it, from chat: replies,
+              mentions, reactions and direct messages (who talked with whom, never what was said).
             </p>
           </div>
+          <nav aria-label="Network options" className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
+            <div className="flex items-center gap-2">
+              <span className="text-slate-600 dark:text-slate-400">Chat:</span>
+              {CHAT_MODES.map((mode) => (
+                <Link
+                  key={mode}
+                  href={`/admin/members/network?chat=${mode}&days=${windowDays}`}
+                  aria-current={mode === chatMode ? "true" : undefined}
+                  className={`rounded px-2 py-1 ${mode === chatMode ? "bg-plum-100 font-medium text-plum-800 dark:bg-plum-900/40 dark:text-plum-200" : "text-plum-600 hover:underline dark:text-plum-400"}`}
+                >
+                  {CHAT_MODE_LABELS[mode]}
+                </Link>
+              ))}
+            </div>
+            {chatMode !== "off" && (
+              <div className="flex items-center gap-2">
+                <span className="text-slate-600 dark:text-slate-400">Last:</span>
+                {WINDOW_DAYS.map((days) => (
+                  <Link
+                    key={days}
+                    href={`/admin/members/network?chat=${chatMode}&days=${days}`}
+                    aria-current={days === windowDays ? "true" : undefined}
+                    className={`rounded px-2 py-1 ${days === windowDays ? "bg-plum-100 font-medium text-plum-800 dark:bg-plum-900/40 dark:text-plum-200" : "text-plum-600 hover:underline dark:text-plum-400"}`}
+                  >
+                    {days === 365 ? "1 year" : `${days} days`}
+                  </Link>
+                ))}
+              </div>
+            )}
+          </nav>
+          {chatMode === "all" && (
+            <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+              Includes private channels and direct messages, which members are told staff can see the activity of (not the content).
+            </p>
+          )}
         </div>
       </header>
 

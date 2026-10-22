@@ -246,7 +246,7 @@ describe('Slack Webhook', () => {
         expect(triggerReprocessing).toHaveBeenCalledWith(
           'slack_messages',
           'bronze',
-          expect.objectContaining({ exclude: ['chat'] })
+          expect.objectContaining({ exclude: ['chat', 'member_interactions'] })
         )
       } finally {
         await supabase.from('chat_channels').delete().eq('id', channel!.id)
