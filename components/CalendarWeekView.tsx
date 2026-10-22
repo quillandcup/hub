@@ -240,10 +240,10 @@ export default function CalendarWeekView({
   // share the rest and can shrink down to a readable minimum before the grid's
   // intrinsic min-width kicks in and the container scrolls horizontally on its
   // own (bounded to the calendar, not the whole page).
-  const gridColsClass = "grid-cols-[2.75rem_repeat(7,minmax(4rem,1fr))] sm:grid-cols-[4rem_repeat(7,1fr)]";
+  const gridColsClass = "grid-cols-[2.75rem_repeat(7,minmax(4rem,1fr))] @pair:grid-cols-[4rem_repeat(7,1fr)]";
 
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-lg shadow overflow-clip">
+    <div className="@container bg-white dark:bg-slate-900 rounded-lg shadow overflow-clip">
       {/* Legend */}
       {mode !== "member" && (
         <div className="p-4 border-b border-slate-200 dark:border-slate-800">
@@ -309,13 +309,13 @@ export default function CalendarWeekView({
               return (
                 <div
                   key={i}
-                  className={`p-1 sm:p-3 text-center border-l border-slate-200 dark:border-slate-800 ${
+                  className={`p-1 @pair:p-3 text-center border-l border-slate-200 dark:border-slate-800 ${
                     isToday ? "bg-plum-100 border-t-2 border-t-plum-500 dark:bg-plum-950 dark:border-t-0" : "bg-slate-50 dark:bg-slate-800"
                   }`}
                 >
-                  <div className={`text-xs sm:text-sm font-semibold ${isToday ? "text-plum-700 dark:text-plum-400" : "text-slate-700 dark:text-slate-300"}`}>
-                    <span className="sm:hidden">{dayNames[day.getDay()].slice(0, 3)}</span>
-                    <span className="hidden sm:inline">{dayNames[day.getDay()]}</span>
+                  <div className={`text-xs @pair:text-sm font-semibold ${isToday ? "text-plum-700 dark:text-plum-400" : "text-slate-700 dark:text-slate-300"}`}>
+                    <span className="@pair:hidden">{dayNames[day.getDay()].slice(0, 3)}</span>
+                    <span className="hidden @pair:inline">{dayNames[day.getDay()]}</span>
                   </div>
                   <div className={`text-xs ${isToday ? "text-plum-600 dark:text-plum-500" : "text-slate-500 dark:text-slate-400"}`}>
                     {day.getMonth() + 1}/{day.getDate()}
@@ -334,9 +334,9 @@ export default function CalendarWeekView({
                   const period = hour < 12 ? "AM" : "PM";
                   const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
                   return (
-                    <div key={hour} data-hour={hour} className="h-[60px] border-b border-slate-200 dark:border-slate-800 px-1 py-2 sm:p-2 text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800 whitespace-nowrap">
-                      <span className="sm:hidden">{displayHour}{period[0]}</span>
-                      <span className="hidden sm:inline">{displayHour} {period}</span>
+                    <div key={hour} data-hour={hour} className="h-[60px] border-b border-slate-200 dark:border-slate-800 px-1 py-2 @pair:p-2 text-[10px] @pair:text-xs text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800 whitespace-nowrap">
+                      <span className="@pair:hidden">{displayHour}{period[0]}</span>
+                      <span className="hidden @pair:inline">{displayHour} {period}</span>
                     </div>
                   );
                 })}
