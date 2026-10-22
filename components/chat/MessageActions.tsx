@@ -6,7 +6,19 @@ import { ReactionPicker, useToggleReaction } from "@/components/chat/ReactionBar
 import type { CustomEmoji } from "@/lib/chat/emoji";
 
 const buttonClass =
-  "flex h-8 w-8 items-center justify-center rounded-md text-base text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800";
+  "group/tip relative flex h-8 w-8 items-center justify-center rounded-md text-base text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800";
+
+/** Styled tooltip for a `group/tip` button; the browser's `title` tooltip looks out of place. Hidden from assistive tech since the button has an aria-label. */
+function Tip({ children }: { children: React.ReactNode }) {
+  return (
+    <span
+      aria-hidden="true"
+      className="pointer-events-none absolute bottom-full left-1/2 z-40 mb-1.5 hidden -translate-x-1/2 whitespace-nowrap rounded-md bg-slate-900 px-2 py-1 text-xs font-medium text-white shadow group-hover/tip:block group-focus-visible/tip:block dark:bg-slate-100 dark:text-slate-900"
+    >
+      {children}
+    </span>
+  );
+}
 
 /**
  * The bar that appears at the top right of a message while the pointer is over it (or focus is in
@@ -82,7 +94,6 @@ export default function MessageActions({
           <button
             type="button"
             aria-label="Add reaction…"
-            title="Add reaction"
             aria-expanded={open === "react"}
             data-track="chat-hover-add-reaction"
             disabled={pending}
@@ -90,6 +101,7 @@ export default function MessageActions({
             className={buttonClass}
           >
             ☺
+            <Tip>Add reaction</Tip>
           </button>
           {open === "react" && (
             <ReactionPicker
@@ -105,18 +117,17 @@ export default function MessageActions({
           href={`/chat/${channelId}?thread=${messageId}`}
           scroll={false}
           aria-label="Reply in thread"
-          title="Reply in thread"
           data-track="chat-hover-reply-in-thread"
           className={buttonClass}
         >
           💬
+          <Tip>Reply in thread</Tip>
         </Link>
       )}
       <div className="relative">
         <button
           type="button"
           aria-label="More actions"
-          title="More actions"
           aria-haspopup="menu"
           aria-expanded={open === "more"}
           data-track="chat-hover-more"
@@ -124,6 +135,7 @@ export default function MessageActions({
           className={buttonClass}
         >
           ⋮
+          <Tip>More actions</Tip>
         </button>
         {open === "more" && (
           <ul
