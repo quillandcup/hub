@@ -9,7 +9,7 @@ import { createServiceRoleClient } from "@/lib/supabase/service";
 import { sendChatMessageToSlack } from "@/lib/chat/slack-post";
 import { syncReactionToSlack } from "@/lib/chat/slack-react";
 import { pullReadFromSlack, pushReadToSlack } from "@/lib/chat/slack-read";
-import { deleteChatMessageInSlack, updateChatMessageInSlack } from "@/lib/chat/slack-edit";
+import { deleteChatFileInSlack, deleteChatMessageInSlack, updateChatMessageInSlack } from "@/lib/chat/slack-edit";
 import { getSlackConnectionStatus } from "@/lib/slack-connect";
 import { isUuid } from "@/lib/chat/format";
 import { PENDING_FILE_PREFIX } from "@/lib/chat/files";
@@ -440,6 +440,21 @@ async function deleteChatMessageImpl(messageId: string): Promise<ChangeChatResul
   return { ok: true };
 }
 
+/** The author removes one attachment from their own Hub message: in Slack first, then the Hub's file list. */
+async function deleteChatFileImpl(messageId: string, fileId: string): Promise<ChangeChatResult> {
+  if (!isUuid(messageId) || !fileId || fileId.startsWith(PENDING_FILE_PREFIX)) return { ok: false, error: "Something went wrong." };
+  const caller = await postingCaller();
+  if (!caller) return { ok: false, error: "Deleting isn't available to you yet." };
+
+  const inSlack = await deleteChatFileInSlack(createServiceRoleClient(), { messageId, memberId: caller.identity.memberId, fileId });
+  if (!inSlack.ok) return inSlack;
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("chat_delete_file", { p_message_id: messageId, p_file_id: fileId });
+  if (error) return { ok: false, error: changeError(error, "delete") };
+  return { ok: true };
+}
+
 // Usage analytics: each action records whether it worked (lib/analytics/server.ts).
 export async function sendChatMessage(...args: Parameters<typeof sendChatMessageImpl>): ReturnType<typeof sendChatMessageImpl> {
   return withAction("chat_message_sent", () => sendChatMessageImpl(...args));
@@ -455,4 +470,8 @@ export async function editChatMessage(...args: Parameters<typeof editChatMessage
 
 export async function deleteChatMessage(...args: Parameters<typeof deleteChatMessageImpl>): ReturnType<typeof deleteChatMessageImpl> {
   return withAction("chat_message_deleted", () => deleteChatMessageImpl(...args));
+}
+
+export async function deleteChatFile(...args: Parameters<typeof deleteChatFileImpl>): ReturnType<typeof deleteChatFileImpl> {
+  return withAction("chat_file_deleted", () => deleteChatFileImpl(...args));
 }

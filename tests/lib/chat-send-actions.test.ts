@@ -9,6 +9,7 @@ const m = vi.hoisted(() => ({
   syncReaction: vi.fn(),
   slackUpdate: vi.fn(),
   slackDelete: vi.fn(),
+  slackFileDelete: vi.fn(),
   afterCallbacks: [] as (() => Promise<void> | void)[],
   slackReactionRows: [] as { id: string }[],
   connected: vi.fn(),
@@ -37,10 +38,10 @@ vi.mock("@/lib/slack-connect", () => ({ getSlackConnectionStatus: (...a: unknown
 vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => m.serviceClient() }));
 vi.mock("@/lib/chat/slack-post", () => ({ sendChatMessageToSlack: m.sendToSlack }));
 vi.mock("@/lib/chat/slack-react", () => ({ syncReactionToSlack: m.syncReaction }));
-vi.mock("@/lib/chat/slack-edit", () => ({ updateChatMessageInSlack: m.slackUpdate, deleteChatMessageInSlack: m.slackDelete }));
+vi.mock("@/lib/chat/slack-edit", () => ({ updateChatMessageInSlack: m.slackUpdate, deleteChatMessageInSlack: m.slackDelete, deleteChatFileInSlack: m.slackFileDelete }));
 vi.mock("@/lib/chat/load", () => ({}));
 
-import { deleteChatMessage, editChatMessage, prepareChatUploads, sendChatMessage, toggleChatReaction } from "@/app/(member)/chat/actions";
+import { deleteChatFile, deleteChatMessage, editChatMessage, prepareChatUploads, sendChatMessage, toggleChatReaction } from "@/app/(member)/chat/actions";
 
 const CHANNEL = "00000000-0000-4000-a000-0000000000c1";
 const MESSAGE = "00000000-0000-4000-a000-0000000000d1";
@@ -59,6 +60,8 @@ beforeEach(() => {
   m.syncReaction.mockReset();
   m.slackUpdate.mockReset();
   m.slackUpdate.mockResolvedValue({ ok: true });
+  m.slackFileDelete.mockReset();
+  m.slackFileDelete.mockResolvedValue({ ok: true });
   m.slackDelete.mockReset();
   m.slackDelete.mockResolvedValue({ ok: true });
   m.slackReactionRows = [];
@@ -270,5 +273,29 @@ describe("deleteChatMessage", () => {
     m.hasFeature.mockImplementation(async (key: string) => key !== "chat_posting");
     await expect(deleteChatMessage(MESSAGE)).resolves.toMatchObject({ ok: false });
     expect(m.slackDelete).not.toHaveBeenCalled();
+  });
+});
+
+describe("deleteChatFile", () => {
+  it("deletes the file in Slack first and then in the Hub", async () => {
+    m.rpc.mockResolvedValue({ data: null, error: null });
+    await expect(deleteChatFile(MESSAGE, "F1")).resolves.toEqual({ ok: true });
+    expect(m.slackFileDelete).toHaveBeenCalledWith({ service: true }, { messageId: MESSAGE, memberId: "member-fern", fileId: "F1" });
+    expect(m.rpc).toHaveBeenCalledWith("chat_delete_file", { p_message_id: MESSAGE, p_file_id: "F1" });
+  });
+
+  it("leaves the Hub alone when Slack refuses, and rejects bad ids, pending files and no access", async () => {
+    m.slackFileDelete.mockResolvedValue({ ok: false, error: "nope" });
+    await expect(deleteChatFile(MESSAGE, "F1")).resolves.toEqual({ ok: false, error: "nope" });
+    expect(m.rpc).not.toHaveBeenCalled();
+    await expect(deleteChatFile("bad", "F1")).resolves.toMatchObject({ ok: false });
+    await expect(deleteChatFile(MESSAGE, "pending-1")).resolves.toMatchObject({ ok: false });
+    m.getCurrentUser.mockResolvedValue(null);
+    await expect(deleteChatFile(MESSAGE, "F1")).resolves.toMatchObject({ ok: false });
+  });
+
+  it("reports the database's refusal", async () => {
+    m.rpc.mockResolvedValue({ data: null, error: { message: "chat_delete: not_yours" } });
+    await expect(deleteChatFile(MESSAGE, "F1")).resolves.toMatchObject({ ok: false });
   });
 });

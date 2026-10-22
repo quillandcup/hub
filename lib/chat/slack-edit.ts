@@ -113,3 +113,26 @@ export async function deleteChatMessageInSlack(
     return { ok: false, error: "Slack didn't delete it. Try again in a moment." };
   }
 }
+
+/** Delete one file of the member's Hub message in Slack (files.delete). Already gone there counts as done. */
+export async function deleteChatFileInSlack(
+  supabase: SupabaseClient,
+  opts: { messageId: string; memberId: string; fileId: string }
+): Promise<SlackWriteResult> {
+  const writer = await writerFor(supabase, opts.messageId, opts.memberId, "deleted");
+  if (!writer.ok) return writer;
+  if (!writer.slack) return { ok: true };
+  try {
+    const result = await new WebClient(writer.slack.token).files.delete({ file: opts.fileId });
+    return result.ok ? { ok: true } : { ok: false, error: "Slack didn't delete the file. Try again in a moment." };
+  } catch (error) {
+    if (isDeadTokenError(error)) {
+      await supabase.rpc("slack_connection_revoke", { p_member: opts.memberId });
+      return { ok: false, error: "Reconnect Slack in Settings to delete this file: it was posted as you." };
+    }
+    const code = slackError(error);
+    if (code === "file_not_found" || code === "file_deleted") return { ok: true };
+    console.error("files.delete failed for %s:", opts.fileId, code ?? error);
+    return { ok: false, error: "Slack didn't delete the file. Try again in a moment." };
+  }
+}

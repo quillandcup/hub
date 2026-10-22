@@ -888,6 +888,9 @@ Show a `/live` page displaying the currently active prickle and its attendees in
 
 ## UI Enhancements
 
+### Chat composer: drop zone on the profile panel and lightbox for sent attachments
+Files can be dropped on the conversation column and the thread panel (`components/chat/useFileDrop.ts`, used by `Composer`), but not onto a profile panel (no composer there) and the drop target is found from the composer's DOM position (`closest("aside")` or its parent) instead of being passed in. Deferred as the page (`app/(member)/chat/[id]/page.tsx`) was out of scope; a small `ChatDropZone` wrapper there would be cleaner. Also, `components/ImageLightbox.tsx` is used for pending attachments only; sent images in `MessageFiles` could reuse it. Pending uploads show no progress bar either.
+
 ### Add an Icon Library
 The app has no icon library: icons are inline SVGs pasted into components. Add one (e.g. lucide-react) and replace the hand-drawn crosshair on Settings' "Use current location" button (`app/(member)/settings/TimezoneSwitcher.tsx`) with its "locate" icon, then move the other inline SVGs over as they're touched.
 
@@ -1070,6 +1073,13 @@ Add a hidden keyboard shortcut (typing "helpme", similar to Confluent Cloud's de
 
 ### Member Hover Card: Local Time, Touch, More Places _(Needs Scheduling)_
 `components/member/MemberHoverCard.tsx` (profile at a glance on hover, shared by chat authors, the streaks page and the Big Sister cards) is deliberately small. Left for later: (1) Slack's card shows the person's local time and offset ("9:33 PM local time"); the Hub has no readable per-member time zone (`user_profiles.timezone_preference` is private and often `"browser"`), so it needs a decision on what members agree to share, then a field on `member_directory`; (2) it is hover and keyboard-focus only, so on a touch screen a tap follows the name's link and the streaks page no longer has a direct Slack shortcut there (a tap-to-open variant, or a Message action on the profile page); (3) other places that name another member (the members directory, prickle attendee lists, hosts, the dashboard, mentions inside chat messages, `<@U...>` tokens resolve to names in `lib/chat/names.ts`) should wrap their names in it; (4) "Message" is still a Slack DM link until Hub DMs exist, see "Big Sisters: message in the Hub".
+
+### Chat attachments: wire-up, pgTAP, lightbox swap, zip
+- `MessageFiles` now takes `canDelete`; `MessageItem` must pass `canDelete={message.mine}` (it was off limits for the change that added this). Until then the remove and Delete file controls never show.
+- `chat_delete_file` (migration 20261208000000) has no pgTAP test yet (owner only, other member refused, deleted message refused, file dropped from the list, last file leaves `files` null). Add to `supabase/tests/database/`.
+- The built-in enlarge overlay in `MessageFiles` should become `components/ImageLightbox` once that exists.
+- "Download all" triggers one download per file (browsers may ask permission for multiple downloads); a zip route would be nicer. Deleting a file removes it from the Hub list only for Hub-written messages; Slack-origin messages' files are rebuilt from Bronze.
+- Deleted files stay in the private bucket and Bronze; no cleanup yet.
 
 ## Internationalization
 
