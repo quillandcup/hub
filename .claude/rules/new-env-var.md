@@ -9,7 +9,7 @@ Adding an environment variable touches several places, and missing one has meant
 5. **Read it in one place** (a small accessor, or `lib/config.ts`) and fail clearly when it's missing where it is required.
 6. **Sync it before the code that reads it deploys.** The deploy runs when the PR merges, so a required variable that isn't in Vercel yet breaks production. Give the user the exact command and wait, unless they asked you to run it; these write production secrets.
    - Vercel: `pnpm env:sync --only=NAME` (the flags are `--only=NAME[,NAME...]` and `--target=preview|production`; a typo is rejected, but check the output lists only the variables you meant).
-   - GitHub: `pnpm env:sync:github`. Vault (for SQL and pg_cron): `pnpm env:sync:vault`.
+   - GitHub: `pnpm env:sync:github --only=NAME[,NAME...]` (same flag as Vercel; without it every GitHub secret and variable is rewritten). Vault (for SQL and pg_cron): `pnpm env:sync:vault`.
    - Sync only what its destinations in `env-vars.config.ts` say; a Vercel-only variable doesn't go to GitHub or Vault.
 7. **Docs**: if a document names the variable, which file it lives in or how to rotate it (`docs/ENV_MANAGEMENT.md`, `docs/SECRET_ROTATION.md`), make it match, and check it against the real env files: docs have been wrong about where a token lives.
 8. **Rotation**: don't rotate a secret that signs or encrypts things users hold (such as `EMAIL_UNSUBSCRIBE_SECRET`): old links and data stop working. State that in its `description`.
