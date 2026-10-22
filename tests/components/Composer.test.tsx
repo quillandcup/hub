@@ -68,8 +68,8 @@ describe("Composer", () => {
 
   it("shows an upload overlay while files are dragged over the conversation, and attaches what is dropped", async () => {
     const { container } = render(
-      <div>
-        <Composer channelId="c1" placeholder="Message #hosts" />
+      <div id="col">
+        <Composer channelId="c1" placeholder="Message #hosts" dropTargetIds={["col"]} />
       </div>
     );
     const column = container.firstElementChild as HTMLElement;
@@ -160,8 +160,8 @@ describe("Composer attachments", () => {
 describe("Composer drag and drop", () => {
   it("shows an upload overlay while files are dragged over the column and attaches the drop", () => {
     const { container } = render(
-      <div>
-        <Composer channelId="c1" placeholder="Message #hosts" />
+      <div id="col">
+        <Composer channelId="c1" placeholder="Message #hosts" dropTargetIds={["col"]} />
       </div>,
     );
     const column = container.firstElementChild as HTMLElement;
@@ -176,12 +176,38 @@ describe("Composer drag and drop", () => {
 
   it("labels the overlay for a thread", () => {
     const { container } = render(
-      <div>
-        <Composer channelId="c1" threadRootId="r" placeholder="Reply…" />
+      <div id="col">
+        <Composer channelId="c1" threadRootId="r" placeholder="Reply…" dropTargetIds={["col"]} />
       </div>,
     );
     fireEvent.dragEnter(container.firstElementChild as HTMLElement, { dataTransfer: { types: ["Files"], files: [] } });
     expect(screen.getByText("Upload to thread")).toBeInTheDocument();
+  });
+});
+
+describe("Composer drop on another panel", () => {
+  it("accepts a drop on the profile panel, and ignores one that is not on the page", () => {
+    render(
+      <div>
+        <aside id="profile">Profile</aside>
+        <Composer channelId="c1" placeholder="Message #hosts" dropTargetIds={["missing", "profile"]} />
+      </div>,
+    );
+    const dataTransfer = { types: ["Files"], files: [new File(["x"], "p.txt", { type: "text/plain" })] };
+    fireEvent.dragEnter(screen.getByText("Profile"), { dataTransfer });
+    expect(screen.getByText("Upload to #hosts")).toBeInTheDocument();
+    fireEvent.drop(screen.getByText("Profile"), { dataTransfer });
+    expect(screen.getByRole("list", { name: "Attached files" })).toHaveTextContent("p.txt");
+  });
+
+  it("does nothing on a drop without targets", () => {
+    const { container } = render(
+      <div>
+        <Composer channelId="c1" placeholder="Message #hosts" />
+      </div>,
+    );
+    fireEvent.dragEnter(container.firstElementChild as HTMLElement, { dataTransfer: { types: ["Files"], files: [] } });
+    expect(screen.queryByText("Upload to #hosts")).not.toBeInTheDocument();
   });
 });
 

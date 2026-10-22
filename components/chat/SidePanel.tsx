@@ -25,7 +25,10 @@ export default function SidePanel({
   title,
   closeHref,
   children,
+  id,
 }: {
+  /** Element id, so a composer elsewhere can name this panel as a place files may be dropped. */
+  id?: string;
   title: string;
   closeHref: string;
   children: React.ReactNode;
@@ -90,6 +93,7 @@ export default function SidePanel({
 
   return (
     <aside
+      id={id}
       ref={panel}
       aria-label={title}
       style={{ "--chat-panel-width": `${width}px` } as React.CSSProperties}

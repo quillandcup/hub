@@ -147,7 +147,7 @@ export default async function ChatChannelPage({
 
   return (
     <div className="relative flex h-full min-h-0">
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div id="chat-conversation" className="flex min-w-0 flex-1 flex-col">
         <header className="shrink-0 flex items-start justify-between gap-4 border-b border-slate-200 px-6 pb-3 pt-5 dark:border-slate-800">
           <div>
             <Link data-track="chat-channel-channels" href={CHAT_LIST_HREF} className="mb-1 inline-block text-sm text-plum-600 hover:underline @split:hidden dark:text-plum-400">
@@ -199,12 +199,12 @@ export default async function ChatChannelPage({
           )}
         </div>
         {canPost && (
-          <Composer channelId={channel.id} placeholder={`Message ${channel.label}`} viewer={viewer} showSent={!before} />
+          <Composer channelId={channel.id} placeholder={`Message ${channel.label}`} viewer={viewer} showSent={!before} dropTargetIds={["chat-conversation", "chat-profile-panel"]} />
         )}
       </div>
 
       {panelOpen && rootView && (
-        <SidePanel title="Thread" closeHref={closeHref}>
+        <SidePanel id="chat-thread-panel" title="Thread" closeHref={closeHref}>
           <ChatLive
             channelId={channel.id}
             view="thread"
@@ -222,12 +222,12 @@ export default async function ChatChannelPage({
             timeZone={timeZone}
           />
           {canPost && rootView.syncStatus === null && (
-            <Composer channelId={channel.id} threadRootId={rootView.id} placeholder="Reply…" viewer={viewer} showSent />
+            <Composer channelId={channel.id} threadRootId={rootView.id} placeholder="Reply…" viewer={viewer} showSent dropTargetIds={["chat-thread-panel"]} />
           )}
         </SidePanel>
       )}
       {panelOpen && !rootView && profileId && (
-        <SidePanel title="Profile" closeHref={closeHref}>
+        <SidePanel id="chat-profile-panel" title="Profile" closeHref={closeHref}>
           {memberCard ? <ProfileCard member={memberCard} /> : <p className="py-6 text-sm text-slate-500">This member isn&apos;t available.</p>}
         </SidePanel>
       )}
