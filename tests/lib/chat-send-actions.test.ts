@@ -10,6 +10,7 @@ const m = vi.hoisted(() => ({
   slackUpdate: vi.fn(),
   slackDelete: vi.fn(),
   slackFileDelete: vi.fn(),
+  removeBytes: vi.fn(),
   afterCallbacks: [] as (() => Promise<void> | void)[],
   slackReactionRows: [] as { id: string }[],
   connected: vi.fn(),
@@ -40,6 +41,7 @@ vi.mock("@/lib/chat/slack-post", () => ({ sendChatMessageToSlack: m.sendToSlack 
 vi.mock("@/lib/chat/slack-react", () => ({ syncReactionToSlack: m.syncReaction }));
 vi.mock("@/lib/chat/slack-edit", () => ({ updateChatMessageInSlack: m.slackUpdate, deleteChatMessageInSlack: m.slackDelete, deleteChatFileInSlack: m.slackFileDelete }));
 vi.mock("@/lib/chat/load", () => ({}));
+vi.mock("@/lib/chat/file-cleanup", () => ({ removeChatFileBytes: m.removeBytes }));
 
 import { deleteChatFile, deleteChatMessage, editChatMessage, prepareChatUploads, sendChatMessage, toggleChatReaction } from "@/app/(member)/chat/actions";
 
@@ -51,6 +53,7 @@ const flushAfter = async () => {
 
 beforeEach(() => {
   m.serviceClient.mockReset().mockReturnValue({ service: true });
+  m.removeBytes.mockReset();
   m.afterCallbacks.length = 0;
   m.getCurrentUser.mockResolvedValue({ id: "auth-1", email: "fern@example.test" });
   m.getEffectiveIdentity.mockResolvedValue({ memberId: "member-fern", isSudo: false });
@@ -282,6 +285,7 @@ describe("deleteChatFile", () => {
     await expect(deleteChatFile(MESSAGE, "F1")).resolves.toEqual({ ok: true });
     expect(m.slackFileDelete).toHaveBeenCalledWith({ service: true }, { messageId: MESSAGE, memberId: "member-fern", fileId: "F1" });
     expect(m.rpc).toHaveBeenCalledWith("chat_delete_file", { p_message_id: MESSAGE, p_file_id: "F1" });
+    expect(m.removeBytes).toHaveBeenCalledWith({ service: true }, "F1");
   });
 
   it("leaves the Hub alone when Slack refuses, and rejects bad ids, pending files and no access", async () => {
@@ -294,8 +298,10 @@ describe("deleteChatFile", () => {
     await expect(deleteChatFile(MESSAGE, "F1")).resolves.toMatchObject({ ok: false });
   });
 
-  it("reports the database's refusal", async () => {
+  it("reports the database's refusal and keeps the bytes", async () => {
     m.rpc.mockResolvedValue({ data: null, error: { message: "chat_delete: not_yours" } });
     await expect(deleteChatFile(MESSAGE, "F1")).resolves.toMatchObject({ ok: false });
+    expect(m.removeBytes).not.toHaveBeenCalled();
+    expect(m.removeBytes).not.toHaveBeenCalled();
   });
 });

@@ -410,6 +410,15 @@ describe('Slack import: group DMs, membership, emoji and files', () => {
         expect((await stored(fileIds[5])).copy_error).toBe('skipped: larger than 20 MB')
       })
 
+      it('never re-copies a file deleted from the Hub', async () => {
+        const calls: string[] = []
+        await ensureSlackFileCopied(supabase, 'xoxb-test', ref(5), slackReplies(calls, slackFile(5)))
+        await bronze('slack_files').update({ deleted_at: new Date().toISOString(), storage_path: null }).eq('file_id', fileIds[4])
+        const before = calls.length
+        expect(await ensureSlackFileCopied(supabase, 'xoxb-test', ref(5), slackReplies(calls, slackFile(5)))).toEqual({ ok: false, reason: 'skipped: deleted' })
+        expect(calls).toHaveLength(before)
+      })
+
       it('marks a failed download so the import retries it', async () => {
         const down = (async (url: any) =>
           String(url).startsWith('https://slack.com/')

@@ -633,9 +633,10 @@ export async function ensureSlackFileCopied(
   download: typeof fetch = fetch
 ): Promise<EnsuredSlackFile> {
   const bronze = () => storage.schema("bronze").from("slack_files");
-  const columns = "file_id, channel_id, message_ts, name, mimetype, size_bytes, storage_path, copy_error, raw_payload";
+  const columns = "file_id, channel_id, message_ts, name, mimetype, size_bytes, storage_path, copy_error, deleted_at, raw_payload";
 
   let { data: row } = await bronze().select(columns).eq("file_id", ref.fileId).maybeSingle();
+  if (row?.deleted_at) return { ok: false, reason: "skipped: deleted" };
   if (row?.storage_path) return { ok: true, path: row.storage_path, mimetype: row.mimetype };
 
   if (!row) {
@@ -647,7 +648,7 @@ export async function ensureSlackFileCopied(
     const [fresh] = slackFilesFromMessages([{ channel_id: ref.channelId, message_ts: ref.messageTs, files: [json.file] }]);
     const { error } = await bronze().upsert({ ...fresh, imported_at: new Date(clock.now()).toISOString() }, { onConflict: "file_id", ignoreDuplicates: true });
     if (error) return { ok: false, reason: error.message };
-    row = { ...fresh, storage_path: null, copy_error: null };
+    row = { ...fresh, storage_path: null, copy_error: null, deleted_at: null };
   }
 
   const file = row as SlackFileRow & { storage_path: string | null; copy_error: string | null };

@@ -9,6 +9,7 @@ import { createServiceRoleClient } from "@/lib/supabase/service";
 import { sendChatMessageToSlack } from "@/lib/chat/slack-post";
 import { syncReactionToSlack } from "@/lib/chat/slack-react";
 import { pullReadFromSlack, pushReadToSlack } from "@/lib/chat/slack-read";
+import { removeChatFileBytes } from "@/lib/chat/file-cleanup";
 import { deleteChatFileInSlack, deleteChatMessageInSlack, updateChatMessageInSlack } from "@/lib/chat/slack-edit";
 import { getSlackConnectionStatus } from "@/lib/slack-connect";
 import { isUuid } from "@/lib/chat/format";
@@ -446,12 +447,16 @@ async function deleteChatFileImpl(messageId: string, fileId: string): Promise<Ch
   const caller = await postingCaller();
   if (!caller) return { ok: false, error: "Deleting isn't available to you yet." };
 
-  const inSlack = await deleteChatFileInSlack(createServiceRoleClient(), { messageId, memberId: caller.identity.memberId, fileId });
+  const service = createServiceRoleClient();
+  const inSlack = await deleteChatFileInSlack(service, { messageId, memberId: caller.identity.memberId, fileId });
   if (!inSlack.ok) return inSlack;
 
   const supabase = await createClient();
   const { error } = await supabase.rpc("chat_delete_file", { p_message_id: messageId, p_file_id: fileId });
   if (error) return { ok: false, error: changeError(error, "delete") };
+
+  // Last, once nothing lists the file any more: a failure here only leaves bytes for the sweep.
+  await removeChatFileBytes(service, fileId);
   return { ok: true };
 }
 
