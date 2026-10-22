@@ -132,8 +132,9 @@ management).
   that page. It has an expiry date; the Slack manifest job fails once it passes.
 - `GH_TOKEN_AUTO_MERGE`: same page, fine-grained, resource owner `quillandcup`, only this
   repository, **Contents: Read and write** and **Pull requests: Read and write**. Put it in
-  `.env.shared`, run `pnpm env:sync:github`, then delete the old token. Once it expires,
-  new PRs stop getting auto-merge enabled (the Auto-merge workflow fails).
+  `.env.shared`, run `pnpm env:sync:github` (it writes both the Actions and the Dependabot
+  secret), then delete the old token. Once it expires, new PRs stop getting auto-merge
+  enabled (the Auto-merge workflow fails).
 
 ### Sentry
 - https://quillandcup.sentry.io/settings/auth-tokens/ (org slug is `quillandcup` -- matches

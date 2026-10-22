@@ -18,4 +18,15 @@ describe("env-vars.config.ts", () => {
     const names = ENV_VARS.map((v) => v.name);
     expect(names.length).toBe(new Set(names).size);
   });
+
+  it("sends only secrets to Dependabot, and each also as an Actions secret", () => {
+    // Dependabot-triggered runs read Dependabot secrets instead of Actions secrets, so the
+    // value is written to both; `gh variable` has no Dependabot equivalent.
+    const dependabot = ENV_VARS.filter((v) => v.destinations.some((d) => d.kind === "github-dependabot"));
+    expect(dependabot.map((v) => v.name)).toContain("GH_TOKEN_AUTO_MERGE");
+    for (const v of dependabot) {
+      expect(v.type).toBe("secret");
+      expect(v.destinations.some((d) => d.kind === "github")).toBe(true);
+    }
+  });
 });
