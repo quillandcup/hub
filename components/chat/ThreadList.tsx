@@ -24,6 +24,7 @@ export default function ThreadList({
   replies,
   ctx,
   canReact,
+  timeZone,
 }: {
   channelId: string;
   threadRootId: string;
@@ -32,6 +33,7 @@ export default function ThreadList({
   replies: ChatMessageView[];
   ctx: ChatTextContext;
   canReact: boolean;
+  timeZone?: string;
 }) {
   const [rootView, setRootView] = useState(root);
   const [byId, setById] = useState(() => new Map(replies.map((v) => [v.id, v])));
@@ -94,11 +96,11 @@ export default function ThreadList({
   const replyViews = [...byId.values()].sort((a, b) => sortKey(a) - sortKey(b) || a.id.localeCompare(b.id));
   return (
     <>
-      <MessageItem message={rootView} ctx={context} channelId={channelId} inThread canReact={canReact} canEdit={canReact} />
+      <MessageItem message={rootView} ctx={context} channelId={channelId} inThread canReact={canReact} canEdit={canReact} timeZone={timeZone} />
       <div className="ml-4 pl-4 border-l-2 border-slate-200 dark:border-slate-700">
         {replyViews.length === 0 && <p className="py-3 text-sm text-slate-500">No replies yet.</p>}
         {replyViews.map((m) => (
-          <MessageItem key={m.id} message={m} ctx={context} channelId={channelId} inThread canReact={canReact} canEdit={canReact} />
+          <MessageItem key={m.id} message={m} ctx={context} channelId={channelId} inThread canReact={canReact} canEdit={canReact} timeZone={timeZone} />
         ))}
         <div ref={end} />
       </div>
