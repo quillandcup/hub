@@ -835,6 +835,23 @@ Let members choose which of their alternate names show on their public profile. 
 
 ## Analytics & Matching
 
+### Member Interactions: Who Replied to Whom _(Parked, Refinement)_
+`member_interactions` (Silver, `20261212000000`, `docs/SLACK_BRIDGED_CHAT.md` phase 3 part 12) is a derived table of who talked with whom in chat (thread replies, DMs, reactions, mentions; who, toward whom, where, when, public or private; never content). It feeds the admin member network graph (`/admin/members/network`, chat off by default for prickles-only, `?chat=public|all` to add it). It is built and rebuilt by `/api/process/member-interactions` from the chat tables.
+
+**Parked: refining who a thread reply is *for*.** Today every reply points at the thread's author. Slack doesn't record who a reply is meant for, and that rule has two known biases: it makes the thread's author the hub of every conversation, and it misses the back-and-forth between everyone else (A answering B's comment). Mentions (`<@U..>`) say who a message names, but not why:
+- `@sarah the answer is…` is addressed to Sarah;
+- `like @sarah mentioned`, `I agree with @sarah` refer to something Sarah said, so the reply is to an earlier comment;
+- `you should ask @sarah` is a referral, not a reply to her;
+- a bare `@sarah` is an invitation to a conversation she hasn't joined.
+
+**Tried and set aside:** a layered rule (a reply that tags someone is for them; else if the replier was tagged and hasn't posted since, for the tagger; else for whoever spoke last; else nobody), written, tested (27 pgTAP assertions) and closed unmerged as PR #330, branch `worktree-chat-thread-rule`. It rests on the first step, which the examples above show is wrong about half the time.
+
+**If it's picked up:** classify *how* a mention is used (position and wording of the tag, e.g. at the start of the message or after a referral phrase; or a small model over the message text, run offline), weight an interaction by that confidence instead of counting it as 1, and use "whoever spoke last" only for a reply with no tag at all. Possibly cap one pair's contribution within one thread (a long ping-pong) if a few chatty pairs dominate. `channel_comember` (sharing a conversation) was left unbuilt on purpose: pairing every member of a big channel is quadratic and says little.
+
+**Why parking costs nothing:** the table is entirely derived from `chat_messages`, `chat_message_contents` (kept, including for deleted messages), `chat_reactions` and `chat_channel_members`, all of which keep their full history. Any change to the rule can be rebuilt over any date range afterwards (`POST /api/process/member-interactions` with `fromDate`/`toDate`), so nothing is lost by waiting.
+
+**When to revisit:** when staff use the graph with chat turned on and find its chat edges misleading (a few members looking like hubs). Until then the simple rule is enough, and the default view doesn't include chat.
+
 ### Member Matching Logic (In Progress)
 Build fuzzy matching to connect Zoom attendance to members when emails aren't available:
 - Name normalization (nicknames, variations)
