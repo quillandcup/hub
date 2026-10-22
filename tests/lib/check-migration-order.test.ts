@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { findMigrationProblems, findProductionProblems, parseAppliedVersions } from "@/scripts/check-migration-order";
+import { findMigrationProblems, findOpenPrProblems, findProductionProblems, parseAppliedVersions } from "@/scripts/check-migration-order";
 
 const base = ["20261101000000_a.sql", "20261120000000_b.sql"];
 
@@ -82,5 +82,31 @@ describe("parseAppliedVersions", () => {
   it("reads the CLI's JSON form", () => {
     const json = JSON.stringify({ migrations: [{ local: "a", remote: "20261101000000" }, { local: "b", remote: "" }] });
     expect(parseAppliedVersions(json)).toEqual(["20261101000000"]);
+  });
+});
+
+describe("findOpenPrProblems", () => {
+  const mine = ["20261201000000_mine.sql"];
+
+  it("rejects the later PR on a duplicate version in an earlier open PR", () => {
+    const problems = findOpenPrProblems(mine, 20, [{ number: 10, migrations: ["20261201000000_theirs.sql"] }]);
+    expect(problems).toHaveLength(1);
+    expect(problems[0]).toContain("#10");
+  });
+
+  it("rejects the later PR when an earlier open PR has a newer version", () => {
+    expect(findOpenPrProblems(mine, 20, [{ number: 10, migrations: ["20261202000000_theirs.sql"] }])).toHaveLength(1);
+  });
+
+  it("leaves the earlier PR alone", () => {
+    expect(findOpenPrProblems(mine, 10, [{ number: 20, migrations: ["20261201000000_theirs.sql"] }])).toEqual([]);
+  });
+
+  it("ignores the same file and older versions", () => {
+    expect(
+      findOpenPrProblems(mine, 20, [
+        { number: 10, migrations: ["20261201000000_mine.sql", "20261130000000_old.sql"] },
+      ]),
+    ).toEqual([]);
   });
 });

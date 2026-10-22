@@ -135,6 +135,10 @@ jobs:
       - name: Check migration numbering
         if: github.event_name != 'workflow_dispatch'
         run: pnpm check:migrations FETCH_HEAD
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          CHECK_OPEN_PRS: ${{ github.event_name == 'pull_request' && '1' || '0' }}
 
       # Only on main (and manual redeploys): pull request runs don't get the production
       # credentials.
