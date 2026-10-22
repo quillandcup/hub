@@ -1107,7 +1107,7 @@ Add a hidden keyboard shortcut (typing "helpme", similar to Confluent Cloud's de
 - `chat_delete_file` (migration 20261208000000) has no pgTAP test yet (owner only, other member refused, deleted message refused, file dropped from the list, last file leaves `files` null). Add to `supabase/tests/database/`.
 - The built-in enlarge overlay in `MessageFiles` should become `components/ImageLightbox` once that exists.
 - "Download all" triggers one download per file (browsers may ask permission for multiple downloads); a zip route would be nicer. Deleting a file removes it from the Hub list only for Hub-written messages; Slack-origin messages' files are rebuilt from Bronze.
-- Deleted files stay in the private bucket and Bronze; no cleanup yet.
+- **Resolved:** deleting a file from a Hub-written message now removes its bytes from the private bucket (`removeChatFileBytes`, `lib/chat/file-cleanup.ts`) after Slack and the Hub list are updated, unless another message still lists the same file, and soft-deletes the Bronze `slack_files` row (`deleted_at`, `copy_error = 'skipped: deleted'`, `storage_path` cleared). `ensureSlackFileCopied` and the import's copy step no longer re-fetch it. **Still open:** (1) `sweepDeletedFileBytes` retries removals that failed (`deleted_at` set, `storage_path` still set) but nothing calls it yet; wire it into the nightly reconciliation cron. (2) Slack-origin messages: files deleted in Slack by someone else are not cleaned up (no `file_deleted` event handling or pull-based check, so their bytes and Bronze rows stay); handle `file_deleted` webhooks plus a nightly pull, then call `removeChatFileBytes`.
 
 ## Internationalization
 
