@@ -398,7 +398,7 @@ export default function Wheel({ confirmedConnectionCount = 0 }: WheelProps) {
         The Wheel of Wonder leans toward Hedgies who haven&apos;t connected much yet, so newer or
         quieter folks turn up as matches more often. Posting, reacting, and showing up to a
         Prickle is still the fastest way to build connections on your own.{" "}
-        <Link data-track="wheel-see-your-connections" href="/network" className="underline hover:text-slate-600 dark:hover:text-slate-300">
+        <Link data-track="wheel-see-your-connections" href="/streaks" className="underline hover:text-slate-600 dark:hover:text-slate-300">
           See your connections →
         </Link>
       </p>

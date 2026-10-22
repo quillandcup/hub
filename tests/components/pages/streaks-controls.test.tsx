@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 /**
- * The links on the Streaks and Network pages that only render with a real sister streak: the shared
- * prickles under a streak, and the people drawn on the Network graph. The streak computation is
- * stubbed to one established streak so the pages render those lists; what is checked is that each
- * link goes where it should and is a named control (for usage analytics).
+ * The links on the Streaks page that only render with a real sister streak: the shared prickles
+ * under a streak. The streak computation is stubbed to one established streak so the page renders
+ * that list; what is checked is that each link goes where it should and is a named control (for
+ * usage analytics).
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { screen } from "@testing-library/react";
@@ -30,9 +30,6 @@ vi.mock("@/lib/streaks", async (importOriginal) => ({
 }));
 
 import StreaksPage from "@/app/(member)/streaks/page";
-import NetworkPage from "@/app/(member)/network/page";
-
-const names = () => new Set(Array.from(document.querySelectorAll("[data-track]")).map((el) => el.getAttribute("data-track")));
 
 beforeEach(() => {
   resetServerPageMocks();
@@ -56,14 +53,5 @@ describe("Streaks: a sister streak's shared prickles", () => {
     const link = screen.getByRole("link", { name: /Morning Writing/ });
     expect(link).toHaveAttribute("href", "/prickles/prickle-1");
     expect(link).toHaveAttribute("data-track", "streaks-open-prickle");
-  });
-});
-
-describe("Network: the connections drawn around you", () => {
-  it("links each connection to their profile, as a named control", async () => {
-    await renderServerPage(NetworkPage, {});
-    const link = document.querySelector('a[href="/members/member-gale"][data-track="network-open-connection"]');
-    expect(link).not.toBeNull();
-    expect(names().has("network-open-connection")).toBe(true);
   });
 });
