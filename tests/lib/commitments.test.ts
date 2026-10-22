@@ -399,6 +399,36 @@ describe("slots", () => {
   });
 });
 
+describe("secondary time zone in labels", () => {
+  const NOW = new Date("2026-09-26T15:00:00Z");
+  // 6:30 PM Central on Sunday is 7:30 PM Eastern.
+  const sunCentral = { typeId: "t1", dayOfWeek: 0, startTimeLocal: "18:30", timezone: "America/Chicago" };
+  const named = (s: CommitmentSlot, typeName: string) => ({ ...s, typeName });
+  const ET = { secondaryZone: "America/New_York", now: NOW };
+
+  it("adds the secondary reading to a slot label, and nothing without one", () => {
+    expect(formatSlotLabel("Pomodoro", sunCentral, ET)).toMatch(/^Pomodoro · every Sunday · 6:30 PM CDT \(7:30 PM ET\)$/);
+    expect(formatSlotLabel("Pomodoro", sunCentral, { secondaryZone: null, now: NOW })).toMatch(/6:30 PM CDT$/);
+    expect(formatSlotLabel("Pomodoro", sunCentral)).toMatch(/6:30 PM CDT$/);
+  });
+
+  it("adds nothing when the secondary zone shows the same time", () => {
+    expect(formatSlotLabel("Pomodoro", sunCentral, { secondaryZone: "America/Chicago", now: NOW })).toMatch(/CDT$/);
+  });
+
+  it("adds it to each part of a multi-slot title", () => {
+    const late = { ...sunCentral, startTimeLocal: "21:30" };
+    expect(formatCommitmentTitle([named(sunCentral, "Pomodoro"), named(late, "Midnight Crew")], ET)).toMatch(
+      /^Pomodoro · Sun · 6:30 PM CDT \(7:30 PM ET\); Midnight Crew · Sun · 9:30 PM CDT \(10:30 PM ET\)$/
+    );
+  });
+
+  it("names the weekday when the secondary zone is on another day", () => {
+    const night = { ...sunCentral, startTimeLocal: "23:30" };
+    expect(formatSlotLabel("Late", night, { secondaryZone: "Europe/London", now: NOW })).toMatch(/\(Mon 5:30 AM GMT\+1\)$|\(Mon 5:30 AM /);
+  });
+});
+
 describe("validateCommitmentInput", () => {
   const NOW = new Date("2026-09-26T15:00:00Z"); // Sat 11am ET
   const valid = { slots: [slot()], startDate: "2026-09-28", weeks: 4 };

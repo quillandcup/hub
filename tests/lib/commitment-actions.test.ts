@@ -10,13 +10,16 @@ vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
 vi.mock("@/lib/auth", () => ({ getCurrentUser: vi.fn() }));
 vi.mock("@/lib/sudo", () => ({ getEffectiveIdentity: vi.fn() }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
-vi.mock("@/lib/timezone", () => ({ getUserTimezonePreference: vi.fn(async () => "America/New_York") }));
+vi.mock("@/lib/timezone", () => ({
+  getUserTimezonePreference: vi.fn(async () => "America/New_York"),
+  getUserSecondaryTimezone: vi.fn(async () => null),
+}));
 
 import { cancelCommitment, createCommitment, getMyCommitments } from "@/app/(member)/my-prickles/commitment-actions";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
 import { getEffectiveIdentity } from "@/lib/sudo";
-import { getUserTimezonePreference } from "@/lib/timezone";
+import { getUserSecondaryTimezone, getUserTimezonePreference } from "@/lib/timezone";
 
 const IDENTITY = { memberId: "member-1", memberName: "Member One", memberEmail: "m1@example.com", isSudo: false };
 const SUDO_IDENTITY = { memberId: "sudo-target", memberName: "Target", memberEmail: "t@example.com", isSudo: true };
@@ -269,6 +272,13 @@ describe("getMyCommitments", () => {
       [3, "07:00", "America/New_York"],
     ]);
     expect(inLondon.title).toMatch(/^Progress Prickle · Mon, Wed · 12 PM GMT\+1$/);
+
+    // A secondary time zone adds its reading to the title and each slot label.
+    vi.mocked(getUserTimezonePreference).mockResolvedValueOnce("Europe/London");
+    vi.mocked(getUserSecondaryTimezone).mockResolvedValueOnce(ET);
+    const [withSecondary] = await getMyCommitments();
+    expect(withSecondary.title).toMatch(/^Progress Prickle · Mon, Wed · 12 PM GMT\+1 \(7:00 AM ET\)$/);
+    expect(withSecondary.slots.every((s) => s.label.endsWith("(7:00 AM ET)"))).toBe(true);
   });
 });
 

@@ -3,7 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
 import { getEffectiveIdentity } from "@/lib/sudo";
-import { getUserTimezonePreference } from "@/lib/timezone";
+import { getUserSecondaryTimezone, getUserTimezonePreference } from "@/lib/timezone";
 import { revalidatePath } from "next/cache";
 import {
   buildAttendedSet,
@@ -204,8 +204,9 @@ export async function getMyCommitments(): Promise<MyCommitment[]> {
   const attended = buildAttendedSet(attendanceRows);
   // Slots are stored in the schedule's timezone; labels show the member's own. "browser" can't
   // be resolved server-side, so it falls back to the schedule's timezone (always named in labels).
-  const tzPref = await getUserTimezonePreference();
+  const [tzPref, secondaryZone] = await Promise.all([getUserTimezonePreference(), getUserSecondaryTimezone()]);
   const viewerTimeZone = tzPref === "browser" ? SCHEDULE_TIMEZONE : tzPref;
+  const secondary = { secondaryZone, now };
 
   return commitmentRows.map((row, i) => {
     const c = commitments[i];
@@ -217,13 +218,13 @@ export async function getMyCommitments(): Promise<MyCommitment[]> {
         ...slot,
         startTimeLocal: slot.startTimeLocal.slice(0, 5),
         typeName,
-        label: formatSlotLabel(typeName, slotInTimeZone(slot, viewerTimeZone, now)),
+        label: formatSlotLabel(typeName, slotInTimeZone(slot, viewerTimeZone, now), secondary),
         progress: progress.perSlot[j],
       };
     });
     return {
       id: c.id,
-      title: formatCommitmentTitle(slots.map((s) => ({ ...slotInTimeZone(s, viewerTimeZone, now), typeName: s.typeName }))),
+      title: formatCommitmentTitle(slots.map((s) => ({ ...slotInTimeZone(s, viewerTimeZone, now), typeName: s.typeName })), secondary),
       slots,
       startDate: c.startDate,
       endDate: commitmentEndDate(c.startDate, c.weeks),
