@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
 
@@ -15,6 +15,8 @@ import RetryButton from "@/components/chat/RetryButton";
 
 beforeEach(() => {
   cleanup();
+  URL.createObjectURL = vi.fn(() => "blob:x");
+  URL.revokeObjectURL = vi.fn();
   refresh.mockReset();
   vi.mocked(sendChatMessage).mockReset();
   vi.mocked(retryChatMessage).mockReset();
@@ -76,7 +78,7 @@ describe("Composer attachments", () => {
     render(<Composer channelId="c1" placeholder="Message #hosts" />);
 
     await attach(cat());
-    expect(screen.getByRole("list", { name: "Attached files" })).toHaveTextContent("cat.gif");
+    expect(screen.getByRole("button", { name: "Preview cat.gif" })).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Send" }));
 
     await waitFor(() => expect(sendChatMessage).toHaveBeenCalled());
@@ -95,7 +97,7 @@ describe("Composer attachments", () => {
 
     screen.getByRole("textbox").focus();
     await userEvent.paste({ files: [new File(["png"], "shot.png", { type: "image/png" })], getData: () => "", types: ["Files"] } as unknown as DataTransfer);
-    expect(screen.getByRole("list", { name: "Attached files" })).toHaveTextContent("shot.png");
+    expect(screen.getByRole("button", { name: "Preview shot.png" })).toBeInTheDocument();
   });
 
   it("refuses a file over the limit and keeps the attachments when an upload fails", async () => {
@@ -118,6 +120,34 @@ describe("Composer attachments", () => {
     await attach(cat());
     await userEvent.click(screen.getByRole("button", { name: "Send" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Attach up to 10 files");
+  });
+});
+
+describe("Composer drag and drop", () => {
+  it("shows an upload overlay while files are dragged over the column and attaches the drop", () => {
+    const { container } = render(
+      <div>
+        <Composer channelId="c1" placeholder="Message #hosts" />
+      </div>,
+    );
+    const column = container.firstElementChild as HTMLElement;
+    const file = new File(["x"], "drop.txt", { type: "text/plain" });
+    const dataTransfer = { types: ["Files"], files: [file] };
+    fireEvent.dragEnter(column, { dataTransfer });
+    expect(screen.getByText("Upload to #hosts")).toBeInTheDocument();
+    fireEvent.drop(column, { dataTransfer });
+    expect(screen.queryByText("Upload to #hosts")).not.toBeInTheDocument();
+    expect(screen.getByRole("list", { name: "Attached files" })).toHaveTextContent("drop.txt");
+  });
+
+  it("labels the overlay for a thread", () => {
+    const { container } = render(
+      <div>
+        <Composer channelId="c1" threadRootId="r" placeholder="Reply…" />
+      </div>,
+    );
+    fireEvent.dragEnter(container.firstElementChild as HTMLElement, { dataTransfer: { types: ["Files"], files: [] } });
+    expect(screen.getByText("Upload to thread")).toBeInTheDocument();
   });
 });
 

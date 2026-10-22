@@ -97,6 +97,9 @@ export const EVENTS = {
   /** A course lesson was marked complete or cleared (app/(member)/courses/LessonCompletion.tsx): by the member's button, or automatically when the player reached the watched mark. */
   lesson_completion_changed: { completed: bool(), via: oneOf("button", "watched") },
 
+  /** Files were added to the chat composer (components/chat/Composer.tsx): `via` is how, `count` how many. */
+  chat_files_attached: { via: oneOf("picker", "paste", "drop"), count: int() },
+
   /**
    * A member's profile-at-a-glance opened from their name (components/member/MemberHoverCard.tsx):
    * `surface` is the page it was on, `has_message` whether the card offered a Message button.
