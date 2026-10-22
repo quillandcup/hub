@@ -41,14 +41,14 @@ describe("PendingAttachments without file names", () => {
 describe("ImageLightbox", () => {
   it("steps through images and closes on backdrop click", async () => {
     const onClose = vi.fn();
-    render(<ImageLightbox images={[{ src: "a", name: "A" }, { src: "b", name: "B" }]} startIndex={0} onClose={onClose} />);
-    expect(screen.getByRole("img")).toHaveAttribute("src", "a");
+    render(<ImageLightbox images={[{ src: "/a", name: "A" }, { src: "/b", name: "B" }]} startIndex={0} onClose={onClose} />);
+    expect(screen.getByRole("img")).toHaveAttribute("src", "/a");
     await userEvent.click(screen.getByRole("button", { name: "Next image" }));
-    expect(screen.getByRole("img")).toHaveAttribute("src", "b");
+    expect(screen.getByRole("img")).toHaveAttribute("src", "/b");
     await userEvent.keyboard("{ArrowLeft}");
-    expect(screen.getByRole("img")).toHaveAttribute("src", "a");
+    expect(screen.getByRole("img")).toHaveAttribute("src", "/a");
     await userEvent.keyboard("x");
-    expect(screen.getByRole("img")).toHaveAttribute("src", "a");
+    expect(screen.getByRole("img")).toHaveAttribute("src", "/a");
     fireEvent.click(screen.getByRole("dialog"));
     expect(onClose).toHaveBeenCalled();
   });

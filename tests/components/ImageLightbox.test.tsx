@@ -6,7 +6,7 @@ import "@testing-library/jest-dom/vitest";
 import ImageLightbox from "@/components/ImageLightbox";
 
 beforeEach(cleanup);
-const IMAGES = [{ src: "a", name: "A" }, { src: "b" }, { src: "c", name: "C" }];
+const IMAGES = [{ src: "/a", name: "A" }, { src: "/b" }, { src: "/c", name: "C" }];
 
 describe("ImageLightbox", () => {
   it("renders nothing for an empty list", () => {
@@ -16,12 +16,12 @@ describe("ImageLightbox", () => {
 
   it("clamps the start index and labels unnamed images", () => {
     render(<ImageLightbox images={IMAGES} startIndex={99} onClose={vi.fn()} />);
-    expect(screen.getByAltText("C")).toHaveAttribute("src", "c");
+    expect(screen.getByAltText("C")).toHaveAttribute("src", "/c");
     cleanup();
     render(<ImageLightbox images={IMAGES} startIndex={-4} onClose={vi.fn()} />);
-    expect(screen.getByAltText("A")).toHaveAttribute("src", "a");
+    expect(screen.getByAltText("A")).toHaveAttribute("src", "/a");
     cleanup();
-    render(<ImageLightbox images={[{ src: "x" }]} onClose={vi.fn()} />);
+    render(<ImageLightbox images={[{ src: "/x" }]} onClose={vi.fn()} />);
     expect(screen.getByRole("dialog", { name: "Image preview" })).toBeInTheDocument();
   });
 
@@ -30,14 +30,14 @@ describe("ImageLightbox", () => {
     const img = () => container.querySelector("img");
     expect(screen.getByRole("button", { name: "Previous image" })).toBeDisabled();
     await userEvent.keyboard("{ArrowLeft}");
-    expect(img()).toHaveAttribute("src", "a");
+    expect(img()).toHaveAttribute("src", "/a");
     await userEvent.keyboard("{ArrowRight}{ArrowRight}{ArrowRight}");
-    expect(img()).toHaveAttribute("src", "c");
+    expect(img()).toHaveAttribute("src", "/c");
     expect(screen.getByRole("button", { name: "Next image" })).toBeDisabled();
     await userEvent.click(screen.getByRole("button", { name: "Previous image" }));
-    expect(img()).toHaveAttribute("src", "b");
+    expect(img()).toHaveAttribute("src", "/b");
     await userEvent.click(screen.getByRole("button", { name: "Next image" }));
-    expect(img()).toHaveAttribute("src", "c");
+    expect(img()).toHaveAttribute("src", "/c");
     cleanup();
     render(<ImageLightbox images={[IMAGES[0]]} onClose={vi.fn()} />);
     expect(screen.queryByRole("button", { name: "Next image" })).not.toBeInTheDocument();
