@@ -7,7 +7,7 @@ import type { CustomEmoji } from "@/lib/chat/emoji";
 import { MESSAGE_CHANGE_EVENT } from "@/lib/chat/list-events";
 
 const buttonClass =
-  "flex h-8 w-8 items-center justify-center rounded-md text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800";
+  "group/tip relative flex h-8 w-8 items-center justify-center rounded-md text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800";
 
 const iconProps = {
   width: 20,
@@ -48,6 +48,18 @@ function MoreIcon() {
       <circle cx="12" cy="12" r="1.75" />
       <circle cx="12" cy="18.5" r="1.75" />
     </svg>
+  );
+}
+
+/** Styled tooltip for a `group/tip` button; the browser's `title` tooltip looks out of place. Hidden from assistive tech since the button has an aria-label. */
+function Tip({ children }: { children: React.ReactNode }) {
+  return (
+    <span
+      aria-hidden="true"
+      className="pointer-events-none absolute bottom-full left-1/2 z-40 mb-1.5 hidden -translate-x-1/2 whitespace-nowrap rounded-md bg-slate-900 px-2 py-1 text-xs font-medium text-white shadow group-hover/tip:block group-focus-visible/tip:block dark:bg-slate-100 dark:text-slate-900"
+    >
+      {children}
+    </span>
   );
 }
 
@@ -128,7 +140,6 @@ export default function MessageActions({
           <button
             type="button"
             aria-label="Add reaction…"
-            title="Add reaction"
             aria-expanded={open === "react"}
             data-track="chat-hover-add-reaction"
             disabled={pending}
@@ -136,6 +147,7 @@ export default function MessageActions({
             className={buttonClass}
           >
             <AddReactionIcon />
+          <Tip>Add reaction</Tip>
           </button>
           {open === "react" && (
             <ReactionPicker
@@ -152,18 +164,17 @@ export default function MessageActions({
           href={`/chat/${channelId}?thread=${messageId}`}
           scroll={false}
           aria-label="Reply in thread"
-          title="Reply in thread"
           data-track="chat-hover-reply-in-thread"
           className={buttonClass}
         >
           <ThreadIcon />
+          <Tip>Reply in thread</Tip>
         </Link>
       )}
       <div className="relative">
         <button
           type="button"
           aria-label="More actions"
-          title="More actions"
           aria-haspopup="menu"
           aria-expanded={open === "more"}
           data-track="chat-hover-more"
@@ -171,6 +182,7 @@ export default function MessageActions({
           className={buttonClass}
         >
           <MoreIcon />
+          <Tip>More actions</Tip>
         </button>
         {open === "more" && (
           <ul

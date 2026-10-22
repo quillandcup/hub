@@ -15,7 +15,8 @@ import { addSlackMessage } from "@/lib/slack-messages";
  * - `message`: one message the webhook told us about but we never stored (a reaction or edit on it),
  *   and its thread root if that is missing too;
  * - `thread`: a whole thread (a reply arrived whose root we don't have);
- * - `channel`: what is newer than the newest message we have, when someone opens a conversation.
+ * - `channel`: the last few hours of a conversation (or everything newer than our newest message, if
+ *   that is further back), when someone opens it.
  *
  * Every fill is claimed first (`claim_chat_gap_fill`, at most one per channel/scope/message per
  * interval, so a burst of events or a crowd opening a conversation is one fetch) and recorded
@@ -29,12 +30,15 @@ export type GapFillSource = "webhook" | "open" | "manual";
 export interface GapFillResult {
   /** False when nothing was done: not production, not a mirrored conversation, or another fill has it covered. */
   claimed: boolean;
+  /** Messages and reactions that were new to us. */
   messages: number;
   reactions: number;
+  /** Messages Slack returned, new or not: told apart from "nothing came back" by this. */
+  seen: number;
   error?: string;
 }
 
-const NOT_DONE: GapFillResult = { claimed: false, messages: 0, reactions: 0 };
+const NOT_DONE: GapFillResult = { claimed: false, messages: 0, reactions: 0, seen: 0 };
 
 /** The same fill isn't started twice inside this: a burst of events becomes one fetch. */
 const CLAIM_INTERVAL = "1 minute";
@@ -42,6 +46,12 @@ const CLAIM_INTERVAL = "1 minute";
 const MAX_CATCH_UP_MESSAGES = 100;
 const MAX_CATCH_UP_THREADS = 10;
 const MAX_THREAD_REPLIES = 500;
+/**
+ * A catch-up looks at least this far back, not just past the newest message we have: a message the
+ * webhook missed that is older than one it did deliver would otherwise never be looked for. What is
+ * already stored is just upserted again.
+ */
+const CATCH_UP_LOOKBACK_SECONDS = 6 * 60 * 60;
 /** With nothing stored for a conversation, look this far back. */
 const FIRST_CATCH_UP_WINDOW_SECONDS = 24 * 60 * 60;
 const PROJECT_CONCURRENCY = 10;
@@ -84,10 +94,16 @@ async function claim(
   return (data as string | null) ?? null;
 }
 
-async function finish(service: SupabaseClient, id: string, result: { messages: number; reactions: number; error?: string }) {
+async function finish(service: SupabaseClient, id: string, result: { messages: number; reactions: number; seen: number; error?: string }) {
   const { error } = await service
     .from("chat_gap_fills")
-    .update({ finished_at: new Date(clock.now()).toISOString(), messages_recovered: result.messages, reactions_recovered: result.reactions, error: result.error ?? null })
+    .update({
+      finished_at: new Date(clock.now()).toISOString(),
+      messages_recovered: result.messages,
+      reactions_recovered: result.reactions,
+      messages_seen: result.seen,
+      error: result.error ?? null,
+    })
     .eq("id", id);
   if (error) console.error("recording a gap-fill failed:", error.message);
 }
@@ -103,11 +119,11 @@ async function storeAndProject(
   slackChannelId: string,
   channel: MirroredChannel,
   slackMessages: SlackMsg[]
-): Promise<{ messages: number; reactions: number }> {
+): Promise<{ messages: number; reactions: number; seen: number }> {
   const messages: any[] = [];
   const reactions: any[] = [];
   for (const msg of slackMessages) addSlackMessage(msg, slackChannelId, channel.name, channel.type, messages, reactions);
-  if (messages.length === 0) return { messages: 0, reactions: 0 };
+  if (messages.length === 0) return { messages: 0, reactions: 0, seen: 0 };
 
   // A thread_broadcast reply can come back twice (history and thread); one upsert can't touch a row twice.
   const uniqueMessages = [...new Map(messages.map((m) => [m.message_ts, m])).values()];
@@ -174,14 +190,14 @@ async function storeAndProject(
   for (let i = 0; i < timestamps.length; i += PROJECT_CONCURRENCY) {
     await Promise.all(timestamps.slice(i, i + PROJECT_CONCURRENCY).map((ts) => projectChatMessage(service, slackChannelId, ts)));
   }
-  return { messages: newMessages, reactions: newReactions };
+  return { messages: newMessages, reactions: newReactions, seen: uniqueMessages.length };
 }
 
 /** Claim, run, record. Never throws: a failure is recorded and returned. */
 async function run(
   service: SupabaseClient,
   claimed: Promise<string | null>,
-  work: () => Promise<{ messages: number; reactions: number }>
+  work: () => Promise<{ messages: number; reactions: number; seen: number }>
 ): Promise<GapFillResult> {
   const id = await claimed;
   if (!id) return NOT_DONE;
@@ -192,8 +208,8 @@ async function run(
   } catch (error: any) {
     const message = String(error?.data?.error ?? error?.message ?? error).slice(0, 300);
     console.error("gap-fill failed:", message);
-    await finish(service, id, { messages: 0, reactions: 0, error: message });
-    return { claimed: true, messages: 0, reactions: 0, error: message };
+    await finish(service, id, { messages: 0, reactions: 0, seen: 0, error: message });
+    return { claimed: true, messages: 0, reactions: 0, seen: 0, error: message };
   }
 }
 
@@ -207,6 +223,24 @@ async function fetchThread(slack: WebClient, slackChannelId: string, threadTs: s
     cursor = result.response_metadata?.next_cursor || undefined;
   } while (cursor && out.length < MAX_THREAD_REPLIES);
   return out;
+}
+
+/** Live replies already stored per thread root (by root ts), to tell which threads Slack is ahead on. */
+async function storedReplyCounts(service: SupabaseClient, slackChannelId: string, rootTs: string[]): Promise<Map<string, number>> {
+  const counts = new Map<string, number>();
+  if (rootTs.length === 0) return counts;
+  const { data } = await service
+    .schema("bronze")
+    .from("slack_messages")
+    .select("thread_ts, message_ts")
+    .eq("channel_id", slackChannelId)
+    .in("thread_ts", rootTs)
+    .is("deleted_at", null);
+  for (const row of data ?? []) {
+    if (row.message_ts === row.thread_ts) continue; // the root itself
+    counts.set(row.thread_ts as string, (counts.get(row.thread_ts as string) ?? 0) + 1);
+  }
+  return counts;
 }
 
 /** Whether the chat has this message already. */
@@ -233,7 +267,7 @@ export async function fillMessageGap(
     const slack = opts.slack ?? new WebClient(process.env.SLACK_BOT_TOKEN);
     const result: any = await slack.reactions.get({ channel: opts.channelId, timestamp: opts.ts, full: true });
     const message = result.message as SlackMsg | undefined;
-    if (!message) return { messages: 0, reactions: 0 };
+    if (!message) return { messages: 0, reactions: 0, seen: 0 };
     const fetched: SlackMsg[] = [message];
     const rootTs = message.thread_ts && message.thread_ts !== message.ts ? (message.thread_ts as string) : null;
     if (rootTs && !(await chatHasMessage(service, opts.channelId, rootTs))) fetched.push(...(await fetchThread(slack, opts.channelId, rootTs)));
@@ -256,8 +290,9 @@ export async function fillThreadIfRootMissing(
 }
 
 /**
- * What is newer than the newest message we have for this conversation (someone opened it): up to
- * 100 top-level messages and the replies of up to 10 of their threads. The import covers the rest.
+ * Catches a conversation up with Slack when someone opens it: up to 100 top-level messages from the
+ * last few hours (or newer than our newest, if that is further back), and the replies of up to 10 threads
+ * Slack has more replies on than we do. The import covers the rest.
  */
 export async function catchUpChannel(
   service: SupabaseClient,
@@ -276,12 +311,21 @@ export async function catchUpChannel(
       .order("message_ts", { ascending: false })
       .limit(1)
       .maybeSingle();
-    const oldest = newest?.message_ts ?? String(Math.floor(clock.now() / 1000) - FIRST_CATCH_UP_WINDOW_SECONDS);
+    const nowSeconds = Math.floor(clock.now() / 1000);
+    // From the newest message we have, or the lookback window if that is further back (see CATCH_UP_LOOKBACK_SECONDS).
+    const oldest = String(
+      newest?.message_ts ? Math.min(Number(newest.message_ts), nowSeconds - CATCH_UP_LOOKBACK_SECONDS) : nowSeconds - FIRST_CATCH_UP_WINDOW_SECONDS
+    );
 
     const result: any = await slack.conversations.history({ channel: opts.channelId, oldest, limit: MAX_CATCH_UP_MESSAGES });
     const fetched = ((result.messages ?? []) as SlackMsg[]).filter((m) => typeof m.ts === "string");
-    const threads = fetched.filter((m) => (m.reply_count ?? 0) > 0).slice(0, MAX_CATCH_UP_THREADS);
-    for (const root of threads) fetched.push(...(await fetchThread(slack, opts.channelId, root.ts)).filter((m) => m.ts !== root.ts));
+
+    // Replies only for threads where Slack has more than we do (the import's rule), so looking back over
+    // a busy window isn't a conversations.replies call per thread.
+    const roots = fetched.filter((m) => (m.reply_count ?? 0) > 0);
+    const stored = await storedReplyCounts(service, opts.channelId, roots.map((m) => m.ts as string));
+    const behind = roots.filter((m) => (stored.get(m.ts as string) ?? 0) < (m.reply_count ?? 0)).slice(0, MAX_CATCH_UP_THREADS);
+    for (const root of behind) fetched.push(...(await fetchThread(slack, opts.channelId, root.ts)).filter((m) => m.ts !== root.ts));
     return storeAndProject(service, opts.channelId, channel, fetched);
   });
 }

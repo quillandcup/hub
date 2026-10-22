@@ -32,9 +32,9 @@ SELECT ok((SELECT id IS NULL FROM claimed WHERE label = 'channel again'), 'and a
 SELECT ok((SELECT id IS NOT NULL FROM claimed WHERE label = 'other channel'), 'another channel is its own');
 
 SELECT is(
-  (SELECT concat_ws('|', source, scope, slack_channel_id, slack_ts, messages_recovered, reactions_recovered) FROM chat_gap_fills WHERE id = (SELECT id FROM claimed WHERE label = 'first')),
-  'webhook|message|PGTAP_GF_A|1.1|0|0',
-  'the claim is recorded, with nothing recovered yet'
+  (SELECT concat_ws('|', source, scope, slack_channel_id, slack_ts, messages_recovered, reactions_recovered, messages_seen) FROM chat_gap_fills WHERE id = (SELECT id FROM claimed WHERE label = 'first')),
+  'webhook|message|PGTAP_GF_A|1.1|0|0|0',
+  'the claim is recorded, with nothing recovered or seen yet'
 );
 
 -- Once the interval has passed the same thing can be claimed again, and rows over 30 days old go.
