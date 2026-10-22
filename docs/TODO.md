@@ -796,6 +796,20 @@ Show a `/live` page displaying the currently active prickle and its attendees in
 ### Add an Icon Library
 The app has no icon library: icons are inline SVGs pasted into components. Add one (e.g. lucide-react) and replace the hand-drawn crosshair on Settings' "Use current location" button (`app/(member)/settings/TimezoneSwitcher.tsx`) with its "locate" icon, then move the other inline SVGs over as they're touched.
 
+### Event Resources and Downloads _(Needs Scheduling)_
+`events` only has text fields (`focus`, `description`, `agenda`, `results`) and a photo gallery (`event_photos`). The member event page (`app/(member)/events/[slug]/EventDetailClient.tsx`) shows the text with `whitespace-pre-wrap`, so there is no place for the files a retreat hands out (worksheets, slides, workbooks, recordings), and a URL in a description is plain text, not a link.
+
+**Today (interim):** the virtual retreats were filled in from their calendar invites (description, itinerary, focus), and the shared Google Drive files for the retreats that had them are pasted into the description under "Materials shared with attendees:" as plain URLs. Not clickable, untitled, and nobody checked who each Drive file is shared with; the event page is open to every signed-in member.
+
+**Why deferred:** the retreat details were worth getting in now, and resources need a few decisions first (where files live, who can open them).
+
+**Shape to design:**
+- An `event_resources` table (event, title, kind such as file or link, URL or storage path, sort order, `deleted_at` soft delete), admin-managed like `event_photos` (editor on `app/(admin)/admin/events/[id]/EventDetailClient.tsx`), shown on the event page as titled, clickable items.
+- Files we host go in a private storage bucket with signed URLs (as for course videos), so access follows membership; external Drive files stay links, and the admin UI should say Drive sharing is separate from Hub access.
+- Decide whether resources are for everyone or only attendees (`event_attendees` already says who attended).
+- Then move the pasted Drive URLs out of the descriptions into resources and delete the "Materials shared with attendees" paragraphs.
+- Tests (route, component, RLS) and an analytics event for opens or downloads (`docs/ANALYTICS.md`).
+
 ### Site-wide "Return To" Handling (Needs Design)
 **Resolved:** sign-in return. The proxy stores the requested page in the `hub_next` cookie before redirecting to `/login`, and the email callback, Slack button and Slack code read it back via `takeNextPath()` (`lib/next-path-cookie.ts`, validated by `safeNextPath()` in `lib/safe-next.ts`).
 
