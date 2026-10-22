@@ -21,6 +21,7 @@ const msg = (id: string, at: string, extra: Partial<ChatMessageView> = {}): Chat
   syncStatus: null,
   mine: false,
   fromHub: false,
+  system: false,
   ...extra,
 });
 
@@ -71,7 +72,9 @@ describe("groupByDay", () => {
       msg("b", "2026-10-07T14:01:00Z", { authorMemberId: null, authorName: "Bot" }),
       msg("c", "2026-10-07T14:02:00Z", { authorMemberId: null, authorName: "Bot", contentState: "deleted" }),
       msg("d", "2026-10-07T14:03:00Z", { authorMemberId: null, authorName: "Bot", syncStatus: "failed" }),
+      msg("e", "2026-10-07T14:04:00Z", { authorMemberId: null, authorName: "Bot", system: true }),
+      msg("f", "2026-10-07T14:05:00Z", { authorMemberId: null, authorName: "Bot" }),
     ];
-    expect(groupByDay(messages, "UTC").flatMap((d) => d.items.map((i) => i.compact))).toEqual([false, true, false, false]);
+    expect(groupByDay(messages, "UTC").flatMap((d) => d.items.map((i) => i.compact))).toEqual([false, true, false, false, false, false]);
   });
 });
