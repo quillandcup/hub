@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { authenticateRealtime } from "@/lib/chat/live";
-import { scrollParent } from "@/lib/chat/scroll";
+import { scrollParent, scrollToHashMessage } from "@/lib/chat/scroll";
 import { loadLatestChat, loadThreadChat, markChatRead } from "@/app/(member)/chat/actions";
 import { emitListEvent, onPoke } from "@/lib/chat/list-events";
 
@@ -261,6 +261,8 @@ export default function ChatLive({
   // that is followed instead of waiting behind the pill).
   useEffect(() => {
     if (view !== "latest") return;
+    // A link to one message (#m-<id>) wins over where the reader left off.
+    if (scrollToHashMessage(anchor.current)) return;
     const scroller = scrollParent(anchor.current);
     const line = scroller.querySelector("#unread-divider");
     if (line) scroller.scrollTop += line.getBoundingClientRect().top - scroller.getBoundingClientRect().top - 24;

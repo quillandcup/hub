@@ -185,3 +185,28 @@ describe("MessageList days and hover", () => {
     expect(toggleChatReaction).toHaveBeenCalledWith("m1", "tada");
   });
 });
+
+describe("MessageList linked message", () => {
+  it("loads older pages until the message named in the #hash is on the page, then scrolls to it", async () => {
+    const scrollIntoViewTop = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect");
+    window.location.hash = "#m-target";
+    vi.mocked(loadOlderChat)
+      .mockResolvedValueOnce({ views: [view(0, { id: "other" })], ctx: CTX, olderBefore: "2026-09-30T00:00:00.000Z" })
+      .mockResolvedValueOnce({ views: [view(-1, { id: "target", body: "the one" })], ctx: CTX, olderBefore: "2026-09-29T00:00:00.000Z" });
+    render(<MessageList channelId="c1" views={[view(1)]} ctx={CTX} olderBefore="2026-10-01T00:00:00.000Z" />);
+    await screen.findByText("the one");
+    expect(loadOlderChat).toHaveBeenCalledTimes(2);
+    expect(scrollIntoViewTop).toHaveBeenCalled();
+    scrollIntoViewTop.mockRestore();
+    window.location.hash = "";
+  });
+
+  it("stops looking when the older pages run out", async () => {
+    window.location.hash = "#m-missing";
+    vi.mocked(loadOlderChat).mockResolvedValueOnce({ views: [view(0, { id: "other" })], ctx: CTX, olderBefore: null });
+    render(<MessageList channelId="c1" views={[view(1)]} ctx={CTX} olderBefore="2026-10-01T00:00:00.000Z" />);
+    await screen.findByText("message 0");
+    expect(loadOlderChat).toHaveBeenCalledTimes(1);
+    window.location.hash = "";
+  });
+});

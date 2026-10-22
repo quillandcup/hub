@@ -5,12 +5,15 @@ import MessageItem from "@/components/chat/MessageItem";
 import UnreadDivider from "@/components/chat/UnreadDivider";
 import type { ChatTextContext } from "@/components/chat/ChatText";
 import type { ChatMessageView } from "@/lib/chat/load";
-import { scrollParent } from "@/lib/chat/scroll";
+import { hashMessageId, scrollParent, scrollToHashMessage } from "@/lib/chat/scroll";
 import { loadOlderChat } from "@/app/(member)/chat/actions";
 import { subscribeListEvents } from "@/lib/chat/list-events";
 import { mergeChatContext } from "@/lib/chat/merge";
 import { groupByDay } from "@/lib/chat/days";
 import { ORG_TIMEZONE } from "@/lib/config";
+
+/** Most older pages loaded while looking for a linked message. */
+const MAX_HASH_PAGES = 30;
 
 const sortKey = (m: ChatMessageView) => Date.parse(m.createdAt);
 
@@ -147,6 +150,21 @@ export default function MessageList({
   useEffect(() => {
     loadRef.current = loadOlder;
   });
+  // A link to a message that is further back than the newest page: keep loading older pages until
+  // it shows up (or they run out), then take the reader to it.
+  const hashAttempts = useRef(0);
+  const hashDone = useRef(false);
+  useEffect(() => {
+    if (hashDone.current || !hashMessageId()) return;
+    if (scrollToHashMessage(top.current)) {
+      hashDone.current = true;
+      return;
+    }
+    if (!cursor || failed || loading || hashAttempts.current >= MAX_HASH_PAGES) return;
+    hashAttempts.current += 1;
+    void loadRef.current();
+  }, [byId, cursor, failed, loading]);
+
   useEffect(() => {
     const el = top.current;
     if (!el || !cursor || failed || typeof IntersectionObserver === "undefined") return;
