@@ -451,8 +451,10 @@ export async function buildMessageViews(
   allRows: MessageRow[],
   viewerMemberId: string
 ): Promise<ChatMessages> {
-  // A deleted message is not shown at all, not even as a tombstone.
-  const rows = allRows.filter((r) => !r.deleted_at);
+  // A deleted message is not shown at all, not even as a tombstone. Exception: a deleted thread
+  // root that still has live replies stays as a row with no content, so the replies link keeps
+  // the thread reachable (reply_count only counts live replies).
+  const rows = allRows.filter((r) => !r.deleted_at || r.reply_count > 0);
   if (rows.length === 0) return { views: [], userNames: {}, userMembers: {}, channelNames: {}, customEmoji: {} };
 
   const matched = rows.filter((r) => r.author_member_id).map((r) => r.author_member_id as string);
