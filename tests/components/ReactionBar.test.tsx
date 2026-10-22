@@ -66,3 +66,22 @@ describe("ReactionBar", () => {
     expect(refresh).not.toHaveBeenCalled();
   });
 });
+
+describe("ReactionBar hover card", () => {
+  it("names who reacted, with the viewer first and the shortcode, and drops the browser title", () => {
+    render(
+      <ReactionBar
+        channelId="c1"
+        messageId="m1"
+        reactions={[
+          { emoji: "tada", count: 2, mine: true, reactors: ["Bo & <Co>"] },
+          { emoji: "eyes", count: 2, mine: false, reactors: ["Ada", "Bo"] },
+        ]}
+        custom={{}}
+        canReact={false}
+      />
+    );
+    expect(screen.getByText("You (click to remove) and Bo & <Co> reacted with :tada:")).toBeInTheDocument();
+    expect(screen.getByText("Ada and Bo reacted with :eyes:")).toBeInTheDocument();
+  });
+});

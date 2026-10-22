@@ -327,6 +327,8 @@ export interface ReactionSummary {
   emoji: string;
   count: number;
   mine: boolean;
+  /** Names of the other people who reacted (the viewer is `mine`, not listed); may be fewer than count - 1 for unnamed Slack people. */
+  reactors?: string[];
 }
 
 export type ContentState = "ok" | "deleted" | "hidden";
@@ -446,9 +448,11 @@ async function loadReplyAuthors(supabase: SupabaseClient, rootIds: string[]): Pr
 export async function buildMessageViews(
   supabase: SupabaseClient,
   channel: Pick<ChannelSummary, "slackChannelId">,
-  rows: MessageRow[],
+  allRows: MessageRow[],
   viewerMemberId: string
 ): Promise<ChatMessages> {
+  // A deleted message is not shown at all, not even as a tombstone.
+  const rows = allRows.filter((r) => !r.deleted_at);
   if (rows.length === 0) return { views: [], userNames: {}, userMembers: {}, channelNames: {}, customEmoji: {} };
 
   const matched = rows.filter((r) => r.author_member_id).map((r) => r.author_member_id as string);
@@ -462,7 +466,7 @@ export async function buildMessageViews(
       : Promise.resolve({} as Record<string, string>),
     supabase
       .from("chat_reactions")
-      .select("message_id, emoji, member_id")
+      .select("message_id, emoji, member_id, slack_user_id")
       .in("message_id", rows.map((r) => r.id))
       .is("deleted_at", null),
     loadReplyAuthors(supabase, threadRoots),
@@ -478,7 +482,10 @@ export async function buildMessageViews(
 
   // One batch for every Slack name and photo needed: unmatched authors and repliers plus people mentioned in the text.
   const mentioned = rows.flatMap((r) => mentionedUserIds(bodyOf(r) ?? ""));
-  const slackIds = [...Object.values(slackAuthorByTs), ...Object.values(replySlackAuthors)];
+  const reactorMemberIds = [...new Set((reactionRows ?? []).flatMap((r) => (r.member_id && r.member_id !== viewerMemberId ? [r.member_id as string] : [])))];
+  const reactorSlackIds = [...new Set((reactionRows ?? []).flatMap((r) => (!r.member_id && r.slack_user_id ? [r.slack_user_id as string] : [])))];
+  const reactorProfiles = await memberProfiles(supabase, reactorMemberIds);
+  const slackIds = [...Object.values(slackAuthorByTs), ...Object.values(replySlackAuthors), ...reactorSlackIds];
   const emojiNames = [
     ...rows.flatMap((r) => emojiNamesIn(bodyOf(r) ?? "")),
     ...(reactionRows ?? []).map((r) => String(r.emoji).replace(/::skin-tone-\d$/, "").toLowerCase()),
@@ -506,9 +513,13 @@ export async function buildMessageViews(
       counted.add(key);
     }
     const byEmoji = reactionsByMessage.get(r.message_id) ?? new Map<string, ReactionSummary>();
-    const entry = byEmoji.get(r.emoji) ?? { emoji: r.emoji as string, count: 0, mine: false };
+    const entry = byEmoji.get(r.emoji) ?? { emoji: r.emoji as string, count: 0, mine: false, reactors: [] };
     entry.count++;
     if (r.member_id === viewerMemberId) entry.mine = true;
+    else {
+      const name = r.member_id ? reactorProfiles.get(r.member_id)?.name : r.slack_user_id ? userNames[r.slack_user_id] : undefined;
+      if (name) entry.reactors?.push(name);
+    }
     byEmoji.set(r.emoji, entry);
     reactionsByMessage.set(r.message_id, byEmoji);
   }

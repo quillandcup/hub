@@ -1,15 +1,15 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import ChatText, { type ChatTextContext } from "@/components/chat/ChatText";
 import { deleteChatMessage, editChatMessage } from "@/app/(member)/chat/actions";
-import { isPendingId, pokeChat } from "@/lib/chat/list-events";
+import { isPendingId, MESSAGE_CHANGE_EVENT, pokeChat } from "@/lib/chat/list-events";
 import type { ChatMessageView } from "@/lib/chat/load";
 
 /**
- * A message's text, and for its author the way to change it: Edit (inline, Enter saves, Escape
- * cancels) and Delete (asks first). Only for a message written in the Hub, by the viewer, that Slack
+ * A message's text, and for its author the way to change it, started from the message's menu (an
+ * event): Edit (inline, Enter saves, Escape cancels) and Delete (asks first). Only for a message written in the Hub, by the viewer, that Slack
  * has: the server changes it in Slack as whoever posted it, then in the Hub. The new text (or the
  * tombstone) shows at once; the conversation catches up behind it.
  */
@@ -36,6 +36,21 @@ export default function MessageBody({
 
   const changeable = canEdit && message.mine && message.fromHub && message.syncStatus === null && !isPendingId(message.id);
   const text = saved && saved.from === message.body ? saved.text : message.body;
+
+  useEffect(() => {
+    if (!changeable) return;
+    const onChange = (e: Event) => {
+      const d = (e as CustomEvent<{ messageId: string; what: "edit" | "delete" }>).detail;
+      if (d?.messageId !== message.id) return;
+      setError(null);
+      if (d.what === "edit") {
+        setDraft(text);
+        setMode("edit");
+      } else setMode("confirm-delete");
+    };
+    window.addEventListener(MESSAGE_CHANGE_EVENT, onChange);
+    return () => window.removeEventListener(MESSAGE_CHANGE_EVENT, onChange);
+  }, [changeable, message.id, text]);
 
   const catchUp = () => {
     if (!pokeChat(channelId)) router.refresh();
@@ -66,10 +81,13 @@ export default function MessageBody({
       return setError(result.error);
     }
     setDeleted(true);
+    // Take the whole message out of the feed at once; the server's copy no longer has it.
+    const row = document.getElementById(`m-${message.id}`);
+    if (row) row.style.display = "none";
     catchUp();
   };
 
-  if (deleted) return <p className="mt-0.5 text-sm italic text-slate-500 dark:text-slate-400">This message was deleted.</p>;
+  if (deleted) return null;
 
   if (mode === "edit") {
     return (
@@ -132,31 +150,6 @@ export default function MessageBody({
       <div className="mt-0.5 text-sm text-slate-800 dark:text-slate-200">
         <ChatText body={text} ctx={ctx} />
       </div>
-      {changeable && mode === "view" && (
-        <div className="mt-0.5 flex gap-3 text-xs text-slate-500 dark:text-slate-400">
-          <button
-            type="button"
-            onClick={() => {
-              setDraft(text);
-              setError(null);
-              setMode("edit");
-            }}
-            className="hover:text-plum-600 hover:underline dark:hover:text-plum-400"
-          >
-            Edit
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setError(null);
-              setMode("confirm-delete");
-            }}
-            className="hover:text-red-600 hover:underline dark:hover:text-red-400"
-          >
-            Delete
-          </button>
-        </div>
-      )}
       {changeable && mode === "confirm-delete" && (
         <div className="mt-1 flex items-center gap-3 text-xs">
           <span className="text-slate-600 dark:text-slate-400">Delete this message? It goes from Slack too.</span>

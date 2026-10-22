@@ -48,6 +48,7 @@ export default function MessageItem({
   /** The reader's time zone, for every time shown. */
   timeZone?: string;
 }) {
+  if (message.contentState === "deleted") return null;
   const profileHref = `/chat/${channelId}?profile=${message.authorMemberId}`;
   const sent = !isPendingId(message.id);
   const reactable = canReact && message.contentState === "ok" && sent;
@@ -121,9 +122,6 @@ export default function MessageItem({
         {message.contentState === "ok" && message.body !== null && (
           <MessageBody message={{ ...message, body: message.body }} ctx={ctx} channelId={channelId} canEdit={canEdit} />
         )}
-        {message.contentState === "deleted" && (
-          <p className="mt-0.5 text-sm italic text-slate-500 dark:text-slate-400">This message was deleted.</p>
-        )}
         {message.contentState === "hidden" && (
           <p className="mt-0.5 text-sm italic text-slate-500 dark:text-slate-400">You can&apos;t read this message.</p>
         )}
@@ -136,7 +134,7 @@ export default function MessageItem({
             {message.mine && <RetryButton channelId={channelId} messageId={message.id} />}
           </p>
         )}
-        {message.contentState === "ok" && <MessageFiles messageId={message.id} files={message.files} />}
+        {message.contentState === "ok" && <MessageFiles messageId={message.id} files={message.files} canDelete={message.mine} />}
         {message.hasFiles && message.contentState === "ok" && message.files.length === 0 && (
           <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">📎 Includes files the Hub couldn&apos;t load.</p>
         )}
@@ -158,7 +156,7 @@ export default function MessageItem({
           </Link>
         )}
       </div>
-      {sent && message.contentState !== "deleted" && message.contentState !== "hidden" && (
+      {sent && message.contentState !== "hidden" && (
         <MessageActions
           channelId={channelId}
           messageId={message.id}
@@ -166,6 +164,7 @@ export default function MessageItem({
           custom={ctx.customEmoji}
           canReact={reactable}
           canReply={!inThread}
+          canChange={canEdit && message.mine && message.fromHub && message.syncStatus === null && message.contentState === "ok"}
         />
       )}
     </article>

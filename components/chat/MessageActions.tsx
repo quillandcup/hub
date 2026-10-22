@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { ReactionPicker, useToggleReaction } from "@/components/chat/ReactionBar";
 import type { CustomEmoji } from "@/lib/chat/emoji";
+import { MESSAGE_CHANGE_EVENT } from "@/lib/chat/list-events";
 
 const buttonClass =
   "flex h-8 w-8 items-center justify-center rounded-md text-base text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800";
@@ -21,6 +22,7 @@ export default function MessageActions({
   custom,
   canReact,
   canReply,
+  canChange = false,
 }: {
   channelId: string;
   messageId: string;
@@ -30,6 +32,8 @@ export default function MessageActions({
   canReact: boolean;
   /** Offer "Reply in thread" (not inside a thread, not for a message still being sent). */
   canReply: boolean;
+  /** Offer Edit and Delete (the viewer's own Hub message); MessageBody does the work, told by an event. */
+  canChange?: boolean;
 }) {
   const [open, setOpen] = useState<"react" | "more" | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
@@ -142,6 +146,38 @@ export default function MessageActions({
                 Copy link
               </button>
             </li>
+            {canChange && body && (
+              <li role="none">
+                <button
+                  type="button"
+                  role="menuitem"
+                  data-track="chat-menu-edit"
+                  onClick={() => {
+                    setOpen(null);
+                    window.dispatchEvent(new CustomEvent(MESSAGE_CHANGE_EVENT, { detail: { messageId, what: "edit" } }));
+                  }}
+                  className="block w-full px-3 py-1.5 text-left hover:bg-slate-100 dark:hover:bg-slate-800"
+                >
+                  Edit message
+                </button>
+              </li>
+            )}
+            {canChange && (
+              <li role="none">
+                <button
+                  type="button"
+                  role="menuitem"
+                  data-track="chat-menu-delete"
+                  onClick={() => {
+                    setOpen(null);
+                    window.dispatchEvent(new CustomEvent(MESSAGE_CHANGE_EVENT, { detail: { messageId, what: "delete" } }));
+                  }}
+                  className="block w-full px-3 py-1.5 text-left text-red-600 dark:text-red-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+                >
+                  Delete message
+                </button>
+              </li>
+            )}
             {body && (
               <li role="none">
                 <button
