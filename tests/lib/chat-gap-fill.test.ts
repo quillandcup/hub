@@ -57,6 +57,8 @@ interface World {
   bronzeMessages: string[];
   bronzeReactions: { message_ts: string; reaction: string; user_id: string }[];
   newestBronzeTs: string | null;
+  /** Replies bronze already has, by thread root. */
+  bronzeReplies: { thread_ts: string; message_ts: string }[];
 }
 let world: World;
 
@@ -70,6 +72,7 @@ const answer = (q: Query): unknown => {
   if (q.schema === "bronze" && q.table === "slack_messages") {
     if (has(q, "upsert")) return { error: null };
     if (has(q, "order")) return { data: world.newestBronzeTs ? { message_ts: world.newestBronzeTs } : null };
+    if (q.calls.some((c) => c.method === "in" && c.args[0] === "thread_ts")) return { data: world.bronzeReplies };
     return { data: world.bronzeMessages.map((message_ts) => ({ message_ts })) };
   }
   if (q.schema === "bronze" && q.table === "slack_reactions") {
@@ -102,7 +105,7 @@ const upserted = (service: ReturnType<typeof fakeService>, table: string) =>
   service.queries.find((q) => q.schema === "bronze" && q.table === table && has(q, "upsert"))?.calls.find((c) => c.method === "upsert")?.args[0] as Record<string, unknown>[] | undefined;
 
 beforeEach(() => {
-  world = { channel: { ...CHANNEL }, chatHas: new Set(), bronzeMessages: [], bronzeReactions: [], newestBronzeTs: null };
+  world = { channel: { ...CHANNEL }, chatHas: new Set(), bronzeMessages: [], bronzeReactions: [], newestBronzeTs: null, bronzeReplies: [] };
   writesEnabled.mockReset();
   writesEnabled.mockReturnValue(true);
   projectChatMessage.mockClear();
@@ -118,7 +121,7 @@ describe("fillMessageGap", () => {
 
     const result = await fillMessageGap(service, { channelId: "C1", ts: "100.1", source: "webhook", slack });
 
-    expect(result).toEqual({ claimed: true, messages: 1, reactions: 2 });
+    expect(result).toEqual({ claimed: true, messages: 1, reactions: 2, seen: 1 });
     expect(slack.reactions.get).toHaveBeenCalledWith({ channel: "C1", timestamp: "100.1", full: true });
     expect(claimCall(service)).toMatchObject({ p_source: "webhook", p_scope: "message", p_channel: "C1", p_ts: "100.1" });
     const messages = upserted(service, "slack_messages")!;
@@ -126,7 +129,7 @@ describe("fillMessageGap", () => {
     expect(messages[0]).toMatchObject({ channel_id: "C1", message_ts: "100.1", user_id: "U_GALE", user_email: "gale@example.test", text: "message 100.1" });
     expect(upserted(service, "slack_reactions")).toHaveLength(3);
     expect(projectChatMessage).toHaveBeenCalledWith(service, "C1", "100.1");
-    expect(finished(service)).toMatchObject({ messages_recovered: 1, reactions_recovered: 2, error: null });
+    expect(finished(service)).toMatchObject({ messages_recovered: 1, reactions_recovered: 2, messages_seen: 1, error: null });
   });
 
   it("also fetches the thread when the message is a reply and its root isn't in the chat", async () => {
@@ -152,7 +155,7 @@ describe("fillMessageGap", () => {
     const slack = slackStub({ get: slackMessage("100.1") });
 
     const covered = fakeService(answer, () => null);
-    await expect(fillMessageGap(covered, { channelId: "C1", ts: "100.1", source: "webhook", slack })).resolves.toEqual({ claimed: false, messages: 0, reactions: 0 });
+    await expect(fillMessageGap(covered, { channelId: "C1", ts: "100.1", source: "webhook", slack })).resolves.toEqual({ claimed: false, messages: 0, reactions: 0, seen: 0 });
 
     writesEnabled.mockReturnValue(false);
     await expect(fillMessageGap(fakeService(answer), { channelId: "C1", ts: "100.1", source: "webhook", slack })).resolves.toMatchObject({ claimed: false });
@@ -172,7 +175,7 @@ describe("fillMessageGap", () => {
     const service = fakeService(answer);
     service.rpc.mockResolvedValueOnce({ data: null, error: { message: "connection lost" }, args: {} } as never);
 
-    await expect(fillMessageGap(service, { channelId: "C1", ts: "100.1", source: "webhook", slack })).resolves.toEqual({ claimed: false, messages: 0, reactions: 0 });
+    await expect(fillMessageGap(service, { channelId: "C1", ts: "100.1", source: "webhook", slack })).resolves.toEqual({ claimed: false, messages: 0, reactions: 0, seen: 0 });
 
     expect(console.error).toHaveBeenCalledWith("claim_chat_gap_fill failed:", "connection lost");
     expect(slack.reactions.get).not.toHaveBeenCalled();
@@ -187,6 +190,7 @@ describe("fillMessageGap", () => {
       claimed: true,
       messages: 0,
       reactions: 0,
+      seen: 0,
       error: "message_not_found",
     });
     expect(finished(service)).toMatchObject({ error: "message_not_found" });
@@ -195,7 +199,7 @@ describe("fillMessageGap", () => {
   it("stores nothing for a message that isn't a message (a join notice)", async () => {
     const slack = slackStub({ get: slackMessage("100.1", { subtype: "channel_join" }) });
     const service = fakeService(answer);
-    await expect(fillMessageGap(service, { channelId: "C1", ts: "100.1", source: "webhook", slack })).resolves.toEqual({ claimed: true, messages: 0, reactions: 0 });
+    await expect(fillMessageGap(service, { channelId: "C1", ts: "100.1", source: "webhook", slack })).resolves.toEqual({ claimed: true, messages: 0, reactions: 0, seen: 0 });
     expect(upserted(service, "slack_messages")).toBeUndefined();
   });
 
@@ -218,7 +222,7 @@ describe("fillThreadIfRootMissing", () => {
     const slack = slackStub({ replies: { "100.0": [slackMessage("100.0", { reply_count: 2 }), slackMessage("100.1", { thread_ts: "100.0" }), slackMessage("100.2", { thread_ts: "100.0" })] } });
     const service = fakeService(answer);
 
-    await expect(fillThreadIfRootMissing(service, { channelId: "C1", threadTs: "100.0", source: "webhook", slack })).resolves.toEqual({ claimed: true, messages: 3, reactions: 0 });
+    await expect(fillThreadIfRootMissing(service, { channelId: "C1", threadTs: "100.0", source: "webhook", slack })).resolves.toEqual({ claimed: true, messages: 3, reactions: 0, seen: 3 });
     expect(claimCall(service)).toMatchObject({ p_scope: "thread", p_ts: "100.0" });
   });
 
@@ -245,9 +249,57 @@ describe("catchUpChannel", () => {
 
     expect(slack.conversations.history).toHaveBeenCalledWith({ channel: "C1", oldest: "200.5", limit: 100 });
     expect(slack.conversations.replies).toHaveBeenCalledTimes(1);
-    expect(result).toEqual({ claimed: true, messages: 4, reactions: 0 });
+    expect(result).toEqual({ claimed: true, messages: 4, reactions: 0, seen: 4 });
     expect(claimCall(service)).toMatchObject({ p_source: "open", p_scope: "channel", p_ts: null });
     expect(upserted(service, "slack_messages")!.map((m) => m.message_ts).sort()).toEqual(["201.0", "202.0", "202.1", "202.2"]);
+  });
+
+  it("looks back a few hours even when our newest message is recent, so a gap before it is found", async () => {
+    setClock({ now: () => 1_700_000_000_000, sleep: async () => {} });
+    world.newestBronzeTs = String(1_700_000_000 - 60); // the webhook delivered a message a minute ago
+    const slack = slackStub({ history: [slackMessage("1699999000.0")] });
+    world.bronzeMessages = [];
+
+    const result = await catchUpChannel(fakeService(answer), { channelId: "C1", source: "open", slack });
+
+    expect(slack.conversations.history).toHaveBeenCalledWith({ channel: "C1", oldest: String(1_700_000_000 - 6 * 60 * 60), limit: 100 });
+    expect(result).toMatchObject({ messages: 1, seen: 1 }); // the one the webhook missed, older than the newest we have
+    setClock(systemClock);
+  });
+
+  it("goes back to our newest message instead when that is further back than the lookback", async () => {
+    setClock({ now: () => 1_700_000_000_000, sleep: async () => {} });
+    world.newestBronzeTs = String(1_700_000_000 - 20 * 60 * 60);
+    const slack = slackStub();
+    await catchUpChannel(fakeService(answer), { channelId: "C1", source: "open", slack });
+    expect(slack.conversations.history).toHaveBeenCalledWith({ channel: "C1", oldest: String(1_700_000_000 - 20 * 60 * 60), limit: 100 });
+    setClock(systemClock);
+  });
+
+  it("tells messages Slack returned from ones that were new: all already known is seen, not recovered", async () => {
+    world.bronzeMessages = ["301.0", "302.0"];
+    const slack = slackStub({ history: [slackMessage("301.0"), slackMessage("302.0")] });
+    const service = fakeService(answer);
+
+    await expect(catchUpChannel(service, { channelId: "C1", source: "open", slack })).resolves.toMatchObject({ messages: 0, seen: 2 });
+    expect(finished(service)).toMatchObject({ messages_recovered: 0, messages_seen: 2 });
+  });
+
+  it("fetches replies only for threads where Slack has more than we do", async () => {
+    world.bronzeReplies = [
+      { thread_ts: "310.0", message_ts: "310.0" }, // the root itself isn't a reply
+      { thread_ts: "310.0", message_ts: "310.1" },
+      { thread_ts: "310.0", message_ts: "310.2" },
+    ];
+    const slack = slackStub({
+      history: [slackMessage("310.0", { reply_count: 2 }), slackMessage("311.0", { reply_count: 1 })],
+      replies: { "311.0": [slackMessage("311.0", { reply_count: 1 }), slackMessage("311.1", { thread_ts: "311.0" })] },
+    });
+
+    await catchUpChannel(fakeService(answer), { channelId: "C1", source: "open", slack });
+
+    expect(slack.conversations.replies).toHaveBeenCalledTimes(1);
+    expect(slack.conversations.replies).toHaveBeenCalledWith(expect.objectContaining({ ts: "311.0" }));
   });
 
   it("looks back a day when nothing is stored for the conversation yet", async () => {
