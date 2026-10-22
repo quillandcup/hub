@@ -31,9 +31,8 @@ vi.mock("@/lib/streaks", async (importOriginal) => ({
 
 import StreaksPage from "@/app/(member)/streaks/page";
 
-beforeEach(() => {
-  resetServerPageMocks();
-  signInAs(MEMBER_USER, MEMBER_IDENTITY);
+/** The member's own data, with Gale's directory photo (null: no photo). */
+function seed(galePhoto: string | null) {
   useFakeSupabase({
     members: { data: { photo_url: null } },
     // This member's own attendance, with the prickle's details for the shared-prickle link. The
@@ -42,8 +41,14 @@ beforeEach(() => {
       q.calls.some((c) => c.method === "neq")
         ? { data: [] }
         : { data: [{ prickle_id: "prickle-1", join_time: "2026-11-02T15:00:00Z", prickles: { start_time: "2026-11-02T15:00:00Z", prickle_types: { name: "Morning Writing" } } }] },
-    member_directory: { data: [{ id: "member-gale", photo_url: null }] },
+    member_directory: { data: [{ id: "member-gale", photo_url: galePhoto }] },
   });
+}
+
+beforeEach(() => {
+  resetServerPageMocks();
+  signInAs(MEMBER_USER, MEMBER_IDENTITY);
+  seed(null);
 });
 
 describe("Streaks: a sister streak's shared prickles", () => {
@@ -53,5 +58,24 @@ describe("Streaks: a sister streak's shared prickles", () => {
     const link = screen.getByRole("link", { name: /Morning Writing/ });
     expect(link).toHaveAttribute("href", "/prickles/prickle-1");
     expect(link).toHaveAttribute("data-track", "streaks-open-prickle");
+  });
+});
+
+describe("Streaks: a sister streak's avatar", () => {
+  it("shows their photo next to the name, hidden from screen readers (the name is beside it)", async () => {
+    seed("https://img.example/gale.jpg");
+    await renderServerPage(StreaksPage, {});
+
+    const photo = document.querySelector('img[src="https://img.example/gale.jpg"]')!;
+    expect(photo).toHaveAttribute("width", "24");
+    expect(photo.closest("[aria-hidden=true]")).not.toBeNull();
+    expect(screen.getAllByText("Gale Prickleton")).toHaveLength(1);
+  });
+
+  it("falls back to their initials when they have no photo", async () => {
+    await renderServerPage(StreaksPage, {});
+
+    expect(document.querySelector("img")).toBeNull();
+    expect(screen.getByText("GP")).toBeInTheDocument();
   });
 });
