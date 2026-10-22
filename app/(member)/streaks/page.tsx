@@ -117,6 +117,10 @@ function SisterStreakRow({
     <div className="py-1.5 border-b border-slate-100 dark:border-slate-800 last:border-0">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 min-w-0">
+          {/* Fixed-width flame slot (empty when extinguished) keeps every avatar in one column. */}
+          <span aria-hidden="true" className="w-5 flex-shrink-0 text-center text-sm">
+            {isActive && "🔥"}
+          </span>
           {/* Decorative: the name is beside it. 24px fits the row, which the stats on the right already make about 32px tall. */}
           <span aria-hidden="true" className="flex-shrink-0">
             <MemberAvatar name={s.memberName} photoUrl={photoUrl} size={24} />
@@ -124,7 +128,6 @@ function SisterStreakRow({
           <span
             className={`text-sm font-medium truncate ${isActive ? "" : "text-slate-500 dark:text-slate-400"}`}
           >
-            {isActive && <span className="mr-1.5">🔥</span>}
             {s.memberName}
           </span>
           {slackDmUrl && (
