@@ -20,7 +20,7 @@ function LessonRow({ slug, lesson, completed, canOpen, current, previewComingSoo
   const thumbnail = safeUrl(lesson.thumbnail_url);
   const content = (
     <>
-      <span aria-hidden="true" className="aspect-video w-24 shrink-0 overflow-hidden rounded bg-plum-50 sm:w-32 dark:bg-slate-800">
+      <span aria-hidden="true" className="aspect-video w-24 shrink-0 overflow-hidden rounded bg-plum-50 @pair:w-32 dark:bg-slate-800">
         {thumbnail && (
           // Decorative (the title is beside it); a plain img so any Kajabi image host works.
           // eslint-disable-next-line @next/next/no-img-element
@@ -105,7 +105,7 @@ function ModuleNode({ node, depth, ...rest }: { node: OutlineNode; depth: number
 /** A course's modules, weeks and lessons: checkmarks, durations, and "Coming soon" for unreleased ones. */
 export default function CourseOutline({ slug, outline, completed, canOpen, currentLessonId, previewComingSoon }: Props) {
   return (
-    <nav aria-label="Course outline" className="space-y-4">
+    <nav aria-label="Course outline" className="@container space-y-4">
       {outline.loose.length > 0 && (
         <ul className="space-y-1 rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900">
           {outline.loose.map((lesson) => (

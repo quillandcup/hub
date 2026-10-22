@@ -39,7 +39,7 @@ function NeighborCard({ slug, lesson, direction }: { slug: string; lesson: Outli
       href={`/courses/${slug}/lessons/${lesson.id}`}
       data-track={`lesson-${direction}-card`}
       className={`group block rounded-xl border border-slate-200 bg-white p-4 transition hover:border-plum-300 hover:shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:hover:border-plum-700 ${
-        direction === "next" ? "sm:text-right" : ""
+        direction === "next" ? "@pair:text-right" : ""
       }`}
     >
       <span className="block text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
@@ -223,7 +223,7 @@ export default async function LessonPage({
 
           {/* The main action, title and text sit together in one bounded card below the video and its controls, like the Downloads
               card beside it (and Kajabi's). Once the lesson is complete, a preview of the next lesson follows the button. */}
-          <article className="mt-6 rounded-xl border border-slate-200 bg-white p-6 sm:p-8 dark:border-slate-800 dark:bg-slate-900 @outline:col-start-1 @outline:row-start-3 @outline:mr-8">
+          <article className="mt-6 rounded-xl border border-slate-200 bg-white p-6 @pair:p-8 dark:border-slate-800 dark:bg-slate-900 @outline:col-start-1 @outline:row-start-3 @outline:mr-8">
             <MarkCompleteButton />
             <NextLessonPreview slug={view.course.slug} next={nextLesson} />
 

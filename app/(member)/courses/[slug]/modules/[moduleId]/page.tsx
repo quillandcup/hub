@@ -115,7 +115,7 @@ export default async function ModulePage({ params }: { params: Promise<{ slug: s
             : "Preview: members can't see this module until it's published."}
         </PageBanner>
       )}
-      <div className="mx-auto w-full max-w-4xl px-6 py-6">
+      <div className="@container mx-auto w-full max-w-4xl px-6 py-6">
         <nav aria-label="Breadcrumb" className="text-sm text-slate-500 dark:text-slate-400">
           <ol className="flex flex-wrap items-center gap-x-2 gap-y-1">
             <li>
@@ -138,7 +138,7 @@ export default async function ModulePage({ params }: { params: Promise<{ slug: s
           </ol>
         </nav>
 
-        <section className="mt-4 rounded-xl border border-slate-200 bg-white p-6 sm:p-8 dark:border-slate-800 dark:bg-slate-900">
+        <section className="mt-4 rounded-xl border border-slate-200 bg-white p-6 @pair:p-8 dark:border-slate-800 dark:bg-slate-900">
           <div className="flex items-baseline justify-between gap-4">
             <h1 className="text-3xl font-bold leading-tight">{node.module.title}</h1>
             <span className="shrink-0 text-sm text-slate-500 dark:text-slate-400">
