@@ -410,6 +410,8 @@ export default function CalendarWeekView({
                           hour: "numeric",
                           minute: "2-digit",
                         });
+                        // "2:00 AM" -> "2:00A", the hour column's compact style, for a card too narrow for the full time.
+                        const compactStartTime = startTime.replace(/\s*([AP])M$/i, "$1");
 
                         const isSelected = selectedPrickleIds?.has(prickle.id) ?? false;
                         const selectable = onPrickleClick && !onSlotClick;
@@ -452,8 +454,9 @@ export default function CalendarWeekView({
                                 {prickle.prickle_type}
                                 {mode !== "member" && (prickle.host_missing || prickle.host_late) && " ⚠️"}
                               </div>
-                              <div className="text-xs truncate">
-                                {startTime}
+                              <div className="text-[10px] @pair:text-xs truncate">
+                                <span className="@pair:hidden">{compactStartTime}</span>
+                                <span className="hidden @pair:inline">{startTime}</span>
                               </div>
                               {mode !== "member" && attendanceLabel(prickle, attendanceDataThrough) && (
                                 <div className="text-xs font-bold mt-0.5">
