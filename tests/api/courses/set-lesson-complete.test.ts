@@ -74,9 +74,32 @@ describe('setLessonComplete', () => {
     await supabase.from('members').delete().like('email', `set-complete-%-${ts}@example.com`)
   })
 
-  beforeEach(() => {
+  beforeEach(async () => {
     state.caller = null
     state.failWrites = false
+    await supabase.from('member_activities').delete().in('member_id', [ids.current, ids.ended, ids.none]).eq('source', 'courses')
+  })
+
+  const completedActivities = async (who: string) =>
+    (await supabase.from('member_activities').select('title, engagement_value, related_id').eq('member_id', ids[who]).eq('activity_type', 'lesson_completed')).data ?? []
+
+  it('logs completing a lesson in the activity log once, however often it is marked, and not unmarking', async () => {
+    callAs('current')
+    await setLessonComplete(ids.open, true)
+    await setLessonComplete(ids.open, false)
+    await setLessonComplete(ids.open, true)
+    expect(await completedActivities('current')).toEqual([{ title: 'Completed open', engagement_value: 5, related_id: ids.open }])
+  })
+
+  it('logs nothing in sudo or when the lesson is refused', async () => {
+    callAs('current', { isSudo: true })
+    await setLessonComplete(ids.open, true)
+    callAs('none')
+    await setLessonComplete(ids.open, true)
+    callAs('current')
+    await setLessonComplete(ids.soon, true)
+    expect(await completedActivities('current')).toEqual([])
+    expect(await completedActivities('none')).toEqual([])
   })
 
   it('marks a lesson complete, and complete again is the same, and un-completes', async () => {

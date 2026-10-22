@@ -1038,6 +1038,11 @@ Slack ingestion, the member-matching library and Slack activity on member profil
 - Channel health metrics (messages per day, participation, dead channels).
 - A wider activity feed (Slack messages, reactions, file shares, whitepaper downloads, email opens/clicks, retreat registrations) combined with attendance; same idea as the Dashboard's "Recent Activity Feed".
 
+### Lesson Activity: Reconciliation, Churn Recency (follow-ups to the lesson activity rows)
+Lesson viewing now writes `member_activities` rows (`lesson_watched`, `lesson_completed`, source `courses`; `lib/courses/activity.ts`), so it shows in the Activity Log and adds to the engagement score. Deferred:
+- **Reconciliation.** The rows are a best-effort copy written next to the primary write, so a failed insert is logged and never retried, and a changed threshold or weight doesn't rewrite past rows. If drift shows up, add a pull-based pass (nightly) that re-derives missing rows from the source tables.
+- **Churn recency ignores lessons.** `riskLevel` (`lib/member-engagement.ts`, `admin_members_page`, `/admin/at-risk`) is days since the last *prickle*, so a member who only watches lessons still rates "high" risk. Decide whether recency should count any activity type, or fold risk into the engagement score as a trend (recent points against the member's own earlier baseline); the three places apply the rule separately today.
+
 ### Host Confirmation Flow (not built)
 After each prickle ends, message the host to confirm participants and resolve unmatched Zoom attendees. For unhosted prickles: TBD, options include assigning a random active member or the most senior hedgie (by join date or total duration excluding hiatus). Build it as a notification kind sent with `createNotifier`, not wired directly to Slack. Related: "Let a prickle's host report unmatched Zoom attendees".
 
