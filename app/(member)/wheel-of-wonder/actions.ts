@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { getCurrentUser } from "@/lib/auth";
 import { getEffectiveIdentity } from "@/lib/sudo";
-import { matchSlackUsersToMembers } from "@/lib/slack-matching";
+import { loadVerifiedSlackLinks, matchSlackUsersToMembers } from "@/lib/slack-matching";
 import { pickConversationStarter } from "@/lib/wheel-of-wonder-starters";
 import {
   pickWheelMatch,
@@ -127,7 +127,8 @@ async function loadCandidatePool(viewerMemberId: string): Promise<CandidatePoolR
   const slackUserToMemberId = await matchSlackUsersToMembers(
     slackUsers.data ?? [],
     allMembersForMatching.data ?? [],
-    slackAliases
+    slackAliases,
+    await loadVerifiedSlackLinks(supabase)
   );
   const slackUserIdByMember = new Map<string, string>();
   for (const [slackUserId, memberId] of slackUserToMemberId) {

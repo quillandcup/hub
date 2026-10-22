@@ -1,7 +1,7 @@
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { NextRequest, NextResponse } from "next/server";
-import { matchSlackUsersToMembers } from "@/lib/slack-matching";
+import { loadVerifiedSlackLinks, matchSlackUsersToMembers } from "@/lib/slack-matching";
 import { splitIntoWindows } from "@/lib/processing/date-windows";
 import { retryUnsentChatMessages } from "@/lib/chat/slack-post";
 import { purgeStagedChatFiles } from "@/lib/chat/staging";
@@ -70,7 +70,7 @@ export async function POST(request: NextRequest) {
 
     // STEP 2: Match Slack users to members (in memory)
     const userMemberMap = Object.fromEntries(
-      await matchSlackUsersToMembers(slackUsers ?? [], members, aliases)
+      await matchSlackUsersToMembers(slackUsers ?? [], members, aliases, await loadVerifiedSlackLinks(supabase))
     );
 
     // STEP 3: Channels and membership

@@ -15,7 +15,7 @@ const tables = vi.hoisted(() => ({ data: {} as Record<string, unknown[]> }));
 vi.mock("@slack/web-api", () => ({ WebClient: vi.fn(function () { return slack; }) }));
 vi.mock("@/lib/auth", () => ({ getCurrentUser }));
 vi.mock("@/lib/sudo", () => ({ getEffectiveIdentity }));
-vi.mock("@/lib/slack-matching", () => ({ matchSlackUsersToMembers }));
+vi.mock("@/lib/slack-matching", () => ({ matchSlackUsersToMembers, loadVerifiedSlackLinks: async () => new Map() }));
 vi.mock("@/lib/wheel-of-wonder-starters", () => ({ pickConversationStarter: () => "a starter" }));
 vi.mock("@/lib/analytics/server", () => ({
   withAction: (_name: string, fn: () => unknown) => fn(),

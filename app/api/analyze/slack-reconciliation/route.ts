@@ -1,5 +1,6 @@
 import { requireAdmin } from "@/lib/supabase/api-auth";
-import { matchSlackUsersToMembers, SLACKBOT_USER_ID } from "@/lib/slack-matching";
+import { createServiceRoleClient } from "@/lib/supabase/service";
+import { loadVerifiedSlackLinks, matchSlackUsersToMembers, SLACKBOT_USER_ID } from "@/lib/slack-matching";
 import { NextRequest, NextResponse } from "next/server";
 
 /**
@@ -35,7 +36,8 @@ export async function GET(request: NextRequest) {
     const userToMemberMap = await matchSlackUsersToMembers(
       nonBotSlackUsers,
       members || [],
-      aliases || []
+      aliases || [],
+      await loadVerifiedSlackLinks(createServiceRoleClient())
     );
 
     // Set of member IDs that have a Slack user matched to them

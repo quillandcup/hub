@@ -6,7 +6,7 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;
 
-SELECT plan(12);
+SELECT plan(13);
 
 SELECT ok(
   NOT has_table_privilege('authenticated', 'member_slack_connections', 'SELECT')
@@ -75,6 +75,16 @@ SELECT is(
 SELECT ok(
   (SELECT revoked_at IS NOT NULL AND access_secret_id IS NULL FROM member_slack_connections WHERE member_id = '00000000-0000-4000-a000-00000000fa01'),
   'the row stays, marked revoked'
+);
+
+-- A Slack account belongs to one member, even after the first one disconnected (the row stays).
+INSERT INTO public.members (id, name, email, joined_at, status) VALUES
+  ('00000000-0000-4000-a000-00000000fa02', 'Conn Moss', 'conn-moss@example.test', now(), 'active');
+SELECT throws_ok(
+  $$SELECT slack_connection_save('00000000-0000-4000-a000-00000000fa02', 'U_FERN', 'T_TEAM', ARRAY['chat:write'], 'xoxp-x', NULL, NULL)$$,
+  '23505',
+  NULL,
+  'a second member cannot hold a Slack account already connected'
 );
 
 SELECT * FROM finish(true);

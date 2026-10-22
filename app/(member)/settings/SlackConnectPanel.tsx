@@ -7,7 +7,10 @@ import { disconnectSlackAction } from "./slackConnectActions";
 const FLASH: Record<string, { ok: boolean; text: string }> = {
   connected: { ok: true, text: "Your Slack account is connected." },
   declined: { ok: false, text: "Slack didn't get your approval, so nothing was connected." },
-  wrong_account: { ok: false, text: "That Slack account isn't the one matched to you. Sign in to your own Slack account and try again." },
+  wrong_workspace: { ok: false, text: "That Slack account is in a different workspace. Sign in to our Slack workspace and try again." },
+  taken: { ok: false, text: "That Slack account is already connected to another member. Ask an admin for help." },
+  other_account: { ok: false, text: "You already connected a different Slack account. Disconnect it first, or ask an admin for help." },
+  required: { ok: false, text: "Chat needs your Slack account connected. Connect it once and you are in." },
   invalid_state: { ok: false, text: "That link expired. Try connecting again." },
   failed: { ok: false, text: "Couldn't connect to Slack. Try again in a moment." },
   sudo: { ok: false, text: "You can't connect Slack while viewing as another member." },
@@ -76,8 +79,8 @@ export default function SlackConnectPanel({ connected, sharesReadState = true }:
       ) : (
         <>
           <p className="text-sm text-slate-600 dark:text-slate-400">
-            Connect your Slack account and your Hub chat messages and reactions appear in Slack as you, not as Billie Bot. Until
-            then, your messages go through Billie Bot under your name and your reactions stay in the Hub. You can disconnect any time.
+            Hub chat needs your Slack account. Connect it and your messages and reactions appear in Slack as you, and what you
+            read in one place is marked read in the other. You can disconnect any time, but chat stays closed until you reconnect.
           </p>
           {/* A full navigation: this goes to Slack and comes back through the callback route. */}
           <a data-track="settings-slack-connect-slack"
