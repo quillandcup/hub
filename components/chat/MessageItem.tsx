@@ -13,11 +13,15 @@ import { isPendingId } from "@/lib/chat/list-events";
 import type { ChatMessageView } from "@/lib/chat/load";
 import { decodeEntities, mentionsToPlainText } from "@/lib/chat/render";
 
-/** Slack's own wording for a channel notice: "Ania renamed the channel…", a plain name rather than a mention chip. */
-function systemNoticeText(body: string, ctx: ChatTextContext): string {
-  return decodeEntities(mentionsToPlainText(body, ctx))
-    .replace(/^@/, "")
-    .replace(/^(.+?) has (renamed|set|archived|unarchived|changed)\b/, "$1 $2");
+/**
+ * Slack's own wording for a channel notice: "Ania renamed the channel…", a plain name rather than a
+ * mention chip. Slack stores who did it apart from the text ("has renamed the channel…"), so the
+ * author's name goes in front unless the text names someone itself.
+ */
+export function systemNoticeText(body: string, authorName: string, ctx: ChatTextContext): string {
+  const named = body.startsWith("<@");
+  const text = decodeEntities(mentionsToPlainText(body, ctx)).replace(/^@/, "");
+  return (named ? text : `${authorName} ${text}`).replace(/^(.+?) has (renamed|set|archived|unarchived|changed)\b/, "$1 $2");
 }
 
 /** One message: author, time, text (or why there is none), reactions and a link into its thread. */
@@ -56,9 +60,9 @@ export default function MessageItem({
         </span>
         <div className="min-w-0 flex-1">
           <p className="text-[13px] text-slate-500 dark:text-slate-400">
-            {systemNoticeText(message.body, ctx)}{" "}
-            <time dateTime={message.createdAt} className="text-xs text-slate-400 dark:text-slate-500">
-              {formatChatTime(message.createdAt, timeZone)}
+            {systemNoticeText(message.body, message.authorName, ctx)}
+            <time dateTime={message.createdAt} title={formatChatTime(message.createdAt, timeZone)} className="ml-3 text-xs text-slate-400 dark:text-slate-500">
+              {clock}
             </time>
           </p>
           <ReactionBar channelId={channelId} messageId={message.id} reactions={message.reactions} custom={ctx.customEmoji} canReact={canReact && !isPendingId(message.id)} />
