@@ -31,8 +31,13 @@ vi.mock("@/lib/streaks", async (importOriginal) => ({
 
 import StreaksPage from "@/app/(member)/streaks/page";
 
-/** The member's own data, with Gale's directory photo (null: no photo). */
-function seed(galePhoto: string | null) {
+/** Gale's photo in the member directory (null: no photo); a test sets it before rendering. */
+let galePhoto: string | null = null;
+
+beforeEach(() => {
+  galePhoto = null;
+  resetServerPageMocks();
+  signInAs(MEMBER_USER, MEMBER_IDENTITY);
   useFakeSupabase({
     members: { data: { photo_url: null } },
     // This member's own attendance, with the prickle's details for the shared-prickle link. The
@@ -41,14 +46,8 @@ function seed(galePhoto: string | null) {
       q.calls.some((c) => c.method === "neq")
         ? { data: [] }
         : { data: [{ prickle_id: "prickle-1", join_time: "2026-11-02T15:00:00Z", prickles: { start_time: "2026-11-02T15:00:00Z", prickle_types: { name: "Morning Writing" } } }] },
-    member_directory: { data: [{ id: "member-gale", photo_url: galePhoto }] },
+    member_directory: () => ({ data: [{ id: "member-gale", photo_url: galePhoto }] }),
   });
-}
-
-beforeEach(() => {
-  resetServerPageMocks();
-  signInAs(MEMBER_USER, MEMBER_IDENTITY);
-  seed(null);
 });
 
 describe("Streaks: a sister streak's shared prickles", () => {
@@ -63,7 +62,7 @@ describe("Streaks: a sister streak's shared prickles", () => {
 
 describe("Streaks: a sister streak's avatar", () => {
   it("shows their photo next to the name, hidden from screen readers (the name is beside it)", async () => {
-    seed("https://img.example/gale.jpg");
+    galePhoto = "https://img.example/gale.jpg";
     await renderServerPage(StreaksPage, {});
 
     const photo = document.querySelector('img[src="https://img.example/gale.jpg"]')!;
