@@ -136,3 +136,62 @@ export function slackUsersChangedForMembers(
   // so only additions and changes can alter what members read.
   return fetched.some((u) => before.get(u.user_id) !== key(u));
 }
+
+/**
+ * One Slack message as the Bronze rows it becomes: the message (unless it is a join, leave or other
+ * notice) and one row per reaction user. Shared by the import and the chat's gap-fill, so a message
+ * looks the same whichever path stored it. User email and name are filled in by the caller.
+ */
+export function addSlackMessage(
+  msg: any,
+  channelId: string,
+  channelName: string,
+  channelType: string,
+  messages: any[],
+  reactions: any[]
+) {
+  // Skip join/leave messages (keep file_share, thread_broadcast)
+  if (!isKeptSlackMessage(msg)) {
+    return;
+  }
+
+  messages.push({
+    message_ts: msg.ts,
+    channel_id: channelId,
+    channel_name: channelName,
+    channel_type: channelType,
+    user_id: slackMessageUserId(msg),
+    user_email: '', // Will be filled from users map later
+    user_name: '', // Will be filled from users map later
+    text: msg.text || '',
+    message_type: msg.subtype || 'message',
+    thread_ts: msg.thread_ts || null,
+    reply_count: msg.reply_count || 0,
+    reply_users_count: msg.reply_users_count || 0,
+    occurred_at: slackTsToIso(msg.ts),
+    edited_at: msg.edited ? new Date(msg.edited.ts * 1000).toISOString() : null,
+    deleted_at: null,
+    files: msg.files ? msg.files : null,
+    raw_payload: msg
+  });
+
+  // Extract reactions
+  if (msg.reactions) {
+    for (const reaction of msg.reactions) {
+      for (const userId of reaction.users) {
+        reactions.push({
+          message_ts: msg.ts,
+          channel_id: channelId,
+          channel_name: channelName,
+          reaction: reaction.name,
+          user_id: userId,
+          user_email: '', // Will be filled later
+          user_name: '', // Will be filled later
+          occurred_at: new Date(parseFloat(msg.ts) * 1000).toISOString(),
+          deleted_at: null,
+          raw_payload: reaction
+        });
+      }
+    }
+  }
+}

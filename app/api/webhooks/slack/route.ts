@@ -6,6 +6,7 @@ import { verifySlackSignature } from "@/lib/slack-signature";
 import { publishSlackHome } from "@/lib/slack-sign-in";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { projectChatMessage } from "@/lib/chat-projection";
+import { fillMessageGap, fillThreadIfRootMissing } from "@/lib/chat/gap-fill";
 import { isKeptSlackMessage, isSlackSystemMessage, slackMessageUserId, slackTsToIso } from "@/lib/slack-messages";
 import {
   applySlackEmojiEvent,
@@ -189,7 +190,7 @@ async function processSlackEvent(event: any) {
       }
 
       // Trigger Silver processing asynchronously
-      triggerSlackProcessing(event.channel, event.ts);
+      triggerSlackProcessing(event.channel, event.ts, { threadTs: event.thread_ts });
     } else if (eventType === "reaction_added") {
       // UPSERT reaction to Bronze layer
       const { error } = await supabase.schema("bronze").from("slack_reactions").upsert(
@@ -276,7 +277,7 @@ async function applyMessageEdit(supabase: SupabaseClient, event: any) {
     console.error("Error applying Slack message edit:", error);
     return;
   }
-  triggerSlackProcessing(event.channel, message.ts);
+  triggerSlackProcessing(event.channel, message.ts, { threadTs: message.thread_ts });
 }
 
 /**
@@ -308,7 +309,8 @@ async function applyMessageDelete(supabase: SupabaseClient, event: any) {
     console.error("Error applying Slack message delete:", error);
     return;
   }
-  triggerSlackProcessing(event.channel, deletedTs);
+  // A deleted message isn't there to fetch.
+  triggerSlackProcessing(event.channel, deletedTs, { fillGaps: false });
 }
 
 /**
@@ -410,7 +412,7 @@ async function trackWheelExchange(supabase: any, event: any, hubAuthorMemberId: 
 /**
  * Trigger Silver layer processing for Slack data
  */
-function triggerSlackProcessing(channelId: string, messageTs: string) {
+function triggerSlackProcessing(channelId: string, messageTs: string, opts: { threadTs?: string | null; fillGaps?: boolean } = {}) {
   const timestamp = new Date(parseFloat(messageTs) * 1000);
   const from = new Date(timestamp);
   from.setDate(from.getDate() - 1);
@@ -427,12 +429,27 @@ function triggerSlackProcessing(channelId: string, messageTs: string) {
       // Chat gets just this message (a constant-cost call, and what people are waiting to see), not the
       // windowed projection, which re-reads every message in the window and would grow with the day's traffic.
       const projectStarted = Date.now();
-      const projected = await projectChatMessage(createServiceRoleClient(), channelId, messageTs);
+      const service = createServiceRoleClient();
+      const projected = await projectChatMessage(service, channelId, messageTs);
       console.info(
         "[chat] projected one Slack message into chat in %dms%s",
         Date.now() - projectStarted,
-        projected ? "" : " (the chat has no such message, so nothing was attached to it)"
+        projected ? "" : " (the chat has no such message)"
       );
+
+      // The event refers to something the chat doesn't have: fetch it from Slack now (and its thread
+      // root, if it is a reply to one we lack) instead of waiting for the nightly import. Recorded in
+      // chat_gap_fills; a burst of events for one message is one fetch.
+      if (opts.fillGaps !== false) {
+        const filled = projected
+          ? opts.threadTs && opts.threadTs !== messageTs
+            ? await fillThreadIfRootMissing(service, { channelId, threadTs: opts.threadTs, source: "webhook" })
+            : null
+          : await fillMessageGap(service, { channelId, ts: messageTs, source: "webhook" });
+        if (filled?.claimed) {
+          console.info("[chat] gap-fill from a webhook event recovered %d messages and %d reactions%s", filled.messages, filled.reactions, filled.error ? ` (failed: ${filled.error})` : "");
+        }
+      }
       await triggerReprocessing("slack_messages", "bronze", { dateRange: { from, to }, exclude: ["chat"] });
       console.log("Slack processing triggered successfully");
     } catch (error) {

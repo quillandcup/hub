@@ -91,9 +91,9 @@ Every Slack message, edit, delete and reaction webhook calls `triggerReprocessin
 
 ### On-Demand Incremental Fetch for Every Source
 Rule (CLAUDE.md, "Nothing through webhooks alone"): nightly reconciliation is the guaranteed path; webhooks and incremental fetches only reduce latency. Add a targeted incremental fetch per source so gaps heal in minutes instead of by the next nightly run:
-- Slack: a webhook for a thread reply, reaction or edit on a message we don't have fetches that thread (`conversations.replies`) or the channel since the newest known message; opening a bridged chat channel does the same. Coalesce bursts to one fetch per channel.
+- Slack: **done (2026-10-22)**, see `docs/SLACK_BRIDGED_CHAT.md` phase 3 part 11 (`lib/chat/gap-fill.ts`): an event for a message we don't have fetches that message (and its thread root), a reply with no root fetches the thread, and opening a bridged conversation catches it up, all coalesced and recorded in `chat_gap_fills`.
 - Zoom, Google Calendar, Kajabi: equivalent "fetch since the newest record we have" paths, triggered on demand (webhook gaps, admin button, page views).
-- Record each gap-fill (source, scope, rows recovered) and surface it on `/admin/data-health`. A fill that recovers many rows means the webhook was down. Checkly can't see this: it monitors endpoints and heartbeats, not processed requests or logs.
+- Record each gap-fill (source, scope, rows recovered) and surface it on `/admin/data-health`. A fill that recovers many rows means the webhook was down. Checkly can't see this: it monitors endpoints and heartbeats, not processed requests or logs. (Slack's are at `/admin/data-health/gap-fills`; the other sources record into the same table when they get their fills.)
 
 ### Secondary Zoom Rooms _(Needs Scoping)_
 We have a couple of secondary Zoom links/rooms that aren't imported. The Zoom import (`lib/zoom/client.ts`) reads one host's meetings (`ZOOM_USER_EMAIL`), and everything downstream assumes prickles run in that host's room, one meeting at a time. Checked against prod on 2026-10-03: all 417 imported meetings in the last 60 days had the same `host_id`, and only 1 pair of them overlapped in time. The main room's meeting id also changes roughly monthly.

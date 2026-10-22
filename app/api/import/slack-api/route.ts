@@ -12,9 +12,7 @@ import {
 } from '@/lib/slack-deletions';
 import { fetchAllBronzeRows } from '@/lib/supabase/bronze-pagination';
 import {
-  isKeptSlackMessage,
-  slackMessageUserId,
-  slackTsToIso,
+  addSlackMessage as addMessage,
   threadKey,
   isThreadBehind, slackUsersChangedForMembers,
   threadsNeedingReplies,
@@ -548,60 +546,6 @@ async function fetchThreadReplies(slack: WebClient, parents: any[], startedAt: n
 
   await Promise.all(Array.from({ length: THREAD_CONCURRENCY }, worker));
   return { messages, reactions, seenByThread, deferred: queue.length };
-}
-
-function addMessage(
-  msg: any,
-  channelId: string,
-  channelName: string,
-  channelType: string,
-  messages: any[],
-  reactions: any[]
-) {
-  // Skip join/leave messages (keep file_share, thread_broadcast)
-  if (!isKeptSlackMessage(msg)) {
-    return;
-  }
-
-  messages.push({
-    message_ts: msg.ts,
-    channel_id: channelId,
-    channel_name: channelName,
-    channel_type: channelType,
-    user_id: slackMessageUserId(msg),
-    user_email: '', // Will be filled from users map later
-    user_name: '', // Will be filled from users map later
-    text: msg.text || '',
-    message_type: msg.subtype || 'message',
-    thread_ts: msg.thread_ts || null,
-    reply_count: msg.reply_count || 0,
-    reply_users_count: msg.reply_users_count || 0,
-    occurred_at: slackTsToIso(msg.ts),
-    edited_at: msg.edited ? new Date(msg.edited.ts * 1000).toISOString() : null,
-    deleted_at: null,
-    files: msg.files ? msg.files : null,
-    raw_payload: msg
-  });
-
-  // Extract reactions
-  if (msg.reactions) {
-    for (const reaction of msg.reactions) {
-      for (const userId of reaction.users) {
-        reactions.push({
-          message_ts: msg.ts,
-          channel_id: channelId,
-          channel_name: channelName,
-          reaction: reaction.name,
-          user_id: userId,
-          user_email: '', // Will be filled later
-          user_name: '', // Will be filled later
-          occurred_at: new Date(parseFloat(msg.ts) * 1000).toISOString(),
-          deleted_at: null,
-          raw_payload: reaction
-        });
-      }
-    }
-  }
 }
 
 const UPSERT_BATCH_SIZE = 500;

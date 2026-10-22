@@ -160,6 +160,7 @@ export const SITE_PAGES: SitePage[] = [
   // Admin pages reached by drilling in (mostly from the health check), not from the sidebar
   admin({ title: "Unmatched Calendar Events", href: "/admin/hygiene/unmatched-events", section: "System" }),
   admin({ title: "Prickles Missing Hosts", href: "/admin/data-health/missing-hosts", section: "System" }),
+  admin({ title: "Chat Gap-fills", href: "/admin/data-health/gap-fills", section: "System", keywords: ["slack", "webhook", "missed events", "catch-up"] }),
   admin({ title: "Unmatched Zoom Names", href: "/admin/hygiene/unmatched-zoom", section: "System" }),
   admin({ title: "Ambiguous Zoom Names", href: "/admin/hygiene/ambiguous-names", section: "System" }),
   admin({ title: "Unmatched Slack Users", href: "/admin/hygiene/unmatched-slack", section: "System" }),
