@@ -511,6 +511,15 @@ The Supabase clients (`lib/supabase/server.ts` and the others) are untyped, so q
 - [ ] **Option B, the bigger one: Drizzle as the query layer.** `drizzle-kit pull` generates the schema from the live database (migrations stay Supabase SQL files; don't let drizzle-kit own them). Costs: a direct Postgres connection bypasses RLS, so every user-scoped query must run in a transaction that sets `request.jwt.claims` and `set local role authenticated` (the documented `createDrizzle` wrapper), and that wrapper must also set the sudo header setting or `audit_row_change` records `system` instead of the admin/`acting_as`. Pooler needs `prepare: false`. Worth it only if we want typed joins and query composition beyond what PostgREST allows; try it on one read-only service-role route first.
 - Decide A vs. B (or A now, B later) before starting; the two overlap, and A is a prerequisite for nothing in B. Check the pgTAP and RLS tests still cover any path that moves off PostgREST.
 
+
+### Faster `main` CI: Serialize Only the Deploy Jobs _(Needs Scheduling)_
+Runs of `ci.yml` on `main` queue one behind another: `concurrency` at the top of the workflow is `ci-<workflow>-<ref>` with `cancel-in-progress` false on `main`, so a merge waits for the whole previous run (tests included, ~10-15 min) before its own tests start. Two merges in quick succession (for example a fix right after a broken merge) can leave the second waiting 10+ minutes. Deferred because the group is what keeps migrations, the deploy and the Slack manifest token rotation from overlapping, and a mistake in this change breaks production deploys.
+
+- [ ] Take the run-level `concurrency` off `main` (keep `cancel-in-progress` for pull requests), so tests, build and coverage for different commits run in parallel.
+- [ ] Put a job-level `concurrency: { group: prod-deploy, cancel-in-progress: false }` on `push-migrations`, `deploy`, `push-slack-manifest` and the Vercel config push, so only one touches production at a time and none is cancelled mid-flight. GitHub keeps one pending job per group and replaces older pending ones, which is fine: the newest commit contains the older ones' migrations and code.
+- [ ] Guard against out-of-order deploys: with parallel tests an older commit can finish after a newer one. Each production job first checks that `$GITHUB_SHA` is still the tip of `main` (`git fetch origin main`, then compare with `git rev-parse origin/main`, or `git merge-base --is-ancestor`) and skips otherwise.
+- Check first: the Free plan caps runners at 20 concurrent jobs per account, so parallel runs compete with PR runs and CodeQL for slots and the gain shrinks when busy. `Check migration numbering` stays outside the deploy group, unchanged. Roll out in its own PR and watch the next two `main` runs (`ship-via-pr.md` step 7). Related and cheaper: run CodeQL only on `main` plus a weekly schedule instead of every PR and push.
+
 ---
 
 ## Security & Access Control
