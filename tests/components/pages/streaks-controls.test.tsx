@@ -17,7 +17,7 @@ vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => ({ fro
 vi.mock("@/lib/timezone", () => ({ getUserTimezonePreference: async () => "UTC" }));
 vi.mock("@/lib/member-slack-links", () => ({ getSlackDmLinksForMembers: async () => new Map() }));
 
-const SISTER = {
+let SISTER = {
   memberId: "member-gale",
   memberName: "Gale Prickleton",
   currentStreak: 3,
@@ -36,6 +36,7 @@ let galePhoto: string | null = null;
 
 beforeEach(() => {
   galePhoto = null;
+  SISTER = { ...SISTER, currentStreak: 3 };
   resetServerPageMocks();
   signInAs(MEMBER_USER, MEMBER_IDENTITY);
   useFakeSupabase({
@@ -76,5 +77,35 @@ describe("Streaks: a sister streak's avatar", () => {
 
     expect(document.querySelector("img")).toBeNull();
     expect(screen.getByText("GP")).toBeInTheDocument();
+  });
+});
+
+describe("Streaks: a sister streak's flame", () => {
+  /** The row's name, avatar and flame slot, in the order they appear. */
+  function rowParts() {
+    const name = screen.getByText("Gale Prickleton");
+    const group = name.parentElement!;
+    const [flameSlot, avatar] = Array.from(group.children);
+    return { name, group, flameSlot, avatar };
+  }
+
+  it("sits left of the avatar, which is next to the name", async () => {
+    await renderServerPage(StreaksPage, {});
+    const { name, group, flameSlot, avatar } = rowParts();
+
+    expect(flameSlot).toHaveTextContent("🔥");
+    expect(avatar).toHaveTextContent("GP");
+    expect(avatar.nextElementSibling).toBe(name);
+    expect(group.firstElementChild).toBe(flameSlot);
+  });
+
+  it("leaves an empty slot for an extinguished streak, so avatars stay aligned", async () => {
+    SISTER = { ...SISTER, currentStreak: 0 };
+    await renderServerPage(StreaksPage, {});
+    const { flameSlot, avatar } = rowParts();
+
+    expect(flameSlot).toBeEmptyDOMElement();
+    expect(flameSlot).toHaveClass("w-5");
+    expect(avatar).toHaveTextContent("GP");
   });
 });
