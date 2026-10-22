@@ -540,6 +540,41 @@ location instead.
    - Not found anywhere in history: real API tokens or keys. The Supabase key and Slack-token
      look-alikes are the public local-dev demo key and placeholders.
 
+### Repo Security Settings and Scans _(Needs Scheduling)_
+Found 2026-10-22 by comparing the live repo's `security_and_analysis` (read with
+`gh api repos/quillandcup/hub`) against what GitHub offers for public repos. Secret scanning and push
+protection are already on; these four are not. All are free on a public repo and none changes code,
+so none was urgent. Deferred to batch them.
+
+- [ ] **Secret scanning: non-provider patterns.** Off today. Adds private keys, connection strings
+      and generic high-entropy keys to what push protection and alerts catch (provider-pattern
+      scanning only covers known token formats). Settings → Advanced Security → "Scan for
+      non-provider patterns". Expect some false positives on test fixtures and the local-dev demo
+      Supabase key; dismiss those with a reason ("used in tests"), or add narrow `paths-ignore`
+      entries in `.github/secret_scanning.yml` (it also skips push protection for those paths, so keep it specific).
+- [ ] **Secret scanning: validity checks.** Off today. GitHub tests a detected credential against
+      the provider and marks the alert `active`, `inactive` or `unknown`, which tells us whether a
+      leak needs rotating now (`docs/SECRET_ROTATION.md`) or is already dead. Same settings page.
+- [ ] **Dependabot security updates.** Disabled today, though `.github/dependabot.yml` already
+      runs weekly version updates (npm and github-actions) and `auto-merge.yml` merges the
+      patch/minor ones. Security updates are a separate setting: they open a PR as soon as an
+      advisory affects a dependency, instead of waiting for the weekly run, and can raise a
+      version the weekly grouping wouldn't. Enable it, then check the open alerts alongside the
+      `npm audit` findings in "Migrate to Tailwind CSS 4". Majors still need a human; confirm
+      `auto-merge.yml` doesn't merge a security major.
+- [ ] **Run the built-in `/security-review` skill on a schedule?** Undecided; the question is
+      whether it finds enough to be worth the tokens. Try it once on the whole repo and on a recent
+      auth- or RLS-touching PR, and record what it found that `pnpm test:unit`, the pgTAP suite
+      and `/code-review` didn't. If it earns its keep, run it before merging changes to auth, RLS,
+      `proxy.ts`, webhooks or anything that exposes ids, rather than on a calendar (a cron
+      agent via the `schedule` skill is the alternative). If it only repeats what the checks above
+      already enforce (`requireAdminPage` test, Tier 2 id rule, Slack-content grants), drop this
+      item.
+
+Where to start: check whether the `settings:` block of `github-repo-config.yml` (applied by
+`scripts/github-config.ts`) can carry these. If it can't, toggle them in the GitHub UI and note
+here that they live outside the config-as-code file.
+
 ### User Invitations
 - **In-app invite management**
   - Admin page to send invites with pre-set roles
