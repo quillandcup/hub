@@ -236,7 +236,9 @@ export default function Wheel({ confirmedConnectionCount = 0 }: WheelProps) {
   }, [phase, applyRotation, runSpinAnimation]);
 
   return (
-    <div className="flex flex-col items-center gap-8">
+    // The @container, full width (the page centers it in a flex row, where a container would shrink to nothing): the
+    // result buttons below follow the room the Wheel has, not the window.
+    <div className="@container flex w-full flex-col items-center gap-8">
       {confirmedConnectionCount > 0 && (
         <p className="text-sm text-emerald-600 dark:text-emerald-400 font-medium text-center">
           🎉 {confirmedConnectionCount} new connection{confirmedConnectionCount === 1 ? "" : "s"} made
@@ -327,7 +329,7 @@ export default function Wheel({ confirmedConnectionCount = 0 }: WheelProps) {
             )
           )}
 
-          <div className="flex flex-col gap-2 sm:flex-row sm:justify-center">
+          <div className="flex flex-col gap-2 @pair:flex-row @pair:justify-center">
             <a data-track="wheel-message-on-slack"
               href={winner.dmUrl}
               className="px-5 py-2.5 rounded-lg font-medium text-white bg-emerald-600 hover:bg-emerald-700 transition-colors"
