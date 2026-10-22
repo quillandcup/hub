@@ -7,7 +7,8 @@ export interface ContentArgs {
   envFile: string;
   /** Without it the run captures and reports, but writes nothing. */
   apply: boolean;
-  includeDrafts: boolean;
+  /** Drafts are captured by default (staff can preview them); this leaves them out. */
+  skipDrafts: boolean;
   concurrency: number;
   headless: boolean;
   /** Browser profile directory, so the Kajabi login survives between runs. */
@@ -22,14 +23,15 @@ export const CONTENT_USAGE = [
   "  --lesson        capture just this lesson",
   "  --apply         write to the database (default: capture and report only)",
   "  --env           env file with the Supabase URL and service role key (default .env.local)",
-  "  --include-drafts also capture draft lessons (skipped by default)",
+  "  --skip-drafts   leave draft lessons out (they are captured by default; staff preview them)",
   "  --concurrency   lessons captured at once (default 2, max 5)",
   "  --headless      no browser window (only once the saved login is still valid)",
   "  --profile       browser profile directory (default ~/.hub-kajabi-profile)",
 ].join("\n");
 
 const VALUE_FLAGS = ["course", "lesson", "env", "concurrency", "profile"] as const;
-const BOOLEAN_FLAGS = ["apply", "include-drafts", "headless"] as const;
+// include-drafts is the old opt-in, now the default; still accepted so existing commands keep working.
+const BOOLEAN_FLAGS = ["apply", "skip-drafts", "include-drafts", "headless"] as const;
 
 export function parseContentArgs(argv: readonly string[]): ParsedContentArgs {
   const values: Partial<Record<(typeof VALUE_FLAGS)[number], string>> = {};
@@ -54,6 +56,7 @@ export function parseContentArgs(argv: readonly string[]): ParsedContentArgs {
     values[flag] = value;
   }
 
+  if (flags.has("skip-drafts") && flags.has("include-drafts")) return { ok: false, error: "Give --skip-drafts or --include-drafts, not both" };
   if (values.course && values.lesson) return { ok: false, error: "Give --course or --lesson, not both" };
   if (!values.course && !values.lesson) return { ok: false, error: "Give --course or --lesson" };
 
@@ -70,7 +73,7 @@ export function parseContentArgs(argv: readonly string[]): ParsedContentArgs {
     scope: values.course ? { courseId: values.course } : { lessonId: values.lesson! },
     envFile: values.env ?? ".env.local",
     apply: flags.has("apply"),
-    includeDrafts: flags.has("include-drafts"),
+    skipDrafts: flags.has("skip-drafts"),
     concurrency,
     headless: flags.has("headless"),
     profileDir: values.profile ?? null,

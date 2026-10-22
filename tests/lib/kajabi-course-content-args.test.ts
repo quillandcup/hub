@@ -2,13 +2,13 @@ import { describe, it, expect } from "vitest";
 import { parseContentArgs } from "@/scripts/kajabi-course-content-args";
 
 describe("parseContentArgs", () => {
-  it("defaults to a dry run against .env.local, skipping drafts", () => {
+  it("defaults to a dry run against .env.local, capturing drafts too", () => {
     expect(parseContentArgs(["--course", "123"])).toEqual({
       ok: true,
       scope: { courseId: "123" },
       envFile: ".env.local",
       apply: false,
-      includeDrafts: false,
+      skipDrafts: false,
       concurrency: 2,
       headless: false,
       profileDir: null,
@@ -16,12 +16,12 @@ describe("parseContentArgs", () => {
   });
 
   it("takes values with = or a space, and the boolean flags", () => {
-    expect(parseContentArgs(["--lesson=55", "--env", ".env.prod", "--apply", "--include-drafts", "--concurrency=4", "--headless"])).toMatchObject({
+    expect(parseContentArgs(["--lesson=55", "--env", ".env.prod", "--apply", "--skip-drafts", "--concurrency=4", "--headless"])).toMatchObject({
       ok: true,
       scope: { lessonId: "55" },
       envFile: ".env.prod",
       apply: true,
-      includeDrafts: true,
+      skipDrafts: true,
       concurrency: 4,
       headless: true,
     });
@@ -34,6 +34,7 @@ describe("parseContentArgs", () => {
     [["--course", "--apply"], "--course needs a value"],
     [["--course", "1", "--course", "2"], "more than once"],
     [["--course", "1", "--apply=yes"], "takes no value"],
+    [["--course", "1", "--skip-drafts", "--include-drafts"], "not both"],
     [["--course", "1", "--nope"], "Unknown option --nope"],
     [["--course", "1", "stray"], 'Unexpected argument "stray"'],
     [["--course", "1", "--concurrency", "0"], "from 1 to 5"],

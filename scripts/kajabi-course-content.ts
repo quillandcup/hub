@@ -12,7 +12,7 @@
  *
  * Usage:
  *   npm run courses:content -- --course <kajabi-course-id> [--apply] [--env .env.prod]
- *   npm run courses:content -- --lesson <kajabi-lesson-id> --include-drafts
+ *   npm run courses:content -- --course <kajabi-course-id> --skip-drafts
  * Without --apply it captures and reports what it would change, and writes nothing. Re-running is
  * safe: a lesson whose content hasn't changed is skipped. Writes use the service role.
  */
@@ -161,11 +161,11 @@ async function processLesson(context: BrowserContext, worker: Worker, lesson: Le
 }
 
 async function main() {
-  const lessons = await selectLessons(supabase, args.scope, { includeDrafts: args.includeDrafts });
+  const lessons = await selectLessons(supabase, args.scope, { includeDrafts: !args.skipDrafts });
   if (lessons.length === 0) {
     console.log(
       "No lessons to capture. Step A (/api/import/kajabi-courses) must have imported the course first" +
-        (args.includeDrafts ? "." : "; draft lessons are skipped unless you pass --include-drafts.")
+        (args.skipDrafts ? "; draft lessons are skipped because of --skip-drafts." : ".")
     );
     return;
   }
