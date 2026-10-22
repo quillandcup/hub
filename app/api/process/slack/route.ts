@@ -7,8 +7,10 @@ import { splitIntoWindows } from "@/lib/processing/date-windows";
 // Extend timeout for processing large batches
 export const maxDuration = 300; // 5 minutes
 
-// Days of Slack activity per reprocess_slack_activities_atomic call.
-const REBUILD_WINDOW_DAYS = 7;
+// Days of Slack activity per reprocess_slack_activities_atomic call. The whole call (delete plus
+// both inserts) is one statement under the API role's 8s timeout, and a week of a 30-day import
+// ran past it in prod, so a day it is (the chat projection does the same).
+const REBUILD_WINDOW_DAYS = 1;
 
 /**
  * Process Bronze layer (slack_messages, slack_reactions) into Silver layer (member_activities)
@@ -16,11 +18,11 @@ const REBUILD_WINDOW_DAYS = 7;
  * This endpoint:
  * 1. Loads reference data upfront (members, aliases, Slack users)
  * 2. Matches Slack users to members in memory
- * 3. Calls reprocess_slack_activities_atomic once per week of the range. Each
- *    call transforms that week's Bronze messages and reactions into
- *    member_activities, DELETEing the week's existing Slack activities and
+ * 3. Calls reprocess_slack_activities_atomic once per day of the range. Each
+ *    call transforms that day's Bronze messages and reactions into
+ *    member_activities, DELETEing the day's existing Slack activities and
  *    INSERTing fresh ones in a single transaction (reprocessable, and a
- *    failure leaves that week's old rows in place)
+ *    failure leaves that day's old rows in place)
  */
 export async function POST(request: NextRequest) {
   const auth = await requireAdmin(request);
@@ -110,7 +112,7 @@ export async function POST(request: NextRequest) {
       }
 
       console.log(
-        `Processing complete: inserted ${messages} message activities, ${reactions} reaction activities in ${windows.length} weekly rebuilds`
+        `Processing complete: inserted ${messages} message activities, ${reactions} reaction activities in ${windows.length} daily rebuilds`
       );
     } else {
       console.log("No Slack data in Bronze for this range; leaving existing activities alone");
