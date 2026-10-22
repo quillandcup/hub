@@ -12,6 +12,8 @@ import WithInAppNotifications from '@/components/WithInAppNotifications'
 import SudoBanner from '@/components/SudoBanner'
 import { InstallAppPrompt } from '@/components/InstallAppPrompt'
 import { TimezoneInitializer } from '@/components/TimezoneInitializer'
+import { SecondaryTimezoneProvider } from '@/components/SecondaryTimezone'
+import { isValidTimeZone } from '@/lib/time-zone'
 import FeedbackWidget from '@/components/FeedbackWidget'
 import PageViewTracker from '@/components/PageViewTracker'
 import OnboardingGuide from '@/components/onboarding/OnboardingGuide'
@@ -30,12 +32,13 @@ export default async function MemberLayout({
 
   const { data: profile } = await supabase
     .from('user_profiles')
-    .select('role, timezone_preference')
+    .select('role, timezone_preference, secondary_timezone')
     .eq('id', user.id)
     .single()
 
   const isAdmin = profile?.role === 'admin'
   const storedTimezone = profile?.timezone_preference ?? 'browser'
+  const secondaryTimezone = isValidTimeZone(profile?.secondary_timezone) ? profile.secondary_timezone : null
 
   // Resolved for every member, not just admins previewing — a flag can also
   // be on for someone via a global rollout or a segment (see
@@ -72,6 +75,7 @@ export default async function MemberLayout({
           />
         )}
         {showInstallPrompt && <InstallAppPrompt />}
+        <SecondaryTimezoneProvider zone={secondaryTimezone}>
         <WithInAppNotifications identity={effectiveIdentity}>
           <AppHeader resultsPath="/search" isAdmin={isAdmin}>
             <UserMenu
@@ -84,6 +88,7 @@ export default async function MemberLayout({
           </AppHeader>
           {main}
         </WithInAppNotifications>
+        </SecondaryTimezoneProvider>
         <TimezoneInitializer storedTimezone={storedTimezone} isSudo={effectiveIdentity.isSudo} />
       </div>
       <FeedbackWidget />

@@ -4,6 +4,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { getEffectiveIdentity } from "@/lib/sudo";
 import { ThemeSwitcher } from "./ThemeSwitcher";
 import { TimezoneSwitcher } from "./TimezoneSwitcher";
+import { SecondaryTimezoneSwitcher } from "./SecondaryTimezoneSwitcher";
 import { SessionsPanel } from "./SessionsPanel";
 import { IdentityPanel } from "./IdentityPanel";
 import { ProfilePanel } from "./ProfilePanel";
@@ -32,7 +33,7 @@ export default async function SettingsPage({ tab }: { tab: SettingsTabId }) {
 
   const supabase = await createClient();
   const [{ data: profile }, effectiveIdentity, hostedVibes, notificationSettings, enabledFeatures] = await Promise.all([
-    supabase.from("user_profiles").select("timezone_preference, role").eq("id", user.id).single(),
+    supabase.from("user_profiles").select("timezone_preference, secondary_timezone, role").eq("id", user.id).single(),
     getEffectiveIdentity(user),
     getHostedVibes(),
     getNotificationSettings(),
@@ -132,6 +133,7 @@ export default async function SettingsPage({ tab }: { tab: SettingsTabId }) {
                   <div className="space-y-6">
                     <ThemeSwitcher />
                     <TimezoneSwitcher initialTimezone={timezonePreference} />
+                    <SecondaryTimezoneSwitcher initialTimezone={profile?.secondary_timezone ?? null} />
                   </div>
                 ),
               },

@@ -4,7 +4,7 @@
 // math, slot matching, kept/missed progress, and input validation -- so it's easy to unit test
 // (tests/lib/commitments.test.ts). The server actions in
 // app/(member)/my-prickles/commitment-actions.ts do the fetching.
-import { withOrgTime } from "@/lib/org-time";
+import { withSecondaryTime } from "@/lib/secondary-time";
 
 import { formatScheduleLabel, zonedTimeToUtc } from "@/lib/prickle-schedules";
 import { ORG_TIMEZONE } from "@/lib/config";
@@ -508,7 +508,8 @@ export function buildSlotOptions(
     hostName: string | null;
     nextOccurrenceStart: string;
   }[],
-  timeZone?: string
+  timeZone?: string,
+  secondaryZone: string | null = null
 ): CommitmentSlotOption[] {
   const options: CommitmentSlotOption[] = [];
   for (const row of rows) {
@@ -518,7 +519,7 @@ export function buildSlotOptions(
       ...slot,
       key: row.seriesKey,
       typeName: row.typeName,
-      label: `${row.dayOfWeek} ${timeZone ? withOrgTime(row.timeLabel, row.nextOccurrenceStart, timeZone) : row.timeLabel} · ${row.typeName}${row.hostName ? ` with ${row.hostName}` : ""}`,
+      label: `${row.dayOfWeek} ${timeZone ? withSecondaryTime(row.timeLabel, row.nextOccurrenceStart, timeZone, secondaryZone) : row.timeLabel} · ${row.typeName}${row.hostName ? ` with ${row.hostName}` : ""}`,
       nextDate: localDateFor(new Date(row.nextOccurrenceStart), SCHEDULE_TIMEZONE),
     });
   }

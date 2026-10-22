@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { withOrgTime } from "@/lib/org-time"
+import { WithSecondaryTime } from "@/components/SecondaryTimezone"
 import { hostShortName } from "@/lib/formatters"
 import ReasonBadges from "@/components/ReasonBadges"
 import { CHECKIN_SOON_MS, checkinOffered, type HighlightReason, type UpcomingPrickle } from "@/lib/upcoming-prickles"
@@ -71,7 +71,7 @@ export default function UpcomingPrickleRow({
         </Link>
         <div className="flex-shrink-0 flex flex-wrap items-center justify-end gap-3">
           <p className="text-xs text-slate-500 dark:text-slate-400 text-right">
-            {withOrgTime(formatUpcomingTime(prickle.startTime, timeZone), prickle.startTime, timeZone)}
+            <WithSecondaryTime text={formatUpcomingTime(prickle.startTime, timeZone)} instant={prickle.startTime} timeZone={timeZone} />
           </p>
           {calendar && (
             <div data-tour={tourTarget ? "add-to-calendar" : undefined}>

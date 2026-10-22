@@ -20,7 +20,7 @@ interface TimezoneSwitcherProps {
 }
 
 // Common timezones grouped by region
-const TIMEZONES = [
+export const TIMEZONES = [
   { value: "separator-us", label: "─── United States ───", disabled: true },
   { value: "America/New_York", label: "Eastern Time (ET)" },
   { value: "America/Chicago", label: "Central Time (CT)" },

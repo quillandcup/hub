@@ -42,6 +42,7 @@ export const OUTCOME_ACTIONS = [
   "push_enabled",
   "push_disabled",
   "timezone_changed",
+  "secondary_timezone_changed",
   "session_revoked",
   "profile_saved",
   "ask_me_about_saved",

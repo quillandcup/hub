@@ -1,6 +1,6 @@
 "use client";
 
-import { withOrgTime } from "@/lib/org-time";
+import { useWithSecondaryTime } from "@/components/SecondaryTimezone";
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -69,6 +69,7 @@ export default function AttendanceListTable({
   checkins,
   onOpenCheck,
 }: Props) {
+  const withSecondary = useWithSecondaryTime();
   const router = useRouter();
   const showPills = checkins !== undefined && onOpenCheck !== undefined;
   const columnCount = showPills ? 5 : 4;
@@ -194,7 +195,7 @@ export default function AttendanceListTable({
                           </div>
                         </td>
                         <td className="px-6 py-4 text-sm text-slate-700 dark:text-slate-300">
-                          {withOrgTime(`${formatTime(joinTime)} – ${formatTime(leaveTime)}`, joinTime, timezone)}
+                          {withSecondary(`${formatTime(joinTime)} – ${formatTime(leaveTime)}`, joinTime, timezone)}
                         </td>
                         <td className="px-6 py-4 text-sm text-slate-700 dark:text-slate-300">
                           {duration} min
