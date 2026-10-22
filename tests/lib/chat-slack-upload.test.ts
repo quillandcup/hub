@@ -11,8 +11,6 @@ vi.mock("@slack/web-api", () => ({
 
 import { lookupFileMessageTs, sendChatFilesToSlack, uploadedFileIds, type FileSendContext } from "@/lib/chat/slack-upload";
 
-const fake = useFakeClock();
-
 let storedBytes: Record<string, string>;
 let removed: string[][];
 let updates: { table: string; values: unknown }[];
@@ -86,6 +84,8 @@ describe("uploadedFileIds", () => {
 });
 
 describe("lookupFileMessageTs", () => {
+  useFakeClock();
+
   it("finds the ts from the file's shares, waiting while Slack hasn't shared it yet", async () => {
     filesInfo.mockResolvedValueOnce({ file: { shares: {} } }).mockResolvedValueOnce({ file: { shares: { public: { C1: [{ ts: "9.9" }] } } } });
     expect(await lookupFileMessageTs("xoxb-test", "F1", "C1")).toBe("9.9");
@@ -100,6 +100,8 @@ describe("lookupFileMessageTs", () => {
 });
 
 describe("sendChatFilesToSlack", () => {
+  useFakeClock();
+
   it("uploads the staged bytes as the bot with the member's name on the comment, stores the real ids, marks it sent and keeps permanent copies", async () => {
     const result = await sendChatFilesToSlack(ctx());
 
