@@ -347,8 +347,7 @@ export default function Wheel({ confirmedConnectionCount = 0 }: WheelProps) {
             </div>
           ) : (
             <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
-              Clicking &ldquo;Message on Slack&rdquo; has Billie start a chat with the two of you and
-              post an icebreaker to break the ice.
+              Billie will start a chat with you both and break the ice.
             </p>
           )}
 

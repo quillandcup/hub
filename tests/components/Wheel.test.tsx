@@ -53,7 +53,7 @@ describe("Wheel", () => {
   it("tells the member what Message on Slack will do, and sends nothing until they click it", async () => {
     await spinToTheEnd();
 
-    expect(screen.getByText(/has Billie start a chat/)).toBeInTheDocument();
+    expect(screen.getByText(/Billie will start a chat with you both and break the ice/)).toBeInTheDocument();
     expect(introduceOnSlack).not.toHaveBeenCalled();
   });
 
