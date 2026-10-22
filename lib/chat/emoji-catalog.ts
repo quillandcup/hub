@@ -38,9 +38,11 @@ export type StandardEntry = {
   category: CategoryId;
   /** Lower-case words the search matches besides the names. */
   keywords: string;
+  /** Has skin-tone variants, so a chosen tone applies (the pick is `name::skin-tone-N`). */
+  tonable: boolean;
 };
 
-type RawEmoji = { hexcode: string; emoji: string; label: string; tags?: string[]; group?: number; tone?: unknown };
+type RawEmoji = { hexcode: string; emoji: string; label: string; tags?: string[]; group?: number; tone?: unknown; skins?: unknown[] };
 
 /** Standard emoji that have a Slack shortcode; skin-tone variants are left out (the base emoji is listed). */
 export function buildCatalog(data: RawEmoji[], shortcodes: Record<string, string | string[]>): StandardEntry[] {
@@ -54,6 +56,7 @@ export function buildCatalog(data: RawEmoji[], shortcodes: Record<string, string
       name: names[0],
       unicode: e.emoji,
       category,
+      tonable: (e.skins?.length ?? 0) > 0,
       keywords: [...names.slice(1), e.label, ...(e.tags ?? [])].join(" ").toLowerCase(),
     });
   }
