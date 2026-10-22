@@ -548,8 +548,10 @@ async function fetchThreadReplies(slack: WebClient, parents: any[], startedAt: n
   return { messages, reactions, seenByThread, deferred: queue.length };
 }
 
-const UPSERT_BATCH_SIZE = 500;
-const UPSERT_CONCURRENCY = 4;
+// Small batches: each upsert is one statement under the API role's 8s statement timeout, and a
+// 90-day import's 500-row reaction batches (four at once) hit it in prod.
+const UPSERT_BATCH_SIZE = 100;
+const UPSERT_CONCURRENCY = 2;
 
 async function upsertInBatches(supabase: SupabaseClient, table: string, rows: any[], onConflict: string) {
   const batches: any[][] = [];
