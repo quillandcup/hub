@@ -1,4 +1,4 @@
--- pgTAP tests for 20261203000000_chat_post_with_files.sql:
+-- pgTAP tests for 20261203000100_chat_post_with_files.sql:
 --  * chat_post_message takes files: text or files is enough, files must be 1 to 10 well-formed
 --    'pending-' entries, and the message is saved with has_files and its file list;
 --  * the three-argument form still works;
