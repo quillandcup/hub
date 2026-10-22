@@ -4,6 +4,9 @@ import { cleanup, render, screen, waitFor, fireEvent } from "@testing-library/re
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
 
+// The picker lays out the whole emoji catalog; a loaded CI runner needs more than the 5s default.
+vi.setConfig({ testTimeout: 30_000 });
+
 const track = vi.fn();
 vi.mock("@/lib/analytics/client", () => ({ track: (...a: unknown[]) => track(...a) }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
