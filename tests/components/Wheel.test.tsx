@@ -4,7 +4,8 @@ import { act, cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 const spinWheel = vi.hoisted(() => vi.fn());
-vi.mock("@/app/(member)/wheel-of-wonder/actions", () => ({ spinWheel }));
+const introduceOnSlack = vi.hoisted(() => vi.fn());
+vi.mock("@/app/(member)/wheel-of-wonder/actions", () => ({ spinWheel, introduceOnSlack }));
 
 import Wheel from "@/app/(member)/wheel-of-wonder/Wheel";
 
@@ -12,9 +13,6 @@ const winner = {
   memberId: "mbr_1",
   memberName: "Fern Quillsby",
   photoUrl: null,
-  dmUrl: "https://slack.example/dm",
-  roomCreated: true,
-  starterText: null,
 };
 
 describe("Wheel", () => {
@@ -47,9 +45,34 @@ describe("Wheel", () => {
   it("shows the winner's buttons stacked until there is room for a row (@pair)", async () => {
     await spinToTheEnd();
 
-    const slack = screen.getByRole("link", { name: /Message on Slack/ });
-    expect(slack).toHaveAttribute("href", winner.dmUrl);
+    const slack = screen.getByRole("button", { name: /Message on Slack/ });
     expect(slack.parentElement).toHaveClass("flex-col", "@pair:flex-row", "@pair:justify-center");
     expect(screen.getByRole("button", { name: "Spin Again" })).toBeInTheDocument();
+  });
+
+  it("tells the member what Message on Slack will do, and sends nothing until they click it", async () => {
+    await spinToTheEnd();
+
+    expect(screen.getByText(/has Billie start a chat/)).toBeInTheDocument();
+    expect(introduceOnSlack).not.toHaveBeenCalled();
+  });
+
+  it("introduces the pair only on click, then offers the icebreaker when no room could be made", async () => {
+    introduceOnSlack.mockResolvedValue({ url: "https://slack.example/dm", roomCreated: false, starterText: "Ask about their week" });
+    await spinToTheEnd();
+
+    await userEvent.click(screen.getByRole("button", { name: /Message on Slack/ }));
+
+    expect(introduceOnSlack).toHaveBeenCalledWith(winner.memberId);
+    expect(await screen.findByText("Ask about their week")).toBeInTheDocument();
+  });
+
+  it("shows the error when the introduction fails", async () => {
+    introduceOnSlack.mockResolvedValue({ error: "Couldn't find that member on Slack" });
+    await spinToTheEnd();
+
+    await userEvent.click(screen.getByRole("button", { name: /Message on Slack/ }));
+
+    expect(await screen.findByText("Couldn't find that member on Slack")).toBeInTheDocument();
   });
 });

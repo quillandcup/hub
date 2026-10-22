@@ -34,6 +34,7 @@ export const OUTCOME_ACTIONS = [
   "chat_message_deleted",
   // Community
   "wheel_spun",
+  "wheel_introduced",
   "big_sister_availability_set",
   "member_note_saved",
   // Settings
