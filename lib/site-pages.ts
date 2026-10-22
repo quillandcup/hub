@@ -98,7 +98,6 @@ export const SITE_PAGES: SitePage[] = [
   member({ title: "Events", href: "/events", section: "Community", nav: { icon: "📸" }, keywords: ["retreat", "meetup"], feature: "events" }),
 
   // Member pages the sidebar doesn't link
-  member({ title: "Network", href: "/network", section: "Community", keywords: ["graph", "connections"] }),
   member({ title: "Notifications", href: "/notifications", section: "Inbox", keywords: ["inbox", "bell", "alerts"] }),
   member({ title: "Privacy", href: "/privacy", section: "Help", keywords: ["data", "policy", "who can see"] }),
 
