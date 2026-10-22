@@ -179,9 +179,9 @@ export default function MessageList({
       {groupByDay(messages, timeZone, firstUnreadId).map((day) => (
         <section key={day.key} aria-label={day.label}>
           {/* Each day's marker sticks to the top while its messages scroll; the next one pushes it off. */}
-          <div role="separator" aria-label={day.label} className="pointer-events-none sticky top-0 z-10 flex items-center py-2">
+          <div role="separator" aria-label={day.label} className="sticky top-0 z-10 flex items-center bg-canvas py-2 dark:bg-slate-950">
             <span className="h-px flex-1 bg-slate-200 dark:bg-slate-700" />
-            <span className="pointer-events-auto rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold dark:border-slate-700 dark:bg-slate-900">
+            <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold dark:border-slate-700 dark:bg-slate-900">
               {day.label}
             </span>
             <span className="h-px flex-1 bg-slate-200 dark:bg-slate-700" />
