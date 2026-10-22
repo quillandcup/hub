@@ -59,7 +59,7 @@ describe("MessageFiles attachments", () => {
   it("enlarges an image and closes it", async () => {
     render(<MessageFiles messageId="m1" files={files} />);
     await userEvent.click(screen.getByRole("button", { name: "Enlarge a.png" }));
-    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "a.png" })).toBeInTheDocument();
     await userEvent.keyboard("{Escape}");
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });

@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { deleteChatFile } from "@/app/(member)/chat/actions";
+import ImageLightbox from "@/components/ImageLightbox";
 import { chatFileUrl, formatFileSize, isInlineImage, type ChatFile } from "@/lib/chat/files";
 
 const iconBtn =
@@ -14,24 +15,6 @@ function triggerDownload(href: string, name: string | null) {
   document.body.appendChild(a);
   a.click();
   a.remove();
-}
-
-/** Click-to-enlarge overlay; swap for components/ImageLightbox when it lands. */
-function Enlarged({ src, alt, onClose }: { src: string; alt: string; onClose: () => void }) {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
-  return (
-    <div role="dialog" aria-label={alt} className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4" onClick={onClose}>
-      {/* eslint-disable-next-line @next/next/no-img-element -- access-checked chat files route */}
-      <img src={src} alt={alt} className="max-h-full max-w-full object-contain" />
-      <button type="button" aria-label="Close" onClick={onClose} className="absolute right-4 top-4 text-2xl text-white">
-        ×
-      </button>
-    </div>
-  );
 }
 
 function ImageTile({
@@ -131,7 +114,7 @@ function ImageTile({
 export default function MessageFiles({ messageId, files, canDelete = false }: { messageId: string; files: ChatFile[]; canDelete?: boolean }) {
   const [open, setOpen] = useState(true);
   const [removed, setRemoved] = useState<Set<string>>(new Set());
-  const [enlarged, setEnlarged] = useState<ChatFile | null>(null);
+  const [enlarged, setEnlarged] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [, startTransition] = useTransition();
 
@@ -169,7 +152,7 @@ export default function MessageFiles({ messageId, files, canDelete = false }: { 
           {images.length > 0 && (
             <div className="flex flex-row gap-2 overflow-x-auto pb-1">
               {images.map((f) => (
-                <ImageTile key={f.id} messageId={messageId} file={f} canDelete={canDelete} onDelete={remove} onOpen={() => setEnlarged(f)} />
+                <ImageTile key={f.id} messageId={messageId} file={f} canDelete={canDelete} onDelete={remove} onOpen={() => setEnlarged(images.indexOf(f))} />
               ))}
             </div>
           )}
@@ -188,7 +171,13 @@ export default function MessageFiles({ messageId, files, canDelete = false }: { 
           ))}
         </>
       )}
-      {enlarged && <Enlarged src={chatFileUrl(messageId, enlarged.id)} alt={enlarged.name ?? "Image"} onClose={() => setEnlarged(null)} />}
+      {enlarged !== null && (
+        <ImageLightbox
+          images={images.map((f) => ({ src: chatFileUrl(messageId, f.id), name: f.name ?? "Image" }))}
+          startIndex={enlarged}
+          onClose={() => setEnlarged(null)}
+        />
+      )}
     </div>
   );
 }
