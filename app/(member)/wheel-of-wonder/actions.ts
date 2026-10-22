@@ -42,12 +42,18 @@ export interface WheelWinner {
   memberId: string;
   memberName: string;
   photoUrl: string | null;
-  dmUrl: string;
-  /** True if the bot created a 3-person room and already posted the icebreaker into it. */
+}
+
+export interface WheelIntroduction {
+  /** Where to send the member: the 3-person room if it was created, else the plain 1:1 DM. */
+  url: string;
+  /** True if the bot created a 3-person room and posted the icebreaker into it. */
   roomCreated: boolean;
-  /** Set only when roomCreated is false — an icebreaker the client should offer to copy next to the DM link. */
+  /** Set only when roomCreated is false: an icebreaker the client should offer to copy. */
   starterText: string | null;
 }
+
+export type WheelIntroResponse = WheelIntroduction | { error: string };
 
 export interface WheelSpinResult {
   winner: WheelWinner;
@@ -209,26 +215,66 @@ async function spinWheelImpl(): Promise<WheelSpinResponse> {
 
   if (!winner) return { noOneAvailable: true };
 
-  let dmUrl = "https://quillandcup.slack.com";
+  const reel = buildReel(winner, pool, REEL_SLOT_COUNT).map((c) => ({
+    memberId: c.memberId,
+    memberName: c.memberName,
+    photoUrl: c.photoUrl,
+  }));
+
+  return {
+    winner: {
+      memberId: winner.memberId,
+      memberName: winner.memberName,
+      photoUrl: winner.photoUrl,
+    },
+    reel,
+  };
+}
+
+// Usage analytics: each action records whether it worked (lib/analytics/server.ts).
+export async function spinWheel(...args: Parameters<typeof spinWheelImpl>): ReturnType<typeof spinWheelImpl> {
+  return withAction("wheel_spun", () => spinWheelImpl(...args), (result) => ("noOneAvailable" in result ? { ok: true, detail: "nobody" } : actionOutcome(result)));
+}
+
+/**
+ * Runs only when the member clicks "Message on Slack": spinning just picks a match and posts nothing.
+ * Prefers a pre-seeded 3-person room (spinner + winner + bot) over a bare 1:1 DM link so the match
+ * isn't two strangers staring at a blank conversation, and so a real reply can be detected as a
+ * confirmed connection via the Slack Events webhook (app/api/webhooks/slack/route.ts). Any failure
+ * (missing scope, rate limit, etc.) falls back to the plain DM link plus a copyable icebreaker.
+ */
+async function introduceOnSlackImpl(winnerMemberId: string): Promise<WheelIntroResponse> {
+  const supabase = await createClient();
+
+  const user = await getCurrentUser();
+  if (!user) return { error: "Not authenticated" };
+
+  const effectiveIdentity = await getEffectiveIdentity(user);
+  if (!effectiveIdentity) return { error: "No member record" };
+
+  const slackToken = process.env.SLACK_BOT_TOKEN;
+  if (!slackToken) return { error: "Slack isn't configured for this workspace yet" };
+
+  const { pool, viewerSlackUserId } = await loadCandidatePool(effectiveIdentity.memberId);
+  const winner = pool.find((c) => c.memberId === winnerMemberId);
+  if (!winner?.slackUserId) return { error: "Couldn't find that member on Slack" };
+
+  const slack = new WebClient(slackToken);
+
+  let url = "https://quillandcup.slack.com";
   let teamId: string | undefined;
   try {
     const auth = await slack.auth.test();
     teamId = auth.team_id;
     if (teamId) {
-      dmUrl = `slack://user?team=${teamId}&id=${winner.slackUserId}`;
+      url = `slack://user?team=${teamId}&id=${winner.slackUserId}`;
     }
   } catch (error) {
     console.error("Wheel of Wonder: failed to resolve Slack team ID for DM link:", error);
   }
 
-  // Prefer a pre-seeded 3-person room (spinner + winner + bot) over a bare
-  // 1:1 DM link so the match isn't two strangers staring at a blank
-  // conversation, and so a real reply can be detected as a confirmed
-  // connection via the Slack Events webhook (app/api/webhooks/slack/route.ts).
-  // Any failure here (missing scope, rate limit, etc.) must never break the
-  // core Wheel of Wonder experience -- silently fall back to the plain DM link.
   let roomCreated = false;
-  if (teamId && viewerSlackUserId && winner.slackUserId) {
+  if (teamId && viewerSlackUserId) {
     try {
       const conversation = await slack.conversations.open({
         users: [viewerSlackUserId, winner.slackUserId].join(","),
@@ -248,7 +294,7 @@ async function spinWheelImpl(): Promise<WheelSpinResponse> {
       // point the member there regardless of whether the tracking insert
       // below succeeds, so a DB hiccup can't strand them on the 1:1 DM link
       // while a populated room sits unlinked in the background.
-      dmUrl = `slack://channel?team=${teamId}&id=${channelId}`;
+      url = `slack://channel?team=${teamId}&id=${channelId}`;
       roomCreated = true;
 
       const { error: insertError } = await supabase.from("wheel_of_wonder_matches").insert({
@@ -271,31 +317,13 @@ async function spinWheelImpl(): Promise<WheelSpinResponse> {
   }
 
   // Slack gives us no way to pre-fill text into a bare DM compose box, so
-  // when we couldn't create (or didn't attempt) the shared room, hand the
-  // client an icebreaker to show as copyable text next to the DM link
-  // instead of leaving the member facing a blank conversation.
-  const starterText = roomCreated ? null : pickConversationStarter();
-
-  const reel = buildReel(winner, pool, REEL_SLOT_COUNT).map((c) => ({
-    memberId: c.memberId,
-    memberName: c.memberName,
-    photoUrl: c.photoUrl,
-  }));
-
-  return {
-    winner: {
-      memberId: winner.memberId,
-      memberName: winner.memberName,
-      photoUrl: winner.photoUrl,
-      dmUrl,
-      roomCreated,
-      starterText,
-    },
-    reel,
-  };
+  // when we couldn't create the shared room, hand the client an icebreaker to
+  // show as copyable text instead of leaving the member facing a blank conversation.
+  return { url, roomCreated, starterText: roomCreated ? null : pickConversationStarter() };
 }
 
-// Usage analytics: each action records whether it worked (lib/analytics/server.ts).
-export async function spinWheel(...args: Parameters<typeof spinWheelImpl>): ReturnType<typeof spinWheelImpl> {
-  return withAction("wheel_spun", () => spinWheelImpl(...args), (result) => ("noOneAvailable" in result ? { ok: true, detail: "nobody" } : actionOutcome(result)));
+export async function introduceOnSlack(
+  ...args: Parameters<typeof introduceOnSlackImpl>
+): ReturnType<typeof introduceOnSlackImpl> {
+  return withAction("wheel_introduced", () => introduceOnSlackImpl(...args), actionOutcome);
 }
